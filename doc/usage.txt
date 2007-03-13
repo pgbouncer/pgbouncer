@@ -1,0 +1,153 @@
+#pragma section-numbers 2
+
+= PgBouncer usage details =
+
+[[TableOfContents]]
+
+== Building ==
+
+PgBouncer uses [http://monkey.org/~provos/libevent/ libevent]
+for low-level socket handling.  When this is installed just run:
+
+{{{
+$ ./configure --prefix=/usr/local --with-libevent=/prefix
+$ make
+$ make install
+}}}
+
+== Command line usage ==
+{{{
+pgbouncer [-d][-R][-v] config.ini
+pgbouncer -V|-h
+}}}
+
+Where switches are:
+
+ -d::
+	Run in background.  Without it the process will run in foreground.
+
+ -R::
+	Do a online restart.  That means connecting to running process,
+	loading open sockets from it and using them.
+
+ -v::
+	Increase verbosity.
+
+ -V::
+	Show version.
+
+ -h::
+	Show short help.
+
+
+== Admin Console ==
+
+There is always a extra database available: "pgbouncer".
+When connecected to it, there is possible to look and change
+pooler settings.
+
+{{{
+SHOW STATS;
+}}}
+Shows statistics.
+
+{{{
+SHOW SERVERS;
+SHOW CLIENTS;
+SHOW POOLS;
+SHOW LISTS;
+}}}
+Shows internal info.
+
+{{{
+SHOW USERS;
+SHOW DATABASES;
+}}}
+Shows loaded users and databases.
+
+{{{
+SHOW FDS;
+}}}
+Shows list of fds in use.  When the connected user has username
+"pgbouncer", connects thru unix socket and has same UID as running process
+the actual fds are passed over connection.  This mechanism is used
+to do online restart.
+
+{{{
+PAUSE;
+}}}
+PgBouncer tries to disconnect from all servers, first waiting for
+all queries to complete.  The command will not return before all is done.
+
+{{{
+SUSPEND;
+}}}
+
+All socket buffers are flushed and PgBouncer stops listening data on them.
+The command will not return before all is done.
+
+{{{
+RESUME
+}}}
+
+Resume work from previous PAUSE or SUSPEND command.
+
+{{{
+SHUTDOWN
+}}}
+The PgBouncer process will exit.
+
+
+== Online restart ==
+
+PgBouncer supports restart without dropping connections.  When launched
+with switch "-R", it will connect to running PgBouncer process via
+unix socket and issues commands:
+
+{{{
+SUSPEND;
+SHOW FDS;
+SHUTDOWN;
+}}}
+Then it waits until old process shuts down and then starts listening on
+aquired sockets.
+
+== Signals ==
+
+ SIGHUP::
+	Reload config.
+
+ SIGINT::
+	Safe shutdown.
+
+ SIGTERM::
+	Immidiate shutdown.
+
+== libevent settings ==
+
+From libevent docs:
+
+{{{
+It is possible to disable support for epoll, kqueue, devpoll, poll or select
+by setting the environment variable EVENT_NOEPOLL, EVENT_NOKQUEUE, EVENT_NODEVPOLL,
+EVENT_NOPOLL or EVENT_NOSELECT, respectively.  By setting the environment variable
+EVENT_SHOW_METHOD, libevent displays the kernel notification method that it uses.
+}}}
+
+== Authentication file format ==
+
+PgBouncer needs its own user database.  The users are loaded from
+text file that should be in same format as PostgreSQL's pg_auth/pg_pwd
+file.
+
+{{{
+"username1" "password" ...
+"username2" "md12342345234" ...
+}}}
+
+There shoud be at least 2 fields, surrounded by double quotes.  First
+is username and second either plain-text or md5-hashed password.
+PgBouncer ignores rest of the line.
+
+Such file format allows to direct PgBouncer directly to PostgreSQL
+user file under data directory.

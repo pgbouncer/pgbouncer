@@ -1,0 +1,229 @@
+#pragma section-numbers 2
+
+= PgBouncer Config =
+
+[[TableOfContents]]
+
+Config file is in "ini" format.  Section names are between "[" and "]".
+Lines starting with ";" or "#" are taken as comment and ignored.  The characters
+";" and "#" are not recognized when they appear later in the line.
+
+
+
+== Section [pgbouncer] ==
+
+=== Generic settings ===
+
+==== logfile ====
+Specifies log file.  Logging is done by open/write/close, so it can be safely
+rotasted, without informing pooler.
+
+Default: not set.
+
+
+==== pidfile ====
+Specifies pid file.  Without pidfile, the daemonization is not allowed.
+
+Default: not set.
+
+
+==== listen_addr ====
+Specifies IPv4 address, where to listen for TCP connections.  Or "*"
+meaning "listen on all addresses".   When not set, only unix socket
+connections are allowed.
+
+Default: not set.
+
+==== listen_port ====
+On which port to listen on.  Applies to both TCP and Unix sockets.
+
+Default: 6000
+
+==== unix_socket_dir ====
+Specifies location for Unix sockets.  Applies to both listening socket
+and server connections.  If set to empty string, Unix sockets are disabled.
+
+Default: /tmp
+
+==== auth_file ====
+
+Load user names and passwords from this file.  File format used
+is same as for PostgreSQL pg_auth/pg_pwd file, so can be pointed
+directly to backend file.
+
+Default: not set.
+
+==== auth_type ====
+How to authenticate users.
+
+ md5::
+	Use MD5-based password check.  auth_file may contain both md5-encrypted
+	or plain-text passwords.
+
+ crypt::
+	Use crypt(3) based bassword check.  auth_file must contain plain-text
+	passwords.
+
+ plain::
+	Clear-text password is sent over wire.
+
+ trust::
+	No authentication is done.  Username must still exists in auth_file.
+
+ any::
+	Like `trust` but username given is ignored.  Requires that all databases
+	have configured to log in as specific user.
+
+Default: md5
+
+==== pool_mode ====
+Specifies when server connection is tagged as reusable for other clients.
+
+ session::
+	Server is released back to pool after client disconnects.
+
+ transaction::
+	Server is released back to pool after transaction finishes.
+
+ statement::
+	Server is released back to pool after query finishes.  Long transactions
+	spanning multiple statements are disallowed in this mode.
+
+Default: `session`.
+
+==== max_client_conn ====
+
+Maximin number of client connections allowed.
+
+==== default_pool_size ====
+
+How many server connection to allow per user/database pair.
+Can be overrided in per-database config.
+
+=== Console access control ===
+
+==== admin_users ====
+List of users that are allowed to run all commands on console.
+
+==== stats_users ====
+
+List of users that are allowed to run read-only queries on console.
+Thats means all SHOW commands except SHOW FDS.
+
+=== Connection sanity checks, timeouts ===
+
+==== server_check_delay ====
+
+How long to keep released immidiately available, without running
+sanity-check query on it.  If 0 then the query is ran always.
+
+==== server_check_query ====
+
+Good variants are `SELECT 1;`, to just see if connection is alive
+and `ABORT; RESET ALL; SET SESSION AUTHORIZATION DEFAULT`
+to do full reset.
+
+If empty string, then sanity checking is disabled.
+
+==== server_lifetime ====
+
+Pooler tries to close server connections that are been connected
+longer than this.
+
+==== server_idle_timeout ====
+
+If server connection has been idle more than this then there's too many
+connections in the pool and this on can be dropped.
+
+==== server_connect_timeout ====
+
+If connection and login wont finish in this time, the connection will
+be closed.
+
+==== server_login_retry ====
+
+If login failed, because of failure from connect() or authentication
+that pooler waits this much before retrying to connect.
+
+==== query_timeout ====
+
+Queries running longer than that are canceled.  This should be used
+only with slightly smaller server-side statement_timeout, to apply only
+for network problems.
+
+Default: 0 (disabled)
+
+==== client_idle_timeout ====
+
+Client connections idling longer than that are closed.
+
+Default: 0 (disabled)
+
+=== Low-level network settings ===
+
+==== pkt_buf ====
+
+Internal buffer size for packets.  Affects size of TCP packets sent
+and general memory usage.  Actual libpq packets can be larger than this
+so no need to set it large.
+
+Default: 2048
+
+==== tcp_defer_accept ====
+
+Details about following options shouldbe looked from `man 7 tcp`
+
+Default: 45 on Linux, otherwise 0
+
+==== tcp_socket_buffer ====
+
+Default: not set
+
+==== tcp_keepalive ====
+
+Default: Not set
+
+==== tcp_keepcnt ====
+Default: not set
+
+==== tcp_keepidle ====
+Default: not set
+==== tcp_keepintvl ====
+Default: not set
+
+== Section [databases] ==
+
+This contains key=value pairs where key will be taken as database name and value as
+libpq-connstring style list of key=value pairs.  As actual libpq is not used, so
+not all features from libpq can be used (service=, quoting).
+
+=== dbname ===
+
+Destination database name.
+
+Default: same as client-side database name.
+
+=== host ===
+
+IP-address to connect to.
+
+Default: not set, meaning to use unix-socket.
+
+=== port ===
+
+Default: 5432
+
+=== user, password ===
+
+If user= is set, all connections to destination database will be done
+with that user, meaning that there will be only one pool for this database.
+
+Otherwise pgbouncer tries to log into destination database with client username,
+meaning that there will be one pool per user.
+
+=== client_encoding, datestyle ===
+
+As pgbouncer does not pass client startup packet to server, there is no way of specifying
+startup paramenters to dest database.  These paramenters make possible to set startup
+paramenters in pgbouncer config.  Escpecially, client_encoding=UNICODE is needed to work
+around JDBC driver bug.

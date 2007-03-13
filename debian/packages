@@ -1,0 +1,27 @@
+## debian/packages for pgbouncer
+
+Source: pgbouncer
+Section: contrib/misc
+Priority: extra
+Maintainer: Marko Kreen <marko.kreen@skype.net>
+Standards-Version: 3.6.2
+Description: Lightweight connection pooler for PostgreSQL 
+Copyright: BSD
+ Copyright 2007 Marko Kreen, Skype Technologies
+Build: sh
+ CPPFLAGS="-I$HOME/src/libevent" \
+ LDFLAGS="-L$HOME/src/libevent/.libs" \
+ ./configure --prefix=/usr --enable-debug --enable-cassert
+ make V=1
+Clean: sh
+ make clean || true
+#Build-Depends: libevent-dev
+
+Package: pgbouncer
+Architecture: any
+Contains: unstripped
+Depends: []
+Description: Lightweight connection pooler for PostgreSQL
+ .
+Install: sh
+ make install DESTDIR=$ROOT

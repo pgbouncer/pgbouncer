@@ -1,0 +1,22 @@
+
+PgBouncer
+=========
+
+Lightweight connection pooler for PostgreSQL.
+
+Docs:   http://developer.skype.com/SkypeGarage/DbProjects/PgBouncer
+Source: http://pgfoundry.org/projects/pgbouncer
+
+Building
+---------
+
+PgBouncer uses libevent for low-level socket handling.  When this is
+installed just run:
+
+	$ ./configure --prefix=/usr/local --with-libevent=/prefix
+	$ make
+	$ make install
+
+If the OS does not have libevent available as package, it can be
+downloaded from http://monkey.org/~provos/libevent/
+

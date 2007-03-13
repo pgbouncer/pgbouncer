@@ -1,0 +1,33 @@
+PACKAGE_VERSION = @PACKAGE_VERSION@
+PACKAGE_TARNAME = @PACKAGE_TARNAME@
+
+DEFS = @DEFS@
+LIBS = @LIBS@
+CC = @CC@
+CPP = @CPP@
+CPPFLAGS = @CPPFLAGS@
+CFLAGS = @CFLAGS@
+LDFLAGS = @LDFLAGS@
+
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+bindir = @bindir@
+datarootdir = @datarootdir@
+sysconfdir = @sysconfdir@
+sharedstatedir = @sharedstatedir@
+docdir = @docdir@
+
+top_builddir = @top_builddir@
+srcdir = @srcdir@
+abs_srcdir = @abs_srcdir@
+top_srcdir = @top_srcdir@
+abs_top_srcdir = @abs_top_srcdir@
+builddir = @builddir@
+abs_builddir = @abs_builddir@
+abs_top_builddir = @abs_top_builddir@
+
+# autoconf does not want to find 'install'
+# if im not using automake...
+INSTALL = @INSTALL@
+BININSTALL = @BININSTALL@
+

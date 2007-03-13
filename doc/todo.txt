@@ -1,0 +1,21 @@
+= PgBouncer TODO list =
+
+ * -R should detect that no pooler is running and boot normally
+ * -R should detect if login fails then exit()
+ * PAUSE <db>; RESUME <db>;
+
+ * keep stats about error counts?
+ * SHUTDOWN cmd should print notice?
+ * before loading users, disable all existing?
+
+ * log_connects, log_disconnects settings
+
+== Bugs ==
+
+ * Bouncer can get into situation where SUSPEND wont work (stalls),
+ thus making reboot impossible.
+
+ * Light load with small server_check_delay creates situation where
+ some clients may never get server connection.  Applied a hack to
+ fix this, needs more analysis.
+

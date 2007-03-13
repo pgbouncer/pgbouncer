@@ -1,0 +1,44 @@
+
+= PgBouncer =
+
+Lightweight connection pooler for PostgreSQL.
+
+Downloads, bugtracker, CVS: http://pgfoundry.org/projects/pgbouncer
+
+== Features ==
+
+ * Several levels of brutality when rotating connections:
+
+  Session pooling::
+	Most polite method.  When client connects, a server connection
+	will be assigned to it for the whole duration it stays connected.
+	When client disconnects, the server connection will be put back
+	into pool.
+
+  Transaction pooling::
+	Server connection is assigned to client only during a transaction.
+	When PgBouncer notices that transaction is over, the server
+	will be put back into pool.
+
+  Statement pooling::
+	Most aggressive method.  The server connection will be put back into
+	pool immidiately after a query completes.  Multi-statement
+	transactions are disallowed in this mode as they would break.
+
+ * Low memory requirements (2k per connection by default).  This is due
+ to the fact that PgBouncer does not need to see full packet at once.
+
+ * It is not tied to one backend server, the destination databases can
+ reside on different hosts.
+
+ * Supports online reconfiguration for most of the settings.
+
+ * Supports online restart - is able transfer sockets to new process.
+
+ * Supports protocol V3 only, so backend version must be >= 7.4.
+
+== Docs ==
+
+ * Detailed usage info: ./UsageInfo
+ * COnfig file help: ./ConfigFile
+ * TODO list: ./ToDo

@@ -244,13 +244,13 @@ void sbuf_prepare_skip(SBuf *sbuf, int amount)
 /* libevent EV_WRITE: called when dest socket is writable again */
 static void sbuf_send_cb(int sock, short flags, void *arg)
 {
-	bool res;
 	SBuf *sbuf = arg;
 
+	/* prepare normal situation for sbuf_recv_cb() */
 	sbuf->wait_send = 0;
-	res = sbuf_process_pending(sbuf);
-	if (res)
-		sbuf_wait_for_data(sbuf);
+	sbuf_wait_for_data(sbuf);
+
+	sbuf_recv_cb(sbuf->sock, EV_READ, sbuf);
 }
 
 /* socket is full, wait until its writable again */
@@ -429,8 +429,9 @@ try_more:
 	sbuf_try_resync(sbuf);
 
 	/*
-	 * FIXME: When called from sbuf_continue(), there is already
-	 * data waiting.  Thus there will be unneccesary recv().
+	 * FIXME: When called from sbuf_continue()/sbuf_send_cb(),
+	 * there is already data waiting.  Thus there will be
+	 * unneccesary recv().
 	 */
 	free = cf_sbuf_len - sbuf->recv_pos;
 	if (free > SMALL_PKT) {

@@ -493,21 +493,24 @@ static bool admin_show_pools(PgSocket *admin)
 	List *item;
 	PgPool *pool;
 	PktBuf *buf;
+	PgSocket *waiter;
+	usec_t now = get_cached_time();
 
 	buf = pktbuf_dynamic(256);
 	if (!buf) {
 		admin_error(admin, "no mem");
 		return true;
 	}
-	pktbuf_write_RowDescription(buf, "ssiiiiiii",
+	pktbuf_write_RowDescription(buf, "ssiiiiiiii",
 				    "database", "user",
 				    "cl_active", "cl_waiting",
 				    "sv_active", "sv_idle",
 				    "sv_used", "sv_tested",
-				    "sv_login");
+				    "sv_login", "maxwait");
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
-		pktbuf_write_DataRow(buf, "ssiiiiiii",
+		waiter = first_socket(&pool->waiting_client_list);
+		pktbuf_write_DataRow(buf, "ssiiiiiiii",
 				     pool->db->name, pool->user->name,
 				     statlist_count(&pool->active_client_list),
 				     statlist_count(&pool->waiting_client_list),
@@ -515,7 +518,10 @@ static bool admin_show_pools(PgSocket *admin)
 				     statlist_count(&pool->idle_server_list),
 				     statlist_count(&pool->used_server_list),
 				     statlist_count(&pool->tested_server_list),
-				     statlist_count(&pool->new_server_list));
+				     statlist_count(&pool->new_server_list),
+				     /* how long is the oldest client waited */
+				     (waiter && waiter->query_start)
+				     ?  (int)((now - waiter->query_start) / USEC) : 0);
 	}
 	admin_flush(admin, buf, "SHOW");
 	return true;

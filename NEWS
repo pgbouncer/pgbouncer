@@ -1,0 +1,20 @@
+
+2007-03-15  -  PgBouncer 1.0.1  -  "Alien technology"
+
+  = Fixes =
+
+  * Mixed usage of cached and non-cached time, plus unsiged usec_t typedef
+    created spurious query_timeout errors.
+  * Fix rare case when socket woken up from send-wait could stay stalling.
+  * More fair queueing of server connections.  Before, a new query could
+    get a server connections before older one.
+
+  = Features =
+
+  * SHOW SOCKETS command to have detailed info about state state.
+  * Put PgSocket ptr to log, to help tracking one connection.
+
+2007-03-13  -  PgBouncer 1.0  -  "Tuunitud bemm"
+
+  * First public release.
+

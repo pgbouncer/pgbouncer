@@ -17,6 +17,3 @@
 
 == Bugs ==
 
- * Bouncer can get into situation where SUSPEND wont work (stalls),
- thus making reboot impossible.
-

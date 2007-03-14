@@ -7,7 +7,7 @@ HDRS = client.h loader.h objects.h pooler.h proto.h sbuf.h server.h util.h \
        list.h mbuf.h system.h
 
 # data & dirs to include in tgz
-DATA = README etc/pgbouncer.ini Makefile config.mak.in config.h.in \
+DATA = README NEWS etc/pgbouncer.ini Makefile config.mak.in config.h.in \
        configure configure.ac debian/packages debian/changelog
 DIRS = etc src debian
 

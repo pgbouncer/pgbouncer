@@ -10,12 +10,13 @@
 
  * log_connects, log_disconnects settings
 
+ * Split CL_IDLE from CL_ACTIVE.  Does not give functional
+ advantage, but makes monitoring easier.
+
+ * SHOW POOLS should give time a client has waited for connection.
+
 == Bugs ==
 
  * Bouncer can get into situation where SUSPEND wont work (stalls),
  thus making reboot impossible.
-
- * Light load with small server_check_delay creates situation where
- some clients may never get server connection.  Applied a hack to
- fix this, needs more analysis.
 

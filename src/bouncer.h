@@ -281,11 +281,8 @@ pop_socket(StatList *slist)
 static inline PgSocket *
 first_socket(StatList *slist)
 {
-	if (statlist_empty(slist)) {
-		log_debug("first_socket: statlist_empty");
+	if (statlist_empty(slist))
 		return NULL;
-	}
-	log_debug("first_socket: next=%p", slist->head.next);
 	return container_of(slist->head.next, PgSocket, head);
 }
 

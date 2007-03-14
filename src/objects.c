@@ -556,6 +556,13 @@ void release_server(PgSocket *server)
 	log_debug("release_server: new state=%d", newstate);
 
 	change_server_state(server, newstate);
+
+	/* immidiately process waiters, to give fair chance */
+	if (newstate == SV_IDLE) {
+		PgSocket *client = first_socket(&pool->waiting_client_list);
+		if (client)
+			activate_client(client);
+	}
 }
 
 /* drop server connection */

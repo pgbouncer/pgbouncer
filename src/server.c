@@ -190,7 +190,7 @@ static bool handle_server_work(PgSocket *server, MBuf *pkt)
 		usec_t total;
 		Assert(client->query_start != 0);
 		
-		total = get_time_usec() - client->query_start;
+		total = get_cached_time() - client->query_start;
 		client->query_start = 0;
 		server->pool->stats.query_time += total;
 		slog_debug(client, "query time: %d us", (int)total);

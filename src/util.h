@@ -22,7 +22,6 @@
 typedef uint64_t usec_t;
 usec_t get_cached_time(void);
 void reset_time_cache(void);
-usec_t get_time_usec(void);
 
 /*
  * load file into malloced buffer

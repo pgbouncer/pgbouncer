@@ -157,7 +157,7 @@ void stats_setup(void)
 {
 	struct timeval period = { cf_stats_period, 0 };
 
-	new_stamp = get_time_usec();
+	new_stamp = get_cached_time();
 	old_stamp = new_stamp - USEC;
 
 	/* launch maintenance */

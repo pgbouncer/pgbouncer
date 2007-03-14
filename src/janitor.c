@@ -47,7 +47,7 @@ static int suspend_socket_list(StatList *list)
 	statlist_for_each(item, list) {
 		sk = container_of(item, PgSocket, head);
 		if (!sk->suspended) {
-			if (sbuf_empty(&sk->sbuf)) {
+			if (sbuf_has_no_state(&sk->sbuf)) {
 				sbuf_pause(&sk->sbuf);
 				sk->suspended = 1;
 			} else
@@ -151,16 +151,10 @@ static void per_loop_activate(PgPool *pool)
 			activate_client(client);
 		} else if (!statlist_empty(&pool->tested_server_list)) {
 			/* some connections are in testing process */
-
-			/* not enough connections? (X) */
-			launch_new_connection(pool);
 			break;
 		} else if (!statlist_empty(&pool->used_server_list)) {
 			/* ask for more connections to be tested */
 			launch_recheck(pool);
-
-			/* not enough connections? (X) */
-			launch_new_connection(pool);
 			break;
 		} else {
 			/* not enough connections */
@@ -169,10 +163,6 @@ static void per_loop_activate(PgPool *pool)
 		}
 	}
 }
-/*
- * (X) - theres some problem in light load with small server_check_timeout
- * where waiting connection wont ever get server connection.
- */
 
 /*
  * pause active clients

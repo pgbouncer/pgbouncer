@@ -169,9 +169,9 @@ slog_level(const char *pfx, const PgSocket *sock, const char *fmt, ...)
 	vsnprintf(buf1, sizeof(buf1), fmt, ap);
 	va_end(ap);
 
-	snprintf(buf2, sizeof(buf2), "%c: %s/%s@%s:%d %s",
+	snprintf(buf2, sizeof(buf2), "%c-%p: %s/%s@%s:%d %s",
 			is_server_socket(sock) ? 'S' : 'C',
-			db, user, host, port, buf1);
+			sock, db, user, host, port, buf1);
 
 	_log_write(pfx, buf2);
 }
@@ -378,7 +378,7 @@ bool get_random_bytes(uint8 *dest, int len)
  * high-precision time
  */
 
-usec_t get_time_usec(void)
+static usec_t get_time_usec(void)
 {
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
@@ -569,7 +569,7 @@ const char *format_date(usec_t uval)
 {
 	static char buf[128];
 	time_t tval = uval / USEC;
-	strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M", localtime(&tval));
+	strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", localtime(&tval));
 	return buf;
 }
 

@@ -26,6 +26,8 @@ pgctl() {
 	pg_ctl -o "-p $PG_PORT" -D $PGDATA $@ >>$PG_LOG 2>&1
 }
 
+ulimit -c unlimited
+
 mkdir -p $LOGDIR
 rm -f $BOUNCER_LOG $PG_LOG
 # rm -r $PGDATA
@@ -188,7 +190,6 @@ test_server_connect_timeout_establish() {
 }
 
 # server_connect_timeout - block with iptables
-# XXX: for some reason bouncer says 'connect failed' not 'connect timeout'
 test_server_connect_timeout_reject() {
 	test -z $CAN_SUDO && return 1
 	admin "set query_timeout=5"
@@ -268,9 +269,13 @@ test_pool_size() {
 
 # test online restart while clients running
 test_online_restart() {
+# max_client_conn=10
+# default_pool_size=5
 	for i in `seq 1 5`; do 
-		for j in `seq 1 10`; do 
-			psql -c "select now() as sleeping from pg_sleep(0.2)" p0  &
+		echo "`date` attempt $i"
+
+		for j in `seq 1 5`; do 
+			psql -c "select now() as sleeping from pg_sleep(2)" p1  &
 		done
 
 		pid1=`cat $BOUNCER_PID`

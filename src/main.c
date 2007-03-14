@@ -31,7 +31,7 @@ static bool set_auth(ConfElem *elem, const char *val, PgSocket *console);
 static const char *get_auth(ConfElem *elem);
 
 static const char *usage_str =
-"usage: pgbouncer [-d] [-v] [-h|-V] config.ini\n";
+"usage: pgbouncer [-d] [-R] [-v] [-h|-V] config.ini\n";
 
 static void usage(int err)
 {

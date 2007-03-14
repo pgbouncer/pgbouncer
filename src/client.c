@@ -303,7 +303,7 @@ static bool handle_client_work(PgSocket *client, MBuf *pkt)
 		/* update stats */
 		if (!client->query_start) {
 			client->pool->stats.request_count++;
-			client->query_start = get_time_usec();
+			client->query_start = get_cached_time();
 		}
 
 		if (client->pool->admin)

@@ -351,24 +351,60 @@ static bool admin_show_users(PgSocket *admin)
 	return true;
 }
 
+#define SKF_STD "sssssiTT"
+#define SKF_DBG "sssssiTTiiiiiiiss"
+
+static void socket_header(PktBuf *buf, bool debug)
+{
+	pktbuf_write_RowDescription(buf, debug ? SKF_DBG : SKF_STD,
+				    "type", "user", "database", "state",
+				    "addr", "port",
+				    "connect_time", "request_time",
+				    "recv_pos", "pkt_pos", "pkt_remain",
+				    "send_pos", "send_remain",
+				    "pkt_avail", "send_avail",
+				    "ptr", "link");
+}
+
+static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
+{
+	const char *addr = sk->addr.is_unix ? "unix"
+			: inet_ntoa(sk->addr.ip_addr);
+	int pkt_avail = sk->sbuf.recv_pos - sk->sbuf.pkt_pos;
+	int send_avail = sk->sbuf.recv_pos - sk->sbuf.send_pos;
+	char ptrbuf[128], linkbuf[128];
+
+	snprintf(ptrbuf, sizeof(ptrbuf), "%p", sk);
+	if (sk->link)
+		snprintf(linkbuf, sizeof(linkbuf), "%p", sk->link);
+	else
+		linkbuf[0] = 0;
+
+	pktbuf_write_DataRow(buf, debug ? SKF_DBG : SKF_STD,
+			     is_server_socket(sk) ? "S" :"C",
+			     sk->auth_user->name,
+			     sk->pool->db->name,
+			     state, addr, sk->addr.port,
+			     sk->connect_time,
+			     sk->request_time,
+			     sk->sbuf.recv_pos,
+			     sk->sbuf.pkt_pos,
+			     sk->sbuf.pkt_remain,
+			     sk->sbuf.send_pos,
+			     sk->sbuf.send_remain,
+			     pkt_avail, send_avail,
+			     ptrbuf, linkbuf);
+}
+
 /* Helper for SHOW CLIENTS */
-static void show_client_list(PktBuf *buf, StatList *list, const char *state)
+static void show_socket_list(PktBuf *buf, StatList *list, const char *state, bool debug)
 {
 	List *item;
-	PgSocket *client;
-	const char *addr;
+	PgSocket *sk;
 
 	statlist_for_each(item, list) {
-		client = container_of(item, PgSocket, head);
-		addr = client->addr.is_unix ? "unix"
-			: inet_ntoa(client->addr.ip_addr);
-
-		pktbuf_write_DataRow(buf, "ssssiTT",
-				     client->auth_user->name,
-				     client->pool->db->name,
-				     state, addr, client->addr.port,
-				     client->connect_time,
-				     client->request_time);
+		sk = container_of(item, PgSocket, head);
+		socket_row(buf, sk, state, debug);
 	}
 }
 
@@ -383,42 +419,17 @@ static bool admin_show_clients(PgSocket *admin)
 		admin_error(admin, "no mem");
 		return true;
 	}
-	pktbuf_write_RowDescription(buf, "ssssiTT",
-				    "user", "database", "state",
-				    "addr", "port", "connect_time", "request_time");
-	/* todo: age? query stats? */
 
+	socket_header(buf, false);
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
 
-		show_client_list(buf, &pool->active_client_list, "active");
-		show_client_list(buf, &pool->waiting_client_list, "waiting");
+		show_socket_list(buf, &pool->active_client_list, "active", false);
+		show_socket_list(buf, &pool->waiting_client_list, "waiting", false);
 	}
 
 	admin_flush(admin, buf, "SHOW");
 	return true;
-}
-
-/* Helper for SHOW SERVERS */
-static void show_server_list(PktBuf *buf, StatList *list, const char *state)
-{
-	List *item;
-	PgSocket *server;
-	const char *addr;
-
-	statlist_for_each(item, list) {
-		server = container_of(item, PgSocket, head);
-		addr = server->addr.is_unix ? "unix"
-			: inet_ntoa(server->addr.ip_addr);
-
-		pktbuf_write_DataRow(buf, "ssssiTT",
-				     server->auth_user->name,
-				     server->pool->db->name,
-				     state, addr, server->addr.port,
-				     server->connect_time,
-				     server->request_time
-				     );
-	}
 }
 
 /* Command: SHOW SERVERS */
@@ -433,17 +444,44 @@ static bool admin_show_servers(PgSocket *admin)
 		admin_error(admin, "no mem");
 		return true;
 	}
-	pktbuf_write_RowDescription(buf, "ssssiTT",
-				    "database", "user", "state",
-				    "addr", "port", "connect_time", "request_time");
-	/* todo: age? query stats */
 
+	socket_header(buf, false);
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
-		show_server_list(buf, &pool->active_server_list, "active");
-		show_server_list(buf, &pool->idle_server_list, "idle");
-		show_server_list(buf, &pool->used_server_list, "used");
-		show_server_list(buf, &pool->tested_server_list, "tested");
+		show_socket_list(buf, &pool->active_server_list, "active", false);
+		show_socket_list(buf, &pool->idle_server_list, "idle", false);
+		show_socket_list(buf, &pool->used_server_list, "used", false);
+		show_socket_list(buf, &pool->tested_server_list, "tested", false);
+		show_socket_list(buf, &pool->new_server_list, "new", false);
+	}
+	admin_flush(admin, buf, "SHOW");
+	return true;
+}
+
+/* Command: SHOW SOCKETS */
+static bool admin_show_sockets(PgSocket *admin)
+{
+	List *item;
+	PgPool *pool;
+	PktBuf *buf;
+
+	buf = pktbuf_dynamic(256);
+	if (!buf) {
+		admin_error(admin, "no mem");
+		return true;
+	}
+
+	socket_header(buf, true);
+	statlist_for_each(item, &pool_list) {
+		pool = container_of(item, PgPool, head);
+		show_socket_list(buf, &pool->active_client_list, "active", true);
+		show_socket_list(buf, &pool->waiting_client_list, "waiting", true);
+
+		show_socket_list(buf, &pool->active_server_list, "active", true);
+		show_socket_list(buf, &pool->idle_server_list, "idle", true);
+		show_socket_list(buf, &pool->used_server_list, "used", true);
+		show_socket_list(buf, &pool->tested_server_list, "tested", true);
+		show_socket_list(buf, &pool->new_server_list, "login", true);
 	}
 	admin_flush(admin, buf, "SHOW");
 	return true;
@@ -626,7 +664,7 @@ static bool admin_show_help(PgSocket *admin)
 		"sssss",
 		"SNOTICE", "C00000", "MConsole usage",
 		"D\n\tSHOW [HELP|CONFIG|DATABASES|FDS"
-		"|POOLS|CLIENTS|SERVERS|LISTS|VERSION]\n"
+		"|POOLS|CLIENTS|SERVERS|SOCKETS|LISTS|VERSION]\n"
 		"\tSET key = arg\n"
 		"\tRELOAD\n"
 		"\tPAUSE\n"
@@ -677,6 +715,8 @@ static bool admin_parse_query(PgSocket *admin, const char *q)
 			res = admin_show_servers(admin);
 		} else if (strcasecmp(key, "lists") == 0) {
 			res = admin_show_lists(admin);
+		} else if (strcasecmp(key, "sockets") == 0) {
+			res = admin_show_sockets(admin);
 		} else if (strcasecmp(key, "fds") == 0) {
 			res = admin_show_fds(admin);
 		} else if (strcasecmp(key, "version") == 0) {

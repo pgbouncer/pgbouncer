@@ -83,7 +83,8 @@ bool sbuf_answer(SBuf *sbuf, const void *buf, int len);
 
 void sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb cb);
 
-static inline bool sbuf_empty(SBuf *sbuf)
+/* returns true if SBuf is suspendable */
+static inline bool sbuf_has_no_state(SBuf *sbuf)
 {
 	return sbuf->send_pos == sbuf->recv_pos
 		&& sbuf->pkt_remain == 0;

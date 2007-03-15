@@ -14,6 +14,7 @@
 
   * SHOW SOCKETS command to have detailed info about state state.
   * Put PgSocket ptr to log, to help tracking one connection.
+  * In console, allow SELECT in place of SHOW.
   * Various code cleanups.
 
 2007-03-13  -  PgBouncer 1.0  -  "Tuunitud bemm"

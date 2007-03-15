@@ -37,6 +37,18 @@ static void close_server_list(StatList *sk_list, const char *reason)
 	}
 }
 
+bool suspend_socket(PgSocket *sk)
+{
+	if (!sk->suspended) {
+		if (sbuf_has_no_state(&sk->sbuf)) {
+			sbuf_pause(&sk->sbuf);
+			sk->suspended = 1;
+		} else
+			return false;
+	}
+	return true;
+}
+
 /* suspend all sockets in socket list */
 static int suspend_socket_list(StatList *list)
 {
@@ -46,13 +58,8 @@ static int suspend_socket_list(StatList *list)
 
 	statlist_for_each(item, list) {
 		sk = container_of(item, PgSocket, head);
-		if (!sk->suspended) {
-			if (sbuf_has_no_state(&sk->sbuf)) {
-				sbuf_pause(&sk->sbuf);
-				sk->suspended = 1;
-			} else
-				active++;
-		}
+		if (!suspend_socket(sk))
+			active++;
 	}
 	return active;
 }

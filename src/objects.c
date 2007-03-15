@@ -758,7 +758,7 @@ bool finish_client_login(PgSocket *client)
 
 	/* in suspend, dont let send query */
 	if (cf_pause_mode == P_SUSPEND)
-		pause_client(client);
+		suspend_socket(client);
 
 	return true;
 }

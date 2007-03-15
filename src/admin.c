@@ -30,14 +30,14 @@
 #define MAX_GROUPS 10
 
 /* group numbers */
-#define SHOW_ARG 1
+#define SHOW_ARG 2
 #define SET_KEY 1
 #define SET_VAL 2
 #define SINGLECMD 1
 
 /* SHOW */
 static const char cmd_show_rx[] =
-"^" WS0 "show" WS1 WORD "?" WS0 ";" WS0 "$";
+"^" WS0 "(show|select)" WS1 WORD "?" WS0 ";" WS0 "$";
 
 /* SET with simple value */
 static const char cmd_set_word_rx[] =

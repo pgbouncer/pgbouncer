@@ -446,6 +446,13 @@ try_more:
 	/* if the buffer is full, there can be more data available */
 	if (ok && sbuf->recv_pos == cf_sbuf_len)
 		goto try_more;
+
+	/* clean buffer */
+	sbuf_try_resync(sbuf);
+
+	/* notify proto that all is sent */
+	if (sbuf->send_pos == sbuf->recv_pos && sbuf->pkt_remain == 0)
+		sbuf_call_proto(sbuf, SBUF_EV_FLUSH);
 }
 
 /* check if there is any error pending on socket */

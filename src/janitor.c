@@ -125,7 +125,7 @@ static void launch_recheck(PgPool *pool)
 			disconnect_server(server, false, "test query failed");
 	} else
 		/* make immidiately available */
-		change_server_state(server, SV_IDLE);
+		release_server(server);
 }
 
 /*
@@ -204,9 +204,9 @@ static int per_loop_suspend(PgPool *pool)
 	if (!active) {
 		active += suspend_socket_list(&pool->active_server_list);
 		active += suspend_socket_list(&pool->idle_server_list);
-		active += statlist_count(&pool->tested_server_list);
 
 		/* as all clients are done, no need for them */
+		close_server_list(&pool->tested_server_list, "close unsafe fds on suspend");
 		close_server_list(&pool->used_server_list, "close unsafe fds on suspend");
 	}
 
@@ -227,22 +227,22 @@ void per_loop_object_maint(void)
 		if (pool->admin)
 			continue;
 		switch (cf_pause_mode) {
-		case 0:
+		case P_NONE:
 			per_loop_activate(pool);
 			break;
-		case 1:
+		case P_PAUSE:
 			active += per_loop_pause(pool);
 			break;
-		case 2:
+		case P_SUSPEND:
 			active += per_loop_suspend(pool);
 			break;
 		}
 	}
 
 	switch (cf_pause_mode) {
-	case 2:
+	case P_SUSPEND:
 		active += statlist_count(&login_client_list);
-	case 1:
+	case P_PAUSE:
 		if (!active)
 			admin_pause_done();
 	default:
@@ -305,7 +305,7 @@ static void check_unused_servers(StatList *slist, usec_t now, bool idle_test)
 			disconnect_server(server, true, "server idle timeout");
 		else if (cf_server_lifetime > 0 && age > cf_server_lifetime)
 			disconnect_server(server, true, "server lifetime over");
-		else if (cf_pause_mode == 1)
+		else if (cf_pause_mode == P_PAUSE)
 			disconnect_server(server, true, "pause mode");
 		else if (idle_test && *cf_server_check_query) {
 			if (idle > cf_server_check_delay)

@@ -196,10 +196,6 @@ static bool handle_server_work(PgSocket *server, MBuf *pkt)
 		slog_debug(client, "query time: %d us", (int)total);
 	}
 
-	if (ready && (     cf_pool_mode  != POOL_SESSION
-			|| server->state == SV_TESTED))
-		release_server(server);
-
 	return true;
 }
 
@@ -271,6 +267,25 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *pkt, void *arg)
 		Assert(server->state == SV_LOGIN);
 		server->request_time = get_cached_time();
 		res = handle_connect(server);
+		break;
+	case SBUF_EV_FLUSH:
+		if (server->ready
+		    && (cf_pool_mode  != POOL_SESSION
+			|| server->state == SV_TESTED))
+		{
+			switch (server->state) {
+			case SV_ACTIVE:
+			case SV_TESTED:
+				release_server(server);
+				break;
+			default:
+				slog_warning(server, "EV_FLUSH with state=%d", server->state);
+			case SV_IDLE:
+				break;
+			}
+		}
+		res = true; /* unused actually */
+		break;
 	}
 	return res;
 }

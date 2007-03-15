@@ -45,7 +45,7 @@ static void usage(int err)
 
 int cf_verbose = 0;
 int cf_daemon = 0;
-int cf_pause_mode = 0;
+int cf_pause_mode = P_NONE;
 int cf_shutdown = 0;
 int cf_reboot = 0;
 static char *cf_config_file;
@@ -236,7 +236,7 @@ static void handle_sigterm(int sock, short flags, void *arg)
 static void handle_sigint(int sock, short flags, void *arg)
 {
 	log_info("Got SIGINT, shutting down");
-	cf_pause_mode = 1;
+	cf_pause_mode = P_PAUSE;
 	cf_shutdown = 1;
 }
 
@@ -244,7 +244,7 @@ static void handle_sigusr1(int sock, short flags, void *arg)
 {
 	if (cf_pause_mode == 0) {
 		log_info("Got SIGUSR1, pausing all activity");
-		cf_pause_mode = 1;
+		cf_pause_mode = P_PAUSE;
 	} else {
 		log_info("Got SIGUSR1, but already paused/suspended");
 	}
@@ -253,16 +253,16 @@ static void handle_sigusr1(int sock, short flags, void *arg)
 static void handle_sigusr2(int sock, short flags, void *arg)
 {
 	switch (cf_pause_mode) {
-	case 2:
+	case P_SUSPEND:
 		log_info("Got SIGUSR2, continuing from SUSPEND");
 		resume_all();
 		cf_pause_mode = 0;
 		break;
-	case 1:
+	case P_PAUSE:
 		log_info("Got SIGUSR2, continuing from PAUSE");
 		cf_pause_mode = 0;
 		break;
-	case 0:
+	case P_NONE:
 		log_info("Got SIGUSR1, but not paused/suspended");
 	}
 }

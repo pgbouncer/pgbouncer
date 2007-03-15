@@ -375,6 +375,10 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, MBuf *pkt, void *arg)
 		default:
 			fatal("bad client state: %d", client->state);
 		}
+		break;
+	case SBUF_EV_FLUSH:
+		/* client is not interested in it */
+		break;
 	}
 	return res;
 }

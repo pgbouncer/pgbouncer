@@ -503,7 +503,7 @@ bool find_server(PgSocket *client)
 		return true;
 
 	/* try to get idle server, if allowed */
-	if (cf_pause_mode == 1)
+	if (cf_pause_mode == P_PAUSE)
 		server = NULL;
 	else
 		server = first_socket(&pool->idle_server_list);
@@ -748,13 +748,18 @@ bool finish_client_login(PgSocket *client)
 		log_debug("finish_client_login: no welcome msg, pause");
 		client->wait_for_welcome = 1;
 		pause_client(client);
-		if (!cf_pause_mode)
+		if (cf_pause_mode == P_NONE)
 			launch_new_connection(client->pool);
 		return false;
 	}
 	client->wait_for_welcome = 0;
 
 	slog_debug(client, "logged in");
+
+	/* in suspend, dont let send query */
+	if (cf_pause_mode == P_SUSPEND)
+		pause_client(client);
+
 	return true;
 }
 

@@ -584,11 +584,11 @@ static bool admin_cmd_resume(PgSocket *admin)
 		return admin_error(admin, "admin access needed");
 
 	log_info("RESUME command issued");
-	cf_pause_mode = 0;
+	cf_pause_mode = P_NONE;
 	switch (tmp_mode) {
-	case 2:
+	case P_SUSPEND:
 		resume_all();
-	case 1:
+	case P_PAUSE:
 		return admin_ready(admin, "RESUME");
 	default:
 		return admin_error(admin, "Pooler is not paused/suspended");
@@ -605,7 +605,7 @@ static bool admin_cmd_suspend(PgSocket *admin)
 		return admin_error(admin, "already suspended/paused");
 
 	log_info("SUSPEND command issued");
-	cf_pause_mode = 2;
+	cf_pause_mode = P_SUSPEND;
 	admin->wait_for_response = 1;
 	suspend_pooler();
 
@@ -622,7 +622,7 @@ static bool admin_cmd_pause(PgSocket *admin)
 		return admin_error(admin, "already suspended/paused");
 
 	log_info("PAUSE command issued");
-	cf_pause_mode = 1;
+	cf_pause_mode = P_PAUSE;
 	admin->wait_for_response = 1;
 
 	return true;
@@ -911,10 +911,10 @@ void admin_pause_done(void)
 			continue;
 
 		switch (cf_pause_mode) {
-		case 1:
+		case P_PAUSE:
 			admin_ready(admin, "PAUSE");
 			break;
-		case 2:
+		case P_SUSPEND:
 			admin_ready(admin, "SUSPEND");
 			break;
 		default:
@@ -924,10 +924,10 @@ void admin_pause_done(void)
 	}
 
 	if (statlist_empty(&admin_pool->active_client_list)
-			&& cf_pause_mode == 2)
+			&& cf_pause_mode == P_SUSPEND)
 	{
 		log_info("Admin disappeared when suspended, doing RESUME");
-		cf_pause_mode = 0;
+		cf_pause_mode = P_NONE;
 		resume_all();
 	}
 }

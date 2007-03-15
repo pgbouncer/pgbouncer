@@ -40,6 +40,12 @@ enum SocketState {
 	SV_TESTED		/* pool->tested_server_list */
 };
 
+enum PauseMode {
+	P_NONE = 0,
+	P_PAUSE = 1,
+	P_SUSPEND = 2
+};
+
 #define is_server_socket(sk) ((sk)->state >= SV_FREE)
 
 

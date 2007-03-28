@@ -14,7 +14,9 @@ DIRS = etc src debian
 # keep autoconf stuff separate
 -include config.mak
 
+ifeq ($(enable_debug),yes)
 CFLAGS += -DDBGVER="\"compiled by <$${USER}@`hostname`> at `date '+%Y-%m-%d %H:%M:%S'`\""
+endif
 
 # calculate full-path values
 OBJS = $(SRCS:.c=.o)

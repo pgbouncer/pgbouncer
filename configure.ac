@@ -83,6 +83,7 @@ else
   BININSTALL="$INSTALL -s"
   AC_MSG_RESULT([no])
 fi
+AC_SUBST(enable_debug)
 AC_SUBST(INSTALL)
 AC_SUBST(BININSTALL)
 

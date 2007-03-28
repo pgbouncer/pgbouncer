@@ -31,3 +31,5 @@ abs_top_builddir = @abs_top_builddir@
 INSTALL = @INSTALL@
 BININSTALL = @BININSTALL@
 
+enable_debug = @enable_debug@
+

@@ -1,4 +1,11 @@
 
+2007-03-28  -  PgBouncer 1.0.2  -  "Supersonic Spoon"
+
+  * libevent may report a deleted event inside same loop.
+    Avoid socket reuse for one loop.
+  * release_server() from disconnect_client() didnt look
+    it the packet was actually sent.
+
 2007-03-15  -  PgBouncer 1.0.1  -  "Alien technology"
 
   = Fixes =

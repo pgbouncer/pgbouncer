@@ -36,6 +36,14 @@ STATLIST(free_client_list);
 STATLIST(free_server_list);
 STATLIST(login_client_list);
 
+/*
+ * libevent may still report events when event_del()
+ * is called from somewhere else.  So hide just freed
+ * PgSockets for one loop.
+ */
+STATLIST(justfree_client_list);
+STATLIST(justfree_server_list);
+
 /* how many client sockets are allocated */
 static int absolute_client_count = 0;
 /* how many server sockets are allocated */
@@ -148,6 +156,9 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	case CL_FREE:
 		statlist_remove(&client->head, &free_client_list);
 		break;
+	case CL_JUSTFREE:
+		statlist_remove(&client->head, &justfree_client_list);
+		break;
 	case CL_LOGIN:
 		statlist_remove(&client->head, &login_client_list);
 		break;
@@ -169,8 +180,10 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	/* put to new location */
 	switch (client->state) {
 	case CL_FREE:
-		/* use LIFO the keep cache warm */
 		statlist_prepend(&client->head, &free_client_list);
+		break;
+	case CL_JUSTFREE:
+		statlist_append(&client->head, &justfree_client_list);
 		break;
 	case CL_LOGIN:
 		statlist_append(&client->head, &login_client_list);
@@ -199,6 +212,9 @@ void change_server_state(PgSocket *server, SocketState newstate)
 	case SV_FREE:
 		statlist_remove(&server->head, &free_server_list);
 		break;
+	case SV_JUSTFREE:
+		statlist_remove(&server->head, &justfree_server_list);
+		break;
 	case SV_LOGIN:
 		statlist_remove(&server->head, &pool->new_server_list);
 		break;
@@ -223,14 +239,16 @@ void change_server_state(PgSocket *server, SocketState newstate)
 	/* put to new location */
 	switch (server->state) {
 	case SV_FREE:
-		/* use LIFO the keep cache warm */
 		statlist_prepend(&server->head, &free_server_list);
+		break;
+	case SV_JUSTFREE:
+		statlist_append(&server->head, &justfree_server_list);
 		break;
 	case SV_LOGIN:
 		statlist_append(&server->head, &pool->new_server_list);
 		break;
 	case SV_USED:
-		/* again, LIFO */
+		/* use LIFO */
 		statlist_prepend(&server->head, &pool->used_server_list);
 		break;
 	case SV_TESTED:
@@ -610,7 +628,7 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason)
 		sbuf_answer(&server->sbuf, pkt_term, sizeof(pkt_term));
 	sbuf_close(&server->sbuf);
 
-	change_server_state(server, SV_FREE);
+	change_server_state(server, SV_JUSTFREE);
 }
 
 /* drop client connection */
@@ -622,7 +640,8 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason)
 	case CL_ACTIVE:
 		if (client->link) {
 			PgSocket *server = client->link;
-			if (server->ready) {
+			/* ->ready may be set before all is sent */
+			if (server->ready && sbuf_has_no_state(&server->sbuf)) {
 				release_server(server);
 			} else {
 				server->link = NULL;
@@ -649,7 +668,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason)
 
 	sbuf_close(&client->sbuf);
 
-	change_client_state(client, CL_FREE);
+	change_client_state(client, CL_JUSTFREE);
 }
 
 /* the pool needs new connection, if possible */
@@ -820,7 +839,7 @@ void forward_cancel_request(PgSocket *server)
 
 	SEND_CancelRequest(res, server, req->cancel_key);
 
-	change_client_state(req, CL_FREE);
+	change_client_state(req, CL_JUSTFREE);
 }
 
 bool use_client_socket(int fd, PgAddr *addr,
@@ -937,6 +956,26 @@ void tag_database_dirty(PgDatabase *db)
 		pool = container_of(item, PgPool, head);
 		if (pool->db == db)
 			for_each_server(pool, tag_dirty);
+	}
+}
+
+/* move objects from justfree_* to free_* lists */
+void reuse_just_freed_objects(void)
+{
+	List *tmp, *item;
+	PgSocket *sk;
+
+	/*
+	 * Obviously, if state would be set to *_FREE,
+	 * they could be moved in one go.
+	 */
+	statlist_for_each_safe(item, &justfree_client_list, tmp) {
+		sk = container_of(item, PgSocket, head);
+		change_client_state(sk, CL_FREE);
+	}
+	statlist_for_each_safe(item, &justfree_server_list, tmp) {
+		sk = container_of(item, PgSocket, head);
+		change_server_state(sk, SV_FREE);
 	}
 }
 

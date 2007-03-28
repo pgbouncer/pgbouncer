@@ -19,6 +19,6 @@
 void janitor_setup(void);
 void config_postprocess(void);
 void resume_all(void);
-void per_loop_object_maint(void);
+void per_loop_maint(void);
 bool suspend_socket(PgSocket *sk);
 

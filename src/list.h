@@ -112,6 +112,32 @@ static inline List *list_first(List *list)
 	return list->next;
 }
 
+/* put all elems in one list in the start of another list */
+static inline void list_prepend_list(List *src, List *dst)
+{
+	if (list_empty(src))
+		return;
+	src->next->prev = dst;
+	src->prev->next = dst->next;
+	dst->next->prev = src->prev;
+	dst->next = src->next;
+
+	src->next = src->prev = src;
+}
+
+/* put all elems in one list in the end of another list */
+static inline void list_append_list(List *src, List *dst)
+{
+	if (list_empty(src))
+		return;
+	src->next->prev = dst->prev;
+	src->prev->next = dst;
+	dst->prev->next = src->next;
+	dst->prev = src->prev;
+
+	src->next = src->prev = src;
+}
+
 /* remove first elem from list and return with casting */
 #define list_pop_type(list, typ, field) \
 	(list_empty(list) ? NULL \
@@ -151,6 +177,13 @@ struct StatList {
 	const char *name;
 };
 
+static inline void statlist_inc_count(StatList *list, int val)
+{
+	list->cur_count += val;
+	if (list->cur_count > list->max_count)
+		list->max_count = list->cur_count;
+}
+
 #define STATLIST(var) StatList var = { {&var.head, &var.head}, 0, 0, #var }
 
 static inline void statlist_reset(StatList *list)
@@ -161,25 +194,19 @@ static inline void statlist_reset(StatList *list)
 static inline void statlist_prepend(List *item, StatList *list)
 {
 	list_prepend(item, &list->head);
-	list->cur_count ++;
-	if (list->cur_count > list->max_count)
-		list->max_count = list->cur_count;
+	statlist_inc_count(list, 1);
 }
 
 static inline void statlist_append(List *item, StatList *list)
 {
 	list_append(item, &list->head);
-	list->cur_count ++;
-	if (list->cur_count > list->max_count)
-		list->max_count = list->cur_count;
+	statlist_inc_count(list, 1);
 }
 
 static inline void statlist_put_before(List *item, StatList *list, List *pos)
 {
 	list_append(item, pos);
-	list->cur_count++;
-	if (list->cur_count > list->max_count)
-		list->max_count = list->cur_count;
+	statlist_inc_count(list, 1);
 }
 
 static inline void statlist_remove(List *item, StatList *list)
@@ -225,6 +252,20 @@ static inline List *statlist_pop(StatList *list)
 	Assert(list->cur_count >= 0);
 
 	return item;
+}
+
+static inline void statlist_prepend_list(StatList *src, StatList *dst)
+{
+	list_prepend_list(&src->head, &dst->head);
+	statlist_inc_count(dst, src->cur_count);
+	src->cur_count = 0;
+}
+
+static inline void statlist_append_list(StatList *src, StatList *dst)
+{
+	list_append_list(&src->head, &dst->head);
+	statlist_inc_count(dst, src->cur_count);
+	src->cur_count = 0;
 }
 
 static inline List *statlist_first(StatList *list)

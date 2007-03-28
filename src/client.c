@@ -341,7 +341,14 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, MBuf *pkt, void *arg)
 	PgSocket *client = arg;
 
 	Assert(!is_server_socket(client));
-	Assert(client->state != SV_FREE);
+	Assert(client->sbuf.sock);
+	Assert(client->state != CL_FREE);
+
+	if (client->state == CL_JUSTFREE) {
+		/* SBuf should catch the case */
+		slog_warning(client, "state=CL_JUSTFREE, should not happen");
+		return false;
+	}
 
 	switch (evtype) {
 	case SBUF_EV_CONNECT_OK:

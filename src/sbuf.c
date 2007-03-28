@@ -246,6 +246,10 @@ static void sbuf_send_cb(int sock, short flags, void *arg)
 {
 	SBuf *sbuf = arg;
 
+	/* sbuf was closed before in this loop */
+	if (!sbuf->sock)
+		return;
+
 	/* prepare normal situation for sbuf_recv_cb() */
 	sbuf->wait_send = 0;
 	sbuf_wait_for_data(sbuf);
@@ -272,6 +276,8 @@ static bool sbuf_send_pending(SBuf *sbuf)
 	int res, avail;
 	uint8 *pos;
 
+	Assert(sbuf->dst || !sbuf->send_remain);
+
 try_more:
 	/* how much data is available for sending */
 	avail = sbuf->recv_pos - sbuf->send_pos;
@@ -279,6 +285,11 @@ try_more:
 		avail = sbuf->send_remain;
 	if (avail == 0)
 		return true;
+
+	if (sbuf->dst->sock == 0) {
+		log_error("sbuf_send_pending: no dst sock?");
+		return false;
+	}
 
 	/* actually send it */
 	pos = sbuf->buf + sbuf->send_pos;
@@ -421,6 +432,10 @@ static void sbuf_recv_cb(int sock, short flags, void *arg)
 	int free, ok;
 	SBuf *sbuf = arg;
 
+	/* sbuf was closed before in this loop */
+	if (!sbuf->sock)
+		return;
+
 	/* reading should be disabled when waiting */
 	Assert(sbuf->wait_send == 0);
 
@@ -442,16 +457,18 @@ try_more:
 
 	/* now handle it */
 	ok = sbuf_process_pending(sbuf);
+	if (!ok)
+		return;
 
 	/* if the buffer is full, there can be more data available */
-	if (ok && sbuf->recv_pos == cf_sbuf_len)
+	if (sbuf->recv_pos == cf_sbuf_len)
 		goto try_more;
 
 	/* clean buffer */
 	sbuf_try_resync(sbuf);
 
 	/* notify proto that all is sent */
-	if (sbuf->send_pos == sbuf->recv_pos && sbuf->pkt_remain == 0)
+	if (sbuf_has_no_state(sbuf))
 		sbuf_call_proto(sbuf, SBUF_EV_FLUSH);
 }
 

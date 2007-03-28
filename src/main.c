@@ -400,7 +400,8 @@ static void main_loop_once(void)
 {
 	reset_time_cache();
 	event_loop(EVLOOP_ONCE);
-	per_loop_object_maint();
+	per_loop_maint();
+	reuse_just_freed_objects();
 }
 
 /* boot everything */
@@ -418,7 +419,7 @@ int main(int argc, char *argv[])
 			cf_verbose++;
 			break;
 		case 'V':
-			printf("%s version %s\n", PACKAGE_NAME, PACKAGE_VERSION);
+			printf("%s\n", FULLVER);
 			return 0;
 		case 'd':
 			cf_daemon = 1;

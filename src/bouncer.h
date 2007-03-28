@@ -24,15 +24,23 @@
 
 #include <event.h>
 
+#ifdef DBGVER
+#define FULLVER   PACKAGE_NAME " version " PACKAGE_VERSION " (" DBGVER ")"
+#else
+#define FULLVER   PACKAGE_NAME " version " PACKAGE_VERSION
+#endif
+
 /* each state corresponts to a list */
 enum SocketState {
 	CL_FREE,		/* free_client_list */
+	CL_JUSTFREE,		/* justfree_client_list */
 	CL_LOGIN,		/* login_client_list */
 	CL_WAITING,		/* pool->waiting_client_list */
 	CL_ACTIVE,		/* pool->active_client_list */
 	CL_CANCEL,		/* pool->cancel_req_list */
 
 	SV_FREE,		/* free_server_list */
+	SV_JUSTFREE,		/* justfree_server_list */
 	SV_LOGIN,		/* pool->new_server_list */
 	SV_IDLE,		/* pool->idle_server_list */
 	SV_ACTIVE,		/* pool->active_server_list */

@@ -14,6 +14,8 @@ DIRS = etc src debian
 # keep autoconf stuff separate
 -include config.mak
 
+CFLAGS += -DDBGVER="\"compiled by <$${USER}@`hostname`> at `date '+%Y-%m-%d %H:%M:%S'`\""
+
 # calculate full-path values
 OBJS = $(SRCS:.c=.o)
 hdrs = $(addprefix $(srcdir)/src/, $(HDRS))

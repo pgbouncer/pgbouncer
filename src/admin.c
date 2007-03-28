@@ -687,7 +687,7 @@ static bool admin_show_version(PgSocket *admin)
 	bool res;
 	SEND_generic(res, admin, 'N',
 		"ssss", "SNOTICE", "C00000",
-		"MPgBouncer version " PACKAGE_VERSION, "");
+		"M" FULLVER, "");
 	if (res)
 		res = admin_ready(admin, "SHOW");
 	return res;

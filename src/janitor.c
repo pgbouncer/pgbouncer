@@ -223,7 +223,7 @@ static int per_loop_suspend(PgPool *pool)
 /*
  * this function is called for each event loop.
  */
-void per_loop_object_maint(void)
+void per_loop_maint(void)
 {
 	List *item;
 	PgPool *pool;

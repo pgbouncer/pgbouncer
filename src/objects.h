@@ -61,3 +61,5 @@ void for_each_server(PgPool *pool, void (*func)(PgSocket *sk));
 
 void create_auth_cache(void);
 
+void reuse_just_freed_objects(void);
+

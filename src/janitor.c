@@ -40,7 +40,7 @@ static void close_server_list(StatList *sk_list, const char *reason)
 bool suspend_socket(PgSocket *sk)
 {
 	if (!sk->suspended) {
-		if (sbuf_has_no_state(&sk->sbuf)) {
+		if (sbuf_is_empty(&sk->sbuf)) {
 			sbuf_pause(&sk->sbuf);
 			sk->suspended = 1;
 		} else

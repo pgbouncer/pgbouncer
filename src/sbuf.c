@@ -468,7 +468,7 @@ try_more:
 	sbuf_try_resync(sbuf);
 
 	/* notify proto that all is sent */
-	if (sbuf_has_no_state(sbuf))
+	if (sbuf_is_empty(sbuf))
 		sbuf_call_proto(sbuf, SBUF_EV_FLUSH);
 }
 

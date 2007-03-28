@@ -84,8 +84,11 @@ bool sbuf_answer(SBuf *sbuf, const void *buf, int len);
 
 void sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb cb);
 
-/* returns true if SBuf is suspendable */
-static inline bool sbuf_has_no_state(SBuf *sbuf)
+/*
+ * Returns true if SBuf is has no data buffered
+ * and is not in a middle of a packet.
+ */
+static inline bool sbuf_is_empty(SBuf *sbuf)
 {
 	return sbuf->send_pos == sbuf->recv_pos
 		&& sbuf->pkt_remain == 0;

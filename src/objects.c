@@ -641,7 +641,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason)
 		if (client->link) {
 			PgSocket *server = client->link;
 			/* ->ready may be set before all is sent */
-			if (server->ready && sbuf_has_no_state(&server->sbuf)) {
+			if (server->ready && sbuf_is_empty(&server->sbuf)) {
 				release_server(server);
 			} else {
 				server->link = NULL;

@@ -13,7 +13,5 @@
  * Split CL_IDLE from CL_ACTIVE.  Does not give functional
  advantage, but makes monitoring easier.
 
- * SHOW POOLS should give time a client has waited for connection.
-
 == Bugs ==
 

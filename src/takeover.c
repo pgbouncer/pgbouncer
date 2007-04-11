@@ -36,6 +36,7 @@ static void takeover_finish(PgSocket *bouncer)
 	disconnect_server(bouncer, false, "disko over");
 	cf_reboot = 0;
 	resume_all();
+	log_info("disko over, resuming work");
 }
 
 /* parse msg for fd and info */
@@ -257,16 +258,20 @@ static void takeover_recv_cb(int sock, short flags, void *arg)
  * login finished, send first command,
  * replace recv callback with custom recvmsg() based one.
  */
-void takeover_login(PgSocket *bouncer)
+bool takeover_login(PgSocket *bouncer)
 {
 	bool res;
 
 	slog_info(bouncer, "Login OK, sending SUSPEND");
 	SEND_generic(res, bouncer, 'Q', "s", "SUSPEND;");
-
-	/* use own callback */
-	sbuf_pause(&bouncer->sbuf);
-	sbuf_continue_with_callback(&bouncer->sbuf, takeover_recv_cb);
+	if (res) {
+		/* use own callback */
+		sbuf_pause(&bouncer->sbuf);
+		sbuf_continue_with_callback(&bouncer->sbuf, takeover_recv_cb);
+	} else {
+		disconnect_server(bouncer, false, "failed to send command");
+	}
+	return res;
 }
 
 /* launch connection to running process */

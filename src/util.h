@@ -62,10 +62,12 @@ void slog_level(const char *level, const PgSocket *sock, const char *fmt, ...);
 /*
  * log and exit
  */
-void _fatal(const char *file, int line, const char *func, const char *s, ...);
+void _fatal(const char *file, int line, const char *func, bool do_exit, const char *s, ...);
 void _fatal_perror(const char *file, int line, const char *func, const char *s, ...);
 #define fatal(args...) \
-	_fatal(__FILE__, __LINE__, __FUNCTION__, ## args)
+	_fatal(__FILE__, __LINE__, __FUNCTION__, true, ## args)
+#define fatal_noexit(args...) \
+	_fatal(__FILE__, __LINE__, __FUNCTION__, false, ## args)
 #define fatal_perror(args...) \
 	_fatal_perror(__FILE__, __LINE__, __FUNCTION__, ## args)
 

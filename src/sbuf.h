@@ -52,11 +52,11 @@ struct SBuf {
 	/* dest SBuf for current packet */
 	SBuf *dst;
 
-	unsigned recv_pos;
-	unsigned pkt_pos;
-	unsigned pkt_remain;
-	unsigned send_pos;
-	unsigned send_remain;
+	int recv_pos;
+	int pkt_pos;
+	int pkt_remain;
+	int send_pos;
+	int send_remain;
 
 	unsigned wait_send:1;
 	unsigned pkt_skip:1;
@@ -77,7 +77,7 @@ void sbuf_continue(SBuf *sbuf);
 void sbuf_close(SBuf *sbuf);
 
 /* proto_fn can use those functions to order behaviour */
-void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, unsigned amount, bool flush);
+void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, int amount, bool flush);
 void sbuf_prepare_skip(SBuf *sbuf, int amount);
 
 bool sbuf_answer(SBuf *sbuf, const void *buf, int len);

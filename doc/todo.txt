@@ -8,8 +8,6 @@
  * SHUTDOWN cmd should print notice?
  * before loading users, disable all existing?
 
- * log_connects, log_disconnects settings
-
  * Split CL_IDLE from CL_ACTIVE.  Does not give functional
  advantage, but makes monitoring easier.
 

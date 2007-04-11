@@ -382,8 +382,8 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 
 	pktbuf_write_DataRow(buf, debug ? SKF_DBG : SKF_STD,
 			     is_server_socket(sk) ? "S" :"C",
-			     sk->auth_user->name,
-			     sk->pool->db->name,
+			     sk->auth_user ? sk->auth_user->name : "(nouser)",
+			     sk->pool ? sk->pool->db->name : "(nodb)",
 			     state, addr, sk->addr.port,
 			     sk->connect_time,
 			     sk->request_time,
@@ -474,15 +474,16 @@ static bool admin_show_sockets(PgSocket *admin)
 	socket_header(buf, true);
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
-		show_socket_list(buf, &pool->active_client_list, "active", true);
-		show_socket_list(buf, &pool->waiting_client_list, "waiting", true);
+		show_socket_list(buf, &pool->active_client_list, "cl_active", true);
+		show_socket_list(buf, &pool->waiting_client_list, "cl_waiting", true);
 
-		show_socket_list(buf, &pool->active_server_list, "active", true);
-		show_socket_list(buf, &pool->idle_server_list, "idle", true);
-		show_socket_list(buf, &pool->used_server_list, "used", true);
-		show_socket_list(buf, &pool->tested_server_list, "tested", true);
-		show_socket_list(buf, &pool->new_server_list, "login", true);
+		show_socket_list(buf, &pool->active_server_list, "sv_active", true);
+		show_socket_list(buf, &pool->idle_server_list, "sv_idle", true);
+		show_socket_list(buf, &pool->used_server_list, "sv_used", true);
+		show_socket_list(buf, &pool->tested_server_list, "sv_tested", true);
+		show_socket_list(buf, &pool->new_server_list, "sv_login", true);
 	}
+	show_socket_list(buf, &login_client_list, "cl_login", true);
 	admin_flush(admin, buf, "SHOW");
 	return true;
 }

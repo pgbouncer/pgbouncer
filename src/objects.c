@@ -41,8 +41,8 @@ STATLIST(login_client_list);
  * is called from somewhere else.  So hide just freed
  * PgSockets for one loop.
  */
-STATLIST(justfree_client_list);
-STATLIST(justfree_server_list);
+static STATLIST(justfree_client_list);
+static STATLIST(justfree_server_list);
 
 /* how many client sockets are allocated */
 static int absolute_client_count = 0;
@@ -542,13 +542,11 @@ bool find_server(PgSocket *client)
 }
 
 /* connecting/active -> idle, unlink if needed */
-void release_server(PgSocket *server)
+bool release_server(PgSocket *server)
 {
 	PgPool *pool = server->pool;
 	SocketState newstate = SV_IDLE;
 
-	/* btw, this function is not allowed to disconnect,
-	   as there may be packet pending */
 	Assert(server->ready);
 
 	/* remove from old list */
@@ -578,9 +576,24 @@ void release_server(PgSocket *server)
 	/* immidiately process waiters, to give fair chance */
 	if (newstate == SV_IDLE) {
 		PgSocket *client = first_socket(&pool->waiting_client_list);
-		if (client)
+		if (client) {
 			activate_client(client);
+
+			/*
+			 * As the activate_client() does full read loop,
+			 * then it may happen that linked client close
+			 * couses server close.  Report it.
+			 */
+			switch (server->state) {
+			case SV_FREE:
+			case SV_JUSTFREE:
+				return false;
+			default:
+				break;
+			}
+		}
 	}
+	return true;
 }
 
 /* drop server connection */
@@ -591,8 +604,8 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason)
 	static const uint8 pkt_term[] = {'X', 0,0,0,4};
 	int send_term = 1;
 
-	log_debug("disconnect_server");
-	slog_info(server, "closing because: %s", reason);
+	if (cf_log_disconnections)
+		slog_info(server, "closing because: %s", reason);
 
 	switch (server->state) {
 	case SV_ACTIVE:
@@ -634,7 +647,8 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason)
 /* drop client connection */
 void disconnect_client(PgSocket *client, bool notify, const char *reason)
 {
-	slog_debug(client, "closing because: %s", reason);
+	if (cf_log_disconnections)
+		slog_debug(client, "closing because: %s", reason);
 
 	switch (client->state) {
 	case CL_ACTIVE:
@@ -715,8 +729,10 @@ void launch_new_connection(PgPool *pool)
 	pool->last_connect_time = get_cached_time();
 	change_server_state(server, SV_LOGIN);
 
+	if (cf_log_connections)
+		slog_info(server, "new connection to server");
+
 	/* start connecting */
-	slog_info(server, "new connection to server");
 	sbuf_connect(&server->sbuf, &server->addr, cf_server_connect_timeout / USEC);
 }
 
@@ -744,7 +760,8 @@ PgSocket * accept_client(int sock,
 	client->addr.is_unix = is_unix;
 	change_client_state(client, CL_LOGIN);
 
-	slog_debug(client, "got connection attempt");
+	if (cf_log_connections)
+		slog_debug(client, "got connection attempt");
 	sbuf_accept(&client->sbuf, sock, is_unix);
 
 	return client;

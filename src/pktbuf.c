@@ -75,7 +75,7 @@ bool pktbuf_send_immidiate(PktBuf *buf, PgSocket *sk)
 		return false;
 	res = safe_send(fd, pos, amount, 0);
 	if (res < 0) {
-		log_error("pktbuf_send_immidiate: %s", strerror(errno));
+		log_debug("pktbuf_send_immidiate: %s", strerror(errno));
 	}
 	return res == amount;
 }

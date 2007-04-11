@@ -100,6 +100,28 @@ Maximin number of client connections allowed.
 How many server connection to allow per user/database pair.
 Can be overrided in per-database config.
 
+
+
+=== Log settings ===
+
+==== log_connections ====
+
+Log successful logins.
+
+Default: 1
+
+==== log_disconnections ====
+
+Log disconnections with reasons.
+
+Default: 1
+
+==== log_pooler_errors ====
+
+Log error messaged pooler sends to clients.
+
+Default: 1
+
 === Console access control ===
 
 ==== admin_users ====
@@ -109,6 +131,8 @@ List of users that are allowed to run all commands on console.
 
 List of users that are allowed to run read-only queries on console.
 Thats means all SHOW commands except SHOW FDS.
+
+
 
 === Connection sanity checks, timeouts ===
 
@@ -155,9 +179,20 @@ Default: 0 (disabled)
 
 ==== client_idle_timeout ====
 
-Client connections idling longer than that are closed.
+Client connections idling longer than that are closed.  This should be
+larger then client-side connection lifetime settings, to apply only for
+network problems.
 
 Default: 0 (disabled)
+
+==== client_login_timeout ====
+
+If client connect but does not manage to login in this time,
+it will be disconnected.  Mainly needed to avoid dead connections
+stalling SUSPEND and thus online restart.
+
+Default: 0 (disabled)
+
 
 === Low-level network settings ===
 
@@ -190,6 +225,8 @@ Default: not set
 Default: not set
 ==== tcp_keepintvl ====
 Default: not set
+
+
 
 == Section [databases] ==
 

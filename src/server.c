@@ -56,6 +56,8 @@ static bool handle_server_startup(PgSocket *server, MBuf *pkt)
 	case 'R':		/* AuthenticationXXX */
 		log_debug("calling login_answer");
 		res = answer_authreq(server, pkt_type, pkt_len, pkt);
+		if (!res)
+			disconnect_server(server, false, "failed to answer authreq");
 		break;
 	case 'S':		/* ParameterStatus */
 		res = add_welcome_parameter(server, pkt_type, pkt_len, pkt);
@@ -65,13 +67,15 @@ static bool handle_server_startup(PgSocket *server, MBuf *pkt)
 		log_debug("server login ok, start accepting queries");
 		server->ready = 1;
 
+		/* got all params */
 		finish_welcome_msg(server);
-		release_server(server);
+
+		// FIXME: res check
+		res = release_server(server);
 
 		/* let the takeover process handle it */
-		if (server->pool->admin)
-			takeover_login(server);
-		res = true;
+		if (res && server->pool->admin)
+			res = takeover_login(server);
 		break;
 
 	/* ignorable packets */
@@ -282,6 +286,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *pkt, void *arg)
 			switch (server->state) {
 			case SV_ACTIVE:
 			case SV_TESTED:
+				/* retval does not matter here */
 				release_server(server);
 				break;
 			default:

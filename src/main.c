@@ -84,6 +84,7 @@ usec_t cf_server_connect_timeout = 15*USEC;
 usec_t cf_server_login_retry = 15*USEC;
 usec_t cf_query_timeout = 0*USEC;
 usec_t cf_client_idle_timeout = 0*USEC;
+usec_t cf_client_login_timeout = 0*USEC;
 
 char *cf_logfile = NULL;
 char *cf_pidfile = NULL;
@@ -93,6 +94,9 @@ char *cf_admin_users = "";
 char *cf_stats_users = "";
 int cf_stats_period = 60;
 
+int cf_log_connections = 1;
+int cf_log_disconnections = 1;
+int cf_log_pooler_errors = 1;
 
 /*
  * config file description
@@ -115,6 +119,7 @@ ConfElem bouncer_params[] = {
 {"server_check_delay",	true, CF_TIME, &cf_server_check_delay},
 {"query_timeout",	true, CF_TIME, &cf_query_timeout},
 {"client_idle_timeout",	true, CF_TIME, &cf_client_idle_timeout},
+{"client_login_timeout",true, CF_TIME, &cf_client_login_timeout},
 {"server_lifetime",	true, CF_TIME, &cf_server_lifetime},
 {"server_idle_timeout",	true, CF_TIME, &cf_server_idle_timeout},
 {"server_connect_timeout",true, CF_TIME, &cf_server_connect_timeout},
@@ -131,6 +136,9 @@ ConfElem bouncer_params[] = {
 {"admin_users",		true, CF_STR, &cf_admin_users},
 {"stats_users",		true, CF_STR, &cf_stats_users},
 {"stats_period",	true, CF_INT, &cf_stats_period},
+{"log_connections",	true, CF_INT, &cf_log_connections},
+{"log_disconnections",	true, CF_INT, &cf_log_disconnections},
+{"log_pooler_errors",	true, CF_INT, &cf_log_pooler_errors},
 {NULL},
 };
 

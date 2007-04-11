@@ -17,5 +17,5 @@
  */
 
 void takeover_init(void);
-void takeover_login(PgSocket *bouncer);
+bool takeover_login(PgSocket *bouncer);
 

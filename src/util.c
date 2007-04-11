@@ -104,7 +104,7 @@ static void _log(const char *pfx, const char *fmt, va_list ap)
 }
 
 void _fatal(const char *file, int line, const char *func,
-	    const char *fmt, ...)
+	    bool do_exit, const char *fmt, ...)
 {
 	va_list ap;
 	char buf[1024];
@@ -116,9 +116,8 @@ void _fatal(const char *file, int line, const char *func,
 	va_start(ap, fmt);
 	_log("FATAL", buf, ap);
 	va_end(ap);
-	if (cf_verbose > 2)
-		abort();
-	exit(1);
+	if (do_exit)
+		exit(1);
 }
 
 void _fatal_perror(const char *file, int line, const char *func,
@@ -129,7 +128,7 @@ void _fatal_perror(const char *file, int line, const char *func,
 	va_start(ap, fmt);
 	vsnprintf(buf, sizeof(buf), fmt, ap);
 	va_end(ap);
-	_fatal(file, line, func, "%s: %s", buf, strerror(errno));
+	_fatal(file, line, func, false, "%s: %s", buf, strerror(errno));
 }
 
 /*

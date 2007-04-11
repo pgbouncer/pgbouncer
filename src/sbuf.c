@@ -32,6 +32,20 @@
  */
 #define SMALL_PKT	16
 
+#define AssertSanity(sbuf) do { \
+	Assert((sbuf)->send_pos >= 0); \
+	Assert((sbuf)->send_pos <= (sbuf)->pkt_pos); \
+	Assert((sbuf)->pkt_pos <= (sbuf)->recv_pos); \
+	Assert((sbuf)->recv_pos <= cf_sbuf_len); \
+	Assert((sbuf)->pkt_remain >= 0); \
+	Assert((sbuf)->send_remain >= 0); \
+} while (0)
+
+#define AssertActive(sbuf) do { \
+	Assert((sbuf)->sock > 0); \
+	AssertSanity(sbuf); \
+} while (0)
+
 /* declare static stuff */
 static void sbuf_queue_send(SBuf *sbuf);
 static bool sbuf_send_pending(SBuf *sbuf);
@@ -41,37 +55,11 @@ static void sbuf_recv_cb(int sock, short flags, void *arg);
 static void sbuf_send_cb(int sock, short flags, void *arg);
 static void sbuf_try_resync(SBuf *sbuf);
 static void sbuf_wait_for_data(SBuf *sbuf);
+static bool sbuf_call_proto(SBuf *sbuf, int event);
 
-/*
- * Call proto callback with proper MBuf.
- *
- * If callback returns true it used one of sbuf_prepare_* on sbuf,
- * and processing can continue.
- *
- * If it returned false it used sbuf_pause(), sbuf_close() or simply
- * wants to wait for next event loop (eg. too few data available).
- * Callee should not touch sbuf in that case and just return to libevent.
- */
-static inline bool sbuf_call_proto(SBuf *sbuf, int event)
-{
-	MBuf mbuf;
-	uint8 *pos = sbuf->buf + sbuf->pkt_pos;
-	int avail = sbuf->recv_pos - sbuf->pkt_pos;
-
-	Assert(avail >= 0);
-	Assert(pos + avail <= sbuf->buf + cf_sbuf_len);
-	Assert(event != SBUF_EV_READ || avail > 0);
-
-	mbuf_init(&mbuf, pos, avail);
-	return sbuf->proto_handler(sbuf, event, &mbuf, sbuf->arg);
-}
-
-/* lets wait for new data */
-static void sbuf_wait_for_data(SBuf *sbuf)
-{
-	event_set(&sbuf->ev, sbuf->sock, EV_READ | EV_PERSIST, sbuf_recv_cb, sbuf);
-	event_add(&sbuf->ev, NULL);
-}
+/*********************************
+ * Public functions
+ *********************************/
 
 /* initialize SBuf with proto handler */
 void sbuf_init(SBuf *sbuf, sbuf_proto_cb_t proto_fn, void *arg)
@@ -84,9 +72,8 @@ void sbuf_init(SBuf *sbuf, sbuf_proto_cb_t proto_fn, void *arg)
 /* got new socket from accept() */
 void sbuf_accept(SBuf *sbuf, int sock, bool is_unix)
 {
-	Assert(sbuf->pkt_pos == 0);
-	Assert(sbuf->recv_pos == 0);
-	Assert(sbuf->send_pos == 0);
+	Assert(sbuf->recv_pos == 0 && sbuf->sock == 0);
+	AssertSanity(sbuf);
 
 	tune_socket(sock, is_unix);
 	sbuf->sock = sock;
@@ -110,6 +97,9 @@ void sbuf_connect(SBuf *sbuf, const PgAddr *addr, int timeout_sec)
 	struct sockaddr *sa;
 	socklen_t len;
 	struct timeval timeout;
+
+	Assert(sbuf->recv_pos == 0 && sbuf->sock == 0);
+	AssertSanity(sbuf);
 
 	/* prepare sockaddr */
 	if (addr->is_unix) {
@@ -171,6 +161,7 @@ void sbuf_connect(SBuf *sbuf, const PgAddr *addr, int timeout_sec)
 /* dont wait for data on this socket */
 void sbuf_pause(SBuf *sbuf)
 {
+	AssertActive(sbuf);
 	Assert(sbuf->wait_send == 0);
 
 	event_del(&sbuf->ev);
@@ -179,6 +170,8 @@ void sbuf_pause(SBuf *sbuf)
 /* resume from pause, start waiting for data */
 void sbuf_continue(SBuf *sbuf)
 {
+	AssertActive(sbuf);
+
 	sbuf_wait_for_data(sbuf);
 
 	/* there is some data already received */
@@ -193,6 +186,8 @@ void sbuf_continue(SBuf *sbuf)
  */
 void sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb user_cb)
 {
+	AssertActive(sbuf);
+
 	event_set(&sbuf->ev, sbuf->sock, EV_READ | EV_PERSIST,
 		  user_cb, sbuf->arg);
 	event_add(&sbuf->ev, NULL);
@@ -214,8 +209,9 @@ void sbuf_close(SBuf *sbuf)
 }
 
 /* proto_fn tells to send some bytes to socket */
-void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, unsigned amount, bool flush)
+void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, int amount, bool flush)
 {
+	AssertActive(sbuf);
 	Assert(sbuf->pkt_remain == 0);
 	Assert(sbuf->pkt_skip == 0 || sbuf->send_remain == 0);
 	Assert(!sbuf->pkt_flush || sbuf->send_remain == 0);
@@ -230,6 +226,7 @@ void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, unsigned amount, bool flush)
 /* proto_fn tells to skip sone amount of bytes */
 void sbuf_prepare_skip(SBuf *sbuf, int amount)
 {
+	AssertActive(sbuf);
 	Assert(sbuf->pkt_remain == 0);
 	Assert(sbuf->pkt_skip == 0 || sbuf->send_remain == 0);
 	Assert(!sbuf->pkt_flush || sbuf->send_remain == 0);
@@ -241,6 +238,47 @@ void sbuf_prepare_skip(SBuf *sbuf, int amount)
 	sbuf->dst = NULL;
 }
 
+/*************************
+ * Internal functions
+ *************************/
+
+/*
+ * Call proto callback with proper MBuf.
+ *
+ * If callback returns true it used one of sbuf_prepare_* on sbuf,
+ * and processing can continue.
+ *
+ * If it returned false it used sbuf_pause(), sbuf_close() or simply
+ * wants to wait for next event loop (eg. too few data available).
+ * Callee should not touch sbuf in that case and just return to libevent.
+ */
+static bool sbuf_call_proto(SBuf *sbuf, int event)
+{
+	MBuf mbuf;
+	uint8 *pos = sbuf->buf + sbuf->pkt_pos;
+	int avail = sbuf->recv_pos - sbuf->pkt_pos;
+	bool res;
+
+	AssertSanity(sbuf);
+	Assert(event != SBUF_EV_READ || avail > 0);
+
+	mbuf_init(&mbuf, pos, avail);
+	res = sbuf->proto_handler(sbuf, event, &mbuf, sbuf->arg);
+
+	AssertSanity(sbuf);
+	if (event == SBUF_EV_READ && res)
+		Assert(sbuf->sock > 0);
+
+	return res;
+}
+
+/* lets wait for new data */
+static void sbuf_wait_for_data(SBuf *sbuf)
+{
+	event_set(&sbuf->ev, sbuf->sock, EV_READ | EV_PERSIST, sbuf_recv_cb, sbuf);
+	event_add(&sbuf->ev, NULL);
+}
+
 /* libevent EV_WRITE: called when dest socket is writable again */
 static void sbuf_send_cb(int sock, short flags, void *arg)
 {
@@ -249,6 +287,8 @@ static void sbuf_send_cb(int sock, short flags, void *arg)
 	/* sbuf was closed before in this loop */
 	if (!sbuf->sock)
 		return;
+
+	AssertSanity(sbuf);
 
 	/* prepare normal situation for sbuf_recv_cb() */
 	sbuf->wait_send = 0;
@@ -260,6 +300,8 @@ static void sbuf_send_cb(int sock, short flags, void *arg)
 /* socket is full, wait until its writable again */
 static void sbuf_queue_send(SBuf *sbuf)
 {
+	AssertActive(sbuf);
+
 	sbuf->wait_send = 1;
 	event_del(&sbuf->ev);
 	event_set(&sbuf->ev, sbuf->dst->sock, EV_WRITE, sbuf_send_cb, sbuf);
@@ -276,6 +318,7 @@ static bool sbuf_send_pending(SBuf *sbuf)
 	int res, avail;
 	uint8 *pos;
 
+	AssertActive(sbuf);
 	Assert(sbuf->dst || !sbuf->send_remain);
 
 try_more:
@@ -284,7 +327,7 @@ try_more:
 	if (avail > sbuf->send_remain)
 		avail = sbuf->send_remain;
 	if (avail == 0)
-		return true;
+		goto all_sent;
 
 	if (sbuf->dst->sock == 0) {
 		log_error("sbuf_send_pending: no dst sock?");
@@ -294,26 +337,34 @@ try_more:
 	/* actually send it */
 	pos = sbuf->buf + sbuf->send_pos;
 	res = safe_send(sbuf->dst->sock, pos, avail, 0);
-	if (res >= 0) {
-		sbuf->send_remain -= res;
-		sbuf->send_pos += res;
-
-		if (res < avail) {
-			/*
-			 * Should do sbuf_queue_send() immidiately?
-			 *
-			 * To be sure, lets run into EAGAIN.
-			 */
-			goto try_more;
-		}
-		return true;
-	} else if (errno == EAGAIN) {
-		sbuf_queue_send(sbuf);
-		return false;
-	} else {
-		sbuf_call_proto(sbuf, SBUF_EV_SEND_FAILED);
+	if (res < 0) {
+		if (errno == EAGAIN)
+			sbuf_queue_send(sbuf);
+		else
+			sbuf_call_proto(sbuf, SBUF_EV_SEND_FAILED);
 		return false;
 	}
+
+	sbuf->send_remain -= res;
+	sbuf->send_pos += res;
+
+	AssertActive(sbuf);
+
+	/*
+	 * Should do sbuf_queue_send() immidiately?
+	 *
+	 * To be sure, lets run into EAGAIN.
+	 */
+	if (res < avail)
+		goto try_more;
+
+all_sent:
+
+	/* send_pos may lag pkt_pos in case of skip packets, move it here */
+	if (sbuf->send_remain == 0 && sbuf->send_pos < sbuf->pkt_pos)
+		sbuf->send_pos = sbuf->pkt_pos;
+
+	return true;
 }
 
 /* process as much data as possible */
@@ -324,7 +375,7 @@ static bool sbuf_process_pending(SBuf *sbuf)
 	bool res;
 
 	while (1) {
-		Assert(sbuf->recv_pos >= sbuf->pkt_pos);
+		AssertActive(sbuf);
 
 		/*
 		 * Enough for now?
@@ -373,28 +424,20 @@ static void sbuf_try_resync(SBuf *sbuf)
 {
 	int avail;
 
-	if (sbuf->pkt_pos == 0)
+	AssertActive(sbuf);
+
+	if (sbuf->send_pos == 0)
 		return;
 
-	if (sbuf->send_remain > 0)
-		avail = sbuf->recv_pos - sbuf->send_pos;
-	else
-		avail = sbuf->recv_pos - sbuf->pkt_pos;
+	avail = sbuf->recv_pos - sbuf->send_pos;
 
 	if (avail == 0) {
 		sbuf->recv_pos = sbuf->pkt_pos = sbuf->send_pos = 0;
 	} else if (avail <= SMALL_PKT) {
-		if (sbuf->send_remain > 0) {
-			memmove(sbuf->buf, sbuf->buf + sbuf->send_pos, avail);
-			sbuf->pkt_pos -= sbuf->send_pos;
-			sbuf->send_pos = 0;
-			sbuf->recv_pos = avail;
-		} else {
-			memmove(sbuf->buf, sbuf->buf + sbuf->pkt_pos, avail);
-			sbuf->send_pos = 0;
-			sbuf->pkt_pos = 0;
-			sbuf->recv_pos = avail;
-		}
+		memmove(sbuf->buf, sbuf->buf + sbuf->send_pos, avail);
+		sbuf->pkt_pos -= sbuf->send_pos;
+		sbuf->send_pos = 0;
+		sbuf->recv_pos = avail;
 	}
 }
 
@@ -403,6 +446,10 @@ static bool sbuf_actual_recv(SBuf *sbuf, int len)
 {
 	int got;
 	uint8 *pos;
+
+	AssertActive(sbuf);
+	Assert(len > 0);
+	Assert(sbuf->recv_pos + len <= cf_sbuf_len);
 
 	pos = sbuf->buf + sbuf->recv_pos;
 	got = safe_recv(sbuf->sock, pos, len, 0);
@@ -438,6 +485,7 @@ static void sbuf_recv_cb(int sock, short flags, void *arg)
 
 	/* reading should be disabled when waiting */
 	Assert(sbuf->wait_send == 0);
+	AssertSanity(sbuf);
 
 try_more:
 	/* make room in buffer */
@@ -481,12 +529,12 @@ static bool sbuf_after_connect_check(SBuf *sbuf)
 	err = getsockopt(sbuf->sock, SOL_SOCKET, SO_ERROR, (void*)&optval, &optlen);
 	if (err < 0) {
 		log_error("sbuf_after_connect_check: getsockopt: %s",
-				strerror(errno));
+			  strerror(errno));
 		return false;
 	}
 	if (optval != 0) {
 		log_error("sbuf_after_connect_check: pending error: %s",
-				strerror(optval));
+			  strerror(optval));
 		return false;
 	}
 	return true;
@@ -517,9 +565,9 @@ bool sbuf_answer(SBuf *sbuf, const void *buf, int len)
 		return false;
 	res = safe_send(sbuf->sock, buf, len, 0);
 	if (res < 0)
-		log_error("sbuf_answer: error sending: %s", strerror(errno));
+		log_debug("sbuf_answer: error sending: %s", strerror(errno));
 	else if (res != len)
-		log_error("sbuf_answer: partial send: len=%d sent=%d", len, res);
+		log_debug("sbuf_answer: partial send: len=%d sent=%d", len, res);
 	return res == len;
 }
 

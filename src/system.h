@@ -57,7 +57,8 @@
 #endif
 
 #ifdef CASSERT
-#define Assert(e) do { if (!(e)) fatal("Assert(%s) failed", #e); } while (0)
+#define Assert(e) do { if (!(e)) { \
+	fatal_noexit("Assert(%s) failed", #e); abort(); } } while (0)
 #else
 #define Assert(e)
 #endif

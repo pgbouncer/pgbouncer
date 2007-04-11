@@ -1,4 +1,20 @@
 
+2007-04-11  -  PgBouncer 1.0.3  -  "Fearless Fork"
+
+  = Fixes =
+
+  * Some error handling was missing in login path, so dying
+    connection there could trigger asserts.
+  * Cleanup of asserts in sbuf.c to catch problems earlier.
+  * Create core when Assert() triggers.
+
+  = New stuff =
+
+  * New config vars: log_connections, log_disconnections,
+    log_pooler_errors to turn on/off noise.
+  * Config var: client_login_timeout to kill dead connections
+    in login phase that could stall SUSPEND and thus online restart.
+
 2007-03-28  -  PgBouncer 1.0.2  -  "Supersonic Spoon"
 
   * libevent may report a deleted event inside same loop.

@@ -284,7 +284,7 @@ static void pool_client_maint(PgPool *pool)
 			Assert(client->state == CL_WAITING);
 			if (client->query_start == 0) {
 				age = now - client->request_time;
-				log_warning("query_start==0");
+				//log_warning("query_start==0");
 			} else
 				age = now - client->query_start;
 			if (age > cf_query_timeout)
@@ -394,6 +394,24 @@ static void pool_server_maint(PgPool *pool)
 	check_pool_size(pool);
 }
 
+static void cleanup_client_logins(void)
+{
+	List *item, *tmp;
+	PgSocket *client;
+	usec_t age;
+	usec_t now = get_cached_time();
+
+	if (cf_client_login_timeout <= 0)
+		return;
+
+	statlist_for_each_safe(item, &login_client_list, tmp) {
+		client = container_of(item, PgSocket, head);
+		age = now - client->connect_time;
+		if (age > cf_client_login_timeout)
+			disconnect_client(client, true, "client_login_timeout");
+	}
+}
+
 /* full-scale maintenenace, done only occasionally */
 static void do_full_maint(int sock, short flags, void *arg)
 {
@@ -407,6 +425,8 @@ static void do_full_maint(int sock, short flags, void *arg)
 		pool_server_maint(pool);
 		pool_client_maint(pool);
 	}
+
+	cleanup_client_logins();
 
 	if (cf_shutdown && get_active_server_count() == 0) {
 		log_info("server connections dropped, exiting");

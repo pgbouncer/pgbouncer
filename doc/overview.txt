@@ -40,5 +40,5 @@ Downloads, bugtracker, CVS: http://pgfoundry.org/projects/pgbouncer
 == Docs ==
 
  * Detailed usage info: ./UsageInfo
- * COnfig file help: ./ConfigFile
+ * Config file help: ./ConfigFile
  * TODO list: ./ToDo

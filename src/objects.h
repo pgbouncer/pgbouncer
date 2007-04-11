@@ -28,7 +28,7 @@ PgDatabase *find_database(const char *name);
 PgUser *find_user(const char *name);
 PgPool *get_pool(PgDatabase *, PgUser *);
 bool find_server(PgSocket *client);
-void release_server(PgSocket *server);
+bool release_server(PgSocket *server);
 bool finish_client_login(PgSocket *client);
 
 PgSocket * accept_client(int sock, const struct sockaddr_in *addr, bool is_unix);

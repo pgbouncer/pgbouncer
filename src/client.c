@@ -121,7 +121,9 @@ static bool decide_startup_pool(PgSocket *client, MBuf *pkt)
 		disconnect_client(client, true, "No database supplied");
 		return false;
 	}
-	slog_debug(client, "login request: db=%s user=%s", dbname, username);
+
+	if (cf_log_connections)
+		slog_info(client, "login request: db=%s user=%s", dbname, username);
 
 	/* check if limit allows, dont limit admin db
 	   nb: new incoming conn will be attached to PgSocket, thus
@@ -191,7 +193,12 @@ static bool handle_client_startup(PgSocket *client, MBuf *pkt)
 	case PKT_SSLREQ:
 		log_noise("C: req SSL");
 		log_noise("P: nak");
-		sbuf_answer(&client->sbuf, "N", 1);
+
+		/* reject SSL attempt */
+		if (!sbuf_answer(&client->sbuf, "N", 1)) {
+			disconnect_client(client, false, "failed to nak SSL");
+			return false;
+		}
 		break;
 	case PKT_STARTUP:
 		if (mbuf_avail(pkt) < pkt_len - 8) {
@@ -215,7 +222,10 @@ static bool handle_client_startup(PgSocket *client, MBuf *pkt)
 			if (!finish_client_login(client))
 				return false;
 		} else {
-			send_client_authreq(client);
+			if (!send_client_authreq(client)) {
+				disconnect_client(client, false, "failed to send auth req");
+				return false;
+			}
 		}
 		break;
 	case 'p':		/* PasswordMessage */

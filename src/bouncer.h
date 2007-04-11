@@ -257,6 +257,7 @@ extern usec_t cf_server_connect_timeout;
 extern usec_t cf_server_login_retry;
 extern usec_t cf_query_timeout;
 extern usec_t cf_client_idle_timeout;
+extern usec_t cf_client_login_timeout;
 
 extern int cf_auth_type;
 extern char *cf_auth_file;
@@ -279,6 +280,10 @@ extern int cf_tcp_keepidle;
 extern int cf_tcp_keepintvl;
 extern int cf_tcp_socket_buffer;
 extern int cf_tcp_defer_accept;
+
+extern int cf_log_connections;
+extern int cf_log_disconnections;
+extern int cf_log_pooler_errors;
 
 extern ConfElem bouncer_params[];
 

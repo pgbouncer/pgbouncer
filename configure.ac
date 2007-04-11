@@ -30,7 +30,16 @@ if test x"$GCC" = xyes; then
 fi
 
 dnl Checks for header files.
-AC_CHECK_HEADERS([crypt.h sys/socket.h sys/ucred.h])
+AC_CHECK_HEADERS([crypt.h sys/param.h sys/socket.h])
+dnl ucred.h may have prereqs
+AC_CHECK_HEADERS([sys/ucred.h], [], [], [
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#ifdef HAVE_SYS_PARAM_H
+#include <sys/param.h>
+#endif
+])
 
 dnl Checks for typedefs, structures, and compiler characteristics.
 AC_C_INLINE

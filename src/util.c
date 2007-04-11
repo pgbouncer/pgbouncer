@@ -24,6 +24,9 @@
 
 #include "md5.h"
 
+#ifdef HAVE_SYS_PARAM_H
+#include <sys/param.h>
+#endif
 #ifdef HAVE_SYS_UCRED_H
 #include <sys/ucred.h>
 #endif

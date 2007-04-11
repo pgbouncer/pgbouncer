@@ -869,14 +869,8 @@ bool use_client_socket(int fd, PgAddr *addr,
 		       const char *dbname, const char *username,
 		       uint64 ckey, int oldfd, int linkfd)
 {
-	PgDatabase *db = find_database(dbname);
-	PgUser *user = find_user(username);
-	PgPool *pool = get_pool(db, user);
 	PgSocket *client;
 	PktBuf tmp;
-
-	if (!pool)
-		return false;
 
 	client = accept_client(fd, NULL, addr->is_unix);
 	client->addr = *addr;
@@ -929,10 +923,13 @@ bool use_server_socket(int fd, PgAddr *addr,
 	server->connect_time = server->request_time = get_cached_time();
 	server->query_start = 0;
 
-	if (linkfd)
+	if (linkfd) {
+		server->ready = 0;
 		change_server_state(server, SV_ACTIVE);
-	else
+	} else {
+		server->ready = 1;
 		change_server_state(server, SV_IDLE);
+	}
 
 	/* store old cancel key */
 	pktbuf_static(&tmp, server->cancel_key, 8);

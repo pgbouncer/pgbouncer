@@ -1,4 +1,11 @@
 
+2007-04-11  -  PgBouncer 1.0.5  -  "Enough for today"
+
+  * Fix online-restart bugs:
+    - Set ->ready for idle servers.
+    - Remove obsolete code from use_client_socket()
+    - Disable maintenance during the takeover.
+
 2007-04-11  -  PgBouncer 1.0.4  -  "Last 'last' bug"
 
   * Notice from idle server tagged server dirty.

@@ -1,3 +1,9 @@
+pgbouncer (1.0.4-1) unstable; urgency=low
+
+  * last bug, honestly.
+
+ -- Marko Kreen <marko.kreen@skype.net>  Wed, 11 Apr 2007 12:03:52 +0300
+
 pgbouncer (1.0.3-1) unstable; urgency=low
 
   * more error handling fixes.

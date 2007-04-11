@@ -523,8 +523,14 @@ bool find_server(PgSocket *client)
 	/* try to get idle server, if allowed */
 	if (cf_pause_mode == P_PAUSE)
 		server = NULL;
-	else
-		server = first_socket(&pool->idle_server_list);
+	else {
+		while (1) {
+			server = first_socket(&pool->idle_server_list);
+			if (!server || server->ready)
+				break;
+			disconnect_server(server, true, "idle server got dirty");
+		}
+	}
 
 	/* link or send to waiters list */
 	if (server) {

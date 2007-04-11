@@ -113,7 +113,15 @@ static void launch_recheck(PgPool *pool)
 	PgSocket *server;
 	bool res = true;
 
-	server = first_socket(&pool->used_server_list);
+	/* find clean server */
+	while (1) {
+		server = first_socket(&pool->used_server_list);
+		if (!server)
+			return;
+		if (server->ready)
+			break;
+		disconnect_server(server, true, "idle server got dirty");
+	}
 
 	/* is the check needed? */
 	if (q == NULL || q[0] == 0)
@@ -308,6 +316,10 @@ static void check_unused_servers(StatList *slist, usec_t now, bool idle_test)
 
 		if (server->close_needed)
 			disconnect_server(server, true, "db conf changed");
+		else if (server->state == SV_IDLE && !server->ready)
+			disconnect_server(server, true, "SV_IDLE server got dirty");
+		else if (server->state == SV_USED && !server->ready)
+			disconnect_server(server, true, "SV_USED server got dirty");
 		else if (cf_server_idle_timeout > 0 && idle > cf_server_idle_timeout)
 			disconnect_server(server, true, "server idle timeout");
 		else if (cf_server_lifetime > 0 && age > cf_server_lifetime)

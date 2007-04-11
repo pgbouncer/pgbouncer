@@ -70,7 +70,6 @@ static bool handle_server_startup(PgSocket *server, MBuf *pkt)
 		/* got all params */
 		finish_welcome_msg(server);
 
-		// FIXME: res check
 		res = release_server(server);
 
 		/* let the takeover process handle it */
@@ -138,6 +137,16 @@ static bool handle_server_work(PgSocket *server, MBuf *pkt)
 			return false;
 		}
 
+	/*
+	 * 'E' and 'N' packets currently set ->ready to 0.  Correct would
+	 * be to leave ->ready as-is, because overal TX state stays same.
+	 * It matters for connections in IDLE or USED state which get dirty
+	 * suddenly but should not as they are still usable.
+	 *
+	 * But the 'E' or 'N' packet between transactions signifies probably
+	 * dying backend.  This its better to tag server as dirty and drop
+	 * it later.
+	 */
 	case 'E':		/* ErrorResponse */
 	case 'N':		/* NoticeResponse */
 

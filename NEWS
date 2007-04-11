@@ -1,4 +1,10 @@
 
+2007-04-11  -  PgBouncer 1.0.4  -  "Last 'last' bug"
+
+  * Notice from idle server tagged server dirty.
+    release_server() did not expect it.  Fix it
+    by dropping them.
+
 2007-04-11  -  PgBouncer 1.0.3  -  "Fearless Fork"
 
   = Fixes =

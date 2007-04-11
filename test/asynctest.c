@@ -8,6 +8,8 @@
 
 #include <sys/time.h>
 #include <sys/select.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
@@ -25,6 +27,9 @@ typedef enum { false=0, true=1 } bool;
 
 #include "list.h"
 
+static LIST(idle_list);
+static LIST(active_list);
+
 typedef struct DbConn {
 	List		head;
 	const char	*connstr;
@@ -32,11 +37,22 @@ typedef struct DbConn {
 	//time_t		connect_time;
 	//unsigned	query_count;
 	PGconn		*con;
-	const char	*query;
+	//const char	*query;
 } DbConn;
 
-static LIST(idle_list);
-static LIST(active_list);
+static char *bulk_data;
+static int bulk_data_max = 128*1024;  /* power of 2 */
+
+/* fill mem with random junk */
+static void init_bulk_data(void)
+{
+	int i;
+	bulk_data = malloc(bulk_data_max + 1);
+	for (i = 0; i < bulk_data_max; i++) {
+		bulk_data[i] = 'a' + (i % 26);
+	}
+	bulk_data[i] = 0;
+}
 
 static DbConn *new_db(const char *connstr)
 {
@@ -65,8 +81,8 @@ static void set_active(DbConn *db)
 static void conn_error(DbConn *db, const char *desc)
 {
 	if (db->con) {
-		printf("libpq error in %s: %s\n",
-		       desc, PQerrorMessage(db->con));
+		//printf("libpq error in %s: %s\n",
+		//       desc, PQerrorMessage(db->con));
 		PQfinish(db->con);
 		db->con = NULL;
 	} else {
@@ -161,14 +177,29 @@ static void send_cb(int sock, short flags, void *arg)
 static void send_query(DbConn *db)
 {
 	int res;
+	const char *q = "select $1::text";
+	const char *values[1];
+	int lengths[1];
+	int fmts[1];
+	int arglen;
+
+	arglen = random() & (bulk_data_max - 1);
+	values[0] = bulk_data + bulk_data_max - arglen;
+	lengths[0] = arglen;
+	fmts[0] = 1;
 
 	/* send query */
-	res = PQsendQueryParams(db->con, db->query, 0,
-			NULL,	/* paramTypes */
-			NULL,	/* paramValues */
-			NULL,	/* paramLengths */
-			NULL,	/* paramFormats */
-			0);	/* resultformat, 0-text, 1-bin */
+	if ((random() & 63) == 0) {
+		res = PQsendQueryParams(db->con, "select pg_sleep(0.2)", 0,
+					NULL, NULL, NULL, NULL, 0);
+	} else {
+		res = PQsendQueryParams(db->con, q, 1,
+					NULL,	/* paramTypes */
+					values,	/* paramValues */
+					lengths,/* paramLengths */
+					fmts,	/* paramFormats */
+					1);	/* resultformat, 0-text, 1-bin */
+	}
 	if (!res) {
 		conn_error(db, "PQsendQueryParams");
 		return;
@@ -242,10 +273,20 @@ int main(void)
 	int i;
 	DbConn *db;
 	List *item, *tmp;
+	unsigned seed;
 
-	for (i = 0; i < 10; i++) {
-		db = new_db("dbname=marko port=6000 host=/tmp");
-		db->query = "select 1";
+	seed = time(NULL) ^ getpid();
+	printf("using seed: %u\n", seed);
+	srandom(seed);
+
+	init_bulk_data();
+
+	for (i = 0; i < 50; i++) {
+		db = new_db("dbname=marko port=6000 host=127.0.0.1 password=kama");
+		list_append(&db->head, &idle_list);
+	}
+	for (i = 0; i < 50; i++) {
+		db = new_db("dbname=marko port=7000 host=127.0.0.1 password=kama");
 		list_append(&db->head, &idle_list);
 	}
 

@@ -2,12 +2,15 @@
 PGINC = -I$(shell pg_config --includedir)
 PGLIB = -L$(shell pg_config --libdir)
 
-CFLAGS = -O2 -g -Wall $(PGINC) -I$(HOME)/src/libevent -I../src
-LDFLAGS = $(PGLIB) -lpq -L$(HOME)/src/libevent/.libs -levent
+include ../config.mak
+
+CPPFLAGS += -I../src $(PGINC)
+LDFLAGS += $(PGLIB) -lpq -levent
 
 all: asynctest
 
 asynctest: asynctest.c
+	$(CC) -o $@ $< $(CPPFLAGS) $(CFLAGS) $(LDFLAGS)
 
 clean:
 	rm -f asynctest

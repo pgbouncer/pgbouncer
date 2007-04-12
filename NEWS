@@ -1,4 +1,11 @@
 
+2007-04-12  -  PgBouncer 1.0.6  -  "Daily Dose"
+
+  * The "Disable maintenance during the takeover" fix could
+    disable maintenance altogether.  Fix it.
+  * Compilation fix for FreeBSD, <sys/ucred.h> requires <sys/param.h> there.
+    Thanks go to Robert Gogolok for report.
+
 2007-04-11  -  PgBouncer 1.0.5  -  "Enough for today"
 
   * Fix online-restart bugs:

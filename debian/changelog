@@ -1,3 +1,9 @@
+pgbouncer (1.0.6-1) unstable; urgency=low
+
+  * previous fix could broke maint.
+
+ -- Marko Kreen <marko.kreen@skype.net>  Thu, 12 Apr 2007 11:30:53 +0300
+
 pgbouncer (1.0.5-1) unstable; urgency=low
 
   * fix online restart bugs.

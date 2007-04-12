@@ -436,7 +436,7 @@ static void do_full_maint(int sock, short flags, void *arg)
 
 	/* dont touch anything if takeover is in progress */
 	if (cf_reboot)
-		return;
+		goto skip;
 
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
@@ -455,6 +455,7 @@ static void do_full_maint(int sock, short flags, void *arg)
 
 	loader_users_check();
 
+skip:
 	evtimer_add(&full_maint_ev, &full_maint_period);
 }
 

@@ -105,7 +105,10 @@ size_t strlcat(char *dst, const char *src, size_t n);
 /*
  * socket option handling
  */
-bool get_unix_peer_uid(int fd, uid_t *uid_p);
+#ifndef HAVE_GETPEEREID
+int getpeereid(int fd, uid_t *uid_p, gid_t *gid_p);
+#endif
+
 void socket_set_nonblocking(int fd, int val);
 void tune_socket(int sock, bool is_unix);
 

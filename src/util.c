@@ -403,32 +403,36 @@ void reset_time_cache(void)
 }
 
 /*
- * get other side's uid.
+ * Get other side's uid for UNIX socket.
+ *
+ * Standardise on getpeereid() from BSDs.
  */
-bool get_unix_peer_uid(int fd, uid_t *uid_p)
+#ifndef HAVE_GETPEEREID
+int getpeereid(int fd, uid_t *uid_p, gid_t *gid_p)
 {
-	int res = -1;
 #ifdef SO_PEERCRED
 	struct ucred cred;
 	socklen_t len = sizeof(cred);
-	res = getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &len);
-	if (res >= 0)
+	if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &len) >= 0) {
 		*uid_p = cred.uid;
-	else
-		log_error("getsockopt(SO_PEERCRED): %s", strerror(errno));
+		*gid_p = cred.gid;
+		return 0;
+	}
 #else /* !SO_PEERCRED */
-#ifdef LOCAL_PEERCRED
-	struct xucred cred;
-	socklen_t len = sizeof(cred);
-	res = getsockopt(fd, AF_UNIX, LOCAL_PEERCRED, &cred, &len);
-	if (res >= 0)
-		*uid_p = cred.cr_uid;
-	else
-		log_error("getsockopt(LOCAL_PEERCRED): %s", strerror(errno));
-#endif /* !LOCAL_PEERCRED */
+#ifdef HAVE_GETPEERUCRED
+	ucred_t *cred = NULL;
+	if (getpeerucred(fd, &cred) >= 0) {
+		*uid_p = ucred_geteuid(cred);
+		*gid_p = ucred_getegid(cred);
+		ucred_free(cred);
+		if (*uid_p >= 0 && *gid_p >= 0)
+			return 0;
+	}
+#endif /* HAVE_GETPEERUCRED */
 #endif /* !SO_PEERCRED */
-	return (res >= 0);
+	return -1;
 }
+#endif /* !HAVE_GETPEEREID */
 
 void socket_set_nonblocking(int fd, int val)
 {

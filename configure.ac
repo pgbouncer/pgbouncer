@@ -51,7 +51,7 @@ AC_TYPE_UINT64_T
 AC_SYS_LARGEFILE
 
 dnl Checks for library functions.
-AC_CHECK_FUNCS(strlcpy strlcat)
+AC_CHECK_FUNCS(strlcpy strlcat getpeereid getpeerucred)
 AC_SEARCH_LIBS(crypt, crypt, [], AC_MSG_ERROR([crypt not found]))
 
 dnl Find libevent

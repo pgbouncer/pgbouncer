@@ -199,11 +199,12 @@ pool_accept(int sock, short flags, void *is_unix)
 		log_debug("P: new unix client");
 		{
 			uid_t uid;
+			gid_t gid;
 			log_noise("getuid(): %d", (int)getuid());
-			if (get_unix_peer_uid(fd, &uid))
+			if (getpeereid(fd, &uid, &gid) >= 0)
 				log_noise("unix peer uid: %d", (int)uid);
 			else
-				log_noise("unix peer uid failed");
+				log_warning("unix peer uid failed: %s", strerror(errno));
 		}
 		accept_client(fd, NULL, true);
 	} else {

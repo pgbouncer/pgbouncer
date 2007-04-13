@@ -807,8 +807,9 @@ bool admin_handle_client(PgSocket *admin, MBuf *pkt, int pkt_type, int pkt_len)
  */
 bool admin_pre_login(PgSocket *client)
 {
-	uid_t peer_uid = 0;
-	bool res;
+	uid_t peer_uid = -1;
+	gid_t peer_gid = -1;
+	int res;
 	const char *username = client->auth_user->name;
 
 	client->admin_user = 0;
@@ -816,8 +817,8 @@ bool admin_pre_login(PgSocket *client)
 
 	/* tag same uid as special */
 	if (client->addr.is_unix) {
-		res = get_unix_peer_uid(sbuf_socket(&client->sbuf), &peer_uid);
-		if (res && peer_uid == getuid()
+		res = getpeereid(sbuf_socket(&client->sbuf), &peer_uid, &peer_gid);
+		if (res >= 0 && peer_uid == getuid()
 			&& strcmp("pgbouncer", username) == 0)
 		{
 			client->own_user = 1;

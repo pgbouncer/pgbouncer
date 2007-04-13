@@ -40,7 +40,7 @@ void *zmalloc(size_t len)
 }
 
 /*
- * Safe string copy
+ * Minimal spec-conforming implementations of strlcpy(), strlcat().
  */
 #ifndef HAVE_STRLCPY
 size_t strlcpy(char *dst, const char *src, size_t n)
@@ -61,9 +61,7 @@ size_t strlcat(char *dst, const char *src, size_t n)
 	size_t pos = 0;
 	while (pos < n && dst[pos])
 		pos++;
-	if (pos < n)
-		return pos + strlcpy(dst + pos, src, n - pos);
-	return pos + strlen(src);
+	return pos + strlcpy(dst + pos, src, n - pos);
 }
 #endif
 

@@ -543,26 +543,39 @@ void tune_socket(int sock, bool is_unix)
 		fatal_perror("setsockopt TCP_NODELAY");
 }
 
-
+/*
+ * Find a string in comma-separated list.
+ *
+ * It does not support space inside tokens.
+ */
 bool strlist_contains(const char *liststr, const char *str)
 {
 	int c, len = strlen(str);
-	const char *p = strstr(liststr, str);
-
+	const char *p, *listpos = liststr;
+	
+loop:
+	/* find string fragment, later check if actual token */
+	p = strstr(listpos, str);
 	if (p == NULL)
 		return false;
 
-	/* check if item start */
+	/* move listpos further */
+	listpos = p + len;
+	/* survive len=0 and avoid unneccesary compare */
+	if (*listpos)
+		listpos++;
+
+	/* check previous symbol */
 	if (p > liststr) {
 		c = *(p - 1);
 		if (!isspace(c) && c != ',')
-			return false;
+			goto loop;
 	}
 
-	/* check if item end */
+	/* check following symbol */
 	c = p[len];
 	if (c != 0 && !isspace(c) && c != ',')
-		return false;
+		goto loop;
 
 	return true;
 }

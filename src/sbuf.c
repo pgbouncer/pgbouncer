@@ -389,8 +389,14 @@ static bool sbuf_process_pending(SBuf *sbuf)
 		if (avail == 0 || (full && avail <= SMALL_PKT))
 			break;
 
-		/* handle proto if start of packet */
-		if (sbuf->pkt_remain == 0) { /* start of new block */
+		/*
+		 * If start of packet, process packet header.
+		 *
+		 * Dont append anything to flush packets, send them first.
+		 */
+		if (sbuf->pkt_remain == 0 && !sbuf->pkt_flush) {
+			/* if flush then send it before looking */
+
 			res = sbuf_call_proto(sbuf, SBUF_EV_READ);
 			if (!res)
 				return false;

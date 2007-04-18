@@ -137,6 +137,9 @@ static bool handle_server_work(PgSocket *server, MBuf *pkt)
 			return false;
 		}
 
+		/* above packers need to be sent immidiately */
+		flush = 1;
+
 	/*
 	 * 'E' and 'N' packets currently set ->ready to 0.  Correct would
 	 * be to leave ->ready as-is, because overal TX state stays same.
@@ -149,9 +152,6 @@ static bool handle_server_work(PgSocket *server, MBuf *pkt)
 	 */
 	case 'E':		/* ErrorResponse */
 	case 'N':		/* NoticeResponse */
-
-		/* above packers need to be sent immidiately */
-		flush = 1;
 
 	/*
 	 * chat packets, but server (and thus pooler)

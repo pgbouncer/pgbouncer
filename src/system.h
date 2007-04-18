@@ -70,6 +70,11 @@
 /* how many microseconds in a second */
 #define USEC (1000000LL)
 
+
+/*
+ * PostgreSQL types.
+ */
+
 typedef enum { false=0, true=1 } bool;
 
 typedef uint8_t uint8;
@@ -77,8 +82,25 @@ typedef uint16_t uint16;
 typedef uint32_t uint32;
 typedef uint64_t uint64;
 
+/*
+ * PostgreSQL type OIDs for resultsets.
+ */
 
 #define INT8OID 20
 #define INT4OID 23
 #define TEXTOID 25
+
+/*
+ * libc compat functions.
+ */
+
+#ifndef HAVE_STRLCPY
+size_t strlcpy(char *dst, const char *src, size_t n);
+#endif
+#ifndef HAVE_STRLCAT
+size_t strlcat(char *dst, const char *src, size_t n);
+#endif
+#ifndef HAVE_GETPEEREID
+int getpeereid(int fd, uid_t *uid_p, gid_t *gid_p);
+#endif
 

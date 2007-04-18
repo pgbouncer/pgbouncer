@@ -24,13 +24,6 @@
 
 #include "md5.h"
 
-#ifdef HAVE_SYS_PARAM_H
-#include <sys/param.h>
-#endif
-#ifdef HAVE_SYS_UCRED_H
-#include <sys/ucred.h>
-#endif
-
 void *zmalloc(size_t len)
 {
 	void *p = malloc(len);
@@ -38,32 +31,6 @@ void *zmalloc(size_t len)
 		memset(p, 0, len);
 	return p;
 }
-
-/*
- * Minimal spec-conforming implementations of strlcpy(), strlcat().
- */
-#ifndef HAVE_STRLCPY
-size_t strlcpy(char *dst, const char *src, size_t n)
-{
-	size_t len = strlen(src);
-	if (len < n) {
-		memcpy(dst, src, len + 1);
-	} else if (n > 0) {
-		memcpy(dst, src, n - 1);
-		dst[n - 1] = 0;
-	}
-	return len;
-}
-#endif
-#ifndef HAVE_STRLCAT
-size_t strlcat(char *dst, const char *src, size_t n)
-{
-	size_t pos = 0;
-	while (pos < n && dst[pos])
-		pos++;
-	return pos + strlcpy(dst + pos, src, n - pos);
-}
-#endif
 
 /*
  * Generic logging
@@ -359,12 +326,6 @@ bool pg_md5_encrypt(const char *part1,
 	return true;
 }
 
-/* wrapper for usable crypt() */
-const char *pg_crypt(const char *passwd, const char *salt)
-{
-	return crypt(passwd, salt);
-}
-
 /* wrapped for getting random bytes */
 bool get_random_bytes(uint8 *dest, int len)
 {
@@ -401,38 +362,6 @@ void reset_time_cache(void)
 {
 	time_cache = 0;
 }
-
-/*
- * Get other side's uid for UNIX socket.
- *
- * Standardise on getpeereid() from BSDs.
- */
-#ifndef HAVE_GETPEEREID
-int getpeereid(int fd, uid_t *uid_p, gid_t *gid_p)
-{
-#ifdef SO_PEERCRED
-	struct ucred cred;
-	socklen_t len = sizeof(cred);
-	if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &len) >= 0) {
-		*uid_p = cred.uid;
-		*gid_p = cred.gid;
-		return 0;
-	}
-#else /* !SO_PEERCRED */
-#ifdef HAVE_GETPEERUCRED
-	ucred_t *cred = NULL;
-	if (getpeerucred(fd, &cred) >= 0) {
-		*uid_p = ucred_geteuid(cred);
-		*gid_p = ucred_getegid(cred);
-		ucred_free(cred);
-		if (*uid_p >= 0 && *gid_p >= 0)
-			return 0;
-	}
-#endif /* HAVE_GETPEERUCRED */
-#endif /* !SO_PEERCRED */
-	return -1;
-}
-#endif /* !HAVE_GETPEEREID */
 
 void socket_set_nonblocking(int fd, int val)
 {

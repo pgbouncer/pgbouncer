@@ -89,25 +89,7 @@ int safe_sendmsg(int fd, const struct msghdr *msg, int flags);
 #define isMD5(passwd) (memcmp(passwd, "md5", 3) == 0 \
 		&& strlen(passwd) == MD5_PASSWD_LEN)
 bool pg_md5_encrypt(const char *part1, const char *part2, size_t p2len, char *dest);
-const char *pg_crypt(const char *passwd, const char *salt);
 bool get_random_bytes(uint8 *dest, int len);
-
-/*
- * safe string copy
- */
-#ifndef HAVE_STRLCPY
-size_t strlcpy(char *dst, const char *src, size_t n);
-#endif
-#ifndef HAVE_STRLCAT
-size_t strlcat(char *dst, const char *src, size_t n);
-#endif
-
-/*
- * socket option handling
- */
-#ifndef HAVE_GETPEEREID
-int getpeereid(int fd, uid_t *uid_p, gid_t *gid_p);
-#endif
 
 void socket_set_nonblocking(int fd, int val);
 void tune_socket(int sock, bool is_unix);

@@ -215,7 +215,7 @@ static bool login_crypt_psw(PgSocket *server, const uint8 *salt)
 
 	log_debug("P: send crypt password");
 	strncpy(saltbuf, (char *)salt, 2);
-	enc = pg_crypt(user->passwd, saltbuf);
+	enc = crypt(user->passwd, saltbuf);
 	return send_password(server, enc);
 }
 

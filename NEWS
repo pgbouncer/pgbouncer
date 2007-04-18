@@ -1,4 +1,12 @@
 
+2007-04-18  -  PgBouncer 1.0.7  -  "With Vitamin A-Z"
+
+  * Several error/notice packets with send() blocking
+    triggered assert.  Fix it.
+  * List search code for admin_users and stats_users
+    mishandled partial finds.  Fix it.
+  * Standardise UNIX socket peer UID finding to getpeereid().
+
 2007-04-12  -  PgBouncer 1.0.6  -  "Daily Dose"
 
   * The "Disable maintenance during the takeover" fix could

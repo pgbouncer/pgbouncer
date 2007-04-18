@@ -1,3 +1,9 @@
+pgbouncer (1.0.7-1) unstable; urgency=low
+
+  * Fix send() blocking on flush packets.
+
+ -- Marko Kreen <marko.kreen@skype.net>  Wed, 18 Apr 2007 16:43:45 +0300
+
 pgbouncer (1.0.6-1) unstable; urgency=low
 
   * previous fix could broke maint.

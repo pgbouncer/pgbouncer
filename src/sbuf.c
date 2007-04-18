@@ -26,6 +26,10 @@
 
 #include "bouncer.h"
 
+/* sbuf_main_loop() skip_recv values */
+#define DO_RECV		false
+#define SKIP_RECV	true
+
 /*
  * if less that this amount of data is pending, then
  * prefer to merge if with next recv()
@@ -55,6 +59,7 @@ static void sbuf_recv_cb(int sock, short flags, void *arg);
 static void sbuf_send_cb(int sock, short flags, void *arg);
 static void sbuf_try_resync(SBuf *sbuf);
 static void sbuf_wait_for_data(SBuf *sbuf);
+static void sbuf_main_loop(SBuf *sbuf, bool skip_recv);
 static bool sbuf_call_proto(SBuf *sbuf, int event);
 
 /*********************************
@@ -84,7 +89,7 @@ void sbuf_accept(SBuf *sbuf, int sock, bool is_unix)
 
 		/* socket should already have some data (linux only) */
 		if (cf_tcp_defer_accept && !is_unix)
-			sbuf_recv_cb(sbuf->sock, EV_READ, sbuf);
+			sbuf_main_loop(sbuf, DO_RECV);
 	}
 }
 
@@ -174,8 +179,12 @@ void sbuf_continue(SBuf *sbuf)
 
 	sbuf_wait_for_data(sbuf);
 
-	/* there is some data already received */
-	sbuf_recv_cb(sbuf->sock, EV_READ, sbuf);
+	/*
+	 * There may be some data already received,
+	 * but not certain, so avoid SKIP_RECV.
+	 * Anyway, it affect only client sockets.
+	 */
+	sbuf_main_loop(sbuf, DO_RECV);
 }
 
 /*
@@ -290,11 +299,12 @@ static void sbuf_send_cb(int sock, short flags, void *arg)
 
 	AssertSanity(sbuf);
 
-	/* prepare normal situation for sbuf_recv_cb() */
+	/* prepare normal situation for sbuf_main_loop */
 	sbuf->wait_send = 0;
 	sbuf_wait_for_data(sbuf);
 
-	sbuf_recv_cb(sbuf->sock, EV_READ, sbuf);
+	/* here we should certainly skip recv() */
+	sbuf_main_loop(sbuf, SKIP_RECV);
 }
 
 /* socket is full, wait until its writable again */
@@ -482,10 +492,23 @@ static bool sbuf_actual_recv(SBuf *sbuf, int len)
 /* callback for libevent EV_READ */
 static void sbuf_recv_cb(int sock, short flags, void *arg)
 {
-	int free, ok;
 	SBuf *sbuf = arg;
+	sbuf_main_loop(sbuf, DO_RECV);
+}
 
-	/* sbuf was closed before in this loop */
+/*
+ * Main recv-parse-send-repeat loop.
+ *
+ * The problem with extra recv() is EOF from socket.  Currently that means
+ * that the pending data is dropped.  Fortunately server sockets are not
+ * paused and dropping data from client is no problem.  So only place
+ * where skip_recv is important is sbuf_send_cb().
+ */
+static void sbuf_main_loop(SBuf *sbuf, bool skip_recv)
+{
+	int free, ok;
+
+	/* sbuf was closed before in this event loop */
 	if (!sbuf->sock)
 		return;
 
@@ -493,22 +516,24 @@ static void sbuf_recv_cb(int sock, short flags, void *arg)
 	Assert(sbuf->wait_send == 0);
 	AssertSanity(sbuf);
 
+	/* avoid recv() if asked */
+	if (skip_recv)
+		goto skip_recv;
+
 try_more:
 	/* make room in buffer */
 	sbuf_try_resync(sbuf);
 
 	/*
-	 * FIXME: When called from sbuf_continue()/sbuf_send_cb(),
-	 * there is already data waiting.  Thus there will be
-	 * unneccesary recv().
+	 * here used to be if (free > SMALL_PKT) check
+	 * but with skip_recv switch its should not be needed anymore.
 	 */
 	free = cf_sbuf_len - sbuf->recv_pos;
-	if (free > SMALL_PKT) {
-		ok = sbuf_actual_recv(sbuf, free);
-		if (!ok)
-			return;
-	}
+	ok = sbuf_actual_recv(sbuf, free);
+	if (!ok)
+		return;
 
+skip_recv:
 	/* now handle it */
 	ok = sbuf_process_pending(sbuf);
 	if (!ok)

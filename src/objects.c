@@ -81,7 +81,6 @@ static void clean_socket(PgSocket *sk)
 
 	sk->wait_for_welcome = 0;
 	sk->ready = 0;
-	sk->flush_req = 0;
 	sk->admin_user = 0;
 	sk->own_user = 0;
 	sk->suspended = 0;

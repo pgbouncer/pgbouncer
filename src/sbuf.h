@@ -54,14 +54,14 @@ struct SBuf {
 
 	int recv_pos;
 	int pkt_pos;
-	int pkt_remain;
 	int send_pos;
-	int send_remain;
 
-	unsigned wait_send:1;
-	unsigned pkt_skip:1;
-	unsigned pkt_flush:1;
-	unsigned is_unix:1;
+	int pkt_remain;		/* total packet length remaining */
+	int send_remain;	/* total data to be sent remaining */
+
+	unsigned pkt_skip:1;	/* if current packet should be skipped */
+	unsigned is_unix:1;	/* is it unix socket */
+	unsigned wait_send:1;	/* debug var, otherwise useless */
 
 	uint8 buf[0];
 };
@@ -77,7 +77,7 @@ void sbuf_continue(SBuf *sbuf);
 void sbuf_close(SBuf *sbuf);
 
 /* proto_fn can use those functions to order behaviour */
-void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, int amount, bool flush);
+void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, int amount);
 void sbuf_prepare_skip(SBuf *sbuf, int amount);
 
 bool sbuf_answer(SBuf *sbuf, const void *buf, int len);

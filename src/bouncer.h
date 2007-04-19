@@ -208,7 +208,6 @@ struct PgSocket {
 
 	unsigned	wait_for_welcome:1;	/* no server yet in pool */
 	unsigned	ready:1;		/* server accepts new query */
-	unsigned	flush_req:1;		/* client requested flush */
 	unsigned	admin_user:1;
 	unsigned	own_user:1;		/* is console client with same uid */
 
@@ -217,7 +216,7 @@ struct PgSocket {
 
 	/* admin conn, waits for completion of PAUSE/SUSPEND cmd */
 	unsigned	wait_for_response:1;
-	/* this (server0 socket must be closed ASAP */
+	/* this (server) socket must be closed ASAP */
 	unsigned	close_needed:1;
 
 	usec_t		connect_time;	/* when connection was made */

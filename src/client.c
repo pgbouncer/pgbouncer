@@ -271,7 +271,6 @@ static bool handle_client_work(PgSocket *client, MBuf *pkt)
 {
 	unsigned pkt_type;
 	unsigned pkt_len;
-	bool flush = 0;
 	SBuf *sbuf = &client->sbuf;
 
 	if (!get_header(pkt, &pkt_type, &pkt_len)) {
@@ -284,9 +283,7 @@ static bool handle_client_work(PgSocket *client, MBuf *pkt)
 
 	/* request immidiate response from server */
 	case 'H':		/* Flush */
-		client->flush_req = 1;
 	case 'S':		/* Sync */
-		/* sync is followed by ReadyForQuery */
 
 	/* one-packet queries */
 	case 'Q':		/* Query */
@@ -295,9 +292,6 @@ static bool handle_client_work(PgSocket *client, MBuf *pkt)
 	/* copy end markers */
 	case 'c':		/* CopyDone(F/B) */
 	case 'f':		/* CopyFail(F/B) */
-
-		/* above packets should be sent ASAP */
-		flush = 1;
 
 	/*
 	 * extended protocol allows server (and thus pooler)
@@ -329,7 +323,7 @@ static bool handle_client_work(PgSocket *client, MBuf *pkt)
 		client->link->ready = 0;
 
 		/* forward the packet */
-		sbuf_prepare_send(sbuf, &client->link->sbuf, pkt_len, flush);
+		sbuf_prepare_send(sbuf, &client->link->sbuf, pkt_len);
 		break;
 
 	/* client wants to go away */

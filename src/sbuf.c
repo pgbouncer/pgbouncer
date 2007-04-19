@@ -213,22 +213,20 @@ void sbuf_close(SBuf *sbuf)
 	sbuf->dst = NULL;
 	sbuf->sock = 0;
 	sbuf->pkt_pos = sbuf->pkt_remain = sbuf->recv_pos = 0;
-	sbuf->pkt_skip = sbuf->wait_send = sbuf->pkt_flush = 0;
+	sbuf->pkt_skip = sbuf->wait_send = 0;
 	sbuf->send_pos = sbuf->send_remain = 0;
 }
 
 /* proto_fn tells to send some bytes to socket */
-void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, int amount, bool flush)
+void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, int amount)
 {
 	AssertActive(sbuf);
 	Assert(sbuf->pkt_remain == 0);
 	Assert(sbuf->pkt_skip == 0 || sbuf->send_remain == 0);
-	Assert(!sbuf->pkt_flush || sbuf->send_remain == 0);
 	Assert(amount > 0);
 
 	sbuf->pkt_skip = 0;
 	sbuf->pkt_remain = amount;
-	sbuf->pkt_flush = flush;
 	sbuf->dst = dst;
 }
 
@@ -238,12 +236,10 @@ void sbuf_prepare_skip(SBuf *sbuf, int amount)
 	AssertActive(sbuf);
 	Assert(sbuf->pkt_remain == 0);
 	Assert(sbuf->pkt_skip == 0 || sbuf->send_remain == 0);
-	Assert(!sbuf->pkt_flush || sbuf->send_remain == 0);
 	Assert(amount > 0);
 
 	sbuf->pkt_skip = 1;
 	sbuf->pkt_remain = amount;
-	sbuf->pkt_flush = 0;
 	sbuf->dst = NULL;
 }
 
@@ -298,6 +294,7 @@ static void sbuf_send_cb(int sock, short flags, void *arg)
 		return;
 
 	AssertSanity(sbuf);
+	Assert(sbuf->wait_send);
 
 	/* prepare normal situation for sbuf_main_loop */
 	sbuf->wait_send = 0;
@@ -401,12 +398,8 @@ static bool sbuf_process_pending(SBuf *sbuf)
 
 		/*
 		 * If start of packet, process packet header.
-		 *
-		 * Dont append anything to flush packets, send them first.
 		 */
-		if (sbuf->pkt_remain == 0 && !sbuf->pkt_flush) {
-			/* if flush then send it before looking */
-
+		if (sbuf->pkt_remain == 0) {
 			res = sbuf_call_proto(sbuf, SBUF_EV_READ);
 			if (!res)
 				return false;
@@ -425,7 +418,7 @@ static bool sbuf_process_pending(SBuf *sbuf)
 		sbuf->pkt_pos += avail;
 
 		/* send data */
-		if (sbuf->pkt_skip || sbuf->pkt_flush) {
+		if (sbuf->pkt_skip) {
 			res = sbuf_send_pending(sbuf);
 			if (!res)
 				return false;
@@ -529,9 +522,11 @@ try_more:
 	 * but with skip_recv switch its should not be needed anymore.
 	 */
 	free = cf_sbuf_len - sbuf->recv_pos;
-	ok = sbuf_actual_recv(sbuf, free);
-	if (!ok)
-		return;
+	if (free > 0) {
+		ok = sbuf_actual_recv(sbuf, free);
+		if (!ok)
+			return;
+	}
 
 skip_recv:
 	/* now handle it */

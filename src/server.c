@@ -100,7 +100,6 @@ static bool handle_server_work(PgSocket *server, MBuf *pkt)
 {
 	unsigned pkt_type;
 	unsigned pkt_len;
-	bool flush = 0;
 	bool ready = 0;
 	char state;
 	SBuf *sbuf = &server->sbuf;
@@ -137,9 +136,6 @@ static bool handle_server_work(PgSocket *server, MBuf *pkt)
 			return false;
 		}
 
-		/* above packers need to be sent immidiately */
-		flush = 1;
-
 	/*
 	 * 'E' and 'N' packets currently set ->ready to 0.  Correct would
 	 * be to leave ->ready as-is, because overal TX state stays same.
@@ -172,12 +168,6 @@ static bool handle_server_work(PgSocket *server, MBuf *pkt)
 	case 's':		/* PortalSuspended */
 	case 'C':		/* CommandComplete */
 
-		/* check if client wanted immidiate response */
-		if (client && client->flush_req) {
-			flush = 1;
-			client->flush_req = 0;
-		}
-
 	/* data packets, there will be more coming */
 	case 'd':		/* CopyData(F/B) */
 	case 'D':		/* DataRow */
@@ -186,7 +176,7 @@ static bool handle_server_work(PgSocket *server, MBuf *pkt)
 	case 'T':		/* RowDescription */
 
 		if (client) {
-			sbuf_prepare_send(sbuf, &client->sbuf, pkt_len, flush);
+			sbuf_prepare_send(sbuf, &client->sbuf, pkt_len);
 		} else {
 			if (server->state != SV_TESTED)
 				log_warning("got packet '%c' from server"

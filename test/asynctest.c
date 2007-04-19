@@ -41,7 +41,7 @@ typedef struct DbConn {
 } DbConn;
 
 static char *bulk_data;
-static int bulk_data_max = 128*1024;  /* power of 2 */
+static int bulk_data_max = 16*1024;  /* power of 2 */
 
 /* fill mem with random junk */
 static void init_bulk_data(void)

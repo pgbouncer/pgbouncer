@@ -1,8 +1,12 @@
 
-2007-04-18  -  PgBouncer 1.0.7  -  "With Vitamin A-Z"
+2007-04-19  -  PgBouncer 1.0.7  -  "With Vitamin A-Z"
 
-  * Several error/notice packets with send() blocking
-    triggered assert.  Fix it.
+  * Several error/notice packets with send() blocking between
+    triggered assert.  Fix it by removing flushing logic altogether.
+    As pgbouncer does not actively buffer anything, its not needed.
+    It was a remnant from the time when buffering was pushed to
+    kernel with MSG_MORE.
+  * Additionally avoid calling recv() logic when sending unblocks.
   * List search code for admin_users and stats_users
     mishandled partial finds.  Fix it.
   * Standardise UNIX socket peer UID finding to getpeereid().

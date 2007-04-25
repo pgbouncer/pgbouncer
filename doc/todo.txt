@@ -1,15 +1,19 @@
 = PgBouncer TODO list =
 
- * -R should detect that no pooler is running and boot normally
- * -R should detect if login fails then exit()
+== High-prority ==
+
  * PAUSE <db>; RESUME <db>;
 
- * keep stats about error counts?
- * SHUTDOWN cmd should print notice?
- * before loading users, disable all existing?
+== Low-prio, technically suspicious items ==
 
+ * -R should somehow log whats happens
+ * -R should detect that no pooler is running and boot normally
+ * -R should detect if login fails then exit()
+
+== Low-prio, otherwise suspicious items ==
+
+ * keep stats about error counts
+ * SHUTDOWN cmd should print notice
+ * before loading users, disable all existing
  * Split CL_IDLE from CL_ACTIVE.  Does not give functional
  advantage, but makes monitoring easier.
-
-== Bugs ==
-

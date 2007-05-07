@@ -28,9 +28,7 @@
 #define __LIST_H_
 
 /* turn on slow checking */
-#if defined(CASSERT) && !defined(LIST_DEBUG)
-#define LIST_DEBUG
-#endif
+/* #define LIST_DEBUG */
 
 /* give offset of a field inside struct */
 #ifndef offsetof

@@ -844,10 +844,12 @@ void accept_cancel_request(PgSocket *req)
 	/* remember server key */
 	server = main_client->link;
 	memcpy(req->cancel_key, server->cancel_key, 8);
-	statlist_remove(&req->head, &login_client_list);
-	statlist_append(&req->head, &pool->cancel_req_list);
-	req->state =  CL_CANCEL;
 
+	/* attach to target pool */
+	req->pool = pool;
+	change_client_state(req, CL_CANCEL);
+
+	/* need fresh connection */
 	launch_new_connection(pool);
 }
 

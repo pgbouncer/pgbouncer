@@ -86,6 +86,34 @@ bool admin_error(PgSocket *admin, const char *fmt, ...)
 	return res;
 }
 
+static int count_paused_databases(void)
+{
+	List *item;
+	PgDatabase *db;
+	int cnt = 0;
+
+	statlist_for_each(item, &database_list) {
+		db = container_of(item, PgDatabase, head);
+		cnt += db->db_paused;
+	}
+	return cnt;
+}
+
+static int count_db_active(PgDatabase *db)
+{
+	List *item;
+	PgPool *pool;
+	int cnt = 0;
+
+	statlist_for_each(item, &pool_list) {
+		pool = container_of(item, PgPool, head);
+		if (pool->db != db)
+			continue;
+		cnt += pool_server_count(pool);
+	}
+	return cnt;
+}
+
 void admin_flush(PgSocket *admin, PktBuf *buf, const char *desc)
 {
 	pktbuf_write_CommandComplete(buf, desc);
@@ -597,20 +625,31 @@ static bool admin_cmd_shutdown(PgSocket *admin, const char *arg)
 /* Command: RESUME */
 static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 {
-	int tmp_mode = cf_pause_mode;
 	if (!admin->admin_user)
 		return admin_error(admin, "admin access needed");
 
-	log_info("RESUME command issued");
-	cf_pause_mode = P_NONE;
-	switch (tmp_mode) {
-	case P_SUSPEND:
-		resume_all();
-	case P_PAUSE:
-		return admin_ready(admin, "RESUME");
-	default:
-		return admin_error(admin, "Pooler is not paused/suspended");
+	if (!arg[0]) {
+		int tmp_mode = cf_pause_mode;
+		log_info("RESUME command issued");
+		cf_pause_mode = P_NONE;
+		switch (tmp_mode) {
+		case P_SUSPEND:
+			resume_all();
+		case P_PAUSE:
+			break;
+		default:
+			return admin_error(admin, "Pooler is not paused/suspended");
+		}
+	} else {
+		PgDatabase *db = find_database(arg);
+		log_info("PAUSE '%s' command issued", arg);
+		if (db == NULL)
+			return admin_error(admin, "no such database: %s", arg);
+		if (!db->db_paused)
+			return admin_error(admin, "database %s is not paused", arg);
+		db->db_paused = 0;
 	}
+	return admin_ready(admin, "RESUME");
 }
 
 /* Command: SUSPEND */
@@ -624,6 +663,10 @@ static bool admin_cmd_suspend(PgSocket *admin, const char *arg)
 
 	if (cf_pause_mode)
 		return admin_error(admin, "already suspended/paused");
+
+	/* suspend needs to be able to flush buffers */
+	if (count_paused_databases() > 0)
+		return admin_error(admin, "cannot suspend with paused databases");
 
 	log_info("SUSPEND command issued");
 	cf_pause_mode = P_SUSPEND;
@@ -642,9 +685,24 @@ static bool admin_cmd_pause(PgSocket *admin, const char *arg)
 	if (cf_pause_mode)
 		return admin_error(admin, "already suspended/paused");
 
-	log_info("PAUSE command issued");
-	cf_pause_mode = P_PAUSE;
-	admin->wait_for_response = 1;
+	if (!arg[0]) {
+		log_info("PAUSE command issued");
+		cf_pause_mode = P_PAUSE;
+		admin->wait_for_response = 1;
+	} else {
+		PgDatabase *db;
+		log_info("PAUSE '%s' command issued", arg);
+		db = find_database(arg);
+		if (db == NULL)
+			return admin_error(admin, "no such database: %s", arg);
+		if (db == admin->pool->db)
+			return admin_error(admin, "cannot pause admin db: %s", arg);
+		db->db_paused = 1;
+		if (count_db_active(db) > 0)
+			admin->wait_for_response = 1;
+		else
+			return admin_ready(admin, "PAUSE");
+	}
 
 	return true;
 }
@@ -937,7 +995,10 @@ void admin_pause_done(void)
 			admin_ready(admin, "SUSPEND");
 			break;
 		default:
-			fatal("admin_pause_done: bad state");
+			if (count_paused_databases() > 0)
+				admin_ready(admin, "PAUSE");
+			else
+				fatal("admin_pause_done: bad state");
 		}
 		admin->wait_for_response = 0;
 	}

@@ -182,6 +182,8 @@ struct PgDatabase {
 	unsigned		welcome_msg_len;
 	unsigned		welcome_msg_ready:1;
 
+	unsigned		db_paused:1;
+
 	/* key/val pairs (without user) for startup msg to be sent to server */
 	uint8			startup_params[256];
 	unsigned		startup_params_len;

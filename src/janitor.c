@@ -236,6 +236,7 @@ void per_loop_maint(void)
 	List *item;
 	PgPool *pool;
 	int active = 0;
+	int partial_pause = 0;
 
 	/* dont touch anything if takeover is in progress */
 	if (cf_reboot)
@@ -247,7 +248,11 @@ void per_loop_maint(void)
 			continue;
 		switch (cf_pause_mode) {
 		case P_NONE:
-			per_loop_activate(pool);
+			if (pool->db->db_paused) {
+				partial_pause = 1;
+				active += per_loop_pause(pool);
+			} else
+				per_loop_activate(pool);
 			break;
 		case P_PAUSE:
 			active += per_loop_pause(pool);
@@ -264,7 +269,10 @@ void per_loop_maint(void)
 	case P_PAUSE:
 		if (!active)
 			admin_pause_done();
-	default:
+		break;
+	case P_NONE:
+		if (partial_pause && !active)
+			admin_pause_done();
 		break;
 	}
 }

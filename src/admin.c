@@ -30,14 +30,20 @@
 #define MAX_GROUPS 10
 
 /* group numbers */
-#define SHOW_ARG 2
+#define CMD_NAME 1
+#define CMD_ARG 3
 #define SET_KEY 1
 #define SET_VAL 2
-#define SINGLECMD 1
 
-/* SHOW */
-static const char cmd_show_rx[] =
-"^" WS0 "(show|select)" WS1 WORD "?" WS0 ";" WS0 "$";
+typedef bool (*cmd_func_t)(PgSocket *admin, const char *arg);
+struct cmd_lookup {
+	const char *word;
+	cmd_func_t func;
+};
+
+/* CMD [arg]; */
+static const char cmd_normal_rx[] =
+"^" WS0 WORD "(" WS1 WORD ")?" WS0 ";" WS0 "$";
 
 /* SET with simple value */
 static const char cmd_set_word_rx[] =
@@ -47,17 +53,22 @@ static const char cmd_set_word_rx[] =
 static const char cmd_set_str_rx[] =
 "^" WS0 "set" WS1 WORD WS0 "=" WS0 STRING WS0 ";" WS0 "$";
 
-/* single word cmd */
-static const char cmd_single_rx[] =
-"^" WS0 WORD ";" WS0 "$";
-
 /* compiled regexes */
-static regex_t rc_show;
+static regex_t rc_cmd;
 static regex_t rc_set_word;
 static regex_t rc_set_str;
-static regex_t rc_single;
 
 static PgPool *admin_pool;
+
+static bool exec_cmd(struct cmd_lookup *lookup, PgSocket *admin,
+		     const char *cmd, const char *arg)
+{
+	for (; lookup->word; lookup++) {
+		if (strcasecmp(lookup->word, cmd) == 0)
+			return lookup->func(admin, arg);
+	}
+	return admin_error(admin, "syntax error, use SHOW HELP");
+}
 
 bool admin_error(PgSocket *admin, const char *fmt, ...)
 {
@@ -216,7 +227,7 @@ static bool show_fds_from_list(PgSocket *admin, StatList *list)
  *
  * If privileged connection, send also actual fds
  */
-static bool admin_show_fds(PgSocket *admin)
+static bool admin_show_fds(PgSocket *admin, const char *arg)
 {
 	List *item;
 	PgPool *pool;
@@ -274,7 +285,7 @@ static bool admin_show_fds(PgSocket *admin)
 }
 
 /* Command: SHOW DATABASES */
-static bool admin_show_databases(PgSocket *admin)
+static bool admin_show_databases(PgSocket *admin, const char *arg)
 {
 	PgDatabase *db;
 	List *item;
@@ -311,7 +322,7 @@ static bool admin_show_databases(PgSocket *admin)
 
 
 /* Command: SHOW LISTS */
-static bool admin_show_lists(PgSocket *admin)
+static bool admin_show_lists(PgSocket *admin, const char *arg)
 {
 	PktBuf *buf = pktbuf_dynamic(256);
 	if (!buf) {
@@ -333,7 +344,7 @@ static bool admin_show_lists(PgSocket *admin)
 }
 
 /* Command: SHOW USERS */
-static bool admin_show_users(PgSocket *admin)
+static bool admin_show_users(PgSocket *admin, const char *arg)
 {
 	PgUser *user;
 	List *item;
@@ -409,7 +420,7 @@ static void show_socket_list(PktBuf *buf, StatList *list, const char *state, boo
 }
 
 /* Command: SHOW CLIENTS */
-static bool admin_show_clients(PgSocket *admin)
+static bool admin_show_clients(PgSocket *admin, const char *arg)
 {
 	List *item;
 	PgPool *pool;
@@ -433,7 +444,7 @@ static bool admin_show_clients(PgSocket *admin)
 }
 
 /* Command: SHOW SERVERS */
-static bool admin_show_servers(PgSocket *admin)
+static bool admin_show_servers(PgSocket *admin, const char *arg)
 {
 	List *item;
 	PgPool *pool;
@@ -459,7 +470,7 @@ static bool admin_show_servers(PgSocket *admin)
 }
 
 /* Command: SHOW SOCKETS */
-static bool admin_show_sockets(PgSocket *admin)
+static bool admin_show_sockets(PgSocket *admin, const char *arg)
 {
 	List *item;
 	PgPool *pool;
@@ -489,7 +500,7 @@ static bool admin_show_sockets(PgSocket *admin)
 }
 
 /* Command: SHOW POOLS */
-static bool admin_show_pools(PgSocket *admin)
+static bool admin_show_pools(PgSocket *admin, const char *arg)
 {
 	List *item;
 	PgPool *pool;
@@ -529,7 +540,7 @@ static bool admin_show_pools(PgSocket *admin)
 }
 
 /* Command: SHOW CONFIG */
-static bool admin_show_config(PgSocket *admin)
+static bool admin_show_config(PgSocket *admin, const char *arg)
 {
 	ConfElem *cf;
 	int i = 0;
@@ -556,8 +567,11 @@ static bool admin_show_config(PgSocket *admin)
 }
 
 /* Command: RELOAD */
-static bool admin_cmd_reload(PgSocket *admin)
+static bool admin_cmd_reload(PgSocket *admin, const char *arg)
 {
+	if (arg && *arg)
+		return admin_error(admin, "syntax error");
+
 	if (!admin->admin_user)
 		return admin_error(admin, "admin access needed");
 
@@ -567,8 +581,11 @@ static bool admin_cmd_reload(PgSocket *admin)
 }
 
 /* Command: SHUTDOWN */
-static bool admin_cmd_shutdown(PgSocket *admin)
+static bool admin_cmd_shutdown(PgSocket *admin, const char *arg)
 {
+	if (arg && *arg)
+		return admin_error(admin, "syntax error");
+
 	if (!admin->admin_user)
 		return admin_error(admin, "admin access needed");
 
@@ -578,7 +595,7 @@ static bool admin_cmd_shutdown(PgSocket *admin)
 }
 
 /* Command: RESUME */
-static bool admin_cmd_resume(PgSocket *admin)
+static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 {
 	int tmp_mode = cf_pause_mode;
 	if (!admin->admin_user)
@@ -597,8 +614,11 @@ static bool admin_cmd_resume(PgSocket *admin)
 }
 
 /* Command: SUSPEND */
-static bool admin_cmd_suspend(PgSocket *admin)
+static bool admin_cmd_suspend(PgSocket *admin, const char *arg)
 {
+	if (arg && *arg)
+		return admin_error(admin, "syntax error");
+
 	if (!admin->admin_user)
 		return admin_error(admin, "admin access needed");
 
@@ -614,7 +634,7 @@ static bool admin_cmd_suspend(PgSocket *admin)
 }
 
 /* Command: PAUSE */
-static bool admin_cmd_pause(PgSocket *admin)
+static bool admin_cmd_pause(PgSocket *admin, const char *arg)
 {
 	if (!admin->admin_user)
 		return admin_error(admin, "admin access needed");
@@ -664,7 +684,7 @@ static void copy_arg_unquote(const char *str, regmatch_t *glist,
 	*dst = 0;
 }
 
-static bool admin_show_help(PgSocket *admin)
+static bool admin_show_help(PgSocket *admin, const char *arg)
 {
 	bool res;
 	SEND_generic(res, admin, 'N',
@@ -683,7 +703,7 @@ static bool admin_show_help(PgSocket *admin)
 	return res;
 }
 
-static bool admin_show_version(PgSocket *admin)
+static bool admin_show_version(PgSocket *admin, const char *arg)
 {
 	bool res;
 	SEND_generic(res, admin, 'N',
@@ -694,70 +714,70 @@ static bool admin_show_version(PgSocket *admin)
 	return res;
 }
 
+static bool admin_show_stats(PgSocket *admin, const char *arg)
+{
+	return admin_database_stats(admin, &pool_list);
+}
+
+static struct cmd_lookup show_map [] = {
+	{"clients", admin_show_clients},
+	{"config", admin_show_config},
+	{"databases", admin_show_databases},
+	{"fds", admin_show_fds},
+	{"help", admin_show_help},
+	{"lists", admin_show_lists},
+	{"pools", admin_show_pools},
+	{"servers", admin_show_servers},
+	{"sockets", admin_show_sockets},
+	{"stats", admin_show_stats},
+	{"users", admin_show_users},
+	{"version", admin_show_version},
+	{NULL, NULL}
+};
+
+static bool admin_cmd_show(PgSocket *admin, const char *arg)
+{
+	return exec_cmd(show_map, admin, arg, NULL);
+}
+
+static struct cmd_lookup cmd_list [] = {
+	{"pause", admin_cmd_pause},
+	{"reload", admin_cmd_reload},
+	{"resume", admin_cmd_resume},
+	{"select", admin_cmd_show},
+	{"show", admin_cmd_show},
+	{"shutdown", admin_cmd_shutdown},
+	{"suspend", admin_cmd_suspend},
+	{NULL, NULL}
+};
+
 /* handle user query */
 static bool admin_parse_query(PgSocket *admin, const char *q)
 {
 	regmatch_t grp[MAX_GROUPS];
-	char key[64];
+	char cmd[16];
+	char arg[64];
 	char val[256];
-	bool res = true;
+	bool res;
 
-	if (regexec(&rc_show, q, MAX_GROUPS, grp, 0) == 0) {
-		copy_arg(q, grp, SHOW_ARG, key, sizeof(key));
-		if (strcasecmp(key, "help") == 0) {
-			res = admin_show_help(admin);
-		} else if (strcasecmp(key, "stats") == 0) {
-			res = admin_database_stats(admin, &pool_list);
-		} else if (strcasecmp(key, "config") == 0) {
-			res = admin_show_config(admin);
-		} else if (strcasecmp(key, "databases") == 0) {
-			res = admin_show_databases(admin);
-		} else if (strcasecmp(key, "users") == 0) {
-			res = admin_show_users(admin);
-		} else if (strcasecmp(key, "pools") == 0) {
-			res = admin_show_pools(admin);
-		} else if (strcasecmp(key, "clients") == 0) {
-			res = admin_show_clients(admin);
-		} else if (strcasecmp(key, "servers") == 0) {
-			res = admin_show_servers(admin);
-		} else if (strcasecmp(key, "lists") == 0) {
-			res = admin_show_lists(admin);
-		} else if (strcasecmp(key, "sockets") == 0) {
-			res = admin_show_sockets(admin);
-		} else if (strcasecmp(key, "fds") == 0) {
-			res = admin_show_fds(admin);
-		} else if (strcasecmp(key, "version") == 0) {
-			res = admin_show_version(admin);
-		} else
-			res = admin_error(admin, "bad SHOW arg, use SHOW HELP");
+	if (regexec(&rc_cmd, q, MAX_GROUPS, grp, 0) == 0) {
+		copy_arg(q, grp, CMD_NAME, cmd, sizeof(cmd));
+		copy_arg(q, grp, CMD_ARG, arg, sizeof(arg));
+		res = exec_cmd(cmd_list, admin, cmd, arg);
 	} else if (regexec(&rc_set_str, q, MAX_GROUPS, grp, 0) == 0) {
-		copy_arg(q, grp, SET_KEY, key, sizeof(key));
+		copy_arg(q, grp, SET_KEY, arg, sizeof(arg));
 		copy_arg_unquote(q, grp, SET_VAL, val, sizeof(val));
-		if (!key[0] || !val[0]) {
+		if (!arg[0] || !val[0]) {
 			res = admin_error(admin, "bad arguments");
 		} else
-			res = admin_set(admin, key, val);
+			res = admin_set(admin, arg, val);
 	} else if (regexec(&rc_set_word, q, MAX_GROUPS, grp, 0) == 0) {
-		copy_arg(q, grp, SET_KEY, key, sizeof(key));
+		copy_arg(q, grp, SET_KEY, arg, sizeof(arg));
 		copy_arg(q, grp, SET_VAL, val, sizeof(val));
-		if (!key[0] || !val[0]) {
+		if (!arg[0] || !val[0]) {
 			res = admin_error(admin, "bad arguments");
 		} else
-			res = admin_set(admin, key, val);
-	} else if (regexec(&rc_single, q, MAX_GROUPS, grp, 0) == 0) {
-		copy_arg(q, grp, SINGLECMD, key, sizeof(key));
-		if (strcasecmp(key, "SHUTDOWN") == 0)
-			res = admin_cmd_shutdown(admin);
-		else if (strcasecmp(key, "SUSPEND") == 0)
-			res = admin_cmd_suspend(admin);
-		else if (strcasecmp(key, "PAUSE") == 0)
-			res = admin_cmd_pause(admin);
-		else if (strcasecmp(key, "RESUME") == 0)
-			res = admin_cmd_resume(admin);
-		else if (strcasecmp(key, "RELOAD") == 0)
-			res = admin_cmd_reload(admin);
-		else
-			res = admin_error(admin, "unknown command: %s", q);
+			res = admin_set(admin, arg, val);
 	} else
 		res = admin_error(admin, "unknown cmd: %s", q);
 
@@ -888,18 +908,15 @@ void admin_setup(void)
 	db->startup_params_len = pktbuf_written(&msg);
 
 	/* initialize regexes */
-	res = regcomp(&rc_show, cmd_show_rx, REG_EXTENDED | REG_ICASE);
+	res = regcomp(&rc_cmd, cmd_normal_rx, REG_EXTENDED | REG_ICASE);
 	if (res != 0)
-		fatal("cmd show regex compilation error");
+		fatal("cmd regex compilation error");
 	res = regcomp(&rc_set_word, cmd_set_word_rx, REG_EXTENDED | REG_ICASE);
 	if (res != 0)
 		fatal("set/word regex compilation error");
 	res = regcomp(&rc_set_str, cmd_set_str_rx, REG_EXTENDED | REG_ICASE);
 	if (res != 0)
 		fatal("set/str regex compilation error");
-	res = regcomp(&rc_single, cmd_single_rx, REG_EXTENDED | REG_ICASE);
-	if (res != 0)
-		fatal("singleword regex compilation error");
 }
 
 void admin_pause_done(void)

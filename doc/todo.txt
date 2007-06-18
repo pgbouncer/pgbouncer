@@ -1,24 +1,24 @@
 = PgBouncer TODO list =
 
-== Low-prio ==
+== Small stuff ==
 
  * create manpage
  * report existing pidfile to console
 
-=== Make -R less scary ===
+== Make -R less scary ==
 
  * -R should somehow log whats happens
  * -R should detect that no pooler is running and boot normally
  * -R should detect if login fails then exit()
 
- Details:
+==== Details: ====
  * Takeover before fork()
  * must not touch libevent, just fill structures,
-   libevent init after fork()
+ libevent init after fork()
  * ^C while takeover - immidiate _exit()
  * detection:
-   - if tcp - try binding
-   - if unix - try connect()
+   * if tcp - try binding
+   * if unix - try connect()
 
 == Low-prio, otherwise suspicious items ==
 

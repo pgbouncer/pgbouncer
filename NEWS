@@ -1,4 +1,16 @@
 
+2007-06-18  -  PgBouncer 1.0.8  -  "Undead Shovel Jutsu"
+
+  = Fixes =
+
+  * Fix crash in cancel packet handling. (^C from psql)
+
+  = Features =
+
+  * PAUSE <db>; RESUME <db>; works now.
+  * Cleanup of console command parsing.
+  * Disable expensive in-list assert check.
+
 2007-04-19  -  PgBouncer 1.0.7  -  "With Vitamin A-Z"
 
   * Several error/notice packets with send() blocking between

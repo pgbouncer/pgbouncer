@@ -9,13 +9,12 @@ Description: Lightweight connection pooler for PostgreSQL
 Copyright: BSD
  Copyright 2007 Marko Kreen, Skype Technologies
 Build: sh
- CPPFLAGS="-I$HOME/src/libevent" \
- LDFLAGS="-L$HOME/src/libevent/.libs" \
+ # just in case, build with debugging options
  ./configure --prefix=/usr --enable-debug --enable-cassert
  make V=1
 Clean: sh
  make clean || true
-#Build-Depends: libevent-dev
+Build-Depends: libevent-dev
 
 Package: pgbouncer
 Architecture: any

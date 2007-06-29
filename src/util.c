@@ -237,7 +237,7 @@ loop:
 			    msg->msg_controllen,
 			    flags, strerror(errno));
 
-		/* with ancillary data pn blocking socket OSX returns
+		/* with ancillary data on blocking socket OSX returns
 		 * EMSGSIZE instead of blocking.  try to solve it by waiting */
 		if (errno == EMSGSIZE && msgerr_count < 20) {
 			struct timeval tv = {1, 0};

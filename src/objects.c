@@ -695,6 +695,7 @@ void launch_new_connection(PgPool *pool)
 {
 	PgSocket *server;
 	int total;
+	const char *unix_dir = cf_unix_socket_dir;
 
 	/* allow only small number of connection attempts at a time */
 	if (!statlist_empty(&pool->new_server_list)) {
@@ -737,8 +738,13 @@ void launch_new_connection(PgPool *pool)
 	if (cf_log_connections)
 		slog_info(server, "new connection to server");
 
+	/* override socket location if requested */
+	if (server->pool->db->unix_socket_dir[0])
+		unix_dir = server->pool->db->unix_socket_dir;
+
 	/* start connecting */
-	sbuf_connect(&server->sbuf, &server->addr, cf_server_connect_timeout / USEC);
+	sbuf_connect(&server->sbuf, &server->addr, unix_dir,
+		     cf_server_connect_timeout / USEC);
 }
 
 /* new client connection attempt */

@@ -193,6 +193,7 @@ struct PgDatabase {
 
 	/* address prepared for connect() */
 	PgAddr			addr;
+	char			unix_socket_dir[UNIX_PATH_MAX];
 
 	/* max server connections in one pool */
 	int			pool_size;

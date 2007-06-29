@@ -22,38 +22,115 @@
 
 #include "bouncer.h"
 
+#include <netdb.h>
+
 /*
  * ConnString parsing
  */
 
-/* get key=val pair from connstring */
-static char * getpair(char *p,
-		      char **key_p, int *key_len,
-		      char **val_p, int *val_len)
+/* just skip whitespace */
+static char *cstr_skip_ws(char *p)
 {
 	while (*p && *p == ' ')
 		p++;
-	*key_p = p;
+	return p;
+}
+
+/* parse paramenter name before '=' */
+static char *cstr_get_key(char *p, char **dst_p)
+{
+	char *end;
+	p = cstr_skip_ws(p);
+	*dst_p = p;
 	while (*p && *p != '=' && *p != ' ')
 		p++;
-	*key_len = p - *key_p;
-	if (*p == '=')
-		p++;
-	*val_p = p;
-	while (*p && *p != ' ')
-		p++;
-	*val_len = p - *val_p;
+	end = p;
+	p = cstr_skip_ws(p);
+	/* fail if no '=' or empty name */
+	if (*p != '=' || *dst_p == end)
+		return NULL;
+	*end = 0;
+	return p + 1;
+}
 
-	while (*p && *p == ' ')
+/* unquote the quoted value after first quote */
+static char *cstr_unquote_value(char *p)
+{
+	char *s = p;
+	while (1) {
+		if (!*p)
+			return NULL;
+		if (p[0] == '\'') {
+			if (p[1] == '\'')
+				p++;
+			else
+				break;
+		}
+		*s++ = *p++;
+	}
+	/* terminate actual value */
+	*s = 0;
+	/* return position after quote */
+	return p + 1;
+}
+
+/* parse value, possibly quoted */
+static char *cstr_get_value(char *p, char **dst_p)
+{
+	p = cstr_skip_ws(p);
+	if (*p == '\'') {
+		*dst_p = ++p;
+		p = cstr_unquote_value(p);
+		if (!p)
+			return NULL;
+	} else {
+		*dst_p = p;
+		while (*p && *p != ' ')
+			p++;
+	}
+	if (*p) {
+		/* if not EOL, cut value */
+		*p = 0;
 		p++;
+	}
+	/* disallow empty values */
+	if (*dst_p[0] == 0)
+		return NULL;
 	return p;
+}
+
+/*
+ * Get key=val pair from connstring.  returns position it stopped
+ * or NULL on error.  EOF is signaled by *key = 0.
+ */
+static char * cstr_get_pair(char *p,
+			    char **key_p,
+			    char **val_p)
+{
+	p = cstr_skip_ws(p);
+	*key_p = *val_p = p;
+	if (*p == 0)
+		return p;
+
+	/* read key */
+	p = cstr_get_key(p, key_p);
+	if (!p)
+		return NULL;
+
+	/* read value */
+	p = cstr_get_value(p, val_p);
+	if (!p)
+		return NULL;
+
+	log_noise("cstr_get_pair: \"%s\"=\"%s\"", *key_p, *val_p);
+
+	return cstr_skip_ws(p);
 }
 
 /* fill PgDatabase from connstr */
 void parse_database(char *name, char *connstr)
 {
 	char *p, *key, *val;
-	int klen, vlen;
 	PktBuf buf;
 	PgDatabase *db;
 	int pool_size = -1;
@@ -65,17 +142,19 @@ void parse_database(char *name, char *connstr)
 	char *password = "";
 	char *client_encoding = NULL;
 	char *datestyle = NULL;
+	char *unix_dir = "";
 
 	in_addr_t v_addr = INADDR_NONE;
 	int v_port;
 
 	p = connstr;
 	while (*p) {
-		p = getpair(p, &key, &klen, &val, &vlen);
-		if (*key == 0 || *val == 0 || klen == 0 || vlen == 0)
+		p = cstr_get_pair(p, &key, &val);
+		if (p == NULL) {
+			log_error("%s: syntax error in connstring", name);
+			return;
+		} else if (!key[0])
 			break;
-		key[klen] = 0;
-		val[vlen] = 0;
 
 		if (strcmp("dbname", key) == 0)
 			dbname = val;
@@ -95,25 +174,50 @@ void parse_database(char *name, char *connstr)
 			pool_size = atoi(val);
 		else {
 			log_error("skipping database %s because"
-				  " of bad connstring: %s", name, connstr);
+				  " of unknown parameter in connstring: %s", name, key);
 			return;
 		}
 	}
 
+	/* host= */
 	if (!host) {
+		/* default unix socket dir */
 		if (!cf_unix_socket_dir) {
 			log_error("skipping database %s because"
 				" unix socket not configured", name);
 			return;
 		}
-	} else {
+	} else if (host[0] == '/') {
+		/* custom unix socket dir */
+		unix_dir = host;
+		host = NULL;
+	} else if (host[0] >= '0' && host[0] <= '9') {
+		/* ip-address */
 		v_addr = inet_addr(host);
 		if (v_addr == INADDR_NONE) {
 			log_error("skipping database %s because"
 					" of bad host: %s", name, host);
 			return;
 		}
+	} else {
+		/* resolve host by name */
+		struct hostent *h = gethostbyname(host);
+		if (h == NULL || h->h_addr_list[0] == NULL) {
+			log_error("%s: resolving host=%s failed: %s",
+				  name, host, hstrerror(h_errno));
+			return;
+		}
+		if (h->h_addrtype != AF_INET || h->h_length != 4) {
+			log_error("%s: host=%s has unknown addr type",
+				  name, host);
+			return;
+		}
+
+		/* result should be already in correct endianess */
+		memcpy(&v_addr, h->h_addr_list[0], 4);
 	}
+
+	/* port= */
 	v_port = atoi(port);
 	if (v_port == 0) {
 		log_error("skipping database %s because"
@@ -127,6 +231,7 @@ void parse_database(char *name, char *connstr)
 		return;
 	}
 
+	/* if updating old db, check if anything changed */
 	if (db->dbname) {
 		bool changed = false;
 		if (strcmp(db->dbname, dbname) != 0)
@@ -145,6 +250,8 @@ void parse_database(char *name, char *connstr)
 			changed = true;
 		else if (!username && db->forced_user)
 			changed = true;
+		else if (strcmp(db->unix_socket_dir, unix_dir) != 0)
+			changed = true;
 
 		if (changed)
 			tag_database_dirty(db);
@@ -155,6 +262,10 @@ void parse_database(char *name, char *connstr)
 	db->addr.port = v_port;
 	db->addr.ip_addr.s_addr = v_addr;
 	db->addr.is_unix = host ? 0 : 1;
+	strlcpy(db->unix_socket_dir, unix_dir, sizeof(db->unix_socket_dir));
+
+	if (host)
+		log_debug("%s: host=%s/%s", name, host, inet_ntoa(db->addr.ip_addr));
 
 	pktbuf_static(&buf, db->startup_params, sizeof(db->startup_params));
 

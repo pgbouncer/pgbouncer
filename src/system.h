@@ -67,6 +67,11 @@
 #define OPEN_MAX sysconf(_SC_OPEN_MAX)
 #endif
 
+#ifndef UNIX_PATH_MAX
+/* #define UNIX_PATH_MAX  (sizeof(((struct sockaddr_un *)0)->sun_path)) */
+#define UNIX_PATH_MAX  128 /* actual sizeof() will be applied later anyway */
+#endif
+
 /* how many microseconds in a second */
 #define USEC (1000000LL)
 

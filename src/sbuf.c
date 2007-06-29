@@ -94,7 +94,7 @@ void sbuf_accept(SBuf *sbuf, int sock, bool is_unix)
 }
 
 /* need to connect() to get a socket */
-void sbuf_connect(SBuf *sbuf, const PgAddr *addr, int timeout_sec)
+void sbuf_connect(SBuf *sbuf, const PgAddr *addr, const char *unix_dir, int timeout_sec)
 {
 	int res, sock, domain;
 	struct sockaddr_in sa_in;
@@ -113,7 +113,7 @@ void sbuf_connect(SBuf *sbuf, const PgAddr *addr, int timeout_sec)
 		memset(sa, 0, len);
 		sa_un.sun_family = AF_UNIX;
 		snprintf(sa_un.sun_path, sizeof(sa_un.sun_path),
-			 "%s/.s.PGSQL.%d", cf_unix_socket_dir, addr->port);
+			 "%s/.s.PGSQL.%d", unix_dir, addr->port);
 		domain = AF_UNIX;
 	} else {
 		sa = (void*)&sa_in;

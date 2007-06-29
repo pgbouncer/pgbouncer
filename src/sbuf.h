@@ -70,7 +70,7 @@ struct SBuf {
 
 void sbuf_init(SBuf *sbuf, sbuf_proto_cb_t proto_fn, void *arg);
 void sbuf_accept(SBuf *sbuf, int read_sock, bool is_unix);
-void sbuf_connect(SBuf *sbuf, const PgAddr *addr, int timeout_sec);
+void sbuf_connect(SBuf *sbuf, const PgAddr *addr, const char *unix_dir, int timeout_sec);
 
 void sbuf_pause(SBuf *sbuf);
 void sbuf_continue(SBuf *sbuf);

@@ -488,7 +488,7 @@ bool cf_set_str(ConfElem *elem, const char *val, PgSocket *console)
 	char **str_p = elem->dst;
 	char *tmp;
 
-	/* dont touch if not changed */
+	/* don't touch if not changed */
 	if (*str_p && strcmp(*str_p, val) == 0)
 		return true;
 

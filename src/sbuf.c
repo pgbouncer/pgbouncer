@@ -32,7 +32,7 @@
 
 /*
  * if less that this amount of data is pending, then
- * prefer to merge if with next recv()
+ * prefer to merge it with next recv()
  */
 #define SMALL_PKT	16
 
@@ -163,7 +163,7 @@ void sbuf_connect(SBuf *sbuf, const PgAddr *addr, const char *unix_dir, int time
 	}
 }
 
-/* dont wait for data on this socket */
+/* don't wait for data on this socket */
 void sbuf_pause(SBuf *sbuf)
 {
 	AssertActive(sbuf);
@@ -182,7 +182,7 @@ void sbuf_continue(SBuf *sbuf)
 	/*
 	 * There may be some data already received,
 	 * but not certain, so avoid SKIP_RECV.
-	 * Anyway, it affect only client sockets.
+	 * Anyway, it affects only client sockets.
 	 */
 	sbuf_main_loop(sbuf, DO_RECV);
 }
@@ -230,7 +230,7 @@ void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, int amount)
 	sbuf->dst = dst;
 }
 
-/* proto_fn tells to skip sone amount of bytes */
+/* proto_fn tells to skip some amount of bytes */
 void sbuf_prepare_skip(SBuf *sbuf, int amount)
 {
 	AssertActive(sbuf);
@@ -254,7 +254,7 @@ void sbuf_prepare_skip(SBuf *sbuf, int amount)
  * and processing can continue.
  *
  * If it returned false it used sbuf_pause(), sbuf_close() or simply
- * wants to wait for next event loop (eg. too few data available).
+ * wants to wait for next event loop (e.g. too few data available).
  * Callee should not touch sbuf in that case and just return to libevent.
  */
 static bool sbuf_call_proto(SBuf *sbuf, int event)
@@ -277,7 +277,7 @@ static bool sbuf_call_proto(SBuf *sbuf, int event)
 	return res;
 }
 
-/* lets wait for new data */
+/* let's wait for new data */
 static void sbuf_wait_for_data(SBuf *sbuf)
 {
 	event_set(&sbuf->ev, sbuf->sock, EV_READ | EV_PERSIST, sbuf_recv_cb, sbuf);
@@ -304,7 +304,7 @@ static void sbuf_send_cb(int sock, short flags, void *arg)
 	sbuf_main_loop(sbuf, SKIP_RECV);
 }
 
-/* socket is full, wait until its writable again */
+/* socket is full, wait until it's writable again */
 static void sbuf_queue_send(SBuf *sbuf)
 {
 	AssertActive(sbuf);
@@ -316,7 +316,7 @@ static void sbuf_queue_send(SBuf *sbuf)
 }
 
 /*
- * Theres data in buffer to be sent. returns bool if processing can continue.
+ * There's data in buffer to be sent. Returns bool if processing can continue.
  *
  * Does not look at pkt_pos/remain fields, expects them to be merged to send_*
  */
@@ -358,9 +358,9 @@ try_more:
 	AssertActive(sbuf);
 
 	/*
-	 * Should do sbuf_queue_send() immidiately?
+	 * Should do sbuf_queue_send() immediately?
 	 *
-	 * To be sure, lets run into EAGAIN.
+	 * To be sure, let's run into EAGAIN.
 	 */
 	if (res < avail)
 		goto try_more;

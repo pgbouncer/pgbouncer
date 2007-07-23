@@ -139,7 +139,7 @@ static void launch_recheck(PgPool *pool)
 		if (!res)
 			disconnect_server(server, false, "test query failed");
 	} else
-		/* make immidiately available */
+		/* make immediately available */
 		release_server(server);
 }
 
@@ -238,7 +238,7 @@ void per_loop_maint(void)
 	int active = 0;
 	int partial_pause = 0;
 
-	/* dont touch anything if takeover is in progress */
+	/* don't touch anything if takeover is in progress */
 	if (cf_reboot)
 		return;
 
@@ -277,7 +277,7 @@ void per_loop_maint(void)
 	}
 }
 
-/* maintaing clients in pool */
+/* maintaining clients in pool */
 static void pool_client_maint(PgPool *pool)
 {
 	List *item, *tmp;
@@ -436,13 +436,13 @@ static void cleanup_client_logins(void)
 	}
 }
 
-/* full-scale maintenenace, done only occasionally */
+/* full-scale maintenance, done only occasionally */
 static void do_full_maint(int sock, short flags, void *arg)
 {
 	List *item;
 	PgPool *pool;
 
-	/* dont touch anything if takeover is in progress */
+	/* don't touch anything if takeover is in progress */
 	if (cf_reboot)
 		goto skip;
 
@@ -476,7 +476,7 @@ void janitor_setup(void)
 }
 
 /* as [pgbouncer] section can be loaded after databases,
-   theres need for review */
+   there's need for review */
 void config_postprocess(void)
 {
 	List *item;

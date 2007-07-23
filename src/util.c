@@ -347,7 +347,7 @@ static usec_t get_time_usec(void)
 }
 
 /*
- * cache time, as we dont need sub-second precision
+ * cache time, as we don't need sub-second precision
  */
 static usec_t time_cache = 0;
 
@@ -395,7 +395,7 @@ void tune_socket(int sock, bool is_unix)
 	if (res < 0)
 		fatal_perror("fcntl FD_CLOEXEC");
 
-	/* when no data avail, return EAGAIN instead blocking */
+	/* when no data available, return EAGAIN instead blocking */
 	socket_set_nonblocking(sock, 1);
 
 #ifdef SO_NOSIGPIPE
@@ -427,7 +427,7 @@ void tune_socket(int sock, bool is_unix)
 			if (res < 0)
 				fatal_perror("setsockopt TCP_KEEPCNT");
 		}
-		/* how lond the connection can stay idle before sending keepalive pkts */
+		/* how long the connection can stay idle before sending keepalive pkts */
 		if (cf_tcp_keepidle) {
 			val = cf_tcp_keepidle;
 			res = setsockopt(sock, IPPROTO_TCP, TCP_KEEPIDLE, &val, sizeof(val));

@@ -184,7 +184,7 @@ pool_accept(int sock, short flags, void *is_unix)
 	fd = accept(sock, &addr.sa, &len);
 	if (fd < 0) {
 		/*
-		 * probably fd limit, pointess to try often
+		 * probably fd limit, pointless to try often
 		 * wait a bit, hope that admin resolves somehow
 		 */
 		log_error("accept() failed: %s", strerror(errno));

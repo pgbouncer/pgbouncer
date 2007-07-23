@@ -270,7 +270,7 @@ static bool admin_show_fds(PgSocket *admin, const char *arg)
 		return admin_error(admin, "admin access needed");
 
 	/*
-	 * Its very hard to send it reliably over in async manner,
+	 * It's very hard to send it reliably over in async manner,
 	 * so turn async off for this resultset.
 	 */
 	socket_set_nonblocking(sbuf_socket(&admin->sbuf), 0);

@@ -20,7 +20,7 @@
  * Connect to running bouncer process, load fds from it, shut it down
  * and continue with them.
  *
- * Each row from SHOW FDS will have corresponging fd in ancillary message.
+ * Each row from SHOW FDS will have corresponding fd in ancillary message.
  *
  * Manpages: unix, sendmsg, recvmsg, cmsg, readv
  */

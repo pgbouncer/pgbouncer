@@ -245,7 +245,7 @@ static void handle_sigint(int sock, short flags, void *arg)
 {
 	log_info("Got SIGINT, shutting down");
 	if (cf_reboot)
-		fatal("Takeover was in progress, going down immidiately");
+		fatal("Takeover was in progress, going down immediately");
 	cf_pause_mode = P_PAUSE;
 	cf_shutdown = 1;
 }

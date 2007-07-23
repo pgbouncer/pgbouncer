@@ -93,7 +93,7 @@ static void clean_socket(PgSocket *sk)
 	sk->auth_user = NULL;
 }
 
-/* allocate & fll client socket */
+/* allocate & fill client socket */
 static PgSocket *new_client(void)
 {
 	PgSocket *client;
@@ -255,7 +255,7 @@ void change_server_state(PgSocket *server, SocketState newstate)
 		break;
 	case SV_IDLE:
 		if (server->close_needed)
-			/* try to avoid immidiate usage then */
+			/* try to avoid immediate usage then */
 			statlist_append(&server->head, &pool->idle_server_list);
 		else
 			/* otherwise use LIFO */
@@ -372,7 +372,7 @@ PgUser *force_user(PgDatabase *db, const char *name, const char *passwd)
 	return user;
 }
 
-/* find a existing database */
+/* find an existing database */
 PgDatabase *find_database(const char *name)
 {
 	List *item;
@@ -578,7 +578,7 @@ bool release_server(PgSocket *server)
 
 	change_server_state(server, newstate);
 
-	/* immidiately process waiters, to give fair chance */
+	/* immediately process waiters, to give fair chance */
 	if (newstate == SV_IDLE) {
 		PgSocket *client = first_socket(&pool->waiting_client_list);
 		if (client) {
@@ -679,7 +679,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason)
 	/* send reason to client */
 	if (notify && reason) {
 		/*
-		 * dont send Ready pkt here, or client wont notice
+		 * don't send Ready pkt here, or client won't notice
 		 * closed connection
 		 */
 		send_pooler_error(client, false, reason);
@@ -703,7 +703,7 @@ void launch_new_connection(PgPool *pool)
 		return;
 	}
 
-	/* if server bounces, dont retry too fast */
+	/* if server bounces, don't retry too fast */
 	if (pool->last_connect_failed) {
 		usec_t now = get_cached_time();
 		if (now - pool->last_connect_time < cf_server_login_retry) {
@@ -803,7 +803,7 @@ bool finish_client_login(PgSocket *client)
 
 	slog_debug(client, "logged in");
 
-	/* in suspend, dont let send query */
+	/* in suspend, don't let send query */
 	if (cf_pause_mode == P_SUSPEND)
 		suspend_socket(client);
 

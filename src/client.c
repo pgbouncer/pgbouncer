@@ -171,7 +171,7 @@ static bool handle_client_startup(PgSocket *client, MBuf *pkt)
 
 	SBuf *sbuf = &client->sbuf;
 
-	/* dont tolerate partial packets */
+	/* don't tolerate partial packets */
 	if (!get_header(pkt, &pkt_type, &pkt_len)) {
 		disconnect_client(client, true, "client sent bad pkt header");
 		return false;
@@ -234,9 +234,9 @@ static bool handle_client_startup(PgSocket *client, MBuf *pkt)
 			return false;
 		}
 
-		/* havent requested it */
+		/* haven't requested it */
 		if (cf_auth_type <= AUTH_TRUST) {
-			disconnect_client(client, true, "unreqested passwd pkt");
+			disconnect_client(client, true, "unrequested passwd pkt");
 			return false;
 		}
 

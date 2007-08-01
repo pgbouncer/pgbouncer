@@ -22,6 +22,8 @@
 
 #include "bouncer.h"
 
+#include <sys/resource.h>
+
 #include <signal.h>
 #include <getopt.h>
 
@@ -396,6 +398,18 @@ static void write_pidfile(void)
 	atexit(remove_pidfile);
 }
 
+/* just print out max files, in the future may warn if something is off */
+static void check_limits(void)
+{
+	struct rlimit lim;
+	int err = getrlimit(RLIMIT_NOFILE, &lim);
+	if (err < 0)
+		log_error("could not get RLIMIT_NOFILE: %s", strerror(errno));
+	else
+		log_info("File descriptors limits: S:%d H:%d",
+			 (int)lim.rlim_cur, (int)lim.rlim_max);
+}
+
 static void daemon_setup(void)
 {
 	if (!cf_reboot)
@@ -443,6 +457,9 @@ int main(int argc, char *argv[])
 		usage(1);
 	cf_config_file = argv[optind];
 	load_config(false);
+
+	/* need to do that after loading config */
+	check_limits();
 
 	/* init random */
 	srandom(time(NULL) ^ getpid());

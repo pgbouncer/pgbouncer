@@ -22,3 +22,5 @@ bool admin_error(PgSocket *console, const char *fmt, ...);
 void admin_pause_done(void);
 void admin_flush(PgSocket *admin, PktBuf *buf, const char *desc);
 bool admin_ready(PgSocket *admin, const char *desc);
+void admin_handle_cancel(PgSocket *client);
+

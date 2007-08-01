@@ -2,7 +2,6 @@
 
 == Small stuff ==
 
- * cancel of SUSPEND/PAUSE
  * suspend_timeout - drop stalled conns
 
 == Low-prio ==

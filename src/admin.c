@@ -622,6 +622,14 @@ static bool admin_cmd_shutdown(PgSocket *admin, const char *arg)
 	return true;
 }
 
+static void full_resume(void)
+{
+	int tmp_mode = cf_pause_mode;
+	cf_pause_mode = P_NONE;
+	if (tmp_mode == P_SUSPEND)
+		resume_all();
+}
+
 /* Command: RESUME */
 static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 {
@@ -629,17 +637,11 @@ static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 		return admin_error(admin, "admin access needed");
 
 	if (!arg[0]) {
-		int tmp_mode = cf_pause_mode;
 		log_info("RESUME command issued");
-		cf_pause_mode = P_NONE;
-		switch (tmp_mode) {
-		case P_SUSPEND:
-			resume_all();
-		case P_PAUSE:
-			break;
-		default:
+		if (cf_pause_mode != P_NONE)
+			full_resume();
+		else
 			return admin_error(admin, "Pooler is not paused/suspended");
-		}
 	} else {
 		PgDatabase *db = find_database(arg);
 		log_info("PAUSE '%s' command issued", arg);
@@ -1010,5 +1012,23 @@ void admin_pause_done(void)
 		cf_pause_mode = P_NONE;
 		resume_all();
 	}
+}
+
+/* admin on console has pressed ^C */
+void admin_handle_cancel(PgSocket *admin)
+{
+	bool res;
+
+	/* weird, but no reason to fail */
+	if (!admin->wait_for_response)
+		slog_warning(admin, "admin cancel request for non-waiting client?");
+
+	if (cf_pause_mode != P_NONE)
+		full_resume();
+
+	/* notify readiness */
+	SEND_ReadyForQuery(res, admin);
+	if (!res)
+		disconnect_client(admin, false, "readiness send failed");
 }
 

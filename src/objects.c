@@ -862,8 +862,20 @@ void accept_cancel_request(PgSocket *req)
 
 	/* not linked client, just drop it then */
 	if (!main_client->link) {
-		disconnect_client(main_client, true, "canceling idle client");
+		bool res;
 		disconnect_client(req, false, "cancel req for idle client");
+
+		/* let administrative cancel be handled elsewhere */
+		if (main_client->pool->admin) {
+			admin_handle_cancel(main_client);
+			return;
+		}
+
+		/* notify readiness */
+		SEND_ReadyForQuery(res, main_client);
+		if (!res)
+			disconnect_client(main_client, true,
+					  "ReadyForQuery for main_client failed");
 		return;
 	}
 

@@ -134,6 +134,7 @@ static void launch_recheck(PgPool *pool)
 
 	if (need_check) {
 		/* send test query, wait for result */
+		slog_debug(server, "P: Checking: %s", q);
 		change_server_state(server, SV_TESTED);
 		SEND_generic(res, server, 'Q', "s", q);
 		if (!res)

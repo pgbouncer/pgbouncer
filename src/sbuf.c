@@ -179,6 +179,7 @@ void sbuf_continue(SBuf *sbuf)
 
 	sbuf_wait_for_data(sbuf);
 
+	/* FIXME: > SMALL_PKT in buffer, skip the recv() ?? */
 	/*
 	 * There may be some data already received,
 	 * but not certain, so avoid SKIP_RECV.

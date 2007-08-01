@@ -1,4 +1,18 @@
 
+2007-06-xx  -  PgBouncer 1.0.9  -  ""
+
+  = Features =
+
+  * Database connect string enhancements:
+    - Accept hostname in host=
+    - Accept custom unix socket location in host=
+    - Accept quoted values: password=' asd''foo'
+  * Cancel pkt sent for idle connection does not drop it anymore,
+    just ReadyForQuery is re-sent.
+  * Print FD limits on startup.
+  * More debug log messages include socket info.
+  * When suspending, try to hit packet boundary ASAP.
+
 2007-06-18  -  PgBouncer 1.0.8  -  "Undead Shovel Jutsu"
 
   = Fixes =

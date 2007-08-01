@@ -2,7 +2,15 @@
 
 == Small stuff ==
 
+ * cancel of SUSPEND/PAUSE
+ * reset_command to be issued immidiately after release
+ * suspend_timeout - drop stalled conns
+
+== Low-prio ==
+
  * create manpage
+ * drop_on_error/keep_on_error - if released conn is in error state,
+ then issue rollback and keep it
  * report existing pidfile to console
 
 == Make -R less scary ==
@@ -20,10 +28,12 @@
    * if tcp - try binding
    * if unix - try connect()
 
-== Low-prio, otherwise suspicious items ==
+== Suspicious items ==
 
+ * keep track of requested client_encoding (+others) and update if needed?
+   * original values in welcome pkt
+   * static: integer_datetimes, server_encoding, server_version,
+   * dynamic?: session_authorization, is_superuser?, standard_conforming_strings, TimeZone
  * keep stats about error counts
- * SHUTDOWN cmd should print notice
  * before loading users, disable all existing
- * Split CL_IDLE from CL_ACTIVE.  Does not give functional
- advantage, but makes monitoring easier.
+ * auth_conn - access to pg_shadow, so auth_file is not needed

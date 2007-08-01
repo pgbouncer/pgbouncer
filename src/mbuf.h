@@ -81,17 +81,6 @@ static inline const uint8 * mbuf_get_bytes(MBuf *buf, unsigned len)
 	return res;
 }
 
-static inline const char * mbuf_get_string(MBuf *buf)
-{
-	const char *res = (const char *)buf->pos;
-	while (buf->pos < buf->end && *buf->pos)
-		buf->pos++;
-	if (buf->pos == buf->end)
-		return NULL;
-	buf->pos++;
-	return res;
-}
-
 static inline unsigned mbuf_avail(MBuf *buf)
 {
 	return buf->end - buf->pos;
@@ -100,5 +89,15 @@ static inline unsigned mbuf_avail(MBuf *buf)
 static inline unsigned mbuf_size(MBuf *buf)
 {
 	return buf->end - buf->data;
+}
+
+static inline const char * mbuf_get_string(MBuf *buf)
+{
+	const char *res = (const char *)buf->pos;
+	const uint8 *nul = memchr(res, 0, mbuf_avail(buf));
+	if (!nul)
+		return NULL;
+	buf->pos = nul + 1;
+	return res;
 }
 

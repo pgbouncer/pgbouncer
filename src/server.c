@@ -40,7 +40,7 @@ static bool handle_server_startup(PgSocket *server, MBuf *pkt)
 		return false;
 	}
 
-	log_noise("S: pkt '%c', len=%d", pkt_type, pkt_len);
+	slog_noise(server, "S: pkt '%c', len=%d", pkt_type, pkt_len);
 
 	switch (pkt_type) {
 	default:
@@ -54,7 +54,7 @@ static bool handle_server_startup(PgSocket *server, MBuf *pkt)
 
 	/* packets that need closer look */
 	case 'R':		/* AuthenticationXXX */
-		log_debug("calling login_answer");
+		slog_debug(server, "calling login_answer");
 		res = answer_authreq(server, pkt_type, pkt_len, pkt);
 		if (!res)
 			disconnect_server(server, false, "failed to answer authreq");
@@ -64,7 +64,7 @@ static bool handle_server_startup(PgSocket *server, MBuf *pkt)
 		break;
 	case 'Z':		/* ReadyForQuery */
 		/* login ok */
-		log_debug("server login ok, start accepting queries");
+		slog_debug(server, "server login ok, start accepting queries");
 		server->ready = 1;
 
 		/* got all params */
@@ -179,8 +179,9 @@ static bool handle_server_work(PgSocket *server, MBuf *pkt)
 			sbuf_prepare_send(sbuf, &client->sbuf, pkt_len);
 		} else {
 			if (server->state != SV_TESTED)
-				log_warning("got packet '%c' from server"
-						" when not linked", pkt_type);
+				slog_warning(server,
+					     "got packet '%c' from server when not linked",
+					     pkt_type);
 			sbuf_prepare_skip(sbuf, pkt_len);
 		}
 		break;
@@ -248,7 +249,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *pkt, void *arg)
 		break;
 	case SBUF_EV_READ:
 		if (mbuf_avail(pkt) < 5) {
-			log_noise("S: got partial header, trying to wait a bit");
+			slog_noise(server, "S: got partial header, trying to wait a bit");
 			return false;
 		}
 
@@ -272,7 +273,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *pkt, void *arg)
 		disconnect_server(server, false, "connect failed");
 		break;
 	case SBUF_EV_CONNECT_OK:
-		log_debug("S: connect ok");
+		slog_debug(server, "S: connect ok");
 		Assert(server->state == SV_LOGIN);
 		server->request_time = get_cached_time();
 		res = handle_connect(server);

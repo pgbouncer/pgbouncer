@@ -169,8 +169,7 @@ static void err_wait_func(int sock, short flags, void *arg)
 }
 
 /* got new connection, associate it with client struct */
-static void
-pool_accept(int sock, short flags, void *is_unix)
+static void pool_accept(int sock, short flags, void *is_unix)
 {
 	int fd;
 	union {
@@ -213,8 +212,7 @@ pool_accept(int sock, short flags, void *is_unix)
 	}
 }
 
-bool
-use_pooler_socket(int sock, bool is_unix)
+bool use_pooler_socket(int sock, bool is_unix)
 {
 	tune_socket(sock, is_unix);
 
@@ -225,8 +223,7 @@ use_pooler_socket(int sock, bool is_unix)
 	return true;
 }
 
-void
-suspend_pooler(void)
+void suspend_pooler(void)
 {
 	suspended = 1;
 
@@ -236,8 +233,7 @@ suspend_pooler(void)
 		event_del(&ev_unix);
 }
 
-void
-resume_pooler(void)
+void resume_pooler(void)
 {
 	suspended = 0;
 
@@ -253,8 +249,7 @@ resume_pooler(void)
 }
 
 /* listen on socket - should happen after all other initializations */
-void
-pooler_setup(void)
+void pooler_setup(void)
 {
 	if (cf_listen_addr && !fd_net)
 		fd_net = create_net_socket(cf_listen_addr, cf_listen_port);

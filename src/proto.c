@@ -39,6 +39,7 @@ bool get_header(MBuf *pkt, unsigned *pkt_type_p, unsigned *pkt_len_p)
 	}
 	type = mbuf_get_char(pkt);
 	if (type != 0) {
+		/* wire length does not include type byte */
 		len = mbuf_get_uint32(pkt) + 1;
 	} else {
 		if (mbuf_get_char(pkt) != 0) {
@@ -143,10 +144,10 @@ bool add_welcome_parameter(PgSocket *server,
 	key = mbuf_get_string(pkt);
 	val = mbuf_get_string(pkt);
 	if (!key || !val) {
-		log_error("broken ParameterStatus packet");
+		slog_error(server, "broken ParameterStatus packet");
 		return false;
 	}
-	log_debug("S: param: %s = %s", key, val);
+	slog_debug(server, "S: param: %s = %s", key, val);
 	pktbuf_write_ParameterStatus(&msg, key, val);
 	db->welcome_msg_len += pktbuf_written(&msg);
 
@@ -169,7 +170,7 @@ bool welcome_client(PgSocket *client)
 	PktBuf msg;
 	PgDatabase *db = client->pool->db;
 
-	log_noise("P: welcome_client");
+	slog_noise(client, "P: welcome_client");
 	if (!db->welcome_msg_ready)
 		return false;
 
@@ -184,7 +185,7 @@ bool welcome_client(PgSocket *client)
 	/* send all together */
 	res = pktbuf_send_immidiate(&msg, client);
 	if (!res)
-		log_warning("unhandled failure to send welcome_msg");
+		slog_warning(client, "unhandled failure to send welcome_msg");
 
 	return true;
 }
@@ -203,7 +204,7 @@ static bool send_password(PgSocket *server, const char *enc_psw)
 
 static bool login_clear_psw(PgSocket *server)
 {
-	log_debug("P: send clear password");
+	slog_debug(server, "P: send clear password");
 	return send_password(server, server->pool->user->passwd);
 }
 
@@ -213,19 +214,18 @@ static bool login_crypt_psw(PgSocket *server, const uint8 *salt)
 	const char *enc;
 	PgUser *user = server->pool->user;
 
-	log_debug("P: send crypt password");
+	slog_debug(server, "P: send crypt password");
 	strncpy(saltbuf, (char *)salt, 2);
 	enc = crypt(user->passwd, saltbuf);
 	return send_password(server, enc);
 }
-
 
 static bool login_md5_psw(PgSocket *server, const uint8 *salt)
 {
 	char txt[MD5_PASSWD_LEN + 1], *src;
 	PgUser *user = server->pool->user;
 
-	log_debug("P: send md5 password");
+	slog_debug(server, "P: send md5 password");
 	if (!isMD5(user->passwd)) {
 		pg_md5_encrypt(user->passwd, user->name, strlen(user->name), txt);
 		src = txt + 3;
@@ -253,34 +253,34 @@ bool answer_authreq(PgSocket *server,
 	cmd = mbuf_get_uint32(pkt);
 	switch (cmd) {
 	case 0:
-		log_debug("S: auth ok");
+		slog_debug(server, "S: auth ok");
 		res = true;
 		break;
 	case 3:
-		log_debug("S: req cleartext password");
+		slog_debug(server, "S: req cleartext password");
 		res = login_clear_psw(server);
 		break;
 	case 4:
 		if (pkt_len < 5 + 4 + 2)
 			return false;
-		log_debug("S: req crypt psw");
+		slog_debug(server, "S: req crypt psw");
 		salt = mbuf_get_bytes(pkt, 2);
 		res = login_crypt_psw(server, salt);
 		break;
 	case 5:
 		if (pkt_len < 5 + 4 + 4)
 			return false;
-		log_debug("S: req md5-crypted psw");
+		slog_debug(server, "S: req md5-crypted psw");
 		salt = mbuf_get_bytes(pkt, 4);
 		res = login_md5_psw(server, salt);
 		break;
 	case 2: /* kerberos */
-	case 6: /* scm something */
-		log_error("unsupported auth method: %d", cmd);
+	case 6: /* deprecated usage of SCM_RIGHTS */
+		slog_error(server, "unsupported auth method: %d", cmd);
 		res = false;
 		break;
 	default:
-		log_error("unknown auth method: %d", cmd);
+		slog_error(server, "unknown auth method: %d", cmd);
 		res = false;
 		break;
 	}

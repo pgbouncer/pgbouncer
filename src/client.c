@@ -49,8 +49,7 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 	return false;
 }
 
-bool
-set_pool(PgSocket *client, const char *dbname, const char *username)
+bool set_pool(PgSocket *client, const char *dbname, const char *username)
 {
 	PgDatabase *db;
 	PgUser *user;
@@ -68,8 +67,8 @@ set_pool(PgSocket *client, const char *dbname, const char *username)
 		user = NULL;
 
 		if (db->forced_user == NULL) {
+			slog_error(client, "auth_type=any requires forced user");
 			disconnect_client(client, true, "bouncer config error");
-			log_error("auth_type=any requires forced user");
 			return false;
 		}
 		client->auth_user = db->forced_user;
@@ -191,8 +190,8 @@ static bool handle_client_startup(PgSocket *client, MBuf *pkt)
 
 	switch (pkt_type) {
 	case PKT_SSLREQ:
-		log_noise("C: req SSL");
-		log_noise("P: nak");
+		slog_noise(client, "C: req SSL");
+		slog_noise(client, "P: nak");
 
 		/* reject SSL attempt */
 		if (!sbuf_answer(&client->sbuf, "N", 1)) {
@@ -366,7 +365,7 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, MBuf *pkt, void *arg)
 		break;
 	case SBUF_EV_READ:
 		if (mbuf_avail(pkt) < 5) {
-			log_noise("C: got partial header, trying to wait a bit");
+			slog_noise(client, "C: got partial header, trying to wait a bit");
 			return false;
 		}
 

@@ -77,6 +77,7 @@ char *cf_auth_file = "unconfigured_file";
 int cf_max_client_conn = 20;
 int cf_default_pool_size = 10;
 
+char *cf_server_reset_query = "";
 char *cf_server_check_query = "select 1";
 usec_t cf_server_check_delay = 30 * USEC;
 
@@ -117,6 +118,7 @@ ConfElem bouncer_params[] = {
 {"max_client_conn",	true, CF_INT, &cf_max_client_conn},
 {"default_pool_size",	true, CF_INT, &cf_default_pool_size},
 
+{"server_reset_query",	true, CF_STR, &cf_server_reset_query},
 {"server_check_query",	true, CF_STR, &cf_server_check_query},
 {"server_check_delay",	true, CF_TIME, &cf_server_check_delay},
 {"query_timeout",	true, CF_TIME, &cf_query_timeout},

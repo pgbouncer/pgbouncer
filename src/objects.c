@@ -546,6 +546,37 @@ bool find_server(PgSocket *client)
 	return res;
 }
 
+/* pick waiting client */
+static bool reuse_on_release(PgSocket *server)
+{
+	bool res = true;
+	PgPool *pool = server->pool;
+	PgSocket *client = first_socket(&pool->waiting_client_list);
+	if (client) {
+		activate_client(client);
+
+		/*
+		 * As the activate_client() does full read loop,
+		 * then it may happen that linked client close
+		 * couses server close.  Report it.
+		 */
+		if (server->state == SV_FREE || server->state == SV_JUSTFREE)
+			res = false;
+	}
+	return res;
+}
+
+/* send reset query */
+static bool reset_on_release(PgSocket *server)
+{
+	bool res;
+	slog_debug(server, "Resetting: %s", cf_server_reset_query);
+	SEND_generic(res, server, 'Q', "s", cf_server_reset_query);
+	if (!res)
+		disconnect_server(server, false, "reset query failed");
+	return res;
+}
+
 /* connecting/active -> idle, unlink if needed */
 bool release_server(PgSocket *server)
 {
@@ -560,7 +591,15 @@ bool release_server(PgSocket *server)
 		server->link->link = NULL;
 		server->link = NULL;
 
-		if (cf_server_check_delay == 0 && *cf_server_check_query)
+		if (*cf_server_reset_query)
+			/* notify reset is required */
+			newstate = SV_TESTED;
+		else if (cf_server_check_delay == 0 && *cf_server_check_query)
+			/*
+			 * depreceted: before reset_query, the check_delay = 0
+			 * was used to get same effect.  This if() can be removed
+			 * after couple of releases.
+			 */
 			newstate = SV_USED;
 	case SV_USED:
 	case SV_TESTED:
@@ -573,31 +612,15 @@ bool release_server(PgSocket *server)
 	}
 
 	Assert(server->link == NULL);
-
 	log_debug("release_server: new state=%d", newstate);
-
 	change_server_state(server, newstate);
 
-	/* immediately process waiters, to give fair chance */
-	if (newstate == SV_IDLE) {
-		PgSocket *client = first_socket(&pool->waiting_client_list);
-		if (client) {
-			activate_client(client);
+	if (newstate == SV_IDLE)
+		/* immediately process waiters, to give fair chance */
+		return reuse_on_release(server);
+	else if (newstate == SV_TESTED)
+		return reset_on_release(server);
 
-			/*
-			 * As the activate_client() does full read loop,
-			 * then it may happen that linked client close
-			 * couses server close.  Report it.
-			 */
-			switch (server->state) {
-			case SV_FREE:
-			case SV_JUSTFREE:
-				return false;
-			default:
-				break;
-			}
-		}
-	}
 	return true;
 }
 

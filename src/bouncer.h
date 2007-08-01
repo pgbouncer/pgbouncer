@@ -253,6 +253,7 @@ extern int cf_default_pool_size;
 
 extern usec_t cf_server_lifetime;
 extern usec_t cf_server_idle_timeout;
+extern char * cf_server_reset_query;
 extern char * cf_server_check_query;
 extern usec_t cf_server_check_delay;
 extern usec_t cf_server_connect_timeout;

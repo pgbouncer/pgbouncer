@@ -271,8 +271,7 @@ static bool sbuf_call_proto(SBuf *sbuf, int event)
 	res = sbuf->proto_handler(sbuf, event, &mbuf, sbuf->arg);
 
 	AssertSanity(sbuf);
-	if (event == SBUF_EV_READ && res)
-		Assert(sbuf->sock > 0);
+	Assert(event != SBUF_EV_READ || !res || sbuf->sock > 0);
 
 	return res;
 }
@@ -492,10 +491,11 @@ static void sbuf_recv_cb(int sock, short flags, void *arg)
 /*
  * Main recv-parse-send-repeat loop.
  *
- * The problem with extra recv() is EOF from socket.  Currently that means
- * that the pending data is dropped.  Fortunately server sockets are not
- * paused and dropping data from client is no problem.  So only place
- * where skip_recv is important is sbuf_send_cb().
+ * Reason for skip_recv is to avoid extra recv().  The problem with it
+ * is EOF from socket.  Currently that means that the pending data is
+ * dropped.  Fortunately server sockets are not paused and dropping
+ * data from client is no problem.  So only place where skip_recv is
+ * important is sbuf_send_cb().
  */
 static void sbuf_main_loop(SBuf *sbuf, bool skip_recv)
 {

@@ -82,7 +82,6 @@ AC_ARG_ENABLE(debug, AC_HELP_STRING([--enable-debug],[build binary with debuggin
 AC_MSG_CHECKING([whether to build debug binary])
 if test "$enable_debug" = "yes"; then
   LDFLAGS="-g $LDFLAGS"
-  CFLAGS="`echo $CFLAGS | sed -e 's/-O2/-O/g'`"
   BININSTALL="$INSTALL"
   AC_MSG_RESULT([yes])
 else

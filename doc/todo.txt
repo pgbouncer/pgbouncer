@@ -1,15 +1,17 @@
 = PgBouncer TODO list =
 
-== Small stuff ==
+== High-prio ==
 
  * suspend_timeout - drop stalled conns
+ * create manpage
+ * report existing pidfile to console
+ * before loading users, disable all existing
 
 == Low-prio ==
 
- * create manpage
  * drop_on_error/keep_on_error - if released conn is in error state,
  then issue rollback and keep it
- * report existing pidfile to console
+ * keep stats about error counts
 
 == Make -R less scary ==
 
@@ -26,12 +28,7 @@
    * if tcp - try binding
    * if unix - try connect()
 
-== Suspicious items ==
+== Just ideas ==
 
- * keep track of requested client_encoding (+others) and update if needed?
-   * original values in welcome pkt
-   * static: integer_datetimes, server_encoding, server_version,
-   * dynamic?: session_authorization, is_superuser?, standard_conforming_strings, TimeZone
- * keep stats about error counts
- * before loading users, disable all existing
  * auth_conn - access to pg_shadow, so auth_file is not needed
+ * possibility to specify failover databases

@@ -91,6 +91,9 @@ static void clean_socket(PgSocket *sk)
 	sk->query_start = 0;
 
 	sk->auth_user = NULL;
+
+	varcache_clean(&sk->vars);
+	sk->setting_vars = 0;
 }
 
 /* allocate & fill client socket */
@@ -513,6 +516,7 @@ bool find_server(PgSocket *client)
 	PgPool *pool = client->pool;
 	PgSocket *server;
 	bool res;
+	bool varchange = false;
 
 	Assert(client->state == CL_ACTIVE);
 
@@ -520,9 +524,9 @@ bool find_server(PgSocket *client)
 		return true;
 
 	/* try to get idle server, if allowed */
-	if (cf_pause_mode == P_PAUSE)
+	if (cf_pause_mode == P_PAUSE) {
 		server = NULL;
-	else {
+	} else {
 		while (1) {
 			server = first_socket(&pool->idle_server_list);
 			if (!server || server->ready)
@@ -530,14 +534,28 @@ bool find_server(PgSocket *client)
 			disconnect_server(server, true, "idle server got dirty");
 		}
 	}
+	Assert(!server || server->state == SV_IDLE);
+
+	/* send var changes */
+	if (server && !cf_disable_varcache) {
+		res = varcache_apply(server, client, &varchange);
+		if (!res) {
+			disconnect_server(server, true, "var change failed");
+			server = NULL;
+		}
+	}
 
 	/* link or send to waiters list */
 	if (server) {
-		Assert(server->state == SV_IDLE);
 		client->link = server;
 		server->link = client;
 		change_server_state(server, SV_ACTIVE);
-		res = true;
+		if (varchange) {
+			sbuf_pause(&client->sbuf);
+			res = false; /* don't process client data yet */
+			server->setting_vars = 1;
+		} else
+			res = true;
 	} else {
 		pause_client(client);
 		Assert(client->state == CL_WAITING);
@@ -737,7 +755,7 @@ void launch_new_connection(PgPool *pool)
 
 	/* is it allowed to add servers? */
 	total = pool_server_count(pool);
-	if (total >= pool->db->pool_size && pool->db->welcome_msg_ready) {
+	if (total >= pool->db->pool_size && pool->welcome_msg_ready) {
 		log_debug("launch_new_connection: pool full (%d >= %d)",
 				total, pool->db->pool_size);
 		return;

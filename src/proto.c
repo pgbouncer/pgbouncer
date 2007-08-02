@@ -124,21 +124,21 @@ void log_server_error(const char *note, MBuf *pkt)
 bool add_welcome_parameter(PgSocket *server,
 			   unsigned pkt_type, unsigned pkt_len, MBuf *pkt)
 {
-	PgDatabase *db = server->pool->db;
+	PgPool *pool = server->pool;
 	PktBuf msg;
 	const char *key, *val;
 
-	if (db->welcome_msg_ready)
+	if (pool->welcome_msg_ready)
 		return true;
 
 	/* incomplete startup msg from server? */
 	if (pkt_len - 5 > mbuf_avail(pkt))
 		return false;
 
-	pktbuf_static(&msg, db->welcome_msg + db->welcome_msg_len,
-		      sizeof(db->welcome_msg) - db->welcome_msg_len);
+	pktbuf_static(&msg, pool->welcome_msg + pool->welcome_msg_len,
+		      sizeof(pool->welcome_msg) - pool->welcome_msg_len);
 
-	if (db->welcome_msg_len == 0)
+	if (pool->welcome_msg_len == 0)
 		pktbuf_write_AuthenticationOk(&msg);
 
 	key = mbuf_get_string(pkt);
@@ -147,9 +147,16 @@ bool add_welcome_parameter(PgSocket *server,
 		slog_error(server, "broken ParameterStatus packet");
 		return false;
 	}
+
 	slog_debug(server, "S: param: %s = %s", key, val);
-	pktbuf_write_ParameterStatus(&msg, key, val);
-	db->welcome_msg_len += pktbuf_written(&msg);
+	if (varcache_set(&pool->orig_vars, key, val, true)) {
+		slog_debug(server, "interesting var: %s=%s", key, val);
+		varcache_set(&server->vars, key, val, true);
+	} else {
+		slog_debug(server, "uninteresting var: %s=%s", key, val);
+		pktbuf_write_ParameterStatus(&msg, key, val);
+		pool->welcome_msg_len += pktbuf_written(&msg);
+	}
 
 	return true;
 }
@@ -157,10 +164,10 @@ bool add_welcome_parameter(PgSocket *server,
 /* all parameters processed */
 void finish_welcome_msg(PgSocket *server)
 {
-	PgDatabase *db = server->pool->db;
-	if (db->welcome_msg_ready)
+	PgPool *pool = server->pool;
+	if (pool->welcome_msg_ready)
 		return;
-	db->welcome_msg_ready = 1;
+	pool->welcome_msg_ready = 1;
 }
 
 bool welcome_client(PgSocket *client)
@@ -168,14 +175,20 @@ bool welcome_client(PgSocket *client)
 	int res;
 	uint8 buf[1024];
 	PktBuf msg;
-	PgDatabase *db = client->pool->db;
+	PgPool *pool = client->pool;
 
 	slog_noise(client, "P: welcome_client");
-	if (!db->welcome_msg_ready)
+	if (!pool->welcome_msg_ready)
 		return false;
 
+	varcache_print(&client->vars, "welcome/client");
+	varcache_print(&client->pool->orig_vars, "welcome/pool");
+
 	pktbuf_static(&msg, buf, sizeof(buf));
-	pktbuf_put_bytes(&msg, db->welcome_msg, db->welcome_msg_len);
+	pktbuf_put_bytes(&msg, pool->welcome_msg, pool->welcome_msg_len);
+
+	varcache_fill_unset(&pool->orig_vars, client);
+	varcache_add_params(&msg, &client->vars);
 
 	/* give each client its own cancel key */
 	get_random_bytes(client->cancel_key, 8);

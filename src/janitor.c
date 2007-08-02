@@ -158,7 +158,7 @@ static void per_loop_activate(PgPool *pool)
 		if (!statlist_empty(&pool->idle_server_list)) {
 
 			/* db not fully initialized after reboot */
-			if (client->wait_for_welcome && !pool->db->welcome_msg_ready) {
+			if (client->wait_for_welcome && !pool->welcome_msg_ready) {
 				launch_new_connection(pool);
 				continue;
 			}

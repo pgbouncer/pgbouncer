@@ -8,8 +8,10 @@
     - Accept custom unix socket location in host=
     - Accept quoted values: password=' asd''foo'
   * server_reset_query, to be sent immidiately after release
-  * Cancel pkt sent for idle connection does not drop it anymore,
-    just ReadyForQuery is re-sent.
+  * keep track of following server variables:
+    client_encoding, datestyle, timezone, standard_conforming_strings
+  * Cancel pkt sent for idle connection does not drop it anymore.
+  * Cancel with ^C from psql works for SUSPEND / PAUSE.
   * Print FD limits on startup.
   * More debug log messages include socket info.
   * When suspending, try to hit packet boundary ASAP.

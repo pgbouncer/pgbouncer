@@ -22,6 +22,33 @@
 
 #include "bouncer.h"
 
+static void check_parameters(PgSocket *server, MBuf *pkt, unsigned pkt_len)
+{
+	const char *key, *val;
+	PgSocket *client = server->link;
+
+	/* incomplete startup msg from server? */
+	if (pkt_len - 5 > mbuf_avail(pkt))
+		return;
+
+	key = mbuf_get_string(pkt);
+	val = mbuf_get_string(pkt);
+	if (!key || !val) {
+		slog_error(server, "broken ParameterStatus packet");
+		return;
+	}
+	slog_debug(server, "S: param: %s = %s", key, val);
+
+	varcache_set(&server->vars, key, val, true);
+
+	if (client) {
+		slog_debug(client, "setting client var: %s='%s'", key, val);
+		varcache_set(&client->vars, key, val, true);
+	}
+
+	return;
+}
+
 /* process packets on server auth phase */
 static bool handle_server_startup(PgSocket *server, MBuf *pkt)
 {
@@ -47,6 +74,7 @@ static bool handle_server_startup(PgSocket *server, MBuf *pkt)
 		slog_error(server, "unknown pkt from server: '%c'", pkt_type);
 		disconnect_server(server, true, "unknown pkt from server");
 		break;
+
 	case 'E':		/* ErrorResponse */
 		log_server_error("S: login failed", pkt);
 		disconnect_server(server, true, "login failed");
@@ -59,9 +87,11 @@ static bool handle_server_startup(PgSocket *server, MBuf *pkt)
 		if (!res)
 			disconnect_server(server, false, "failed to answer authreq");
 		break;
+
 	case 'S':		/* ParameterStatus */
 		res = add_welcome_parameter(server, pkt_type, pkt_len, pkt);
 		break;
+
 	case 'Z':		/* ReadyForQuery */
 		/* login ok */
 		slog_debug(server, "server login ok, start accepting queries");
@@ -83,6 +113,7 @@ static bool handle_server_startup(PgSocket *server, MBuf *pkt)
 			memcpy(server->cancel_key, mbuf_get_bytes(pkt, 8), 8);
 		res = true;
 		break;
+
 	case 'N':		/* NoticeResponse */
 		slog_noise(server, "skipping pkt: %c", pkt_type);
 		res = true;
@@ -135,6 +166,11 @@ static bool handle_server_work(PgSocket *server, MBuf *pkt)
 					  "Long transactions not allowed");
 			return false;
 		}
+		break;
+
+	case 'S':		/* ParameterStatus */
+		check_parameters(server, pkt, pkt_len);
+		break;
 
 	/*
 	 * 'E' and 'N' packets currently set ->ready to 0.  Correct would
@@ -147,13 +183,24 @@ static bool handle_server_work(PgSocket *server, MBuf *pkt)
 	 * it later.
 	 */
 	case 'E':		/* ErrorResponse */
-	case 'N':		/* NoticeResponse */
+		if (server->setting_vars) {
+			/*
+			 * the SET and user query will be different TX
+			 * so we cannot report SET error to user.
+			 */
+			log_server_error("varcache_apply failed", pkt);
 
-	/*
-	 * chat packets, but server (and thus pooler)
-	 * is allowed to buffer them until Sync or Flush
-	 * is sent by client.
-	 */
+			/*
+			 * client probably gave invalid values in startup pkt.
+			 *
+			 * no reason to keep such guys.
+			 */
+			disconnect_client(server->link, true, "invalid server parameter");
+		}
+	case 'N':		/* NoticeResponse */
+		break;
+
+	/* chat packets */
 	case '2':		/* BindComplete */
 	case '3':		/* CloseComplete */
 	case 'c':		/* CopyDone(F/B) */
@@ -172,32 +219,36 @@ static bool handle_server_work(PgSocket *server, MBuf *pkt)
 	case 'd':		/* CopyData(F/B) */
 	case 'D':		/* DataRow */
 	case 't':		/* ParameterDescription */
-	case 'S':		/* ParameterStatus */
 	case 'T':		/* RowDescription */
-
-		if (client) {
-			sbuf_prepare_send(sbuf, &client->sbuf, pkt_len);
-		} else {
-			if (server->state != SV_TESTED)
-				slog_warning(server,
-					     "got packet '%c' from server when not linked",
-					     pkt_type);
-			sbuf_prepare_skip(sbuf, pkt_len);
-		}
 		break;
 	}
 	server->ready = ready;
-
-	/* update stats */
 	server->pool->stats.server_bytes += pkt_len;
-	if (server->ready && client) {
-		usec_t total;
-		Assert(client->query_start != 0);
-		
-		total = get_cached_time() - client->query_start;
-		client->query_start = 0;
-		server->pool->stats.query_time += total;
-		slog_debug(client, "query time: %d us", (int)total);
+
+	if (server->setting_vars) {
+		Assert(client);
+		sbuf_prepare_skip(sbuf, pkt_len);
+		if (ready) {
+			server->setting_vars = 0;
+			sbuf_continue(&client->sbuf);
+		}
+	} else if (client) {
+		sbuf_prepare_send(sbuf, &client->sbuf, pkt_len);
+		if (ready) {
+			usec_t total;
+			Assert(client->query_start != 0);
+			
+			total = get_cached_time() - client->query_start;
+			client->query_start = 0;
+			server->pool->stats.query_time += total;
+			slog_debug(client, "query time: %d us", (int)total);
+		}
+	} else {
+		if (server->state != SV_TESTED)
+			slog_warning(server,
+				     "got packet '%c' from server when not linked",
+				     pkt_type);
+		sbuf_prepare_skip(sbuf, pkt_len);
 	}
 
 	return true;

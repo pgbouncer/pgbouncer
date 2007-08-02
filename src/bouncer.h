@@ -70,6 +70,7 @@ typedef enum SocketState SocketState;
 #include "mbuf.h"
 #include "sbuf.h"
 #include "pktbuf.h"
+#include "varcache.h"
 
 #include "admin.h"
 #include "loader.h"
@@ -149,10 +150,17 @@ struct PgPool {
 	PgStats		newer_stats;
 	PgStats		older_stats;
 
+	/* database info to be sent to client */
+	uint8		welcome_msg[256];
+	unsigned	welcome_msg_len;
+
+	VarCache	orig_vars;
+
 	/* if last connect failed, there should be delay before next */
 	usec_t		last_connect_time;
 	unsigned	last_connect_failed:1;
 	unsigned	admin:1;
+	unsigned	welcome_msg_ready:1;
 };
 
 #define pool_server_count(pool) ( \
@@ -176,11 +184,6 @@ struct PgUser {
 struct PgDatabase {
 	List			head;
 	char			name[MAX_DBNAME];
-
-	/* database info to be sent to client */
-	uint8			welcome_msg[512];
-	unsigned		welcome_msg_len;
-	unsigned		welcome_msg_ready:1;
 
 	unsigned		db_paused:1;
 
@@ -221,6 +224,8 @@ struct PgSocket {
 	unsigned	wait_for_response:1;
 	/* this (server) socket must be closed ASAP */
 	unsigned	close_needed:1;
+	/* setting client vars */
+	unsigned	setting_vars:1;
 
 	usec_t		connect_time;	/* when connection was made */
 	usec_t		request_time;	/* last activity time */
@@ -230,6 +235,8 @@ struct PgSocket {
 	uint8		cancel_key[8];
 	PgUser *	auth_user;
 	PgAddr		addr;
+
+	VarCache	vars;
 
 	SBuf		sbuf;		/* stream buffer, must be last */
 };
@@ -287,6 +294,8 @@ extern int cf_tcp_defer_accept;
 extern int cf_log_connections;
 extern int cf_log_disconnections;
 extern int cf_log_pooler_errors;
+
+extern int cf_disable_varcache;
 
 extern ConfElem bouncer_params[];
 

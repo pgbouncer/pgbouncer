@@ -1,0 +1,171 @@
+/*
+ * PgBouncer - Lightweight connection pooler for PostgreSQL.
+ * 
+ * Copyright (c) 2007 Marko Kreen, Skype Technologies OÜ
+ * 
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+/*
+ * Operations with server config parameters.
+ */
+
+#include "bouncer.h"
+
+struct var_lookup {
+	const char *name;
+	int offset;
+	int len;
+};
+
+static const struct var_lookup lookup [] = {
+{"client_encoding", offsetof(VarCache, client_encoding), VAR_ENCODING_LEN },
+{"datestyle", offsetof(VarCache, datestyle), VAR_DATESTYLE_LEN },
+{"timezone", offsetof(VarCache, timezone), VAR_TIMEZONE_LEN },
+{"standard_conforming_strings", offsetof(VarCache, std_strings), VAR_STDSTR_LEN },
+{NULL},
+};
+
+static char *get_value(VarCache *cache, const struct var_lookup *lk)
+{
+	return (char *)(cache) + lk->offset;
+}
+
+bool varcache_set(VarCache *cache,
+		  const char *key, const char *value,
+		  bool overwrite)
+{
+	int vlen;
+	char *pos;
+	const struct var_lookup *lk;
+
+	for (lk = lookup; lk->name; lk++) {
+		if (strcasecmp(lk->name, key) != 0)
+			continue;
+
+		pos = get_value(cache, lk);
+
+		if (!overwrite && *pos)
+			break;
+
+		vlen = strlcpy(pos, value, lk->len);
+		if (vlen >= lk->len)
+			log_warning("varcache_set(%s) overflow", key);
+		else
+			log_debug("varcache_set: %s=%s", key, pos);
+		return true;
+	}
+	return false;
+}
+
+static int apply_var(PktBuf *pkt, const char *key,
+		      const char *cval, const char *sval)
+{
+	char buf[128];
+	int len;
+
+	if (strcasecmp(cval, sval) == 0)
+		return 0;
+
+	len = snprintf(buf, sizeof(buf), "SET %s='%s';", key, cval);
+	if (len < sizeof(buf)) {
+		pktbuf_put_bytes(pkt, buf, len);
+		return 1;
+	} else {
+		log_warning("got too long value, skipping");
+		return 0;
+	}
+}
+
+bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
+{
+	PktBuf pkt;
+	uint8 buf[1024];
+	int changes = 0;
+	const char *cval, *sval;
+	const struct var_lookup *lk;
+	uint8 *debug_sql;
+
+	
+	pktbuf_static(&pkt, buf, sizeof(buf));
+	pktbuf_start_packet(&pkt, 'Q');
+
+	debug_sql = pkt.buf + pkt.write_pos;
+
+	for (lk = lookup; lk->name; lk++) {
+		sval = get_value(&server->vars, lk);
+		cval = get_value(&client->vars, lk);
+		changes += apply_var(&pkt, lk->name, cval, sval);
+	}
+	*changes_p = changes > 0;
+	if (!changes)
+		return true;
+
+	pktbuf_put_char(&pkt, 0);
+	pktbuf_finish_packet(&pkt);
+
+	slog_debug(server, "varcache_apply: %s", debug_sql);
+	return pktbuf_send_immidiate(&pkt, server);
+}
+
+void varcache_fill_unset(VarCache *src, PgSocket *dst)
+{
+	char *srcval, *dstval;
+	const struct var_lookup *lk;
+	for (lk = lookup; lk->name; lk++) {
+		srcval = get_value(src, lk);
+		dstval = get_value(&dst->vars, lk);
+		if (*dstval)
+			continue;
+
+		/* empty val, copy */
+		slog_debug(dst, "varcache_fill_unset: %s = %s", lk->name, srcval);
+		strlcpy(dstval, srcval, lk->len);
+	}
+}
+
+void varcache_clean(VarCache *cache)
+{
+	cache->client_encoding[0] = 0;
+	cache->datestyle[0] = 0;
+	cache->timezone[0] = 0;
+	cache->std_strings[0] = 0;
+}
+
+void varcache_add_params(PktBuf *pkt, VarCache *vars)
+{
+	char *val;
+	const struct var_lookup *lk;
+	for (lk = lookup; lk->name; lk++) {
+		val = get_value(vars, lk);
+		if (*val)
+			pktbuf_write_ParameterStatus(pkt, lk->name, val);
+		else
+			log_error("varcache_add_params: empty param: %s", lk->name);
+	}
+}
+
+
+void varcache_print(VarCache *vars, const char *desc)
+{
+	char *val;
+	const struct var_lookup *lk;
+	for (lk = lookup; lk->name; lk++) {
+		val = get_value(vars, lk);
+		log_debug("%s: %s='%s'", desc, lk->name, val);
+	}
+}
+
+
+
+

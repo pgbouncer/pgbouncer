@@ -951,15 +951,15 @@ void admin_setup(void)
 	create_auth_cache();
 
 	/* prepare welcome */
-	pktbuf_static(&msg, db->welcome_msg, sizeof(db->welcome_msg));
+	pktbuf_static(&msg, pool->welcome_msg, sizeof(pool->welcome_msg));
 	pktbuf_write_AuthenticationOk(&msg);
 	pktbuf_write_ParameterStatus(&msg, "server_version", "8.0/bouncer");
 	pktbuf_write_ParameterStatus(&msg, "client_encoding", "UNICODE");
-	pktbuf_write_ParameterStatus(&msg, "server_encoding", "UNICODE");
+	pktbuf_write_ParameterStatus(&msg, "server_encoding", "SQL_ASCII");
 	pktbuf_write_ParameterStatus(&msg, "is_superuser", "on");
 
-	db->welcome_msg_len = pktbuf_written(&msg);
-	db->welcome_msg_ready = 1;
+	pool->welcome_msg_len = pktbuf_written(&msg);
+	pool->welcome_msg_ready = 1;
 
 	pktbuf_static(&msg, db->startup_params, sizeof(db->startup_params));
 	pktbuf_put_string(&msg, "database");

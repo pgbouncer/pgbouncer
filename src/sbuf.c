@@ -175,11 +175,19 @@ void sbuf_pause(SBuf *sbuf)
 /* resume from pause, start waiting for data */
 void sbuf_continue(SBuf *sbuf)
 {
+	bool do_recv = true;
 	AssertActive(sbuf);
 
 	sbuf_wait_for_data(sbuf);
 
-	/* FIXME: > SMALL_PKT in buffer, skip the recv() ?? */
+	/*
+	 * FIXME: is it safe?
+	 *
+	 * if avail > SMALL_PKT in buffer, skip the recv().
+	 */
+	if (sbuf->recv_pos - sbuf->pkt_pos >= SMALL_PKT)
+		do_recv = false;
+
 	/*
 	 * There may be some data already received,
 	 * but not certain, so avoid SKIP_RECV.

@@ -68,16 +68,46 @@ bool varcache_set(VarCache *cache,
 	return false;
 }
 
+static bool is_std_quote(VarCache *vars)
+{
+	const char *val = vars->std_strings;
+	return strcasecmp(val, "on") == 0;
+}
+
+static void quote_literal(char *buf, int buflen, const char *src, bool std_quote)
+{
+	char *dst = buf;
+
+	Assert(buflen > 32);
+
+	/* quote value */
+	*dst++ = '\'';
+	while (*src && (dst < buf + buflen - 2)) {
+		if (*src == '\'')
+			*dst++ = '\'';
+		else if (!std_quote && *src == '\\')
+			*dst++ = '\\';
+		*dst++ = *src++;
+	}
+	*dst++ = '\'';
+	*dst = 0;
+}
+
 static int apply_var(PktBuf *pkt, const char *key,
-		      const char *cval, const char *sval)
+		     const char *cval, const char *sval,
+		     bool std_quote)
 {
 	char buf[128];
+	char qbuf[128];
 	int len;
 
 	if (strcasecmp(cval, sval) == 0)
 		return 0;
 
-	len = snprintf(buf, sizeof(buf), "SET %s='%s';", key, cval);
+	/* the string may have been taken from startup pkt */
+	quote_literal(qbuf, sizeof(qbuf), cval, std_quote);
+
+	len = snprintf(buf, sizeof(buf), "SET %s=%s;", key, qbuf);
 	if (len < sizeof(buf)) {
 		pktbuf_put_bytes(pkt, buf, len);
 		return 1;
@@ -95,17 +125,18 @@ bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
 	const char *cval, *sval;
 	const struct var_lookup *lk;
 	uint8 *debug_sql;
+	bool std_quote = is_std_quote(&server->vars);
 
-	
 	pktbuf_static(&pkt, buf, sizeof(buf));
 	pktbuf_start_packet(&pkt, 'Q');
 
+	/* grab quory position inside pkt */
 	debug_sql = pkt.buf + pkt.write_pos;
 
 	for (lk = lookup; lk->name; lk++) {
 		sval = get_value(&server->vars, lk);
 		cval = get_value(&client->vars, lk);
-		changes += apply_var(&pkt, lk->name, cval, sval);
+		changes += apply_var(&pkt, lk->name, cval, sval, std_quote);
 	}
 	*changes_p = changes > 0;
 	if (!changes)
@@ -155,7 +186,6 @@ void varcache_add_params(PktBuf *pkt, VarCache *vars)
 	}
 }
 
-
 void varcache_print(VarCache *vars, const char *desc)
 {
 	char *val;
@@ -165,7 +195,5 @@ void varcache_print(VarCache *vars, const char *desc)
 		log_debug("%s: %s='%s'", desc, lk->name, val);
 	}
 }
-
-
 
 

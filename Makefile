@@ -1,10 +1,11 @@
 
 # sources
 SRCS = client.c loader.c objects.c pooler.c proto.c sbuf.c server.c util.c \
-       admin.c stats.c takeover.c md5.c janitor.c pktbuf.c system.c main.c
+       admin.c stats.c takeover.c md5.c janitor.c pktbuf.c system.c main.c \
+       varcache.c
 HDRS = client.h loader.h objects.h pooler.h proto.h sbuf.h server.h util.h \
        admin.h stats.h takeover.h md5.h janitor.h pktbuf.h system.h bouncer.h \
-       list.h mbuf.h
+       list.h mbuf.h varcache.h
 
 # data & dirs to include in tgz
 DATA = README NEWS etc/pgbouncer.ini Makefile config.mak.in config.h.in \

@@ -867,10 +867,11 @@ void accept_cancel_request(PgSocket *req)
 			client = container_of(citem, PgSocket, head);
 			if (memcmp(client->cancel_key, req->cancel_key, 8) == 0) {
 				main_client = client;
-				break;
+				goto found;
 			}
 		}
 	}
+found:
 
 	/* wrong key */
 	if (!main_client) {

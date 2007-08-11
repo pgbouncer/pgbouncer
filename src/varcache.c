@@ -74,23 +74,29 @@ static bool is_std_quote(VarCache *vars)
 	return strcasecmp(val, "on") == 0;
 }
 
-static void quote_literal(char *buf, int buflen, const char *src, bool std_quote)
+static bool quote_literal(char *buf, int buflen, const char *src, bool std_quote)
 {
 	char *dst = buf;
+	char *end = buf + buflen - 2;
 
-	Assert(buflen > 32);
+	if (buflen < 3)
+		return false;
 
-	/* quote value */
 	*dst++ = '\'';
-	while (*src && (dst < buf + buflen - 2)) {
+	while (*src && dst < end) {
 		if (*src == '\'')
 			*dst++ = '\'';
 		else if (!std_quote && *src == '\\')
 			*dst++ = '\\';
 		*dst++ = *src++;
 	}
+	if (*src || dst > end)
+		return false;
+
 	*dst++ = '\'';
 	*dst = 0;
+
+	return true;
 }
 
 static int apply_var(PktBuf *pkt, const char *key,
@@ -105,7 +111,8 @@ static int apply_var(PktBuf *pkt, const char *key,
 		return 0;
 
 	/* the string may have been taken from startup pkt */
-	quote_literal(qbuf, sizeof(qbuf), cval, std_quote);
+	if (!quote_literal(qbuf, sizeof(qbuf), cval, std_quote))
+		return 0;
 
 	len = snprintf(buf, sizeof(buf), "SET %s=%s;", key, qbuf);
 	if (len < sizeof(buf)) {

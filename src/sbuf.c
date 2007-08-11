@@ -175,25 +175,23 @@ void sbuf_pause(SBuf *sbuf)
 /* resume from pause, start waiting for data */
 void sbuf_continue(SBuf *sbuf)
 {
-	bool do_recv = true;
+	bool do_recv = DO_RECV;
 	AssertActive(sbuf);
 
 	sbuf_wait_for_data(sbuf);
 
 	/*
-	 * FIXME: is it safe?
+	 * It's tempting to try to avoid the recv() but that would
+	 * only work if no code wants to see full packet.
 	 *
-	 * if avail > SMALL_PKT in buffer, skip the recv().
+	 * This is not true in ServerParameter case.
 	 */
-	if (sbuf->recv_pos - sbuf->pkt_pos >= SMALL_PKT)
-		do_recv = false;
-
 	/*
-	 * There may be some data already received,
-	 * but not certain, so avoid SKIP_RECV.
-	 * Anyway, it affects only client sockets.
+	 * if (sbuf->recv_pos - sbuf->pkt_pos >= SMALL_PKT)
+	 *	do_recv = false;
 	 */
-	sbuf_main_loop(sbuf, DO_RECV);
+
+	sbuf_main_loop(sbuf, do_recv);
 }
 
 /*

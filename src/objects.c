@@ -952,10 +952,10 @@ bool use_client_socket(int fd, PgAddr *addr,
 	client->tmp_sk_oldfd = oldfd;
 	client->tmp_sk_linkfd = linkfd;
 
-	varcache_set(&client->vars, "client_encoding", client_enc, true);
-	varcache_set(&client->vars, "standard_conforming_strings", std_string, true);
-	varcache_set(&client->vars, "datestyle", datestyle, true);
-	varcache_set(&client->vars, "timezone", timezone, true);
+	varcache_set(&client->vars, "client_encoding", client_enc);
+	varcache_set(&client->vars, "standard_conforming_strings", std_string);
+	varcache_set(&client->vars, "datestyle", datestyle);
+	varcache_set(&client->vars, "timezone", timezone);
 
 	return true;
 }
@@ -1009,10 +1009,10 @@ bool use_server_socket(int fd, PgAddr *addr,
 	server->tmp_sk_oldfd = oldfd;
 	server->tmp_sk_linkfd = linkfd;
 
-	varcache_set(&server->vars, "client_encoding", client_enc, true);
-	varcache_set(&server->vars, "standard_conforming_strings", std_string, true);
-	varcache_set(&server->vars, "datestyle", datestyle, true);
-	varcache_set(&server->vars, "timezone", timezone, true);
+	varcache_set(&server->vars, "client_encoding", client_enc);
+	varcache_set(&server->vars, "standard_conforming_strings", std_string);
+	varcache_set(&server->vars, "datestyle", datestyle);
+	varcache_set(&server->vars, "timezone", timezone);
 
 	return true;
 }

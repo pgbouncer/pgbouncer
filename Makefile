@@ -123,3 +123,8 @@ check: config.mak
 	$(E) "	CHECK" $(srcs)
 	$(Q) sparse $(SPARCE_FLAGS) $(srcs)
 
+pgbouncer.pg:
+	$(CC) -pg $(DEFS) -g -O2 $(CPPFLAGS) $(LDFLAGS) -o $@ $(srcs) $(LIBS)
+
+pg: pgbouncer.pg
+

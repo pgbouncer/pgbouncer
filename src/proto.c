@@ -148,12 +148,12 @@ bool add_welcome_parameter(PgSocket *server,
 		return false;
 	}
 
-	slog_debug(server, "S: param: %s = %s", key, val);
-	if (varcache_set(&pool->orig_vars, key, val, true)) {
-		slog_debug(server, "interesting var: %s=%s", key, val);
-		varcache_set(&server->vars, key, val, true);
+	slog_noise(server, "S: param: %s = %s", key, val);
+	if (varcache_set(&pool->orig_vars, key, val)) {
+		slog_noise(server, "interesting var: %s=%s", key, val);
+		varcache_set(&server->vars, key, val);
 	} else {
-		slog_debug(server, "uninteresting var: %s=%s", key, val);
+		slog_noise(server, "uninteresting var: %s=%s", key, val);
 		pktbuf_write_ParameterStatus(&msg, key, val);
 		pool->welcome_msg_len += pktbuf_written(&msg);
 	}
@@ -180,9 +180,6 @@ bool welcome_client(PgSocket *client)
 	slog_noise(client, "P: welcome_client");
 	if (!pool->welcome_msg_ready)
 		return false;
-
-	varcache_print(&client->vars, "welcome/client");
-	varcache_print(&client->pool->orig_vars, "welcome/pool");
 
 	pktbuf_static(&msg, buf, sizeof(buf));
 	pktbuf_put_bytes(&msg, pool->welcome_msg, pool->welcome_msg_len);

@@ -39,11 +39,11 @@ static void check_parameters(PgSocket *server, MBuf *pkt, unsigned pkt_len)
 	}
 	slog_debug(server, "S: param: %s = %s", key, val);
 
-	varcache_set(&server->vars, key, val, true);
+	varcache_set(&server->vars, key, val);
 
 	if (client) {
 		slog_debug(client, "setting client var: %s='%s'", key, val);
-		varcache_set(&client->vars, key, val, true);
+		varcache_set(&client->vars, key, val);
 	}
 
 	return;

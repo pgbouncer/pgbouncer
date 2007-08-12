@@ -111,7 +111,7 @@ static bool decide_startup_pool(PgSocket *client, MBuf *pkt)
 			dbname = val;
 		else if (strcmp(key, "user") == 0)
 			username = val;
-		else if (varcache_set(&client->vars, key, val, true))
+		else if (varcache_set(&client->vars, key, val))
 			slog_debug(client, "got var: %s=%s", key, val);
 		else {
 			disconnect_client(client, true, "Unknown startup parameter");

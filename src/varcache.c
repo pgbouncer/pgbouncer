@@ -29,21 +29,19 @@ struct var_lookup {
 };
 
 static const struct var_lookup lookup [] = {
-{"client_encoding", offsetof(VarCache, client_encoding), VAR_ENCODING_LEN },
-{"datestyle", offsetof(VarCache, datestyle), VAR_DATESTYLE_LEN },
-{"timezone", offsetof(VarCache, timezone), VAR_TIMEZONE_LEN },
-{"standard_conforming_strings", offsetof(VarCache, std_strings), VAR_STDSTR_LEN },
-{NULL},
+ {"client_encoding",             offsetof(VarCache, client_encoding), VAR_ENCODING_LEN },
+ {"datestyle",                   offsetof(VarCache, datestyle),       VAR_DATESTYLE_LEN },
+ {"timezone",                    offsetof(VarCache, timezone),        VAR_TIMEZONE_LEN },
+ {"standard_conforming_strings", offsetof(VarCache, std_strings),     VAR_STDSTR_LEN },
+ {NULL},
 };
 
-static char *get_value(VarCache *cache, const struct var_lookup *lk)
+static inline char *get_value(VarCache *cache, const struct var_lookup *lk)
 {
 	return (char *)(cache) + lk->offset;
 }
 
-bool varcache_set(VarCache *cache,
-		  const char *key, const char *value,
-		  bool overwrite)
+bool varcache_set(VarCache *cache, const char *key, const char *value)
 {
 	int vlen;
 	char *pos;
@@ -53,16 +51,14 @@ bool varcache_set(VarCache *cache,
 		if (strcasecmp(lk->name, key) != 0)
 			continue;
 
+		vlen = strlen(value);
+		if (vlen >= lk->len) {
+			log_warning("varcache_set overflow: %s", key);
+			return false;
+		}
+
 		pos = get_value(cache, lk);
-
-		if (!overwrite && *pos)
-			break;
-
-		vlen = strlcpy(pos, value, lk->len);
-		if (vlen >= lk->len)
-			log_warning("varcache_set(%s) overflow", key);
-		else
-			log_debug("varcache_set: %s=%s", key, pos);
+		memcpy(pos, value, vlen + 1);
 		return true;
 	}
 	return false;
@@ -163,12 +159,8 @@ void varcache_fill_unset(VarCache *src, PgSocket *dst)
 	for (lk = lookup; lk->name; lk++) {
 		srcval = get_value(src, lk);
 		dstval = get_value(&dst->vars, lk);
-		if (*dstval)
-			continue;
-
-		/* empty val, copy */
-		slog_debug(dst, "varcache_fill_unset: %s = %s", lk->name, srcval);
-		strlcpy(dstval, srcval, lk->len);
+		if (!*dstval)
+			strlcpy(dstval, srcval, lk->len);
 	}
 }
 
@@ -188,19 +180,6 @@ void varcache_add_params(PktBuf *pkt, VarCache *vars)
 		val = get_value(vars, lk);
 		if (*val)
 			pktbuf_write_ParameterStatus(pkt, lk->name, val);
-		else
-			log_error("varcache_add_params: empty param: %s", lk->name);
 	}
 }
-
-void varcache_print(VarCache *vars, const char *desc)
-{
-	char *val;
-	const struct var_lookup *lk;
-	for (lk = lookup; lk->name; lk++) {
-		val = get_value(vars, lk);
-		log_debug("%s: %s='%s'", desc, lk->name, val);
-	}
-}
-
 

@@ -171,22 +171,20 @@ typedef struct StatList StatList;
 struct StatList {
 	List head;
 	int cur_count;
-	int max_count;
+#ifdef LIST_DEBUG
 	const char *name;
+#endif
 };
+
+#ifdef LIST_DEBUG
+#define STATLIST(var) StatList var = { {&var.head, &var.head}, 0, #var }
+#else
+#define STATLIST(var) StatList var = { {&var.head, &var.head}, 0 }
+#endif
 
 static inline void statlist_inc_count(StatList *list, int val)
 {
 	list->cur_count += val;
-	if (list->cur_count > list->max_count)
-		list->max_count = list->cur_count;
-}
-
-#define STATLIST(var) StatList var = { {&var.head, &var.head}, 0, 0, #var }
-
-static inline void statlist_reset(StatList *list)
-{
-	list->max_count = list->cur_count;
 }
 
 static inline void statlist_prepend(List *item, StatList *list)
@@ -224,20 +222,16 @@ static inline void statlist_remove(List *item, StatList *list)
 static inline void statlist_init(StatList *list, const char *name)
 {
 	list_init(&list->head);
+	list->cur_count = 0;
+#ifdef LIST_DEBUG
 	list->name = name;
-	list->cur_count = list->max_count = 0;
+#endif
 }
 
 static inline int statlist_count(StatList *list)
 {
 	Assert(list->cur_count > 0 || list_empty(&list->head));
 	return list->cur_count;
-}
-
-static inline int statlist_max(StatList *list)
-{
-	return list->max_count > list->cur_count
-		? list->max_count : list->cur_count;
 }
 
 static inline List *statlist_pop(StatList *list)

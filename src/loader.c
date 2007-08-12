@@ -371,6 +371,17 @@ bool loader_users_check(void)
 	return load_auth_file(cf_auth_file);
 }
 
+static void disable_users(void)
+{
+	PgUser *user;
+	List *item;
+
+	statlist_for_each(item, &user_list) {
+		user = container_of(item, PgUser, head);
+		user->passwd[0] = 0;
+	}
+}
+
 /* load list of users from pg_auth/pg_psw file */
 bool load_auth_file(const char *fn)
 {
@@ -382,6 +393,8 @@ bool load_auth_file(const char *fn)
 		auth_loaded(NULL);
 		return false;
 	}
+
+	disable_users();
 
 	p = buf;
 	while (*p) {

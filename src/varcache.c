@@ -82,7 +82,7 @@ static bool quote_literal(char *buf, int buflen, const char *src, bool std_quote
 	while (*src && dst < end) {
 		if (*src == '\'')
 			*dst++ = '\'';
-		else if (!std_quote && *src == '\\')
+		else if (*src == '\\' && !std_quote)
 			*dst++ = '\\';
 		*dst++ = *src++;
 	}

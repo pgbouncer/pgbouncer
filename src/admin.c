@@ -152,7 +152,11 @@ static bool send_one_fd(PgSocket *admin,
 			int fd, const char *task,
 			const char *user, const char *db,
 			const char *addr, int port,
-			uint64 ckey, int link)
+			uint64 ckey, int link,
+			const char *client_enc,
+			const char *std_strings,
+			const char *datestyle,
+			const char *timezone)
 {
 	struct msghdr msg;
 	struct cmsghdr *cmsg;
@@ -162,8 +166,9 @@ static bool send_one_fd(PgSocket *admin,
 	uint8 cntbuf[CMSG_SPACE(sizeof(int))];
 
 	iovec.iov_base = pktbuf;
-	BUILD_DataRow(res, pktbuf, sizeof(pktbuf), "issssiqi",
-		      fd, task, user, db, addr, port, ckey, link);
+	BUILD_DataRow(res, pktbuf, sizeof(pktbuf), "issssiqissss",
+		      fd, task, user, db, addr, port, ckey, link,
+		      client_enc, std_strings, datestyle, timezone);
 	if (res < 0)
 		return false;
 	iovec.iov_len = res;
@@ -205,6 +210,7 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 {
 	PgAddr *addr = &sk->addr;
 	MBuf tmp;
+	VarCache *v = &sk->vars;
 
 	mbuf_init(&tmp, sk->cancel_key, 8);
 
@@ -215,7 +221,11 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 			   addr->is_unix ? "unix" : inet_ntoa(addr->ip_addr),
 			   addr->port,
 			   mbuf_get_uint64(&tmp),
-			   sk->link ? sbuf_socket(&sk->link->sbuf) : 0);
+			   sk->link ? sbuf_socket(&sk->link->sbuf) : 0,
+			   v->client_encoding[0] ? v->client_encoding : NULL,
+			   v->std_strings[0] ? v->std_strings : NULL,
+			   v->datestyle[0] ? v->datestyle : NULL,
+			   v->timezone[0] ? v->timezone : NULL);
 }
 
 /* send a row with sendmsg, optionally attaching a fd */
@@ -228,10 +238,12 @@ static bool show_pooler_fds(PgSocket *admin)
 
 	if (fd_net)
 		res = send_one_fd(admin, fd_net, "pooler", NULL, NULL,
-				  cf_listen_addr, cf_listen_port, 0, 0);
+				  cf_listen_addr, cf_listen_port, 0, 0,
+				  NULL, NULL, NULL, NULL);
 	if (fd_unix && res)
 		res = send_one_fd(admin, fd_unix, "pooler", NULL, NULL,
-				  "unix", cf_listen_port, 0, 0);
+				  "unix", cf_listen_port, 0, 0,
+				  NULL, NULL, NULL, NULL);
 	return res;
 }
 
@@ -278,11 +290,13 @@ static bool admin_show_fds(PgSocket *admin, const char *arg)
 	/*
 	 * send resultset
 	 */
-	SEND_RowDescription(res, admin, "issssiqi",
+	SEND_RowDescription(res, admin, "issssiqissss",
 				 "fd", "task",
 				 "user", "database",
 				 "addr", "port",
-				 "cancel", "link");
+				 "cancel", "link",
+				 "client_encoding", "std_strings",
+				 "datestyle", "timezone");
 	if (res)
 		res = show_pooler_fds(admin);
 

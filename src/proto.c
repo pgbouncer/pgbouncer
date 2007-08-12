@@ -320,35 +320,44 @@ int scan_text_result(MBuf *pkt, const char *tupdesc, ...)
 	int len;
 	unsigned ncol, i;
 	va_list ap;
+	int asked;
+	int *int_p;
+	uint64 *long_p;
+	char **str_p;
 
+	asked = strlen(tupdesc);
 	ncol = mbuf_get_uint16(pkt);
-	if (ncol != strlen(tupdesc))
-		fatal("different number of cols");
 
 	va_start(ap, tupdesc);
-	for (i = 0; i < ncol; i++) {
-		len = mbuf_get_uint32(pkt);
-		if (len < 0)
-			val = NULL;
-		else
-			val = (char *)mbuf_get_bytes(pkt, len);
-
-		if (tupdesc[i] == 'i') {
-			int *dst_p = va_arg(ap, int *);
-			*dst_p = atoi(val);
-		} else if (tupdesc[i] == 'q') {
-			uint64 *dst_p = va_arg(ap, uint64 *);
-			*dst_p = atoll(val);
-		} else if (tupdesc[i] == 's') {
-			char **dst_p = va_arg(ap, char **);
-			*dst_p = val;
+	for (i = 0; i < asked; i++) {
+		if (i < ncol) {
+			len = mbuf_get_uint32(pkt);
+			if (len < 0)
+				val = NULL;
+			else
+				val = (char *)mbuf_get_bytes(pkt, len);
 		} else
+			/* tuple was shorter than requested */
+			val = NULL;
+
+		switch (tupdesc[i]) {
+		case 'i':
+			int_p = va_arg(ap, int *);
+			*int_p = atoi(val);
+			break;
+		case 'q':
+			long_p = va_arg(ap, uint64 *);
+			*long_p = atoll(val);
+			break;
+		case 's':
+			str_p = va_arg(ap, char **);
+			*str_p = val;
+			break;
+		default:
 			fatal("bad tupdesc: %s", tupdesc);
+		}
 	}
 	va_end(ap);
-
-	if (mbuf_avail(pkt))
-		fatal("scan_text_result: unparsed data");
 
 	return ncol;
 }

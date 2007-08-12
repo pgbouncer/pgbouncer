@@ -928,7 +928,9 @@ void forward_cancel_request(PgSocket *server)
 
 bool use_client_socket(int fd, PgAddr *addr,
 		       const char *dbname, const char *username,
-		       uint64 ckey, int oldfd, int linkfd)
+		       uint64 ckey, int oldfd, int linkfd,
+		       const char *client_enc, const char *std_string,
+		       const char *datestyle, const char *timezone)
 {
 	PgSocket *client;
 	PktBuf tmp;
@@ -950,12 +952,19 @@ bool use_client_socket(int fd, PgAddr *addr,
 	client->tmp_sk_oldfd = oldfd;
 	client->tmp_sk_linkfd = linkfd;
 
+	varcache_set(&client->vars, "client_encoding", client_enc, true);
+	varcache_set(&client->vars, "standard_conforming_strings", std_string, true);
+	varcache_set(&client->vars, "datestyle", datestyle, true);
+	varcache_set(&client->vars, "timezone", timezone, true);
+
 	return true;
 }
 
 bool use_server_socket(int fd, PgAddr *addr,
 		       const char *dbname, const char *username,
-		       uint64 ckey, int oldfd, int linkfd)
+		       uint64 ckey, int oldfd, int linkfd,
+		       const char *client_enc, const char *std_string,
+		       const char *datestyle, const char *timezone)
 {
 	PgDatabase *db = find_database(dbname);
 	PgUser *user;
@@ -999,6 +1008,11 @@ bool use_server_socket(int fd, PgAddr *addr,
 	/* store old fds */
 	server->tmp_sk_oldfd = oldfd;
 	server->tmp_sk_linkfd = linkfd;
+
+	varcache_set(&server->vars, "client_encoding", client_enc, true);
+	varcache_set(&server->vars, "standard_conforming_strings", std_string, true);
+	varcache_set(&server->vars, "datestyle", datestyle, true);
+	varcache_set(&server->vars, "timezone", timezone, true);
 
 	return true;
 }

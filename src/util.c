@@ -298,31 +298,30 @@ load_error:
 
 static void hash2hex(const uint8 *hash, char *dst)
 {
-        int i;
-        static const char hextbl [] = "0123456789abcdef";
-        for (i = 0; i < MD5_DIGEST_LENGTH; i++) {
-                *dst++ = hextbl[hash[i] >> 4];
-                *dst++ = hextbl[hash[i] & 15];
-        }
-        *dst = 0;
+	int i;
+	static const char hextbl [] = "0123456789abcdef";
+	for (i = 0; i < MD5_DIGEST_LENGTH; i++) {
+		*dst++ = hextbl[hash[i] >> 4];
+		*dst++ = hextbl[hash[i] & 15];
+	}
+	*dst = 0;
 }
 
 bool pg_md5_encrypt(const char *part1,
 		    const char *part2, size_t part2len,
 		    char *dest)
 {
-        MD5_CTX ctx;
-        uint8 hash[MD5_DIGEST_LENGTH];
+	MD5_CTX ctx;
+	uint8 hash[MD5_DIGEST_LENGTH];
 
-        MD5_Init(&ctx);
-        MD5_Update(&ctx, part1, strlen(part1));
-        MD5_Update(&ctx, part2, part2len);
-        MD5_Final(hash, &ctx);
+	MD5_Init(&ctx);
+	MD5_Update(&ctx, part1, strlen(part1));
+	MD5_Update(&ctx, part2, part2len);
+	MD5_Final(hash, &ctx);
 
 	memcpy(dest, "md5", 3);
-        hash2hex(hash, dest + 3);
+	hash2hex(hash, dest + 3);
 
-	memset(hash, 0, sizeof(*hash));
 	return true;
 }
 

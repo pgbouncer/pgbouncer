@@ -944,7 +944,7 @@ void admin_setup(void)
 	/* fake database */
 	db = add_database("pgbouncer");
 	if (!db)
-		fatal("no mem for admin database");
+		fatal("no memory for admin database");
 
 	db->addr.port = cf_listen_port;
 	db->addr.is_unix = 1;

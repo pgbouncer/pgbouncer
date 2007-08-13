@@ -227,7 +227,7 @@ void parse_database(char *name, char *connstr)
 
 	db = add_database(name);
 	if (!db) {
-		log_error("cannot create database, no mem?");
+		log_error("cannot create database, no memory?");
 		return;
 	}
 
@@ -335,7 +335,7 @@ static void unquote_add_user(const char *username, const char *password)
 
 	user = add_user(real_user, real_passwd);
 	if (!user)
-		log_warning("cannot create user, no mem");
+		log_warning("cannot create user, no memory");
 }
 
 static bool auth_loaded(const char *fn)
@@ -415,7 +415,7 @@ bool load_auth_file(const char *fn)
 			break;
 		}
 		if (p - user >= MAX_USERNAME) {
-			log_error("too long username");
+			log_error("username too long");
 			break;
 		}
 		*p++ = 0; /* tag username end */
@@ -544,7 +544,7 @@ bool set_config_param(ConfElem *elem_list,
 		/* got config, parse it */
 		return desc->io.fn_set(desc, val, console);
 	}
-	admin_error(console, "unknown config parameter: %s", key);
+	admin_error(console, "unknown configuration parameter: %s", key);
 	return false;
 }
 
@@ -624,7 +624,7 @@ void iniparser(const char *fn, ConfSection *sect_list, bool reload)
 		/* expect '=', skip it */
 		while (*p && (*p == ' ' || *p == '\t')) p++;
 		if (*p != '=') {
-			log_error("syntax error in config, stopping loading");
+			log_error("syntax error in configuration, stopping loading");
 			break;
 		} else
 			p++;

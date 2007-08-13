@@ -764,7 +764,7 @@ void launch_new_connection(PgPool *pool)
 	/* get free conn object */
 	server = new_server();
 	if (!server) {
-		log_debug("launch_new_connection: no mem");
+		log_debug("launch_new_connection: no memory");
 		return;
 	}
 
@@ -833,7 +833,7 @@ bool finish_client_login(PgSocket *client)
 	}
 
 	if (!welcome_client(client)) {
-		log_debug("finish_client_login: no welcome msg, pause");
+		log_debug("finish_client_login: no welcome message, pause");
 		client->wait_for_welcome = 1;
 		pause_client(client);
 		if (cf_pause_mode == P_NONE)
@@ -875,14 +875,14 @@ found:
 
 	/* wrong key */
 	if (!main_client) {
-		disconnect_client(req, false, "failed cancel req");
+		disconnect_client(req, false, "failed cancel request");
 		return;
 	}
 
 	/* not linked client, just drop it then */
 	if (!main_client->link) {
 		bool res;
-		disconnect_client(req, false, "cancel req for idle client");
+		disconnect_client(req, false, "cancel request for idle client");
 
 		/* let administrative cancel be handled elsewhere */
 		if (main_client->pool->admin) {

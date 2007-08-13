@@ -105,6 +105,9 @@ typedef enum SocketState SocketState;
 #define POOL_TX		1
 #define POOL_STMT	2
 
+/* new style V3 packet header len - type:1b, len:4b */ 
+#define PQ_HEADER_LEN	5
+
 struct PgAddr {
 	struct in_addr ip_addr;
 	unsigned short port;

@@ -28,6 +28,7 @@ static struct event ev_net;
 static struct event ev_unix;
 static int suspended = 0;
 
+/* on accept() failure sleep 5 seconds */
 static struct event ev_err;
 static struct timeval err_timeout = {5, 0};
 

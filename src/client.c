@@ -87,7 +87,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username)
 		user = db->forced_user;
 	client->pool = get_pool(db, user);
 	if (!client->pool) {
-		disconnect_client(client, true, "no mem for pool");
+		disconnect_client(client, true, "no memory for pool");
 		return false;
 	}
 
@@ -135,12 +135,15 @@ static bool decide_startup_pool(PgSocket *client, MBuf *pkt)
 	   get_active_client_count() counts it */
 	if (get_active_client_count() > cf_max_client_conn) {
 		if (strcmp(dbname, "pgbouncer") != 0) {
-			disconnect_client(client, true, "no more conns allowed");
+			disconnect_client(client, true, "no more connections allowed");
 			return false;
 		}
 	}
 	return set_pool(client, dbname, username);
 }
+
+/* mask to get offset into valid_crypt_salt[] */
+#define SALT_MASK  0x3F
 
 static const char valid_crypt_salt[] =
 "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
@@ -150,12 +153,13 @@ static bool send_client_authreq(PgSocket *client)
 	uint8 saltlen = 0;
 	int res;
 	int auth = cf_auth_type;
+	uint8 randbuf[2];
 
 	if (auth == AUTH_CRYPT) {
 		saltlen = 2;
-		get_random_bytes((void*)client->salt, saltlen);
-		client->salt[0] = valid_crypt_salt[client->salt[0] & 0x3f];
-		client->salt[1] = valid_crypt_salt[client->salt[1] & 0x3f];
+		get_random_bytes(randbuf, saltlen);
+		client->salt[0] = valid_crypt_salt[randbuf[0] & SALT_MASK];
+		client->salt[1] = valid_crypt_salt[randbuf[1] & SALT_MASK];
 		client->salt[2] = 0;
 	} else if (cf_auth_type == AUTH_MD5) {
 		saltlen = 4;
@@ -234,7 +238,7 @@ static bool handle_client_startup(PgSocket *client, MBuf *pkt)
 		}
 		break;
 	case 'p':		/* PasswordMessage */
-		if (mbuf_avail(pkt) < pkt_len - 5) {
+		if (mbuf_avail(pkt) < pkt_len - PQ_HEADER_LEN) {
 			disconnect_client(client, true, "client sent partial pkt in startup");
 			return false;
 		}
@@ -263,7 +267,7 @@ static bool handle_client_startup(PgSocket *client, MBuf *pkt)
 			disconnect_client(client, false, "bad cancel request");
 		return false;
 	default:
-		disconnect_client(client, false, "bad pkt");
+		disconnect_client(client, false, "bad packet");
 		return false;
 	}
 	sbuf_prepare_skip(sbuf, pkt_len);
@@ -279,7 +283,7 @@ static bool handle_client_work(PgSocket *client, MBuf *pkt)
 	SBuf *sbuf = &client->sbuf;
 
 	if (!get_header(pkt, &pkt_type, &pkt_len)) {
-		disconnect_client(client, true, "bad pkt header");
+		disconnect_client(client, true, "bad packet header");
 		return false;
 	}
 	slog_noise(client, "pkt='%c' len=%d", pkt_type, pkt_len);

@@ -22,6 +22,7 @@
 
 #include "bouncer.h"
 
+/* do full maintenance 3x per second */
 static struct timeval full_maint_period = {0, USEC / 3};
 static struct event full_maint_ev;
 
@@ -222,8 +223,8 @@ static int per_loop_suspend(PgPool *pool)
 		active += suspend_socket_list(&pool->idle_server_list);
 
 		/* as all clients are done, no need for them */
-		close_server_list(&pool->tested_server_list, "close unsafe fds on suspend");
-		close_server_list(&pool->used_server_list, "close unsafe fds on suspend");
+		close_server_list(&pool->tested_server_list, "close unsafe file descriptors on suspend");
+		close_server_list(&pool->used_server_list, "close unsafe file descriptors on suspend");
 	}
 
 	return active;
@@ -328,7 +329,7 @@ static void check_unused_servers(StatList *slist, usec_t now, bool idle_test)
 		idle = now - server->request_time;
 
 		if (server->close_needed)
-			disconnect_server(server, true, "db conf changed");
+			disconnect_server(server, true, "database configuration changed");
 		else if (server->state == SV_IDLE && !server->ready)
 			disconnect_server(server, true, "SV_IDLE server got dirty");
 		else if (server->state == SV_USED && !server->ready)
@@ -374,7 +375,7 @@ static void check_pool_size(PgPool *pool)
 			server = first_socket(&pool->idle_server_list);
 		if (!server)
 			break;
-		disconnect_server(server, true, "too many servers in pool");
+		disconnect_server(server, true, "too many servers in the pool");
 		many--;
 	}
 }

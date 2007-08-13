@@ -293,7 +293,7 @@ load_error:
 }
 
 /*
- * PostgreSQL MD5 "encryption".
+ * PostgreSQL MD5 hashing.
  */
 
 static void hash2hex(const uint8 *hash, char *dst)

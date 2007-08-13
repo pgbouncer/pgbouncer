@@ -192,8 +192,9 @@ static void takeover_parse_data(PgSocket *bouncer,
 		if (!get_header(data, &pkt_type, &pkt_len))
 			fatal("cannot parse packet");
 
-		pktptr = (uint8*)mbuf_get_bytes(data, pkt_len - 5);
-		mbuf_init(&pkt, pktptr, pkt_len - 5);
+		/* crash on overflow is ok here */
+		pktptr = (uint8*)mbuf_get_bytes(data, pkt_len - NEW_HEADER_LEN);
+		mbuf_init(&pkt, pktptr, pkt_len - NEW_HEADER_LEN);
 
 		switch (pkt_type) {
 		case 'T': /* RowDescription */

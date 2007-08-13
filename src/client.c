@@ -238,7 +238,7 @@ static bool handle_client_startup(PgSocket *client, MBuf *pkt)
 		}
 		break;
 	case 'p':		/* PasswordMessage */
-		if (mbuf_avail(pkt) < pkt_len - PQ_HEADER_LEN) {
+		if (mbuf_avail(pkt) < pkt_len - NEW_HEADER_LEN) {
 			disconnect_client(client, true, "client sent partial pkt in startup");
 			return false;
 		}
@@ -374,7 +374,7 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, MBuf *pkt, void *arg)
 		disconnect_server(client->link, false, "Server connection closed");
 		break;
 	case SBUF_EV_READ:
-		if (mbuf_avail(pkt) < 5) {
+		if (mbuf_avail(pkt) < NEW_HEADER_LEN) {
 			slog_noise(client, "C: got partial header, trying to wait a bit");
 			return false;
 		}

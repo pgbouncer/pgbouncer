@@ -867,7 +867,7 @@ bool admin_handle_client(PgSocket *admin, MBuf *pkt, int pkt_type, int pkt_len)
 	bool res;
 
 	/* dont tolerate partial packets */
-	if (mbuf_avail(pkt) < pkt_len - 5) {
+	if (mbuf_avail(pkt) < pkt_len - NEW_HEADER_LEN) {
 		disconnect_client(admin, true, "incomplete pkt");
 		return false;
 	}

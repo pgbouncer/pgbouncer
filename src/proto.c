@@ -33,7 +33,7 @@ bool get_header(MBuf *pkt, unsigned *pkt_type_p, unsigned *pkt_len_p)
 	unsigned len;
 	unsigned code;
 
-	if (mbuf_avail(pkt) < 5) {
+	if (mbuf_avail(pkt) < NEW_HEADER_LEN) {
 		log_noise("get_header: less then 5 bytes available");
 		return false;
 	}
@@ -47,15 +47,15 @@ bool get_header(MBuf *pkt, unsigned *pkt_type_p, unsigned *pkt_len_p)
 			return false;
 		}
 		/* dont tolerate partial pkt */
-		if (mbuf_avail(pkt) < 6) {
-			log_noise("get_header: less that 6 bytes for special pkt");
+		if (mbuf_avail(pkt) < OLD_HEADER_LEN - 2) {
+			log_noise("get_header: less than 8 bytes for special pkt");
 			return false;
 		}
 		len = mbuf_get_uint16(pkt);
 		code = mbuf_get_uint32(pkt);
-		if (code == 80877102)
+		if (code == PKT_CANCEL)
 			type = PKT_CANCEL;
-		else if (code == 80877103)
+		else if (code == PKT_SSLREQ)
 			type = PKT_SSLREQ;
 		else if ((code >> 16) == 3 && (code & 0xFFFF) < 2)
 			type = PKT_STARTUP;
@@ -64,6 +64,11 @@ bool get_header(MBuf *pkt, unsigned *pkt_type_p, unsigned *pkt_len_p)
 			return false;
 		}
 	}
+
+	/* don't believe nonsense */
+	if (len < NEW_HEADER_LEN || len >= 0x80000000)
+		return false;
+
 	*pkt_type_p = type;
 	*pkt_len_p = len;
 	return true;
@@ -132,7 +137,7 @@ bool add_welcome_parameter(PgSocket *server,
 		return true;
 
 	/* incomplete startup msg from server? */
-	if (pkt_len - 5 > mbuf_avail(pkt))
+	if (mbuf_avail(pkt) < pkt_len - NEW_HEADER_LEN)
 		return false;
 
 	pktbuf_static(&msg, pool->welcome_msg + pool->welcome_msg_len,
@@ -254,13 +259,17 @@ bool answer_authreq(PgSocket *server,
 	unsigned cmd;
 	const uint8 *salt;
 	bool res = false;
+	unsigned pkt_remain;
 
-	if (pkt_len < 5 + 4)
+	/* authreq body must contain 32bit cmd */
+	if (pkt_len < NEW_HEADER_LEN + 4)
 		return false;
-	if (mbuf_avail(pkt) < pkt_len - 5)
+	/* is packet fully received? */
+	if (mbuf_avail(pkt) < pkt_len - NEW_HEADER_LEN)
 		return false;
 
 	cmd = mbuf_get_uint32(pkt);
+	pkt_remain = pkt_len - NEW_HEADER_LEN - 4;
 	switch (cmd) {
 	case 0:
 		slog_debug(server, "S: auth ok");
@@ -271,14 +280,14 @@ bool answer_authreq(PgSocket *server,
 		res = login_clear_psw(server);
 		break;
 	case 4:
-		if (pkt_len < 5 + 4 + 2)
+		if (pkt_remain < 2)
 			return false;
 		slog_debug(server, "S: req crypt psw");
 		salt = mbuf_get_bytes(pkt, 2);
 		res = login_crypt_psw(server, salt);
 		break;
 	case 5:
-		if (pkt_len < 5 + 4 + 4)
+		if (pkt_remain < 4)
 			return false;
 		slog_debug(server, "S: req md5-crypted psw");
 		salt = mbuf_get_bytes(pkt, 4);

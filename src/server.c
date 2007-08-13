@@ -22,20 +22,23 @@
 
 #include "bouncer.h"
 
-static void check_parameters(PgSocket *server, MBuf *pkt, unsigned pkt_len)
+static bool load_parameter(PgSocket *server, MBuf *pkt, unsigned pkt_len)
 {
 	const char *key, *val;
 	PgSocket *client = server->link;
 
-	/* incomplete startup msg from server? */
-	if (pkt_len - 5 > mbuf_avail(pkt))
-		return;
+	/*
+	 * incomplete startup msg from server?
+	 * (hdr is already parsed here)
+	 */
+	if (mbuf_avail(pkt) < pkt_len - NEW_HEADER_LEN)
+		return false;
 
 	key = mbuf_get_string(pkt);
 	val = mbuf_get_string(pkt);
 	if (!key || !val) {
-		slog_error(server, "broken ParameterStatus packet");
-		return;
+		disconnect_server(server, true, "broken ParameterStatus packet");
+		return false;
 	}
 	slog_debug(server, "S: param: %s = %s", key, val);
 
@@ -46,7 +49,7 @@ static void check_parameters(PgSocket *server, MBuf *pkt, unsigned pkt_len)
 		varcache_set(&client->vars, key, val);
 	}
 
-	return;
+	return true;
 }
 
 /* process packets on server auth phase */
@@ -62,7 +65,7 @@ static bool handle_server_startup(PgSocket *server, MBuf *pkt)
 		return false;
 	}
 
-	if (pkt_len > mbuf_avail(pkt) + 5) {
+	if (mbuf_avail(pkt) < pkt_len - NEW_HEADER_LEN) {
 		disconnect_server(server, true, "partial pkt in login phase");
 		return false;
 	}
@@ -169,7 +172,8 @@ static bool handle_server_work(PgSocket *server, MBuf *pkt)
 		break;
 
 	case 'S':		/* ParameterStatus */
-		check_parameters(server, pkt, pkt_len);
+		if (!load_parameter(server, pkt, pkt_len))
+			return false;
 		break;
 
 	/*
@@ -196,6 +200,7 @@ static bool handle_server_work(PgSocket *server, MBuf *pkt)
 			 * no reason to keep such guys.
 			 */
 			disconnect_client(server->link, true, "invalid server parameter");
+			return false;
 		}
 	case 'N':		/* NoticeResponse */
 		break;
@@ -299,7 +304,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *pkt, void *arg)
 		disconnect_client(server->link, false, "unexpected eof");
 		break;
 	case SBUF_EV_READ:
-		if (mbuf_avail(pkt) < 5) {
+		if (mbuf_avail(pkt) < NEW_HEADER_LEN) {
 			slog_noise(server, "S: got partial header, trying to wait a bit");
 			return false;
 		}

@@ -98,15 +98,17 @@ typedef enum SocketState SocketState;
 
 /* type codes for weird pkts */
 #define PKT_STARTUP     0x30000
-#define PKT_SSLREQ      80877103
 #define PKT_CANCEL      80877102
+#define PKT_SSLREQ      80877103
 
 #define POOL_SESSION	0
 #define POOL_TX		1
 #define POOL_STMT	2
 
+/* old style V2 header: len:4b code:4b */
+#define OLD_HEADER_LEN	8
 /* new style V3 packet header len - type:1b, len:4b */ 
-#define PQ_HEADER_LEN	5
+#define NEW_HEADER_LEN	5
 
 struct PgAddr {
 	struct in_addr ip_addr;

@@ -126,5 +126,14 @@ check: config.mak
 pgbouncer.pg:
 	$(CC) -pg $(DEFS) -g -O2 $(CPPFLAGS) $(LDFLAGS) -o $@ $(srcs) $(LIBS)
 
+
+
 pg: pgbouncer.pg
+
+$(builddir)/lib/%.s: $(srcdir)/src/%.c config.mak $(hdrs)
+	@mkdir -p $(builddir)/lib
+	$(E) "	CC -S" $<
+	$(Q) $(CC) -S -o $@ $< $(DEFS) $(CFLAGS) $(CPPFLAGS)
+asms = $(objs:.o=.s)
+asm: $(asms)
 

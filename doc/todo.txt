@@ -1,17 +1,12 @@
 = PgBouncer TODO list =
 
-== High-prio ==
+== Ver 1.1 ==
 
- * suspend_timeout - drop stalled conns
  * create manpage
  * report existing pidfile to console
- * before loading users, disable all existing
-
-== Low-prio ==
-
  * drop_on_error/keep_on_error - if released conn is in error state,
  then issue rollback and keep it
- * keep stats about error counts
+ * suspend_timeout - drop stalled conns
 
 == Make -R less scary ==
 
@@ -30,5 +25,6 @@
 
 == Just ideas ==
 
+ * keep stats about error counts
  * auth_conn - access to pg_shadow, so auth_file is not needed
  * possibility to specify failover databases

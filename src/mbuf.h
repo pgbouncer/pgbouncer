@@ -17,7 +17,12 @@
  */
 
 /*
- * Safe and easy access to fixed memory buffer
+ * Safe and easy access to fixed memory buffer.
+ */
+
+/*
+ * FIXME: the code should be converted so that
+ * the fatal()-s can be replaced by Asserts().
  */
 
 typedef struct MBuf MBuf;
@@ -81,12 +86,12 @@ static inline const uint8 * mbuf_get_bytes(MBuf *buf, unsigned len)
 	return res;
 }
 
-static inline unsigned mbuf_avail(MBuf *buf)
+static inline unsigned mbuf_avail(const MBuf *buf)
 {
 	return buf->end - buf->pos;
 }
 
-static inline unsigned mbuf_size(MBuf *buf)
+static inline unsigned mbuf_size(const MBuf *buf)
 {
 	return buf->end - buf->data;
 }
@@ -99,5 +104,18 @@ static inline const char * mbuf_get_string(MBuf *buf)
 		return NULL;
 	buf->pos = nul + 1;
 	return res;
+}
+
+static inline void mbuf_copy(const MBuf *src, MBuf *dst)
+{
+	*dst = *src;
+}
+
+static inline void mbuf_slice(MBuf *src, unsigned len, MBuf *dst)
+{
+	if (len > mbuf_avail(src))
+		fatal("buffer overflow");
+	mbuf_init(dst, src->pos, len);
+	src->pos += len;
 }
 

@@ -15,7 +15,7 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-bool admin_handle_client(PgSocket *client, MBuf *pkt, int pkt_type, int pkt_len);
+bool admin_handle_client(PgSocket *client, PktHdr *pkt);
 bool admin_pre_login(PgSocket *client);
 void admin_setup(void);
 bool admin_error(PgSocket *console, const char *fmt, ...);

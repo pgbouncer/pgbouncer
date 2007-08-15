@@ -27,32 +27,38 @@
  */
 
 /* parses pkt header from buffer, returns false if failed */
-bool get_header(MBuf *pkt, unsigned *pkt_type_p, unsigned *pkt_len_p)
+bool get_header(MBuf *data, PktHdr *pkt)
 {
 	unsigned type;
 	unsigned len;
 	unsigned code;
+	unsigned got;
+	unsigned avail;
+	MBuf hdr;
 
-	if (mbuf_avail(pkt) < NEW_HEADER_LEN) {
+	mbuf_copy(data, &hdr);
+
+	if (mbuf_avail(&hdr) < NEW_HEADER_LEN) {
 		log_noise("get_header: less then 5 bytes available");
 		return false;
 	}
-	type = mbuf_get_char(pkt);
+	type = mbuf_get_char(&hdr);
 	if (type != 0) {
 		/* wire length does not include type byte */
-		len = mbuf_get_uint32(pkt) + 1;
+		len = mbuf_get_uint32(&hdr) + 1;
+		got = NEW_HEADER_LEN;
 	} else {
-		if (mbuf_get_char(pkt) != 0) {
+		if (mbuf_get_char(&hdr) != 0) {
 			log_noise("get_header: unknown special pkt");
 			return false;
 		}
 		/* dont tolerate partial pkt */
-		if (mbuf_avail(pkt) < OLD_HEADER_LEN - 2) {
+		if (mbuf_avail(&hdr) < OLD_HEADER_LEN - 2) {
 			log_noise("get_header: less than 8 bytes for special pkt");
 			return false;
 		}
-		len = mbuf_get_uint16(pkt);
-		code = mbuf_get_uint32(pkt);
+		len = mbuf_get_uint16(&hdr);
+		code = mbuf_get_uint32(&hdr);
 		if (code == PKT_CANCEL)
 			type = PKT_CANCEL;
 		else if (code == PKT_SSLREQ)
@@ -63,14 +69,27 @@ bool get_header(MBuf *pkt, unsigned *pkt_type_p, unsigned *pkt_len_p)
 			log_noise("get_header: unknown special pkt: len=%u code=%u", len, code);
 			return false;
 		}
+		got = OLD_HEADER_LEN;
 	}
 
 	/* don't believe nonsense */
-	if (len < NEW_HEADER_LEN || len >= 0x80000000)
+	if (len < got || len >= 0x80000000)
 		return false;
 
-	*pkt_type_p = type;
-	*pkt_len_p = len;
+	/* report pkt info */
+	pkt->type = type;
+	pkt->len = len;
+
+	/* fill apkt with only data for this pkt */
+	if (len > mbuf_avail(data))
+		avail = mbuf_avail(data);
+	else
+		avail = len;
+	mbuf_slice(data, avail, &pkt->data);
+
+	/* tag header as read */
+	mbuf_get_bytes(&pkt->data, got);
+
 	return true;
 }
 
@@ -98,15 +117,15 @@ bool send_pooler_error(PgSocket *client, bool send_ready, const char *msg)
 /*
  * Parse server error message and log it.
  */
-void log_server_error(const char *note, MBuf *pkt)
+void log_server_error(const char *note, PktHdr *pkt)
 {
 	const char *level = NULL, *msg = NULL, *val;
 	int type;
-	while (mbuf_avail(pkt)) {
-		type = mbuf_get_char(pkt);
+	while (mbuf_avail(&pkt->data)) {
+		type = mbuf_get_char(&pkt->data);
 		if (type == 0)
 			break;
-		val = mbuf_get_string(pkt);
+		val = mbuf_get_string(&pkt->data);
 		if (!val)
 			break;
 		if (type == 'S')
@@ -126,8 +145,7 @@ void log_server_error(const char *note, MBuf *pkt)
  */
 
 /* add another server parameter packet to cache */
-bool add_welcome_parameter(PgSocket *server,
-			   unsigned pkt_type, unsigned pkt_len, MBuf *pkt)
+bool add_welcome_parameter(PgSocket *server, PktHdr *pkt)
 {
 	PgPool *pool = server->pool;
 	PktBuf msg;
@@ -137,7 +155,7 @@ bool add_welcome_parameter(PgSocket *server,
 		return true;
 
 	/* incomplete startup msg from server? */
-	if (mbuf_avail(pkt) < pkt_len - NEW_HEADER_LEN)
+	if (incomplete_pkt(pkt))
 		return false;
 
 	pktbuf_static(&msg, pool->welcome_msg + pool->welcome_msg_len,
@@ -146,10 +164,10 @@ bool add_welcome_parameter(PgSocket *server,
 	if (pool->welcome_msg_len == 0)
 		pktbuf_write_AuthenticationOk(&msg);
 
-	key = mbuf_get_string(pkt);
-	val = mbuf_get_string(pkt);
+	key = mbuf_get_string(&pkt->data);
+	val = mbuf_get_string(&pkt->data);
 	if (!key || !val) {
-		slog_error(server, "broken ParameterStatus packet");
+		disconnect_server(server, true, "broken ParameterStatus packet");
 		return false;
 	}
 
@@ -252,24 +270,17 @@ static bool login_md5_psw(PgSocket *server, const uint8 *salt)
 }
 
 /* answer server authentication request */
-bool answer_authreq(PgSocket *server,
-		    unsigned pkt_type, unsigned pkt_len,
-		    MBuf *pkt)
+bool answer_authreq(PgSocket *server, PktHdr *pkt)
 {
 	unsigned cmd;
 	const uint8 *salt;
 	bool res = false;
-	unsigned pkt_remain;
 
 	/* authreq body must contain 32bit cmd */
-	if (pkt_len < NEW_HEADER_LEN + 4)
-		return false;
-	/* is packet fully received? */
-	if (mbuf_avail(pkt) < pkt_len - NEW_HEADER_LEN)
+	if (mbuf_avail(&pkt->data) < 4)
 		return false;
 
-	cmd = mbuf_get_uint32(pkt);
-	pkt_remain = pkt_len - NEW_HEADER_LEN - 4;
+	cmd = mbuf_get_uint32(&pkt->data);
 	switch (cmd) {
 	case 0:
 		slog_debug(server, "S: auth ok");
@@ -280,17 +291,17 @@ bool answer_authreq(PgSocket *server,
 		res = login_clear_psw(server);
 		break;
 	case 4:
-		if (pkt_remain < 2)
-			return false;
 		slog_debug(server, "S: req crypt psw");
-		salt = mbuf_get_bytes(pkt, 2);
+		if (mbuf_avail(&pkt->data) < 2)
+			return false;
+		salt = mbuf_get_bytes(&pkt->data, 2);
 		res = login_crypt_psw(server, salt);
 		break;
 	case 5:
-		if (pkt_remain < 4)
-			return false;
 		slog_debug(server, "S: req md5-crypted psw");
-		salt = mbuf_get_bytes(pkt, 4);
+		if (mbuf_avail(&pkt->data) < 4)
+			return false;
+		salt = mbuf_get_bytes(&pkt->data, 4);
 		res = login_md5_psw(server, salt);
 		break;
 	case 2: /* kerberos */

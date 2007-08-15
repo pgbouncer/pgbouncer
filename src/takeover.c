@@ -182,28 +182,28 @@ static void takeover_parse_data(PgSocket *bouncer,
 				struct msghdr *msg, MBuf *data)
 {
 	struct cmsghdr *cmsg;
-	unsigned pkt_type, pkt_len;
-	uint8 *pktptr;
-	MBuf pkt;
+	PktHdr pkt;
 	
 	cmsg = msg->msg_controllen ? CMSG_FIRSTHDR(msg) : NULL;
 
 	while (mbuf_avail(data) > 0) {
-		if (!get_header(data, &pkt_type, &pkt_len))
+		if (!get_header(data, &pkt))
 			fatal("cannot parse packet");
 
-		/* crash on overflow is ok here */
-		pktptr = (uint8*)mbuf_get_bytes(data, pkt_len - NEW_HEADER_LEN);
-		mbuf_init(&pkt, pktptr, pkt_len - NEW_HEADER_LEN);
+		/*
+		 * There should not be partial reads from UNIX socket.
+		 */
+		if (incomplete_pkt(&pkt))
+			fatal("unexpected partial packet");
 
-		switch (pkt_type) {
+		switch (pkt.type) {
 		case 'T': /* RowDescription */
 			log_debug("takeover_parse_data: 'T'");
 			break;
 		case 'D': /* DataRow */
 			log_debug("takeover_parse_data: 'D'");
 			if (cmsg) {
-				takeover_load_fd(&pkt, cmsg);
+				takeover_load_fd(&pkt.data, cmsg);
 				cmsg = CMSG_NXTHDR(msg, cmsg);
 			} else
 				fatal("got row without fd info");
@@ -213,13 +213,13 @@ static void takeover_parse_data(PgSocket *bouncer,
 			break;
 		case 'C': /* CommandComplete */
 			log_debug("takeover_parse_data: 'C'");
-			next_command(bouncer, &pkt);
+			next_command(bouncer, &pkt.data);
 			break;
 		case 'E': /* ErrorMessage */
 			log_server_error("old bouncer sent", &pkt);
 			fatal("something failed");
 		default:
-			fatal("takeover_parse_data: unexpected pkt: '%c'", pkt_type);
+			fatal("takeover_parse_data: unexpected pkt: '%c'", pkt_desc(&pkt));
 		}
 	}
 }

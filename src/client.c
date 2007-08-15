@@ -94,16 +94,16 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username)
 	return true;
 }
 
-static bool decide_startup_pool(PgSocket *client, MBuf *pkt)
+static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 {
 	const char *username = NULL, *dbname = NULL;
 	const char *key, *val;
 
 	while (1) {
-		key = mbuf_get_string(pkt);
+		key = mbuf_get_string(&pkt->data);
 		if (!key || *key == 0)
 			break;
-		val = mbuf_get_string(pkt);
+		val = mbuf_get_string(&pkt->data);
 		if (!val)
 			break;
 
@@ -172,33 +172,28 @@ static bool send_client_authreq(PgSocket *client)
 }
 
 /* decide on packets of client in login phase */
-static bool handle_client_startup(PgSocket *client, MBuf *pkt)
+static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 {
-	unsigned pkt_type;
-	unsigned pkt_len;
 	const char *passwd;
 
 	SBuf *sbuf = &client->sbuf;
 
 	/* don't tolerate partial packets */
-	if (!get_header(pkt, &pkt_type, &pkt_len)) {
-		disconnect_client(client, true, "client sent bad pkt header");
+	if (incomplete_pkt(pkt)) {
+		disconnect_client(client, true, "client sent partial pkt in startup phase");
 		return false;
 	}
 
 	if (client->wait_for_welcome) {
 		if  (finish_client_login(client)) {
 			/* the packet was already parsed */
-			sbuf_prepare_skip(sbuf, pkt_len);
+			sbuf_prepare_skip(sbuf, pkt->len);
 			return true;
 		} else
 			return false;
 	}
 
-	slog_noise(client, "pkt='%c' len=%d",
-		   pkt_type < 256 ? pkt_type : '?', pkt_len);
-
-	switch (pkt_type) {
+	switch (pkt->type) {
 	case PKT_SSLREQ:
 		slog_noise(client, "C: req SSL");
 		slog_noise(client, "P: nak");
@@ -210,10 +205,6 @@ static bool handle_client_startup(PgSocket *client, MBuf *pkt)
 		}
 		break;
 	case PKT_STARTUP:
-		if (mbuf_avail(pkt) < pkt_len - 8) {
-			disconnect_client(client, true, "client sent partial pkt in startup");
-			return false;
-		}
 		if (client->pool) {
 			disconnect_client(client, true, "client re-sent startup pkt");
 			return false;
@@ -238,18 +229,13 @@ static bool handle_client_startup(PgSocket *client, MBuf *pkt)
 		}
 		break;
 	case 'p':		/* PasswordMessage */
-		if (mbuf_avail(pkt) < pkt_len - NEW_HEADER_LEN) {
-			disconnect_client(client, true, "client sent partial pkt in startup");
-			return false;
-		}
-
 		/* haven't requested it */
 		if (cf_auth_type <= AUTH_TRUST) {
 			disconnect_client(client, true, "unrequested passwd pkt");
 			return false;
 		}
 
-		passwd = mbuf_get_string(pkt);
+		passwd = mbuf_get_string(&pkt->data);
 		if (passwd && check_client_passwd(client, passwd)) {
 			if (!finish_client_login(client))
 				return false;
@@ -259,9 +245,9 @@ static bool handle_client_startup(PgSocket *client, MBuf *pkt)
 		}
 		break;
 	case PKT_CANCEL:
-		if (mbuf_avail(pkt) == 8) {
-			const uint8 *key = mbuf_get_bytes(pkt, 8);
-			memcpy(client->cancel_key, key, 8);
+		if (mbuf_avail(&pkt->data) == BACKENDKEY_LEN) {
+			const uint8 *key = mbuf_get_bytes(&pkt->data, BACKENDKEY_LEN);
+			memcpy(client->cancel_key, key, BACKENDKEY_LEN);
 			accept_cancel_request(client);
 		} else
 			disconnect_client(client, false, "bad cancel request");
@@ -270,25 +256,17 @@ static bool handle_client_startup(PgSocket *client, MBuf *pkt)
 		disconnect_client(client, false, "bad packet");
 		return false;
 	}
-	sbuf_prepare_skip(sbuf, pkt_len);
+	sbuf_prepare_skip(sbuf, pkt->len);
 	client->request_time = get_cached_time();
 	return true;
 }
 
 /* decide on packets of logged-in client */
-static bool handle_client_work(PgSocket *client, MBuf *pkt)
+static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 {
-	unsigned pkt_type;
-	unsigned pkt_len;
 	SBuf *sbuf = &client->sbuf;
 
-	if (!get_header(pkt, &pkt_type, &pkt_len)) {
-		disconnect_client(client, true, "bad packet header");
-		return false;
-	}
-	slog_noise(client, "pkt='%c' len=%d", pkt_type, pkt_len);
-
-	switch (pkt_type) {
+	switch (pkt->type) {
 
 	/* request immidiate response from server */
 	case 'H':		/* Flush */
@@ -320,24 +298,24 @@ static bool handle_client_work(PgSocket *client, MBuf *pkt)
 		}
 
 		if (client->pool->admin)
-			return admin_handle_client(client, pkt, pkt_type, pkt_len);
+			return admin_handle_client(client, pkt);
 
 		/* aquire server */
 		if (!find_server(client))
 			return false;
 
-		client->pool->stats.client_bytes += pkt_len;
+		client->pool->stats.client_bytes += pkt->len;
 
 		/* tag the server as dirty */
 		client->link->ready = 0;
 
 		/* forward the packet */
-		sbuf_prepare_send(sbuf, &client->link->sbuf, pkt_len);
+		sbuf_prepare_send(sbuf, &client->link->sbuf, pkt->len);
 		break;
 
 	/* client wants to go away */
 	default:
-		slog_error(client, "unknown pkt from client: %d/0x%x", pkt_type, pkt_type);
+		slog_error(client, "unknown pkt from client: %d/0x%x", pkt->type, pkt->type);
 		disconnect_client(client, true, "unknown pkt");
 		return false;
 	case 'X': /* Terminate */
@@ -348,10 +326,12 @@ static bool handle_client_work(PgSocket *client, MBuf *pkt)
 }
 
 /* callback from SBuf */
-bool client_proto(SBuf *sbuf, SBufEvent evtype, MBuf *pkt, void *arg)
+bool client_proto(SBuf *sbuf, SBufEvent evtype, MBuf *data, void *arg)
 {
 	bool res = false;
 	PgSocket *client = arg;
+	PktHdr pkt;
+
 
 	Assert(!is_server_socket(client));
 	Assert(client->sbuf.sock);
@@ -374,21 +354,27 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, MBuf *pkt, void *arg)
 		disconnect_server(client->link, false, "Server connection closed");
 		break;
 	case SBUF_EV_READ:
-		if (mbuf_avail(pkt) < NEW_HEADER_LEN) {
+		if (mbuf_avail(data) < NEW_HEADER_LEN && client->state != CL_LOGIN) {
 			slog_noise(client, "C: got partial header, trying to wait a bit");
 			return false;
 		}
 
+		if (!get_header(data, &pkt)) {
+			disconnect_client(client, true, "bad packet header");
+			return false;
+		}
+		slog_noise(client, "pkt='%c' len=%d", pkt_desc(&pkt), pkt.len);
+
 		client->request_time = get_cached_time();
 		switch (client->state) {
 		case CL_LOGIN:
-			res = handle_client_startup(client, pkt);
+			res = handle_client_startup(client, &pkt);
 			break;
 		case CL_ACTIVE:
 			if (client->wait_for_welcome)
-				res = handle_client_startup(client, pkt);
+				res = handle_client_startup(client, &pkt);
 			else
-				res = handle_client_work(client, pkt);
+				res = handle_client_work(client, &pkt);
 			break;
 		case CL_WAITING:
 			fatal("why waiting client in client_proto()");

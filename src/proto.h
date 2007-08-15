@@ -16,18 +16,46 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-bool get_header(MBuf *pkt, unsigned *pkt_type_p, unsigned *pkt_len_p);
+/*
+ * parsed packet header, plus whatever data is
+ * available in SBuf for this packet.
+ *
+ * if (pkt->len == mbuf_avail(&pkt->data))
+ * 	packet is fully in buffer
+ *
+ * get_header() points pkt->data.pos after header.
+ * to packet body.
+ */
+struct PktHdr {
+	unsigned type;
+	unsigned len;
+	MBuf data;
+};
+
+bool get_header(MBuf *data, PktHdr *pkt);
 
 bool send_pooler_error(PgSocket *client, bool send_ready, const char *msg);
-void log_server_error(const char *note, MBuf *pkt);
+void log_server_error(const char *note, PktHdr *pkt);
 
-bool add_welcome_parameter(PgSocket *server, unsigned pkt_type, unsigned pkt_len, MBuf *pkt);
+bool add_welcome_parameter(PgSocket *server, PktHdr *pkt);
 void finish_welcome_msg(PgSocket *server);
 bool welcome_client(PgSocket *client);
 
-bool answer_authreq(PgSocket *server, unsigned pkt_type, unsigned pkt_len, MBuf *pkt);
+bool answer_authreq(PgSocket *server, PktHdr *pkt);
 
 bool send_startup_packet(PgSocket *server);
 
 int scan_text_result(MBuf *pkt, const char *tupdesc, ...);
+
+/* is packet completely in our buffer */
+static inline bool incomplete_pkt(const PktHdr *pkt)
+{
+	return mbuf_avail(&pkt->data) != pkt->len;
+}
+
+/* one char desc */
+static inline char pkt_desc(const PktHdr *pkt)
+{
+	return pkt->type > 256 ? '!' : pkt->type;
+}
 

@@ -22,20 +22,19 @@
 
 #include "bouncer.h"
 
-static bool load_parameter(PgSocket *server, MBuf *pkt, unsigned pkt_len)
+static bool load_parameter(PgSocket *server, PktHdr *pkt)
 {
 	const char *key, *val;
 	PgSocket *client = server->link;
 
 	/*
 	 * incomplete startup msg from server?
-	 * (hdr is already parsed here)
 	 */
-	if (mbuf_avail(pkt) < pkt_len - NEW_HEADER_LEN)
+	if (incomplete_pkt(pkt))
 		return false;
 
-	key = mbuf_get_string(pkt);
-	val = mbuf_get_string(pkt);
+	key = mbuf_get_string(&pkt->data);
+	val = mbuf_get_string(&pkt->data);
 	if (!key || !val) {
 		disconnect_server(server, true, "broken ParameterStatus packet");
 		return false;
@@ -53,28 +52,20 @@ static bool load_parameter(PgSocket *server, MBuf *pkt, unsigned pkt_len)
 }
 
 /* process packets on server auth phase */
-static bool handle_server_startup(PgSocket *server, MBuf *pkt)
+static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 {
-	unsigned pkt_type;
-	unsigned pkt_len;
 	SBuf *sbuf = &server->sbuf;
 	bool res = false;
 
-	if (!get_header(pkt, &pkt_type, &pkt_len)) {
-		disconnect_server(server, true, "bad pkt in login phase");
-		return false;
-	}
-
-	if (mbuf_avail(pkt) < pkt_len - NEW_HEADER_LEN) {
+	if (incomplete_pkt(pkt)) {
 		disconnect_server(server, true, "partial pkt in login phase");
 		return false;
 	}
 
-	slog_noise(server, "S: pkt '%c', len=%d", pkt_type, pkt_len);
 
-	switch (pkt_type) {
+	switch (pkt->type) {
 	default:
-		slog_error(server, "unknown pkt from server: '%c'", pkt_type);
+		slog_error(server, "unknown pkt from server: '%c'", pkt_desc(pkt));
 		disconnect_server(server, true, "unknown pkt from server");
 		break;
 
@@ -86,13 +77,13 @@ static bool handle_server_startup(PgSocket *server, MBuf *pkt)
 	/* packets that need closer look */
 	case 'R':		/* AuthenticationXXX */
 		slog_debug(server, "calling login_answer");
-		res = answer_authreq(server, pkt_type, pkt_len, pkt);
+		res = answer_authreq(server, pkt);
 		if (!res)
 			disconnect_server(server, false, "failed to answer authreq");
 		break;
 
 	case 'S':		/* ParameterStatus */
-		res = add_welcome_parameter(server, pkt_type, pkt_len, pkt);
+		res = add_welcome_parameter(server, pkt);
 		break;
 
 	case 'Z':		/* ReadyForQuery */
@@ -112,28 +103,28 @@ static bool handle_server_startup(PgSocket *server, MBuf *pkt)
 
 	/* ignorable packets */
 	case 'K':		/* BackendKeyData */
-		if (mbuf_avail(pkt) >= 8)
-			memcpy(server->cancel_key, mbuf_get_bytes(pkt, 8), 8);
+		if (mbuf_avail(&pkt->data) >= BACKENDKEY_LEN)
+			memcpy(server->cancel_key,
+			       mbuf_get_bytes(&pkt->data, BACKENDKEY_LEN),
+			       BACKENDKEY_LEN);
 		res = true;
 		break;
 
 	case 'N':		/* NoticeResponse */
-		slog_noise(server, "skipping pkt: %c", pkt_type);
+		slog_noise(server, "skipping pkt: %c", pkt_desc(pkt));
 		res = true;
 		break;
 	}
 
 	if (res)
-		sbuf_prepare_skip(sbuf, pkt_len);
+		sbuf_prepare_skip(sbuf, pkt->len);
 
 	return res;
 }
 
 /* process packets on logged in connection */
-static bool handle_server_work(PgSocket *server, MBuf *pkt)
+static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 {
-	unsigned pkt_type;
-	unsigned pkt_len;
 	bool ready = 0;
 	char state;
 	SBuf *sbuf = &server->sbuf;
@@ -141,15 +132,9 @@ static bool handle_server_work(PgSocket *server, MBuf *pkt)
 
 	Assert(!server->pool->admin);
 
-	if (!get_header(pkt, &pkt_type, &pkt_len)) {
-		disconnect_server(server, true, "bad pkt header");
-		return false;
-	}
-	slog_noise(server, "pkt='%c' len=%d", pkt_type, pkt_len);
-
-	switch (pkt_type) {
+	switch (pkt->type) {
 	default:
-		slog_error(server, "unknown pkt: '%c'", pkt_type);
+		slog_error(server, "unknown pkt: '%c'", pkt_desc(pkt));
 		disconnect_server(server, true, "unknown pkt");
 		return false;
 	
@@ -157,9 +142,9 @@ static bool handle_server_work(PgSocket *server, MBuf *pkt)
 	case 'Z':		/* ReadyForQuery */
 
 		/* if partial pkt, wait */
-		if (mbuf_avail(pkt) == 0)
+		if (mbuf_avail(&pkt->data) == 0)
 			return false;
-		state = mbuf_get_char(pkt);
+		state = mbuf_get_char(&pkt->data);
 
 		/* set ready only if no tx */
 		if (state == 'I')
@@ -172,7 +157,7 @@ static bool handle_server_work(PgSocket *server, MBuf *pkt)
 		break;
 
 	case 'S':		/* ParameterStatus */
-		if (!load_parameter(server, pkt, pkt_len))
+		if (!load_parameter(server, pkt))
 			return false;
 		break;
 
@@ -228,17 +213,17 @@ static bool handle_server_work(PgSocket *server, MBuf *pkt)
 		break;
 	}
 	server->ready = ready;
-	server->pool->stats.server_bytes += pkt_len;
+	server->pool->stats.server_bytes += pkt->len;
 
 	if (server->setting_vars) {
 		Assert(client);
-		sbuf_prepare_skip(sbuf, pkt_len);
+		sbuf_prepare_skip(sbuf, pkt->len);
 		if (ready) {
 			server->setting_vars = 0;
 			sbuf_continue(&client->sbuf);
 		}
 	} else if (client) {
-		sbuf_prepare_send(sbuf, &client->sbuf, pkt_len);
+		sbuf_prepare_send(sbuf, &client->sbuf, pkt->len);
 		if (ready) {
 			usec_t total;
 			Assert(client->query_start != 0);
@@ -252,8 +237,8 @@ static bool handle_server_work(PgSocket *server, MBuf *pkt)
 		if (server->state != SV_TESTED)
 			slog_warning(server,
 				     "got packet '%c' from server when not linked",
-				     pkt_type);
-		sbuf_prepare_skip(sbuf, pkt_len);
+				     pkt_desc(pkt));
+		sbuf_prepare_skip(sbuf, pkt->len);
 	}
 
 	return true;
@@ -282,10 +267,11 @@ static bool handle_connect(PgSocket *server)
 }
 
 /* callback from SBuf */
-bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *pkt, void *arg)
+bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *data, void *arg)
 {
 	bool res = false;
 	PgSocket *server = arg;
+	PktHdr pkt;
 
 	Assert(is_server_socket(server));
 	Assert(server->state != SV_FREE);
@@ -304,21 +290,28 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *pkt, void *arg)
 		disconnect_client(server->link, false, "unexpected eof");
 		break;
 	case SBUF_EV_READ:
-		if (mbuf_avail(pkt) < NEW_HEADER_LEN) {
+		if (mbuf_avail(data) < NEW_HEADER_LEN) {
 			slog_noise(server, "S: got partial header, trying to wait a bit");
 			return false;
 		}
 
+		/* parse pkt header */
+		if (!get_header(data, &pkt)) {
+			disconnect_server(server, true, "bad pkt header");
+			return false;
+		}
+		slog_noise(server, "S: pkt '%c', len=%d", pkt_desc(&pkt), pkt.len);
+
 		server->request_time = get_cached_time();
 		switch (server->state) {
 		case SV_LOGIN:
-			res = handle_server_startup(server, pkt);
+			res = handle_server_startup(server, &pkt);
 			break;
 		case SV_TESTED:
 		case SV_USED:
 		case SV_ACTIVE:
 		case SV_IDLE:
-			res = handle_server_work(server, pkt);
+			res = handle_server_work(server, &pkt);
 			break;
 		default:
 			fatal("server_proto: server in bad state: %d", server->state);

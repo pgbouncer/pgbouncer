@@ -861,20 +861,20 @@ static bool admin_parse_query(PgSocket *admin, const char *q)
 }
 
 /* handle packets */
-bool admin_handle_client(PgSocket *admin, MBuf *pkt, int pkt_type, int pkt_len)
+bool admin_handle_client(PgSocket *admin, PktHdr *pkt)
 {
 	const char *q;
 	bool res;
 
 	/* dont tolerate partial packets */
-	if (mbuf_avail(pkt) < pkt_len - NEW_HEADER_LEN) {
+	if (incomplete_pkt(pkt)) {
 		disconnect_client(admin, true, "incomplete pkt");
 		return false;
 	}
 
-	switch (pkt_type) {
+	switch (pkt->type) {
 	case 'Q':
-		q = mbuf_get_string(pkt);
+		q = mbuf_get_string(&pkt->data);
 		if (!q) {
 			disconnect_client(admin, true, "incomplete query");
 			return false;
@@ -882,13 +882,13 @@ bool admin_handle_client(PgSocket *admin, MBuf *pkt, int pkt_type, int pkt_len)
 		log_debug("got admin query: %s", q);
 		res = admin_parse_query(admin, q);
 		if (res)
-			sbuf_prepare_skip(&admin->sbuf, pkt_len);
+			sbuf_prepare_skip(&admin->sbuf, pkt->len);
 		return res;
 	case 'X':
 		disconnect_client(admin, false, "close req");
 		break;
 	default:
-		admin_error(admin, "unsupported pkt type: %d", pkt_type);
+		admin_error(admin, "unsupported pkt type: %d", pkt_desc(pkt));
 		disconnect_client(admin, true, "bad pkt");
 		break;
 	}

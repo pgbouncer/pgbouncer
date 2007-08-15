@@ -64,6 +64,7 @@ typedef struct PgPool PgPool;
 typedef struct PgStats PgStats;
 typedef struct PgAddr PgAddr;
 typedef enum SocketState SocketState;
+typedef struct PktHdr PktHdr;
 
 #include "util.h"
 #include "list.h"
@@ -109,6 +110,8 @@ typedef enum SocketState SocketState;
 #define OLD_HEADER_LEN	8
 /* new style V3 packet header len - type:1b, len:4b */ 
 #define NEW_HEADER_LEN	5
+
+#define BACKENDKEY_LEN	8
 
 struct PgAddr {
 	struct in_addr ip_addr;
@@ -237,7 +240,7 @@ struct PgSocket {
 	usec_t		query_start;	/* query start moment */
 
 	char		salt[4];
-	uint8		cancel_key[8];
+	uint8		cancel_key[BACKENDKEY_LEN];
 	PgUser *	auth_user;
 	PgAddr		addr;
 

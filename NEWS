@@ -1,5 +1,5 @@
 
-2007-06-xx  -  PgBouncer 1.0.9  -  ""
+2007-0x-xx  -  PgBouncer 1.1  -  ""
 
   = Features =
 
@@ -8,13 +8,22 @@
     - Accept custom unix socket location in host=
     - Accept quoted values: password=' asd''foo'
   * server_reset_query, to be sent immidiately after release
-  * keep track of following server variables:
-    client_encoding, datestyle, timezone, standard_conforming_strings
+  * Keep track of following server variables:
+      client_encoding, datestyle, timezone, standard_conforming_strings
   * Cancel pkt sent for idle connection does not drop it anymore.
   * Cancel with ^C from psql works for SUSPEND / PAUSE.
   * Print FD limits on startup.
-  * More debug log messages include socket info.
   * When suspending, try to hit packet boundary ASAP.
+
+  = Code cleanup =
+
+  * More debug log messages include socket info.
+  * Magic number removal and error message cleanup. (David Fetter)
+  * Wrapper struct for current pkt info.  Removes lot of compexity.
+
+  = Fixes =
+
+  * Detect invalid pkt headers better.
 
 2007-06-18  -  PgBouncer 1.0.8  -  "Undead Shovel Jutsu"
 

@@ -76,11 +76,11 @@ bool get_header(MBuf *data, PktHdr *pkt)
 	if (len < got || len >= 0x80000000)
 		return false;
 
-	/* report pkt info */
+	/* store pkt info */
 	pkt->type = type;
 	pkt->len = len;
 
-	/* fill apkt with only data for this pkt */
+	/* fill pkt with only data for this packet */
 	if (len > mbuf_avail(data))
 		avail = mbuf_avail(data);
 	else

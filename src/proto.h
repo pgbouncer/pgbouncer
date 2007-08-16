@@ -50,7 +50,7 @@ int scan_text_result(MBuf *pkt, const char *tupdesc, ...);
 /* is packet completely in our buffer */
 static inline bool incomplete_pkt(const PktHdr *pkt)
 {
-	return mbuf_avail(&pkt->data) != pkt->len;
+	return mbuf_size(&pkt->data) != pkt->len;
 }
 
 /* one char desc */

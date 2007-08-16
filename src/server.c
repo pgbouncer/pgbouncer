@@ -184,7 +184,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			 *
 			 * no reason to keep such guys.
 			 */
-			disconnect_client(server->link, true, "invalid server parameter");
+			disconnect_server(server, true, "invalid server parameter");
 			return false;
 		}
 	case 'N':		/* NoticeResponse */

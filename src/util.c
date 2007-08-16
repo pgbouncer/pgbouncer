@@ -96,7 +96,7 @@ void _fatal_perror(const char *file, int line, const char *func,
 	va_start(ap, fmt);
 	vsnprintf(buf, sizeof(buf), fmt, ap);
 	va_end(ap);
-	_fatal(file, line, func, false, "%s: %s", buf, strerror(errno));
+	_fatal(file, line, func, true, "%s: %s", buf, strerror(errno));
 }
 
 /*

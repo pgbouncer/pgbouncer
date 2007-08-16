@@ -218,10 +218,6 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	if (server->setting_vars) {
 		Assert(client);
 		sbuf_prepare_skip(sbuf, pkt->len);
-		if (ready) {
-			server->setting_vars = 0;
-			sbuf_continue(&client->sbuf);
-		}
 	} else if (client) {
 		sbuf_prepare_send(sbuf, &client->sbuf, pkt->len);
 		if (ready) {
@@ -328,10 +324,20 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *data, void *arg)
 		res = handle_connect(server);
 		break;
 	case SBUF_EV_FLUSH:
-		if (server->ready
-		    && (cf_pool_mode  != POOL_SESSION
-			|| server->state == SV_TESTED))
-		{
+		res = true; /* unused actually */
+		if (!server->ready)
+			break;
+
+		if (server->setting_vars) {
+			PgSocket *client = server->link;
+			Assert(client);
+
+			server->setting_vars = 0;
+			sbuf_continue(&client->sbuf);
+			break;
+		}
+		
+		if (cf_pool_mode  != POOL_SESSION || server->state == SV_TESTED) {
 			switch (server->state) {
 			case SV_ACTIVE:
 			case SV_TESTED:
@@ -344,7 +350,6 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *data, void *arg)
 				break;
 			}
 		}
-		res = true; /* unused actually */
 		break;
 	}
 	return res;

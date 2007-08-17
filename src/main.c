@@ -33,7 +33,7 @@ static bool set_auth(ConfElem *elem, const char *val, PgSocket *console);
 static const char *get_auth(ConfElem *elem);
 
 static const char *usage_str =
-"usage: pgbouncer [-d] [-R] [-v] [-h|-V] config.ini\n";
+"usage: pgbouncer [-d] [-R] [-q] [-v] [-h|-V] config.ini\n";
 
 static void usage(int err)
 {
@@ -45,6 +45,7 @@ static void usage(int err)
  * configuration storage
  */
 
+int cf_quiet = 0; /* if set, no log is printed to stdout/err */
 int cf_verbose = 0;
 int cf_daemon = 0;
 int cf_pause_mode = P_NONE;
@@ -325,6 +326,9 @@ static void go_daemon(void)
 	if (!cf_pidfile)
 		fatal("daemon needs pidfile configured");
 
+	/* dont log to stdout anymore */
+	cf_quiet = 1;
+
 	/* just in case close all files */
 	for (fd = 3; fd < OPEN_MAX; fd++)
 		close(fd);
@@ -439,7 +443,7 @@ int main(int argc, char *argv[])
 	int c;
 
 	/* parse cmdline */
-	while ((c = getopt(argc, argv, "vhdVR")) != EOF) {
+	while ((c = getopt(argc, argv, "avhdVR")) != EOF) {
 		switch (c) {
 		case 'R':
 			cf_reboot = 1;
@@ -452,6 +456,9 @@ int main(int argc, char *argv[])
 			return 0;
 		case 'd':
 			cf_daemon = 1;
+			break;
+		case 'q':
+			cf_quiet = 1;
 			break;
 		case 'h':
 		default:

@@ -60,7 +60,7 @@ static void _log_write(const char *pfx, const char *msg)
 			safe_close(fd);
 		}
 	}
-	if (!cf_daemon)
+	if (!cf_quiet)
 		fprintf(stderr, "%s", buf);
 }
 

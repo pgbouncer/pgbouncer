@@ -142,6 +142,7 @@ void parse_database(char *name, char *connstr)
 	char *password = "";
 	char *client_encoding = NULL;
 	char *datestyle = NULL;
+	char *timezone = NULL;
 	char *unix_dir = "";
 
 	in_addr_t v_addr = INADDR_NONE;
@@ -170,6 +171,8 @@ void parse_database(char *name, char *connstr)
 			client_encoding = val;
 		else if (strcmp("datestyle", key) == 0)
 			datestyle = val;
+		else if (strcmp("timezone", key) == 0)
+			timezone = val;
 		else if (strcmp("pool_size", key) == 0)
 			pool_size = atoi(val);
 		else {
@@ -281,6 +284,11 @@ void parse_database(char *name, char *connstr)
 	if (datestyle) {
 		pktbuf_put_string(&buf, "datestyle");
 		pktbuf_put_string(&buf, datestyle);
+	}
+
+	if (timezone) {
+		pktbuf_put_string(&buf, "timezone");
+		pktbuf_put_string(&buf, timezone);
 	}
 
 	db->startup_params_len = pktbuf_written(&buf);

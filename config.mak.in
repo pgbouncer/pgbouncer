@@ -16,6 +16,7 @@ datarootdir = @datarootdir@
 sysconfdir = @sysconfdir@
 sharedstatedir = @sharedstatedir@
 docdir = @docdir@
+mandir = @mandir@
 
 top_builddir = @top_builddir@
 srcdir = @srcdir@

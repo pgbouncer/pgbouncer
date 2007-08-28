@@ -29,7 +29,8 @@ pgbouncer.5: pgbouncer.config.xml
 	xmlto man $<
 
 %.xml: %.txt
-	asciidoc -b docbook -d manpage $<
+	asciidoc -b docbook -d manpage -o - $< \
+	| python fixman.py > $@
 
 %.html: %.txt
 	asciidoc -a toc $<

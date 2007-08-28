@@ -46,14 +46,10 @@ database +pgbouncer+.
 
 Basic setup and usage as following.
 
-This example assumes the +postgres+ user is given administrative
-permissions from +pgbouncer.ini+ and that +pgbouncer+ is configured to
-be listening on +localhost:6543+.
-
  1. Create config file.  Details in +pgbouncer(5)+.  Simplest:
 
     [databases]
-    template1 = host=127.0.0.1 dbname=template1
+    template1 = host=127.0.0.1 port=5432 dbname=template1
     
     [pgbouncer]
     listen_port = 6543

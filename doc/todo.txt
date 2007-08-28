@@ -7,6 +7,7 @@
  then issue rollback and keep it
  * suspend_timeout - drop stalled conns
  * rename disable_varcache to track_parameters
+ * some preliminary notification that fd limit is full
 
 == Ver 1.0.9 ==
 

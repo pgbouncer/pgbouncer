@@ -75,8 +75,8 @@ int cf_tcp_keepintvl = 0;
 int cf_auth_type = AUTH_MD5;
 char *cf_auth_file = "unconfigured_file";
 
-int cf_max_client_conn = 20;
-int cf_default_pool_size = 10;
+int cf_max_client_conn = 100;
+int cf_default_pool_size = 20;
 
 char *cf_server_reset_query = "";
 char *cf_server_check_query = "select 1";
@@ -88,7 +88,7 @@ usec_t cf_server_connect_timeout = 15*USEC;
 usec_t cf_server_login_retry = 15*USEC;
 usec_t cf_query_timeout = 0*USEC;
 usec_t cf_client_idle_timeout = 0*USEC;
-usec_t cf_client_login_timeout = 0*USEC;
+usec_t cf_client_login_timeout = 60*USEC;
 
 char *cf_logfile = NULL;
 char *cf_pidfile = NULL;

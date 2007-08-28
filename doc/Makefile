@@ -2,10 +2,19 @@
 wiki = https://developer.skype.com/SkypeGarage/DbProjects/PgBouncer
 web = mkz@shell.pgfoundry.org:/home/pgfoundry.org/groups/pgbouncer/htdocs/
 
-all: man
+-include ../config.mak
 
-man: pgbouncer.1 pgbouncer.5
+MANPAGES = pgbouncer.1 pgbouncer.5
+
+all: $(MANPAGES)
+
 html: pgbouncer.config.html pgbouncer.cmdline.html
+
+install: $(MANPAGES)
+	mkdir -p $(DESTDIR)$(mandir)/man1/
+	mkdir -p $(DESTDIR)$(mandir)/man5/
+	install -m 644 pgbouncer.1 $(DESTDIR)$(mandir)/man1/
+	install -m 644 pgbouncer.5 $(DESTDIR)$(mandir)/man5/
 
 upload:
 	devupload.sh overview.txt $(wiki)
@@ -23,11 +32,13 @@ pgbouncer.5: pgbouncer.config.xml
 	asciidoc -b docbook -d manpage $<
 
 %.html: %.txt
-	asciidoc $<
+	asciidoc -a toc $<
 
 manpage.xml: manpage.txt
 	asciidoc8 -d manpage -b docbook $<
 
 clean:
 	rm -f pgbouncer.8 manpage.xml *.[1-9] *.html *.xml
+
+realclean distclean: clean
 

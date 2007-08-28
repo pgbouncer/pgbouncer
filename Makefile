@@ -8,9 +8,12 @@ HDRS = client.h loader.h objects.h pooler.h proto.h sbuf.h server.h util.h \
        list.h mbuf.h varcache.h
 
 # data & dirs to include in tgz
-DATA = README NEWS etc/pgbouncer.ini Makefile config.mak.in config.h.in \
-       configure configure.ac debian/packages debian/changelog
-DIRS = etc src debian
+DOCS = doc/makefile doc/overview.txt doc/pgbouncer.cmdline.txt \
+       doc/pgbouncer.config.txt doc/todo.txt
+MANPAGES = doc/pgbouncer.1 doc/pgbouncer.5
+DATA = README NEWS AUTHORS etc/pgbouncer.ini Makefile config.mak.in config.h.in \
+       configure configure.ac debian/packages debian/changelog doc/Makefile
+DIRS = doc etc src debian
 
 # keep autoconf stuff separate
 -include config.mak
@@ -25,7 +28,7 @@ hdrs = $(addprefix $(srcdir)/src/, $(HDRS))
 srcs = $(addprefix $(srcdir)/src/, $(SRCS))
 objs = $(addprefix $(builddir)/lib/, $(OBJS))
 FULL = $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)
-DISTFILES = $(DIRS) $(DATA) $(srcs) $(hdrs)
+DISTFILES = $(DIRS) $(DATA) $(DOCS) $(srcs) $(hdrs) $(MANPAGES)
 
 # Quiet by default, 'make V=1' shows commands
 V=0
@@ -40,7 +43,7 @@ endif
 ## actual targets now ##
 
 # default target
-all: pgbouncer
+all: pgbouncer doc-all
 
 # final executable
 pgbouncer: config.mak $(objs)
@@ -54,19 +57,25 @@ $(builddir)/lib/%.o: $(srcdir)/src/%.c config.mak $(hdrs)
 	$(Q) $(CC) -c -o $@ $< $(DEFS) $(CFLAGS) $(CPPFLAGS)
 
 # install binary and other stuff
-install: pgbouncer
+install: pgbouncer doc-install
 	mkdir -p $(DESTDIR)$(bindir)
 	mkdir -p $(DESTDIR)$(docdir)
 	$(BININSTALL) -m 755 pgbouncer $(DESTDIR)$(bindir)
 	$(INSTALL) -m 644 $(srcdir)/etc/pgbouncer.ini  $(DESTDIR)$(docdir)
 
 # create tarfile
-tgz: config.mak $(DISTFILES)
+tgz: config.mak $(DISTFILES) $(MANPAGES)
 	rm -rf $(FULL) $(FULL).tgz
 	mkdir $(FULL)
 	(for f in $(DISTFILES); do echo $$f; done) | cpio -p $(FULL)
 	tar czf $(FULL).tgz $(FULL)
 	rm -rf $(FULL)
+
+doc/pgbouncer.1:
+	make -C doc pgbouncer.1
+
+doc/pgbouncer.5:
+	make -C doc pgbouncer.5
 
 # create debian package
 deb: configure
@@ -74,11 +83,12 @@ deb: configure
 	debuild -uc -us -b
 
 # clean object files
-clean:
-	rm -f *~ src/*~ *.o src/*.o lib/*.o pgbouncer core core.*
+clean: doc-clean
+	rm -f *~ src/*~ *.o src/*.o lib/*.o lib/*.s pgbouncer core core.*
+	rm -f lib/*.log
 
 # clean configure results
-distclean: clean
+distclean: clean doc-distclean
 	rm -f config.h config.log config.status config.mak
 	rm -rf lib autom4te*
 
@@ -97,6 +107,10 @@ config.mak::
 	@test -f configure || { \
 		 echo "Please run 'make boot && ./configure' first.";exit 1;}
 	@test -f $@ || { echo "Please run ./configure first.";exit 1;}
+
+doc-all doc-install doc-clean doc-distclean doc-realclean:
+	$(MAKE) -C doc $(subst doc-,,$@) DESTDIR=$(DESTDIR)
+
 
 # targets can depend on this to force 'make boot'
 configure::
@@ -125,8 +139,6 @@ check: config.mak
 
 pgbouncer.pg:
 	$(CC) -pg $(DEFS) -g -O2 $(CPPFLAGS) $(LDFLAGS) -o $@ $(srcs) $(LIBS)
-
-
 
 pg: pgbouncer.pg
 

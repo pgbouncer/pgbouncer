@@ -3,10 +3,10 @@
 == Ver 1.1 ==
 
  * create manpage
- * report existing pidfile to console
  * drop_on_error/keep_on_error - if released conn is in error state,
  then issue rollback and keep it
  * suspend_timeout - drop stalled conns
+ * rename disable_varcache to track_parameters
 
 == Ver 1.0.9 ==
 
@@ -31,4 +31,11 @@
 
  * keep stats about error counts
  * auth_conn - access to pg_shadow, so auth_file is not needed
- * possibility to specify failover databases
+ * units for config parameters.
+ * cleanup of logging levels, to make log more useful
+
+== Dropped ideas ==
+
+ * possibility to specify failover databases.
+ * load-balancing between different servers.
+ * keeping track of prepared plans - fixed in 8.3 by DISCARD ALL;

@@ -19,7 +19,7 @@ Config file is in "ini" format. Section names are between " and
 ignored. The characters ";" and "#" are not recognized when they
 appear later in the line.
 
-== Section pgbouncer ===
+== SECTION [pgbouncer] ==
 
 === Generic settings ===
 
@@ -104,10 +104,14 @@ statement::
 
 Maximum number of client connections allowed.
 
+Default: 100
+
 ==== default_pool_size ====
 
 How many server connection to allow per user/database pair. Can be overrided in
 per-database config.
+
+Default: 20
 
 === Log settings ===
 
@@ -135,10 +139,14 @@ Default: 1
 
 List of users that are allowed to run all commands on console.
 
+Default: empty
+
 ==== stats_users ====
 
 List of users that are allowed to run read-only queries on console. Thats means
 all SHOW commands except SHOW FDS.
+
+Default: empty.
 
 === Connection sanity checks, timeouts ===
 
@@ -147,33 +155,55 @@ all SHOW commands except SHOW FDS.
 How long to keep released immidiately available, without running sanity-check
 query on it. If 0 then the query is ran always.
 
+Default: 30
+
 ==== server_check_query ====
 
-Good variants are +SELECT 1;+, to just see if connection is alive and
-+ABORT; RESET ALL; SET SESSION AUTHORIZATION DEFAULT+ to do full
-reset.
+Simple do-nothing query to check if server connection is alive.
 
 If empty string, then sanity checking is disabled.
+
+Default: SELECT 1;
 
 ==== server_lifetime ====
 
 Pooler tries to close server connections that are been connected longer than
 this.
 
+Default: 3600
+
 ==== server_idle_timeout ====
 
 If server connection has been idle more than this then there's too many
-connections in the pool and this on can be dropped.
+connections in the pool and this one can be dropped.
+
+Default: 600
 
 ==== server_connect_timeout ====
 
 If connection and login wont finish in this time, the connection will be
 closed.
 
+Default: 15
+
 ==== server_login_retry ====
 
 If login failed, because of failure from connect() or authentication that
 pooler waits this much before retrying to connect.
+
+Default: 15
+
+==== client_login_timeout ====
+
+If client connect but does not manage to login in this time, it will be
+disconnected. Mainly needed to avoid dead connections stalling SUSPEND and thus
+online restart.
+
+Default: 60
+
+=== Dangerous timeouts ===
+
+Setting following timeouts cause unexcpected errors.
 
 ==== query_timeout ====
 
@@ -188,14 +218,6 @@ Default: 0 (disabled)
 Client connections idling longer than that are closed. This should be larger
 then client-side connection lifetime settings, to apply only for network
 problems.
-
-Default: 0 (disabled)
-
-==== client_login_timeout ====
-
-If client connect but does not manage to login in this time, it will be
-disconnected. Mainly needed to avoid dead connections stalling SUSPEND and thus
-online restart.
 
 Default: 0 (disabled)
 
@@ -235,7 +257,7 @@ Default: not set
 
 Default: not set
 
-== Section [databases] ==
+== SECTION [databases] ==
 
 This contains key=value pairs where key will be taken as database name and
 value as libpq-connstring style list of key=value pairs. As actual libpq is not

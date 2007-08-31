@@ -588,6 +588,9 @@ static bool reuse_on_release(PgSocket *server)
 static bool reset_on_release(PgSocket *server)
 {
 	bool res;
+	
+	Assert(server->state == SV_TESTED);
+
 	slog_debug(server, "Resetting: %s", cf_server_reset_query);
 	SEND_generic(res, server, 'Q', "s", cf_server_reset_query);
 	if (!res)
@@ -614,7 +617,7 @@ bool release_server(PgSocket *server)
 			newstate = SV_TESTED;
 		else if (cf_server_check_delay == 0 && *cf_server_check_query)
 			/*
-			 * depreceted: before reset_query, the check_delay = 0
+			 * deprecated: before reset_query, the check_delay = 0
 			 * was used to get same effect.  This if() can be removed
 			 * after couple of releases.
 			 */
@@ -630,7 +633,7 @@ bool release_server(PgSocket *server)
 	}
 
 	Assert(server->link == NULL);
-	log_debug("release_server: new state=%d", newstate);
+	slog_noise(server, "release_server: new state=%d", newstate);
 	change_server_state(server, newstate);
 
 	if (newstate == SV_IDLE)

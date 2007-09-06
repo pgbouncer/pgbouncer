@@ -228,6 +228,9 @@ void load_config(bool reload)
 
 	/* reset pool_size */
 	config_postprocess();
+
+	/* reopen logfile */
+	close_logfile();
 }
 
 /*

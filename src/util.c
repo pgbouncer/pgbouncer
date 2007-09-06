@@ -45,6 +45,27 @@ static void render_time(char *buf, int max)
 	strftime(buf, max, "%Y-%m-%d %H:%M:%S", &tm);
 }
 
+static int log_fd = 0;
+
+void close_logfile(void)
+{
+	if (log_fd > 0) {
+		safe_close(log_fd);
+		log_fd = 0;
+	}
+}
+
+static int open_logfile(void)
+{
+	if (!log_fd) {
+		int fd = open(cf_logfile, O_CREAT | O_APPEND | O_WRONLY, 0644);
+		if (fd < 0)
+			return -1;
+		log_fd = fd;
+	}
+	return log_fd;
+}
+
 static void _log_write(const char *pfx, const char *msg)
 {
 	char buf[1024];
@@ -54,7 +75,7 @@ static void _log_write(const char *pfx, const char *msg)
 	len = snprintf(buf, sizeof(buf), "%s %u %s %s\n",
 			tbuf, (unsigned)getpid(), pfx, msg);
 	if (cf_logfile) {
-		int fd = open(cf_logfile, O_CREAT | O_APPEND | O_WRONLY, 0644);
+		int fd = open_logfile();
 		if (fd > 0) {
 			safe_write(fd, buf, len);
 			safe_close(fd);

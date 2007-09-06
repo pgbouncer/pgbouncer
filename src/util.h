@@ -44,6 +44,7 @@ void log_level(const char *level, const char *s, ...);
 		if (cf_verbose > 1) log_level("NOISE", ## args); \
 	} while (0)
 
+void close_logfile(void);
 
 /*
  * logging about specific socket

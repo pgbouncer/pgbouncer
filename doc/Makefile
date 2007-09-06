@@ -22,24 +22,29 @@ upload:
 	devupload.sh usage.txt $(wiki)/UsageInfo
 	devupload.sh config.txt $(wiki)/ConfigFile
 
+ifneq ($(XMLTO),)
 pgbouncer.1: pgbouncer.cmdline.xml
 	xmlto man $<
 
 pgbouncer.5: pgbouncer.config.xml
 	xmlto man $<
+endif
 
+ifneq ($(ASCIIDOC),)
 %.xml: %.txt
+	#asciidoc -b docbook -d manpage -o - $< > $@
 	asciidoc -b docbook -d manpage -o - $< \
 	| python fixman.py > $@
 
 %.html: %.txt
 	asciidoc -a toc $<
-
-manpage.xml: manpage.txt
-	asciidoc8 -d manpage -b docbook $<
+endif
 
 clean:
-	rm -f pgbouncer.8 manpage.xml *.[1-9] *.html *.xml
+	rm -f *.html *.xml
 
-realclean distclean: clean
+distclean: clean
+
+realclean: distclean
+	rm -f *.[1-9]
 

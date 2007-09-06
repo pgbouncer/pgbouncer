@@ -9,6 +9,9 @@ CPPFLAGS = @CPPFLAGS@
 CFLAGS = @CFLAGS@
 LDFLAGS = @LDFLAGS@
 
+XMLTO = @XMLTO@
+ASCIIDOC = @ASCIIDOC@
+
 prefix = @prefix@
 exec_prefix = @exec_prefix@
 bindir = @bindir@

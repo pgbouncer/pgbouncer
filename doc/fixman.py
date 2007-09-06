@@ -1,4 +1,11 @@
 #! /usr/bin/env python
+
 import sys,re
-# add empty <simpara> after <literallayout> to force line break
-sys.stdout.write(re.sub(r"</literallayout>\s+<simpara>", r"\g<0></simpara><simpara>", sys.stdin.read()))
+
+# hacks to force empty lines into manpage
+ln1 = r"\1<simpara></simpara>\2"
+xml = sys.stdin.read()
+xml = re.sub(r"(</literallayout>\s*)(<simpara)", ln1, xml)
+xml = re.sub(r"(</variablelist>\s*)(<simpara)", ln1, xml)
+sys.stdout.write(xml)
+

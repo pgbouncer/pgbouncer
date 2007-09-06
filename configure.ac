@@ -8,6 +8,27 @@ dnl Checks for programs.
 AC_PROG_CC
 AC_PROG_CPP
 
+dnl asciidoc >= 8.2
+AC_CHECK_PROGS(ASCIIDOC, asciidoc)
+if test -n "$ASCIIDOC"; then
+  AC_MSG_CHECKING([for asciidoc version >= 8.2])
+  ver=`$ASCIIDOC --version | sed 's/asciidoc //'`
+  case "$ver" in
+  [0-7].*|8.[01]|8.[01].*)
+      AC_MSG_RESULT([$ver, too old])
+      ASCIIDOC=""
+      ;;
+  *)
+      AC_MSG_RESULT([$ver, ok])
+      ;;
+  esac
+fi
+
+dnl check for xmlto, but only if asciidoc is found
+if test -n "$ASCIIDOC"; then
+  AC_CHECK_PROGS(XMLTO, xmlto)
+fi
+
 dnl Additional gcc tuning
 if test x"$GCC" = xyes; then
   AC_MSG_CHECKING([for working warning swithces])

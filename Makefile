@@ -93,7 +93,7 @@ distclean: clean doc-distclean
 	rm -rf lib autom4te*
 
 # clean autoconf results
-realclean: distclean
+realclean: distclean doc-realclean
 	rm -f aclocal* config.h.in configure depcomp install-sh missing
 	rm -f tags
 

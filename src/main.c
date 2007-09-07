@@ -227,7 +227,8 @@ void load_config(bool reload)
 	config_postprocess();
 
 	/* reopen logfile */
-	close_logfile();
+	if (reload)
+		close_logfile();
 }
 
 /*

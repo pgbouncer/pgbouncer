@@ -2,12 +2,6 @@
 
 == Ver 1.1 ==
 
- * create manpage
- * drop_on_error/keep_on_error - if released conn is in error state,
- then issue rollback and keep it
- * suspend_timeout - drop stalled conns
- * rename disable_varcache to track_parameters
- * some preliminary notification that fd limit is full
 
 == Ver 1.0.9 ==
 
@@ -30,10 +24,16 @@
 
 == Just ideas ==
 
+ * suspend_timeout - drop stalled conns
+ * some preliminary notification that fd limit is full
+ * drop_on_error/keep_on_error - if released conn is in error state,
+ then issue rollback and keep it
+
  * keep stats about error counts
  * auth_conn - access to pg_shadow, so auth_file is not needed
  * units for config parameters.
  * cleanup of logging levels, to make log more useful
+ * logging to syslog
 
 == Dropped ideas ==
 

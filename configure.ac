@@ -74,6 +74,7 @@ AC_SYS_LARGEFILE
 dnl Checks for library functions.
 AC_CHECK_FUNCS(strlcpy strlcat getpeereid getpeerucred)
 AC_SEARCH_LIBS(crypt, crypt, [], AC_MSG_ERROR([crypt not found]))
+AC_SEARCH_LIBS(clock_gettime, rt)
 
 dnl Find libevent
 AC_MSG_CHECKING([for libevent])

@@ -55,15 +55,15 @@ void close_logfile(void)
 	}
 }
 
-static int open_logfile(void)
+static void write_logfile(const char *buf, int len)
 {
 	if (!log_fd) {
 		int fd = open(cf_logfile, O_CREAT | O_APPEND | O_WRONLY, 0644);
 		if (fd < 0)
-			return -1;
+			return;
 		log_fd = fd;
 	}
-	return log_fd;
+	safe_write(log_fd, buf, len);
 }
 
 static void _log_write(const char *pfx, const char *msg)
@@ -71,16 +71,14 @@ static void _log_write(const char *pfx, const char *msg)
 	char buf[1024];
 	char tbuf[64];
 	int len;
+
 	render_time(tbuf, sizeof(tbuf));
 	len = snprintf(buf, sizeof(buf), "%s %u %s %s\n",
 			tbuf, (unsigned)getpid(), pfx, msg);
-	if (cf_logfile) {
-		int fd = open_logfile();
-		if (fd > 0) {
-			safe_write(fd, buf, len);
-			safe_close(fd);
-		}
-	}
+
+	if (cf_logfile)
+		write_logfile(buf, len);
+
 	if (!cf_quiet)
 		fprintf(stderr, "%s", buf);
 }

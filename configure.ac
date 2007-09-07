@@ -14,7 +14,10 @@ if test -n "$ASCIIDOC"; then
   AC_MSG_CHECKING([for asciidoc version >= 8.2])
   ver=`$ASCIIDOC --version 2>&1 | sed -e 's/asciidoc //'`
   case "$ver" in
+dnl hack to make possible to use [, ] in regex
+changequote({, })dnl
   [0-7].*|8.[01]|8.[01].*)
+changequote([, ])dnl
       AC_MSG_RESULT([$ver, too old])
       ASCIIDOC=""
       ;;

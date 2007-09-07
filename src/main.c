@@ -102,8 +102,6 @@ int cf_log_connections = 1;
 int cf_log_disconnections = 1;
 int cf_log_pooler_errors = 1;
 
-int cf_track_parameters = 1;
-
 /*
  * config file description
  */
@@ -146,7 +144,6 @@ ConfElem bouncer_params[] = {
 {"log_connections",	true, CF_INT, &cf_log_connections},
 {"log_disconnections",	true, CF_INT, &cf_log_disconnections},
 {"log_pooler_errors",	true, CF_INT, &cf_log_pooler_errors},
-{"track_parameters",	true, CF_INT, &cf_track_parameters},
 {NULL},
 };
 

@@ -304,8 +304,6 @@ extern int cf_log_connections;
 extern int cf_log_disconnections;
 extern int cf_log_pooler_errors;
 
-extern int cf_track_parameters;
-
 extern ConfElem bouncer_params[];
 
 

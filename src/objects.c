@@ -537,7 +537,7 @@ bool find_server(PgSocket *client)
 	Assert(!server || server->state == SV_IDLE);
 
 	/* send var changes */
-	if (server && cf_track_parameters) {
+	if (server) {
 		res = varcache_apply(server, client, &varchange);
 		if (!res) {
 			disconnect_server(server, true, "var change failed");

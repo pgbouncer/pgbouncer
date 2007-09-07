@@ -19,6 +19,7 @@
   * Print FD limits on startup.
   * When suspending, try to hit packet boundary ASAP.
   * Add 'timezone' to database parameters.
+  * Use longlived logfile fd.  Reopened on SIGHUP / RELOAD;
 
   = Code cleanup =
 

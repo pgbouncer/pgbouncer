@@ -12,7 +12,7 @@ dnl asciidoc >= 8.2
 AC_CHECK_PROGS(ASCIIDOC, asciidoc)
 if test -n "$ASCIIDOC"; then
   AC_MSG_CHECKING([for asciidoc version >= 8.2])
-  ver=`$ASCIIDOC --version | sed 's/asciidoc //'`
+  ver=`$ASCIIDOC --version 2>&1 | sed -e 's/asciidoc //'`
   case "$ver" in
   [0-7].*|8.[01]|8.[01].*)
       AC_MSG_RESULT([$ver, too old])

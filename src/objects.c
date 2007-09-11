@@ -554,6 +554,7 @@ bool find_server(PgSocket *client)
 			sbuf_pause(&client->sbuf);
 			res = false; /* don't process client data yet */
 			server->setting_vars = 1;
+			server->ready = 0;
 		} else
 			res = true;
 	} else {

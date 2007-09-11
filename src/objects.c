@@ -698,7 +698,7 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason)
 void disconnect_client(PgSocket *client, bool notify, const char *reason)
 {
 	if (cf_log_disconnections)
-		slog_debug(client, "closing because: %s", reason);
+		slog_info(client, "closing because: %s", reason);
 
 	switch (client->state) {
 	case CL_ACTIVE:

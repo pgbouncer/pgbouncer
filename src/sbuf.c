@@ -31,10 +31,14 @@
 #define SKIP_RECV	true
 
 /*
- * if less that this amount of data is pending, then
- * prefer to merge it with next recv()
+ * If less that this amount of data is pending, then
+ * prefer to merge it with next recv().
+ *
+ * It needs to be larger than data handler wants
+ * to see completely.  Generally just header,
+ * but currently also ServerParam pkt.
  */
-#define SMALL_PKT	16
+#define SMALL_PKT	64
 
 #define AssertSanity(sbuf) do { \
 	Assert((sbuf)->send_pos >= 0); \

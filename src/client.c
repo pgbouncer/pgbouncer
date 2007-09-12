@@ -127,9 +127,6 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 		return false;
 	}
 
-	if (cf_log_connections)
-		slog_info(client, "login request: db=%s user=%s", dbname, username);
-
 	/* check if limit allows, dont limit admin db
 	   nb: new incoming conn will be attached to PgSocket, thus
 	   get_active_client_count() counts it */
@@ -139,7 +136,17 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 			return false;
 		}
 	}
-	return set_pool(client, dbname, username);
+
+	/* find pool and log about it */
+	if (set_pool(client, dbname, username)) {
+		if (cf_log_connections)
+			slog_info(client, "login successful: db=%s user=%s", dbname, username);
+		return true;
+	} else {
+		if (cf_log_connections)
+			slog_info(client, "login failed: db=%s user=%s", dbname, username);
+		return false;
+	}
 }
 
 /* mask to get offset into valid_crypt_salt[] */

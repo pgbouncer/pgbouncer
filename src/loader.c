@@ -363,7 +363,8 @@ static bool auth_loaded(const char *fn)
 	if (cache.st_dev == cur.st_dev
 	&& cache.st_ino == cur.st_ino
 	&& cache.st_mode == cur.st_mode
-	&& cache.st_uid == cur.st_gid
+	&& cache.st_uid == cur.st_uid
+	&& cache.st_gid == cur.st_gid
 	&& cache.st_mtime == cur.st_mtime
 	&& cache.st_size == cur.st_size)
 		return true;

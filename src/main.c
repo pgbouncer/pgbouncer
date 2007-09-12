@@ -330,10 +330,6 @@ static void go_daemon(void)
 	/* dont log to stdout anymore */
 	cf_quiet = 1;
 
-	/* just in case close all files */
-	for (fd = 3; fd < OPEN_MAX; fd++)
-		close(fd);
-
 	/* send stdin, stdout, stderr to /dev/null */
 	fd = open("/dev/null", O_RDWR);
 	if (fd < 0)

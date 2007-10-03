@@ -282,11 +282,12 @@ int main(void)
 	init_bulk_data();
 
 	for (i = 0; i < 50; i++) {
-		db = new_db("dbname=marko port=6000 host=127.0.0.1 password=kama");
+		db = new_db("dbname=conntest port=6000 host=127.0.0.1 password=kama");
 		list_append(&db->head, &idle_list);
 	}
+	if (1)
 	for (i = 0; i < 50; i++) {
-		db = new_db("dbname=marko port=7000 host=127.0.0.1 password=kama");
+		db = new_db("dbname=conntest port=7000 host=127.0.0.1 password=kama");
 		list_append(&db->head, &idle_list);
 	}
 

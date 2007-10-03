@@ -41,10 +41,10 @@ port=7000
 fw_reset
 
 while true; do
-  #fw_drop_port $port
-  #sleep 20
-  #fw_reset
-  #sleep 20
+  fw_drop_port $port
+  sleep 12
+  fw_reset
+  sleep 12
   fw_reject_port $port
   sleep 3
   fw_reset

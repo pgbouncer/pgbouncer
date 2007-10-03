@@ -1,3 +1,3 @@
-"marko" "asdasd"
+"marko" "kama"
 "postgres" "asdasd"
 "pgbouncer" "fake"

@@ -305,6 +305,13 @@ database.
 Otherwise pgbouncer tries to log into destination database with client
 username, meaning that there will be one pool per user.
 
+=== Per-database pool Size ===
+
+==== pool_size ====
+
+Set maximum size of pools for this database.  If not set,
+the default_pool_size is used.
+
 === Extra parameters ===
 
 They allow setting default parameters on server connection.

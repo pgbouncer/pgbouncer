@@ -13,7 +13,7 @@
  * -R should detect that no pooler is running and boot normally
  * -R should detect if login fails then exit()
 
-==== Details: ====
+''' Details: '''
  * Takeover before fork()
  * must not touch libevent, just fill structures,
  libevent init after fork()
@@ -22,7 +22,7 @@
    * if tcp - try binding
    * if unix - try connect()
 
-== Just ideas ==
+== Minor features ==
 
  * suspend_timeout - drop stalled conns
  * some preliminary notification that fd limit is full
@@ -35,8 +35,9 @@
  * cleanup of logging levels, to make log more useful
  * logging to syslog
 
-== Dropped ideas ==
+== Major features ==
 
- * possibility to specify failover databases.
  * load-balancing between different servers.
- * keeping track of prepared plans - fixed in 8.3 by DISCARD ALL;
+   - possibility to specify failover databases.
+ * keeping track of protocol-level prepared plans
+   - JDBC workaround in the meantime: protocolVersion=2

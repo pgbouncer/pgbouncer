@@ -8,8 +8,7 @@ HDRS = client.h loader.h objects.h pooler.h proto.h sbuf.h server.h util.h \
        list.h mbuf.h varcache.h
 
 # data & dirs to include in tgz
-DOCS = doc/makefile doc/overview.txt doc/pgbouncer.cmdline.txt \
-       doc/pgbouncer.config.txt doc/todo.txt
+DOCS = doc/overview.txt doc/usage.txt doc/config.txt doc/todo.txt
 MANPAGES = doc/pgbouncer.1 doc/pgbouncer.5
 DATA = README NEWS AUTHORS etc/pgbouncer.ini Makefile config.mak.in config.h.in \
        configure configure.ac debian/packages debian/changelog doc/Makefile

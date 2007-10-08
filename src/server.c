@@ -28,7 +28,8 @@ static bool load_parameter(PgSocket *server, PktHdr *pkt)
 	PgSocket *client = server->link;
 
 	/*
-	 * incomplete startup msg from server?
+	 * Want to see complete packet.  That means SMALL_PKT
+	 * in sbuf.c must be larger than max param pkt.
 	 */
 	if (incomplete_pkt(pkt))
 		return false;

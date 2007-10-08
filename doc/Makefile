@@ -8,7 +8,7 @@ MANPAGES = pgbouncer.1 pgbouncer.5
 
 all: $(MANPAGES)
 
-html: pgbouncer.config.html pgbouncer.cmdline.html
+html: config.html usage.html
 
 install: $(MANPAGES)
 	mkdir -p $(DESTDIR)$(mandir)/man1/
@@ -19,14 +19,14 @@ install: $(MANPAGES)
 upload:
 	devupload.sh overview.txt $(wiki)
 	devupload.sh todo.txt $(wiki)/ToDo
-	devupload.sh usage.txt $(wiki)/UsageInfo
-	devupload.sh config.txt $(wiki)/ConfigFile
+	#devupload.sh usage.txt $(wiki)/UsageInfo
+	#devupload.sh config.txt $(wiki)/ConfigFile
 
 ifneq ($(XMLTO),)
-pgbouncer.1: pgbouncer.cmdline.xml
+pgbouncer.1: usage.xml
 	xmlto man $<
 
-pgbouncer.5: pgbouncer.config.xml
+pgbouncer.5: config.xml
 	xmlto man $<
 endif
 
@@ -47,4 +47,7 @@ distclean: clean
 
 realclean: distclean
 	rm -f *.[1-9]
+
+web:
+	rsync -av $(HTML) $(web)/doc/
 

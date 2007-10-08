@@ -1,11 +1,11 @@
 .\"     Title: pgbouncer
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.71.1 <http://docbook.sf.net/>
-.\"      Date: 10/03/2007
+.\"      Date: 10/08/2007
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "PGBOUNCER" "1" "10/03/2007" "" ""
+.TH "PGBOUNCER" "1" "10/08/2007" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -255,14 +255,14 @@ S, for server.
 .PP
 user
 .RS 4
-
+Username
 pgbouncer
-connected user.
+uses to connect to server.
 .RE
 .PP
 database
 .RS 4
-database name.
+database name on server.
 .RE
 .PP
 state
@@ -284,6 +284,16 @@ port
 Port of PostgreSQL server.
 .RE
 .PP
+local_addr
+.RS 4
+Connection start address on local machine.
+.RE
+.PP
+local_port
+.RS 4
+Connection start port on local machine.
+.RE
+.PP
 connect_time
 .RS 4
 When the connection was made.
@@ -292,6 +302,16 @@ When the connection was made.
 request_time
 .RS 4
 When last request was issued.
+.RE
+.PP
+ptr
+.RS 4
+Address of internal object for this connection. Used as unique ID.
+.RE
+.PP
+link
+.RS 4
+Address of client connection the server is paired with.
 .RE
 .RE
 .sp
@@ -337,6 +357,16 @@ port
 port client is connected to.
 .RE
 .PP
+local_addr
+.RS 4
+Connection end address on local machine.
+.RE
+.PP
+local_port
+.RS 4
+Connection end port on local machine.
+.RE
+.PP
 connect_time
 .RS 4
 Timestamp of later client connection.
@@ -345,6 +375,16 @@ Timestamp of later client connection.
 request_time
 .RS 4
 Timestamp of later client request.
+.RE
+.PP
+ptr
+.RS 4
+Address of internal object for this connection. Used as unique ID.
+.RE
+.PP
+link
+.RS 4
+Address of server connection the client is paired with.
 .RE
 .RE
 .sp

@@ -1,11 +1,11 @@
 .\"     Title: pgbouncer
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.71.1 <http://docbook.sf.net/>
-.\"      Date: 10/03/2007
+.\"      Date: 10/08/2007
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "PGBOUNCER" "5" "10/03/2007" "" ""
+.TH "PGBOUNCER" "5" "10/08/2007" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -206,6 +206,18 @@ Default: 100
 How many server connection to allow per user/database pair. Can be overrided in per\-database config.
 .sp
 Default: 20
+.sp
+.RE
+.sp
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+\fBserver_round_robin\fR
+.RS
+By default, pgbouncer reuses server connections in LIFO manner, so that few connections get the most load. This gives best performance if you have single server serving a database. But if there is TCP round\-robin behind a database IP then it's better if pgbouncer also uses connections in that manner, thus achieving uniform load.
+.sp
+Default: 0
 .sp
 .RE
 .SS "Log settings"

@@ -242,7 +242,8 @@ struct PgSocket {
 	char		salt[4];
 	uint8		cancel_key[BACKENDKEY_LEN];
 	PgUser *	auth_user;
-	PgAddr		addr;
+	PgAddr		remote_addr;
+	PgAddr		local_addr;
 
 	VarCache	vars;
 

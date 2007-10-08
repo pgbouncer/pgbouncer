@@ -144,12 +144,12 @@ slog_level(const char *pfx, const PgSocket *sock, const char *fmt, ...)
 
 	db = sock->pool ? sock->pool->db->name : "(nodb)";
 	user = sock->auth_user ? sock->auth_user->name : "(nouser)";
-	if (sock->addr.is_unix) {
+	if (sock->remote_addr.is_unix) {
 		host = "unix";
 	} else {
-		host = inet_ntoa(sock->addr.ip_addr);
+		host = inet_ntoa(sock->remote_addr.ip_addr);
 	}
-	port = sock->addr.port;
+	port = sock->remote_addr.port;
 
 	va_start(ap, fmt);
 	vsnprintf(buf1, sizeof(buf1), fmt, ap);
@@ -535,5 +535,57 @@ const char *format_date(usec_t uval)
 	time_t tval = uval / USEC;
 	strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", localtime(&tval));
 	return buf;
+}
+
+void fill_remote_addr(PgSocket *sk, int fd, bool is_unix)
+{
+	PgAddr *dst = &sk->remote_addr;
+	struct sockaddr_in adr;
+	socklen_t len = sizeof(adr);
+	int err;
+
+	dst->ip_addr.s_addr = INADDR_ANY;
+	dst->port = 0;
+	dst->is_unix = is_unix;
+	if (is_unix) {
+		dst->port = cf_listen_port;
+	} else {
+		err = getpeername(fd, (struct sockaddr *)&adr, &len);
+		if (err < 0) {
+			log_error("fill_remote_addr: getpeername(%d) = %s",
+				  fd, strerror(errno));
+		} else {
+			log_info("fill_remote_addr: remote=%s:%d",
+				 inet_ntoa(adr.sin_addr), ntohs(adr.sin_port));
+			dst->ip_addr = adr.sin_addr;
+			dst->port = ntohs(adr.sin_port);
+		}
+	}
+}
+
+void fill_local_addr(PgSocket *sk, int fd, bool is_unix)
+{
+	PgAddr *dst = &sk->local_addr;
+	struct sockaddr_in adr;
+	socklen_t len = sizeof(adr);
+	int err;
+
+	dst->ip_addr.s_addr = INADDR_ANY;
+	dst->port = 0;
+	dst->is_unix = is_unix;
+	if (is_unix) {
+		dst->port = cf_listen_port;
+	} else {
+		err = getsockname(fd, (struct sockaddr *)&adr, &len);
+		if (err < 0) {
+			log_error("fill_local_addr: getsockname(%d) = %s",
+				  fd, strerror(errno));
+		} else {
+			log_info("fill_local_addr: local=%s:%d",
+				 inet_ntoa(adr.sin_addr), ntohs(adr.sin_port));
+			dst->ip_addr = adr.sin_addr;
+			dst->port = ntohs(adr.sin_port);
+		}
+	}
 }
 

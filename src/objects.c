@@ -775,7 +775,7 @@ void launch_new_connection(PgPool *pool)
 	/* initialize it */
 	server->pool = pool;
 	server->auth_user = server->pool->user;
-	server->addr = server->pool->db->addr;
+	server->remote_addr = server->pool->db->addr;
 	server->connect_time = get_cached_time();
 	pool->last_connect_time = get_cached_time();
 	change_server_state(server, SV_LOGIN);
@@ -788,7 +788,7 @@ void launch_new_connection(PgPool *pool)
 		unix_dir = server->pool->db->unix_socket_dir;
 
 	/* start connecting */
-	sbuf_connect(&server->sbuf, &server->addr, unix_dir,
+	sbuf_connect(&server->sbuf, &server->remote_addr, unix_dir,
 		     cf_server_connect_timeout / USEC);
 }
 
@@ -807,18 +807,15 @@ PgSocket * accept_client(int sock,
 	client->connect_time = client->request_time = get_cached_time();
 	client->query_start = 0;
 
-	if (addr) {
-		client->addr.ip_addr = addr->sin_addr;
-		client->addr.port = ntohs(addr->sin_port);
-	} else {
-		memset(&client->addr, 0, sizeof(client->addr));
-	}
-	client->addr.is_unix = is_unix;
+	fill_remote_addr(client, sock, is_unix);
+	fill_local_addr(client, sock, is_unix);
+
 	change_client_state(client, CL_LOGIN);
 
 	if (cf_log_connections)
 		slog_debug(client, "got connection attempt");
 	sbuf_accept(&client->sbuf, sock, is_unix);
+
 
 	return client;
 }
@@ -940,7 +937,6 @@ bool use_client_socket(int fd, PgAddr *addr,
 	PktBuf tmp;
 
 	client = accept_client(fd, NULL, addr->is_unix);
-	client->addr = *addr;
 	client->suspended = 1;
 
 	if (!set_pool(client, dbname, username))
@@ -993,9 +989,11 @@ bool use_server_socket(int fd, PgAddr *addr,
 	server->suspended = 1;
 	server->pool = pool;
 	server->auth_user = user;
-	server->addr = *addr;
 	server->connect_time = server->request_time = get_cached_time();
 	server->query_start = 0;
+
+	fill_remote_addr(server, fd, addr->is_unix);
+	fill_local_addr(server, fd, addr->is_unix);
 
 	if (linkfd) {
 		server->ready = 0;

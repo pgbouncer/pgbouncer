@@ -99,3 +99,7 @@ bool strlist_contains(const char *liststr, const char *str);
 
 const char *format_date(usec_t uval);
 
+void fill_remote_addr(PgSocket *sk, int fd, bool is_unix);
+void fill_local_addr(PgSocket *sk, int fd, bool is_unix);
+
+

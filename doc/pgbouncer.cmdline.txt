@@ -166,10 +166,10 @@ type::
   S, for server.
 
 user::
-  +pgbouncer+ connected user.
+  Username +pgbouncer+ uses to connect to server.
 
 database::
-  database name.  
+  database name on server.
 
 state::
   State of the pgbouncer server connection, one of +active+, +used+ or
@@ -181,11 +181,24 @@ addr::
 port::
   Port of PostgreSQL server.
 
+local_addr::
+  Connection start address on local machine.
+
+local_port::
+  Connection start port on local machine.
+
 connect_time::
   When the connection was made.
 
 request_time::
   When last request was issued.
+
+ptr::
+  Address of internal object for this connection.
+  Used as unique ID.
+
+link::
+  Address of client connection the server is paired with.
 
 ==== SHOW CLIENTS; ====
 
@@ -208,12 +221,24 @@ addr::
 port::
   port client is connected to.
 
+local_addr::
+  Connection end address on local machine.
+
+local_port::
+  Connection end port on local machine.
+
 connect_time::
   Timestamp of later client connection.
 
 request_time::
   Timestamp of later client request.
 
+ptr::
+  Address of internal object for this connection.
+  Used as unique ID.
+
+link::
+  Address of server connection the client is paired with.
 
 ==== SHOW POOLS; ====
 

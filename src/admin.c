@@ -179,7 +179,7 @@ static bool send_one_fd(PgSocket *admin,
 	msg.msg_iovlen = 1;
 
 	/* attach a fd */
-	if (admin->addr.is_unix && admin->own_user) {
+	if (admin->remote_addr.is_unix && admin->own_user) {
 		msg.msg_control = cntbuf;
 		msg.msg_controllen = sizeof(cntbuf);
 
@@ -208,7 +208,7 @@ static bool send_one_fd(PgSocket *admin,
 /* send a row with sendmsg, optionally attaching a fd */
 static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 {
-	PgAddr *addr = &sk->addr;
+	PgAddr *addr = &sk->remote_addr;
 	MBuf tmp;
 	VarCache *v = &sk->vars;
 
@@ -404,28 +404,40 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	return true;
 }
 
-#define SKF_STD "sssssiTT"
-#define SKF_DBG "sssssiTTiiiiiiiss"
+#define SKF_STD "sssssisiTTss"
+#define SKF_DBG "sssssisiTTssiiiiiii"
 
 static void socket_header(PktBuf *buf, bool debug)
 {
 	pktbuf_write_RowDescription(buf, debug ? SKF_DBG : SKF_STD,
 				    "type", "user", "database", "state",
-				    "addr", "port",
+				    "addr", "port", "local_addr", "local_port",
 				    "connect_time", "request_time",
+				    "ptr", "link",
 				    "recv_pos", "pkt_pos", "pkt_remain",
 				    "send_pos", "send_remain",
-				    "pkt_avail", "send_avail",
-				    "ptr", "link");
+				    "pkt_avail", "send_avail");
+}
+
+static void adr2txt(const PgAddr *adr, char *dst, int dstlen)
+{
+	if (adr->is_unix) {
+		strlcpy(dst, "unix", dstlen);
+	} else {
+		char *tmp = inet_ntoa(adr->ip_addr);
+		strlcpy(dst, tmp, dstlen);
+	}
 }
 
 static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 {
-	const char *addr = sk->addr.is_unix ? "unix"
-			: inet_ntoa(sk->addr.ip_addr);
 	int pkt_avail = sk->sbuf.recv_pos - sk->sbuf.pkt_pos;
 	int send_avail = sk->sbuf.recv_pos - sk->sbuf.send_pos;
 	char ptrbuf[128], linkbuf[128];
+	char l_addr[32], r_addr[32];
+
+	adr2txt(&sk->remote_addr, r_addr, sizeof(r_addr));
+	adr2txt(&sk->local_addr, l_addr, sizeof(l_addr));
 
 	snprintf(ptrbuf, sizeof(ptrbuf), "%p", sk);
 	if (sk->link)
@@ -437,16 +449,17 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 			     is_server_socket(sk) ? "S" :"C",
 			     sk->auth_user ? sk->auth_user->name : "(nouser)",
 			     sk->pool ? sk->pool->db->name : "(nodb)",
-			     state, addr, sk->addr.port,
+			     state, r_addr, sk->remote_addr.port,
+			     l_addr, sk->local_addr.port,
 			     sk->connect_time,
 			     sk->request_time,
+			     ptrbuf, linkbuf,
 			     sk->sbuf.recv_pos,
 			     sk->sbuf.pkt_pos,
 			     sk->sbuf.pkt_remain,
 			     sk->sbuf.send_pos,
 			     sk->sbuf.send_remain,
-			     pkt_avail, send_avail,
-			     ptrbuf, linkbuf);
+			     pkt_avail, send_avail);
 }
 
 /* Helper for SHOW CLIENTS */
@@ -910,7 +923,7 @@ bool admin_pre_login(PgSocket *client)
 	client->own_user = 0;
 
 	/* tag same uid as special */
-	if (client->addr.is_unix) {
+	if (client->remote_addr.is_unix) {
 		res = getpeereid(sbuf_socket(&client->sbuf), &peer_uid, &peer_gid);
 		if (res >= 0 && peer_uid == getuid()
 			&& strcmp("pgbouncer", username) == 0)

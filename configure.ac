@@ -67,6 +67,7 @@ AC_CHECK_HEADERS([sys/ucred.h], [], [], [
 
 dnl Checks for typedefs, structures, and compiler characteristics.
 AC_C_INLINE
+AC_C_BIGENDIAN
 AC_TYPE_PID_T
 AC_TYPE_SIZE_T
 AC_TYPE_UINT8_T

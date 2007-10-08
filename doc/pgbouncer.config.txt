@@ -128,6 +128,16 @@ per-database config.
 
 Default: 20
 
+==== server_round_robin ====
+
+By default, pgbouncer reuses server connections in LIFO manner, so that few
+connections get the most load.  This gives best performance if you have single
+server serving a database.  But if there is TCP round-robin behind a database
+IP then it's better if pgbouncer also uses connections in that manner, thus
+achieving uniform load.
+
+Default: 0
+
 === Log settings ===
 
 ==== log_connections ====

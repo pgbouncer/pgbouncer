@@ -257,7 +257,7 @@ void change_server_state(PgSocket *server, SocketState newstate)
 		statlist_append(&server->head, &pool->tested_server_list);
 		break;
 	case SV_IDLE:
-		if (server->close_needed)
+		if (server->close_needed || cf_server_round_robin)
 			/* try to avoid immediate usage then */
 			statlist_append(&server->head, &pool->idle_server_list);
 		else

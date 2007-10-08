@@ -81,6 +81,7 @@ int cf_default_pool_size = 20;
 char *cf_server_reset_query = "";
 char *cf_server_check_query = "select 1";
 usec_t cf_server_check_delay = 30 * USEC;
+int cf_server_round_robin = 0;
 
 usec_t cf_server_lifetime = 60*60*USEC;
 usec_t cf_server_idle_timeout = 10*60*USEC;
@@ -129,6 +130,7 @@ ConfElem bouncer_params[] = {
 {"server_idle_timeout",	true, CF_TIME, &cf_server_idle_timeout},
 {"server_connect_timeout",true, CF_TIME, &cf_server_connect_timeout},
 {"server_login_retry",	true, CF_TIME, &cf_server_login_retry},
+{"server_round_robin",	true, CF_INT, &cf_server_round_robin},
 
 {"pkt_buf",		false, CF_INT, &cf_sbuf_len},
 {"tcp_defer_accept",	false, CF_INT, &cf_tcp_defer_accept},

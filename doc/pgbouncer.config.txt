@@ -106,15 +106,15 @@ Maximum number of client connections allowed.  When increased then the file
 descriptor limits should also be increased.  Note that actual number of file
 descriptiors used is more that max_client_conn.  Theoretical maximum used is:
 
-  max_client_conn * max_pool_size * total_databases * total_users
+  max_client_conn + (max_pool_size * total_databases * total_users)
 
 if each user connects under it's own username to server.  If database user
 is specified in connect string (all users connect under same username),
 the theoretical maximum is:
 
-  max_client_conn * max_pool_size * total_databases
+  max_client_conn + (max_pool_size * total_databases)
 
-The theoretical maximum is never reaches, unless somebody deliberately
+The theoretical maximum should be never reached, unless somebody deliberately
 crafts special load for it.  Still, it means you should give fds liberately.
 
 Search for `ulimit` in your favourite shell man page.

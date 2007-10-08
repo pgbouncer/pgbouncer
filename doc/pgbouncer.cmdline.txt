@@ -354,7 +354,7 @@ changeable::
   Either +yes+ or +no+, shows if the variable is changeable when running.
   If +no+, the variable can be changed only boot-time.
 
-=== PROCESS CONTROLING COMMANDS ===
+=== PROCESS CONTROLLING COMMANDS ===
 
 ==== PAUSE; ====
 

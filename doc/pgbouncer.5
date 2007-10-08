@@ -1,11 +1,11 @@
 .\"     Title: pgbouncer
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.71.1 <http://docbook.sf.net/>
-.\"      Date: 09/06/2007
+.\"      Date: 10/03/2007
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "PGBOUNCER" "5" "09/06/2007" "" ""
+.TH "PGBOUNCER" "5" "10/03/2007" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -176,7 +176,7 @@ Maximum number of client connections allowed. When increased then the file descr
 .sp
 .RS 4
 .nf
-max_client_conn * max_pool_size * total_databases * total_users
+max_client_conn + (max_pool_size * total_databases * total_users)
 .fi
 .RE
 .sp
@@ -185,11 +185,11 @@ if each user connects under it's own username to server. If database user is spe
 .sp
 .RS 4
 .nf
-max_client_conn * max_pool_size * total_databases
+max_client_conn + (max_pool_size * total_databases)
 .fi
 .RE
 .sp
-The theoretical maximum is never reaches, unless somebody deliberately crafts special load for it. Still, it means you should give fds liberately.
+The theoretical maximum should be never reached, unless somebody deliberately crafts special load for it. Still, it means you should give fds liberately.
 .sp
 Search for ulimit in your favourite shell man page.
 .sp
@@ -507,6 +507,17 @@ Default: 5432
 If user= is set, all connections to destination database will be done with that user, meaning that there will be only one pool for this database.
 .sp
 Otherwise pgbouncer tries to log into destination database with client username, meaning that there will be one pool per user.
+.sp
+.RE
+.SS "Per\-database pool Size"
+.sp
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+\fBpool_size\fR
+.RS
+Set maximum size of pools for this database. If not set, the default_pool_size is used.
 .sp
 .RE
 .SS "Extra parameters"

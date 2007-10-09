@@ -42,9 +42,9 @@ Downloads, bugtracker, CVS: http://pgfoundry.org/projects/pgbouncer
 
 == Docs ==
 
- * Detailed usage info: ./UsageInfo
- * Config file help: ./ConfigFile
- * TODO list: ./ToDo
+ * Detailed usage info: [http://pgbouncer.projects.postgresql.org/doc/usage.html usage.html]
+ * Config file help: [http://pgbouncer.projects.postgresql.org/doc/config.html config.html]
+ * TODO list: [http://pgbouncer.projects.postgresql.org/doc/todo.html todo.html]
 
 == Feature map ==
 

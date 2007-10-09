@@ -5,10 +5,11 @@ web = mkz@shell.pgfoundry.org:/home/pgfoundry.org/groups/pgbouncer/htdocs/
 -include ../config.mak
 
 MANPAGES = pgbouncer.1 pgbouncer.5
+HTML = config.html usage.html todo.html
 
 all: $(MANPAGES)
 
-html: config.html usage.html
+html: $(HTML)
 
 install: $(MANPAGES)
 	mkdir -p $(DESTDIR)$(mandir)/man1/
@@ -18,7 +19,7 @@ install: $(MANPAGES)
 
 upload:
 	devupload.sh overview.txt $(wiki)
-	devupload.sh todo.txt $(wiki)/ToDo
+	#devupload.sh todo.txt $(wiki)/ToDo
 	#devupload.sh usage.txt $(wiki)/UsageInfo
 	#devupload.sh config.txt $(wiki)/ConfigFile
 
@@ -48,6 +49,6 @@ distclean: clean
 realclean: distclean
 	rm -f *.[1-9]
 
-web:
+web: $(HTML)
 	rsync -av $(HTML) $(web)/doc/
 

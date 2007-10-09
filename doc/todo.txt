@@ -1,27 +1,5 @@
 = PgBouncer TODO list =
 
-== Ver 1.1 ==
-
-
-== Ver 1.0.9 ==
-
- * Support downgrade from 1.1.
-
-== Make -R less scary ==
-
- * -R should somehow log whats happens
- * -R should detect that no pooler is running and boot normally
- * -R should detect if login fails then exit()
-
-''' Details: '''
- * Takeover before fork()
- * must not touch libevent, just fill structures,
- libevent init after fork()
- * ^C while takeover - immidiate _exit()
- * detection:
-   * if tcp - try binding
-   * if unix - try connect()
-
 == Minor features ==
 
  * suspend_timeout - drop stalled conns
@@ -37,7 +15,27 @@
 
 == Major features ==
 
- * load-balancing between different servers.
-   - possibility to specify failover databases.
+=== prepared plans ===
+
  * keeping track of protocol-level prepared plans
    - JDBC workaround in the meantime: protocolVersion=2
+
+=== make -R less scary ===
+
+ * -R should somehow log whats happens
+ * -R should detect that no pooler is running and boot normally
+ * -R should detect if login fails then exit()
+ * Details:
+   - Takeover before fork()
+   - must not touch libevent, just fill structures,
+     libevent init after fork()
+   - ^C while takeover - immidiate _exit()
+ * Detect existing process:
+   - if tcp - try binding
+   - if unix - try connect()
+
+=== load-balancing ===
+
+ * allow serveral server to serve one db
+   - possibility to specify failover databases.
+

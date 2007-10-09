@@ -1,5 +1,5 @@
 
-2007-0x-xx  -  PgBouncer 1.1  -  ""
+2007-10-09  -  PgBouncer 1.1  -  "Mad-Hat Toolbox"
 
   = Features =
 
@@ -12,14 +12,15 @@
     - Accept custom unix socket location in host=
     - Accept quoted values: password=' asd''foo'
 
-  * server_reset_query, to be sent immidiately after release
-
+  * New config var: server_reset_query, to be sent immidiately after release
+  * New config var: server_round_robin, to switch between LIFO and RR.
   * Cancel pkt sent for idle connection does not drop it anymore.
   * Cancel with ^C from psql works for SUSPEND / PAUSE.
   * Print FD limits on startup.
   * When suspending, try to hit packet boundary ASAP.
   * Add 'timezone' to database parameters.
   * Use longlived logfile fd.  Reopened on SIGHUP / RELOAD;
+  * Local connection endpoint info in SHOW SERVERS/CLIENTS/SOCKETS.
 
   = Code cleanup =
 
@@ -30,6 +31,8 @@
   = Fixes =
 
   * Detect invalid pkt headers better.
+  * auth_file modification check was broken, which made pgbouncer
+    reload it too often.
 
 2007-06-18  -  PgBouncer 1.0.8  -  "Undead Shovel Jutsu"
 

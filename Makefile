@@ -14,7 +14,7 @@ DATA = README NEWS AUTHORS etc/pgbouncer.ini Makefile config.mak.in config.h.in 
        configure configure.ac debian/packages debian/changelog doc/Makefile \
        test/Makefile test/asynctest.c test/conntest.sh test/ctest6000.ini \
        test/ctest7000.ini test/run-conntest.sh test/stress.py test/test.ini \
-       test/test.sh test/userlist.txt etc/example.debian.init.sh
+       test/test.sh test/userlist.txt etc/example.debian.init.sh doc/fixman.py
 DIRS = doc etc src debian test
 
 # keep autoconf stuff separate

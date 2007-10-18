@@ -119,11 +119,14 @@ and specifying string +pgbouncer+ as database.
 
   $ psql -h 127.0.0.1 -p 6543 pgbouncer
 
-=== SHOW COMMANDS ===
+Only users listed in configuration parameters +admin_users+ or +stats_users+
+are allowed to login to the console.
 
-There is always a extra database available: "pgbouncer". When
-connecected to it, there is possible to look and change pooler
-settings.
+Additionally, username +pgbouncer+ is allowed to log in without password,
+if the login comes via UNIX socket and the client has same UNIX user uid
+as the running process.
+
+=== SHOW COMMANDS ===
 
 The +SHOW+ commands output some rows, the columns contained are
 described here.
@@ -139,13 +142,13 @@ total_requests::
   Total number of +SQL+ requests pooled by +pgbouncer+.
 
 total_received::
-  Total volume in bytes of network trafic received by +pgbouncer+.
+  Total volume in bytes of network traffic received by +pgbouncer+.
 
 total_sent::
-  Total volume in bytes of network trafic sent by +pgbouncer+.
+  Total volume in bytes of network traffic sent by +pgbouncer+.
 
 total_query_time::
-  Total number of milliseconds spent by +pgloader+ when actively
+  Total number of milliseconds spent by +pgbouncer+ when actively
   connected to PostgreSQL.
 
 avg_req::

@@ -22,7 +22,7 @@
 
 #include "bouncer.h"
 
-static bool load_parameter(PgSocket *server, PktHdr *pkt)
+static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 {
 	const char *key, *val;
 	PgSocket *client = server->link;
@@ -48,6 +48,9 @@ static bool load_parameter(PgSocket *server, PktHdr *pkt)
 		slog_debug(client, "setting client var: %s='%s'", key, val);
 		varcache_set(&client->vars, key, val);
 	}
+
+	if (startup)
+		add_welcome_parameter(server->pool, key, val);
 
 	return true;
 }
@@ -84,7 +87,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 		break;
 
 	case 'S':		/* ParameterStatus */
-		res = add_welcome_parameter(server, pkt);
+		res = load_parameter(server, pkt, true);
 		break;
 
 	case 'Z':		/* ReadyForQuery */
@@ -158,7 +161,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		break;
 
 	case 'S':		/* ParameterStatus */
-		if (!load_parameter(server, pkt))
+		if (!load_parameter(server, pkt, false))
 			return false;
 		break;
 

@@ -145,43 +145,25 @@ void log_server_error(const char *note, PktHdr *pkt)
  */
 
 /* add another server parameter packet to cache */
-bool add_welcome_parameter(PgSocket *server, PktHdr *pkt)
+void add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 {
-	PgPool *pool = server->pool;
 	PktBuf msg;
-	const char *key, *val;
 
 	if (pool->welcome_msg_ready)
-		return true;
-
-	/* incomplete startup msg from server? */
-	if (incomplete_pkt(pkt))
-		return false;
+		return;
 
 	pktbuf_static(&msg, pool->welcome_msg + pool->welcome_msg_len,
 		      sizeof(pool->welcome_msg) - pool->welcome_msg_len);
 
+	/* first packet must be AuthOk */
 	if (pool->welcome_msg_len == 0)
 		pktbuf_write_AuthenticationOk(&msg);
 
-	key = mbuf_get_string(&pkt->data);
-	val = mbuf_get_string(&pkt->data);
-	if (!key || !val) {
-		disconnect_server(server, true, "broken ParameterStatus packet");
-		return false;
-	}
-
-	slog_noise(server, "S: param: %s = %s", key, val);
-	if (varcache_set(&pool->orig_vars, key, val)) {
-		slog_noise(server, "interesting var: %s=%s", key, val);
-		varcache_set(&server->vars, key, val);
-	} else {
-		slog_noise(server, "uninteresting var: %s=%s", key, val);
+	/* if not stored in ->orig_vars, write full packet */
+	if (!varcache_set(&pool->orig_vars, key, val)) {
 		pktbuf_write_ParameterStatus(&msg, key, val);
 		pool->welcome_msg_len += pktbuf_written(&msg);
 	}
-
-	return true;
 }
 
 /* all parameters processed */

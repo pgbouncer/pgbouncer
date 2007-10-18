@@ -37,7 +37,7 @@ bool get_header(MBuf *data, PktHdr *pkt);
 bool send_pooler_error(PgSocket *client, bool send_ready, const char *msg);
 void log_server_error(const char *note, PktHdr *pkt);
 
-bool add_welcome_parameter(PgSocket *server, PktHdr *pkt);
+void add_welcome_parameter(PgPool *pool, const char *key, const char *val);
 void finish_welcome_msg(PgSocket *server);
 bool welcome_client(PgSocket *client);
 

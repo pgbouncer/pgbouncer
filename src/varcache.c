@@ -106,10 +106,19 @@ static int apply_var(PktBuf *pkt, const char *key,
 	if (strcasecmp(cval, sval) == 0)
 		return 0;
 
+	/* sanity check */
+	if (!*cval || !*sval) {
+		/* parameters that can change should be always set */
+		log_warning("Parameter unset: key='%s' client='%s' server='%s'",
+			    key, cval, sval);
+		return 0;
+	}
+
 	/* the string may have been taken from startup pkt */
 	if (!quote_literal(qbuf, sizeof(qbuf), cval, std_quote))
 		return 0;
 
+	/* add SET statement to packet */
 	len = snprintf(buf, sizeof(buf), "SET %s=%s;", key, qbuf);
 	if (len < sizeof(buf)) {
 		pktbuf_put_bytes(pkt, buf, len);

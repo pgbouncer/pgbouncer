@@ -66,6 +66,8 @@ typedef struct PgAddr PgAddr;
 typedef enum SocketState SocketState;
 typedef struct PktHdr PktHdr;
 
+#include "aatree.h"
+#include "hash.h"
 #include "util.h"
 #include "list.h"
 #include "mbuf.h"

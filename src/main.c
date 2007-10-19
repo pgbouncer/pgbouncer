@@ -467,6 +467,9 @@ int main(int argc, char *argv[])
 	if (optind + 1 != argc)
 		usage(1);
 	cf_config_file = argv[optind];
+
+	init_objects();
+
 	load_config(false);
 
 	/* need to do that after loading config */

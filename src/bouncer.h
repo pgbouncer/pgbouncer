@@ -187,6 +187,7 @@ struct PgPool {
 struct PgUser {
 	List head;
 	List pool_list;
+	Node tree_node;
 	char name[MAX_USERNAME];
 	char passwd[MAX_PASSWORD];
 };

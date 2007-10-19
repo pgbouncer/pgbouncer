@@ -27,6 +27,8 @@ STATLIST(user_list);
 STATLIST(database_list);
 STATLIST(pool_list);
 
+Tree user_tree;
+
 /*
  * client and server objects will be pre-allocated
  * they are always in either active or free lists
@@ -48,18 +50,6 @@ static STATLIST(justfree_server_list);
 static int absolute_client_count = 0;
 /* how many server sockets are allocated */
 static int absolute_server_count = 0;
-
-/* list of users ordered by name */
-static PgUser **user_lookup = NULL;
-
-/* drop lookup list because it will be out of sync */
-static void reset_auth_cache(void)
-{
-	if (user_lookup != NULL) {
-		free(user_lookup);
-		user_lookup = NULL;
-	}
-}
 
 /* fast way to get number of active clients */
 int get_active_client_count(void)
@@ -342,8 +332,6 @@ PgUser *add_user(const char *name, const char *passwd)
 {
 	PgUser *user = find_user(name);
 
-	reset_auth_cache();
-
 	if (user == NULL) {
 		user = zmalloc(sizeof(*user));
 		if (!user)
@@ -353,6 +341,8 @@ PgUser *add_user(const char *name, const char *passwd)
 		list_init(&user->pool_list);
 		strlcpy(user->name, name, sizeof(user->name));
 		put_in_order(&user->head, &user_list, cmp_user);
+
+		tree_insert(&user_tree, (long)user->name, &user->tree_node);
 	}
 	strlcpy(user->passwd, passwd, sizeof(user->passwd));
 	return user;
@@ -388,56 +378,28 @@ PgDatabase *find_database(const char *name)
 	return NULL;
 }
 
-/* compare string with PgUser->name, for usage with bsearch() */
-static int user_name_cmp(const void *namestr, const void *userptr)
+/* compare string with PgUser->name, for usage with btree */
+static int user_node_cmp(long userptr, Node *node)
 {
-	const PgUser * const *user_p = userptr;
-	const PgUser *user = *user_p;
-	return strcmp(namestr, user->name);
+	const char *name = (const char *)userptr;
+	PgUser *user = container_of(node, PgUser, tree_node);
+	return strcmp(name, user->name);
+}
+
+void init_objects(void)
+{
+	tree_init(&user_tree, user_node_cmp, NULL);
 }
 
 /* find existing user */
 PgUser *find_user(const char *name)
 {
-	List *item;
-	PgUser *user;
+	PgUser *user = NULL;
+	Node *node;
 
-	/* if lookup table is available, use faster method */
-	if (user_lookup) {
-		PgUser **res;
-		res = bsearch(name, user_lookup,
-			      statlist_count(&user_list),
-			      sizeof(PgUser *),
-			      user_name_cmp);
-		return res ? *res : NULL;
-	}
-
-	/* slow lookup */
-	statlist_for_each(item, &user_list) {
-		user = container_of(item, PgUser, head);
-		if (strcmp(user->name, name) == 0)
-			return user;
-	}
-	return NULL;
-}
-
-/* create lookup list */
-void create_auth_cache(void)
-{
-	int i = 0;
-	List *item;
-	PgUser *user;
-
-	reset_auth_cache();
-
-	user_lookup = malloc(sizeof(PgUser *) * statlist_count(&user_list));
-	if (!user_lookup)
-		return;
-
-	statlist_for_each(item, &user_list) {
-		user = container_of(item, PgUser, head);
-		user_lookup[i++] = user;
-	}
+	node = tree_search(&user_tree, (long)name);
+	user = node ? container_of(node, PgUser, tree_node) : NULL;
+	return user;
 }
 
 /* create new pool object */

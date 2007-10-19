@@ -975,7 +975,6 @@ void admin_setup(void)
 	user = add_user("pgbouncer", "");
 	if (!user)
 		fatal("cannot create admin user?");
-	create_auth_cache();
 
 	/* prepare welcome */
 	pktbuf_static(&msg, pool->welcome_msg, sizeof(pool->welcome_msg));

@@ -17,6 +17,7 @@
  */
 
 extern StatList user_list;
+extern Tree user_tree;
 extern StatList pool_list;
 extern StatList database_list;
 extern StatList login_client_list;
@@ -61,7 +62,7 @@ int get_active_server_count(void);
 void tag_database_dirty(PgDatabase *db);
 void for_each_server(PgPool *pool, void (*func)(PgSocket *sk));
 
-void create_auth_cache(void);
-
 void reuse_just_freed_objects(void);
+
+void init_objects(void);
 

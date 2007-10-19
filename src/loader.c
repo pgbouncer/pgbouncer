@@ -455,8 +455,6 @@ bool load_auth_file(const char *fn)
 	}
 	free(buf);
 
-	create_auth_cache();
-
 	return true;
 }
 

@@ -21,9 +21,8 @@ extern Tree user_tree;
 extern StatList pool_list;
 extern StatList database_list;
 extern StatList login_client_list;
-extern StatList free_server_list;
-extern StatList free_client_list;
-extern StatList login_client_list;
+extern ObjectCache *client_cache;
+extern ObjectCache *server_cache;
 
 PgDatabase *find_database(const char *name);
 PgUser *find_user(const char *name);
@@ -65,4 +64,6 @@ void for_each_server(PgPool *pool, void (*func)(PgSocket *sk));
 void reuse_just_freed_objects(void);
 
 void init_objects(void);
+
+void init_caches(void);
 

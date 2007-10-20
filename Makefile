@@ -2,10 +2,10 @@
 # sources
 SRCS = client.c loader.c objects.c pooler.c proto.c sbuf.c server.c util.c \
        admin.c stats.c takeover.c md5.c janitor.c pktbuf.c system.c main.c \
-       varcache.c aatree.c hash.c
+       varcache.c aatree.c hash.c slab.c
 HDRS = client.h loader.h objects.h pooler.h proto.h sbuf.h server.h util.h \
        admin.h stats.h takeover.h md5.h janitor.h pktbuf.h system.h bouncer.h \
-       list.h mbuf.h varcache.h aatree.h hash.h
+       list.h mbuf.h varcache.h aatree.h hash.h slab.h
 
 # data & dirs to include in tgz
 DOCS = doc/overview.txt doc/usage.txt doc/config.txt doc/todo.txt

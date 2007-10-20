@@ -472,6 +472,8 @@ int main(int argc, char *argv[])
 
 	load_config(false);
 
+	init_caches();
+
 	/* need to do that after loading config */
 	check_limits();
 

@@ -74,6 +74,7 @@ typedef struct PktHdr PktHdr;
 #include "sbuf.h"
 #include "pktbuf.h"
 #include "varcache.h"
+#include "slab.h"
 
 #include "admin.h"
 #include "loader.h"

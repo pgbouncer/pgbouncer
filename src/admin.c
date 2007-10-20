@@ -376,11 +376,11 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 	SENDLIST("databases", statlist_count(&database_list));
 	SENDLIST("users", statlist_count(&user_list));
 	SENDLIST("pools", statlist_count(&pool_list));
-	SENDLIST("free_clients", statlist_count(&free_client_list));
-	SENDLIST("used_clients", get_active_client_count());
+	SENDLIST("free_clients", objcache_free_count(client_cache));
+	SENDLIST("used_clients", objcache_active_count(client_cache));
 	SENDLIST("login_clients", statlist_count(&login_client_list));
-	SENDLIST("free_servers", statlist_count(&free_server_list));
-	SENDLIST("used_servers", get_active_server_count());
+	SENDLIST("free_servers", objcache_free_count(server_cache));
+	SENDLIST("used_servers", objcache_active_count(server_cache));
 	admin_flush(admin, buf, "SHOW");
 	return true;
 }

@@ -34,9 +34,10 @@ Tree user_tree;
  * they are always in either active or free lists
  * in addition to others.
  */
-STATLIST(free_client_list);
-STATLIST(free_server_list);
 STATLIST(login_client_list);
+
+ObjectCache *server_cache;
+ObjectCache *client_cache;
 
 /*
  * libevent may still report events when event_del()
@@ -46,26 +47,23 @@ STATLIST(login_client_list);
 static STATLIST(justfree_client_list);
 static STATLIST(justfree_server_list);
 
-/* how many client sockets are allocated */
-static int absolute_client_count = 0;
-/* how many server sockets are allocated */
-static int absolute_server_count = 0;
-
 /* fast way to get number of active clients */
 int get_active_client_count(void)
 {
-	return absolute_client_count - statlist_count(&free_client_list);
+	return objcache_active_count(client_cache);
 }
 
 /* fast way to get number of active servers */
 int get_active_server_count(void)
 {
-	return absolute_server_count - statlist_count(&free_server_list);
+	return objcache_active_count(server_cache);
 }
 
 /* this should be called on free socket that is put into use */
-static void clean_socket(PgSocket *sk)
+static void clean_socket(void *obj)
 {
+	PgSocket *sk = obj;
+
 	sk->link = NULL;
 	sk->pool = NULL;
 
@@ -86,56 +84,43 @@ static void clean_socket(PgSocket *sk)
 	sk->setting_vars = 0;
 }
 
-/* allocate & fill client socket */
-static PgSocket *new_client(void)
+static void construct_client(void *obj)
 {
-	PgSocket *client;
-
-	/* get free PgSocket */
-	client = first_socket(&free_client_list);
-	if (client) {
-		clean_socket(client);
-		return client;
-	}
-
-	client = zmalloc(sizeof(*client) + cf_sbuf_len);
-	if (!client)
-		return NULL;
+	PgSocket *client = obj;
 
 	list_init(&client->head);
 	sbuf_init(&client->sbuf, client_proto, client);
-	statlist_prepend(&client->head, &free_client_list);
 	client->state = CL_FREE;
-
-	absolute_client_count++;
-
-	return client;
 }
 
-/* allocate & fill server socket */
-static PgSocket *new_server(void)
+static void construct_server(void *obj)
 {
-	PgSocket *server;
-
-	/* get free PgSocket */
-	server = first_socket(&free_server_list);
-	if (server) {
-		clean_socket(server);
-		return server;
-	}
-
-	server = zmalloc(sizeof(*server) + cf_sbuf_len);
-	if (!server)
-		return NULL;
+	PgSocket *server = obj;
 
 	list_init(&server->head);
 	sbuf_init(&server->sbuf, server_proto, server);
-	statlist_prepend(&server->head, &free_server_list);
 	server->state = SV_FREE;
+}
 
-	absolute_server_count++;
+/* compare string with PgUser->name, for usage with btree */
+static int user_node_cmp(long userptr, Node *node)
+{
+	const char *name = (const char *)userptr;
+	PgUser *user = container_of(node, PgUser, tree_node);
+	return strcmp(name, user->name);
+}
 
-	return server;
+void init_objects(void)
+{
+	tree_init(&user_tree, user_node_cmp, NULL);
+}
+
+void init_caches(void)
+{
+	server_cache = objcache_create("server_cache", sizeof(PgSocket) + cf_sbuf_len, 8,
+				       construct_server, clean_socket);
+	client_cache = objcache_create("client_cache", sizeof(PgSocket) + cf_sbuf_len, 8,
+				       construct_client, clean_socket);
 }
 
 /* state change means moving between lists */
@@ -146,7 +131,6 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	/* remove from old location */
 	switch (client->state) {
 	case CL_FREE:
-		statlist_remove(&client->head, &free_client_list);
 		break;
 	case CL_JUSTFREE:
 		statlist_remove(&client->head, &justfree_client_list);
@@ -172,7 +156,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	/* put to new location */
 	switch (client->state) {
 	case CL_FREE:
-		statlist_prepend(&client->head, &free_client_list);
+		obj_free(client_cache, client);
 		break;
 	case CL_JUSTFREE:
 		statlist_append(&client->head, &justfree_client_list);
@@ -202,7 +186,6 @@ void change_server_state(PgSocket *server, SocketState newstate)
 	/* remove from old location */
 	switch (server->state) {
 	case SV_FREE:
-		statlist_remove(&server->head, &free_server_list);
 		break;
 	case SV_JUSTFREE:
 		statlist_remove(&server->head, &justfree_server_list);
@@ -231,7 +214,7 @@ void change_server_state(PgSocket *server, SocketState newstate)
 	/* put to new location */
 	switch (server->state) {
 	case SV_FREE:
-		statlist_prepend(&server->head, &free_server_list);
+		obj_free(server_cache, server);
 		break;
 	case SV_JUSTFREE:
 		statlist_append(&server->head, &justfree_server_list);
@@ -376,19 +359,6 @@ PgDatabase *find_database(const char *name)
 			return db;
 	}
 	return NULL;
-}
-
-/* compare string with PgUser->name, for usage with btree */
-static int user_node_cmp(long userptr, Node *node)
-{
-	const char *name = (const char *)userptr;
-	PgUser *user = container_of(node, PgUser, tree_node);
-	return strcmp(name, user->name);
-}
-
-void init_objects(void)
-{
-	tree_init(&user_tree, user_node_cmp, NULL);
 }
 
 /* find existing user */
@@ -728,7 +698,7 @@ void launch_new_connection(PgPool *pool)
 	}
 
 	/* get free conn object */
-	server = new_server();
+	server = obj_alloc(server_cache);
 	if (!server) {
 		log_debug("launch_new_connection: no memory");
 		return;
@@ -762,7 +732,7 @@ PgSocket * accept_client(int sock,
 	PgSocket *client;
 
 	/* get free PgSocket */
-	client = new_client();
+	client = obj_alloc(client_cache);
 	if (!client)
 		return NULL;
 
@@ -943,7 +913,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 	if (!pool)
 		return false;
 
-	server = new_server();
+	server = obj_alloc(server_cache);
 	if (!server)
 		return false;
 

@@ -17,101 +17,171 @@
  */
 
 /*
- * SLAB-like allocator, but without the complexities of deallocation...
+ * Primitive slab allocator.
  *
  * - On first alloc initializer is called for all objects.
  * - On each release, cleaner is called.
  * - When giving object out, nothing is done.
- * - Writes obj header with List struct, expects it to be overwritten on use.
+ * - Writes List struct on obj header, expects it to be overwritten on use.
  */
 
-#include "system.h"
-#include "list.h"
-#include "slab.h"
+#include <sys/param.h>
+
+#include "bouncer.h"
+
+#define CUSTOM_ALIGN(x, a) (((unsigned long)(x) + (a)) & ~(a))
+
+#ifndef ALIGN
+#define ALIGN(x)  CUSTOM_ALIGN(x, sizeof(long))
+#endif
 
 /*
- * Stores pre-initialized objects of one type.
+ * Store for pre-initialized objects of one type.
  */
 struct ObjectCache {
 	List head;
 	StatList freelist;
-	const char *name;
-	int obj_size;
-	int align;
-	int total_count;
+	StatList slablist;
+	char name[32];
+	unsigned final_size;
+	unsigned total_count;
 	obj_init_fn  init_func;
 	obj_clean_fn clean_func;
+};
+
+/*
+ * Header for each slab.
+ */
+struct Slab {
+	List head;
 };
 
 /* keep track of all caches */
 static STATLIST(objcache_list);
 
-/* make new cache */
-ObjectCache * objcache_create(const char *name, int obj_size, int align,
-			      obj_init_fn init_func,
-			      obj_clean_fn clean_func)
+/* cache for cache headers */
+static ObjectCache *objcache_cache = NULL;
+
+/* fill struct contents */
+static void init_objcache(ObjectCache *cache,
+			  const char *name,
+			  unsigned obj_size,
+			  unsigned align,
+			  obj_init_fn init_func,
+			  obj_clean_fn clean_func)
 {
-	ObjectCache *cache = malloc(sizeof(*cache));
-	if (!cache)
-		return NULL;
 	list_init(&cache->head);
 	statlist_init(&cache->freelist, name);
-	cache->name = name;
-	cache->obj_size = obj_size;
-	cache->align = align;
+	statlist_init(&cache->slablist, name);
+	strlcpy(cache->name, name, sizeof(cache->name));
 	cache->total_count = 0;
 	cache->init_func = init_func;
 	cache->clean_func = clean_func;
 	statlist_append(&cache->head, &objcache_list);
 
+	if (align == 0)
+		cache->final_size = ALIGN(obj_size);
+	else
+		cache->final_size = CUSTOM_ALIGN(obj_size, align);
+}
+
+/* make new cache */
+ObjectCache * objcache_create(const char *name,
+			      unsigned obj_size,
+			      unsigned align,
+			      obj_init_fn init_func,
+			      obj_clean_fn clean_func)
+{
+	ObjectCache *cache;
+
+	/* main cache */
+	if (!objcache_cache) {
+		objcache_cache = malloc(sizeof(ObjectCache));
+		if (!objcache_cache)
+			return NULL;
+		init_objcache(objcache_cache, "objcache_cache",
+			      sizeof(ObjectCache), 0, NULL, NULL);
+	}
+
+	/* new cache object */
+	cache = obj_alloc(objcache_cache);
+	if (cache)
+		init_objcache(cache, name, obj_size, align,
+			      init_func, clean_func);
 	return cache;
+}
+
+/* free all storage associated by cache */
+void objcache_destroy(ObjectCache *cache)
+{
+	List *item, *tmp;
+	struct Slab *slab;
+
+	statlist_for_each_safe(item, &cache->slablist, tmp) {
+		slab = container_of(item, struct Slab, head);
+		free(slab);
+	}
+	statlist_remove(&cache->head, &objcache_list);
+	memset(cache, 0, sizeof(*cache));
+	obj_free(objcache_cache, cache);
 }
 
 /* add new block of objects to cache */
 static void grow(ObjectCache *cache)
 {
-	int count, i, real_size;
+	unsigned count, i, size;
 	char *area;
-	
-	real_size = (cache->obj_size + cache->align - 1) & ~(cache->align - 1);
+	struct Slab *slab;
 
-	count = 8192 / real_size;
-	if (count < 20)
-		count = 20;
+	/* calc new slab size */
+	count = cache->total_count;
+	if (count < 50)
+		count = 16 * 1024 / cache->final_size;
+	if (count < 50)
+		count = 50;
+	size = count * cache->final_size;
 
-	area = malloc(count * real_size);
-	if (!area)
+	/* allocate & init */
+	slab = malloc(size + sizeof(struct Slab));
+	if (!slab)
 		return;
+	list_init(&slab->head);
+	area = (char *)slab + sizeof(struct Slab);
+	memset(area, 0, size);
 
-	memset(area, 0, count * real_size);
+	/* init objects */
 	for (i = 0; i < count; i++) {
-		void *obj = area + i * real_size;
-		cache->init_func(obj);
-		statlist_append((List *)obj, &cache->freelist);
+		void *obj = area + i * cache->final_size;
+		List *head = (List *)obj;
+
+		if (cache->init_func)
+			cache->init_func(obj);
+		list_init(head);
+		statlist_append(head, &cache->freelist);
 	}
 
+	/* register to cache */
 	cache->total_count += count;
+	statlist_append(&slab->head, &cache->slablist);
 }
 
 /* get free object from cache */
 void *obj_alloc(ObjectCache *cache)
 {
-	List *item;
-
-	item = statlist_pop(&cache->freelist);
-	if (item)
-		return item;
-
-	grow(cache);
-
-	return statlist_pop(&cache->freelist);
+	List *item = statlist_pop(&cache->freelist);
+	if (!item) {
+		grow(cache);
+		item = statlist_pop(&cache->freelist);
+	}
+	return item;
 }
 
 /* put object back to cache */
 void obj_free(ObjectCache *cache, void *obj)
 {
 	List *item = obj;
-	cache->clean_func(obj);
+	if (cache->clean_func)
+		cache->clean_func(obj);
 	statlist_prepend(item, &cache->freelist);
 }
 

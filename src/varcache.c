@@ -101,7 +101,7 @@ static int apply_var(PktBuf *pkt, const char *key,
 {
 	char buf[128];
 	char qbuf[128];
-	int len;
+	unsigned len;
 
 	if (strcasecmp(cval, sval) == 0)
 		return 0;

@@ -317,9 +317,8 @@ int scan_text_result(MBuf *pkt, const char *tupdesc, ...)
 {
 	char *val = NULL;
 	int len;
-	unsigned ncol, i;
+	unsigned ncol, i, asked;
 	va_list ap;
-	int asked;
 	int *int_p;
 	uint64 *long_p;
 	char **str_p;

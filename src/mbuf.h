@@ -80,7 +80,7 @@ static inline unsigned mbuf_get_uint64(MBuf *buf)
 static inline const uint8 * mbuf_get_bytes(MBuf *buf, unsigned len)
 {
 	const uint8 *res = buf->pos;
-	if (len > buf->end - buf->pos)
+	if (buf->pos + len > buf->end)
 		fatal("buffer overflow");
 	buf->pos += len;
 	return res;

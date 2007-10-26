@@ -198,7 +198,7 @@ static bool send_one_fd(PgSocket *admin,
 	if (res < 0) {
 		log_error("send_one_fd: sendmsg error: %s", strerror(errno));
 		return false;
-	} else if (res != iovec.iov_len) {
+	} else if ((size_t)res != iovec.iov_len) {
 		log_error("send_one_fd: partial sendmsg");
 		return false;
 	}
@@ -738,7 +738,7 @@ static bool admin_cmd_pause(PgSocket *admin, const char *arg)
 
 /* extract substring from regex group */
 static void copy_arg(const char *src, regmatch_t *glist,
-		     int gnum, char *dst, int dstmax)
+		     int gnum, char *dst, unsigned dstmax)
 {
 	regmatch_t *g = &glist[gnum];
 	unsigned len = g->rm_eo - g->rm_so;

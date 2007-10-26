@@ -1,6 +1,6 @@
-pgbouncer (1.1.1-0rc1) unstable; urgency=low
+pgbouncer (1.1.1-1) unstable; urgency=low
 
-  * 1.1.1rc1
+  * 1.1.1
 
 pgbouncer (1.0.8-1) unstable; urgency=low
 

@@ -1,12 +1,14 @@
 
-2007-10-18  -  PgBouncer 1.1.1  -  "Breakdancing Bee"
+2007-10-26  -  PgBouncer 1.1.1  -  "Breakdancing Bee"
 
   = Fixes =
 
   * Server parameter cache could stay uninitialized, which caused
     unnecessary SET of them.  This caused problem on 8.1 which
-    does not allow setting standard_conforming_strings.
-  * Some doc fixed.
+    does not allow touching standard_conforming_strings.
+    (Thanks to Dimitri Fontaine for report & testing.)
+
+  * Some doc fixes.
   * Include doc/fixman.py in .tgz.
 
 2007-10-09  -  PgBouncer 1.1  -  "Mad-Hat Toolbox"

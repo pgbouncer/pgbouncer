@@ -34,23 +34,16 @@ fi
 
 dnl Additional gcc tuning
 if test x"$GCC" = xyes; then
-  AC_MSG_CHECKING([for working warning swithces])
+  AC_MSG_CHECKING([for working warning switches])
   good_CFLAGS="$CFLAGS"
-  good="-Wall"
-  flags="-Wextra"
-  # turn off noise from Wextra
-  flags="$flags -Wno-unused-parameter -Wno-sign-compare"
-  flags="$flags -Wno-missing-field-initializers"
-  # Wextra does not turn those on?
-  flags="$flags -Wmissing-prototypes -Wpointer-arith -Wendif-labels"
-  flags="$flags -Wdeclaration-after-statement -Wold-style-definition"
-  flags="$flags -Wstrict-prototypes"
-  for f in $flags; do
-    CFLAGS="$good_CFLAGS $good $f"
-    AC_COMPILE_IFELSE([void foo(void){}], [good="$good $f"])
+  warnings=""
+  for f in -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers
+  do
+    CFLAGS="$good_CFLAGS $warnings $f"
+    AC_COMPILE_IFELSE([void foo(void){}], [warnings="$warnings $f"])
   done
-  CFLAGS="$good_CFLAGS $good"
-  AC_MSG_RESULT([$good])
+  CFLAGS="$good_CFLAGS $warnings"
+  AC_MSG_RESULT([$warnings])
 fi
 
 dnl Checks for header files.

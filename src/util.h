@@ -38,10 +38,12 @@ void log_level(const char *level, const char *s, ...);
 #define log_warning(args...) log_level("WARNING", ## args)
 #define log_info(args...) log_level("LOG", ## args)
 #define log_debug(args...) do { \
-		if (cf_verbose > 0) log_level("DEBUG", ## args); \
+		if (unlikely(cf_verbose > 0)) \
+			log_level("DEBUG", ## args); \
 	} while (0)
 #define log_noise(args...) do { \
-		if (cf_verbose > 1) log_level("NOISE", ## args); \
+		if (unlikely(cf_verbose > 1)) \
+			log_level("NOISE", ## args); \
 	} while (0)
 
 void close_logfile(void);
@@ -54,10 +56,12 @@ void slog_level(const char *level, const PgSocket *sock, const char *fmt, ...);
 #define slog_warning(sk, args...) slog_level("WARNING", sk, ## args)
 #define slog_info(sk, args...) slog_level("LOG", sk, ## args)
 #define slog_debug(sk, args...) do { \
-		if (cf_verbose > 0) slog_level("DEBUG", sk, ## args); \
+		if (unlikely(cf_verbose > 0)) \
+			slog_level("DEBUG", sk, ## args); \
 	} while (0)
 #define slog_noise(sk, args...) do { \
-		if (cf_verbose > 1) slog_level("NOISE", sk, ## args); \
+		if (unlikely(cf_verbose > 1)) \
+			slog_level("NOISE", sk, ## args); \
 	} while (0)
 
 /*

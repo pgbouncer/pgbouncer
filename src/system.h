@@ -56,8 +56,16 @@
 #include <crypt.h>
 #endif
 
+#ifdef __GNUC__
+#define unlikely(x) __builtin_expect(!!(x), 0)
+#define likely(x) __builtin_expect(!!(x), 1)
+#else
+#define unlikely(x) x
+#define likely(x) x
+#endif
+
 #ifdef CASSERT
-#define Assert(e) do { if (!(e)) { \
+#define Assert(e) do { if (unlikely(!(e))) { \
 	fatal_noexit("Assert(%s) failed", #e); abort(); } } while (0)
 #else
 #define Assert(e)

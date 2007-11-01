@@ -10,27 +10,30 @@ HDRS = client.h loader.h objects.h pooler.h proto.h sbuf.h server.h util.h \
 # data & dirs to include in tgz
 DOCS = doc/overview.txt doc/usage.txt doc/config.txt doc/todo.txt
 MANPAGES = doc/pgbouncer.1 doc/pgbouncer.5
-DATA = README NEWS AUTHORS etc/pgbouncer.ini Makefile config.mak.in config.h.in \
+DATA = README NEWS AUTHORS etc/pgbouncer.ini Makefile config.mak.in include/config.h.in \
        configure configure.ac debian/packages debian/changelog doc/Makefile \
        test/Makefile test/asynctest.c test/conntest.sh test/ctest6000.ini \
        test/ctest7000.ini test/run-conntest.sh test/stress.py test/test.ini \
        test/test.sh test/userlist.txt etc/example.debian.init.sh doc/fixman.py
-DIRS = doc etc src debian test
+DIRS = doc etc include src debian test
 
 # keep autoconf stuff separate
 -include config.mak
 
-ifeq ($(enable_debug),yes)
-CFLAGS += -DDBGVER="\"compiled by <$${USER}@`hostname`> at `date '+%Y-%m-%d %H:%M:%S'`\""
-endif
-
 # calculate full-path values
 OBJS = $(SRCS:.c=.o)
-hdrs = $(addprefix $(srcdir)/src/, $(HDRS))
+hdrs = $(addprefix $(srcdir)/include/, $(HDRS))
 srcs = $(addprefix $(srcdir)/src/, $(SRCS))
 objs = $(addprefix $(builddir)/lib/, $(OBJS))
 FULL = $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)
 DISTFILES = $(DIRS) $(DATA) $(DOCS) $(srcs) $(hdrs) $(MANPAGES)
+
+CPPCFLAGS += -I$(srcdir)/include
+
+ifeq ($(enable_debug),yes)
+CPPCFLAGS += -DDBGVER="\"compiled by <$${USER}@`hostname`> at `date '+%Y-%m-%d %H:%M:%S'`\""
+endif
+
 
 # Quiet by default, 'make V=1' shows commands
 V=0
@@ -91,18 +94,18 @@ clean: doc-clean
 
 # clean configure results
 distclean: clean doc-distclean
-	rm -f config.h config.log config.status config.mak
+	rm -f include/config.h include/config.h.in~ config.log config.status config.mak
 	rm -rf lib autom4te*
 
 # clean autoconf results
 realclean: distclean doc-realclean
-	rm -f aclocal* config.h.in configure depcomp install-sh missing
+	rm -f aclocal* include/config.h.in configure depcomp install-sh missing
 	rm -f tags
 
 # generate configure script and config.h.in
 boot: distclean
 	autoreconf -i -f
-	rm -rf autom4te* config.h.in~
+	rm -rf autom4te* include/config.h.in~
 
 # targets can depend on this to force ./configure
 config.mak::

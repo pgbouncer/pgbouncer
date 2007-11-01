@@ -1,8 +1,8 @@
 dnl Process this file with autoconf to produce a configure script.
 
 AC_INIT(pgbouncer, 1.2.cvs)
-AC_CONFIG_SRCDIR(src/bouncer.h)
-AC_CONFIG_HEADER(config.h)
+AC_CONFIG_SRCDIR(src/janitor.c)
+AC_CONFIG_HEADER(include/config.h)
 
 dnl Checks for programs.
 AC_PROG_CC

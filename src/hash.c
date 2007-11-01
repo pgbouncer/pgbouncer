@@ -17,13 +17,15 @@
  */
 
 /*
- * A version of Bob Jenkins' lookup3.c hash.
+ * A simple version of Bob Jenkins' lookup3.c hash.
  *
  * It is supposed to give same results as hashlittle() on little-endian
  * and hashbig() on big-endian machines.
  */
 
 #include <sys/types.h>
+#include <stdint.h>
+#include <string.h>
 
 #include "hash.h"
 
@@ -31,14 +33,7 @@
 #define rot(x,k) (((x)<<(k)) | ((x)>>(32-(k))))
 
 /*
- * Disallow going over given data length.
- * It is safe, if word boundary is not crossed,
- * should be bit faster, although I have not noticed yet.
- */
-#define STRICT_LENGTH 1
-
-/*
- * Bob Jenkins hash mixing functions for 3 32bit integers.
+ * lookup3 hash processes 3 uint32_t at a time.
  */
 
 #define main_mix(a, b, c) do { \
@@ -60,149 +55,33 @@
 	c ^= b; c -= rot(b,24); \
 } while (0)
 
-/*
- * Macros for fetching uint32_t from memory.
- *
- * Depending on alignment, it can be done with
- * uint32, uint16 or uint8.
- */
-
-/* load uint from proper pointer and shift t oposition */
-#define GET(ptr, pos, sft) (((uint32_t)((ptr)[pos])) << sft)
-
-#ifdef WORDS_BIGENDIAN
-
-#define LOAD_BYTES(v, p8, n) do { \
-	switch (n) { \
-	case 4: v += GET(p8, 0, 24) | GET(p8, 1, 16) | GET(p8, 2, 8) | GET(p8, 3, 0); break; \
-	case 3: v += GET(p8, 0, 24) | GET(p8, 1, 16) | GET(p8, 2, 8); break; \
-	case 2: v += GET(p8, 0, 24) | GET(p8, 1, 16); break; \
-	case 1: v += GET(p8, 0, 24); break; \
-	} \
-} while (0)
-
-#define LOAD_SHORTS(v, p16, n) do { \
-	switch (n) { \
-	case 4: v += GET(p16, 0, 16) | GET(p16, 1, 0); break; \
-	case 3: v += GET(p16, 0, 16) |(GET(p16, 1, 0) & 0xFF00); break; \
-	case 2: v += GET(p16, 0, 16); break; \
-	case 1: v += GET(p16, 0, 16) & 0xFF00; break; \
-	} \
-} while (0)
-
-#define LOAD_INTS(v, p32, n) do { \
-	switch (n) { \
-	case 4: v += GET(p32, 0, 0); break; \
-	case 3: v += GET(p32, 0, 0) & 0xFFFFFF00; break; \
-	case 2: v += GET(p32, 0, 0) & 0xFFFF0000; break; \
-	case 1: v += GET(p32, 0, 0) & 0xFF000000; break; \
-	} \
-} while (0)
-
-#else /* LITTLE-ENDIAN */
-
-#define LOAD_BYTES(v, p8, n) do { \
-	switch (n) { \
-	case 4: v += GET(p8, 0, 0) | GET(p8, 1, 8) | GET(p8, 2, 16) | GET(p8, 3, 24); break; \
-	case 3: v += GET(p8, 0, 0) | GET(p8, 1, 8) | GET(p8, 2, 16); break; \
-	case 2: v += GET(p8, 0, 0) | GET(p8, 1, 8); break; \
-	case 1: v += GET(p8, 0, 0); break; \
-	} \
-} while (0)
-
-#define LOAD_SHORTS(v, p16, n) do { \
-	switch (n) { \
-	case 4: v += GET(p16, 0, 0) | GET(p16, 1, 16); break; \
-	case 3: v += GET(p16, 0, 0) |(GET(p16, 1, 16) & 0x00FF); break; \
-	case 2: v += GET(p16, 0, 0); break; \
-	case 1: v += GET(p16, 0, 0) & 0x00FF; break; \
-	} \
-} while (0)
-
-#define LOAD_INTS(v, p32, n) do { \
-	switch (n) { \
-	case 4: v += GET(p32, 0, 0); break; \
-	case 3: v += GET(p32, 0, 0) & 0x00FFFFFF; break; \
-	case 2: v += GET(p32, 0, 0) & 0x0000FFFF; break; \
-	case 1: v += GET(p32, 0, 0) & 0x000000FF; break; \
-	} \
-} while (0)
-
-#endif /* LITTLE ENDIAN */
-
-/*
- * combined fetching, also increases data pointer.
- */
-#define LOAD(v, data, n, unit) do { \
-	if (n < 4 && unit > 1 && STRICT_LENGTH) { \
-		LOAD_BYTES(v, ((uint8_t *)data), n); \
-	} else { \
-		switch (unit) { \
-		case 4: LOAD_INTS(v, data, n); break; \
-		case 2: LOAD_SHORTS(v, data, n); break; \
-		case 1: LOAD_BYTES(v, data, n); break; \
-		} \
-	} \
-	data += n/unit; \
-} while (0)
-
-/*
- * common main loop
- */
-#define main_loop(data, len, a, b, c, unit) do { \
-	while (len > 12) { \
-		LOAD(a, data, 4, unit); \
-		LOAD(b, data, 4, unit); \
-		LOAD(c, data, 4, unit); \
-		main_mix(a, b, c); \
-		len -= 12; \
-	} \
-} while (0)
-
-/*
- * fetch last 12 bytes into variables and mix them
- */
-#define final_loop(data, len, a, b, c, unit) do { \
-	switch (len) { \
-	case 12: LOAD(a, data, 4, unit); LOAD(b, data, 4, unit); LOAD(c, data, 4, unit); break; \
-	case 11: LOAD(a, data, 4, unit); LOAD(b, data, 4, unit); LOAD(c, data, 3, unit); break; \
-	case 10: LOAD(a, data, 4, unit); LOAD(b, data, 4, unit); LOAD(c, data, 2, unit); break; \
-	case  9: LOAD(a, data, 4, unit); LOAD(b, data, 4, unit); LOAD(c, data, 1, unit); break; \
-	case  8: LOAD(a, data, 4, unit); LOAD(b, data, 4, unit); break; \
-	case  7: LOAD(a, data, 4, unit); LOAD(b, data, 3, unit); break; \
-	case  6: LOAD(a, data, 4, unit); LOAD(b, data, 2, unit); break; \
-	case  5: LOAD(a, data, 4, unit); LOAD(b, data, 1, unit); break; \
-	case  4: LOAD(a, data, 4, unit); break; \
-	case  3: LOAD(a, data, 3, unit); break; \
-	case  2: LOAD(a, data, 2, unit); break; \
-	case  1: LOAD(a, data, 1, unit); break; \
-	case  0: return c; \
-	} \
-	final_mix(a, b, c); \
-} while (0)
-
-/*
- * common function body
- */
-#define body(data, len, unit_type, unit) do { \
-	uint32_t a, b, c; \
-	const unit_type *ptr = data; \
-	a = b = c = 0xdeadbeef + len; \
-	main_loop(ptr, len, a, b, c, unit); \
-	final_loop(ptr, len, a, b, c, unit); \
-	return c; \
-} while (0)
-
-/*
- * actual function
- */
-unsigned lookup_hash(const void *data, unsigned len)
+uint32_t lookup3_hash(const void *data, size_t len)
 {
-	if (((long)data & 3) == 0)
-		body(data, len, uint32_t, 4);
-	else if (((long)data & 1) == 0)
-		body(data, len, uint16_t, 2);
-	else
-		body(data, len, uint8_t, 1);
+	uint32_t a, b, c;
+	uint32_t buf[3];
+	const uint8_t *p = data;
+
+	a = b = c = 0xdeadbeef + len;
+	if (len == 0)
+		goto done;
+
+	while (len > 12) {
+		memcpy(buf, p, 12);
+		a += buf[0];
+		b += buf[1];
+		c += buf[2];
+		main_mix(a, b, c);
+		p += 12;
+		len -= 12;
+	}
+
+	buf[0] = buf[1] = buf[2] = 0;
+	memcpy(buf, p, len);
+	a += buf[0];
+	b += buf[1];
+	c += buf[2];
+	final_mix(a, b, c);
+done:
+	return c;
 }
 

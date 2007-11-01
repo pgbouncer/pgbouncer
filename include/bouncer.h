@@ -123,9 +123,9 @@ struct PgAddr {
 };
 
 struct PgStats {
-	uint64		request_count;
-	uint64		server_bytes;
-	uint64		client_bytes;
+	uint64_t	request_count;
+	uint64_t	server_bytes;
+	uint64_t	client_bytes;
 	usec_t		query_time;	/* total req time in us */
 };
 
@@ -162,7 +162,7 @@ struct PgPool {
 	PgStats		older_stats;
 
 	/* database info to be sent to client */
-	uint8		welcome_msg[256];
+	uint8_t		welcome_msg[256];
 	unsigned	welcome_msg_len;
 
 	VarCache	orig_vars;
@@ -200,7 +200,7 @@ struct PgDatabase {
 	unsigned		db_paused:1;
 
 	/* key/val pairs (without user) for startup msg to be sent to server */
-	uint8			startup_params[256];
+	uint8_t			startup_params[256];
 	unsigned		startup_params_len;
 
 	/* if not NULL, the user/psw is forced */
@@ -244,7 +244,7 @@ struct PgSocket {
 	usec_t		query_start;	/* query start moment */
 
 	char		salt[4];
-	uint8		cancel_key[BACKENDKEY_LEN];
+	uint8_t		cancel_key[BACKENDKEY_LEN];
 	PgUser *	auth_user;
 	PgAddr		remote_addr;
 	PgAddr		local_addr;

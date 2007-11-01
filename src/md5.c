@@ -103,7 +103,7 @@ do { \
 #define MD5_D0	0x10325476
 
 /* Integer part of 4294967296 times abs(sin(i)), where i is in radians. */
-static const uint32 T[65] = {
+static const uint32_t T[65] = {
 	0,
 	0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee,
 	0xf57c0faf, 0x4787c62a, 0xa8304613, 0xfd469501,
@@ -126,7 +126,7 @@ static const uint32 T[65] = {
 	0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391,
 };
 
-static const uint8 md5_paddat[MD5_BUFLEN] = {
+static const uint8_t md5_paddat[MD5_BUFLEN] = {
 	0x80, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0,
 	0, 0, 0, 0, 0, 0, 0, 0,
@@ -137,7 +137,7 @@ static const uint8 md5_paddat[MD5_BUFLEN] = {
 	0, 0, 0, 0, 0, 0, 0, 0,
 };
 
-static void md5_calc(uint8 *, md5_ctxt *);
+static void md5_calc(uint8_t *, md5_ctxt *);
 
 void
 md5_init(md5_ctxt * ctxt)
@@ -152,7 +152,7 @@ md5_init(md5_ctxt * ctxt)
 }
 
 void
-md5_loop(md5_ctxt * ctxt, const uint8 *input, unsigned len)
+md5_loop(md5_ctxt * ctxt, const uint8_t *input, unsigned len)
 {
 	unsigned int gap,
 				i;
@@ -166,7 +166,7 @@ md5_loop(md5_ctxt * ctxt, const uint8 *input, unsigned len)
 		md5_calc(ctxt->md5_buf, ctxt);
 
 		for (i = gap; i + MD5_BUFLEN <= len; i += MD5_BUFLEN)
-			md5_calc((uint8 *) (input + i), ctxt);
+			md5_calc((uint8_t *) (input + i), ctxt);
 
 		ctxt->md5_i = len - i;
 		memmove(ctxt->md5_buf, input + i, ctxt->md5_i);
@@ -218,7 +218,7 @@ md5_pad(md5_ctxt * ctxt)
 }
 
 void
-md5_result(uint8 *digest, md5_ctxt * ctxt)
+md5_result(uint8_t *digest, md5_ctxt * ctxt)
 {
 	/* 4 byte words */
 #if BYTE_ORDER == LITTLE_ENDIAN
@@ -245,24 +245,24 @@ md5_result(uint8 *digest, md5_ctxt * ctxt)
 }
 
 #if BYTE_ORDER == BIG_ENDIAN
-static uint32 X[16];
+static uint32_t X[16];
 #endif
 
 static void
-md5_calc(uint8 *b64, md5_ctxt * ctxt)
+md5_calc(uint8_t *b64, md5_ctxt * ctxt)
 {
-	uint32		A = ctxt->md5_sta;
-	uint32		B = ctxt->md5_stb;
-	uint32		C = ctxt->md5_stc;
-	uint32		D = ctxt->md5_std;
+	uint32_t	A = ctxt->md5_sta;
+	uint32_t	B = ctxt->md5_stb;
+	uint32_t	C = ctxt->md5_stc;
+	uint32_t	D = ctxt->md5_std;
 
 #if BYTE_ORDER == LITTLE_ENDIAN
-	uint32	   *X = (uint32 *) b64;
+	uint32_t	   *X = (uint32_t *) b64;
 #endif
 #if BYTE_ORDER == BIG_ENDIAN
 	/* 4 byte words */
 	/* what a brute force but fast! */
-	uint8	   *y = (uint8 *) X;
+	uint8_t	   *y = (uint8_t *) X;
 
 	y[0] = b64[3];
 	y[1] = b64[2];

@@ -94,7 +94,7 @@ int safe_sendmsg(int fd, const struct msghdr *msg, int flags);
 #define isMD5(passwd) (memcmp(passwd, "md5", 3) == 0 \
 		&& strlen(passwd) == MD5_PASSWD_LEN)
 bool pg_md5_encrypt(const char *part1, const char *part2, size_t p2len, char *dest);
-bool get_random_bytes(uint8 *dest, int len);
+bool get_random_bytes(uint8_t *dest, int len);
 
 void socket_set_nonblocking(int fd, int val);
 void tune_socket(int sock, bool is_unix);

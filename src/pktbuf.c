@@ -56,7 +56,7 @@ PktBuf *pktbuf_dynamic(int start_len)
 	return buf;
 }
 
-void pktbuf_static(PktBuf *buf, uint8 *data, int len)
+void pktbuf_static(PktBuf *buf, uint8_t *data, int len)
 {
 	memset(buf, 0, sizeof(*buf));
 	buf->buf = data;
@@ -67,7 +67,7 @@ void pktbuf_static(PktBuf *buf, uint8 *data, int len)
 bool pktbuf_send_immidiate(PktBuf *buf, PgSocket *sk)
 {
 	int fd = sbuf_socket(&sk->sbuf);
-	uint8 *pos = buf->buf + buf->send_pos;
+	uint8_t *pos = buf->buf + buf->send_pos;
 	int amount = buf->write_pos - buf->send_pos;
 	int res;
 
@@ -166,7 +166,7 @@ void pktbuf_put_char(PktBuf *buf, char val)
 	buf->buf[buf->write_pos++] = val;
 }
 
-void pktbuf_put_uint16(PktBuf *buf, uint16 val)
+void pktbuf_put_uint16(PktBuf *buf, uint16_t val)
 {
 	make_room(buf, 4);
 	if (buf->failed)
@@ -176,9 +176,9 @@ void pktbuf_put_uint16(PktBuf *buf, uint16 val)
 	buf->buf[buf->write_pos++] = val & 255;
 }
 
-void pktbuf_put_uint32(PktBuf *buf, uint32 val)
+void pktbuf_put_uint32(PktBuf *buf, uint32_t val)
 {
-	uint8 *pos;
+	uint8_t *pos;
 
 	make_room(buf, 4);
 	if (buf->failed)
@@ -192,10 +192,10 @@ void pktbuf_put_uint32(PktBuf *buf, uint32 val)
 	buf->write_pos += 4;
 }
 
-void pktbuf_put_uint64(PktBuf *buf, uint64 val)
+void pktbuf_put_uint64(PktBuf *buf, uint64_t val)
 {
 	pktbuf_put_uint32(buf, val >> 32);
-	pktbuf_put_uint32(buf, (uint32)val);
+	pktbuf_put_uint32(buf, (uint32_t)val);
 }
 
 void pktbuf_put_bytes(PktBuf *buf, const void *data, int len)
@@ -236,7 +236,7 @@ void pktbuf_start_packet(PktBuf *buf, int type)
 
 void pktbuf_finish_packet(PktBuf *buf)
 {
-	uint8 *pos;
+	uint8_t *pos;
 	unsigned len;
 
 	if (buf->failed)
@@ -265,7 +265,7 @@ void pktbuf_write_generic(PktBuf *buf, int type, const char *pktdesc, ...)
 	va_list ap;
 	int len;
 	const char *adesc = pktdesc;
-	uint8 *bin;
+	uint8_t *bin;
 
 	pktbuf_start_packet(buf, type);
 
@@ -282,13 +282,13 @@ void pktbuf_write_generic(PktBuf *buf, int type, const char *pktdesc, ...)
 			pktbuf_put_uint32(buf, va_arg(ap, int));
 			break;
 		case 'q':
-			pktbuf_put_uint64(buf, va_arg(ap, uint64));
+			pktbuf_put_uint64(buf, va_arg(ap, uint64_t));
 			break;
 		case 's':
 			pktbuf_put_string(buf, va_arg(ap, char *));
 			break;
 		case 'b':
-			bin = va_arg(ap, uint8 *);
+			bin = va_arg(ap, uint8_t *);
 			len = va_arg(ap, int);
 			pktbuf_put_bytes(buf, bin, len);
 			break;
@@ -379,7 +379,7 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 			sprintf(tmp, "%d", va_arg(ap, int));
 			val = tmp;
 		} else if (tupdesc[i] == 'q') {
-			sprintf(tmp, "%llu", (unsigned long long)va_arg(ap, uint64));
+			sprintf(tmp, "%llu", (unsigned long long)va_arg(ap, uint64_t));
 			val = tmp;
 		} else if (tupdesc[i] == 's') {
 			val = va_arg(ap, char *);

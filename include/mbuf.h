@@ -27,12 +27,12 @@
 
 typedef struct MBuf MBuf;
 struct MBuf {
-	const uint8 *data;
-	const uint8 *end;
-	const uint8 *pos;
+	const uint8_t *data;
+	const uint8_t *end;
+	const uint8_t *pos;
 };
 
-static inline void mbuf_init(MBuf *buf, const uint8 *ptr, int len)
+static inline void mbuf_init(MBuf *buf, const uint8_t *ptr, int len)
 {
 	if (len < 0)
 		fatal("fuckup");
@@ -40,7 +40,7 @@ static inline void mbuf_init(MBuf *buf, const uint8 *ptr, int len)
 	buf->end = ptr + len;
 }
 
-static inline uint8 mbuf_get_char(MBuf *buf)
+static inline uint8_t mbuf_get_char(MBuf *buf)
 {
 	if (buf->pos + 1 > buf->end)
 		fatal("buffer overflow");
@@ -57,9 +57,9 @@ static inline unsigned mbuf_get_uint16(MBuf *buf)
 	return val;
 }
 
-static inline unsigned mbuf_get_uint32(MBuf *buf)
+static inline uint32_t mbuf_get_uint32(MBuf *buf)
 {
-	unsigned val;
+	uint32_t val;
 	if (buf->pos + 4 > buf->end)
 		fatal("buffer overflow");
 	val = *buf->pos++;
@@ -69,17 +69,17 @@ static inline unsigned mbuf_get_uint32(MBuf *buf)
 	return val;
 }
 
-static inline unsigned mbuf_get_uint64(MBuf *buf)
+static inline uint64_t mbuf_get_uint64(MBuf *buf)
 {
-	uint64 i1, i2;
+	uint64_t i1, i2;
 	i1 = mbuf_get_uint32(buf);
 	i2 = mbuf_get_uint32(buf);
 	return (i1 << 32) | i2;
 }
 
-static inline const uint8 * mbuf_get_bytes(MBuf *buf, unsigned len)
+static inline const uint8_t * mbuf_get_bytes(MBuf *buf, unsigned len)
 {
-	const uint8 *res = buf->pos;
+	const uint8_t *res = buf->pos;
 	if (buf->pos + len > buf->end)
 		fatal("buffer overflow");
 	buf->pos += len;
@@ -99,7 +99,7 @@ static inline unsigned mbuf_size(const MBuf *buf)
 static inline const char * mbuf_get_string(MBuf *buf)
 {
 	const char *res = (const char *)buf->pos;
-	const uint8 *nul = memchr(res, 0, mbuf_avail(buf));
+	const uint8_t *nul = memchr(res, 0, mbuf_avail(buf));
 	if (!nul)
 		return NULL;
 	buf->pos = nul + 1;

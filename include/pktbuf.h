@@ -22,7 +22,7 @@
 
 typedef struct PktBuf PktBuf;
 struct PktBuf {
-	uint8 *buf;
+	uint8_t *buf;
 	int buf_len;
 	int write_pos;
 	int pktlen_pos;
@@ -39,7 +39,7 @@ struct PktBuf {
  * pktbuf creation
  */
 PktBuf *pktbuf_dynamic(int start_len);
-void pktbuf_static(PktBuf *buf, uint8 *data, int len);
+void pktbuf_static(PktBuf *buf, uint8_t *data, int len);
 
 /*
  * sending
@@ -52,9 +52,9 @@ void pktbuf_send_queued(PktBuf *buf, PgSocket *sk);
  */
 void pktbuf_start_packet(PktBuf *buf, int type);
 void pktbuf_put_char(PktBuf *buf, char val);
-void pktbuf_put_uint16(PktBuf *buf, uint16 val);
-void pktbuf_put_uint32(PktBuf *buf, uint32 val);
-void pktbuf_put_uint64(PktBuf *buf, uint64 val);
+void pktbuf_put_uint16(PktBuf *buf, uint16_t val);
+void pktbuf_put_uint32(PktBuf *buf, uint32_t val);
+void pktbuf_put_uint64(PktBuf *buf, uint64_t val);
 void pktbuf_put_string(PktBuf *buf, const char *str);
 void pktbuf_put_bytes(PktBuf *buf, const void *data, int len);
 void pktbuf_finish_packet(PktBuf *buf);
@@ -111,7 +111,7 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...);
  */
 
 #define SEND_wrap(buflen, pktfn, res, sk, args...) do { \
-	uint8 _data[buflen]; PktBuf _buf; \
+	uint8_t _data[buflen]; PktBuf _buf; \
 	pktbuf_static(&_buf, _data, sizeof(_data)); \
 	pktfn(&_buf, ## args); \
 	res = pktbuf_send_immidiate(&_buf, sk); \

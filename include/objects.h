@@ -44,9 +44,9 @@ void forward_cancel_request(PgSocket *server);
 
 void launch_new_connection(PgPool *pool);
 
-bool use_client_socket(int fd, PgAddr *addr, const char *dbname, const char *username, uint64 ckey, int oldfd, int linkfd,
+bool use_client_socket(int fd, PgAddr *addr, const char *dbname, const char *username, uint64_t ckey, int oldfd, int linkfd,
 		       const char *client_end, const char *std_string, const char *datestyle, const char *timezone);
-bool use_server_socket(int fd, PgAddr *addr, const char *dbname, const char *username, uint64 ckey, int oldfd, int linkfd,
+bool use_server_socket(int fd, PgAddr *addr, const char *dbname, const char *username, uint64_t ckey, int oldfd, int linkfd,
 		       const char *client_end, const char *std_string, const char *datestyle, const char *timezone);
 
 void pause_client(PgSocket *client);

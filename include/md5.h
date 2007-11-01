@@ -40,8 +40,8 @@ typedef struct
 {
 	union
 	{
-		uint32		md5_state32[4];
-		uint8		md5_state8[16];
+		uint32_t		md5_state32[4];
+		uint8_t		md5_state8[16];
 	}			md5_st;
 
 #define md5_sta		md5_st.md5_state32[0]
@@ -52,20 +52,20 @@ typedef struct
 
 	union
 	{
-		uint64		md5_count64;
-		uint8		md5_count8[8];
+		uint64_t	md5_count64;
+		uint8_t		md5_count8[8];
 	}			md5_count;
 #define md5_n	md5_count.md5_count64
 #define md5_n8	md5_count.md5_count8
 
-	unsigned int md5_i;
-	uint8		md5_buf[MD5_BUFLEN];
+	unsigned	md5_i;
+	uint8_t		md5_buf[MD5_BUFLEN];
 }	md5_ctxt;
 
 extern void md5_init(md5_ctxt *);
-extern void md5_loop(md5_ctxt *, const uint8 *, unsigned int);
+extern void md5_loop(md5_ctxt *, const uint8_t *, unsigned int);
 extern void md5_pad(md5_ctxt *);
-extern void md5_result(uint8 *, md5_ctxt *);
+extern void md5_result(uint8_t *, md5_ctxt *);
 
 /* compatibility with OpenSSL */
 #define MD5_CTX		md5_ctxt

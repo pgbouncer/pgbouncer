@@ -315,7 +315,7 @@ load_error:
  * PostgreSQL MD5 hashing.
  */
 
-static void hash2hex(const uint8 *hash, char *dst)
+static void hash2hex(const uint8_t *hash, char *dst)
 {
 	int i;
 	static const char hextbl [] = "0123456789abcdef";
@@ -331,7 +331,7 @@ bool pg_md5_encrypt(const char *part1,
 		    char *dest)
 {
 	MD5_CTX ctx;
-	uint8 hash[MD5_DIGEST_LENGTH];
+	uint8_t hash[MD5_DIGEST_LENGTH];
 
 	MD5_Init(&ctx);
 	MD5_Update(&ctx, part1, strlen(part1));
@@ -345,7 +345,7 @@ bool pg_md5_encrypt(const char *part1,
 }
 
 /* wrapped for getting random bytes */
-bool get_random_bytes(uint8 *dest, int len)
+bool get_random_bytes(uint8_t *dest, int len)
 {
 	int i;
 	for (i = 0; i < len; i++)

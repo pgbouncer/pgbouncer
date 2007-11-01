@@ -100,7 +100,7 @@ bool get_header(MBuf *data, PktHdr *pkt)
 
 bool send_pooler_error(PgSocket *client, bool send_ready, const char *msg)
 {
-	uint8 tmpbuf[512];
+	uint8_t tmpbuf[512];
 	PktBuf buf;
 
 	if (cf_log_pooler_errors)
@@ -178,7 +178,7 @@ void finish_welcome_msg(PgSocket *server)
 bool welcome_client(PgSocket *client)
 {
 	int res;
-	uint8 buf[1024];
+	uint8_t buf[1024];
 	PktBuf msg;
 	PgPool *pool = client->pool;
 
@@ -223,7 +223,7 @@ static bool login_clear_psw(PgSocket *server)
 	return send_password(server, server->pool->user->passwd);
 }
 
-static bool login_crypt_psw(PgSocket *server, const uint8 *salt)
+static bool login_crypt_psw(PgSocket *server, const uint8_t *salt)
 {
 	char saltbuf[3];
 	const char *enc;
@@ -235,7 +235,7 @@ static bool login_crypt_psw(PgSocket *server, const uint8 *salt)
 	return send_password(server, enc);
 }
 
-static bool login_md5_psw(PgSocket *server, const uint8 *salt)
+static bool login_md5_psw(PgSocket *server, const uint8_t *salt)
 {
 	char txt[MD5_PASSWD_LEN + 1], *src;
 	PgUser *user = server->pool->user;
@@ -255,7 +255,7 @@ static bool login_md5_psw(PgSocket *server, const uint8 *salt)
 bool answer_authreq(PgSocket *server, PktHdr *pkt)
 {
 	unsigned cmd;
-	const uint8 *salt;
+	const uint8_t *salt;
 	bool res = false;
 
 	/* authreq body must contain 32bit cmd */
@@ -304,7 +304,7 @@ bool send_startup_packet(PgSocket *server)
 	PgDatabase *db = server->pool->db;
 	const char *username = server->pool->user->name;
 	PktBuf pkt;
-	uint8 buf[512];
+	uint8_t buf[512];
 
 	pktbuf_static(&pkt, buf, sizeof(buf));
 	pktbuf_write_StartupMessage(&pkt, username,
@@ -320,7 +320,7 @@ int scan_text_result(MBuf *pkt, const char *tupdesc, ...)
 	unsigned ncol, i, asked;
 	va_list ap;
 	int *int_p;
-	uint64 *long_p;
+	uint64_t *long_p;
 	char **str_p;
 
 	asked = strlen(tupdesc);
@@ -344,7 +344,7 @@ int scan_text_result(MBuf *pkt, const char *tupdesc, ...)
 			*int_p = atoi(val);
 			break;
 		case 'q':
-			long_p = va_arg(ap, uint64 *);
+			long_p = va_arg(ap, uint64_t *);
 			*long_p = atoll(val);
 			break;
 		case 's':

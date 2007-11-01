@@ -39,7 +39,7 @@ static void stat_add(PgStats *total, PgStats *stat)
 
 static void calc_average(PgStats *avg, PgStats *cur, PgStats *old)
 {
-	uint64 qcount;
+	uint64_t qcount;
 	usec_t dur = get_cached_time() - old_stamp;
 
 	reset_stats(avg);

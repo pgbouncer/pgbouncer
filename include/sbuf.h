@@ -63,7 +63,7 @@ struct SBuf {
 	unsigned is_unix:1;	/* is it unix socket */
 	unsigned wait_send:1;	/* debug var, otherwise useless */
 
-	uint8 buf[0];
+	uint8_t buf[0];
 };
 
 #define sbuf_socket(sbuf) ((sbuf)->sock)

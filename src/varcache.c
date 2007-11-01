@@ -132,11 +132,11 @@ static int apply_var(PktBuf *pkt, const char *key,
 bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
 {
 	PktBuf pkt;
-	uint8 buf[1024];
+	uint8_t buf[1024];
 	int changes = 0;
 	const char *cval, *sval;
 	const struct var_lookup *lk;
-	uint8 *debug_sql;
+	uint8_t *debug_sql;
 	bool std_quote = is_std_quote(&server->vars);
 
 	pktbuf_static(&pkt, buf, sizeof(buf));

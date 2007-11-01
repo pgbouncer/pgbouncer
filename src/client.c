@@ -157,10 +157,10 @@ static const char valid_crypt_salt[] =
 
 static bool send_client_authreq(PgSocket *client)
 {
-	uint8 saltlen = 0;
+	uint8_t saltlen = 0;
 	int res;
 	int auth = cf_auth_type;
-	uint8 randbuf[2];
+	uint8_t randbuf[2];
 
 	if (auth == AUTH_CRYPT) {
 		saltlen = 2;
@@ -253,7 +253,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		break;
 	case PKT_CANCEL:
 		if (mbuf_avail(&pkt->data) == BACKENDKEY_LEN) {
-			const uint8 *key = mbuf_get_bytes(&pkt->data, BACKENDKEY_LEN);
+			const uint8_t *key = mbuf_get_bytes(&pkt->data, BACKENDKEY_LEN);
 			memcpy(client->cancel_key, key, BACKENDKEY_LEN);
 			accept_cancel_request(client);
 		} else

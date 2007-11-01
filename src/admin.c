@@ -124,7 +124,7 @@ void admin_flush(PgSocket *admin, PktBuf *buf, const char *desc)
 bool admin_ready(PgSocket *admin, const char *desc)
 {
 	PktBuf buf;
-	uint8 tmp[512];
+	uint8_t tmp[512];
 	pktbuf_static(&buf, tmp, sizeof(tmp));
 	pktbuf_write_CommandComplete(&buf, desc);
 	pktbuf_write_ReadyForQuery(&buf);
@@ -152,7 +152,7 @@ static bool send_one_fd(PgSocket *admin,
 			int fd, const char *task,
 			const char *user, const char *db,
 			const char *addr, int port,
-			uint64 ckey, int link,
+			uint64_t ckey, int link,
 			const char *client_enc,
 			const char *std_strings,
 			const char *datestyle,
@@ -162,8 +162,8 @@ static bool send_one_fd(PgSocket *admin,
 	struct cmsghdr *cmsg;
 	int res;
 	struct iovec iovec;
-	uint8 pktbuf[1024];
-	uint8 cntbuf[CMSG_SPACE(sizeof(int))];
+	uint8_t pktbuf[1024];
+	uint8_t cntbuf[CMSG_SPACE(sizeof(int))];
 
 	iovec.iov_base = pktbuf;
 	BUILD_DataRow(res, pktbuf, sizeof(pktbuf), "issssiqissss",

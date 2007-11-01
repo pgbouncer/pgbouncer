@@ -271,7 +271,7 @@ void sbuf_prepare_skip(SBuf *sbuf, int amount)
 static bool sbuf_call_proto(SBuf *sbuf, int event)
 {
 	MBuf mbuf;
-	uint8 *pos = sbuf->buf + sbuf->pkt_pos;
+	uint8_t *pos = sbuf->buf + sbuf->pkt_pos;
 	int avail = sbuf->recv_pos - sbuf->pkt_pos;
 	bool res;
 
@@ -333,7 +333,7 @@ static void sbuf_queue_send(SBuf *sbuf)
 static bool sbuf_send_pending(SBuf *sbuf)
 {
 	int res, avail;
-	uint8 *pos;
+	uint8_t *pos;
 
 	AssertActive(sbuf);
 	Assert(sbuf->dst || !sbuf->send_remain);
@@ -464,7 +464,7 @@ static void sbuf_try_resync(SBuf *sbuf)
 static bool sbuf_actual_recv(SBuf *sbuf, int len)
 {
 	int got;
-	uint8 *pos;
+	uint8_t *pos;
 
 	AssertActive(sbuf);
 	Assert(len > 0);

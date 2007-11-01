@@ -47,7 +47,7 @@ static bool takeover_load_fd(MBuf *pkt, const struct cmsghdr *cmsg)
 	char *client_enc, *std_string, *datestyle, *timezone;
 	int oldfd, port, linkfd;
 	int got;
-	uint64 ckey;
+	uint64_t ckey;
 	PgAddr addr;
 
 	memset(&addr, 0, sizeof(addr));
@@ -232,8 +232,8 @@ static void takeover_parse_data(PgSocket *bouncer,
 static void takeover_recv_cb(int sock, short flags, void *arg)
 {
 	PgSocket *bouncer = arg;
-	uint8 data_buf[2048];
-	uint8 cnt_buf[128];
+	uint8_t data_buf[2048];
+	uint8_t cnt_buf[128];
 	struct msghdr msg;
 	struct iovec io;
 	int res;

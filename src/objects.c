@@ -583,7 +583,7 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason)
 {
 	PgPool *pool = server->pool;
 	PgSocket *client = server->link;
-	static const uint8 pkt_term[] = {'X', 0,0,0,4};
+	static const uint8_t pkt_term[] = {'X', 0,0,0,4};
 	int send_term = 1;
 
 	if (cf_log_disconnections)
@@ -861,7 +861,7 @@ void forward_cancel_request(PgSocket *server)
 
 bool use_client_socket(int fd, PgAddr *addr,
 		       const char *dbname, const char *username,
-		       uint64 ckey, int oldfd, int linkfd,
+		       uint64_t ckey, int oldfd, int linkfd,
 		       const char *client_enc, const char *std_string,
 		       const char *datestyle, const char *timezone)
 {
@@ -894,7 +894,7 @@ bool use_client_socket(int fd, PgAddr *addr,
 
 bool use_server_socket(int fd, PgAddr *addr,
 		       const char *dbname, const char *username,
-		       uint64 ckey, int oldfd, int linkfd,
+		       uint64_t ckey, int oldfd, int linkfd,
 		       const char *client_enc, const char *std_string,
 		       const char *datestyle, const char *timezone)
 {

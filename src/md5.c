@@ -28,19 +28,12 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- * $PostgreSQL: pgsql/contrib/pgcrypto/md5.c,v 1.13 2005/07/11 15:07:59 tgl Exp $
+ * $PostgreSQL: pgsql/contrib/pgcrypto/md5.c,v 1.14 2007/04/06 05:36:50 tgl Exp $
  */
 
 #include "bouncer.h"
 
-#include <sys/param.h>
-
 #include "md5.h"
-
-/* sanity check */
-#if !defined(BYTE_ORDER) || (BYTE_ORDER != LITTLE_ENDIAN && BYTE_ORDER != BIG_ENDIAN)
-#error Define BYTE_ORDER to be equal to either LITTLE_ENDIAN or BIG_ENDIAN
-#endif
 
 #define SHIFT(X, s) (((X) << (s)) | ((X) >> (32 - (s))))
 
@@ -200,10 +193,9 @@ md5_pad(md5_ctxt * ctxt)
 	}
 
 	/* 8 byte word */
-#if BYTE_ORDER == LITTLE_ENDIAN
+#ifndef WORDS_BIGENDIAN
 	memmove(&ctxt->md5_buf[56], &ctxt->md5_n8[0], 8);
-#endif
-#if BYTE_ORDER == BIG_ENDIAN
+#else
 	ctxt->md5_buf[56] = ctxt->md5_n8[7];
 	ctxt->md5_buf[57] = ctxt->md5_n8[6];
 	ctxt->md5_buf[58] = ctxt->md5_n8[5];
@@ -221,10 +213,9 @@ void
 md5_result(uint8_t *digest, md5_ctxt * ctxt)
 {
 	/* 4 byte words */
-#if BYTE_ORDER == LITTLE_ENDIAN
+#ifndef WORDS_BIGENDIAN
 	memmove(digest, &ctxt->md5_st8[0], 16);
-#endif
-#if BYTE_ORDER == BIG_ENDIAN
+#else
 	digest[0] = ctxt->md5_st8[3];
 	digest[1] = ctxt->md5_st8[2];
 	digest[2] = ctxt->md5_st8[1];
@@ -244,7 +235,7 @@ md5_result(uint8_t *digest, md5_ctxt * ctxt)
 #endif
 }
 
-#if BYTE_ORDER == BIG_ENDIAN
+#ifdef WORDS_BIGENDIAN
 static uint32_t X[16];
 #endif
 
@@ -256,10 +247,9 @@ md5_calc(uint8_t *b64, md5_ctxt * ctxt)
 	uint32_t	C = ctxt->md5_stc;
 	uint32_t	D = ctxt->md5_std;
 
-#if BYTE_ORDER == LITTLE_ENDIAN
-	uint32_t	   *X = (uint32_t *) b64;
-#endif
-#if BYTE_ORDER == BIG_ENDIAN
+#ifndef WORDS_BIGENDIAN
+	uint32_t   *X = (uint32_t *) b64;
+#else
 	/* 4 byte words */
 	/* what a brute force but fast! */
 	uint8_t	   *y = (uint8_t *) X;

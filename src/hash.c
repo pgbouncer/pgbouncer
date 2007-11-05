@@ -21,6 +21,9 @@
  *
  * It is supposed to give same results as hashlittle() on little-endian
  * and hashbig() on big-endian machines.
+ *
+ * Speed seems comparable to Jenkins' optimized version (~ -10%).
+ * Actual difference varies as it depends on cpu/compiler/libc details.
  */
 
 #include <sys/types.h>
@@ -32,11 +35,8 @@
 /* rotate uint32 */
 #define rot(x,k) (((x)<<(k)) | ((x)>>(32-(k))))
 
-/*
- * lookup3 hash processes 3 uint32_t at a time.
- */
-
-#define main_mix(a, b, c) do { \
+/* mix 3 32-bit values reversibly */
+#define mix(a, b, c) do { \
 	a -= c;  a ^= rot(c, 4);  c += b; \
 	b -= a;  b ^= rot(a, 6);  a += c; \
 	c -= b;  c ^= rot(b, 8);  b += a; \
@@ -45,7 +45,8 @@
 	c -= b;  c ^= rot(b, 4);  b += a; \
 } while (0)
 
-#define final_mix(a, b, c) do { \
+/* final mixing of 3 32-bit values (a,b,c) into c */
+#define final(a, b, c) do { \
 	c ^= b; c -= rot(b,14); \
 	a ^= c; a -= rot(c,11); \
 	b ^= a; b -= rot(a,25); \
@@ -55,6 +56,7 @@
 	c ^= b; c -= rot(b,24); \
 } while (0)
 
+/* simple version - let compiler worry about memory access */
 uint32_t lookup3_hash(const void *data, size_t len)
 {
 	uint32_t a, b, c;
@@ -70,7 +72,7 @@ uint32_t lookup3_hash(const void *data, size_t len)
 		a += buf[0];
 		b += buf[1];
 		c += buf[2];
-		main_mix(a, b, c);
+		mix(a, b, c);
 		p += 12;
 		len -= 12;
 	}
@@ -80,7 +82,7 @@ uint32_t lookup3_hash(const void *data, size_t len)
 	a += buf[0];
 	b += buf[1];
 	c += buf[2];
-	final_mix(a, b, c);
+	final(a, b, c);
 done:
 	return c;
 }

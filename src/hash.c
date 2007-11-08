@@ -56,7 +56,17 @@
 	c ^= b; c -= rot(b,24); \
 } while (0)
 
-/* simple version - let compiler worry about memory access */
+/* for a small amount of bytes the call to libc is a loss */
+static inline void simple_memcpy(void *dst, const void *src, size_t n)
+{
+	const uint8_t *s = src;
+	uint8_t *d = dst;
+
+	while (n--)
+		*d++ = *s++;
+}
+
+/* short version - let compiler worry about memory access */
 uint32_t lookup3_hash(const void *data, size_t len)
 {
 	uint32_t a, b, c;
@@ -78,7 +88,7 @@ uint32_t lookup3_hash(const void *data, size_t len)
 	}
 
 	buf[0] = buf[1] = buf[2] = 0;
-	memcpy(buf, p, len);
+	simple_memcpy(buf, p, len);
 	a += buf[0];
 	b += buf[1];
 	c += buf[2];

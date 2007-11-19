@@ -555,8 +555,6 @@ void fill_remote_addr(PgSocket *sk, int fd, bool is_unix)
 			log_error("fill_remote_addr: getpeername(%d) = %s",
 				  fd, strerror(errno));
 		} else {
-			log_info("fill_remote_addr: remote=%s:%d",
-				 inet_ntoa(adr.sin_addr), ntohs(adr.sin_port));
 			dst->ip_addr = adr.sin_addr;
 			dst->port = ntohs(adr.sin_port);
 		}
@@ -581,8 +579,6 @@ void fill_local_addr(PgSocket *sk, int fd, bool is_unix)
 			log_error("fill_local_addr: getsockname(%d) = %s",
 				  fd, strerror(errno));
 		} else {
-			log_info("fill_local_addr: local=%s:%d",
-				 inet_ntoa(adr.sin_addr), ntohs(adr.sin_port));
 			dst->ip_addr = adr.sin_addr;
 			dst->port = ntohs(adr.sin_port);
 		}

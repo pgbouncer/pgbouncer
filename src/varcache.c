@@ -47,6 +47,10 @@ bool varcache_set(VarCache *cache, const char *key, const char *value)
 	char *pos;
 	const struct var_lookup *lk;
 
+	/* convert NULL to empty string */
+	if (value == NULL)
+		value = "";
+
 	for (lk = lookup; lk->name; lk++) {
 		if (strcasecmp(lk->name, key) != 0)
 			continue;

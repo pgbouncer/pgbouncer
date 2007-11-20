@@ -110,13 +110,9 @@ static int apply_var(PktBuf *pkt, const char *key,
 	if (strcasecmp(cval, sval) == 0)
 		return 0;
 
-	/* sanity check */
-	if (!*cval || !*sval) {
-		/* parameters that can change should be always set */
-		log_warning("Parameter unset: key='%s' client='%s' server='%s'",
-			    key, cval, sval);
+	/* if unset, ignore */
+	if (!*cval)
 		return 0;
-	}
 
 	/* the string may have been taken from startup pkt */
 	if (!quote_literal(qbuf, sizeof(qbuf), cval, std_quote))

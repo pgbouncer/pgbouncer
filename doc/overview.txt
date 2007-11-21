@@ -17,7 +17,7 @@ Downloads, bugtracker, CVS: http://pgfoundry.org/projects/pgbouncer
 
   Transaction pooling::
 	Server connection is assigned to client only during a transaction.
-	When PgBouncer notices that transaction is over, the server
+	When !PgBouncer notices that transaction is over, the server
 	will be put back into pool.  This is a hack as it breaks application
 	expectations of backend connection.  You can use it only when
 	application cooperates with such usage by not using features
@@ -29,7 +29,7 @@ Downloads, bugtracker, CVS: http://pgfoundry.org/projects/pgbouncer
 	"autocommit" mode on client, mostly targeted for PL/Proxy.
 
  * Low memory requirements (2k per connection by default).  This is due
- to the fact that PgBouncer does not need to see full packet at once.
+ to the fact that !PgBouncer does not need to see full packet at once.
 
  * It is not tied to one backend server, the destination databases can
  reside on different hosts.
@@ -42,14 +42,16 @@ Downloads, bugtracker, CVS: http://pgfoundry.org/projects/pgbouncer
 
 == Docs ==
 
- * Detailed usage info: [http://pgbouncer.projects.postgresql.org/doc/usage.html usage.html]
- * Config file help: [http://pgbouncer.projects.postgresql.org/doc/config.html config.html]
- * TODO list: [http://pgbouncer.projects.postgresql.org/doc/todo.html todo.html]
+ * [http://pgbouncer.projects.postgresql.org/doc/usage.html Usage documentation]
+ * [http://pgbouncer.projects.postgresql.org/doc/config.html Config file documentation]
+ * [http://pgbouncer.projects.postgresql.org/doc/todo.html TODO list]
+ * [http://pgbouncer.projects.postgresql.org/doc/faq.html FAQ]:
+ Load-balancing, SSL, prepared statements, online restart.
 
-== Feature map ==
+== SQL feature map for pooling modes ==
 
 Following table list various PostgreSQL features and whether they are
-compatible with PgBouncer pooling modes.  Note that 'transaction'
+compatible with !PgBouncer pooling modes.  Note that 'transaction'
 pooling breaks client expectations of server and can be used only
 if application cooperates by not using non-working features.
 
@@ -67,8 +69,8 @@ if application cooperates by not using non-working features.
 || LOAD statement                   || Yes             || Never               ||
 
  * [0] - Startup parameters are: `client_encoding`, `datestyle`, `timezone`
- and `standard_conforming_strings`.  PgBouncer can detect their changes
+ and `standard_conforming_strings`.  !PgBouncer can detect their changes
  so it can guarantee they remain consistent for client.  Available
- from PgBouncer 1.1.
- * [1] - Full transparency requires PostgreSQL 8.3 and PgBouncer 1.1 with `server_reset_query = DISCARD ALL`
- * [2] - It is possible to add support for that into PgBouncer.
+ from !PgBouncer 1.1.
+ * [1] - Full transparency requires PostgreSQL 8.3 and !PgBouncer 1.1 with `server_reset_query = DISCARD ALL`
+ * [2] - It is possible to add support for that into !PgBouncer.

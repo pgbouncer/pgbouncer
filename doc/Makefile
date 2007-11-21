@@ -5,7 +5,7 @@ web = mkz@shell.pgfoundry.org:/home/pgfoundry.org/groups/pgbouncer/htdocs/
 -include ../config.mak
 
 MANPAGES = pgbouncer.1 pgbouncer.5
-HTML = config.html usage.html todo.html
+HTML = config.html usage.html todo.html faq.html
 
 all: $(MANPAGES)
 
@@ -42,9 +42,10 @@ ifneq ($(ASCIIDOC),)
 endif
 
 clean:
-	rm -f *.html *.xml
+	rm -f *.html
 
 distclean: clean
+	rm -f *.xml
 
 realclean: distclean
 	rm -f *.[1-9]

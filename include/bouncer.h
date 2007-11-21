@@ -167,6 +167,9 @@ struct PgPool {
 
 	VarCache	orig_vars;
 
+	/* last time when server_lifetime was applied */
+	usec_t		last_lifetime_disconnect;
+
 	/* if last connect failed, there should be delay before next */
 	usec_t		last_connect_time;
 	unsigned	last_connect_failed:1;

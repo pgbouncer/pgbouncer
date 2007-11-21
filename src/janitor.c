@@ -315,11 +315,21 @@ static void pool_client_maint(PgPool *pool)
 	}
 }
 
-static void check_unused_servers(StatList *slist, usec_t now, bool idle_test)
+static void check_unused_servers(PgPool *pool, StatList *slist, bool idle_test)
 {
+	usec_t now = get_cached_time();
 	List *item, *tmp;
 	usec_t idle, age;
 	PgSocket *server;
+	usec_t lifetime_kill_gap = 0;
+
+	/*
+	 * Calculate the time that disconnects because of server_lifetime
+	 * must be separated.  This avoids the need to re-launch lot
+	 * of connections together.
+	 */
+	if (cf_server_lifetime > 0 && pool->db->pool_size > 0)
+		lifetime_kill_gap = cf_server_lifetime / pool->db->pool_size;
 
 	/* disconnect idle servers if needed */
 	statlist_for_each_safe(item, slist, tmp) {
@@ -328,19 +338,22 @@ static void check_unused_servers(StatList *slist, usec_t now, bool idle_test)
 		age = now - server->connect_time;
 		idle = now - server->request_time;
 
-		if (server->close_needed)
+		if (server->close_needed) {
 			disconnect_server(server, true, "database configuration changed");
-		else if (server->state == SV_IDLE && !server->ready)
+		} else if (server->state == SV_IDLE && !server->ready) {
 			disconnect_server(server, true, "SV_IDLE server got dirty");
-		else if (server->state == SV_USED && !server->ready)
+		} else if (server->state == SV_USED && !server->ready) {
 			disconnect_server(server, true, "SV_USED server got dirty");
-		else if (cf_server_idle_timeout > 0 && idle > cf_server_idle_timeout)
+		} else if (cf_server_idle_timeout > 0 && idle > cf_server_idle_timeout) {
 			disconnect_server(server, true, "server idle timeout");
-		else if (cf_server_lifetime > 0 && age > cf_server_lifetime)
-			disconnect_server(server, true, "server lifetime over");
-		else if (cf_pause_mode == P_PAUSE)
+		} else if (cf_server_lifetime > 0 && age > cf_server_lifetime) {
+			if (pool->last_lifetime_disconnect + lifetime_kill_gap <= now) {
+				disconnect_server(server, true, "server lifetime over");
+				pool->last_lifetime_disconnect = now;
+			}
+		} else if (cf_pause_mode == P_PAUSE) {
 			disconnect_server(server, true, "pause mode");
-		else if (idle_test && *cf_server_check_query) {
+		} else if (idle_test && *cf_server_check_query) {
 			if (idle > cf_server_check_delay)
 				change_server_state(server, SV_USED);
 		}
@@ -388,9 +401,9 @@ static void pool_server_maint(PgPool *pool)
 	PgSocket *server;
 
 	/* find and disconnect idle servers */
-	check_unused_servers(&pool->used_server_list, now, 0);
-	check_unused_servers(&pool->tested_server_list, now, 0);
-	check_unused_servers(&pool->idle_server_list, now, 1);
+	check_unused_servers(pool, &pool->used_server_list, 0);
+	check_unused_servers(pool, &pool->tested_server_list, 0);
+	check_unused_servers(pool, &pool->idle_server_list, 1);
 
 	/* where query got did not get answer in query_timeout */
 	if (cf_query_timeout > 0) {

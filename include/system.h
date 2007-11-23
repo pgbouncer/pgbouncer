@@ -65,8 +65,13 @@
 #endif
 
 #ifdef CASSERT
-#define Assert(e) do { if (unlikely(!(e))) { \
-	fatal_noexit("Assert(%s) failed", #e); abort(); } } while (0)
+#define Assert(e) \
+do { \
+	if (unlikely(!(e))) { \
+		fatal_noexit("Assert(%s) failed", #e); \
+		abort(); \
+	} \
+} while (0)
 #else
 #define Assert(e)
 #endif
@@ -81,10 +86,12 @@
 
 
 /*
- * PostgreSQL types.
+ * bool type.
  */
 
-typedef enum { false=0, true=1 } bool;
+typedef unsigned char bool;
+#define false	0
+#define true	1
 
 /*
  * PostgreSQL type OIDs for resultsets.
@@ -107,4 +114,46 @@ size_t strlcat(char *dst, const char *src, size_t n);
 #ifndef HAVE_GETPEEREID
 int getpeereid(int fd, uid_t *uid_p, gid_t *gid_p);
 #endif
+
+/*
+ * memcpy() optimization - improves hash.c.
+ *
+ * GCC can optimize fixed-length memcpys but not variable-length ones.
+ * For short variable-length memcpys its faster to do dumb inlined copy
+ * than call out to libc.
+ */
+
+#if defined(__GNUC__) && (__GNUC__ >= 3)
+
+static inline void *_inline_memcpy(void *dst_, const void *src_, size_t len)
+{
+	const uint8_t *src = src_;
+	uint8_t *dst = dst_;
+	while (len--)
+		*dst++ = *src++;
+	return dst_;
+}
+
+#define memcpy(dst, src, len) \
+	( __builtin_constant_p(len) \
+	  ? memcpy(dst, src, len) \
+	  : ((__builtin_constant_p((len) < 16) && ((len) < 16)) \
+	     ? _inline_memcpy(dst, src, len) \
+	     : memcpy(dst, src, len)))
+
+#endif
+
+/*
+ * strcmp() optimization - compare first char inline.
+ */
+
+static inline int _inline_strcmp(const char *a, const char *b)
+{
+	if ((*a - *b) != 0)
+		return (*a - *b);
+	return strcmp(a, b);
+}
+
+#define strcmp(a, b) _inline_strcmp(a, b)
+
 

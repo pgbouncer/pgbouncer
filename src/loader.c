@@ -249,7 +249,7 @@ void parse_database(char *name, char *connstr)
 			changed = true;
 		else if (username && !db->forced_user)
 			changed = true;
-		else if (username && strcmp(username, db->forced_user->name))
+		else if (username && strcmp(username, db->forced_user->name) != 0)
 			changed = true;
 		else if (!username && db->forced_user)
 			changed = true;

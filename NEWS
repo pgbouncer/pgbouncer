@@ -1,4 +1,23 @@
 
+2007-11-xx  -  PgBouncer 1.1.2  -  ""
+
+  = Features =
+
+    * Disconnects because of server_lifetime are now separated by
+      (server_lifetime / pool_size) seconds.  This avoids pgbouncer
+      causing reconnect floods.
+
+  = Fixes =
+
+    * Online upgrade 1.0 -> 1.1 problems:
+      - 1.0 does not track server parameters, so they stay NULL
+        but 1.1 did not expect it and crashed.
+      - If server params are unknown, but client ones are set,
+        then issue a SET for them, instead complaining.
+    * Remove temp debug statements that were accidentally left
+      in code on INFO level, so they polluted logs.
+    * Unbroke debian/changelog
+
 2007-10-26  -  PgBouncer 1.1.1  -  "Breakdancing Bee"
 
   = Fixes =

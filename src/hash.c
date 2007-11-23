@@ -26,10 +26,7 @@
  * Actual difference varies as it depends on cpu/compiler/libc details.
  */
 
-#include <sys/types.h>
-#include <stdint.h>
-#include <string.h>
-
+#include "system.h"
 #include "hash.h"
 
 /* rotate uint32 */

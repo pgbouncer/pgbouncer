@@ -1,11 +1,11 @@
 .\"     Title: pgbouncer
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.71.1 <http://docbook.sf.net/>
-.\"      Date: 10/08/2007
+.\"      Date: 11/23/2007
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "PGBOUNCER" "5" "10/08/2007" "" ""
+.TH "PGBOUNCER" "5" "11/23/2007" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -39,7 +39,7 @@ Config file is in "ini" format. Section names are between " and ". Lines startin
 .br
 \fBlogfile\fR
 .RS
-Specifies log file. Logging is done by open/write/close, so it can be safely rotasted, without informing pooler.
+Specifies log file. Log file is kept open so after rotation kill \-HUP or on console RELOAD; should be done.
 .sp
 Default: not set.
 .sp
@@ -63,9 +63,9 @@ Default: not set.
 .br
 \fBlisten_addr\fR
 .RS
-Specifies IPv4 address, where to listen for TCP connections. Or "*" meaning \fIlisten on all addresses\fR. When not set, only unix socket connections are allowed.
+Specifies IPv4 address, where to listen for TCP connections. Or * meaning "listen on all addresses". When not set, only unix socket connections are allowed.
 .sp
-Default: not set.
+Default: not set
 .sp
 .RE
 .sp
@@ -116,12 +116,16 @@ How to authenticate users.
 .PP
 md5
 .RS 4
-Use MD5\-based password check. auth_file may contain both md5\-encrypted or plain\-text passwords. Default.
+Use MD5\-based password check.
+auth_file
+may contain both md5\-encrypted or plain\-text passwords. Default.
 .RE
 .PP
 crypt
 .RS 4
-Use crypt(3) based bassword check. auth_file must contain plain\-text passwords.
+Use crypt(3) based bassword check.
+auth_file
+must contain plain\-text passwords.
 .RE
 .PP
 plain
@@ -131,12 +135,15 @@ Clear\-text password is sent over wire.
 .PP
 trust
 .RS 4
-No authentication is done. Username must still exists in auth_file.
+No authentication is done. Username must still exists in
+auth_file.
 .RE
 .PP
 any
 .RS 4
-Like trust but username given is ignored. Requires that all databases have configured to log in as specific user.
+Like
+trust
+but username given is ignored. Requires that all databases have configured to log in as specific user.
 .RE
 .RE
 .sp
@@ -283,6 +290,33 @@ Default: empty.
 .sp
 .RE
 .SS "Connection sanity checks, timeouts"
+.sp
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+\fBserver_reset_query\fR
+.RS
+Query send to server on connection release, before making it available to other clients. At that moment no transaction is in progress so it should not include ABORT or ROLLBACK.
+.sp
+Good choice for 8.2 and below is:
+.sp
+.sp
+.RS 4
+.nf
+server_reset_query = RESET ALL; SET SESSION AUTHORIZATION DEFAULT;
+.fi
+.RE
+.sp
+for 8.3 and above its enough to do:
+.sp
+.sp
+.RS 4
+.nf
+server_reset_query = DISCARD ALL;
+.fi
+.RE
+.RE
 .sp
 .it 1 an-trap
 .nr an-no-space-flag 1
@@ -535,7 +569,7 @@ Set maximum size of pools for this database. If not set, the default_pool_size i
 .SS "Extra parameters"
 They allow setting default parameters on server connection.
 .sp
-Note that since version 1.1 PgBouncer honours client changes for there values, so their use in pgbouncer.ini is deprecated.
+Note that since version 1.1 PgBouncer tracks client changes for their values, so their use in pgbouncer.ini is deprecated now.
 .sp
 .sp
 .it 1 an-trap

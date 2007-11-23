@@ -1,11 +1,11 @@
 .\"     Title: pgbouncer
 .\"    Author: 
 .\" Generator: DocBook XSL Stylesheets v1.71.1 <http://docbook.sf.net/>
-.\"      Date: 10/08/2007
+.\"      Date: 11/20/2007
 .\"    Manual: 
 .\"    Source: 
 .\"
-.TH "PGBOUNCER" "1" "10/08/2007" "" ""
+.TH "PGBOUNCER" "1" "11/20/2007" "" ""
 .\" disable hyphenation
 .nh
 .\" disable justification (adjust text to left margin only)
@@ -173,9 +173,12 @@ Console is available by connecting into standard listen_addr/listen_port and spe
 $ psql \-h 127.0.0.1 \-p 6543 pgbouncer
 .fi
 .RE
-.SS "SHOW COMMANDS"
-There is always a extra database available: "pgbouncer". When connecected to it, there is possible to look and change pooler settings.
 .sp
+Only users listed in configuration parameters admin_users or stats_users are allowed to login to the console.
+.sp
+Additionally, username pgbouncer is allowed to log in without password, if the login comes via UNIX socket and the client has same UNIX user uid as the running process.
+.sp
+.SS "SHOW COMMANDS"
 The SHOW commands output some rows, the columns contained are described here.
 .sp
 .sp
@@ -203,20 +206,20 @@ pgbouncer.
 .PP
 total_received
 .RS 4
-Total volume in bytes of network trafic received by
+Total volume in bytes of network traffic received by
 pgbouncer.
 .RE
 .PP
 total_sent
 .RS 4
-Total volume in bytes of network trafic sent by
+Total volume in bytes of network traffic sent by
 pgbouncer.
 .RE
 .PP
 total_query_time
 .RS 4
 Total number of milliseconds spent by
-pgloader
+pgbouncer
 when actively connected to PostgreSQL.
 .RE
 .PP

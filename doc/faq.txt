@@ -1,0 +1,92 @@
+
+= PgBouncer FAQ =
+
+== How to load-balance queries between several servers? ==
+
+Use a TCP connection load-balancer.  Either http://www.linuxvirtualserver.org/[LVS]
+or http://haproxy.1wt.eu/[HAProxy] seem to be good choices.  On PgBouncer
+side it may be good idea to make `server_lifetime` smaller and also
+turn `server_round_robin` on - by default idle connections are
+reused by LIFO algorithm which may work not so well when
+load-balancing is needed.
+
+
+== How to use SSL connections with PgBouncer? ==
+
+Use http://www.stunnel.org/[Stunnel].  Only problem is that
+Stunnel (as of v4.21) does not support PostgreSQL SSL handshake
+at the beginnning of connection.  Solution is to use either
+Stunnel on both sides of connection or to apply
+following patch to Stunnel -
+http://pgbouncer.projects.postgresql.org/patches/stunnel-postgres.diff[stunnel-postgres.diff]
+- that adds PostgreSQL protocol support to it (specified as `protocol=pgsql`).
+
+
+== How to use prepared statements with PgBouncer? ==
+
+These tricks are mostly needed for JDBC which just loves them.
+
+=== Session pooling with PostgreSQL 8.3 and newer ===
+
+This is easy - just set `server_reset_query = DISCARD ALL;`
+or at least to `DEALLOCATE ALL;`
+
+=== Session pooling with PostgreSQL 8.2 and older ===
+
+This is problematic as older versions of PostgreSQL do not allow
+easy way to drop prepared statements.  Luckily there is system
+view that shows prepared plans in current session.  So as a workaround
+following function can be created:
+
+    CREATE OR REPLACE FUNCTION deallocate_all()
+    RETURNS void AS $$
+    DECLARE
+	sql text;
+    BEGIN
+	FOR sql IN
+	    SELECT 'deallocate ' || quote_ident(name)
+	      FROM pg_catalog.pg_prepared_statements
+	LOOP
+	    EXECUTE sql;
+	END LOOP;
+    END;
+    $$ LANGUAGE plpgsql;
+
+Then the `server_reset_query` can be set to call it:
+
+    server_reset_query = RESET ALL; SET SESSION AUTHORIZATION DEFAULT; SELECT deallocate_all();
+
+
+=== Transaction pooling ===
+
+To make prepared statements work in this mode would need PgBouncer
+to keep track of them internally, which it does not do.  So only way to
+keep using PgBouncer in this mode is to disable prepared statements
+completely.
+
+For JDBC this seems to be achieved by adding `protocolVersion=2`
+parameter to connect string.
+
+
+== How to upgrade PgBouncer without dropping connections? ==
+
+This is as easy as launching new PgBouncer process with `-R` switch
+and same config:
+
+    $ pgbouncer -R -d config.ini
+
+The `-R` (reboot) switch makes new process connect to console
+of the old process (dbname=pgbouncer), issue following commands:
+
+  SUSPEND;
+  SHOW FDS;
+  SHUTDOWN;
+
+After that if new one notices old one gone it resumes work with
+old connections.  The magic happens during `SHOW FDS` command which
+transports actual file descriptors to new process.
+
+If the takeover does not work for whatever reason, the new process
+can be simply killed, old one notices this and resumes work.
+
+

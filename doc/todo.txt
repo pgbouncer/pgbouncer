@@ -3,9 +3,13 @@
 == Minor features ==
 
  * suspend_timeout - drop stalled conns
+ * when dest db does not exists, stalled logins can halt suspend
+   fix with suspend_timeout?
  * some preliminary notification that fd limit is full
  * drop_on_error/keep_on_error - if released conn is in error state,
  then issue rollback and keep it
+ * removing db from config and reload; should work
+ * show stalled; command - like show sockets; but filter only active ones
 
  * keep stats about error counts
  * auth_conn - access to pg_shadow, so auth_file is not needed

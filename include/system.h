@@ -134,12 +134,18 @@ static inline void *_inline_memcpy(void *dst_, const void *src_, size_t len)
 	return dst_;
 }
 
-#define memcpy(dst, src, len) \
-	( __builtin_constant_p(len) \
-	  ? memcpy(dst, src, len) \
-	  : ((__builtin_constant_p((len) < 16) && ((len) < 16)) \
-	     ? _inline_memcpy(dst, src, len) \
-	     : memcpy(dst, src, len)))
+static inline void *_own_memcpy(void *dst, const void *src, size_t len)
+{
+	if (!__builtin_constant_p(len)
+	    && __builtin_constant_p(len < 16)
+	    && len < 16)
+		return _inline_memcpy(dst, src, len);
+	else
+		return memcpy(dst, src, len);
+}
+
+#undef memcpy
+#define memcpy(d, s, n) _own_memcpy(d, s, n)
 
 #endif
 
@@ -154,6 +160,7 @@ static inline int _inline_strcmp(const char *a, const char *b)
 	return strcmp(a, b);
 }
 
+#undef strcmp
 #define strcmp(a, b) _inline_strcmp(a, b)
 
 

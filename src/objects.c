@@ -585,9 +585,11 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason)
 	PgSocket *client = server->link;
 	static const uint8_t pkt_term[] = {'X', 0,0,0,4};
 	int send_term = 1;
+	usec_t now = get_cached_time();
 
 	if (cf_log_disconnections)
-		slog_info(server, "closing because: %s", reason);
+		slog_info(server, "closing because: %s (age=%llu)", reason,
+			  (now - server->connect_time) / USEC);
 
 	switch (server->state) {
 	case SV_ACTIVE:
@@ -629,8 +631,11 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason)
 /* drop client connection */
 void disconnect_client(PgSocket *client, bool notify, const char *reason)
 {
+	usec_t now = get_cached_time();
+
 	if (cf_log_disconnections)
-		slog_info(client, "closing because: %s", reason);
+		slog_info(client, "closing because: %s (age=%llu)", reason,
+			  (now - client->connect_time) / USEC);
 
 	switch (client->state) {
 	case CL_ACTIVE:

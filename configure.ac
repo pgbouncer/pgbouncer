@@ -37,8 +37,14 @@ if test x"$GCC" = xyes; then
   AC_MSG_CHECKING([for working warning switches])
   good_CFLAGS="$CFLAGS"
   warnings=""
-  for f in -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers
-  do
+  flags="-Wall -Wextra"
+  # turn off noise from Wextra
+  flags="$flags -Wno-unused-parameter -Wno-missing-field-initializers"
+  # Wextra does not turn those on?
+  flags="$flags -Wmissing-prototypes -Wpointer-arith -Wendif-labels"
+  flags="$flags -Wdeclaration-after-statement -Wold-style-definition"
+  flags="$flags -Wstrict-prototypes"
+  for f in $flags; do
     CFLAGS="$good_CFLAGS $warnings $f"
     AC_COMPILE_IFELSE([void foo(void){}], [warnings="$warnings $f"])
   done

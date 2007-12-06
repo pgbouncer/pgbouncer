@@ -420,6 +420,10 @@ static void check_limits(void)
 	List *item;
 	PgDatabase *db;
 
+	log_noise("event: %d, SBuf: %d, PgSocket: %d, Full PgSocket: %d, buf ofs: %d",
+		  sizeof(struct event), sizeof(SBuf), sizeof(PgSocket), PG_SOCKET_SIZE,
+		  offsetof(SBuf, buf));
+
 	/* load limits */
 	err = getrlimit(RLIMIT_NOFILE, &lim);
 	if (err < 0) {

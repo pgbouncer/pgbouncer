@@ -30,21 +30,17 @@
 #define DO_RECV		false
 #define SKIP_RECV	true
 
-/*
- * If less that this amount of data is pending, then
- * prefer to merge it with next recv().
- *
- * It needs to be larger than data handler wants
- * to see completely.  Generally just header,
- * but currently also ServerParam pkt.
- */
-#define SMALL_PKT	64
+#define ACT_UNSET 0
+#define ACT_SEND 1
+#define ACT_SKIP 2
+#define ACT_CALL 3
+
 
 #define AssertSanity(sbuf) do { \
 	Assert((sbuf)->send_pos >= 0); \
 	Assert((sbuf)->send_pos <= (sbuf)->pkt_pos); \
 	Assert((sbuf)->pkt_pos <= (sbuf)->recv_pos); \
-	Assert((sbuf)->recv_pos <= cf_sbuf_len); \
+	Assert((sbuf)->recv_pos <= cf_sbuf_len + SBUF_MAX_REWRITE); \
 	Assert((sbuf)->pkt_remain >= 0); \
 	Assert((sbuf)->send_remain >= 0); \
 } while (0)
@@ -71,11 +67,11 @@ static bool sbuf_call_proto(SBuf *sbuf, int event);
  *********************************/
 
 /* initialize SBuf with proto handler */
-void sbuf_init(SBuf *sbuf, sbuf_proto_cb_t proto_fn, void *arg)
+void sbuf_init(SBuf *sbuf, sbuf_cb_t proto_fn, void *arg)
 {
 	memset(sbuf, 0, sizeof(*sbuf));
-	sbuf->arg = arg;
-	sbuf->proto_handler = proto_fn;
+	sbuf->proto_cb_arg = arg;
+	sbuf->proto_cb = proto_fn;
 }
 
 /* got new socket from accept() */
@@ -191,7 +187,7 @@ void sbuf_continue(SBuf *sbuf)
 	 * This is not true in ServerParameter case.
 	 */
 	/*
-	 * if (sbuf->recv_pos - sbuf->pkt_pos >= SMALL_PKT)
+	 * if (sbuf->recv_pos - sbuf->pkt_pos >= SBUF_SMALL_PKT)
 	 *	do_recv = false;
 	 */
 
@@ -209,7 +205,7 @@ void sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb user_cb)
 	AssertActive(sbuf);
 
 	event_set(&sbuf->ev, sbuf->sock, EV_READ | EV_PERSIST,
-		  user_cb, sbuf->arg);
+		  user_cb, sbuf->proto_cb_arg);
 	event_add(&sbuf->ev, NULL);
 }
 
@@ -224,7 +220,7 @@ void sbuf_close(SBuf *sbuf)
 	sbuf->dst = NULL;
 	sbuf->sock = 0;
 	sbuf->pkt_pos = sbuf->pkt_remain = sbuf->recv_pos = 0;
-	sbuf->pkt_skip = sbuf->wait_send = 0;
+	sbuf->pkt_action = sbuf->wait_send = 0;
 	sbuf->send_pos = sbuf->send_remain = 0;
 }
 
@@ -233,10 +229,10 @@ void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, int amount)
 {
 	AssertActive(sbuf);
 	Assert(sbuf->pkt_remain == 0);
-	Assert(sbuf->pkt_skip == 0 || sbuf->send_remain == 0);
+	Assert(sbuf->pkt_action == ACT_UNSET || sbuf->send_remain == 0);
 	Assert(amount > 0);
 
-	sbuf->pkt_skip = 0;
+	sbuf->pkt_action = ACT_SEND;
 	sbuf->pkt_remain = amount;
 	sbuf->dst = dst;
 }
@@ -246,12 +242,25 @@ void sbuf_prepare_skip(SBuf *sbuf, int amount)
 {
 	AssertActive(sbuf);
 	Assert(sbuf->pkt_remain == 0);
-	Assert(sbuf->pkt_skip == 0 || sbuf->send_remain == 0);
+	Assert(sbuf->pkt_action == ACT_UNSET || sbuf->send_remain == 0);
 	Assert(amount > 0);
 
-	sbuf->pkt_skip = 1;
+	sbuf->pkt_action = ACT_SKIP;
 	sbuf->pkt_remain = amount;
-	sbuf->dst = NULL;
+	/* sbuf->dst = NULL; // fixme ?? */
+}
+
+/* proto_fn tells to skip some amount of bytes */
+void sbuf_prepare_fetch(SBuf *sbuf, int amount)
+{
+	AssertActive(sbuf);
+	Assert(sbuf->pkt_remain == 0);
+	Assert(sbuf->pkt_action == ACT_UNSET || sbuf->send_remain == 0);
+	Assert(amount > 0);
+
+	sbuf->pkt_action = ACT_CALL;
+	sbuf->pkt_remain = amount;
+	/* sbuf->dst = NULL; // fixme ?? */
 }
 
 /*************************
@@ -278,8 +287,14 @@ static bool sbuf_call_proto(SBuf *sbuf, int event)
 	AssertSanity(sbuf);
 	Assert(event != SBUF_EV_READ || avail > 0);
 
+	/* if pkt callback, limit only with current packet */
+	if (event == SBUF_EV_PKT_CALLBACK) {
+		if (avail > sbuf->pkt_remain)
+			avail = sbuf->pkt_remain;
+	}
+
 	mbuf_init(&mbuf, pos, avail);
-	res = sbuf->proto_handler(sbuf, event, &mbuf, sbuf->arg);
+	res = sbuf->proto_cb(sbuf, event, &mbuf, sbuf->proto_cb_arg);
 
 	AssertSanity(sbuf);
 	Assert(event != SBUF_EV_READ || !res || sbuf->sock > 0);
@@ -388,7 +403,7 @@ all_sent:
 static bool sbuf_process_pending(SBuf *sbuf)
 {
 	int avail;
-	bool full = sbuf->recv_pos == cf_sbuf_len;
+	bool full = sbuf->recv_pos >= cf_sbuf_len;
 	bool res;
 
 	while (1) {
@@ -397,13 +412,13 @@ static bool sbuf_process_pending(SBuf *sbuf)
 		/*
 		 * Enough for now?
 		 *
-		 * The (avail <= SMALL_PKT) check is to avoid partial pkts.
+		 * The (avail <= SBUF_SMALL_PKT) check is to avoid partial pkts.
 		 * As SBuf should not assume knowledge about packets,
 		 * the check is not done in !full case.  Packet handler can
 		 * then still notify about partial packet by returning false.
 		 */
 		avail = sbuf->recv_pos - sbuf->pkt_pos;
-		if (avail == 0 || (full && avail <= SMALL_PKT))
+		if (avail == 0 || (full && avail <= SBUF_SMALL_PKT))
 			break;
 
 		/*
@@ -419,20 +434,26 @@ static bool sbuf_process_pending(SBuf *sbuf)
 		/* walk pkt, merge sends */
 		if (avail > sbuf->pkt_remain)
 			avail = sbuf->pkt_remain;
-		if (!sbuf->pkt_skip) {
+
+		switch (sbuf->pkt_action) {
+		case ACT_SEND:
 			if (sbuf->send_remain == 0)
 				sbuf->send_pos = sbuf->pkt_pos;
 			sbuf->send_remain += avail;
+			break;
+		case ACT_CALL:
+			res = sbuf_call_proto(sbuf, SBUF_EV_PKT_CALLBACK);
+			if (!res)
+				return false;
+			/* after callback, skip pkt */
+		case ACT_SKIP:
+			res = sbuf_send_pending(sbuf);
+			if (!res)
+				return res;
+			break;
 		}
 		sbuf->pkt_remain -= avail;
 		sbuf->pkt_pos += avail;
-
-		/* send data */
-		if (sbuf->pkt_skip) {
-			res = sbuf_send_pending(sbuf);
-			if (!res)
-				return false;
-		}
 	}
 
 	return sbuf_send_pending(sbuf);
@@ -452,7 +473,7 @@ static void sbuf_try_resync(SBuf *sbuf)
 
 	if (avail == 0) {
 		sbuf->recv_pos = sbuf->pkt_pos = sbuf->send_pos = 0;
-	} else if (avail <= SMALL_PKT) {
+	} else if (avail <= SBUF_SMALL_PKT) {
 		memmove(sbuf->buf, sbuf->buf + sbuf->send_pos, avail);
 		sbuf->pkt_pos -= sbuf->send_pos;
 		sbuf->send_pos = 0;
@@ -529,7 +550,7 @@ try_more:
 	sbuf_try_resync(sbuf);
 
 	/*
-	 * here used to be if (free > SMALL_PKT) check
+	 * here used to be if (free > SBUF_SMALL_PKT) check
 	 * but with skip_recv switch its should not be needed anymore.
 	 */
 	free = cf_sbuf_len - sbuf->recv_pos;
@@ -557,7 +578,7 @@ skip_recv:
 		return;
 
 	/* if the buffer is full, there can be more data available */
-	if (sbuf->recv_pos == cf_sbuf_len)
+	if (sbuf->recv_pos >= cf_sbuf_len)
 		goto try_more;
 
 	/* clean buffer */
@@ -617,5 +638,28 @@ bool sbuf_answer(SBuf *sbuf, const void *buf, int len)
 	else if (res != len)
 		log_debug("sbuf_answer: partial send: len=%d sent=%d", len, res);
 	return res == len;
+}
+
+bool sbuf_rewrite_header(SBuf *sbuf, int old_len,
+			 const uint8_t *new_hdr, int new_len)
+{
+	int avail = sbuf->recv_pos - sbuf->pkt_pos;
+	int diff = new_len - old_len;
+	uint8_t *pkt_pos = sbuf->buf + sbuf->pkt_pos;
+	uint8_t *old_pos = pkt_pos + old_len;
+	uint8_t *new_pos = pkt_pos + new_len;
+
+	AssertActive(sbuf);
+	Assert(old_len >= 0 && new_len >= 0);
+	Assert(diff <= SBUF_MAX_REWRITE);
+
+	/* overflow can be triggered by user by sending multiple Parse pkts */
+	if (sbuf->recv_pos + diff > cf_sbuf_len + SBUF_MAX_REWRITE)
+		return false;
+
+	memmove(new_pos, old_pos, avail - old_len);
+	memcpy(pkt_pos, new_hdr, new_len);
+	sbuf->recv_pos += diff;
+	return true;
 }
 

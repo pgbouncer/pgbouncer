@@ -117,9 +117,9 @@ void init_objects(void)
 
 void init_caches(void)
 {
-	server_cache = objcache_create("server_cache", sizeof(PgSocket) + cf_sbuf_len, 8,
+	server_cache = objcache_create("server_cache", PG_SOCKET_SIZE, 8,
 				       construct_server, clean_socket);
-	client_cache = objcache_create("client_cache", sizeof(PgSocket) + cf_sbuf_len, 8,
+	client_cache = objcache_create("client_cache", PG_SOCKET_SIZE, 8,
 				       construct_client, clean_socket);
 }
 

@@ -392,6 +392,9 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, MBuf *data, void *arg)
 	case SBUF_EV_FLUSH:
 		/* client is not interested in it */
 		break;
+	case SBUF_EV_PKT_CALLBACK:
+		/* unused ATM */
+		break;
 	}
 	return res;
 }

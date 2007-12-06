@@ -357,6 +357,9 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *data, void *arg)
 			}
 		}
 		break;
+	case SBUF_EV_PKT_CALLBACK:
+		slog_warning(server, "SBUF_EV_PKT_CALLBACK with state=%d", server->state);
+		break;
 	}
 	return res;
 }

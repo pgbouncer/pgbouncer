@@ -16,6 +16,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include "system.h"
+#include "hash.h"
+
 /*
  * A simple version of Bob Jenkins' lookup3.c hash.
  *
@@ -25,9 +28,6 @@
  * Speed seems comparable to Jenkins' optimized version (~ -10%).
  * Actual difference varies as it depends on cpu/compiler/libc details.
  */
-
-#include "system.h"
-#include "hash.h"
 
 /* rotate uint32 */
 #define rot(x,k) (((x)<<(k)) | ((x)>>(32-(k))))
@@ -82,5 +82,21 @@ uint32_t lookup3_hash(const void *data, size_t len)
 	final(a, b, c);
 done:
 	return c;
+}
+
+
+/*
+ * Reversible integer hash function by Thomas Wang.
+ */
+
+uint32_t hash32(uint32_t v)
+{
+	v = ~v + (v << 15);
+	v = v ^ (v >> 12);
+	v = v + (v << 2);
+	v = v ^ (v >> 4);
+	v = v * 2057;
+	v = v ^ (v >> 16);
+	return v;
 }
 

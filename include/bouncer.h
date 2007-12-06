@@ -267,6 +267,10 @@ extern int cf_verbose;
 extern int cf_daemon;
 extern int cf_quiet;
 
+extern char *cf_jobname;
+extern int cf_syslog;
+extern char *cf_syslog_facility;
+
 extern char *cf_unix_socket_dir;
 extern char *cf_listen_addr;
 extern int cf_listen_port;

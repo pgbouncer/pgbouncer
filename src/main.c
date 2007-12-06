@@ -51,6 +51,8 @@ int cf_daemon = 0;
 int cf_pause_mode = P_NONE;
 int cf_shutdown = 0;
 int cf_reboot = 0;
+int cf_syslog = 0;
+char *cf_syslog_facility = "daemon";
 static char *cf_config_file;
 
 char *cf_listen_addr = NULL;
@@ -93,7 +95,7 @@ usec_t cf_client_login_timeout = 60*USEC;
 
 char *cf_logfile = NULL;
 char *cf_pidfile = NULL;
-static char *cf_jobname = NULL;
+char *cf_jobname = "pgbouncer";
 
 char *cf_admin_users = "";
 char *cf_stats_users = "";
@@ -119,6 +121,8 @@ ConfElem bouncer_params[] = {
 {"pool_mode",		true, {get_mode, set_mode}},
 {"max_client_conn",	true, CF_INT, &cf_max_client_conn},
 {"default_pool_size",	true, CF_INT, &cf_default_pool_size},
+{"syslog",		true, CF_INT, &cf_syslog},
+{"syslog_facility",	true, CF_STR, &cf_syslog_facility},
 
 {"server_reset_query",	true, CF_STR, &cf_server_reset_query},
 {"server_check_query",	true, CF_STR, &cf_server_check_query},

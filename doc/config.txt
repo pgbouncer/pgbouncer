@@ -140,6 +140,19 @@ Default: 0
 
 === Log settings ===
 
+==== syslog ====
+
+Toggles syslog on/off
+
+Default: 0
+
+==== syslog_facility ====
+
+Under what facility to send log to syslog.
+Possibilities: auth, authpriv, daemon, user, local0-7
+
+Default: daemon
+
 ==== log_connections ====
 
 Log successful logins.

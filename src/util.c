@@ -22,7 +22,30 @@
 
 #include "bouncer.h"
 
+#include <syslog.h>
+
 #include "md5.h"
+
+static int syslog_started = 0;
+static int log_fd = 0;
+
+struct FacName { const char *name; int code; };
+static struct FacName facility_names [] = {
+	{ "auth",	LOG_AUTH },
+	{ "authpriv",	LOG_AUTHPRIV },
+	{ "daemon",	LOG_DAEMON },
+	{ "user",	LOG_USER },
+	{ "local0",	LOG_LOCAL0 },
+	{ "local1",	LOG_LOCAL1 },
+	{ "local2",	LOG_LOCAL2 },
+	{ "local3",	LOG_LOCAL3 },
+	{ "local4",	LOG_LOCAL4 },
+	{ "local5",	LOG_LOCAL5 },
+	{ "local6",	LOG_LOCAL6 },
+	{ "local7",	LOG_LOCAL7 },
+	{ NULL },
+};
+
 
 void *zmalloc(size_t len)
 {
@@ -45,7 +68,48 @@ static void render_time(char *buf, int max)
 	strftime(buf, max, "%Y-%m-%d %H:%M:%S", &tm);
 }
 
-static int log_fd = 0;
+static void close_syslog(void)
+{
+	if (syslog_started) {
+		closelog();
+		syslog_started = 0;
+	}
+}
+
+static void init_syslog(void)
+{
+	struct FacName *fn;
+	int facility = LOG_DAEMON;
+
+	for (fn = facility_names; fn->name; fn++)
+		if (strcmp(cf_syslog_facility, fn->name) == 0) {
+			facility = fn->code;
+			break;
+		}
+
+	openlog(cf_jobname, LOG_PID, facility);
+	syslog_started = 1;
+}
+
+static void write_syslog(const char *pfx, const char *msg)
+{
+	int prio = LOG_WARNING;
+
+	if (!syslog_started)
+		init_syslog();
+
+	switch (pfx[0]) {
+	case 'F': prio = LOG_CRIT; break;
+	case 'E': prio = LOG_ERR; break;
+	case 'W': prio = LOG_WARNING; break;
+	case 'I': prio = LOG_INFO; break;
+	case 'L': prio = LOG_INFO; break;
+	case 'D': prio = LOG_DEBUG; break;
+	case 'N': prio = LOG_DEBUG; break;
+	}
+
+	syslog(prio, "%s", msg);
+}
 
 void close_logfile(void)
 {
@@ -53,6 +117,7 @@ void close_logfile(void)
 		safe_close(log_fd);
 		log_fd = 0;
 	}
+	close_syslog();
 }
 
 static void write_logfile(const char *buf, int len)
@@ -78,6 +143,9 @@ static void _log_write(const char *pfx, const char *msg)
 
 	if (cf_logfile)
 		write_logfile(buf, len);
+
+	if (cf_syslog)
+		write_syslog(pfx, msg);
 
 	if (!cf_quiet)
 		fprintf(stderr, "%s", buf);

@@ -410,12 +410,31 @@ static void write_pidfile(void)
 static void check_limits(void)
 {
 	struct rlimit lim;
-	int err = getrlimit(RLIMIT_NOFILE, &lim);
-	if (err < 0)
+	int total_users = statlist_count(&user_list);
+	int fd_count;
+	int err;
+	List *item;
+	PgDatabase *db;
+
+	/* load limits */
+	err = getrlimit(RLIMIT_NOFILE, &lim);
+	if (err < 0) {
 		log_error("could not get RLIMIT_NOFILE: %s", strerror(errno));
-	else
-		log_info("File descriptors limits: S:%d H:%d",
-			 (int)lim.rlim_cur, (int)lim.rlim_max);
+		return;
+	}
+
+	/* calculate theoretical max, +10 is just in case */
+	fd_count = cf_max_client_conn + 10;
+	statlist_for_each(item, &database_list) {
+		db = container_of(item, PgDatabase, head);
+		if (db->forced_user)
+			fd_count += db->pool_size;
+		else
+			fd_count += db->pool_size * total_users;
+	}
+
+	log_info("File descriptor limit: %d (H:%d), max_client_conn: %d, max fds possible: %d",
+		 (int)lim.rlim_cur, (int)lim.rlim_max, cf_max_client_conn, fd_count);
 }
 
 static void daemon_setup(void)

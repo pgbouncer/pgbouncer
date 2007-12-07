@@ -42,15 +42,19 @@ struct SBuf {
 	/* libevent handle */
 	struct event ev;
 
+	unsigned pkt_skip:1;	/* if current packet should be skipped */
+	unsigned is_unix:1;	/* is it unix socket */
+	unsigned wait_send:1;	/* debug var, otherwise useless */
+
 	/* protocol callback function */
 	sbuf_proto_cb_t proto_handler;
 	void *arg;
 
-	/* fd for this socket */
-	int sock;
-
 	/* dest SBuf for current packet */
 	SBuf *dst;
+
+	/* fd for this socket */
+	int sock;
 
 	int recv_pos;
 	int pkt_pos;
@@ -58,10 +62,6 @@ struct SBuf {
 
 	int pkt_remain;		/* total packet length remaining */
 	int send_remain;	/* total data to be sent remaining */
-
-	unsigned pkt_skip:1;	/* if current packet should be skipped */
-	unsigned is_unix:1;	/* is it unix socket */
-	unsigned wait_send:1;	/* debug var, otherwise useless */
 
 	uint8 buf[0];
 };

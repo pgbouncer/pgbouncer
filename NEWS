@@ -1,5 +1,5 @@
 
-2007-11-xx  -  PgBouncer 1.1.2  -  ""
+2007-12-10  -  PgBouncer 1.1.2  -  "The Hammer"
 
   = Features =
 
@@ -17,6 +17,10 @@
     * Remove temp debug statements that were accidentally left
       in code on INFO level, so they polluted logs.
     * Unbroke debian/changelog
+
+  = Cleanup =
+
+    * reorder struct SBuf fields to get better alignment for buffer.
 
 2007-10-26  -  PgBouncer 1.1.1  -  "Breakdancing Bee"
 

@@ -1,21 +1,36 @@
 = PgBouncer TODO list =
 
-== Minor features ==
+== next release - 1.2 ==
 
+=== done ===
+ * use aatree for user lookup
+ * Slab allocator for mem management.
+ * Use standard int types: uint*_t
+ * logging to syslog
+
+=== todo ===
+
+ * removing db from config and reload; should work - kill connections
+ * removing user should work - kill connections
  * suspend_timeout - drop stalled conns
  * when dest db does not exists, stalled logins can halt suspend
    fix with suspend_timeout?
  * some preliminary notification that fd limit is full
+ * SHOW TOTALS that shows stats summary (as goes to log) plus mem usage.
+ * ..hopefully.. make -R less scary
+ * ..maybe.. make plan cache work
+
+== Minor features ==
+
  * drop_on_error/keep_on_error - if released conn is in error state,
  then issue rollback and keep it
- * removing db from config and reload; should work
  * show stalled; command - like show sockets; but filter only active ones
 
  * keep stats about error counts
  * auth_conn - access to pg_shadow, so auth_file is not needed
  * units for config parameters.
  * cleanup of logging levels, to make log more useful
- * logging to syslog
+ * decrease list walking
 
 == Major features ==
 

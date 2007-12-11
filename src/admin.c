@@ -33,7 +33,7 @@
 #define CMD_NAME 1
 #define CMD_ARG 3
 #define SET_KEY 1
-#define SET_VAL 2
+#define SET_VAL 3
 
 typedef bool (*cmd_func_t)(PgSocket *admin, const char *arg);
 struct cmd_lookup {
@@ -43,15 +43,15 @@ struct cmd_lookup {
 
 /* CMD [arg]; */
 static const char cmd_normal_rx[] =
-"^" WS0 WORD "(" WS1 WORD ")?" WS0 ";" WS0 "$";
+"^" WS0 WORD "(" WS1 WORD ")?" WS0 "(;" WS0 ")?$";
 
 /* SET with simple value */
 static const char cmd_set_word_rx[] =
-"^" WS0 "set" WS1 WORD WS0 "=" WS0 WORD WS0 ";" WS0 "$";
+"^" WS0 "set" WS1 WORD WS0 "(=|to)" WS0 WORD WS0 "(;" WS0 ")?$";
 
 /* SET with quoted value */
 static const char cmd_set_str_rx[] =
-"^" WS0 "set" WS1 WORD WS0 "=" WS0 STRING WS0 ";" WS0 "$";
+"^" WS0 "set" WS1 WORD WS0 "(=|to)" WS0 STRING WS0 "(;" WS0 ")?$";
 
 /* compiled regexes */
 static regex_t rc_cmd;
@@ -131,10 +131,80 @@ bool admin_ready(PgSocket *admin, const char *desc)
 	return pktbuf_send_immidiate(&buf, admin);
 }
 
+/*
+ * some silly clients start actively messing with server parameters
+ * without checking if thats necessary.  Fake some env for them.
+ */
+struct FakeParam {
+	const char *name;
+	const char *value;
+};
+
+static const struct FakeParam fake_param_list[] = {
+	{ "client_encoding", "UTF-8" },
+	{ "default_transaction_isolation", "read committed" },
+	{ "datestyle", "ISO" },
+	{ "timezone", "GMT" },
+	{ NULL },
+};
+
+/* fake result send, returns if handled */
+static bool fake_show(PgSocket *admin, const char *name)
+{
+	PktBuf *buf;
+	const struct FakeParam *p;
+	bool got = false;
+
+	for (p = fake_param_list; p->name; p++) {
+		if (strcasecmp(name, p->name) == 0) {
+			got = true;
+			break;
+		}
+	}
+
+	if (got) {
+		buf = pktbuf_dynamic(256);
+		if (buf) {
+			pktbuf_write_RowDescription(buf, "s", p->name);
+			pktbuf_write_DataRow(buf, "s", p->value);
+			admin_flush(admin, buf, "SHOW");
+		} else
+			admin_error(admin, "no mem");
+	}
+	return got;
+}
+
+static bool fake_set(PgSocket *admin, const char *key, const char *val)
+{
+	PktBuf *buf;
+	const struct FakeParam *p;
+	bool got = false;
+
+	for (p = fake_param_list; p->name; p++) {
+		if (strcasecmp(key, p->name) == 0) {
+			got = true;
+			break;
+		}
+	}
+
+	if (got) {
+		buf = pktbuf_dynamic(256);
+		if (buf) {
+			pktbuf_write_Notice(buf, "SET ignored");
+			admin_flush(admin, buf, "SET");
+		} else
+			admin_error(admin, "no mem");
+	}
+	return got;
+}
+
 /* Command: SET key = val; */
 static bool admin_set(PgSocket *admin, const char *key, const char *val)
 {
 	char tmp[512];
+
+	if (fake_set(admin, key, val))
+		return true;
 
 	if (admin->admin_user) {
 		if (set_config_param(bouncer_params, key, val, true, admin)) {
@@ -806,6 +876,7 @@ static bool admin_show_stats(PgSocket *admin, const char *arg)
 	return admin_database_stats(admin, &pool_list);
 }
 
+
 static struct cmd_lookup show_map [] = {
 	{"clients", admin_show_clients},
 	{"config", admin_show_config},
@@ -824,6 +895,8 @@ static struct cmd_lookup show_map [] = {
 
 static bool admin_cmd_show(PgSocket *admin, const char *arg)
 {
+	if (fake_show(admin, arg))
+		return true;
 	return exec_cmd(show_map, admin, arg, NULL);
 }
 

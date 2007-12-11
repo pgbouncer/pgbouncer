@@ -8,6 +8,18 @@ dnl Checks for programs.
 AC_PROG_CC
 AC_PROG_CPP
 
+dnl Check if linker supports -Wl,--as-needed
+dnl That helps to get rid of unnecessary -lrt
+if test "$GCC" = "yes"; then
+  old_LDFLAGS="$LDFLAGS"
+  LDFLAGS="$LDFLAGS -Wl,--as-needed"
+  AC_MSG_CHECKING([whether linker supports --as-needed])
+  AC_LINK_IFELSE([int main(void) { return 0; }],
+    [AC_MSG_RESULT([yes])],
+    [AC_MSG_RESULT([no])
+     LDFLAGS="$old_LDFLAGS"])
+fi
+
 dnl asciidoc >= 8.2
 AC_CHECK_PROGS(ASCIIDOC, asciidoc)
 if test -n "$ASCIIDOC"; then

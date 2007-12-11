@@ -551,7 +551,6 @@ bool set_config_param(ConfElem *elem_list,
 		/* got config, parse it */
 		return desc->io.fn_set(desc, val, console);
 	}
-	admin_error(console, "unknown configuration parameter: %s", key);
 	return false;
 }
 

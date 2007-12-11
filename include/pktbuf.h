@@ -95,6 +95,9 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...);
 #define pktbuf_write_PasswordMessage(buf, psw) \
 	pktbuf_write_generic(buf, 'p', "s", psw)
 
+#define pktbuf_write_Notice(buf, msg) \
+	pktbuf_write_generic(buf, 'N', "sscss", "SNOTICE", "C00000", 'M', msg, "");
+
 /*
  * Shortcut for creating DataRow in memory.
  */

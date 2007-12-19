@@ -30,6 +30,10 @@ DISTFILES = $(DIRS) $(DATA) $(DOCS) $(srcs) $(hdrs) $(MANPAGES)
 
 CPPCFLAGS += -I$(srcdir)/include
 
+ifneq ($(builddir),$(srcdir))
+CPPCFLAGS += -I$(builddir)/include
+endif
+
 ifeq ($(enable_debug),yes)
 CPPCFLAGS += -DDBGVER="\"compiled by <$${USER}@`hostname`> at `date '+%Y-%m-%d %H:%M:%S'`\""
 endif
@@ -48,24 +52,24 @@ endif
 ## actual targets now ##
 
 # default target
-all: pgbouncer doc-all
+all: $(builddir)/pgbouncer doc-all
 
 # final executable
-pgbouncer: config.mak $(objs)
+$(builddir)/pgbouncer: $(builddir)/config.mak $(objs)
 	$(E) "	LD" $@
 	$(Q) $(CC) -o $@ $(LDFLAGS) $(objs) $(LIBS)
 
 # objects depend on all the headers
-$(builddir)/lib/%.o: $(srcdir)/src/%.c config.mak $(hdrs)
+$(builddir)/lib/%.o: $(srcdir)/src/%.c $(builddir)/config.mak $(hdrs)
 	@mkdir -p $(builddir)/lib
 	$(E) "	CC" $<
 	$(Q) $(CC) -c -o $@ $< $(DEFS) $(CFLAGS) $(CPPFLAGS)
 
 # install binary and other stuff
-install: pgbouncer doc-install
+install: $(builddir)/pgbouncer doc-install
 	mkdir -p $(DESTDIR)$(bindir)
 	mkdir -p $(DESTDIR)$(docdir)
-	$(BININSTALL) -m 755 pgbouncer $(DESTDIR)$(bindir)
+	$(BININSTALL) -m 755 $(builddir)/pgbouncer $(DESTDIR)$(bindir)
 	$(INSTALL) -m 644 $(srcdir)/etc/pgbouncer.ini  $(DESTDIR)$(docdir)
 
 # create tarfile
@@ -89,7 +93,7 @@ deb: configure
 
 # clean object files
 clean: doc-clean
-	rm -f *~ src/*~ *.o src/*.o lib/*.o lib/*.s pgbouncer core core.*
+	rm -f $(builddir)/lib/*.[oas] $(builddir)/pgbouncer core core.*
 	rm -f lib/*.log
 
 # clean configure results
@@ -108,13 +112,14 @@ boot: distclean
 	rm -rf autom4te* include/config.h.in~
 
 # targets can depend on this to force ./configure
-config.mak::
-	@test -f configure || { \
+$(builddir)/config.mak::
+	@test -f $(srcdir)/configure || { \
 		 echo "Please run 'make boot && ./configure' first.";exit 1;}
 	@test -f $@ || { echo "Please run ./configure first.";exit 1;}
 
 doc-all doc-install doc-clean doc-distclean doc-realclean:
-	$(MAKE) -C doc $(subst doc-,,$@) DESTDIR=$(DESTDIR)
+	@if test -d doc; then $(MAKE) -C doc $(subst doc-,,$@) DESTDIR=$(DESTDIR) ;\
+	else true; fi
 
 
 # targets can depend on this to force 'make boot'
@@ -134,11 +139,13 @@ check: config.mak
 	REAL_CC="$(CC)" \
 	make clean pgbouncer CC=cgcc
 
+# profiled exe
 pgbouncer.pg:
 	$(CC) -pg $(DEFS) -g -O2 $(CPPFLAGS) $(LDFLAGS) -o $@ $(srcs) $(LIBS)
 
 pg: pgbouncer.pg
 
+# asm hacks
 $(builddir)/lib/%.s: $(srcdir)/src/%.c config.mak $(hdrs)
 	@mkdir -p $(builddir)/lib
 	$(E) "	CC -S" $<

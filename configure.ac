@@ -150,6 +150,10 @@ else
   AC_MSG_RESULT([no])
 fi
 
+if test \! "$srcdir" = "$builddir"; then
+  CPPFLAGS="$CPPFLAGS -I\$(builddir)/include"
+fi
+
 dnl Output findings
 AC_OUTPUT([config.mak])
 

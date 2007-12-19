@@ -129,18 +129,10 @@ tags: $(srcs) $(hdrs)
 	  ctags $(srcs) $(hdrs); \
 	fi
 
-# fixes for macos
-SPARSE_MACOS=-D__STDC_VERSION__=199901 -D__LP64__=0 -DSENDFILE=1 \
-		-I/usr/lib/gcc/i486-linux-gnu/4.1.2/include
-# sparse does not have any identity
-SPARCE_FLAGS=-D__LITTLE_ENDIAN__ -D__i386__ -D__GNUC__=3 -D__GNUC_MINOR__=0 \
-		-Wno-transparent-union \
-		-Wall $(SPARSE_MACOS) $(CPPFLAGS) $(DEFS)
-
 # run sparse over code
 check: config.mak
-	$(E) "	CHECK" $(srcs)
-	$(Q) sparse $(SPARCE_FLAGS) $(srcs)
+	REAL_CC="$(CC)" \
+	make clean pgbouncer CC=cgcc
 
 pgbouncer.pg:
 	$(CC) -pg $(DEFS) -g -O2 $(CPPFLAGS) $(LDFLAGS) -o $@ $(srcs) $(LIBS)

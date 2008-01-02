@@ -537,7 +537,7 @@ bool set_config_param(ConfElem *elem_list,
 	ConfElem *desc;
 
 	for (desc = elem_list; desc->name; desc++) {
-		if (strcasecmp(key, desc->name))
+		if (strcasecmp(key, desc->name) != 0)
 			continue;
 	
 		/* if reload not allowed, skip it */

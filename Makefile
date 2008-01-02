@@ -20,6 +20,10 @@ DIRS = doc etc include src debian test
 # keep autoconf stuff separate
 -include config.mak
 
+# fill values for unconfigured tree
+srcdir ?= .
+builddir ?= .
+
 # calculate full-path values
 OBJS = $(SRCS:.c=.o)
 hdrs = $(addprefix $(srcdir)/include/, $(HDRS))
@@ -93,8 +97,7 @@ deb: configure
 
 # clean object files
 clean: doc-clean
-	rm -f $(builddir)/lib/*.[oas] $(builddir)/pgbouncer core core.*
-	rm -f lib/*.log
+	rm -f $(objs) $(builddir)/pgbouncer
 
 # clean configure results
 distclean: clean doc-distclean
@@ -107,7 +110,7 @@ realclean: distclean doc-realclean
 	rm -f tags
 
 # generate configure script and config.h.in
-boot: distclean
+boot:
 	autoreconf -i -f
 	rm -rf autom4te* include/config.h.in~
 

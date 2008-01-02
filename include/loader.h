@@ -30,7 +30,7 @@ typedef struct ConfElem ConfElem;
 typedef void (*conf_data_callback_fn)(char *key, char *value);
 
 typedef const char * (*conf_var_get_fn)(ConfElem *elem);
-typedef bool (*conf_var_set_fn)(ConfElem *elem, const char *value, PgSocket *console);
+typedef bool (*conf_var_set_fn)(ConfElem *elem, const char *value, PgSocket *console) _MUSTCHECK;
 
 typedef struct {
 	conf_var_get_fn fn_get;
@@ -63,12 +63,12 @@ const char *cf_get_str(ConfElem *elem);
 bool cf_set_str(ConfElem *elem, const char *value, PgSocket *console);
 
 const char *conf_to_text(ConfElem *elem);
-bool set_config_param(ConfElem *elem_list, const char *key, const char *val, bool reload, PgSocket *console);
+bool set_config_param(ConfElem *elem_list, const char *key, const char *val, bool reload, PgSocket *console) /* _MUSTCHECK */;
 
 /* connstring parsing */
 void parse_database(char *name, char *connstr);
 
 /* user file parsing */
-bool load_auth_file(const char *fn);
-bool loader_users_check(void);
+bool load_auth_file(const char *fn)  /* _MUSTCHECK */;
+bool loader_users_check(void)  /* _MUSTCHECK */;
 

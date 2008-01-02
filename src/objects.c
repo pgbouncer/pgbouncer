@@ -621,8 +621,11 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason)
 	Assert(server->link == NULL);
 
 	/* notify server and close connection */
-	if (send_term && notify)
-		sbuf_answer(&server->sbuf, pkt_term, sizeof(pkt_term));
+	if (send_term && notify) {
+		if (!sbuf_answer(&server->sbuf, pkt_term, sizeof(pkt_term)))
+			/* ignore result */
+			notify = false;
+	}
 	sbuf_close(&server->sbuf);
 
 	change_server_state(server, SV_JUSTFREE);
@@ -643,6 +646,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason)
 			PgSocket *server = client->link;
 			/* ->ready may be set before all is sent */
 			if (server->ready && sbuf_is_empty(&server->sbuf)) {
+				/* retval does not matter here */
 				release_server(server);
 			} else {
 				server->link = NULL;
@@ -784,7 +788,9 @@ bool finish_client_login(PgSocket *client)
 
 	/* in suspend, don't let send query */
 	if (cf_pause_mode == P_SUSPEND)
-		suspend_socket(client);
+		if (!suspend_socket(client))
+			disconnect_client(client, true, "extra data on login not allowed when suspending");
+	/* fixme: disallow extra data on login completely? is it handled? */
 
 	return true;
 }

@@ -114,11 +114,11 @@ static int count_db_active(PgDatabase *db)
 	return cnt;
 }
 
-void admin_flush(PgSocket *admin, PktBuf *buf, const char *desc)
+bool admin_flush(PgSocket *admin, PktBuf *buf, const char *desc)
 {
 	pktbuf_write_CommandComplete(buf, desc);
 	pktbuf_write_ReadyForQuery(buf);
-	pktbuf_send_queued(buf, admin);
+	return pktbuf_send_queued(buf, admin);
 }
 
 bool admin_ready(PgSocket *admin, const char *desc)
@@ -1035,7 +1035,8 @@ void admin_setup(void)
 	db->addr.port = cf_listen_port;
 	db->addr.is_unix = 1;
 	db->pool_size = 2;
-	force_user(db, "pgbouncer", "");
+	if (!force_user(db, "pgbouncer", ""))
+		fatal("no mem on startup - cannot alloc pgbouncer user");
 
 	/* fake pool, tag the it as special */
 	pool = get_pool(db, db->forced_user);
@@ -1082,30 +1083,37 @@ void admin_pause_done(void)
 {
 	List *item, *tmp;
 	PgSocket *admin;
+	bool res;
 
 	statlist_for_each_safe(item, &admin_pool->active_client_list, tmp) {
 		admin = container_of(item, PgSocket, head);
 		if (!admin->wait_for_response)
 			continue;
 
+		res = false;
 		switch (cf_pause_mode) {
 		case P_PAUSE:
-			admin_ready(admin, "PAUSE");
+			res = admin_ready(admin, "PAUSE");
 			break;
 		case P_SUSPEND:
-			admin_ready(admin, "SUSPEND");
+			res = admin_ready(admin, "SUSPEND");
 			break;
 		default:
 			if (count_paused_databases() > 0)
-				admin_ready(admin, "PAUSE");
+				res = admin_ready(admin, "PAUSE");
 			else
+				/* fixme */
 				fatal("admin_pause_done: bad state");
 		}
-		admin->wait_for_response = 0;
+
+		if (!res)
+			disconnect_client(admin, false, "dead admin");
+		else
+			admin->wait_for_response = 0;
 	}
 
 	if (statlist_empty(&admin_pool->active_client_list)
-			&& cf_pause_mode == P_SUSPEND)
+	    && cf_pause_mode == P_SUSPEND)
 	{
 		log_info("Admin disappeared when suspended, doing RESUME");
 		cf_pause_mode = P_NONE;

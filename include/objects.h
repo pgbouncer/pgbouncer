@@ -27,17 +27,17 @@ extern ObjectCache *server_cache;
 PgDatabase *find_database(const char *name);
 PgUser *find_user(const char *name);
 PgPool *get_pool(PgDatabase *, PgUser *);
-bool find_server(PgSocket *client);
-bool release_server(PgSocket *server);
-bool finish_client_login(PgSocket *client);
+bool find_server(PgSocket *client)		_MUSTCHECK;
+bool release_server(PgSocket *server)		/* _MUSTCHECK */;
+bool finish_client_login(PgSocket *client)	_MUSTCHECK;
 
-PgSocket * accept_client(int sock, const struct sockaddr_in *addr, bool is_unix);
+PgSocket * accept_client(int sock, const struct sockaddr_in *addr, bool is_unix) _MUSTCHECK;
 void disconnect_server(PgSocket *server, bool notify, const char *reason);
 void disconnect_client(PgSocket *client, bool notify, const char *reason);
 
-PgDatabase * add_database(const char *name);
-PgUser * add_user(const char *name, const char *passwd);
-PgUser * force_user(PgDatabase *db, const char *username, const char *passwd);
+PgDatabase * add_database(const char *name) _MUSTCHECK;
+PgUser * add_user(const char *name, const char *passwd) _MUSTCHECK;
+PgUser * force_user(PgDatabase *db, const char *username, const char *passwd) _MUSTCHECK;
 
 void accept_cancel_request(PgSocket *req);
 void forward_cancel_request(PgSocket *server);
@@ -45,9 +45,11 @@ void forward_cancel_request(PgSocket *server);
 void launch_new_connection(PgPool *pool);
 
 bool use_client_socket(int fd, PgAddr *addr, const char *dbname, const char *username, uint64_t ckey, int oldfd, int linkfd,
-		       const char *client_end, const char *std_string, const char *datestyle, const char *timezone);
+		       const char *client_end, const char *std_string, const char *datestyle, const char *timezone)
+			_MUSTCHECK;
 bool use_server_socket(int fd, PgAddr *addr, const char *dbname, const char *username, uint64_t ckey, int oldfd, int linkfd,
-		       const char *client_end, const char *std_string, const char *datestyle, const char *timezone);
+		       const char *client_end, const char *std_string, const char *datestyle, const char *timezone)
+			_MUSTCHECK;
 
 void pause_client(PgSocket *client);
 void activate_client(PgSocket *client);

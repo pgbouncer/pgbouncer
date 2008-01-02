@@ -26,14 +26,14 @@ void reset_time_cache(void);
 /*
  * load file into malloced buffer
  */
-char *load_file(const char *fn);
+char *load_file(const char *fn) _MUSTCHECK;
 
-void *zmalloc(size_t len);
+void *zmalloc(size_t len) _MUSTCHECK _MALLOC;
 
 /*
  * generic logging
  */
-void log_level(const char *level, const char *s, ...);
+void log_level(const char *level, const char *s, ...)  _PRINTF(2, 3);
 #define log_error(args...) log_level("ERROR", ## args)
 #define log_warning(args...) log_level("WARNING", ## args)
 #define log_info(args...) log_level("LOG", ## args)
@@ -51,7 +51,7 @@ void close_logfile(void);
 /*
  * logging about specific socket
  */
-void slog_level(const char *level, const PgSocket *sock, const char *fmt, ...);
+void slog_level(const char *level, const PgSocket *sock, const char *fmt, ...)  _PRINTF(3, 4);
 #define slog_error(sk, args...) slog_level("ERROR", sk, ## args)
 #define slog_warning(sk, args...) slog_level("WARNING", sk, ## args)
 #define slog_info(sk, args...) slog_level("LOG", sk, ## args)
@@ -67,8 +67,8 @@ void slog_level(const char *level, const PgSocket *sock, const char *fmt, ...);
 /*
  * log and exit
  */
-void _fatal(const char *file, int line, const char *func, bool do_exit, const char *s, ...);
-void _fatal_perror(const char *file, int line, const char *func, const char *s, ...);
+void _fatal(const char *file, int line, const char *func, bool do_exit, const char *s, ...) _PRINTF(5, 6);
+void _fatal_perror(const char *file, int line, const char *func, const char *s, ...)  _PRINTF(4, 5);
 #define fatal(args...) \
 	_fatal(__FILE__, __LINE__, __FUNCTION__, true, ## args)
 #define fatal_noexit(args...) \
@@ -79,13 +79,13 @@ void _fatal_perror(const char *file, int line, const char *func, const char *s, 
 /*
  * non-interruptible operations
  */
-int safe_read(int fd, void *buf, int len);
-int safe_write(int fd, const void *buf, int len);
-int safe_recv(int fd, void *buf, int len, int flags);
-int safe_send(int fd, const void *buf, int len, int flags);
+int safe_read(int fd, void *buf, int len)			_MUSTCHECK;
+int safe_write(int fd, const void *buf, int len)		_MUSTCHECK;
+int safe_recv(int fd, void *buf, int len, int flags)		_MUSTCHECK;
+int safe_send(int fd, const void *buf, int len, int flags) 	_MUSTCHECK;
 int safe_close(int fd);
-int safe_recvmsg(int fd, struct msghdr *msg, int flags);
-int safe_sendmsg(int fd, const struct msghdr *msg, int flags);
+int safe_recvmsg(int fd, struct msghdr *msg, int flags)		_MUSTCHECK;
+int safe_sendmsg(int fd, const struct msghdr *msg, int flags)	_MUSTCHECK;
 
 /*
  * password tools
@@ -93,8 +93,8 @@ int safe_sendmsg(int fd, const struct msghdr *msg, int flags);
 #define MD5_PASSWD_LEN  35
 #define isMD5(passwd) (memcmp(passwd, "md5", 3) == 0 \
 		&& strlen(passwd) == MD5_PASSWD_LEN)
-bool pg_md5_encrypt(const char *part1, const char *part2, size_t p2len, char *dest);
-bool get_random_bytes(uint8_t *dest, int len);
+void pg_md5_encrypt(const char *part1, const char *part2, size_t p2len, char *dest);
+void get_random_bytes(uint8_t *dest, int len);
 
 void socket_set_nonblocking(int fd, int val);
 void tune_socket(int sock, bool is_unix);

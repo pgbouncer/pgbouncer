@@ -173,6 +173,7 @@ static void err_wait_func(int sock, short flags, void *arg)
 static void pool_accept(int sock, short flags, void *is_unix)
 {
 	int fd;
+	PgSocket *client;
 	union {
 		struct sockaddr_in in;
 		struct sockaddr_un un;
@@ -206,10 +207,15 @@ static void pool_accept(int sock, short flags, void *is_unix)
 			else
 				log_warning("unix peer uid failed: %s", strerror(errno));
 		}
-		accept_client(fd, NULL, true);
+		client = accept_client(fd, NULL, true);
 	} else {
 		log_debug("P: new tcp client");
-		accept_client(fd, &addr.in, false);
+		client = accept_client(fd, &addr.in, false);
+	}
+
+	if (!client) {
+		log_debug("P: no mem for client struct");
+		safe_close(fd);
 	}
 }
 

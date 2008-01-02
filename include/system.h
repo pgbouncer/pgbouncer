@@ -56,14 +56,38 @@
 #include <crypt.h>
 #endif
 
+/* gcc has hew positive aspects too */
 #ifdef __GNUC__
+
 #define unlikely(x) __builtin_expect(!!(x), 0)
 #define likely(x) __builtin_expect(!!(x), 1)
-#else
-#define unlikely(x) x
-#define likely(x) x
+
+#define _MUSTCHECK		__attribute__((warn_unused_result))
+#define _DEPRECATED		__attribute__((deprecated))
+#define _PRINTF(fmtpos, argpos)	__attribute__((format(printf, fmtpos, argpos)))
+#define _MALLOC			__attribute__((malloc))
+
+#if 0
+#define _USED			__attribute__((used))
+#define _UNUSED			__attribute__((unused))
+#define _NONNULL(args...)	__attribute__((nonnull(args)))
+#define _REGPARM(num)		__attribute__((regparm(num)))
+#define _FASTCALL		__attribute__((fastcall))
 #endif
 
+#else
+
+#define unlikely(x) x
+#define likely(x) x
+
+#define _MUSTCHECK
+#define _DEPRECATED
+#define _PRINTF(x,y)
+#define _MALLOC
+
+#endif
+
+/* cant use assert() as we want to log too */
 #ifdef CASSERT
 #define Assert(e) \
 do { \

@@ -18,5 +18,5 @@
 
 void stats_setup(void);
 
-bool admin_database_stats(PgSocket *client, StatList *pool_list);
+bool admin_database_stats(PgSocket *client, StatList *pool_list)  _MUSTCHECK;
 

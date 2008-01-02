@@ -98,6 +98,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 		/* got all params */
 		finish_welcome_msg(server);
 
+		/* need to notify sbuf if server was closed */
 		res = release_server(server);
 
 		/* let the takeover process handle it */

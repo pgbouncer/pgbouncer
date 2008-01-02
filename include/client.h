@@ -16,7 +16,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-bool client_proto(SBuf *sbuf, SBufEvent evtype, MBuf *pkt, void *arg);
-bool set_pool(PgSocket *client, const char *dbname, const char *username);
+bool client_proto(SBuf *sbuf, SBufEvent evtype, MBuf *pkt, void *arg)  _MUSTCHECK;
+bool set_pool(PgSocket *client, const char *dbname, const char *username) _MUSTCHECK;
 
 

@@ -40,7 +40,7 @@ static void takeover_finish(PgSocket *bouncer)
 }
 
 /* parse msg for fd and info */
-static bool takeover_load_fd(MBuf *pkt, const struct cmsghdr *cmsg)
+static void takeover_load_fd(MBuf *pkt, const struct cmsghdr *cmsg)
 {
 	int fd;
 	char *task, *s_addr, *user, *db;
@@ -49,6 +49,7 @@ static bool takeover_load_fd(MBuf *pkt, const struct cmsghdr *cmsg)
 	int got;
 	uint64_t ckey;
 	PgAddr addr;
+	bool res = false;
 
 	memset(&addr, 0, sizeof(addr));
 
@@ -85,17 +86,18 @@ static bool takeover_load_fd(MBuf *pkt, const struct cmsghdr *cmsg)
 
 	/* decide what to do with it */
 	if (strcmp(task, "client") == 0)
-		use_client_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
+		res = use_client_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
 				  client_enc, std_string, datestyle, timezone);
 	else if (strcmp(task, "server") == 0)
-		use_server_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
+		res = use_server_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
 				  client_enc, std_string, datestyle, timezone);
 	else if (strcmp(task, "pooler") == 0)
-		use_pooler_socket(fd, addr.is_unix);
+		res = use_pooler_socket(fd, addr.is_unix);
 	else
 		fatal("unknown task: %s", task);
 
-	return true;
+	if (!res)
+		fatal("socket takeover failed - no mem?");
 }
 
 static void takeover_create_link(PgPool *pool, PgSocket *client)

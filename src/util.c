@@ -122,13 +122,17 @@ void close_logfile(void)
 
 static void write_logfile(const char *buf, int len)
 {
+	int res;
 	if (!log_fd) {
 		int fd = open(cf_logfile, O_CREAT | O_APPEND | O_WRONLY, 0644);
 		if (fd < 0)
 			return;
 		log_fd = fd;
 	}
-	safe_write(log_fd, buf, len);
+	res = safe_write(log_fd, buf, len);
+	if (res < len)
+		/* nothing to do here */
+		len = 0;
 }
 
 static void _log_write(const char *pfx, const char *msg)
@@ -320,8 +324,8 @@ loop:
 
 	if (res < 0) {
 		log_warning("safe_sendmsg(%d, msg[%d,%d], %d) = %s", fd,
-			    msg->msg_iov[0].iov_len,
-			    msg->msg_controllen,
+			    (int)msg->msg_iov[0].iov_len,
+			    (int)msg->msg_controllen,
 			    flags, strerror(errno));
 
 		/* with ancillary data on blocking socket OSX returns
@@ -355,8 +359,10 @@ char *load_file(const char *fn)
 	}
 
 	buf = malloc(st.st_size + 1);
-	if (!buf)
+	if (!buf) {
+		log_error("%s: no mem", fn);
 		goto load_error;
+	}
 
 	if ((fd = open(fn, O_RDONLY)) < 0) {
 		log_error("%s: %s", fn, strerror(errno));
@@ -394,7 +400,7 @@ static void hash2hex(const uint8_t *hash, char *dst)
 	*dst = 0;
 }
 
-bool pg_md5_encrypt(const char *part1,
+void pg_md5_encrypt(const char *part1,
 		    const char *part2, size_t part2len,
 		    char *dest)
 {
@@ -408,17 +414,14 @@ bool pg_md5_encrypt(const char *part1,
 
 	memcpy(dest, "md5", 3);
 	hash2hex(hash, dest + 3);
-
-	return true;
 }
 
 /* wrapped for getting random bytes */
-bool get_random_bytes(uint8_t *dest, int len)
+void get_random_bytes(uint8_t *dest, int len)
 {
 	int i;
 	for (i = 0; i < len; i++)
 		dest[i] = random() & 255;
-	return len;
 }
 
 /*

@@ -16,5 +16,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *pkt, void *arg);
+bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *pkt, void *arg)  _MUSTCHECK;
 

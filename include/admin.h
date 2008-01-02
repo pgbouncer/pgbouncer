@@ -15,12 +15,12 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-bool admin_handle_client(PgSocket *client, PktHdr *pkt);
-bool admin_pre_login(PgSocket *client);
+bool admin_handle_client(PgSocket *client, PktHdr *pkt)  _MUSTCHECK;
+bool admin_pre_login(PgSocket *client)  _MUSTCHECK;
 void admin_setup(void);
-bool admin_error(PgSocket *console, const char *fmt, ...);
+bool admin_error(PgSocket *console, const char *fmt, ...)  _PRINTF(2, 3) /* _MUSTCHECK */;
 void admin_pause_done(void);
-void admin_flush(PgSocket *admin, PktBuf *buf, const char *desc);
-bool admin_ready(PgSocket *admin, const char *desc);
+bool admin_flush(PgSocket *admin, PktBuf *buf, const char *desc) /* _MUSTCHECK */;
+bool admin_ready(PgSocket *admin, const char *desc)  _MUSTCHECK;
 void admin_handle_cancel(PgSocket *client);
 

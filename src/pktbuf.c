@@ -110,7 +110,7 @@ static void pktbuf_send_func(int fd, short flags, void *arg)
 		pktbuf_free(buf);
 }
 
-void pktbuf_send_queued(PktBuf *buf, PgSocket *sk)
+bool pktbuf_send_queued(PktBuf *buf, PgSocket *sk)
 {
 	int fd = sbuf_socket(&sk->sbuf);
 
@@ -118,11 +118,12 @@ void pktbuf_send_queued(PktBuf *buf, PgSocket *sk)
 	Assert(!buf->fixed_buf);
 
 	if (buf->failed) {
-		send_pooler_error(sk, true, "result prepare failed");
 		pktbuf_free(buf);
+		return send_pooler_error(sk, true, "result prepare failed");
 	} else {
 		buf->sending = 1;
 		pktbuf_send_func(fd, EV_WRITE, buf);
+		return true;
 	}
 }
 

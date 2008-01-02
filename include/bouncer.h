@@ -322,7 +322,7 @@ extern int cf_log_pooler_errors;
 extern ConfElem bouncer_params[];
 
 
-static inline PgSocket *
+static inline PgSocket * _MUSTCHECK
 pop_socket(StatList *slist)
 {
 	List *item = statlist_pop(slist);

@@ -38,14 +38,14 @@ struct PktBuf {
 /*
  * pktbuf creation
  */
-PktBuf *pktbuf_dynamic(int start_len);
+PktBuf *pktbuf_dynamic(int start_len)	_MUSTCHECK;
 void pktbuf_static(PktBuf *buf, uint8_t *data, int len);
 
 /*
  * sending
  */
-bool pktbuf_send_immidiate(PktBuf *buf, PgSocket *sk);
-void pktbuf_send_queued(PktBuf *buf, PgSocket *sk);
+bool pktbuf_send_immidiate(PktBuf *buf, PgSocket *sk)	_MUSTCHECK;
+bool pktbuf_send_queued(PktBuf *buf, PgSocket *sk)  _MUSTCHECK;
 
 /*
  * low-level ops

@@ -103,7 +103,7 @@ void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, int amount);
 void sbuf_prepare_skip(SBuf *sbuf, int amount);
 void sbuf_prepare_fetch(SBuf *sbuf, int amount);
 
-bool sbuf_answer(SBuf *sbuf, const void *buf, int len);
+bool sbuf_answer(SBuf *sbuf, const void *buf, int len)  _MUSTCHECK;
 
 void sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb cb);
 
@@ -118,4 +118,5 @@ static inline bool sbuf_is_empty(SBuf *sbuf)
 }
 
 bool sbuf_rewrite_header(SBuf *sbuf, int old_len,
-			 const uint8_t *new_hdr, int new_len);
+			 const uint8_t *new_hdr, int new_len)  _MUSTCHECK;
+

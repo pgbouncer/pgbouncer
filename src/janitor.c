@@ -456,6 +456,7 @@ static void do_full_maint(int sock, short flags, void *arg)
 {
 	List *item;
 	PgPool *pool;
+	int err;
 
 	/* don't touch anything if takeover is in progress */
 	if (cf_reboot)
@@ -480,15 +481,22 @@ static void do_full_maint(int sock, short flags, void *arg)
 		loader_users_check();
 
 skip:
-	evtimer_add(&full_maint_ev, &full_maint_period);
+	err = evtimer_add(&full_maint_ev, &full_maint_period);
+	if (err < 0)
+		/* fixme */
+		fatal_perror("evtimer_add");
 }
 
 /* first-time initializtion */
 void janitor_setup(void)
 {
+	int err;
+
 	/* launch maintenance */
 	evtimer_set(&full_maint_ev, do_full_maint, NULL);
-	evtimer_add(&full_maint_ev, &full_maint_period);
+	err = evtimer_add(&full_maint_ev, &full_maint_period);
+	if (err < 0)
+		fatal_perror("janitor_setup: evtimer_add");
 }
 
 /* as [pgbouncer] section can be loaded after databases,

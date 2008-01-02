@@ -105,7 +105,11 @@ static void pktbuf_send_func(int fd, short flags, void *arg)
 
 	if (buf->send_pos < buf->write_pos) {
 		event_set(buf->ev, fd, EV_WRITE, pktbuf_send_func, buf);
-		event_add(buf->ev, NULL);
+		res = event_add(buf->ev, NULL);
+		if (res < 0) {
+			log_error("pktbuf_send_func: %s", strerror(errno));
+			pktbuf_free(buf);
+		}
 	} else
 		pktbuf_free(buf);
 }

@@ -275,9 +275,11 @@ bool takeover_login(PgSocket *bouncer)
 	if (res) {
 		/* use own callback */
 		sbuf_pause(&bouncer->sbuf);
-		sbuf_continue_with_callback(&bouncer->sbuf, takeover_recv_cb);
+		res = sbuf_continue_with_callback(&bouncer->sbuf, takeover_recv_cb);
+		if (!res)
+			fatal("takeover_login: sbuf_continue_with_callback failed");
 	} else {
-		disconnect_server(bouncer, false, "failed to send command");
+		fatal("takeover_login: failed to send command");
 	}
 	return res;
 }

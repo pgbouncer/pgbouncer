@@ -91,8 +91,8 @@ struct SBuf {
 #define sbuf_socket(sbuf) ((sbuf)->sock)
 
 void sbuf_init(SBuf *sbuf, sbuf_cb_t proto_fn, void *arg);
-void sbuf_accept(SBuf *sbuf, int read_sock, bool is_unix);
-void sbuf_connect(SBuf *sbuf, const PgAddr *addr, const char *unix_dir, int timeout_sec);
+bool sbuf_accept(SBuf *sbuf, int read_sock, bool is_unix)  _MUSTCHECK;
+bool sbuf_connect(SBuf *sbuf, const PgAddr *addr, const char *unix_dir, int timeout_sec)  _MUSTCHECK;
 
 void sbuf_pause(SBuf *sbuf);
 void sbuf_continue(SBuf *sbuf);
@@ -105,7 +105,7 @@ void sbuf_prepare_fetch(SBuf *sbuf, int amount);
 
 bool sbuf_answer(SBuf *sbuf, const void *buf, int len)  _MUSTCHECK;
 
-void sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb cb);
+bool sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb cb)  _MUSTCHECK;
 
 /*
  * Returns true if SBuf is has no data buffered

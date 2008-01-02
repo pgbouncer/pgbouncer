@@ -51,16 +51,18 @@
 } while (0)
 
 /* declare static stuff */
-static void sbuf_queue_send(SBuf *sbuf);
-static bool sbuf_send_pending(SBuf *sbuf);
-static bool sbuf_process_pending(SBuf *sbuf);
+static bool sbuf_queue_send(SBuf *sbuf) _MUSTCHECK;
+static bool sbuf_send_pending(SBuf *sbuf) _MUSTCHECK;
+static bool sbuf_process_pending(SBuf *sbuf) _MUSTCHECK;
 static void sbuf_connect_cb(int sock, short flags, void *arg);
 static void sbuf_recv_cb(int sock, short flags, void *arg);
 static void sbuf_send_cb(int sock, short flags, void *arg);
 static void sbuf_try_resync(SBuf *sbuf);
-static void sbuf_wait_for_data(SBuf *sbuf);
+static bool sbuf_wait_for_data(SBuf *sbuf) _MUSTCHECK;
 static void sbuf_main_loop(SBuf *sbuf, bool skip_recv);
-static bool sbuf_call_proto(SBuf *sbuf, int event);
+static bool sbuf_call_proto(SBuf *sbuf, int event) /* _MUSTCHECK */;
+static bool sbuf_actual_recv(SBuf *sbuf, int len)  _MUSTCHECK;
+static bool sbuf_after_connect_check(SBuf *sbuf)  _MUSTCHECK;
 
 /*********************************
  * Public functions
@@ -75,8 +77,10 @@ void sbuf_init(SBuf *sbuf, sbuf_cb_t proto_fn, void *arg)
 }
 
 /* got new socket from accept() */
-void sbuf_accept(SBuf *sbuf, int sock, bool is_unix)
+bool sbuf_accept(SBuf *sbuf, int sock, bool is_unix)
 {
+	bool res;
+
 	Assert(sbuf->recv_pos == 0 && sbuf->sock == 0);
 	AssertSanity(sbuf);
 
@@ -85,16 +89,23 @@ void sbuf_accept(SBuf *sbuf, int sock, bool is_unix)
 	sbuf->is_unix = is_unix;
 
 	if (!cf_reboot) {
-		sbuf_wait_for_data(sbuf);
-
+		res = sbuf_wait_for_data(sbuf);
+		if (!res) {
+			sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
+			return false;
+		}
 		/* socket should already have some data (linux only) */
-		if (cf_tcp_defer_accept && !is_unix)
+		if (cf_tcp_defer_accept && !is_unix) {
 			sbuf_main_loop(sbuf, DO_RECV);
+			if (!sbuf->sock)
+				return false;
+		}
 	}
+	return true;
 }
 
 /* need to connect() to get a socket */
-void sbuf_connect(SBuf *sbuf, const PgAddr *addr, const char *unix_dir, int timeout_sec)
+bool sbuf_connect(SBuf *sbuf, const PgAddr *addr, const char *unix_dir, int timeout_sec)
 {
 	int res, sock, domain;
 	struct sockaddr_in sa_in;
@@ -129,12 +140,9 @@ void sbuf_connect(SBuf *sbuf, const PgAddr *addr, const char *unix_dir, int time
 	 * common stuff
 	 */
 	sock = socket(domain, SOCK_STREAM, 0);
-	if (sock < 0) {
-		/* probably fd limit, try to survive */
-		log_error("sbuf_connect: socket() failed: %s", strerror(errno));
-		sbuf_call_proto(sbuf, SBUF_EV_CONNECT_FAILED);
-		return;
-	}
+	if (sock < 0)
+		/* probably fd limit */
+		goto failed;
 
 	tune_socket(sock, addr->is_unix);
 
@@ -150,17 +158,23 @@ void sbuf_connect(SBuf *sbuf, const PgAddr *addr, const char *unix_dir, int time
 	if (res == 0) {
 		/* unix socket gives connection immidiately */
 		sbuf_connect_cb(sock, EV_WRITE, sbuf);
+		return true;
 	} else if (res < 0 && errno == EINPROGRESS) {
 		/* tcp socket needs waiting */
 		event_set(&sbuf->ev, sock, EV_WRITE, sbuf_connect_cb, sbuf);
-		event_add(&sbuf->ev, &timeout);
-	} else {
-		/* failure */
-		log_warning("connect failed: res=%d/err=%s", res, strerror(errno));
-		close(sock);
-		sbuf->sock = 0;
-		sbuf_call_proto(sbuf, SBUF_EV_CONNECT_FAILED);
+		res = event_add(&sbuf->ev, &timeout);
+		if (res >= 0)
+			return true;
 	}
+
+failed:
+	log_warning("sbuf_connect failed: %s", strerror(errno));
+
+	if (sock >= 0)
+		safe_close(sock);
+	sbuf->sock = 0;
+	sbuf_call_proto(sbuf, SBUF_EV_CONNECT_FAILED);
+	return false;
 }
 
 /* don't wait for data on this socket */
@@ -169,16 +183,24 @@ void sbuf_pause(SBuf *sbuf)
 	AssertActive(sbuf);
 	Assert(sbuf->wait_send == 0);
 
-	event_del(&sbuf->ev);
+	if (event_del(&sbuf->ev) < 0)
+		/* fixme */
+		fatal_perror("event_del");
 }
 
 /* resume from pause, start waiting for data */
 void sbuf_continue(SBuf *sbuf)
 {
 	bool do_recv = DO_RECV;
+	bool res;
 	AssertActive(sbuf);
 
-	sbuf_wait_for_data(sbuf);
+	res = sbuf_wait_for_data(sbuf);
+	if (!res) {
+		/* drop if problems */
+		sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
+		return;
+	}
 
 	/*
 	 * It's tempting to try to avoid the recv() but that would
@@ -200,13 +222,21 @@ void sbuf_continue(SBuf *sbuf)
  *
  * The callback will be called with arg given to sbuf_init.
  */
-void sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb user_cb)
+bool sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb user_cb)
 {
+	int err;
+
 	AssertActive(sbuf);
 
 	event_set(&sbuf->ev, sbuf->sock, EV_READ | EV_PERSIST,
 		  user_cb, sbuf->proto_cb_arg);
-	event_add(&sbuf->ev, NULL);
+
+	err = event_add(&sbuf->ev, NULL);
+	if (err < 0) {
+		log_warning("sbuf_continue_with_callback: %s", strerror(errno));
+		return false;
+	}
+	return true;
 }
 
 /* socket cleanup & close */
@@ -214,7 +244,8 @@ void sbuf_close(SBuf *sbuf)
 {
 	/* keep handler & arg values */
 	if (sbuf->sock > 0) {
-		event_del(&sbuf->ev);
+		if (event_del(&sbuf->ev) < 0)
+			fatal_perror("event_del");
 		safe_close(sbuf->sock);
 	}
 	sbuf->dst = NULL;
@@ -303,16 +334,24 @@ static bool sbuf_call_proto(SBuf *sbuf, int event)
 }
 
 /* let's wait for new data */
-static void sbuf_wait_for_data(SBuf *sbuf)
+static bool sbuf_wait_for_data(SBuf *sbuf)
 {
+	int err;
+
 	event_set(&sbuf->ev, sbuf->sock, EV_READ | EV_PERSIST, sbuf_recv_cb, sbuf);
-	event_add(&sbuf->ev, NULL);
+	err = event_add(&sbuf->ev, NULL);
+	if (err < 0) {
+		log_warning("sbuf_wait_for_data: event_add: %s", strerror(errno));
+		return false;
+	}
+	return true;
 }
 
 /* libevent EV_WRITE: called when dest socket is writable again */
 static void sbuf_send_cb(int sock, short flags, void *arg)
 {
 	SBuf *sbuf = arg;
+	bool res;
 
 	/* sbuf was closed before in this loop */
 	if (!sbuf->sock)
@@ -323,21 +362,34 @@ static void sbuf_send_cb(int sock, short flags, void *arg)
 
 	/* prepare normal situation for sbuf_main_loop */
 	sbuf->wait_send = 0;
-	sbuf_wait_for_data(sbuf);
-
-	/* here we should certainly skip recv() */
-	sbuf_main_loop(sbuf, SKIP_RECV);
+	res = sbuf_wait_for_data(sbuf);
+	if (res) {
+		/* here we should certainly skip recv() */
+		sbuf_main_loop(sbuf, SKIP_RECV);
+	} else
+		/* drop if problems */
+		sbuf_call_proto(sbuf, SBUF_EV_SEND_FAILED);
 }
 
 /* socket is full, wait until it's writable again */
-static void sbuf_queue_send(SBuf *sbuf)
+static bool sbuf_queue_send(SBuf *sbuf)
 {
+	int err;
 	AssertActive(sbuf);
 
 	sbuf->wait_send = 1;
-	event_del(&sbuf->ev);
+	err = event_del(&sbuf->ev);
+	if (err < 0) {
+		log_warning("sbuf_queue_send: event_del failed: %s", strerror(errno));
+		return false;
+	}
 	event_set(&sbuf->ev, sbuf->dst->sock, EV_WRITE, sbuf_send_cb, sbuf);
-	event_add(&sbuf->ev, NULL);
+	err = event_add(&sbuf->ev, NULL);
+	if (err < 0) {
+		log_warning("sbuf_queue_send: event_add failed: %s", strerror(errno));
+		return false;
+	}
+	return true;
 }
 
 /*
@@ -370,9 +422,11 @@ try_more:
 	pos = sbuf->buf + sbuf->send_pos;
 	res = safe_send(sbuf->dst->sock, pos, avail, 0);
 	if (res < 0) {
-		if (errno == EAGAIN)
-			sbuf_queue_send(sbuf);
-		else
+		if (errno == EAGAIN) {
+			if (!sbuf_queue_send(sbuf))
+				/* drop if queue failed */
+				sbuf_call_proto(sbuf, SBUF_EV_SEND_FAILED);
+		} else
 			sbuf_call_proto(sbuf, SBUF_EV_SEND_FAILED);
 		return false;
 	}
@@ -615,15 +669,16 @@ static void sbuf_connect_cb(int sock, short flags, void *arg)
 	SBuf *sbuf = arg;
 
 	if (flags & EV_WRITE) {
-		if (sbuf_after_connect_check(sbuf)) {
-			if (sbuf_call_proto(sbuf, SBUF_EV_CONNECT_OK))
-				sbuf_wait_for_data(sbuf);
-		} else
-			sbuf_call_proto(sbuf, SBUF_EV_CONNECT_FAILED);
-	} else {
-		/* EV_TIMEOUT */
-		sbuf_call_proto(sbuf, SBUF_EV_CONNECT_FAILED);
+		if (!sbuf_after_connect_check(sbuf))
+			goto failed;
+		if (!sbuf_call_proto(sbuf, SBUF_EV_CONNECT_OK))
+			return;
+		if (!sbuf_wait_for_data(sbuf))
+			goto failed;
+		return;
 	}
+failed:
+	sbuf_call_proto(sbuf, SBUF_EV_CONNECT_FAILED);
 }
 
 /* send some data to listening socket */

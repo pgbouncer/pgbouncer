@@ -682,6 +682,7 @@ void launch_new_connection(PgPool *pool)
 	PgSocket *server;
 	int total;
 	const char *unix_dir = cf_unix_socket_dir;
+	bool res;
 
 	/* allow only small number of connection attempts at a time */
 	if (!statlist_empty(&pool->new_server_list)) {
@@ -729,8 +730,10 @@ void launch_new_connection(PgPool *pool)
 		unix_dir = server->pool->db->unix_socket_dir;
 
 	/* start connecting */
-	sbuf_connect(&server->sbuf, &server->remote_addr, unix_dir,
-		     cf_server_connect_timeout / USEC);
+	res = sbuf_connect(&server->sbuf, &server->remote_addr, unix_dir,
+			   cf_server_connect_timeout / USEC);
+	if (!res)
+		log_noise("failed to launch new connection");
 }
 
 /* new client connection attempt */
@@ -738,12 +741,15 @@ PgSocket * accept_client(int sock,
 			 const struct sockaddr_in *addr,
 			 bool is_unix)
 {
+	bool res;
 	PgSocket *client;
 
 	/* get free PgSocket */
 	client = obj_alloc(client_cache);
-	if (!client)
+	if (!client) {
+		safe_close(sock);
 		return NULL;
+	}
 
 	client->connect_time = client->request_time = get_cached_time();
 	client->query_start = 0;
@@ -755,7 +761,9 @@ PgSocket * accept_client(int sock,
 
 	if (cf_log_connections)
 		slog_debug(client, "got connection attempt");
-	sbuf_accept(&client->sbuf, sock, is_unix);
+	res = sbuf_accept(&client->sbuf, sock, is_unix);
+	if (!res)
+		return NULL;
 
 
 	return client;
@@ -880,6 +888,8 @@ bool use_client_socket(int fd, PgAddr *addr,
 	PktBuf tmp;
 
 	client = accept_client(fd, NULL, addr->is_unix);
+	if (client == NULL)
+		return false;
 	client->suspended = 1;
 
 	if (!set_pool(client, dbname, username))
@@ -914,6 +924,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 	PgPool *pool;
 	PgSocket *server;
 	PktBuf tmp;
+	bool res;
 
 	if (db->forced_user)
 		user = db->forced_user;
@@ -928,7 +939,10 @@ bool use_server_socket(int fd, PgAddr *addr,
 	if (!server)
 		return false;
 
-	sbuf_accept(&server->sbuf, fd, addr->is_unix);
+	res = sbuf_accept(&server->sbuf, fd, addr->is_unix);
+	if (!res)
+		return false;
+
 	server->suspended = 1;
 	server->pool = pool;
 	server->auth_user = user;

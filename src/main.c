@@ -311,16 +311,31 @@ static void signal_setup(void)
 		fatal_perror("sigprocmask");
 
 	/* install handlers */
+
 	signal_set(&ev_sigterm, SIGTERM, handle_sigterm, NULL);
-	signal_add(&ev_sigterm, NULL);
+	err = signal_add(&ev_sigterm, NULL);
+	if (err < 0)
+		fatal_perror("signal_add");
+
 	signal_set(&ev_sigint, SIGINT, handle_sigint, NULL);
-	signal_add(&ev_sigint, NULL);
+	err = signal_add(&ev_sigint, NULL);
+	if (err < 0)
+		fatal_perror("signal_add");
+
 	signal_set(&ev_sigusr1, SIGUSR1, handle_sigusr1, NULL);
-	signal_add(&ev_sigusr1, NULL);
+	err = signal_add(&ev_sigusr1, NULL);
+	if (err < 0)
+		fatal_perror("signal_add");
+
 	signal_set(&ev_sigusr2, SIGUSR2, handle_sigusr2, NULL);
-	signal_add(&ev_sigusr2, NULL);
+	err = signal_add(&ev_sigusr2, NULL);
+	if (err < 0)
+		fatal_perror("signal_add");
+
 	signal_set(&ev_sighup, SIGHUP, handle_sighup, NULL);
-	signal_add(&ev_sighup, NULL);
+	err = signal_add(&ev_sighup, NULL);
+	if (err < 0)
+		fatal_perror("signal_add");
 }
 
 /*
@@ -457,10 +472,18 @@ static void daemon_setup(void)
 
 static void main_loop_once(void)
 {
+	int err;
+
 	reset_time_cache();
-	event_loop(EVLOOP_ONCE);
-	per_loop_maint();
-	reuse_just_freed_objects();
+
+	err = event_loop(EVLOOP_ONCE);
+	if (err < 0) {
+		if (errno != EINTR)
+			log_warning("event_loop failed: %s", strerror(errno));
+	} else {
+		per_loop_maint();
+		reuse_just_freed_objects();
+	}
 }
 
 /* boot everything */

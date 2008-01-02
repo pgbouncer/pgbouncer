@@ -172,7 +172,7 @@ static void err_wait_func(int sock, short flags, void *arg)
 /* got new connection, associate it with client struct */
 static void pool_accept(int sock, short flags, void *is_unix)
 {
-	int fd;
+	int fd, err;
 	PgSocket *client;
 	union {
 		struct sockaddr_in in;
@@ -189,9 +189,12 @@ static void pool_accept(int sock, short flags, void *is_unix)
 		 * wait a bit, hope that admin resolves somehow
 		 */
 		log_error("accept() failed: %s", strerror(errno));
-		suspend_pooler();
 		evtimer_set(&ev_err, err_wait_func, NULL);
-		evtimer_add(&ev_err, &err_timeout);
+		err = evtimer_add(&ev_err, &err_timeout);
+		if (err < 0)
+			log_error("pool_accept: evtimer_add: %s", strerror(errno));
+		else
+			suspend_pooler();
 		return;
 	}
 
@@ -213,10 +216,8 @@ static void pool_accept(int sock, short flags, void *is_unix)
 		client = accept_client(fd, &addr.in, false);
 	}
 
-	if (!client) {
-		log_debug("P: no mem for client struct");
-		safe_close(fd);
-	}
+	if (!client)
+		log_warning("P: no mem for client struct");
 }
 
 bool use_pooler_socket(int sock, bool is_unix)
@@ -234,10 +235,16 @@ void suspend_pooler(void)
 {
 	suspended = 1;
 
-	if (fd_net)
-		event_del(&ev_net);
-	if (fd_unix)
-		event_del(&ev_unix);
+	if (fd_net) {
+		if (event_del(&ev_net) < 0)
+			/* fixme */
+			fatal_perror("event_del(ev_net)");
+	}
+	if (fd_unix) {
+		if (event_del(&ev_unix) < 0)
+			/* fixme */
+			fatal_perror("event_del(ev_unix)");
+	}
 }
 
 void resume_pooler(void)
@@ -246,12 +253,16 @@ void resume_pooler(void)
 
 	if (fd_unix) {
 		event_set(&ev_unix, fd_unix, EV_READ | EV_PERSIST, pool_accept, "1");
-		event_add(&ev_unix, NULL);
+		if (event_add(&ev_unix, NULL) < 0)
+			/* fixme: less serious approach? */
+			fatal_perror("event_add(ev_unix)");
 	}
 
 	if (fd_net) {
 		event_set(&ev_net, fd_net, EV_READ | EV_PERSIST, pool_accept, NULL);
-		event_add(&ev_net, NULL);
+		if (event_add(&ev_net, NULL) < 0)
+			/* fixme: less serious approach? */
+			fatal_perror("event_add(ev_net)");
 	}
 }
 

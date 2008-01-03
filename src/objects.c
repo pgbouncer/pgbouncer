@@ -794,12 +794,6 @@ bool finish_client_login(PgSocket *client)
 
 	slog_debug(client, "logged in");
 
-	/* in suspend, don't let send query */
-	if (cf_pause_mode == P_SUSPEND)
-		if (!suspend_socket(client))
-			disconnect_client(client, true, "extra data on login not allowed when suspending");
-	/* fixme: disallow extra data on login completely? is it handled? */
-
 	return true;
 }
 

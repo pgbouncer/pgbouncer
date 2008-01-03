@@ -181,9 +181,14 @@ static void pool_accept(int sock, short flags, void *is_unix)
 	} addr;
 	socklen_t len = sizeof(addr);
 
+loop:
 	/* get fd */
 	fd = accept(sock, &addr.sa, &len);
 	if (fd < 0) {
+		/* no more */
+		if (errno == EWOULDBLOCK)
+			return;
+
 		/*
 		 * probably fd limit, pointless to try often
 		 * wait a bit, hope that admin resolves somehow
@@ -216,8 +221,16 @@ static void pool_accept(int sock, short flags, void *is_unix)
 		client = accept_client(fd, &addr.in, false);
 	}
 
-	if (!client)
+	if (!client) {
 		log_warning("P: no mem for client struct");
+		return;
+	}
+
+	/*
+	 * there may be several clients waiting,
+	 * avoid context switch by looping
+	 */
+	goto loop;
 }
 
 bool use_pooler_socket(int sock, bool is_unix)

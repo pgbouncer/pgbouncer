@@ -260,7 +260,7 @@ void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, int amount)
 {
 	AssertActive(sbuf);
 	Assert(sbuf->pkt_remain == 0);
-	Assert(sbuf->pkt_action == ACT_UNSET || sbuf->send_remain == 0);
+	Assert(sbuf->pkt_action == ACT_UNSET || sbuf->pkt_action == ACT_SEND || sbuf->send_remain == 0);
 	Assert(amount > 0);
 
 	sbuf->pkt_action = ACT_SEND;

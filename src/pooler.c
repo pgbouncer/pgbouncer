@@ -185,8 +185,11 @@ loop:
 	/* get fd */
 	fd = accept(sock, &addr.sa, &len);
 	if (fd < 0) {
-		/* no more */
-		if (errno == EWOULDBLOCK)
+		if (errno == EINTR)
+			goto loop;
+		else if (errno == EAGAIN)
+			return;
+		else if (errno == ECONNABORTED)
 			return;
 
 		/*

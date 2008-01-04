@@ -153,18 +153,21 @@ bool sbuf_connect(SBuf *sbuf, const PgAddr *addr, const char *unix_dir, int time
 	timeout.tv_usec = 0;
 
 	/* launch connection */
+loop:
 	res = connect(sock, sa, len);
 	log_noise("connect(%d)=%d", sock, res);
 	if (res == 0) {
 		/* unix socket gives connection immidiately */
 		sbuf_connect_cb(sock, EV_WRITE, sbuf);
 		return true;
-	} else if (res < 0 && errno == EINPROGRESS) {
+	} else if (errno == EINPROGRESS) {
 		/* tcp socket needs waiting */
 		event_set(&sbuf->ev, sock, EV_WRITE, sbuf_connect_cb, sbuf);
 		res = event_add(&sbuf->ev, &timeout);
 		if (res >= 0)
 			return true;
+	} else if (errno == EINTR) {
+		goto loop;
 	}
 
 failed:

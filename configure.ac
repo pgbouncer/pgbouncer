@@ -103,7 +103,7 @@ AC_ARG_WITH(libevent,
   [ test "$withval" = "no" && AC_MSG_ERROR("cannot work without libevent")
     CPPFLAGS="$CPPFLAGS -I$withval/include"
     LDFLAGS="$LDFLAGS -L$withval/lib" ])
-LIBS="$LIBS -levent"
+LIBS="-levent $LIBS"
 AC_LINK_IFELSE([
   #include <sys/types.h>
   #include <sys/time.h>

@@ -479,10 +479,9 @@ static void main_loop_once(void)
 	if (err < 0) {
 		if (errno != EINTR)
 			log_warning("event_loop failed: %s", strerror(errno));
-	} else {
-		per_loop_maint();
-		reuse_just_freed_objects();
 	}
+	per_loop_maint();
+	reuse_just_freed_objects();
 }
 
 /* boot everything */

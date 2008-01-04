@@ -71,7 +71,7 @@ static bool sbuf_after_connect_check(SBuf *sbuf)  _MUSTCHECK;
 /* initialize SBuf with proto handler */
 void sbuf_init(SBuf *sbuf, sbuf_cb_t proto_fn, void *arg)
 {
-	memset(sbuf, 0, sizeof(*sbuf));
+	memset(sbuf, 0, RAW_SBUF_SIZE);
 	sbuf->proto_cb_arg = arg;
 	sbuf->proto_cb = proto_fn;
 }

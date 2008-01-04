@@ -85,8 +85,10 @@ struct SBuf {
 
 	SBuf *dst;		/* target SBuf for current packet */
 
-	uint8_t buf[0];		/* data buffer follows (cf_sbuf_len + SBUF_MAX_REWRITE) */
+	uint8_t buf[FLEX_ARRAY];/* data buffer follows (cf_sbuf_len + SBUF_MAX_REWRITE) */
 };
+
+#define RAW_SBUF_SIZE offsetof(struct SBuf, buf)
 
 #define sbuf_socket(sbuf) ((sbuf)->sock)
 

@@ -56,6 +56,15 @@
 #include <crypt.h>
 #endif
 
+/* how to specify array with unknown length */
+#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
+#define FLEX_ARRAY
+#elif defined(__GNUC__)
+#define FLEX_ARRAY
+#else
+#define FLEX_ARRAY 1
+#endif
+
 /* gcc has hew positive aspects too */
 #ifdef __GNUC__
 

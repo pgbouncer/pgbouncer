@@ -148,8 +148,8 @@ static void refresh_stats(int s, short flags, void *arg)
 	/* send totals to logfile */
 	log_info("Stats: %llu req/s, in %llu b/s, "
 		 "out %llu b/s, query %llu us",
-		 avg.request_count, avg.client_bytes,
-		 avg.server_bytes, avg.query_time);
+		 (ull_t)avg.request_count, (ull_t)avg.client_bytes,
+		 (ull_t)avg.server_bytes, (ull_t)avg.query_time);
 
 	err = evtimer_add(&ev_stats, &period);
 	if (err < 0) {

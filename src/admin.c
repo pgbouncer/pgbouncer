@@ -263,7 +263,7 @@ static bool send_one_fd(PgSocket *admin,
 	}
 
 	slog_debug(admin, "sending socket list: fd=%d, len=%d",
-		   fd, msg.msg_controllen);
+		   fd, (int)msg.msg_controllen);
 	res = safe_sendmsg(sbuf_socket(&admin->sbuf), &msg, 0);
 	if (res < 0) {
 		log_error("send_one_fd: sendmsg error: %s", strerror(errno));

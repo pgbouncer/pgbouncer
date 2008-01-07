@@ -5,12 +5,13 @@ PGLIB = -L$(shell pg_config --libdir)
 include ../config.mak
 
 CPPFLAGS += -I../include $(PGINC)
-LDFLAGS += $(PGLIB) -lpq -levent
+LDFLAGS += $(PGLIB)
+LIBS += -lpq
 
 all: asynctest
 
 asynctest: asynctest.c
-	$(CC) -o $@ $< $(CPPFLAGS) $(CFLAGS) $(LDFLAGS)
+	$(CC) -o $@ $< $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $(LIBS)
 
 clean:
 	rm -f asynctest

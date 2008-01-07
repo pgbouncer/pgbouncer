@@ -86,6 +86,8 @@ int safe_send(int fd, const void *buf, int len, int flags) 	_MUSTCHECK;
 int safe_close(int fd);
 int safe_recvmsg(int fd, struct msghdr *msg, int flags)		_MUSTCHECK;
 int safe_sendmsg(int fd, const struct msghdr *msg, int flags)	_MUSTCHECK;
+int safe_connect(int fd, const struct sockaddr *sa, socklen_t sa_len)	_MUSTCHECK;
+int safe_accept(int fd, struct sockaddr *sa, socklen_t *sa_len)	_MUSTCHECK;
 
 /*
  * password tools
@@ -106,4 +108,7 @@ const char *format_date(usec_t uval);
 void fill_remote_addr(PgSocket *sk, int fd, bool is_unix);
 void fill_local_addr(PgSocket *sk, int fd, bool is_unix);
 
+
+void rescue_timers(void);
+void safe_evtimer_add(struct event *ev, struct timeval *tv);
 

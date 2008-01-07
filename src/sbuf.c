@@ -153,9 +153,7 @@ bool sbuf_connect(SBuf *sbuf, const PgAddr *addr, const char *unix_dir, int time
 	timeout.tv_usec = 0;
 
 	/* launch connection */
-loop:
-	res = connect(sock, sa, len);
-	log_noise("connect(%d)=%d", sock, res);
+	res = safe_connect(sock, sa, len);
 	if (res == 0) {
 		/* unix socket gives connection immidiately */
 		sbuf_connect_cb(sock, EV_WRITE, sbuf);
@@ -166,8 +164,6 @@ loop:
 		res = event_add(&sbuf->ev, &timeout);
 		if (res >= 0)
 			return true;
-	} else if (errno == EINTR) {
-		goto loop;
 	}
 
 failed:

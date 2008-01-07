@@ -128,7 +128,6 @@ static void refresh_stats(int s, short flags, void *arg)
 	PgPool *pool;
 	struct timeval period = { cf_stats_period, 0 };
 	PgStats old_total, cur_total, avg;
-	int err;
 
 	reset_stats(&old_total);
 	reset_stats(&cur_total);
@@ -151,26 +150,18 @@ static void refresh_stats(int s, short flags, void *arg)
 		 (ull_t)avg.request_count, (ull_t)avg.client_bytes,
 		 (ull_t)avg.server_bytes, (ull_t)avg.query_time);
 
-	err = evtimer_add(&ev_stats, &period);
-	if (err < 0) {
-		/* fixme */
-		log_warning("Cannot re-add stats timer, stats non-functional now: %s",
-			    strerror(errno));
-	}
+	safe_evtimer_add(&ev_stats, &period);
 }
 
 void stats_setup(void)
 {
 	struct timeval period = { cf_stats_period, 0 };
-	int err;
 
 	new_stamp = get_cached_time();
 	old_stamp = new_stamp - USEC;
 
-	/* launch maintenance */
+	/* launch stats */
 	evtimer_set(&ev_stats, refresh_stats, NULL);
-	err = evtimer_add(&ev_stats, &period);
-	if (err < 0)
-		fatal_perror("evtimer_add");
+	safe_evtimer_add(&ev_stats, &period);
 }
 

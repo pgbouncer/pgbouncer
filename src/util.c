@@ -342,6 +342,49 @@ loop:
 	return res;
 }
 
+static const char *sa2str(const struct sockaddr *sa)
+{
+	static char buf[256];
+	if (sa->sa_family == AF_UNIX) {
+		struct sockaddr_un *un = (struct sockaddr_un *)sa;
+		snprintf(buf, sizeof(buf), "unix:%s", un->sun_path);
+	} else if (sa->sa_family == AF_INET) {
+		struct sockaddr_in *in = (struct sockaddr_in *)sa;
+		snprintf(buf, sizeof(buf), "%s:%d", inet_ntoa(in->sin_addr), ntohs(in->sin_port));
+	} else {
+		snprintf(buf, sizeof(buf), "sa2str: unknown proto");
+	}
+	return buf;
+}
+
+int safe_connect(int fd, const struct sockaddr *sa, socklen_t sa_len)
+{
+	int res;
+loop:
+	res = connect(fd, sa, sa_len);
+	if (res < 0 && errno == EINTR)
+		goto loop;
+	if (res < 0 && (errno != EINPROGRESS || cf_verbose > 2))
+		log_noise("connect(%d, %s) = %s", fd, sa2str(sa), strerror(errno));
+	else if (cf_verbose > 2)
+		log_noise("connect(%d, %s) = %d", fd, sa2str(sa), res);
+	return res;
+}
+
+int safe_accept(int fd, struct sockaddr *sa, socklen_t *sa_len_p)
+{
+	int res;
+loop:
+	res = accept(fd, sa, sa_len_p);
+	if (res < 0 && errno == EINTR)
+		goto loop;
+	if (res < 0)
+		log_noise("safe_accept(%d) = %s", fd, strerror(errno));
+	else if (cf_verbose > 2)
+		log_noise("safe_accept(%d) = %d (%s)", fd, res, sa2str(sa));
+	return res;
+}
+
 /*
  * Load a file into malloc()-ed C string.
  */
@@ -653,6 +696,49 @@ void fill_local_addr(PgSocket *sk, int fd, bool is_unix)
 			dst->ip_addr = adr.sin_addr;
 			dst->port = ntohs(adr.sin_port);
 		}
+	}
+}
+
+/*
+ * Error handling around evtimer_add() is nasty as the code
+ * may not be called again.  As there is fixed number of timers
+ * in pgbouncer, provider safe_evtimer_add() that stores args of
+ * failed calls in static array and retries later.
+ */
+#define TIMER_BACKUP_SLOTS  10
+
+struct timer_slot {
+	struct event *ev;
+	struct timeval tv;
+};
+static struct timer_slot timer_backup_list[TIMER_BACKUP_SLOTS];
+static int timer_backup_used = 0;
+
+void safe_evtimer_add(struct event *ev, struct timeval *tv)
+{
+	int res;
+	struct timer_slot *ts;
+	
+	res = evtimer_add(ev, tv);
+	if (res >= 0)
+		return;
+
+	if (timer_backup_used >= TIMER_BACKUP_SLOTS)
+		fatal_perror("TIMER_BACKUP_SLOTS full");
+
+	ts = &timer_backup_list[timer_backup_used++];
+	ts->ev = ev;
+	ts->tv = *tv;
+}
+
+void rescue_timers(void)
+{
+	struct timer_slot *ts;
+	while (timer_backup_used) {
+		ts = &timer_backup_list[timer_backup_used - 1];
+		if (evtimer_add(ts->ev, &ts->tv) < 0)
+			break;
+		timer_backup_used--;
 	}
 }
 

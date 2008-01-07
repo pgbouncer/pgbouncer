@@ -172,7 +172,7 @@ static void err_wait_func(int sock, short flags, void *arg)
 /* got new connection, associate it with client struct */
 static void pool_accept(int sock, short flags, void *is_unix)
 {
-	int fd, err;
+	int fd;
 	PgSocket *client;
 	union {
 		struct sockaddr_in in;
@@ -183,11 +183,9 @@ static void pool_accept(int sock, short flags, void *is_unix)
 
 loop:
 	/* get fd */
-	fd = accept(sock, &addr.sa, &len);
+	fd = safe_accept(sock, &addr.sa, &len);
 	if (fd < 0) {
-		if (errno == EINTR)
-			goto loop;
-		else if (errno == EAGAIN)
+		if (errno == EAGAIN)
 			return;
 		else if (errno == ECONNABORTED)
 			return;
@@ -198,11 +196,8 @@ loop:
 		 */
 		log_error("accept() failed: %s", strerror(errno));
 		evtimer_set(&ev_err, err_wait_func, NULL);
-		err = evtimer_add(&ev_err, &err_timeout);
-		if (err < 0)
-			log_error("pool_accept: evtimer_add: %s", strerror(errno));
-		else
-			suspend_pooler();
+		safe_evtimer_add(&ev_err, &err_timeout);
+		suspend_pooler();
 		return;
 	}
 

@@ -22,6 +22,7 @@
 
 static void log_error(const char *, ...);
 static void log_debug(const char *, ...);
+static void fatal(const char *fmt, ...);
 
 typedef uint64_t usec_t;
 #define USEC 1000000ULL
@@ -41,15 +42,20 @@ typedef void (*libev_cb_f)(int sock, short flags, void *arg);
 
 typedef enum { false=0, true=1 } bool;
 
+#define LIST_DEBUG
+
 #include "list.h"
 
-static LIST(idle_list);
-static LIST(active_list);
+static STATLIST(idle_list);
+static STATLIST(active_list);
 
 #define QT_SIMPLE  1
 #define QT_BIGDATA 2
 #define QT_SLEEP   4
 static unsigned QueryTypes = 0;
+
+static uint64_t LoginFailedCount = 0;
+static uint64_t SqlErrorCount = 0;
 static uint64_t QueryCount = 0;
 
 typedef struct DbConn {
@@ -57,6 +63,7 @@ typedef struct DbConn {
 	const char	*connstr;
 	struct event	ev;
 	PGconn		*con;
+	bool		logged_in;
 
 	//time_t		connect_time;
 	//unsigned	query_count;
@@ -89,23 +96,34 @@ static DbConn *new_db(const char *connstr)
 
 static void set_idle(DbConn *db)
 {
-	Assert(item_in_list(&db->head, &active_list));
-	list_del(&db->head);
-	list_append(&db->head, &idle_list);
+	Assert(item_in_list(&db->head, &active_list.head));
+	statlist_remove(&db->head, &active_list);
+	statlist_append(&db->head, &idle_list);
 	log_debug("%p: set_idle", db);
 }
 
 static void set_active(DbConn *db)
 {
-	Assert(item_in_list(&db->head, &idle_list));
-	list_del(&db->head);
-	list_append(&db->head, &active_list);
+	Assert(item_in_list(&db->head, &idle_list.head));
+	statlist_remove(&db->head, &idle_list);
+	statlist_append(&db->head, &active_list);
 	log_debug("%p: set_active", db);
 }
 
 static void fatal_perror(const char *err)
 {
 	log_error("%s: %s", err, strerror(errno));
+	exit(1);
+}
+
+static void fatal(const char *fmt, ...)
+{
+	va_list ap;
+	char buf[1024];
+	va_start(ap, fmt);
+	vsnprintf(buf, sizeof(buf), fmt, ap);
+	va_end(ap);
+	printf("FATAL: %s\n", buf);
 	exit(1);
 }
 
@@ -138,10 +156,16 @@ static void wait_event(DbConn *db, short ev, libev_cb_f fn)
 		fatal_perror("event_add");
 }
 
-static void disconnect(DbConn *db, const char *reason, ...)
+static void disconnect(DbConn *db, bool is_err, const char *reason, ...)
 {
 	char buf[1024];
 	va_list ap;
+	if (is_err) {
+		if (db->logged_in)
+			SqlErrorCount++;
+		else
+			LoginFailedCount++;
+	}
 	if (db->con) {
 		va_start(ap, reason);
 		vsnprintf(buf, sizeof(buf), reason, ap);
@@ -149,6 +173,8 @@ static void disconnect(DbConn *db, const char *reason, ...)
 		log_debug("disconnect because: %s", buf);
 		PQfinish(db->con);
 		db->con = NULL;
+		db->logged_in = 0;
+		set_idle(db);
 	}
 }
 
@@ -157,11 +183,11 @@ static void conn_error(DbConn *db, const char *desc)
 {
 	if (db->con) {
 		/* fixme show firt couple errors */
-		disconnect(db, "%s: %s", desc, PQerrorMessage(db->con));
+		disconnect(db, true, "%s: %s", desc, PQerrorMessage(db->con));
 	} else {
 		printf("random error: %s\n", desc);
+		exit(1);
 	}
-	set_idle(db);
 }
 
 /*
@@ -178,9 +204,7 @@ static bool another_result(DbConn *db)
 	res = PQgetResult(db->con);
 	if (res == NULL) {
 		QueryCount++;
-		set_idle(db);
-
-		disconnect(db, "query done");
+		disconnect(db, false, "query done");
 		return false;
 	}
 
@@ -312,10 +336,11 @@ static void connect_cb(int sock, short flags, void *arg)
 		wait_event(db, EV_READ, connect_cb);
 		break;
 	case PGRES_POLLING_OK:
+		log_debug("login ok: fd=%d", PQsocket(db->con));
+		db->logged_in = 1;
 		send_query(db);
 		break;
-	case PGRES_POLLING_ACTIVE:
-	case PGRES_POLLING_FAILED:
+	default:
 		conn_error(db, "PQconnectPoll");
 	}
 }
@@ -323,10 +348,11 @@ static void connect_cb(int sock, short flags, void *arg)
 static void launch_connect(DbConn *db)
 {
 	/* launch new connection */
+	db->logged_in = 0;
 	db->con = PQconnectStart(db->connstr);
 	if (db->con == NULL) {
-		conn_error(db, "PQconnectStart: no mem");
-		return;
+		log_error("PQconnectStart: no mem");
+		exit(1);
 	}
 
 	if (PQstatus(db->con) == CONNECTION_BAD) {
@@ -359,16 +385,24 @@ static void run_stats(int fd, short ev, void *arg)
 	struct timeval period = { 2, 0 };
 
 	static usec_t last_time = 0;
-	static uint64_t last_count = 0;
+	static uint64_t last_query_count = 0;
+	static uint64_t last_login_failed_count = 0;
+	static uint64_t last_sql_error_count = 0;
 
-	double time_diff, count_diff;
+	double time_diff, qcount_diff, loginerr_diff, sqlerr_diff;
 	usec_t now = get_time_usec();
 
 	time_diff = now - last_time;
 	if (last_time && time_diff) {
-		count_diff = QueryCount - last_count;
+		qcount_diff = QueryCount - last_query_count;
+		loginerr_diff = LoginFailedCount - last_login_failed_count;
+		sqlerr_diff = SqlErrorCount - last_sql_error_count;
 		if (verbose == 0) {
-			printf(" qps: %8.1f\r", USEC * count_diff / time_diff);
+			printf(">> loginerr,sqlerr,qcount: %6.1f / %6.1f / %6.1f  active/idle: %3d / %3d   \r",
+			       USEC * loginerr_diff / time_diff,
+			       USEC * sqlerr_diff / time_diff,
+			       USEC * qcount_diff / time_diff,
+			       statlist_count(&active_list), statlist_count(&idle_list));
 			fflush(stdout);
 		}
 	}
@@ -378,7 +412,9 @@ static void run_stats(int fd, short ev, void *arg)
 	if (evtimer_add(&ev_stats, &period) < 0)
 		fatal_perror("evtimer_add");
 
-	last_count = QueryCount;
+	last_query_count = QueryCount;
+	last_login_failed_count = LoginFailedCount;
+	last_sql_error_count = SqlErrorCount;
 	last_time = now;
 }
 
@@ -431,7 +467,7 @@ int main(int argc, char *argv[])
 
 	for (i = 0; i < numcon; i++) {
 		db = new_db(cstr);
-		list_append(&db->head, &idle_list);
+		statlist_append(&db->head, &idle_list);
 	}
 
 #if 0
@@ -450,7 +486,7 @@ int main(int argc, char *argv[])
 	while (1) {
 		if (event_loop(EVLOOP_ONCE) < 0)
 			log_error("event_loop: %s", strerror(errno));
-		list_for_each_safe(item, &idle_list, tmp) {
+		statlist_for_each_safe(item, &idle_list, tmp) {
 			db = container_of(item, DbConn, head);
 			handle_idle(db);
 		}

@@ -4,7 +4,7 @@ PGLIB = -L$(shell pg_config --libdir)
 
 include ../config.mak
 
-CPPFLAGS += -I../src $(PGINC)
+CPPFLAGS += -I../include $(PGINC)
 LDFLAGS += $(PGLIB) -lpq -levent
 
 all: asynctest

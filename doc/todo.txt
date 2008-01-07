@@ -3,10 +3,13 @@
 == next release - 1.2 ==
 
 === done ===
+
  * use aatree for user lookup
- * Slab allocator for mem management.
- * Use standard int types: uint*_t
+ * use slab allocator for memory management.
+ * use standard int types: uint*_t
  * logging to syslog
+ * fake parameters to SHOW/SET to allow psycopg to connect to console.
+ * various correctness fixes
 
 === todo ===
 
@@ -34,8 +37,12 @@
  * units for config parameters.
  * cleanup of logging levels, to make log more useful
  * decrease list walking
+ * survive errors from libevent event_del()
+ * to test:
+   - signal flood
+   - no mem / no fds handling
 
-== Major features ==
+== Dubious/complicated features ==
 
 === prepared plans ===
 
@@ -60,4 +67,15 @@
 
  * allow serveral server to serve one db
    - possibility to specify failover databases.
+ * as the result would be less featureful than HAProxy,
+   seems pointless.
+
+=== SMP awareness ===
+
+ * spread sockets over per-cpu threads.  needs confirmation that
+   single-threadedness can be problem.  it can also be that only
+   accept() + login handling of short connection is problem.
+   that could be solved by just having threads for login handling,
+   which would be lot simpler.  or just deciding that its not
+   worth fixing.
 

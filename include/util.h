@@ -19,7 +19,6 @@
 /*
  * time tools
  */
-typedef uint64_t usec_t;
 usec_t get_cached_time(void);
 void reset_time_cache(void);
 

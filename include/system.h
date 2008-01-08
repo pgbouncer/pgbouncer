@@ -117,6 +117,8 @@ do { \
 /* how many microseconds in a second */
 #define USEC (1000000LL)
 
+typedef uint64_t usec_t;
+
 /* shortcut to simplify printf of u64 types */
 typedef unsigned long long ull_t;
 

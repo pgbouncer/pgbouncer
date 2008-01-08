@@ -15,7 +15,7 @@ BOUNCER_LOG=test.log
 BOUNCER_INI=test.ini
 BOUNCER_PID=test.pid
 BOUNCER_PORT=`sed -n '/^listen_port/s/listen_port.*=[^0-9]*//p' $BOUNCER_INI`
-BOUNCER_EXE=./pgbouncer
+BOUNCER_EXE="./pgbouncer"
 
 LOGDIR=log
 NC_PORT=6668
@@ -184,9 +184,10 @@ test_server_connect_timeout_establish() {
 	psql -c "select now()" p2
 	# client will always see query_timeout, need to grep for connect timeout
 	grep "closing because: connect timeout" $BOUNCER_LOG 
+        rc=$?
         # didnt seem to die otherwise
 	killall nc
-	return $?
+	return $rc
 }
 
 # server_connect_timeout - block with iptables

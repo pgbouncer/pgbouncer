@@ -471,7 +471,6 @@ static void do_full_maint(int sock, short flags, void *arg)
 	if (cf_auth_type >= AUTH_TRUST)
 		loader_users_check();
 
-skip:
 	safe_evtimer_add(&full_maint_ev, &full_maint_period);
 }
 

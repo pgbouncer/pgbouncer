@@ -51,17 +51,11 @@
 
 === make -R less scary ===
 
- * -R should somehow log whats happens
  * -R should detect that no pooler is running and boot normally
- * -R should detect if login fails then exit()
- * Details:
-   - Takeover before fork()
-   - must not touch libevent, just fill structures,
-     libevent init after fork()
-   - ^C while takeover - immidiate _exit()
- * Detect existing process:
    - if tcp - try binding
    - if unix - try connect()
+ * -R should detect if login fails then exit()
+ * Move SHUTDOWN; after fork.
 
 === load-balancing ===
 

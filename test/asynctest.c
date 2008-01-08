@@ -6,26 +6,55 @@
  * - variable-size query
  */
 
-#include <sys/time.h>
-#include <sys/select.h>
-#include <sys/types.h>
-#include <time.h>
-#include <unistd.h>
-#include <errno.h>
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <getopt.h>
+#include "system.h"
 
-#include <libpq-fe.h>
+#include <getopt.h>
 #include <event.h>
+#include <libpq-fe.h>
+
+typedef void (*libev_cb_f)(int sock, short flags, void *arg);
 
 static void log_error(const char *, ...);
 static void log_debug(const char *, ...);
 static void fatal(const char *fmt, ...);
 
-typedef uint64_t usec_t;
-#define USEC 1000000ULL
+#include "list.h"
+
+typedef struct DbConn {
+	List		head;
+	const char	*connstr;
+	struct event	ev;
+	PGconn		*con;
+	bool		logged_in;
+
+	//time_t		connect_time;
+	int	query_count;
+	//const char	*query;
+} DbConn;
+
+#define QT_SIMPLE  1
+#define QT_BIGDATA 2
+#define QT_SLEEP   4
+static unsigned QueryTypes = 0;
+static uint64_t LoginOkCount = 0;
+static uint64_t LoginFailedCount = 0;
+static uint64_t SqlErrorCount = 0;
+static uint64_t QueryCount = 0;
+
+static char *bulk_data;
+static int bulk_data_max = 16*1024;  /* power of 2 */
+static int verbose = 0;
+static int throttle_connects = 0;
+static int throttle_queries = 0;
+static int per_conn_queries = 1;
+
+static STATLIST(idle_list);
+static STATLIST(active_list);
+
+/*
+ * utility functions
+ */
+
 static usec_t get_time_usec(void)
 {
 	struct timeval tv;
@@ -44,51 +73,6 @@ static void reset_time_cache(void)
 {
 	_time_cache = 0;
 }
-
-typedef void (*libev_cb_f)(int sock, short flags, void *arg);
-
-#define Assert(e) do { if (!(e)) { \
-	log_error("Assert(%s) failed: %s:%d in %s", \
-		  #e, __FILE__, __LINE__, __FUNCTION__); \
-	exit(1); } } while (0)
-
-typedef enum { false=0, true=1 } bool;
-
-#define LIST_DEBUG
-
-#include "list.h"
-
-static STATLIST(idle_list);
-static STATLIST(active_list);
-
-#define QT_SIMPLE  1
-#define QT_BIGDATA 2
-#define QT_SLEEP   4
-static unsigned QueryTypes = 0;
-
-static uint64_t LoginOkCount = 0;
-static uint64_t LoginFailedCount = 0;
-static uint64_t SqlErrorCount = 0;
-static uint64_t QueryCount = 0;
-
-typedef struct DbConn {
-	List		head;
-	const char	*connstr;
-	struct event	ev;
-	PGconn		*con;
-	bool		logged_in;
-
-	//time_t		connect_time;
-	//unsigned	query_count;
-	//const char	*query;
-} DbConn;
-
-static char *bulk_data;
-static int bulk_data_max = 16*1024;  /* power of 2 */
-static int verbose = 0;
-static int throttle_connects = 300;
-static int throttle_queries = 3000;
-
 
 /* fill mem with random junk */
 static void init_bulk_data(void)
@@ -220,7 +204,7 @@ static bool another_result(DbConn *db)
 	res = PQgetResult(db->con);
 	if (res == NULL) {
 		QueryCount++;
-		disconnect(db, false, "query done");
+		set_idle(db);
 		return false;
 	}
 
@@ -315,6 +299,12 @@ static void send_query(DbConn *db)
 {
 	int res;
 
+	if (db->query_count >= per_conn_queries) {
+		disconnect(db, false, "query count full");
+		return;
+	}
+	db->query_count++;
+
 	/* send query */
 	if (QueryTypes & QT_SLEEP) {
 		res = send_query_sleep(db);
@@ -366,6 +356,7 @@ static void launch_connect(DbConn *db)
 {
 	/* launch new connection */
 	db->logged_in = 0;
+	db->query_count = 0;
 	db->con = PQconnectStart(db->connstr);
 	if (db->con == NULL) {
 		log_error("PQconnectStart: no mem");
@@ -386,8 +377,8 @@ static void handle_idle(void)
 {
 	DbConn *db;
 	List *item, *tmp;
-	int allow_connects = 100;
-	int allow_queries = 100;
+	int allow_connects = 100000;
+	int allow_queries = 100000;
 	static usec_t startup_time = 0;
 	usec_t now = get_cached_time();
 	usec_t diff;
@@ -475,8 +466,15 @@ static void run_stats(int fd, short ev, void *arg)
 }
 
 static const char usage_str [] =
-"usage: asynctest [-d connstr][-n numconn][-s seed][-t <types>][-C maxconn][-Q maxquery]\n"
-"accepted types:\n"
+"usage: asynctest [-d connstr][-n numconn][-s seed][-t <types>][-C maxconn][-Q maxquery][-q perconnq]\n"
+"  -d connstr		libpq connect string\n"
+"  -n num		number of connections\n"
+"  -s seed		random number seed\n"
+"  -t type of queries	query type, see below\n"
+"  -C maxcps		max number of connects per sec\n"
+"  -Q maxqps		max number of queries per sec\n"
+"  -q num		queries per connection (default 1)\n"
+"accepted query types:\n"
 "  B - bigdata\n"
 "  S - sleep occasionally\n"
 "  1 - simple 'select 1'\n";
@@ -486,10 +484,10 @@ int main(int argc, char *argv[])
 	int i, c;
 	DbConn *db;
 	unsigned seed = time(NULL) ^ getpid();
-	char *cstr = "dbname=conntest port=6000 host=127.0.0.1";
+	char *cstr = NULL;
 	int numcon = 50;
 
-	while ((c = getopt(argc, argv, "d:n:s:t:hvC:Q:")) != EOF) {
+	while ((c = getopt(argc, argv, "d:n:s:t:hvC:Q:q:")) != EOF) {
 		switch (c) {
 		default:
 		case 'h':
@@ -513,6 +511,9 @@ int main(int argc, char *argv[])
 		case 'v':
 			verbose++;
 			break;
+		case 'q':
+			per_conn_queries = atoi(optarg);
+			break;
 		case 't':
 			for (i = 0; optarg[i]; i++) {
 				switch (optarg[i]) {
@@ -524,6 +525,14 @@ int main(int argc, char *argv[])
 			}
 		}
 	}
+
+	if (!cstr) {
+		printf(usage_str);
+		return 1;
+	}
+
+	if (throttle_connects < 0 || throttle_queries < 0 || numcon < 0)
+		fatal("invalid parameter");
 
 	if (QueryTypes == 0)
 		QueryTypes = QT_SIMPLE;

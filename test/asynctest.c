@@ -12,13 +12,13 @@
 #include <event.h>
 #include <libpq-fe.h>
 
-typedef void (*libev_cb_f)(int sock, short flags, void *arg);
-
 static void log_error(const char *, ...);
 static void log_debug(const char *, ...);
 static void fatal(const char *fmt, ...);
 
 #include "list.h"
+
+typedef void (*libev_cb_f)(int sock, short flags, void *arg);
 
 typedef struct DbConn {
 	List		head;
@@ -51,6 +51,8 @@ static int per_conn_queries = 1;
 static STATLIST(idle_list);
 static STATLIST(active_list);
 
+static usec_t _time_cache = 0;
+
 /*
  * utility functions
  */
@@ -61,7 +63,6 @@ static usec_t get_time_usec(void)
 	gettimeofday(&tv, NULL);
 	return (usec_t)tv.tv_sec * USEC + tv.tv_usec;
 }
-static usec_t _time_cache = 0;
 
 static usec_t get_cached_time(void)
 {

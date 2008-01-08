@@ -465,8 +465,7 @@ static void daemon_setup(void)
 		check_pidfile();
 	if (cf_daemon)
 		go_daemon();
-	if (!cf_reboot)
-		write_pidfile();
+	write_pidfile();
 }
 
 static void main_loop_once(void)
@@ -489,6 +488,7 @@ static void main_loop_once(void)
 int main(int argc, char *argv[])
 {
 	int c;
+	int did_takeover = 0;
 
 	/* parse cmdline */
 	while ((c = getopt(argc, argv, "avhdVR")) != EOF) {
@@ -518,10 +518,9 @@ int main(int argc, char *argv[])
 	cf_config_file = argv[optind];
 
 	init_objects();
-
 	load_config(false);
-
 	init_caches();
+	admin_setup();
 
 	/* need to do that after loading config */
 	check_limits();
@@ -529,21 +528,27 @@ int main(int argc, char *argv[])
 	/* init random */
 	srandom(time(NULL) ^ getpid());
 
+	if (cf_reboot) {
+		/* use temporary libevent base */
+		void *evtmp = event_init();
+		takeover_init();
+		while (cf_reboot)
+			main_loop_once();
+		did_takeover = 1;
+		event_base_free(evtmp);
+	}
+
 	/* initialize subsystems, order important */
 	daemon_setup();
 	event_init();
 	signal_setup();
 	janitor_setup();
 	stats_setup();
-	admin_setup();
 
-	if (cf_reboot) {
-		takeover_init();
-		while (cf_reboot)
-			main_loop_once();
-		write_pidfile();
-	} else
+	if (!did_takeover)
 		pooler_setup();
+	else
+		resume_all();
 
 	/* main loop */
 	while (1)

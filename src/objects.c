@@ -110,11 +110,13 @@ static int user_node_cmp(long userptr, Node *node)
 	return strcmp(name, user->name);
 }
 
+/* initialization before config loading */
 void init_objects(void)
 {
 	tree_init(&user_tree, user_node_cmp, NULL);
 }
 
+/* initialization after config loading */
 void init_caches(void)
 {
 	server_cache = objcache_create("server_cache", PG_SOCKET_SIZE, 8,

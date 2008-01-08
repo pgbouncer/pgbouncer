@@ -240,10 +240,6 @@ void per_loop_maint(void)
 	int active = 0;
 	int partial_pause = 0;
 
-	/* don't touch anything if takeover is in progress */
-	if (cf_reboot)
-		return;
-
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
 		if (pool->admin)
@@ -456,10 +452,6 @@ static void do_full_maint(int sock, short flags, void *arg)
 {
 	List *item;
 	PgPool *pool;
-
-	/* don't touch anything if takeover is in progress */
-	if (cf_reboot)
-		goto skip;
 
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);

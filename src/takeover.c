@@ -35,7 +35,6 @@ static void takeover_finish(PgSocket *bouncer)
 {
 	disconnect_server(bouncer, false, "disko over");
 	cf_reboot = 0;
-	resume_all();
 	log_info("disko over, resuming work");
 }
 

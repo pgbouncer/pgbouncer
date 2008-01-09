@@ -10,6 +10,11 @@
  * logging to syslog
  * fake parameters to SHOW/SET to allow psycopg to connect to console.
  * various correctness fixes
+ * various code cleanups
+ * Less scary online restart (-R)
+   - Move FD loading before fork, so it logs to console and can be canceled by ^C
+   - Keep SHUTDOWN after fork, so ^C would be safe
+   - A connect() is attempted to unix socket to see if anyone is listening.
 
 === todo ===
 
@@ -23,11 +28,11 @@
  * new states for clients: idle and in-query.  That allows to apply
    client_idle_timeout and query_timeout without walking all clients
    on maintenance time.
- * ..hopefully.. make -R less scary
  * ..maybe.. make plan cache work
 
 == Minor features ==
 
+ * Move all "look-at-full-packet" situtations to SBUF_EV_PKT_CALLBACK
  * drop_on_error/keep_on_error - if released conn is in error state,
    then issue rollback and keep it
  * show stalled; command - like show sockets; but filter only active ones
@@ -36,7 +41,6 @@
  * auth_conn - access to pg_shadow, so auth_file is not needed
  * units for config parameters.
  * cleanup of logging levels, to make log more useful
- * decrease list walking
  * survive errors from libevent event_del()
  * to test:
    - signal flood
@@ -48,14 +52,6 @@
 
  * keeping track of protocol-level prepared plans
    - JDBC workaround in the meantime: protocolVersion=2
-
-=== make -R less scary ===
-
- * -R should detect that no pooler is running and boot normally
-   - if tcp - try binding
-   - if unix - try connect()
- * -R should detect if login fails then exit()
- * Move SHUTDOWN; after fork.
 
 === load-balancing ===
 

@@ -282,6 +282,7 @@ extern int cf_pool_mode;
 extern int cf_max_client_conn;
 extern int cf_default_pool_size;
 
+extern usec_t cf_suspend_timeout;
 extern usec_t cf_server_lifetime;
 extern usec_t cf_server_idle_timeout;
 extern char * cf_server_reset_query;
@@ -322,6 +323,7 @@ extern int cf_log_pooler_errors;
 
 extern ConfElem bouncer_params[];
 
+extern usec_t g_suspend_start;
 
 static inline PgSocket * _MUSTCHECK
 pop_socket(StatList *slist)

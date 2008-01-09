@@ -92,6 +92,9 @@ usec_t cf_server_login_retry = 15*USEC;
 usec_t cf_query_timeout = 0*USEC;
 usec_t cf_client_idle_timeout = 0*USEC;
 usec_t cf_client_login_timeout = 60*USEC;
+usec_t cf_suspend_timeout = 10*USEC;
+
+usec_t g_suspend_start = 0;
 
 char *cf_logfile = NULL;
 char *cf_pidfile = NULL;
@@ -135,6 +138,7 @@ ConfElem bouncer_params[] = {
 {"server_connect_timeout",true, CF_TIME, &cf_server_connect_timeout},
 {"server_login_retry",	true, CF_TIME, &cf_server_login_retry},
 {"server_round_robin",	true, CF_INT, &cf_server_round_robin},
+{"suspend_timeout",	true, CF_TIME, &cf_suspend_timeout},
 
 {"pkt_buf",		false, CF_INT, &cf_sbuf_len},
 {"tcp_defer_accept",	false, CF_INT, &cf_tcp_defer_accept},

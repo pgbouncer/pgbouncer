@@ -772,6 +772,8 @@ static bool admin_cmd_suspend(PgSocket *admin, const char *arg)
 	admin->wait_for_response = 1;
 	suspend_pooler();
 
+	g_suspend_start = get_cached_time();
+
 	return true;
 }
 

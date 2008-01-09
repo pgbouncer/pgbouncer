@@ -38,20 +38,38 @@ static void close_server_list(StatList *sk_list, const char *reason)
 	}
 }
 
-bool suspend_socket(PgSocket *sk)
+static void close_client_list(StatList *sk_list, const char *reason)
 {
+	List *item, *tmp;
+	PgSocket *client;
+
+	statlist_for_each_safe(item, sk_list, tmp) {
+		client = container_of(item, PgSocket, head);
+		disconnect_client(client, true, reason);
+	}
+}
+
+bool suspend_socket(PgSocket *sk, bool force_suspend)
+{
+	bool done = true;
 	if (!sk->suspended) {
 		if (sbuf_is_empty(&sk->sbuf)) {
 			sbuf_pause(&sk->sbuf);
 			sk->suspended = 1;
 		} else
-			return false;
+			done = false;
 	}
-	return true;
+	if (!done && force_suspend) {
+		if (is_server_socket(sk))
+			disconnect_server(sk, true, "suspend_timeout");
+		else
+			disconnect_client(sk, true, "suspend_timeout");
+	}
+	return done;
 }
 
 /* suspend all sockets in socket list */
-static int suspend_socket_list(StatList *list)
+static int suspend_socket_list(StatList *list, bool force_suspend)
 {
 	List *item;
 	PgSocket *sk;
@@ -59,7 +77,7 @@ static int suspend_socket_list(StatList *list)
 
 	statlist_for_each(item, list) {
 		sk = container_of(item, PgSocket, head);
-		if (!suspend_socket(sk))
+		if (!suspend_socket(sk, force_suspend))
 			active++;
 	}
 	return active;
@@ -204,23 +222,23 @@ static int per_loop_pause(PgPool *pool)
 /*
  * suspend active clients and servers
  */
-static int per_loop_suspend(PgPool *pool)
+static int per_loop_suspend(PgPool *pool, bool force_suspend)
 {
 	int active = 0;
 
 	if (pool->admin)
 		return 0;
 
-	active += suspend_socket_list(&pool->active_client_list);
+	active += suspend_socket_list(&pool->active_client_list, force_suspend);
 
-	if (!statlist_empty(&pool->waiting_client_list)) {
-		active += statlist_count(&pool->waiting_client_list);
+	/* this list is unsuspendable, but still need force_suspend and counting */
+	active += suspend_socket_list(&pool->waiting_client_list, force_suspend);
+	if (active)
 		per_loop_activate(pool);
-	}
 
 	if (!active) {
-		active += suspend_socket_list(&pool->active_server_list);
-		active += suspend_socket_list(&pool->idle_server_list);
+		active += suspend_socket_list(&pool->active_server_list, force_suspend);
+		active += suspend_socket_list(&pool->idle_server_list, force_suspend);
 
 		/* as all clients are done, no need for them */
 		close_server_list(&pool->tested_server_list, "close unsafe file descriptors on suspend");
@@ -239,6 +257,13 @@ void per_loop_maint(void)
 	PgPool *pool;
 	int active = 0;
 	int partial_pause = 0;
+	bool force_suspend = false;
+
+	if (cf_pause_mode == P_SUSPEND && cf_suspend_timeout > 0) {
+		usec_t stime = get_cached_time() - g_suspend_start;
+		if (stime >= cf_suspend_timeout)
+			force_suspend = true;
+	}
 
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
@@ -256,14 +281,17 @@ void per_loop_maint(void)
 			active += per_loop_pause(pool);
 			break;
 		case P_SUSPEND:
-			active += per_loop_suspend(pool);
+			active += per_loop_suspend(pool, force_suspend);
 			break;
 		}
 	}
 
 	switch (cf_pause_mode) {
 	case P_SUSPEND:
-		active += statlist_count(&login_client_list);
+		if (force_suspend) {
+			close_client_list(&login_client_list, "suspend_timeout");
+		} else
+			active += statlist_count(&login_client_list);
 	case P_PAUSE:
 		if (!active)
 			admin_pause_done();

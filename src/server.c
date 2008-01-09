@@ -274,6 +274,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *data, void *arg)
 {
 	bool res = false;
 	PgSocket *server = arg;
+	PgPool *pool = server->pool;
 	PktHdr pkt;
 
 	Assert(is_server_socket(server));
@@ -295,13 +296,13 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *data, void *arg)
 	case SBUF_EV_READ:
 		if (mbuf_avail(data) < NEW_HEADER_LEN) {
 			slog_noise(server, "S: got partial header, trying to wait a bit");
-			return false;
+			break;
 		}
 
 		/* parse pkt header */
 		if (!get_header(data, &pkt)) {
 			disconnect_server(server, true, "bad pkt header");
-			return false;
+			break;
 		}
 		slog_noise(server, "S: pkt '%c', len=%d", pkt_desc(&pkt), pkt.len);
 
@@ -331,7 +332,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *data, void *arg)
 		res = handle_connect(server);
 		break;
 	case SBUF_EV_FLUSH:
-		res = true; /* unused actually */
+		res = true;
 		if (!server->ready)
 			break;
 
@@ -362,6 +363,8 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *data, void *arg)
 		slog_warning(server, "SBUF_EV_PKT_CALLBACK with state=%d", server->state);
 		break;
 	}
+	if (!res && pool->admin)
+		takeover_login_failed();
 	return res;
 }
 

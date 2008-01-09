@@ -31,11 +31,46 @@
  * Takeover done, old process shut down,
  * kick this one running.
  */
-static void takeover_finish(PgSocket *bouncer)
+
+static PgSocket *old_bouncer = NULL;
+
+void takeover_finish(void)
 {
-	disconnect_server(bouncer, false, "disko over");
+	uint8_t buf[512];
+	int fd = sbuf_socket(&old_bouncer->sbuf);
+	bool res;
+	int got;
+
+	log_info("sending SHUTDOWN;");
+	socket_set_nonblocking(fd, 0);
+	SEND_generic(res, old_bouncer, 'Q', "s", "SHUTDOWN;");
+	if (!res)
+		fatal("failed to send SHUTDOWN;");
+
+	while (1) {
+		got = safe_recv(fd, buf, sizeof(buf), 0);
+		if (got == 0)
+			break;
+		if (got < 0)
+			fatal_perror("sky is falling - error while waiting result from SHUTDOWN");
+	}
+
+	disconnect_server(old_bouncer, false, "disko over");
+	old_bouncer = NULL;
+
+	log_info("old process killed, resuming work");
+	resume_all();
+}
+
+static void takeover_finish_part1(PgSocket *bouncer)
+{
+	Assert(old_bouncer == NULL);
+
+	/* unregister bouncer from libevent */
+	sbuf_pause(&bouncer->sbuf);
+	old_bouncer = bouncer;
 	cf_reboot = 0;
-	log_info("disko over, resuming work");
+	log_info("disko over, going background");
 }
 
 /* parse msg for fd and info */
@@ -164,14 +199,11 @@ static void next_command(PgSocket *bouncer, MBuf *pkt)
 		log_info("SUSPEND finished, sending SHOW FDS");
 		SEND_generic(res, bouncer, 'Q', "s", "SHOW FDS;");
 	} else if (strncmp(cmd, "SHOW", 4) == 0) {
-
-		log_info("SHOW FDS finished, sending SHUTDOWN");
-
 		/* all fds loaded, review them */
 		takeover_postprocess_fds();
+		log_info("SHOW FDS finished");
 
-		/* all OK, kill old one */
-		SEND_generic(res, bouncer, 'Q', "s", "SHUTDOWN;");
+		takeover_finish_part1(bouncer);
 	} else
 		fatal("got bad CMD from old bouncer: %s", cmd);
 
@@ -228,7 +260,7 @@ static void takeover_parse_data(PgSocket *bouncer,
 /*
  * listen for data from old bouncer.
  *
- * use always sendmsg, to keep code simpler
+ * use always recvmsg, to keep code simpler
  */
 static void takeover_recv_cb(int sock, short flags, void *arg)
 {
@@ -253,7 +285,7 @@ static void takeover_recv_cb(int sock, short flags, void *arg)
 		mbuf_init(&data, data_buf, res);
 		takeover_parse_data(bouncer, &msg, &data);
 	} else if (res == 0) {
-		takeover_finish(bouncer);
+		fatal("unexpected EOF");
 	} else {
 		if (errno == EAGAIN)
 			return;
@@ -294,5 +326,10 @@ void takeover_init(void)
 
 	log_info("takeover_init: launching connection");
 	launch_new_connection(pool);
+}
+
+void takeover_login_failed(void)
+{
+	fatal("login failed");
 }
 

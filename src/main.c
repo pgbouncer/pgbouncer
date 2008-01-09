@@ -459,13 +459,29 @@ static void check_limits(void)
 		 (int)lim.rlim_cur, (int)lim.rlim_max, cf_max_client_conn, fd_count);
 }
 
-static void daemon_setup(void)
+static bool check_old_process_unix(void)
 {
-	if (!cf_reboot)
-		check_pidfile();
-	if (cf_daemon)
-		go_daemon();
-	write_pidfile();
+	struct sockaddr_un sa_un;
+	socklen_t len = sizeof(sa_un);
+	int domain = AF_UNIX;
+	int res, fd;
+
+	if (!*cf_unix_socket_dir)
+		return false;
+
+	memset(&sa_un, 0, len);
+	sa_un.sun_family = domain;
+	snprintf(sa_un.sun_path, sizeof(sa_un.sun_path),
+		 "%s/.s.PGSQL.%d", cf_unix_socket_dir, cf_listen_port);
+
+	fd = socket(domain, SOCK_STREAM, 0);
+	if (fd < 0)
+		fatal_perror("cannot create socket");
+	res = safe_connect(fd, (struct sockaddr *)&sa_un, len);
+	safe_close(fd);
+	if (res < 0)
+		return false;
+	return true;
 }
 
 static void main_loop_once(void)
@@ -484,11 +500,25 @@ static void main_loop_once(void)
 	rescue_timers();
 }
 
+static void takeover_part1(void)
+{
+	/* use temporary libevent base */
+	void *evtmp = event_init();
+
+	if (!*cf_unix_socket_dir)
+		fatal("cannot reboot if unix dir not configured");
+
+	takeover_init();
+	while (cf_reboot)
+		main_loop_once();
+	event_base_free(evtmp);
+}
+
 /* boot everything */
 int main(int argc, char *argv[])
 {
 	int c;
-	int did_takeover = 0;
+	bool did_takeover = false;
 
 	/* parse cmdline */
 	while ((c = getopt(argc, argv, "avhdVR")) != EOF) {
@@ -529,26 +559,34 @@ int main(int argc, char *argv[])
 	srandom(time(NULL) ^ getpid());
 
 	if (cf_reboot) {
-		/* use temporary libevent base */
-		void *evtmp = event_init();
-		takeover_init();
-		while (cf_reboot)
-			main_loop_once();
-		did_takeover = 1;
-		event_base_free(evtmp);
+		if (check_old_process_unix()) {
+			takeover_part1();
+			did_takeover = true;
+		} else {
+			log_info("old process not found, try to continue normally");
+			cf_reboot = 0;
+			check_pidfile();
+		}
+	} else {
+		check_pidfile();
+		if (check_old_process_unix())
+			fatal("somebody is listening on unix socket");
 	}
 
 	/* initialize subsystems, order important */
-	daemon_setup();
+	if (cf_daemon)
+		go_daemon();
 	event_init();
 	signal_setup();
 	janitor_setup();
 	stats_setup();
 
-	if (!did_takeover)
-		pooler_setup();
+	if (did_takeover)
+		takeover_finish();
 	else
-		resume_all();
+		pooler_setup();
+
+	write_pidfile();
 
 	/* main loop */
 	while (1)

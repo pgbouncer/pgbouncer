@@ -18,4 +18,6 @@
 
 void takeover_init(void);
 bool takeover_login(PgSocket *bouncer) _MUSTCHECK;
+void takeover_login_failed(void);
+void takeover_finish(void);
 

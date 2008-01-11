@@ -205,3 +205,20 @@ int objcache_active_count(ObjectCache *cache)
 	return objcache_total_count(cache) - objcache_free_count(cache);
 }
 
+static void run_slab_stats(ObjectCache *cache, slab_stat_fn fn, void *arg)
+{
+	unsigned free = statlist_count(&cache->freelist);
+	fn(arg, cache->name, cache->final_size, free, cache->total_count);
+}
+
+void objcache_stats(slab_stat_fn fn, void *arg)
+{
+	ObjectCache *cache;
+	List *item;
+
+	statlist_for_each(item, &objcache_list) {
+		cache = container_of(item, ObjectCache, head);
+		run_slab_stats(cache, fn, arg);
+	}
+}
+

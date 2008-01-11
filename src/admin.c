@@ -704,6 +704,33 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 	return true;
 }
 
+static void slab_stat_cb(void *arg, const char *slab_name,
+			 unsigned size, unsigned free,
+			 unsigned total)
+{
+	PktBuf *buf = arg;
+	unsigned alloc = total * size;
+	pktbuf_write_DataRow(buf, "siiii", slab_name,
+			     size, total - free, free, alloc);
+}
+
+/* Command: SHOW MEM */
+static bool admin_show_mem(PgSocket *admin, const char *arg)
+{
+	PktBuf *buf;
+
+	buf = pktbuf_dynamic(256);
+	if (!buf) {
+		admin_error(admin, "no mem");
+		return true;
+	}
+	pktbuf_write_RowDescription(buf, "siiii", "name",
+				    "size", "used", "free", "memtotal");
+	objcache_stats(slab_stat_cb, buf);
+	admin_flush(admin, buf, "SHOW");
+	return true;
+}
+
 /* Command: SHOW CONFIG */
 static bool admin_show_config(PgSocket *admin, const char *arg)
 {
@@ -895,9 +922,9 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 	SEND_generic(res, admin, 'N',
 		"sssss",
 		"SNOTICE", "C00000", "MConsole usage",
-		"D\n\tSHOW [HELP|CONFIG|DATABASES"
-		"|POOLS|CLIENTS|SERVERS|VERSION]\n"
-		"\tSHOW [FDS|SOCKETS|ACTIVE_SOCKETS|LISTS]\n"
+		"D\n\tSHOW HELP|CONFIG|DATABASES"
+		"|POOLS|CLIENTS|SERVERS|VERSION\n"
+		"\tSHOW FDS|SOCKETS|ACTIVE_SOCKETS|LISTS|MEM\n"
 		"\tSET key = arg\n"
 		"\tRELOAD\n"
 		"\tPAUSE [<db>]\n"
@@ -946,6 +973,7 @@ static struct cmd_lookup show_map [] = {
 	{"users", admin_show_users},
 	{"version", admin_show_version},
 	{"totals", admin_show_totals},
+	{"mem", admin_show_mem},
 	{NULL, NULL}
 };
 

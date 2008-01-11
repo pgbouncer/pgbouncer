@@ -15,4 +15,8 @@ int objcache_total_count(ObjectCache *cache);
 int objcache_free_count(ObjectCache *cache);
 int objcache_active_count(ObjectCache *cache);
 
+typedef void (*slab_stat_fn)(void *arg, const char *slab_name,
+			     unsigned size, unsigned free, 
+			     unsigned total);
+void objcache_stats(slab_stat_fn fn, void *arg);
 

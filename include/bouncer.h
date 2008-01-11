@@ -201,6 +201,7 @@ struct PgDatabase {
 	char			name[MAX_DBNAME];
 
 	unsigned		db_paused:1;
+	unsigned		db_dead:1;
 
 	/* key/val pairs (without user) for startup msg to be sent to server */
 	uint8_t			startup_params[256];

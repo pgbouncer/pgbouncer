@@ -234,6 +234,9 @@ void parse_database(char *name, char *connstr)
 		return;
 	}
 
+	/* tag the db as alive */
+	db->db_dead = 0;
+
 	/* if updating old db, check if anything changed */
 	if (db->dbname) {
 		bool changed = false;

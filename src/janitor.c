@@ -511,16 +511,55 @@ void janitor_setup(void)
 	safe_evtimer_add(&full_maint_ev, &full_maint_period);
 }
 
+static void kill_pool(PgPool *pool)
+{
+	const char *reason = "database removed";
+
+	close_client_list(&pool->active_client_list, reason);
+	close_client_list(&pool->waiting_client_list, reason);
+	close_client_list(&pool->cancel_req_list, reason);
+
+	close_server_list(&pool->active_server_list, reason);
+	close_server_list(&pool->idle_server_list, reason);
+	close_server_list(&pool->used_server_list, reason);
+	close_server_list(&pool->tested_server_list, reason);
+	close_server_list(&pool->new_server_list, reason);
+
+	list_del(&pool->map_head);
+	statlist_remove(&pool->head, &pool_list);
+	free(pool);
+}
+
+static void kill_database(PgDatabase *db)
+{
+	PgPool *pool;
+	List *item, *tmp;
+
+	log_warning("dropping database '%s' as it does not exist anymore", db->name);
+
+	statlist_for_each_safe(item, &pool_list, tmp) {
+		pool = container_of(item, PgPool, head);
+		if (pool->db == db)
+			kill_pool(pool);
+	}
+	if (db->forced_user)
+		free(db->forced_user);
+	statlist_remove(&db->head, &database_list);
+	free(db);
+}
+
 /* as [pgbouncer] section can be loaded after databases,
    there's need for review */
 void config_postprocess(void)
 {
-	List *item;
+	List *item, *tmp;
 	PgDatabase *db;
 
-	statlist_for_each(item, &database_list) {
+	statlist_for_each_safe(item, &database_list, tmp) {
 		db = container_of(item, PgDatabase, head);
-		if (db->pool_size < 0)
+		if (db->db_dead)
+			kill_database(db);
+		else if (db->pool_size < 0)
 			db->pool_size = cf_default_pool_size;
 	}
 }

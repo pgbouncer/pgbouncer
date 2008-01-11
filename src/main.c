@@ -223,18 +223,39 @@ static bool set_auth(ConfElem *elem, const char *val, PgSocket *console)
 	return true;
 }
 
+static void set_dbs_dead(bool flag)
+{
+	List *item;
+	PgDatabase *db;
+
+	statlist_for_each(item, &database_list) {
+		db = container_of(item, PgDatabase, head);
+		if (strcmp(db->name, "pgbouncer") == 0)
+			continue;
+		db->db_dead = flag;
+	}
+}
+
 /* config loading, tries to be tolerant to errors */
 void load_config(bool reload)
 {
+	bool ok;
+
+	set_dbs_dead(true);
+
 	/* actual loading */
-	iniparser(cf_config_file, bouncer_config, reload);
+	ok = iniparser(cf_config_file, bouncer_config, reload);
+	if (ok) {
+		/* load users if needed */
+		if (cf_auth_type >= AUTH_TRUST)
+			load_auth_file(cf_auth_file);
 
-	/* load users if needed */
-	if (cf_auth_type >= AUTH_TRUST)
-		load_auth_file(cf_auth_file);
-
-	/* reset pool_size */
-	config_postprocess();
+		/* reset pool_size, kill dbs */
+		config_postprocess();
+	} else {
+		/* if ini file missing, dont kill anybody */
+		set_dbs_dead(false);
+	}
 
 	/* reopen logfile */
 	if (reload)

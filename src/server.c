@@ -64,6 +64,8 @@ static void kill_pool_logins(PgPool *pool, PktHdr *errpkt)
 
 	parse_server_error(errpkt, &level, &msg);
 
+	log_warning("server login failed: %s %s", level, msg);
+
 	statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
 		client = container_of(item, PgSocket, head);
 		if (!client->wait_for_welcome)

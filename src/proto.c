@@ -117,7 +117,7 @@ bool send_pooler_error(PgSocket *client, bool send_ready, const char *msg)
 /*
  * Parse server error message and log it.
  */
-void log_server_error(const char *note, PktHdr *pkt)
+void parse_server_error(PktHdr *pkt, const char **level_p, const char **msg_p)
 {
 	const char *level = NULL, *msg = NULL, *val;
 	int type;
@@ -133,6 +133,16 @@ void log_server_error(const char *note, PktHdr *pkt)
 		else if (type == 'M')
 			msg = val;
 	}
+	*level_p = level;
+	*msg_p = msg;
+}
+
+void log_server_error(const char *note, PktHdr *pkt)
+{
+	const char *level = NULL, *msg = NULL;
+
+	parse_server_error(pkt, &level, &msg);
+
 	if (!msg || !level)
 		log_error("%s: corrupt error message", note);
 	else

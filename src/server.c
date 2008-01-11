@@ -55,6 +55,24 @@ static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 	return true;
 }
 
+/* we cannot log in at all, notify clients */
+static void kill_pool_logins(PgPool *pool, PktHdr *errpkt)
+{
+	List *item, *tmp;
+	PgSocket *client;
+	const char *level, *msg;
+
+	parse_server_error(errpkt, &level, &msg);
+
+	statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
+		client = container_of(item, PgSocket, head);
+		if (!client->wait_for_welcome)
+			continue;
+
+		disconnect_client(client, true, msg);
+	}
+}
+
 /* process packets on server auth phase */
 static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 {
@@ -74,7 +92,11 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 		break;
 
 	case 'E':		/* ErrorResponse */
-		log_server_error("S: login failed", pkt);
+		if (!server->pool->welcome_msg_ready)
+			kill_pool_logins(server->pool, pkt);
+		else
+			log_server_error("S: login failed", pkt);
+
 		disconnect_server(server, true, "login failed");
 		break;
 

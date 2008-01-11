@@ -667,7 +667,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason)
 	}
 
 	/* send reason to client */
-	if (notify && reason) {
+	if (notify && reason && client->state != CL_CANCEL) {
 		/*
 		 * don't send Ready pkt here, or client won't notice
 		 * closed connection

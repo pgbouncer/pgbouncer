@@ -425,13 +425,14 @@ PgPool *get_pool(PgDatabase *db, PgUser *user)
 }
 
 /* deactivate socket and put into wait queue */
-void pause_client(PgSocket *client)
+static void pause_client(PgSocket *client)
 {
 	Assert(client->state == CL_ACTIVE);
 
 	slog_debug(client, "pause_client");
 	change_client_state(client, CL_WAITING);
-	sbuf_pause(&client->sbuf);
+	if (!sbuf_pause(&client->sbuf))
+		disconnect_client(client, true, "pause failed");
 }
 
 /* wake client from wait */
@@ -485,15 +486,15 @@ bool find_server(PgSocket *client)
 		server->link = client;
 		change_server_state(server, SV_ACTIVE);
 		if (varchange) {
-			sbuf_pause(&client->sbuf);
-			res = false; /* don't process client data yet */
 			server->setting_vars = 1;
 			server->ready = 0;
+			res = false; /* don't process client data yet */
+			if (!sbuf_pause(&client->sbuf))
+				disconnect_client(client, true, "pause failed");
 		} else
 			res = true;
 	} else {
 		pause_client(client);
-		Assert(client->state == CL_WAITING);
 		res = false;
 	}
 	return res;
@@ -628,9 +629,10 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason)
 			/* ignore result */
 			notify = false;
 	}
-	sbuf_close(&server->sbuf);
 
 	change_server_state(server, SV_JUSTFREE);
+	if (!sbuf_close(&server->sbuf))
+		log_noise("sbuf_close failed, retry later");
 }
 
 /* drop client connection */
@@ -673,9 +675,9 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason)
 		send_pooler_error(client, false, reason);
 	}
 
-	sbuf_close(&client->sbuf);
-
 	change_client_state(client, CL_JUSTFREE);
+	if (!sbuf_close(&client->sbuf))
+		log_noise("sbuf_close failed, retry later");
 }
 
 /* the pool needs new connection, if possible */
@@ -846,8 +848,9 @@ found:
 		return;
 	}
 
-	/* drop the connection silently */
-	sbuf_close(&req->sbuf);
+	/* drop the connection, if fails, retry later in justfree list */
+	if (!sbuf_close(&req->sbuf))
+		log_noise("sbuf_close failed, retry later");
 
 	/* remember server key */
 	server = main_client->link;
@@ -1014,19 +1017,28 @@ void reuse_just_freed_objects(void)
 {
 	List *tmp, *item;
 	PgSocket *sk;
+	bool close_works = true;
 
 	/*
-	 * Obviously, if state would be set to *_FREE,
-	 * they could be moved in one go.
+	 * event_del() may fail because of ENOMEM for event handlers
+	 * that need only changes sent to kernel on each loop.
+	 *
+	 * Keep open sbufs in justfree lists until successful.
 	 */
+
 	statlist_for_each_safe(item, &justfree_client_list, tmp) {
 		sk = container_of(item, PgSocket, head);
-		change_client_state(sk, CL_FREE);
+		if (sbuf_is_closed(&sk->sbuf))
+			change_client_state(sk, CL_FREE);
+		else if (close_works)
+			close_works = sbuf_close(&sk->sbuf);
 	}
 	statlist_for_each_safe(item, &justfree_server_list, tmp) {
 		sk = container_of(item, PgSocket, head);
-		change_server_state(sk, SV_FREE);
+		if (sbuf_is_closed(&sk->sbuf))
+			change_server_state(sk, SV_FREE);
+		else if (close_works)
+			close_works = sbuf_close(&sk->sbuf);
 	}
 }
-
 

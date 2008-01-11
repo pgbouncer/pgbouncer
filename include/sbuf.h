@@ -96,9 +96,9 @@ void sbuf_init(SBuf *sbuf, sbuf_cb_t proto_fn, void *arg);
 bool sbuf_accept(SBuf *sbuf, int read_sock, bool is_unix)  _MUSTCHECK;
 bool sbuf_connect(SBuf *sbuf, const PgAddr *addr, const char *unix_dir, int timeout_sec)  _MUSTCHECK;
 
-void sbuf_pause(SBuf *sbuf);
+bool sbuf_pause(SBuf *sbuf) _MUSTCHECK;
 void sbuf_continue(SBuf *sbuf);
-void sbuf_close(SBuf *sbuf);
+bool sbuf_close(SBuf *sbuf) _MUSTCHECK;
 
 /* proto_fn can use those functions to order behaviour */
 void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, int amount);
@@ -117,6 +117,11 @@ static inline bool sbuf_is_empty(SBuf *sbuf)
 {
 	return sbuf->send_pos == sbuf->recv_pos
 		&& sbuf->pkt_remain == 0;
+}
+
+static inline bool sbuf_is_closed(SBuf *sbuf)
+{
+	return sbuf->sock == 0;
 }
 
 bool sbuf_rewrite_header(SBuf *sbuf, int old_len,

@@ -51,21 +51,22 @@ static void close_client_list(StatList *sk_list, const char *reason)
 
 bool suspend_socket(PgSocket *sk, bool force_suspend)
 {
-	bool done = true;
-	if (!sk->suspended) {
-		if (sbuf_is_empty(&sk->sbuf)) {
-			sbuf_pause(&sk->sbuf);
+	if (sk->suspended)
+		return true;
+
+	if (sbuf_is_empty(&sk->sbuf)) {
+		if (sbuf_pause(&sk->sbuf))
 			sk->suspended = 1;
-		} else
-			done = false;
 	}
-	if (!done && force_suspend) {
-		if (is_server_socket(sk))
-			disconnect_server(sk, true, "suspend_timeout");
-		else
-			disconnect_client(sk, true, "suspend_timeout");
-	}
-	return done;
+
+	if (sk->suspended || !force_suspend)
+		return sk->suspended;
+
+	if (is_server_socket(sk))
+		disconnect_server(sk, true, "suspend_timeout");
+	else
+		disconnect_client(sk, true, "suspend_timeout");
+	return true;
 }
 
 /* suspend all sockets in socket list */

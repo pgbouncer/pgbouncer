@@ -67,7 +67,8 @@ static void takeover_finish_part1(PgSocket *bouncer)
 	Assert(old_bouncer == NULL);
 
 	/* unregister bouncer from libevent */
-	sbuf_pause(&bouncer->sbuf);
+	if (!sbuf_pause(&bouncer->sbuf))
+		fatal_perror("sbuf_pause failed");
 	old_bouncer = bouncer;
 	cf_reboot = 0;
 	log_info("disko over, going background");
@@ -305,7 +306,8 @@ bool takeover_login(PgSocket *bouncer)
 	SEND_generic(res, bouncer, 'Q', "s", "SUSPEND;");
 	if (res) {
 		/* use own callback */
-		sbuf_pause(&bouncer->sbuf);
+		if (!sbuf_pause(&bouncer->sbuf))
+			fatal("sbuf_pause failed");
 		res = sbuf_continue_with_callback(&bouncer->sbuf, takeover_recv_cb);
 		if (!res)
 			fatal("takeover_login: sbuf_continue_with_callback failed");

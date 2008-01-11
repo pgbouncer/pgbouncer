@@ -177,14 +177,16 @@ failed:
 }
 
 /* don't wait for data on this socket */
-void sbuf_pause(SBuf *sbuf)
+bool sbuf_pause(SBuf *sbuf)
 {
 	AssertActive(sbuf);
 	Assert(sbuf->wait_send == 0);
 
-	if (event_del(&sbuf->ev) < 0)
-		/* fixme */
-		fatal_perror("event_del");
+	if (event_del(&sbuf->ev) < 0) {
+		log_warning("event_del: %s", strerror(errno));
+		return false;
+	}
+	return true;
 }
 
 /* resume from pause, start waiting for data */
@@ -239,12 +241,14 @@ bool sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb user_cb)
 }
 
 /* socket cleanup & close */
-void sbuf_close(SBuf *sbuf)
+bool sbuf_close(SBuf *sbuf)
 {
 	/* keep handler & arg values */
 	if (sbuf->sock > 0) {
-		if (event_del(&sbuf->ev) < 0)
-			fatal_perror("event_del");
+		if (event_del(&sbuf->ev) < 0) {
+			log_warning("event_del: %s", strerror(errno));
+			return false;
+		}
 		safe_close(sbuf->sock);
 	}
 	sbuf->dst = NULL;
@@ -252,6 +256,7 @@ void sbuf_close(SBuf *sbuf)
 	sbuf->pkt_pos = sbuf->pkt_remain = sbuf->recv_pos = 0;
 	sbuf->pkt_action = sbuf->wait_send = 0;
 	sbuf->send_pos = sbuf->send_remain = 0;
+	return true;
 }
 
 /* proto_fn tells to send some bytes to socket */
@@ -376,18 +381,24 @@ static bool sbuf_queue_send(SBuf *sbuf)
 	int err;
 	AssertActive(sbuf);
 
-	sbuf->wait_send = 1;
+	/* if false is returned, the socket will be closed later */
+
+	/* stop waiting for read events */
 	err = event_del(&sbuf->ev);
 	if (err < 0) {
 		log_warning("sbuf_queue_send: event_del failed: %s", strerror(errno));
 		return false;
 	}
+
+	/* instead wait for EV_WRITE on destination socket */
 	event_set(&sbuf->ev, sbuf->dst->sock, EV_WRITE, sbuf_send_cb, sbuf);
 	err = event_add(&sbuf->ev, NULL);
 	if (err < 0) {
 		log_warning("sbuf_queue_send: event_add failed: %s", strerror(errno));
 		return false;
 	}
+
+	sbuf->wait_send = 1;
 	return true;
 }
 

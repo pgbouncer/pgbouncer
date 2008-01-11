@@ -24,19 +24,30 @@
 
 static int fd_net = 0;
 static int fd_unix = 0;
+
 static struct event ev_net;
 static struct event ev_unix;
-static int suspended = 0;
+
+/* if sockets are registered in libevent */
+static bool reg_net = false;
+static bool reg_unix = false;
+
+/* should listening sockets be active or suspended? */
+static bool pooler_active = false;
 
 /* on accept() failure sleep 5 seconds */
 static struct event ev_err;
 static struct timeval err_timeout = {5, 0};
 
+/* atexit() cleanup func */
 static void cleanup_unix_socket(void)
 {
 	char fn[256];
-	if (!cf_unix_socket_dir || suspended)
+
+	/* avoid cleanup if exit() while suspended */
+	if (!reg_unix)
 		return;
+
 	snprintf(fn, sizeof(fn), "%s/.s.PGSQL.%d",
 			cf_unix_socket_dir, cf_listen_port);
 	unlink(fn);
@@ -166,7 +177,8 @@ static int create_net_socket(const char *listen_addr, int listen_port)
 
 static void err_wait_func(int sock, short flags, void *arg)
 {
-	resume_pooler();
+	if (cf_pause_mode != P_SUSPEND)
+		resume_pooler();
 }
 
 /* got new connection, associate it with client struct */
@@ -244,36 +256,43 @@ bool use_pooler_socket(int sock, bool is_unix)
 
 void suspend_pooler(void)
 {
-	suspended = 1;
+	pooler_active = false;
 
-	if (fd_net) {
-		if (event_del(&ev_net) < 0)
-			/* fixme */
-			fatal_perror("event_del(ev_net)");
+	if (fd_net && reg_net) {
+		if (event_del(&ev_net) < 0) {
+			log_warning("suspend_pooler, event_del: %s", strerror(errno));
+			return;
+		}
+		reg_net = false;
 	}
-	if (fd_unix) {
-		if (event_del(&ev_unix) < 0)
-			/* fixme */
-			fatal_perror("event_del(ev_unix)");
+	if (fd_unix && reg_unix) {
+		if (event_del(&ev_unix) < 0) {
+			log_warning("suspend_pooler, event_del: %s", strerror(errno));
+			return;
+		}
+		reg_unix = false;
 	}
 }
 
 void resume_pooler(void)
 {
-	suspended = 0;
+	pooler_active = true;
 
-	if (fd_unix) {
+	if (fd_unix && !reg_unix) {
 		event_set(&ev_unix, fd_unix, EV_READ | EV_PERSIST, pool_accept, "1");
-		if (event_add(&ev_unix, NULL) < 0)
-			/* fixme: less serious approach? */
-			fatal_perror("event_add(ev_unix)");
+		if (event_add(&ev_unix, NULL) < 0) {
+			log_warning("event_add failed: %s", strerror(errno));
+			return;
+		}
+		reg_unix = true;
 	}
 
-	if (fd_net) {
+	if (fd_net && !reg_net) {
 		event_set(&ev_net, fd_net, EV_READ | EV_PERSIST, pool_accept, NULL);
-		if (event_add(&ev_net, NULL) < 0)
-			/* fixme: less serious approach? */
-			fatal_perror("event_add(ev_net)");
+		if (event_add(&ev_net, NULL) < 0) {
+			log_warning("event_add failed: %s", strerror(errno));
+		}
+		reg_net = true;
 	}
 }
 
@@ -290,5 +309,17 @@ void pooler_setup(void)
 		fatal("nowhere to listen on");
 
 	resume_pooler();
+}
+
+/* retry previously failed suspend_pooler() / resume_pooler() */
+void per_loop_pooler_maint(void)
+{
+	if (pooler_active) {
+		if ((fd_unix && !reg_unix) || (fd_net && !reg_net))
+			resume_pooler();
+	} else {
+		if ((fd_unix && reg_unix) || (fd_net && reg_net))
+			suspend_pooler();
+	}
 }
 

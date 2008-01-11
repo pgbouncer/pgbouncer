@@ -21,4 +21,5 @@ bool use_pooler_socket(int fd, bool is_unix) _MUSTCHECK;
 void resume_pooler(void);
 void suspend_pooler(void);
 void get_pooler_fds(int *p_net, int *p_unix);
+void per_loop_pooler_maint(void);
 

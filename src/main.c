@@ -502,6 +502,7 @@ static void main_loop_once(void)
 	per_loop_maint();
 	reuse_just_freed_objects();
 	rescue_timers();
+	per_loop_pooler_maint();
 }
 
 static void takeover_part1(void)

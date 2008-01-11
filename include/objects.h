@@ -51,7 +51,6 @@ bool use_server_socket(int fd, PgAddr *addr, const char *dbname, const char *use
 		       const char *client_end, const char *std_string, const char *datestyle, const char *timezone)
 			_MUSTCHECK;
 
-void pause_client(PgSocket *client);
 void activate_client(PgSocket *client);
 
 void change_client_state(PgSocket *client, SocketState newstate);

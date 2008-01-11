@@ -122,6 +122,49 @@ bool admin_database_stats(PgSocket *client, StatList *pool_list)
 	return true;
 }
 
+bool show_stat_totals(PgSocket *client, StatList *pool_list)
+{
+	PgPool *pool;
+	List *item;
+	PgStats st_total, old_total, avg;
+	PktBuf *buf;
+
+	reset_stats(&st_total);
+	reset_stats(&old_total);
+
+	buf = pktbuf_dynamic(512);
+	if (!buf) {
+		admin_error(client, "no mem");
+		return true;
+	}
+
+
+	statlist_for_each(item, pool_list) {
+		pool = container_of(item, PgPool, head);
+		stat_add(&st_total, &pool->stats);
+		stat_add(&old_total, &pool->older_stats);
+	}
+
+	calc_average(&avg, &st_total, &old_total);
+
+	pktbuf_write_RowDescription(buf, "sq", "name", "value");
+
+#define WTOTAL(name) pktbuf_write_DataRow(buf, "sq", "total_" #name, st_total.name)
+#define WAVG(name) pktbuf_write_DataRow(buf, "sq", "avg_" #name, avg.name)
+
+	WTOTAL(request_count);
+	WTOTAL(client_bytes);
+	WTOTAL(server_bytes);
+	WTOTAL(query_time);
+	WAVG(request_count);
+	WAVG(client_bytes);
+	WAVG(server_bytes);
+	WAVG(query_time);
+
+	admin_flush(client, buf, "SHOW");
+	return true;
+}
+
 static void refresh_stats(int s, short flags, void *arg)
 {
 	List *item;

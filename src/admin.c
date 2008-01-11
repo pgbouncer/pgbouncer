@@ -714,8 +714,14 @@ static bool admin_cmd_shutdown(PgSocket *admin, const char *arg)
 	if (!admin->admin_user)
 		return admin_error(admin, "admin access needed");
 
+	/*
+	 * note: new pooler expects unix socket file gone when it gets
+	 * event from fd.  currently atexit() cleanup should be called
+	 * before closing open sockets.
+	 */
 	log_info("SHUTDOWN command issued");
 	exit(0);
+
 	return true;
 }
 
@@ -878,6 +884,11 @@ static bool admin_show_stats(PgSocket *admin, const char *arg)
 	return admin_database_stats(admin, &pool_list);
 }
 
+static bool admin_show_totals(PgSocket *admin, const char *arg)
+{
+	return show_stat_totals(admin, &pool_list);
+}
+
 
 static struct cmd_lookup show_map [] = {
 	{"clients", admin_show_clients},
@@ -892,6 +903,7 @@ static struct cmd_lookup show_map [] = {
 	{"stats", admin_show_stats},
 	{"users", admin_show_users},
 	{"version", admin_show_version},
+	{"totals", admin_show_totals},
 	{NULL, NULL}
 };
 

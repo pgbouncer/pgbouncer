@@ -624,6 +624,46 @@ static bool admin_show_sockets(PgSocket *admin, const char *arg)
 	return true;
 }
 
+static void show_active_socket_list(PktBuf *buf, StatList *list, const char *state)
+{
+	List *item;
+	statlist_for_each(item, list) {
+		PgSocket *sk = container_of(item, PgSocket, head);
+		if (!sbuf_is_empty(&sk->sbuf))
+			socket_row(buf, sk, state, true);
+	}
+}
+
+/* Command: SHOW ACTIVE_SOCKETS */
+static bool admin_show_active_sockets(PgSocket *admin, const char *arg)
+{
+	List *item;
+	PgPool *pool;
+	PktBuf *buf;
+
+	buf = pktbuf_dynamic(256);
+	if (!buf) {
+		admin_error(admin, "no mem");
+		return true;
+	}
+
+	socket_header(buf, true);
+	statlist_for_each(item, &pool_list) {
+		pool = container_of(item, PgPool, head);
+		show_active_socket_list(buf, &pool->active_client_list, "cl_active");
+		show_active_socket_list(buf, &pool->waiting_client_list, "cl_waiting");
+
+		show_active_socket_list(buf, &pool->active_server_list, "sv_active");
+		show_active_socket_list(buf, &pool->idle_server_list, "sv_idle");
+		show_active_socket_list(buf, &pool->used_server_list, "sv_used");
+		show_active_socket_list(buf, &pool->tested_server_list, "sv_tested");
+		show_active_socket_list(buf, &pool->new_server_list, "sv_login");
+	}
+	show_active_socket_list(buf, &login_client_list, "cl_login");
+	admin_flush(admin, buf, "SHOW");
+	return true;
+}
+
 /* Command: SHOW POOLS */
 static bool admin_show_pools(PgSocket *admin, const char *arg)
 {
@@ -855,13 +895,14 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 	SEND_generic(res, admin, 'N',
 		"sssss",
 		"SNOTICE", "C00000", "MConsole usage",
-		"D\n\tSHOW [HELP|CONFIG|DATABASES|FDS"
-		"|POOLS|CLIENTS|SERVERS|SOCKETS|LISTS|VERSION]\n"
+		"D\n\tSHOW [HELP|CONFIG|DATABASES"
+		"|POOLS|CLIENTS|SERVERS|VERSION]\n"
+		"\tSHOW [FDS|SOCKETS|ACTIVE_SOCKETS|LISTS]\n"
 		"\tSET key = arg\n"
 		"\tRELOAD\n"
-		"\tPAUSE\n"
+		"\tPAUSE [<db>]\n"
 		"\tSUSPEND\n"
-		"\tRESUME\n"
+		"\tRESUME [<db>]\n"
 		"\tSHUTDOWN", "");
 	if (res)
 		res = admin_ready(admin, "SHOW");
@@ -900,6 +941,7 @@ static struct cmd_lookup show_map [] = {
 	{"pools", admin_show_pools},
 	{"servers", admin_show_servers},
 	{"sockets", admin_show_sockets},
+	{"active_sockets", admin_show_active_sockets},
 	{"stats", admin_show_stats},
 	{"users", admin_show_users},
 	{"version", admin_show_version},

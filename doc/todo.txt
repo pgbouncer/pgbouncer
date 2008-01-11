@@ -15,38 +15,33 @@
    - Move FD loading before fork, so it logs to console and can be canceled by ^C
    - Keep SHUTDOWN after fork, so ^C would be safe
    - A connect() is attempted to unix socket to see if anyone is listening.
-
-=== todo ===
-
- * removing db from config and reload; should work - kill connections
- * removing user should work - kill connections
  * suspend_timeout - drop stalled conns, long logins
- * when dest db does not exists, stalled logins can halt suspend
-   fix with suspend_timeout?
- * some preliminary notification that fd limit is full
+ * when error logging to dest db, notify clients.
  * SHOW TOTALS that shows stats summary (as goes to log) plus mem usage.
- * new states for clients: idle and in-query.  That allows to apply
-   client_idle_timeout and query_timeout without walking all clients
-   on maintenance time.
- * ..maybe.. make plan cache work
+ * removing db from config and reload; works - kill connections
+ * SHOW ACTIVE_SOCKETS - like show sockets; but filter only active ones
 
 == Minor features ==
 
- * Move all "look-at-full-packet" situtations to SBUF_EV_PKT_CALLBACK
- * drop_on_error/keep_on_error - if released conn is in error state,
-   then issue rollback and keep it
- * show stalled; command - like show sockets; but filter only active ones
-
+ * removing user should work - kill connections
  * keep stats about error counts
- * auth_conn - access to pg_shadow, so auth_file is not needed
- * units for config parameters.
  * cleanup of logging levels, to make log more useful
- * survive errors from libevent event_del()
  * to test:
    - signal flood
    - no mem / no fds handling
+ * new states for clients: idle and in-query.  That allows to apply
+   client_idle_timeout and query_timeout without walking all clients
+   on maintenance time.
 
 == Dubious/complicated features ==
+
+ * units for config parameters.
+ * some preliminary notification that fd limit is full
+ * Move all "look-at-full-packet" situtations to SBUF_EV_PKT_CALLBACK
+ * maybe libevent calls should look at errno? (esp. event_del())
+ * auth_conn - access to pg_shadow, so auth_file is not needed
+ * drop_on_error/keep_on_error - if released conn is in error state,
+   then issue rollback and keep it
 
 === prepared plans ===
 
@@ -57,8 +52,7 @@
 
  * allow serveral server to serve one db
    - possibility to specify failover databases.
- * as the result would be less featureful than HAProxy,
-   seems pointless.
+ * seems pointless - result would be less featureful HAProxy
 
 === SMP awareness ===
 

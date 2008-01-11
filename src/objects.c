@@ -38,6 +38,9 @@ STATLIST(login_client_list);
 
 ObjectCache *server_cache;
 ObjectCache *client_cache;
+ObjectCache *db_cache;
+ObjectCache *pool_cache;
+ObjectCache *user_cache;
 
 /*
  * libevent may still report events when event_del()
@@ -114,6 +117,12 @@ static int user_node_cmp(long userptr, Node *node)
 void init_objects(void)
 {
 	tree_init(&user_tree, user_node_cmp, NULL);
+	user_cache = objcache_create("user_cache", sizeof(PgUser), 0, NULL, NULL);
+	db_cache = objcache_create("db_cache", sizeof(PgDatabase), 0, NULL, NULL);
+	pool_cache = objcache_create("pool_cache", sizeof(PgPool), 0, NULL, NULL);
+
+	if (!user_cache || !db_cache || !pool_cache)
+		fatal("cannot create initial caches");
 }
 
 /* initialization after config loading */
@@ -300,7 +309,7 @@ PgDatabase *add_database(const char *name)
 
 	/* create new object if needed */
 	if (db == NULL) {
-		db = zmalloc(sizeof(*db));
+		db = obj_alloc(db_cache);
 		if (!db)
 			return NULL;
 
@@ -318,7 +327,7 @@ PgUser *add_user(const char *name, const char *passwd)
 	PgUser *user = find_user(name);
 
 	if (user == NULL) {
-		user = zmalloc(sizeof(*user));
+		user = obj_alloc(user_cache);
 		if (!user)
 			return NULL;
 
@@ -338,7 +347,7 @@ PgUser *force_user(PgDatabase *db, const char *name, const char *passwd)
 {
 	PgUser *user = db->forced_user;
 	if (!user) {
-		user = zmalloc(sizeof(*user));
+		user = obj_alloc(user_cache);
 		if (!user)
 			return NULL;
 		list_init(&user->head);
@@ -379,7 +388,7 @@ static PgPool *new_pool(PgDatabase *db, PgUser *user)
 {
 	PgPool *pool;
 
-	pool = zmalloc(sizeof(*pool));
+	pool = obj_alloc(pool_cache);
 	if (!pool)
 		return NULL;
 

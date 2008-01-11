@@ -527,7 +527,7 @@ static void kill_pool(PgPool *pool)
 
 	list_del(&pool->map_head);
 	statlist_remove(&pool->head, &pool_list);
-	free(pool);
+	obj_free(pool_cache, pool);
 }
 
 static void kill_database(PgDatabase *db)
@@ -543,9 +543,9 @@ static void kill_database(PgDatabase *db)
 			kill_pool(pool);
 	}
 	if (db->forced_user)
-		free(db->forced_user);
+		obj_free(user_cache, db->forced_user);
 	statlist_remove(&db->head, &database_list);
-	free(db);
+	obj_free(db_cache, db);
 }
 
 /* as [pgbouncer] section can be loaded after databases,

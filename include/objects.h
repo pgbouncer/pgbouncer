@@ -23,6 +23,9 @@ extern StatList database_list;
 extern StatList login_client_list;
 extern ObjectCache *client_cache;
 extern ObjectCache *server_cache;
+extern ObjectCache *db_cache;
+extern ObjectCache *pool_cache;
+extern ObjectCache *user_cache;
 
 PgDatabase *find_database(const char *name);
 PgUser *find_user(const char *name);

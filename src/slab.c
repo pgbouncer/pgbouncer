@@ -173,6 +173,8 @@ void *obj_alloc(ObjectCache *cache)
 		grow(cache);
 		item = statlist_pop(&cache->freelist);
 	}
+	if (item && !cache->init_func)
+		memset(item, 0, cache->final_size);
 	return item;
 }
 

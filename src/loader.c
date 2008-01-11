@@ -579,7 +579,7 @@ static ConfSection *find_section(ConfSection *sect, const char *name)
 	return NULL;
 }
 
-void iniparser(const char *fn, ConfSection *sect_list, bool reload)
+bool iniparser(const char *fn, ConfSection *sect_list, bool reload)
 {
 	char *buf;
 	char *p, *key, *val;
@@ -591,7 +591,7 @@ void iniparser(const char *fn, ConfSection *sect_list, bool reload)
 		if (!reload)
 			exit(1);
 		else
-			return;
+			return false;
 	}
 
 	p = buf;
@@ -655,5 +655,6 @@ void iniparser(const char *fn, ConfSection *sect_list, bool reload)
 	}
 
 	free(buf);
+	return true;
 }
 

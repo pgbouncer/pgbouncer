@@ -51,7 +51,7 @@ typedef struct ConfSection {
 	conf_data_callback_fn data_fn;
 } ConfSection;
 
-void iniparser(const char *fn, ConfSection *sect_list, bool reload);
+bool iniparser(const char *fn, ConfSection *sect_list, bool reload)  _MUSTCHECK;
 
 const char * cf_get_int(ConfElem *elem);
 bool cf_set_int(ConfElem *elem, const char *value, PgSocket *console);

@@ -7,15 +7,24 @@ web = mkz@shell.pgfoundry.org:/home/pgfoundry.org/groups/pgbouncer/htdocs/
 MANPAGES = pgbouncer.1 pgbouncer.5
 HTML = config.html usage.html todo.html faq.html
 
+ifneq ($(ASCIIDOC),)
 all: $(MANPAGES)
-
-html: $(HTML)
-
 install: $(MANPAGES)
 	mkdir -p $(DESTDIR)$(mandir)/man1/
 	mkdir -p $(DESTDIR)$(mandir)/man5/
 	install -m 644 pgbouncer.1 $(DESTDIR)$(mandir)/man1/
 	install -m 644 pgbouncer.5 $(DESTDIR)$(mandir)/man5/
+else
+all:
+
+install:
+	mkdir -p $(DESTDIR)$(mandir)/man1/
+	mkdir -p $(DESTDIR)$(mandir)/man5/
+	test -f pgbouncer.1 && install -m 644 pgbouncer.1 $(DESTDIR)$(mandir)/man1/
+	test -f pgbouncer.5 && install -m 644 pgbouncer.5 $(DESTDIR)$(mandir)/man5/
+endif
+
+html: $(HTML)
 
 upload:
 	devupload.sh overview.txt $(wiki)

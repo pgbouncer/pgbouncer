@@ -49,9 +49,9 @@ enum SocketState {
 };
 
 enum PauseMode {
-	P_NONE = 0,
-	P_PAUSE = 1,
-	P_SUSPEND = 2
+	P_NONE = 0,		/* active pooling */
+	P_PAUSE = 1,		/* wait for client to finish work */
+	P_SUSPEND = 2		/* wait for buffers to be empty */
 };
 
 #define is_server_socket(sk) ((sk)->state >= SV_FREE)
@@ -116,65 +116,69 @@ typedef struct PktHdr PktHdr;
 
 #define BACKENDKEY_LEN	8
 
+/*
+ * Remote/local address
+ */
 struct PgAddr {
 	struct in_addr ip_addr;
 	unsigned short port;
-	unsigned is_unix:1;
+	bool is_unix;
 };
 
+/*
+ * Stats, kept per-pool.
+ */
 struct PgStats {
-	uint64_t	request_count;
-	uint64_t	server_bytes;
-	uint64_t	client_bytes;
-	usec_t		query_time;	/* total req time in us */
+	uint64_t request_count;
+	uint64_t server_bytes;
+	uint64_t client_bytes;
+	usec_t query_time;	/* total req time in us */
 };
 
-/* contains connections for one db/user combo */
+/*
+ * Contains connections for one db+user pair.
+ *
+ * Stats:
+ *   ->stats is updated online.
+ *   for each stats_period:
+ *   ->older_stats = ->newer_stats
+ *   ->newer_stats = ->stats
+ */
 struct PgPool {
-	List 		head;		/* all pools */
-	List		map_head;	/* pools for specific client/db */
+	List head;			/* entry in global pool_list */
+	List map_head;			/* entry in user->pool_list */
 
-	/* pool contains connection into 'db' under 'user' */
-	PgDatabase *	db;
-	PgUser *	user;
+	PgDatabase *db;			/* corresponging database */
+	PgUser *user;			/* user logged in as */
 
-	/* waiting events logged in clients */
-	StatList	active_client_list;
-	/* client waits for a server to be available */
-	StatList	waiting_client_list;
-	/* closed client connections with server key */
-	StatList	cancel_req_list;
+	StatList active_client_list;	/* waiting events logged in clients */
+	StatList waiting_client_list;	/* client waits for a server to be available */
+	StatList cancel_req_list;	/* closed client connections with server key */
 
-	/* servers linked with clients */
-	StatList	active_server_list;
-	/* servers ready to be linked with clients */
-	StatList	idle_server_list;
-	/* server just unlinked from clients */
-	StatList	used_server_list;
-	/* server in testing process */
-	StatList	tested_server_list;
-	/* servers in login phase */
-	StatList	new_server_list;
+	StatList active_server_list;	/* servers linked with clients */
+	StatList idle_server_list;	/* servers ready to be linked with clients */
+	StatList used_server_list;	/* server just unlinked from clients */
+	StatList tested_server_list;	/* server in testing process */
+	StatList new_server_list;	/* servers in login phase */
 
-	/* stats */
-	PgStats		stats;
-	PgStats		newer_stats;
-	PgStats		older_stats;
+	PgStats stats;
+	PgStats newer_stats;
+	PgStats older_stats;
 
 	/* database info to be sent to client */
-	uint8_t		welcome_msg[256];
-	unsigned	welcome_msg_len;
+	uint8_t welcome_msg[256];	/* ServerParams without VarCache ones */
+	unsigned welcome_msg_len;
 
-	VarCache	orig_vars;
+	VarCache orig_vars;		/* default params from server */
 
-	/* last time when server_lifetime was applied */
-	usec_t		last_lifetime_disconnect;
+	usec_t last_lifetime_disconnect;/* last time when server_lifetime was applied */
 
 	/* if last connect failed, there should be delay before next */
-	usec_t		last_connect_time;
-	unsigned	last_connect_failed:1;
-	unsigned	admin:1;
-	unsigned	welcome_msg_ready:1;
+	usec_t last_connect_time;
+	unsigned last_connect_failed:1;
+
+	unsigned admin:1;
+	unsigned welcome_msg_ready:1;
 };
 
 #define pool_server_count(pool) ( \
@@ -188,74 +192,86 @@ struct PgPool {
 		statlist_count(&(pool)->active_client_list) + \
 		statlist_count(&(pool)->waiting_client_list))
 
+/*
+ * A user in login db.
+ *
+ * fixme: remove ->head as ->tree_node should be enough.
+ *
+ * For databases where remote user is forced, the pool is:
+ * first(db->forced_user->pool_list), where pool_list has only one entry.
+ *
+ * Otherwise, ->pool_list contains multiple pools, for all PgDatabases
+ * whis user has logged in.
+ */
 struct PgUser {
-	List head;
-	List pool_list;
-	Node tree_node;
+	List head;		/* used to attach user to list */
+	List pool_list;		/* list of pools where pool->user == this user */
+	Node tree_node;		/* used to attach user to tree */
 	char name[MAX_USERNAME];
 	char passwd[MAX_PASSWORD];
 };
 
+/*
+ * A database entry from config.
+ */
 struct PgDatabase {
-	List			head;
-	char			name[MAX_DBNAME];
+	List head;
+	char name[MAX_DBNAME];
 
-	unsigned		db_paused:1;
-	unsigned		db_dead:1;
+	bool db_paused;		/* PAUSE <db>; was issued */
+	bool db_dead;		/* used on RELOAD/SIGHUP to later detect removed dbs */
 
-	/* key/val pairs (without user) for startup msg to be sent to server */
-	uint8_t			startup_params[256];
-	unsigned		startup_params_len;
+	uint8_t startup_params[256]; /* partial StartupMessage (without user) be sent to server */
+	unsigned startup_params_len;
 
-	/* if not NULL, the user/psw is forced */
-	PgUser *		forced_user;
+	PgUser *forced_user;	/* if not NULL, the user/psw is forced */
 
-	/* address prepared for connect() */
-	PgAddr			addr;
-	char			unix_socket_dir[UNIX_PATH_MAX];
+	PgAddr addr;		/* address prepared for connect() */
+	char unix_socket_dir[UNIX_PATH_MAX]; /* custom unix socket dir */
 
-	/* max server connections in one pool */
-	int			pool_size;
+	int pool_size;		/* max server connections in one pool */
 
-	/* info fields, pointer to inside startup_msg */
-	const char *		dbname;
+	const char *dbname;	/* pointer to inside startup_msg */
 };
 
+/*
+ * A client or server connection.
+ *
+ * ->state corresponds to various lists the struct can be at.
+ */
 struct PgSocket {
-	List		head;		/* list header */
-	PgSocket *	link;		/* the dest of packets */
-	PgPool *	pool;		/* parent pool, if NULL not yet assigned */
+	List head;		/* list header */
+	PgSocket *link;		/* the dest of packets */
+	PgPool *pool;		/* parent pool, if NULL not yet assigned */
 
-	SocketState	state;
+	PgUser *auth_user;	/* presented login, for client it may differ from pool->user */
 
-	unsigned	wait_for_welcome:1;	/* no server yet in pool */
-	unsigned	ready:1;		/* server accepts new query */
-	unsigned	admin_user:1;
-	unsigned	own_user:1;		/* is console client with same uid */
+	SocketState state;	/* this also specifies socket location */
 
-	/* if the socket is suspended */
-	unsigned	suspended:1;
+	bool ready:1;		/* server: accepts new query */
+	bool close_needed:1;	/* server: this socket must be closed ASAP */
+	bool setting_vars:1;	/* server: setting client vars */
 
-	/* admin conn, waits for completion of PAUSE/SUSPEND cmd */
-	unsigned	wait_for_response:1;
-	/* this (server) socket must be closed ASAP */
-	unsigned	close_needed:1;
-	/* setting client vars */
-	unsigned	setting_vars:1;
+	bool wait_for_welcome:1;/* client: no server yet in pool, cannot send welcome msg */
 
-	usec_t		connect_time;	/* when connection was made */
-	usec_t		request_time;	/* last activity time */
-	usec_t		query_start;	/* query start moment */
+	bool suspended:1;	/* client/server: if the socket is suspended */
 
-	char		salt[4];
-	uint8_t		cancel_key[BACKENDKEY_LEN];
-	PgUser *	auth_user;
-	PgAddr		remote_addr;
-	PgAddr		local_addr;
+	bool admin_user:1;	/* console client: has admin rights */
+	bool own_user:1;	/* console client: client with same uid on unix socket */
+	bool wait_for_response:1;/* console client: waits for completion of PAUSE/SUSPEND cmd */
 
-	VarCache	vars;
+	usec_t connect_time;	/* when connection was made */
+	usec_t request_time;	/* last activity time */
+	usec_t query_start;	/* query start moment */
 
-	SBuf		sbuf;		/* stream buffer, must be last */
+	char salt[4];		/* login key salt */
+	uint8_t cancel_key[BACKENDKEY_LEN]; /* client: generated, server: remote */
+	PgAddr remote_addr;	/* ip:port for remote endpoint */
+	PgAddr local_addr;	/* ip:port for local endpoint */
+
+	VarCache vars;		/* state of interesting server parameters */
+
+	SBuf sbuf;		/* stream buffer, must be last */
 };
 
 #define RAW_SOCKET_SIZE offsetof(struct PgSocket, sbuf.buf)

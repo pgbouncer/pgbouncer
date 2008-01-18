@@ -344,11 +344,9 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, MBuf *data, void *arg)
 	Assert(client->sbuf.sock);
 	Assert(client->state != CL_FREE);
 
-	if (client->state == CL_JUSTFREE) {
-		/* SBuf should catch the case */
-		slog_warning(client, "state=CL_JUSTFREE, should not happen");
+	/* may happen if close failed */
+	if (client->state == CL_JUSTFREE)
 		return false;
-	}
 
 	switch (evtype) {
 	case SBUF_EV_CONNECT_OK:

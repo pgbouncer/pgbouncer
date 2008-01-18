@@ -304,11 +304,9 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *data, void *arg)
 	Assert(is_server_socket(server));
 	Assert(server->state != SV_FREE);
 
-	if (server->state == SV_JUSTFREE) {
-		/* SBuf should catch the case */
-		slog_warning(server, "state=SV_JUSTFREE, should not happen");
+	/* may happen if close failed */
+	if (server->state == SV_JUSTFREE)
 		return false;
-	}
 
 	switch (evtype) {
 	case SBUF_EV_RECV_FAILED:

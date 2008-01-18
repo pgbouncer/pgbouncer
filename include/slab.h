@@ -11,9 +11,9 @@ void objcache_destroy(ObjectCache *cache);
 void * obj_alloc(ObjectCache *cache) _MALLOC _MUSTCHECK;
 void obj_free(ObjectCache *cache, void *obj);
 
-int objcache_total_count(ObjectCache *cache);
-int objcache_free_count(ObjectCache *cache);
-int objcache_active_count(ObjectCache *cache);
+int objcache_total_count(const ObjectCache *cache);
+int objcache_free_count(const ObjectCache *cache);
+int objcache_active_count(const ObjectCache *cache);
 
 typedef void (*slab_stat_fn)(void *arg, const char *slab_name,
 			     unsigned size, unsigned free, 

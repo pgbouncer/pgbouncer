@@ -56,7 +56,7 @@ static inline void list_init(List *list)
 }
 
 /* is list empty? */
-static inline bool list_empty(List *list)
+static inline bool list_empty(const List *list)
 {
 	return list->next == list;
 }
@@ -103,7 +103,7 @@ static inline List *list_pop(List *list)
 }
 
 /* remove first from list and return */
-static inline List *list_first(List *list)
+static inline List *list_first(const List *list)
 {
 	if (list_empty(list))
 		return NULL;
@@ -153,7 +153,7 @@ static inline void list_append_list(List *src, List *dst)
 	     (item) != (list); \
 	     (item) = (tmp), (tmp) = (tmp)->next)
 
-static inline bool item_in_list(List *item, List *list)
+static inline bool item_in_list(const List *item, const List *list)
 {
 	List *tmp;
 	list_for_each(tmp, list)
@@ -228,7 +228,7 @@ static inline void statlist_init(StatList *list, const char *name)
 #endif
 }
 
-static inline int statlist_count(StatList *list)
+static inline int statlist_count(const StatList *list)
 {
 	Assert(list->cur_count > 0 || list_empty(&list->head));
 	return list->cur_count;
@@ -260,12 +260,12 @@ static inline void statlist_append_list(StatList *src, StatList *dst)
 	src->cur_count = 0;
 }
 
-static inline List *statlist_first(StatList *list)
+static inline List *statlist_first(const StatList *list)
 {
 	return list_first(&list->head);
 }
 
-static inline bool statlist_empty(StatList *list)
+static inline bool statlist_empty(const StatList *list)
 {
 	return list_empty(&list->head);
 }

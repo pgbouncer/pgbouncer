@@ -188,19 +188,19 @@ void obj_free(ObjectCache *cache, void *obj)
 }
 
 /* total number of objects allocated from cache */
-int objcache_total_count(ObjectCache *cache)
+int objcache_total_count(const ObjectCache *cache)
 {
 	return cache->total_count;
 }
 
 /* free objects in cache */
-int objcache_free_count(ObjectCache *cache)
+int objcache_free_count(const ObjectCache *cache)
 {
 	return statlist_count(&cache->freelist);
 }
 
 /* number of objects in use */
-int objcache_active_count(ObjectCache *cache)
+int objcache_active_count(const ObjectCache *cache)
 {
 	return objcache_total_count(cache) - objcache_free_count(cache);
 }

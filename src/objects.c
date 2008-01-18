@@ -844,7 +844,7 @@ found:
 		disconnect_client(req, false, "cancel request for idle client");
 
 		/* let administrative cancel be handled elsewhere */
-		if (main_client->pool->admin) {
+		if (main_client->pool->db->admin) {
 			admin_handle_cancel(main_client);
 			return;
 		}

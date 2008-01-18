@@ -107,7 +107,7 @@ static void resume_sockets(void)
 
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
-		if (pool->admin)
+		if (pool->db->admin)
 			continue;
 		resume_socket_list(&pool->active_client_list);
 		resume_socket_list(&pool->active_server_list);
@@ -207,7 +207,7 @@ static int per_loop_pause(PgPool *pool)
 {
 	int active = 0;
 
-	if (pool->admin)
+	if (pool->db->admin)
 		return 0;
 
 	close_server_list(&pool->idle_server_list, "pause mode");
@@ -227,7 +227,7 @@ static int per_loop_suspend(PgPool *pool, bool force_suspend)
 {
 	int active = 0;
 
-	if (pool->admin)
+	if (pool->db->admin)
 		return 0;
 
 	active += suspend_socket_list(&pool->active_client_list, force_suspend);
@@ -268,7 +268,7 @@ void per_loop_maint(void)
 
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
-		if (pool->admin)
+		if (pool->db->admin)
 			continue;
 		switch (cf_pause_mode) {
 		case P_NONE:
@@ -484,7 +484,7 @@ static void do_full_maint(int sock, short flags, void *arg)
 
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
-		if (pool->admin)
+		if (pool->db->admin)
 			continue;
 		pool_server_maint(pool);
 		pool_client_maint(pool);

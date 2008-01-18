@@ -375,7 +375,7 @@ static bool admin_show_fds(PgSocket *admin, const char *arg)
 
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
-		if (pool->admin)
+		if (pool->db->admin)
 			continue;
 		res = res && show_fds_from_list(admin, &pool->active_client_list);
 		res = res && show_fds_from_list(admin, &pool->waiting_client_list);
@@ -1119,14 +1119,14 @@ void admin_setup(void)
 	db->addr.port = cf_listen_port;
 	db->addr.is_unix = 1;
 	db->pool_size = 2;
+	db->admin = 1;
 	if (!force_user(db, "pgbouncer", ""))
 		fatal("no mem on startup - cannot alloc pgbouncer user");
 
-	/* fake pool, tag the it as special */
+	/* fake pool */
 	pool = get_pool(db, db->forced_user);
 	if (!pool)
 		fatal("cannot create admin pool?");
-	pool->admin = 1;
 	admin_pool = pool;
 
 	/* fake user, with disabled psw */

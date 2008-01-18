@@ -126,7 +126,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 		res = release_server(server);
 
 		/* let the takeover process handle it */
-		if (res && server->pool->admin)
+		if (res && server->pool->db->admin)
 			res = takeover_login(server);
 		break;
 
@@ -159,7 +159,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	SBuf *sbuf = &server->sbuf;
 	PgSocket *client = server->link;
 
-	Assert(!server->pool->admin);
+	Assert(!server->pool->db->admin);
 
 	switch (pkt->type) {
 	default:
@@ -385,7 +385,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *data, void *arg)
 		slog_warning(server, "SBUF_EV_PKT_CALLBACK with state=%d", server->state);
 		break;
 	}
-	if (!res && pool->admin)
+	if (!res && pool->db->admin)
 		takeover_login_failed();
 	return res;
 }

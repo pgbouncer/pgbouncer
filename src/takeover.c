@@ -174,7 +174,7 @@ static void takeover_postprocess_fds(void)
 
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
-		if (pool->admin)
+		if (pool->db->admin)
 			continue;
 		statlist_for_each(item2, &pool->active_client_list) {
 			client = container_of(item2, PgSocket, head);

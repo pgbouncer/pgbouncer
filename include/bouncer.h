@@ -177,7 +177,6 @@ struct PgPool {
 	usec_t last_connect_time;
 	unsigned last_connect_failed:1;
 
-	unsigned admin:1;
 	unsigned welcome_msg_ready:1;
 };
 
@@ -216,10 +215,11 @@ struct PgUser {
  */
 struct PgDatabase {
 	List head;
-	char name[MAX_DBNAME];
+	char name[MAX_DBNAME];	/* db name for clients */
 
 	bool db_paused;		/* PAUSE <db>; was issued */
 	bool db_dead;		/* used on RELOAD/SIGHUP to later detect removed dbs */
+	bool admin;		/* internal console db */
 
 	uint8_t startup_params[256]; /* partial StartupMessage (without user) be sent to server */
 	unsigned startup_params_len;
@@ -231,7 +231,7 @@ struct PgDatabase {
 
 	int pool_size;		/* max server connections in one pool */
 
-	const char *dbname;	/* pointer to inside startup_msg */
+	const char *dbname;	/* server-side name, pointer to inside startup_msg */
 };
 
 /*

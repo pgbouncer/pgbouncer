@@ -220,7 +220,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		if (!decide_startup_pool(client, pkt))
 			return false;
 
-		if (client->pool->admin) {
+		if (client->pool->db->admin) {
 			if (!admin_pre_login(client))
 				return false;
 		}
@@ -304,7 +304,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 			client->query_start = get_cached_time();
 		}
 
-		if (client->pool->admin)
+		if (client->pool->db->admin)
 			return admin_handle_client(client, pkt);
 
 		/* aquire server */

@@ -230,7 +230,7 @@ static void set_dbs_dead(bool flag)
 
 	statlist_for_each(item, &database_list) {
 		db = container_of(item, PgDatabase, head);
-		if (strcmp(db->name, "pgbouncer") == 0)
+		if (db->admin)
 			continue;
 		db->db_dead = flag;
 	}

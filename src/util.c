@@ -205,8 +205,7 @@ void log_level(const char *pfx, const char *fmt, ...)
  * Logging about specific PgSocket
  */
 
-void
-slog_level(const char *pfx, const PgSocket *sock, const char *fmt, ...)
+void slog_level(const char *pfx, const PgSocket *sock, const char *fmt, ...)
 {
 	char buf1[1024];
 	char buf2[1024];

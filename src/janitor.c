@@ -353,7 +353,7 @@ static void check_unused_servers(PgPool *pool, StatList *slist, bool idle_test)
 	 * must be separated.  This avoids the need to re-launch lot
 	 * of connections together.
 	 */
-	if (cf_server_lifetime > 0 && pool->db->pool_size > 0)
+	if (pool->db->pool_size > 0)
 		lifetime_kill_gap = cf_server_lifetime / pool->db->pool_size;
 
 	/* disconnect idle servers if needed */
@@ -371,7 +371,7 @@ static void check_unused_servers(PgPool *pool, StatList *slist, bool idle_test)
 			disconnect_server(server, true, "SV_USED server got dirty");
 		} else if (cf_server_idle_timeout > 0 && idle > cf_server_idle_timeout) {
 			disconnect_server(server, true, "server idle timeout");
-		} else if (cf_server_lifetime > 0 && age > cf_server_lifetime) {
+		} else if (age >= cf_server_lifetime) {
 			if (pool->last_lifetime_disconnect + lifetime_kill_gap <= now) {
 				disconnect_server(server, true, "server lifetime over");
 				pool->last_lifetime_disconnect = now;

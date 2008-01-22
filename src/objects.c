@@ -543,6 +543,26 @@ static bool reset_on_release(PgSocket *server)
 	return res;
 }
 
+static bool life_over(PgSocket *server)
+{
+	PgPool *pool = server->pool;
+	usec_t lifetime_kill_gap = 0;
+	usec_t now = get_cached_time();
+	usec_t age = now - server->connect_time;
+	usec_t last_kill = now - pool->last_lifetime_disconnect;
+
+	if (age < cf_server_lifetime)
+		return false;
+
+	if (pool->db->pool_size > 0)
+		lifetime_kill_gap = cf_server_lifetime / pool->db->pool_size;
+
+	if (last_kill >= lifetime_kill_gap)
+		return true;
+
+	return false;
+}
+
 /* connecting/active -> idle, unlink if needed */
 bool release_server(PgSocket *server)
 {
@@ -575,6 +595,12 @@ bool release_server(PgSocket *server)
 		break;
 	default:
 		fatal("bad server state in release_server");
+	}
+
+	/* enforce lifetime immidiately on release */
+	if (server->state != SV_LOGIN && life_over(server)) {
+		disconnect_server(server, true, "server_lifetime");
+		return false;
 	}
 
 	Assert(server->link == NULL);

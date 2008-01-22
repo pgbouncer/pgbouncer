@@ -37,12 +37,8 @@
 
 
 #define AssertSanity(sbuf) do { \
-	Assert((sbuf)->send_pos >= 0); \
-	Assert((sbuf)->send_pos <= (sbuf)->pkt_pos); \
-	Assert((sbuf)->pkt_pos <= (sbuf)->recv_pos); \
-	Assert((sbuf)->recv_pos <= cf_sbuf_len + SBUF_MAX_REWRITE); \
+	Assert(iobuf_sane(&(sbuf)->io)); \
 	Assert((sbuf)->pkt_remain >= 0); \
-	Assert((sbuf)->send_remain >= 0); \
 } while (0)
 
 #define AssertActive(sbuf) do { \
@@ -64,6 +60,8 @@ static bool sbuf_call_proto(SBuf *sbuf, int event) /* _MUSTCHECK */;
 static bool sbuf_actual_recv(SBuf *sbuf, int len)  _MUSTCHECK;
 static bool sbuf_after_connect_check(SBuf *sbuf)  _MUSTCHECK;
 
+static inline IOBuf *get_iobuf(SBuf *sbuf) { return &sbuf->io; }
+
 /*********************************
  * Public functions
  *********************************/
@@ -81,7 +79,7 @@ bool sbuf_accept(SBuf *sbuf, int sock, bool is_unix)
 {
 	bool res;
 
-	Assert(sbuf->recv_pos == 0 && sbuf->sock == 0);
+	Assert(iobuf_empty(&sbuf->io) && sbuf->sock == 0);
 	AssertSanity(sbuf);
 
 	tune_socket(sock, is_unix);
@@ -114,7 +112,7 @@ bool sbuf_connect(SBuf *sbuf, const PgAddr *addr, const char *unix_dir, int time
 	socklen_t len;
 	struct timeval timeout;
 
-	Assert(sbuf->recv_pos == 0 && sbuf->sock == 0);
+	Assert(iobuf_empty(&sbuf->io) && sbuf->sock == 0);
 	AssertSanity(sbuf);
 
 	/* prepare sockaddr */
@@ -253,9 +251,9 @@ bool sbuf_close(SBuf *sbuf)
 	}
 	sbuf->dst = NULL;
 	sbuf->sock = 0;
-	sbuf->pkt_pos = sbuf->pkt_remain = sbuf->recv_pos = 0;
+	sbuf->pkt_remain = 0;
 	sbuf->pkt_action = sbuf->wait_send = 0;
-	sbuf->send_pos = sbuf->send_remain = 0;
+	iobuf_reset(get_iobuf(sbuf));
 	return true;
 }
 
@@ -264,7 +262,7 @@ void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, int amount)
 {
 	AssertActive(sbuf);
 	Assert(sbuf->pkt_remain == 0);
-	Assert(sbuf->pkt_action == ACT_UNSET || sbuf->pkt_action == ACT_SEND || sbuf->send_remain == 0);
+	//Assert(sbuf->pkt_action == ACT_UNSET || sbuf->pkt_action == ACT_SEND || iobuf_amount_pending(&sbuf->io));
 	Assert(amount > 0);
 
 	sbuf->pkt_action = ACT_SEND;
@@ -277,12 +275,11 @@ void sbuf_prepare_skip(SBuf *sbuf, int amount)
 {
 	AssertActive(sbuf);
 	Assert(sbuf->pkt_remain == 0);
-	Assert(sbuf->pkt_action == ACT_UNSET || sbuf->send_remain == 0);
+	//Assert(sbuf->pkt_action == ACT_UNSET || iobuf_send_pending_avail(&sbuf->io));
 	Assert(amount > 0);
 
 	sbuf->pkt_action = ACT_SKIP;
 	sbuf->pkt_remain = amount;
-	/* sbuf->dst = NULL; // fixme ?? */
 }
 
 /* proto_fn tells to skip some amount of bytes */
@@ -290,7 +287,7 @@ void sbuf_prepare_fetch(SBuf *sbuf, int amount)
 {
 	AssertActive(sbuf);
 	Assert(sbuf->pkt_remain == 0);
-	Assert(sbuf->pkt_action == ACT_UNSET || sbuf->send_remain == 0);
+	//Assert(sbuf->pkt_action == ACT_UNSET || iobuf_send_pending_avail(&sbuf->io));
 	Assert(amount > 0);
 
 	sbuf->pkt_action = ACT_CALL;
@@ -315,20 +312,18 @@ void sbuf_prepare_fetch(SBuf *sbuf, int amount)
 static bool sbuf_call_proto(SBuf *sbuf, int event)
 {
 	MBuf mbuf;
-	uint8_t *pos = sbuf->buf + sbuf->pkt_pos;
-	int avail = sbuf->recv_pos - sbuf->pkt_pos;
+	IOBuf *io = get_iobuf(sbuf);
 	bool res;
 
 	AssertSanity(sbuf);
-	Assert(event != SBUF_EV_READ || avail > 0);
+	Assert(event != SBUF_EV_READ || iobuf_amount_parse(io) > 0);
 
 	/* if pkt callback, limit only with current packet */
-	if (event == SBUF_EV_PKT_CALLBACK) {
-		if (avail > sbuf->pkt_remain)
-			avail = sbuf->pkt_remain;
-	}
+	if (event == SBUF_EV_PKT_CALLBACK)
+		iobuf_parse_limit(io, &mbuf, sbuf->pkt_remain);
+	else
+		iobuf_parse_all(io, &mbuf);
 
-	mbuf_init(&mbuf, pos, avail);
 	res = sbuf->proto_cb(sbuf, event, &mbuf, sbuf->proto_cb_arg);
 
 	AssertSanity(sbuf);
@@ -410,18 +405,16 @@ static bool sbuf_queue_send(SBuf *sbuf)
 static bool sbuf_send_pending(SBuf *sbuf)
 {
 	int res, avail;
-	uint8_t *pos;
+	IOBuf *io = get_iobuf(sbuf);
 
 	AssertActive(sbuf);
-	Assert(sbuf->dst || !sbuf->send_remain);
+	Assert(sbuf->dst || iobuf_amount_pending(&sbuf->io) == 0);
 
 try_more:
 	/* how much data is available for sending */
-	avail = sbuf->recv_pos - sbuf->send_pos;
-	if (avail > sbuf->send_remain)
-		avail = sbuf->send_remain;
+	avail = iobuf_amount_pending(io);
 	if (avail == 0)
-		goto all_sent;
+		return true;
 
 	if (sbuf->dst->sock == 0) {
 		log_error("sbuf_send_pending: no dst sock?");
@@ -429,8 +422,7 @@ try_more:
 	}
 
 	/* actually send it */
-	pos = sbuf->buf + sbuf->send_pos;
-	res = safe_send(sbuf->dst->sock, pos, avail, 0);
+	res = iobuf_send_pending(io, sbuf->dst->sock);
 	if (res < 0) {
 		if (errno == EAGAIN) {
 			if (!sbuf_queue_send(sbuf))
@@ -441,9 +433,6 @@ try_more:
 		return false;
 	}
 
-	sbuf->send_remain -= res;
-	sbuf->send_pos += res;
-
 	AssertActive(sbuf);
 
 	/*
@@ -451,23 +440,15 @@ try_more:
 	 *
 	 * To be sure, let's run into EAGAIN.
 	 */
-	if (res < avail)
-		goto try_more;
-
-all_sent:
-
-	/* send_pos may lag pkt_pos in case of skip packets, move it here */
-	if (sbuf->send_remain == 0 && sbuf->send_pos < sbuf->pkt_pos)
-		sbuf->send_pos = sbuf->pkt_pos;
-
-	return true;
+	goto try_more;
 }
 
 /* process as much data as possible */
 static bool sbuf_process_pending(SBuf *sbuf)
 {
 	int avail;
-	bool full = sbuf->recv_pos >= cf_sbuf_len;
+	IOBuf *io = get_iobuf(sbuf);
+	bool full = iobuf_amount_recv(io) <= 0;
 	bool res;
 
 	while (1) {
@@ -481,7 +462,7 @@ static bool sbuf_process_pending(SBuf *sbuf)
 		 * the check is not done in !full case.  Packet handler can
 		 * then still notify about partial packet by returning false.
 		 */
-		avail = sbuf->recv_pos - sbuf->pkt_pos;
+		avail = iobuf_amount_parse(io);
 		if (avail == 0 || (full && avail <= SBUF_SMALL_PKT))
 			break;
 
@@ -495,15 +476,21 @@ static bool sbuf_process_pending(SBuf *sbuf)
 			Assert(sbuf->pkt_remain > 0);
 		}
 
-		/* walk pkt, merge sends */
+		if (sbuf->pkt_action == ACT_SKIP || sbuf->pkt_action == ACT_CALL) {
+			/* send any pending data before skipping */
+			if (iobuf_amount_pending(io) > 0) {
+				res = sbuf_send_pending(sbuf);
+				if (!res)
+					return res;
+			}
+		}
+
 		if (avail > sbuf->pkt_remain)
 			avail = sbuf->pkt_remain;
 
 		switch (sbuf->pkt_action) {
 		case ACT_SEND:
-			if (sbuf->send_remain == 0)
-				sbuf->send_pos = sbuf->pkt_pos;
-			sbuf->send_remain += avail;
+			iobuf_tag_send(io, avail);
 			break;
 		case ACT_CALL:
 			res = sbuf_call_proto(sbuf, SBUF_EV_PKT_CALLBACK);
@@ -511,13 +498,10 @@ static bool sbuf_process_pending(SBuf *sbuf)
 				return false;
 			/* after callback, skip pkt */
 		case ACT_SKIP:
-			res = sbuf_send_pending(sbuf);
-			if (!res)
-				return res;
+			iobuf_tag_skip(io, avail);
 			break;
 		}
 		sbuf->pkt_remain -= avail;
-		sbuf->pkt_pos += avail;
 	}
 
 	return sbuf_send_pending(sbuf);
@@ -526,54 +510,33 @@ static bool sbuf_process_pending(SBuf *sbuf)
 /* reposition at buffer start again */
 static void sbuf_try_resync(SBuf *sbuf)
 {
-	int avail;
+	IOBuf *io = get_iobuf(sbuf);
 
 	AssertActive(sbuf);
 
-	if (sbuf->send_pos == 0)
-		return;
-
-	avail = sbuf->recv_pos - sbuf->send_pos;
-
-	if (avail == 0) {
-		sbuf->recv_pos = sbuf->pkt_pos = sbuf->send_pos = 0;
-	} else if (avail <= SBUF_SMALL_PKT) {
-		memmove(sbuf->buf, sbuf->buf + sbuf->send_pos, avail);
-		sbuf->pkt_pos -= sbuf->send_pos;
-		sbuf->send_pos = 0;
-		sbuf->recv_pos = avail;
-	}
+	iobuf_try_resync(io, SBUF_SMALL_PKT);
 }
 
 /* actually ask kernel for more data */
 static bool sbuf_actual_recv(SBuf *sbuf, int len)
 {
 	int got;
-	uint8_t *pos;
+	IOBuf *io = get_iobuf(sbuf);
 
 	AssertActive(sbuf);
 	Assert(len > 0);
-	Assert(sbuf->recv_pos + len <= cf_sbuf_len);
+	Assert(iobuf_amount_recv(io) >= len);
 
-	pos = sbuf->buf + sbuf->recv_pos;
-	got = safe_recv(sbuf->sock, pos, len, 0);
-
+	got = iobuf_recv_limit(io, sbuf->sock, len);
 	if (got == 0) {
 		/* eof from socket */
 		sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
 		return false;
-	} else if (got < 0) {
-		if (errno == EAGAIN) {
-			/* we tried too much, socket is empty.
-			   act as zero bytes was read */
-			got = 0;
-		} else {
-			/* some error occured */
-			sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
-			return false;
-		}
+	} else if (got < 0 && errno != EAGAIN) {
+		/* some error occured */
+		sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
+		return false;
 	}
-	sbuf->recv_pos += got;
 	return true;
 }
 
@@ -596,6 +559,7 @@ static void sbuf_recv_cb(int sock, short flags, void *arg)
 static void sbuf_main_loop(SBuf *sbuf, bool skip_recv)
 {
 	int free, ok;
+	IOBuf *io = get_iobuf(sbuf);
 
 	/* sbuf was closed before in this event loop */
 	if (!sbuf->sock)
@@ -617,7 +581,7 @@ try_more:
 	 * here used to be if (free > SBUF_SMALL_PKT) check
 	 * but with skip_recv switch its should not be needed anymore.
 	 */
-	free = cf_sbuf_len - sbuf->recv_pos;
+	free = iobuf_amount_recv(io);
 	if (free > 0) {
 		/*
 		 * When suspending, try to hit packet boundary ASAP.
@@ -642,7 +606,7 @@ skip_recv:
 		return;
 
 	/* if the buffer is full, there can be more data available */
-	if (sbuf->recv_pos >= cf_sbuf_len)
+	if (iobuf_amount_recv(io) <= 0)
 		goto try_more;
 
 	/* clean buffer */
@@ -708,6 +672,7 @@ bool sbuf_answer(SBuf *sbuf, const void *buf, int len)
 bool sbuf_rewrite_header(SBuf *sbuf, int old_len,
 			 const uint8_t *new_hdr, int new_len)
 {
+#if 0
 	int avail = sbuf->recv_pos - sbuf->pkt_pos;
 	int diff = new_len - old_len;
 	uint8_t *pkt_pos = sbuf->buf + sbuf->pkt_pos;
@@ -725,6 +690,7 @@ bool sbuf_rewrite_header(SBuf *sbuf, int old_len,
 	memmove(new_pos, old_pos, avail - old_len);
 	memcpy(pkt_pos, new_hdr, new_len);
 	sbuf->recv_pos += diff;
-	return true;
+#endif
+	return false;
 }
 

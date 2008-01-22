@@ -71,6 +71,7 @@ typedef struct PktHdr PktHdr;
 #include "util.h"
 #include "list.h"
 #include "mbuf.h"
+#include "iobuf.h"
 #include "sbuf.h"
 #include "pktbuf.h"
 #include "varcache.h"
@@ -274,7 +275,7 @@ struct PgSocket {
 	SBuf sbuf;		/* stream buffer, must be last */
 };
 
-#define RAW_SOCKET_SIZE offsetof(struct PgSocket, sbuf.buf)
+#define RAW_SOCKET_SIZE offsetof(struct PgSocket, sbuf.io.buf)
 #define PG_SOCKET_SIZE	(RAW_SOCKET_SIZE + cf_sbuf_len + SBUF_MAX_REWRITE)
 
 /* where to store old fd info during SHOW FDS result processing */

@@ -73,22 +73,17 @@ struct SBuf {
 
 	int sock;		/* fd for this socket */
 
-	int recv_pos;		/* end of received data */
-	int pkt_pos;		/* packet processing pos */
-	int send_pos;		/* how far is data sent */
-
 	int pkt_remain;		/* total packet length remaining */
-	int send_remain;	/* total data to be sent remaining */
 
 	sbuf_cb_t proto_cb;	/* protocol callback */
 	void *proto_cb_arg;	/* extra arg to callback */
 
 	SBuf *dst;		/* target SBuf for current packet */
 
-	uint8_t buf[FLEX_ARRAY];/* data buffer follows (cf_sbuf_len + SBUF_MAX_REWRITE) */
+	IOBuf io;
 };
 
-#define RAW_SBUF_SIZE offsetof(struct SBuf, buf)
+#define RAW_SBUF_SIZE offsetof(struct SBuf, io.buf)
 
 #define sbuf_socket(sbuf) ((sbuf)->sock)
 
@@ -115,8 +110,7 @@ bool sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb cb)  _MUSTCHECK;
  */
 static inline bool sbuf_is_empty(SBuf *sbuf)
 {
-	return sbuf->send_pos == sbuf->recv_pos
-		&& sbuf->pkt_remain == 0;
+	return iobuf_empty(&sbuf->io) && sbuf->pkt_remain == 0;
 }
 
 static inline bool sbuf_is_closed(SBuf *sbuf)

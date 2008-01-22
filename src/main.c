@@ -31,6 +31,7 @@ static bool set_mode(ConfElem *elem, const char *val, PgSocket *console);
 static const char *get_mode(ConfElem *elem);
 static bool set_auth(ConfElem *elem, const char *val, PgSocket *console);
 static const char *get_auth(ConfElem *elem);
+static bool set_defer_accept(ConfElem *elem, const char *val, PgSocket *console);
 
 static const char *usage_str =
 "usage: pgbouncer [-d] [-R] [-q] [-v] [-h|-V] config.ini\n";
@@ -64,8 +65,8 @@ int cf_pool_mode = POOL_SESSION;
 /* sbuf config */
 int cf_sbuf_len = 2048;
 int cf_tcp_socket_buffer = 0;
-#ifdef TCP_DEFER_ACCEPT
-int cf_tcp_defer_accept = 45;
+#if defined(TCP_DEFER_ACCEPT) || defined(SO_ACCEPTFILTER)
+int cf_tcp_defer_accept = 1;
 #else
 int cf_tcp_defer_accept = 0;
 #endif
@@ -141,7 +142,7 @@ ConfElem bouncer_params[] = {
 {"suspend_timeout",	true, CF_TIME, &cf_suspend_timeout},
 
 {"pkt_buf",		false, CF_INT, &cf_sbuf_len},
-{"tcp_defer_accept",	false, CF_INT, &cf_tcp_defer_accept},
+{"tcp_defer_accept",	true, {cf_get_int, set_defer_accept}},
 {"tcp_socket_buffer",	true, CF_INT, &cf_tcp_socket_buffer},
 {"tcp_keepalive",	true, CF_INT, &cf_tcp_keepalive},
 {"tcp_keepcnt",		true, CF_INT, &cf_tcp_keepcnt},
@@ -220,6 +221,16 @@ static bool set_auth(ConfElem *elem, const char *val, PgSocket *console)
 		admin_error(console, "bad auth type: %s", val);
 		return false;
 	}
+	return true;
+}
+
+static bool set_defer_accept(ConfElem *elem, const char *val, PgSocket *console)
+{
+	bool ok;
+	int oldval = cf_tcp_defer_accept;
+	ok = cf_set_int(elem, val, console);
+	if (ok && !!oldval != !!cf_tcp_defer_accept)
+		pooler_tune_accept(cf_tcp_defer_accept);
 	return true;
 }
 

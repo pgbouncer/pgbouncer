@@ -111,6 +111,47 @@ static int create_unix_socket(const char *socket_dir, int listen_port)
 	return sock;
 }
 
+/*
+ * Notify pooler only when also data is arrived.
+ *
+ * optval specifies how long after connection attempt to wait for data.
+ *
+ * Related to tcp_synack_retries sysctl, default 5 (corresponds 180 secs).
+ *
+ * SO_ACCEPTFILTER needs to be set after listern(), maybe TCP_DEFER_ACCEPT too.
+ */
+static void tune_accept(int sock, bool on)
+{
+	const char *act = on ? "install" : "uninstall";
+	int res = 0;
+#ifdef TCP_DEFER_ACCEPT
+	int val = 45; /* fixme: proper value */
+	res = getsockopt(sock, IPPROTO_TCP, TCP_DEFER_ACCEPT, &val, sizeof(val));
+	log_noise("old TCP_DEFER_ACCEPT on %d = %d", sock, val);
+	val = on ? 1 : 0;
+	log_noise("%s TCP_DEFER_ACCEPT on %d", act, sock);
+	res = setsockopt(sock, IPPROTO_TCP, TCP_DEFER_ACCEPT, &val, sizeof(val));
+#else
+#ifdef SO_ACCEPTFILTER
+	struct accept_filter_arg af, *afp = on ? &af : NULL;
+	socklen_t af_len = on ? sizeof(af) : 0;
+	memset(&af, 0, sizeof(af));
+	strcpy(af.af_name, "dataready");
+	log_noise("%s SO_ACCEPTFILTER on %d", act, sock);
+	res = setsockopt(sock, SOL_SOCKET, SO_ACCEPTFILTER, afp, af_len);
+#endif
+#endif
+	if (res < 0)
+		log_warning("tune_accept: %s TCP_DEFER_ACCEPT/SO_ACCEPTFILTER: %s",
+			    act, strerror(errno));
+}
+
+void pooler_tune_accept(bool on)
+{
+	if (fd_net > 0)
+		tune_accept(fd_net, on);
+}
+
 static int create_net_socket(const char *listen_addr, int listen_port)
 {
 	int sock;
@@ -149,26 +190,12 @@ static int create_net_socket(const char *listen_addr, int listen_port)
 	/* set common options */
 	tune_socket(sock, false);
 
-#ifdef TCP_DEFER_ACCEPT
-	/*
-	 * Notify pooler only when also data is arrived.
-	 *
-	 * optval specifies how long after connection attempt to wait for data.
-	 *
-	 * Related to tcp_synack_retries sysctl, default 5 (corresponds 180 secs).
-	 */
-	if (cf_tcp_defer_accept > 0) {
-		val = cf_tcp_defer_accept;
-		res = setsockopt(sock, IPPROTO_TCP, TCP_DEFER_ACCEPT, &val, sizeof(val));
-		if (res < 0)
-			fatal_perror("setsockopt TCP_DEFER_ACCEPT");
-	}
-#endif
-
-	/* finally, accept connections */
+	/* make it accept connections */
 	res = listen(sock, 100);
 	if (res < 0)
 		fatal_perror("listen");
+
+	tune_accept(sock, cf_tcp_defer_accept);
 
 	log_info("listening on %s:%d", cf_listen_addr, cf_listen_port);
 

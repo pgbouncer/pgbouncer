@@ -22,4 +22,4 @@ void resume_pooler(void);
 void suspend_pooler(void);
 void get_pooler_fds(int *p_net, int *p_unix);
 void per_loop_pooler_maint(void);
-
+void pooler_tune_accept(bool on);

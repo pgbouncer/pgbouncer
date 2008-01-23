@@ -178,14 +178,16 @@ test_server_login_retry() {
 test_server_connect_timeout_establish() {
 	which nc >/dev/null || return 1
 
+	echo nc -l -p $NC_PORT
 	nc -l -p $NC_PORT >/dev/null &
+	sleep 2
 	admin "set query_timeout=3"
 	admin "set server_connect_timeout=2"
 	psql -c "select now()" p2
 	# client will always see query_timeout, need to grep for connect timeout
 	grep "closing because: connect timeout" $BOUNCER_LOG 
-        rc=$?
-        # didnt seem to die otherwise
+	rc=$?
+	# didnt seem to die otherwise
 	killall nc
 	return $rc
 }
@@ -408,3 +410,4 @@ done
 
 complete
 
+# vim: sts=0 sw=8 noet nosmarttab:

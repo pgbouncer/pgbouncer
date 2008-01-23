@@ -142,7 +142,7 @@ ConfElem bouncer_params[] = {
 {"suspend_timeout",	true, CF_TIME, &cf_suspend_timeout},
 
 {"pkt_buf",		false, CF_INT, &cf_sbuf_len},
-{"tcp_defer_accept",	true, {cf_get_int, set_defer_accept}},
+{"tcp_defer_accept",	true, {cf_get_int, set_defer_accept}, &cf_tcp_defer_accept},
 {"tcp_socket_buffer",	true, CF_INT, &cf_tcp_socket_buffer},
 {"tcp_keepalive",	true, CF_INT, &cf_tcp_keepalive},
 {"tcp_keepcnt",		true, CF_INT, &cf_tcp_keepcnt},

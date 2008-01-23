@@ -23,6 +23,13 @@
  * - On each release, cleaner is called.
  * - When giving object out, nothing is done.
  * - Writes List struct on obj header, expects it to be overwritten on use.
+ *
+ * TODO: fix list head at object:
+ * - set as policy that real object must have it too
+ * - or memset() / constructor policy on alloc
+ * - stop lazy constructor/destructor business as it only complicates,
+ *   call constructor on alloc, destructor on free
+ * - avoid destructor completely
  */
 
 #include <sys/param.h>
@@ -83,6 +90,8 @@ static void init_objcache(ObjectCache *cache,
 		cache->final_size = ALIGN(obj_size);
 	else
 		cache->final_size = CUSTOM_ALIGN(obj_size, align);
+
+	log_noise("new cache: %s, size=%u", name, cache->final_size);
 }
 
 /* make new cache */
@@ -184,6 +193,7 @@ void obj_free(ObjectCache *cache, void *obj)
 	List *item = obj;
 	if (cache->clean_func)
 		cache->clean_func(obj);
+	list_init(item); /* fixme: needs alloc policy too */
 	statlist_prepend(item, &cache->freelist);
 }
 

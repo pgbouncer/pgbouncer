@@ -56,15 +56,15 @@ typedef struct iobuf IOBuf;
 
 static inline bool iobuf_sane(const IOBuf *io)
 {
-	return io->done_pos >= 0
+	return (io == NULL) || (io->done_pos >= 0
 		&& io->parse_pos >= io->done_pos
 		&& io->recv_pos >= io->parse_pos
-		&& cf_sbuf_len >= io->recv_pos;
+		&& cf_sbuf_len >= io->recv_pos);
 }
 
-static inline bool iobuf_empty(const IOBuf *buf)
+static inline bool iobuf_empty(const IOBuf *io)
 {
-	return buf->done_pos == buf->recv_pos;
+	return io == NULL || io->done_pos == io->recv_pos;
 }
 
 /* unsent amount */

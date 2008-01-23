@@ -275,8 +275,8 @@ struct PgSocket {
 	SBuf sbuf;		/* stream buffer, must be last */
 };
 
-#define RAW_SOCKET_SIZE offsetof(struct PgSocket, sbuf.io.buf)
-#define PG_SOCKET_SIZE	(RAW_SOCKET_SIZE + cf_sbuf_len + SBUF_MAX_REWRITE)
+#define RAW_IOBUF_SIZE	offsetof(IOBuf, buf)
+#define IOBUF_SIZE	(RAW_IOBUF_SIZE + cf_sbuf_len)
 
 /* where to store old fd info during SHOW FDS result processing */
 #define tmp_sk_oldfd	request_time

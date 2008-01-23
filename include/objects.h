@@ -26,6 +26,7 @@ extern ObjectCache *server_cache;
 extern ObjectCache *db_cache;
 extern ObjectCache *pool_cache;
 extern ObjectCache *user_cache;
+extern ObjectCache *iobuf_cache;
 
 PgDatabase *find_database(const char *name);
 PgUser *find_user(const char *name);

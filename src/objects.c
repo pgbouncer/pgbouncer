@@ -41,6 +41,7 @@ ObjectCache *client_cache;
 ObjectCache *db_cache;
 ObjectCache *pool_cache;
 ObjectCache *user_cache;
+ObjectCache *iobuf_cache;
 
 /*
  * libevent may still report events when event_del()
@@ -125,13 +126,21 @@ void init_objects(void)
 		fatal("cannot create initial caches");
 }
 
+static void do_iobuf_reset(void *arg)
+{
+	IOBuf *io = arg;
+	iobuf_reset(io);
+}
+
 /* initialization after config loading */
 void init_caches(void)
 {
-	server_cache = objcache_create("server_cache", PG_SOCKET_SIZE, 8,
+	server_cache = objcache_create("server_cache", sizeof(PgSocket), 0,
 				       construct_server, clean_socket);
-	client_cache = objcache_create("client_cache", PG_SOCKET_SIZE, 8,
+	client_cache = objcache_create("client_cache", sizeof(PgSocket), 0,
 				       construct_client, clean_socket);
+	iobuf_cache = objcache_create("iobuf_cache", IOBUF_SIZE, 0,
+				      do_iobuf_reset, do_iobuf_reset);
 }
 
 /* state change means moving between lists */

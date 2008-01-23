@@ -39,11 +39,6 @@ typedef enum {
  */
 #define SBUF_SMALL_PKT	64
 
-/*
- * How much proto handler may want to enlarge the packet.
- */
-#define SBUF_MAX_REWRITE 16
-
 /* fwd def */
 typedef struct SBuf SBuf;
 
@@ -80,10 +75,8 @@ struct SBuf {
 
 	SBuf *dst;		/* target SBuf for current packet */
 
-	IOBuf io;
+	IOBuf *io;
 };
-
-#define RAW_SBUF_SIZE offsetof(struct SBuf, io.buf)
 
 #define sbuf_socket(sbuf) ((sbuf)->sock)
 
@@ -110,7 +103,7 @@ bool sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb cb)  _MUSTCHECK;
  */
 static inline bool sbuf_is_empty(SBuf *sbuf)
 {
-	return iobuf_empty(&sbuf->io) && sbuf->pkt_remain == 0;
+	return iobuf_empty(sbuf->io) && sbuf->pkt_remain == 0;
 }
 
 static inline bool sbuf_is_closed(SBuf *sbuf)
@@ -118,6 +111,4 @@ static inline bool sbuf_is_closed(SBuf *sbuf)
 	return sbuf->sock == 0;
 }
 
-bool sbuf_rewrite_header(SBuf *sbuf, int old_len,
-			 const uint8_t *new_hdr, int new_len)  _MUSTCHECK;
 

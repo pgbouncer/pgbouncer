@@ -2,10 +2,9 @@
 typedef struct ObjectCache ObjectCache;
 
 typedef void (*obj_init_fn)(void *obj);
-typedef void (*obj_clean_fn)(void *obj);
 
 ObjectCache *objcache_create(const char *name, unsigned obj_size, unsigned align,
-			     obj_init_fn init_func, obj_clean_fn clean_func);
+			     obj_init_fn init_func);
 void objcache_destroy(ObjectCache *cache);
 
 void * obj_alloc(ObjectCache *cache) _MALLOC _MUSTCHECK;

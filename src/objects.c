@@ -63,31 +63,6 @@ int get_active_server_count(void)
 	return objcache_active_count(server_cache);
 }
 
-/* this should be called on free socket that is put into use */
-static void clean_socket(void *obj)
-{
-	PgSocket *sk = obj;
-
-	sk->link = NULL;
-	sk->pool = NULL;
-
-	sk->wait_for_welcome = 0;
-	sk->ready = 0;
-	sk->admin_user = 0;
-	sk->own_user = 0;
-	sk->suspended = 0;
-	sk->wait_for_response = 0;
-
-	sk->connect_time = 0;
-	sk->request_time = 0;
-	sk->query_start = 0;
-
-	sk->auth_user = NULL;
-
-	varcache_clean(&sk->vars);
-	sk->setting_vars = 0;
-}
-
 static void construct_client(void *obj)
 {
 	PgSocket *client = obj;
@@ -118,9 +93,9 @@ static int user_node_cmp(long userptr, Node *node)
 void init_objects(void)
 {
 	tree_init(&user_tree, user_node_cmp, NULL);
-	user_cache = objcache_create("user_cache", sizeof(PgUser), 0, NULL, NULL);
-	db_cache = objcache_create("db_cache", sizeof(PgDatabase), 0, NULL, NULL);
-	pool_cache = objcache_create("pool_cache", sizeof(PgPool), 0, NULL, NULL);
+	user_cache = objcache_create("user_cache", sizeof(PgUser), 0, NULL);
+	db_cache = objcache_create("db_cache", sizeof(PgDatabase), 0, NULL);
+	pool_cache = objcache_create("pool_cache", sizeof(PgPool), 0, NULL);
 
 	if (!user_cache || !db_cache || !pool_cache)
 		fatal("cannot create initial caches");
@@ -135,12 +110,9 @@ static void do_iobuf_reset(void *arg)
 /* initialization after config loading */
 void init_caches(void)
 {
-	server_cache = objcache_create("server_cache", sizeof(PgSocket), 0,
-				       construct_server, clean_socket);
-	client_cache = objcache_create("client_cache", sizeof(PgSocket), 0,
-				       construct_client, clean_socket);
-	iobuf_cache = objcache_create("iobuf_cache", IOBUF_SIZE, 0,
-				      do_iobuf_reset, do_iobuf_reset);
+	server_cache = objcache_create("server_cache", sizeof(PgSocket), 0, construct_server);
+	client_cache = objcache_create("client_cache", sizeof(PgSocket), 0, construct_client);
+	iobuf_cache = objcache_create("iobuf_cache", IOBUF_SIZE, 0, do_iobuf_reset);
 }
 
 /* state change means moving between lists */

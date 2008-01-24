@@ -489,13 +489,13 @@ static void socket_header(PktBuf *buf, bool debug)
 				    "pkt_avail", "send_avail");
 }
 
-static void adr2txt(const PgAddr *adr, char *dst, int dstlen)
+static void adr2txt(const PgAddr *adr, char *dst, unsigned dstlen)
 {
 	if (adr->is_unix) {
-		strlcpy(dst, "unix", dstlen);
+		safe_strcpy(dst, "unix", dstlen);
 	} else {
 		char *tmp = inet_ntoa(adr->ip_addr);
-		strlcpy(dst, tmp, dstlen);
+		safe_strcpy(dst, tmp, dstlen);
 	}
 }
 

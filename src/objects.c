@@ -297,7 +297,7 @@ PgDatabase *add_database(const char *name)
 			return NULL;
 
 		list_init(&db->head);
-		strlcpy(db->name, name, sizeof(db->name));
+		safe_strcpy(db->name, name, sizeof(db->name));
 		put_in_order(&db->head, &database_list, cmp_database);
 	}
 
@@ -316,12 +316,12 @@ PgUser *add_user(const char *name, const char *passwd)
 
 		list_init(&user->head);
 		list_init(&user->pool_list);
-		strlcpy(user->name, name, sizeof(user->name));
+		safe_strcpy(user->name, name, sizeof(user->name));
 		put_in_order(&user->head, &user_list, cmp_user);
 
 		tree_insert(&user_tree, (long)user->name, &user->tree_node);
 	}
-	strlcpy(user->passwd, passwd, sizeof(user->passwd));
+	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
 	return user;
 }
 
@@ -336,8 +336,8 @@ PgUser *force_user(PgDatabase *db, const char *name, const char *passwd)
 		list_init(&user->head);
 		list_init(&user->pool_list);
 	}
-	strlcpy(user->name, name, sizeof(user->name));
-	strlcpy(user->passwd, passwd, sizeof(user->passwd));
+	safe_strcpy(user->name, name, sizeof(user->name));
+	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
 	db->forced_user = user;
 	return user;
 }

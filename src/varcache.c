@@ -169,7 +169,7 @@ void varcache_fill_unset(VarCache *src, PgSocket *dst)
 		srcval = get_value(src, lk);
 		dstval = get_value(&dst->vars, lk);
 		if (!*dstval)
-			strlcpy(dstval, srcval, lk->len);
+			memcpy(dstval, srcval, lk->len);
 	}
 }
 

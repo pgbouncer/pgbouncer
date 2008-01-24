@@ -268,7 +268,7 @@ void parse_database(char *name, char *connstr)
 	db->addr.port = v_port;
 	db->addr.ip_addr.s_addr = v_addr;
 	db->addr.is_unix = host ? 0 : 1;
-	strlcpy(db->unix_socket_dir, unix_dir, sizeof(db->unix_socket_dir));
+	safe_strcpy(db->unix_socket_dir, unix_dir, sizeof(db->unix_socket_dir));
 
 	if (host)
 		log_debug("%s: host=%s/%s", name, host, inet_ntoa(db->addr.ip_addr));

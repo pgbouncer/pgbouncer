@@ -69,7 +69,7 @@ static void init_objcache(ObjectCache *cache,
 	list_init(&cache->head);
 	statlist_init(&cache->freelist, name);
 	statlist_init(&cache->slablist, name);
-	strlcpy(cache->name, name, sizeof(cache->name));
+	safe_strcpy(cache->name, name, sizeof(cache->name));
 	cache->total_count = 0;
 	cache->init_func = init_func;
 	statlist_append(&cache->head, &objcache_list);

@@ -111,3 +111,10 @@ void fill_local_addr(PgSocket *sk, int fd, bool is_unix);
 void rescue_timers(void);
 void safe_evtimer_add(struct event *ev, struct timeval *tv);
 
+/* log truncated strings */
+#define safe_strcpy(dst, src, dstlen) do { \
+	size_t needed = strlcpy(dst, src, dstlen); \
+	if (unlikely(needed >= (dstlen))) \
+		log_warning("bug in %s:%d - string truncated", __FILE__, __LINE__); \
+} while (0)
+

@@ -24,8 +24,6 @@
 #include "config.h"
 #endif
 
-#define _GNU_SOURCE
-
 #include <sys/errno.h>
 #include <sys/types.h>
 #include <sys/time.h>
@@ -65,34 +63,26 @@
 #define FLEX_ARRAY 1
 #endif
 
-/* gcc has hew positive aspects too */
 #ifdef __GNUC__
 
-#define unlikely(x) __builtin_expect(!!(x), 0)
-#define likely(x) __builtin_expect(!!(x), 1)
-
+/* gcc has hew positive aspects too */
 #define _MUSTCHECK		__attribute__((warn_unused_result))
 #define _DEPRECATED		__attribute__((deprecated))
 #define _PRINTF(fmtpos, argpos)	__attribute__((format(printf, fmtpos, argpos)))
 #define _MALLOC			__attribute__((malloc))
 
-#if 0
-#define _USED			__attribute__((used))
-#define _UNUSED			__attribute__((unused))
-#define _NONNULL(args...)	__attribute__((nonnull(args)))
-#define _REGPARM(num)		__attribute__((regparm(num)))
-#define _FASTCALL		__attribute__((fastcall))
-#endif
+/* those do not seem to work well */
+#define unlikely(x) __builtin_expect(!!(x), 0)
+#define likely(x) __builtin_expect(!!(x), 1)
 
 #else
-
-#define unlikely(x) x
-#define likely(x) x
 
 #define _MUSTCHECK
 #define _DEPRECATED
 #define _PRINTF(x,y)
 #define _MALLOC
+#define unlikely(x) x
+#define likely(x) x
 
 #endif
 
@@ -110,7 +100,6 @@ do { \
 #endif
 
 #ifndef UNIX_PATH_MAX
-/* #define UNIX_PATH_MAX  (sizeof(((struct sockaddr_un *)0)->sun_path)) */
 #define UNIX_PATH_MAX  128 /* actual sizeof() will be applied later anyway */
 #endif
 
@@ -118,9 +107,6 @@ do { \
 #define USEC (1000000LL)
 
 typedef uint64_t usec_t;
-
-/* shortcut to simplify printf of u64 types */
-typedef unsigned long long ull_t;
 
 /*
  * bool type.
@@ -143,13 +129,13 @@ typedef unsigned char bool;
  */
 
 #ifndef HAVE_STRLCPY
-size_t strlcpy(char *dst, const char *src, size_t n);
+size_t strlcpy(char *dst, const char *src, size_t n) _MUSTCHECK;
 #endif
 #ifndef HAVE_STRLCAT
-size_t strlcat(char *dst, const char *src, size_t n);
+size_t strlcat(char *dst, const char *src, size_t n) _MUSTCHECK;
 #endif
 #ifndef HAVE_GETPEEREID
-int getpeereid(int fd, uid_t *uid_p, gid_t *gid_p);
+int getpeereid(int fd, uid_t *uid_p, gid_t *gid_p) _MUSTCHECK;
 #endif
 
 /*
@@ -199,5 +185,4 @@ static inline int _inline_strcmp(const char *a, const char *b)
 
 #undef strcmp
 #define strcmp(a, b) _inline_strcmp(a, b)
-
 

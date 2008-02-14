@@ -384,7 +384,7 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 			sprintf(tmp, "%d", va_arg(ap, int));
 			val = tmp;
 		} else if (tupdesc[i] == 'q') {
-			sprintf(tmp, "%llu", (unsigned long long)va_arg(ap, uint64_t));
+			sprintf(tmp, "%" PRIu64, va_arg(ap, uint64_t));
 			val = tmp;
 		} else if (tupdesc[i] == 's') {
 			val = va_arg(ap, char *);

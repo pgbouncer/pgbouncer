@@ -188,10 +188,12 @@ static void refresh_stats(int s, short flags, void *arg)
 	}
 	calc_average(&avg, &cur_total, &old_total);
 	/* send totals to logfile */
-	log_info("Stats: %llu req/s, in %llu b/s, "
-		 "out %llu b/s, query %llu us",
-		 (ull_t)avg.request_count, (ull_t)avg.client_bytes,
-		 (ull_t)avg.server_bytes, (ull_t)avg.query_time);
+	log_info("Stats: %" PRIu64 " req/s,"
+		 " in %" PRIu64 " b/s,"
+		 " out %" PRIu64 " b/s,"
+		 "query %" PRIu64 " us",
+		 avg.request_count, avg.client_bytes,
+		 avg.server_bytes, avg.query_time);
 
 	safe_evtimer_add(&ev_stats, &period);
 }

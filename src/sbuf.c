@@ -57,7 +57,7 @@ static void sbuf_try_resync(SBuf *sbuf, bool release);
 static bool sbuf_wait_for_data(SBuf *sbuf) _MUSTCHECK;
 static void sbuf_main_loop(SBuf *sbuf, bool skip_recv);
 static bool sbuf_call_proto(SBuf *sbuf, int event) /* _MUSTCHECK */;
-static bool sbuf_actual_recv(SBuf *sbuf, int len)  _MUSTCHECK;
+static bool sbuf_actual_recv(SBuf *sbuf, unsigned len)  _MUSTCHECK;
 static bool sbuf_after_connect_check(SBuf *sbuf)  _MUSTCHECK;
 
 static inline IOBuf *get_iobuf(SBuf *sbuf) { return sbuf->io; }
@@ -533,7 +533,7 @@ static void sbuf_try_resync(SBuf *sbuf, bool release)
 }
 
 /* actually ask kernel for more data */
-static bool sbuf_actual_recv(SBuf *sbuf, int len)
+static bool sbuf_actual_recv(SBuf *sbuf, unsigned len)
 {
 	int got;
 	IOBuf *io = sbuf->io;

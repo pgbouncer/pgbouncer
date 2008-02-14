@@ -47,19 +47,19 @@ extern int cf_sbuf_len;
  * parse_pos .. recv_pos -- received, to parse
  */
 struct iobuf {
-	int done_pos;
-	int parse_pos;
-	int recv_pos;
+	unsigned done_pos;
+	unsigned parse_pos;
+	unsigned recv_pos;
 	uint8_t buf[FLEX_ARRAY];
 };
 typedef struct iobuf IOBuf;
 
 static inline bool iobuf_sane(const IOBuf *io)
 {
-	return (io == NULL) || (io->done_pos >= 0
-		&& io->parse_pos >= io->done_pos
+	return (io == NULL) ||
+		(  io->parse_pos >= io->done_pos
 		&& io->recv_pos >= io->parse_pos
-		&& cf_sbuf_len >= io->recv_pos);
+		&& (unsigned)cf_sbuf_len >= io->recv_pos);
 }
 
 static inline bool iobuf_empty(const IOBuf *io)
@@ -68,36 +68,36 @@ static inline bool iobuf_empty(const IOBuf *io)
 }
 
 /* unsent amount */
-static inline int iobuf_amount_pending(const IOBuf *buf)
+static inline unsigned iobuf_amount_pending(const IOBuf *buf)
 {
 	return buf->parse_pos - buf->done_pos;
 }
 
 /* max possible to parse (tag_send/tag_skip) */
-static inline int iobuf_amount_parse(const IOBuf *buf)
+static inline unsigned iobuf_amount_parse(const IOBuf *buf)
 {
 	return buf->recv_pos - buf->parse_pos;
 }
 
 /* max possible to recv */
-static inline int iobuf_amount_recv(const IOBuf *buf)
+static inline unsigned iobuf_amount_recv(const IOBuf *buf)
 {
 	return cf_sbuf_len - buf->recv_pos;
 }
 
 /* put all unparsed to mbuf */
-static inline int iobuf_parse_all(const IOBuf *buf, MBuf *mbuf)
+static inline unsigned iobuf_parse_all(const IOBuf *buf, MBuf *mbuf)
 {
-	int avail = iobuf_amount_parse(buf);
+	unsigned avail = iobuf_amount_parse(buf);
 	const uint8_t *pos = buf->buf + buf->parse_pos;
 	mbuf_init(mbuf, pos, avail);
 	return avail;
 }
 
 /* put all unparsed to mbuf, with size limit */
-static inline int iobuf_parse_limit(const IOBuf *buf, MBuf *mbuf, int limit)
+static inline unsigned iobuf_parse_limit(const IOBuf *buf, MBuf *mbuf, unsigned limit)
 {
-	int avail = iobuf_amount_parse(buf);
+	unsigned avail = iobuf_amount_parse(buf);
 	const uint8_t *pos = buf->buf + buf->parse_pos;
 	if (avail > limit)
 		avail = limit;
@@ -106,11 +106,11 @@ static inline int iobuf_parse_limit(const IOBuf *buf, MBuf *mbuf, int limit)
 }
 
 /* recv */
-static inline int _MUSTCHECK iobuf_recv_limit(IOBuf *io, int fd, int len)
+static inline int _MUSTCHECK iobuf_recv_limit(IOBuf *io, int fd, unsigned len)
 {
 	uint8_t *pos = io->buf + io->recv_pos;
 	int got;
-	int avail = iobuf_amount_recv(io);
+	unsigned avail = iobuf_amount_recv(io);
 
 	if (len > avail)
 		len = avail;
@@ -143,14 +143,14 @@ static inline int _MUSTCHECK iobuf_send_pending(IOBuf *io, int fd)
 	return res;
 }
 
-static inline void iobuf_tag_send(IOBuf *io, int len)
+static inline void iobuf_tag_send(IOBuf *io, unsigned len)
 {
 	Assert(len > 0 && len <= iobuf_amount_parse(io));
 
 	io->parse_pos += len;
 }
 
-static inline void iobuf_tag_skip(IOBuf *io, int len)
+static inline void iobuf_tag_skip(IOBuf *io, unsigned len)
 {
 	Assert(io->parse_pos == io->done_pos); /* no send pending */
 	Assert(len > 0 && len <= iobuf_amount_parse(io));
@@ -159,9 +159,9 @@ static inline void iobuf_tag_skip(IOBuf *io, int len)
 	io->done_pos = io->parse_pos;
 }
 
-static inline void iobuf_try_resync(IOBuf *io, int small_pkt)
+static inline void iobuf_try_resync(IOBuf *io, unsigned small_pkt)
 {
-	int avail = io->recv_pos - io->done_pos;
+	unsigned avail = io->recv_pos - io->done_pos;
 	if (avail == 0) {
 		if (io->recv_pos > 0)
 			io->recv_pos = io->parse_pos = io->done_pos = 0;

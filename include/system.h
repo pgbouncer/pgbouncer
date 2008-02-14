@@ -63,7 +63,7 @@
 #define FLEX_ARRAY 1
 #endif
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && (__GNUC__ >= 4)
 
 /* gcc has hew positive aspects too */
 #define _MUSTCHECK		__attribute__((warn_unused_result))

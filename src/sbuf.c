@@ -38,7 +38,6 @@
 
 #define AssertSanity(sbuf) do { \
 	Assert(iobuf_sane((sbuf)->io)); \
-	Assert((sbuf)->pkt_remain >= 0); \
 } while (0)
 
 #define AssertActive(sbuf) do { \
@@ -261,7 +260,7 @@ bool sbuf_close(SBuf *sbuf)
 }
 
 /* proto_fn tells to send some bytes to socket */
-void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, int amount)
+void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, unsigned amount)
 {
 	AssertActive(sbuf);
 	Assert(sbuf->pkt_remain == 0);
@@ -274,7 +273,7 @@ void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, int amount)
 }
 
 /* proto_fn tells to skip some amount of bytes */
-void sbuf_prepare_skip(SBuf *sbuf, int amount)
+void sbuf_prepare_skip(SBuf *sbuf, unsigned amount)
 {
 	AssertActive(sbuf);
 	Assert(sbuf->pkt_remain == 0);
@@ -286,7 +285,7 @@ void sbuf_prepare_skip(SBuf *sbuf, int amount)
 }
 
 /* proto_fn tells to skip some amount of bytes */
-void sbuf_prepare_fetch(SBuf *sbuf, int amount)
+void sbuf_prepare_fetch(SBuf *sbuf, unsigned amount)
 {
 	AssertActive(sbuf);
 	Assert(sbuf->pkt_remain == 0);
@@ -451,7 +450,7 @@ try_more:
 /* process as much data as possible */
 static bool sbuf_process_pending(SBuf *sbuf)
 {
-	int avail;
+	unsigned avail;
 	IOBuf *io = sbuf->io;
 	bool full = iobuf_amount_recv(io) <= 0;
 	bool res;
@@ -586,7 +585,7 @@ static bool allocate_iobuf(SBuf *sbuf)
  */
 static void sbuf_main_loop(SBuf *sbuf, bool skip_recv)
 {
-	int free, ok;
+	unsigned free, ok;
 
 	/* sbuf was closed before in this event loop */
 	if (!sbuf->sock)
@@ -686,16 +685,16 @@ failed:
 }
 
 /* send some data to listening socket */
-bool sbuf_answer(SBuf *sbuf, const void *buf, int len)
+bool sbuf_answer(SBuf *sbuf, const void *buf, unsigned len)
 {
 	int res;
 	if (sbuf->sock <= 0)
 		return false;
 	res = safe_send(sbuf->sock, buf, len, 0);
-	if (res < 0)
+	if (res < 0) {
 		log_debug("sbuf_answer: error sending: %s", strerror(errno));
-	else if (res != len)
+	} else if ((unsigned)res != len)
 		log_debug("sbuf_answer: partial send: len=%d sent=%d", len, res);
-	return res == len;
+	return (unsigned)res == len;
 }
 

@@ -68,7 +68,7 @@ struct SBuf {
 
 	int sock;		/* fd for this socket */
 
-	int pkt_remain;		/* total packet length remaining */
+	unsigned pkt_remain;		/* total packet length remaining */
 
 	sbuf_cb_t proto_cb;	/* protocol callback */
 	void *proto_cb_arg;	/* extra arg to callback */
@@ -89,11 +89,11 @@ void sbuf_continue(SBuf *sbuf);
 bool sbuf_close(SBuf *sbuf) _MUSTCHECK;
 
 /* proto_fn can use those functions to order behaviour */
-void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, int amount);
-void sbuf_prepare_skip(SBuf *sbuf, int amount);
-void sbuf_prepare_fetch(SBuf *sbuf, int amount);
+void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, unsigned amount);
+void sbuf_prepare_skip(SBuf *sbuf, unsigned amount);
+void sbuf_prepare_fetch(SBuf *sbuf, unsigned amount);
 
-bool sbuf_answer(SBuf *sbuf, const void *buf, int len)  _MUSTCHECK;
+bool sbuf_answer(SBuf *sbuf, const void *buf, unsigned len)  _MUSTCHECK;
 
 bool sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb cb)  _MUSTCHECK;
 

@@ -517,7 +517,7 @@ static void sbuf_try_resync(SBuf *sbuf, bool release)
 	IOBuf *io = sbuf->io;
 
 	if (io)
-		log_debug("reync: done=%d, parse=%d, recv=%d",
+		log_noise("resync: done=%d, parse=%d, recv=%d",
 			  io->done_pos, io->parse_pos, io->recv_pos);
 	AssertActive(sbuf);
 

@@ -6,7 +6,7 @@ pgbouncer - Lightweight connection pooler for PostgreSQL.
 
 == SYNOPSIS ==
 
-  pgbouncer [-d][-R][-v] <pgbouncer.ini>
+  pgbouncer [-d][-R][-v][-u user] <pgbouncer.ini>
   pgbouncer -V|-h
 
 == DESCRIPTION ==
@@ -102,8 +102,14 @@ Basic setup and usage as following.
       Do a online restart. That means connecting to running process, loading
       open sockets from it and using them.
 
+-u user::
+      Switch to user on startup.
+
 -v::
-      Increase verbosity.
+      Increase verbosity.  Can be used multiple times.
+
+-q::
+      Be quiet - don't log to stdout.
 
 -V::
       Show version.

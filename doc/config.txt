@@ -57,6 +57,13 @@ server connections. If set to empty string, Unix sockets are disabled.
 
 Default: +/tmp+
 
+==== user ====
+
+If set, specifies UNIX user to change to.  Work only if started as root
+or `user` is same as current user.
+
+Default: not set
+
 ==== auth_file ====
 
 Load user names and passwords from this file. File format used is same as for

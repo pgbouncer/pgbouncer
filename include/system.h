@@ -144,6 +144,8 @@ int getpeereid(int fd, uid_t *uid_p, gid_t *gid_p) _MUSTCHECK;
 const char *basename(const char *path);
 #endif
 
+void change_user(const char *user);
+
 /*
  * memcpy() optimization - improves hash.c.
  *

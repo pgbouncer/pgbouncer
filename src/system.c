@@ -29,6 +29,8 @@
 #include <sys/ucred.h>
 #endif
 
+#include <pwd.h>
+
 /*
  * Minimal spec-conforming implementations of strlcpy(), strlcat().
  */
@@ -100,4 +102,27 @@ const char *basename(const char *path)
 	return path;
 }
 #endif
+
+void change_user(const char *user)
+{
+	const struct passwd *pw;
+	gid_t gset[1];
+
+	/* check for a valid username */
+	pw = getpwnam(user);
+	if (pw == NULL)
+		fatal("could not find user '%s' to switch to", user);
+	
+	gset[0] = pw->pw_gid;
+	if (getuid() == 0) {
+		if (setgroups(1, gset) < 0)
+			fatal_perror("failed to reset groups");
+	}
+
+	if (setgid(pw->pw_gid) < 0 || setuid(pw->pw_uid) < 0)
+		fatal_perror("failed to assume identity of user '%s'", user);
+
+	if (getuid() != pw->pw_uid || geteuid() != pw->pw_uid)
+		fatal("setuid() failed to work");
+}
 

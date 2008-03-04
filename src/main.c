@@ -39,6 +39,7 @@ static const char *usage_str =
 "  -R            Do a online restart\n"
 "  -q            Run quietly\n"
 "  -v            Increase verbosity\n"
+"  -u <username> Assume identity of <username>\n"
 "  -V            Show version\n"
 "  -h            Show this help screen and exit\n";
 
@@ -59,6 +60,7 @@ int cf_pause_mode = P_NONE;
 int cf_shutdown = 0;
 int cf_reboot = 0;
 int cf_syslog = 0;
+char *cf_username = "";
 char *cf_syslog_facility = "daemon";
 static char *cf_config_file;
 
@@ -133,6 +135,7 @@ ConfElem bouncer_params[] = {
 {"default_pool_size",	true, CF_INT, &cf_default_pool_size},
 {"syslog",		true, CF_INT, &cf_syslog},
 {"syslog_facility",	true, CF_STR, &cf_syslog_facility},
+{"user",		false, CF_STR, &cf_username},
 
 {"server_reset_query",	true, CF_STR, &cf_server_reset_query},
 {"server_check_query",	true, CF_STR, &cf_server_check_query},
@@ -563,9 +566,10 @@ int main(int argc, char *argv[])
 {
 	int c;
 	bool did_takeover = false;
+	char *arg_username = NULL;
 
 	/* parse cmdline */
-	while ((c = getopt(argc, argv, "avhdVR")) != EOF) {
+	while ((c = getopt(argc, argv, "avhdVRu:")) != EOF) {
 		switch (c) {
 		case 'R':
 			cf_reboot = 1;
@@ -582,6 +586,9 @@ int main(int argc, char *argv[])
 		case 'q':
 			cf_quiet = 1;
 			break;
+		case 'u':
+			arg_username = optarg;
+			break;
 		case 'h':
 			usage(0, argv[0]);
 		default:
@@ -596,6 +603,18 @@ int main(int argc, char *argv[])
 	load_config(false);
 	init_caches();
 	admin_setup();
+
+	/* prefer cmdline over config for username */
+	if (arg_username)
+		cf_username = arg_username;
+
+	/* switch user is needed */
+	if (*cf_username)
+		change_user(cf_username);
+
+	/* disallow running as root */
+	if (getuid() == 0)
+		fatal("PgBouncer should not run as root");
 
 	/* need to do that after loading config */
 	check_limits();

@@ -16,6 +16,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+/*
+ * Admin console commands.
+ */
+
 #include "bouncer.h"
 
 #include <regex.h>

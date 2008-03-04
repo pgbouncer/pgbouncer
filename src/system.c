@@ -89,3 +89,15 @@ int getpeereid(int fd, uid_t *uid_p, gid_t *gid_p)
 }
 #endif /* !HAVE_GETPEEREID */
 
+#ifndef HAVE_BASENAME
+const char *basename(const char *path)
+{
+	const char *p;
+	if (path == NULL || path[0] == 0)
+		return ".";
+	if ((p = strrchr(path, '/')) != NULL)
+		return p[1] ? p + 1 : p;
+	return path;
+}
+#endif
+

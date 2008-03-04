@@ -53,6 +53,9 @@
 #ifdef HAVE_CRYPT_H
 #include <crypt.h>
 #endif
+#ifdef HAVE_LIBGEN_H
+#include <libgen.h>
+#endif
 
 /* how to specify array with unknown length */
 #if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
@@ -136,6 +139,9 @@ size_t strlcat(char *dst, const char *src, size_t n) _MUSTCHECK;
 #endif
 #ifndef HAVE_GETPEEREID
 int getpeereid(int fd, uid_t *uid_p, gid_t *gid_p) _MUSTCHECK;
+#endif
+#ifndef HAVE_BASENAME
+const char *basename(const char *path);
 #endif
 
 /*

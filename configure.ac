@@ -66,7 +66,7 @@ if test x"$GCC" = xyes; then
 fi
 
 dnl Checks for header files.
-AC_CHECK_HEADERS([crypt.h sys/param.h sys/socket.h])
+AC_CHECK_HEADERS([crypt.h sys/param.h sys/socket.h libgen.h])
 dnl ucred.h may have prereqs
 AC_CHECK_HEADERS([sys/ucred.h], [], [], [
 #ifdef HAVE_SYS_TYPES_H
@@ -92,7 +92,7 @@ AC_TYPE_UINT64_T
 ])
 
 dnl Checks for library functions.
-AC_CHECK_FUNCS(strlcpy strlcat getpeereid getpeerucred)
+AC_CHECK_FUNCS(strlcpy strlcat getpeereid getpeerucred basename)
 AC_SEARCH_LIBS(crypt, crypt, [], AC_MSG_ERROR([crypt not found]))
 AC_SEARCH_LIBS(clock_gettime, rt)
 

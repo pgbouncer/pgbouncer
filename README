@@ -20,3 +20,17 @@ installed just run:
 If the OS does not have libevent available as package, it can be
 downloaded from http://monkey.org/~provos/libevent/
 
+Building from CVS
+-----------------
+
+Building PgBouncer from CVS requires that you generate the header
+and config files before you can run configure:
+
+	$ make boot
+	$ ./configure ...
+	$ make
+
+To have manpages, asciidoc 8.x and xmlto need to be installed,
+as CVS does not contain generated pages.  Without those,
+manpages are skipped when building/installing.
+

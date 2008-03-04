@@ -602,7 +602,6 @@ int main(int argc, char *argv[])
 	init_objects();
 	load_config(false);
 	init_caches();
-	admin_setup();
 
 	/* prefer cmdline over config for username */
 	if (arg_username)
@@ -619,8 +618,7 @@ int main(int argc, char *argv[])
 	/* need to do that after loading config */
 	check_limits();
 
-	/* init random */
-	srandom(time(NULL) ^ getpid());
+	admin_setup();
 
 	if (cf_reboot) {
 		if (check_old_process_unix()) {
@@ -640,6 +638,10 @@ int main(int argc, char *argv[])
 	/* initialize subsystems, order important */
 	if (cf_daemon)
 		go_daemon();
+
+	/* init random */
+	srandom(time(NULL) ^ getpid());
+
 	event_init();
 	signal_setup();
 	janitor_setup();

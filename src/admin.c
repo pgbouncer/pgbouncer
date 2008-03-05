@@ -509,6 +509,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 	int send_avail = iobuf_amount_pending(sk->sbuf.io);
 	char ptrbuf[128], linkbuf[128];
 	char l_addr[32], r_addr[32];
+	IOBuf *io = sk->sbuf.io;
 
 	adr2txt(&sk->remote_addr, r_addr, sizeof(r_addr));
 	adr2txt(&sk->local_addr, l_addr, sizeof(l_addr));
@@ -528,10 +529,10 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 			     sk->connect_time,
 			     sk->request_time,
 			     ptrbuf, linkbuf,
-			     sk->sbuf.io->recv_pos,
-			     sk->sbuf.io->parse_pos,
+			     io ? io->recv_pos : 0,
+			     io ? io->parse_pos : 0,
 			     sk->sbuf.pkt_remain,
-			     sk->sbuf.io->done_pos,
+			     io ? io->done_pos : 0,
 			     0,
 			     pkt_avail, send_avail);
 }

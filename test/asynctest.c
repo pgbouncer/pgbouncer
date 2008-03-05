@@ -182,8 +182,10 @@ static void disconnect(DbConn *db, bool is_err, const char *reason, ...)
 /* some error happened */
 static void conn_error(DbConn *db, const char *desc)
 {
+	static int ecount = 0;
 	if (db->con) {
-		/* fixme show firt couple errors */
+		if (ecount++ < 3)
+			printf("\r%s\n", PQerrorMessage(db->con));
 		disconnect(db, true, "%s: %s", desc, PQerrorMessage(db->con));
 	} else {
 		printf("random error: %s\n", desc);

@@ -84,11 +84,16 @@ AC_SYS_LARGEFILE
 AC_TYPE_PID_T
 AC_TYPE_SIZE_T
 
-dnl autoconfigure based on autoconf abilities
+dnl autoconf 2.59 does not have UINT macros nor docdir
 m4_ifdef([AC_TYPE_UINT8_T], [
 AC_TYPE_UINT8_T
 AC_TYPE_UINT32_T
 AC_TYPE_UINT64_T
+], [
+  datarootdir='${prefix}/share'
+  docdir='${datarootdir}/doc/${PACKAGE_TARNAME}'
+  AC_SUBST(datarootdir)
+  AC_SUBST(docdir)
 ])
 
 dnl Checks for library functions.

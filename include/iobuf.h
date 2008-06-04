@@ -165,7 +165,7 @@ static inline void iobuf_try_resync(IOBuf *io, unsigned small_pkt)
 	if (avail == 0) {
 		if (io->recv_pos > 0)
 			io->recv_pos = io->parse_pos = io->done_pos = 0;
-	} else if (avail < small_pkt && io->done_pos > 0) {
+	} else if (avail <= small_pkt && io->done_pos > 0) {
 		memmove(io->buf, io->buf + io->done_pos, avail);
 		io->parse_pos -= io->done_pos;
 		io->recv_pos = avail;

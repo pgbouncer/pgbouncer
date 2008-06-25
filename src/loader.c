@@ -127,6 +127,31 @@ static char * cstr_get_pair(char *p,
 	return cstr_skip_ws(p);
 }
 
+static void set_connect_query(PgDatabase *db, const char *new)
+{
+	const char *old = db->connect_query;
+	char *val = NULL;
+
+	if (old && new) {
+		if (strcmp(old, new) == 0)
+			return;
+		val = strdup(new);
+		if (val) {
+			free((void *)old);
+			db->connect_query = val;
+		}
+	} else if (new) {
+		val = strdup(new);
+		db->connect_query = val;
+	} else {
+		free((void *)db->connect_query);
+		db->connect_query = NULL;
+	}
+
+	if (new && !val)
+		log_error("no memory, cannot assign connect_query for %s", db->name);
+}
+
 /* fill PgDatabase from connstr */
 void parse_database(char *name, char *connstr)
 {
@@ -143,6 +168,7 @@ void parse_database(char *name, char *connstr)
 	char *client_encoding = NULL;
 	char *datestyle = NULL;
 	char *timezone = NULL;
+	char *connect_query = NULL;
 	char *unix_dir = "";
 
 	in_addr_t v_addr = INADDR_NONE;
@@ -175,6 +201,8 @@ void parse_database(char *name, char *connstr)
 			timezone = val;
 		else if (strcmp("pool_size", key) == 0)
 			pool_size = atoi(val);
+		else if (strcmp("connect_query", key) == 0)
+			connect_query = val;
 		else {
 			log_error("skipping database %s because"
 				  " of unknown parameter in connstring: %s", name, key);
@@ -258,6 +286,10 @@ void parse_database(char *name, char *connstr)
 			changed = true;
 		else if (strcmp(db->unix_socket_dir, unix_dir) != 0)
 			changed = true;
+		else if ((db->connect_query && !connect_query)
+			 || (!db->connect_query && connect_query)
+			 || (connect_query && strcmp(connect_query, db->connect_query) != 0))
+			changed = true;
 
 		if (changed)
 			tag_database_dirty(db);
@@ -272,6 +304,9 @@ void parse_database(char *name, char *connstr)
 
 	if (host)
 		log_debug("%s: host=%s/%s", name, host, inet_ntoa(db->addr.ip_addr));
+
+	/* assign connect_query */
+	set_connect_query(db, connect_query);
 
 	pktbuf_static(&buf, db->startup_params, sizeof(db->startup_params));
 

@@ -86,6 +86,20 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 		return false;
 	}
 
+	/* ignore most that happens during connect_query */
+	if (server->exec_on_connect) {
+		switch (pkt->type) {
+		case 'Z':
+		case 'S':	/* handle them below */
+			break;
+
+		case 'E':	/* log & ignore errors */
+			log_server_error("S: error while executing exec_on_query", pkt);
+		default:	/* ignore rest */
+			sbuf_prepare_skip(sbuf, pkt->len);
+			return true;
+		}
+	}
 
 	switch (pkt->type) {
 	default:
@@ -115,6 +129,18 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 		break;
 
 	case 'Z':		/* ReadyForQuery */
+		if (server->exec_on_connect) {
+			server->exec_on_connect = 0;
+			/* deliberately ignore transaction status */
+		} else if (server->pool->db->connect_query) {
+			server->exec_on_connect = 1;
+			slog_debug(server, "server conect ok, send exec_on_connect");
+			SEND_generic(res, server, 'Q', "s", server->pool->db->connect_query);
+			if (!res)
+				disconnect_server(server, false, "exec_on_connect query failed");
+			break;
+		}
+
 		/* login ok */
 		slog_debug(server, "server login ok, start accepting queries");
 		server->ready = 1;

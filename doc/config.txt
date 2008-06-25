@@ -349,12 +349,18 @@ database.
 Otherwise pgbouncer tries to log into destination database with client
 username, meaning that there will be one pool per user.
 
-=== Per-database pool Size ===
+=== Pool configuration ===
 
 ==== pool_size ====
 
 Set maximum size of pools for this database.  If not set,
 the default_pool_size is used.
+
+==== connect_query ====
+
+Query to be executed after connecttion is established, but before
+taking the connection into use by clients.  If the query raises errors,
+they are logged but ignored otherwise.
 
 === Extra parameters ===
 

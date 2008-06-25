@@ -544,6 +544,8 @@ static void kill_database(PgDatabase *db)
 	}
 	if (db->forced_user)
 		obj_free(user_cache, db->forced_user);
+	if (db->connect_query)
+		free((void *)db->connect_query);
 	statlist_remove(&db->head, &database_list);
 	obj_free(db_cache, db);
 }

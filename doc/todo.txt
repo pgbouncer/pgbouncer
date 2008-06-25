@@ -20,6 +20,7 @@
  * SHOW TOTALS that shows stats summary (as goes to log) plus mem usage.
  * removing db from config and reload; works - kill connections
  * SHOW ACTIVE_SOCKETS - like show sockets; but filter only active ones
+ * Per-database connect_query (Teodor Sigaev).
 
 == Minor features ==
 

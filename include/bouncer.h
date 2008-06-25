@@ -233,7 +233,11 @@ struct PgDatabase {
 	int pool_size;		/* max server connections in one pool */
 
 	const char *dbname;	/* server-side name, pointer to inside startup_msg */
+
+	/* startup commands to send to server after connect. malloc-ed */
+	const char *connect_query;
 };
+
 
 /*
  * A client or server connection.
@@ -252,6 +256,7 @@ struct PgSocket {
 	bool ready:1;		/* server: accepts new query */
 	bool close_needed:1;	/* server: this socket must be closed ASAP */
 	bool setting_vars:1;	/* server: setting client vars */
+	bool exec_on_connect:1;	/* server: executing connect_query */
 
 	bool wait_for_welcome:1;/* client: no server yet in pool, cannot send welcome msg */
 

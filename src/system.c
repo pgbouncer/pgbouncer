@@ -31,8 +31,12 @@
 #ifdef HAVE_SYS_UCRED_H
 #include <sys/ucred.h>
 #endif
-
+#ifdef HAVE_PWD_H
 #include <pwd.h>
+#endif
+#ifdef HAVE_GRP_H
+#include <grp.h>
+#endif
 
 /*
  * Minimal spec-conforming implementations of strlcpy(), strlcat().

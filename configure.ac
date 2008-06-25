@@ -21,6 +21,15 @@ if test "$GCC" = "yes"; then
      LDFLAGS="$old_LDFLAGS"])
 fi
 
+dnl Check if compiler supports __func__
+AC_CACHE_CHECK([whether compiler supports __func__], pgac_cv_funcname_func,
+  [AC_TRY_COMPILE([#include <stdio.h>], [printf("%s\n", __func__);],
+                  [pgac_cv_funcname_func=yes], [pgac_cv_funcname_func=no])])
+if test x"$pgac_cv_funcname_func" = xyes ; then
+  AC_DEFINE(HAVE_FUNCNAME__FUNC, 1,
+            [Define to 1 if your compiler understands __func__.])
+fi
+
 dnl asciidoc >= 8.2
 AC_CHECK_PROGS(ASCIIDOC, asciidoc)
 if test -n "$ASCIIDOC"; then
@@ -67,8 +76,9 @@ fi
 
 dnl Checks for header files.
 AC_CHECK_HEADERS([crypt.h sys/param.h sys/socket.h libgen.h])
+
 dnl ucred.h may have prereqs
-AC_CHECK_HEADERS([sys/ucred.h], [], [], [
+AC_CHECK_HEADERS([ucred.h sys/ucred.h], [], [], [
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
@@ -100,6 +110,9 @@ dnl Checks for library functions.
 AC_CHECK_FUNCS(strlcpy strlcat getpeereid getpeerucred basename)
 AC_SEARCH_LIBS(crypt, crypt, [], AC_MSG_ERROR([crypt not found]))
 AC_SEARCH_LIBS(clock_gettime, rt)
+AC_SEARCH_LIBS(getsockname, socket)
+AC_SEARCH_LIBS(gethostbyname, nsl)
+AC_SEARCH_LIBS(hstrerror, resolv)
 
 dnl Find libevent
 AC_MSG_CHECKING([for libevent])

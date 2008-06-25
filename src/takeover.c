@@ -78,7 +78,7 @@ static void takeover_finish_part1(PgSocket *bouncer)
 static void takeover_load_fd(MBuf *pkt, const struct cmsghdr *cmsg)
 {
 	int fd;
-	char *task, *s_addr, *user, *db;
+	char *task, *saddr, *user, *db;
 	char *client_enc, *std_string, *datestyle, *timezone;
 	int oldfd, port, linkfd;
 	int got;
@@ -100,9 +100,9 @@ static void takeover_load_fd(MBuf *pkt, const struct cmsghdr *cmsg)
 
 	/* parse row contents */
 	got = scan_text_result(pkt, "issssiqissss", &oldfd, &task, &user, &db,
-			       &s_addr, &port, &ckey, &linkfd,
+			       &saddr, &port, &ckey, &linkfd,
 			       &client_enc, &std_string, &datestyle, &timezone);
-	if (task == NULL || s_addr == NULL)
+	if (task == NULL || saddr == NULL)
 		fatal("NULL data from old process");
 
 	log_debug("FD row: fd=%d(%d) linkfd=%d task=%s user=%s db=%s enc=%s",
@@ -111,11 +111,11 @@ static void takeover_load_fd(MBuf *pkt, const struct cmsghdr *cmsg)
 		  client_enc ? client_enc : "NULL");
 
 	/* fill address */
-	addr.is_unix = strcmp(s_addr, "unix") == 0 ? true : false;
+	addr.is_unix = strcmp(saddr, "unix") == 0 ? true : false;
 	if (addr.is_unix) {
 		addr.port = cf_listen_port;
 	} else {
-		addr.ip_addr.s_addr = inet_addr(s_addr);
+		addr.ip_addr.s_addr = inet_addr(saddr);
 		addr.port = port;
 	}
 

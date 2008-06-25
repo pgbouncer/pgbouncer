@@ -69,11 +69,11 @@ void slog_level(const char *level, const PgSocket *sock, const char *fmt, ...)  
 void _fatal(const char *file, int line, const char *func, bool do_exit, const char *s, ...) _PRINTF(5, 6);
 void _fatal_perror(const char *file, int line, const char *func, const char *s, ...)  _PRINTF(4, 5);
 #define fatal(args...) \
-	_fatal(__FILE__, __LINE__, __FUNCTION__, true, ## args)
+	_fatal(__FILE__, __LINE__, __func__, true, ## args)
 #define fatal_noexit(args...) \
-	_fatal(__FILE__, __LINE__, __FUNCTION__, false, ## args)
+	_fatal(__FILE__, __LINE__, __func__, false, ## args)
 #define fatal_perror(args...) \
-	_fatal_perror(__FILE__, __LINE__, __FUNCTION__, ## args)
+	_fatal_perror(__FILE__, __LINE__, __func__, ## args)
 
 /*
  * non-interruptible operations

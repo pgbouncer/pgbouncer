@@ -24,7 +24,7 @@
 #include "config.h"
 #endif
 
-#include <sys/errno.h>
+#include <errno.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/socket.h>
@@ -126,6 +126,21 @@ typedef unsigned char bool;
 #define INT8OID 20
 #define INT4OID 23
 #define TEXTOID 25
+
+/*
+ * Make sure __func__ works.
+ */
+
+#ifndef HAVE_FUNCNAME__FUNC
+#define __func__ __FUNCTION__
+#endif
+
+/*
+ * Some systems (Solaris) does not define INADDR_NONE
+ */
+#ifndef INADDR_NONE
+#define INADDR_NONE ((unsigned long) -1)
+#endif
 
 /*
  * libc compat functions.

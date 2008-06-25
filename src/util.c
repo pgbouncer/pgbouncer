@@ -32,7 +32,9 @@ static int log_fd = 0;
 struct FacName { const char *name; int code; };
 static struct FacName facility_names [] = {
 	{ "auth",	LOG_AUTH },
-	{ "authpriv",	LOG_AUTHPRIV },
+#ifdef LOG_AUTHPRIV
+        { "authpriv",	LOG_AUTHPRIV },
+#endif
 	{ "daemon",	LOG_DAEMON },
 	{ "user",	LOG_USER },
 	{ "local0",	LOG_LOCAL0 },

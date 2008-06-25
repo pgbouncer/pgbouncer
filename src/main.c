@@ -43,7 +43,7 @@ static const char *usage_str =
 "  -V            Show version\n"
 "  -h            Show this help screen and exit\n";
 
-static void usage(int err, const char *exe)
+static void usage(int err, char *exe)
 {
 	printf(usage_str, basename(exe));
 	exit(err);
@@ -60,7 +60,7 @@ int cf_pause_mode = P_NONE;
 int cf_shutdown = 0;
 int cf_reboot = 0;
 int cf_syslog = 0;
-char *cf_username = "";
+static char *cf_username = "";
 char *cf_syslog_facility = "daemon";
 static char *cf_config_file;
 

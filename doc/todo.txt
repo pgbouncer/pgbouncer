@@ -2,25 +2,7 @@
 
 == next release - 1.2 ==
 
-=== done ===
-
- * use aatree for user lookup
- * use slab allocator for memory management.
- * use standard int types: uint*_t
- * logging to syslog
- * fake parameters to SHOW/SET to allow psycopg to connect to console.
- * various correctness fixes
- * various code cleanups
- * Less scary online restart (-R)
-   - Move FD loading before fork, so it logs to console and can be canceled by ^C
-   - Keep SHUTDOWN after fork, so ^C would be safe
-   - A connect() is attempted to unix socket to see if anyone is listening.
- * suspend_timeout - drop stalled conns, long logins
- * when error logging to dest db, notify clients.
- * SHOW TOTALS that shows stats summary (as goes to log) plus mem usage.
- * removing db from config and reload; works - kill connections
- * SHOW ACTIVE_SOCKETS - like show sockets; but filter only active ones
- * Per-database connect_query (Teodor Sigaev).
+ * test
 
 == Minor features ==
 
@@ -38,9 +20,10 @@
 
  * units for config parameters.
  * some preliminary notification that fd limit is full
+
  * Move all "look-at-full-packet" situtations to SBUF_EV_PKT_CALLBACK
- * maybe libevent calls should look at errno? (esp. event_del())
  * auth_conn - access to pg_shadow, so auth_file is not needed
+ * maybe libevent calls should look at errno? (esp. event_del())
  * drop_on_error/keep_on_error - if released conn is in error state,
    then issue rollback and keep it
 

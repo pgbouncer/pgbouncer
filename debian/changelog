@@ -1,8 +1,8 @@
-pgbouncer (1.2-0cvs) unstable; urgency=low
+pgbouncer (1.2-0rc1) unstable; urgency=low
 
-  * tag cvs version
+  * v1.2rc1
 
- -- Marko Kreen <marko.kreen@skype.net>  Fri, 19 Oct 2007 11:41:07 +0300
+ -- Marko Kreen <marko.kreen@skype.net>  Wed, 25 Jun 2008 21:02:08 +0300
 
 pgbouncer (1.1.1-1) unstable; urgency=low
 

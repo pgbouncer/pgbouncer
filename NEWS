@@ -1,15 +1,16 @@
 
-2008-07-xx  -  PgBouncer 1.2  -  ""
+2008-07-xx  -  PgBouncer 1.2  -  "Universal Shredder"
 
   = Features =
 
-    * Cmdline option (-u) and config param (user=) to support user switching
-      at startup.  Also now pgbouncer refuses to run as root. (Jacob Coby)
+    * Command line option (-u) and config parameter (user=) to support user
+      switching at startup.  Also now pgbouncer refuses to run as root.
+      (Jacob Coby)
     * More descriptive usage text (-h).  (Jacob Coby)
     * New database option: connect_query to allow run a query on new
       connections before they are taken into use.  (Teodor Sigaev)
     * New config var 'ignore_startup_parameters' to allow and ignore
-      extra paramenters in startup packet.  By default only 'database'
+      extra parameters in startup packet.  By default only 'database'
       and 'user' are allowed, all others raise error.  This is needed
       to tolerate overenthusiastic JDBC wanting to unconditionally
       set 'extra_float_digits=2' in startup packet.
@@ -35,23 +36,23 @@
     * Fake some parameters on console SHOW/SET commands to be more Postgres-like.
       That was needed to allow psycopg to connect to console.
       (client_encoding/default_transaction_isolation/datestyle/timezone)
-    * Make server_lifetime=0 disconnect server connection immidiately
+    * Make server_lifetime=0 disconnect server connection immediately
       after first use.  Previously "0" made PgBouncer ignore server age.
-      As this behaviour was undocumented, there should not be any users
+      As this behavior was undocumented, there should not be any users
       depending on it.
     * Internal improvements:
       - Packet buffers are allocated lazily and reused.  This should bring
         huge decrease in memory usage.  This also makes realistic to use
         big pktbuf with lot of connections.
       - Lot's of error handling improvements, PgBouncer should now
-        survive OOM situtations gracefully.
+        survive OOM situations gracefully.
       - Use slab allocator for memory management.
       - Lots of code cleanups.
 
   = Fixes =
 
     * Only single accept() was issued per event loop which could
-      cause connecton backlog when having high amount of connection
+      cause connection backlog when having high amount of connection
       attempts.  Now the listening socket is always drained fully,
       which should fix this.
     * Handle EINTR from connect().

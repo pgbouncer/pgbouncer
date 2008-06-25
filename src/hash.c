@@ -41,6 +41,18 @@
 	c ^= b; c -= rot(b,24); \
 } while (0)
 
+/*
+ * GCC does not know how to optimize short variable-length copies.
+ * Its faster to do dumb inlined copy than call out to libc.
+ */
+static inline void simple_memcpy(void *dst_, const void *src_, size_t len)
+{
+	const uint8_t *src = src_;
+	uint8_t *dst = dst_;
+	while (len--)
+		*dst++ = *src++;
+}
+
 /* short version - let compiler worry about memory access */
 uint32_t lookup3_hash(const void *data, size_t len)
 {
@@ -63,7 +75,7 @@ uint32_t lookup3_hash(const void *data, size_t len)
 	}
 
 	buf[0] = buf[1] = buf[2] = 0;
-	memcpy(buf, p, len);
+	simple_memcpy(buf, p, len);
 	a += buf[0];
 	b += buf[1];
 	c += buf[2];

@@ -145,6 +145,16 @@ achieving uniform load.
 
 Default: 0
 
+==== ignore_startup_parameters ====
+
+By default, PgBouncer allows only parameters it can keep track of in startup
+packets - `client_encoding`, `datestyle`, `timezone` and `standard_conforming_strings`.
+
+All others raise error.  To allow but ignore others too, they can be specified here,
+so that pgbouncer knows that they are handled by admin and it can ignore them.
+
+Default: empty
+
 === Log settings ===
 
 ==== syslog ====

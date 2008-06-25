@@ -113,7 +113,10 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 			username = val;
 		else if (varcache_set(&client->vars, key, val))
 			slog_debug(client, "got var: %s=%s", key, val);
-		else {
+		else if (strlist_contains(cf_ignore_startup_params, key)) {
+			slog_debug(client, "ignoring startup parameter: %s=%s", key, val);
+		} else {
+			slog_warning(client, "unsupported startup parameter: %s=%s", key, val);
 			disconnect_client(client, true, "Unknown startup parameter");
 			return false;
 		}

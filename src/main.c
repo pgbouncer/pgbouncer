@@ -94,6 +94,8 @@ char *cf_server_check_query = "select 1";
 usec_t cf_server_check_delay = 30 * USEC;
 int cf_server_round_robin = 0;
 
+char *cf_ignore_startup_params = "";
+
 usec_t cf_server_lifetime = 60*60*USEC;
 usec_t cf_server_idle_timeout = 10*60*USEC;
 usec_t cf_server_connect_timeout = 15*USEC;
@@ -149,6 +151,7 @@ ConfElem bouncer_params[] = {
 {"server_login_retry",	true, CF_TIME, &cf_server_login_retry},
 {"server_round_robin",	true, CF_INT, &cf_server_round_robin},
 {"suspend_timeout",	true, CF_TIME, &cf_suspend_timeout},
+{"ignore_startup_parameters", true, CF_STR, &cf_ignore_startup_params},
 
 {"pkt_buf",		false, CF_INT, &cf_sbuf_len},
 {"tcp_defer_accept",	true, {cf_get_int, set_defer_accept}, &cf_tcp_defer_accept},

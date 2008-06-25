@@ -436,24 +436,8 @@ From libevent docs:
   By setting the environment variable EVENT_SHOW_METHOD, libevent
   displays the kernel notification method that it uses.
 
-=== AUTHENTICATION FILE FORMAT ===
-
-PgBouncer needs its own user database. The users are loaded from text
-file that should be in same format as PostgreSQL's +pg_auth/pg_pwd+
-file.
-
-  "username1" "password" ... 
-  "username2" "md12342345234" ...
-
-There shoud be at least 2 fields, surrounded by double quotes. First
-is username and second either plain-text or md5-hashed
-password. PgBouncer ignores rest of the line.
-
-Such file format allows to direct PgBouncer directly to PostgreSQL
-user file under data directory.
-
 == SEE ALSO ==
 
-pgbouncer(5) - configuration settings descriptions.
+pgbouncer(5) - manpage of configuration settings descriptions.
 
 https://developer.skype.com/SkypeGarage/DbProjects/PgBouncer[]

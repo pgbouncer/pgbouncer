@@ -150,7 +150,7 @@ Default: 0
 By default, PgBouncer allows only parameters it can keep track of in startup
 packets - `client_encoding`, `datestyle`, `timezone` and `standard_conforming_strings`.
 
-All others raise error.  To allow but ignore others too, they can be specified here,
+All others raise error.  To allow others too, they can be specified here,
 so that pgbouncer knows that they are handled by admin and it can ignore them.
 
 Default: empty
@@ -192,14 +192,16 @@ Default: 1
 
 ==== admin_users ====
 
-List of users that are allowed to run all commands on console.
+Comma-separted list of database users that are allowed to connect and
+run all commands on console.
 
 Default: empty
 
 ==== stats_users ====
 
-List of users that are allowed to run read-only queries on console. Thats means
-all SHOW commands except SHOW FDS.
+Comma-separated list of database users that are allowed to connect and
+run read-only queries on console. Thats means all SHOW commands except
+SHOW FDS.
 
 Default: empty.
 
@@ -392,7 +394,23 @@ Ask specific +datestyle+ from server.
 
 Ask specific +timezone+ from server.
 
-== Example ==
+== AUTHENTICATION FILE FORMAT ==
+
+PgBouncer needs its own user database. The users are loaded from text
+file that should be in same format as PostgreSQL's +pg_auth/pg_pwd+
+file.
+
+  "username1" "password" ... 
+  "username2" "md5abcdef012342345" ...
+
+There shoud be at least 2 fields, surrounded by double quotes. First
+is username and second either plain-text or md5-hashed
+password. PgBouncer ignores rest of the line.
+
+Such file format allows to direct PgBouncer directly to PostgreSQL
+user file under data directory.
+
+== EXAMPLE ==
 
 === Minimal config ===
 
@@ -425,7 +443,7 @@ Ask specific +timezone+ from server.
 
 == SEE ALSO ==
 
-pgbouncer(1)
+pgbouncer(1) - manpage for general usage, console commands.
 
 https://developer.skype.com/SkypeGarage/DbProjects/PgBouncer[]
 

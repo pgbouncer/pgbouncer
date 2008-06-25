@@ -115,7 +115,7 @@ AC_SEARCH_LIBS(gethostbyname, nsl)
 AC_SEARCH_LIBS(hstrerror, resolv)
 
 dnl Find libevent
-AC_MSG_CHECKING([for libevent])
+AC_MSG_CHECKING([for libevent 1.2+])
 AC_ARG_WITH(libevent,
   AC_HELP_STRING([--with-libevent=prefix],[Specify where libevent is installed]),
   [ test "$withval" = "no" && AC_MSG_ERROR("cannot work without libevent")
@@ -131,6 +131,7 @@ AC_LINK_IFELSE([
     struct event ev;
     event_init();
     event_set(&ev, 1, EV_READ, NULL, NULL);
+    event_base_free(NULL);
   } ],
 [AC_MSG_RESULT([found])],
 [AC_MSG_ERROR([not found])])

@@ -115,7 +115,7 @@ AC_SEARCH_LIBS(gethostbyname, nsl)
 AC_SEARCH_LIBS(hstrerror, resolv)
 
 dnl Find libevent
-AC_MSG_CHECKING([for libevent 1.2+])
+AC_MSG_CHECKING([for libevent])
 AC_ARG_WITH(libevent,
   AC_HELP_STRING([--with-libevent=prefix],[Specify where libevent is installed]),
   [ test "$withval" = "no" && AC_MSG_ERROR("cannot work without libevent")
@@ -134,7 +134,17 @@ AC_LINK_IFELSE([
     event_base_free(NULL);
   } ],
 [AC_MSG_RESULT([found])],
-[AC_MSG_ERROR([not found])])
+[AC_MSG_ERROR([not found, cannot proceed])])
+
+dnl libevent < 1.3b crashes on event_base_free()
+dnl no good way to check libevent version.  use hack:
+dnl evhttp.h defines HTTP_SERVUNAVAIL only since 1.3b
+AC_MSG_CHECKING([whether libevent version >= 1.3b])
+AC_EGREP_CPP([HTTP_SERVUNAVAIL],
+[#include <evhttp.h>
+  HTTP_SERVUNAVAIL ],
+[AC_MSG_ERROR([no, cannot proceed])],
+[AC_MSG_RESULT([yes])])
 
 # autoconf does not want to find 'install', if not using automake...
 INSTALL=install

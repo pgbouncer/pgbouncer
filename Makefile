@@ -80,7 +80,7 @@ install: $(builddir)/pgbouncer doc-install
 tgz: config.mak $(DISTFILES) $(MANPAGES)
 	rm -rf $(FULL) $(FULL).tgz
 	mkdir $(FULL)
-	(for f in $(DISTFILES); do echo $$f; done) | cpio -p $(FULL)
+	(for f in $(DISTFILES); do echo $$f; done) | cpio -pm $(FULL)
 	tar czf $(FULL).tgz $(FULL)
 	rm -rf $(FULL)
 

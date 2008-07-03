@@ -654,12 +654,12 @@ static bool sbuf_after_connect_check(SBuf *sbuf)
 
 	err = getsockopt(sbuf->sock, SOL_SOCKET, SO_ERROR, (void*)&optval, &optlen);
 	if (err < 0) {
-		log_error("sbuf_after_connect_check: getsockopt: %s",
+		log_debug("sbuf_after_connect_check: getsockopt: %s",
 			  strerror(errno));
 		return false;
 	}
 	if (optval != 0) {
-		log_error("sbuf_after_connect_check: pending error: %s",
+		log_debug("sbuf_after_connect_check: pending error: %s",
 			  strerror(optval));
 		return false;
 	}

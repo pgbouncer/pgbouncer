@@ -259,11 +259,6 @@ loop:
 		client = accept_client(fd, &addr.in, false);
 	}
 
-	if (!client) {
-		log_warning("P: no mem for client struct");
-		return;
-	}
-
 	/*
 	 * there may be several clients waiting,
 	 * avoid context switch by looping

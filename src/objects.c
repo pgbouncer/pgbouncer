@@ -769,6 +769,7 @@ PgSocket * accept_client(int sock,
 	/* get free PgSocket */
 	client = obj_alloc(client_cache);
 	if (!client) {
+		log_warning("cannot allocate client struct");
 		safe_close(sock);
 		return NULL;
 	}
@@ -781,12 +782,12 @@ PgSocket * accept_client(int sock,
 
 	change_client_state(client, CL_LOGIN);
 
-	if (cf_log_connections)
-		slog_debug(client, "got connection attempt");
 	res = sbuf_accept(&client->sbuf, sock, is_unix);
-	if (!res)
+	if (!res) {
+		if (cf_log_connections)
+			slog_debug(client, "failed connection attempt");
 		return NULL;
-
+	}
 
 	return client;
 }

@@ -270,7 +270,6 @@ struct PgSocket {
 	usec_t request_time;	/* last activity time */
 	usec_t query_start;	/* query start moment */
 
-	char salt[4];		/* login key salt */
 	uint8_t cancel_key[BACKENDKEY_LEN]; /* client: generated, server: remote */
 	PgAddr remote_addr;	/* ip:port for remote endpoint */
 	PgAddr local_addr;	/* ip:port for local endpoint */
@@ -287,6 +286,9 @@ struct PgSocket {
 #define tmp_sk_oldfd	request_time
 #define tmp_sk_linkfd	query_start
 /* takeover_clean_socket() needs to clean those up */
+
+/* where the salt is temporarly stored */
+#define tmp_login_salt  cancel_key
 
 /* main.c */
 extern int cf_verbose;

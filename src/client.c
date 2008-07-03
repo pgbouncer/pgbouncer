@@ -36,14 +36,14 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 	case AUTH_PLAIN:
 		return strcmp(user->passwd, passwd) == 0;
 	case AUTH_CRYPT:
-		correct = crypt(user->passwd, (char *)client->salt);
+		correct = crypt(user->passwd, (char *)client->tmp_login_salt);
 		return strcmp(correct, passwd) == 0;
 	case AUTH_MD5:
 		if (strlen(passwd) != MD5_PASSWD_LEN)
 			return false;
 		if (!isMD5(user->passwd))
 			pg_md5_encrypt(user->passwd, user->name, strlen(user->name), user->passwd);
-		pg_md5_encrypt(user->passwd + 3, client->salt, 4, md5);
+		pg_md5_encrypt(user->passwd + 3, (char *)client->tmp_login_salt, 4, md5);
 		return strcmp(md5, passwd) == 0;
 	}
 	return false;
@@ -168,16 +168,16 @@ static bool send_client_authreq(PgSocket *client)
 	if (auth == AUTH_CRYPT) {
 		saltlen = 2;
 		get_random_bytes(randbuf, saltlen);
-		client->salt[0] = valid_crypt_salt[randbuf[0] & SALT_MASK];
-		client->salt[1] = valid_crypt_salt[randbuf[1] & SALT_MASK];
-		client->salt[2] = 0;
+		client->tmp_login_salt[0] = valid_crypt_salt[randbuf[0] & SALT_MASK];
+		client->tmp_login_salt[1] = valid_crypt_salt[randbuf[1] & SALT_MASK];
+		client->tmp_login_salt[2] = 0;
 	} else if (cf_auth_type == AUTH_MD5) {
 		saltlen = 4;
-		get_random_bytes((void*)client->salt, saltlen);
+		get_random_bytes((void*)client->tmp_login_salt, saltlen);
 	} else if (auth == AUTH_ANY)
 		auth = AUTH_TRUST;
 
-	SEND_generic(res, client, 'R', "ib", auth, client->salt, saltlen);
+	SEND_generic(res, client, 'R', "ib", auth, client->tmp_login_salt, saltlen);
 	return res;
 }
 

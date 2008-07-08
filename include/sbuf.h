@@ -47,8 +47,7 @@ typedef struct SBuf SBuf;
    next event loop (eg. too few data available). */
 typedef bool (*sbuf_cb_t)(SBuf *sbuf,
 			SBufEvent evtype,
-			MBuf *mbuf,
-			void *arg);
+			MBuf *mbuf);
 
 /* for some reason, libevent has no typedef for callback */
 typedef void (*sbuf_libevent_cb)(int, short, void *);
@@ -68,19 +67,18 @@ struct SBuf {
 
 	int sock;		/* fd for this socket */
 
-	unsigned pkt_remain;		/* total packet length remaining */
+	unsigned pkt_remain;	/* total packet length remaining */
 
 	sbuf_cb_t proto_cb;	/* protocol callback */
-	void *proto_cb_arg;	/* extra arg to callback */
 
 	SBuf *dst;		/* target SBuf for current packet */
 
-	IOBuf *io;
+	IOBuf *io;		/* data buffer, lazily allocated */
 };
 
 #define sbuf_socket(sbuf) ((sbuf)->sock)
 
-void sbuf_init(SBuf *sbuf, sbuf_cb_t proto_fn, void *arg);
+void sbuf_init(SBuf *sbuf, sbuf_cb_t proto_fn);
 bool sbuf_accept(SBuf *sbuf, int read_sock, bool is_unix)  _MUSTCHECK;
 bool sbuf_connect(SBuf *sbuf, const PgAddr *addr, const char *unix_dir, int timeout_sec)  _MUSTCHECK;
 

@@ -66,10 +66,9 @@ static inline IOBuf *get_iobuf(SBuf *sbuf) { return sbuf->io; }
  *********************************/
 
 /* initialize SBuf with proto handler */
-void sbuf_init(SBuf *sbuf, sbuf_cb_t proto_fn, void *arg)
+void sbuf_init(SBuf *sbuf, sbuf_cb_t proto_fn)
 {
 	memset(sbuf, 0, sizeof(SBuf));
-	sbuf->proto_cb_arg = arg;
 	sbuf->proto_cb = proto_fn;
 }
 
@@ -227,7 +226,7 @@ bool sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb user_cb)
 	AssertActive(sbuf);
 
 	event_set(&sbuf->ev, sbuf->sock, EV_READ | EV_PERSIST,
-		  user_cb, sbuf->proto_cb_arg);
+		  user_cb, sbuf);
 
 	err = event_add(&sbuf->ev, NULL);
 	if (err < 0) {
@@ -328,7 +327,7 @@ static bool sbuf_call_proto(SBuf *sbuf, int event)
 	else
 		memset(&mbuf, 0, sizeof(mbuf));
 
-	res = sbuf->proto_cb(sbuf, event, &mbuf, sbuf->proto_cb_arg);
+	res = sbuf->proto_cb(sbuf, event, &mbuf);
 
 	AssertSanity(sbuf);
 	Assert(event != SBUF_EV_READ || !res || sbuf->sock > 0);

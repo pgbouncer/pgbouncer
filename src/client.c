@@ -336,10 +336,10 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 }
 
 /* callback from SBuf */
-bool client_proto(SBuf *sbuf, SBufEvent evtype, MBuf *data, void *arg)
+bool client_proto(SBuf *sbuf, SBufEvent evtype, MBuf *data)
 {
 	bool res = false;
-	PgSocket *client = arg;
+	PgSocket *client = container_of(sbuf, PgSocket, sbuf);
 	PktHdr pkt;
 
 

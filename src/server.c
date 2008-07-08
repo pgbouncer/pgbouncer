@@ -320,10 +320,10 @@ static bool handle_connect(PgSocket *server)
 }
 
 /* callback from SBuf */
-bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *data, void *arg)
+bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *data)
 {
 	bool res = false;
-	PgSocket *server = arg;
+	PgSocket *server = container_of(sbuf, PgSocket, sbuf);
 	PgPool *pool = server->pool;
 	PktHdr pkt;
 

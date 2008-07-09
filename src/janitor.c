@@ -320,7 +320,7 @@ static void pool_client_maint(PgPool *pool)
 			if (client->link)
 				continue;
 			if (now - client->request_time > cf_client_idle_timeout)
-				disconnect_client(client, true, "idle_timeout");
+				disconnect_client(client, true, "client_idle_timeout");
 		}
 	}
 

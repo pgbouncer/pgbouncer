@@ -42,7 +42,7 @@ static uint64_t SqlErrorCount = 0;
 static uint64_t QueryCount = 0;
 
 static char *bulk_data;
-static int bulk_data_max = 16*1024;  /* power of 2 */
+static int bulk_data_max = 4*1024;  /* power of 2 */
 static int verbose = 0;
 static int throttle_connects = 0;
 static int throttle_queries = 0;

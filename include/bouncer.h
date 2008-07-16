@@ -251,7 +251,7 @@ struct PgSocket {
 
 	PgUser *auth_user;	/* presented login, for client it may differ from pool->user */
 
-	SocketState state;	/* this also specifies socket location */
+	SocketState state:8;	/* this also specifies socket location */
 
 	bool ready:1;		/* server: accepts new query */
 	bool close_needed:1;	/* server: this socket must be closed ASAP */

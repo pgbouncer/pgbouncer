@@ -1,6 +1,6 @@
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT(pgbouncer, 1.2rc1)
+AC_INIT(pgbouncer, 1.2rc2)
 AC_CONFIG_SRCDIR(src/janitor.c)
 AC_CONFIG_HEADER(include/config.h)
 AC_PREREQ([2.59])

@@ -239,7 +239,8 @@ Default: SELECT 1;
 ==== server_lifetime ====
 
 Pooler tries to close server connections that are been connected longer than
-this.
+this.  Setting it to 0 means the connection is to be used only once,
+then closed.
 
 Default: 3600
 

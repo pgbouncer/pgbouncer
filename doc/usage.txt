@@ -100,7 +100,8 @@ Basic setup and usage as following.
 
 -R::
       Do a online restart. That means connecting to running process, loading
-      open sockets from it and using them.
+      open sockets from it and using them.  If there is no active process,
+      boot normally.
 
 -u user::
       Switch to user on startup.
@@ -109,7 +110,9 @@ Basic setup and usage as following.
       Increase verbosity.  Can be used multiple times.
 
 -q::
-      Be quiet - don't log to stdout.
+      Be quiet - don't log to stdout.  Note this does not affect
+      logging verbosity, only that stdout is not to be used.
+      For use in init.d scripts.
 
 -V::
       Show version.
@@ -393,12 +396,14 @@ changeable::
 ==== PAUSE; ====
 
 PgBouncer tries to disconnect from all servers, first waiting for all queries
-to complete. The command will not return before all is done.
+to complete. The command will not return before all is done.  To be used
+at the time of database restart.
 
 ==== SUSPEND; ====
 
 All socket buffers are flushed and PgBouncer stops listening data on them. The
-command will not return before all is done.
+command will not return before all is done. To be used at the time of
+PgBouncer restart.
 
 ==== RESUME; ====
 

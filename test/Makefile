@@ -11,7 +11,7 @@ LIBS += -lpq
 all: asynctest
 
 asynctest: asynctest.c
-	$(CC) -o $@ $< $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $(LIBS)
+	$(CC) -o $@ $< $(DEFS) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $(LIBS)
 
 clean:
 	rm -f asynctest

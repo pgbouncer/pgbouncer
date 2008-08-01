@@ -56,6 +56,9 @@
 #ifdef HAVE_LIBGEN_H
 #include <libgen.h>
 #endif
+#ifdef HAVE_SYS_UIO_H
+#include <sys/uio.h>
+#endif
 
 /* how to specify array with unknown length */
 #if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)

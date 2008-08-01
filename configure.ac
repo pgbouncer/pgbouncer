@@ -75,7 +75,7 @@ if test x"$GCC" = xyes; then
 fi
 
 dnl Checks for header files.
-AC_CHECK_HEADERS([crypt.h sys/param.h sys/socket.h libgen.h pwd.h grp.h])
+AC_CHECK_HEADERS([crypt.h sys/param.h sys/socket.h sys/uio.h libgen.h pwd.h grp.h])
 
 dnl ucred.h may have prereqs
 AC_CHECK_HEADERS([ucred.h sys/ucred.h], [], [], [

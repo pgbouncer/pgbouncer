@@ -24,8 +24,6 @@
  * Move all "look-at-full-packet" situtations to SBUF_EV_PKT_CALLBACK
  * auth_conn - access to pg_shadow, so auth_file is not needed
  * maybe libevent calls should look at errno? (esp. event_del())
- * drop_on_error/keep_on_error - if released conn is in error state,
-   then issue rollback and keep it
 
 === prepared plans ===
 

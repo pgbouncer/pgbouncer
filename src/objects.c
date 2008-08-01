@@ -586,6 +586,12 @@ bool release_server(PgSocket *server)
 		return false;
 	}
 
+	/* enforce close request */
+	if (server->close_needed) {
+		disconnect_server(server, true, "close_needed");
+		return false;
+	}
+
 	Assert(server->link == NULL);
 	slog_noise(server, "release_server: new state=%d", newstate);
 	change_server_state(server, newstate);

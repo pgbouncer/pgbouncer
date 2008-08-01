@@ -242,6 +242,9 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			disconnect_server(server, true, "invalid server parameter");
 			return false;
 		}
+		if (cf_drop_on_error)
+			server->close_needed = 1;
+
 	case 'N':		/* NoticeResponse */
 		break;
 

@@ -144,7 +144,7 @@ void log_server_error(const char *note, PktHdr *pkt)
 	parse_server_error(pkt, &level, &msg);
 
 	if (!msg || !level)
-		log_error("%s: corrupt error message", note);
+		log_error("%s: partial error message, cannot log", note);
 	else
 		log_error("%s: %s: %s", note, level, msg);
 }

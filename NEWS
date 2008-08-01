@@ -1,4 +1,11 @@
 
+2008-08-xx  -  PgBouncer 1.2.1  -  ""
+
+  = Features =
+
+    * drop_on_error config param - if server throws error the connection
+      will not be reused but dropped.  Defaults to 1.
+
 2008-07-29  -  PgBouncer 1.2  -  "Ordinary Magic Flute"
 
   PgBouncer 1.2 now requires libevent version 1.3b or newer.

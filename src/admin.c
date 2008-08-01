@@ -505,8 +505,8 @@ static void adr2txt(const PgAddr *adr, char *dst, unsigned dstlen)
 
 static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 {
-	int pkt_avail = iobuf_amount_parse(sk->sbuf.io);
-	int send_avail = iobuf_amount_pending(sk->sbuf.io);
+	int pkt_avail = sk->sbuf.io ? iobuf_amount_parse(sk->sbuf.io) : 0;
+	int send_avail = sk->sbuf.io ? iobuf_amount_pending(sk->sbuf.io) : 0;
 	char ptrbuf[128], linkbuf[128];
 	char l_addr[32], r_addr[32];
 	IOBuf *io = sk->sbuf.io;

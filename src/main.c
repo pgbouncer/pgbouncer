@@ -319,7 +319,7 @@ static void handle_sigint(int sock, short flags, void *arg)
 
 static void handle_sigusr1(int sock, short flags, void *arg)
 {
-	if (cf_pause_mode == 0) {
+	if (cf_pause_mode == P_NONE) {
 		log_info("Got SIGUSR1, pausing all activity");
 		cf_pause_mode = P_PAUSE;
 	} else {
@@ -333,14 +333,20 @@ static void handle_sigusr2(int sock, short flags, void *arg)
 	case P_SUSPEND:
 		log_info("Got SIGUSR2, continuing from SUSPEND");
 		resume_all();
-		cf_pause_mode = 0;
+		cf_pause_mode = P_NONE;
 		break;
 	case P_PAUSE:
 		log_info("Got SIGUSR2, continuing from PAUSE");
-		cf_pause_mode = 0;
+		cf_pause_mode = P_NONE;
 		break;
 	case P_NONE:
 		log_info("Got SIGUSR1, but not paused/suspended");
+	}
+
+	/* avoid surprise later if cf_shutdown stays set */
+	if (cf_shutdown) {
+		log_info("Canceling shutdown");
+		cf_shutdown = 0;
 	}
 }
 

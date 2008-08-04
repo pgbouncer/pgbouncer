@@ -807,6 +807,12 @@ static void full_resume(void)
 	cf_pause_mode = P_NONE;
 	if (tmp_mode == P_SUSPEND)
 		resume_all();
+
+	/* avoid surprise later if cf_shutdown stays set */
+	if (cf_shutdown) {
+		log_info("canceling shutdown");
+		cf_shutdown = 0;
+	}
 }
 
 /* Command: RESUME */

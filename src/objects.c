@@ -857,13 +857,15 @@ found:
 	/* not linked client, just drop it then */
 	if (!main_client->link) {
 		bool res;
-		disconnect_client(req, false, "cancel request for idle client");
 
 		/* let administrative cancel be handled elsewhere */
 		if (main_client->pool->db->admin) {
+			disconnect_client(req, false, "cancel request for console client");
 			admin_handle_cancel(main_client);
 			return;
 		}
+
+		disconnect_client(req, false, "cancel request for idle client");
 
 		/* notify readiness */
 		SEND_ReadyForQuery(res, main_client);

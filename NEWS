@@ -1,14 +1,23 @@
 
-2008-08-xx  -  PgBouncer 1.2.1  -  ""
+2008-08-04  -  PgBouncer 1.2.1  -  "Waterproof"
 
   = Features =
 
-    * drop_on_error config param - if server throws error the connection
-      will not be reused but dropped.  Defaults to 1.
+    * New parameter 'drop_on_error' - if server throws error the connection
+      will not be reused but dropped after client finished with it.  This is
+      needed to refresh plan cache.  Automatic refresh does not work even in 8.3.
+      Defaults to 1.
 
   = Fixes =
 
     * SHOW SOCKETS/CLIENTS/SERVERS: Don't crash if socket has no buffer.
+    * Fix infinite loop on SUSPEND if suspend_timeout triggers.
+
+  = Minor cleanups =
+
+    * Use <sys/uio.h> for 'struct iovec'.
+    * Cancel shutdown (from SIGINT) on RESUME/SIGUSR2,
+      otherwise it will trigger on next PAUSE.
 
 2008-07-29  -  PgBouncer 1.2  -  "Ordinary Magic Flute"
 

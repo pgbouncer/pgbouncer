@@ -18,6 +18,7 @@
     * Use <sys/uio.h> for 'struct iovec'.
     * Cancel shutdown (from SIGINT) on RESUME/SIGUSR2,
       otherwise it will trigger on next PAUSE.
+    * Proper log message if console operation is canceled.
 
 2008-07-29  -  PgBouncer 1.2  -  "Ordinary Magic Flute"
 

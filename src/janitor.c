@@ -72,11 +72,11 @@ bool suspend_socket(PgSocket *sk, bool force_suspend)
 /* suspend all sockets in socket list */
 static int suspend_socket_list(StatList *list, bool force_suspend)
 {
-	List *item;
+	List *item, *tmp;
 	PgSocket *sk;
 	int active = 0;
 
-	statlist_for_each(item, list) {
+	statlist_for_each_safe(item, list, tmp) {
 		sk = container_of(item, PgSocket, head);
 		if (!suspend_socket(sk, force_suspend))
 			active++;

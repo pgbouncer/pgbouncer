@@ -1,3 +1,8 @@
+2008-08-06  -  PgBouncer 1.2.2  -  "Barf-bag Included"
+
+  * Remove 'drop_on_error', it was a bad idea.  It was added as workaround
+    for broken plan cache behaviour in Postgres, but can cause damage
+    in common case when some queries always return error.
 
 2008-08-04  -  PgBouncer 1.2.1  -  "Waterproof"
 

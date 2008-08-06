@@ -30,6 +30,7 @@ typedef struct DbConn {
 	//time_t		connect_time;
 	int	query_count;
 	//const char	*query;
+	int _arglen;
 } DbConn;
 
 #define QT_SIMPLE  1
@@ -42,7 +43,7 @@ static uint64_t SqlErrorCount = 0;
 static uint64_t QueryCount = 0;
 
 static char *bulk_data;
-static int bulk_data_max = 4*1024;  /* power of 2 */
+static int bulk_data_max = 128*1024;  /* power of 2 */
 static int verbose = 0;
 static int throttle_connects = 0;
 static int throttle_queries = 0;
@@ -185,7 +186,7 @@ static void conn_error(DbConn *db, const char *desc)
 	static int ecount = 0;
 	if (db->con) {
 		if (ecount++ < 3)
-			printf("\r%s\n", PQerrorMessage(db->con));
+			printf("\r%s (arglen=%d)\n", PQerrorMessage(db->con), db->_arglen);
 		disconnect(db, true, "%s: %s", desc, PQerrorMessage(db->con));
 	} else {
 		printf("random error: %s\n", desc);
@@ -214,6 +215,13 @@ static bool another_result(DbConn *db)
 	switch (PQresultStatus(res)) {
 	case PGRES_TUPLES_OK:
 		// todo: check result
+		if (db->_arglen > 0) {
+			int curlen = strlen(PQgetvalue(res, 0, 0));
+			if (curlen != db->_arglen) {
+				printf("result does not match: sent=%d got=%d\n",
+				       db->_arglen, curlen);
+			}
+		}
 	case PGRES_COMMAND_OK:
 		PQclear(res);
 		break;
@@ -277,7 +285,9 @@ static int send_query_bigdata(DbConn *db)
 	int arglen;
 	char *q = "select $1::text";
 
-	arglen = random() & (bulk_data_max - 1);
+	arglen = 30458; // one of the values that breaks
+	arglen = random() % bulk_data_max;
+	db->_arglen = arglen;
 	values[0] = bulk_data + bulk_data_max - arglen;
 	lengths[0] = arglen;
 	fmts[0] = 1;

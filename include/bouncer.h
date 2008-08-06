@@ -327,7 +327,6 @@ extern char *cf_logfile;
 extern char *cf_pidfile;
 
 extern char *cf_ignore_startup_params;
-extern int cf_drop_on_error;
 
 extern char *cf_admin_users;
 extern char *cf_stats_users;

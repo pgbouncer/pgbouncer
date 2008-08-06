@@ -273,14 +273,6 @@ online restart.
 
 Default: 60
 
-==== drop_on_error ====
-
-If error appears from server, the connection will not be reused but dropped
-after client is finished with it.  This allows to survive broken cached plans.
-Set to 0 if errors from server are normal for your workflow.
-
-Default: 1
-
 === Dangerous timeouts ===
 
 Setting following timeouts cause unexcpected errors.

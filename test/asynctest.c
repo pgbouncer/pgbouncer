@@ -285,7 +285,6 @@ static int send_query_bigdata(DbConn *db)
 	int arglen;
 	char *q = "select $1::text";
 
-	arglen = 30458; // one of the values that breaks
 	arglen = random() % bulk_data_max;
 	db->_arglen = arglen;
 	values[0] = bulk_data + bulk_data_max - arglen;

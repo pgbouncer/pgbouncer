@@ -439,22 +439,61 @@ static void go_daemon(void)
 }
 
 /*
- * write pidfile.  if exists, quit with error.
+ * pidfile management.
  */
-static void check_pidfile(void)
-{
-	struct stat st;
-	if (!cf_pidfile)
-		return;
-	if (stat(cf_pidfile, &st) >= 0)
-		fatal("pidfile exists, another instance running?");
-}
 
 static void remove_pidfile(void)
 {
 	if (!cf_pidfile)
 		return;
 	unlink(cf_pidfile);
+}
+
+static void check_pidfile(void)
+{
+	char buf[128 + 1];
+	struct stat st;
+	pid_t pid = 0;
+	int fd, res;
+
+	if (!cf_pidfile)
+		return;
+
+	/* check if pidfile exists */
+	if (stat(cf_pidfile, &st) < 0) {
+		if (errno != ENOENT)
+			fatal_perror("stat");
+		return;
+	}
+
+	/* read old pid */
+	fd = open(cf_pidfile, O_RDONLY);
+	if (fd < 0)
+		goto locked_pidfile;
+	res = read(fd, buf, sizeof(buf) - 1);
+	close(fd);
+	if (res <= 0)
+		goto locked_pidfile;
+
+	/* parse pid */
+	buf[res] = 0;
+	pid = atol(buf);
+	if (pid <= 0)
+		goto locked_pidfile;
+
+	/* check if running */
+	if (kill(pid, 0) >= 0)
+		goto locked_pidfile;
+	if (errno != ESRCH)
+		goto locked_pidfile;
+
+	/* seems the pidfile is not in use */
+	log_info("Stale pidfile, removing");
+	remove_pidfile();
+	return;
+
+locked_pidfile:
+	fatal("pidfile exists, another instance running?");
 }
 
 static void write_pidfile(void)
@@ -641,18 +680,16 @@ int main(int argc, char *argv[])
 			check_pidfile();
 		}
 	} else {
-		check_pidfile();
 		if (check_old_process_unix())
-			fatal("somebody is listening on unix socket");
+			fatal("unix socket is in use, cannot continue");
+		check_pidfile();
 	}
 
-	/* initialize subsystems, order important */
 	if (cf_daemon)
 		go_daemon();
 
-	/* init random */
+	/* initialize subsystems, order important */
 	srandom(time(NULL) ^ getpid());
-
 	event_init();
 	signal_setup();
 	janitor_setup();

@@ -1,10 +1,11 @@
 2008-08-08  -  PgBouncer 1.2.3  -  "Carefully Selected Bytes"
 
+  * Disable SO_ACCEPTFILTER code for BSDs which did not work.
+  * Include example etc/userlist.txt in tgz.
   * Use '$(MAKE)' instead 'make' for recursion (Jørgen Austvik)
   * Define _GNU_SOURCE as glibc is useless otherwise.
   * Let the libevent 1.1 pass link test so we can later report "1.3b+ needed"
   * Detect stale pidfile and remove it.
-  * Disable SO_ACCEPTFILTER code for BSDs which did not work.
 
   Thanks to Devrim GÜNDÜZ and Bjoern Metzdorf for problem reports and testing.
 

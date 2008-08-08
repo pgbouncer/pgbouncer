@@ -133,6 +133,7 @@ static void tune_accept(int sock, bool on)
 	log_noise("%s TCP_DEFER_ACCEPT on %d", act, sock);
 	res = setsockopt(sock, IPPROTO_TCP, TCP_DEFER_ACCEPT, &val, sizeof(val));
 #else
+#if 0
 #ifdef SO_ACCEPTFILTER
 	struct accept_filter_arg af, *afp = on ? &af : NULL;
 	socklen_t af_len = on ? sizeof(af) : 0;
@@ -140,6 +141,7 @@ static void tune_accept(int sock, bool on)
 	strcpy(af.af_name, "dataready");
 	log_noise("%s SO_ACCEPTFILTER on %d", act, sock);
 	res = setsockopt(sock, SOL_SOCKET, SO_ACCEPTFILTER, afp, af_len);
+#endif
 #endif
 #endif
 	if (res < 0)

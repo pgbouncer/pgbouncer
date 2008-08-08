@@ -85,10 +85,10 @@ tgz: config.mak $(DISTFILES) $(MANPAGES)
 	rm -rf $(FULL)
 
 doc/pgbouncer.1:
-	make -C doc pgbouncer.1
+	$(MAKE) -C doc pgbouncer.1
 
 doc/pgbouncer.5:
-	make -C doc pgbouncer.5
+	$(MAKE) -C doc pgbouncer.5
 
 # create debian package
 deb: configure
@@ -140,7 +140,7 @@ tags: $(srcs) $(hdrs)
 # run sparse over code
 check: config.mak
 	REAL_CC="$(CC)" \
-	make clean pgbouncer CC=cgcc
+	$(MAKE) clean pgbouncer CC=cgcc
 
 # profiled exe
 pgbouncer.pg:

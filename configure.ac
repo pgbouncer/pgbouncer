@@ -131,7 +131,8 @@ AC_LINK_IFELSE([
     struct event ev;
     event_init();
     event_set(&ev, 1, EV_READ, NULL, NULL);
-    event_base_free(NULL);
+    /* this checks for 1.2+ but next we check for 1.3b+ anyway */
+    /* event_base_free(NULL); */
   } ],
 [AC_MSG_RESULT([found])],
 [AC_MSG_ERROR([not found, cannot proceed])])

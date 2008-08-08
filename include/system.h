@@ -24,6 +24,9 @@
 #include "config.h"
 #endif
 
+/* glibc is useless without it */
+#define _GNU_SOURCE
+
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/time.h>

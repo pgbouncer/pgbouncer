@@ -1,82 +1,43 @@
-/*	$PostgreSQL: pgsql/contrib/pgcrypto/md5.h,v 1.9 2005/10/15 02:49:06 momjian Exp $ */
-/*	   $KAME: md5.h,v 1.3 2000/02/22 14:01:18 itojun Exp $	   */
-
 /*
- * Copyright (C) 1995, 1996, 1997, and 1998 WIDE Project.
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *	  notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *	  notice, this list of conditions and the following disclaimer in the
- *	  documentation and/or other materials provided with the distribution.
- * 3. Neither the name of the project nor the names of its contributors
- *	  may be used to endorse or promote products derived from this software
- *	  without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE PROJECT AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.	IN NO EVENT SHALL THE PROJECT OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
+ * MD5 implementation based on RFC1321.
+ * 
+ * Copyright (c) 2008 Marko Kreen, Skype Technologies OÜ
+ * 
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef _NETINET6_MD5_H_
-#define _NETINET6_MD5_H_
+#ifndef __MD5_H__
+#define __MD5_H__
 
-#define MD5_BUFLEN	64
-#define MD5_DIGEST_LENGTH 16
+#define MD5_BLOCK_LENGTH	64
+#define MD5_DIGEST_LENGTH	16
 
-typedef struct
-{
-	union
-	{
-		uint32_t		md5_state32[4];
-		uint8_t		md5_state8[16];
-	}			md5_st;
+struct md5_ctx {
+	uint64_t nbytes;
+	uint32_t a, b, c, d;
+	uint32_t buf[16];
+};
 
-#define md5_sta		md5_st.md5_state32[0]
-#define md5_stb		md5_st.md5_state32[1]
-#define md5_stc		md5_st.md5_state32[2]
-#define md5_std		md5_st.md5_state32[3]
-#define md5_st8		md5_st.md5_state8
+void md5_reset(struct md5_ctx *ctx);
+void md5_update(struct md5_ctx *ctx, const void *data, unsigned int len);
+void md5_final(uint8_t *dst, struct md5_ctx *ctx);
 
-	union
-	{
-		uint64_t	md5_count64;
-		uint8_t		md5_count8[8];
-	}			md5_count;
-#define md5_n	md5_count.md5_count64
-#define md5_n8	md5_count.md5_count8
+#ifndef AVOID_MD5_COMPAT
+typedef struct md5_ctx MD5_CTX;
+#define MD5_Init(c) md5_reset(c)
+#define MD5_Update(c, d, l) md5_update(c, d, l)
+#define MD5_Final(d, c) md5_final(d, c)
+#endif
 
-	unsigned	md5_i;
-	uint8_t		md5_buf[MD5_BUFLEN];
-}	md5_ctxt;
+#endif
 
-extern void md5_init(md5_ctxt *);
-extern void md5_loop(md5_ctxt *, const uint8_t *, unsigned int);
-extern void md5_pad(md5_ctxt *);
-extern void md5_result(uint8_t *, md5_ctxt *);
-
-/* compatibility with OpenSSL */
-#define MD5_CTX		md5_ctxt
-#define MD5_Init(x)	md5_init((x))
-#define MD5_Update(x, y, z)	md5_loop((x), (void*)(y), (z))
-#define MD5_Final(x, y) \
-do {				\
-	md5_pad((y));		\
-	md5_result((x), (y));	\
-} while (0)
-
-#endif   /* ! _NETINET6_MD5_H_ */
-
-/* vi: set ts=4: */

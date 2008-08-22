@@ -335,6 +335,10 @@ This contains key=value pairs where key will be taken as database name and
 value as libpq-connstring style list of key=value pairs. As actual libpq is not
 used, so not all features from libpq can be used (service=, quoting).
 
+Database name can contain characters [0-9A-Za-z_.-] without quoting.
+Names that contain other chars need to be quoted with standard SQL
+ident quoting: double quotes where "" is taken as single quote.
+
 === Location parameters ===
 
 ==== dbname ====

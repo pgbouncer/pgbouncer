@@ -497,7 +497,7 @@ bool load_auth_file(const char *fn)
 }
 
 /*
- * INI file parser
+ * Config parameter handling.
  */
 
 bool cf_set_int(ConfElem *elem, const char *val, PgSocket *console)
@@ -617,12 +617,48 @@ static ConfSection *find_section(ConfSection *sect, const char *name)
 	return NULL;
 }
 
+/*
+ * INI file parser.
+ */
+
+static int count_lines(const char *s, const char *end)
+{
+	int lineno = 1;
+	for (; s < end; s++) {
+		if (*s == '\n')
+			lineno++;
+	}
+	return lineno;
+}
+
+static bool unquote_ident(char **src_p, char *dst, int dstlen)
+{
+	char *src = *src_p;
+	char *end = dst + dstlen;
+	if (*src++ != '"')
+		return false;
+	while (*src && dst < end) {
+		if (src[0] == '"') {
+			if (src[1] != '"')
+				break;
+			src++;
+		}
+		*dst++ = *src++;
+	}
+	if (*src != '"' || dst >= end)
+		return false;
+	*dst = 0;
+	*src_p = src + 1;
+	return true;
+}
+
 bool iniparser(const char *fn, ConfSection *sect_list, bool reload)
 {
 	char *buf;
 	char *p, *key, *val;
 	int klen, vlen;
 	ConfSection *cur_section = NULL;
+	char keybuf[MAX_DBNAME*2];
 
 	buf = load_file(fn);
 	if (buf == NULL) {
@@ -646,11 +682,8 @@ bool iniparser(const char *fn, ConfSection *sect_list, bool reload)
 		if (*p == '[') {
 			key = ++p;
 			while (*p && *p != ']' && *p != '\n') p++;
-			if (*p != ']') {
-				log_warning("bad section header");
-				cur_section = NULL;
-				continue;
-			}
+			if (*p != ']')
+				goto syntax_error;
 			*p++ = 0;
 
 			cur_section = find_section(sect_list, key);
@@ -661,15 +694,21 @@ bool iniparser(const char *fn, ConfSection *sect_list, bool reload)
 		if (*p == 0) break;
 
 		/* read key val */
-		key = p;
-		while (*p && (isalnum(*p) || *p == '_')) p++;
-		klen = p - key;
+		if (*p == '"') {
+			if (!unquote_ident(&p, keybuf, sizeof(keybuf)))
+				goto syntax_error;
+			key = keybuf;
+			klen = strlen(keybuf);
+		} else {
+			key = p;
+			while (*p && (isalnum(*p) || strchr("_.-", *p))) p++;
+			klen = p - key;
+		}
 
 		/* expect '=', skip it */
 		while (*p && (*p == ' ' || *p == '\t')) p++;
 		if (*p != '=') {
-			log_error("syntax error in configuration, stopping loading");
-			break;
+			goto syntax_error;
 		} else
 			p++;
 		while (*p && (*p == ' ' || *p == '\t')) p++;
@@ -692,6 +731,11 @@ bool iniparser(const char *fn, ConfSection *sect_list, bool reload)
 		map_config(cur_section, key, val, reload);
 	}
 
+	free(buf);
+	return true;
+
+syntax_error:
+	log_error("syntax error in configuration (%s:%d), stopping loading", fn, count_lines(buf, p));
 	free(buf);
 	return true;
 }

@@ -5,7 +5,7 @@ DEFS = @DEFS@
 LIBS = @LIBS@
 CC = @CC@
 CPP = @CPP@
-CPPFLAGS = @CPPFLAGS@ -I$(srcdir)/include
+CPPFLAGS = -I$(srcdir)/include @CPPFLAGS@
 CFLAGS = @CFLAGS@
 LDFLAGS = @LDFLAGS@
 

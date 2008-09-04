@@ -186,7 +186,7 @@ else
 fi
 
 if test \! "$srcdir" = "$builddir"; then
-  CPPFLAGS="$CPPFLAGS -I\$(builddir)/include"
+  CPPFLAGS="-I\$(builddir)/include $CPPFLAGS"
 fi
 
 dnl Output findings

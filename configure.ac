@@ -150,7 +150,9 @@ AC_EGREP_CPP([HTTP_SERVUNAVAIL],
 # autoconf does not want to find 'install', if not using automake...
 INSTALL=install
 
-AC_ARG_ENABLE(debug, AC_HELP_STRING([--enable-debug],[build binary with debugging symbols]))
+AC_ARG_ENABLE(debug,
+  AC_HELP_STRING([--disable-debug],[add -fomit-frame-pointer to CFLAGS and strip binary]),
+  [], [enable_debug=yes])
 AC_MSG_CHECKING([whether to build debug binary])
 if test "$enable_debug" = "yes"; then
   LDFLAGS="-g $LDFLAGS"

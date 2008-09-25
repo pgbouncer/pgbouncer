@@ -96,9 +96,9 @@ AC_TYPE_SIZE_T
 
 dnl autoconf 2.59 does not have UINT macros nor docdir
 m4_ifdef([AC_TYPE_UINT8_T], [
-AC_TYPE_UINT8_T
-AC_TYPE_UINT32_T
-AC_TYPE_UINT64_T
+  AC_TYPE_UINT8_T
+  AC_TYPE_UINT32_T
+  AC_TYPE_UINT64_T
 ], [
   datarootdir='${prefix}/share'
   docdir='${datarootdir}/doc/${PACKAGE_TARNAME}'
@@ -151,7 +151,7 @@ AC_EGREP_CPP([HTTP_SERVUNAVAIL],
 INSTALL=install
 
 AC_ARG_ENABLE(debug,
-  AC_HELP_STRING([--disable-debug],[add -fomit-frame-pointer to CFLAGS and strip binary]),
+  AC_HELP_STRING([--disable-debug],[strip binary]),
   [], [enable_debug=yes])
 AC_MSG_CHECKING([whether to build debug binary])
 if test "$enable_debug" = "yes"; then
@@ -159,9 +159,6 @@ if test "$enable_debug" = "yes"; then
   BININSTALL="$INSTALL"
   AC_MSG_RESULT([yes])
 else
-  if test x"$GCC" = xyes; then
-    CFLAGS="$CFLAGS -fomit-frame-pointer"
-  fi
   BININSTALL="$INSTALL -s"
   AC_MSG_RESULT([no])
 fi

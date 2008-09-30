@@ -32,7 +32,7 @@
 
 /* give offset of a field inside struct */
 #ifndef offsetof
-#define offsetof(type, field) ((unsigned)&(((type *)0)->field))
+#define offsetof(type, field) ((unsigned long)&(((type *)0)->field))
 #endif
 
 /* given pointer to field inside struct, return pointer to struct */

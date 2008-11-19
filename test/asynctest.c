@@ -15,8 +15,11 @@
 static void log_error(const char *, ...);
 static void log_debug(const char *, ...);
 static void fatal(const char *fmt, ...);
+static void fatal_noexit(const char *fmt, ...);
 
 #include "list.h"
+
+static char *simple_query = "select 1";
 
 typedef void (*libev_cb_f)(int sock, short flags, void *arg);
 
@@ -116,6 +119,16 @@ static void fatal_perror(const char *err)
 {
 	log_error("%s: %s", err, strerror(errno));
 	exit(1);
+}
+
+static void fatal_noexit(const char *fmt, ...)
+{
+	va_list ap;
+	char buf[1024];
+	va_start(ap, fmt);
+	vsnprintf(buf, sizeof(buf), fmt, ap);
+	va_end(ap);
+	printf("FATAL: %s\n", buf);
 }
 
 static void fatal(const char *fmt, ...)
@@ -302,7 +315,7 @@ static int send_query_sleep(DbConn *db)
 
 static int send_query_simple(DbConn *db)
 {
-	const char *q = "select 1";
+	const char *q = simple_query;
 	return PQsendQueryParams(db->con, q, 0, NULL, NULL, NULL, NULL, 0);
 }
 
@@ -486,6 +499,7 @@ static const char usage_str [] =
 "  -C maxcps		max number of connects per sec\n"
 "  -Q maxqps		max number of queries per sec\n"
 "  -q num		queries per connection (default 1)\n"
+"  -S sql		set simple query\n"
 "accepted query types:\n"
 "  B - bigdata\n"
 "  S - sleep occasionally\n"
@@ -499,12 +513,15 @@ int main(int argc, char *argv[])
 	char *cstr = NULL;
 	int numcon = 50;
 
-	while ((c = getopt(argc, argv, "d:n:s:t:hvC:Q:q:")) != EOF) {
+	while ((c = getopt(argc, argv, "S:d:n:s:t:hvC:Q:q:")) != EOF) {
 		switch (c) {
 		default:
 		case 'h':
 			printf("%s", usage_str);
 			return 0;
+		case 'S':
+			simple_query = optarg;
+			break;
 		case 'd':
 			cstr = optarg;
 			break;

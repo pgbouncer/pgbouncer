@@ -6,7 +6,7 @@ include ../config.mak
 
 CPPFLAGS += -I../include $(PGINC)
 LDFLAGS += $(PGLIB)
-LIBS += -lpq
+LIBS := -lpq $(LIBS)
 
 all: asynctest
 

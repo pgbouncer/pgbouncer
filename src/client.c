@@ -57,8 +57,14 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username)
 	/* find database */
 	db = find_database(dbname);
 	if (!db) {
-		disconnect_client(client, true, "No such database");
-		return false;
+		db = register_auto_database(dbname);
+		if (!db) {
+			disconnect_client(client, true, "No such database");
+			return false;
+		}
+		else {
+			slog_info(client, "registered new auto-database: db = %s", dbname );
+		}
 	}
 
 	/* find user */

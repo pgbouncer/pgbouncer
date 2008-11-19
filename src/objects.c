@@ -51,6 +51,9 @@ ObjectCache *iobuf_cache;
 static STATLIST(justfree_client_list);
 static STATLIST(justfree_server_list);
 
+/* init autodb idle list */
+STATLIST(autodatabase_idle_list);
+
 /* fast way to get number of active clients */
 int get_active_client_count(void)
 {
@@ -304,6 +307,35 @@ PgDatabase *add_database(const char *name)
 	return db;
 }
 
+/* register new auto database */
+PgDatabase *register_auto_database(const char *name)
+{
+	PgDatabase *db;
+	int len;
+	char *cs;
+	
+	if (!cf_autodb_connstr)
+		return NULL;
+
+	len = strlen(cf_autodb_connstr);
+	cs = malloc(len + 1);
+	if (!cs)
+		return NULL;
+	memcpy(cs, cf_autodb_connstr, len + 1);
+	parse_database((char*)name, cs);
+	free(cs);
+
+	db = find_database(name);
+	if (db) {
+		db->db_auto = 1;
+		/* do not forget to check pool_size like in config_postprocess */
+		if (db->pool_size < 0)
+			db->pool_size = cf_default_pool_size;
+	}
+
+	return db;
+}
+
 /* add or update client users */
 PgUser *add_user(const char *name, const char *passwd)
 {
@@ -345,12 +377,22 @@ PgUser *force_user(PgDatabase *db, const char *name, const char *passwd)
 /* find an existing database */
 PgDatabase *find_database(const char *name)
 {
-	List *item;
+	List *item, *tmp;
 	PgDatabase *db;
 	statlist_for_each(item, &database_list) {
 		db = container_of(item, PgDatabase, head);
 		if (strcmp(db->name, name) == 0)
 			return db;
+	}
+	/* also trying to find in idle autodatabases list */
+	statlist_for_each_safe(item, &autodatabase_idle_list, tmp) {
+		db = container_of(item, PgDatabase, head);
+		if (strcmp(db->name, name) == 0) {
+			db->inactive_time = 0;
+			statlist_remove(&db->head, &autodatabase_idle_list);
+			put_in_order(&db->head, &database_list, cmp_database);
+			return db;
+		}
 	}
 	return NULL;
 }
@@ -951,6 +993,13 @@ bool use_server_socket(int fd, PgAddr *addr,
 	PgSocket *server;
 	PktBuf tmp;
 	bool res;
+	
+	/* if the database not found, it's an auto database -> registering... */
+	if (!db) {
+		db = register_auto_database(dbname);
+		if (!db)
+			return true;
+	}
 
 	if (db->forced_user)
 		user = db->forced_user;

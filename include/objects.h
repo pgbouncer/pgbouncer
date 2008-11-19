@@ -20,6 +20,7 @@ extern StatList user_list;
 extern Tree user_tree;
 extern StatList pool_list;
 extern StatList database_list;
+extern StatList autodatabase_idle_list;
 extern StatList login_client_list;
 extern ObjectCache *client_cache;
 extern ObjectCache *server_cache;
@@ -40,6 +41,7 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason);
 void disconnect_client(PgSocket *client, bool notify, const char *reason);
 
 PgDatabase * add_database(const char *name) _MUSTCHECK;
+PgDatabase *register_auto_database(const char *name);
 PgUser * add_user(const char *name, const char *passwd) _MUSTCHECK;
 PgUser * force_user(PgDatabase *db, const char *username, const char *passwd) _MUSTCHECK;
 

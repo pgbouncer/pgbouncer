@@ -97,6 +97,9 @@ int cf_server_round_robin = 0;
 
 char *cf_ignore_startup_params = "";
 
+char *cf_autodb_connstr = NULL;
+usec_t cf_autodb_idle_timeout = 3600*USEC;
+
 usec_t cf_server_lifetime = 60*60*USEC;
 usec_t cf_server_idle_timeout = 10*60*USEC;
 usec_t cf_server_connect_timeout = 15*USEC;
@@ -139,6 +142,8 @@ ConfElem bouncer_params[] = {
 {"syslog",		true, CF_INT, &cf_syslog},
 {"syslog_facility",	true, CF_STR, &cf_syslog_facility},
 {"user",		false, CF_STR, &cf_username},
+
+{"autodb_idle_timeout",	true, CF_TIME, &cf_autodb_idle_timeout},
 
 {"server_reset_query",	true, CF_STR, &cf_server_reset_query},
 {"server_check_query",	true, CF_STR, &cf_server_check_query},

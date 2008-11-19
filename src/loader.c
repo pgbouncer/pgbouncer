@@ -152,6 +152,18 @@ static void set_connect_query(PgDatabase *db, const char *new)
 		log_error("no memory, cannot assign connect_query for %s", db->name);
 }
 
+static void set_autodb(char *connstr)
+{
+	char *tmp = strdup(connstr);
+	if (!tmp) {
+		log_warning("no mem to change autodb_connstr");
+		return;
+	}
+	if (cf_autodb_connstr)
+		free(cf_autodb_connstr);
+	cf_autodb_connstr = tmp;
+}
+
 /* fill PgDatabase from connstr */
 void parse_database(char *name, char *connstr)
 {
@@ -173,6 +185,11 @@ void parse_database(char *name, char *connstr)
 
 	in_addr_t v_addr = INADDR_NONE;
 	int v_port;
+
+	if (strcmp(name, "*") == 0) {
+		set_autodb(connstr);
+		return;
+	}
 
 	p = connstr;
 	while (*p) {
@@ -264,6 +281,9 @@ void parse_database(char *name, char *connstr)
 
 	/* tag the db as alive */
 	db->db_dead = 0;
+	/* assuming not an autodb */
+	db->db_auto = 0;
+	db->inactive_time = 0;
 
 	/* if updating old db, check if anything changed */
 	if (db->dbname) {
@@ -701,7 +721,7 @@ bool iniparser(const char *fn, ConfSection *sect_list, bool reload)
 			klen = strlen(keybuf);
 		} else {
 			key = p;
-			while (*p && (isalnum(*p) || strchr("_.-", *p))) p++;
+			while (*p && (isalnum(*p) || strchr("_.-*", *p))) p++;
 			klen = p - key;
 		}
 

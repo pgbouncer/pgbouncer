@@ -220,6 +220,7 @@ struct PgDatabase {
 
 	bool db_paused;		/* PAUSE <db>; was issued */
 	bool db_dead;		/* used on RELOAD/SIGHUP to later detect removed dbs */
+	bool db_auto;		/* is the database auto-created by autodb_connstr */
 	bool admin;		/* internal console db */
 
 	uint8_t startup_params[256]; /* partial StartupMessage (without user) be sent to server */
@@ -236,6 +237,8 @@ struct PgDatabase {
 
 	/* startup commands to send to server after connect. malloc-ed */
 	const char *connect_query;
+
+	usec_t inactive_time; /* when auto-database became inactive (to kill it after timeout) */
 };
 
 
@@ -306,6 +309,9 @@ extern int cf_listen_port;
 extern int cf_pool_mode;
 extern int cf_max_client_conn;
 extern int cf_default_pool_size;
+
+extern char * cf_autodb_connstr;
+extern usec_t cf_autodb_idle_timeout;
 
 extern usec_t cf_suspend_timeout;
 extern usec_t cf_server_lifetime;

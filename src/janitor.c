@@ -476,19 +476,48 @@ static void cleanup_client_logins(void)
 	}
 }
 
+static void kill_database(PgDatabase *db);
+static void cleanup_inactive_autodatabases(void)
+{
+	List *item, *tmp;
+	PgDatabase *db;
+	usec_t age;
+	usec_t now = get_cached_time();
+
+	if (cf_autodb_idle_timeout <= 0)
+		return;
+
+	statlist_for_each_safe(item, &autodatabase_idle_list, tmp) {
+		db = container_of(item, PgDatabase, head);
+		age = now - db->inactive_time;
+		if (age > cf_autodb_idle_timeout) 
+			kill_database(db);
+		else
+			break;
+	}
+}
+
 /* full-scale maintenance, done only occasionally */
 static void do_full_maint(int sock, short flags, void *arg)
 {
-	List *item;
+	List *item, *tmp;
 	PgPool *pool;
 
-	statlist_for_each(item, &pool_list) {
+	statlist_for_each_safe(item, &pool_list, tmp) {
 		pool = container_of(item, PgPool, head);
 		if (pool->db->admin)
 			continue;
 		pool_server_maint(pool);
 		pool_client_maint(pool);
+		if (pool->db->db_auto && pool->db->inactive_time == 0 &&
+				pool_client_count(pool) == 0 && pool_server_count(pool) == 0 ) {
+			pool->db->inactive_time = get_cached_time();
+			statlist_remove(&pool->db->head, &database_list);
+			statlist_append(&pool->db->head, &autodatabase_idle_list);
+		}
 	}
+
+	cleanup_inactive_autodatabases();
 
 	cleanup_client_logins();
 
@@ -535,7 +564,7 @@ static void kill_database(PgDatabase *db)
 	PgPool *pool;
 	List *item, *tmp;
 
-	log_warning("dropping database '%s' as it does not exist anymore", db->name);
+	log_warning("dropping database '%s' as it does not exist anymore or inactive auto-database", db->name);
 
 	statlist_for_each_safe(item, &pool_list, tmp) {
 		pool = container_of(item, PgPool, head);
@@ -546,7 +575,10 @@ static void kill_database(PgDatabase *db)
 		obj_free(user_cache, db->forced_user);
 	if (db->connect_query)
 		free((void *)db->connect_query);
-	statlist_remove(&db->head, &database_list);
+	if (db->inactive_time)
+		statlist_remove(&db->head, &autodatabase_idle_list);
+	else
+		statlist_remove(&db->head, &database_list);
 	obj_free(db_cache, db);
 }
 

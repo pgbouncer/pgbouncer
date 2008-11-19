@@ -65,7 +65,7 @@ char *cf_syslog_facility = "daemon";
 static char *cf_config_file;
 
 char *cf_listen_addr = NULL;
-int cf_listen_port = 6000;
+int cf_listen_port = 6432;
 char *cf_unix_socket_dir = "/tmp";
 
 int cf_pool_mode = POOL_SESSION;

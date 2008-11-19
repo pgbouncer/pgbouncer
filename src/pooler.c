@@ -211,6 +211,32 @@ static void err_wait_func(int sock, short flags, void *arg)
 		resume_pooler();
 }
 
+static const char *addrpair(const PgAddr *src, const PgAddr *dst)
+{
+	static char ip1buf[64], ip2buf[64], buf[256];
+	const char *ip1, *ip2;
+	if (src->is_unix)
+		return "unix->unix";
+
+	ip1 = inet_ntop(AF_INET, &src->ip_addr, ip1buf, sizeof(ip1buf));
+	if (!ip1)
+		ip1 = strerror(errno);
+	ip2 = inet_ntop(AF_INET, &dst->ip_addr, ip2buf, sizeof(ip2buf));
+	if (!ip2)
+		ip2 = strerror(errno);
+	snprintf(buf, sizeof(buf), "%s:%d -> %s:%d",
+		 ip1, src->port, ip2, dst->port);
+	return buf;
+}
+
+static const char *conninfo(const PgSocket *sk)
+{
+	if (is_server_socket(sk))
+		return addrpair(&sk->local_addr, &sk->remote_addr);
+	else
+		return addrpair(&sk->remote_addr, &sk->local_addr);
+}
+
 /* got new connection, associate it with client struct */
 static void pool_accept(int sock, short flags, void *is_unix)
 {
@@ -245,7 +271,6 @@ loop:
 
 	log_noise("new fd from accept=%d", fd);
 	if (is_unix) {
-		log_debug("P: new unix client");
 		{
 			uid_t uid;
 			gid_t gid;
@@ -257,9 +282,10 @@ loop:
 		}
 		client = accept_client(fd, NULL, true);
 	} else {
-		log_debug("P: new tcp client");
 		client = accept_client(fd, &addr.in, false);
 	}
+
+	slog_debug(client, "P: got connection: %s", conninfo(client));
 
 	/*
 	 * there may be several clients waiting,

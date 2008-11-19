@@ -67,7 +67,10 @@ static void render_time(char *buf, int max)
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
 	localtime_r(&tv.tv_sec, &tm);
-	strftime(buf, max, "%Y-%m-%d %H:%M:%S", &tm);
+	snprintf(buf, max, "%04d-%02d-%02d %02d:%02d:%02d.%03d",
+		 tm.tm_year, tm.tm_mon, tm.tm_mday,
+		 tm.tm_hour, tm.tm_min, tm.tm_sec,
+		 (int)(tv.tv_usec / 1000));
 }
 
 static void close_syslog(void)

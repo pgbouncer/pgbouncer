@@ -72,6 +72,7 @@ int cf_pool_mode = POOL_SESSION;
 
 /* sbuf config */
 int cf_sbuf_len = 2048;
+int cf_sbuf_loopcnt = 5;
 int cf_tcp_socket_buffer = 0;
 #if defined(TCP_DEFER_ACCEPT) || defined(SO_ACCEPTFILTER)
 int cf_tcp_defer_accept = 1;
@@ -154,6 +155,7 @@ ConfElem bouncer_params[] = {
 {"ignore_startup_parameters", true, CF_STR, &cf_ignore_startup_params},
 
 {"pkt_buf",		false, CF_INT, &cf_sbuf_len},
+{"sbuf_loopcnt",	true, CF_INT, &cf_sbuf_loopcnt},
 {"tcp_defer_accept",	true, {cf_get_int, set_defer_accept}, &cf_tcp_defer_accept},
 {"tcp_socket_buffer",	true, CF_INT, &cf_tcp_socket_buffer},
 {"tcp_keepalive",	true, CF_INT, &cf_tcp_keepalive},

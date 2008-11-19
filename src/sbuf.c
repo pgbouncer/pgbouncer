@@ -585,6 +585,7 @@ static bool allocate_iobuf(SBuf *sbuf)
 static void sbuf_main_loop(SBuf *sbuf, bool skip_recv)
 {
 	unsigned free, ok;
+	int loopcnt = 0;
 
 	/* sbuf was closed before in this event loop */
 	if (!sbuf->sock)
@@ -602,6 +603,13 @@ static void sbuf_main_loop(SBuf *sbuf, bool skip_recv)
 		goto skip_recv;
 
 try_more:
+	/* avoid spending too much time on single socket */
+	if (cf_sbuf_loopcnt > 0 && loopcnt >= cf_sbuf_loopcnt) {
+		log_debug("loopcnt full");
+		return;
+	}
+	loopcnt++;
+
 	/* make room in buffer */
 	sbuf_try_resync(sbuf, false);
 

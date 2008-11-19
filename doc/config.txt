@@ -303,6 +303,15 @@ large.
 
 Default: 2048
 
+==== sbuf_loopcnt ====
+
+How many times to process data on one connection, before proceeding.
+Without limit, one connection with big resultset can stall pgbouncer
+for a long time.  One loop processes one `pkt_buf` amount of data.
+0 means no limit.
+
+Default: 5
+
 ==== tcp_defer_accept ====
 
 Details about following options shouldbe looked from man 7 tcp

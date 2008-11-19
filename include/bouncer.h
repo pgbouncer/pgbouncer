@@ -336,6 +336,7 @@ extern int cf_pause_mode;
 extern int cf_shutdown;
 extern int cf_reboot;
 
+extern int cf_sbuf_loopcnt;
 extern int cf_sbuf_len;
 extern int cf_tcp_keepalive;
 extern int cf_tcp_keepcnt;

@@ -37,7 +37,7 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 		return strcmp(user->passwd, passwd) == 0;
 	case AUTH_CRYPT:
 		correct = crypt(user->passwd, (char *)client->tmp_login_salt);
-		return strcmp(correct, passwd) == 0;
+		return correct && strcmp(correct, passwd) == 0;
 	case AUTH_MD5:
 		if (strlen(passwd) != MD5_PASSWD_LEN)
 			return false;

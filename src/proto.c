@@ -243,6 +243,10 @@ static bool login_crypt_psw(PgSocket *server, const uint8_t *salt)
 	memcpy(saltbuf, salt, 2);
 	saltbuf[2] = 0;
 	enc = crypt(user->passwd, saltbuf);
+	if (!enc) {
+		slog_warning(server, "crypt failed");
+		return false;
+	}
 	return send_password(server, enc);
 }
 

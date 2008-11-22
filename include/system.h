@@ -164,6 +164,9 @@ int getpeereid(int fd, uid_t *uid_p, gid_t *gid_p) _MUSTCHECK;
 #ifndef HAVE_BASENAME
 const char *basename(const char *path);
 #endif
+#ifndef HAVE_CRYPT
+#define crypt(p,s) (NULL)
+#endif
 
 void change_user(const char *user);
 

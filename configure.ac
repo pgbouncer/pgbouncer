@@ -108,11 +108,12 @@ m4_ifdef([AC_TYPE_UINT8_T], [
 
 dnl Checks for library functions.
 AC_CHECK_FUNCS(strlcpy strlcat getpeereid getpeerucred basename)
-AC_SEARCH_LIBS(crypt, crypt, [], AC_MSG_ERROR([crypt not found]))
+AC_SEARCH_LIBS(crypt, crypt)
 AC_SEARCH_LIBS(clock_gettime, rt)
 AC_SEARCH_LIBS(getsockname, socket)
 AC_SEARCH_LIBS(gethostbyname, nsl)
 AC_SEARCH_LIBS(hstrerror, resolv)
+AC_CHECK_FUNCS(crypt)
 
 dnl Find libevent
 AC_MSG_CHECKING([for libevent])

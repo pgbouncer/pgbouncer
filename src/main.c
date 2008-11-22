@@ -232,8 +232,10 @@ static bool set_auth(ConfElem *elem, const char *val, PgSocket *console)
 		cf_auth_type = AUTH_TRUST;
 	else if (strcasecmp(val, "plain") == 0)
 		cf_auth_type = AUTH_PLAIN;
+#ifdef HAVE_CRYPT
 	else if (strcasecmp(val, "crypt") == 0)
 		cf_auth_type = AUTH_CRYPT;
+#endif
 	else if (strcasecmp(val, "md5") == 0)
 		cf_auth_type = AUTH_MD5;
 	else {

@@ -5,8 +5,6 @@
  *
  *	Copyright (c) 2005, PostgreSQL Global Development Group
  *	Author: Magnus Hagander and Hiroshi Saito
- *
- *  $Id$
  *-------------------------------------------------------------------------
  */
 #define WIN32_LEAN_AND_MEAN

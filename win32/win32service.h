@@ -6,8 +6,6 @@
  *  Windows service definitions
  *
  *	Copyright (c) 2008, PostgreSQL Global Development Group
- *
- *  $Id$
  *-------------------------------------------------------------------------
  */
 

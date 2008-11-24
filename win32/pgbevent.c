@@ -1,9 +1,7 @@
 /*-------------------------------------------------------------------------
- *
  * pgbevent.c
  *		Defines the entry point for pgbevent dll.
  *		The DLL defines event source for pgbouncer tools
- *
  *-------------------------------------------------------------------------
  */
 

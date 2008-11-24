@@ -249,6 +249,10 @@ static void pool_accept(int sock, short flags, void *is_unix)
 	} addr;
 	socklen_t len = sizeof(addr);
 
+	if(!(flags & EV_READ)) {
+		log_warning("No EV_READ in pool_accept");
+		return;
+	}
 loop:
 	/* get fd */
 	fd = safe_accept(sock, &addr.sa, &len);

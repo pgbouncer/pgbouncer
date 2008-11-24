@@ -133,3 +133,15 @@ void change_user(const char *user)
 		fatal("setuid() failed to work");
 }
 
+#ifndef HAVE_INET_NTOP
+const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt)
+{
+	const unsigned char *p = src;
+	if (af != AF_INET)
+		return NULL;
+	snprintf(dst, cnt, "%d.%d.%d.%d", p[0], p[1], p[2], p[3]);
+	return dst;
+}
+#endif
+
+

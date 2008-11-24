@@ -15,7 +15,8 @@ DATA = README NEWS AUTHORS etc/pgbouncer.ini etc/userlist.txt Makefile \
        configure configure.ac debian/packages debian/changelog doc/Makefile \
        test/Makefile test/asynctest.c test/conntest.sh test/ctest6000.ini \
        test/ctest7000.ini test/run-conntest.sh test/stress.py test/test.ini \
-       test/test.sh test/userlist.txt etc/example.debian.init.sh doc/fixman.py
+       test/test.sh test/userlist.txt etc/example.debian.init.sh doc/fixman.py \
+       win32/wbnmsgevent.mc win32/wbnmsgevent.rc win32/MSG00001.bin
 DIRS = doc etc include src debian test
 
 # keep autoconf stuff separate
@@ -31,7 +32,8 @@ hdrs = $(addprefix $(srcdir)/include/, $(HDRS))
 srcs = $(addprefix $(srcdir)/src/, $(SRCS))
 objs = $(addprefix $(builddir)/lib/, $(OBJS))
 FULL = $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)
-DISTFILES = $(DIRS) $(DATA) $(DOCS) $(srcs) $(hdrs) $(MANPAGES)
+DISTFILES = $(DIRS) $(DATA) $(DOCS) $(srcs) $(hdrs) $(MANPAGES) $(WINPORT)
+exe = $(builddir)/pgbouncer$(EXT)
 
 CPPCFLAGS += -I$(srcdir)/include
 
@@ -43,6 +45,23 @@ ifeq ($(enable_debug),yes)
 CPPCFLAGS += -DDBGVER="\"compiled by <$${USER}@`hostname`> at `date '+%Y-%m-%d %H:%M:%S'`\""
 endif
 
+ifeq ($(PORTNAME),win32)
+
+EXT = .exe
+
+CPPFLAGS += -I$(srcdir)/win32
+WSRCS = win32service.c
+WOBJS = $(WSRCS:.c=.o)
+WHDRS = win32service.h config_win32.h
+srcs += $(addprefix $(srcdir)/win32/, $(WSRCS))
+hdrs += $(addprefix $(srcdir)/win32/, $(WHDRS))
+objs += $(addprefix $(builddir)/lib/, $(WOBJS))
+
+dll = $(builddir)/pgbevent.dll
+dlldef = $(builddir)/lib/pgbevent.def
+dllobjs = $(builddir)/lib/eventmsg.o $(builddir)/lib/pgbevent.o
+
+endif
 
 # Quiet by default, 'make V=1' shows commands
 V=0
@@ -57,10 +76,10 @@ endif
 ## actual targets now ##
 
 # default target
-all: $(builddir)/pgbouncer doc-all
+all: $(exe) $(dll) doc-all
 
 # final executable
-$(builddir)/pgbouncer: $(builddir)/config.mak $(objs)
+$(exe): $(builddir)/config.mak $(objs)
 	$(E) "	LD" $@
 	$(Q) $(CC) -o $@ $(LDFLAGS) $(objs) $(LIBS)
 
@@ -70,12 +89,20 @@ $(builddir)/lib/%.o: $(srcdir)/src/%.c $(builddir)/config.mak $(hdrs)
 	$(E) "	CC" $<
 	$(Q) $(CC) -c -o $@ $< $(DEFS) $(CFLAGS) $(CPPFLAGS)
 
+$(builddir)/lib/%.o: $(srcdir)/win32/%.c $(builddir)/config.mak $(hdrs)
+	@mkdir -p $(builddir)/lib
+	$(E) "	CC" $<
+	$(Q) $(CC) -c -o $@ $< $(DEFS) $(CFLAGS) $(CPPFLAGS)
+
 # install binary and other stuff
-install: $(builddir)/pgbouncer doc-install
+install: $(exe) doc-install
 	mkdir -p $(DESTDIR)$(bindir)
 	mkdir -p $(DESTDIR)$(docdir)
-	$(BININSTALL) -m 755 $(builddir)/pgbouncer $(DESTDIR)$(bindir)
+	$(BININSTALL) -m 755 $(exe) $(DESTDIR)$(bindir)
 	$(INSTALL) -m 644 $(srcdir)/etc/pgbouncer.ini  $(DESTDIR)$(docdir)
+ifeq ($(PORTNAME),win32)
+	$(BININSTALL) -m 755 $(dll) $(DESTDIR)$(bindir)
+endif
 
 # create tarfile
 tgz: config.mak $(DISTFILES) $(MANPAGES)
@@ -98,7 +125,7 @@ deb: configure
 
 # clean object files
 clean: doc-clean
-	rm -f $(objs) $(builddir)/pgbouncer
+	rm -f $(objs) $(exe) $(dll) $(dlldef) $(dllobjs)
 
 # clean configure results
 distclean: clean doc-distclean
@@ -156,4 +183,27 @@ $(builddir)/lib/%.s: $(srcdir)/src/%.c config.mak $(hdrs)
 	$(Q) $(CC) -S -fverbose-asm -o $@ $< $(DEFS) $(CFLAGS) $(CPPFLAGS)
 asms = $(objs:.o=.s)
 asm: $(asms)
+
+ifeq ($(PORTNAME),win32)
+
+$(srcdir)/win32/eventmsg.rc: $(srcdir)/win32/eventmsg.mc
+	$(MC) $< -o $@ --include-dir=$(srcdir)/win32
+
+$(builddir)/lib/eventmsg.o: $(srcdir)/win32/eventmsg.rc
+	$(E) "	WINDRES" $<
+	$(Q) $(WINDRES) $< -o $@ --include-dir=$(srcdir)/win32
+
+$(dlldef): $(dllobjs)
+	$(E) "	DLLTOOL" $@
+	$(Q) $(DLLTOOL) --output-def $@ $(dllobjs)
+
+# final executable
+$(dll): $(builddir)/config.mak $(dllobjs) $(dlldef)
+	$(E) "	DLLWRAP" $@
+	$(Q) $(DLLWRAP) --def $(dlldef) -o $@ $(dllobjs)
+
+endif
+
+stripped: $(exe) $(dll)
+	$(STRIP) $(exe) $(dll)
 

@@ -9,6 +9,20 @@ pgbouncer - Lightweight connection pooler for PostgreSQL.
   pgbouncer [-d][-R][-v][-u user] <pgbouncer.ini>
   pgbouncer -V|-h
 
+The windows environment serves as the following options.
+
+  pgbouncer.exe [-v][-u user] <pgbouncer.ini>
+  pgbouncer.exe -V|-h
+
+Furthermore, this option is specially offered for windows-service.
+
+ <windows service registration>
+  -regservice   [servicename]
+  -unregservice [servicename]
+  -listengines  [servicename]
+  -addengine    [servicename] config.ini
+  -delengine    [servicename] config.ini
+
 == DESCRIPTION ==
 
 +pgbouncer+ is a PostgreSQL connection pooler. Any target application
@@ -97,11 +111,14 @@ Basic setup and usage as following.
 
 -d::
       Run in background. Without it the process will run in foreground.
+      Note: The windows environment should use the special option for service
+      operation.
 
 -R::
       Do a online restart. That means connecting to running process, loading
       open sockets from it and using them.  If there is no active process,
       boot normally.
+      Note: The windows environment is not equipped.
 
 -u user::
       Switch to user on startup.
@@ -350,6 +367,7 @@ Shows list of fds in use. When the connected user has username
 "pgbouncer", connects thru unix socket and has same UID as running
 process, the actual fds are passed over connection. This mechanism is
 used to do online restart.
+Note: The windows environment is not supported.
 
 fd::
   File descriptor numeric value.

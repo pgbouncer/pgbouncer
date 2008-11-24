@@ -22,10 +22,12 @@
 
 #include "bouncer.h"
 
-#include <sys/resource.h>
-
 #include <signal.h>
 #include <getopt.h>
+
+#ifdef WIN32
+#include "win32service.h"
+#endif
 
 static bool set_mode(ConfElem *elem, const char *val, PgSocket *console);
 static const char *get_mode(ConfElem *elem);
@@ -35,13 +37,24 @@ static bool set_defer_accept(ConfElem *elem, const char *val, PgSocket *console)
 
 static const char *usage_str =
 "Usage: %s [OPTION]... config.ini\n"
+#ifndef WIN32
 "  -d            Run in background (as a daemon)\n"
 "  -R            Do a online restart\n"
 "  -q            Run quietly\n"
+#endif
 "  -v            Increase verbosity\n"
 "  -u <username> Assume identity of <username>\n"
 "  -V            Show version\n"
-"  -h            Show this help screen and exit\n";
+"  -h            Show this help screen and exit\n"
+#ifdef WIN32
+" <windows service registration>\n"
+"  -regservice   [servicename]\n"
+"  -unregservice [servicename]\n"
+"  -listengines  [servicename]\n"
+"  -addengine    [servicename] config.ini\n"
+"  -delengine    [servicename] config.ini\n"
+#endif
+"";
 
 static void usage(int err, char *exe)
 {
@@ -66,7 +79,11 @@ static char *cf_config_file;
 
 char *cf_listen_addr = NULL;
 int cf_listen_port = 6432;
+#ifndef WIN32
 char *cf_unix_socket_dir = "/tmp";
+#else
+char *cf_unix_socket_dir = "";
+#endif
 
 int cf_pool_mode = POOL_SESSION;
 
@@ -133,7 +150,9 @@ ConfElem bouncer_params[] = {
 {"pidfile",		false, CF_STR, &cf_pidfile},
 {"listen_addr",		false, CF_STR, &cf_listen_addr},
 {"listen_port",		false, CF_INT, &cf_listen_port},
+#ifndef WIN32
 {"unix_socket_dir",	false, CF_STR, &cf_unix_socket_dir},
+#endif
 {"auth_type",		true, {get_auth, set_auth}},
 {"auth_file",		true, CF_STR, &cf_auth_file},
 {"pool_mode",		true, {get_mode, set_mode}},
@@ -141,7 +160,9 @@ ConfElem bouncer_params[] = {
 {"default_pool_size",	true, CF_INT, &cf_default_pool_size},
 {"syslog",		true, CF_INT, &cf_syslog},
 {"syslog_facility",	true, CF_STR, &cf_syslog_facility},
+#ifndef WIN32
 {"user",		false, CF_STR, &cf_username},
+#endif
 
 {"autodb_idle_timeout",	true, CF_TIME, &cf_autodb_idle_timeout},
 
@@ -302,9 +323,6 @@ void load_config(bool reload)
  */
 static struct event ev_sigterm;
 static struct event ev_sigint;
-static struct event ev_sigusr1;
-static struct event ev_sigusr2;
-static struct event ev_sighup;
 
 static void handle_sigterm(int sock, short flags, void *arg)
 {
@@ -323,6 +341,12 @@ static void handle_sigint(int sock, short flags, void *arg)
 	cf_pause_mode = P_PAUSE;
 	cf_shutdown = 1;
 }
+
+#ifndef WIN32
+
+static struct event ev_sigusr1;
+static struct event ev_sigusr2;
+static struct event ev_sighup;
 
 static void handle_sigusr1(int sock, short flags, void *arg)
 {
@@ -362,10 +386,13 @@ static void handle_sighup(int sock, short flags, void *arg)
 	log_info("Got SIGHUP re-reading config");
 	load_config(true);
 }
+#endif
 
 static void signal_setup(void)
 {
 	int err;
+
+#ifndef WIN32
 	sigset_t set;
 
 	/* block SIGPIPE */
@@ -376,16 +403,6 @@ static void signal_setup(void)
 		fatal_perror("sigprocmask");
 
 	/* install handlers */
-
-	signal_set(&ev_sigterm, SIGTERM, handle_sigterm, NULL);
-	err = signal_add(&ev_sigterm, NULL);
-	if (err < 0)
-		fatal_perror("signal_add");
-
-	signal_set(&ev_sigint, SIGINT, handle_sigint, NULL);
-	err = signal_add(&ev_sigint, NULL);
-	if (err < 0)
-		fatal_perror("signal_add");
 
 	signal_set(&ev_sigusr1, SIGUSR1, handle_sigusr1, NULL);
 	err = signal_add(&ev_sigusr1, NULL);
@@ -399,6 +416,16 @@ static void signal_setup(void)
 
 	signal_set(&ev_sighup, SIGHUP, handle_sighup, NULL);
 	err = signal_add(&ev_sighup, NULL);
+	if (err < 0)
+		fatal_perror("signal_add");
+#endif
+	signal_set(&ev_sigterm, SIGTERM, handle_sigterm, NULL);
+	err = signal_add(&ev_sigterm, NULL);
+	if (err < 0)
+		fatal_perror("signal_add");
+
+	signal_set(&ev_sigint, SIGINT, handle_sigint, NULL);
+	err = signal_add(&ev_sigint, NULL);
 	if (err < 0)
 		fatal_perror("signal_add");
 }
@@ -444,7 +471,6 @@ static void go_daemon(void)
 		fatal_perror("fork");
 	if (pid > 0)
 		_exit(0);
-
 }
 
 /*
@@ -620,15 +646,53 @@ static void takeover_part1(void)
 	event_base_free(evtmp);
 }
 
+#ifdef WIN32
+static void win32_startup(int argc, char *argv[])
+{
+	WSADATA wsaData;
+
+	/* parse cmdline */
+	if (argc >= 2 && !strcmp(argv[1], "-service"))
+	{
+		win32_servicestart();
+		exit(0);
+	}
+	if (argc >= 2 && !strcmp(argv[1], "-subservice"))
+	{
+		cf_quiet = 1;
+		argc--;
+		argv++;
+        }
+	if (argc >= 2 && argc <= 4 && (
+		!strcmp(argv[1], "-regservice") ||
+		!strcmp(argv[1], "-unregservice") ||
+		!strcmp(argv[1], "-addengine") ||
+		!strcmp(argv[1], "-delengine") ||
+		!strcmp(argv[1], "-listengines")))
+	{
+		win32_serviceconfig(argc, argv);
+		exit(0);
+	}
+
+	if (!WSAStartup(MAKEWORD(2,0), &wsaData))
+		fatal("Cannot start the network subsystem");
+}
+#endif
+
 /* boot everything */
 int main(int argc, char *argv[])
 {
 	int c;
 	bool did_takeover = false;
 	char *arg_username = NULL;
+#ifndef WIN32
+	const char *flags = "avhV" "qdRu:";
+#else
+	const char *flags = "avhV";
 
-	/* parse cmdline */
-	while ((c = getopt(argc, argv, "avhdVRu:")) != EOF) {
+	win32_startup(argc, argv);
+#endif
+	while ((c = getopt(argc, argv, flags)) != EOF) {
 		switch (c) {
 		case 'R':
 			cf_reboot = 1;

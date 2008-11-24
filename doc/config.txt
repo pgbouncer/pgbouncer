@@ -27,6 +27,7 @@ appear later in the line.
 
 Specifies log file. Log file is kept open so after rotation
 `kill -HUP` or on console `RELOAD;` should be done.
+Note: The windows environment by a stop and start with a service property.
 
 Default: not set.
 
@@ -54,6 +55,7 @@ Default: 6432
 
 Specifies location for Unix sockets. Applies to both listening socket and
 server connections. If set to empty string, Unix sockets are disabled.
+Note: Did not support in the windows environment.
 
 Default: +/tmp+
 
@@ -61,6 +63,7 @@ Default: +/tmp+
 
 If set, specifies UNIX user to change to.  Work only if started as root
 or `user` is same as current user.
+Note: Did not support in the windows environment.
 
 Default: not set
 
@@ -125,6 +128,7 @@ The theoretical maximum should be never reached, unless somebody deliberately
 crafts special load for it.  Still, it means you should give fds liberately.
 
 Search for `ulimit` in your favourite shell man page.
+Note: `ulimit` can't be held in the windows environment for now.
 
 Default: 100
 
@@ -160,6 +164,7 @@ Default: empty
 ==== syslog ====
 
 Toggles syslog on/off
+As for windows environment, eventlog is used for substitution.
 
 Default: 0
 

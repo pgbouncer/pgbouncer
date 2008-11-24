@@ -1,0 +1,169 @@
+#ifndef _CONFIG_WIN32_
+#define _CONFIG_WIN32_
+
+#define WIN32_LEAN_AND_MEAN
+
+#include <errno.h>
+#include <stdint.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+
+#define ECONNABORTED WSAECONNABORTED
+#define EINPROGRESS WSAEINPROGRESS
+#define EWOULDBLOCK WSAEWOULDBLOCK
+#undef EAGAIN
+#define EAGAIN WSAEWOULDBLOCK // WSAEAGAIN
+#define EMSGSIZE WSAEMSGSIZE
+
+#undef errno
+#define errno WSAGetLastError()
+
+/* dummy types / functions */
+#define uid_t int
+#define gid_t int
+#define hstrerror strerror
+#define getuid() (6667)
+#define setsid() getpid()
+#define setgid(x) (-1)
+#define setuid(x) (-1)
+#define fork() (-1)
+#define geteuid() getuid()
+#define setgroups(s, p) (-1)
+
+#define srandom(s) srand(s)
+#define random() rand()
+
+typedef enum
+{
+	LOG_CRIT = -4,
+	LOG_ERR,
+	LOG_WARNING,
+	LOG_INFO,
+	LOG_DEBUG
+} Log_Level;
+
+#define in_addr_t   uint32_t
+
+/*
+ * make recvmsg/sendmsg and fd related code compile
+ */
+
+struct iovec {
+	void	*iov_base;	/* Base address. */
+	size_t	 iov_len;	/* Length. */
+};
+
+struct msghdr {
+	void         *msg_name;
+	socklen_t     msg_namelen;
+	struct iovec *msg_iov;
+	int           msg_iovlen;
+	void         *msg_control;
+	socklen_t     msg_controllen;
+	int           msg_flags;
+};
+
+struct cmsghdr {
+	socklen_t	cmsg_len;
+	int		cmsg_level;
+	int		cmsg_type;
+};
+
+
+#define SCM_RIGHTS 1
+
+#define CMSG_DATA(cmsg) ((unsigned char *) ((struct cmsghdr *) (cmsg) + 1))
+#define CMSG_ALIGN(len) (((len) + sizeof (size_t) - 1) \
+	& ~(sizeof (size_t) - 1))
+#define CMSG_LEN(len) ((int)(CMSG_ALIGN(sizeof(struct cmsghdr))+(len)))
+#define CMSG_FIRSTHDR(mhdr) \
+	((mhdr)->msg_controllen >= (int)sizeof(struct cmsghdr) ? \
+	(struct cmsghdr *)(mhdr)->msg_control : \
+	(struct cmsghdr *)NULL)
+#define CMSG_NXTHDR(mhdr, cmsg) \
+	(((cmsg) == NULL) ? CMSG_FIRSTHDR(mhdr) : \
+	(((u_char *)(cmsg) + CMSG_ALIGN((cmsg)->cmsg_len) \
+	+ CMSG_ALIGN(sizeof(struct cmsghdr)) > \
+	(u_char *)((mhdr)->msg_control) + (mhdr)->msg_controllen) ? \
+	(struct cmsghdr *)NULL : \
+	(struct cmsghdr *)((u_char *)(cmsg) + CMSG_ALIGN((cmsg)->cmsg_len))))
+#define CMSG_SPACE(len) (CMSG_ALIGN(sizeof(struct cmsghdr))+CMSG_ALIGN(len))
+
+/* proper signature for setsockopt */
+static inline int w_setsockopt(int fd, int level, int optname, const void *optval, socklen_t optlen)
+{
+	return setsockopt(fd, level, optname, optval, optlen);
+}
+#define setsockopt(a,b,c,d,e) w_setsockopt(a,b,c,d,e)
+
+/* gettimeoutday() */
+static inline int win32_gettimeofday(struct timeval * tp, void * tzp)
+{
+	FILETIME file_time;
+	SYSTEMTIME system_time;
+	ULARGE_INTEGER ularge;
+	__int64 epoch = 116444736000000000LL;
+
+	GetSystemTime(&system_time);
+	SystemTimeToFileTime(&system_time, &file_time);
+	ularge.LowPart = file_time.dwLowDateTime;
+	ularge.HighPart = file_time.dwHighDateTime;
+
+	tp->tv_sec = (long) ((ularge.QuadPart - epoch) / 10000000L);
+	tp->tv_usec = (long) (system_time.wMilliseconds * 1000);
+
+	return 0;
+}
+#define gettimeofday win32_gettimeofday
+
+/* make unix socket related code compile */
+struct sockaddr_un {
+	int sun_family;
+	char sun_path[128];
+};
+
+/* getrlimit() */
+#define RLIMIT_NOFILE -1
+struct rlimit {
+	int rlim_cur;
+	int rlim_max;
+};
+static inline int getrlimit(int res, struct rlimit *dst)
+{
+	dst->rlim_cur = dst->rlim_max = -1;
+	return 0;
+}
+
+/* kill is only used to detect if process is running, be always successful */
+static inline int kill(int pid, int sig)
+{
+	return (sig == 0) ? 0 : -1;
+}
+
+/* sendmsg is not used */
+static inline int sendmsg(int s, const struct msghdr *m, int flags)
+{
+	return -1;
+}
+
+/* recvmsg() is, but only with one iov */
+static inline int recvmsg(int s, struct msghdr *m, int flags)
+{
+	if (m->msg_iovlen != 1)
+		return -1;
+	if (m->msg_controllen)
+		m->msg_controllen = 0;
+	return recv(s, m->msg_iov[0].iov_base,
+		    m->msg_iov[0].iov_len, flags);
+}
+
+/* dummy getpwnam() */
+struct passwd {
+	char *pw_name;
+	char *pw_passwd;
+	int pw_uid;
+	int pw_gid;
+};
+static inline const struct passwd * getpwnam(const char *u) { return NULL; }
+
+#endif /* _CONFIG_WIN32_ */

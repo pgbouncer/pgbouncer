@@ -24,18 +24,37 @@
 #include "config.h"
 #endif
 
+#ifdef WIN32
+#include "compat_win32.h"
+#endif
+
 /* glibc is useless without it */
 #define _GNU_SOURCE
 
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/time.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
+
+#ifdef HAVE_SYS_SOCKET_H
+#include <sys/socket.h>
+#endif
+#ifdef HAVE_SYS_UN_H
 #include <sys/un.h>
+#endif
+#ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
+#endif
+#ifdef HAVE_NETINET_TCP_H
 #include <netinet/tcp.h>
+#endif
+#ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
+#endif
+#ifdef HAVE_ARPA_INET_H
+#include <sys/resource.h>
+#endif
+
 #include <time.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -165,9 +184,14 @@ int getpeereid(int fd, uid_t *uid_p, gid_t *gid_p) _MUSTCHECK;
 const char *basename(const char *path);
 #endif
 #ifndef HAVE_CRYPT
-#define crypt(p,s) (NULL)
+static inline char *crypt(const char *p, const char *s) { return NULL; }
+#endif
+#ifndef HAVE_INET_NTOP
+const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt);
+#endif
+#ifndef HAVE_LSTAT
+static inline int lstat(const char *path, struct stat *st) { return stat(path, st); }
 #endif
 
 void change_user(const char *user);
-
 

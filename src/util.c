@@ -22,13 +22,17 @@
 
 #include "bouncer.h"
 
+#ifndef WIN32
 #include <syslog.h>
+#else
+#include "win32service.h"
+#endif
 
 #include "md5.h"
 
-static int syslog_started = 0;
 static int log_fd = 0;
 
+static int syslog_started = 0;
 struct FacName { const char *name; int code; };
 static struct FacName facility_names [] = {
 	{ "auth",	LOG_AUTH },
@@ -63,13 +67,13 @@ void *zmalloc(size_t len)
 
 static void render_time(char *buf, int max)
 {
-	struct tm tm;
+	struct tm *tm;
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
-	localtime_r(&tv.tv_sec, &tm);
+	tm = localtime(&tv.tv_sec);
 	snprintf(buf, max, "%04d-%02d-%02d %02d:%02d:%02d.%03d",
-		 tm.tm_year, tm.tm_mon, tm.tm_mday,
-		 tm.tm_hour, tm.tm_min, tm.tm_sec,
+		 tm->tm_year, tm->tm_mon, tm->tm_mday,
+		 tm->tm_hour, tm->tm_min, tm->tm_sec,
 		 (int)(tv.tv_usec / 1000));
 }
 
@@ -297,7 +301,13 @@ int safe_close(int fd)
 loop:
 	/* by manpage, the close() could be interruptable
 	   although it seems that at least in linux it cannot happen */
+#ifndef WIN32
 	res = close(fd);
+#else
+	/* Pending(this is necessary to wait for FIN of a client.) */
+	log_debug("closesocket(%d)",fd);
+	res = closesocket(fd);
+#endif
 	if (res < 0 && errno == EINTR)
 		goto loop;
 	return res;
@@ -349,12 +359,13 @@ loop:
 static const char *sa2str(const struct sockaddr *sa)
 {
 	static char buf[256];
-	if (sa->sa_family == AF_UNIX) {
-		struct sockaddr_un *un = (struct sockaddr_un *)sa;
-		snprintf(buf, sizeof(buf), "unix:%s", un->sun_path);
-	} else if (sa->sa_family == AF_INET) {
+
+	if (sa->sa_family == AF_INET) {
 		struct sockaddr_in *in = (struct sockaddr_in *)sa;
 		snprintf(buf, sizeof(buf), "%s:%d", inet_ntoa(in->sin_addr), ntohs(in->sin_port));
+	} if (sa->sa_family == AF_UNIX) {
+		struct sockaddr_un *un = (struct sockaddr_un *)sa;
+		snprintf(buf, sizeof(buf), "unix:%s", un->sun_path);
 	} else {
 		snprintf(buf, sizeof(buf), "sa2str: unknown proto");
 	}
@@ -501,6 +512,7 @@ void reset_time_cache(void)
 
 void socket_set_nonblocking(int fd, int val)
 {
+#ifndef WIN32
 	int flags, res;
 
 	/* get old flags */
@@ -518,6 +530,11 @@ void socket_set_nonblocking(int fd, int val)
 	res = fcntl(fd, F_SETFL, flags);
 	if (res < 0)
 		fatal_perror("fcntl(F_SETFL)");
+#else
+	ULONG NonBlock = val ? 1 : 0;
+	if (ioctlsocket(fd, FIONBIO, &NonBlock) == SOCKET_ERROR)
+		fatal_perror("ioctlsocket error");
+#endif
 }
 
 /* set needed socket options */
@@ -526,11 +543,15 @@ void tune_socket(int sock, bool is_unix)
 	int res;
 	int val;
 
+#ifndef WIN32
 	/* close fd on exec */
 	res = fcntl(sock, F_SETFD, FD_CLOEXEC);
 	if (res < 0)
 		fatal_perror("fcntl FD_CLOEXEC");
-
+#else
+	if (!SetHandleInformation((HANDLE)sock, HANDLE_FLAG_INHERIT, 0))
+		fatal_perror("SetHandleInformation");
+#endif
 	/* when no data available, return EAGAIN instead blocking */
 	socket_set_nonblocking(sock, 1);
 

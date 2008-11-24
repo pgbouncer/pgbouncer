@@ -5,6 +5,21 @@ AC_CONFIG_SRCDIR(src/janitor.c)
 AC_CONFIG_HEADER(include/config.h)
 AC_PREREQ([2.59])
 
+dnl windows port check (Not use AC_CANONICAL_HOST)
+AC_MSG_CHECKING([target host type])
+xhost="$host_alias"
+if test "x$xhost" = "x"; then
+  xhost=`uname -s`
+fi
+case $xhost in
+*cygwin* | *mingw* | *pw32* | *MINGW*)
+   LIBS="$LIBS -lws2_32"
+   PORTNAME=win32;;
+*) PORTNAME=unix ;;
+esac
+AC_SUBST(PORTNAME)
+AC_MSG_RESULT([$PORTNAME])
+
 dnl Checks for programs.
 AC_PROG_CC
 AC_PROG_CPP
@@ -54,6 +69,15 @@ if test -n "$ASCIIDOC"; then
   AC_CHECK_PROGS(XMLTO, xmlto)
 fi
 
+dnl check for windows tools
+if test "$PORTNAME" = "win32"; then
+  AC_CHECK_TOOL([MC], [mc])
+  AC_CHECK_TOOL([WINDRES], [windres])
+  AC_CHECK_TOOL([DLLWRAP], [dllwrap])
+  AC_CHECK_TOOL([DLLTOOL], [dlltool])
+fi
+AC_CHECK_TOOL([STRIP], [strip])
+
 dnl Additional gcc tuning
 if test x"$GCC" = xyes; then
   AC_MSG_CHECKING([for working warning switches])
@@ -76,6 +100,8 @@ fi
 
 dnl Checks for header files.
 AC_CHECK_HEADERS([crypt.h sys/param.h sys/socket.h sys/uio.h libgen.h pwd.h grp.h])
+AC_CHECK_HEADERS([sys/resource.h sys/wait.h sys/un.h arpa/inet.h])
+AC_CHECK_HEADERS([netinet/in.h netinet/tcp.h netdb.h regex.h])
 
 dnl ucred.h may have prereqs
 AC_CHECK_HEADERS([ucred.h sys/ucred.h], [], [], [
@@ -113,7 +139,8 @@ AC_SEARCH_LIBS(clock_gettime, rt)
 AC_SEARCH_LIBS(getsockname, socket)
 AC_SEARCH_LIBS(gethostbyname, nsl)
 AC_SEARCH_LIBS(hstrerror, resolv)
-AC_CHECK_FUNCS(crypt)
+AC_SEARCH_LIBS(regcomp, regex, [], AC_MSG_ERROR([regcomp not found]))
+AC_CHECK_FUNCS(crypt inet_ntop lstat)
 
 dnl Find libevent
 AC_MSG_CHECKING([for libevent])

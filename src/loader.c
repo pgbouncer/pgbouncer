@@ -22,7 +22,9 @@
 
 #include "bouncer.h"
 
+#ifdef HAVE_NETDB_H
 #include <netdb.h>
+#endif
 
 /*
  * ConnString parsing

@@ -512,6 +512,9 @@ int main(int argc, char *argv[])
 	unsigned seed = time(NULL) ^ getpid();
 	char *cstr = NULL;
 	int numcon = 50;
+#ifdef WIN32
+	WSADATA wsaData;
+#endif
 
 	while ((c = getopt(argc, argv, "S:d:n:s:t:hvC:Q:q:")) != EOF) {
 		switch (c) {
@@ -559,7 +562,13 @@ int main(int argc, char *argv[])
 		printf(usage_str);
 		return 1;
 	}
-
+#ifdef WIN32
+        wsresult = WSAStartup(MAKEWORD(2,0),&wsaData);
+        if (wsresult != 0)
+        {
+                fatal("Cannot start the network subsystem -%d", wsresult);
+        }
+#endif
 	if (throttle_connects < 0 || throttle_queries < 0 || numcon < 0)
 		fatal("invalid parameter");
 

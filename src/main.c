@@ -674,7 +674,7 @@ static void win32_startup(int argc, char *argv[])
 		exit(0);
 	}
 
-	if (!WSAStartup(MAKEWORD(2,0), &wsaData))
+	if (WSAStartup(MAKEWORD(2,0), &wsaData))
 		fatal("Cannot start the network subsystem");
 }
 #endif

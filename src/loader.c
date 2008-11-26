@@ -232,7 +232,7 @@ void parse_database(char *name, char *connstr)
 	/* host= */
 	if (!host) {
 		/* default unix socket dir */
-		if (!cf_unix_socket_dir) {
+		if (!*cf_unix_socket_dir) {
 			log_error("skipping database %s because"
 				" unix socket not configured", name);
 			return;

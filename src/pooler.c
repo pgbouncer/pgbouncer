@@ -357,7 +357,7 @@ void pooler_setup(void)
 	if (cf_listen_addr && !fd_net)
 		fd_net = create_net_socket(cf_listen_addr, cf_listen_port);
 
-	if (cf_unix_socket_dir && !fd_unix)
+	if (*cf_unix_socket_dir && !fd_unix)
 		fd_unix = create_unix_socket(cf_unix_socket_dir, cf_listen_port);
 
 	if (!fd_net && !fd_unix)

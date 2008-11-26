@@ -52,7 +52,7 @@ EXT = .exe
 CPPFLAGS += -I$(srcdir)/win32
 WSRCS = win32service.c
 WOBJS = $(WSRCS:.c=.o)
-WHDRS = win32service.h config_win32.h
+WHDRS = win32service.h compat_win32.h
 srcs += $(addprefix $(srcdir)/win32/, $(WSRCS))
 hdrs += $(addprefix $(srcdir)/win32/, $(WHDRS))
 objs += $(addprefix $(builddir)/lib/, $(WOBJS))

@@ -186,9 +186,6 @@ asm: $(asms)
 
 ifeq ($(PORTNAME),win32)
 
-$(srcdir)/win32/eventmsg.rc: $(srcdir)/win32/eventmsg.mc
-	$(MC) $< -o $@ --include-dir=$(srcdir)/win32
-
 $(builddir)/lib/eventmsg.o: $(srcdir)/win32/eventmsg.rc
 	$(E) "	WINDRES" $<
 	$(Q) $(WINDRES) $< -o $@ --include-dir=$(srcdir)/win32

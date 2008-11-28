@@ -71,7 +71,6 @@ fi
 
 dnl check for windows tools
 if test "$PORTNAME" = "win32"; then
-  AC_CHECK_TOOL([MC], [mc])
   AC_CHECK_TOOL([WINDRES], [windres])
   AC_CHECK_TOOL([DLLWRAP], [dllwrap])
   AC_CHECK_TOOL([DLLTOOL], [dlltool])

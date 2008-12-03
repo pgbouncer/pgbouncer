@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <time.h>
 
 #define ECONNABORTED WSAECONNABORTED
 #define EMSGSIZE WSAEMSGSIZE
@@ -199,5 +200,13 @@ struct passwd {
 	int pw_gid;
 };
 static inline const struct passwd * getpwnam(const char *u) { return NULL; }
+
+/* fix localtime */
+static inline struct tm *w_localtime(const time_t *timep) {
+	struct tm *res = localtime(timep);
+	if (res) res->tm_year += 1900;
+	return res;
+}
+#define localtime(a) w_localtime(a)
 
 #endif /* _CONFIG_WIN32_ */

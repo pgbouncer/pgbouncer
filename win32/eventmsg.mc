@@ -1,5 +1,5 @@
 MessageId=0
-SymbolicName=PGWIN32_EVENTLOG_MSG
+SymbolicName=0x00000000L
 Language=English
 %1
 .

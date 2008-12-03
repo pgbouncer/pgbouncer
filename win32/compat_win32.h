@@ -9,11 +9,11 @@
 #include <ws2tcpip.h>
 
 #define ECONNABORTED WSAECONNABORTED
-#define EINPROGRESS WSAEINPROGRESS
-#define EWOULDBLOCK WSAEWOULDBLOCK
+#define EMSGSIZE WSAEMSGSIZE
+#define EINPROGRESS WSAEWOULDBLOCK // WSAEINPROGRESS
+
 #undef EAGAIN
 #define EAGAIN WSAEWOULDBLOCK // WSAEAGAIN
-#define EMSGSIZE WSAEMSGSIZE
 
 /* dummy types / functions */
 #define uid_t int
@@ -120,8 +120,11 @@ static inline struct hostent *w_gethostbyname(const char *n) {
 }
 #define gethostbyname(a) w_gethostbyname(a)
 
+const char *wsa_strerror(int e);
+
 static inline const char *w_strerror(int e) {
-	/* wsa does not have its own strerror, maybe main one works */
+	if (e > 900)
+		return wsa_strerror(e);
 	return strerror(e);
 }
 #define strerror(x) w_strerror(x)

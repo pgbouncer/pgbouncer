@@ -594,3 +594,22 @@ void syslog(int prio, const char *fmt, ...)
 void closelog(void)
 {
 }
+
+#define WCASE(x) case x: return #x
+const char *wsa_strerror(int e)
+{
+	static char wsa_buf[256];
+	switch (e) {
+	/* display few common ones by name */
+	WCASE(WSAEWOULDBLOCK);
+	WCASE(WSAEINPROGRESS);
+	WCASE(WSAECONNABORTED);
+	WCASE(WSAEINTR);
+	default:
+		snprintf(wsa_buf, sizeof(wsa_buf), "wsa_error: %d", e);
+		return wsa_buf;
+	}
+}
+#define strerror(x) w_strerror(x)
+
+

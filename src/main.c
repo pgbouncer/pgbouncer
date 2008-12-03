@@ -549,7 +549,7 @@ static void write_pidfile(void)
 	res = safe_write(fd, buf, strlen(buf));
 	if (res < 0)
 		fatal_perror(cf_pidfile);
-	safe_close(fd);
+	close(fd);
 
 	/* only remove when we have it actually written */
 	atexit(remove_pidfile);

@@ -123,7 +123,7 @@ static void write_syslog(const char *pfx, const char *msg)
 void close_logfile(void)
 {
 	if (log_fd > 0) {
-		safe_close(log_fd);
+		close(log_fd);
 		log_fd = 0;
 	}
 	close_syslog();
@@ -432,7 +432,7 @@ char *load_file(const char *fn)
 		goto load_error;
 	}
 
-	safe_close(fd);
+	close(fd);
 	buf[st.st_size] = 0;
 
 	return buf;

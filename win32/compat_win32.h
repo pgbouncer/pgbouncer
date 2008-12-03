@@ -15,9 +15,6 @@
 #define EAGAIN WSAEWOULDBLOCK // WSAEAGAIN
 #define EMSGSIZE WSAEMSGSIZE
 
-#undef errno
-#define errno WSAGetLastError()
-
 /* dummy types / functions */
 #define uid_t int
 #define gid_t int
@@ -89,12 +86,46 @@ struct cmsghdr {
 	(struct cmsghdr *)((u_char *)(cmsg) + CMSG_ALIGN((cmsg)->cmsg_len))))
 #define CMSG_SPACE(len) (CMSG_ALIGN(sizeof(struct cmsghdr))+CMSG_ALIGN(len))
 
+/*
+ * unify WSAGetLastError() with errno.
+ */
+
+static inline int ewrap(int res) {
+	if (res < 0)
+		errno = WSAGetLastError();
+	return res;
+}
+
 /* proper signature for setsockopt */
 static inline int w_setsockopt(int fd, int level, int optname, const void *optval, socklen_t optlen)
 {
-	return setsockopt(fd, level, optname, optval, optlen);
+	return ewrap(setsockopt(fd, level, optname, optval, optlen));
 }
 #define setsockopt(a,b,c,d,e) w_setsockopt(a,b,c,d,e)
+
+#define connect(a,b,c) ewrap(connect(a,b,c))
+#define recv(a,b,c,d) ewrap(recv(a,b,c,d))
+#define send(a,b,c,d) ewrap(send(a,b,c,d))
+#define socket(a,b,c) ewrap(socket(a,b,c))
+#define bind(a,b,c) ewrap(bind(a,b,c))
+#define listen(a,b) ewrap(listen(a,b))
+#define accept(a,b,c) ewrap(accept(a,b,c))
+#define getpeername(a,b,c) ewrap(getpeername(a,b,c))
+#define getsockname(a,b,c) ewrap(getsockname(a,b,c))
+
+static inline struct hostent *w_gethostbyname(const char *n) {
+	struct hostent *res = gethostbyname(n);
+	if (!res) errno = WSAGetLastError();
+	return res;
+}
+#define gethostbyname(a) w_gethostbyname(a)
+
+static inline const char *w_strerror(int e) {
+	/* wsa does not have its own strerror, maybe main one works */
+	return strerror(e);
+}
+#define strerror(x) w_strerror(x)
+
 
 /* gettimeoutday() */
 static inline int win32_gettimeofday(struct timeval * tp, void * tzp)

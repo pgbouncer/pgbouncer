@@ -169,10 +169,38 @@ static inline int getrlimit(int res, struct rlimit *dst)
 	return 0;
 }
 
-/* kill is only used to detect if process is running, be always successful */
+/* kill is only used to detect if process is running (ESRCH->not) */
 static inline int kill(int pid, int sig)
 {
-	return (sig == 0) ? 0 : -1;
+	HANDLE hProcess;
+	DWORD exitCode;
+	int ret = 0;
+
+	if (sig != 0) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid);
+	if (hProcess == NULL) {
+		if (GetLastError() == ERROR_INVALID_PARAMETER)
+			ret = ESRCH;
+		else
+			ret = EPERM;
+	} else {
+		/* OpenProcess may succed for exited processes */
+		if (GetExitCodeProcess(hProcess, &exitCode)) {
+			if (exitCode != STILL_ACTIVE)
+				ret = ESRCH;
+		}
+		CloseHandle(hProcess);
+	}
+
+	if (ret) {
+		errno = ret;
+		return -1;
+	} else
+		return  0;
 }
 
 /* sendmsg is not used */

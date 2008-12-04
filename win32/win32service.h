@@ -9,9 +9,6 @@
  *-------------------------------------------------------------------------
  */
 
-void win32_servicestart(void);
-void win32_serviceconfig(int argc, char *const argv[]);
-
 #define openlog		w_openlog
 #define syslog		w_syslog
 #define closelog	w_closelog

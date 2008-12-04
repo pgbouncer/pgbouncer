@@ -45,8 +45,28 @@ static char running_servicename[256];
 static DWORD childcount;
 static char **children_config_files;
 
+static const char *usage_str =
+"Usage: %s [OPTION]... config.ini\n"
+"  -v            Increase verbosity\n"
+"  -u <username> Assume identity of <username>\n"
+"  -V            Show version\n"
+"  -h            Show this help screen and exit\n"
+" <windows service registration>\n"
+"  -regservice   [servicename]\n"
+"  -unregservice [servicename]\n"
+"  -listengines  [servicename]\n"
+"  -addengine    [servicename] config.ini\n"
+"  -delengine    [servicename] config.ini\n"
+"";
+
+static void usage(int err, char *exe)
+{
+	printf(usage_str, basename(exe));
+	exit(err);
+}
+
 /* Start running as a service */
-void win32_servicestart(void)
+static void win32_servicestart(void)
 {
 	SERVICE_TABLE_ENTRY st[] = { {servicename, win32_servicemain}, {NULL, NULL} };
 
@@ -355,14 +375,8 @@ static void win32_eventlog(int level, const char *msg)
 	ReportEvent(evtHandle, elevel, 0, 0, NULL, 1, 0, (const char **)&msg, NULL);
 }
 
-static void usage(int err, char *exe)
-{
-	fprintf(stderr, "Bad usage, see -h for help\n");
-	exit(1);
-}
-
 /* Deal with service and engine registration and unregistration */
-void win32_serviceconfig(int argc, char *const argv[])
+static void win32_serviceconfig(int argc, char *const argv[])
 {
 	if (!strcmp(argv[1], "-regservice")) {
 		if (argc != 2 && argc != 3)
@@ -611,5 +625,58 @@ const char *wsa_strerror(int e)
 	}
 }
 #define strerror(x) w_strerror(x)
+
+static void manage_win32_service(int argc, char *argv[])
+{
+	/* parse cmdline */
+	if (argc >= 2 && !strcmp(argv[1], "-service"))
+	{
+		win32_servicestart();
+		exit(0);
+	}
+	if (argc >= 2 && !strcmp(argv[1], "-subservice"))
+	{
+		cf_quiet = 1;
+		argc--;
+		argv++;
+        }
+	if (argc >= 2 && argc <= 4 && (
+		!strcmp(argv[1], "-regservice") ||
+		!strcmp(argv[1], "-unregservice") ||
+		!strcmp(argv[1], "-addengine") ||
+		!strcmp(argv[1], "-delengine") ||
+		!strcmp(argv[1], "-listengines")))
+	{
+		win32_serviceconfig(argc, argv);
+		exit(0);
+	}
+}
+
+#undef main
+int main(int argc, char *argv[])
+{
+	int i, j;
+	WSADATA wsaData;
+
+	manage_win32_service(argc, argv);
+
+	/* check if regular arguments are in allowed list */
+	for (i = 1; i < argc; i++) {
+		char *p = argv[0];
+		if (p[0] != '-')
+			continue;
+		for (j = 1; p[j]; j++) {
+			if (!strchr("avhV", p[j]))
+				usage(1, argv[0]);
+		}
+	}
+
+	/* initialize socket subsystem */
+	if (WSAStartup(MAKEWORD(2,0), &wsaData))
+		fatal("Cannot start the network subsystem");
+
+	/* call actual main() */
+	return real_main(argc, argv);
+}
 
 

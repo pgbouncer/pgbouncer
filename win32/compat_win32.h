@@ -178,14 +178,21 @@ static inline int kill(int pid, int sig)
 /* sendmsg is not used */
 static inline int sendmsg(int s, const struct msghdr *m, int flags)
 {
-	return -1;
+	if (m->msg_iovlen != 1) {
+		errno = EINVAL;
+		return -1;
+	}
+	return send(s, m->msg_iov[0].iov_base,
+		    m->msg_iov[0].iov_len, flags);
 }
 
 /* recvmsg() is, but only with one iov */
 static inline int recvmsg(int s, struct msghdr *m, int flags)
 {
-	if (m->msg_iovlen != 1)
+	if (m->msg_iovlen != 1) {
+		errno = EINVAL;
 		return -1;
+	}
 	if (m->msg_controllen)
 		m->msg_controllen = 0;
 	return recv(s, m->msg_iov[0].iov_base,
@@ -208,5 +215,10 @@ static inline struct tm *w_localtime(const time_t *timep) {
 	return res;
 }
 #define localtime(a) w_localtime(a)
+
+/* redirect main() */
+#define main(a,b) real_main(a,b)
+int real_main(int argc, char *argv[]);
+
 
 #endif /* _CONFIG_WIN32_ */

@@ -30,9 +30,9 @@
 
 #include "md5.h"
 
+static int syslog_started = 0;
 static int log_fd = 0;
 
-static int syslog_started = 0;
 struct FacName { const char *name; int code; };
 static struct FacName facility_names [] = {
 	{ "auth",	LOG_AUTH },

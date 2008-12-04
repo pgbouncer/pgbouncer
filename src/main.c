@@ -25,10 +25,6 @@
 #include <signal.h>
 #include <getopt.h>
 
-#ifdef WIN32
-#include "win32service.h"
-#endif
-
 static bool set_mode(ConfElem *elem, const char *val, PgSocket *console);
 static const char *get_mode(ConfElem *elem);
 static bool set_auth(ConfElem *elem, const char *val, PgSocket *console);
@@ -37,24 +33,13 @@ static bool set_defer_accept(ConfElem *elem, const char *val, PgSocket *console)
 
 static const char *usage_str =
 "Usage: %s [OPTION]... config.ini\n"
-#ifndef WIN32
 "  -d            Run in background (as a daemon)\n"
 "  -R            Do a online restart\n"
 "  -q            Run quietly\n"
-#endif
 "  -v            Increase verbosity\n"
 "  -u <username> Assume identity of <username>\n"
 "  -V            Show version\n"
-"  -h            Show this help screen and exit\n"
-#ifdef WIN32
-" <windows service registration>\n"
-"  -regservice   [servicename]\n"
-"  -unregservice [servicename]\n"
-"  -listengines  [servicename]\n"
-"  -addengine    [servicename] config.ini\n"
-"  -delengine    [servicename] config.ini\n"
-#endif
-"";
+"  -h            Show this help screen and exit\n";
 
 static void usage(int err, char *exe)
 {
@@ -646,53 +631,15 @@ static void takeover_part1(void)
 	event_base_free(evtmp);
 }
 
-#ifdef WIN32
-static void win32_startup(int argc, char *argv[])
-{
-	WSADATA wsaData;
-
-	/* parse cmdline */
-	if (argc >= 2 && !strcmp(argv[1], "-service"))
-	{
-		win32_servicestart();
-		exit(0);
-	}
-	if (argc >= 2 && !strcmp(argv[1], "-subservice"))
-	{
-		cf_quiet = 1;
-		argc--;
-		argv++;
-        }
-	if (argc >= 2 && argc <= 4 && (
-		!strcmp(argv[1], "-regservice") ||
-		!strcmp(argv[1], "-unregservice") ||
-		!strcmp(argv[1], "-addengine") ||
-		!strcmp(argv[1], "-delengine") ||
-		!strcmp(argv[1], "-listengines")))
-	{
-		win32_serviceconfig(argc, argv);
-		exit(0);
-	}
-
-	if (WSAStartup(MAKEWORD(2,0), &wsaData))
-		fatal("Cannot start the network subsystem");
-}
-#endif
-
 /* boot everything */
 int main(int argc, char *argv[])
 {
 	int c;
 	bool did_takeover = false;
 	char *arg_username = NULL;
-#ifndef WIN32
-	const char *flags = "avhV" "qdRu:";
-#else
-	const char *flags = "avhV";
 
-	win32_startup(argc, argv);
-#endif
-	while ((c = getopt(argc, argv, flags)) != EOF) {
+	/* parse cmdline */
+	while ((c = getopt(argc, argv, "qvhdVRu:")) != EOF) {
 		switch (c) {
 		case 'R':
 			cf_reboot = 1;

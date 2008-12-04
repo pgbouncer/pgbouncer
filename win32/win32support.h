@@ -241,7 +241,10 @@ static inline const struct passwd * getpwnam(const char *u) { return NULL; }
 /* fix localtime */
 static inline struct tm *w_localtime(const time_t *timep) {
 	struct tm *res = localtime(timep);
-	if (res) res->tm_year += 1900;
+	if (res) {
+		res->tm_year += 1900;
+		res->tm_mon += 1;
+	}
 	return res;
 }
 #define localtime(a) w_localtime(a)

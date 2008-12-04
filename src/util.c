@@ -24,8 +24,6 @@
 
 #ifndef WIN32
 #include <syslog.h>
-#else
-#include "win32service.h"
 #endif
 
 #include "md5.h"

@@ -15,8 +15,6 @@
 
 #include "bouncer.h"
 
-#include "win32service.h"
-
 /* forward declarations */
 static void WINAPI win32_servicemain(DWORD argc, LPTSTR * argv);
 static void WINAPI win32_servicehandler(DWORD request);

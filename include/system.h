@@ -25,7 +25,7 @@
 #endif
 
 #ifdef WIN32
-#include "compat_win32.h"
+#include "win32support.h"
 #endif
 
 /* glibc is useless without it */

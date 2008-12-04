@@ -16,7 +16,8 @@ DATA = README NEWS AUTHORS etc/pgbouncer.ini etc/userlist.txt Makefile \
        test/Makefile test/asynctest.c test/conntest.sh test/ctest6000.ini \
        test/ctest7000.ini test/run-conntest.sh test/stress.py test/test.ini \
        test/test.sh test/userlist.txt etc/example.debian.init.sh doc/fixman.py \
-       win32/wbnmsgevent.mc win32/wbnmsgevent.rc win32/MSG00001.bin
+       win32/eventmsg.mc win32/eventmsg.rc win32/MSG00001.bin \
+       win32/win32support.c win32/win32support.h
 DIRS = doc etc include src debian test
 
 # keep autoconf stuff separate
@@ -32,7 +33,7 @@ hdrs = $(addprefix $(srcdir)/include/, $(HDRS))
 srcs = $(addprefix $(srcdir)/src/, $(SRCS))
 objs = $(addprefix $(builddir)/lib/, $(OBJS))
 FULL = $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)
-DISTFILES = $(DIRS) $(DATA) $(DOCS) $(srcs) $(hdrs) $(MANPAGES) $(WINPORT)
+DISTFILES = $(DIRS) $(DATA) $(DOCS) $(srcs) $(hdrs) $(MANPAGES)
 exe = $(builddir)/pgbouncer$(EXT)
 
 CPPCFLAGS += -I$(srcdir)/include
@@ -50,12 +51,12 @@ ifeq ($(PORTNAME),win32)
 EXT = .exe
 
 CPPFLAGS += -I$(srcdir)/win32
-WSRCS = win32service.c
+WSRCS = win32support.c
+WHDRS = win32support.h
 WOBJS = $(WSRCS:.c=.o)
-WHDRS = win32service.h compat_win32.h
-srcs += $(addprefix $(srcdir)/win32/, $(WSRCS))
-hdrs += $(addprefix $(srcdir)/win32/, $(WHDRS))
-objs += $(addprefix $(builddir)/lib/, $(WOBJS))
+srcs += $(srcdir)/win32/win32support.c
+hdrs += $(srcdir)/win32/win32support.h
+objs += $(builddir)/lib/win32support.o
 
 dll = $(builddir)/pgbevent.dll
 dlldef = $(builddir)/lib/pgbevent.def

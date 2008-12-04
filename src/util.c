@@ -512,7 +512,6 @@ void reset_time_cache(void)
 
 void socket_set_nonblocking(int fd, int val)
 {
-#ifndef WIN32
 	int flags, res;
 
 	/* get old flags */
@@ -530,11 +529,6 @@ void socket_set_nonblocking(int fd, int val)
 	res = fcntl(fd, F_SETFL, flags);
 	if (res < 0)
 		fatal_perror("fcntl(F_SETFL)");
-#else
-	ULONG NonBlock = val ? 1 : 0;
-	if (ioctlsocket(fd, FIONBIO, &NonBlock) == SOCKET_ERROR)
-		fatal_perror("ioctlsocket error");
-#endif
 }
 
 /* set needed socket options */
@@ -543,15 +537,11 @@ void tune_socket(int sock, bool is_unix)
 	int res;
 	int val;
 
-#ifndef WIN32
 	/* close fd on exec */
 	res = fcntl(sock, F_SETFD, FD_CLOEXEC);
 	if (res < 0)
 		fatal_perror("fcntl FD_CLOEXEC");
-#else
-	if (!SetHandleInformation((HANDLE)sock, HANDLE_FLAG_INHERIT, 0))
-		fatal_perror("SetHandleInformation");
-#endif
+
 	/* when no data available, return EAGAIN instead blocking */
 	socket_set_nonblocking(sock, 1);
 

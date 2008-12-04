@@ -104,6 +104,7 @@ static inline int w_setsockopt(int fd, int level, int optname, const void *optva
 }
 #define setsockopt(a,b,c,d,e) w_setsockopt(a,b,c,d,e)
 
+#define getsockopt(a,b,c,d,e) ewrap(getsockopt(a,b,c,d,e))
 #define connect(a,b,c) ewrap(connect(a,b,c))
 #define recv(a,b,c,d) ewrap(recv(a,b,c,d))
 #define send(a,b,c,d) ewrap(send(a,b,c,d))
@@ -113,6 +114,7 @@ static inline int w_setsockopt(int fd, int level, int optname, const void *optva
 #define accept(a,b,c) ewrap(accept(a,b,c))
 #define getpeername(a,b,c) ewrap(getpeername(a,b,c))
 #define getsockname(a,b,c) ewrap(getsockname(a,b,c))
+#define select(a,b,c,d,e) ewrap(select(a,b,c,d,e))
 
 static inline struct hostent *w_gethostbyname(const char *n) {
 	struct hostent *res = gethostbyname(n);
@@ -244,9 +246,97 @@ static inline struct tm *w_localtime(const time_t *timep) {
 }
 #define localtime(a) w_localtime(a)
 
+/*
+ * fcntl
+ */
+
+#define F_GETFD 1
+#define F_SETFD 2
+#define F_GETFL 3
+#define F_SETFL 4
+#define O_NONBLOCK 1
+#define FD_CLOEXEC HANDLE_FLAG_INHERIT
+
+static inline int fcntl(int fd, int cmd, long arg)
+{
+	ULONG lval;
+	DWORD dval;
+	switch (cmd) {
+	case F_GETFD:
+		if (GetHandleInformation((HANDLE)fd, &dval))
+			return dval;
+		errno = EINVAL;
+		return -1;
+	case F_SETFD:
+		/* set FD_CLOEXEC */
+		if (SetHandleInformation((HANDLE)fd, FD_CLOEXEC, arg))
+			return 0;
+		errno = EINVAL;
+		return -1;
+	case F_GETFL:
+		/* O_NONBLOCK? */
+		return 0;
+	case F_SETFL:
+		/* set O_NONBLOCK */
+		lval = (arg & O_NONBLOCK) ? 1 : 0;
+		if (ioctlsocket(fd, FIONBIO, &lval) == SOCKET_ERROR) {
+			errno = WSAGetLastError();
+			return -1;
+		}
+		return 0;
+	default:
+		errno = EINVAL;
+		return -1;
+	}
+}
+
+/*
+ * syslog
+ */
+
+#define openlog		w_openlog
+#define syslog		w_syslog
+#define closelog	w_closelog
+
+#define LOG_EMERG	0
+#define LOG_ALERT	1
+#define LOG_CRIT	2
+#define LOG_ERR		3
+#define LOG_WARNING	4
+#define LOG_NOTICE	5
+#define LOG_INFO	6
+#define LOG_DEBUG	7
+
+#define LOG_PID 0
+
+#define LOG_KERN 0
+#define LOG_USER 0
+#define LOG_MAIL 0
+#define LOG_DAEMON 0
+#define LOG_AUTH 0
+#define LOG_SYSLOG 0
+#define LOG_LPR 0
+#define LOG_NEWS 0
+#define LOG_UUCP 0
+#define LOG_CRON 0
+#define LOG_AUTHPRIV 0
+#define LOG_FTP 0
+#define LOG_LOCAL0 0
+#define LOG_LOCAL1 0
+#define LOG_LOCAL2 0
+#define LOG_LOCAL3 0
+#define LOG_LOCAL4 0
+#define LOG_LOCAL5 0
+#define LOG_LOCAL6 0
+#define LOG_LOCAL7 0
+
+
+void openlog(const char *ident, int option, int facility);
+void syslog(int priority, const char *format, ...);
+void closelog(void);
+
 /* redirect main() */
 #define main(a,b) real_main(a,b)
 int real_main(int argc, char *argv[]);
-
 
 #endif /* _CONFIG_WIN32_ */

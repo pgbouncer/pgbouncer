@@ -70,7 +70,7 @@ static void render_time(char *buf, int max)
 	gettimeofday(&tv, NULL);
 	tm = localtime(&tv.tv_sec);
 	snprintf(buf, max, "%04d-%02d-%02d %02d:%02d:%02d.%03d",
-		 tm->tm_year, tm->tm_mon, tm->tm_mday,
+		 tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
 		 tm->tm_hour, tm->tm_min, tm->tm_sec,
 		 (int)(tv.tv_usec / 1000));
 }

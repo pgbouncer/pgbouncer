@@ -665,8 +665,10 @@ int main(int argc, char *argv[])
 			usage(1, argv[0]);
 		}
 	}
-	if (optind + 1 != argc)
-		usage(1, argv[0]);
+	if (optind + 1 != argc) {
+		fprintf(stderr, "Need config file.  See pgbouncer -h for usage.\n");
+		exit(1);
+	}
 	cf_config_file = argv[optind];
 
 	init_objects();

@@ -1,5 +1,5 @@
 MessageId=0
-SymbolicName=0x00000000L
+SymbolicName=MSG_PGBOUNCER
 Language=English
 %1
 .

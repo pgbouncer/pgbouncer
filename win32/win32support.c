@@ -45,8 +45,8 @@ static char **children_config_files;
 
 static const char *usage_str =
 "Usage: %s [OPTION]... config.ini\n"
+"  -q            No console messages\n"
 "  -v            Increase verbosity\n"
-"  -u <username> Assume identity of <username>\n"
 "  -V            Show version\n"
 "  -h            Show this help screen and exit\n"
 " <windows service registration>\n"
@@ -660,12 +660,14 @@ int main(int argc, char *argv[])
 
 	/* check if regular arguments are in allowed list */
 	for (i = 1; i < argc; i++) {
-		char *p = argv[0];
+		char *p = argv[i];
 		if (p[0] != '-')
 			continue;
 		for (j = 1; p[j]; j++) {
-			if (!strchr("avhV", p[j]))
+			if (!strchr("qvhV", p[j]))
 				usage(1, argv[0]);
+			if (p[j] == 'h')
+				usage(0, argv[0]);
 		}
 	}
 

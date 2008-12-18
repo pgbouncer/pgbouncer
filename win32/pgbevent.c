@@ -14,7 +14,7 @@
 #define APP_KEY "SYSTEM\\CurrentControlSet\\Services\\EventLog\\Application\\pgbouncer"
 
 /* Global variables */
-HANDLE g_module = NULL;		/* hModule of DLL */
+static HANDLE g_module = NULL;	/* hModule of DLL */
 
 /* Prototypes */
 STDAPI DllRegisterServer(void);

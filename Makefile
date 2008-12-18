@@ -62,6 +62,8 @@ dll = $(builddir)/pgbevent.dll
 dlldef = $(builddir)/lib/pgbevent.def
 dllobjs = $(builddir)/lib/eventmsg.o $(builddir)/lib/pgbevent.o
 
+DEFFLAGS = --export-all-symbols
+
 endif
 
 # Quiet by default, 'make V=1' shows commands
@@ -193,7 +195,7 @@ $(builddir)/lib/eventmsg.o: $(srcdir)/win32/eventmsg.rc
 
 $(dlldef): $(dllobjs)
 	$(E) "	DLLTOOL" $@
-	$(Q) $(DLLTOOL) --output-def $@ $(dllobjs)
+	$(Q) $(DLLTOOL) $(DEFFLAGS) --output-def $@ $(dllobjs)
 
 # final executable
 $(dll): $(builddir)/config.mak $(dllobjs) $(dlldef)

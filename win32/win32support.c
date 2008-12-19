@@ -316,7 +316,7 @@ static HANDLE win32_start_engine(int num)
 			return INVALID_HANDLE_VALUE;
 		}
 	}
-	wsprintf(cmdline, "\"%s\" -subservice \"%s\"", self_process, children_config_files[num]);
+	wsprintf(cmdline, "\"%s\" -q \"%s\"", self_process, children_config_files[num]);
 
 	if (!CreateProcess(NULL, cmdline, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
 		log_error("Failed to spawn process for engine at '%s': %lu",
@@ -632,12 +632,6 @@ static void manage_win32_service(int argc, char *argv[])
 		win32_servicestart();
 		exit(0);
 	}
-	if (argc >= 2 && !strcmp(argv[1], "-subservice"))
-	{
-		cf_quiet = 1;
-		argc--;
-		argv++;
-        }
 	if (argc >= 2 && argc <= 4 && (
 		!strcmp(argv[1], "-regservice") ||
 		!strcmp(argv[1], "-unregservice") ||

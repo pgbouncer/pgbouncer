@@ -62,7 +62,7 @@ dll = $(builddir)/pgbevent.dll
 dlldef = $(builddir)/lib/pgbevent.def
 dllobjs = $(builddir)/lib/eventmsg.o $(builddir)/lib/pgbevent.o
 
-DEFFLAGS = --export-all-symbols
+DEFFLAGS = --export-all-symbols -A
 
 endif
 

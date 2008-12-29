@@ -8,6 +8,10 @@ CPPFLAGS += -I../include $(PGINC)
 LDFLAGS += $(PGLIB)
 LIBS := -lpq $(LIBS)
 
+ifeq ($(PORTNAME),win32)
+CPPFLAGS += -I../win32
+endif
+
 all: asynctest
 
 asynctest: asynctest.c

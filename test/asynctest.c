@@ -8,6 +8,11 @@
 
 #include "system.h"
 
+#ifdef WIN32
+#undef strerror
+#undef main
+#endif
+
 #include <getopt.h>
 #include <event.h>
 #include <libpq-fe.h>
@@ -513,6 +518,7 @@ int main(int argc, char *argv[])
 	char *cstr = NULL;
 	int numcon = 50;
 #ifdef WIN32
+	int wsresult;
 	WSADATA wsaData;
 #endif
 

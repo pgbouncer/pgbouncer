@@ -534,10 +534,10 @@ static void write_pidfile(void)
 
 	fd = open(cf_pidfile, O_WRONLY | O_CREAT | O_EXCL, 0644);
 	if (fd < 0)
-		fatal_perror(cf_pidfile);
+		fatal_perror("%s", cf_pidfile);
 	res = safe_write(fd, buf, strlen(buf));
 	if (res < 0)
-		fatal_perror(cf_pidfile);
+		fatal_perror("%s", cf_pidfile);
 	close(fd);
 
 	/* only remove when we have it actually written */

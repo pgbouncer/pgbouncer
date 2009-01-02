@@ -39,8 +39,6 @@
  *	send_pending();
  */	
 
-extern int cf_sbuf_len;
-
 /*
  * 0 .. done_pos         -- sent
  * done_pos .. parse_pos -- parsed, to send

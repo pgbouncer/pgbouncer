@@ -66,6 +66,8 @@ typedef struct PgAddr PgAddr;
 typedef enum SocketState SocketState;
 typedef struct PktHdr PktHdr;
 
+extern int cf_sbuf_len;
+
 #include "aatree.h"
 #include "hash.h"
 #include "util.h"
@@ -346,7 +348,6 @@ extern int cf_shutdown;
 extern int cf_reboot;
 
 extern int cf_sbuf_loopcnt;
-extern int cf_sbuf_len;
 extern int cf_tcp_keepalive;
 extern int cf_tcp_keepcnt;
 extern int cf_tcp_keepidle;

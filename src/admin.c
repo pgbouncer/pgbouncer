@@ -415,9 +415,9 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "ssissi",
+	pktbuf_write_RowDescription(buf, "ssissii",
 				    "name", "host", "port",
-				    "database", "force_user", "pool_size");
+				    "database", "force_user", "pool_size", "reserve_pool");
 	statlist_for_each(item, &database_list) {
 		db = container_of(item, PgDatabase, head);
 
@@ -430,7 +430,8 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 		pktbuf_write_DataRow(buf, "ssissi",
 				     db->name, host, db->addr.port,
 				     db->dbname, f_user,
-				     db->pool_size);
+				     db->pool_size,
+				     db->res_pool_size);
 	}
 	admin_flush(admin, buf, "SHOW");
 	return true;

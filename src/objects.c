@@ -331,6 +331,8 @@ PgDatabase *register_auto_database(const char *name)
 		/* do not forget to check pool_size like in config_postprocess */
 		if (db->pool_size < 0)
 			db->pool_size = cf_default_pool_size;
+		if (db->res_pool_size < 0)
+			db->res_pool_size = cf_res_pool_size;
 	}
 
 	return db;
@@ -772,11 +774,23 @@ void launch_new_connection(PgPool *pool)
 	/* is it allowed to add servers? */
 	total = pool_server_count(pool);
 	if (total >= pool->db->pool_size && pool->welcome_msg_ready) {
+		/* should we use reserve pool? */
+		if (cf_res_pool_timeout && pool->db->res_pool_size) {
+			usec_t now = get_cached_time();
+			PgSocket *c = first_socket(&pool->waiting_client_list);
+			if (c && (now - c->request_time) >= cf_res_pool_timeout) {
+				if (total < pool->db->pool_size + pool->db->res_pool_size) {
+					log_debug("reserve_pool activated");
+					goto allow_new;
+				}
+			}
+		}
 		log_debug("launch_new_connection: pool full (%d >= %d)",
 				total, pool->db->pool_size);
 		return;
 	}
 
+allow_new:
 	/* get free conn object */
 	server = obj_alloc(server_cache);
 	if (!server) {

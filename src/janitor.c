@@ -403,7 +403,7 @@ static void check_pool_size(PgPool *pool)
 		 * statlist_count(&pool->new_server_list)
 		 */
 
-	int many = cur - pool->db->pool_size;
+	int many = cur - (pool->db->pool_size + pool->db->res_pool_size);
 
 	Assert(pool->db->pool_size >= 0);
 
@@ -591,10 +591,14 @@ void config_postprocess(void)
 
 	statlist_for_each_safe(item, &database_list, tmp) {
 		db = container_of(item, PgDatabase, head);
-		if (db->db_dead)
+		if (db->db_dead) {
 			kill_database(db);
-		else if (db->pool_size < 0)
+			continue;
+		}
+		if (db->pool_size < 0)
 			db->pool_size = cf_default_pool_size;
+		if (db->res_pool_size < 0)
+			db->res_pool_size = cf_res_pool_size;
 	}
 }
 

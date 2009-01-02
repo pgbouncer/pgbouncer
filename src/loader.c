@@ -173,6 +173,7 @@ void parse_database(char *name, char *connstr)
 	PktBuf buf;
 	PgDatabase *db;
 	int pool_size = -1;
+	int res_pool_size = -1;
 
 	char *dbname = name;
 	char *host = NULL;
@@ -220,6 +221,8 @@ void parse_database(char *name, char *connstr)
 			timezone = val;
 		else if (strcmp("pool_size", key) == 0)
 			pool_size = atoi(val);
+		else if (strcmp("reserve_pool", key) == 0)
+			res_pool_size = atoi(val);
 		else if (strcmp("connect_query", key) == 0)
 			connect_query = val;
 		else {
@@ -319,6 +322,7 @@ void parse_database(char *name, char *connstr)
 
 	/* if pool_size < 0 it will be set later */
 	db->pool_size = pool_size;
+	db->res_pool_size = res_pool_size;
 	db->addr.port = v_port;
 	db->addr.ip_addr.s_addr = v_addr;
 	db->addr.is_unix = host ? 0 : 1;

@@ -232,6 +232,7 @@ struct PgDatabase {
 	char unix_socket_dir[UNIX_PATH_MAX]; /* custom unix socket dir */
 
 	int pool_size;		/* max server connections in one pool */
+	int res_pool_size;	/* additional server connections in case of trouble */
 
 	const char *dbname;	/* server-side name, pointer to inside startup_msg */
 
@@ -309,6 +310,8 @@ extern int cf_listen_port;
 extern int cf_pool_mode;
 extern int cf_max_client_conn;
 extern int cf_default_pool_size;
+extern int cf_res_pool_size;
+extern usec_t cf_res_pool_timeout;
 
 extern char * cf_autodb_connstr;
 extern usec_t cf_autodb_idle_timeout;

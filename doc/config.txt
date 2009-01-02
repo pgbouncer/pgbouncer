@@ -139,6 +139,22 @@ per-database config.
 
 Default: 20
 
+==== reserve_pool_size ====
+
+How many additional connections to allow to a pool.
+
+How many server connection to allow per user/database pair. Can be overrided in
+per-database config.  0 disables.
+
+Default: 0 (disabled)
+
+==== reserve_pool_timeout ====
+
+If a client has not been services in this many seconds, pgbouncer enables
+use of additional connections from reserve pool.  0 disables.
+
+Default: 5
+
 ==== server_round_robin ====
 
 By default, pgbouncer reuses server connections in LIFO manner, so that few

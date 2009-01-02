@@ -289,7 +289,8 @@ loop:
 		client = accept_client(fd, &addr.in, false);
 	}
 
-	slog_debug(client, "P: got connection: %s", conninfo(client));
+	if (client)
+		slog_debug(client, "P: got connection: %s", conninfo(client));
 
 	/*
 	 * there may be several clients waiting,

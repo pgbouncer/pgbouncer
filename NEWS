@@ -1,3 +1,45 @@
+2009-xx-xx  -  PgBouncer 1.3 -  ""
+
+  = Features =
+
+    * Default port is now changed to 6432, as 6000 did conflict with X11.
+
+    * Dynamic database creation (David Galoyan)
+
+    * Windows support (Hiroshi Saito)
+
+  = Minor features =
+
+    * Database names in config file can now be quoted with standard SQL
+      ident quoting, to allow non-standard characters in db names.
+
+    * New tunable 'sbuf_loopcnt' to limit time spent on one socket.
+
+      In some situations - eg SMP server, local Postgres and fast network -
+      pgbouncer can run recv()->send() loop many times without blocking
+      on either side.  But that means other connections will stall for
+      a long time.  To make processing more fair, limit the times
+      of doing recv()->send() one socket.  If count reaches limit,
+      just proceed processing other sockets.  The processing for
+      that socket will resume on next event loop.
+
+      Thanks to Alexander Schöcke for report and testing.
+
+    * crypt() authentication is now optional, as it was removed from Postgres.
+      If OS does not provide it, pgbouncer works fine without it.
+
+    * Add milliseconds to log timestamps.
+
+    * Replace old MD5 implementation with more compact one.
+
+  = Fixes =
+
+    * --enable-debug now just toggles whether debug info is stripped from binary.
+      It no longer plays with -fomit-frame-pointer as it's dangerous.
+
+    * Fix include order, as otherwise system includes could come before
+      internal ones.  Was problem for new md5.h include file.
+
 2008-08-08  -  PgBouncer 1.2.3  -  "Carefully Selected Bytes"
 
   * Disable SO_ACCEPTFILTER code for BSDs which did not work.

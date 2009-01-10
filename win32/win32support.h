@@ -123,11 +123,11 @@ static inline struct hostent *w_gethostbyname(const char *n) {
 }
 #define gethostbyname(a) w_gethostbyname(a)
 
-const char *wsa_strerror(int e);
+const char *win32_strerror(int e);
 
 static inline const char *w_strerror(int e) {
 	if (e > 900)
-		return wsa_strerror(e);
+		return win32_strerror(e);
 	return strerror(e);
 }
 #define strerror(x) w_strerror(x)
@@ -286,10 +286,6 @@ static inline int fcntl(int fd, int cmd, long arg)
  * syslog
  */
 
-#define openlog		w_openlog
-#define syslog		w_syslog
-#define closelog	w_closelog
-
 #define LOG_EMERG	0
 #define LOG_ALERT	1
 #define LOG_CRIT	2
@@ -322,10 +318,10 @@ static inline int fcntl(int fd, int cmd, long arg)
 #define LOG_LOCAL6 0
 #define LOG_LOCAL7 0
 
-
-void openlog(const char *ident, int option, int facility);
-void syslog(int priority, const char *format, ...);
-void closelog(void);
+static inline void openlog(const char *ident, int option, int facility) {}
+static inline void closelog(void) {}
+void win32_eventlog(int priority, const char *format, ...);
+#define syslog win32_eventlog
 
 /* redirect main() */
 #define main(a,b) real_main(a,b)

@@ -152,7 +152,7 @@ static void _log_write(const char *pfx, const char *msg)
 	len = snprintf(buf, sizeof(buf), "%s %u %s %s\n",
 			tbuf, (unsigned)getpid(), pfx, msg);
 
-	if (cf_logfile)
+	if (cf_logfile[0])
 		write_logfile(buf, len);
 
 	if (cf_syslog)

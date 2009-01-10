@@ -301,6 +301,7 @@ extern int cf_verbose;
 extern int cf_daemon;
 extern int cf_quiet;
 
+extern char *cf_config_file;
 extern char *cf_jobname;
 extern int cf_syslog;
 extern char *cf_syslog_facility;

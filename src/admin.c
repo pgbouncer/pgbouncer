@@ -797,7 +797,8 @@ static bool admin_cmd_shutdown(PgSocket *admin, const char *arg)
 	 * before closing open sockets.
 	 */
 	log_info("SHUTDOWN command issued");
-	exit(0);
+	cf_shutdown = 2;
+	event_loopbreak();
 
 	return true;
 }

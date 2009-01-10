@@ -521,9 +521,11 @@ static void do_full_maint(int sock, short flags, void *arg)
 
 	cleanup_client_logins();
 
-	if (cf_shutdown && get_active_server_count() == 0) {
+	if (cf_shutdown == 1 && get_active_server_count() == 0) {
 		log_info("server connections dropped, exiting");
-		exit(0);
+		cf_shutdown = 2;
+		event_loopbreak();
+		return;
 	}
 
 	if (cf_auth_type >= AUTH_TRUST)

@@ -55,12 +55,12 @@ int cf_quiet = 0; /* if set, no log is printed to stdout/err */
 int cf_verbose = 0;
 int cf_daemon = 0;
 int cf_pause_mode = P_NONE;
-int cf_shutdown = 0;
+int cf_shutdown = 0; /* 1 - wait for queries to finish, 2 - shutdown immediately */
 int cf_reboot = 0;
 int cf_syslog = 0;
 static char *cf_username = "";
 char *cf_syslog_facility = "daemon";
-static char *cf_config_file;
+char *cf_config_file = "";
 
 char *cf_listen_addr = NULL;
 int cf_listen_port = 6432;
@@ -101,7 +101,8 @@ int cf_server_round_robin = 0;
 
 char *cf_ignore_startup_params = "";
 
-char *cf_autodb_connstr = NULL;
+char *cf_autodb_connstr = NULL; /* here is "" different from NULL */
+
 usec_t cf_autodb_idle_timeout = 3600*USEC;
 
 usec_t cf_server_lifetime = 60*60*USEC;
@@ -115,8 +116,8 @@ usec_t cf_suspend_timeout = 10*USEC;
 
 usec_t g_suspend_start = 0;
 
-char *cf_logfile = NULL;
-char *cf_pidfile = NULL;
+char *cf_logfile = "";
+char *cf_pidfile = "";
 char *cf_jobname = "pgbouncer";
 
 char *cf_admin_users = "";
@@ -426,7 +427,7 @@ static void go_daemon(void)
 {
 	int pid, fd;
 
-	if (!cf_pidfile)
+	if (!cf_pidfile[0])
 		fatal("daemon needs pidfile configured");
 
 	/* dont log to stdout anymore */
@@ -468,7 +469,7 @@ static void go_daemon(void)
 
 static void remove_pidfile(void)
 {
-	if (!cf_pidfile)
+	if (!cf_pidfile[0])
 		return;
 	unlink(cf_pidfile);
 }
@@ -480,7 +481,7 @@ static void check_pidfile(void)
 	pid_t pid = 0;
 	int fd, res;
 
-	if (!cf_pidfile)
+	if (!cf_pidfile[0])
 		return;
 
 	/* check if pidfile exists */
@@ -526,7 +527,7 @@ static void write_pidfile(void)
 	pid_t pid;
 	int res, fd;
 
-	if (!cf_pidfile)
+	if (!cf_pidfile[0])
 		return;
 
 	pid = getpid();
@@ -729,7 +730,9 @@ int main(int argc, char *argv[])
 	write_pidfile();
 
 	/* main loop */
-	while (1)
+	while (cf_shutdown < 2)
 		main_loop_once();
+
+	return 0;
 }
 

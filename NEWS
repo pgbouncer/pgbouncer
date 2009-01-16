@@ -34,6 +34,12 @@
     * Database names in config file can now be quoted with standard SQL
       ident quoting, to allow non-standard characters in db names.
 
+    * New tunables: 'reserve_pool_size' and 'reserve_pool_timeout'.
+      In case there are clients in pool that have waited more that
+      'reserve_pool_timeout' seconds, 'reserve_pool_size' specifies
+      the number of connections that can be added to pool.  It can also
+      set per-pool with 'reserve_pool' connection variable.
+
     * New tunable 'sbuf_loopcnt' to limit time spent on one socket.
 
       In some situations - eg SMP server, local Postgres and fast network -

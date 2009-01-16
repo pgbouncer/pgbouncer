@@ -5,7 +5,7 @@ web = mkz@shell.pgfoundry.org:/home/pgfoundry.org/groups/pgbouncer/htdocs/
 -include ../config.mak
 
 MANPAGES = pgbouncer.1 pgbouncer.5
-HTML = config.html usage.html todo.html faq.html
+HTML = config.html usage.html todo.html faq.html README.html
 
 ifneq ($(ASCIIDOC),)
 all: $(MANPAGES)
@@ -48,6 +48,9 @@ ifneq ($(ASCIIDOC),)
 
 %.html: %.txt
 	asciidoc -a toc $<
+
+README.html: ../README
+	asciidoc -a toc -o $@ $<
 endif
 
 clean:

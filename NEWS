@@ -34,6 +34,13 @@
 
   = Fixes =
 
+    * In case event_del() reports failure, just proceed with cleanup.
+      Previously pgbouncer retried it, in case the failure was due ENOMEM.
+      But this has caused log floods with inifinite repeats, so it seems
+      libevent does not like it.
+
+      Why event_del() report failure first time is still mystery.
+
     * --enable-debug now just toggles whether debug info is stripped from binary.
       It no longer plays with -fomit-frame-pointer as it's dangerous.
 

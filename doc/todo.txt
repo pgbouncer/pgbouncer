@@ -1,9 +1,5 @@
 = PgBouncer TODO list =
 
-== next release - 1.2 ==
-
- * test
-
 == Minor features ==
 
  * removing user should work - kill connections
@@ -15,6 +11,16 @@
  * new states for clients: idle and in-query.  That allows to apply
    client_idle_timeout and query_timeout without walking all clients
    on maintenance time.
+
+== Win32 features ==
+
+ * Automatic registration of pgbevent.dll.  (Re-register also
+   if old DLL does not exist.)
+ * PAUSE/RESUME via service control panel.
+ * Online reboot by DuplicateHandle().  Main question is:
+   What should the UI look like?  Making it work for console
+   app seems easy, but it does not make sense at all without
+   working also for services.
 
 == Dubious/complicated features ==
 

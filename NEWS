@@ -6,7 +6,28 @@
 
     * Dynamic database creation (David Galoyan)
 
+      Now you can define database with name "*".  If defined, it's connect
+      string will be used for all undefined databases.  Useful mostly
+      for test / dev environments.
+
     * Windows support (Hiroshi Saito)
+
+      PgBouncer runs on Windows 2000+ now.  To run as service, define
+      parameter service_name in config. Then:
+
+        > pgbouncer.exe config.ini -regservice
+        > net start SERVICE_NAME
+
+      To stop and unregister:
+
+        > net stop SERVICE_NAME
+        > pgbouncer.exe config.ini -unregservice
+
+      To use Windows Event Log, event DLL needs to be registered first:
+
+        > regsrv32 pgbevent.dll
+
+      Afterwards you can set "syslog = 1" in config.
 
   = Minor features =
 

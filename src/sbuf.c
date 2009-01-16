@@ -236,14 +236,20 @@ bool sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb user_cb)
 	return true;
 }
 
-/* socket cleanup & close */
+/* socket cleanup & close: keeps .handler and .arg values */
 bool sbuf_close(SBuf *sbuf)
 {
-	/* keep handler & arg values */
 	if (sbuf->sock > 0) {
+		/* event_del() acts funny occasionally, debug it */
+		errno = 0;
 		if (event_del(&sbuf->ev) < 0) {
-			log_warning("event_del: %s", strerror(errno));
-			return false;
+			if (errno)
+				log_warning("event_del: %s", strerror(errno));
+			else
+				log_warning("event_del: libevent error");
+
+			/* we can retry whole sbuf_close() if needed */
+			/* if (errno == ENOMEM) return false; */
 		}
 		safe_close(sbuf->sock);
 	}

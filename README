@@ -36,3 +36,40 @@ To have manpages, asciidoc 8.x and xmlto need to be installed,
 as CVS does not contain generated pages.  Without those,
 manpages are skipped when building/installing.
 
+Building for WIN32
+------------------
+
+At the moment only build env tested is MINGW32 / MSYS.  Cygwin
+and Visual $ANYTHING are untested.  In addition to libevent you
+need GNU regex library (http://gnuwin32.sourceforge.net/packages/regex.htm[]).
+Then do the usual:
+
+	$ ./configure ...
+	$ make
+
+If cross-compiling from Unix:
+
+	$ ./configure --host=i586-mingw32msvc ...
+
+Running on WIN32
+----------------
+
+Running from command-line goes as usual, except -d (daemonize)
+and -u (switch user) switches will not work.
+
+To run pgbouncer as a service, you need to configure
+`service_name` to set name for service.  Then:
+
+	$ pgbouncer -regservice config.ini
+
+To uninstall service:
+
+	$ pgbouncer -unregservice config.ini
+
+To use Windows Event Log, set "syslog = 1" in config file.
+But before you need to register pgbevent.dll:
+
+	$ regsvr32 pgbevent.dll
+
+To unregister it, do `regsvr32 /u pgbevent.dll`.
+

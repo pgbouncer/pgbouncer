@@ -17,8 +17,9 @@ DATA = README NEWS AUTHORS etc/pgbouncer.ini etc/userlist.txt Makefile \
        test/ctest7000.ini test/run-conntest.sh test/stress.py test/test.ini \
        test/test.sh test/userlist.txt etc/example.debian.init.sh doc/fixman.py \
        win32/eventmsg.mc win32/eventmsg.rc win32/MSG00001.bin \
+       win32/Makefile win32/pgbevent.c \
        win32/win32support.c win32/win32support.h
-DIRS = doc etc include src debian test
+DIRS = doc etc include src debian test win32
 
 # keep autoconf stuff separate
 -include config.mak

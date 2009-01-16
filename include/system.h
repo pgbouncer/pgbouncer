@@ -193,5 +193,10 @@ const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt);
 static inline int lstat(const char *path, struct stat *st) { return stat(path, st); }
 #endif
 
+/* libevent 1.3 does not have event_loopbreak() */
+#ifndef HAVE_EVENT_LOOPBREAK
+static inline void event_loopbreak(void) { }
+#endif
+
 void change_user(const char *user);
 

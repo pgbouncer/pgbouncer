@@ -174,6 +174,8 @@ AC_EGREP_CPP([HTTP_SERVUNAVAIL],
 [AC_MSG_ERROR([no, cannot proceed])],
 [AC_MSG_RESULT([yes])])
 
+AC_CHECK_FUNCS(event_loopbreak)
+
 # autoconf does not want to find 'install', if not using automake...
 INSTALL=install
 

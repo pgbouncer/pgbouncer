@@ -132,7 +132,10 @@ int cf_log_pooler_errors = 1;
  * config file description
  */
 ConfElem bouncer_params[] = {
-{"job_name",		true, CF_STR, &cf_jobname},
+{"job_name",		false, CF_STR, &cf_jobname},
+#ifdef WIN32
+{"service_name",	false, CF_STR, &cf_jobname}, /* alias for job_name */
+#endif
 {"conffile",		true, CF_STR, &cf_config_file},
 {"logfile",		true, CF_STR, &cf_logfile},
 {"pidfile",		false, CF_STR, &cf_pidfile},

@@ -38,6 +38,8 @@ static SERVICE_STATUS svcStatus = {
  */
 static char *servicename = "pgbouncer";
 
+static char *serviceDescription = "Lightweight connection pooler for PostgreSQL.";
+
 /* custom help string for win32 exe */
 static const char *usage_str =
 "Usage: %s [OPTION]... config.ini\n"
@@ -243,8 +245,8 @@ static void RegisterService(void)
 		exit(1);
 	}
 
-	/* set cmdline as desc, makes details more visible */
-	sd.lpDescription = cmdline;
+	/* explain the service purpose */
+	sd.lpDescription = serviceDescription;
 	ChangeServiceConfig2(service, SERVICE_CONFIG_DESCRIPTION, &sd);
 
 	CloseServiceHandle(service);

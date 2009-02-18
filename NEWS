@@ -1,8 +1,12 @@
-2009-xx-xx  -  PgBouncer 1.3 -  ""
+2009-02-18  -  PgBouncer 1.3 -  "New Ki-Smash Finishing Move"
 
   = Features =
 
-    * Default port is now changed to 6432, as 6000 did conflict with X11.
+    * IANA has assigned port 6432 to be official port for PgBouncer.
+      Thus the default port number has changed to 6432.  Existing
+      individual users do not need to change, but if you distribute
+      packages of PgBouncer, please change the package default
+      to official port.
 
     * Dynamic database creation (David Galoyan)
 
@@ -12,8 +16,9 @@
 
     * Windows support (Hiroshi Saito)
 
-      PgBouncer runs on Windows 2000+ now.  To run as service, define
-      parameter service_name in config. Then:
+      PgBouncer runs on Windows 2000+ now.  Command line usage stays same,
+      except it cannot run as daemon and cannot do online reboot.
+      To run as service, define parameter service_name in config. Then:
 
         > pgbouncer.exe config.ini -regservice
         > net start SERVICE_NAME
@@ -59,6 +64,8 @@
 
     * Replace old MD5 implementation with more compact one.
 
+    * Update ISC licence with the FSF clarification.
+
   = Fixes =
 
     * In case event_del() reports failure, just proceed with cleanup.
@@ -73,6 +80,8 @@
 
     * Fix include order, as otherwise system includes could come before
       internal ones.  Was problem for new md5.h include file.
+
+    * Include COPYRIGHT file in .tgz...
 
 2008-08-08  -  PgBouncer 1.2.3  -  "Carefully Selected Bytes"
 

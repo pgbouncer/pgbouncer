@@ -54,11 +54,11 @@ If cross-compiling from Unix:
 Running on WIN32
 ----------------
 
-Running from command-line goes as usual, except -d (daemonize)
-and -u (switch user) switches will not work.
+Running from command-line goes as usual, except -d (daemonize),
+-R (reboot) and -u (switch user) switches will not work.
 
 To run pgbouncer as a service, you need to configure
-`service_name` to set name for service.  Then:
+`service_name` parameter to set name for service.  Then:
 
 	$ pgbouncer -regservice config.ini
 

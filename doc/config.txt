@@ -294,15 +294,23 @@ online restart.
 
 Default: 60
 
+==== autodb_idle_timeout ====
+
+If the automatically created (vie "*") database pools have
+been unused this many seconds, they are freed.  The negative
+aspect of that is that their statistics is also forgotten.
+
+Default: 3600
+
 === Dangerous timeouts ===
 
-Setting following timeouts cause unexcpected errors.
+Setting following timeouts cause unexpected errors.
 
 ==== query_timeout ====
 
 Queries running longer than that are canceled. This should be used only with
 slightly smaller server-side statement_timeout, to apply only for network
-problems.
+problems. [seconds]
 
 Default: 0 (disabled)
 
@@ -310,7 +318,7 @@ Default: 0 (disabled)
 
 Client connections idling longer than that are closed. This should be larger
 then client-side connection lifetime settings, to apply only for network
-problems.
+problems.  [seconds]
 
 Default: 0 (disabled)
 
@@ -335,7 +343,7 @@ Default: 5
 
 ==== tcp_defer_accept ====
 
-Details about following options shouldbe looked from man 7 tcp
+Details about following options should be looked from `man 7 tcp`.
 
 Default: 45 on Linux, otherwise 0
 
@@ -345,7 +353,7 @@ Default: not set
 
 ==== tcp_keepalive ====
 
-Default: Not set
+Default: not set
 
 ==== tcp_keepcnt ====
 
@@ -368,6 +376,12 @@ used, so not all features from libpq can be used (service=, quoting).
 Database name can contain characters [0-9A-Za-z_.-] without quoting.
 Names that contain other chars need to be quoted with standard SQL
 ident quoting: double quotes where "" is taken as single quote.
+
+"\*" acts as fallback database: if the exact name does not exist,
+it's value is taken as connect string for requested database.
+Such automatically created database entries are cleaned up
+if they stay idle longer then the time specified in
+`autodb_idle_timeout` parameter.
 
 === Location parameters ===
 

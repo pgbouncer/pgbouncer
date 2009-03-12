@@ -427,7 +427,7 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 			host = NULL;
 
 		f_user = db->forced_user ? db->forced_user->name : NULL;
-		pktbuf_write_DataRow(buf, "ssissi",
+		pktbuf_write_DataRow(buf, "ssissii",
 				     db->name, host, db->addr.port,
 				     db->dbname, f_user,
 				     db->pool_size,

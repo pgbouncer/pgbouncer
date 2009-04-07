@@ -27,7 +27,7 @@
 
 #include "bouncer.h"
 
-#define CUSTOM_ALIGN(x, a) (((unsigned long)(x) + (a)) & ~(a))
+#define CUSTOM_ALIGN(x, a) (((unsigned long)(x) + ((a) - 1)) & ~((a) - 1))
 
 #ifndef ALIGN
 #define ALIGN(x)  CUSTOM_ALIGN(x, sizeof(long))

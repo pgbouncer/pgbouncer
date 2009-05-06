@@ -61,15 +61,10 @@ static void usage(int err, char *exe)
 static int exec_real_main(int argc, char *argv[])
 {
 	int i, j;
-	WSADATA wsaData;
 
 	/* win32 stdio seems to be fully buffered by default */
 	setvbuf(stdout, NULL, _IONBF, 0);
 	setvbuf(stderr, NULL, _IONBF, 0);
-
-	/* initialize socket subsystem */
-	if (WSAStartup(MAKEWORD(2,0), &wsaData))
-		fatal("Cannot start the network subsystem");
 
 	/* check if regular arguments are in allowed list */
 	for (i = 1; i < argc; i++) {
@@ -351,6 +346,12 @@ static void win32_load_config(char *conf)
 #undef main
 int main(int argc, char *argv[])
 {
+	WSADATA wsaData;
+
+	/* initialize socket subsystem */
+	if (WSAStartup(MAKEWORD(2,0), &wsaData))
+		fatal("Cannot start the network subsystem");
+
 	/* service cmdline */
 	if (argc == 3) {
 		if (!strcmp(argv[1], "-service")) {

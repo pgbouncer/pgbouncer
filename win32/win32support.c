@@ -235,7 +235,7 @@ static void RegisterService(void)
 		fprintf(stderr, "Failed to determine path name: %s\n", strerror(GetLastError()));
 		exit(1);
 	}
-	snprintf(cmdline, sizeof(cmdline), "%s -service %s", self, config_fn);
+	snprintf(cmdline, sizeof(cmdline), "%s -service \"%s\"", self, config_fn);
 
 	manager = openSCM();
 	service = CreateService(manager, cf_jobname, cf_jobname, SERVICE_ALL_ACCESS, SERVICE_WIN32_OWN_PROCESS,

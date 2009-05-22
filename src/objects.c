@@ -500,9 +500,14 @@ bool find_server(PgSocket *client)
 	} else {
 		while (1) {
 			server = first_socket(&pool->idle_server_list);
-			if (!server || server->ready)
+			if (!server)
 				break;
-			disconnect_server(server, true, "idle server got dirty");
+			else if (server->close_needed)
+				disconnect_server(server, true, "obsolete connection");
+			else if (!server->ready)
+				disconnect_server(server, true, "idle server got dirty");
+			else
+				break;
 		}
 	}
 	Assert(!server || server->state == SV_IDLE);

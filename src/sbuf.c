@@ -609,15 +609,21 @@ static void sbuf_main_loop(SBuf *sbuf, bool skip_recv)
 		goto skip_recv;
 
 try_more:
+	/* make room in buffer */
+	sbuf_try_resync(sbuf, false);
+
 	/* avoid spending too much time on single socket */
 	if (cf_sbuf_loopcnt > 0 && loopcnt >= cf_sbuf_loopcnt) {
 		log_debug("loopcnt full");
+		/*
+		 * sbuf_process_pending() avoids some data if buffer is full,
+		 * but as we exit processing loop here, we need to retry
+		 * after resync to process all data. (result is ignored)
+		 */
+		ok = sbuf_process_pending(sbuf);
 		return;
 	}
 	loopcnt++;
-
-	/* make room in buffer */
-	sbuf_try_resync(sbuf, false);
 
 	/*
 	 * here used to be if (free > SBUF_SMALL_PKT) check

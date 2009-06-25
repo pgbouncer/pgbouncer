@@ -174,7 +174,7 @@ total_sent::
   Total volume in bytes of network traffic sent by +pgbouncer+.
 
 total_query_time::
-  Total number of milliseconds spent by +pgbouncer+ when actively
+  Total number of microseconds spent by +pgbouncer+ when actively
   connected to PostgreSQL.
 
 avg_req::
@@ -187,7 +187,7 @@ avg_sent::
   Average sent (to clients) bytes per second.
 
 avg_query::
-  Average query duration in milliseconds.
+  Average query duration in microseconds.
 
 ==== SHOW SERVERS; ====
 

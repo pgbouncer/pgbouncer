@@ -941,7 +941,7 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		"SNOTICE", "C00000", "MConsole usage",
 		"D\n\tSHOW HELP|CONFIG|DATABASES"
 		"|POOLS|CLIENTS|SERVERS|VERSION\n"
-		"\tSHOW FDS|SOCKETS|ACTIVE_SOCKETS|LISTS|MEM\n"
+		"\tSHOW STATS|FDS|SOCKETS|ACTIVE_SOCKETS|LISTS|MEM\n"
 		"\tSET key = arg\n"
 		"\tRELOAD\n"
 		"\tPAUSE [<db>]\n"

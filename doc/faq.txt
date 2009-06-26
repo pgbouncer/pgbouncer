@@ -13,13 +13,15 @@ load-balancing is needed.
 
 == How to use SSL connections with PgBouncer? ==
 
-Use http://www.stunnel.org/[Stunnel].  Only problem is that
-Stunnel (as of v4.21) does not support PostgreSQL SSL handshake
-at the beginnning of connection.  Solution is to use either
-Stunnel on both sides of connection or to apply
-following patch to Stunnel -
+Use http://www.stunnel.org/[Stunnel].  Since version 4.27 it
+supports PostgreSQL protocol for both client and server side.
+It is activated by setting `protocol=pgsql`.
+
+For older 4.2x versions the support code is available as patch:
 http://pgbouncer.projects.postgresql.org/patches/stunnel-postgres.diff[stunnel-postgres.diff]
-- that adds PostgreSQL protocol support to it (specified as `protocol=pgsql`).
+
+Alternative is to use Stunnel on both sides of connection,
+then the protocol support is not needed.
 
 
 == How to use prepared statements with PgBouncer? ==

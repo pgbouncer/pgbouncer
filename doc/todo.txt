@@ -18,7 +18,7 @@
    on maintenance time.
  * fix high-freq maintenance timer - it's only needed when
    PAUSE/RESUME/shutdown is issued.
- * Get rid of SBUF_SMALL_PKT logic - it makes processing fragile.
+ * Get rid of SBUF_SMALL_PKT logic - it makes processing code complex.
    Needs a new sbuf_prepare_*() to notify sbuf about short data.
    [Plain 'false' from handler postpones processing to next event loop.]
 

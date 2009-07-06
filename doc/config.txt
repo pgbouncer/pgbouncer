@@ -94,7 +94,8 @@ trust::
 
 any::
       Like `trust` but username given is ignored. Requires that all databases
-      have configured to log in as specific user.
+      have configured to log in as specific user.  Additionally, the console
+      database allows any user to log in as admin.
 
 ==== pool_mode ====
 
@@ -214,7 +215,8 @@ Default: 1
 ==== admin_users ====
 
 Comma-separted list of database users that are allowed to connect and
-run all commands on console.
+run all commands on console.  Ignored when `auth_mode=any`, then
+any username is allowed in as admin.
 
 Default: empty
 

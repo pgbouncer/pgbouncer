@@ -1109,6 +1109,17 @@ bool admin_pre_login(PgSocket *client)
 		}
 	}
 
+	/*
+	 * auth_mode=any does not keep original username around,
+	 * so username based checks do not work.
+	 */
+	if (cf_auth_type == AUTH_ANY) {
+		if (cf_log_connections)
+			slog_info(client, "auth_mode=any: allowing anybody in as admin");
+		client->admin_user = 1;
+		return true;
+	}
+
 	if (strlist_contains(cf_admin_users, username)) {
 		client->admin_user = 1;
 		return true;

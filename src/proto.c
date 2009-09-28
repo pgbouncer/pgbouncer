@@ -349,6 +349,13 @@ int scan_text_result(MBuf *pkt, const char *tupdesc, ...)
 				val = NULL;
 			else
 				val = (char *)mbuf_get_bytes(pkt, len);
+
+			/* hack to zero-terminate the result */
+			if (val) {
+				val--;
+				memmove(val, val + 1, len);
+				val[len] = 0;
+			}
 		} else
 			/* tuple was shorter than requested */
 			val = NULL;

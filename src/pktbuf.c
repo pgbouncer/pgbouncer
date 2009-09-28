@@ -396,8 +396,8 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 
 		if (val) {
 			len = strlen(val);
-			pktbuf_put_uint32(buf, len + 1);
-			pktbuf_put_string(buf, val);
+			pktbuf_put_uint32(buf, len);
+			pktbuf_put_bytes(buf, val, len);
 		} else {
 			/* NULL */
 			pktbuf_put_uint32(buf, -1);

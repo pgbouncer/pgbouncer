@@ -149,7 +149,7 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 	/* find pool and log about it */
 	if (set_pool(client, dbname, username)) {
 		if (cf_log_connections)
-			slog_info(client, "login successful: db=%s user=%s", dbname, username);
+			slog_info(client, "login attempt: db=%s user=%s", dbname, username);
 		return true;
 	} else {
 		if (cf_log_connections)
@@ -256,7 +256,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 			if (!finish_client_login(client))
 				return false;
 		} else {
-			disconnect_client(client, true, "Login failed");
+			disconnect_client(client, true, "Auth failed");
 			return false;
 		}
 		break;

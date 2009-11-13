@@ -38,6 +38,9 @@ static SERVICE_STATUS svcStatus = {
  */
 static char *servicename = "pgbouncer";
 
+static char *service_username = NULL;
+static char *service_password = NULL;
+
 static char *serviceDescription = "Lightweight connection pooler for PostgreSQL.";
 
 /* custom help string for win32 exe */
@@ -48,7 +51,7 @@ static const char *usage_str =
 "  -V            Show version\n"
 "  -h            Show this help screen and exit\n"
 "Windows service registration:\n"
-"  -regservice   config.ini\n"
+"  -regservice   config.ini [-U username [-P password]]\n"
 "  -unregservice config.ini\n"
 "";
 
@@ -196,23 +199,6 @@ static const char *get_config_fullpath(void)
 	return buf;
 }
 
-/* Check windows version against Server 2003 to determine service functionality */
-static bool is_windows2003ornewer(void)
-{
-	OSVERSIONINFO vi;
-
-	vi.dwOSVersionInfoSize = sizeof(vi);
-	if (!GetVersionEx(&vi)) {
-		fprintf(stderr, "Failed to determine OS version: %s\n", strerror(GetLastError()));
-		exit(1);
-	}
-	if (vi.dwMajorVersion > 5)
-		return true;	/* Vista + */
-	if (vi.dwMajorVersion == 5 && vi.dwMinorVersion >= 2)
-		return true;	/* Win 2003 */
-	return false;
-}
-
 /* Register a service with the specified name with the local service control manager */
 static void RegisterService(void)
 {
@@ -223,7 +209,6 @@ static void RegisterService(void)
 	SC_HANDLE service;
 	SERVICE_DESCRIPTION sd;
 	DWORD r;
-	char *account = is_windows2003ornewer() ? "NT AUTHORITY\\Local Service" : NULL;
 
 	r = GetModuleFileName(NULL, self, sizeof(self));
 	if (!r || r >= sizeof(self)) {
@@ -234,7 +219,8 @@ static void RegisterService(void)
 
 	manager = openSCM();
 	service = CreateService(manager, cf_jobname, cf_jobname, SERVICE_ALL_ACCESS, SERVICE_WIN32_OWN_PROCESS,
-				SERVICE_AUTO_START, SERVICE_ERROR_NORMAL, cmdline, NULL, NULL, "RPCSS\0", account, "");
+				SERVICE_AUTO_START, SERVICE_ERROR_NORMAL, cmdline, NULL, NULL, "RPCSS\0",
+				service_username, service_password);
 	if (!service) {
 		fprintf(stderr, "Failed to create service: %s\n", strerror(GetLastError()));
 		exit(1);
@@ -248,10 +234,10 @@ static void RegisterService(void)
 	CloseServiceHandle(manager);
 
 	printf("Service registered.\n");
-	if (account == NULL) {
+	if (service_username == NULL) {
 		printf("\nWARNING! Service is registered to run as Local System. You are\n");
 		printf("encouraged to change this to a low privilege account to increase\n");
-		printf("system security.\n");
+		printf("system security.  (Eg. NT AUTHORITY\\Local Service)\n");
 	}
 }
 
@@ -353,7 +339,7 @@ int main(int argc, char *argv[])
 		fatal("Cannot start the network subsystem");
 
 	/* service cmdline */
-	if (argc == 3) {
+	if (argc >= 3) {
 		if (!strcmp(argv[1], "-service")) {
 			cf_quiet = 1;
 			cf_config_file = argv[2];
@@ -362,7 +348,18 @@ int main(int argc, char *argv[])
 		}
 
 		if (!strcmp(argv[1], "-regservice")) {
+			int i;
 			win32_load_config(argv[2]);
+			for (i = 3; i < argc; i++) {
+				if (!strcmp(argv[i], "-U") && i + 1 < argc) {
+					service_username = argv[++i];
+				} else if (!strcmp(argv[i], "-P") && i + 1 < argc) {
+					service_password = argv[++i];
+				} else {
+					printf("unknown arg: %s\n", argv[i]);
+					usage(1, argv[0]);
+				}
+			}
 			RegisterService();
 			return 0;
 		}

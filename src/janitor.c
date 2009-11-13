@@ -503,6 +503,12 @@ static void do_full_maint(int sock, short flags, void *arg)
 	List *item, *tmp;
 	PgPool *pool;
 
+	/*
+	 * Avoid doing anything that may surprise other pgbouncer.
+	 */
+	if (cf_pause_mode == P_SUSPEND)
+		goto skip_maint;
+
 	statlist_for_each_safe(item, &pool_list, tmp) {
 		pool = container_of(item, PgPool, head);
 		if (pool->db->admin)
@@ -531,6 +537,7 @@ static void do_full_maint(int sock, short flags, void *arg)
 	if (cf_auth_type >= AUTH_TRUST)
 		loader_users_check();
 
+skip_maint:
 	safe_evtimer_add(&full_maint_ev, &full_maint_period);
 }
 

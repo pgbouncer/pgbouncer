@@ -1,21 +1,34 @@
 = PgBouncer TODO list =
 
+== Slightly urgent features ==
+
+ * move to libusual
+ * auth_conn - access to pg_shadow, so auth_file is not needed.
+   [ flat-text files are gone in 8.5+ ]
+ * per_loop_maint/per_loop_activate take too much time in case
+   of moderate load and lots of pools.  Perhaps active_pool_list
+   would help, which contains only pools touched in current loop.
+ * new states for clients: idle and in-query.  That allows to apply
+   client_idle_timeout and query_timeout without walking all clients
+   on maintenance time.
+
+== Good-to-have features in transaction pooling ==
+
+ * Protocol-level plan cache.
+ * LISTEN/NOTIFY.  Requires strict SQL format.
+
 == Minor features ==
 
  * duplication: format_time vs. render_time
    - avoid localtime? (libc stat)
  * set server_reset_query = '';
  * check if SQL error codes are correct
- * login cleanup / more useful
  * removing user should work - kill connections
  * keep stats about error counts
  * cleanup of logging levels, to make log more useful
  * to test:
    - signal flood
    - no mem / no fds handling
- * new states for clients: idle and in-query.  That allows to apply
-   client_idle_timeout and query_timeout without walking all clients
-   on maintenance time.
  * fix high-freq maintenance timer - it's only needed when
    PAUSE/RESUME/shutdown is issued.
  * Get rid of SBUF_SMALL_PKT logic - it makes processing code complex.
@@ -38,9 +51,12 @@
  * some preliminary notification that fd limit is full
 
  * Move all "look-at-full-packet" situtations to SBUF_EV_PKT_CALLBACK
- * auth_conn - access to pg_shadow, so auth_file is not needed
 
  * pid mapping for NOTIFY.
+
+ * `pool_mode = plproxy` - use postgres in full-duplex mode for autocommit
+   queries, multiplexing several queries into one connection.  Should result
+   in more effiicent CPU usage of server.
 
 === prepared plans ===
 

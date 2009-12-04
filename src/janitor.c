@@ -338,6 +338,16 @@ static void pool_client_maint(PgPool *pool)
 				disconnect_client(client, true, "query_timeout");
 		}
 	}
+
+	/* apply client_login_timeout to clients waiting for welcome pkt */
+	if (cf_client_login_timeout > 0 && !pool->welcome_msg_ready) {
+		statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
+			client = container_of(item, PgSocket, head);
+			age = now - client->connect_time;
+			if (age > cf_client_login_timeout)
+				disconnect_client(client, true, "client_login_timeout (server down)");
+		}
+	}
 }
 
 static void check_unused_servers(PgPool *pool, StatList *slist, bool idle_test)

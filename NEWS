@@ -1,3 +1,25 @@
+2009-xx-xx  -  PgBouncer 1.3.2  -  ""
+
+  = Fixes =
+
+    * Disable maintenance during SUSPEND.  Otherwise with short timeouts
+      the old bouncer could close few connections after sending them over.
+
+    * Apply client_login_timeout to clients waiting for welcome packet
+      (first server connection).  Otherwise they can stay waiting
+      infinitely, unless there is query_timeout set.
+
+    * win32: Add switch -U/-P to -regservice to let user pick account
+      to run service under.  Old automatic choice between Local Service and
+      Local System was not reliable enough.
+
+    * console: Remove \0 from end of text columns.  It was hard to notice,
+      as C clients were fine with it.
+
+    * Documentation improvements.  (Greg Sabino Mullane)
+
+    * Clarify few login-related log messages.
+
 2009-07-06  -  PgBouncer 1.3.1  -  "Now fully conforming to NSA monitoring requirements"
 
   = Fixes =

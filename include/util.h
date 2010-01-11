@@ -17,11 +17,6 @@
  */
 
 /*
- * load file into malloced buffer
- */
-char *load_file(const char *fn) _MUSTCHECK;
-
-/*
  * logging about specific socket
  */
 int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstlen);

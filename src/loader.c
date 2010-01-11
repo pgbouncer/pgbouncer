@@ -26,6 +26,8 @@
 #include <netdb.h>
 #endif
 
+#include <usual/fileutil.h>
+
 /*
  * ConnString parsing
  */
@@ -460,7 +462,7 @@ bool load_auth_file(const char *fn)
 {
 	char *user, *password, *buf, *p;
 
-	buf = load_file(fn);
+	buf = load_file(fn, NULL);
 	if (buf == NULL) {
 		/* reset file info */
 		auth_loaded(NULL);
@@ -686,7 +688,7 @@ bool iniparser(const char *fn, ConfSection *sect_list, bool reload)
 	ConfSection *cur_section = NULL;
 	char keybuf[MAX_DBNAME*2];
 
-	buf = load_file(fn);
+	buf = load_file(fn, NULL);
 	if (buf == NULL) {
 		if (!reload)
 			exit(1);

@@ -28,7 +28,6 @@
 
 #include <sys/stat.h>
 
-#include <stdio.h>
 #include <stdarg.h>
 #include <ctype.h>
 #include <limits.h>

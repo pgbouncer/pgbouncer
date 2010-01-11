@@ -50,50 +50,6 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
 			sock, db, user, host, port);
 }
 
-
-/*
- * Load a file into malloc()-ed C string.
- */
-
-char *load_file(const char *fn)
-{
-	struct stat st;
-	char *buf = NULL;
-	int res, fd;
-
-	res = stat(fn, &st);
-	if (res < 0) {
-		log_error("%s: %s", fn, strerror(errno));
-		goto load_error;
-	}
-
-	buf = malloc(st.st_size + 1);
-	if (!buf) {
-		log_error("%s: no mem", fn);
-		goto load_error;
-	}
-
-	if ((fd = open(fn, O_RDONLY)) < 0) {
-		log_error("%s: %s", fn, strerror(errno));
-		goto load_error;
-	}
-
-	if ((res = safe_read(fd, buf, st.st_size)) < 0) {
-		log_error("%s: %s", fn, strerror(errno));
-		goto load_error;
-	}
-
-	close(fd);
-	buf[st.st_size] = 0;
-
-	return buf;
-
-load_error:
-	if (buf != NULL)
-		free(buf);
-	return NULL;
-}
-
 /*
  * PostgreSQL MD5 hashing.
  */

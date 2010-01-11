@@ -25,6 +25,7 @@
 #include <usual/time.h>
 #include <usual/list.h>
 #include <usual/statlist.h>
+#include <usual/string.h>
 
 #include <event.h>
 

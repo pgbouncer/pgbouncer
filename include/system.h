@@ -49,7 +49,6 @@
 
 #include <fcntl.h>
 #include <stdio.h>
-#include <string.h>
 #include <stdarg.h>
 #include <ctype.h>
 #include <limits.h>
@@ -117,17 +116,8 @@ do { \
  * libc compat functions.
  */
 
-#ifndef HAVE_STRLCPY
-size_t strlcpy(char *dst, const char *src, size_t n) _MUSTCHECK;
-#endif
-#ifndef HAVE_STRLCAT
-size_t strlcat(char *dst, const char *src, size_t n) _MUSTCHECK;
-#endif
 #ifndef HAVE_GETPEEREID
 int getpeereid(int fd, uid_t *uid_p, gid_t *gid_p) _MUSTCHECK;
-#endif
-#ifndef HAVE_BASENAME
-const char *basename(const char *path);
 #endif
 #ifndef HAVE_CRYPT
 static inline char *crypt(const char *p, const char *s) { return NULL; }

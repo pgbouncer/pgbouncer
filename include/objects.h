@@ -17,7 +17,7 @@
  */
 
 extern struct StatList user_list;
-extern Tree user_tree;
+extern struct AATree user_tree;
 extern struct StatList pool_list;
 extern struct StatList database_list;
 extern struct StatList autodatabase_idle_list;

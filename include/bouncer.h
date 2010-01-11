@@ -27,6 +27,7 @@
 #include <usual/statlist.h>
 #include <usual/string.h>
 #include <usual/logging.h>
+#include <usual/aatree.h>
 
 #include <event.h>
 
@@ -74,7 +75,6 @@ typedef struct PktHdr PktHdr;
 
 extern int cf_sbuf_len;
 
-#include "aatree.h"
 #include "hash.h"
 #include "util.h"
 #include "mbuf.h"
@@ -217,7 +217,7 @@ struct PgPool {
 struct PgUser {
 	struct List head;		/* used to attach user to list */
 	struct List pool_list;		/* list of pools where pool->user == this user */
-	Node tree_node;		/* used to attach user to tree */
+	struct AANode tree_node;	/* used to attach user to tree */
 	char name[MAX_USERNAME];
 	char passwd[MAX_PASSWORD];
 };

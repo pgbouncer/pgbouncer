@@ -27,7 +27,7 @@ STATLIST(user_list);
 STATLIST(database_list);
 STATLIST(pool_list);
 
-Tree user_tree;
+struct AATree user_tree;
 
 /*
  * client and server objects will be pre-allocated
@@ -87,7 +87,7 @@ static void construct_server(void *obj)
 }
 
 /* compare string with PgUser->name, for usage with btree */
-static int user_node_cmp(long userptr, Node *node)
+static int user_node_cmp(long userptr, struct AANode *node)
 {
 	const char *name = (const char *)userptr;
 	PgUser *user = container_of(node, PgUser, tree_node);
@@ -97,7 +97,7 @@ static int user_node_cmp(long userptr, Node *node)
 /* initialization before config loading */
 void init_objects(void)
 {
-	tree_init(&user_tree, user_node_cmp, NULL);
+	aatree_init(&user_tree, user_node_cmp, NULL);
 	user_cache = objcache_create("user_cache", sizeof(PgUser), 0, NULL);
 	db_cache = objcache_create("db_cache", sizeof(PgDatabase), 0, NULL);
 	pool_cache = objcache_create("pool_cache", sizeof(PgPool), 0, NULL);
@@ -354,7 +354,7 @@ PgUser *add_user(const char *name, const char *passwd)
 		safe_strcpy(user->name, name, sizeof(user->name));
 		put_in_order(&user->head, &user_list, cmp_user);
 
-		tree_insert(&user_tree, (long)user->name, &user->tree_node);
+		aatree_insert(&user_tree, (long)user->name, &user->tree_node);
 	}
 	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
 	return user;
@@ -404,9 +404,9 @@ PgDatabase *find_database(const char *name)
 PgUser *find_user(const char *name)
 {
 	PgUser *user = NULL;
-	Node *node;
+	struct AANode *node;
 
-	node = tree_search(&user_tree, (long)name);
+	node = aatree_search(&user_tree, (long)name);
 	user = node ? container_of(node, PgUser, tree_node) : NULL;
 	return user;
 }

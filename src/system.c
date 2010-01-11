@@ -39,34 +39,6 @@
 #endif
 
 /*
- * Minimal spec-conforming implementations of strlcpy(), strlcat().
- */
-
-#ifndef HAVE_STRLCPY
-size_t strlcpy(char *dst, const char *src, size_t n)
-{
-	size_t len = strlen(src);
-	if (len < n) {
-		memcpy(dst, src, len + 1);
-	} else if (n > 0) {
-		memcpy(dst, src, n - 1);
-		dst[n - 1] = 0;
-	}
-	return len;
-}
-#endif
-
-#ifndef HAVE_STRLCAT
-size_t strlcat(char *dst, const char *src, size_t n)
-{
-	size_t pos = 0;
-	while (pos < n && dst[pos])
-		pos++;
-	return pos + strlcpy(dst + pos, src, n - pos);
-}
-#endif
-
-/*
  * Get other side's uid for UNIX socket.
  *
  * Standardise on getpeereid() from BSDs.
@@ -97,18 +69,6 @@ int getpeereid(int fd, uid_t *uid_p, gid_t *gid_p)
 	return -1;
 }
 #endif /* !HAVE_GETPEEREID */
-
-#ifndef HAVE_BASENAME
-const char *basename(const char *path)
-{
-	const char *p;
-	if (path == NULL || path[0] == 0)
-		return ".";
-	if ((p = strrchr(path, '/')) != NULL)
-		return p[1] ? p + 1 : p;
-	return path;
-}
-#endif
 
 void change_user(const char *user)
 {

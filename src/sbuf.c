@@ -319,7 +319,7 @@ void sbuf_prepare_fetch(SBuf *sbuf, unsigned amount)
  *************************/
 
 /*
- * Call proto callback with proper MBuf.
+ * Call proto callback with proper struct MBuf.
  *
  * If callback returns true it used one of sbuf_prepare_* on sbuf,
  * and processing can continue.
@@ -330,7 +330,7 @@ void sbuf_prepare_fetch(SBuf *sbuf, unsigned amount)
  */
 static bool sbuf_call_proto(SBuf *sbuf, int event)
 {
-	MBuf mbuf;
+	struct MBuf mbuf;
 	IOBuf *io = sbuf->io;
 	bool res;
 

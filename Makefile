@@ -5,7 +5,7 @@ SRCS = client.c loader.c objects.c pooler.c proto.c sbuf.c server.c util.c \
        varcache.c
 HDRS = client.h loader.h objects.h pooler.h proto.h sbuf.h server.h util.h \
        admin.h stats.h takeover.h janitor.h pktbuf.h system.h bouncer.h \
-       mbuf.h varcache.h iobuf.h
+       varcache.h iobuf.h
 
 # data & dirs to include in tgz
 DOCS = doc/overview.txt doc/usage.txt doc/config.txt doc/todo.txt

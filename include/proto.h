@@ -29,10 +29,10 @@
 struct PktHdr {
 	unsigned type;
 	unsigned len;
-	MBuf data;
+	struct MBuf data;
 };
 
-bool get_header(MBuf *data, PktHdr *pkt) _MUSTCHECK;
+bool get_header(struct MBuf *data, PktHdr *pkt) _MUSTCHECK;
 
 bool send_pooler_error(PgSocket *client, bool send_ready, const char *msg)  /*_MUSTCHECK*/;
 void log_server_error(const char *note, PktHdr *pkt);
@@ -46,12 +46,12 @@ bool answer_authreq(PgSocket *server, PktHdr *pkt) _MUSTCHECK;
 
 bool send_startup_packet(PgSocket *server) _MUSTCHECK;
 
-int scan_text_result(MBuf *pkt, const char *tupdesc, ...) _MUSTCHECK;
+int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...) _MUSTCHECK;
 
 /* is packet completely in our buffer */
 static inline bool incomplete_pkt(const PktHdr *pkt)
 {
-	return mbuf_size(&pkt->data) != pkt->len;
+	return mbuf_written(&pkt->data) != pkt->len;
 }
 
 /* one char desc */

@@ -32,6 +32,7 @@
 #include <usual/slab.h>
 #include <usual/socket.h>
 #include <usual/safeio.h>
+#include <usual/mbuf.h>
 
 #include <event.h>
 
@@ -80,7 +81,6 @@ typedef struct PktHdr PktHdr;
 extern int cf_sbuf_len;
 
 #include "util.h"
-#include "mbuf.h"
 #include "iobuf.h"
 #include "sbuf.h"
 #include "pktbuf.h"

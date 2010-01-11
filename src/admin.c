@@ -283,10 +283,13 @@ static bool send_one_fd(PgSocket *admin,
 static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 {
 	PgAddr *addr = &sk->remote_addr;
-	MBuf tmp;
+	struct MBuf tmp;
 	VarCache *v = &sk->vars;
+	uint64_t ckey;
 
-	mbuf_init(&tmp, sk->cancel_key, 8);
+	mbuf_init_fixed_reader(&tmp, sk->cancel_key, 8);
+	if (!mbuf_get_uint64be(&tmp, &ckey))
+		return false;
 
 	return send_one_fd(admin, sbuf_socket(&sk->sbuf),
 			   is_server_socket(sk) ? "server" : "client",
@@ -294,7 +297,7 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 			   sk->pool ? sk->pool->db->name : NULL,
 			   addr->is_unix ? "unix" : inet_ntoa(addr->ip_addr),
 			   addr->port,
-			   mbuf_get_uint64(&tmp),
+			   ckey,
 			   sk->link ? sbuf_socket(&sk->link->sbuf) : 0,
 			   v->client_encoding[0] ? v->client_encoding : NULL,
 			   v->std_strings[0] ? v->std_strings : NULL,
@@ -1061,8 +1064,7 @@ bool admin_handle_client(PgSocket *admin, PktHdr *pkt)
 
 	switch (pkt->type) {
 	case 'Q':
-		q = mbuf_get_string(&pkt->data);
-		if (!q) {
+		if (!mbuf_get_string(&pkt->data, &q)) {
 			disconnect_client(admin, true, "incomplete query");
 			return false;
 		}

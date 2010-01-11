@@ -23,42 +23,54 @@
 #include "bouncer.h"
 
 /*
- * parse protocol header from MBuf
+ * parse protocol header from struct MBuf
  */
 
 /* parses pkt header from buffer, returns false if failed */
-bool get_header(MBuf *data, PktHdr *pkt)
+bool get_header(struct MBuf *data, PktHdr *pkt)
 {
 	unsigned type;
-	unsigned len;
-	unsigned code;
+	uint32_t len;
 	unsigned got;
 	unsigned avail;
-	MBuf hdr;
+	uint16_t len16;
+	uint8_t type8;
+	uint32_t code;
+	struct MBuf hdr;
+	const uint8_t *ptr;
 
 	mbuf_copy(data, &hdr);
 
-	if (mbuf_avail(&hdr) < NEW_HEADER_LEN) {
+	if (mbuf_avail_for_read(&hdr) < NEW_HEADER_LEN) {
 		log_noise("get_header: less then 5 bytes available");
 		return false;
 	}
-	type = mbuf_get_char(&hdr);
+	if (!mbuf_get_byte(&hdr, &type8))
+		return false;
+	type = type8;
 	if (type != 0) {
 		/* wire length does not include type byte */
-		len = mbuf_get_uint32(&hdr) + 1;
+		if (!mbuf_get_uint32be(&hdr, &len))
+			return false;
+		len++;
 		got = NEW_HEADER_LEN;
 	} else {
-		if (mbuf_get_char(&hdr) != 0) {
+		if (!mbuf_get_byte(&hdr, &type8))
+			return false;
+		if (type8 != 0) {
 			log_noise("get_header: unknown special pkt");
 			return false;
 		}
 		/* dont tolerate partial pkt */
-		if (mbuf_avail(&hdr) < OLD_HEADER_LEN - 2) {
+		if (mbuf_avail_for_read(&hdr) < OLD_HEADER_LEN - 2) {
 			log_noise("get_header: less than 8 bytes for special pkt");
 			return false;
 		}
-		len = mbuf_get_uint16(&hdr);
-		code = mbuf_get_uint32(&hdr);
+		if (!mbuf_get_uint16be(&hdr, &len16))
+			return false;
+		len = len16;
+		if (!mbuf_get_uint32be(&hdr, &code))
+			return false;
 		if (code == PKT_CANCEL)
 			type = PKT_CANCEL;
 		else if (code == PKT_SSLREQ)
@@ -83,16 +95,15 @@ bool get_header(MBuf *data, PktHdr *pkt)
 	pkt->len = len;
 
 	/* fill pkt with only data for this packet */
-	if (len > mbuf_avail(data))
-		avail = mbuf_avail(data);
+	if (len > mbuf_avail_for_read(data))
+		avail = mbuf_avail_for_read(data);
 	else
 		avail = len;
-	mbuf_slice(data, avail, &pkt->data);
+	if (!mbuf_slice(data, avail, &pkt->data))
+		return false;
 
 	/* tag header as read */
-	mbuf_get_bytes(&pkt->data, got);
-
-	return true;
+	return mbuf_get_bytes(&pkt->data, got, &ptr);
 }
 
 
@@ -122,13 +133,13 @@ bool send_pooler_error(PgSocket *client, bool send_ready, const char *msg)
 void parse_server_error(PktHdr *pkt, const char **level_p, const char **msg_p)
 {
 	const char *level = NULL, *msg = NULL, *val;
-	int type;
-	while (mbuf_avail(&pkt->data)) {
-		type = mbuf_get_char(&pkt->data);
+	uint8_t type;
+	while (mbuf_avail_for_read(&pkt->data)) {
+		if (!mbuf_get_byte(&pkt->data, &type))
+			break;
 		if (type == 0)
 			break;
-		val = mbuf_get_string(&pkt->data);
-		if (!val)
+		if (!mbuf_get_string(&pkt->data, &val))
 			break;
 		if (type == 'S')
 			level = val;
@@ -271,15 +282,16 @@ static bool login_md5_psw(PgSocket *server, const uint8_t *salt)
 /* answer server authentication request */
 bool answer_authreq(PgSocket *server, PktHdr *pkt)
 {
-	unsigned cmd;
+	uint32_t cmd;
 	const uint8_t *salt;
 	bool res = false;
 
 	/* authreq body must contain 32bit cmd */
-	if (mbuf_avail(&pkt->data) < 4)
+	if (mbuf_avail_for_read(&pkt->data) < 4)
 		return false;
 
-	cmd = mbuf_get_uint32(&pkt->data);
+	if (!mbuf_get_uint32be(&pkt->data, &cmd))
+		return false;
 	switch (cmd) {
 	case 0:
 		slog_debug(server, "S: auth ok");
@@ -291,16 +303,14 @@ bool answer_authreq(PgSocket *server, PktHdr *pkt)
 		break;
 	case 4:
 		slog_debug(server, "S: req crypt psw");
-		if (mbuf_avail(&pkt->data) < 2)
+		if (!mbuf_get_bytes(&pkt->data, 2, &salt))
 			return false;
-		salt = mbuf_get_bytes(&pkt->data, 2);
 		res = login_crypt_psw(server, salt);
 		break;
 	case 5:
 		slog_debug(server, "S: req md5-crypted psw");
-		if (mbuf_avail(&pkt->data) < 4)
+		if (!mbuf_get_bytes(&pkt->data, 4, &salt))
 			return false;
-		salt = mbuf_get_bytes(&pkt->data, 4);
 		res = login_md5_psw(server, salt);
 		break;
 	case 2: /* kerberos */
@@ -330,33 +340,39 @@ bool send_startup_packet(PgSocket *server)
 	return pktbuf_send_immidiate(&pkt, server);
 }
 
-int scan_text_result(MBuf *pkt, const char *tupdesc, ...)
+int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...)
 {
-	char *val = NULL;
-	int len;
-	unsigned ncol, i, asked;
+	const char *val = NULL;
+	uint32_t len;
+	uint16_t ncol;
+	unsigned i, asked;
 	va_list ap;
 	int *int_p;
 	uint64_t *long_p;
-	char **str_p;
+	const char **str_p;
 
 	asked = strlen(tupdesc);
-	ncol = mbuf_get_uint16(pkt);
+	if (!mbuf_get_uint16be(pkt, &ncol))
+		return -1;
 
 	va_start(ap, tupdesc);
 	for (i = 0; i < asked; i++) {
 		if (i < ncol) {
-			len = mbuf_get_uint32(pkt);
-			if (len < 0)
+			if (!mbuf_get_uint32be(pkt, &len))
+				return -1;
+			if ((int32_t)len < 0) {
 				val = NULL;
-			else
-				val = (char *)mbuf_get_bytes(pkt, len);
+			} else {
+				if (!mbuf_get_chars(pkt, len, &val))
+					return -1;
+			}
 
 			/* hack to zero-terminate the result */
 			if (val) {
-				val--;
-				memmove(val, val + 1, len);
-				val[len] = 0;
+				char *xval = (char *)val - 1;
+				memmove(xval, val, len);
+				xval[len] = 0;
+				val = xval;
 			}
 		} else
 			/* tuple was shorter than requested */
@@ -372,7 +388,7 @@ int scan_text_result(MBuf *pkt, const char *tupdesc, ...)
 			*long_p = atoll(val);
 			break;
 		case 's':
-			str_p = va_arg(ap, char **);
+			str_p = va_arg(ap, const char **);
 			*str_p = val;
 			break;
 		default:

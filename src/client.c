@@ -104,13 +104,14 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 {
 	const char *username = NULL, *dbname = NULL;
 	const char *key, *val;
+	bool ok;
 
 	while (1) {
-		key = mbuf_get_string(&pkt->data);
-		if (!key || *key == 0)
+		ok = mbuf_get_string(&pkt->data, &key);
+		if (!ok || *key == 0)
 			break;
-		val = mbuf_get_string(&pkt->data);
-		if (!val)
+		ok = mbuf_get_string(&pkt->data, &val);
+		if (!ok)
 			break;
 
 		if (strcmp(key, "database") == 0)
@@ -191,6 +192,8 @@ static bool send_client_authreq(PgSocket *client)
 static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 {
 	const char *passwd;
+	const uint8_t *key;
+	bool ok;
 
 	SBuf *sbuf = &client->sbuf;
 
@@ -254,8 +257,8 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 			return false;
 		}
 
-		passwd = mbuf_get_string(&pkt->data);
-		if (passwd && check_client_passwd(client, passwd)) {
+		ok = mbuf_get_string(&pkt->data, &passwd);
+		if (ok && check_client_passwd(client, passwd)) {
 			if (!finish_client_login(client))
 				return false;
 		} else {
@@ -264,8 +267,9 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		}
 		break;
 	case PKT_CANCEL:
-		if (mbuf_avail(&pkt->data) == BACKENDKEY_LEN) {
-			const uint8_t *key = mbuf_get_bytes(&pkt->data, BACKENDKEY_LEN);
+		if (mbuf_avail_for_read(&pkt->data) == BACKENDKEY_LEN
+		    && mbuf_get_bytes(&pkt->data, BACKENDKEY_LEN, &key))
+		{
 			memcpy(client->cancel_key, key, BACKENDKEY_LEN);
 			accept_cancel_request(client);
 		} else
@@ -345,7 +349,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 }
 
 /* callback from SBuf */
-bool client_proto(SBuf *sbuf, SBufEvent evtype, MBuf *data)
+bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 {
 	bool res = false;
 	PgSocket *client = container_of(sbuf, PgSocket, sbuf);
@@ -371,7 +375,7 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, MBuf *data)
 		disconnect_server(client->link, false, "Server connection closed");
 		break;
 	case SBUF_EV_READ:
-		if (mbuf_avail(data) < NEW_HEADER_LEN && client->state != CL_LOGIN) {
+		if (mbuf_avail_for_read(data) < NEW_HEADER_LEN && client->state != CL_LOGIN) {
 			slog_noise(client, "C: got partial header, trying to wait a bit");
 			return false;
 		}

@@ -34,12 +34,10 @@ static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 	if (incomplete_pkt(pkt))
 		return false;
 
-	key = mbuf_get_string(&pkt->data);
-	val = mbuf_get_string(&pkt->data);
-	if (!key || !val) {
-		disconnect_server(server, true, "broken ParameterStatus packet");
-		return false;
-	}
+	if (!mbuf_get_string(&pkt->data, &key))
+		goto failed;
+	if (!mbuf_get_string(&pkt->data, &val))
+		goto failed;
 	slog_debug(server, "S: param: %s = %s", key, val);
 
 	varcache_set(&server->vars, key, val);
@@ -53,6 +51,9 @@ static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 		add_welcome_parameter(server->pool, key, val);
 
 	return true;
+failed:
+	disconnect_server(server, true, "broken ParameterStatus packet");
+	return false;
 }
 
 /* we cannot log in at all, notify clients */
@@ -80,6 +81,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 {
 	SBuf *sbuf = &server->sbuf;
 	bool res = false;
+	const uint8_t *ckey;
 
 	if (incomplete_pkt(pkt)) {
 		disconnect_server(server, true, "partial pkt in login phase");
@@ -158,10 +160,11 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 
 	/* ignorable packets */
 	case 'K':		/* BackendKeyData */
-		if (mbuf_avail(&pkt->data) >= BACKENDKEY_LEN)
-			memcpy(server->cancel_key,
-			       mbuf_get_bytes(&pkt->data, BACKENDKEY_LEN),
-			       BACKENDKEY_LEN);
+		if (!mbuf_get_bytes(&pkt->data, BACKENDKEY_LEN, &ckey)) {
+			disconnect_server(server, true, "bad cancel key");
+			return false;
+		}
+		memcpy(server->cancel_key, ckey, BACKENDKEY_LEN);
 		res = true;
 		break;
 
@@ -197,9 +200,8 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	case 'Z':		/* ReadyForQuery */
 
 		/* if partial pkt, wait */
-		if (mbuf_avail(&pkt->data) == 0)
+		if (!mbuf_get_char(&pkt->data, &state))
 			return false;
-		state = mbuf_get_char(&pkt->data);
 
 		/* set ready only if no tx */
 		if (state == 'I')
@@ -320,7 +322,7 @@ static bool handle_connect(PgSocket *server)
 }
 
 /* callback from SBuf */
-bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *data)
+bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 {
 	bool res = false;
 	PgSocket *server = container_of(sbuf, PgSocket, sbuf);
@@ -342,7 +344,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, MBuf *data)
 		disconnect_client(server->link, false, "unexpected eof");
 		break;
 	case SBUF_EV_READ:
-		if (mbuf_avail(data) < NEW_HEADER_LEN) {
+		if (mbuf_avail_for_read(data) < NEW_HEADER_LEN) {
 			slog_noise(server, "S: got partial header, trying to wait a bit");
 			break;
 		}

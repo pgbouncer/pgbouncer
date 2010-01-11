@@ -84,22 +84,22 @@ static inline unsigned iobuf_amount_recv(const IOBuf *buf)
 }
 
 /* put all unparsed to mbuf */
-static inline unsigned iobuf_parse_all(const IOBuf *buf, MBuf *mbuf)
+static inline unsigned iobuf_parse_all(const IOBuf *buf, struct MBuf *mbuf)
 {
 	unsigned avail = iobuf_amount_parse(buf);
 	const uint8_t *pos = buf->buf + buf->parse_pos;
-	mbuf_init(mbuf, pos, avail);
+	mbuf_init_fixed_reader(mbuf, pos, avail);
 	return avail;
 }
 
 /* put all unparsed to mbuf, with size limit */
-static inline unsigned iobuf_parse_limit(const IOBuf *buf, MBuf *mbuf, unsigned limit)
+static inline unsigned iobuf_parse_limit(const IOBuf *buf, struct MBuf *mbuf, unsigned limit)
 {
 	unsigned avail = iobuf_amount_parse(buf);
 	const uint8_t *pos = buf->buf + buf->parse_pos;
 	if (avail > limit)
 		avail = limit;
-	mbuf_init(mbuf, pos, avail);
+	mbuf_init_fixed_reader(mbuf, pos, avail);
 	return avail;
 }
 

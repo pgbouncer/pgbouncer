@@ -75,7 +75,7 @@ static void takeover_finish_part1(PgSocket *bouncer)
 }
 
 /* parse msg for fd and info */
-static void takeover_load_fd(MBuf *pkt, const struct cmsghdr *cmsg)
+static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 {
 	int fd;
 	char *task, *saddr, *user, *db;
@@ -102,7 +102,7 @@ static void takeover_load_fd(MBuf *pkt, const struct cmsghdr *cmsg)
 	got = scan_text_result(pkt, "issssiqissss", &oldfd, &task, &user, &db,
 			       &saddr, &port, &ckey, &linkfd,
 			       &client_enc, &std_string, &datestyle, &timezone);
-	if (task == NULL || saddr == NULL)
+	if (got < 0 || task == NULL || saddr == NULL)
 		fatal("NULL data from old process");
 
 	log_debug("FD row: fd=%d(%d) linkfd=%d task=%s user=%s db=%s enc=%s",
@@ -190,10 +190,13 @@ static void takeover_postprocess_fds(void)
 	}
 }
 
-static void next_command(PgSocket *bouncer, MBuf *pkt)
+static void next_command(PgSocket *bouncer, struct MBuf *pkt)
 {
 	bool res = true;
-	const char *cmd = mbuf_get_string(pkt);
+	const char *cmd;
+	
+	if (!mbuf_get_string(pkt, &cmd))
+		fatal("bad result pkt");
 
 	log_debug("takeover_recv_fds: 'C' body: %s", cmd);
 	if (strcmp(cmd, "SUSPEND") == 0) {
@@ -213,14 +216,14 @@ static void next_command(PgSocket *bouncer, MBuf *pkt)
 }
 
 static void takeover_parse_data(PgSocket *bouncer,
-				struct msghdr *msg, MBuf *data)
+				struct msghdr *msg, struct MBuf *data)
 {
 	struct cmsghdr *cmsg;
 	PktHdr pkt;
 	
 	cmsg = msg->msg_controllen ? CMSG_FIRSTHDR(msg) : NULL;
 
-	while (mbuf_avail(data) > 0) {
+	while (mbuf_avail_for_read(data) > 0) {
 		if (!get_header(data, &pkt))
 			fatal("cannot parse packet");
 
@@ -271,7 +274,7 @@ static void takeover_recv_cb(int sock, short flags, void *arg)
 	struct msghdr msg;
 	struct iovec io;
 	int res;
-	MBuf data;
+	struct MBuf data;
 
 	memset(&msg, 0, sizeof(msg));
 	io.iov_base = data_buf;
@@ -283,7 +286,7 @@ static void takeover_recv_cb(int sock, short flags, void *arg)
 
 	res = safe_recvmsg(sock, &msg, 0);
 	if (res > 0) {
-		mbuf_init(&data, data_buf, res);
+		mbuf_init_fixed_reader(&data, data_buf, res);
 		takeover_parse_data(bouncer, &msg, &data);
 	} else if (res == 0) {
 		fatal("unexpected EOF");

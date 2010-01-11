@@ -47,7 +47,7 @@ typedef struct SBuf SBuf;
    next event loop (eg. too few data available). */
 typedef bool (*sbuf_cb_t)(SBuf *sbuf,
 			SBufEvent evtype,
-			MBuf *mbuf);
+			struct MBuf *mbuf);
 
 /* for some reason, libevent has no typedef for callback */
 typedef void (*sbuf_libevent_cb)(int, short, void *);

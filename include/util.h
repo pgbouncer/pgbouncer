@@ -39,19 +39,6 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
 	} while (0)
 
 /*
- * non-interruptible operations
- */
-int safe_read(int fd, void *buf, int len)			_MUSTCHECK;
-int safe_write(int fd, const void *buf, int len)		_MUSTCHECK;
-int safe_recv(int fd, void *buf, int len, int flags)		_MUSTCHECK;
-int safe_send(int fd, const void *buf, int len, int flags) 	_MUSTCHECK;
-int safe_close(int fd);
-int safe_recvmsg(int fd, struct msghdr *msg, int flags)		_MUSTCHECK;
-int safe_sendmsg(int fd, const struct msghdr *msg, int flags)	_MUSTCHECK;
-int safe_connect(int fd, const struct sockaddr *sa, socklen_t sa_len)	_MUSTCHECK;
-int safe_accept(int fd, struct sockaddr *sa, socklen_t *sa_len)	_MUSTCHECK;
-
-/*
  * password tools
  */
 #define MD5_PASSWD_LEN  35

@@ -31,6 +31,7 @@
 #include <usual/lookup3.h>
 #include <usual/slab.h>
 #include <usual/socket.h>
+#include <usual/safeio.h>
 
 #include <event.h>
 

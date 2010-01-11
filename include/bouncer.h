@@ -28,6 +28,7 @@
 #include <usual/string.h>
 #include <usual/logging.h>
 #include <usual/aatree.h>
+#include <usual/lookup3.h>
 
 #include <event.h>
 
@@ -75,7 +76,6 @@ typedef struct PktHdr PktHdr;
 
 extern int cf_sbuf_len;
 
-#include "hash.h"
 #include "util.h"
 #include "mbuf.h"
 #include "iobuf.h"

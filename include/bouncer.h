@@ -22,6 +22,8 @@
 
 #include "system.h"
 
+#include <usual/time.h>
+
 #include <event.h>
 
 #ifdef DBGVER

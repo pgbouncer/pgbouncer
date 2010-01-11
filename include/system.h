@@ -26,7 +26,6 @@
 #include "win32support.h"
 #endif
 
-#include <sys/time.h>
 #include <sys/stat.h>
 
 #ifdef HAVE_SYS_SOCKET_H
@@ -48,7 +47,6 @@
 #include <sys/resource.h>
 #endif
 
-#include <time.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
@@ -92,10 +90,6 @@ do { \
 #define UNIX_PATH_MAX  128 /* actual sizeof() will be applied later anyway */
 #endif
 
-/* how many microseconds in a second */
-#define USEC (1000000LL)
-
-typedef uint64_t usec_t;
 /*
  * PostgreSQL type OIDs for resultsets.
  */

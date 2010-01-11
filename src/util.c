@@ -55,18 +55,6 @@ static struct FacName facility_names [] = {
  * Generic logging
  */
 
-static void render_time(char *buf, int max)
-{
-	struct tm *tm;
-	struct timeval tv;
-	gettimeofday(&tv, NULL);
-	tm = localtime(&tv.tv_sec);
-	snprintf(buf, max, "%04d-%02d-%02d %02d:%02d:%02d.%03d",
-		 tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
-		 tm->tm_hour, tm->tm_min, tm->tm_sec,
-		 (int)(tv.tv_usec / 1000));
-}
-
 static void close_syslog(void)
 {
 	if (syslog_started) {
@@ -141,7 +129,7 @@ static void _log_write(const char *pfx, const char *msg)
 	int len;
 	int old_errno = errno;
 
-	render_time(tbuf, sizeof(tbuf));
+	format_time_ms(0, tbuf, sizeof(tbuf));
 	len = snprintf(buf, sizeof(buf), "%s %u %s %s\n",
 			tbuf, (unsigned)getpid(), pfx, msg);
 
@@ -476,34 +464,6 @@ void get_random_bytes(uint8_t *dest, int len)
 		dest[i] = random() & 255;
 }
 
-/*
- * high-precision time
- */
-
-static usec_t get_time_usec(void)
-{
-	struct timeval tv;
-	gettimeofday(&tv, NULL);
-	return (usec_t)tv.tv_sec * USEC + tv.tv_usec;
-}
-
-/*
- * cache time, as we don't need sub-second precision
- */
-static usec_t time_cache = 0;
-
-usec_t get_cached_time(void)
-{
-	if (!time_cache)
-		time_cache = get_time_usec();
-	return time_cache;
-}
-
-void reset_time_cache(void)
-{
-	time_cache = 0;
-}
-
 void socket_set_nonblocking(int fd, int val)
 {
 	int flags, res;
@@ -650,14 +610,6 @@ loop:
 		goto loop;
 
 	return true;
-}
-
-const char *format_date(usec_t uval)
-{
-	static char buf[128];
-	time_t tval = uval / USEC;
-	strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", localtime(&tval));
-	return buf;
 }
 
 void fill_remote_addr(PgSocket *sk, int fd, bool is_unix)

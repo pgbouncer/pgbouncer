@@ -390,7 +390,7 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 			val = va_arg(ap, char *);
 		} else if (tupdesc[i] == 'T') {
 			usec_t time = va_arg(ap, usec_t);
-			val = format_date(time);
+			val = format_time_s(time, tmp, sizeof(tmp));
 		} else
 			fatal("bad tupdesc: %s", tupdesc);
 

@@ -17,12 +17,6 @@
  */
 
 /*
- * time tools
- */
-usec_t get_cached_time(void);
-void reset_time_cache(void);
-
-/*
  * load file into malloced buffer
  */
 char *load_file(const char *fn) _MUSTCHECK;
@@ -99,8 +93,6 @@ void socket_set_nonblocking(int fd, int val);
 void tune_socket(int sock, bool is_unix);
 
 bool strlist_contains(const char *liststr, const char *str);
-
-const char *format_date(usec_t uval);
 
 void fill_remote_addr(PgSocket *sk, int fd, bool is_unix);
 void fill_local_addr(PgSocket *sk, int fd, bool is_unix);

@@ -33,8 +33,7 @@
 #include <usual/socket.h>
 #include <usual/safeio.h>
 #include <usual/mbuf.h>
-
-#include <event.h>
+#include <usual/event.h>
 
 #ifdef DBGVER
 #define FULLVER   PACKAGE_NAME " version " PACKAGE_VERSION " (" DBGVER ")"

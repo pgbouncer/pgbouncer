@@ -22,12 +22,12 @@ extern struct StatList pool_list;
 extern struct StatList database_list;
 extern struct StatList autodatabase_idle_list;
 extern struct StatList login_client_list;
-extern ObjectCache *client_cache;
-extern ObjectCache *server_cache;
-extern ObjectCache *db_cache;
-extern ObjectCache *pool_cache;
-extern ObjectCache *user_cache;
-extern ObjectCache *iobuf_cache;
+extern struct Slab *client_cache;
+extern struct Slab *server_cache;
+extern struct Slab *db_cache;
+extern struct Slab *pool_cache;
+extern struct Slab *user_cache;
+extern struct Slab *iobuf_cache;
 
 PgDatabase *find_database(const char *name);
 PgUser *find_user(const char *name);

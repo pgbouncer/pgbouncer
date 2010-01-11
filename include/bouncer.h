@@ -29,6 +29,7 @@
 #include <usual/logging.h>
 #include <usual/aatree.h>
 #include <usual/lookup3.h>
+#include <usual/slab.h>
 
 #include <event.h>
 
@@ -82,7 +83,6 @@ extern int cf_sbuf_len;
 #include "sbuf.h"
 #include "pktbuf.h"
 #include "varcache.h"
-#include "slab.h"
 
 #include "admin.h"
 #include "loader.h"

@@ -451,11 +451,11 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 	SENDLIST("databases", statlist_count(&database_list));
 	SENDLIST("users", statlist_count(&user_list));
 	SENDLIST("pools", statlist_count(&pool_list));
-	SENDLIST("free_clients", objcache_free_count(client_cache));
-	SENDLIST("used_clients", objcache_active_count(client_cache));
+	SENDLIST("free_clients", slab_free_count(client_cache));
+	SENDLIST("used_clients", slab_active_count(client_cache));
 	SENDLIST("login_clients", statlist_count(&login_client_list));
-	SENDLIST("free_servers", objcache_free_count(server_cache));
-	SENDLIST("used_servers", objcache_active_count(server_cache));
+	SENDLIST("free_servers", slab_free_count(server_cache));
+	SENDLIST("used_servers", slab_active_count(server_cache));
 	admin_flush(admin, buf, "SHOW");
 	return true;
 }
@@ -736,7 +736,7 @@ static bool admin_show_mem(PgSocket *admin, const char *arg)
 	}
 	pktbuf_write_RowDescription(buf, "siiii", "name",
 				    "size", "used", "free", "memtotal");
-	objcache_stats(slab_stat_cb, buf);
+	slab_stats(slab_stat_cb, buf);
 	admin_flush(admin, buf, "SHOW");
 	return true;
 }

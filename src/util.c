@@ -22,7 +22,8 @@
 
 #include "bouncer.h"
 
-#include "md5.h"
+#define MD5_COMPAT
+#include <usual/md5.h>
 
 int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstlen)
 {

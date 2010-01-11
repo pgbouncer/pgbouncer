@@ -270,7 +270,7 @@ bool sbuf_close(SBuf *sbuf)
 	sbuf->pkt_remain = 0;
 	sbuf->pkt_action = sbuf->wait_type = 0;
 	if (sbuf->io) {
-		obj_free(iobuf_cache, sbuf->io);
+		slab_free(iobuf_cache, sbuf->io);
 		sbuf->io = NULL;
 	}
 	return true;
@@ -546,7 +546,7 @@ static void sbuf_try_resync(SBuf *sbuf, bool release)
 		return;
 
 	if (release && iobuf_empty(io)) {
-		obj_free(iobuf_cache, io);
+		slab_free(iobuf_cache, io);
 		sbuf->io = NULL;
 	} else
 		iobuf_try_resync(io, SBUF_SMALL_PKT);
@@ -585,7 +585,7 @@ static void sbuf_recv_cb(int sock, short flags, void *arg)
 static bool allocate_iobuf(SBuf *sbuf)
 {
 	if (sbuf->io == NULL) {
-		sbuf->io = obj_alloc(iobuf_cache);
+		sbuf->io = slab_alloc(iobuf_cache);
 		if (sbuf->io == NULL) {
 			sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
 			return false;

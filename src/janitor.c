@@ -578,7 +578,7 @@ static void kill_pool(PgPool *pool)
 
 	list_del(&pool->map_head);
 	statlist_remove(&pool_list, &pool->head);
-	obj_free(pool_cache, pool);
+	slab_free(pool_cache, pool);
 }
 
 static void kill_database(PgDatabase *db)
@@ -594,14 +594,14 @@ static void kill_database(PgDatabase *db)
 			kill_pool(pool);
 	}
 	if (db->forced_user)
-		obj_free(user_cache, db->forced_user);
+		slab_free(user_cache, db->forced_user);
 	if (db->connect_query)
 		free((void *)db->connect_query);
 	if (db->inactive_time)
 		statlist_remove(&autodatabase_idle_list, &db->head);
 	else
 		statlist_remove(&database_list, &db->head);
-	obj_free(db_cache, db);
+	slab_free(db_cache, db);
 }
 
 /* as [pgbouncer] section can be loaded after databases,

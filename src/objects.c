@@ -36,12 +36,12 @@ struct AATree user_tree;
  */
 STATLIST(login_client_list);
 
-ObjectCache *server_cache;
-ObjectCache *client_cache;
-ObjectCache *db_cache;
-ObjectCache *pool_cache;
-ObjectCache *user_cache;
-ObjectCache *iobuf_cache;
+struct Slab *server_cache;
+struct Slab *client_cache;
+struct Slab *db_cache;
+struct Slab *pool_cache;
+struct Slab *user_cache;
+struct Slab *iobuf_cache;
 
 /*
  * libevent may still report events when event_del()
@@ -57,13 +57,13 @@ STATLIST(autodatabase_idle_list);
 /* fast way to get number of active clients */
 int get_active_client_count(void)
 {
-	return objcache_active_count(client_cache);
+	return slab_active_count(client_cache);
 }
 
 /* fast way to get number of active servers */
 int get_active_server_count(void)
 {
-	return objcache_active_count(server_cache);
+	return slab_active_count(server_cache);
 }
 
 static void construct_client(void *obj)
@@ -98,9 +98,9 @@ static int user_node_cmp(long userptr, struct AANode *node)
 void init_objects(void)
 {
 	aatree_init(&user_tree, user_node_cmp, NULL);
-	user_cache = objcache_create("user_cache", sizeof(PgUser), 0, NULL);
-	db_cache = objcache_create("db_cache", sizeof(PgDatabase), 0, NULL);
-	pool_cache = objcache_create("pool_cache", sizeof(PgPool), 0, NULL);
+	user_cache = slab_create("user_cache", sizeof(PgUser), 0, NULL);
+	db_cache = slab_create("db_cache", sizeof(PgDatabase), 0, NULL);
+	pool_cache = slab_create("pool_cache", sizeof(PgPool), 0, NULL);
 
 	if (!user_cache || !db_cache || !pool_cache)
 		fatal("cannot create initial caches");
@@ -115,9 +115,9 @@ static void do_iobuf_reset(void *arg)
 /* initialization after config loading */
 void init_caches(void)
 {
-	server_cache = objcache_create("server_cache", sizeof(PgSocket), 0, construct_server);
-	client_cache = objcache_create("client_cache", sizeof(PgSocket), 0, construct_client);
-	iobuf_cache = objcache_create("iobuf_cache", IOBUF_SIZE, 0, do_iobuf_reset);
+	server_cache = slab_create("server_cache", sizeof(PgSocket), 0, construct_server);
+	client_cache = slab_create("client_cache", sizeof(PgSocket), 0, construct_client);
+	iobuf_cache = slab_create("iobuf_cache", IOBUF_SIZE, 0, do_iobuf_reset);
 }
 
 /* state change means moving between lists */
@@ -153,7 +153,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	/* put to new location */
 	switch (client->state) {
 	case CL_FREE:
-		obj_free(client_cache, client);
+		slab_free(client_cache, client);
 		break;
 	case CL_JUSTFREE:
 		statlist_append(&justfree_client_list, &client->head);
@@ -211,7 +211,7 @@ void change_server_state(PgSocket *server, SocketState newstate)
 	/* put to new location */
 	switch (server->state) {
 	case SV_FREE:
-		obj_free(server_cache, server);
+		slab_free(server_cache, server);
 		break;
 	case SV_JUSTFREE:
 		statlist_append(&justfree_server_list, &server->head);
@@ -296,7 +296,7 @@ PgDatabase *add_database(const char *name)
 
 	/* create new object if needed */
 	if (db == NULL) {
-		db = obj_alloc(db_cache);
+		db = slab_alloc(db_cache);
 		if (!db)
 			return NULL;
 
@@ -345,7 +345,7 @@ PgUser *add_user(const char *name, const char *passwd)
 	PgUser *user = find_user(name);
 
 	if (user == NULL) {
-		user = obj_alloc(user_cache);
+		user = slab_alloc(user_cache);
 		if (!user)
 			return NULL;
 
@@ -365,7 +365,7 @@ PgUser *force_user(PgDatabase *db, const char *name, const char *passwd)
 {
 	PgUser *user = db->forced_user;
 	if (!user) {
-		user = obj_alloc(user_cache);
+		user = slab_alloc(user_cache);
 		if (!user)
 			return NULL;
 		list_init(&user->head);
@@ -416,7 +416,7 @@ static PgPool *new_pool(PgDatabase *db, PgUser *user)
 {
 	PgPool *pool;
 
-	pool = obj_alloc(pool_cache);
+	pool = slab_alloc(pool_cache);
 	if (!pool)
 		return NULL;
 
@@ -834,7 +834,7 @@ void launch_new_connection(PgPool *pool)
 
 allow_new:
 	/* get free conn object */
-	server = obj_alloc(server_cache);
+	server = slab_alloc(server_cache);
 	if (!server) {
 		log_debug("launch_new_connection: no memory");
 		return;
@@ -871,7 +871,7 @@ PgSocket * accept_client(int sock,
 	PgSocket *client;
 
 	/* get free PgSocket */
-	client = obj_alloc(client_cache);
+	client = slab_alloc(client_cache);
 	if (!client) {
 		log_warning("cannot allocate client struct");
 		safe_close(sock);
@@ -1065,7 +1065,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 	if (!pool)
 		return false;
 
-	server = obj_alloc(server_cache);
+	server = slab_alloc(server_cache);
 	if (!server)
 		return false;
 

@@ -7,7 +7,7 @@ DEFS = @DEFS@
 LIBS = @LIBS@
 CC = @CC@
 CPP = @CPP@
-CPPFLAGS = -I$(srcdir)/include @CPPFLAGS@
+CPPFLAGS = @CPPFLAGS@
 CFLAGS = @CFLAGS@
 LDFLAGS = @LDFLAGS@
 
@@ -42,4 +42,4 @@ INSTALL = @INSTALL@
 BININSTALL = @BININSTALL@
 
 enable_debug = @enable_debug@
-
+have_libevent = @have_libevent@

@@ -28,23 +28,27 @@ DIRS = doc etc include src debian test win32
 srcdir ?= .
 builddir ?= .
 
+local_hdrs = $(addprefix $(srcdir)/include/, $(HDRS))
+local_srcs = $(addprefix $(srcdir)/src/, $(SRCS))
+
+USUAL_DIR = $(srcdir)/lib
+USUAL_OBJDIR = $(builddir)/obj
+USUAL_LOCAL_SRCS = $(local_srcs) $(local_hdrs)
+include $(USUAL_DIR)/Setup.mk
+
 # calculate full-path values
 OBJS = $(SRCS:.c=.o)
-hdrs = $(addprefix $(srcdir)/include/, $(HDRS))
-srcs = $(addprefix $(srcdir)/src/, $(SRCS))
-objs = $(addprefix $(builddir)/lib/, $(OBJS))
+hdrs = $(local_hdrs) $(USUAL_HDRS)
+srcs = $(local_srcs)
+objs = $(addprefix $(builddir)/obj/, $(OBJS)) $(USUAL_OBJS)
 FULL = $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)
 DISTFILES = $(DIRS) $(DATA) $(DOCS) $(srcs) $(hdrs) $(MANPAGES)
 exe = $(builddir)/pgbouncer$(EXT)
 
-CPPCFLAGS += -I$(srcdir)/include
-
-ifneq ($(builddir),$(srcdir))
-CPPCFLAGS += -I$(builddir)/include
-endif
+CPPFLAGS := -I$(srcdir)/include $(USUAL_CPPFLAGS) $(CPPFLAGS)
 
 ifeq ($(enable_debug),yes)
-CPPCFLAGS += -DDBGVER="\"compiled by <$${USER}@`hostname`> at `date '+%Y-%m-%d %H:%M:%S'`\""
+CPPFLAGS += -DDBGVER="\"compiled by <$${USER}@`hostname`> at `date '+%Y-%m-%d %H:%M:%S'`\""
 endif
 
 ifeq ($(PORTNAME),win32)
@@ -57,11 +61,11 @@ WHDRS = win32support.h
 WOBJS = $(WSRCS:.c=.o)
 srcs += $(srcdir)/win32/win32support.c
 hdrs += $(srcdir)/win32/win32support.h
-objs += $(builddir)/lib/win32support.o
+objs += $(builddir)/obj/win32support.o
 
 dll = $(builddir)/pgbevent.dll
-dlldef = $(builddir)/lib/pgbevent.def
-dllobjs = $(builddir)/lib/eventmsg.o $(builddir)/lib/pgbevent.o
+dlldef = $(builddir)/obj/pgbevent.def
+dllobjs = $(builddir)/obj/eventmsg.o $(builddir)/obj/pgbevent.o
 
 DEFFLAGS = --export-all-symbols -A
 
@@ -88,13 +92,18 @@ $(exe): $(builddir)/config.mak $(objs)
 	$(Q) $(CC) -o $@ $(LDFLAGS) $(objs) $(LIBS)
 
 # objects depend on all the headers
-$(builddir)/lib/%.o: $(srcdir)/src/%.c $(builddir)/config.mak $(hdrs)
-	@mkdir -p $(builddir)/lib
+$(builddir)/obj/%.o: $(srcdir)/src/%.c $(builddir)/config.mak $(hdrs)
+	@mkdir -p $(builddir)/obj
 	$(E) "	CC" $<
 	$(Q) $(CC) -c -o $@ $< $(DEFS) $(CFLAGS) $(CPPFLAGS)
 
-$(builddir)/lib/%.o: $(srcdir)/win32/%.c $(builddir)/config.mak $(hdrs)
-	@mkdir -p $(builddir)/lib
+$(builddir)/obj/%.o: $(srcdir)/win32/%.c $(builddir)/config.mak $(hdrs)
+	@mkdir -p $(builddir)/obj
+	$(E) "	CC" $<
+	$(Q) $(CC) -c -o $@ $< $(DEFS) $(CFLAGS) $(CPPFLAGS)
+
+$(builddir)/obj/%.o: $(USUAL_DIR)/usual/%.c $(builddir)/config.mak $(hdrs)
+	@mkdir -p $(builddir)/obj
 	$(E) "	CC" $<
 	$(Q) $(CC) -c -o $@ $< $(DEFS) $(CFLAGS) $(CPPFLAGS)
 
@@ -134,7 +143,7 @@ clean: doc-clean
 # clean configure results
 distclean: clean doc-distclean
 	rm -f include/config.h include/config.h.in~ config.log config.status config.mak
-	rm -rf lib autom4te*
+	rm -rf obj autom4te*
 
 # clean autoconf results
 realclean: distclean doc-realclean
@@ -143,7 +152,9 @@ realclean: distclean doc-realclean
 
 # generate configure script and config.h.in
 boot:
-	autoreconf -i -f
+	aclocal -I lib/m4
+	autoheader -f
+	autoconf -f
 	rm -rf autom4te* include/config.h.in~
 
 # targets can depend on this to force ./configure
@@ -181,8 +192,8 @@ pgbouncer.pg:
 pg: pgbouncer.pg
 
 # asm hacks
-$(builddir)/lib/%.s: $(srcdir)/src/%.c config.mak $(hdrs)
-	@mkdir -p $(builddir)/lib
+$(builddir)/obj/%.s: $(srcdir)/src/%.c config.mak $(hdrs)
+	@mkdir -p $(builddir)/obj
 	$(E) "	CC -S" $<
 	$(Q) $(CC) -S -fverbose-asm -o $@ $< $(DEFS) $(CFLAGS) $(CPPFLAGS)
 asms = $(objs:.o=.s)
@@ -190,7 +201,7 @@ asm: $(asms)
 
 ifeq ($(PORTNAME),win32)
 
-$(builddir)/lib/eventmsg.o: $(srcdir)/win32/eventmsg.rc
+$(builddir)/obj/eventmsg.o: $(srcdir)/win32/eventmsg.rc
 	$(E) "	WINDRES" $<
 	$(Q) $(WINDRES) $< -o $@ --include-dir=$(srcdir)/win32
 
@@ -208,3 +219,7 @@ endif
 stripped: $(exe) $(dll)
 	$(STRIP) $(exe) $(dll)
 
+tmp:
+	@echo CPPFLAGS=$(CPPFLAGS)
+	@echo USUAL_CPPFLAGS=$(USUAL_CPPFLAGS)
+	@echo USUAL_LDFLAGS=$(USUAL_LDFLAGS)

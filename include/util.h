@@ -27,8 +27,6 @@ void reset_time_cache(void);
  */
 char *load_file(const char *fn) _MUSTCHECK;
 
-void *zmalloc(size_t len) _MUSTCHECK _MALLOC;
-
 /*
  * generic logging
  */

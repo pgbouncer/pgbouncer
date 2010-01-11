@@ -51,14 +51,6 @@ static struct FacName facility_names [] = {
 };
 
 
-void *zmalloc(size_t len)
-{
-	void *p = malloc(len);
-	if (p)
-		memset(p, 0, len);
-	return p;
-}
-
 /*
  * Generic logging
  */

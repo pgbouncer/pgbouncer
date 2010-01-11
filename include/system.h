@@ -20,19 +20,12 @@
  * Required system headers
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
+#include <usual/base.h>
 
 #ifdef WIN32
 #include "win32support.h"
 #endif
 
-/* glibc is useless without it */
-#define _GNU_SOURCE
-
-#include <errno.h>
-#include <sys/types.h>
 #include <sys/time.h>
 #include <sys/stat.h>
 
@@ -57,21 +50,12 @@
 
 #include <time.h>
 #include <fcntl.h>
-#include <unistd.h>
-#include <stddef.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
 #include <ctype.h>
 #include <limits.h>
 
-#ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
-#endif
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
 #ifdef HAVE_CRYPT_H
 #include <crypt.h>
 #endif
@@ -89,29 +73,6 @@
 #define FLEX_ARRAY
 #else
 #define FLEX_ARRAY 1
-#endif
-
-#if defined(__GNUC__) && (__GNUC__ >= 4)
-
-/* gcc has hew positive aspects too */
-#define _MUSTCHECK		__attribute__((warn_unused_result))
-#define _DEPRECATED		__attribute__((deprecated))
-#define _PRINTF(fmtpos, argpos)	__attribute__((format(printf, fmtpos, argpos)))
-#define _MALLOC			__attribute__((malloc))
-
-/* those do not seem to work well */
-#define unlikely(x) __builtin_expect(!!(x), 0)
-#define likely(x) __builtin_expect(!!(x), 1)
-
-#else
-
-#define _MUSTCHECK
-#define _DEPRECATED
-#define _PRINTF(x,y)
-#define _MALLOC
-#define unlikely(x) x
-#define likely(x) x
-
 #endif
 
 /* cant use assert() as we want to log too */
@@ -135,15 +96,6 @@ do { \
 #define USEC (1000000LL)
 
 typedef uint64_t usec_t;
-
-/*
- * bool type.
- */
-
-typedef unsigned char bool;
-#define false	0
-#define true	1
-
 /*
  * PostgreSQL type OIDs for resultsets.
  */

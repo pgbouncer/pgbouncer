@@ -22,7 +22,8 @@
 
 #include "bouncer.h"
 
-#include <signal.h>
+#include <usual/signal.h>
+
 #include <getopt.h>
 
 static bool set_mode(ConfElem *elem, const char *val, PgSocket *console);

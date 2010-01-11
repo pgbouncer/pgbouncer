@@ -51,8 +51,6 @@ static void usage(int err, char *exe)
  * configuration storage
  */
 
-int cf_quiet = 0; /* if set, no log is printed to stdout/err */
-int cf_verbose = 0;
 int cf_daemon = 0;
 int cf_pause_mode = P_NONE;
 int cf_shutdown = 0; /* 1 - wait for queries to finish, 2 - shutdown immediately */
@@ -118,7 +116,6 @@ usec_t cf_suspend_timeout = 10*USEC;
 
 usec_t g_suspend_start = 0;
 
-char *cf_logfile = "";
 char *cf_pidfile = "";
 char *cf_jobname = "pgbouncer";
 
@@ -309,7 +306,7 @@ void load_config(bool reload)
 
 	/* reopen logfile */
 	if (reload)
-		close_logfile();
+		reset_logging();
 }
 
 /*
@@ -686,6 +683,7 @@ int main(int argc, char *argv[])
 	init_objects();
 	load_config(false);
 	init_caches();
+	logging_prefix_cb = log_socket_prefix;
 
 	/* prefer cmdline over config for username */
 	if (arg_username)

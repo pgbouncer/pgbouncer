@@ -22,50 +22,21 @@
 char *load_file(const char *fn) _MUSTCHECK;
 
 /*
- * generic logging
- */
-void log_level(const char *level, const char *s, ...)  _PRINTF(2, 3);
-#define log_error(args...) log_level("ERROR", ## args)
-#define log_warning(args...) log_level("WARNING", ## args)
-#define log_info(args...) log_level("LOG", ## args)
-#define log_debug(args...) do { \
-		if (unlikely(cf_verbose > 0)) \
-			log_level("DEBUG", ## args); \
-	} while (0)
-#define log_noise(args...) do { \
-		if (unlikely(cf_verbose > 1)) \
-			log_level("NOISE", ## args); \
-	} while (0)
-
-void close_logfile(void);
-
-/*
  * logging about specific socket
  */
-void slog_level(const char *level, const PgSocket *sock, const char *fmt, ...)  _PRINTF(3, 4);
-#define slog_error(sk, args...) slog_level("ERROR", sk, ## args)
-#define slog_warning(sk, args...) slog_level("WARNING", sk, ## args)
-#define slog_info(sk, args...) slog_level("LOG", sk, ## args)
+int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstlen);
+
+#define slog_error(sk, args...) log_generic(LG_ERROR, sk, ## args)
+#define slog_warning(sk, args...) log_generic(LG_WARNING, sk, ## args)
+#define slog_info(sk, args...) log_generic(LG_INFO, sk, ## args)
 #define slog_debug(sk, args...) do { \
 		if (unlikely(cf_verbose > 0)) \
-			slog_level("DEBUG", sk, ## args); \
+			log_generic(LG_DEBUG, sk, ## args); \
 	} while (0)
 #define slog_noise(sk, args...) do { \
 		if (unlikely(cf_verbose > 1)) \
-			slog_level("NOISE", sk, ## args); \
+			log_generic(LG_NOISE, sk, ## args); \
 	} while (0)
-
-/*
- * log and exit
- */
-void _fatal(const char *file, int line, const char *func, bool do_exit, const char *s, ...) _PRINTF(5, 6);
-void _fatal_perror(const char *file, int line, const char *func, const char *s, ...)  _PRINTF(4, 5);
-#define fatal(args...) \
-	_fatal(__FILE__, __LINE__, __func__, true, ## args)
-#define fatal_noexit(args...) \
-	_fatal(__FILE__, __LINE__, __func__, false, ## args)
-#define fatal_perror(args...) \
-	_fatal_perror(__FILE__, __LINE__, __func__, ## args)
 
 /*
  * non-interruptible operations

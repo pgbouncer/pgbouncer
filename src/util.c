@@ -22,188 +22,19 @@
 
 #include "bouncer.h"
 
-#ifndef WIN32
-#include <syslog.h>
-#endif
-
 #include "md5.h"
 
-static int syslog_started = 0;
-static int log_fd = 0;
-
-struct FacName { const char *name; int code; };
-static struct FacName facility_names [] = {
-	{ "auth",	LOG_AUTH },
-#ifdef LOG_AUTHPRIV
-        { "authpriv",	LOG_AUTHPRIV },
-#endif
-	{ "daemon",	LOG_DAEMON },
-	{ "user",	LOG_USER },
-	{ "local0",	LOG_LOCAL0 },
-	{ "local1",	LOG_LOCAL1 },
-	{ "local2",	LOG_LOCAL2 },
-	{ "local3",	LOG_LOCAL3 },
-	{ "local4",	LOG_LOCAL4 },
-	{ "local5",	LOG_LOCAL5 },
-	{ "local6",	LOG_LOCAL6 },
-	{ "local7",	LOG_LOCAL7 },
-	{ NULL },
-};
-
-
-/*
- * Generic logging
- */
-
-static void close_syslog(void)
+int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstlen)
 {
-	if (syslog_started) {
-		closelog();
-		syslog_started = 0;
-	}
-}
-
-static void init_syslog(void)
-{
-	struct FacName *fn;
-	int facility = LOG_DAEMON;
-
-	for (fn = facility_names; fn->name; fn++)
-		if (strcmp(cf_syslog_facility, fn->name) == 0) {
-			facility = fn->code;
-			break;
-		}
-
-	openlog(cf_jobname, LOG_PID, facility);
-	syslog_started = 1;
-}
-
-static void write_syslog(const char *pfx, const char *msg)
-{
-	int prio = LOG_WARNING;
-
-	if (!syslog_started)
-		init_syslog();
-
-	switch (pfx[0]) {
-	case 'F': prio = LOG_CRIT; break;
-	case 'E': prio = LOG_ERR; break;
-	case 'W': prio = LOG_WARNING; break;
-	case 'I': prio = LOG_INFO; break;
-	case 'L': prio = LOG_INFO; break;
-	case 'D': prio = LOG_DEBUG; break;
-	case 'N': prio = LOG_DEBUG; break;
-	}
-
-	syslog(prio, "%s", msg);
-}
-
-void close_logfile(void)
-{
-	if (log_fd > 0) {
-		close(log_fd);
-		log_fd = 0;
-	}
-	close_syslog();
-}
-
-static void write_logfile(const char *buf, int len)
-{
-	int res;
-	if (!log_fd) {
-		int fd = open(cf_logfile, O_CREAT | O_APPEND | O_WRONLY, 0644);
-		if (fd < 0)
-			return;
-		log_fd = fd;
-	}
-	res = safe_write(log_fd, buf, len);
-	if (res < len)
-		/* nothing to do here */
-		len = 0;
-}
-
-static void _log_write(const char *pfx, const char *msg)
-{
-	char buf[1024];
-	char tbuf[64];
-	int len;
-	int old_errno = errno;
-
-	format_time_ms(0, tbuf, sizeof(tbuf));
-	len = snprintf(buf, sizeof(buf), "%s %u %s %s\n",
-			tbuf, (unsigned)getpid(), pfx, msg);
-
-	if (cf_logfile[0])
-		write_logfile(buf, len);
-
-	if (cf_syslog)
-		write_syslog(pfx, msg);
-
-	if (!cf_quiet)
-		fprintf(stderr, "%s", buf);
-
-	if (old_errno != errno)
-		errno = old_errno;
-}
-
-static void _log(const char *pfx, const char *fmt, va_list ap)
-{
-	char buf[1024];
-	vsnprintf(buf, sizeof(buf), fmt, ap);
-	_log_write(pfx, buf);
-}
-
-void _fatal(const char *file, int line, const char *func,
-	    bool do_exit, const char *fmt, ...)
-{
-	va_list ap;
-	char buf[1024];
-
-	snprintf(buf, sizeof(buf),
-		 "@%s:%d in function %s(): %s",
-		 file, line, func, fmt);
-
-	va_start(ap, fmt);
-	_log("FATAL", buf, ap);
-	va_end(ap);
-	if (do_exit)
-		exit(1);
-}
-
-void _fatal_perror(const char *file, int line, const char *func,
-		   const char *fmt, ...)
-{
-	va_list ap;
-	char buf[1024];
-	va_start(ap, fmt);
-	vsnprintf(buf, sizeof(buf), fmt, ap);
-	va_end(ap);
-	_fatal(file, line, func, true, "%s: %s", buf, strerror(errno));
-}
-
-/*
- * generic logging
- */
-void log_level(const char *pfx, const char *fmt, ...)
-{
-	va_list ap;
-	va_start(ap, fmt);
-	_log(pfx, fmt, ap);
-	va_end(ap);
-}
-
-/*
- * Logging about specific PgSocket
- */
-
-void slog_level(const char *pfx, const PgSocket *sock, const char *fmt, ...)
-{
-	char buf1[1024];
-	char buf2[1024];
+	const struct PgSocket *sock = ctx;
 	char *user, *db, *host;
 	int port;
-	va_list ap;
 
+	/* no prefix */
+	if (!sock)
+		return 0;
+
+	/* format prefix */
 	db = sock->pool ? sock->pool->db->name : "(nodb)";
 	user = sock->auth_user ? sock->auth_user->name : "(nouser)";
 	if (sock->remote_addr.is_unix) {
@@ -213,15 +44,9 @@ void slog_level(const char *pfx, const PgSocket *sock, const char *fmt, ...)
 	}
 	port = sock->remote_addr.port;
 
-	va_start(ap, fmt);
-	vsnprintf(buf1, sizeof(buf1), fmt, ap);
-	va_end(ap);
-
-	snprintf(buf2, sizeof(buf2), "%c-%p: %s/%s@%s:%d %s",
+	return snprintf(dst, dstlen, "%c-%p: %s/%s@%s:%d ",
 			is_server_socket(sock) ? 'S' : 'C',
-			sock, db, user, host, port, buf1);
-
-	_log_write(pfx, buf2);
+			sock, db, user, host, port);
 }
 
 

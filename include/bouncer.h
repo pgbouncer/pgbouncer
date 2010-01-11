@@ -26,6 +26,7 @@
 #include <usual/list.h>
 #include <usual/statlist.h>
 #include <usual/string.h>
+#include <usual/logging.h>
 
 #include <event.h>
 
@@ -305,9 +306,7 @@ struct PgSocket {
 #define tmp_login_salt  cancel_key
 
 /* main.c */
-extern int cf_verbose;
 extern int cf_daemon;
-extern int cf_quiet;
 
 extern char *cf_config_file;
 extern char *cf_jobname;
@@ -345,7 +344,6 @@ extern int cf_server_round_robin;
 extern int cf_auth_type;
 extern char *cf_auth_file;
 
-extern char *cf_logfile;
 extern char *cf_pidfile;
 
 extern char *cf_ignore_startup_params;

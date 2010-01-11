@@ -72,19 +72,6 @@
 #define FLEX_ARRAY 1
 #endif
 
-/* cant use assert() as we want to log too */
-#ifdef CASSERT
-#define Assert(e) \
-do { \
-	if (unlikely(!(e))) { \
-		fatal_noexit("Assert(%s) failed", #e); \
-		abort(); \
-	} \
-} while (0)
-#else
-#define Assert(e)
-#endif
-
 #ifndef UNIX_PATH_MAX
 #define UNIX_PATH_MAX  128 /* actual sizeof() will be applied later anyway */
 #endif

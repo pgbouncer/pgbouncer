@@ -60,7 +60,6 @@ int safe_accept(int fd, struct sockaddr *sa, socklen_t *sa_len)	_MUSTCHECK;
 void pg_md5_encrypt(const char *part1, const char *part2, size_t p2len, char *dest);
 void get_random_bytes(uint8_t *dest, int len);
 
-void socket_set_nonblocking(int fd, int val);
 void tune_socket(int sock, bool is_unix);
 
 bool strlist_contains(const char *liststr, const char *str);

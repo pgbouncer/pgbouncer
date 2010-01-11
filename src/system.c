@@ -38,38 +38,6 @@
 #include <grp.h>
 #endif
 
-/*
- * Get other side's uid for UNIX socket.
- *
- * Standardise on getpeereid() from BSDs.
- */
-#ifndef HAVE_GETPEEREID
-int getpeereid(int fd, uid_t *uid_p, gid_t *gid_p)
-{
-#ifdef SO_PEERCRED
-	struct ucred cred;
-	socklen_t len = sizeof(cred);
-	if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &len) >= 0) {
-		*uid_p = cred.uid;
-		*gid_p = cred.gid;
-		return 0;
-	}
-#else /* !SO_PEERCRED */
-#ifdef HAVE_GETPEERUCRED
-	ucred_t *cred = NULL;
-	if (getpeerucred(fd, &cred) >= 0) {
-		*uid_p = ucred_geteuid(cred);
-		*gid_p = ucred_getegid(cred);
-		ucred_free(cred);
-		if (*uid_p >= 0 && *gid_p >= 0)
-			return 0;
-	}
-#endif /* HAVE_GETPEERUCRED */
-#endif /* !SO_PEERCRED */
-	return -1;
-}
-#endif /* !HAVE_GETPEEREID */
-
 void change_user(const char *user)
 {
 	const struct passwd *pw;
@@ -92,16 +60,4 @@ void change_user(const char *user)
 	if (getuid() != pw->pw_uid || geteuid() != pw->pw_uid)
 		fatal("setuid() failed to work");
 }
-
-#ifndef HAVE_INET_NTOP
-const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt)
-{
-	const unsigned char *p = src;
-	if (af != AF_INET)
-		return NULL;
-	snprintf(dst, cnt, "%d.%d.%d.%d", p[0], p[1], p[2], p[3]);
-	return dst;
-}
-#endif
-
 

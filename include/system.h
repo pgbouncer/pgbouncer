@@ -28,26 +28,6 @@
 
 #include <sys/stat.h>
 
-#ifdef HAVE_SYS_SOCKET_H
-#include <sys/socket.h>
-#endif
-#ifdef HAVE_SYS_UN_H
-#include <sys/un.h>
-#endif
-#ifdef HAVE_NETINET_IN_H
-#include <netinet/in.h>
-#endif
-#ifdef HAVE_NETINET_TCP_H
-#include <netinet/tcp.h>
-#endif
-#ifdef HAVE_ARPA_INET_H
-#include <arpa/inet.h>
-#endif
-#ifdef HAVE_ARPA_INET_H
-#include <sys/resource.h>
-#endif
-
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <ctype.h>
@@ -103,14 +83,8 @@
  * libc compat functions.
  */
 
-#ifndef HAVE_GETPEEREID
-int getpeereid(int fd, uid_t *uid_p, gid_t *gid_p) _MUSTCHECK;
-#endif
 #ifndef HAVE_CRYPT
 static inline char *crypt(const char *p, const char *s) { return NULL; }
-#endif
-#ifndef HAVE_INET_NTOP
-const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt);
 #endif
 #ifndef HAVE_LSTAT
 static inline int lstat(const char *path, struct stat *st) { return stat(path, st); }

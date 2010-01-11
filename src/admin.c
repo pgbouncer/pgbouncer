@@ -92,7 +92,7 @@ bool admin_error(PgSocket *admin, const char *fmt, ...)
 
 static int count_paused_databases(void)
 {
-	List *item;
+	struct List *item;
 	PgDatabase *db;
 	int cnt = 0;
 
@@ -105,7 +105,7 @@ static int count_paused_databases(void)
 
 static int count_db_active(PgDatabase *db)
 {
-	List *item;
+	struct List *item;
 	PgPool *pool;
 	int cnt = 0;
 
@@ -321,9 +321,9 @@ static bool show_pooler_fds(PgSocket *admin)
 	return res;
 }
 
-static bool show_fds_from_list(PgSocket *admin, StatList *list)
+static bool show_fds_from_list(PgSocket *admin, struct StatList *list)
 {
-	List *item;
+	struct List *item;
 	PgSocket *sk;
 	bool res = true;
 
@@ -343,7 +343,7 @@ static bool show_fds_from_list(PgSocket *admin, StatList *list)
  */
 static bool admin_show_fds(PgSocket *admin, const char *arg)
 {
-	List *item;
+	struct List *item;
 	PgPool *pool;
 	bool res;
 
@@ -404,7 +404,7 @@ static bool admin_show_fds(PgSocket *admin, const char *arg)
 static bool admin_show_databases(PgSocket *admin, const char *arg)
 {
 	PgDatabase *db;
-	List *item;
+	struct List *item;
 	char *host;
 	const char *f_user;
 	PktBuf *buf;
@@ -464,7 +464,7 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 static bool admin_show_users(PgSocket *admin, const char *arg)
 {
 	PgUser *user;
-	List *item;
+	struct List *item;
 	PktBuf *buf = pktbuf_dynamic(256);
 	if (!buf) {
 		admin_error(admin, "no mem");
@@ -543,9 +543,9 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 }
 
 /* Helper for SHOW CLIENTS */
-static void show_socket_list(PktBuf *buf, StatList *list, const char *state, bool debug)
+static void show_socket_list(PktBuf *buf, struct StatList *list, const char *state, bool debug)
 {
-	List *item;
+	struct List *item;
 	PgSocket *sk;
 
 	statlist_for_each(item, list) {
@@ -557,7 +557,7 @@ static void show_socket_list(PktBuf *buf, StatList *list, const char *state, boo
 /* Command: SHOW CLIENTS */
 static bool admin_show_clients(PgSocket *admin, const char *arg)
 {
-	List *item;
+	struct List *item;
 	PgPool *pool;
 	PktBuf *buf = pktbuf_dynamic(256);
 
@@ -581,7 +581,7 @@ static bool admin_show_clients(PgSocket *admin, const char *arg)
 /* Command: SHOW SERVERS */
 static bool admin_show_servers(PgSocket *admin, const char *arg)
 {
-	List *item;
+	struct List *item;
 	PgPool *pool;
 	PktBuf *buf;
 
@@ -607,7 +607,7 @@ static bool admin_show_servers(PgSocket *admin, const char *arg)
 /* Command: SHOW SOCKETS */
 static bool admin_show_sockets(PgSocket *admin, const char *arg)
 {
-	List *item;
+	struct List *item;
 	PgPool *pool;
 	PktBuf *buf;
 
@@ -634,9 +634,9 @@ static bool admin_show_sockets(PgSocket *admin, const char *arg)
 	return true;
 }
 
-static void show_active_socket_list(PktBuf *buf, StatList *list, const char *state)
+static void show_active_socket_list(PktBuf *buf, struct StatList *list, const char *state)
 {
-	List *item;
+	struct List *item;
 	statlist_for_each(item, list) {
 		PgSocket *sk = container_of(item, PgSocket, head);
 		if (!sbuf_is_empty(&sk->sbuf))
@@ -647,7 +647,7 @@ static void show_active_socket_list(PktBuf *buf, StatList *list, const char *sta
 /* Command: SHOW ACTIVE_SOCKETS */
 static bool admin_show_active_sockets(PgSocket *admin, const char *arg)
 {
-	List *item;
+	struct List *item;
 	PgPool *pool;
 	PktBuf *buf;
 
@@ -677,7 +677,7 @@ static bool admin_show_active_sockets(PgSocket *admin, const char *arg)
 /* Command: SHOW POOLS */
 static bool admin_show_pools(PgSocket *admin, const char *arg)
 {
-	List *item;
+	struct List *item;
 	PgPool *pool;
 	PktBuf *buf;
 	PgSocket *waiter;
@@ -1193,7 +1193,7 @@ void admin_setup(void)
 
 void admin_pause_done(void)
 {
-	List *item, *tmp;
+	struct List *item, *tmp;
 	PgSocket *admin;
 	bool res;
 

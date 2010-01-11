@@ -447,7 +447,7 @@ bool loader_users_check(void)
 static void disable_users(void)
 {
 	PgUser *user;
-	List *item;
+	struct List *item;
 
 	statlist_for_each(item, &user_list) {
 		user = container_of(item, PgUser, head);

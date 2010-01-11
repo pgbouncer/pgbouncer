@@ -16,12 +16,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-extern StatList user_list;
+extern struct StatList user_list;
 extern Tree user_tree;
-extern StatList pool_list;
-extern StatList database_list;
-extern StatList autodatabase_idle_list;
-extern StatList login_client_list;
+extern struct StatList pool_list;
+extern struct StatList database_list;
+extern struct StatList autodatabase_idle_list;
+extern struct StatList login_client_list;
 extern ObjectCache *client_cache;
 extern ObjectCache *server_cache;
 extern ObjectCache *db_cache;

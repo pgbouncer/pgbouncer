@@ -58,7 +58,7 @@ static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 /* we cannot log in at all, notify clients */
 static void kill_pool_logins(PgPool *pool, PktHdr *errpkt)
 {
-	List *item, *tmp;
+	struct List *item, *tmp;
 	PgSocket *client;
 	const char *level, *msg;
 

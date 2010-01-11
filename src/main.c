@@ -275,7 +275,7 @@ static bool set_defer_accept(ConfElem *elem, const char *val, PgSocket *console)
 
 static void set_dbs_dead(bool flag)
 {
-	List *item;
+	struct List *item;
 	PgDatabase *db;
 
 	statlist_for_each(item, &database_list) {
@@ -559,7 +559,7 @@ static void check_limits(void)
 	int total_users = statlist_count(&user_list);
 	int fd_count;
 	int err;
-	List *item;
+	struct List *item;
 	PgDatabase *db;
 
 	log_noise("event: %d, SBuf: %d, PgSocket: %d, IOBuf: %d",

@@ -66,10 +66,10 @@ static void write_stats(PktBuf *buf, PgStats *stat, PgStats *old, char *dbname)
 			     avg.server_bytes, avg.query_time);
 }
 
-bool admin_database_stats(PgSocket *client, StatList *pool_list)
+bool admin_database_stats(PgSocket *client, struct StatList *pool_list)
 {
 	PgPool *pool;
-	List *item;
+	struct List *item;
 	PgDatabase *cur_db = NULL;
 	PgStats st_total, st_db, old_db, old_total;
 	int rows = 0;
@@ -122,10 +122,10 @@ bool admin_database_stats(PgSocket *client, StatList *pool_list)
 	return true;
 }
 
-bool show_stat_totals(PgSocket *client, StatList *pool_list)
+bool show_stat_totals(PgSocket *client, struct StatList *pool_list)
 {
 	PgPool *pool;
-	List *item;
+	struct List *item;
 	PgStats st_total, old_total, avg;
 	PktBuf *buf;
 
@@ -167,7 +167,7 @@ bool show_stat_totals(PgSocket *client, StatList *pool_list)
 
 static void refresh_stats(int s, short flags, void *arg)
 {
-	List *item;
+	struct List *item;
 	PgPool *pool;
 	struct timeval period = { cf_stats_period, 0 };
 	PgStats old_total, cur_total, avg;

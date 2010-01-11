@@ -23,6 +23,8 @@
 #include "system.h"
 
 #include <usual/time.h>
+#include <usual/list.h>
+#include <usual/statlist.h>
 
 #include <event.h>
 
@@ -73,7 +75,6 @@ extern int cf_sbuf_len;
 #include "aatree.h"
 #include "hash.h"
 #include "util.h"
-#include "list.h"
 #include "mbuf.h"
 #include "iobuf.h"
 #include "sbuf.h"
@@ -154,21 +155,21 @@ struct PgStats {
  *   ->newer_stats = ->stats
  */
 struct PgPool {
-	List head;			/* entry in global pool_list */
-	List map_head;			/* entry in user->pool_list */
+	struct List head;			/* entry in global pool_list */
+	struct List map_head;			/* entry in user->pool_list */
 
 	PgDatabase *db;			/* corresponging database */
 	PgUser *user;			/* user logged in as */
 
-	StatList active_client_list;	/* waiting events logged in clients */
-	StatList waiting_client_list;	/* client waits for a server to be available */
-	StatList cancel_req_list;	/* closed client connections with server key */
+	struct StatList active_client_list;	/* waiting events logged in clients */
+	struct StatList waiting_client_list;	/* client waits for a server to be available */
+	struct StatList cancel_req_list;	/* closed client connections with server key */
 
-	StatList active_server_list;	/* servers linked with clients */
-	StatList idle_server_list;	/* servers ready to be linked with clients */
-	StatList used_server_list;	/* server just unlinked from clients */
-	StatList tested_server_list;	/* server in testing process */
-	StatList new_server_list;	/* servers in login phase */
+	struct StatList active_server_list;	/* servers linked with clients */
+	struct StatList idle_server_list;	/* servers ready to be linked with clients */
+	struct StatList used_server_list;	/* server just unlinked from clients */
+	struct StatList tested_server_list;	/* server in testing process */
+	struct StatList new_server_list;	/* servers in login phase */
 
 	PgStats stats;
 	PgStats newer_stats;
@@ -212,8 +213,8 @@ struct PgPool {
  * whis user has logged in.
  */
 struct PgUser {
-	List head;		/* used to attach user to list */
-	List pool_list;		/* list of pools where pool->user == this user */
+	struct List head;		/* used to attach user to list */
+	struct List pool_list;		/* list of pools where pool->user == this user */
 	Node tree_node;		/* used to attach user to tree */
 	char name[MAX_USERNAME];
 	char passwd[MAX_PASSWORD];
@@ -223,7 +224,7 @@ struct PgUser {
  * A database entry from config.
  */
 struct PgDatabase {
-	List head;
+	struct List head;
 	char name[MAX_DBNAME];	/* db name for clients */
 
 	bool db_paused;		/* PAUSE <db>; was issued */
@@ -257,7 +258,7 @@ struct PgDatabase {
  * ->state corresponds to various lists the struct can be at.
  */
 struct PgSocket {
-	List head;		/* list header */
+	struct List head;		/* list header */
 	PgSocket *link;		/* the dest of packets */
 	PgPool *pool;		/* parent pool, if NULL not yet assigned */
 
@@ -373,16 +374,16 @@ extern ConfElem bouncer_params[];
 extern usec_t g_suspend_start;
 
 static inline PgSocket * _MUSTCHECK
-pop_socket(StatList *slist)
+pop_socket(struct StatList *slist)
 {
-	List *item = statlist_pop(slist);
+	struct List *item = statlist_pop(slist);
 	if (item == NULL)
 		return NULL;
 	return container_of(item, PgSocket, head);
 }
 
 static inline PgSocket *
-first_socket(StatList *slist)
+first_socket(struct StatList *slist)
 {
 	if (statlist_empty(slist))
 		return NULL;

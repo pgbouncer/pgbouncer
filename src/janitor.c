@@ -27,9 +27,9 @@ static struct timeval full_maint_period = {0, USEC / 3};
 static struct event full_maint_ev;
 
 /* close all sockets in server list */
-static void close_server_list(StatList *sk_list, const char *reason)
+static void close_server_list(struct StatList *sk_list, const char *reason)
 {
-	List *item, *tmp;
+	struct List *item, *tmp;
 	PgSocket *server;
 
 	statlist_for_each_safe(item, sk_list, tmp) {
@@ -38,9 +38,9 @@ static void close_server_list(StatList *sk_list, const char *reason)
 	}
 }
 
-static void close_client_list(StatList *sk_list, const char *reason)
+static void close_client_list(struct StatList *sk_list, const char *reason)
 {
-	List *item, *tmp;
+	struct List *item, *tmp;
 	PgSocket *client;
 
 	statlist_for_each_safe(item, sk_list, tmp) {
@@ -70,9 +70,9 @@ bool suspend_socket(PgSocket *sk, bool force_suspend)
 }
 
 /* suspend all sockets in socket list */
-static int suspend_socket_list(StatList *list, bool force_suspend)
+static int suspend_socket_list(struct StatList *list, bool force_suspend)
 {
-	List *item, *tmp;
+	struct List *item, *tmp;
 	PgSocket *sk;
 	int active = 0;
 
@@ -85,9 +85,9 @@ static int suspend_socket_list(StatList *list, bool force_suspend)
 }
 
 /* resume all suspended sockets in socket list */
-static void resume_socket_list(StatList *list)
+static void resume_socket_list(struct StatList *list)
 {
-	List *item, *tmp;
+	struct List *item, *tmp;
 	PgSocket *sk;
 
 	statlist_for_each_safe(item, list, tmp) {
@@ -102,7 +102,7 @@ static void resume_socket_list(StatList *list)
 /* resume all suspended sockets in all pools */
 static void resume_sockets(void)
 {
-	List *item;
+	struct List *item;
 	PgPool *pool;
 
 	statlist_for_each(item, &pool_list) {
@@ -169,7 +169,7 @@ static void launch_recheck(PgPool *pool)
  */
 static void per_loop_activate(PgPool *pool)
 {
-	List *item, *tmp;
+	struct List *item, *tmp;
 	PgSocket *client;
 
 	/* see if any server have been freed */
@@ -254,7 +254,7 @@ static int per_loop_suspend(PgPool *pool, bool force_suspend)
  */
 void per_loop_maint(void)
 {
-	List *item;
+	struct List *item;
 	PgPool *pool;
 	int active = 0;
 	int partial_pause = 0;
@@ -307,7 +307,7 @@ void per_loop_maint(void)
 /* maintaining clients in pool */
 static void pool_client_maint(PgPool *pool)
 {
-	List *item, *tmp;
+	struct List *item, *tmp;
 	usec_t now = get_cached_time();
 	PgSocket *client;
 	usec_t age;
@@ -353,10 +353,10 @@ static void pool_client_maint(PgPool *pool)
 	}
 }
 
-static void check_unused_servers(PgPool *pool, StatList *slist, bool idle_test)
+static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle_test)
 {
 	usec_t now = get_cached_time();
-	List *item, *tmp;
+	struct List *item, *tmp;
 	usec_t idle, age;
 	PgSocket *server;
 	usec_t lifetime_kill_gap = 0;
@@ -434,7 +434,7 @@ static void check_pool_size(PgPool *pool)
 /* maintain servers in a pool */
 static void pool_server_maint(PgPool *pool)
 {
-	List *item, *tmp;
+	struct List *item, *tmp;
 	usec_t age, now = get_cached_time();
 	PgSocket *server;
 
@@ -473,7 +473,7 @@ static void pool_server_maint(PgPool *pool)
 
 static void cleanup_client_logins(void)
 {
-	List *item, *tmp;
+	struct List *item, *tmp;
 	PgSocket *client;
 	usec_t age;
 	usec_t now = get_cached_time();
@@ -492,7 +492,7 @@ static void cleanup_client_logins(void)
 static void kill_database(PgDatabase *db);
 static void cleanup_inactive_autodatabases(void)
 {
-	List *item, *tmp;
+	struct List *item, *tmp;
 	PgDatabase *db;
 	usec_t age;
 	usec_t now = get_cached_time();
@@ -513,7 +513,7 @@ static void cleanup_inactive_autodatabases(void)
 /* full-scale maintenance, done only occasionally */
 static void do_full_maint(int sock, short flags, void *arg)
 {
-	List *item, *tmp;
+	struct List *item, *tmp;
 	PgPool *pool;
 
 	/*
@@ -531,8 +531,8 @@ static void do_full_maint(int sock, short flags, void *arg)
 		if (pool->db->db_auto && pool->db->inactive_time == 0 &&
 				pool_client_count(pool) == 0 && pool_server_count(pool) == 0 ) {
 			pool->db->inactive_time = get_cached_time();
-			statlist_remove(&pool->db->head, &database_list);
-			statlist_append(&pool->db->head, &autodatabase_idle_list);
+			statlist_remove(&database_list, &pool->db->head);
+			statlist_append(&autodatabase_idle_list, &pool->db->head);
 		}
 	}
 
@@ -577,14 +577,14 @@ static void kill_pool(PgPool *pool)
 	close_server_list(&pool->new_server_list, reason);
 
 	list_del(&pool->map_head);
-	statlist_remove(&pool->head, &pool_list);
+	statlist_remove(&pool_list, &pool->head);
 	obj_free(pool_cache, pool);
 }
 
 static void kill_database(PgDatabase *db)
 {
 	PgPool *pool;
-	List *item, *tmp;
+	struct List *item, *tmp;
 
 	log_warning("dropping database '%s' as it does not exist anymore or inactive auto-database", db->name);
 
@@ -598,9 +598,9 @@ static void kill_database(PgDatabase *db)
 	if (db->connect_query)
 		free((void *)db->connect_query);
 	if (db->inactive_time)
-		statlist_remove(&db->head, &autodatabase_idle_list);
+		statlist_remove(&autodatabase_idle_list, &db->head);
 	else
-		statlist_remove(&db->head, &database_list);
+		statlist_remove(&database_list, &db->head);
 	obj_free(db_cache, db);
 }
 
@@ -608,7 +608,7 @@ static void kill_database(PgDatabase *db)
    there's need for review */
 void config_postprocess(void)
 {
-	List *item, *tmp;
+	struct List *item, *tmp;
 	PgDatabase *db;
 
 	statlist_for_each_safe(item, &database_list, tmp) {

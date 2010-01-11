@@ -130,19 +130,19 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	case CL_FREE:
 		break;
 	case CL_JUSTFREE:
-		statlist_remove(&client->head, &justfree_client_list);
+		statlist_remove(&justfree_client_list, &client->head);
 		break;
 	case CL_LOGIN:
-		statlist_remove(&client->head, &login_client_list);
+		statlist_remove(&login_client_list, &client->head);
 		break;
 	case CL_WAITING:
-		statlist_remove(&client->head, &pool->waiting_client_list);
+		statlist_remove(&pool->waiting_client_list, &client->head);
 		break;
 	case CL_ACTIVE:
-		statlist_remove(&client->head, &pool->active_client_list);
+		statlist_remove(&pool->active_client_list, &client->head);
 		break;
 	case CL_CANCEL:
-		statlist_remove(&client->head, &pool->cancel_req_list);
+		statlist_remove(&pool->cancel_req_list, &client->head);
 		break;
 	default:
 		fatal("bad cur client state: %d", client->state);
@@ -156,19 +156,19 @@ void change_client_state(PgSocket *client, SocketState newstate)
 		obj_free(client_cache, client);
 		break;
 	case CL_JUSTFREE:
-		statlist_append(&client->head, &justfree_client_list);
+		statlist_append(&justfree_client_list, &client->head);
 		break;
 	case CL_LOGIN:
-		statlist_append(&client->head, &login_client_list);
+		statlist_append(&login_client_list, &client->head);
 		break;
 	case CL_WAITING:
-		statlist_append(&client->head, &pool->waiting_client_list);
+		statlist_append(&pool->waiting_client_list, &client->head);
 		break;
 	case CL_ACTIVE:
-		statlist_append(&client->head, &pool->active_client_list);
+		statlist_append(&pool->active_client_list, &client->head);
 		break;
 	case CL_CANCEL:
-		statlist_append(&client->head, &pool->cancel_req_list);
+		statlist_append(&pool->cancel_req_list, &client->head);
 		break;
 	default:
 		fatal("bad new client state: %d", client->state);
@@ -185,22 +185,22 @@ void change_server_state(PgSocket *server, SocketState newstate)
 	case SV_FREE:
 		break;
 	case SV_JUSTFREE:
-		statlist_remove(&server->head, &justfree_server_list);
+		statlist_remove(&justfree_server_list, &server->head);
 		break;
 	case SV_LOGIN:
-		statlist_remove(&server->head, &pool->new_server_list);
+		statlist_remove(&pool->new_server_list, &server->head);
 		break;
 	case SV_USED:
-		statlist_remove(&server->head, &pool->used_server_list);
+		statlist_remove(&pool->used_server_list, &server->head);
 		break;
 	case SV_TESTED:
-		statlist_remove(&server->head, &pool->tested_server_list);
+		statlist_remove(&pool->tested_server_list, &server->head);
 		break;
 	case SV_IDLE:
-		statlist_remove(&server->head, &pool->idle_server_list);
+		statlist_remove(&pool->idle_server_list, &server->head);
 		break;
 	case SV_ACTIVE:
-		statlist_remove(&server->head, &pool->active_server_list);
+		statlist_remove(&pool->active_server_list, &server->head);
 		break;
 	default:
 		fatal("change_server_state: bad old server state: %d", server->state);
@@ -214,28 +214,28 @@ void change_server_state(PgSocket *server, SocketState newstate)
 		obj_free(server_cache, server);
 		break;
 	case SV_JUSTFREE:
-		statlist_append(&server->head, &justfree_server_list);
+		statlist_append(&justfree_server_list, &server->head);
 		break;
 	case SV_LOGIN:
-		statlist_append(&server->head, &pool->new_server_list);
+		statlist_append(&pool->new_server_list, &server->head);
 		break;
 	case SV_USED:
 		/* use LIFO */
-		statlist_prepend(&server->head, &pool->used_server_list);
+		statlist_prepend(&pool->used_server_list, &server->head);
 		break;
 	case SV_TESTED:
-		statlist_append(&server->head, &pool->tested_server_list);
+		statlist_append(&pool->tested_server_list, &server->head);
 		break;
 	case SV_IDLE:
 		if (server->close_needed || cf_server_round_robin)
 			/* try to avoid immediate usage then */
-			statlist_append(&server->head, &pool->idle_server_list);
+			statlist_append(&pool->idle_server_list, &server->head);
 		else
 			/* otherwise use LIFO */
-			statlist_prepend(&server->head, &pool->idle_server_list);
+			statlist_prepend(&pool->idle_server_list, &server->head);
 		break;
 	case SV_ACTIVE:
-		statlist_append(&server->head, &pool->active_server_list);
+		statlist_append(&pool->active_server_list, &server->head);
 		break;
 	default:
 		fatal("bad server state");
@@ -243,7 +243,7 @@ void change_server_state(PgSocket *server, SocketState newstate)
 }
 
 /* compare pool names, for use with put_in_order */
-static int cmp_pool(List *i1, List *i2)
+static int cmp_pool(struct List *i1, struct List *i2)
 {
 	PgPool *p1 = container_of(i1, PgPool, head);
 	PgPool *p2 = container_of(i2, PgPool, head);
@@ -255,7 +255,7 @@ static int cmp_pool(List *i1, List *i2)
 }
 
 /* compare user names, for use with put_in_order */
-static int cmp_user(List *i1, List *i2)
+static int cmp_user(struct List *i1, struct List *i2)
 {
 	PgUser *u1 = container_of(i1, PgUser, head);
 	PgUser *u2 = container_of(i2, PgUser, head);
@@ -263,7 +263,7 @@ static int cmp_user(List *i1, List *i2)
 }
 
 /* compare db names, for use with put_in_order */
-static int cmp_database(List *i1, List *i2)
+static int cmp_database(struct List *i1, struct List *i2)
 {
 	PgDatabase *db1 = container_of(i1, PgDatabase, head);
 	PgDatabase *db2 = container_of(i2, PgDatabase, head);
@@ -271,21 +271,22 @@ static int cmp_database(List *i1, List *i2)
 }
 
 /* put elem into list in correct pos */
-static void put_in_order(List *newitem, StatList *list, int (*cmpfn)(List *, List *))
+static void put_in_order(struct List *newitem, struct StatList *list,
+			 int (*cmpfn)(struct List *, struct List *))
 {
 	int res;
-	List *item;
+	struct List *item;
 
 	statlist_for_each(item, list) {
 		res = cmpfn(item, newitem);
 		if (res == 0)
 			fatal("put_in_order: found existing elem");
 		else if (res > 0) {
-			statlist_put_before(newitem, list, item);
+			statlist_put_before(list, newitem, item);
 			return;
 		}
 	}
-	statlist_append(newitem, list);
+	statlist_append(list, newitem);
 }
 
 /* create new object if new, then return it */
@@ -379,7 +380,7 @@ PgUser *force_user(PgDatabase *db, const char *name, const char *passwd)
 /* find an existing database */
 PgDatabase *find_database(const char *name)
 {
-	List *item, *tmp;
+	struct List *item, *tmp;
 	PgDatabase *db;
 	statlist_for_each(item, &database_list) {
 		db = container_of(item, PgDatabase, head);
@@ -391,7 +392,7 @@ PgDatabase *find_database(const char *name)
 		db = container_of(item, PgDatabase, head);
 		if (strcmp(db->name, name) == 0) {
 			db->inactive_time = 0;
-			statlist_remove(&db->head, &autodatabase_idle_list);
+			statlist_remove(&autodatabase_idle_list, &db->head);
 			put_in_order(&db->head, &database_list, cmp_database);
 			return db;
 		}
@@ -434,7 +435,7 @@ static PgPool *new_pool(PgDatabase *db, PgUser *user)
 	statlist_init(&pool->new_server_list, "new_server_list");
 	statlist_init(&pool->cancel_req_list, "cancel_req_list");
 
-	list_append(&pool->map_head, &user->pool_list);
+	list_append(&user->pool_list, &pool->map_head);
 
 	/* keep pools in db/user order to make stats faster */
 	put_in_order(&pool->head, &pool_list, cmp_pool);
@@ -445,7 +446,7 @@ static PgPool *new_pool(PgDatabase *db, PgUser *user)
 /* find pool object, create if needed */
 PgPool *get_pool(PgDatabase *db, PgUser *user)
 {
-	List *item;
+	struct List *item;
 	PgPool *pool;
 
 	if (!db || !user)
@@ -926,7 +927,7 @@ bool finish_client_login(PgSocket *client)
 /* client->cancel_key has requested client key */
 void accept_cancel_request(PgSocket *req)
 {
-	List *pitem, *citem;
+	struct List *pitem, *citem;
 	PgPool *pool;
 	PgSocket *server = NULL, *client, *main_client = NULL;
 
@@ -1107,7 +1108,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 
 void for_each_server(PgPool *pool, void (*func)(PgSocket *sk))
 {
-	List *item;
+	struct List *item;
 
 	statlist_for_each(item, &pool->idle_server_list)
 		func(container_of(item, PgSocket, head));
@@ -1132,7 +1133,7 @@ static void tag_dirty(PgSocket *sk)
 
 void tag_database_dirty(PgDatabase *db)
 {
-	List *item;
+	struct List *item;
 	PgPool *pool;
 
 	statlist_for_each(item, &pool_list) {
@@ -1145,7 +1146,7 @@ void tag_database_dirty(PgDatabase *db)
 /* move objects from justfree_* to free_* lists */
 void reuse_just_freed_objects(void)
 {
-	List *tmp, *item;
+	struct List *tmp, *item;
 	PgSocket *sk;
 	bool close_works = true;
 

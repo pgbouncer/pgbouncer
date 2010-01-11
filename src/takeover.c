@@ -137,7 +137,7 @@ static void takeover_load_fd(MBuf *pkt, const struct cmsghdr *cmsg)
 
 static void takeover_create_link(PgPool *pool, PgSocket *client)
 {
-	List *item;
+	struct List *item;
 	PgSocket *server;
 
 	statlist_for_each(item, &pool->active_server_list) {
@@ -152,9 +152,9 @@ static void takeover_create_link(PgPool *pool, PgSocket *client)
 }
 
 /* clean the inappropriate places the old fds got stored in */
-static void takeover_clean_socket_list(StatList *list)
+static void takeover_clean_socket_list(struct StatList *list)
 {
-	List *item;
+	struct List *item;
 	PgSocket *sk;
 	statlist_for_each(item, list) {
 		sk = container_of(item, PgSocket, head);
@@ -168,7 +168,7 @@ static void takeover_clean_socket_list(StatList *list)
 /* all fds loaded, create links */
 static void takeover_postprocess_fds(void)
 {
-	List *item, *item2;
+	struct List *item, *item2;
 	PgSocket *client;
 	PgPool *pool;
 

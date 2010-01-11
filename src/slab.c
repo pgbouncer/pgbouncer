@@ -31,9 +31,9 @@
  * Store for pre-initialized objects of one type.
  */
 struct ObjectCache {
-	List head;
-	StatList freelist;
-	StatList slablist;
+	struct List head;
+	struct StatList freelist;
+	struct StatList slablist;
 	char name[32];
 	unsigned final_size;
 	unsigned total_count;
@@ -44,7 +44,7 @@ struct ObjectCache {
  * Header for each slab.
  */
 struct Slab {
-	List head;
+	struct List head;
 };
 
 /* keep track of all caches */
@@ -66,7 +66,7 @@ static void init_objcache(ObjectCache *cache,
 	safe_strcpy(cache->name, name, sizeof(cache->name));
 	cache->total_count = 0;
 	cache->init_func = init_func;
-	statlist_append(&cache->head, &objcache_list);
+	statlist_append(&objcache_list, &cache->head);
 
 	if (align == 0)
 		cache->final_size = ALIGN(obj_size);
@@ -103,14 +103,14 @@ ObjectCache * objcache_create(const char *name,
 /* free all storage associated by cache */
 void objcache_destroy(ObjectCache *cache)
 {
-	List *item, *tmp;
+	struct List *item, *tmp;
 	struct Slab *slab;
 
 	statlist_for_each_safe(item, &cache->slablist, tmp) {
 		slab = container_of(item, struct Slab, head);
 		free(slab);
 	}
-	statlist_remove(&cache->head, &objcache_list);
+	statlist_remove(&objcache_list, &cache->head);
 	memset(cache, 0, sizeof(*cache));
 	obj_free(objcache_cache, cache);
 }
@@ -141,20 +141,20 @@ static void grow(ObjectCache *cache)
 	/* init objects */
 	for (i = 0; i < count; i++) {
 		void *obj = area + i * cache->final_size;
-		List *head = (List *)obj;
+		struct List *head = (struct List *)obj;
 		list_init(head);
-		statlist_append(head, &cache->freelist);
+		statlist_append(&cache->freelist, head);
 	}
 
 	/* register to cache */
 	cache->total_count += count;
-	statlist_append(&slab->head, &cache->slablist);
+	statlist_append(&cache->slablist, &slab->head);
 }
 
 /* get free object from cache */
 void *obj_alloc(ObjectCache *cache)
 {
-	List *item = statlist_pop(&cache->freelist);
+	struct List *item = statlist_pop(&cache->freelist);
 	if (!item) {
 		grow(cache);
 		item = statlist_pop(&cache->freelist);
@@ -171,9 +171,9 @@ void *obj_alloc(ObjectCache *cache)
 /* put object back to cache */
 void obj_free(ObjectCache *cache, void *obj)
 {
-	List *item = obj;
+	struct List *item = obj;
 	list_init(item);
-	statlist_prepend(item, &cache->freelist);
+	statlist_prepend(&cache->freelist, item);
 }
 
 /* total number of objects allocated from cache */
@@ -203,7 +203,7 @@ static void run_slab_stats(ObjectCache *cache, slab_stat_fn fn, void *arg)
 void objcache_stats(slab_stat_fn fn, void *arg)
 {
 	ObjectCache *cache;
-	List *item;
+	struct List *item;
 
 	statlist_for_each(item, &objcache_list) {
 		cache = container_of(item, ObjectCache, head);

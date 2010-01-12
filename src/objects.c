@@ -626,7 +626,7 @@ bool release_server(PgSocket *server)
 		pool->last_connect_failed = 0;
 		break;
 	default:
-		fatal("bad server state in release_server");
+		fatal("bad server state in release_server (%d)", server->state);
 	}
 
 	/* enforce lifetime immidiately on release */
@@ -691,7 +691,7 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason)
 			send_term = 0;
 		break;
 	default:
-		fatal("disconnect_server: bad server state");
+		fatal("disconnect_server: bad server state (%d)", server->state);
 	}
 
 	Assert(server->link == NULL);

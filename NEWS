@@ -2,6 +2,9 @@
 
   = Fixes =
 
+    * Track libevent state in sbuf.c to avoid double event_del().  Although
+      it usually is safe, it does not seem to work 100%.
+
     * Disable maintenance during SUSPEND.  Otherwise with short timeouts
       the old bouncer could close few connections after sending them over.
 

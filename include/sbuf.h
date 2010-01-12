@@ -62,7 +62,7 @@ struct SBuf {
 	struct event ev;	/* libevent handle */
 
 	bool is_unix;		/* is it unix socket */
-	bool wait_send;		/* debug var, otherwise useless */
+	uint8_t wait_type;	/* track wait state */
 	uint8_t pkt_action;	/* method for handling current pkt */
 
 	int sock;		/* fd for this socket */

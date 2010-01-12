@@ -35,6 +35,12 @@
 #define ACT_SKIP 2
 #define ACT_CALL 3
 
+enum WaitType {
+	W_NONE = 0,
+	W_CONNECT,
+	W_RECV,
+	W_SEND,
+};
 
 #define AssertSanity(sbuf) do { \
 	Assert(iobuf_sane((sbuf)->io)); \
@@ -158,8 +164,10 @@ bool sbuf_connect(SBuf *sbuf, const PgAddr *addr, const char *unix_dir, int time
 		/* tcp socket needs waiting */
 		event_set(&sbuf->ev, sock, EV_WRITE, sbuf_connect_cb, sbuf);
 		res = event_add(&sbuf->ev, &timeout);
-		if (res >= 0)
+		if (res >= 0) {
+			sbuf->wait_type = W_CONNECT;
 			return true;
+		}
 	}
 
 failed:
@@ -176,12 +184,13 @@ failed:
 bool sbuf_pause(SBuf *sbuf)
 {
 	AssertActive(sbuf);
-	Assert(sbuf->wait_send == 0);
+	Assert(sbuf->wait_type == W_RECV);
 
 	if (event_del(&sbuf->ev) < 0) {
 		log_warning("event_del: %s", strerror(errno));
 		return false;
 	}
+	sbuf->wait_type = W_NONE;
 	return true;
 }
 
@@ -233,13 +242,15 @@ bool sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb user_cb)
 		log_warning("sbuf_continue_with_callback: %s", strerror(errno));
 		return false;
 	}
+	sbuf->wait_type = W_RECV;
 	return true;
 }
 
 /* socket cleanup & close: keeps .handler and .arg values */
 bool sbuf_close(SBuf *sbuf)
 {
-	if (sbuf->sock > 0) {
+	if (sbuf->wait_type) {
+		Assert(sbuf->sock);
 		/* event_del() acts funny occasionally, debug it */
 		errno = 0;
 		if (event_del(&sbuf->ev) < 0) {
@@ -251,12 +262,13 @@ bool sbuf_close(SBuf *sbuf)
 			/* we can retry whole sbuf_close() if needed */
 			/* if (errno == ENOMEM) return false; */
 		}
-		safe_close(sbuf->sock);
 	}
+	if (sbuf->sock > 0)
+		safe_close(sbuf->sock);
 	sbuf->dst = NULL;
 	sbuf->sock = 0;
 	sbuf->pkt_remain = 0;
-	sbuf->pkt_action = sbuf->wait_send = 0;
+	sbuf->pkt_action = sbuf->wait_type = 0;
 	if (sbuf->io) {
 		obj_free(iobuf_cache, sbuf->io);
 		sbuf->io = NULL;
@@ -352,6 +364,7 @@ static bool sbuf_wait_for_data(SBuf *sbuf)
 		log_warning("sbuf_wait_for_data: event_add: %s", strerror(errno));
 		return false;
 	}
+	sbuf->wait_type = W_RECV;
 	return true;
 }
 
@@ -366,10 +379,11 @@ static void sbuf_send_cb(int sock, short flags, void *arg)
 		return;
 
 	AssertSanity(sbuf);
-	Assert(sbuf->wait_send);
+	Assert(sbuf->wait_type == W_SEND);
+
+	sbuf->wait_type = W_NONE;
 
 	/* prepare normal situation for sbuf_main_loop */
-	sbuf->wait_send = 0;
 	res = sbuf_wait_for_data(sbuf);
 	if (res) {
 		/* here we should certainly skip recv() */
@@ -384,11 +398,13 @@ static bool sbuf_queue_send(SBuf *sbuf)
 {
 	int err;
 	AssertActive(sbuf);
+	Assert(sbuf->wait_type == W_RECV);
 
 	/* if false is returned, the socket will be closed later */
 
 	/* stop waiting for read events */
 	err = event_del(&sbuf->ev);
+	sbuf->wait_type = W_NONE; /* make sure its called only once */
 	if (err < 0) {
 		log_warning("sbuf_queue_send: event_del failed: %s", strerror(errno));
 		return false;
@@ -401,8 +417,8 @@ static bool sbuf_queue_send(SBuf *sbuf)
 		log_warning("sbuf_queue_send: event_add failed: %s", strerror(errno));
 		return false;
 	}
+	sbuf->wait_type = W_SEND;
 
-	sbuf->wait_send = 1;
 	return true;
 }
 
@@ -598,7 +614,7 @@ static void sbuf_main_loop(SBuf *sbuf, bool skip_recv)
 		return;
 
 	/* reading should be disabled when waiting */
-	Assert(sbuf->wait_send == 0);
+	Assert(sbuf->wait_type == W_RECV);
 	AssertSanity(sbuf);
 
 	if (!allocate_iobuf(sbuf))
@@ -689,6 +705,9 @@ static bool sbuf_after_connect_check(SBuf *sbuf)
 static void sbuf_connect_cb(int sock, short flags, void *arg)
 {
 	SBuf *sbuf = arg;
+
+	Assert(sbuf->wait_type == W_CONNECT || sbuf->wait_type == W_NONE);
+	sbuf->wait_type = W_NONE;
 
 	if (flags & EV_WRITE) {
 		if (!sbuf_after_connect_check(sbuf))

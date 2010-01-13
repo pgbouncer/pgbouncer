@@ -720,7 +720,8 @@ int main(int argc, char *argv[])
 
 	/* initialize subsystems, order important */
 	srandom(time(NULL) ^ getpid());
-	event_init();
+	if (!event_init())
+		fatal("event_init() failed");
 	signal_setup();
 	janitor_setup();
 	stats_setup();

@@ -299,8 +299,7 @@ Default: 60
 
 If the automatically created (via "*") database pools have
 been unused this many seconds, they are freed.  The negative
-aspect of that is that their statistics are also forgotten.
-[seconds]
+aspect of that is that their statistics are also forgotten.  [seconds]
 
 Default: 3600
 

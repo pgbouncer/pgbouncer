@@ -459,7 +459,7 @@ static void pool_server_maint(PgPool *pool)
 				continue;
 			age = now - server->link->request_time;
 			if (age > cf_query_timeout)
-				disconnect_server(server, true, "statement timeout");
+				disconnect_server(server, true, "query timeout");
 		}
 	}
 

@@ -315,6 +315,14 @@ problems. [seconds]
 
 Default: 0 (disabled)
 
+==== query_wait_timeout ====
+
+Maximum time queries are allowed to spend waiting for execution. If the query
+is not assigned to a server during that time, the client is disconnected. This
+is used to prevent unresponsive servers from grabbing up connections. [seconds]
+
+Default: 0 (disabled)
+
 ==== client_idle_timeout ====
 
 Client connections idling longer than this many seconds are closed. This should 

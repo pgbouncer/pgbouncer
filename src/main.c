@@ -110,6 +110,7 @@ usec_t cf_server_idle_timeout = 10*60*USEC;
 usec_t cf_server_connect_timeout = 15*USEC;
 usec_t cf_server_login_retry = 15*USEC;
 usec_t cf_query_timeout = 0*USEC;
+usec_t cf_query_wait_timeout = 0*USEC;
 usec_t cf_client_idle_timeout = 0*USEC;
 usec_t cf_client_login_timeout = 60*USEC;
 usec_t cf_suspend_timeout = 10*USEC;
@@ -163,6 +164,7 @@ ConfElem bouncer_params[] = {
 {"server_check_query",	true, CF_STR, &cf_server_check_query},
 {"server_check_delay",	true, CF_TIME, &cf_server_check_delay},
 {"query_timeout",	true, CF_TIME, &cf_query_timeout},
+{"query_wait_timeout",	true, CF_TIME, &cf_query_wait_timeout},
 {"client_idle_timeout",	true, CF_TIME, &cf_client_idle_timeout},
 {"client_login_timeout",true, CF_TIME, &cf_client_login_timeout},
 {"server_lifetime",	true, CF_TIME, &cf_server_lifetime},

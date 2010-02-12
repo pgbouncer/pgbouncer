@@ -429,6 +429,13 @@ static void check_pool_size(PgPool *pool)
 		disconnect_server(server, true, "too many servers in the pool");
 		many--;
 	}
+
+	/*
+	 * Because of fast-fail we may not have any waiting clients that would
+	 * trigger server re-connect.  So do it explicitly.
+	 */
+	if (cur == 0 && pool->last_connect_failed)
+		launch_new_connection(pool);
 }
 
 /* maintain servers in a pool */

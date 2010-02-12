@@ -509,6 +509,25 @@ bool find_server(PgSocket *client)
 			else
 				break;
 		}
+
+		/*
+		 * Don't let clients queue at all, if there is no working server connection.
+		 *
+		 * It must still allow following cases:
+		 * - empty pool on startup
+		 * - idle pool where all servers are removed
+		 *
+		 * Current logic:
+		 * - old server connections will be dropped by query_timeout
+		 * - new server connections fail due to server_connect_timeout, or other failure
+		 */
+		if (!server && pool->last_connect_failed) {
+			int cnt = pool_server_count(pool) - statlist_count(&pool->new_server_list);
+			if (!cnt) {
+				disconnect_client(client, true, "no working server connection");
+				return false;
+			}
+		}
 	}
 	Assert(!server || server->state == SV_IDLE);
 

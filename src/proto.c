@@ -104,7 +104,7 @@ bool send_pooler_error(PgSocket *client, bool send_ready, const char *msg)
 	PktBuf buf;
 
 	if (cf_log_pooler_errors)
-		slog_info(client, "Pooler Error: %s", msg);
+		slog_warning(client, "Pooler Error: %s", msg);
 
 	pktbuf_static(&buf, tmpbuf, sizeof(tmpbuf));
 	pktbuf_write_generic(&buf, 'E', "cscscsc",

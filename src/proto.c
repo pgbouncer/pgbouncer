@@ -65,6 +65,8 @@ bool get_header(MBuf *data, PktHdr *pkt)
 			type = PKT_SSLREQ;
 		else if ((code >> 16) == 3 && (code & 0xFFFF) < 2)
 			type = PKT_STARTUP;
+		else if (code == PKT_STARTUP_V2)
+			type = PKT_STARTUP_V2;
 		else {
 			log_noise("get_header: unknown special pkt: len=%u code=%u", len, code);
 			return false;

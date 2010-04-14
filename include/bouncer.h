@@ -104,6 +104,7 @@ extern int cf_sbuf_len;
 #define AUTH_CREDS	6
 
 /* type codes for weird pkts */
+#define PKT_STARTUP_V2  0x20000
 #define PKT_STARTUP     0x30000
 #define PKT_CANCEL      80877102
 #define PKT_SSLREQ      80877103

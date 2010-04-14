@@ -220,6 +220,9 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 			return false;
 		}
 		break;
+	case PKT_STARTUP_V2:
+		disconnect_client(client, true, "Old V2 protocol not supported");
+		return false;
 	case PKT_STARTUP:
 		if (client->pool) {
 			disconnect_client(client, true, "client re-sent startup pkt");

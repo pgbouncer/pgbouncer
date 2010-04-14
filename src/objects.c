@@ -524,6 +524,9 @@ bool find_server(PgSocket *client)
 		if (!server && pool->last_connect_failed) {
 			int cnt = pool_server_count(pool) - statlist_count(&pool->new_server_list);
 			if (!cnt) {
+				/* usual relaunch wont work, as there are no waiting clients */
+				launch_new_connection(client->pool);
+
 				disconnect_client(client, true, "no working server connection");
 				return false;
 			}

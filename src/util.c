@@ -147,6 +147,7 @@ static void _log_write(const char *pfx, const char *msg)
 	char buf[1024];
 	char tbuf[64];
 	int len;
+	int old_errno = errno;
 
 	render_time(tbuf, sizeof(tbuf));
 	len = snprintf(buf, sizeof(buf), "%s %u %s %s\n",
@@ -160,6 +161,9 @@ static void _log_write(const char *pfx, const char *msg)
 
 	if (!cf_quiet)
 		fprintf(stderr, "%s", buf);
+
+	if (old_errno != errno)
+		errno = old_errno;
 }
 
 static void _log(const char *pfx, const char *fmt, va_list ap)

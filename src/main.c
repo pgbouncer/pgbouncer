@@ -64,6 +64,7 @@ char *cf_config_file = "";
 
 char *cf_listen_addr = NULL;
 int cf_listen_port = 6432;
+int cf_listen_backlog = 128;
 #ifndef WIN32
 char *cf_unix_socket_dir = "/tmp";
 #else
@@ -142,6 +143,7 @@ ConfElem bouncer_params[] = {
 {"pidfile",		false, CF_STR, &cf_pidfile},
 {"listen_addr",		false, CF_STR, &cf_listen_addr},
 {"listen_port",		false, CF_INT, &cf_listen_port},
+{"listen_backlog",	false, CF_INT, &cf_listen_backlog},
 #ifndef WIN32
 {"unix_socket_dir",	false, CF_STR, &cf_unix_socket_dir},
 #endif

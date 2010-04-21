@@ -341,6 +341,13 @@ large.
 
 Default: 2048
 
+==== listen_backlog ====
+
+Backlog argument for listen(2).  Determines how many new unanswered connection
+attempts are kept in queue.  When queue is full, futher new connections are dropped.
+
+Default: 128
+
 ==== sbuf_loopcnt ====
 
 How many times to process data on one connection, before proceeding.

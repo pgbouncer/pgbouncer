@@ -194,7 +194,7 @@ static int create_net_socket(const char *listen_addr, int listen_port)
 	tune_socket(sock, false);
 
 	/* make it accept connections */
-	res = listen(sock, 100);
+	res = listen(sock, cf_listen_backlog);
 	if (res < 0)
 		fatal_perror("listen");
 

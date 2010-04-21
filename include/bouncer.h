@@ -310,6 +310,7 @@ extern char *cf_syslog_facility;
 extern char *cf_unix_socket_dir;
 extern char *cf_listen_addr;
 extern int cf_listen_port;
+extern int cf_listen_backlog;
 
 extern int cf_pool_mode;
 extern int cf_max_client_conn;

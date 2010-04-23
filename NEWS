@@ -1,3 +1,27 @@
+2010-xx-xx  -  PgBouncer 1.3.3  -  ""
+
+  = Improvements =
+
+    * Make listen(2) argument configurable: listen_backlog.  This is
+      useful on OS'es, where system max allowed is configurable.
+
+    * Improve disconnect messages to show what username or dbname caused
+      login to fail.
+
+  = Fixes =
+
+    * Move fast-fail relaunch logic around.  Old one was annoying in case of
+      permanently broken databases or users, by trying to retry even if
+      there is no clients who want to login.
+
+    * Make logging functions keep old errno, otherwise pgbouncer may act funny
+      on higher loglevels and logging problems.
+
+    * Increase the size of various startup-related buffers to handle
+      EDB more noisy startup.
+
+    * Detect V2 protocol startup request and give clear reason for disconnect.
+
 2010-03-15  -  PgBouncer 1.3.2  -  "Boomerang Bullet"
 
   = Fixes =

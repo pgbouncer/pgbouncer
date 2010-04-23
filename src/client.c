@@ -59,7 +59,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username)
 	if (!db) {
 		db = register_auto_database(dbname);
 		if (!db) {
-			disconnect_client(client, true, "No such database");
+			disconnect_client(client, true, "No such database: %s", dbname);
 			return false;
 		}
 		else {
@@ -82,7 +82,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username)
 		/* the user clients wants to log in as */
 		user = find_user(username);
 		if (!user) {
-			disconnect_client(client, true, "No such user");
+			disconnect_client(client, true, "No such user: %s", username);
 			return false;
 		}
 		client->auth_user = user;
@@ -123,7 +123,7 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 			slog_debug(client, "ignoring startup parameter: %s=%s", key, val);
 		} else {
 			slog_warning(client, "unsupported startup parameter: %s=%s", key, val);
-			disconnect_client(client, true, "Unknown startup parameter");
+			disconnect_client(client, true, "Unsupported startup parameter: %s", key);
 			return false;
 		}
 	}

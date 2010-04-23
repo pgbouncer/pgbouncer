@@ -677,13 +677,20 @@ bool release_server(PgSocket *server)
 }
 
 /* drop server connection */
-void disconnect_server(PgSocket *server, bool notify, const char *reason)
+void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 {
 	PgPool *pool = server->pool;
 	PgSocket *client = server->link;
 	static const uint8_t pkt_term[] = {'X', 0,0,0,4};
 	int send_term = 1;
 	usec_t now = get_cached_time();
+	char buf[128];
+	va_list ap;
+
+	va_start(ap, reason);
+	vsnprintf(buf, sizeof(buf), reason, ap);
+	va_end(ap);
+	reason = buf;
 
 	if (cf_log_disconnections)
 		slog_info(server, "closing because: %s (age=%llu)", reason,
@@ -695,7 +702,7 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason)
 		if (client) {
 			client->link = NULL;
 			server->link = NULL;
-			disconnect_client(client, true, reason);
+			disconnect_client(client, true, "%s", reason);
 		}
 		break;
 	case SV_TESTED:
@@ -731,9 +738,16 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason)
 }
 
 /* drop client connection */
-void disconnect_client(PgSocket *client, bool notify, const char *reason)
+void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 {
+	char buf[128];
+	va_list ap;
 	usec_t now = get_cached_time();
+
+	va_start(ap, reason);
+	vsnprintf(buf, sizeof(buf), reason, ap);
+	va_end(ap);
+	reason = buf;
 
 	if (cf_log_disconnections)
 		slog_info(client, "closing because: %s (age=%llu)", reason,
@@ -953,8 +967,7 @@ found:
 		/* notify readiness */
 		SEND_ReadyForQuery(res, main_client);
 		if (!res)
-			disconnect_client(main_client, true,
-					  "ReadyForQuery for main_client failed");
+			disconnect_client(main_client, true, "ReadyForQuery for main_client failed");
 		return;
 	}
 

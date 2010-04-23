@@ -34,7 +34,7 @@ static void close_server_list(StatList *sk_list, const char *reason)
 
 	statlist_for_each_safe(item, sk_list, tmp) {
 		server = container_of(item, PgSocket, head);
-		disconnect_server(server, true, reason);
+		disconnect_server(server, true, "%s", reason);
 	}
 }
 
@@ -45,7 +45,7 @@ static void close_client_list(StatList *sk_list, const char *reason)
 
 	statlist_for_each_safe(item, sk_list, tmp) {
 		client = container_of(item, PgSocket, head);
-		disconnect_client(client, true, reason);
+		disconnect_client(client, true, "%s", reason);
 	}
 }
 

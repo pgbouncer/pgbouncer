@@ -71,7 +71,7 @@ static void kill_pool_logins(PgPool *pool, PktHdr *errpkt)
 		if (!client->wait_for_welcome)
 			continue;
 
-		disconnect_client(client, true, msg);
+		disconnect_client(client, true, "%s", msg);
 	}
 }
 
@@ -205,8 +205,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		if (state == 'I')
 			ready = 1;
 		else if (cf_pool_mode == POOL_STMT) {
-			disconnect_server(server, true,
-					  "Long transactions not allowed");
+			disconnect_server(server, true, "Long transactions not allowed");
 			return false;
 		}
 		break;

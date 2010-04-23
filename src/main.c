@@ -31,7 +31,7 @@ static bool set_auth(ConfElem *elem, const char *val, PgSocket *console);
 static const char *get_auth(ConfElem *elem);
 static bool set_defer_accept(ConfElem *elem, const char *val, PgSocket *console);
 
-static const char *usage_str =
+static const char usage_str[] =
 "Usage: %s [OPTION]... config.ini\n"
 "  -d            Run in background (as a daemon)\n"
 "  -R            Do a online restart\n"

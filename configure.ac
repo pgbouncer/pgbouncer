@@ -89,6 +89,7 @@ if test x"$GCC" = xyes; then
   flags="$flags -Wmissing-prototypes -Wpointer-arith -Wendif-labels"
   flags="$flags -Wdeclaration-after-statement -Wold-style-definition"
   flags="$flags -Wstrict-prototypes -Wundef -Wformat -Wnonnull -Wstrict-overflow"
+  flags="$flags -Wformat-security -Wformat-nonliteral -Wformat-extra-args -Wformat-contains-nul"
   for f in $flags; do
     CFLAGS="$good_CFLAGS $warnings $f"
     AC_COMPILE_IFELSE([void foo(void){}], [warnings="$warnings $f"])

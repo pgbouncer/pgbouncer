@@ -236,7 +236,7 @@ static bool send_one_fd(PgSocket *admin,
 	struct cmsghdr *cmsg;
 	int res;
 	struct iovec iovec;
-	uint8_t pktbuf[1024];
+	uint8_t pktbuf[STARTUP_BUF * 2];
 	uint8_t cntbuf[CMSG_SPACE(sizeof(int))];
 
 	iovec.iov_base = pktbuf;

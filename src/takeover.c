@@ -266,7 +266,7 @@ static void takeover_parse_data(PgSocket *bouncer,
 static void takeover_recv_cb(int sock, short flags, void *arg)
 {
 	PgSocket *bouncer = container_of(arg, PgSocket, sbuf);
-	uint8_t data_buf[2048];
+	uint8_t data_buf[STARTUP_BUF * 2];
 	uint8_t cnt_buf[128];
 	struct msghdr msg;
 	struct iovec io;

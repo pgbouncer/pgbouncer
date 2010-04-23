@@ -120,6 +120,9 @@ extern int cf_sbuf_len;
 
 #define BACKENDKEY_LEN	8
 
+/* buffer size for startup noise */
+#define STARTUP_BUF	1024
+
 /*
  * Remote/local address
  */
@@ -170,7 +173,7 @@ struct PgPool {
 	PgStats older_stats;
 
 	/* database info to be sent to client */
-	uint8_t welcome_msg[256];	/* ServerParams without VarCache ones */
+	uint8_t welcome_msg[STARTUP_BUF]; /* ServerParams without VarCache ones */
 	unsigned welcome_msg_len;
 
 	VarCache orig_vars;		/* default params from server */
@@ -226,7 +229,7 @@ struct PgDatabase {
 	bool db_auto;		/* is the database auto-created by autodb_connstr */
 	bool admin;		/* internal console db */
 
-	uint8_t startup_params[256]; /* partial StartupMessage (without user) be sent to server */
+	uint8_t startup_params[STARTUP_BUF]; /* partial StartupMessage (without user) be sent to server */
 	unsigned startup_params_len;
 
 	PgUser *forced_user;	/* if not NULL, the user/psw is forced */

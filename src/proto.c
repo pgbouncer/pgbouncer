@@ -190,7 +190,7 @@ void finish_welcome_msg(PgSocket *server)
 bool welcome_client(PgSocket *client)
 {
 	int res;
-	uint8_t buf[1024];
+	uint8_t buf[STARTUP_BUF];
 	PktBuf msg;
 	PgPool *pool = client->pool;
 
@@ -321,7 +321,7 @@ bool send_startup_packet(PgSocket *server)
 	PgDatabase *db = server->pool->db;
 	const char *username = server->pool->user->name;
 	PktBuf pkt;
-	uint8_t buf[512];
+	uint8_t buf[STARTUP_BUF];
 
 	pktbuf_static(&pkt, buf, sizeof(buf));
 	pktbuf_write_StartupMessage(&pkt, username,

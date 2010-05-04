@@ -153,6 +153,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	/* put to new location */
 	switch (client->state) {
 	case CL_FREE:
+		varcache_clean(&client->vars);
 		slab_free(client_cache, client);
 		break;
 	case CL_JUSTFREE:
@@ -211,6 +212,7 @@ void change_server_state(PgSocket *server, SocketState newstate)
 	/* put to new location */
 	switch (server->state) {
 	case SV_FREE:
+		varcache_clean(&server->vars);
 		slab_free(server_cache, server);
 		break;
 	case SV_JUSTFREE:

@@ -1,16 +1,16 @@
 
-#define VAR_ENCODING_LEN	16
-#define VAR_DATESTYLE_LEN	32
-#define VAR_TIMEZONE_LEN	36
-#define VAR_STDSTR_LEN		4
+enum VarCacheIdx {
+	VDateStyle = 0,
+	VClientEncoding,
+	VTimeZone,
+	VStdStr,
+	NumVars
+};
 
 typedef struct VarCache VarCache;
 
 struct VarCache {
-	char client_encoding[VAR_ENCODING_LEN];
-	char datestyle[VAR_DATESTYLE_LEN];
-	char timezone[VAR_TIMEZONE_LEN];
-	char std_strings[VAR_STDSTR_LEN];
+	struct PStr *var_list[NumVars];
 };
 
 bool varcache_set(VarCache *cache, const char *key, const char *value) /* _MUSTCHECK */;

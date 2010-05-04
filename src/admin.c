@@ -286,6 +286,10 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	struct MBuf tmp;
 	VarCache *v = &sk->vars;
 	uint64_t ckey;
+	const struct PStr *client_encoding = v->var_list[VClientEncoding];
+	const struct PStr *std_strings = v->var_list[VStdStr];
+	const struct PStr *datestyle = v->var_list[VDateStyle];
+	const struct PStr *timezone = v->var_list[VTimeZone];
 
 	mbuf_init_fixed_reader(&tmp, sk->cancel_key, 8);
 	if (!mbuf_get_uint64be(&tmp, &ckey))
@@ -299,10 +303,10 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 			   addr->port,
 			   ckey,
 			   sk->link ? sbuf_socket(&sk->link->sbuf) : 0,
-			   v->client_encoding[0] ? v->client_encoding : NULL,
-			   v->std_strings[0] ? v->std_strings : NULL,
-			   v->datestyle[0] ? v->datestyle : NULL,
-			   v->timezone[0] ? v->timezone : NULL);
+			   client_encoding ? client_encoding->str : NULL,
+			   std_strings ? std_strings->str : NULL,
+			   datestyle ? datestyle->str : NULL,
+			   timezone ? timezone->str : NULL);
 }
 
 /* send a row with sendmsg, optionally attaching a fd */

@@ -34,6 +34,7 @@
 #include <usual/safeio.h>
 #include <usual/mbuf.h>
 #include <usual/event.h>
+#include <usual/strpool.h>
 
 #ifdef DBGVER
 #define FULLVER   PACKAGE_NAME " version " PACKAGE_VERSION " (" DBGVER ")"

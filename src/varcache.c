@@ -24,54 +24,62 @@
 
 struct var_lookup {
 	const char *name;
-	int offset;
-	int len;
+	enum VarCacheIdx idx;
 };
 
 static const struct var_lookup lookup [] = {
- {"client_encoding",             offsetof(VarCache, client_encoding), VAR_ENCODING_LEN },
- {"datestyle",                   offsetof(VarCache, datestyle),       VAR_DATESTYLE_LEN },
- {"timezone",                    offsetof(VarCache, timezone),        VAR_TIMEZONE_LEN },
- {"standard_conforming_strings", offsetof(VarCache, std_strings),     VAR_STDSTR_LEN },
+ {"client_encoding",             VClientEncoding },
+ {"datestyle",                   VDateStyle },
+ {"timezone",                    VTimeZone },
+ {"standard_conforming_strings", VStdStr },
  {NULL},
 };
 
-static inline char *get_value(VarCache *cache, const struct var_lookup *lk)
+static struct StrPool *vpool;
+
+static inline struct PStr *get_value(VarCache *cache, const struct var_lookup *lk)
 {
-	return (char *)(cache) + lk->offset;
+	return cache->var_list[lk->idx];
 }
 
 bool varcache_set(VarCache *cache, const char *key, const char *value)
 {
-	int vlen;
-	char *pos;
 	const struct var_lookup *lk;
+	struct PStr *pstr = NULL;
 
-	/* convert NULL to empty string */
-	if (value == NULL)
-		value = "";
+	if (!vpool) {
+		vpool = strpool_create();
+		if (!vpool)
+			return false;
+	}
 
 	for (lk = lookup; lk->name; lk++) {
-		if (strcasecmp(lk->name, key) != 0)
-			continue;
-
-		vlen = strlen(value);
-		if (vlen >= lk->len) {
-			log_warning("varcache_set overflow: %s", key);
-			return false;
-		}
-
-		pos = get_value(cache, lk);
-		memcpy(pos, value, vlen + 1);
-		return true;
+		if (strcasecmp(lk->name, key) == 0)
+			goto set_value;
 	}
 	return false;
+
+set_value:
+	/* drop old value */
+	strpool_decref(cache->var_list[lk->idx]);
+	cache->var_list[lk->idx] = NULL;
+
+	/* ignore empty value */
+	if (!value && !value[0])
+		return false;
+
+	/* set new value */
+	pstr = strpool_get(vpool, value, strlen(value));
+	if (!pstr)
+		return false;
+	cache->var_list[lk->idx] = pstr;
+	return true;
 }
 
 static bool is_std_quote(VarCache *vars)
 {
-	const char *val = vars->std_strings;
-	return strcasecmp(val, "on") == 0;
+	const struct PStr *s = vars->var_list[VStdStr];
+	return s && strcasecmp(s->str, "on") == 0;
 }
 
 static bool quote_literal(char *buf, int buflen, const char *src, bool std_quote)
@@ -134,7 +142,7 @@ bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
 	PktBuf pkt;
 	uint8_t buf[STARTUP_BUF];
 	int changes = 0;
-	const char *cval, *sval;
+	struct PStr *cval, *sval;
 	const struct var_lookup *lk;
 	uint8_t *debug_sql;
 	bool std_quote = is_std_quote(&server->vars);
@@ -148,7 +156,8 @@ bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
 	for (lk = lookup; lk->name; lk++) {
 		sval = get_value(&server->vars, lk);
 		cval = get_value(&client->vars, lk);
-		changes += apply_var(&pkt, lk->name, cval, sval, std_quote);
+		if (cval)
+			changes += apply_var(&pkt, lk->name, cval->str, sval->str, std_quote);
 	}
 	*changes_p = changes > 0;
 	if (!changes)
@@ -163,32 +172,35 @@ bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
 
 void varcache_fill_unset(VarCache *src, PgSocket *dst)
 {
-	char *srcval, *dstval;
+	struct PStr *srcval, *dstval;
 	const struct var_lookup *lk;
 	for (lk = lookup; lk->name; lk++) {
-		srcval = get_value(src, lk);
-		dstval = get_value(&dst->vars, lk);
-		if (!*dstval)
-			memcpy(dstval, srcval, lk->len);
+		srcval = src->var_list[lk->idx];
+		dstval = dst->vars.var_list[lk->idx];
+		if (!dstval) {
+			strpool_incref(srcval);
+			dst->vars.var_list[lk->idx] = srcval;
+		}
 	}
 }
 
 void varcache_clean(VarCache *cache)
 {
-	cache->client_encoding[0] = 0;
-	cache->datestyle[0] = 0;
-	cache->timezone[0] = 0;
-	cache->std_strings[0] = 0;
+	int i;
+	for (i = 0; i < NumVars; i++) {
+		strpool_decref(cache->var_list[i]);
+		cache->var_list[i] = NULL;
+	}
 }
 
 void varcache_add_params(PktBuf *pkt, VarCache *vars)
 {
-	char *val;
+	struct PStr *val;
 	const struct var_lookup *lk;
 	for (lk = lookup; lk->name; lk++) {
-		val = get_value(vars, lk);
-		if (*val)
-			pktbuf_write_ParameterStatus(pkt, lk->name, val);
+		val = vars->var_list[lk->idx];
+		if (val)
+			pktbuf_write_ParameterStatus(pkt, lk->name, val->str);
 	}
 }
 

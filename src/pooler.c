@@ -98,7 +98,7 @@ static int create_unix_socket(const char *socket_dir, int listen_port)
 	tune_socket(sock, true);
 
 	/* finally, accept connections */
-	res = listen(sock, 100);
+	res = listen(sock, cf_listen_backlog);
 	if (res < 0)
 		fatal_perror("listen");
 

@@ -22,7 +22,7 @@
 
 #include "bouncer.h"
 
-#include <regex.h>
+#include <usual/regex.h>
 
 /* regex elements */
 #define WS0	"[ \t\n\r]*"

@@ -34,13 +34,13 @@ static bool set_defer_accept(ConfElem *elem, const char *val, PgSocket *console)
 
 static const char usage_str[] =
 "Usage: %s [OPTION]... config.ini\n"
-"  -d            Run in background (as a daemon)\n"
-"  -R            Do a online restart\n"
-"  -q            Run quietly\n"
-"  -v            Increase verbosity\n"
-"  -u <username> Assume identity of <username>\n"
-"  -V            Show version\n"
-"  -h            Show this help screen and exit\n";
+"  -d, --daemon           Run in background (as a daemon)\n"
+"  -R, --restart          Do a online restart\n"
+"  -q, --quiet            Run quietly\n"
+"  -v, --verbose          Increase verbosity\n"
+"  -u, --user=<username>  Assume identity of <username>\n"
+"  -V, --version          Show version\n"
+"  -h, --help             Show this help screen and exit\n";
 
 static void usage(int err, char *exe)
 {
@@ -647,9 +647,21 @@ int main(int argc, char *argv[])
 	int c;
 	bool did_takeover = false;
 	char *arg_username = NULL;
+	int long_idx;
+
+	static const struct option long_options[] = {
+		{"quiet", no_argument, NULL, 'q'},
+		{"verbose", no_argument, NULL, 'v'},
+		{"help", no_argument, NULL, 'h'},
+		{"daemon", no_argument, NULL, 'd'},
+		{"version", no_argument, NULL, 'V'},
+		{"reboot", no_argument, NULL, 'R'},
+		{"user", required_argument, NULL, 'u'},
+		{NULL, 0, NULL, 0}
+	};
 
 	/* parse cmdline */
-	while ((c = getopt(argc, argv, "qvhdVRu:")) != EOF) {
+	while ((c = getopt_long(argc, argv, "qvhdVRu:", long_options, &long_idx)) != -1) {
 		switch (c) {
 		case 'R':
 			cf_reboot = 1;

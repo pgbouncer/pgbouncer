@@ -536,7 +536,7 @@ static void write_pidfile(void)
 		return;
 
 	pid = getpid();
-	sprintf(buf, "%u", (unsigned)pid);
+	snprintf(buf, sizeof(buf), "%u", (unsigned)pid);
 
 	fd = open(cf_pidfile, O_WRONLY | O_CREAT | O_EXCL, 0644);
 	if (fd < 0)

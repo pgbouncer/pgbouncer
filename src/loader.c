@@ -555,7 +555,7 @@ const char *cf_get_int(ConfElem *elem)
 	int val;
 
 	val = *(int *)elem->dst;
-	sprintf(numbuf, "%d", val);
+	snprintf(numbuf, sizeof(numbuf), "%d", val);
 	return numbuf;
 }
 bool cf_set_time(ConfElem *elem, const char *val, PgSocket *console)
@@ -575,7 +575,7 @@ const char *cf_get_time(ConfElem *elem)
 	usec_t val;
 
 	val = *(usec_t *)elem->dst;
-	sprintf(numbuf, "%d", (int)(val / USEC));
+	snprintf(numbuf, sizeof(numbuf), "%d", (int)(val / USEC));
 	return numbuf;
 }
 

@@ -402,10 +402,10 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 	va_start(ap, tupdesc);
 	for (i = 0; i < ncol; i++) {
 		if (tupdesc[i] == 'i') {
-			sprintf(tmp, "%d", va_arg(ap, int));
+			snprintf(tmp, sizeof(tmp), "%d", va_arg(ap, int));
 			val = tmp;
 		} else if (tupdesc[i] == 'q') {
-			sprintf(tmp, "%" PRIu64, va_arg(ap, uint64_t));
+			snprintf(tmp, sizeof(tmp), "%" PRIu64, va_arg(ap, uint64_t));
 			val = tmp;
 		} else if (tupdesc[i] == 's') {
 			val = va_arg(ap, char *);

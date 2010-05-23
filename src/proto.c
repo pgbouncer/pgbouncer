@@ -168,25 +168,29 @@ void log_server_error(const char *note, PktHdr *pkt)
  */
 
 /* add another server parameter packet to cache */
-void add_welcome_parameter(PgPool *pool, const char *key, const char *val)
+bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 {
-	PktBuf msg;
+	PktBuf *msg = pool->welcome_msg;
 
 	if (pool->welcome_msg_ready)
-		return;
+		return true;
 
-	pktbuf_static(&msg, pool->welcome_msg + pool->welcome_msg_len,
-		      sizeof(pool->welcome_msg) - pool->welcome_msg_len);
+	if (!msg) {
+		msg = pktbuf_dynamic(128);
+		if (!msg)
+			return false;
+		pool->welcome_msg = msg;
+	}
 
 	/* first packet must be AuthOk */
-	if (pool->welcome_msg_len == 0)
-		pktbuf_write_AuthenticationOk(&msg);
+	if (msg->write_pos == 0)
+		pktbuf_write_AuthenticationOk(msg);
 
 	/* if not stored in ->orig_vars, write full packet */
-	if (!varcache_set(&pool->orig_vars, key, val)) {
-		pktbuf_write_ParameterStatus(&msg, key, val);
-		pool->welcome_msg_len += pktbuf_written(&msg);
-	}
+	if (!varcache_set(&pool->orig_vars, key, val))
+		pktbuf_write_ParameterStatus(msg, key, val);
+
+	return !msg->failed;
 }
 
 /* all parameters processed */
@@ -201,30 +205,37 @@ void finish_welcome_msg(PgSocket *server)
 bool welcome_client(PgSocket *client)
 {
 	int res;
-	uint8_t buf[STARTUP_BUF];
-	PktBuf msg;
 	PgPool *pool = client->pool;
+	const PktBuf *pmsg = pool->welcome_msg;
+	PktBuf *msg;
 
 	slog_noise(client, "P: welcome_client");
-	if (!pool->welcome_msg_ready)
-		return false;
 
-	pktbuf_static(&msg, buf, sizeof(buf));
-	pktbuf_put_bytes(&msg, pool->welcome_msg, pool->welcome_msg_len);
+	/* copy prepared stuff around */
+	msg = pktbuf_temp();
+	pktbuf_put_bytes(msg, pmsg->buf, pmsg->write_pos);
 
+	/* fill vars */
 	varcache_fill_unset(&pool->orig_vars, client);
-	varcache_add_params(&msg, &client->vars);
+	varcache_add_params(msg, &client->vars);
 
 	/* give each client its own cancel key */
 	get_random_bytes(client->cancel_key, 8);
-	pktbuf_write_BackendKeyData(&msg, client->cancel_key);
-	pktbuf_write_ReadyForQuery(&msg);
+	pktbuf_write_BackendKeyData(msg, client->cancel_key);
+
+	/* finish */
+	pktbuf_write_ReadyForQuery(msg);
+	if (msg->failed) {
+		disconnect_client(client, true, "failed to prepare welcome message");
+		return false;
+	}
 
 	/* send all together */
-	res = pktbuf_send_immidiate(&msg, client);
-	if (!res)
-		slog_warning(client, "unhandled failure to send welcome_msg");
-
+	res = pktbuf_send_immidiate(msg, client);
+	if (!res) {
+		disconnect_client(client, true, "failed to send welcome message");
+		return false;
+	}
 	return true;
 }
 
@@ -330,14 +341,13 @@ bool send_startup_packet(PgSocket *server)
 {
 	PgDatabase *db = server->pool->db;
 	const char *username = server->pool->user->name;
-	PktBuf pkt;
-	uint8_t buf[STARTUP_BUF];
+	PktBuf *pkt;
 
-	pktbuf_static(&pkt, buf, sizeof(buf));
-	pktbuf_write_StartupMessage(&pkt, username,
-				    db->startup_params,
-				    db->startup_params_len);
-	return pktbuf_send_immidiate(&pkt, server);
+	pkt = pktbuf_temp();
+	pktbuf_write_StartupMessage(pkt, username,
+				    db->startup_params->buf,
+				    db->startup_params->write_pos);
+	return pktbuf_send_immidiate(pkt, server);
 }
 
 int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...)

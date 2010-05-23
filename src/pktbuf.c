@@ -22,9 +22,9 @@
 
 #include "bouncer.h"
 
-static void pktbuf_free(PktBuf *buf)
+void pktbuf_free(PktBuf *buf)
 {
-	if (buf->fixed_buf)
+	if (!buf || buf->fixed_buf)
 		return;
 
 	log_debug("pktbuf_free(%p)", buf);
@@ -56,12 +56,33 @@ PktBuf *pktbuf_dynamic(int start_len)
 	return buf;
 }
 
+void pktbuf_reset(struct PktBuf *pkt)
+{
+	pkt->failed = 0;
+	pkt->write_pos = 0;
+	pkt->pktlen_pos = 0;
+	pkt->send_pos = 0;
+	pkt->sending = 0;
+}
+
 void pktbuf_static(PktBuf *buf, uint8_t *data, int len)
 {
 	memset(buf, 0, sizeof(*buf));
 	buf->buf = data;
 	buf->buf_len = len;
 	buf->fixed_buf = 1;
+}
+
+struct PktBuf *pktbuf_temp(void)
+{
+	static PktBuf *temp_pktbuf;
+
+	if (!temp_pktbuf)
+		temp_pktbuf = pktbuf_dynamic(512);
+	if (!temp_pktbuf)
+		fatal("failed to create temp pktbuf");
+	pktbuf_reset(temp_pktbuf);
+	return temp_pktbuf;
 }
 
 bool pktbuf_send_immidiate(PktBuf *buf, PgSocket *sk)

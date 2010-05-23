@@ -911,7 +911,8 @@ bool finish_client_login(PgSocket *client)
 		fatal("bad client state");
 	}
 
-	if (!welcome_client(client)) {
+	/* check if we know server signature */
+	if (!client->pool->welcome_msg_ready) {
 		log_debug("finish_client_login: no welcome message, pause");
 		client->wait_for_welcome = 1;
 		pause_client(client);
@@ -920,6 +921,10 @@ bool finish_client_login(PgSocket *client)
 		return false;
 	}
 	client->wait_for_welcome = 0;
+
+	/* send the message */
+	if (!welcome_client(client))
+		return false;
 
 	slog_debug(client, "logged in");
 

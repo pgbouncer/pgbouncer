@@ -234,18 +234,19 @@ static bool send_one_fd(PgSocket *admin,
 {
 	struct msghdr msg;
 	struct cmsghdr *cmsg;
-	int res;
 	struct iovec iovec;
-	uint8_t pktbuf[STARTUP_BUF * 2];
+	int res;
 	uint8_t cntbuf[CMSG_SPACE(sizeof(int))];
 
-	iovec.iov_base = pktbuf;
-	BUILD_DataRow(res, pktbuf, sizeof(pktbuf), "issssiqissss",
+	struct PktBuf *pkt = pktbuf_temp();
+
+	pktbuf_write_DataRow(pkt, "issssiqissss",
 		      fd, task, user, db, addr, port, ckey, link,
 		      client_enc, std_strings, datestyle, timezone);
-	if (res < 0)
+	if (pkt->failed)
 		return false;
-	iovec.iov_len = res;
+	iovec.iov_base = pkt->buf;
+	iovec.iov_len = pktbuf_written(pkt);
 
 	/* sending fds */
 	memset(&msg, 0, sizeof(msg));
@@ -1142,7 +1143,7 @@ void admin_setup(void)
 	PgDatabase *db;
 	PgPool *pool;
 	PgUser *user;
-	PktBuf msg;
+	PktBuf *msg;
 	int res;
 
 	/* fake database */
@@ -1169,21 +1170,28 @@ void admin_setup(void)
 		fatal("cannot create admin user?");
 
 	/* prepare welcome */
-	pktbuf_static(&msg, pool->welcome_msg, sizeof(pool->welcome_msg));
-	pktbuf_write_AuthenticationOk(&msg);
-	pktbuf_write_ParameterStatus(&msg, "server_version", "8.0/bouncer");
-	pktbuf_write_ParameterStatus(&msg, "client_encoding", "UNICODE");
-	pktbuf_write_ParameterStatus(&msg, "server_encoding", "SQL_ASCII");
-	pktbuf_write_ParameterStatus(&msg, "is_superuser", "on");
+	msg = pktbuf_dynamic(128);
+	if (!msg)
+		fatal("cannot create admin welcome");
+	pktbuf_write_AuthenticationOk(msg);
+	pktbuf_write_ParameterStatus(msg, "server_version", "8.0/bouncer");
+	pktbuf_write_ParameterStatus(msg, "client_encoding", "UNICODE");
+	pktbuf_write_ParameterStatus(msg, "server_encoding", "SQL_ASCII");
+	pktbuf_write_ParameterStatus(msg, "is_superuser", "on");
 
-	pool->welcome_msg_len = pktbuf_written(&msg);
+	if (msg->failed)
+		fatal("admin welcome failed");
+
+	pool->welcome_msg = msg;
 	pool->welcome_msg_ready = 1;
 
-	pktbuf_static(&msg, db->startup_params, sizeof(db->startup_params));
-	pktbuf_put_string(&msg, "database");
-	db->dbname = (char *)db->startup_params + pktbuf_written(&msg);
-	pktbuf_put_string(&msg, "pgbouncer");
-	db->startup_params_len = pktbuf_written(&msg);
+	msg = pktbuf_dynamic(128);
+	if (!msg)
+		fatal("cannot create admin startup pkt");
+	db->startup_params = msg;
+	pktbuf_put_string(msg, "database");
+	db->dbname = "pgbouncer";
+	pktbuf_put_string(msg, db->dbname);
 
 	/* initialize regexes */
 	res = regcomp(&rc_cmd, cmd_normal_rx, REG_EXTENDED | REG_ICASE);

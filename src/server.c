@@ -47,12 +47,17 @@ static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 		varcache_set(&client->vars, key, val);
 	}
 
-	if (startup)
-		add_welcome_parameter(server->pool, key, val);
+	if (startup) {
+		if (!add_welcome_parameter(server->pool, key, val))
+			goto failed_store;
+	}
 
 	return true;
 failed:
 	disconnect_server(server, true, "broken ParameterStatus packet");
+	return false;
+failed_store:
+	disconnect_server(server, true, "failed to store ParameterStatus");
 	return false;
 }
 

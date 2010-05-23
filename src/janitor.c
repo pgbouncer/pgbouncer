@@ -576,6 +576,8 @@ static void kill_pool(PgPool *pool)
 	close_server_list(&pool->tested_server_list, reason);
 	close_server_list(&pool->new_server_list, reason);
 
+	pktbuf_free(pool->welcome_msg);
+
 	list_del(&pool->map_head);
 	statlist_remove(&pool_list, &pool->head);
 	varcache_clean(&pool->orig_vars);
@@ -594,6 +596,7 @@ static void kill_database(PgDatabase *db)
 		if (pool->db == db)
 			kill_pool(pool);
 	}
+	pktbuf_free(db->startup_params);
 	if (db->forced_user)
 		slab_free(user_cache, db->forced_user);
 	if (db->connect_query)

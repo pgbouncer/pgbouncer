@@ -172,10 +172,11 @@ static void set_autodb(char *connstr)
 void parse_database(char *name, char *connstr)
 {
 	char *p, *key, *val;
-	PktBuf buf;
+	PktBuf *msg;
 	PgDatabase *db;
 	int pool_size = -1;
 	int res_pool_size = -1;
+	int dbname_ofs;
 
 	char *dbname = name;
 	char *host = NULL;
@@ -336,28 +337,34 @@ void parse_database(char *name, char *connstr)
 	/* assign connect_query */
 	set_connect_query(db, connect_query);
 
-	pktbuf_static(&buf, db->startup_params, sizeof(db->startup_params));
+	if (db->startup_params) {
+		msg = db->startup_params;
+		pktbuf_reset(msg);
+	} else {
+		msg = pktbuf_dynamic(128);
+		if (!msg)
+			fatal("cannot allocate startup buf");
+		db->startup_params = msg;
+	}
 
-	pktbuf_put_string(&buf, "database");
-	db->dbname = (char *)db->startup_params + pktbuf_written(&buf);
-	pktbuf_put_string(&buf, dbname);
+	pktbuf_put_string(msg, "database");
+	dbname_ofs = msg->write_pos;
+	pktbuf_put_string(msg, dbname);
 
 	if (client_encoding) {
-		pktbuf_put_string(&buf, "client_encoding");
-		pktbuf_put_string(&buf, client_encoding);
+		pktbuf_put_string(msg, "client_encoding");
+		pktbuf_put_string(msg, client_encoding);
 	}
 
 	if (datestyle) {
-		pktbuf_put_string(&buf, "datestyle");
-		pktbuf_put_string(&buf, datestyle);
+		pktbuf_put_string(msg, "datestyle");
+		pktbuf_put_string(msg, datestyle);
 	}
 
 	if (timezone) {
-		pktbuf_put_string(&buf, "timezone");
-		pktbuf_put_string(&buf, timezone);
+		pktbuf_put_string(msg, "timezone");
+		pktbuf_put_string(msg, timezone);
 	}
-
-	db->startup_params_len = pktbuf_written(&buf);
 
 	/* if user is forces, create fake object for it */
 	if (username != NULL) {
@@ -366,6 +373,9 @@ void parse_database(char *name, char *connstr)
 	} else if (db->forced_user)
 		log_warning("losing forced user not supported,"
 			    " keeping old setting");
+
+	/* remember dbname */
+	db->dbname = (char *)msg->buf + dbname_ofs;
 }
 
 /*

@@ -139,35 +139,33 @@ static int apply_var(PktBuf *pkt, const char *key,
 
 bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
 {
-	PktBuf pkt;
-	uint8_t buf[STARTUP_BUF];
 	int changes = 0;
 	struct PStr *cval, *sval;
 	const struct var_lookup *lk;
-	uint8_t *debug_sql;
+	int sql_ofs;
 	bool std_quote = is_std_quote(&server->vars);
+	struct PktBuf *pkt = pktbuf_temp();
 
-	pktbuf_static(&pkt, buf, sizeof(buf));
-	pktbuf_start_packet(&pkt, 'Q');
+	pktbuf_start_packet(pkt, 'Q');
 
 	/* grab quory position inside pkt */
-	debug_sql = pkt.buf + pkt.write_pos;
+	sql_ofs = pktbuf_written(pkt);
 
 	for (lk = lookup; lk->name; lk++) {
 		sval = get_value(&server->vars, lk);
 		cval = get_value(&client->vars, lk);
 		if (cval)
-			changes += apply_var(&pkt, lk->name, cval->str, sval->str, std_quote);
+			changes += apply_var(pkt, lk->name, cval->str, sval->str, std_quote);
 	}
 	*changes_p = changes > 0;
 	if (!changes)
 		return true;
 
-	pktbuf_put_char(&pkt, 0);
-	pktbuf_finish_packet(&pkt);
+	pktbuf_put_char(pkt, 0);
+	pktbuf_finish_packet(pkt);
 
-	slog_debug(server, "varcache_apply: %s", debug_sql);
-	return pktbuf_send_immidiate(&pkt, server);
+	slog_debug(server, "varcache_apply: %s", pkt->buf + sql_ofs);
+	return pktbuf_send_immidiate(pkt, server);
 }
 
 void varcache_fill_unset(VarCache *src, PgSocket *dst)

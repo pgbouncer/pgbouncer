@@ -180,8 +180,7 @@ struct PgPool {
 	PgStats older_stats;
 
 	/* database info to be sent to client */
-	uint8_t welcome_msg[STARTUP_BUF]; /* ServerParams without VarCache ones */
-	unsigned welcome_msg_len;
+	struct PktBuf *welcome_msg; /* ServerParams without VarCache ones */
 
 	VarCache orig_vars;		/* default params from server */
 
@@ -236,8 +235,7 @@ struct PgDatabase {
 	bool db_auto;		/* is the database auto-created by autodb_connstr */
 	bool admin;		/* internal console db */
 
-	uint8_t startup_params[STARTUP_BUF]; /* partial StartupMessage (without user) be sent to server */
-	unsigned startup_params_len;
+	struct PktBuf *startup_params; /* partial StartupMessage (without user) be sent to server */
 
 	PgUser *forced_user;	/* if not NULL, the user/psw is forced */
 

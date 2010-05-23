@@ -41,6 +41,12 @@ struct PktBuf {
 PktBuf *pktbuf_dynamic(int start_len)	_MUSTCHECK;
 void pktbuf_static(PktBuf *buf, uint8_t *data, int len);
 
+void pktbuf_free(PktBuf *buf);
+
+void pktbuf_reset(struct PktBuf *pkt);
+struct PktBuf *pktbuf_temp(void);
+
+
 /*
  * sending
  */

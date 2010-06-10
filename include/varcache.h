@@ -4,6 +4,7 @@ enum VarCacheIdx {
 	VClientEncoding,
 	VTimeZone,
 	VStdStr,
+	VAppName,
 	NumVars
 };
 

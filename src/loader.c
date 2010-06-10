@@ -188,6 +188,7 @@ void parse_database(char *name, char *connstr)
 	char *timezone = NULL;
 	char *connect_query = NULL;
 	char *unix_dir = "";
+	char *appname = NULL;
 
 	in_addr_t v_addr = INADDR_NONE;
 	int v_port;
@@ -228,6 +229,8 @@ void parse_database(char *name, char *connstr)
 			res_pool_size = atoi(val);
 		else if (strcmp("connect_query", key) == 0)
 			connect_query = val;
+		else if (strcmp("application_name", key) == 0)
+			appname = val;
 		else {
 			log_error("skipping database %s because"
 				  " of unknown parameter in connstring: %s", name, key);
@@ -364,6 +367,11 @@ void parse_database(char *name, char *connstr)
 	if (timezone) {
 		pktbuf_put_string(msg, "timezone");
 		pktbuf_put_string(msg, timezone);
+	}
+
+	if (appname) {
+		pktbuf_put_string(msg, "application_name");
+		pktbuf_put_string(msg, appname);
 	}
 
 	/* if user is forces, create fake object for it */

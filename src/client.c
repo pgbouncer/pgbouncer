@@ -117,6 +117,8 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 			dbname = val;
 		else if (strcmp(key, "user") == 0)
 			username = val;
+		else if (strcmp(key, "application_name") == 0)
+			/* ignore */ ;
 		else if (varcache_set(&client->vars, key, val))
 			slog_debug(client, "got var: %s=%s", key, val);
 		else if (strlist_contains(cf_ignore_startup_params, key)) {

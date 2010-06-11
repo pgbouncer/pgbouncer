@@ -11,7 +11,7 @@ HDRS = client.h loader.h objects.h pooler.h proto.h sbuf.h server.h util.h \
 DOCS = doc/overview.txt doc/usage.txt doc/config.txt doc/todo.txt
 MANPAGES = doc/pgbouncer.1 doc/pgbouncer.5
 DATA = README NEWS AUTHORS COPYRIGHT etc/pgbouncer.ini etc/userlist.txt Makefile \
-       config.mak.in include/config.h.in \
+       config.mak.in include/config.h.in etc/mkauth.py \
        configure configure.ac debian/packages debian/changelog doc/Makefile \
        test/Makefile test/asynctest.c test/conntest.sh test/ctest6000.ini \
        test/ctest7000.ini test/run-conntest.sh test/stress.py test/test.ini \

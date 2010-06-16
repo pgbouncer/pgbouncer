@@ -42,15 +42,6 @@
 #include <sys/uio.h>
 #endif
 
-/* how to specify array with unknown length */
-#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
-#define FLEX_ARRAY
-#elif defined(__GNUC__)
-#define FLEX_ARRAY
-#else
-#define FLEX_ARRAY 1
-#endif
-
 #ifndef UNIX_PATH_MAX
 #define UNIX_PATH_MAX  128 /* actual sizeof() will be applied later anyway */
 #endif
@@ -64,21 +55,6 @@
 #define TEXTOID 25
 
 /*
- * Make sure __func__ works.
- */
-
-#ifndef HAVE_FUNCNAME__FUNC
-#define __func__ __FUNCTION__
-#endif
-
-/*
- * Some systems (Solaris) does not define INADDR_NONE
- */
-#ifndef INADDR_NONE
-#define INADDR_NONE ((unsigned long) -1)
-#endif
-
-/*
  * libc compat functions.
  */
 
@@ -87,11 +63,6 @@ static inline char *crypt(const char *p, const char *s) { return NULL; }
 #endif
 #ifndef HAVE_LSTAT
 static inline int lstat(const char *path, struct stat *st) { return stat(path, st); }
-#endif
-
-/* libevent 1.3 does not have event_loopbreak() */
-#ifndef HAVE_EVENT_LOOPBREAK
-static inline void event_loopbreak(void) { }
 #endif
 
 void change_user(const char *user);

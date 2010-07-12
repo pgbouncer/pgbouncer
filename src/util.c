@@ -67,8 +67,10 @@ static void render_time(char *buf, int max)
 {
 	struct tm *tm;
 	struct timeval tv;
+	time_t s;
 	gettimeofday(&tv, NULL);
-	tm = localtime(&tv.tv_sec);
+	s = tv.tv_sec;
+	tm = localtime(&s);
 	snprintf(buf, max, "%04d-%02d-%02d %02d:%02d:%02d.%03d",
 		 tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
 		 tm->tm_hour, tm->tm_min, tm->tm_sec,

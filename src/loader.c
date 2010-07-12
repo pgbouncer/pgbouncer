@@ -374,8 +374,9 @@ void parse_database(char *name, char *connstr)
 static char *find_quote(char *p)
 {
 loop:
-	while (*p && *p != '\\' && *p != '"') p++;
-	if (*p == '\\' && p[1]) {
+	while (*p && *p != '"')
+		p++;
+	if (p[0] == '"' && p[1] == '"') {
 		p += 2;
 		goto loop;
 	}
@@ -388,10 +389,9 @@ static void copy_quoted(char *dst, const char *src, int len)
 {
 	char *end = dst + len - 1;
 	while (*src && dst < end) {
-		if (*src != '\\')
-			*dst++ = *src++;
-		else
+		if (*src == '"')
 			src++;
+		*dst++ = *src++;
 	}
 	*dst = 0;
 }

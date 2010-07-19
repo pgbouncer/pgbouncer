@@ -97,7 +97,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username)
 		return false;
 	}
 
-	return true;
+	return check_fast_fail(client);
 }
 
 static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)

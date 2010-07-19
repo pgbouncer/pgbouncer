@@ -484,6 +484,39 @@ void activate_client(PgSocket *client)
 	sbuf_continue(&client->sbuf);
 }
 
+/*
+ * Don't let clients queue at all, if there is no working server connection.
+ *
+ * It must still allow following cases:
+ * - empty pool on startup
+ * - idle pool where all servers are removed
+ *
+ * Current assumptions:
+ * - old server connections will be dropped by query_timeout
+ * - new server connections fail due to server_connect_timeout, or other failure
+ *
+ * So here we drop client if all server connections have been dropped
+ * and new one's fail.
+ */
+bool check_fast_fail(PgSocket *client)
+{
+	int cnt;
+	PgPool *pool = client->pool;
+
+	/* reject if no servers and last connect failed */
+	if (!pool->last_connect_failed)
+		return true;
+	cnt = pool_server_count(pool) - statlist_count(&pool->new_server_list);
+	if (cnt)
+		return true;
+	disconnect_client(client, true, "no working server connection");
+
+	/* usual relaunch wont work, as there are no waiting clients */
+	launch_new_connection(pool);
+
+	return false;
+}
+
 /* link if found, otherwise put into wait queue */
 bool find_server(PgSocket *client)
 {
@@ -513,27 +546,9 @@ bool find_server(PgSocket *client)
 				break;
 		}
 
-		/*
-		 * Don't let clients queue at all, if there is no working server connection.
-		 *
-		 * It must still allow following cases:
-		 * - empty pool on startup
-		 * - idle pool where all servers are removed
-		 *
-		 * Current logic:
-		 * - old server connections will be dropped by query_timeout
-		 * - new server connections fail due to server_connect_timeout, or other failure
-		 */
-		if (!server && pool->last_connect_failed) {
-			int cnt = pool_server_count(pool) - statlist_count(&pool->new_server_list);
-			if (!cnt) {
-				/* usual relaunch wont work, as there are no waiting clients */
-				launch_new_connection(client->pool);
+		if (!server && !check_fast_fail(client))
+			return false;
 
-				disconnect_client(client, true, "no working server connection");
-				return false;
-			}
-		}
 	}
 	Assert(!server || server->state == SV_IDLE);
 

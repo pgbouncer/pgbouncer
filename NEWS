@@ -1,3 +1,25 @@
+2010-xx-xx  -  PgBouncer 1.3.4  -  ""
+
+  = Fixes =
+
+    * Apply fast-fail logic at connect time.  So if server is failing,
+      the clients get error when connecting.
+
+    * Don't tag automatically generated databases for checking on reload time,
+      otherwise they get killed, because they don't exist in config.
+
+    * Ignore application_name parameter by default.  This avoids the need
+      for all Postgres 9.0 users to add it into ignore_startup_parameters=
+      themselves.
+
+    * Correct pg_auth quoting.  '\' is not used there.
+
+    * Better error reporting on console, show incoming query to user.
+
+    * Support OS'es (OpenBSD) where tv_sec is not time_t.
+
+    * Avoid too noisy warnings on gcc 4.5.
+
 2010-05-10  -  PgBouncer 1.3.3  -  "NSFW"
 
   = Improvements =

@@ -282,6 +282,8 @@ static void set_dbs_dead(bool flag)
 		db = container_of(item, PgDatabase, head);
 		if (db->admin)
 			continue;
+		if (db->db_auto)
+			continue;
 		db->db_dead = flag;
 	}
 }

@@ -64,6 +64,15 @@ static regex_t rc_set_str;
 
 static PgPool *admin_pool;
 
+/* only valid during processing */
+static const char *current_query;
+
+static bool syntax_error(PgSocket *admin)
+{
+	return admin_error(admin, "invalid command '%s', use SHOW HELP;",
+			   current_query ? current_query : "<no query>");
+}
+
 static bool exec_cmd(struct cmd_lookup *lookup, PgSocket *admin,
 		     const char *cmd, const char *arg)
 {
@@ -71,7 +80,7 @@ static bool exec_cmd(struct cmd_lookup *lookup, PgSocket *admin,
 		if (strcasecmp(lookup->word, cmd) == 0)
 			return lookup->func(admin, arg);
 	}
-	return admin_error(admin, "syntax error, use SHOW HELP");
+	return syntax_error(admin);
 }
 
 bool admin_error(PgSocket *admin, const char *fmt, ...)
@@ -772,7 +781,7 @@ static bool admin_show_config(PgSocket *admin, const char *arg)
 static bool admin_cmd_reload(PgSocket *admin, const char *arg)
 {
 	if (arg && *arg)
-		return admin_error(admin, "syntax error");
+		return syntax_error(admin);
 
 	if (!admin->admin_user)
 		return admin_error(admin, "admin access needed");
@@ -786,7 +795,7 @@ static bool admin_cmd_reload(PgSocket *admin, const char *arg)
 static bool admin_cmd_shutdown(PgSocket *admin, const char *arg)
 {
 	if (arg && *arg)
-		return admin_error(admin, "syntax error");
+		return syntax_error(admin);
 
 	if (!admin->admin_user)
 		return admin_error(admin, "admin access needed");
@@ -845,7 +854,7 @@ static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 static bool admin_cmd_suspend(PgSocket *admin, const char *arg)
 {
 	if (arg && *arg)
-		return admin_error(admin, "syntax error");
+		return syntax_error(admin);
 
 	if (!admin->admin_user)
 		return admin_error(admin, "admin access needed");
@@ -1021,6 +1030,8 @@ static bool admin_parse_query(PgSocket *admin, const char *q)
 	char val[256];
 	bool res;
 
+	current_query = q;
+
 	if (regexec(&rc_cmd, q, MAX_GROUPS, grp, 0) == 0) {
 		copy_arg(q, grp, CMD_NAME, cmd, sizeof(cmd));
 		copy_arg(q, grp, CMD_ARG, arg, sizeof(arg));
@@ -1040,7 +1051,9 @@ static bool admin_parse_query(PgSocket *admin, const char *q)
 		} else
 			res = admin_set(admin, arg, val);
 	} else
-		res = admin_error(admin, "unknown cmd: %s", q);
+		res = syntax_error(admin);
+
+	current_query = NULL;
 
 	if (!res)
 		disconnect_client(admin, true, "failure");

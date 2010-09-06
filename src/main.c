@@ -26,6 +26,10 @@
 
 #include <getopt.h>
 
+#ifdef HAVE_SYS_RESOURCE_H
+#include <sys/resource.h>
+#endif
+
 static bool set_mode(ConfElem *elem, const char *val, PgSocket *console);
 static const char *get_mode(ConfElem *elem);
 static bool set_auth(ConfElem *elem, const char *val, PgSocket *console);

@@ -70,7 +70,6 @@ AC_SEARCH_LIBS(clock_gettime, rt)
 AC_SEARCH_LIBS(getsockname, socket)
 AC_SEARCH_LIBS(gethostbyname, nsl)
 AC_SEARCH_LIBS(hstrerror, resolv)
-AC_SEARCH_LIBS(regcomp, regex, [], AC_MSG_ERROR([regcomp not found]))
 AC_CHECK_FUNCS(crypt lstat)
 
 dnl Find libevent

@@ -8,12 +8,6 @@
  *-------------------------------------------------------------------------
  */
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <winsock2.h>
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "bouncer.h"
 
 #if defined(UNICODE) || defined(_UNICODE)
@@ -44,7 +38,7 @@ static char *service_password = NULL;
 static char *serviceDescription = "Lightweight connection pooler for PostgreSQL.";
 
 /* custom help string for win32 exe */
-static const char *usage_str =
+static const char usage_str[] =
 "Usage: %s [OPTION]... config.ini\n"
 "  -q            No console messages\n"
 "  -v            Increase verbosity\n"
@@ -263,58 +257,6 @@ static void UnRegisterService(void)
 	CloseServiceHandle(manager);
 
 	printf("Service removed.\n");
-}
-
-
-/*
- * syslog() interface to event log.
- */
-
-void win32_eventlog(int level, const char *fmt, ...)
-{
-	static HANDLE evtHandle = INVALID_HANDLE_VALUE;
-	int elevel;
-	char buf[1024];
-	const char *strlist[1] = { buf };
-	va_list ap;
-
-	va_start(ap, fmt);
-	vsnprintf(buf, sizeof(buf), fmt, ap);
-	va_end(ap);
-
-	switch (level) {
-	case LOG_CRIT:
-	case LOG_ERR:
-		elevel = EVENTLOG_ERROR_TYPE;
-		break;
-	case LOG_WARNING:
-		elevel = EVENTLOG_WARNING_TYPE;
-		break;
-	default:
-		elevel = EVENTLOG_INFORMATION_TYPE;
-	}
-
-	if (evtHandle == INVALID_HANDLE_VALUE) {
-		evtHandle = RegisterEventSource(NULL, servicename);
-		if (evtHandle == NULL || evtHandle == INVALID_HANDLE_VALUE) {
-			evtHandle = INVALID_HANDLE_VALUE;
-			return;
-		}
-	}
-	ReportEvent(evtHandle, elevel, 0, 0, NULL, 1, 0, strlist, NULL);
-}
-
-/*
- * Error strings for win32 errors.
- */
-
-const char *win32_strerror(int e)
-{
-	static char buf[1024];
-	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL, e,
-		      MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-		      buf, sizeof(buf), NULL);
-	return buf;
 }
 
 /* config loader for service register/unregister */

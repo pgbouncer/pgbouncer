@@ -340,6 +340,7 @@ extern usec_t cf_query_wait_timeout;
 extern usec_t cf_client_idle_timeout;
 extern usec_t cf_client_login_timeout;
 extern int cf_server_round_robin;
+extern int cf_disable_pqexec;
 
 extern int cf_auth_type;
 extern char *cf_auth_file;

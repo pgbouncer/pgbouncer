@@ -98,6 +98,7 @@ char *cf_server_reset_query = "";
 char *cf_server_check_query = "select 1";
 usec_t cf_server_check_delay = 30 * USEC;
 int cf_server_round_robin = 0;
+int cf_disable_pqexec = 0;
 
 char *cf_ignore_startup_params = "";
 
@@ -174,6 +175,7 @@ ConfElem bouncer_params[] = {
 {"server_round_robin",	true, CF_INT, &cf_server_round_robin},
 {"suspend_timeout",	true, CF_TIME, &cf_suspend_timeout},
 {"ignore_startup_parameters", true, CF_STR, &cf_ignore_startup_params},
+{"disable_pqexec",	false, CF_INT, &cf_disable_pqexec},
 
 {"pkt_buf",		false, CF_INT, &cf_sbuf_len},
 {"sbuf_loopcnt",	true, CF_INT, &cf_sbuf_loopcnt},

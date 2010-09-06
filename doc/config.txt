@@ -175,6 +175,15 @@ specified here, so that pgbouncer knows that they are handled by admin and it ca
 
 Default: empty
 
+==== disable_pqexec ====
+
+Disable Simple Query protocol (PQexec).  Unlike Extended Query protocol, Simple Query
+allows multiple queries in one packet, which allows some classes of SQL-injection
+attacks.  Disabling it can improve security.  Obviously this means only clients that
+exclusively use Extended Query protocol will stay working.
+
+Default: 0
+
 === Log settings ===
 
 ==== syslog ====

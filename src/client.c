@@ -291,13 +291,18 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 
 	switch (pkt->type) {
 
+	/* one-packet queries */
+	case 'Q':		/* Query */
+		if (cf_disable_pqexec) {
+			slog_error(client, "Client used 'Q' packet type.");
+			disconnect_client(client, true, "PQexec disallowed");
+			return false;
+		}
+	case 'F':		/* FunctionCall */
+
 	/* request immidiate response from server */
 	case 'H':		/* Flush */
 	case 'S':		/* Sync */
-
-	/* one-packet queries */
-	case 'Q':		/* Query */
-	case 'F':		/* FunctionCall */
 
 	/* copy end markers */
 	case 'c':		/* CopyDone(F/B) */

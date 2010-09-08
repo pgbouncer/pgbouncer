@@ -22,6 +22,8 @@
 
 #include "bouncer.h"
 
+#include <usual/pgutil.h>
+
 struct var_lookup {
 	const char *name;
 	enum VarCacheIdx idx;
@@ -77,40 +79,8 @@ set_value:
 	return true;
 }
 
-static bool is_std_quote(VarCache *vars)
-{
-	const struct PStr *s = vars->var_list[VStdStr];
-	return s && strcasecmp(s->str, "on") == 0;
-}
-
-static bool quote_literal(char *buf, int buflen, const char *src, bool std_quote)
-{
-	char *dst = buf;
-	char *end = buf + buflen - 2;
-
-	if (buflen < 3)
-		return false;
-
-	*dst++ = '\'';
-	while (*src && dst < end) {
-		if (*src == '\'')
-			*dst++ = '\'';
-		else if (*src == '\\' && !std_quote)
-			*dst++ = '\\';
-		*dst++ = *src++;
-	}
-	if (*src || dst > end)
-		return false;
-
-	*dst++ = '\'';
-	*dst = 0;
-
-	return true;
-}
-
 static int apply_var(PktBuf *pkt, const char *key,
-		     const char *cval, const char *sval,
-		     bool std_quote)
+		     const char *cval, const char *sval)
 {
 	char buf[128];
 	char qbuf[128];
@@ -124,7 +94,7 @@ static int apply_var(PktBuf *pkt, const char *key,
 		return 0;
 
 	/* the string may have been taken from startup pkt */
-	if (!quote_literal(qbuf, sizeof(qbuf), cval, std_quote))
+	if (!pg_quote_literal(qbuf, cval, sizeof(qbuf)))
 		return 0;
 
 	/* add SET statement to packet */
@@ -144,7 +114,6 @@ bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
 	struct PStr *cval, *sval;
 	const struct var_lookup *lk;
 	int sql_ofs;
-	bool std_quote = is_std_quote(&server->vars);
 	struct PktBuf *pkt = pktbuf_temp();
 
 	pktbuf_start_packet(pkt, 'Q');
@@ -156,7 +125,7 @@ bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
 		sval = get_value(&server->vars, lk);
 		cval = get_value(&client->vars, lk);
 		if (cval)
-			changes += apply_var(pkt, lk->name, cval->str, sval->str, std_quote);
+			changes += apply_var(pkt, lk->name, cval->str, sval->str);
 	}
 	*changes_p = changes > 0;
 	if (!changes)

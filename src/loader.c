@@ -371,12 +371,12 @@ void parse_database(char *name, char *connstr)
  */
 
 /* find next " in string, skipping escaped ones */
-static char *find_quote(char *p)
+static char *find_quote(char *p, bool start)
 {
 loop:
 	while (*p && *p != '"')
 		p++;
-	if (p[0] == '"' && p[1] == '"') {
+	if (p[0] == '"' && p[1] == '"' && !start) {
 		p += 2;
 		goto loop;
 	}
@@ -482,7 +482,7 @@ bool load_auth_file(const char *fn)
 			break;
 		}
 		user = ++p;
-		p = find_quote(p);
+		p = find_quote(p, false);
 		if (*p != '"') {
 			log_error("broken auth file");
 			break;
@@ -494,13 +494,13 @@ bool load_auth_file(const char *fn)
 		*p++ = 0; /* tag username end */
 		
 		/* get password */
-		p = find_quote(p);
+		p = find_quote(p, true);
 		if (*p != '"') {
 			log_error("broken auth file");
 			break;
 		}
 		password = ++p;
-		p = find_quote(p);
+		p = find_quote(p, false);
 		if (*p != '"') {
 			log_error("broken auth file");
 			break;

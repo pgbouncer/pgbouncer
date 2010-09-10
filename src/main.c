@@ -52,6 +52,9 @@ static void usage(int err, char *exe)
 	exit(err);
 }
 
+/* async dns handler */
+struct DNSContext *adns;
+
 /*
  * configuration storage
  */
@@ -103,6 +106,7 @@ char *cf_server_check_query = "select 1";
 usec_t cf_server_check_delay = 30 * USEC;
 int cf_server_round_robin = 0;
 int cf_disable_pqexec = 0;
+usec_t cf_dns_max_ttl = 15 * USEC;
 
 char *cf_ignore_startup_params = "";
 
@@ -180,6 +184,7 @@ ConfElem bouncer_params[] = {
 {"suspend_timeout",	true, CF_TIME, &cf_suspend_timeout},
 {"ignore_startup_parameters", true, CF_STR, &cf_ignore_startup_params},
 {"disable_pqexec",	false, CF_INT, &cf_disable_pqexec},
+{"dns_max_ttl",		true, CF_TIME, &cf_dns_max_ttl},
 
 {"pkt_buf",		false, CF_INT, &cf_sbuf_len},
 {"sbuf_loopcnt",	true, CF_INT, &cf_sbuf_loopcnt},
@@ -649,6 +654,15 @@ static void takeover_part1(void)
 	event_base_free(evtmp);
 }
 
+static void dns_setup(void)
+{
+	if (adns)
+		return;
+	adns = adns_create_context();
+	if (!adns)
+		fatal_perror("dns setup failed");
+}
+
 /* boot everything */
 int main(int argc, char *argv[])
 {
@@ -745,6 +759,7 @@ int main(int argc, char *argv[])
 	srandom(time(NULL) ^ getpid());
 	if (!event_init())
 		fatal("event_init() failed");
+	dns_setup();
 	signal_setup();
 	janitor_setup();
 	stats_setup();

@@ -85,6 +85,7 @@ extern int cf_sbuf_len;
 #include "sbuf.h"
 #include "pktbuf.h"
 #include "varcache.h"
+#include "dnslookup.h"
 
 #include "admin.h"
 #include "loader.h"
@@ -239,8 +240,8 @@ struct PgDatabase {
 
 	PgUser *forced_user;	/* if not NULL, the user/psw is forced */
 
-	PgAddr addr;		/* address prepared for connect() */
-	char unix_socket_dir[UNIX_PATH_MAX]; /* custom unix socket dir */
+	const char *host;	/* host or unix socket name */
+	int port;
 
 	int pool_size;		/* max server connections in one pool */
 	int res_pool_size;	/* additional server connections in case of trouble */
@@ -341,6 +342,7 @@ extern usec_t cf_client_idle_timeout;
 extern usec_t cf_client_login_timeout;
 extern int cf_server_round_robin;
 extern int cf_disable_pqexec;
+extern usec_t cf_dns_max_ttl;
 
 extern int cf_auth_type;
 extern char *cf_auth_file;
@@ -372,6 +374,8 @@ extern int cf_log_pooler_errors;
 extern ConfElem bouncer_params[];
 
 extern usec_t g_suspend_start;
+
+extern struct DNSContext *adns;
 
 static inline PgSocket * _MUSTCHECK
 pop_socket(struct StatList *slist)

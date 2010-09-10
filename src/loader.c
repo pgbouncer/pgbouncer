@@ -187,10 +187,8 @@ void parse_database(char *name, char *connstr)
 	char *datestyle = NULL;
 	char *timezone = NULL;
 	char *connect_query = NULL;
-	char *unix_dir = "";
 	char *appname = NULL;
 
-	in_addr_t v_addr = INADDR_NONE;
 	int v_port;
 
 	if (strcmp(name, "*") == 0) {
@@ -238,44 +236,6 @@ void parse_database(char *name, char *connstr)
 		}
 	}
 
-	/* host= */
-	if (!host) {
-		/* default unix socket dir */
-		if (!*cf_unix_socket_dir) {
-			log_error("skipping database %s because"
-				" unix socket not configured", name);
-			return;
-		}
-	} else if (host[0] == '/') {
-		/* custom unix socket dir */
-		unix_dir = host;
-		host = NULL;
-	} else if (host[0] >= '0' && host[0] <= '9') {
-		/* ip-address */
-		v_addr = inet_addr(host);
-		if (v_addr == INADDR_NONE) {
-			log_error("skipping database %s because"
-					" of bad host: %s", name, host);
-			return;
-		}
-	} else {
-		/* resolve host by name */
-		struct hostent *h = gethostbyname(host);
-		if (h == NULL || h->h_addr_list[0] == NULL) {
-			log_error("%s: resolving host=%s failed: %s",
-				  name, host, hstrerror(h_errno));
-			return;
-		}
-		if (h->h_addrtype != AF_INET || h->h_length != 4) {
-			log_error("%s: host=%s has unknown addr type",
-				  name, host);
-			return;
-		}
-
-		/* result should be already in correct endianess */
-		memcpy(&v_addr, h->h_addr_list[0], 4);
-	}
-
 	/* port= */
 	v_port = atoi(port);
 	if (v_port == 0) {
@@ -290,6 +250,23 @@ void parse_database(char *name, char *connstr)
 		return;
 	}
 
+	/* host= */
+	if (host) {
+		host = strdup(host);
+		if (!host) {
+			log_error("failed to allocate host=");
+			return;
+		}
+	}
+	if (!host) {
+		/* default unix socket dir */
+		if (!*cf_unix_socket_dir) {
+			log_error("skipping database %s because"
+				" unix socket not configured", name);
+			return;
+		}
+	}
+
 	/* tag the db as alive */
 	db->db_dead = 0;
 	/* assuming not an autodb */
@@ -301,21 +278,17 @@ void parse_database(char *name, char *connstr)
 		bool changed = false;
 		if (strcmp(db->dbname, dbname) != 0)
 			changed = true;
-		else if (host && db->addr.is_unix)
+		else if (!!host != !!db->host)
 			changed = true;
-		else if (!host && !db->addr.is_unix)
+		else if (host && strcmp(host, db->host) != 0)
 			changed = true;
-		else if (host && v_addr != db->addr.ip_addr.s_addr)
-			changed = true;
-		else if (v_port != db->addr.port)
+		else if (v_port != db->port)
 			changed = true;
 		else if (username && !db->forced_user)
 			changed = true;
 		else if (username && strcmp(username, db->forced_user->name) != 0)
 			changed = true;
 		else if (!username && db->forced_user)
-			changed = true;
-		else if (strcmp(db->unix_socket_dir, unix_dir) != 0)
 			changed = true;
 		else if ((db->connect_query && !connect_query)
 			 || (!db->connect_query && connect_query)
@@ -329,13 +302,11 @@ void parse_database(char *name, char *connstr)
 	/* if pool_size < 0 it will be set later */
 	db->pool_size = pool_size;
 	db->res_pool_size = res_pool_size;
-	db->addr.port = v_port;
-	db->addr.ip_addr.s_addr = v_addr;
-	db->addr.is_unix = host ? 0 : 1;
-	safe_strcpy(db->unix_socket_dir, unix_dir, sizeof(db->unix_socket_dir));
 
-	if (host)
-		log_debug("%s: host=%s/%s", name, host, inet_ntoa(db->addr.ip_addr));
+	if (db->host)
+		free(db->host);
+	db->host = host;
+	db->port = v_port;
 
 	/* assign connect_query */
 	set_connect_query(db, connect_query);

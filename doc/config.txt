@@ -312,6 +312,14 @@ aspect of that is that their statistics are also forgotten.  [seconds]
 
 Default: 3600
 
+==== dns_max_ttl ====
+
+How long the DNS lookups can be cached.  If a DNS lookup returns
+several answers, pgbouncer will robin-between them in the meantime.
+Actual DNS TTL is ignored.  [seconds]
+
+Default: 15
+
 === Dangerous timeouts ===
 
 Setting following timeouts cause unexpected errors.

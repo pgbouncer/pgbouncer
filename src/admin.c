@@ -422,7 +422,6 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 {
 	PgDatabase *db;
 	struct List *item;
-	char *host;
 	const char *f_user;
 	PktBuf *buf;
 
@@ -438,14 +437,9 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 	statlist_for_each(item, &database_list) {
 		db = container_of(item, PgDatabase, head);
 
-		if (!db->addr.is_unix) {
-			host = inet_ntoa(db->addr.ip_addr);
-		} else
-			host = NULL;
-
 		f_user = db->forced_user ? db->forced_user->name : NULL;
 		pktbuf_write_DataRow(buf, "ssissii",
-				     db->name, host, db->addr.port,
+				     db->name, db->host, db->port,
 				     db->dbname, f_user,
 				     db->pool_size,
 				     db->res_pool_size);
@@ -1164,8 +1158,7 @@ void admin_setup(void)
 	if (!db)
 		fatal("no memory for admin database");
 
-	db->addr.port = cf_listen_port;
-	db->addr.is_unix = 1;
+	db->port = cf_listen_port;
 	db->pool_size = 2;
 	db->admin = 1;
 	if (!force_user(db, "pgbouncer", ""))

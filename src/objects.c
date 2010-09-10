@@ -807,13 +807,104 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 		log_noise("sbuf_close failed, retry later");
 }
 
+/*
+ * Connection creation utilities
+ */
+
+static void connect_server(struct PgSocket *server, struct sockaddr *sa, int salen)
+{
+	bool res;
+
+	/* fill remote_addr */
+	memset(&server->remote_addr, 0, sizeof(server->remote_addr));
+	if (sa->sa_family == AF_UNIX) {
+		server->remote_addr.port = server->pool->db->port;
+		server->remote_addr.is_unix = true;
+	} else if (sa->sa_family == AF_INET) {
+		struct sockaddr_in *in = (struct sockaddr_in *)sa;
+		server->remote_addr.port = in->sin_port;
+		server->remote_addr.ip_addr = in->sin_addr;
+	}
+
+	/* start connecting */
+	res = sbuf_connect(&server->sbuf, sa, salen,
+			   cf_server_connect_timeout / USEC);
+	if (!res)
+		log_noise("failed to launch new connection");
+}
+
+static void dns_callback(void *arg, int af, const void *addr)
+{
+	struct PgSocket *server = arg;
+	struct PgDatabase *db = server->pool->db;
+	struct sockaddr_in sa_in;
+	struct sockaddr *sa;
+	int salen;
+
+	if (af == AF_INET) {
+		char buf[64];
+		memset(&sa_in, 0, sizeof(sa_in));
+		sa_in.sin_family = af;
+		sa_in.sin_addr.s_addr = *(in_addr_t *)addr;
+		sa_in.sin_port = htons(db->port);
+		sa = (struct sockaddr *)&sa_in;
+		salen = sizeof(sa_in);
+		slog_debug(server, "dns_callback: inet4: %s",
+			   sa2str(sa, buf, sizeof(buf)));
+	} else if (!af) {
+		disconnect_server(server, true, "server dns lookup failed");
+		return;
+	} else {
+		disconnect_server(server, true, "unknown dns type");
+		return;
+	}
+
+	connect_server(server, sa, salen);
+}
+
+static void dns_connect(struct PgSocket *server)
+{
+	struct sockaddr_un sa_un;
+	struct sockaddr_in sa_in;
+	struct sockaddr *sa;
+	int salen;
+	struct PgDatabase *db = server->pool->db;
+	const char *host = db->host;
+	const char *unix_dir;
+	int sa_len;
+
+	if (!host || host[0] == '/') {
+		slog_noise(server, "unix socket: %s", sa_un.sun_path);
+		memset(&sa_un, 0, sizeof(sa_un));
+		sa_un.sun_family = AF_UNIX;
+		unix_dir = host ? host : cf_unix_socket_dir;
+		snprintf(sa_un.sun_path, sizeof(sa_un.sun_path),
+			 "%s/.s.PGSQL.%d", unix_dir, db->port);
+		sa = (struct sockaddr *)&sa_un;
+		sa_len = sizeof(sa_un);
+	} else if (host[0] >= '0' && host[0] <= '9') {
+		slog_noise(server, "inet socket: %s", db->host);
+		memset(&sa_in, 0, sizeof(sa_in));
+		sa_in.sin_family = AF_INET;
+		sa_in.sin_addr.s_addr = inet_addr(db->host);
+		sa_in.sin_port = htons(db->port);
+		sa = (struct sockaddr *)&sa_in;
+		sa_len = sizeof(sa_in);
+	} else {
+		slog_noise(server, "dns socket: %s", db->host);
+		/* launch dns lookup */
+		adns_resolve(adns, db->host, dns_callback, server);
+		return;
+	}
+
+	connect_server(server, sa, salen);
+}
+
 /* the pool needs new connection, if possible */
 void launch_new_connection(PgPool *pool)
 {
 	PgSocket *server;
 	int total;
-	const char *unix_dir = cf_unix_socket_dir;
-	bool res;
 
 	/* allow only small number of connection attempts at a time */
 	if (!statlist_empty(&pool->new_server_list)) {
@@ -860,7 +951,6 @@ allow_new:
 	/* initialize it */
 	server->pool = pool;
 	server->auth_user = server->pool->user;
-	server->remote_addr = server->pool->db->addr;
 	server->connect_time = get_cached_time();
 	pool->last_connect_time = get_cached_time();
 	change_server_state(server, SV_LOGIN);
@@ -868,15 +958,7 @@ allow_new:
 	if (cf_log_connections)
 		slog_info(server, "new connection to server");
 
-	/* override socket location if requested */
-	if (server->pool->db->unix_socket_dir[0])
-		unix_dir = server->pool->db->unix_socket_dir;
-
-	/* start connecting */
-	res = sbuf_connect(&server->sbuf, &server->remote_addr, unix_dir,
-			   cf_server_connect_timeout / USEC);
-	if (!res)
-		log_noise("failed to launch new connection");
+	dns_connect(server);
 }
 
 /* new client connection attempt */

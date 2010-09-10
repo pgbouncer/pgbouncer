@@ -61,7 +61,6 @@ typedef void (*sbuf_libevent_cb)(int, short, void *);
 struct SBuf {
 	struct event ev;	/* libevent handle */
 
-	bool is_unix;		/* is it unix socket */
 	uint8_t wait_type;	/* track wait state */
 	uint8_t pkt_action;	/* method for handling current pkt */
 
@@ -80,7 +79,7 @@ struct SBuf {
 
 void sbuf_init(SBuf *sbuf, sbuf_cb_t proto_fn);
 bool sbuf_accept(SBuf *sbuf, int read_sock, bool is_unix)  _MUSTCHECK;
-bool sbuf_connect(SBuf *sbuf, const PgAddr *addr, const char *unix_dir, int timeout_sec)  _MUSTCHECK;
+bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, int sa_len, int timeout_sec)  _MUSTCHECK;
 
 bool sbuf_pause(SBuf *sbuf) _MUSTCHECK;
 void sbuf_continue(SBuf *sbuf);

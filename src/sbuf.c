@@ -88,7 +88,6 @@ bool sbuf_accept(SBuf *sbuf, int sock, bool is_unix)
 
 	tune_socket(sock, is_unix);
 	sbuf->sock = sock;
-	sbuf->is_unix = is_unix;
 
 	if (!cf_reboot) {
 		res = sbuf_wait_for_data(sbuf);
@@ -107,55 +106,32 @@ bool sbuf_accept(SBuf *sbuf, int sock, bool is_unix)
 }
 
 /* need to connect() to get a socket */
-bool sbuf_connect(SBuf *sbuf, const PgAddr *addr, const char *unix_dir, int timeout_sec)
+bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, int sa_len, int timeout_sec)
 {
-	int res, sock, domain;
-	struct sockaddr_in sa_in;
-	struct sockaddr_un sa_un;
-	struct sockaddr *sa;
-	socklen_t len;
+	int res, sock;
 	struct timeval timeout;
+	bool is_unix = sa->sa_family == AF_UNIX;
 
 	Assert(iobuf_empty(sbuf->io) && sbuf->sock == 0);
 	AssertSanity(sbuf);
 
-	/* prepare sockaddr */
-	if (addr->is_unix) {
-		sa = (void*)&sa_un;
-		len = sizeof(sa_un);
-		memset(sa, 0, len);
-		sa_un.sun_family = AF_UNIX;
-		snprintf(sa_un.sun_path, sizeof(sa_un.sun_path),
-			 "%s/.s.PGSQL.%d", unix_dir, addr->port);
-		domain = AF_UNIX;
-	} else {
-		sa = (void*)&sa_in;
-		len = sizeof(sa_in);
-		memset(sa, 0, len);
-		sa_in.sin_family = AF_INET;
-		sa_in.sin_addr = addr->ip_addr;
-		sa_in.sin_port = htons(addr->port);
-		domain = AF_INET;
-	}
-
 	/*
 	 * common stuff
 	 */
-	sock = socket(domain, SOCK_STREAM, 0);
+	sock = socket(sa->sa_family, SOCK_STREAM, 0);
 	if (sock < 0)
 		/* probably fd limit */
 		goto failed;
 
-	tune_socket(sock, addr->is_unix);
+	tune_socket(sock, is_unix);
 
-	sbuf->is_unix = addr->is_unix;
 	sbuf->sock = sock;
 
 	timeout.tv_sec = timeout_sec;
 	timeout.tv_usec = 0;
 
 	/* launch connection */
-	res = safe_connect(sock, sa, len);
+	res = safe_connect(sock, sa, sa_len);
 	if (res == 0) {
 		/* unix socket gives connection immidiately */
 		sbuf_connect_cb(sock, EV_WRITE, sbuf);

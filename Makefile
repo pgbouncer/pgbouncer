@@ -11,7 +11,7 @@ HDRS = client.h loader.h objects.h pooler.h proto.h sbuf.h server.h util.h \
 DOCS = doc/overview.txt doc/usage.txt doc/config.txt doc/todo.txt
 MANPAGES = doc/pgbouncer.1 doc/pgbouncer.5
 DATA = README NEWS AUTHORS COPYRIGHT etc/pgbouncer.ini etc/userlist.txt Makefile \
-       config.mak.in include/config.h.in etc/mkauth.py \
+       config.mak.in etc/mkauth.py \
        configure configure.ac debian/packages debian/changelog doc/Makefile \
        test/Makefile test/asynctest.c test/conntest.sh test/ctest6000.ini \
        test/ctest7000.ini test/run-conntest.sh test/stress.py test/test.ini \
@@ -42,7 +42,7 @@ hdrs = $(local_hdrs) $(USUAL_HDRS)
 srcs = $(local_srcs)
 objs = $(addprefix $(builddir)/obj/, $(OBJS)) $(USUAL_OBJS)
 FULL = $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)
-DISTFILES = $(DIRS) $(DATA) $(DOCS) $(srcs) $(hdrs) $(MANPAGES)
+DISTFILES = $(DIRS) $(DATA) $(DOCS) $(local_srcs) $(local_hdrs) $(MANPAGES)
 exe = $(builddir)/pgbouncer$(EXT)
 
 CPPFLAGS := -I$(srcdir)/include $(USUAL_CPPFLAGS) $(CPPFLAGS)
@@ -120,8 +120,17 @@ endif
 # create tarfile
 tgz: config.mak $(DISTFILES) $(MANPAGES)
 	rm -rf $(FULL) $(FULL).tgz
+	# tgz for libusual
+	cp config.mak configure lib
+	rm -f lib/*.tgz
+	make -C lib tgz
+	# now create new pgbouncer tree
 	mkdir $(FULL)
 	(for f in $(DISTFILES); do echo $$f; done) | cpio -pm $(FULL)
+	tar xf lib/*.tgz
+	mv libusual-* $(FULL)/lib
+	rm -f $(FULL)/lib/configure
+	# tgz for pgbouncer
 	tar czf $(FULL).tgz $(FULL)
 	rm -rf $(FULL)
 

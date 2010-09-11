@@ -66,9 +66,6 @@ struct DNSContext {
 
 static void deliver_info(struct DNSRequest *req);
 
-#undef log_debug
-#define log_debug log_warning
-
 
 #ifdef LIBEVENT2
 
@@ -114,7 +111,7 @@ static void got_result_gai(int result, struct evutil_addrinfo *res, void *arg)
 		goto failed;
 	}
 
-	log_debug("dns(%s): got_result_gai: count=%d, adrlen=%d", req->name, count, adrlen);
+	log_noise("dns(%s): got_result_gai: count=%d, adrlen=%d", req->name, count, adrlen);
 
 	req->res_pos = 0;
 	req->done = true;
@@ -132,7 +129,7 @@ static void got_result_gai(int result, struct evutil_addrinfo *res, void *arg)
 		if (ai->ai_family != af)
 			continue;
 		in = (void*)ai->ai_addr;
-		log_debug("dns(%s) result: %s", req->name, inet_ntoa(in->sin_addr));
+		log_noise("dns(%s) result: %s", req->name, inet_ntoa(in->sin_addr));
 		memcpy(dst, &in->sin_addr, adrlen);
 		dst += adrlen;
 	}
@@ -189,7 +186,7 @@ static void got_result_evdns(int result, char type, int count, int ttl, void *ad
 		goto failed;
 	} else if (type == DNS_IPv4_A) {
 		struct in_addr *a = addresses;
-		log_debug("dns(%s): got_result_evdns: %s", req->name, inet_ntoa(*a));
+		log_noise("dns(%s): got_result_evdns: %s", req->name, inet_ntoa(*a));
 		req->res_af = AF_INET;
 		adrlen = 4;
 	} else {
@@ -333,7 +330,7 @@ void adns_resolve(struct DNSContext *ctx, const char *name, adns_callback_f cb_f
 	if (node) {
 		req = container_of(node, struct DNSRequest, node);
 	} else {
-		log_debug("dns: new req: %s", name);
+		log_noise("dns: new req: %s", name);
 		req = calloc(1, sizeof(*req));
 		if (!req)
 			goto nomem;
@@ -357,7 +354,7 @@ void adns_resolve(struct DNSContext *ctx, const char *name, adns_callback_f cb_f
 	/* if already have final result, report it */
 	if (req->done) {
 		if (req->res_ttl < get_cached_time()) {
-			log_debug("dns: ttl over: %s", req->name);
+			log_noise("dns: ttl over: %s", req->name);
 			req->done = false;
 			free(req->res_list);
 			req->res_list = NULL;

@@ -4,7 +4,7 @@ PgBouncer
 
 Lightweight connection pooler for PostgreSQL.
 
-Docs:   http://developer.skype.com/SkypeGarage/DbProjects/PgBouncer
+Docs:   http://wiki.postgresql.org/wiki/PgBouncer
 Source: http://pgfoundry.org/projects/pgbouncer
 
 Building

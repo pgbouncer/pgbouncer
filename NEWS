@@ -1,5 +1,6 @@
 2010-xx-xx  -  PgBouncer 1.4  -  ""
 
+  * async dns
   * disable_pqexec
   * application_name
   * long options

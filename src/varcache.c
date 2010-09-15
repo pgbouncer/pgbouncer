@@ -51,7 +51,7 @@ bool varcache_set(VarCache *cache, const char *key, const char *value)
 	struct PStr *pstr = NULL;
 
 	if (!vpool) {
-		vpool = strpool_create();
+		vpool = strpool_create(USUAL_ALLOC);
 		if (!vpool)
 			return false;
 	}

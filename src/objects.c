@@ -98,9 +98,9 @@ static int user_node_cmp(long userptr, struct AANode *node)
 void init_objects(void)
 {
 	aatree_init(&user_tree, user_node_cmp, NULL);
-	user_cache = slab_create("user_cache", sizeof(PgUser), 0, NULL);
-	db_cache = slab_create("db_cache", sizeof(PgDatabase), 0, NULL);
-	pool_cache = slab_create("pool_cache", sizeof(PgPool), 0, NULL);
+	user_cache = slab_create("user_cache", sizeof(PgUser), 0, NULL, USUAL_ALLOC);
+	db_cache = slab_create("db_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
+	pool_cache = slab_create("pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
 
 	if (!user_cache || !db_cache || !pool_cache)
 		fatal("cannot create initial caches");
@@ -115,9 +115,9 @@ static void do_iobuf_reset(void *arg)
 /* initialization after config loading */
 void init_caches(void)
 {
-	server_cache = slab_create("server_cache", sizeof(PgSocket), 0, construct_server);
-	client_cache = slab_create("client_cache", sizeof(PgSocket), 0, construct_client);
-	iobuf_cache = slab_create("iobuf_cache", IOBUF_SIZE, 0, do_iobuf_reset);
+	server_cache = slab_create("server_cache", sizeof(PgSocket), 0, construct_server, USUAL_ALLOC);
+	client_cache = slab_create("client_cache", sizeof(PgSocket), 0, construct_client, USUAL_ALLOC);
+	iobuf_cache = slab_create("iobuf_cache", IOBUF_SIZE, 0, do_iobuf_reset, USUAL_ALLOC);
 }
 
 /* state change means moving between lists */

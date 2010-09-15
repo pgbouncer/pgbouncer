@@ -867,7 +867,6 @@ static void dns_connect(struct PgSocket *server)
 	struct sockaddr_un sa_un;
 	struct sockaddr_in sa_in;
 	struct sockaddr *sa;
-	int salen;
 	struct PgDatabase *db = server->pool->db;
 	const char *host = db->host;
 	const char *unix_dir;
@@ -897,7 +896,7 @@ static void dns_connect(struct PgSocket *server)
 		return;
 	}
 
-	connect_server(server, sa, salen);
+	connect_server(server, sa, sa_len);
 }
 
 /* the pool needs new connection, if possible */

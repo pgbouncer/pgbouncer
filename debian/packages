@@ -8,10 +8,6 @@ Standards-Version: 3.6.2
 Description: Lightweight connection pooler for PostgreSQL 
 Copyright: BSD
  Copyright 2007 Marko Kreen, Skype Technologies
-Build: sh
- # just in case, build with debugging options
- ./configure --prefix=/usr --enable-debug --enable-cassert
- make V=1
 Clean: sh
  make clean || true
 Build-Depends: libevent-dev
@@ -23,4 +19,13 @@ Depends: []
 Description: Lightweight connection pooler for PostgreSQL
  .
 Install: sh
+ # just in case, build with debugging options
+ ./configure --prefix=/usr --enable-debug --enable-cassert
+ make V=1
+ make install DESTDIR=$ROOT
+ mv $ROOT/usr/bin/pgbouncer $ROOT/usr/bin/pgbouncer-dbg
+ make clean
+ # now without cassert
+ ./configure --prefix=/usr --enable-debug
+ make V=1
  make install DESTDIR=$ROOT

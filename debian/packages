@@ -20,7 +20,7 @@ Description: Lightweight connection pooler for PostgreSQL
  .
 Install: sh
  # just in case, build with debugging options
- ./configure --prefix=/usr --enable-debug --enable-cassert
+ CFLAGS="-O -g" ./configure --prefix=/usr --enable-debug --enable-cassert
  make V=1
  make install DESTDIR=$ROOT
  mv $ROOT/usr/bin/pgbouncer $ROOT/usr/bin/pgbouncer-dbg

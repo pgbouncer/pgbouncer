@@ -68,7 +68,7 @@ set_value:
 	cache->var_list[lk->idx] = NULL;
 
 	/* ignore empty value */
-	if (!value && !value[0])
+	if (!value || !value[0])
 		return false;
 
 	/* set new value */

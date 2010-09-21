@@ -80,21 +80,27 @@ set_value:
 }
 
 static int apply_var(PktBuf *pkt, const char *key,
-		     const char *cval, const char *sval)
+		     const struct PStr *cval,
+		     const struct PStr *sval)
 {
 	char buf[128];
 	char qbuf[128];
 	unsigned len;
 
-	if (strcasecmp(cval, sval) == 0)
+	/* if unset, skip */
+	if (!cval || !sval || !*cval->str)
 		return 0;
 
-	/* if unset, ignore */
-	if (!*cval)
+	/* if equal, skip */
+	if (cval == sval)
+		return 0;
+
+	/* ignore case difference */
+	if (strcasecmp(cval->str, sval->str) == 0)
 		return 0;
 
 	/* the string may have been taken from startup pkt */
-	if (!pg_quote_literal(qbuf, cval, sizeof(qbuf)))
+	if (!pg_quote_literal(qbuf, cval->str, sizeof(qbuf)))
 		return 0;
 
 	/* add SET statement to packet */
@@ -124,8 +130,7 @@ bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
 	for (lk = lookup; lk->name; lk++) {
 		sval = get_value(&server->vars, lk);
 		cval = get_value(&client->vars, lk);
-		if (cval)
-			changes += apply_var(pkt, lk->name, cval->str, sval->str);
+		changes += apply_var(pkt, lk->name, cval, sval);
 	}
 	*changes_p = changes > 0;
 	if (!changes)

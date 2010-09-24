@@ -771,6 +771,8 @@ int main(int argc, char *argv[])
 
 	write_pidfile();
 
+	log_info("process up: %s, libevent %s (%s)", PACKAGE_STRING, event_get_version(), event_get_method());
+
 	/* main loop */
 	while (cf_shutdown < 2)
 		main_loop_once();

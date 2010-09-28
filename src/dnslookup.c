@@ -19,19 +19,36 @@
 #include "bouncer.h"
 
 /*
+ * getaddrinfo_a - glibc only
  * libevent1 - returns TTL, ignores hosts file.
  * libevent2 - does not return TTL, uses hosts file.
  */
 
-/* do we have libevent2? */
-#ifdef EV_ET
-#define LIBEVENT2
-#endif
+#undef HAVE_GETADDRINFO_A
 
-#ifdef LIBEVENT2
-#include <event2/dns.h>
+#ifdef HAVE_GETADDRINFO_A
+
+/* getaddrinfo_a */
+#include <netdb.h>
+#include <signal.h>
+#define NEED_GAI_RESULT
+
 #else
+#ifdef EV_ET
+
+/* libevent 2 */
+#include <event2/dns.h>
+#define LIBEVENT2
+#define addrinfo evutil_addrinfo
+#define freeaddrinfo evutil_freeaddrinfo
+#define NEED_GAI_RESULT
+
+#else
+
+/* libevent 1 */
 #include <evdns.h>
+
+#endif
 #endif
 
 
@@ -66,81 +83,120 @@ struct DNSContext {
 
 static void deliver_info(struct DNSRequest *req);
 
+#ifdef NEED_GAI_RESULT
+struct addrinfo;
+static void got_result_gai(int result, struct addrinfo *res, void *arg);
+#endif
+
+
+#ifdef HAVE_GETADDRINFO_A
+
+/*
+ * ADNS with glibc's getaddrinfo_a()
+ */
+
+struct GaiRequest {
+	struct List node;
+	struct DNSRequest *req;
+	struct gaicb gairq;
+};
+
+struct GaiContext {
+	struct DNSContext *ctx;
+	struct List gairq_list;
+	struct event ev;
+	struct sigevent sev;
+};
+
+static void dns_signal(int f, short ev, void *arg)
+{
+	struct GaiContext *gctx = arg;
+	struct List *el, *tmp;
+	struct GaiRequest *rq;
+	int e;
+	list_for_each_safe(el, &gctx->gairq_list, tmp) {
+		rq = container_of(el, struct GaiRequest, node);
+		e = gai_error(&rq->gairq);
+		if (e == EAI_INPROGRESS)
+			continue;
+
+		/* got one */
+		list_del(&rq->node);
+		rq->req->done = true;
+		got_result_gai(e, rq->gairq.ar_result, rq->req);
+		free(rq);
+	}
+}
+
+static bool impl_init(struct DNSContext *ctx)
+{
+	struct GaiContext *gctx = calloc(1, sizeof(*gctx));
+	if (!gctx)
+		return false;
+	list_init(&gctx->gairq_list);
+	gctx->ctx = ctx;
+
+	gctx->sev.sigev_notify = SIGEV_SIGNAL;
+	gctx->sev.sigev_signo = SIGALRM;
+
+	signal_set(&gctx->ev, SIGALRM, dns_signal, gctx);
+	if (signal_add(&gctx->ev, NULL) < 0) {
+		free(gctx);
+		return false;
+	}
+	ctx->edns = gctx;
+	return true;
+}
+
+static void impl_launch_query(struct DNSRequest *req)
+{
+	struct GaiContext *gctx = req->ctx->edns;
+	struct GaiRequest *grq = calloc(1, sizeof(*grq));
+	int res;
+	struct gaicb *cb;
+
+	grq = calloc(1, sizeof(*grq));
+	if (!grq)
+		goto failed2;
+
+	list_init(&grq->node);
+	grq->req = req;
+	grq->gairq.ar_name = req->name;
+	list_append(&gctx->gairq_list, &grq->node);
+
+	cb = &grq->gairq;
+	res = getaddrinfo_a(GAI_NOWAIT, &cb, 1, &gctx->sev);
+	if (res != 0)
+		goto failed;
+	return;
+
+failed:
+	log_warning("dns: getaddrinfo_a(%s)=%d", req->name, res);
+	list_del(&grq->node);
+	free(grq);
+failed2:
+	req->done = true;
+	req->res_af = 0;
+	deliver_info(req);
+}
+
+static void impl_release(struct DNSContext *ctx)
+{
+	struct GaiContext *gctx = ctx->edns;
+	if (gctx) {
+		signal_del(&gctx->ev);
+		free(gctx);
+		ctx->edns = NULL;
+	}
+}
+
+#else /* !HAVE_GETADDRINFO_A */
 
 #ifdef LIBEVENT2
 
 /*
  * ADNS with libevent2 <event2/dns.h>
  */
-
-static void got_result_gai(int result, struct evutil_addrinfo *res, void *arg)
-{
-	struct DNSRequest *req = arg;
-	struct evutil_addrinfo *ai;
-	int count = 0;
-	int af = 0;
-	int adrlen;
-	uint8_t *dst;
-
-	if (result != DNS_ERR_NONE) {
-		/* lookup failed */
-		log_warning("lookup failed: %s: result=%d", req->name, result);
-		goto failed;
-	}
-
-	for (ai = res; ai; ai = ai->ai_next) {
-		/* pick single family for this address */
-		if (!af) {
-			if (ai->ai_family == AF_INET) {
-				af = ai->ai_family;
-				req->res_af = af;
-				adrlen = 4;
-			} else {
-				continue;
-			}
-		}
-		if (ai->ai_family != af)
-			continue;
-		count++;
-	}
-
-	/* did not found usable entry */
-	if (!af) {
-		log_warning("dns(%s): no usable address", req->name);
-		evutil_freeaddrinfo(res);
-		goto failed;
-	}
-
-	log_noise("dns(%s): got_result_gai: count=%d, adrlen=%d", req->name, count, adrlen);
-
-	req->res_pos = 0;
-	req->done = true;
-	req->res_count = count;
-	req->res_list = malloc(adrlen * count);
-	if (!req->res_list) {
-		log_warning("req->res_list alloc failed");
-		goto failed;
-	}
-	req->res_ttl = get_cached_time() + cf_dns_max_ttl;
-
-	dst = req->res_list;
-	for (ai = res; ai; ai = ai->ai_next) {
-		struct sockaddr_in *in;
-		if (ai->ai_family != af)
-			continue;
-		in = (void*)ai->ai_addr;
-		log_noise("dns(%s) result: %s", req->name, inet_ntoa(in->sin_addr));
-		memcpy(dst, &in->sin_addr, adrlen);
-		dst += adrlen;
-	}
-
-	deliver_info(req);
-	return;
-failed:
-	req->res_af = 0;
-	req->res_list = NULL;
-	deliver_info(req);
-}
 
 static bool impl_init(struct DNSContext *ctx)
 {
@@ -234,6 +290,7 @@ static void impl_release(struct DNSContext *ctx)
 }
 
 #endif
+#endif
 
 /*
  * Generic framework
@@ -300,6 +357,8 @@ static void req_free(struct AANode *node, void *arg)
 struct DNSContext *adns_create_context(void)
 {
 	struct DNSContext *ctx = calloc(1, sizeof(*ctx));
+	if (!ctx)
+		return NULL;
 
 	aatree_init(&ctx->req_tree, req_cmp, req_free);
 	if (!impl_init(ctx)) {
@@ -370,4 +429,78 @@ nomem:
 	cb_func(cb_arg, 0, NULL);
 }
 
+#ifdef NEED_GAI_RESULT
+
+/* struct addrinfo -> deliver_info() */
+static void got_result_gai(int result, struct addrinfo *res, void *arg)
+{
+	struct DNSRequest *req = arg;
+	struct addrinfo *ai;
+	int count = 0;
+	int af = 0;
+	int adrlen;
+	uint8_t *dst;
+
+	if (result != 0) {
+		/* lookup failed */
+		log_warning("lookup failed: %s: result=%d", req->name, result);
+		goto failed;
+	}
+
+	for (ai = res; ai; ai = ai->ai_next) {
+		/* pick single family for this address */
+		if (!af) {
+			if (ai->ai_family == AF_INET) {
+				af = ai->ai_family;
+				req->res_af = af;
+				adrlen = 4;
+			} else {
+				continue;
+			}
+		}
+		if (ai->ai_family != af)
+			continue;
+		count++;
+	}
+
+	/* did not found usable entry */
+	if (!af) {
+		log_warning("dns(%s): no usable address", req->name);
+		freeaddrinfo(res);
+		goto failed;
+	}
+
+	log_noise("dns(%s): got_result_gai: count=%d, adrlen=%d", req->name, count, adrlen);
+
+	req->res_pos = 0;
+	req->done = true;
+	req->res_count = count;
+	req->res_list = malloc(adrlen * count);
+	if (!req->res_list) {
+		log_warning("req->res_list alloc failed");
+		goto failed;
+	}
+	req->res_ttl = get_cached_time() + cf_dns_max_ttl;
+
+	dst = req->res_list;
+	for (ai = res; ai; ai = ai->ai_next) {
+		struct sockaddr_in *in;
+		if (ai->ai_family != af)
+			continue;
+		in = (void*)ai->ai_addr;
+		log_noise("dns(%s) result: %s", req->name, inet_ntoa(in->sin_addr));
+		memcpy(dst, &in->sin_addr, adrlen);
+		dst += adrlen;
+	}
+
+	deliver_info(req);
+	return;
+failed:
+	req->done = true;
+	req->res_af = 0;
+	req->res_list = NULL;
+	deliver_info(req);
+}
+
+#endif
 

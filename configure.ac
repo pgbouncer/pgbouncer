@@ -72,6 +72,9 @@ AC_SEARCH_LIBS(gethostbyname, nsl)
 AC_SEARCH_LIBS(hstrerror, resolv)
 AC_CHECK_FUNCS(crypt lstat)
 
+AC_SEARCH_LIBS(getaddrinfo_a, anl)
+AC_CHECK_FUNCS(getaddrinfo_a)
+
 dnl Find libevent
 AC_USUAL_LIBEVENT(1)
 

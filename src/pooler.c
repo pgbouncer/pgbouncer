@@ -95,7 +95,8 @@ static int create_unix_socket(const char *socket_dir, int listen_port)
 	atexit(cleanup_unix_socket);
 
 	/* set common options */
-	tune_socket(sock, true);
+	if (!tune_socket(sock, true))
+		fatal_perror("tune_socket");
 
 	/* finally, accept connections */
 	res = listen(sock, cf_listen_backlog);
@@ -191,7 +192,8 @@ static int create_net_socket(const char *listen_addr, int listen_port)
 		fatal_perror("bind");
 
 	/* set common options */
-	tune_socket(sock, false);
+	if (!tune_socket(sock, false))
+		fatal_perror("tune_socket");
 
 	/* make it accept connections */
 	res = listen(sock, cf_listen_backlog);
@@ -301,7 +303,8 @@ loop:
 
 bool use_pooler_socket(int sock, bool is_unix)
 {
-	tune_socket(sock, is_unix);
+	if (!tune_socket(sock, is_unix))
+		return false;
 
 	if (is_unix)
 		fd_unix = sock;

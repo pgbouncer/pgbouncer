@@ -86,15 +86,14 @@ bool sbuf_accept(SBuf *sbuf, int sock, bool is_unix)
 	Assert(iobuf_empty(sbuf->io) && sbuf->sock == 0);
 	AssertSanity(sbuf);
 
-	tune_socket(sock, is_unix);
 	sbuf->sock = sock;
+	if (!tune_socket(sock, is_unix))
+		goto failed;
 
 	if (!cf_reboot) {
 		res = sbuf_wait_for_data(sbuf);
-		if (!res) {
-			sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
-			return false;
-		}
+		if (!res)
+			goto failed;
 		/* socket should already have some data (linux only) */
 		if (cf_tcp_defer_accept && !is_unix) {
 			sbuf_main_loop(sbuf, DO_RECV);
@@ -103,6 +102,9 @@ bool sbuf_accept(SBuf *sbuf, int sock, bool is_unix)
 		}
 	}
 	return true;
+failed:
+	sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
+	return false;
 }
 
 /* need to connect() to get a socket */
@@ -123,7 +125,8 @@ bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, int sa_len, int timeout
 		/* probably fd limit */
 		goto failed;
 
-	tune_socket(sock, is_unix);
+	if (!tune_socket(sock, is_unix))
+		goto failed;
 
 	sbuf->sock = sock;
 

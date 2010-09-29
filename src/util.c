@@ -90,7 +90,7 @@ void get_random_bytes(uint8_t *dest, int len)
 }
 
 /* set needed socket options */
-void tune_socket(int sock, bool is_unix)
+bool tune_socket(int sock, bool is_unix)
 {
 	int res;
 	int val;
@@ -98,7 +98,7 @@ void tune_socket(int sock, bool is_unix)
 	/* close fd on exec */
 	res = fcntl(sock, F_SETFD, FD_CLOEXEC);
 	if (res < 0)
-		fatal_perror("fcntl FD_CLOEXEC");
+		goto fail;
 
 	/* when no data available, return EAGAIN instead blocking */
 	socket_set_nonblocking(sock, 1);
@@ -108,14 +108,14 @@ void tune_socket(int sock, bool is_unix)
 	val = 1;
 	res = setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &val, sizeof(val));
 	if (res < 0)
-		fatal_perror("setsockopt SO_NOSIGPIPE");
+		goto fail;
 #endif
 
 	/*
 	 * Following options are for network sockets
 	 */
 	if (is_unix)
-		return;
+		return true;
 
 	/* the keepalive stuff needs some poking before enbling */
 	if (cf_tcp_keepalive) {
@@ -123,28 +123,28 @@ void tune_socket(int sock, bool is_unix)
 		val = 1;
 		res = setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val));
 		if (res < 0)
-			fatal_perror("setsockopt SO_KEEPALIVE");
+			goto fail;
 #ifdef __linux__
 		/* set count of keepalive packets */
 		if (cf_tcp_keepcnt > 0) {
 			val = cf_tcp_keepcnt;
 			res = setsockopt(sock, IPPROTO_TCP, TCP_KEEPCNT, &val, sizeof(val));
 			if (res < 0)
-				fatal_perror("setsockopt TCP_KEEPCNT");
+				goto fail;
 		}
 		/* how long the connection can stay idle before sending keepalive pkts */
 		if (cf_tcp_keepidle) {
 			val = cf_tcp_keepidle;
 			res = setsockopt(sock, IPPROTO_TCP, TCP_KEEPIDLE, &val, sizeof(val));
 			if (res < 0)
-				fatal_perror("setsockopt TCP_KEEPIDLE");
+				goto fail;
 		}
 		/* time between packets */
 		if (cf_tcp_keepintvl) {
 			val = cf_tcp_keepintvl;
 			res = setsockopt(sock, IPPROTO_TCP, TCP_KEEPINTVL, &val, sizeof(val));
 			if (res < 0)
-				fatal_perror("setsockopt TCP_KEEPINTVL");
+				goto fail;
 		}
 #else
 #ifdef TCP_KEEPALIVE
@@ -152,7 +152,7 @@ void tune_socket(int sock, bool is_unix)
 			val = cf_tcp_keepidle;
 			res = setsockopt(sock, IPPROTO_TCP, TCP_KEEPALIVE, &val, sizeof(val));
 			if (res < 0)
-				fatal_perror("setsockopt TCP_KEEPALIVE");
+				goto fail;
 		}
 #endif
 #endif
@@ -163,11 +163,11 @@ void tune_socket(int sock, bool is_unix)
 		val = cf_tcp_socket_buffer;
 		res = setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &val, sizeof(val));
 		if (res < 0)
-			fatal_perror("setsockopt SO_SNDBUF");
+			goto fail;
 		val = cf_tcp_socket_buffer;
 		res = setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &val, sizeof(val));
 		if (res < 0)
-			fatal_perror("setsockopt SO_RCVBUF");
+			goto fail;
 	}
 
 	/*
@@ -176,7 +176,11 @@ void tune_socket(int sock, bool is_unix)
 	val = 1;
 	res = setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));
 	if (res < 0)
-		fatal_perror("setsockopt TCP_NODELAY");
+		goto fail;
+	return true;
+fail:
+	log_warning("tune_socket(%d) failed: %s", sock, strerror(errno));
+	return false;
 }
 
 /*

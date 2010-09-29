@@ -822,7 +822,7 @@ static void connect_server(struct PgSocket *server, struct sockaddr *sa, int sal
 		server->remote_addr.is_unix = true;
 	} else if (sa->sa_family == AF_INET) {
 		struct sockaddr_in *in = (struct sockaddr_in *)sa;
-		server->remote_addr.port = in->sin_port;
+		server->remote_addr.port = ntohs(in->sin_port);
 		server->remote_addr.ip_addr = in->sin_addr;
 	}
 

@@ -40,8 +40,8 @@ Building for WIN32
 ------------------
 
 At the moment only build env tested is MINGW32 / MSYS.  Cygwin
-and Visual $ANYTHING are untested.  In addition to libevent you
-need GNU regex library (http://gnuwin32.sourceforge.net/packages/regex.htm[]).
+and Visual $ANYTHING are untested.
+
 Then do the usual:
 
 	$ ./configure ...

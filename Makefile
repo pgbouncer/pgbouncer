@@ -223,6 +223,19 @@ $(dll): $(builddir)/config.mak $(dllobjs) $(dlldef)
 	$(E) "	DLLWRAP" $@
 	$(Q) $(DLLWRAP) --def $(dlldef) -o $@ $(dllobjs)
 
+zip = pgbouncer-$(PACKAGE_VERSION)-win32.zip
+
+zip: all
+	make -C doc html
+ifeq ($(enable_debug),no)
+	$(STRIP) pgbevent.dll
+	$(STRIP) pgbouncer.exe
+endif
+	cp COPYRIGHT doc/COPYRIGHT.txt
+	cp AUTHORS doc/AUTHORS.txt
+	rm -f $(zip)
+	zip $(zip) pgbouncer.exe pgbevent.dll doc/AUTHORS.txt doc/COPYRIGHT.txt doc/*.html
+
 endif
 
 stripped: $(exe) $(dll)

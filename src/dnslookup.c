@@ -24,8 +24,6 @@
  * libevent2 - does not return TTL, uses hosts file.
  */
 
-#undef HAVE_GETADDRINFO_A
-
 #ifdef HAVE_GETADDRINFO_A
 
 /* getaddrinfo_a */

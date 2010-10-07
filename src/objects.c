@@ -826,6 +826,9 @@ static void connect_server(struct PgSocket *server, struct sockaddr *sa, int sal
 		server->remote_addr.ip_addr = in->sin_addr;
 	}
 
+	if (cf_log_connections)
+		slog_info(server, "new connection to server");
+
 	/* start connecting */
 	res = sbuf_connect(&server->sbuf, sa, salen,
 			   cf_server_connect_timeout / USEC);
@@ -953,9 +956,6 @@ allow_new:
 	server->connect_time = get_cached_time();
 	pool->last_connect_time = get_cached_time();
 	change_server_state(server, SV_LOGIN);
-
-	if (cf_log_connections)
-		slog_info(server, "new connection to server");
 
 	dns_connect(server);
 }

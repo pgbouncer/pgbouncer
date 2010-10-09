@@ -90,6 +90,9 @@ all: $(exe) $(dll) doc-all
 $(exe): $(builddir)/config.mak $(objs)
 	$(E) "	LD" $@
 	$(Q) $(CC) -o $@ $(LDFLAGS) $(objs) $(LIBS)
+ifeq ($(enable_debug),no)
+	$(STRIP) $@
+endif
 
 # objects depend on all the headers
 $(builddir)/obj/%.o: $(srcdir)/src/%.c $(builddir)/config.mak $(hdrs)
@@ -120,17 +123,9 @@ endif
 # create tarfile
 tgz: config.mak $(DISTFILES) $(MANPAGES)
 	rm -rf $(FULL) $(FULL).tgz
-	# tgz for libusual
-	cp config.mak configure lib
-	rm -f lib/*.tgz
-	make -C lib tgz
-	# now create new pgbouncer tree
 	mkdir $(FULL)
-	(for f in $(DISTFILES); do echo $$f; done) | cpio -pm $(FULL)
-	tar xf lib/*.tgz
-	mv libusual-* $(FULL)/lib
-	rm -f $(FULL)/lib/configure
-	# tgz for pgbouncer
+	(for f in $(DISTFILES) $(USUAL_DIR) $(USUAL_DIST) $(USUAL_HDRS) $(USUAL_SRCS); \
+		do echo $$f; done) | cpio -pm $(FULL)
 	tar czf $(FULL).tgz $(FULL)
 	rm -rf $(FULL)
 
@@ -222,21 +217,21 @@ $(dlldef): $(dllobjs)
 $(dll): $(builddir)/config.mak $(dllobjs) $(dlldef)
 	$(E) "	DLLWRAP" $@
 	$(Q) $(DLLWRAP) --def $(dlldef) -o $@ $(dllobjs)
+	$(STRIP) $@
+endif
 
 zip = pgbouncer-$(PACKAGE_VERSION)-win32.zip
 
-zip: all
+zip: configure
+	make distclean
+	./configure i586-mingw32msvc --disable-debug --with-libevent=/opt/apps/win32
 	make -C doc html
-ifeq ($(enable_debug),no)
-	$(STRIP) pgbevent.dll
-	$(STRIP) pgbouncer.exe
-endif
+	make pgbouncer.exe pgbevent.dll
 	cp COPYRIGHT doc/COPYRIGHT.txt
 	cp AUTHORS doc/AUTHORS.txt
 	rm -f $(zip)
 	zip $(zip) pgbouncer.exe pgbevent.dll doc/AUTHORS.txt doc/COPYRIGHT.txt doc/*.html
-
-endif
+	rm -f doc/AUTHORS.txt doc/COPYRIGHT.txt
 
 stripped: $(exe) $(dll)
 	$(STRIP) $(exe) $(dll)

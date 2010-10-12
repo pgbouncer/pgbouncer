@@ -315,6 +315,7 @@ loop:
 	/* launch callback */
 	log_noise("dns: deliver_info(%s) type=%d pos=%d", req->name, req->res_af, req->res_pos);
 	ucb->cb_func(ucb->cb_arg, req->res_af, res + req->res_pos * adrlen);
+	free(ucb);
 
 	/* round-robin between results */
 	if (req->res_count > 1) {
@@ -322,10 +323,6 @@ loop:
 		if (req->res_pos >= req->res_count)
 			req->res_pos = 0;
 	}
-
-	/* drop request */
-	list_del(&ucb->node);
-	free(ucb);
 
 	goto loop;
 }
@@ -391,8 +388,12 @@ void adns_resolve(struct DNSContext *ctx, const char *name, adns_callback_f cb_f
 		req = calloc(1, sizeof(*req));
 		if (!req)
 			goto nomem;
+		req->name = strdup(name);
+		if (!req->name) {
+			free(req);
+			goto nomem;
+		}
 		req->ctx = ctx;
-		req->name = name;
 		req->namelen = namelen;
 		list_init(&req->ucb_list);
 		aatree_insert(&ctx->req_tree, (long)req->name, &req->node);

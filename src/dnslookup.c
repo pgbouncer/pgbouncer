@@ -24,29 +24,21 @@
  * libevent2 - does not return TTL, uses hosts file.
  */
 
-#ifdef HAVE_GETADDRINFO_A
-
+#ifdef USE_GETADDRINFO_A
 /* getaddrinfo_a */
 #include <netdb.h>
 #include <signal.h>
-#define NEED_GAI_RESULT
+#endif
 
-#else
-#ifdef EV_ET
-
-/* libevent 2 */
+#ifdef USE_LIBEVENT2
 #include <event2/dns.h>
-#define LIBEVENT2
 #define addrinfo evutil_addrinfo
 #define freeaddrinfo evutil_freeaddrinfo
-#define NEED_GAI_RESULT
+#endif
 
-#else
-
+#ifdef USE_LIBEVENT1
 /* libevent 1 */
 #include <evdns.h>
-
-#endif
 #endif
 
 
@@ -67,10 +59,9 @@ struct DNSRequest {
 
 	bool done;
 
-	int res_af;
-	int res_count;
-	int res_pos;
-	void *res_list;
+	struct addrinfo *result;
+	struct addrinfo *current;
+
 	usec_t res_ttl;
 };
 
@@ -81,13 +72,10 @@ struct DNSContext {
 
 static void deliver_info(struct DNSRequest *req);
 
-#ifdef NEED_GAI_RESULT
-struct addrinfo;
 static void got_result_gai(int result, struct addrinfo *res, void *arg);
-#endif
 
 
-#ifdef HAVE_GETADDRINFO_A
+#ifdef USE_GETADDRINFO_A
 
 /*
  * ADNS with glibc's getaddrinfo_a()
@@ -174,7 +162,6 @@ failed:
 	free(grq);
 failed2:
 	req->done = true;
-	req->res_af = 0;
 	deliver_info(req);
 }
 
@@ -188,9 +175,9 @@ static void impl_release(struct DNSContext *ctx)
 	}
 }
 
-#else /* !HAVE_GETADDRINFO_A */
+#endif /* USE_GETADDRINFO_A */
 
-#ifdef LIBEVENT2
+#ifdef USE_LIBEVENT2
 
 /*
  * ADNS with libevent2 <event2/dns.h>
@@ -220,47 +207,79 @@ static void impl_release(struct DNSContext *ctx)
 	evdns_base_free(dns, 0);
 }
 
-#else
+#endif
+
+#ifdef USE_LIBEVENT1
 
 /*
  * ADNS with libevent 1.x <evdns.h>
  */
 
+static struct addrinfo *mk_addrinfo(void *ip)
+{
+	struct addrinfo *ai;
+	struct sockaddr_in *sa;
+	ai = calloc(1, sizeof(*ai));
+	if (!ai)
+		return NULL;
+	sa = calloc(1, sizeof(*sa));
+	if (!sa) {
+		free(ai);
+		return NULL;
+	}
+	memcpy(&sa->sin_addr, ip, 4);
+	sa->sin_family = AF_INET;
+	ai->ai_addr = (struct sockaddr *)sa;
+	ai->ai_addrlen = sizeof(*sa);
+	return ai;
+}
+
+#define freeaddrinfo(x) local_freeaddrinfo(x)
+
+static void freeaddrinfo(struct addrinfo *ai)
+{
+	struct addrinfo *cur;
+	while (ai) {
+		cur = ai;
+		ai = ai->ai_next;
+		free(cur->ai_addr);
+		free(cur);
+	}
+}
+
+static struct addrinfo *convert_ipv4_result(uint8_t *adrs, int count)
+{
+	struct addrinfo *ai, *last = NULL;
+	int i;
+
+	for (i = count - 1; i >= 0; i--) {
+		ai = mk_addrinfo(adrs + i * 4);
+		if (!ai)
+			goto failed;
+		ai->ai_next = last;
+		last = ai;
+	}
+	return last;
+failed:
+	freeaddrinfo(last);
+	return NULL;
+}
+
 static void got_result_evdns(int result, char type, int count, int ttl, void *addresses, void *arg)
 {
 	struct DNSRequest *req = arg;
-	int adrlen = 4;
+	struct addrinfo *ai;
 
 	log_noise("dns: got_result_evdns: type=%d cnt=%d ttl=%d", type, count, ttl);
-
-	req->done = true;
-
-	if (result != DNS_ERR_NONE || count < 1) {
-		/* lookup failed */
-		goto failed;
-	} else if (type == DNS_IPv4_A) {
-		struct in_addr *a = addresses;
-		log_noise("dns(%s): got_result_evdns: %s", req->name, inet_ntoa(*a));
-		req->res_af = AF_INET;
-		adrlen = 4;
-	} else {
-		log_warning("dns(%s): got_result_evdns unknown result: %d", req->name, type);
-		/* unknown result */
-		goto failed;
+	if (result == DNS_IPv4_A) {
+		ai = convert_ipv4_result(addresses, count);
+		if (ai) {
+			got_result_gai(0, ai, req);
+			return;
+		}
 	}
-	req->res_pos = 0;
-	req->res_count = count;
-	req->res_list = malloc(adrlen * count);
-	if (!req->res_list)
-		goto failed;
-	memcpy(req->res_list, addresses, adrlen * count);
-	req->res_ttl = get_cached_time() + cf_dns_max_ttl;
-	deliver_info(req);
-	return;
-failed:
-	req->res_af = 0;
-	req->res_list = NULL;
-	deliver_info(req);
+	/* lookup failed */
+	got_result_gai(1, NULL, req);
 }
 
 static bool impl_init(struct DNSContext *ctx)
@@ -276,9 +295,7 @@ static void impl_launch_query(struct DNSRequest *req)
 	log_noise("dns(%s): evdns_resolve_ipv4 = %d", req->name, err);
 	if (err != 0 && !req->done) {
 		/* if callback was not yet called, do it now */
-		req->done = true;
-		req->res_af = 0;
-		deliver_info(req);
+		got_result_gai(1, NULL, req);
 	}
 }
 
@@ -287,7 +304,6 @@ static void impl_release(struct DNSContext *ctx)
 	evdns_shutdown(0);
 }
 
-#endif
 #endif
 
 /*
@@ -298,13 +314,9 @@ static void deliver_info(struct DNSRequest *req)
 {
 	struct UserCallback *ucb;
 	struct List *el;
-	const uint8_t *res = req->res_list;
-	int adrlen = 0;
+	const struct addrinfo *ai = req->current;
+	char sabuf[128];
 
-	if (req->res_af == AF_INET)
-		adrlen = 4;
-	else if (req->res_af == AF_INET6)
-		adrlen = 16;
 loop:
 	/* get next req */
 	el = list_pop(&req->ucb_list);
@@ -313,15 +325,16 @@ loop:
 	ucb = container_of(el, struct UserCallback, node);
 
 	/* launch callback */
-	log_noise("dns: deliver_info(%s) type=%d pos=%d", req->name, req->res_af, req->res_pos);
-	ucb->cb_func(ucb->cb_arg, req->res_af, res + req->res_pos * adrlen);
+	log_noise("dns: deliver_info(%s) addr=%s", req->name,
+		  sa2str(ai->ai_addr, sabuf, sizeof(sabuf)));
+	ucb->cb_func(ucb->cb_arg, ai->ai_addr, ai->ai_addrlen);
 	free(ucb);
 
-	/* round-robin between results */
-	if (req->res_count > 1) {
-		req->res_pos++;
-		if (req->res_pos >= req->res_count)
-			req->res_pos = 0;
+	/* scroll req list */
+	if (ai) {
+		req->current = ai->ai_next;
+		if (!req->current)
+			req->current = req->result;
 	}
 
 	goto loop;
@@ -334,6 +347,14 @@ static int req_cmp(long arg, struct AANode *node)
 	return strcmp(s1, req->name);
 }
 
+static void req_reset(struct DNSRequest *req)
+{
+	req->done = false;
+	if (req->result)
+		freeaddrinfo(req->result);
+	req->result = req->current = NULL;
+}
+
 static void req_free(struct AANode *node, void *arg)
 {
 	struct UserCallback *ucb;
@@ -344,7 +365,7 @@ static void req_free(struct AANode *node, void *arg)
 		ucb = container_of(el, struct UserCallback, node);
 		free(ucb);
 	}
-	free(req->res_list);
+	req_reset(req);
 	free(req->name);
 	free(req);
 }
@@ -413,11 +434,7 @@ void adns_resolve(struct DNSContext *ctx, const char *name, adns_callback_f cb_f
 	if (req->done) {
 		if (req->res_ttl < get_cached_time()) {
 			log_noise("dns: ttl over: %s", req->name);
-			req->done = false;
-			free(req->res_list);
-			req->res_list = NULL;
-			req->res_af = 0;
-
+			req_reset(req);
 			impl_launch_query(req);
 		} else
 			deliver_info(req);
@@ -425,81 +442,27 @@ void adns_resolve(struct DNSContext *ctx, const char *name, adns_callback_f cb_f
 	return;
 nomem:
 	log_warning("dns(%s): req failed, no mem", name);
-	cb_func(cb_arg, 0, NULL);
+	cb_func(cb_arg, NULL, 0);
 }
-
-#ifdef NEED_GAI_RESULT
 
 /* struct addrinfo -> deliver_info() */
 static void got_result_gai(int result, struct addrinfo *res, void *arg)
 {
 	struct DNSRequest *req = arg;
-	struct addrinfo *ai;
-	int count = 0;
-	int af = 0;
-	int adrlen;
-	uint8_t *dst;
 
-	if (result != 0) {
+	req_reset(req);
+
+	if (result == 0) {
+		req->result = res;
+		req->current = res;
+	} else {
 		/* lookup failed */
 		log_warning("lookup failed: %s: result=%d", req->name, result);
-		goto failed;
 	}
 
-	for (ai = res; ai; ai = ai->ai_next) {
-		/* pick single family for this address */
-		if (!af) {
-			if (ai->ai_family == AF_INET) {
-				af = ai->ai_family;
-				req->res_af = af;
-				adrlen = 4;
-			} else {
-				continue;
-			}
-		}
-		if (ai->ai_family != af)
-			continue;
-		count++;
-	}
-
-	/* did not found usable entry */
-	if (!af) {
-		log_warning("dns(%s): no usable address", req->name);
-		freeaddrinfo(res);
-		goto failed;
-	}
-
-	log_noise("dns(%s): got_result_gai: count=%d, adrlen=%d", req->name, count, adrlen);
-
-	req->res_pos = 0;
 	req->done = true;
-	req->res_count = count;
-	req->res_list = malloc(adrlen * count);
-	if (!req->res_list) {
-		log_warning("req->res_list alloc failed");
-		goto failed;
-	}
 	req->res_ttl = get_cached_time() + cf_dns_max_ttl;
 
-	dst = req->res_list;
-	for (ai = res; ai; ai = ai->ai_next) {
-		struct sockaddr_in *in;
-		if (ai->ai_family != af)
-			continue;
-		in = (void*)ai->ai_addr;
-		log_noise("dns(%s) result: %s", req->name, inet_ntoa(in->sin_addr));
-		memcpy(dst, &in->sin_addr, adrlen);
-		dst += adrlen;
-	}
-
-	deliver_info(req);
-	return;
-failed:
-	req->done = true;
-	req->res_af = 0;
-	req->res_list = NULL;
 	deliver_info(req);
 }
-
-#endif
 

@@ -16,11 +16,27 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <usual/base.h>
+#if 1
+
+/* pick dns implementation */
+#ifdef EV_ET
+#define USE_LIBEVENT2
+#else
+#ifdef HAVE_GETADDRINFO_A
+#define USE_GETADDRINFO_A
+#else
+#define USE_LIBEVENT1
+#endif
+#endif
+
+#else
+#define USE_LIBEVENT2
+#endif
+
 
 struct DNSContext;
 
-typedef void (*adns_callback_f)(void *arg, int af, const void *addr);
+typedef void (*adns_callback_f)(void *arg, const struct sockaddr *ai, int salen);
 
 struct DNSContext *adns_create_context(void);
 void adns_reload(struct DNSContext *ctx);

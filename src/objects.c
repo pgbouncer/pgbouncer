@@ -811,7 +811,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
  * Connection creation utilities
  */
 
-static void connect_server(struct PgSocket *server, struct sockaddr *sa, int salen)
+static void connect_server(struct PgSocket *server, const struct sockaddr *sa, int salen)
 {
 	bool res;
 
@@ -836,27 +836,23 @@ static void connect_server(struct PgSocket *server, struct sockaddr *sa, int sal
 		log_noise("failed to launch new connection");
 }
 
-static void dns_callback(void *arg, int af, const void *addr)
+static void dns_callback(void *arg, const struct sockaddr *sa, int salen)
 {
 	struct PgSocket *server = arg;
 	struct PgDatabase *db = server->pool->db;
 	struct sockaddr_in sa_in;
-	struct sockaddr *sa;
-	int salen;
 
-	if (af == AF_INET) {
+	if (!sa) {
+		disconnect_server(server, true, "server dns lookup failed");
+		return;
+	} else if (sa->sa_family == AF_INET) {
 		char buf[64];
-		memset(&sa_in, 0, sizeof(sa_in));
-		sa_in.sin_family = af;
-		sa_in.sin_addr.s_addr = *(in_addr_t *)addr;
+		memcpy(&sa_in, sa, sizeof(sa_in));
 		sa_in.sin_port = htons(db->port);
 		sa = (struct sockaddr *)&sa_in;
 		salen = sizeof(sa_in);
 		slog_debug(server, "dns_callback: inet4: %s",
 			   sa2str(sa, buf, sizeof(buf)));
-	} else if (!af) {
-		disconnect_server(server, true, "server dns lookup failed");
-		return;
 	} else {
 		disconnect_server(server, true, "unknown dns type");
 		return;

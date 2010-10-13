@@ -45,7 +45,7 @@ AC_CHECK_TOOL([STRIP], [strip])
 
 dnl Checks for header files.
 AC_USUAL_HEADER_CHECK
-AC_CHECK_HEADERS([crypt.h regex.h])
+AC_CHECK_HEADERS([crypt.h])
 AC_CHECK_HEADERS([sys/resource.h sys/wait.h])
 
 dnl Checks for typedefs, structures, and compiler characteristics.
@@ -71,9 +71,6 @@ AC_SEARCH_LIBS(getsockname, socket)
 AC_SEARCH_LIBS(gethostbyname, nsl)
 AC_SEARCH_LIBS(hstrerror, resolv)
 AC_CHECK_FUNCS(crypt lstat)
-
-AC_SEARCH_LIBS(getaddrinfo_a, anl)
-AC_CHECK_FUNCS(getaddrinfo_a)
 
 dnl Find libevent
 AC_USUAL_LIBEVENT(1)

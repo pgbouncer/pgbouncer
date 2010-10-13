@@ -7,6 +7,9 @@ web = mkz@shell.pgfoundry.org:/home/pgfoundry.org/groups/pgbouncer/htdocs/
 MANPAGES = pgbouncer.1 pgbouncer.5
 HTML = config.html usage.html todo.html faq.html README.html
 
+#FIXMAN = python fixman.py
+FIXMAN = cat
+
 ifneq ($(ASCIIDOC),)
 all: $(MANPAGES)
 install: $(MANPAGES)
@@ -44,7 +47,7 @@ ifneq ($(ASCIIDOC),)
 %.xml: %.txt
 	#asciidoc -b docbook -d manpage -o - $< > $@
 	asciidoc -b docbook -d manpage -o - $< \
-	| python fixman.py > $@
+	| $(FIXMAN) > $@
 
 %.html: %.txt
 	asciidoc -a toc $<

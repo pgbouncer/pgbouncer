@@ -928,7 +928,7 @@ void launch_new_connection(PgPool *pool)
 			PgSocket *c = first_socket(&pool->waiting_client_list);
 			if (c && (now - c->request_time) >= cf_res_pool_timeout) {
 				if (total < pool->db->pool_size + pool->db->res_pool_size) {
-					log_debug("reserve_pool activated");
+					slog_warning(c, "Taking connection from reserve_pool");
 					goto allow_new;
 				}
 			}

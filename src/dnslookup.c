@@ -108,7 +108,6 @@ static void dns_signal(int f, short ev, void *arg)
 
 		/* got one */
 		list_del(&rq->node);
-		rq->req->done = true;
 		got_result_gai(e, rq->gairq.ar_result, rq->req);
 		free(rq);
 	}
@@ -196,8 +195,9 @@ static bool impl_init(struct DNSContext *ctx)
 static void impl_launch_query(struct DNSRequest *req)
 {
 	struct evdns_getaddrinfo_request *gai_req;
+	struct evdns_base *dns = req->ctx->edns;
 
-	gai_req = evdns_getaddrinfo(req->ctx->edns, req->name, NULL, NULL, got_result_gai, req);
+	gai_req = evdns_getaddrinfo(dns, req->name, NULL, NULL, got_result_gai, req);
 	log_noise("dns: evdns_getaddrinfo(%s)=%p", req->name, gai_req);
 }
 

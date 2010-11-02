@@ -36,7 +36,7 @@
 
 struct DNSContext;
 
-typedef void (*adns_callback_f)(void *arg, const struct sockaddr *ai, int salen);
+typedef void (*adns_callback_f)(void *arg, const struct sockaddr *sa, int salen);
 
 struct DNSContext *adns_create_context(void);
 void adns_reload(struct DNSContext *ctx);

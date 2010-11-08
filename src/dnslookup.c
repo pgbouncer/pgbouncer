@@ -327,7 +327,9 @@ loop:
 	/* launch callback */
 	log_noise("dns: deliver_info(%s) addr=%s", req->name,
 		  sa2str(ai->ai_addr, sabuf, sizeof(sabuf)));
-	ucb->cb_func(ucb->cb_arg, ai->ai_addr, ai->ai_addrlen);
+	ucb->cb_func(ucb->cb_arg,
+		     ai ? ai->ai_addr : NULL,
+		     ai ? ai->ai_addrlen : 0);
 	free(ucb);
 
 	/* scroll req list */

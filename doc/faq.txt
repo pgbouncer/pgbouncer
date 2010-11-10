@@ -66,8 +66,16 @@ to keep track of them internally, which it does not do.  So only way to
 keep using PgBouncer in this mode is to disable prepared statements
 completely.
 
-For JDBC this seems to be achieved by adding `protocolVersion=2`
-parameter to connect string.
+The proper way to do it for JDBC is adding `prepareThreshold=0`
+parameter to connect string.  But current JDBC code ignores
+the setting for BEGIN/COMMIT/ROLLBACK statements and still
+tries to cache their plans.  This can be fixed with following patch:
+
+http://treehou.se/~omar/postgresql-jdbc-8.4-701-pgbouncer_txn.patch[]
+
+described here:
+
+http://pgfoundry.org/pipermail/pgbouncer-general/2010-February/000507.html[]
 
 
 == How to upgrade PgBouncer without dropping connections? ==

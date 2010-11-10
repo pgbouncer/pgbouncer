@@ -1,6 +1,5 @@
 
-wiki = https://developer.skype.com/SkypeGarage/DbProjects/PgBouncer
-web = mkz@shell.pgfoundry.org:/home/pgfoundry.org/groups/pgbouncer/htdocs/
+web = pgf:/home/pgfoundry.org/groups/pgbouncer/htdocs/
 
 -include ../config.mak
 
@@ -28,12 +27,6 @@ install:
 endif
 
 html: $(HTML)
-
-upload:
-	devupload.sh overview.txt $(wiki)
-	#devupload.sh todo.txt $(wiki)/ToDo
-	#devupload.sh usage.txt $(wiki)/UsageInfo
-	#devupload.sh config.txt $(wiki)/ConfigFile
 
 ifneq ($(XMLTO),)
 pgbouncer.1: usage.xml

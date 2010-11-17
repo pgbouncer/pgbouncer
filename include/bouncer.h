@@ -311,8 +311,6 @@ extern int cf_daemon;
 
 extern char *cf_config_file;
 extern char *cf_jobname;
-extern int cf_syslog;
-extern char *cf_syslog_facility;
 
 extern char *cf_unix_socket_dir;
 extern char *cf_listen_addr;

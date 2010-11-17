@@ -23,6 +23,7 @@
 #include "bouncer.h"
 
 #include <usual/signal.h>
+#include <usual/err.h>
 
 #include <getopt.h>
 
@@ -63,9 +64,7 @@ int cf_daemon = 0;
 int cf_pause_mode = P_NONE;
 int cf_shutdown = 0; /* 1 - wait for queries to finish, 2 - shutdown immediately */
 int cf_reboot = 0;
-int cf_syslog = 0;
 static char *cf_username = "";
-char *cf_syslog_facility = "daemon";
 char *cf_config_file = "";
 
 char *cf_listen_addr = NULL;
@@ -163,6 +162,7 @@ ConfElem bouncer_params[] = {
 {"reserve_pool_timeout",true, CF_INT, &cf_res_pool_timeout},
 {"syslog",		true, CF_INT, &cf_syslog},
 {"syslog_facility",	true, CF_STR, &cf_syslog_facility},
+{"syslog_ident",	true, CF_STR, &cf_syslog_ident},
 #ifndef WIN32
 {"user",		false, CF_STR, &cf_username},
 #endif
@@ -681,6 +681,8 @@ int main(int argc, char *argv[])
 		{"user", required_argument, NULL, 'u'},
 		{NULL, 0, NULL, 0}
 	};
+
+	setprogname(basename(argv[0]));
 
 	/* parse cmdline */
 	while ((c = getopt_long(argc, argv, "qvhdVRu:", long_options, &long_idx)) != -1) {

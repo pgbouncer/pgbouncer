@@ -42,7 +42,7 @@
 #endif
 
 
-struct UserCallback {
+struct DNSToken {
 	struct List node;
 	adns_callback_f cb_func;
 	void *cb_arg;
@@ -312,7 +312,7 @@ static void impl_release(struct DNSContext *ctx)
 
 static void deliver_info(struct DNSRequest *req)
 {
-	struct UserCallback *ucb;
+	struct DNSToken *ucb;
 	struct List *el;
 	const struct addrinfo *ai = req->current;
 	char sabuf[128];
@@ -322,7 +322,7 @@ loop:
 	el = list_pop(&req->ucb_list);
 	if (!el)
 		return;
-	ucb = container_of(el, struct UserCallback, node);
+	ucb = container_of(el, struct DNSToken, node);
 
 	/* launch callback */
 	log_noise("dns: deliver_info(%s) addr=%s", req->name,
@@ -359,12 +359,12 @@ static void req_reset(struct DNSRequest *req)
 
 static void req_free(struct AANode *node, void *arg)
 {
-	struct UserCallback *ucb;
+	struct DNSToken *ucb;
 	struct DNSRequest *req;
 	struct List *el;
 	req = container_of(node, struct DNSRequest, node);
 	while ((el = list_pop(&req->ucb_list)) != NULL) {
-		ucb = container_of(el, struct UserCallback, node);
+		ucb = container_of(el, struct DNSToken, node);
 		free(ucb);
 	}
 	req_reset(req);
@@ -395,11 +395,11 @@ void adns_free_context(struct DNSContext *ctx)
 	}
 }
 
-void adns_resolve(struct DNSContext *ctx, const char *name, adns_callback_f cb_func, void *cb_arg)
+struct DNSToken *adns_resolve(struct DNSContext *ctx, const char *name, adns_callback_f cb_func, void *cb_arg)
 {
 	int namelen = strlen(name);
 	struct DNSRequest *req;
-	struct UserCallback *ucb;
+	struct DNSToken *ucb;
 	struct AANode *node;
 
 	/* setup actual lookup */
@@ -441,10 +441,11 @@ void adns_resolve(struct DNSContext *ctx, const char *name, adns_callback_f cb_f
 		} else
 			deliver_info(req);
 	}
-	return;
+	return ucb;
 nomem:
 	log_warning("dns(%s): req failed, no mem", name);
 	cb_func(cb_arg, NULL, 0);
+	return NULL;
 }
 
 /* struct addrinfo -> deliver_info() */
@@ -466,5 +467,12 @@ static void got_result_gai(int result, struct addrinfo *res, void *arg)
 	req->res_ttl = get_cached_time() + cf_dns_max_ttl;
 
 	deliver_info(req);
+}
+
+void adns_cancel(struct DNSContext *ctx, struct DNSToken *tk)
+{
+	list_del(&tk->node);
+	memset(tk, 0, sizeof(*tk));
+	free(tk);
 }
 

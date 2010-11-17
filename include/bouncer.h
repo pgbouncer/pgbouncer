@@ -290,6 +290,8 @@ struct PgSocket {
 	PgAddr remote_addr;	/* ip:port for remote endpoint */
 	PgAddr local_addr;	/* ip:port for local endpoint */
 
+	struct DNSToken *dns_token;	/* ongoing request */
+
 	VarCache vars;		/* state of interesting server parameters */
 
 	SBuf sbuf;		/* stream buffer, must be last */

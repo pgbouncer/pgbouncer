@@ -750,6 +750,11 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 			notify = false;
 	}
 
+	if (server->dns_token) {
+		adns_cancel(adns, server->dns_token);
+		server->dns_token = NULL;
+	}
+
 	change_server_state(server, SV_JUSTFREE);
 	if (!sbuf_close(&server->sbuf))
 		log_noise("sbuf_close failed, retry later");
@@ -842,6 +847,8 @@ static void dns_callback(void *arg, const struct sockaddr *sa, int salen)
 	struct PgDatabase *db = server->pool->db;
 	struct sockaddr_in sa_in;
 
+	server->dns_token = NULL;
+
 	if (!sa) {
 		disconnect_server(server, true, "server dns lookup failed");
 		return;
@@ -889,9 +896,12 @@ static void dns_connect(struct PgSocket *server)
 		sa = (struct sockaddr *)&sa_in;
 		sa_len = sizeof(sa_in);
 	} else {
+		struct DNSToken *tk;
 		slog_noise(server, "dns socket: %s", db->host);
 		/* launch dns lookup */
-		adns_resolve(adns, db->host, dns_callback, server);
+		tk = adns_resolve(adns, db->host, dns_callback, server);
+		if (tk)
+			server->dns_token = tk;
 		return;
 	}
 

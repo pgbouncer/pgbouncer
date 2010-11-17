@@ -438,10 +438,12 @@ struct DNSToken *adns_resolve(struct DNSContext *ctx, const char *name, adns_cal
 			log_noise("dns: ttl over: %s", req->name);
 			req_reset(req);
 			impl_launch_query(req);
-		} else
+		} else {
 			deliver_info(req);
+		}
 	}
-	return ucb;
+	/* if ->done, then we have already reported */
+	return req->done ? NULL : ucb;
 nomem:
 	log_warning("dns(%s): req failed, no mem", name);
 	cb_func(cb_arg, NULL, 0);

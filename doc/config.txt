@@ -193,6 +193,12 @@ As for windows environment, eventlog is used instead.
 
 Default: 0
 
+==== syslog_ident ====
+
+Under what name to send logs to syslog.
+
+Default: pgbouncer (program name)
+
 ==== syslog_facility ====
 
 Under what facility to send logs to syslog.

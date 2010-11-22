@@ -371,8 +371,6 @@ extern int cf_log_connections;
 extern int cf_log_disconnections;
 extern int cf_log_pooler_errors;
 
-extern ConfElem bouncer_params[];
-
 extern usec_t g_suspend_start;
 
 extern struct DNSContext *adns;
@@ -394,6 +392,10 @@ first_socket(struct StatList *slist)
 	return container_of(slist->head.next, PgSocket, head);
 }
 
-void load_config(bool reload);
+void load_config(void);
 
+
+bool set_config_param(const char *key, const char *val);
+void config_for_each(void (*param_cb)(void *arg, const char *name, const char *val, bool reloadable),
+		     void *arg);
 

@@ -325,7 +325,7 @@ PgDatabase *register_auto_database(const char *name)
 	if (!cs)
 		return NULL;
 	memcpy(cs, cf_autodb_connstr, len + 1);
-	parse_database((char*)name, cs);
+	parse_database(NULL, (char*)name, cs);
 	free(cs);
 
 	db = find_database(name);

@@ -24,18 +24,13 @@
 
 #include <usual/signal.h>
 #include <usual/err.h>
+#include <usual/cfparser.h>
 
 #include <getopt.h>
 
 #ifdef HAVE_SYS_RESOURCE_H
 #include <sys/resource.h>
 #endif
-
-static bool set_mode(ConfElem *elem, const char *val, PgSocket *console);
-static const char *get_mode(ConfElem *elem);
-static bool set_auth(ConfElem *elem, const char *val, PgSocket *console);
-static const char *get_auth(ConfElem *elem);
-static bool set_defer_accept(ConfElem *elem, const char *val, PgSocket *console);
 
 static const char usage_str[] =
 "Usage: %s [OPTION]... config.ini\n"
@@ -60,226 +55,212 @@ struct DNSContext *adns;
  * configuration storage
  */
 
-int cf_daemon = 0;
+int cf_daemon;
 int cf_pause_mode = P_NONE;
-int cf_shutdown = 0; /* 1 - wait for queries to finish, 2 - shutdown immediately */
-int cf_reboot = 0;
-static char *cf_username = "";
-char *cf_config_file = "";
+int cf_shutdown; /* 1 - wait for queries to finish, 2 - shutdown immediately */
+int cf_reboot;
+static char *cf_username;
+char *cf_config_file;
 
-char *cf_listen_addr = NULL;
-int cf_listen_port = 6432;
-int cf_listen_backlog = 128;
-#ifndef WIN32
-char *cf_unix_socket_dir = "/tmp";
-#else
-char *cf_unix_socket_dir = "";
-#endif
+char *cf_listen_addr;
+int cf_listen_port;
+int cf_listen_backlog;
+char *cf_unix_socket_dir;
 
 int cf_pool_mode = POOL_SESSION;
 
 /* sbuf config */
-int cf_sbuf_len = 2048;
-int cf_sbuf_loopcnt = 5;
-int cf_tcp_socket_buffer = 0;
+int cf_sbuf_len;
+int cf_sbuf_loopcnt;
+int cf_tcp_socket_buffer;
 #if defined(TCP_DEFER_ACCEPT) || defined(SO_ACCEPTFILTER)
 int cf_tcp_defer_accept = 1;
 #else
 int cf_tcp_defer_accept = 0;
 #endif
-int cf_tcp_keepalive = 0;
-int cf_tcp_keepcnt = 0;
-int cf_tcp_keepidle = 0;
-int cf_tcp_keepintvl = 0;
+int cf_tcp_keepalive;
+int cf_tcp_keepcnt;
+int cf_tcp_keepidle;
+int cf_tcp_keepintvl;
 
 int cf_auth_type = AUTH_MD5;
-char *cf_auth_file = "unconfigured_file";
+char *cf_auth_file;
 
-int cf_max_client_conn = 100;
-int cf_default_pool_size = 20;
-int cf_res_pool_size = 0;
-usec_t cf_res_pool_timeout = 5;
+int cf_max_client_conn;
+int cf_default_pool_size;
+int cf_res_pool_size;
+usec_t cf_res_pool_timeout;
 
-char *cf_server_reset_query = "";
-char *cf_server_check_query = "select 1";
-usec_t cf_server_check_delay = 30 * USEC;
-int cf_server_round_robin = 0;
-int cf_disable_pqexec = 0;
-usec_t cf_dns_max_ttl = 15 * USEC;
+char *cf_server_reset_query;
+char *cf_server_check_query;
+usec_t cf_server_check_delay;
+int cf_server_round_robin;
+int cf_disable_pqexec;
+usec_t cf_dns_max_ttl;
 
-char *cf_ignore_startup_params = "";
+char *cf_ignore_startup_params;
 
-char *cf_autodb_connstr = NULL; /* here is "" different from NULL */
+char *cf_autodb_connstr; /* here is "" different from NULL */
 
-usec_t cf_autodb_idle_timeout = 3600*USEC;
+usec_t cf_autodb_idle_timeout;
 
-usec_t cf_server_lifetime = 60*60*USEC;
-usec_t cf_server_idle_timeout = 10*60*USEC;
-usec_t cf_server_connect_timeout = 15*USEC;
-usec_t cf_server_login_retry = 15*USEC;
-usec_t cf_query_timeout = 0*USEC;
-usec_t cf_query_wait_timeout = 0*USEC;
-usec_t cf_client_idle_timeout = 0*USEC;
-usec_t cf_client_login_timeout = 60*USEC;
-usec_t cf_suspend_timeout = 10*USEC;
+usec_t cf_server_lifetime;
+usec_t cf_server_idle_timeout;
+usec_t cf_server_connect_timeout;
+usec_t cf_server_login_retry;
+usec_t cf_query_timeout;
+usec_t cf_query_wait_timeout;
+usec_t cf_client_idle_timeout;
+usec_t cf_client_login_timeout;
+usec_t cf_suspend_timeout;
 
-usec_t g_suspend_start = 0;
+usec_t g_suspend_start;
 
-char *cf_pidfile = "";
-char *cf_jobname = "pgbouncer";
+char *cf_pidfile;
+char *cf_jobname;
 
-char *cf_admin_users = "";
-char *cf_stats_users = "";
-int cf_stats_period = 60;
+char *cf_admin_users;
+char *cf_stats_users;
+int cf_stats_period;
 
-int cf_log_connections = 1;
-int cf_log_disconnections = 1;
-int cf_log_pooler_errors = 1;
+int cf_log_connections;
+int cf_log_disconnections;
+int cf_log_pooler_errors;
 
 /*
  * config file description
  */
-ConfElem bouncer_params[] = {
-{"job_name",		false, CF_STR, &cf_jobname},
-#ifdef WIN32
-{"service_name",	false, CF_STR, &cf_jobname}, /* alias for job_name */
-#endif
-{"conffile",		true, CF_STR, &cf_config_file},
-{"logfile",		true, CF_STR, &cf_logfile},
-{"pidfile",		false, CF_STR, &cf_pidfile},
-{"listen_addr",		false, CF_STR, &cf_listen_addr},
-{"listen_port",		false, CF_INT, &cf_listen_port},
-{"listen_backlog",	false, CF_INT, &cf_listen_backlog},
-#ifndef WIN32
-{"unix_socket_dir",	false, CF_STR, &cf_unix_socket_dir},
-#endif
-{"auth_type",		true, {get_auth, set_auth}},
-{"auth_file",		true, CF_STR, &cf_auth_file},
-{"pool_mode",		true, {get_mode, set_mode}},
-{"max_client_conn",	true, CF_INT, &cf_max_client_conn},
-{"default_pool_size",	true, CF_INT, &cf_default_pool_size},
-{"reserve_pool_size",	true, CF_INT, &cf_res_pool_size},
-{"reserve_pool_timeout",true, CF_INT, &cf_res_pool_timeout},
-{"syslog",		true, CF_INT, &cf_syslog},
-{"syslog_facility",	true, CF_STR, &cf_syslog_facility},
-{"syslog_ident",	true, CF_STR, &cf_syslog_ident},
-#ifndef WIN32
-{"user",		false, CF_STR, &cf_username},
-#endif
 
-{"autodb_idle_timeout",	true, CF_TIME, &cf_autodb_idle_timeout},
+static bool set_defer_accept(struct CfValue *cv, const char *val);
+#define DEFER_OPS {set_defer_accept, cf_get_int}
 
-{"server_reset_query",	true, CF_STR, &cf_server_reset_query},
-{"server_check_query",	true, CF_STR, &cf_server_check_query},
-{"server_check_delay",	true, CF_TIME, &cf_server_check_delay},
-{"query_timeout",	true, CF_TIME, &cf_query_timeout},
-{"query_wait_timeout",	true, CF_TIME, &cf_query_wait_timeout},
-{"client_idle_timeout",	true, CF_TIME, &cf_client_idle_timeout},
-{"client_login_timeout",true, CF_TIME, &cf_client_login_timeout},
-{"server_lifetime",	true, CF_TIME, &cf_server_lifetime},
-{"server_idle_timeout",	true, CF_TIME, &cf_server_idle_timeout},
-{"server_connect_timeout",true, CF_TIME, &cf_server_connect_timeout},
-{"server_login_retry",	true, CF_TIME, &cf_server_login_retry},
-{"server_round_robin",	true, CF_INT, &cf_server_round_robin},
-{"suspend_timeout",	true, CF_TIME, &cf_suspend_timeout},
-{"ignore_startup_parameters", true, CF_STR, &cf_ignore_startup_params},
-{"disable_pqexec",	false, CF_INT, &cf_disable_pqexec},
-{"dns_max_ttl",		true, CF_TIME, &cf_dns_max_ttl},
-
-{"pkt_buf",		false, CF_INT, &cf_sbuf_len},
-{"sbuf_loopcnt",	true, CF_INT, &cf_sbuf_loopcnt},
-{"tcp_defer_accept",	true, {cf_get_int, set_defer_accept}, &cf_tcp_defer_accept},
-{"tcp_socket_buffer",	true, CF_INT, &cf_tcp_socket_buffer},
-{"tcp_keepalive",	true, CF_INT, &cf_tcp_keepalive},
-{"tcp_keepcnt",		true, CF_INT, &cf_tcp_keepcnt},
-{"tcp_keepidle",	true, CF_INT, &cf_tcp_keepidle},
-{"tcp_keepintvl",	true, CF_INT, &cf_tcp_keepintvl},
-{"verbose",		true, CF_INT, &cf_verbose},
-{"admin_users",		true, CF_STR, &cf_admin_users},
-{"stats_users",		true, CF_STR, &cf_stats_users},
-{"stats_period",	true, CF_INT, &cf_stats_period},
-{"log_connections",	true, CF_INT, &cf_log_connections},
-{"log_disconnections",	true, CF_INT, &cf_log_disconnections},
-{"log_pooler_errors",	true, CF_INT, &cf_log_pooler_errors},
-{NULL},
+static const struct CfLookup auth_type_map[] = {
+	{ "any", AUTH_ANY },
+	{ "trust", AUTH_TRUST },
+	{ "plain", AUTH_PLAIN },
+#ifdef HAVE_CRYPT
+	{ "crypt", AUTH_CRYPT },
+#endif
+	{ "md5", AUTH_MD5 },
+	{ NULL }
 };
 
-static ConfSection bouncer_config [] = {
-{"pgbouncer", bouncer_params, NULL},
-{"databases", NULL, parse_database},
+static const struct CfLookup pool_mode_map[] = {
+	{ "session", POOL_SESSION },
+	{ "transaction", POOL_TX },
+	{ "statement", POOL_STMT },
+	{ NULL }
+};
+
+static const struct CfKey bouncer_params [] = {
+CF_ABS("job_name", CF_STR, cf_jobname, CF_NO_RELOAD, "pgbouncer"),
+#ifdef WIN32
+CF_ABS("service_name", CF_STR, cf_jobname, CF_NO_RELOAD, NULL), /* alias for job_name */
+#endif
+CF_ABS("conffile", CF_STR, cf_config_file, 0, NULL),
+CF_ABS("logfile", CF_STR, cf_logfile, 0, ""),
+CF_ABS("pidfile", CF_STR, cf_pidfile, CF_NO_RELOAD, ""),
+CF_ABS("listen_addr", CF_STR, cf_listen_addr, CF_NO_RELOAD, ""),
+CF_ABS("listen_port", CF_INT, cf_listen_port, CF_NO_RELOAD, "6432"),
+CF_ABS("listen_backlog", CF_INT, cf_listen_backlog, CF_NO_RELOAD, "128"),
+#ifndef WIN32
+CF_ABS("unix_socket_dir", CF_STR, cf_unix_socket_dir, CF_NO_RELOAD, "/tmp"),
+#endif
+CF_ABS("auth_type", CF_LOOKUP(auth_type_map), cf_auth_type, 0, "md5"),
+CF_ABS("auth_file", CF_STR, cf_auth_file, 0, "unconfigured_file"),
+CF_ABS("pool_mode", CF_LOOKUP(pool_mode_map), cf_pool_mode, 0, "session"),
+CF_ABS("max_client_conn", CF_INT, cf_max_client_conn, 0, "100"),
+CF_ABS("default_pool_size", CF_INT, cf_default_pool_size, 0, "20"),
+CF_ABS("reserve_pool_size", CF_INT, cf_res_pool_size, 0, "0"),
+CF_ABS("reserve_pool_timeout", CF_INT, cf_res_pool_timeout, 0, "5"),
+CF_ABS("syslog", CF_INT, cf_syslog, 0, "0"),
+CF_ABS("syslog_facility", CF_STR, cf_syslog_facility, 0, "daemon"),
+CF_ABS("syslog_ident", CF_STR, cf_syslog_ident, 0, "pgbouncer"),
+#ifndef WIN32
+CF_ABS("user", CF_STR, cf_username, CF_NO_RELOAD, NULL),
+#endif
+
+CF_ABS("autodb_idle_timeout", CF_TIME_USEC, cf_autodb_idle_timeout, 0, "3600"),
+
+CF_ABS("server_reset_query", CF_STR, cf_server_reset_query, 0, ""),
+CF_ABS("server_check_query", CF_STR, cf_server_check_query, 0, "select 1"),
+CF_ABS("server_check_delay", CF_TIME_USEC, cf_server_check_delay, 0, "30"),
+CF_ABS("query_timeout", CF_TIME_USEC, cf_query_timeout, 0, "0"),
+CF_ABS("query_wait_timeout", CF_TIME_USEC, cf_query_wait_timeout, 0, "0"),
+CF_ABS("client_idle_timeout", CF_TIME_USEC, cf_client_idle_timeout, 0, "0"),
+CF_ABS("client_login_timeout", CF_TIME_USEC, cf_client_login_timeout, 0, "60"),
+CF_ABS("server_lifetime", CF_TIME_USEC, cf_server_lifetime, 0, "3600"),
+CF_ABS("server_idle_timeout", CF_TIME_USEC, cf_server_idle_timeout, 0, "600"),
+CF_ABS("server_connect_timeout", CF_TIME_USEC, cf_server_connect_timeout, 0, "15"),
+CF_ABS("server_login_retry", CF_TIME_USEC, cf_server_login_retry, 0, "15"),
+CF_ABS("server_round_robin", CF_INT, cf_server_round_robin, 0, "0"),
+CF_ABS("suspend_timeout", CF_TIME_USEC, cf_suspend_timeout, 0, "10"),
+CF_ABS("ignore_startup_parameters", CF_STR, cf_ignore_startup_params, 0, ""),
+CF_ABS("disable_pqexec", CF_INT, cf_disable_pqexec, CF_NO_RELOAD, "0"),
+CF_ABS("dns_max_ttl", CF_TIME_USEC, cf_dns_max_ttl, 0, "15"),
+
+CF_ABS("pkt_buf", CF_INT, cf_sbuf_len, CF_NO_RELOAD, "2048"),
+CF_ABS("sbuf_loopcnt", CF_INT, cf_sbuf_loopcnt, 0, "5"),
+CF_ABS("tcp_defer_accept", DEFER_OPS, cf_tcp_defer_accept, 0, NULL),
+CF_ABS("tcp_socket_buffer", CF_INT, cf_tcp_socket_buffer, 0, "0"),
+CF_ABS("tcp_keepalive", CF_INT, cf_tcp_keepalive, 0, "0"),
+CF_ABS("tcp_keepcnt", CF_INT, cf_tcp_keepcnt, 0, "0"),
+CF_ABS("tcp_keepidle", CF_INT, cf_tcp_keepidle, 0, "0"),
+CF_ABS("tcp_keepintvl", CF_INT, cf_tcp_keepintvl, 0, "0"),
+CF_ABS("verbose", CF_INT, cf_verbose, 0, NULL),
+CF_ABS("admin_users", CF_STR, cf_admin_users, 0, ""),
+CF_ABS("stats_users", CF_STR, cf_stats_users, 0, ""),
+CF_ABS("stats_period", CF_INT, cf_stats_period, 0, "60"),
+CF_ABS("log_connections", CF_INT, cf_log_connections, 0, "1"),
+CF_ABS("log_disconnections", CF_INT, cf_log_disconnections, 0, "1"),
+CF_ABS("log_pooler_errors", CF_INT, cf_log_pooler_errors, 0, "1"),
 {NULL}
 };
 
-static const char *get_mode(ConfElem *elem)
+static const struct CfSect config_sects [] = {
+	{
+		.sect_name = "pgbouncer",
+		.key_list = bouncer_params,
+	}, {
+		.sect_name = "databases",
+		.set_key = parse_database,
+	}, {
+		.sect_name = NULL,
+	}
+};
+
+static struct CfContext main_config = { config_sects, };
+
+bool set_config_param(const char *key, const char *val)
 {
-	switch (cf_pool_mode) {
-	case POOL_STMT: return "statement";
-	case POOL_TX: return "transaction";
-	case POOL_SESSION: return "session";
-	default:
-		fatal("borken mode? should not happen");
-		return NULL;
+	return cf_set(&main_config, "pgbouncer", key, val);
+}
+
+void config_for_each(void (*param_cb)(void *arg, const char *name, const char *val, bool reloadable),
+		     void *arg)
+{
+	const struct CfKey *k = bouncer_params;
+	char buf[256];
+	bool reloadable;
+	const char *val;
+	int ro = CF_NO_RELOAD | CF_READONLY;
+
+	for (; k->key_name; k++) {
+		val = cf_get(&main_config, "pgbouncer", k->key_name, buf, sizeof(buf));
+		reloadable = (k->flags & ro) == 0;
+		param_cb(arg, k->key_name, val, reloadable);
 	}
 }
 
-static bool set_mode(ConfElem *elem, const char *val, PgSocket *console)
+static bool set_defer_accept(struct CfValue *cv, const char *val)
 {
-	if (strcasecmp(val, "session") == 0)
-		cf_pool_mode = POOL_SESSION;
-	else if (strcasecmp(val, "transaction") == 0)
-		cf_pool_mode = POOL_TX;
-	else if (strcasecmp(val, "statement") == 0)
-		cf_pool_mode = POOL_STMT;
-	else {
-		admin_error(console, "bad mode: %s", val);
-		return false;
-	}
-	return true;
-}
-
-static const char *get_auth(ConfElem *elem)
-{
-	switch (cf_auth_type) {
-	case AUTH_ANY: return "any";
-	case AUTH_TRUST: return "trust";
-	case AUTH_PLAIN: return "plain";
-	case AUTH_CRYPT: return "crypt";
-	case AUTH_MD5: return "md5";
-	default:
-		fatal("borken auth? should not happen");
-		return NULL;
-	}
-}
-
-static bool set_auth(ConfElem *elem, const char *val, PgSocket *console)
-{
-	if (strcasecmp(val, "any") == 0)
-		cf_auth_type = AUTH_ANY;
-	else if (strcasecmp(val, "trust") == 0)
-		cf_auth_type = AUTH_TRUST;
-	else if (strcasecmp(val, "plain") == 0)
-		cf_auth_type = AUTH_PLAIN;
-#ifdef HAVE_CRYPT
-	else if (strcasecmp(val, "crypt") == 0)
-		cf_auth_type = AUTH_CRYPT;
-#endif
-	else if (strcasecmp(val, "md5") == 0)
-		cf_auth_type = AUTH_MD5;
-	else {
-		admin_error(console, "bad auth type: %s", val);
-		return false;
-	}
-	return true;
-}
-
-static bool set_defer_accept(ConfElem *elem, const char *val, PgSocket *console)
-{
+	int *p = cv->value_p;
 	bool ok;
-	int oldval = cf_tcp_defer_accept;
-	ok = cf_set_int(elem, val, console);
-	if (ok && !!oldval != !!cf_tcp_defer_accept)
-		pooler_tune_accept(cf_tcp_defer_accept);
-	return true;
+	int oldval = *p;
+	ok = cf_set_int(cv, val);
+	if (ok && !!oldval != !!*p)
+		pooler_tune_accept(*p);
+	return ok;
 }
 
 static void set_dbs_dead(bool flag)
@@ -298,14 +279,14 @@ static void set_dbs_dead(bool flag)
 }
 
 /* config loading, tries to be tolerant to errors */
-void load_config(bool reload)
+void load_config(void)
 {
 	bool ok;
 
 	set_dbs_dead(true);
 
 	/* actual loading */
-	ok = iniparser(cf_config_file, bouncer_config, reload);
+	ok = cf_load_file(&main_config, cf_config_file);
 	if (ok) {
 		/* load users if needed */
 		if (cf_auth_type >= AUTH_TRUST)
@@ -319,7 +300,7 @@ void load_config(bool reload)
 	}
 
 	/* reopen logfile */
-	if (reload)
+	if (main_config.loaded)
 		reset_logging();
 }
 
@@ -392,7 +373,7 @@ static void handle_sigusr2(int sock, short flags, void *arg)
 static void handle_sighup(int sock, short flags, void *arg)
 {
 	log_info("Got SIGHUP re-reading config");
-	load_config(true);
+	load_config();
 }
 #endif
 
@@ -715,19 +696,23 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Need config file.  See pgbouncer -h for usage.\n");
 		exit(1);
 	}
-	cf_config_file = argv[optind];
+	cf_config_file = xstrdup(argv[optind]);
 
 	init_objects();
-	load_config(false);
+	load_config();
+	main_config.loaded = true;
 	init_caches();
 	logging_prefix_cb = log_socket_prefix;
 
 	/* prefer cmdline over config for username */
-	if (arg_username)
-		cf_username = arg_username;
+	if (arg_username) {
+		if (cf_username)
+			free(cf_username);
+		cf_username = xstrdup(arg_username);
+	}
 
 	/* switch user is needed */
-	if (*cf_username)
+	if (cf_username && *cf_username)
 		change_user(cf_username);
 
 	/* disallow running as root */

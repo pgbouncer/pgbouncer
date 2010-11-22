@@ -215,12 +215,14 @@ static bool fake_set(PgSocket *admin, const char *key, const char *val)
 static bool admin_set(PgSocket *admin, const char *key, const char *val)
 {
 	char tmp[512];
+	bool ok;
 
 	if (fake_set(admin, key, val))
 		return true;
 
 	if (admin->admin_user) {
-		if (set_config_param(bouncer_params, key, val, true, admin)) {
+		ok = set_config_param(key, val);
+		if (ok) {
 			snprintf(tmp, sizeof(tmp), "SET %s=%s", key, val);
 			return admin_ready(admin, tmp);
 		} else {
@@ -752,11 +754,16 @@ static bool admin_show_mem(PgSocket *admin, const char *arg)
 	return true;
 }
 
+static void show_one_param(void *arg, const char *name, const char *val, bool reloadable)
+{
+	PktBuf *buf = arg;
+	pktbuf_write_DataRow(buf, "sss", name, val,
+			     reloadable ? "yes" : "no");
+}
+
 /* Command: SHOW CONFIG */
 static bool admin_show_config(PgSocket *admin, const char *arg)
 {
-	ConfElem *cf;
-	int i = 0;
 	PktBuf *buf;
 
 	buf = pktbuf_dynamic(256);
@@ -766,16 +773,11 @@ static bool admin_show_config(PgSocket *admin, const char *arg)
 	}
 
 	pktbuf_write_RowDescription(buf, "sss", "key", "value", "changeable");
-	while (1) {
-		cf = &bouncer_params[i++];
-		if (!cf->name)
-			break;
 
-		pktbuf_write_DataRow(buf, "sss",
-				     cf->name, conf_to_text(cf),
-				     cf->reloadable ? "yes" : "no");
-	}
+	config_for_each(show_one_param, buf);
+
 	admin_flush(admin, buf, "SHOW");
+
 	return true;
 }
 
@@ -789,7 +791,7 @@ static bool admin_cmd_reload(PgSocket *admin, const char *arg)
 		return admin_error(admin, "admin access needed");
 
 	log_info("RELOAD command issued");
-	load_config(true);
+	load_config();
 	return admin_ready(admin, "RELOAD");
 }
 

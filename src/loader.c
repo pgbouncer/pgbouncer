@@ -156,7 +156,7 @@ static void set_connect_query(PgDatabase *db, const char *new)
 		log_error("no memory, cannot assign connect_query for %s", db->name);
 }
 
-static void set_autodb(char *connstr)
+static void set_autodb(const char *connstr)
 {
 	char *tmp = strdup(connstr);
 	if (!tmp) {
@@ -169,7 +169,7 @@ static void set_autodb(char *connstr)
 }
 
 /* fill PgDatabase from connstr */
-void parse_database(char *name, char *connstr)
+bool parse_database(void *base, const char *name, const char *connstr)
 {
 	char *p, *key, *val;
 	PktBuf *msg;
@@ -178,7 +178,8 @@ void parse_database(char *name, char *connstr)
 	int res_pool_size = -1;
 	int dbname_ofs;
 
-	char *dbname = name;
+	char *tmp_connstr;
+	const char *dbname = name;
 	char *host = NULL;
 	char *port = "5432";
 	char *username = NULL;
@@ -193,15 +194,19 @@ void parse_database(char *name, char *connstr)
 
 	if (strcmp(name, "*") == 0) {
 		set_autodb(connstr);
-		return;
+		return true;
 	}
 
-	p = connstr;
+	tmp_connstr = strdup(connstr);
+	if (!tmp_connstr)
+		return false;
+
+	p = tmp_connstr;
 	while (*p) {
 		p = cstr_get_pair(p, &key, &val);
 		if (p == NULL) {
 			log_error("%s: syntax error in connstring", name);
-			return;
+			goto fail;
 		} else if (!key[0])
 			break;
 
@@ -232,7 +237,7 @@ void parse_database(char *name, char *connstr)
 		else {
 			log_error("skipping database %s because"
 				  " of unknown parameter in connstring: %s", name, key);
-			return;
+			goto fail;
 		}
 	}
 
@@ -241,13 +246,13 @@ void parse_database(char *name, char *connstr)
 	if (v_port == 0) {
 		log_error("skipping database %s because"
 			  " of bad port: %s", name, port);
-		return;
+		goto fail;
 	}
 
 	db = add_database(name);
 	if (!db) {
 		log_error("cannot create database, no memory?");
-		return;
+		goto fail;
 	}
 
 	/* host= */
@@ -255,7 +260,7 @@ void parse_database(char *name, char *connstr)
 		host = strdup(host);
 		if (!host) {
 			log_error("failed to allocate host=");
-			return;
+			goto fail;
 		}
 	}
 	if (!host) {
@@ -263,7 +268,7 @@ void parse_database(char *name, char *connstr)
 		if (!*cf_unix_socket_dir) {
 			log_error("skipping database %s because"
 				" unix socket not configured", name);
-			return;
+			goto fail;
 		}
 	}
 
@@ -355,6 +360,11 @@ void parse_database(char *name, char *connstr)
 
 	/* remember dbname */
 	db->dbname = (char *)msg->buf + dbname_ofs;
+	free(tmp_connstr);
+	return true;
+fail:
+	free(tmp_connstr);
+	return true;
 }
 
 /*
@@ -510,250 +520,6 @@ bool load_auth_file(const char *fn)
 	}
 	free(buf);
 
-	return true;
-}
-
-/*
- * Config parameter handling.
- */
-
-bool cf_set_int(ConfElem *elem, const char *val, PgSocket *console)
-{
-	int *int_p = elem->dst;
-	if (*val < '0' || *val > '9') {
-		admin_error(console, "bad value: %s", val);
-		return false;
-	}
-	*int_p = atoi(val);
-	return true;
-}
-
-const char *cf_get_int(ConfElem *elem)
-{
-	static char numbuf[32];
-	int val;
-
-	val = *(int *)elem->dst;
-	snprintf(numbuf, sizeof(numbuf), "%d", val);
-	return numbuf;
-}
-bool cf_set_time(ConfElem *elem, const char *val, PgSocket *console)
-{
-	usec_t *time_p = elem->dst;
-	if (*val < '0' || *val > '9') {
-		admin_error(console, "bad value: %s", val);
-		return false;
-	}
-	*time_p = USEC * (usec_t)atoi(val);
-	return true;
-}
-
-const char *cf_get_time(ConfElem *elem)
-{
-	static char numbuf[32];
-	usec_t val;
-
-	val = *(usec_t *)elem->dst;
-	snprintf(numbuf, sizeof(numbuf), "%d", (int)(val / USEC));
-	return numbuf;
-}
-
-bool cf_set_str(ConfElem *elem, const char *val, PgSocket *console)
-{
-	char **str_p = elem->dst;
-	char *tmp;
-
-	/* don't touch if not changed */
-	if (*str_p && strcmp(*str_p, val) == 0)
-		return true;
-
-	/* if dynamically allocated, free it */
-	if (elem->allocated)
-		free(*str_p);
-
-	tmp = strdup(val);
-	if (!tmp)
-		return false;
-
-	*str_p = tmp;
-	elem->allocated = true;
-	return true;
-}
-
-const char * cf_get_str(ConfElem *elem)
-{
-	return *(char **)elem->dst;
-}
-
-bool set_config_param(ConfElem *elem_list,
-		      const char *key, const char *val,
-		      bool reload, PgSocket *console)
-{
-	ConfElem *desc;
-
-	for (desc = elem_list; desc->name; desc++) {
-		if (strcasecmp(key, desc->name) != 0)
-			continue;
-	
-		/* if reload not allowed, skip it */
-		if (reload && !desc->reloadable) {
-			if (console)
-				admin_error(console,
-					"%s cannot be changed online", key);
-			return false;
-		}
-
-		/* got config, parse it */
-		return desc->io.fn_set(desc, val, console);
-	}
-	return false;
-}
-
-static void map_config(ConfSection *sect, char *key, char *val, bool reload)
-{
-	if (sect == NULL)
-		return;
-
-	if (sect->data_fn)
-		sect->data_fn(key, val);
-	else
-		set_config_param(sect->elem_list, key, val, reload, NULL);
-}
-
-const char *conf_to_text(ConfElem *elem)
-{
-	return elem->io.fn_get(elem);
-}
-
-static ConfSection *find_section(ConfSection *sect, const char *name)
-{
-	for (; sect->name; sect++)
-		if (strcasecmp(sect->name, name) == 0)
-			return sect;
-	log_warning("unknown section in config: %s", name);
-	return NULL;
-}
-
-/*
- * INI file parser.
- */
-
-static int count_lines(const char *s, const char *end)
-{
-	int lineno = 1;
-	for (; s < end; s++) {
-		if (*s == '\n')
-			lineno++;
-	}
-	return lineno;
-}
-
-static bool unquote_ident(char **src_p, char *dst, int dstlen)
-{
-	char *src = *src_p;
-	char *end = dst + dstlen;
-	if (*src++ != '"')
-		return false;
-	while (*src && dst < end) {
-		if (src[0] == '"') {
-			if (src[1] != '"')
-				break;
-			src++;
-		}
-		*dst++ = *src++;
-	}
-	if (*src != '"' || dst >= end)
-		return false;
-	*dst = 0;
-	*src_p = src + 1;
-	return true;
-}
-
-bool iniparser(const char *fn, ConfSection *sect_list, bool reload)
-{
-	char *buf;
-	char *p, *key, *val;
-	int klen, vlen;
-	ConfSection *cur_section = NULL;
-	char keybuf[MAX_DBNAME*2];
-
-	buf = load_file(fn, NULL);
-	if (buf == NULL) {
-		if (!reload)
-			exit(1);
-		else
-			return false;
-	}
-
-	p = buf;
-	while (*p) {
-		/* space at the start of line - including empty lines */
-		while (*p && isspace(*p)) p++;
-
-		/* skip comment lines */
-		if (*p == '#' || *p == ';') {
-			while (*p && *p != '\n') p++;
-			continue;
-		}
-		/* got new section */
-		if (*p == '[') {
-			key = ++p;
-			while (*p && *p != ']' && *p != '\n') p++;
-			if (*p != ']')
-				goto syntax_error;
-			*p++ = 0;
-
-			cur_section = find_section(sect_list, key);
-			continue;
-		}
-
-		/* done? */
-		if (*p == 0) break;
-
-		/* read key val */
-		if (*p == '"') {
-			if (!unquote_ident(&p, keybuf, sizeof(keybuf)))
-				goto syntax_error;
-			key = keybuf;
-			klen = strlen(keybuf);
-		} else {
-			key = p;
-			while (*p && (isalnum(*p) || strchr("_.-*", *p))) p++;
-			klen = p - key;
-		}
-
-		/* expect '=', skip it */
-		while (*p && (*p == ' ' || *p == '\t')) p++;
-		if (*p != '=') {
-			goto syntax_error;
-		} else
-			p++;
-		while (*p && (*p == ' ' || *p == '\t')) p++;
-
-		/* now read value */
-		val = p;
-		while (*p && (*p != '\n'))
-			p++;
-		vlen = p - val;
-		/* eat space at end */
-		while (vlen > 0 && isspace(val[vlen - 1]))
-			vlen--;
-
-		/* skip junk */
-		while (*p && isspace(*p)) p++;
-
-		/* our buf is r/w, so take it easy */
-		key[klen] = 0;
-		val[vlen] = 0;
-		map_config(cur_section, key, val, reload);
-	}
-
-	free(buf);
-	return true;
-
-syntax_error:
-	log_error("syntax error in configuration (%s:%d), stopping loading", fn, count_lines(buf, p));
-	free(buf);
 	return true;
 }
 

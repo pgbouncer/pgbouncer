@@ -16,24 +16,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#if 1
-
-/* pick dns implementation */
-#ifdef EV_ET
-#define USE_LIBEVENT2
-#else
-#ifdef HAVE_GETADDRINFO_A
-#define USE_GETADDRINFO_A
-#else
-#define USE_LIBEVENT1
-#endif
-#endif
-
-#else
-#define USE_LIBEVENT2
-#endif
-
-
 struct DNSContext;
 struct DNSToken;
 

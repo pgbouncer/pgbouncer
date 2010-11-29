@@ -75,6 +75,17 @@ AC_CHECK_FUNCS(crypt lstat)
 dnl Find libevent
 AC_USUAL_LIBEVENT
 
+use_evdns=no
+AC_ARG_ENABLE(evdns, AC_HELP_STRING([--enable-evdns],[Use libevent for DNS lookups]),
+              [use_evdns=yes])
+AC_MSG_CHECKING([whether to use libevent for DNS lookups])
+if test "$use_evdns" = "yes"; then
+  AC_DEFINE(USE_EVDNS, 1, [Use libevent for DNS lookups.])
+  AC_MSG_RESULT([yes])
+else
+  AC_MSG_RESULT([no])
+fi
+
 AC_USUAL_DEBUG
 AC_USUAL_CASSERT
 AC_USUAL_WERROR

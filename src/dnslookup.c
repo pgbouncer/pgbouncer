@@ -24,21 +24,30 @@
  * libevent2 - does not return TTL, uses hosts file.
  */
 
-#ifdef USE_GETADDRINFO_A
-/* getaddrinfo_a */
-#include <netdb.h>
-#include <signal.h>
-#endif
+#include <usual/netdb.h>
 
-#ifdef USE_LIBEVENT2
+#ifndef USE_EVDNS
+
+/* getaddrinfo_a */
+#define USE_GETADDRINFO_A
+
+#else
+
+#ifdef EV_ET
+
+/* libevent 2 */
+#define USE_LIBEVENT2
 #include <event2/dns.h>
 #define addrinfo evutil_addrinfo
 #define freeaddrinfo evutil_freeaddrinfo
-#endif
 
-#ifdef USE_LIBEVENT1
+#else
+
 /* libevent 1 */
+#define USE_LIBEVENT1
 #include <evdns.h>
+
+#endif
 #endif
 
 

@@ -73,7 +73,7 @@ AC_SEARCH_LIBS(hstrerror, resolv)
 AC_CHECK_FUNCS(crypt lstat)
 
 dnl Find libevent
-AC_USUAL_LIBEVENT(1)
+AC_USUAL_LIBEVENT
 
 AC_USUAL_DEBUG
 AC_USUAL_CASSERT

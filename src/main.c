@@ -298,7 +298,7 @@ void load_config(void)
 	}
 
 	/* reset pool_size, kill dbs */
-	config_postprocess()
+	config_postprocess();
 
 	/* reopen logfile */
 	if (main_config.loaded)

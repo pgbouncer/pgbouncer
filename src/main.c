@@ -291,13 +291,14 @@ void load_config(void)
 		/* load users if needed */
 		if (cf_auth_type >= AUTH_TRUST)
 			load_auth_file(cf_auth_file);
-
-		/* reset pool_size, kill dbs */
-		config_postprocess();
 	} else {
+		log_warning("Config file loading failed");
 		/* if ini file missing, dont kill anybody */
 		set_dbs_dead(false);
 	}
+
+	/* reset pool_size, kill dbs */
+	config_postprocess()
 
 	/* reopen logfile */
 	if (main_config.loaded)

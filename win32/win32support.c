@@ -264,7 +264,7 @@ static void win32_load_config(char *conf)
 {
 	cf_config_file = conf;
 	init_objects();
-	load_config(false);
+	load_config();
 }
 
 /*

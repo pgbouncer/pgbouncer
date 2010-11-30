@@ -263,14 +263,6 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			goto fail;
 		}
 	}
-	if (!host) {
-		/* default unix socket dir */
-		if (!*cf_unix_socket_dir) {
-			log_error("skipping database %s because"
-				" unix socket not configured", name);
-			goto fail;
-		}
-	}
 
 	/* tag the db as alive */
 	db->db_dead = 0;

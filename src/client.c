@@ -114,13 +114,15 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 		if (!ok)
 			break;
 
-		if (strcmp(key, "database") == 0)
-			dbname = val;
-		else if (strcmp(key, "user") == 0)
-			username = val;
-		else if (varcache_set(&client->vars, key, val))
+		if (strcmp(key, "database") == 0) {
 			slog_debug(client, "got var: %s=%s", key, val);
-		else if (strlist_contains(cf_ignore_startup_params, key)) {
+			dbname = val;
+		} else if (strcmp(key, "user") == 0) {
+			slog_debug(client, "got var: %s=%s", key, val);
+			username = val;
+		} else if (varcache_set(&client->vars, key, val)) {
+			slog_debug(client, "got var: %s=%s", key, val);
+		} else if (strlist_contains(cf_ignore_startup_params, key)) {
 			slog_debug(client, "ignoring startup parameter: %s=%s", key, val);
 		} else {
 			slog_warning(client, "unsupported startup parameter: %s=%s", key, val);

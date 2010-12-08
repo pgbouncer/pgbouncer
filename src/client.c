@@ -130,14 +130,14 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 			return false;
 		}
 	}
-	if (!username) {
+	if (!username || !username[0]) {
 		disconnect_client(client, true, "No username supplied");
 		return false;
 	}
-	if (!dbname) {
-		disconnect_client(client, true, "No database supplied");
-		return false;
-	}
+
+	/* if missing dbname, default to username */
+	if (!dbname || !dbname[0])
+		dbname = username;
 
 	/* check if limit allows, dont limit admin db
 	   nb: new incoming conn will be attached to PgSocket, thus

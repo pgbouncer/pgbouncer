@@ -156,6 +156,7 @@ struct FakeParam {
 static const struct FakeParam fake_param_list[] = {
 	{ "client_encoding", "UTF-8" },
 	{ "default_transaction_isolation", "read committed" },
+	{ "standard_conforming_strings", "on" },
 	{ "datestyle", "ISO" },
 	{ "timezone", "GMT" },
 	{ NULL },
@@ -1185,6 +1186,9 @@ void admin_setup(void)
 	pktbuf_write_ParameterStatus(msg, "server_version", "8.0/bouncer");
 	pktbuf_write_ParameterStatus(msg, "client_encoding", "UNICODE");
 	pktbuf_write_ParameterStatus(msg, "server_encoding", "SQL_ASCII");
+	pktbuf_write_ParameterStatus(msg, "DateStyle", "ISO");
+	pktbuf_write_ParameterStatus(msg, "TimeZone", "GMT");
+	pktbuf_write_ParameterStatus(msg, "standard_conforming_strings", "on");
 	pktbuf_write_ParameterStatus(msg, "is_superuser", "on");
 
 	if (msg->failed)

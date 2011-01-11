@@ -31,8 +31,8 @@ struct var_lookup {
 
 static const struct var_lookup lookup [] = {
  {"client_encoding",             VClientEncoding },
- {"datestyle",                   VDateStyle },
- {"timezone",                    VTimeZone },
+ {"DateStyle",                   VDateStyle },
+ {"TimeZone",                    VTimeZone },
  {"standard_conforming_strings", VStdStr },
  {"application_name",            VAppName },
  {NULL},

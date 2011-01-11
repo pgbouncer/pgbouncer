@@ -1,4 +1,4 @@
-2010-xx-xx  -  PgBouncer 1.4  -  ""
+2011-01-11  -  PgBouncer 1.4  -  "Gore Code"
 
   = Features =
 
@@ -11,8 +11,7 @@
 
       When --enable-evdns argument to configure, libevent's evdns is used
       as backend.  It is not used by default, because libevent 1.3/1.4
-      contain quite broken implementation.  Only evdns in libevent 2.0
-      seems reliable enough.
+      contain buggy implementation.  Only evdns in libevent 2.0 seems OK.
 
     * New config var: syslog_ident, to tune syslog name.
 
@@ -25,6 +24,15 @@
     * New config var: disable_pqexec.  Highly-paranoid environments
       can disable Simple Query Protocol with that.  Requires apps
       that use only Extended Query Protocol.
+
+    * Postgres compat: if database name is empty in startup packet,
+      use user name as database.
+
+  = Fixes =
+
+    * DateStyle and TimeZone server params need to use exact case.
+
+    * Console: send datetime, timezone and stdstr server params to client.
 
   = Internal cleanups =
 

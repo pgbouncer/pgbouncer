@@ -178,8 +178,8 @@ test_server_login_retry() {
 test_server_connect_timeout_establish() {
 	which nc >/dev/null || return 1
 
-	echo nc -l -p $NC_PORT
-	nc -l -p $NC_PORT >/dev/null &
+	echo nc -q 5 -l $NC_PORT
+	nc -l -q 5 $NC_PORT >/dev/null &
 	sleep 2
 	admin "set query_timeout=3"
 	admin "set server_connect_timeout=2"

@@ -8,7 +8,7 @@ HDRS = client.h loader.h objects.h pooler.h proto.h sbuf.h server.h util.h \
        varcache.h iobuf.h dnslookup.h
 
 # data & dirs to include in tgz
-DOCS = doc/overview.txt doc/usage.txt doc/config.txt doc/todo.txt
+DOCS = doc/overview.txt doc/usage.txt doc/config.txt doc/todo.txt doc/faq.txt
 MANPAGES = doc/pgbouncer.1 doc/pgbouncer.5
 DATA = README NEWS AUTHORS COPYRIGHT etc/pgbouncer.ini etc/userlist.txt Makefile \
        config.mak.in etc/mkauth.py \

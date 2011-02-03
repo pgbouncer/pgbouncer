@@ -2,7 +2,6 @@
 
 == Slightly urgent features ==
 
- * move to libusual
  * auth_conn - access to pg_shadow, so auth_file is not needed.
    [ flat-text files are gone in 8.5+ ]
  * per_loop_maint/per_loop_activate take too much time in case
@@ -19,8 +18,6 @@
 
 == Minor features ==
 
- * duplication: format_time vs. render_time
-   - avoid localtime? (libc stat)
  * set server_reset_query = '';
  * check if SQL error codes are correct
  * removing user should work - kill connections
@@ -61,7 +58,6 @@
 === prepared plans ===
 
  * keeping track of protocol-level prepared plans
-   - JDBC workaround in the meantime: protocolVersion=2
 
 === load-balancing ===
 

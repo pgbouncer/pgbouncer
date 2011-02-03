@@ -533,7 +533,5 @@ authentication files in the Postgres data directory.
 
 pgbouncer(1) - manpage for general usage, console commands.
 
-http://pgbouncer.projects.postgresql.org/doc/[]
-
-https://developer.skype.com/SkypeGarage/DbProjects/PgBouncer[]
+http://wiki.postgresql.org/wiki/PgBouncer[]
 

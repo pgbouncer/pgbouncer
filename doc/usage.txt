@@ -464,7 +464,5 @@ From libevent docs:
 
 pgbouncer(5) - manpage of configuration settings descriptions.
 
-http://pgbouncer.projects.postgresql.org/doc/[]
-
-https://developer.skype.com/SkypeGarage/DbProjects/PgBouncer[]
+http://wiki.postgresql.org/wiki/PgBouncer[]
 

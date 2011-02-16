@@ -587,7 +587,7 @@ static bool check_old_process_unix(void)
 	int domain = AF_UNIX;
 	int res, fd;
 
-	if (!*cf_unix_socket_dir)
+	if (!cf_unix_socket_dir || !*cf_unix_socket_dir)
 		return false;
 
 	memset(&sa_un, 0, len);
@@ -627,7 +627,7 @@ static void takeover_part1(void)
 	/* use temporary libevent base */
 	void *evtmp = event_init();
 
-	if (!*cf_unix_socket_dir)
+	if (!cf_unix_socket_dir || !*cf_unix_socket_dir)
 		fatal("cannot reboot if unix dir not configured");
 
 	takeover_init();

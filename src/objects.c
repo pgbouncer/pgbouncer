@@ -884,6 +884,11 @@ static void dns_connect(struct PgSocket *server)
 		memset(&sa_un, 0, sizeof(sa_un));
 		sa_un.sun_family = AF_UNIX;
 		unix_dir = host ? host : cf_unix_socket_dir;
+		if (!unix_dir || !*unix_dir) {
+			log_error("Unix socket dir not configured: %s", db->name);
+			disconnect_server(server, false, "cannot connect");
+			return;
+		}
 		snprintf(sa_un.sun_path, sizeof(sa_un.sun_path),
 			 "%s/.s.PGSQL.%d", unix_dir, db->port);
 		sa = (struct sockaddr *)&sa_un;

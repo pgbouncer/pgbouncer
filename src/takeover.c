@@ -111,12 +111,10 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 		  client_enc ? client_enc : "NULL");
 
 	/* fill address */
-	addr.is_unix = strcmp(saddr, "unix") == 0 ? true : false;
-	if (addr.is_unix) {
-		addr.port = cf_listen_port;
+	if (strcmp(saddr, "unix") == 0) {
+		pga_set(&addr, AF_UNIX, cf_listen_port);
 	} else {
-		addr.ip_addr.s_addr = inet_addr(saddr);
-		addr.port = port;
+		pga_pton(&addr, saddr, port);
 	}
 
 	/* decide what to do with it */
@@ -127,7 +125,7 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 		res = use_server_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
 				  client_enc, std_string, datestyle, timezone);
 	else if (strcmp(task, "pooler") == 0)
-		res = use_pooler_socket(fd, addr.is_unix);
+		res = use_pooler_socket(fd, pga_is_unix(&addr));
 	else
 		fatal("unknown task: %s", task);
 

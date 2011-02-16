@@ -266,7 +266,7 @@ static bool send_one_fd(PgSocket *admin,
 	msg.msg_iovlen = 1;
 
 	/* attach a fd */
-	if (admin->remote_addr.is_unix && admin->own_user) {
+	if (pga_is_unix(&admin->remote_addr) && admin->own_user) {
 		msg.msg_control = cntbuf;
 		msg.msg_controllen = sizeof(cntbuf);
 
@@ -303,17 +303,19 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	const struct PStr *std_strings = v->var_list[VStdStr];
 	const struct PStr *datestyle = v->var_list[VDateStyle];
 	const struct PStr *timezone = v->var_list[VTimeZone];
+	char addrbuf[PGADDR_BUF];
 
 	mbuf_init_fixed_reader(&tmp, sk->cancel_key, 8);
 	if (!mbuf_get_uint64be(&tmp, &ckey))
 		return false;
 
+
 	return send_one_fd(admin, sbuf_socket(&sk->sbuf),
 			   is_server_socket(sk) ? "server" : "client",
 			   sk->auth_user ? sk->auth_user->name : NULL,
 			   sk->pool ? sk->pool->db->name : NULL,
-			   addr->is_unix ? "unix" : inet_ntoa(addr->ip_addr),
-			   addr->port,
+			   pga_ntop(addr, addrbuf, sizeof(addrbuf)),
+			   pga_port(addr),
 			   ckey,
 			   sk->link ? sbuf_socket(&sk->link->sbuf) : 0,
 			   client_encoding ? client_encoding->str : NULL,
@@ -510,12 +512,7 @@ static void socket_header(PktBuf *buf, bool debug)
 
 static void adr2txt(const PgAddr *adr, char *dst, unsigned dstlen)
 {
-	if (adr->is_unix) {
-		safe_strcpy(dst, "unix", dstlen);
-	} else {
-		char *tmp = inet_ntoa(adr->ip_addr);
-		safe_strcpy(dst, tmp, dstlen);
-	}
+	pga_ntop(adr, dst, dstlen);
 }
 
 static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
@@ -543,8 +540,8 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 			     is_server_socket(sk) ? "S" :"C",
 			     sk->auth_user ? sk->auth_user->name : "(nouser)",
 			     sk->pool ? sk->pool->db->name : "(nodb)",
-			     state, r_addr, sk->remote_addr.port,
-			     l_addr, sk->local_addr.port,
+			     state, r_addr, pga_port(&sk->remote_addr),
+			     l_addr, pga_port(&sk->local_addr),
 			     sk->connect_time,
 			     sk->request_time,
 			     ptrbuf, linkbuf,
@@ -1114,7 +1111,7 @@ bool admin_pre_login(PgSocket *client)
 	client->own_user = 0;
 
 	/* tag same uid as special */
-	if (client->remote_addr.is_unix) {
+	if (pga_is_unix(&client->remote_addr)) {
 		res = getpeereid(sbuf_socket(&client->sbuf), &peer_uid, &peer_gid);
 		if (res >= 0 && peer_uid == getuid()
 			&& strcmp("pgbouncer", username) == 0)

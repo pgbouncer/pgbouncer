@@ -824,12 +824,9 @@ static void connect_server(struct PgSocket *server, const struct sockaddr *sa, i
 	/* fill remote_addr */
 	memset(&server->remote_addr, 0, sizeof(server->remote_addr));
 	if (sa->sa_family == AF_UNIX) {
-		server->remote_addr.port = server->pool->db->port;
-		server->remote_addr.is_unix = true;
-	} else if (sa->sa_family == AF_INET) {
-		struct sockaddr_in *in = (struct sockaddr_in *)sa;
-		server->remote_addr.port = ntohs(in->sin_port);
-		server->remote_addr.ip_addr = in->sin_addr;
+		pga_set(&server->remote_addr, AF_UNIX, server->pool->db->port);
+	} else {
+		pga_copy(&server->remote_addr, sa);
 	}
 
 	if (cf_log_connections)
@@ -873,6 +870,7 @@ static void dns_connect(struct PgSocket *server)
 {
 	struct sockaddr_un sa_un;
 	struct sockaddr_in sa_in;
+	struct sockaddr_in6 sa_in6;
 	struct sockaddr *sa;
 	struct PgDatabase *db = server->pool->db;
 	const char *host = db->host;
@@ -893,7 +891,15 @@ static void dns_connect(struct PgSocket *server)
 			 "%s/.s.PGSQL.%d", unix_dir, db->port);
 		sa = (struct sockaddr *)&sa_un;
 		sa_len = sizeof(sa_un);
-	} else if (host[0] >= '0' && host[0] <= '9') {
+	} else if (strchr(host, ':')) {  // assume IPv6 address on any : in addr
+		slog_noise(server, "inet6 socket: %s", db->host);
+		memset(&sa_in6, 0, sizeof(sa_in6));
+		sa_in6.sin6_family = AF_INET6;
+		inet_pton(AF_INET6, db->host, (void *) sa_in6.sin6_addr.s6_addr);
+		sa_in6.sin6_port = htons(db->port);
+		sa = (struct sockaddr *)&sa_in6;
+		sa_len = sizeof(sa_in6);
+	} else if (host[0] >= '0' && host[0] <= '9') { // else try IPv4
 		slog_noise(server, "inet socket: %s", db->host);
 		memset(&sa_in, 0, sizeof(sa_in));
 		sa_in.sin_family = AF_INET;
@@ -1125,7 +1131,7 @@ bool use_client_socket(int fd, PgAddr *addr,
 	PgSocket *client;
 	PktBuf tmp;
 
-	client = accept_client(fd, NULL, addr->is_unix);
+	client = accept_client(fd, NULL, pga_is_unix(addr));
 	if (client == NULL)
 		return false;
 	client->suspended = 1;
@@ -1184,7 +1190,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 	if (!server)
 		return false;
 
-	res = sbuf_accept(&server->sbuf, fd, addr->is_unix);
+	res = sbuf_accept(&server->sbuf, fd, pga_is_unix(addr));
 	if (!res)
 		return false;
 
@@ -1194,8 +1200,8 @@ bool use_server_socket(int fd, PgAddr *addr,
 	server->connect_time = server->request_time = get_cached_time();
 	server->query_start = 0;
 
-	fill_remote_addr(server, fd, addr->is_unix);
-	fill_local_addr(server, fd, addr->is_unix);
+	fill_remote_addr(server, fd, pga_is_unix(addr));
+	fill_local_addr(server, fd, pga_is_unix(addr));
 
 	if (linkfd) {
 		server->ready = 0;

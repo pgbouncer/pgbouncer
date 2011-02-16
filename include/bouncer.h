@@ -131,14 +131,30 @@ extern int cf_sbuf_len;
 /* buffer size for startup noise */
 #define STARTUP_BUF	1024
 
+
 /*
  * Remote/local address
  */
+
+/* buffer for pgaddr string conversions */
+#define PGADDR_BUF  INET6_ADDRSTRLEN
+
 struct PgAddr {
-	struct in_addr ip_addr;
+	unsigned char  af;
 	unsigned short port;
-	bool is_unix;
+	union {
+		struct in_addr addr4;
+		struct in6_addr addr6;
+	};
 };
+
+static inline bool pga_is_unix(const PgAddr *a) { return a->af == AF_UNIX; }
+static inline int pga_port(const PgAddr *a) { return a->port; }
+
+void pga_set(PgAddr *a, int fam, int port);
+void pga_copy(PgAddr *a, const struct sockaddr *sa);
+const char *pga_ntop(const PgAddr *a, char *dst, int dstlen);
+bool pga_pton(PgAddr *a, const char *s, int port);
 
 /*
  * Stats, kept per-pool.

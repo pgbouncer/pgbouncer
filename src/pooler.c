@@ -24,6 +24,10 @@
 
 static int fd_net = 0;
 static int fd_unix = 0;
+#ifdef HAVE_IPV6
+static int fd_net_v6 = 0;
+#endif
+
 
 static struct event ev_net;
 static struct event ev_unix;
@@ -159,26 +163,48 @@ void pooler_tune_accept(bool on)
 static int create_net_socket(const char *listen_addr, int listen_port)
 {
 	int sock;
-	struct sockaddr_in sa;
+	struct sockaddr_in sa4;
+	struct sockaddr_in6 sa6;
+	struct sockaddr * sa;
+	int sa_size = 0;
 	int res;
 	int val;
 
-	/* create socket */
-	sock = socket(AF_INET, SOCK_STREAM, 0);
-	if (sock < 0)
-		fatal_perror("socket");
 
-	/* parse address */
-	memset(&sa, 0, sizeof(sa));
-	sa.sin_family = AF_INET;
-	sa.sin_port = htons(cf_listen_port);
+	/* parse address as IPv4 */
+	memset(&sa4, 0, sizeof(sa));
+	sa = (struct sockaddr *)&sa4;
+	sa_size = sizeof(sa4);
+	sa4.sin_family = AF_INET;
+	sa4.sin_port = htons(cf_listen_port);
 	if (strcmp(listen_addr, "*") == 0) {
-		sa.sin_addr.s_addr = htonl(INADDR_ANY);
+		sa4.sin_addr.s_addr = htonl(INADDR_ANY);
 	} else {
-		sa.sin_addr.s_addr = inet_addr(listen_addr);
-		if (sa.sin_addr.s_addr == INADDR_NONE)
+		sa4.sin_addr.s_addr = inet_addr(listen_addr);
+	}
+	if (sa4.sin_addr.s_addr == INADDR_NONE) {
+		/* IPv4 addr not foundm re-parse address as IPv6 */
+		log_info("trying to parse %s as IPv6 address", listen_addr);
+		sa = (struct sockaddr *)&sa6;
+		sa_size = sizeof(sa6);
+		memset(&sa6, 0, sizeof(sa6));
+		sa6.sin6_family = AF_INET6;
+		sa6.sin6_port = htons(cf_listen_port);
+
+		if (inet_pton(AF_INET6, listen_addr, (void *) sa6.sin6_addr.s6_addr) <= 0)
 			fatal("cannot parse addr: '%s'", listen_addr);
 	}
+
+	/* create socket of right type */ //NB! turn if() into x?y:z
+	if (sa6.sin6_family == AF_INET6){
+		sock = socket(AF_INET6, SOCK_STREAM, 0);
+		log_info("created AF_INET6 socket");
+	} else {
+		sock = socket(AF_INET, SOCK_STREAM, 0);
+		log_info("created AF_INET socket");
+	}
+	if (sock < 0)
+		fatal_perror("socket");
 
 	/* relaxed binding */
 	val = 1;
@@ -187,7 +213,7 @@ static int create_net_socket(const char *listen_addr, int listen_port)
 		fatal_perror("setsockopt");
 
 	/* bind to address */
-	res = bind(sock, (struct sockaddr *)&sa, sizeof(sa));
+	res = bind(sock, sa, sa_size);
 	if (res < 0)
 		fatal_perror("bind");
 
@@ -215,19 +241,20 @@ static void err_wait_func(int sock, short flags, void *arg)
 
 static const char *addrpair(const PgAddr *src, const PgAddr *dst)
 {
-	static char ip1buf[64], ip2buf[64], buf[256];
+	static char ip1buf[INET6_ADDRSTRLEN], ip2buf[INET6_ADDRSTRLEN],
+	            buf[INET6_ADDRSTRLEN+INET6_ADDRSTRLEN+128];
 	const char *ip1, *ip2;
-	if (src->is_unix)
+	if (pga_is_unix(src))
 		return "unix->unix";
 
-	ip1 = inet_ntop(AF_INET, &src->ip_addr, ip1buf, sizeof(ip1buf));
+	ip1 = pga_ntop(src, ip1buf, sizeof(ip1buf));
 	if (!ip1)
 		ip1 = strerror(errno);
-	ip2 = inet_ntop(AF_INET, &dst->ip_addr, ip2buf, sizeof(ip2buf));
+	ip2 = pga_ntop(src, ip2buf, sizeof(ip2buf));
 	if (!ip2)
 		ip2 = strerror(errno);
 	snprintf(buf, sizeof(buf), "%s:%d -> %s:%d",
-		 ip1, src->port, ip2, dst->port);
+		 ip1, pga_port(src), ip2, pga_port(dst));
 	return buf;
 }
 

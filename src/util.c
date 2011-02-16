@@ -29,6 +29,7 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
 {
 	const struct PgSocket *sock = ctx;
 	char *user, *db, *host;
+	char host6[INET6_ADDRSTRLEN];
 	int port;
 
 	/* no prefix */
@@ -38,12 +39,12 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
 	/* format prefix */
 	db = sock->pool ? sock->pool->db->name : "(nodb)";
 	user = sock->auth_user ? sock->auth_user->name : "(nouser)";
-	if (sock->remote_addr.is_unix) {
+	if (pga_is_unix(&sock->remote_addr)) {
 		host = "unix";
 	} else {
-		host = inet_ntoa(sock->remote_addr.ip_addr);
+		pga_ntop(&sock->remote_addr, host6, INET6_ADDRSTRLEN);
 	}
-	port = sock->remote_addr.port;
+	port = pga_port(&sock->remote_addr);
 
 	return snprintf(dst, dstlen, "%c-%p: %s/%s@%s:%d ",
 			is_server_socket(sock) ? 'S' : 'C',
@@ -223,23 +224,16 @@ loop:
 void fill_remote_addr(PgSocket *sk, int fd, bool is_unix)
 {
 	PgAddr *dst = &sk->remote_addr;
-	struct sockaddr_in adr;
-	socklen_t len = sizeof(adr);
+	socklen_t len = sizeof(PgAddr);
 	int err;
 
-	dst->ip_addr.s_addr = INADDR_ANY;
-	dst->port = 0;
-	dst->is_unix = is_unix;
 	if (is_unix) {
-		dst->port = cf_listen_port;
+		pga_set(dst, AF_UNIX, cf_listen_port);
 	} else {
-		err = getpeername(fd, (struct sockaddr *)&adr, &len);
+		err = getpeername(fd, (struct sockaddr *)dst, &len);
 		if (err < 0) {
 			log_error("fill_remote_addr: getpeername(%d) = %s",
 				  fd, strerror(errno));
-		} else {
-			dst->ip_addr = adr.sin_addr;
-			dst->port = ntohs(adr.sin_port);
 		}
 	}
 }
@@ -247,23 +241,16 @@ void fill_remote_addr(PgSocket *sk, int fd, bool is_unix)
 void fill_local_addr(PgSocket *sk, int fd, bool is_unix)
 {
 	PgAddr *dst = &sk->local_addr;
-	struct sockaddr_in adr;
-	socklen_t len = sizeof(adr);
+	socklen_t len = sizeof(PgAddr);
 	int err;
 
-	dst->ip_addr.s_addr = INADDR_ANY;
-	dst->port = 0;
-	dst->is_unix = is_unix;
 	if (is_unix) {
-		dst->port = cf_listen_port;
+		pga_set(dst, AF_UNIX, cf_listen_port);
 	} else {
-		err = getsockname(fd, (struct sockaddr *)&adr, &len);
+		err = getsockname(fd, (struct sockaddr *)dst, &len);
 		if (err < 0) {
 			log_error("fill_local_addr: getsockname(%d) = %s",
 				  fd, strerror(errno));
-		} else {
-			dst->ip_addr = adr.sin_addr;
-			dst->port = ntohs(adr.sin_port);
 		}
 	}
 }
@@ -309,5 +296,73 @@ void rescue_timers(void)
 			break;
 		timer_backup_used--;
 	}
+}
+
+/*
+ * PgAddr operations
+ */
+
+/* set family and port */
+void pga_set(PgAddr *a, int af, int port)
+{
+	a->af = af;
+	a->port = port;
+}
+
+/* copy sockaddr_in/in6 to PgAddr */
+void pga_copy(PgAddr *a, const struct sockaddr *sa)
+{
+	const struct sockaddr_in *sa4;
+	const struct sockaddr_in6 *sa6;
+
+	a->af = sa->sa_family;
+	switch (a->af) {
+	case AF_INET:
+		sa4 = (struct sockaddr_in *)sa;
+		a->port = ntohs(sa4->sin_port);
+		a->addr4 = sa4->sin_addr;
+		break;
+	case AF_INET6:
+		sa6 = (struct sockaddr_in6 *)sa;
+		a->port = ntohs(sa6->sin6_port);
+		a->addr6 = sa6->sin6_addr;
+		break;
+	}
+}
+
+/* convert pgaddr to string */
+const char *pga_ntop(const PgAddr *a, char *dst, int dstlen)
+{
+	switch (a->af) {
+	case AF_UNIX:
+		strlcpy(dst, "unix", dstlen);
+		return dst;
+	case AF_INET:
+		return inet_ntop(a->af, &a->addr4, dst, dstlen);
+	case AF_INET6:
+		return inet_ntop(a->af, &a->addr6, dst, dstlen);
+	default:
+		return NULL;
+	}
+}
+
+/* parse address from string */
+bool pga_pton(PgAddr *a, const char *s, int port)
+{
+	int res;
+	if (strcmp(s, "unix") == 0) {
+		pga_set(a, AF_UNIX, port);
+		return true;
+	}
+	if (strchr(s, ':')) {
+		pga_set(a, AF_INET6, port);
+		res = inet_pton(AF_INET6, s, &a->addr6);
+	} else {
+		pga_set(a, AF_INET, port);
+		res = inet_pton(AF_INET, s, &a->addr4);
+	}
+	if (res == 0)
+		errno = EINVAL;
+	return res > 0;
 }
 

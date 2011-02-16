@@ -308,7 +308,7 @@ static bool handle_connect(PgSocket *server)
 	bool res = false;
 	PgPool *pool = server->pool;
 
-	fill_local_addr(server, sbuf_socket(&server->sbuf), server->remote_addr.is_unix);
+	fill_local_addr(server, sbuf_socket(&server->sbuf), pga_is_unix(&server->remote_addr));
 
 	if (!statlist_empty(&pool->cancel_req_list)) {
 		slog_debug(server, "use it for pending cancel req");

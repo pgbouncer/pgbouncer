@@ -39,9 +39,11 @@ Default: not set.
 
 ==== listen_addr ====
 
-Specifies IPv4 address, where to listen for TCP connections. You may 
-also use `*` meaning "listen on all addresses". When not set, only 
-Unix socket connections are allowed.
+Specifies list of addresses, where to listen for TCP connections.
+You may also use `*` meaning "listen on all addresses". When not set,
+only Unix socket connections are allowed.
+
+Addresses can be specified numerically (IPv4/IPv6) or by name.
 
 Default: not set
 

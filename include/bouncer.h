@@ -74,7 +74,7 @@ typedef struct PgUser PgUser;
 typedef struct PgDatabase PgDatabase;
 typedef struct PgPool PgPool;
 typedef struct PgStats PgStats;
-typedef struct PgAddr PgAddr;
+typedef union PgAddr PgAddr;
 typedef enum SocketState SocketState;
 typedef struct PktHdr PktHdr;
 
@@ -136,25 +136,27 @@ extern int cf_sbuf_len;
  * Remote/local address
  */
 
-/* buffer for pgaddr string conversions */
-#define PGADDR_BUF  INET6_ADDRSTRLEN
+/* buffer for pgaddr string conversions (with port) */
+#define PGADDR_BUF  (INET6_ADDRSTRLEN + 10)
 
-struct PgAddr {
-	unsigned char  af;
-	unsigned short port;
-	union {
-		struct in_addr addr4;
-		struct in6_addr addr6;
-	};
+/*
+ * AF_INET,AF_INET6 are stored as-is,
+ * AF_UNIX uses sockaddr_in port.
+ */
+union PgAddr {
+	struct sockaddr sa;
+	struct sockaddr_in sin;
+	struct sockaddr_in6 sin6;
 };
 
-static inline bool pga_is_unix(const PgAddr *a) { return a->af == AF_UNIX; }
-static inline int pga_port(const PgAddr *a) { return a->port; }
+static inline bool pga_is_unix(const PgAddr *a) { return a->sa.sa_family == AF_UNIX; }
 
+int pga_port(const PgAddr *a);
 void pga_set(PgAddr *a, int fam, int port);
 void pga_copy(PgAddr *a, const struct sockaddr *sa);
-const char *pga_ntop(const PgAddr *a, char *dst, int dstlen);
 bool pga_pton(PgAddr *a, const char *s, int port);
+const char *pga_ntop(const PgAddr *a, char *dst, int dstlen);
+const char *pga_str(const PgAddr *a, char *dst, int dstlen);
 
 /*
  * Stats, kept per-pool.

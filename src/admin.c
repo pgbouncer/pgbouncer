@@ -324,23 +324,19 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 			   timezone ? timezone->str : NULL);
 }
 
+static bool show_pooler_cb(void *arg, int fd, const PgAddr *a)
+{
+	char buf[PGADDR_BUF];
+
+	return send_one_fd(arg, fd, "pooler", NULL, NULL,
+			   pga_ntop(a, buf, sizeof(buf)), pga_port(a), 0, 0,
+			   NULL, NULL, NULL, NULL);
+}
+
 /* send a row with sendmsg, optionally attaching a fd */
 static bool show_pooler_fds(PgSocket *admin)
 {
-	int fd_net, fd_unix;
-	bool res = true;
-
-	get_pooler_fds(&fd_net, &fd_unix);
-
-	if (fd_net)
-		res = send_one_fd(admin, fd_net, "pooler", NULL, NULL,
-				  cf_listen_addr, cf_listen_port, 0, 0,
-				  NULL, NULL, NULL, NULL);
-	if (fd_unix && res)
-		res = send_one_fd(admin, fd_unix, "pooler", NULL, NULL,
-				  "unix", cf_listen_port, 0, 0,
-				  NULL, NULL, NULL, NULL);
-	return res;
+	return for_each_pooler_fd(show_pooler_cb, admin);
 }
 
 static bool show_fds_from_list(PgSocket *admin, struct StatList *list)

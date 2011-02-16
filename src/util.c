@@ -298,49 +298,64 @@ void rescue_timers(void)
 	}
 }
 
+
 /*
  * PgAddr operations
  */
 
+int pga_port(const PgAddr *a)
+{
+	if (a->sa.sa_family == AF_INET6) {
+		return ntohs(a->sin6.sin6_port);
+	} else {
+		return ntohs(a->sin.sin_port);
+	}
+}
+
 /* set family and port */
 void pga_set(PgAddr *a, int af, int port)
 {
-	a->af = af;
-	a->port = port;
+	memset(a, 0, sizeof(*a));
+	if (af == AF_INET6) {
+		a->sin6.sin6_family = af;
+		a->sin6.sin6_port = htons(port);
+	} else {
+		a->sin.sin_family = af;
+		a->sin.sin_port = htons(port);
+	}
 }
 
 /* copy sockaddr_in/in6 to PgAddr */
 void pga_copy(PgAddr *a, const struct sockaddr *sa)
 {
-	const struct sockaddr_in *sa4;
-	const struct sockaddr_in6 *sa6;
-
-	a->af = sa->sa_family;
-	switch (a->af) {
+	switch (sa->sa_family) {
 	case AF_INET:
-		sa4 = (struct sockaddr_in *)sa;
-		a->port = ntohs(sa4->sin_port);
-		a->addr4 = sa4->sin_addr;
+		memcpy(&a->sin, sa, sizeof(a->sin));
 		break;
 	case AF_INET6:
-		sa6 = (struct sockaddr_in6 *)sa;
-		a->port = ntohs(sa6->sin6_port);
-		a->addr6 = sa6->sin6_addr;
+		memcpy(&a->sin6, sa, sizeof(a->sin6));
 		break;
+	case AF_UNIX:
+		log_error("pga_copy: AF_UNIX copy not supported");
 	}
+}
+
+static inline unsigned pga_family(const PgAddr *a)
+{
+	return a->sa.sa_family;
 }
 
 /* convert pgaddr to string */
 const char *pga_ntop(const PgAddr *a, char *dst, int dstlen)
 {
-	switch (a->af) {
+	switch (pga_family(a)) {
 	case AF_UNIX:
 		strlcpy(dst, "unix", dstlen);
 		return dst;
 	case AF_INET:
-		return inet_ntop(a->af, &a->addr4, dst, dstlen);
+		return inet_ntop(AF_INET, &a->sin.sin_addr, dst, dstlen);
 	case AF_INET6:
-		return inet_ntop(a->af, &a->addr6, dst, dstlen);
+		return inet_ntop(AF_INET6, &a->sin6.sin6_addr, dst, dstlen);
 	default:
 		return NULL;
 	}
@@ -356,13 +371,21 @@ bool pga_pton(PgAddr *a, const char *s, int port)
 	}
 	if (strchr(s, ':')) {
 		pga_set(a, AF_INET6, port);
-		res = inet_pton(AF_INET6, s, &a->addr6);
+		res = inet_pton(AF_INET6, s, &a->sin6.sin6_addr);
 	} else {
 		pga_set(a, AF_INET, port);
-		res = inet_pton(AF_INET, s, &a->addr4);
+		res = inet_pton(AF_INET, s, &a->sin.sin_addr);
 	}
 	if (res == 0)
 		errno = EINVAL;
 	return res > 0;
 }
 
+const char *pga_str(const PgAddr *a, char *dst, int dstlen)
+{
+	char buf[PGADDR_BUF];
+	if (!pga_ntop(a, buf, sizeof(buf)))
+		return NULL;
+	snprintf(dst, dstlen, "%s@%d", buf, pga_port(a));
+	return dst;
+}

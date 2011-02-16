@@ -37,7 +37,7 @@ bool release_server(PgSocket *server)		/* _MUSTCHECK */;
 bool finish_client_login(PgSocket *client)	_MUSTCHECK;
 bool check_fast_fail(PgSocket *client)		_MUSTCHECK;
 
-PgSocket * accept_client(int sock, const struct sockaddr_in *addr, bool is_unix) _MUSTCHECK;
+PgSocket *accept_client(int sock, bool is_unix) _MUSTCHECK;
 void disconnect_server(PgSocket *server, bool notify, const char *reason, ...) _PRINTF(3, 4);
 void disconnect_client(PgSocket *client, bool notify, const char *reason, ...) _PRINTF(3, 4);
 

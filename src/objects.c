@@ -979,9 +979,7 @@ allow_new:
 }
 
 /* new client connection attempt */
-PgSocket * accept_client(int sock,
-			 const struct sockaddr_in *addr,
-			 bool is_unix)
+PgSocket *accept_client(int sock, bool is_unix)
 {
 	bool res;
 	PgSocket *client;
@@ -997,6 +995,7 @@ PgSocket * accept_client(int sock,
 	client->connect_time = client->request_time = get_cached_time();
 	client->query_start = 0;
 
+	/* FIXME: take local and remote address from pool_accept() */
 	fill_remote_addr(client, sock, is_unix);
 	fill_local_addr(client, sock, is_unix);
 
@@ -1131,7 +1130,7 @@ bool use_client_socket(int fd, PgAddr *addr,
 	PgSocket *client;
 	PktBuf tmp;
 
-	client = accept_client(fd, NULL, pga_is_unix(addr));
+	client = accept_client(fd, pga_is_unix(addr));
 	if (client == NULL)
 		return false;
 	client->suspended = 1;

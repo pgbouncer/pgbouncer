@@ -1,3 +1,21 @@
+2011-01-11  -  PgBouncer 1.x  -  ""
+
+  = Features =
+
+    * Support listening/connect for IPv6 addresses.  (Hannu Krosing)
+
+    * Multiple listen addresses in 'listen_addr'.  For each getaddrinfo()
+      is called, so names can also be used.
+
+    * console: Send PgBouncer version as 'server_version' to client.
+
+  = Fixes =
+
+    * release_server missed setting ->last_lifetime_disconnect on lifetime disconnect.
+      (Emmanuel Courreges)
+
+    * win32: Fix crashes with NULL unix socket addr.
+
 2011-01-11  -  PgBouncer 1.4  -  "Gore Code"
 
   = Features =

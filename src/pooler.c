@@ -36,7 +36,7 @@ static STATLIST(sock_list);
 
 /* hints for getaddrinfo(listen_addr) */
 static const struct addrinfo hints = {
-	.ai_family = AF_INET6,
+	.ai_family = AF_UNSPEC,
 	.ai_socktype = SOCK_STREAM,
 	.ai_protocol = IPPROTO_TCP,
 	.ai_flags = AI_PASSIVE,

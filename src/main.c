@@ -25,8 +25,7 @@
 #include <usual/signal.h>
 #include <usual/err.h>
 #include <usual/cfparser.h>
-
-#include <getopt.h>
+#include <usual/getopt.h>
 
 #ifdef HAVE_SYS_RESOURCE_H
 #include <sys/resource.h>

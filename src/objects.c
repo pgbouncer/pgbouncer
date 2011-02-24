@@ -87,7 +87,7 @@ static void construct_server(void *obj)
 }
 
 /* compare string with PgUser->name, for usage with btree */
-static int user_node_cmp(long userptr, struct AANode *node)
+static int user_node_cmp(uintptr_t userptr, struct AANode *node)
 {
 	const char *name = (const char *)userptr;
 	PgUser *user = container_of(node, PgUser, tree_node);
@@ -356,7 +356,7 @@ PgUser *add_user(const char *name, const char *passwd)
 		safe_strcpy(user->name, name, sizeof(user->name));
 		put_in_order(&user->head, &user_list, cmp_user);
 
-		aatree_insert(&user_tree, (long)user->name, &user->tree_node);
+		aatree_insert(&user_tree, (uintptr_t)user->name, &user->tree_node);
 	}
 	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
 	return user;
@@ -408,7 +408,7 @@ PgUser *find_user(const char *name)
 	PgUser *user = NULL;
 	struct AANode *node;
 
-	node = aatree_search(&user_tree, (long)name);
+	node = aatree_search(&user_tree, (uintptr_t)name);
 	user = node ? container_of(node, PgUser, tree_node) : NULL;
 	return user;
 }

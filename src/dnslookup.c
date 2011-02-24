@@ -351,7 +351,7 @@ loop:
 	goto loop;
 }
 
-static int req_cmp(long arg, struct AANode *node)
+static int req_cmp(uintptr_t arg, struct AANode *node)
 {
 	const char *s1 = (char *)arg;
 	struct DNSRequest *req = container_of(node, struct DNSRequest, node);
@@ -412,7 +412,7 @@ struct DNSToken *adns_resolve(struct DNSContext *ctx, const char *name, adns_cal
 	struct AANode *node;
 
 	/* setup actual lookup */
-	node = aatree_search(&ctx->req_tree, (long)name);
+	node = aatree_search(&ctx->req_tree, (uintptr_t)name);
 	if (node) {
 		req = container_of(node, struct DNSRequest, node);
 	} else {
@@ -428,7 +428,7 @@ struct DNSToken *adns_resolve(struct DNSContext *ctx, const char *name, adns_cal
 		req->ctx = ctx;
 		req->namelen = namelen;
 		list_init(&req->ucb_list);
-		aatree_insert(&ctx->req_tree, (long)req->name, &req->node);
+		aatree_insert(&ctx->req_tree, (uintptr_t)req->name, &req->node);
 		impl_launch_query(req);
 	}
 

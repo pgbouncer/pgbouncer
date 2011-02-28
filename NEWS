@@ -1,4 +1,4 @@
-2011-01-11  -  PgBouncer 1.x  -  ""
+2011-xx-xx  -  PgBouncer 1.x  -  ""
 
   = Features =
 
@@ -15,6 +15,15 @@
       (Emmanuel Courreges)
 
     * win32: Fix crashes with NULL unix socket addr.
+
+    * win32: fix auth file on DOS line endings - load_file() did not take
+      account of file shringage when loading.
+      (Rich Schaaf)
+
+    * <usual/endian.h>: add autoconf detection for enc/dec functions
+      so it would not create conflicts on BSD.
+
+    * Various minor portability fixes in libusual.
 
 2011-01-11  -  PgBouncer 1.4  -  "Gore Code"
 

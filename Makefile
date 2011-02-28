@@ -224,14 +224,20 @@ zip = pgbouncer-$(PACKAGE_VERSION)-win32.zip
 
 zip: configure
 	make distclean
-	./configure i586-mingw32msvc --disable-debug --with-libevent=/opt/apps/win32
+	./configure i586-mingw32msvc --disable-debug --with-libevent=/opt/apps/win32 --enable-evdns
 	make -C doc html
 	make pgbouncer.exe pgbevent.dll
 	cp COPYRIGHT doc/COPYRIGHT.txt
 	cp AUTHORS doc/AUTHORS.txt
+	make packzip
+
+packzip: pgbouncer.exe
 	rm -f $(zip)
 	zip $(zip) pgbouncer.exe pgbevent.dll doc/AUTHORS.txt doc/COPYRIGHT.txt doc/*.html
 	rm -f doc/AUTHORS.txt doc/COPYRIGHT.txt
+
+zipupload: $(zip)
+	rsync $(zip) pgf:web/pgbouncer/htdocs/win32/
 
 stripped: $(exe) $(dll)
 	$(STRIP) $(exe) $(dll)

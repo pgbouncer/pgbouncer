@@ -43,6 +43,7 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
 		host = "unix";
 	} else {
 		pga_ntop(&sock->remote_addr, host6, INET6_ADDRSTRLEN);
+		host = host6;
 	}
 	port = pga_port(&sock->remote_addr);
 

@@ -1048,7 +1048,7 @@ bool finish_client_login(PgSocket *client)
 void accept_cancel_request(PgSocket *req)
 {
 	struct List *pitem, *citem;
-	PgPool *pool;
+	PgPool *pool = NULL;
 	PgSocket *server = NULL, *client, *main_client = NULL;
 
 	Assert(req->state == CL_LOGIN);

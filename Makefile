@@ -199,7 +199,8 @@ pg: pgbouncer.pg
 $(builddir)/obj/%.s: $(srcdir)/src/%.c config.mak $(hdrs)
 	@mkdir -p $(builddir)/obj
 	$(E) "	CC -S" $<
-	$(Q) $(CC) -S -fverbose-asm -o $@ $< $(DEFS) $(CFLAGS) $(CPPFLAGS)
+	$(Q) $(CC) -S -fverbose-asm -o - $< $(DEFS) $(CFLAGS) $(CPPFLAGS) \
+	| cleanasm > $@
 asms = $(objs:.o=.s)
 asm: $(asms)
 

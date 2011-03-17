@@ -81,48 +81,52 @@ static void cleanup_sockets(void)
 
 /*
  * initialize another listening socket.
- *
- * currently all initialization errors are fatal.
- * should we tolerate some?
  */
-static void add_listen(int af, const struct sockaddr *sa, int salen)
+static bool add_listen(int af, const struct sockaddr *sa, int salen)
 {
 	struct ListenSocket *ls;
 	int sock, res, val;
 	char buf[128];
+	const char *errpos;
 
 	log_debug("add_listen: %s", sa2str(sa, buf, sizeof(buf)));
 
 	/* create socket */
+	errpos = "socket";
 	sock = socket(af, SOCK_STREAM, 0);
 	if (sock < 0)
-		fatal_perror("socket");
+		goto failed;
 
 	/* relaxed binding */
 	if (af != AF_UNIX) {
 		val = 1;
+		errpos = "setsockopt";
 		res = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
 		if (res < 0)
-			fatal_perror("setsockopt");
+			goto failed;
 	}
 
 	/* bind it */
+	errpos = "bind";
 	res = bind(sock, sa, salen);
 	if (res < 0)
-		fatal_perror("bind");
+		goto failed;
 
 	/* set common options */
+	errpos = "tune_socket";
 	if (!tune_socket(sock, (af == AF_UNIX)))
-		fatal_perror("tune_socket");
+		goto failed;
 
 	/* finally, accept connections */
+	errpos = "listen";
 	res = listen(sock, cf_listen_backlog);
 	if (res < 0)
-		fatal_perror("listen");
+		goto failed;
 
+	errpos = "calloc";
 	ls = calloc(1, sizeof(*ls));
 	if (!ls)
-		fatal_perror("calloc");
+		goto failed;
 
 	list_init(&ls->node);
 	ls->fd = sock;
@@ -134,16 +138,28 @@ static void add_listen(int af, const struct sockaddr *sa, int salen)
 
 	if (af == AF_UNIX) {
 		const struct sockaddr_un *un;
+		mode_t mode = 0777;
 		un = (struct sockaddr_un *)sa;
-		res = chmod(un->sun_path, 0777);
+		res = chmod(un->sun_path, mode);
 		if (res < 0)
-			fatal_perror("chmod");
+			/* failure to chmod to 0777 does not seem serious */
+			log_warning("add_listen: chmod(%s, 0%o) failed: %s",
+				    un->sun_path, mode, strerror(errno));
 	} else {
 		tune_accept(sock, cf_tcp_defer_accept);
 	}
 
 	log_info("listening on %s", sa2str(sa, buf, sizeof(buf)));
 	statlist_append(&sock_list, &ls->node);
+	return true;
+
+failed:
+	log_warning("Cannot listen on %s: %s(): %s",
+		    sa2str(sa, buf, sizeof(buf)),
+		    errpos, strerror(errno));
+	if (sock >= 0)
+		safe_close(sock);
+	return false;
 }
 
 static void create_unix_socket(const char *socket_dir, int listen_port)
@@ -399,6 +415,7 @@ static bool parse_addr(void *arg, const char *addr)
 	int res;
 	char service[64];
 	struct addrinfo *ai, *gaires = NULL;
+	bool ok;
 
 	if (!*addr)
 		return true;
@@ -412,8 +429,11 @@ static bool parse_addr(void *arg, const char *addr)
 		      cf_listen_port, gai_strerror(res), res);
 	}
 
-	for (ai = gaires; ai; ai = ai->ai_next)
-		add_listen(ai->ai_family, ai->ai_addr, ai->ai_addrlen);
+	for (ai = gaires; ai; ai = ai->ai_next) {
+		ok = add_listen(ai->ai_family, ai->ai_addr, ai->ai_addrlen);
+		if (ok)
+			break;
+	}
 
 	freeaddrinfo(gaires);
 	return true;

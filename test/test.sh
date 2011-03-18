@@ -77,7 +77,7 @@ fw_reject_port() {
 fw_reset() {
 	case `uname` in
 	Linux)
-		sudo iptables -F;;
+		sudo iptables -F OUTPUT;;
 	Darwin)
 		sudo ipfw del 100;;
 	*)

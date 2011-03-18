@@ -891,8 +891,14 @@ static bool admin_cmd_pause(PgSocket *admin, const char *arg)
 		PgDatabase *db;
 		log_info("PAUSE '%s' command issued", arg);
 		db = find_database(arg);
-		if (db == NULL)
-			return admin_error(admin, "no such database: %s", arg);
+		if (db == NULL) {
+			db = register_auto_database(arg);
+			if (db == NULL) {
+				return admin_error(admin, "no such database: %s", arg);
+			} else {
+				slog_info(admin, "registered new auto-database for PAUSE: %s", arg);
+			}
+		}
 		if (db == admin->pool->db)
 			return admin_error(admin, "cannot pause admin db: %s", arg);
 		db->db_paused = 1;

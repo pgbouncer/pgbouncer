@@ -431,7 +431,8 @@ static bool parse_addr(void *arg, const char *addr)
 
 	for (ai = gaires; ai; ai = ai->ai_next) {
 		ok = add_listen(ai->ai_family, ai->ai_addr, ai->ai_addrlen);
-		if (ok)
+		/* it's unclear whether all or only first result should be used */
+		if (0 && ok)
 			break;
 	}
 

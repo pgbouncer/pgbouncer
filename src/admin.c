@@ -911,6 +911,45 @@ static bool admin_cmd_pause(PgSocket *admin, const char *arg)
 	return true;
 }
 
+/* Command: KILL */
+static bool admin_cmd_kill(PgSocket *admin, const char *arg)
+{
+	struct List *item, *tmp;
+	PgDatabase *db;
+	PgPool *pool;
+
+	if (!admin->admin_user)
+		return admin_error(admin, "admin access needed");
+
+	if (cf_pause_mode)
+		return admin_error(admin, "already suspended/paused");
+
+	if (!arg[0])
+		return admin_error(admin, "a database is required");
+
+	log_info("KILL '%s' command issued", arg);
+	db = find_database(arg);
+	if (db == NULL) {
+		db = register_auto_database(arg);
+		if (db == NULL) {
+			return admin_error(admin, "no such database: %s", arg);
+		} else {
+			slog_info(admin, "registered new auto-database for KILL: %s", arg);
+		}
+	}
+	if (db == admin->pool->db)
+		return admin_error(admin, "cannot kill admin db: %s", arg);
+
+	db->db_paused = 1;
+	statlist_for_each_safe(item, &pool_list, tmp) {
+		pool = container_of(item, PgPool, head);
+		if (pool->db == db)
+			kill_pool(pool);
+	}
+
+	return admin_ready(admin, "KILL");
+}
+
 /* extract substring from regex group */
 static void copy_arg(const char *src, regmatch_t *glist,
 		     int gnum, char *dst, unsigned dstmax)
@@ -1015,6 +1054,7 @@ static bool admin_cmd_show(PgSocket *admin, const char *arg)
 }
 
 static struct cmd_lookup cmd_list [] = {
+	{"kill", admin_cmd_kill},
 	{"pause", admin_cmd_pause},
 	{"reload", admin_cmd_reload},
 	{"resume", admin_cmd_resume},

@@ -564,7 +564,7 @@ void janitor_setup(void)
 	safe_evtimer_add(&full_maint_ev, &full_maint_period);
 }
 
-static void kill_pool(PgPool *pool)
+void kill_pool(PgPool *pool)
 {
 	const char *reason = "database removed";
 

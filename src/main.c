@@ -280,6 +280,7 @@ static void set_dbs_dead(bool flag)
 /* config loading, tries to be tolerant to errors */
 void load_config(void)
 {
+	static bool loaded = false;
 	bool ok;
 
 	set_dbs_dead(true);
@@ -290,6 +291,9 @@ void load_config(void)
 		/* load users if needed */
 		if (cf_auth_type >= AUTH_TRUST)
 			load_auth_file(cf_auth_file);
+		loaded = true;
+	} else if (!loaded) {
+		die("Cannot load config file");
 	} else {
 		log_warning("Config file loading failed");
 		/* if ini file missing, dont kill anybody */

@@ -434,7 +434,10 @@ Default: same as client-side database name.
 
 ==== host ====
 
-IP address to connect to.
+Hostname or IP address to connect to.  Hostnames are resolved
+on connect time, the result is cached per +dns_max_ttl+ parameter.
+If DNS returns several results, they are used in round-robin
+manner.
 
 Default: not set, meaning to use a Unix socket.
 

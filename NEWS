@@ -23,7 +23,15 @@
     * <usual/endian.h>: add autoconf detection for enc/dec functions
       so it would not create conflicts on BSD.
 
+    * Restore lost memset in slab allocator
+
     * Various minor portability fixes in libusual.
+
+    * Don't crash when config file does not exists.
+
+    * Don't crash on DNS lookup failure when logging on noise level (-v -v).
+
+    * Use backticks instead of $(cmd) in find_modules.sh to make it mort portable.
 
 2011-01-11  -  PgBouncer 1.4  -  "Gore Code"
 

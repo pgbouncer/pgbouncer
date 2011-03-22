@@ -4,8 +4,11 @@ PgBouncer
 
 Lightweight connection pooler for PostgreSQL.
 
-Docs:   http://wiki.postgresql.org/wiki/PgBouncer
-Source: http://pgfoundry.org/projects/pgbouncer
+Homepage:
+  http://wiki.postgresql.org/wiki/PgBouncer
+
+Downloads, bugtracking:
+  http://pgfoundry.org/projects/pgbouncer
 
 Building
 ---------
@@ -15,26 +18,31 @@ Libevent needs to be at least version 1.3b.
 
 When this is installed just run:
 
-	$ ./configure --prefix=/usr/local --with-libevent=/prefix
+	$ ./configure --prefix=/usr/local --with-libevent=libevent-prefix
 	$ make
 	$ make install
 
 If the OS does not have libevent available as package, it can be
 downloaded from http://monkey.org/~provos/libevent/
 
-Building from CVS
+Building from GIT
 -----------------
 
-Building PgBouncer from CVS requires that you generate the header
-and config files before you can run configure:
+Building PgBouncer from GIT requires that you fetch libusual
+submodule and generate the header and config files before
+you can run configure:
 
+	$ git clone git://git.postgresql.org/git/pgbouncer.git
+	$ cd pgbouncer
+	$ git submodule init
+	$ git submodule update
 	$ make boot
 	$ ./configure ...
 	$ make
+	$ make install
 
-To have manpages, asciidoc 8.x and xmlto need to be installed,
-as CVS does not contain generated pages.  Without those,
-manpages are skipped when building/installing.
+Also asciidoc 8.x and xmlto need to be installed for manpage
+generation as GIT does not contain generated pages.
 
 Building for WIN32
 ------------------
@@ -57,7 +65,7 @@ Running on WIN32
 Running from command-line goes as usual, except -d (daemonize),
 -R (reboot) and -u (switch user) switches will not work.
 
-To run pgbouncer as a service, you need to configure
+To run pgbouncer as a Windows service, you need to configure
 `service_name` parameter to set name for service.  Then:
 
 	$ pgbouncer -regservice config.ini

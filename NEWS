@@ -9,6 +9,8 @@
 
     * console: Send PgBouncer version as 'server_version' to client.
 
+    * adns: log active backend info
+
   = Fixes =
 
     * release_server missed setting ->last_lifetime_disconnect on lifetime disconnect.
@@ -32,6 +34,10 @@
     * Don't crash on DNS lookup failure when logging on noise level (-v -v).
 
     * Use backticks instead of $(cmd) in find_modules.sh to make it mort portable.
+
+    * Disable getaddrinfo_a() on glibc < 2.7.
+
+    * Fix --disable-evdns
 
 2011-01-11  -  PgBouncer 1.4  -  "Gore Code"
 

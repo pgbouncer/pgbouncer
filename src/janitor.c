@@ -531,6 +531,7 @@ static void do_full_maint(int sock, short flags, void *arg)
 		pool_server_maint(pool);
 		pool_client_maint(pool);
 		if (pool->db->db_auto && pool->db->inactive_time == 0 &&
+				pool->db->db_paused == 0 &&
 				pool_client_count(pool) == 0 && pool_server_count(pool) == 0 ) {
 			pool->db->inactive_time = get_cached_time();
 			statlist_remove(&database_list, &pool->db->head);

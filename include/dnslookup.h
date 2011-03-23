@@ -29,3 +29,5 @@ struct DNSToken *adns_resolve(struct DNSContext *ctx, const char *name, adns_cal
 
 void adns_cancel(struct DNSContext *ctx, struct DNSToken *tk);
 
+const char *adns_get_backend(void);
+

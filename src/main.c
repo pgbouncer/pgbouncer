@@ -762,7 +762,8 @@ int main(int argc, char *argv[])
 
 	write_pidfile();
 
-	log_info("process up: %s, libevent %s (%s)", PACKAGE_STRING, event_get_version(), event_get_method());
+	log_info("process up: %s, libevent %s (%s), adns: %s", PACKAGE_STRING,
+		 event_get_version(), event_get_method(), adns_get_backend());
 
 	/* main loop */
 	while (cf_shutdown < 2)

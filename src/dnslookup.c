@@ -86,6 +86,19 @@ static void got_result_gai(int result, struct addrinfo *res, void *arg);
 
 #ifdef USE_GETADDRINFO_A
 
+const char *adns_get_backend(void)
+{
+#ifdef HAVE_GETADDRINFO_A
+	return "libc"
+#ifdef __GLIBC__
+	"-" STR(__GLIBC__) "." STR(__GLIBC_MINOR__);
+#endif
+	;
+#else
+	return "compat";
+#endif
+}
+
 /*
  * ADNS with glibc's getaddrinfo_a()
  */
@@ -187,6 +200,11 @@ static void impl_release(struct DNSContext *ctx)
 
 #ifdef USE_LIBEVENT2
 
+const char *adns_get_backend(void)
+{
+	return "evdns2";
+}
+
 /*
  * ADNS with libevent2 <event2/dns.h>
  */
@@ -219,6 +237,11 @@ static void impl_release(struct DNSContext *ctx)
 #endif
 
 #ifdef USE_LIBEVENT1
+
+const char *adns_get_backend(void)
+{
+	return "evdns1";
+}
 
 /*
  * ADNS with libevent 1.x <evdns.h>

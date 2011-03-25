@@ -395,7 +395,12 @@ Default: not set
 
 ==== tcp_keepalive ====
 
-Default: not set
+Turns on basic keepalive with OS defaults.
+
+On Linux, the system defaults are tcp_keepidle=7200, tcp_keepintvl=75,
+tcp_keepcnt=9.  They are probably similar on other OS-es.
+
+Default: 1
 
 ==== tcp_keepcnt ====
 

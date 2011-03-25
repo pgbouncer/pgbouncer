@@ -75,8 +75,14 @@ AC_CHECK_FUNCS(crypt lstat)
 dnl Find libevent
 AC_USUAL_LIBEVENT
 
+dnl On libevent 2.x use evdns by default
 use_evdns=no
-AC_ARG_ENABLE(evdns, AC_HELP_STRING([--enable-evdns],[Use libevent for DNS lookups]),
+if test "$ac_cv_func_evdns_base_new" = "yes"; then
+  use_evdns=yes
+fi
+
+dnl Allow user to override the decision
+AC_ARG_ENABLE(evdns, AC_HELP_STRING([--enable-evdns],[Use libevent for DNS lookups (default on libevent 2.x)]),
               [use_evdns=$enableval])
 AC_MSG_CHECKING([whether to use libevent for DNS lookups])
 if test "$use_evdns" = "yes"; then
@@ -84,6 +90,11 @@ if test "$use_evdns" = "yes"; then
   AC_MSG_RESULT([yes])
 else
   AC_MSG_RESULT([no])
+fi
+
+dnl Check if need getaddinfo_a compat
+if test "$use_evdns" = no; then
+  AC_USUAL_GETADDRINFO_A
 fi
 
 AC_USUAL_DEBUG

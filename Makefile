@@ -12,6 +12,7 @@ DOCS = doc/overview.txt doc/usage.txt doc/config.txt doc/todo.txt doc/faq.txt
 MANPAGES = doc/pgbouncer.1 doc/pgbouncer.5
 DATA = README NEWS AUTHORS COPYRIGHT etc/pgbouncer.ini etc/userlist.txt Makefile \
        config.mak.in etc/mkauth.py \
+       config.sub config.guess install-sh autogen.sh \
        configure configure.ac debian/packages debian/changelog doc/Makefile \
        test/Makefile test/asynctest.c test/conntest.sh test/ctest6000.ini \
        test/ctest7000.ini test/run-conntest.sh test/stress.py test/test.ini \
@@ -156,10 +157,7 @@ realclean: distclean doc-realclean
 
 # generate configure script and config.h.in
 boot:
-	aclocal -I lib/m4
-	autoheader -f
-	autoconf -f
-	rm -rf autom4te* include/config.h.in~
+	./autogen.sh
 
 # targets can depend on this to force ./configure
 $(builddir)/config.mak::

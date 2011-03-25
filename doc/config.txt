@@ -57,6 +57,7 @@ Default: 6432
 
 Specifies location for Unix sockets. Applies to both listening socket and
 server connections. If set to an empty string, Unix sockets are disabled.
+Required for online reboot (-R) to work.
 Note: Not supported on Windows machines.
 
 Default: +/tmp+

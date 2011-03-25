@@ -14,7 +14,8 @@ Building
 ---------
 
 PgBouncer uses libevent for low-level socket handling.
-Libevent needs to be at least version 1.3b.
+Libevent needs to be at least version 1.3b.  Preferably 2.x as
+Libevent 2.x has proper async DNS implementation.
 
 When this is installed just run:
 
@@ -24,6 +25,25 @@ When this is installed just run:
 
 If the OS does not have libevent available as package, it can be
 downloaded from http://monkey.org/~provos/libevent/
+
+DNS lookup support
+------------------
+
+Starting from PgBouncer 1.4, it does hostname lookups at connect
+time instead just once at config load time.  This requires proper
+async DNS implementation.  Following list shows supported backends
+and their probing order:
+
+1. libevent 2.x evdns               - OK
+2. glibc 2.9+ getaddrinfo_a()       - OK
+3. libusual compat getaddrinfo_a()  - OK,
+   for non-glibc systems, uses single thread for all lookups,
+   requires pthreads, so does not work on win32
+4. libevent 1.x evdns               - buggy,
+   does not use /etc/hosts, never used by default
+
+`./configure` also has flags `--enable-evdns` and `--disable-evdns` which
+turn off automatic probing and force use of either `evdns` or `getaddrinfo_a()`.
 
 Building from GIT
 -----------------
@@ -41,14 +61,15 @@ you can run configure:
 	$ make
 	$ make install
 
-Also asciidoc 8.x and xmlto need to be installed for manpage
-generation as GIT does not contain generated pages.
+Additional packages required: autoconf, automake, libtool,
+autoconf-archive, asciidoc 8.x, xmlto.
 
 Building for WIN32
 ------------------
 
 At the moment only build env tested is MINGW32 / MSYS.  Cygwin
-and Visual $ANYTHING are untested.
+and Visual $ANYTHING are untested.  Libevent 2.x is required
+for DNS hostname lookup.
 
 Then do the usual:
 

@@ -2,21 +2,45 @@
 
   = Features =
 
-    * Support listening/connect for IPv6 addresses.  (Hannu Krosing)
+    * Support listening/connect for IPv6 addresses.
+      (Hannu Krosing)
 
     * Multiple listen addresses in 'listen_addr'.  For each getaddrinfo()
       is called, so names can also be used.
 
     * console: Send PgBouncer version as 'server_version' to client.
 
-    * adns: log active backend info
+  = Important Fixes =
+
+    * Disable getaddrinfo_a() on glibc < 2.9 as it crashes on older versions.
+
+      Notable affected OS'es: RHEL/CentOS 5.x (glibc 2.5), Ubuntu 8.04 (glibc 2.7).
+      Also Debian/lenny (glibc 2.7) which has non-crashing getaddrinfo_a()
+      but we have no good way to detect it.
+
+      Please use libevent 2.x on such OS'es, fallback getaddrinfo_a() is not
+      meant for production systems.  And read new 'DNS lookup support' section
+      in README to see how DNS backend is picked.
+
+      (Hubert Depesz Lubaczewski, Dominique Hermsdorff, David Sommerseth)
+
+    * Default to --enable-evdns if libevent 2.x is used.
+
+    * Turn on tcp_keepalive by default, as that's what Postgres also does.
+      (Hubert Depesz Lubaczewski)
+
+    * win32: Fix crashes with NULL unix socket addr.
+      (Hiroshi Saito)
 
   = Fixes =
 
+    * Make compat getaddrinfo_a() non-blocking, by using single parallel
+      thread to do lookups.
+
+    * Enable pthread compilation if compat getaddrinfo_a is used.
+
     * release_server missed setting ->last_lifetime_disconnect on lifetime disconnect.
       (Emmanuel Courreges)
-
-    * win32: Fix crashes with NULL unix socket addr.
 
     * win32: fix auth file on DOS line endings - load_file() did not take
       account of file shringage when loading.
@@ -24,20 +48,29 @@
 
     * <usual/endian.h>: add autoconf detection for enc/dec functions
       so it would not create conflicts on BSD.
+      (James Pye)
+
+    * Don't crash when config file does not exist.
+      (Lou Picciano)
+
+    * Don't crash on DNS lookup failure when logging on noise level (-v -v).
+      (Hubert Depesz Lubaczewski, Dominique Hermsdorff)
+
+    * Use backticks instead of $(cmd) in find_modules.sh to make it more portable.
+      (Lou Picciano)
+
+    * Use 'awk' instead of 'sed' in find_modules.sh to make it more portable.
+      (Giorgio Valoti)
+
+    * Log active async DNS backend info on startup.
+
+    * Fix --disable-evdns to mean 'no' instead 'yes'.
+
+    * Mention in docs that -R requires unix_socket_dir.
 
     * Restore lost memset in slab allocator
 
     * Various minor portability fixes in libusual.
-
-    * Don't crash when config file does not exists.
-
-    * Don't crash on DNS lookup failure when logging on noise level (-v -v).
-
-    * Use backticks instead of $(cmd) in find_modules.sh to make it mort portable.
-
-    * Disable getaddrinfo_a() on glibc < 2.7.
-
-    * Fix --disable-evdns
 
 2011-01-11  -  PgBouncer 1.4  -  "Gore Code"
 

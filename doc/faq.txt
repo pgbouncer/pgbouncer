@@ -86,7 +86,8 @@ and same config:
     $ pgbouncer -R -d config.ini
 
 The `-R` (reboot) switch makes new process connect to console
-of the old process (dbname=pgbouncer), issue following commands:
+of the old process (dbname=pgbouncer) via unix socket
+and issue following commands:
 
   SUSPEND;
   SHOW FDS;
@@ -100,3 +101,25 @@ If the takeover does not work for whatever reason, the new process
 can be simply killed, old one notices this and resumes work.
 
 
+== What should my server_reset_query be? ==
+
+This depends on pool mode.  But in any case there is no need to put `ROLLBACK;`
+into it, as PgBouncer never re-uses connections where transaction was left open.
+If client went away in the middle of transaction, the associated server connection
+will be simply closed.
+
+=== Session pooling ===
+
+  server_reset_query = DISCARD ALL;
+
+This will clean everything.
+
+=== Transaction pooling ===
+
+  server_reset_query =
+
+Yes, emtpy.  In transaction poooling mode the clients should not use
+any session-based features, so there is no need to clean anything.
+The `server_reset_query` would only add unnecessary round-trip between
+transactions and would drop various caches that the next transaction
+would unnecessarily need to fill again.

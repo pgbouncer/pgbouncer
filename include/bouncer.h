@@ -269,7 +269,8 @@ struct PgDatabase {
 	/* startup commands to send to server after connect. malloc-ed */
 	const char *connect_query;
 
-	usec_t inactive_time; /* when auto-database became inactive (to kill it after timeout) */
+	usec_t inactive_time;	/* when auto-database became inactive (to kill it after timeout) */
+	unsigned active_stamp;	/* set if autodb has connections */
 };
 
 

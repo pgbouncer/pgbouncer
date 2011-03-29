@@ -502,6 +502,7 @@ static void cleanup_inactive_autodatabases(void)
 	if (cf_autodb_idle_timeout <= 0)
 		return;
 
+	/* now kill the old ones */
 	statlist_for_each_safe(item, &autodatabase_idle_list, tmp) {
 		db = container_of(item, PgDatabase, head);
 		age = now - db->inactive_time;
@@ -517,6 +518,10 @@ static void do_full_maint(int sock, short flags, void *arg)
 {
 	struct List *item, *tmp;
 	PgPool *pool;
+	PgDatabase *db;
+
+	static unsigned int seq;
+	seq++;
 
 	/*
 	 * Avoid doing anything that may surprise other pgbouncer.
@@ -530,9 +535,21 @@ static void do_full_maint(int sock, short flags, void *arg)
 			continue;
 		pool_server_maint(pool);
 		pool_client_maint(pool);
-		if (pool->db->db_auto && pool->db->inactive_time == 0 &&
-				pool_client_count(pool) == 0 && pool_server_count(pool) == 0 ) {
-			pool->db->inactive_time = get_cached_time();
+
+		/* is autodb active? */
+		if (pool->db->db_auto && pool->db->inactive_time == 0) {
+			if (pool_client_count(pool) > 0 || pool_server_count(pool) > 0)
+				pool->db->active_stamp = seq;
+		}
+	}
+
+	/* find inactive autodbs */
+	statlist_for_each_safe(item, &database_list, tmp) {
+		db = container_of(item, PgDatabase, head);
+		if (db->db_auto && db->inactive_time == 0) {
+			if (db->active_stamp == seq)
+				continue;
+			db->inactive_time = get_cached_time();
 			statlist_remove(&database_list, &pool->db->head);
 			statlist_append(&autodatabase_idle_list, &pool->db->head);
 		}

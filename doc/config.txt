@@ -261,6 +261,11 @@ for 8.3 and above its enough to do:
 
   server_reset_query = DISCARD ALL;
 
+When transaction pooling is used, the `server_reset_query` should be empty,
+as clients should not use any session features.
+
+Default: DISCARD ALL
+
 ==== server_check_delay ====
 
 How long to keep released connections available for immidiate re-use, without running 

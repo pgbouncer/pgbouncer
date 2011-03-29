@@ -29,8 +29,17 @@
     * Turn on tcp_keepalive by default, as that's what Postgres also does.
       (Hubert Depesz Lubaczewski)
 
+    * Set default server_reset_query to DISCARD ALL to be compatible
+      with Postgres by default.
+
     * win32: Fix crashes with NULL unix socket addr.
       (Hiroshi Saito)
+
+    * Fix autodb cleanup: old cleanup code was mixing up databases and pools
+      - as soon as one empty pool was found, the database was tagged as 'idle',
+      potentially later killing database with active users.
+
+      Reported-By: Hubert Depesz Lubaczewski
 
   = Fixes =
 
@@ -67,6 +76,8 @@
     * Fix --disable-evdns to mean 'no' instead 'yes'.
 
     * Mention in docs that -R requires unix_socket_dir.
+
+    * Discuss server_reset_query in faq.txt.
 
     * Restore lost memset in slab allocator
 

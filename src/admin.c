@@ -928,7 +928,6 @@ static void copy_arg_unquote(const char *str, regmatch_t *glist,
 	const char *end = src + len;
 
 	if (len < dstmax) {
-		len = 0;
 		while (src < end) {
 			if (src[0] == '\'' && src[1] == '\'') {
 				*dst++ = '\'';

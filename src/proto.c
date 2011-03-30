@@ -391,11 +391,11 @@ int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...)
 		switch (tupdesc[i]) {
 		case 'i':
 			int_p = va_arg(ap, int *);
-			*int_p = atoi(val);
+			*int_p = val ? atoi(val) : 0;
 			break;
 		case 'q':
 			long_p = va_arg(ap, uint64_t *);
-			*long_p = atoll(val);
+			*long_p = val ? atoll(val) : 0;
 			break;
 		case 's':
 			str_p = va_arg(ap, const char **);

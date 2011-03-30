@@ -699,7 +699,7 @@ bool release_server(PgSocket *server)
 void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 {
 	PgPool *pool = server->pool;
-	PgSocket *client = server->link;
+	PgSocket *client;
 	static const uint8_t pkt_term[] = {'X', 0,0,0,4};
 	int send_term = 1;
 	usec_t now = get_cached_time();

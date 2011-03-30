@@ -550,8 +550,8 @@ static void do_full_maint(int sock, short flags, void *arg)
 			if (db->active_stamp == seq)
 				continue;
 			db->inactive_time = get_cached_time();
-			statlist_remove(&database_list, &pool->db->head);
-			statlist_append(&autodatabase_idle_list, &pool->db->head);
+			statlist_remove(&database_list, &db->head);
+			statlist_append(&autodatabase_idle_list, &db->head);
 		}
 	}
 

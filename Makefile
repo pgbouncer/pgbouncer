@@ -90,7 +90,7 @@ all: $(exe) $(dll) doc-all
 # final executable
 $(exe): $(builddir)/config.mak $(objs)
 	$(E) "	LD" $@
-	$(Q) $(CC) -o $@ $(LDFLAGS) $(objs) $(LIBS)
+	$(Q) $(CC) -o $@ $(CFLAGS) $(LDFLAGS) $(objs) $(LIBS)
 ifeq ($(enable_debug),no)
 	$(STRIP) $@
 endif
@@ -189,7 +189,7 @@ check: config.mak
 
 # profiled exe
 pgbouncer.pg:
-	$(CC) -pg $(DEFS) -g -O2 $(CPPFLAGS) $(LDFLAGS) -o $@ $(srcs) $(LIBS)
+	$(CC) -pg $(DEFS) -g -O2 $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $(srcs) $(LIBS)
 
 pg: pgbouncer.pg
 

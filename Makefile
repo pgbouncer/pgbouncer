@@ -232,7 +232,7 @@ zip: configure
 
 packzip: pgbouncer.exe
 	rm -f $(zip)
-	zip $(zip) pgbouncer.exe pgbevent.dll doc/AUTHORS.txt doc/COPYRIGHT.txt doc/*.html
+	zip $(zip) pgbouncer.exe pgbevent.dll doc/AUTHORS.txt doc/COPYRIGHT.txt doc/*.html etc/pgbouncer.ini etc/userlist.txt
 	rm -f doc/AUTHORS.txt doc/COPYRIGHT.txt
 
 zipupload: $(zip)

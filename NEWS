@@ -1,3 +1,26 @@
+2011-06-xx  -  PgBouncer 1.4.2  -  ""
+
+  Affected OS-es: *BSD, Solaris, Win32.
+
+  = Portability Fixes =
+
+    * Give CFLAGS to linker.  Needed when using pthread-based
+      getaddrinfo_a() fallback.
+
+    * lib/find_modules.sh: Replace split() with index()+substr().
+      This should make it work with older AWKs.
+
+    * <usual/endian.h>: Ignore system htoX/Xtoh defines.  There
+      may be only subset of macros defined.
+
+    * <usual/signal.h>: Separate compat sigval from compat sigevent
+
+    * <usual/socket.h>: Include <sys/uio.h> to get iovec
+
+    * <usual/time.h>: Better function autodetection on win32
+
+    * <usual/base_win32.h>: Remove duplicate sigval/sigevent declaration
+
 2011-04-01  -  PgBouncer 1.4.1  -  "It Was All An Act"
 
   = Features =

@@ -85,7 +85,7 @@ struct PktBuf *pktbuf_temp(void)
 	return temp_pktbuf;
 }
 
-bool pktbuf_send_immidiate(PktBuf *buf, PgSocket *sk)
+bool pktbuf_send_immediate(PktBuf *buf, PgSocket *sk)
 {
 	int fd = sbuf_socket(&sk->sbuf);
 	uint8_t *pos = buf->buf + buf->send_pos;
@@ -96,7 +96,7 @@ bool pktbuf_send_immidiate(PktBuf *buf, PgSocket *sk)
 		return false;
 	res = safe_send(fd, pos, amount, 0);
 	if (res < 0) {
-		log_debug("pktbuf_send_immidiate: %s", strerror(errno));
+		log_debug("pktbuf_send_immediate: %s", strerror(errno));
 	}
 	return res == amount;
 }

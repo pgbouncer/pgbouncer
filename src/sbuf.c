@@ -136,7 +136,7 @@ bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, int sa_len, int timeout
 	/* launch connection */
 	res = safe_connect(sock, sa, sa_len);
 	if (res == 0) {
-		/* unix socket gives connection immidiately */
+		/* unix socket gives connection immediately */
 		sbuf_connect_cb(sock, EV_WRITE, sbuf);
 		return true;
 	} else if (errno == EINPROGRESS) {

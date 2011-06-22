@@ -140,7 +140,7 @@ bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
 	pktbuf_finish_packet(pkt);
 
 	slog_debug(server, "varcache_apply: %s", pkt->buf + sql_ofs);
-	return pktbuf_send_immidiate(pkt, server);
+	return pktbuf_send_immediate(pkt, server);
 }
 
 void varcache_fill_unset(VarCache *src, PgSocket *dst)

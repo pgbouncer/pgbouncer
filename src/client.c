@@ -302,7 +302,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		}
 	case 'F':		/* FunctionCall */
 
-	/* request immidiate response from server */
+	/* request immediate response from server */
 	case 'H':		/* Flush */
 	case 'S':		/* Sync */
 

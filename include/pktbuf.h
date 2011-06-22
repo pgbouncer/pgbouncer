@@ -50,7 +50,7 @@ struct PktBuf *pktbuf_temp(void);
 /*
  * sending
  */
-bool pktbuf_send_immidiate(PktBuf *buf, PgSocket *sk)	_MUSTCHECK;
+bool pktbuf_send_immediate(PktBuf *buf, PgSocket *sk)	_MUSTCHECK;
 bool pktbuf_send_queued(PktBuf *buf, PgSocket *sk)  _MUSTCHECK;
 
 /*
@@ -116,14 +116,14 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...);
 } while (0)
 
 /*
- * Shortcuts for immidiate send of one packet.
+ * Shortcuts for immediate send of one packet.
  */
 
 #define SEND_wrap(buflen, pktfn, res, sk, args...) do { \
 	uint8_t _data[buflen]; PktBuf _buf; \
 	pktbuf_static(&_buf, _data, sizeof(_data)); \
 	pktfn(&_buf, ## args); \
-	res = pktbuf_send_immidiate(&_buf, sk); \
+	res = pktbuf_send_immediate(&_buf, sk); \
 } while (0)
 
 #define SEND_RowDescription(res, sk, args...) \

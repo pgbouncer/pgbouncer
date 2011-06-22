@@ -669,7 +669,7 @@ bool release_server(PgSocket *server)
 		fatal("bad server state in release_server (%d)", server->state);
 	}
 
-	/* enforce lifetime immidiately on release */
+	/* enforce lifetime immediately on release */
 	if (server->state != SV_LOGIN && life_over(server)) {
 		disconnect_server(server, true, "server_lifetime");
 		pool->last_lifetime_disconnect = get_cached_time();

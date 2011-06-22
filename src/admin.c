@@ -141,7 +141,7 @@ bool admin_ready(PgSocket *admin, const char *desc)
 	pktbuf_static(&buf, tmp, sizeof(tmp));
 	pktbuf_write_CommandComplete(&buf, desc);
 	pktbuf_write_ReadyForQuery(&buf);
-	return pktbuf_send_immidiate(&buf, admin);
+	return pktbuf_send_immediate(&buf, admin);
 }
 
 /*

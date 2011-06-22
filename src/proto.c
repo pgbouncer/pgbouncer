@@ -124,7 +124,7 @@ bool send_pooler_error(PgSocket *client, bool send_ready, const char *msg)
 			     'S', "ERROR", 'C', "08P01", 'M', msg, 0);
 	if (send_ready)
 		pktbuf_write_ReadyForQuery(&buf);
-	return pktbuf_send_immidiate(&buf, client);
+	return pktbuf_send_immediate(&buf, client);
 }
 
 /*
@@ -231,7 +231,7 @@ bool welcome_client(PgSocket *client)
 	}
 
 	/* send all together */
-	res = pktbuf_send_immidiate(msg, client);
+	res = pktbuf_send_immediate(msg, client);
 	if (!res) {
 		disconnect_client(client, true, "failed to send welcome message");
 		return false;
@@ -347,7 +347,7 @@ bool send_startup_packet(PgSocket *server)
 	pktbuf_write_StartupMessage(pkt, username,
 				    db->startup_params->buf,
 				    db->startup_params->write_pos);
-	return pktbuf_send_immidiate(pkt, server);
+	return pktbuf_send_immediate(pkt, server);
 }
 
 int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...)

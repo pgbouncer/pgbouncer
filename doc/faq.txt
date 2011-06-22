@@ -118,7 +118,7 @@ This will clean everything.
 
   server_reset_query =
 
-Yes, emtpy.  In transaction poooling mode the clients should not use
+Yes, empty.  In transaction pooling mode the clients should not use
 any session-based features, so there is no need to clean anything.
 The `server_reset_query` would only add unnecessary round-trip between
 transactions and would drop various caches that the next transaction

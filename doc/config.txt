@@ -253,7 +253,7 @@ Query sent to server on connection release, before making it
 available to other clients.  At that moment no transaction is in
 progress so it should not include `ABORT` or `ROLLBACK`.
 
-Good choice for Postgres 8.2 and below is:
+A good choice for Postgres 8.2 and below is:
 
   server_reset_query = RESET ALL; SET SESSION AUTHORIZATION DEFAULT;
 
@@ -268,7 +268,7 @@ Default: DISCARD ALL
 
 ==== server_check_delay ====
 
-How long to keep released connections available for immidiate re-use, without running 
+How long to keep released connections available for immediate re-use, without running
 sanity-check queries on it. If 0 then the query is ran always.
 
 Default: 30
@@ -375,7 +375,7 @@ Default: 2048
 ==== listen_backlog ====
 
 Backlog argument for listen(2).  Determines how many new unanswered connection
-attempts are kept in queue.  When queue is full, futher new connections are dropped.
+attempts are kept in queue.  When queue is full, further new connections are dropped.
 
 Default: 128
 
@@ -475,7 +475,7 @@ the default_pool_size is used.
 ==== connect_query ====
 
 Query to be executed after a connection is established, but before
-allowingf the connection to be used by any clients. If the query raises errors,
+allowing the connection to be used by any clients. If the query raises errors,
 they are logged but ignored otherwise.
 
 === Extra parameters ===
@@ -507,12 +507,12 @@ file.
   "username1" "password" ... 
   "username2" "md5abcdef012342345" ...
 
-There shoud be at least 2 fields, surrounded by double quotes. The first 
+There should be at least 2 fields, surrounded by double quotes. The first
 field is the username and the second is either a plain-text or a MD5-hashed
 password. PgBouncer ignores the rest of the line.
 
 This file format allows you to directly use the existing PostgreSQL 
-authentication files in the Postgres data directory.
+authentication files in the PostgreSQL data directory.
 
 == EXAMPLE ==
 

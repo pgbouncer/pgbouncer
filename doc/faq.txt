@@ -42,23 +42,27 @@ easy way to drop prepared statements.  Luckily there is system
 view that shows prepared plans in current session.  So as a workaround
 following function can be created:
 
-    CREATE OR REPLACE FUNCTION deallocate_all()
-    RETURNS void AS $$
-    DECLARE
-	sql text;
-    BEGIN
-	FOR sql IN
-	    SELECT 'deallocate ' || quote_ident(name)
-	      FROM pg_catalog.pg_prepared_statements
-	LOOP
-	    EXECUTE sql;
-	END LOOP;
-    END;
-    $$ LANGUAGE plpgsql;
+----------------
+CREATE OR REPLACE FUNCTION deallocate_all()
+RETURNS void AS $$
+DECLARE
+    sql text;
+BEGIN
+    FOR sql IN
+	SELECT 'deallocate ' || quote_ident(name)
+	  FROM pg_catalog.pg_prepared_statements
+    LOOP
+	EXECUTE sql;
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+----------------
 
 Then the `server_reset_query` can be set to call it:
 
-    server_reset_query = RESET ALL; SET SESSION AUTHORIZATION DEFAULT; SELECT deallocate_all();
+----------------
+server_reset_query = RESET ALL; SET SESSION AUTHORIZATION DEFAULT; SELECT deallocate_all();
+----------------
 
 
 == How to use prepared statements with transaction pooling? ==
@@ -86,11 +90,15 @@ http://pgfoundry.org/pipermail/pgbouncer-general/2010-February/000507.html[]
 To disable use of server-side prepared statements, the PDO attribute
 `PDO::ATTR_EMULATE_PREPARES` must be set to `true`.  Either at connect-time:
 
-    $db = new PDO("dsn", "user", "pass", array(PDO::ATTR_EMULATE_PREPARES => true));
+----------------
+$db = new PDO("dsn", "user", "pass", array(PDO::ATTR_EMULATE_PREPARES => true));
+----------------
 
 or later:
 
-    $db->setAttribute(PDO::ATTR_EMULATE_PREPARES, true);
+----------------
+$db->setAttribute(PDO::ATTR_EMULATE_PREPARES, true);
+----------------
 
 
 
@@ -99,15 +107,19 @@ or later:
 This is as easy as launching new PgBouncer process with `-R` switch
 and same config:
 
-    $ pgbouncer -R -d config.ini
+----------------
+$ pgbouncer -R -d config.ini
+----------------
 
 The `-R` (reboot) switch makes new process connect to console
 of the old process (dbname=pgbouncer) via unix socket
 and issue following commands:
 
-  SUSPEND;
-  SHOW FDS;
-  SHUTDOWN;
+----------------
+SUSPEND;
+SHOW FDS;
+SHUTDOWN;
+----------------
 
 After that if new one notices old one gone it resumes work with
 old connections.  The magic happens during `SHOW FDS` command which
@@ -126,13 +138,17 @@ will be simply closed.
 
 === Session pooling ===
 
-  server_reset_query = DISCARD ALL;
+----------------
+server_reset_query = DISCARD ALL;
+----------------
 
 This will clean everything.
 
 === Transaction pooling ===
 
-  server_reset_query =
+----------------
+server_reset_query =
+----------------
 
 Yes, empty.  In transaction pooling mode the clients should not use
 any session-based features, so there is no need to clean anything.

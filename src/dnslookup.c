@@ -70,6 +70,7 @@ struct DNSRequest {
 
 	struct addrinfo *result;
 	struct addrinfo *current;
+	struct addrinfo *oldres;
 
 	usec_t res_ttl;
 };
@@ -384,8 +385,11 @@ static int req_cmp(uintptr_t arg, struct AANode *node)
 static void req_reset(struct DNSRequest *req)
 {
 	req->done = false;
-	if (req->result)
-		freeaddrinfo(req->result);
+	if (req->result) {
+		if (req->oldres)
+			freeaddrinfo(req->oldres);
+		req->oldres = req->result;
+	}
 	req->result = req->current = NULL;
 }
 
@@ -400,6 +404,10 @@ static void req_free(struct AANode *node, void *arg)
 		free(ucb);
 	}
 	req_reset(req);
+	if (req->oldres) {
+		freeaddrinfo(req->oldres);
+		req->oldres = NULL;
+	}
 	free(req->name);
 	free(req);
 }
@@ -482,6 +490,36 @@ nomem:
 	return NULL;
 }
 
+static int cmp_addrinfo(const struct addrinfo *a1, const struct addrinfo *a2)
+{
+    if (a1->ai_family != a2->ai_family)
+		return a1->ai_family-a2->ai_family;
+    if (a1->ai_addrlen != a2->ai_addrlen)
+		return a1->ai_addrlen-a2->ai_addrlen;
+
+    return memcmp(a1->ai_addr, a2->ai_addr, a1->ai_addrlen);
+}
+
+/* check if new dns reply is missing some IP compared to old one */
+static void check_req_result_changes(struct DNSRequest *req)
+{
+	struct addrinfo *ai, *aj;
+
+	for (ai = req->oldres; ai; ai = ai->ai_next) {
+		bool found = false;
+		for (aj = req->result; aj; aj = aj->ai_next) {
+			if (cmp_addrinfo(ai, aj) == 0) {
+				found = true;
+				break;
+			}
+		}
+
+		/* missing IP (possible DNS failover) make connections to it dirty */
+		if (!found)
+			tag_host_addr_dirty(req->name, ai->ai_addr);
+	}
+}
+
 /* struct addrinfo -> deliver_info() */
 static void got_result_gai(int result, struct addrinfo *res, void *arg)
 {
@@ -492,6 +530,9 @@ static void got_result_gai(int result, struct addrinfo *res, void *arg)
 	if (result == 0) {
 		req->result = res;
 		req->current = res;
+
+		if (req->oldres)
+			check_req_result_changes(req);
 	} else {
 		/* lookup failed */
 		log_warning("lookup failed: %s: result=%d", req->name, result);

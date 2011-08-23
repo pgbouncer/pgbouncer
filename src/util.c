@@ -346,6 +346,24 @@ static inline unsigned pga_family(const PgAddr *a)
 	return a->sa.sa_family;
 }
 
+int pga_cmp_addr(const PgAddr *a, const PgAddr *b)
+{
+    if (pga_family(a) != pga_family(b))
+		return pga_family(a)-pga_family(b);
+
+	switch (pga_family(a)) {
+	case AF_INET:
+		return memcmp(&a->sin.sin_addr, &b->sin.sin_addr, sizeof(a->sin.sin_addr));
+		break;
+	case AF_INET6:
+		return memcmp(&a->sin6.sin6_addr, &b->sin6.sin6_addr, sizeof(a->sin6.sin6_addr));
+		break;
+	default:
+		log_error("pga_cmp_addr: unsupported family");
+		return 0;
+	}
+}
+
 /* convert pgaddr to string */
 const char *pga_ntop(const PgAddr *a, char *dst, int dstlen)
 {

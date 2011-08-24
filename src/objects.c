@@ -1246,10 +1246,48 @@ void for_each_server(PgPool *pool, void (*func)(PgSocket *sk))
 		func(container_of(item, PgSocket, head));
 }
 
+static void for_each_server_filtered(PgPool *pool, void (*func)(PgSocket *sk), bool (*filter)(PgSocket *sk, void *arg), void *filter_arg)
+{
+	struct List *item;
+	PgSocket *sk;
+
+	statlist_for_each(item, &pool->idle_server_list) {
+		sk = container_of(item, PgSocket, head);
+		if (filter(sk, filter_arg))
+			func(sk);
+	}
+
+	statlist_for_each(item, &pool->used_server_list) {
+		sk = container_of(item, PgSocket, head);
+		if (filter(sk, filter_arg))
+			func(sk);
+	}
+
+	statlist_for_each(item, &pool->tested_server_list) {
+		sk = container_of(item, PgSocket, head);
+		if (filter(sk, filter_arg))
+			func(sk);
+	}
+
+	statlist_for_each(item, &pool->active_server_list) {
+		sk = container_of(item, PgSocket, head);
+		if (filter(sk, filter_arg))
+			func(sk);
+	}
+
+	statlist_for_each(item, &pool->new_server_list) {
+		sk = container_of(item, PgSocket, head);
+		if (filter(sk, filter_arg))
+			func(sk);
+	}
+}
+
+
 static void tag_dirty(PgSocket *sk)
 {
 	sk->close_needed = 1;
 }
+
 
 void tag_database_dirty(PgDatabase *db)
 {
@@ -1262,6 +1300,30 @@ void tag_database_dirty(PgDatabase *db)
 			for_each_server(pool, tag_dirty);
 	}
 }
+
+static bool server_remote_addr_filter(PgSocket *sk, void *arg) {
+	PgAddr *addr = arg;
+
+	return (pga_cmp_addr(&sk->remote_addr, addr) == 0);
+}
+
+void tag_host_addr_dirty(const char *host, const struct sockaddr *sa)
+{
+	struct List *item;
+	PgPool *pool;
+	PgAddr addr;
+
+	memset(&addr, 0, sizeof(addr));
+	pga_copy(&addr, sa);
+
+	statlist_for_each(item, &pool_list) {
+		pool = container_of(item, PgPool, head);
+		if (pool->db->host && strcmp(host, pool->db->host) == 0) {
+			for_each_server_filtered(pool, tag_dirty, server_remote_addr_filter, &addr);
+		}
+	}
+}
+
 
 /* move objects from justfree_* to free_* lists */
 void reuse_just_freed_objects(void)

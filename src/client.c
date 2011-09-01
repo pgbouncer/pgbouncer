@@ -144,7 +144,7 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 	   get_active_client_count() counts it */
 	if (get_active_client_count() > cf_max_client_conn) {
 		if (strcmp(dbname, "pgbouncer") != 0) {
-			disconnect_client(client, true, "no more connections allowed");
+			disconnect_client(client, true, "no more connections allowed (max_client_conn)");
 			return false;
 		}
 	}

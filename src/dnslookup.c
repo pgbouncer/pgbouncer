@@ -493,9 +493,9 @@ nomem:
 static int cmp_addrinfo(const struct addrinfo *a1, const struct addrinfo *a2)
 {
     if (a1->ai_family != a2->ai_family)
-		return a1->ai_family-a2->ai_family;
+		return a1->ai_family - a2->ai_family;
     if (a1->ai_addrlen != a2->ai_addrlen)
-		return a1->ai_addrlen-a2->ai_addrlen;
+		return a1->ai_addrlen - a2->ai_addrlen;
 
     return memcmp(a1->ai_addr, a2->ai_addr, a1->ai_addrlen);
 }

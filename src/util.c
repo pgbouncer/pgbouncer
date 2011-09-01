@@ -349,7 +349,7 @@ static inline unsigned pga_family(const PgAddr *a)
 int pga_cmp_addr(const PgAddr *a, const PgAddr *b)
 {
     if (pga_family(a) != pga_family(b))
-		return pga_family(a)-pga_family(b);
+		return pga_family(a) - pga_family(b);
 
 	switch (pga_family(a)) {
 	case AF_INET:

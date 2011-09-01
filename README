@@ -34,13 +34,15 @@ time instead just once at config load time.  This requires proper
 async DNS implementation.  Following list shows supported backends
 and their probing order:
 
-1. libevent 2.x evdns               - OK
-2. glibc 2.9+ getaddrinfo_a()       - OK
-3. libusual compat getaddrinfo_a()  - OK,
-   for non-glibc systems, uses single thread for all lookups,
-   requires pthreads, so does not work on win32
-4. libevent 1.x evdns               - buggy,
-   does not use /etc/hosts, never used by default
+backend                    | parallel | EDNS0    | /etc/hosts | note
+---------------------------+----------+----------+------------+------------------------
+udns                       | yes      | yes      | no         | unimplemented
+evdns, libevent 2.x        | yes      | no       | yes        |
+getaddrinfo_a, glibc 2.9+  | yes      | yes (1)  | yes        | N/A on non-linux
+getaddrinfo, libc          | no       | yes (1)  | yes        | N/A on win32, requires pthreads
+evdns, libevent 1.x        | yes      | no       | no         | buggy
+
+(1) To enable EDNS0, add 'options edns0' to /etc/resolv.conf
 
 `./configure` also has flags `--enable-evdns` and `--disable-evdns` which
 turn off automatic probing and force use of either `evdns` or `getaddrinfo_a()`.

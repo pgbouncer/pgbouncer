@@ -1,3 +1,16 @@
+2011-xx-xx  -  PgBouncer 1.x.x  -  ""
+
+  = Fixes =
+
+    * Detect DNS reply changes and invalidate connections
+      to IPs no longer present in latest reply.
+      (Petr Jelinek)
+
+      If you have more than 8 IPs behind one DNS name, you need to
+      use EDNS0 protocol to query.  Only getaddrinfo_a()/getaddrinfo()
+      supports it, libevent does not.  To enable add 'options edns0'
+      to /etc/resolv.conf.
+
 2011-06-16  -  PgBouncer 1.4.2  -  "Strike-First Algorithm"
 
   Affected OS-es: *BSD, Solaris, Win32.

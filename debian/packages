@@ -20,12 +20,12 @@ Description: Lightweight connection pooler for PostgreSQL
  .
 Install: sh
  # just in case, build with debugging options
- CFLAGS="-O -g" ./configure --prefix=/usr --enable-debug --enable-cassert
+ CFLAGS="-O -g" ./configure --prefix=/usr --enable-debug --enable-cassert --disable-evdns
  make V=1
  make install DESTDIR=$ROOT
  mv $ROOT/usr/bin/pgbouncer $ROOT/usr/bin/pgbouncer-dbg
  make clean
  # now without cassert
- ./configure --prefix=/usr --enable-debug
+ ./configure --prefix=/usr --enable-debug --disable-evdns
  make V=1
  make install DESTDIR=$ROOT

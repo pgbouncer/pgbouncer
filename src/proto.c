@@ -243,6 +243,20 @@ bool welcome_client(PgSocket *client)
  * Password authentication for server
  */
 
+static PgUser *get_srv_psw(PgSocket *server)
+{
+	PgDatabase *db = server->pool->db;
+	PgUser *user = server->pool->user;
+
+	/* if forced user without password, use userlist psw */
+	if (!user->passwd[0] && db->forced_user) {
+		PgUser *u2 = find_user(user->name);
+		if (u2)
+			return u2;
+	}
+	return user;
+}
+
 /* actual packet send */
 static bool send_password(PgSocket *server, const char *enc_psw)
 {
@@ -253,15 +267,16 @@ static bool send_password(PgSocket *server, const char *enc_psw)
 
 static bool login_clear_psw(PgSocket *server)
 {
+	PgUser *user = get_srv_psw(server);
 	slog_debug(server, "P: send clear password");
-	return send_password(server, server->pool->user->passwd);
+	return send_password(server, user->passwd);
 }
 
 static bool login_crypt_psw(PgSocket *server, const uint8_t *salt)
 {
 	char saltbuf[3];
 	const char *enc;
-	PgUser *user = server->pool->user;
+	PgUser *user = get_srv_psw(server);
 
 	slog_debug(server, "P: send crypt password");
 	memcpy(saltbuf, salt, 2);
@@ -277,7 +292,7 @@ static bool login_crypt_psw(PgSocket *server, const uint8_t *salt)
 static bool login_md5_psw(PgSocket *server, const uint8_t *salt)
 {
 	char txt[MD5_PASSWD_LEN + 1], *src;
-	PgUser *user = server->pool->user;
+	PgUser *user = get_srv_psw(server);
 
 	slog_debug(server, "P: send md5 password");
 	if (!isMD5(user->passwd)) {

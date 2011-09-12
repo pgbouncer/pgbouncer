@@ -27,7 +27,7 @@
 /* regex elements */
 #define WS0	"[ \t\n\r]*"
 #define WS1	"[ \t\n\r]+"
-#define WORD	"([0-9a-z_]+)"
+#define WORD	"(\"([^\"]+|\"\")*\"|[a-z_][0-9a-z_]*)"
 #define STRING	"'(([^']*|'')*)'"
 
 /* possible max + 1 */
@@ -35,9 +35,9 @@
 
 /* group numbers */
 #define CMD_NAME 1
-#define CMD_ARG 3
+#define CMD_ARG 4
 #define SET_KEY 1
-#define SET_VAL 3
+#define SET_VAL 4
 
 typedef bool (*cmd_func_t)(PgSocket *admin, const char *arg);
 struct cmd_lookup {
@@ -911,9 +911,21 @@ static void copy_arg(const char *src, regmatch_t *glist,
 {
 	regmatch_t *g = &glist[gnum];
 	unsigned len = g->rm_eo - g->rm_so;
-	if (len < dstmax)
-		memcpy(dst, src + g->rm_so, len);
-	else
+	const char *s = src + g->rm_so;
+	char *d = dst;
+	unsigned i;
+	if (len < dstmax) {
+		if (*s == '"') {
+			for (i = 1; i < len - 1; i++) {
+				if (s[i] == '"' && s[i+1] == '"')
+					i++;
+				*d++ = s[i];
+			}
+			len = d - dst;
+		} else {
+			memcpy(dst, s, len);
+		}
+	} else
 		len = 0;
 	dst[len] = 0;
 }

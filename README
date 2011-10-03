@@ -36,7 +36,7 @@ and their probing order:
 
 backend                    | parallel | EDNS0    | /etc/hosts | note
 ---------------------------+----------+----------+------------+------------------------
-udns                       | yes      | yes      | no         | unimplemented
+udns                       | yes      | yes      | no         | ipv4-only
 evdns, libevent 2.x        | yes      | no       | yes        |
 getaddrinfo_a, glibc 2.9+  | yes      | yes (1)  | yes        | N/A on non-linux
 getaddrinfo, libc          | no       | yes (1)  | yes        | N/A on win32, requires pthreads

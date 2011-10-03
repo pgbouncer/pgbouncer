@@ -75,6 +75,41 @@ AC_CHECK_FUNCS(crypt lstat)
 dnl Find libevent
 AC_USUAL_LIBEVENT
 
+dnl Find libudns
+use_udns=no
+AC_MSG_CHECKING([whether to use libudns])
+AC_ARG_WITH(udns,
+  AC_HELP_STRING([--with-udns=prefix],[Specify where udns is installed]),
+  [ if test "$withval" = "no"; then
+      use_udns=no
+    elif test "$withval" = "yes"; then
+      use_udns=yes
+    else
+      use_udns=yes
+      CPPFLAGS="$CPPFLAGS -I$withval/include"
+      LDFLAGS="$LDFLAGS -L$withval/lib"
+    fi
+  ], [])
+AC_MSG_RESULT([$use_udns])
+
+if test "$use_udns" = "yes"; then
+  AC_DEFINE(USE_UDNS, 1, [Use UDNS for name resolution.])
+  LIBS="-ludns $LIBS"
+  AC_MSG_CHECKING([whether libudns is available])
+  AC_LINK_IFELSE([AC_LANG_SOURCE([
+    #include <sys/types.h>
+    #include <sys/time.h>
+    #include <udns.h>
+    int main(void) {
+      struct dns_ctx *ctx = NULL;
+      dns_init(ctx, 0);
+      dns_reset(ctx);
+    } ])],
+  [AC_MSG_RESULT([found])],
+  [AC_MSG_ERROR([not found, cannot proceed])])
+
+else # !udns
+
 dnl On libevent 2.x use evdns by default
 use_evdns=no
 if test "$ac_cv_func_evdns_base_new" = "yes"; then
@@ -96,6 +131,8 @@ dnl Check if need getaddinfo_a compat
 if test "$use_evdns" = no; then
   AC_USUAL_GETADDRINFO_A
 fi
+
+fi # !udns
 
 AC_USUAL_DEBUG
 AC_USUAL_CASSERT

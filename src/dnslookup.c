@@ -18,45 +18,51 @@
 
 #include "bouncer.h"
 
+#include <usual/netdb.h>
+
 /*
+ * Available backends:
+ *
+ * udns - libudns
  * getaddrinfo_a - glibc only
  * libevent1 - returns TTL, ignores hosts file.
  * libevent2 - does not return TTL, uses hosts file.
  */
 
-#include <usual/netdb.h>
-
-#ifndef USE_EVDNS
-
-/* getaddrinfo_a */
+#if !defined(USE_EVDNS) && !defined(USE_UDNS)
 #define USE_GETADDRINFO_A
+#endif
 
-#else
-
+#ifdef USE_EVDNS
 #ifdef EV_ET
-
-/* libevent 2 */
 #define USE_LIBEVENT2
 #include <event2/dns.h>
 #define addrinfo evutil_addrinfo
 #define freeaddrinfo evutil_freeaddrinfo
-
-#else
-
-/* libevent 1 */
+#else /* !EV_ET */
 #define USE_LIBEVENT1
 #include <evdns.h>
+#endif /* !EV_ET */
+#endif /* USE_EVDNS */
 
+#ifdef USE_UDNS
+#include <udns.h>
 #endif
-#endif
 
 
+/*
+ * There can be several client request (tokens)
+ * attached to single actual request.
+ */
 struct DNSToken {
 	struct List node;
 	adns_callback_f cb_func;
 	void *cb_arg;
 };
 
+/*
+ * Cached DNS query (hostname).
+ */
 struct DNSRequest {
 	struct AANode node;
 	struct DNSContext *ctx;
@@ -75,15 +81,80 @@ struct DNSRequest {
 	usec_t res_ttl;
 };
 
+/*
+ * Top struct for DNS data.
+ */
 struct DNSContext {
 	struct AATree req_tree;
 	void *edns;
 };
 
 static void deliver_info(struct DNSRequest *req);
-
 static void got_result_gai(int result, struct addrinfo *res, void *arg);
 
+
+/*
+ * Custom addrinfo generation
+ */
+
+#if defined(USE_LIBEVENT1) || defined(USE_UDNS)
+
+static struct addrinfo *mk_addrinfo(const struct in_addr ip4)
+{
+	struct addrinfo *ai;
+	struct sockaddr_in *sa;
+	ai = calloc(1, sizeof(*ai));
+	if (!ai)
+		return NULL;
+	sa = calloc(1, sizeof(*sa));
+	if (!sa) {
+		free(ai);
+		return NULL;
+	}
+	sa->sin_addr = ip4;
+	sa->sin_family = AF_INET;
+	ai->ai_addr = (struct sockaddr *)sa;
+	ai->ai_addrlen = sizeof(*sa);
+	return ai;
+}
+
+#define freeaddrinfo(x) local_freeaddrinfo(x)
+
+static void freeaddrinfo(struct addrinfo *ai)
+{
+	struct addrinfo *cur;
+	while (ai) {
+		cur = ai;
+		ai = ai->ai_next;
+		free(cur->ai_addr);
+		free(cur);
+	}
+}
+
+static struct addrinfo *convert_ipv4_result(const struct in_addr *adrs, int count)
+{
+	struct addrinfo *ai, *last = NULL;
+	int i;
+
+	for (i = count - 1; i >= 0; i--) {
+		ai = mk_addrinfo(adrs[i]);
+		if (!ai)
+			goto failed;
+		ai->ai_next = last;
+		last = ai;
+	}
+	return last;
+failed:
+	freeaddrinfo(last);
+	return NULL;
+}
+
+#endif /* custom addrinfo */
+
+
+/*
+ * ADNS with glibc's getaddrinfo_a()
+ */
 
 #ifdef USE_GETADDRINFO_A
 
@@ -99,10 +170,6 @@ const char *adns_get_backend(void)
 	return "compat";
 #endif
 }
-
-/*
- * ADNS with glibc's getaddrinfo_a()
- */
 
 struct GaiRequest {
 	struct List node;
@@ -199,16 +266,17 @@ static void impl_release(struct DNSContext *ctx)
 
 #endif /* USE_GETADDRINFO_A */
 
+
+/*
+ * ADNS with libevent2 <event2/dns.h>
+ */
+
 #ifdef USE_LIBEVENT2
 
 const char *adns_get_backend(void)
 {
 	return "evdns2";
 }
-
-/*
- * ADNS with libevent2 <event2/dns.h>
- */
 
 static bool impl_init(struct DNSContext *ctx)
 {
@@ -235,67 +303,18 @@ static void impl_release(struct DNSContext *ctx)
 	evdns_base_free(dns, 0);
 }
 
-#endif
+#endif /* USE_LIBEVENT2 */
+
+
+/*
+ * ADNS with libevent 1.x <evdns.h>
+ */
 
 #ifdef USE_LIBEVENT1
 
 const char *adns_get_backend(void)
 {
 	return "evdns1";
-}
-
-/*
- * ADNS with libevent 1.x <evdns.h>
- */
-
-static struct addrinfo *mk_addrinfo(void *ip)
-{
-	struct addrinfo *ai;
-	struct sockaddr_in *sa;
-	ai = calloc(1, sizeof(*ai));
-	if (!ai)
-		return NULL;
-	sa = calloc(1, sizeof(*sa));
-	if (!sa) {
-		free(ai);
-		return NULL;
-	}
-	memcpy(&sa->sin_addr, ip, 4);
-	sa->sin_family = AF_INET;
-	ai->ai_addr = (struct sockaddr *)sa;
-	ai->ai_addrlen = sizeof(*sa);
-	return ai;
-}
-
-#define freeaddrinfo(x) local_freeaddrinfo(x)
-
-static void freeaddrinfo(struct addrinfo *ai)
-{
-	struct addrinfo *cur;
-	while (ai) {
-		cur = ai;
-		ai = ai->ai_next;
-		free(cur->ai_addr);
-		free(cur);
-	}
-}
-
-static struct addrinfo *convert_ipv4_result(uint8_t *adrs, int count)
-{
-	struct addrinfo *ai, *last = NULL;
-	int i;
-
-	for (i = count - 1; i >= 0; i--) {
-		ai = mk_addrinfo(adrs + i * 4);
-		if (!ai)
-			goto failed;
-		ai->ai_next = last;
-		last = ai;
-	}
-	return last;
-failed:
-	freeaddrinfo(last);
-	return NULL;
 }
 
 static void got_result_evdns(int result, char type, int count, int ttl, void *addresses, void *arg)
@@ -337,7 +356,145 @@ static void impl_release(struct DNSContext *ctx)
 	evdns_shutdown(0);
 }
 
-#endif
+#endif /* USE_LIBEVENT1 */
+
+
+/*
+ * ADNS with <udns.h>
+ */
+
+#ifdef USE_UDNS
+
+struct UdnsMeta {
+	struct dns_ctx *ctx;
+	struct event ev_io;
+	struct event ev_timer;
+	bool timer_active;
+};
+
+const char *adns_get_backend(void)
+{
+	return "udns " UDNS_VERSION;
+}
+
+static void udns_timer_setter(struct dns_ctx *uctx, int timeout, void *arg)
+{
+	struct DNSContext *ctx = arg;
+	struct UdnsMeta *udns = ctx->edns;
+
+	log_noise("udns_timer_setter: ctx=%p timeout=%d", uctx, timeout);
+
+	if (udns->timer_active) {
+		event_del(&udns->ev_timer);
+		udns->timer_active = false;
+	}
+
+	if (uctx && timeout >= 0) {
+		struct timeval tv = { .tv_sec = timeout, .tv_usec = 0 };
+		evtimer_add(&udns->ev_timer, &tv);
+		udns->timer_active = true;
+	}
+}
+
+static void udns_timer_cb(int d, short fl, void *arg)
+{
+	struct DNSContext *ctx = arg;
+	struct UdnsMeta *udns = ctx->edns;
+	time_t now = get_cached_time() / USEC;
+
+	log_noise("udns_timer_cb");
+
+	dns_timeouts(udns->ctx, 10, now);
+}
+
+static void udns_io_cb(int fd, short fl, void *arg)
+{
+	struct DNSContext *ctx = arg;
+	struct UdnsMeta *udns = ctx->edns;
+	time_t now = get_cached_time() / USEC;
+
+	log_noise("udns_io_cb");
+
+	dns_ioevent(udns->ctx, now);
+}
+
+static void udns_result_a4(struct dns_ctx *ctx, struct dns_rr_a4 *a4, void *data)
+{
+	struct DNSRequest *req = data;
+	struct addrinfo *res = NULL;
+	int err;
+
+
+	err = dns_status(ctx);
+	if (a4) {
+		log_noise("udns_result_a4: %s: %d ips", req->name, a4->dnsa4_nrr);
+		res = convert_ipv4_result(a4->dnsa4_addr, a4->dnsa4_nrr);
+	}
+	got_result_gai(0, res, req);
+}
+
+static void impl_launch_query(struct DNSRequest *req)
+{
+	struct UdnsMeta *udns = req->ctx->edns;
+	struct dns_query *q;
+	int flags = 0;
+
+	q = dns_submit_a4(udns->ctx, req->name, flags, udns_result_a4, req);
+	if (q) {
+		log_noise("dns: udns_launch_query(%s)=%p", req->name, q);
+	} else {
+		log_warning("dns: udns_launch_query(%s)=NULL", req->name);
+	}
+}
+
+static bool impl_init(struct DNSContext *ctx)
+{
+	int fd, res;
+	struct dns_ctx *dctx;
+	struct UdnsMeta *udns;
+
+	dns_init(NULL, 0);
+
+	dctx = dns_new(NULL);
+	if (!dctx)
+		return false;
+
+	udns = calloc(1, sizeof(*udns));
+	if (!udns)
+		return false;
+	ctx->edns = udns;
+	udns->ctx = dctx;
+
+	/* i/o callback setup */
+	fd = dns_open(dctx);
+	if (fd <= 0) {
+		log_warning("dns_open failed: fd=%d", fd);
+		return false;
+	}
+	event_set(&udns->ev_io, fd, EV_READ, udns_io_cb, ctx);
+	event_add(&udns->ev_io, NULL);
+
+	/* timer setup */
+	evtimer_set(&udns->ev_timer, udns_timer_cb, ctx);
+	dns_set_tmcbck(udns->ctx, udns_timer_setter, ctx);
+
+	return true;
+}
+
+static void impl_release(struct DNSContext *ctx)
+{
+	struct UdnsMeta *udns = ctx->edns;
+
+	event_del(&udns->ev_io);
+	dns_free(udns->ctx);
+	if (udns->timer_active) {
+		event_del(&udns->ev_timer);
+		udns->timer_active = false;
+	}
+}
+
+#endif /* USE_UDNS */
+
 
 /*
  * Generic framework
@@ -527,7 +684,7 @@ static void got_result_gai(int result, struct addrinfo *res, void *arg)
 
 	req_reset(req);
 
-	if (result == 0) {
+	if (result == 0 && res) {
 		req->result = res;
 		req->current = res;
 

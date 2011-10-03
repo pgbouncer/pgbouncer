@@ -430,6 +430,18 @@ static void check_pool_size(PgPool *pool)
 			break;
 		disconnect_server(server, true, "too many servers in the pool");
 		many--;
+		cur--;
+	}
+
+	/* launch extra connections to satisfy min_pool_size */
+	if (cur < cf_min_pool_size &&
+	    cur < pool->db->pool_size &&
+	    cf_pause_mode == P_NONE &&
+	    cf_reboot == 0 &&
+	    pool_client_count(pool) > 0)
+	{
+		log_debug("Launching new connection to satisfy min_pool_size");
+		launch_new_connection(pool);
 	}
 }
 

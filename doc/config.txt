@@ -145,6 +145,13 @@ the per-database configuration.
 
 Default: 20
 
+==== min_pool_size ====
+
+Minimal pool size.  PgBouncer will open this many connections to backend database
+after first client connect.  Optional, not recommended in most normal setups.
+
+Default: 0 (disabled)
+
 ==== reserve_pool_size ====
 
 How many additional connections to allow to a pool. 0 disables.
@@ -292,7 +299,8 @@ Default: 3600
 ==== server_idle_timeout ====
 
 If a server connection has been idle more than this many seconds, and there are 
-too many connections in the pool, this one can be dropped. [seconds]
+too many connections in the pool, this one can be dropped.
+If 0 then timeout is disabled.  [seconds]
 
 Default: 600
 

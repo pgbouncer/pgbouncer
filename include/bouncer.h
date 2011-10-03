@@ -342,6 +342,7 @@ extern int cf_listen_backlog;
 extern int cf_pool_mode;
 extern int cf_max_client_conn;
 extern int cf_default_pool_size;
+extern int cf_min_pool_size;
 extern int cf_res_pool_size;
 extern usec_t cf_res_pool_timeout;
 

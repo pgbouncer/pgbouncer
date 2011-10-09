@@ -252,6 +252,12 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	case 'N':		/* NoticeResponse */
 		break;
 
+	/* reply to LISTEN, don't change connection state */
+	case 'A':		/* NotificationResponse */
+		idle_tx = server->idle_tx;
+		ready = server->ready;
+		break;
+
 	/* chat packets */
 	case '2':		/* BindComplete */
 	case '3':		/* CloseComplete */
@@ -263,7 +269,6 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	case 'G':		/* CopyInResponse */
 	case 'H':		/* CopyOutResponse */
 	case '1':		/* ParseComplete */
-	case 'A':		/* NotificationResponse */
 	case 's':		/* PortalSuspended */
 	case 'C':		/* CommandComplete */
 

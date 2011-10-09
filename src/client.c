@@ -337,7 +337,8 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		client->pool->stats.client_bytes += pkt->len;
 
 		/* tag the server as dirty */
-		client->link->ready = 0;
+		client->link->ready = false;
+		client->link->idle_tx = false;
 
 		/* forward the packet */
 		sbuf_prepare_send(sbuf, &client->link->sbuf, pkt->len);

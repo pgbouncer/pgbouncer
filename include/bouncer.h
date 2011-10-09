@@ -290,6 +290,7 @@ struct PgSocket {
 	SocketState state:8;	/* this also specifies socket location */
 
 	bool ready:1;		/* server: accepts new query */
+	bool idle_tx:1;		/* server: idling in tx */
 	bool close_needed:1;	/* server: this socket must be closed ASAP */
 	bool setting_vars:1;	/* server: setting client vars */
 	bool exec_on_connect:1;	/* server: executing connect_query */
@@ -361,6 +362,7 @@ extern usec_t cf_query_timeout;
 extern usec_t cf_query_wait_timeout;
 extern usec_t cf_client_idle_timeout;
 extern usec_t cf_client_login_timeout;
+extern usec_t cf_idle_transaction_timeout;
 extern int cf_server_round_robin;
 extern int cf_disable_pqexec;
 extern usec_t cf_dns_max_ttl;

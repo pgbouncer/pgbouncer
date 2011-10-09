@@ -372,6 +372,13 @@ for network problems. [seconds]
 
 Default: 0 (disabled)
 
+==== idle_transaction_timeout ====
+
+If client has been in "idle in transaction" state longer, it will be disconnected.
+[seconds]
+
+Default: 0 (disabled)
+
 === Low-level network settings ===
 
 ==== pkt_buf ====

@@ -188,7 +188,8 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 /* process packets on logged in connection */
 static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 {
-	bool ready = 0;
+	bool ready = false;
+	bool idle_tx = false;
 	char state;
 	SBuf *sbuf = &server->sbuf;
 	PgSocket *client = server->link;
@@ -209,11 +210,13 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			return false;
 
 		/* set ready only if no tx */
-		if (state == 'I')
-			ready = 1;
-		else if (cf_pool_mode == POOL_STMT) {
+		if (state == 'I') {
+			ready = true;
+		} else if (cf_pool_mode == POOL_STMT) {
 			disconnect_server(server, true, "Long transactions not allowed");
 			return false;
+		} else if (state == 'T' || state == 'E') {
+			idle_tx = true;
 		}
 		break;
 
@@ -279,6 +282,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	case 'T':		/* RowDescription */
 		break;
 	}
+	server->idle_tx = idle_tx;
 	server->ready = ready;
 	server->pool->stats.server_bytes += pkt->len;
 

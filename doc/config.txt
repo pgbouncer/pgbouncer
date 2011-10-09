@@ -147,8 +147,10 @@ Default: 20
 
 ==== min_pool_size ====
 
-Minimal pool size.  PgBouncer will open this many connections to backend database
-after first client connect.  Optional, not recommended in most normal setups.
+Add more server connections to pool if below this number.
+Improves behaviour when usual load comes suddenly back after period
+of total inactivity.
+
 
 Default: 0 (disabled)
 

@@ -27,7 +27,7 @@
 /* regex elements */
 #define WS0	"[ \t\n\r]*"
 #define WS1	"[ \t\n\r]+"
-#define WORD	"(\"([^\"]+|\"\")*\"|[a-z_][0-9a-z_]*)"
+#define WORD	"(\"([^\"]+|\"\")*\"|[0-9a-z_]+)"
 #define STRING	"'(([^']*|'')*)'"
 
 /* possible max + 1 */

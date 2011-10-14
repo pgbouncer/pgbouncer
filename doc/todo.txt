@@ -20,6 +20,14 @@ Waiting for contributors...
 
 == Problems / cleanups ==
 
+ * hba-style access control
+
+ * per-db pool_mode
+
+ * per-user pool_mode, other settings ([users], user=connstr?)
+
+ * identd authentication
+
  * Maintenance order vs. lifetime_kill_gap:
    http://lists.pgfoundry.org/pipermail/pgbouncer-general/2011-February/000679.html[]
 

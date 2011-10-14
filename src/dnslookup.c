@@ -86,11 +86,17 @@ struct DNSRequest {
  */
 struct DNSContext {
 	struct AATree req_tree;
+	struct AATree zone_tree;
+	struct List zone_list;
 	void *edns;
 };
 
 static void deliver_info(struct DNSRequest *req);
 static void got_result_gai(int result, struct addrinfo *res, void *arg);
+
+static void zone_register(struct DNSContext *ctx, const char *hostname);
+static void zone_init(struct DNSContext *ctx);
+static void zone_free(struct DNSContext *ctx);
 
 
 /*
@@ -580,6 +586,7 @@ struct DNSContext *adns_create_context(void)
 		adns_free_context(ctx);
 		return NULL;
 	}
+	zone_init(ctx);
 	return ctx;
 }
 
@@ -588,6 +595,7 @@ void adns_free_context(struct DNSContext *ctx)
 	if (ctx) {
 		impl_release(ctx);
 		aatree_destroy(&ctx->req_tree);
+		zone_free(ctx);
 		free(ctx);
 	}
 }
@@ -618,6 +626,8 @@ struct DNSToken *adns_resolve(struct DNSContext *ctx, const char *name, adns_cal
 		list_init(&req->ucb_list);
 		aatree_insert(&ctx->req_tree, (uintptr_t)req->name, &req->node);
 		impl_launch_query(req);
+
+		zone_register(ctx, name);
 	}
 
 	/* remember user callback */
@@ -706,5 +716,73 @@ void adns_cancel(struct DNSContext *ctx, struct DNSToken *tk)
 	list_del(&tk->node);
 	memset(tk, 0, sizeof(*tk));
 	free(tk);
+}
+
+
+/*
+ * zone code
+ */
+
+struct DNSZone {
+	struct List lnode;
+	struct AANode tnode;
+	const char *zonename;
+	uint64_t serial;
+};
+
+static void zone_item_free(struct AANode *n, void *arg)
+{
+	struct DNSZone *z = container_of(n, struct DNSZone, tnode);
+
+	list_del(&z->lnode);
+	free(z->zonename);
+	free(z);
+}
+
+static int zone_item_cmp(uintptr_t val1, struct AANode *n2)
+{
+	const char *name1 = (const char *)val1;
+	struct DNSZone *z2 = container_of(n2, struct DNSZone, tnode);
+	return strcasecmp(name1, z2->zonename);
+}
+
+static void zone_init(struct DNSContext *ctx)
+{
+	aatree_init(&ctx->zone_tree, zone_item_cmp, zone_item_free);
+	list_init(&ctx->zone_list);
+}
+
+static void zone_free(struct DNSContext *ctx)
+{
+	aatree_destroy(&ctx->zone_tree);
+}
+
+static void zone_register(struct DNSContext *ctx, const char *hostname)
+{
+	struct DNSZone *z;
+	struct AANode *n;
+	const char *name;
+
+	name = strchr(hostname, '.');
+	if (!name)
+		return;
+
+	n = aatree_search(&ctx->zone_tree, (uintptr_t)name);
+	if (n)
+		return; /* already exists */
+
+	/* create struct */
+	z = calloc(1, sizeof(*z));
+	if (!z)
+		return;
+	z->zonename = strdup(name);
+	if (!z->zonename) {
+		free(z);
+		return;
+	}
+
+	/* link */
+	aatree_insert(&ctx->zone_tree, (uintptr_t)z->zonename, &z->tnode);
+	list_append(&ctx->zone_list, &z->lnode);
 }
 

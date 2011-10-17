@@ -99,6 +99,7 @@ if test "$use_udns" = "yes"; then
   AC_LINK_IFELSE([AC_LANG_SOURCE([
     #include <sys/types.h>
     #include <sys/time.h>
+    #include <stddef.h>
     #include <udns.h>
     int main(void) {
       struct dns_ctx *ctx = NULL;

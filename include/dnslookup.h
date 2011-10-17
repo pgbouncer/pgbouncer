@@ -31,3 +31,5 @@ void adns_cancel(struct DNSContext *ctx, struct DNSToken *tk);
 
 const char *adns_get_backend(void);
 
+void adns_zone_cache_maint(struct DNSContext *ctx);
+

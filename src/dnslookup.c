@@ -47,6 +47,13 @@
 
 #ifdef USE_UDNS
 #include <udns.h>
+#define ZONE_RECHECK 1
+#endif
+
+#ifndef ZONE_RECHECK
+#define ZONE_RECHECK 0
+#define impl_query_soa_serial(ctx, name) (0)
+#define cf_dns_zone_check_period (0)
 #endif
 
 
@@ -64,10 +71,12 @@ struct DNSToken {
  * Cached DNS query (hostname).
  */
 struct DNSRequest {
-	struct AANode node;
+	struct AANode node;	/* DNSContext->req_tree */
+	struct List znode;	/* DNSZone->host_list */
+
 	struct DNSContext *ctx;
 
-	struct List ucb_list;
+	struct List ucb_list;	/* DNSToken->node */
 
 	const char *name;
 	int namelen;
@@ -81,23 +90,40 @@ struct DNSRequest {
 	usec_t res_ttl;
 };
 
+/* zone name serial */
+struct DNSZone {
+	struct List lnode;	/* DNSContext->zone_list */
+	struct AANode tnode;	/* DNSContext->zone_tree */
+
+	struct List host_list;	/* DNSRequest->znode */
+
+	const char *zonename;
+	uint32_t serial;
+};
+
 /*
  * Top struct for DNS data.
  */
 struct DNSContext {
 	struct AATree req_tree;
-	struct AATree zone_tree;
-	struct List zone_list;
 	void *edns;
+
+	struct AATree zone_tree;	/* DNSZone->tnode */
+	struct List zone_list;		/* DNSZone->lnode */
+
+	struct DNSZone *cur_zone;
+	struct event ev_zone_timer;
+	int zone_state;
 };
 
 static void deliver_info(struct DNSRequest *req);
 static void got_result_gai(int result, struct addrinfo *res, void *arg);
 
-static void zone_register(struct DNSContext *ctx, const char *hostname);
+static void zone_register(struct DNSContext *ctx, struct DNSRequest *req);
 static void zone_init(struct DNSContext *ctx);
 static void zone_free(struct DNSContext *ctx);
 
+static void got_zone_serial(struct DNSContext *ctx, uint32_t *serial);
 
 /*
  * Custom addrinfo generation
@@ -455,7 +481,7 @@ static void impl_launch_query(struct DNSRequest *req)
 
 static bool impl_init(struct DNSContext *ctx)
 {
-	int fd, res;
+	int fd;
 	struct dns_ctx *dctx;
 	struct UdnsMeta *udns;
 
@@ -497,6 +523,134 @@ static void impl_release(struct DNSContext *ctx)
 		event_del(&udns->ev_timer);
 		udns->timer_active = false;
 	}
+}
+
+/*
+ * generic SOA query for UDNS
+ */
+
+struct SOA {
+	dns_rr_common(dnssoa);
+
+	char *dnssoa_nsname;
+	char *dnssoa_hostmaster;
+	uint32_t dnssoa_serial;
+	uint32_t dnssoa_refresh;
+	uint32_t dnssoa_retry;
+	uint32_t dnssoa_expire;
+	uint32_t dnssoa_minttl;
+};
+
+typedef void query_soa_fn(struct dns_ctx *ctx, struct SOA *result, void *data);
+
+static int parse_soa(dnscc_t *qdn, dnscc_t *pkt, dnscc_t *cur, dnscc_t *end, void **result)
+{
+	struct SOA *soa = NULL;
+	int res, len;
+	struct dns_parse p;
+	struct dns_rr rr;
+	dnsc_t buf[DNS_MAXDN];
+	char *s;
+
+	/* calc size */
+	len = 0;
+	dns_initparse(&p, qdn, pkt, cur, end);
+	while ((res = dns_nextrr(&p, &rr)) > 0) {
+		cur = rr.dnsrr_dptr;
+
+		res = dns_getdn(pkt, &cur, end, buf, sizeof(buf));
+		if (res <= 0)
+			goto failed;
+		len += dns_dntop_size(buf);
+
+		res = dns_getdn(pkt, &cur, end, buf, sizeof(buf));
+		if (res <= 0)
+			goto failed;
+		len += dns_dntop_size(buf);
+
+		if (cur + 5*4 != rr.dnsrr_dend)
+			goto failed;
+	}
+	if (res < 0 || p.dnsp_nrr != 1)
+		goto failed;
+	len += dns_stdrr_size(&p);
+
+	/* allocate */
+	soa = malloc(sizeof(*soa) + len);
+	if (!soa)
+		return DNS_E_NOMEM;
+
+	/* fill with data */
+	soa->dnssoa_nrr = 1;
+	dns_rewind(&p, qdn);
+	dns_nextrr(&p, &rr);
+	s = (char *)(soa + 1);
+	cur = rr.dnsrr_dptr;
+
+	soa->dnssoa_nsname = s;
+	dns_getdn(pkt, &cur, end, buf, sizeof(buf));
+	s += dns_dntop(buf, s, DNS_MAXNAME);
+
+	soa->dnssoa_hostmaster = s;
+	dns_getdn(pkt, &cur, end, buf, sizeof(buf));
+	s += dns_dntop(buf, s, DNS_MAXNAME);
+
+	soa->dnssoa_serial = dns_get32(cur + 0*4);
+	soa->dnssoa_refresh = dns_get32(cur + 1*4);
+	soa->dnssoa_retry = dns_get32(cur + 2*4);
+	soa->dnssoa_expire = dns_get32(cur + 3*4);
+	soa->dnssoa_minttl = dns_get32(cur + 4*4);
+
+	dns_stdrr_finish((struct dns_rr_null *)soa, s, &p);
+
+	*result = soa;
+	return 0;
+failed:
+	log_error("parse_soa failed");
+	free(soa);
+	return DNS_E_PROTOCOL;
+}
+
+static struct dns_query *
+submit_soa(struct dns_ctx *ctx, const char *name, int flags, query_soa_fn *cb, void *data)
+{
+	  return dns_submit_p(ctx, name, DNS_C_IN, DNS_T_SOA, flags,
+			      parse_soa, (dns_query_fn *)cb, data);
+}
+
+/*
+ * actual "get serial" part
+ */
+
+static void udns_result_soa(struct dns_ctx *uctx, struct SOA *soa, void *data)
+{
+	struct DNSContext *ctx = data;
+
+	if (!soa) {
+		log_debug("SOA query failed");
+		got_zone_serial(ctx, NULL);
+		return;
+	}
+
+	log_debug("SOA1: cname=%s qname=%s ttl=%u nrr=%u",
+		  soa->dnssoa_cname, soa->dnssoa_qname,
+		  soa->dnssoa_ttl, soa->dnssoa_nrr);
+	log_debug("SOA2: nsname=%s hostmaster=%s serial=%u refresh=%u retry=%u expire=%u minttl=%u",
+		  soa->dnssoa_nsname, soa->dnssoa_hostmaster, soa->dnssoa_serial, soa->dnssoa_refresh,
+		  soa->dnssoa_retry, soa->dnssoa_expire, soa->dnssoa_minttl);
+
+	got_zone_serial(ctx, &soa->dnssoa_serial);
+}
+
+static int impl_query_soa_serial(struct DNSContext *ctx, const char *zonename)
+{
+	struct UdnsMeta *udns = ctx->edns;
+	struct dns_query *q;
+	int flags = 0;
+
+	log_debug("udns: impl_query_soa_serial: name=%s", zonename);
+	q = submit_soa(udns->ctx, zonename, flags, udns_result_soa, ctx);
+	return 0;
 }
 
 #endif /* USE_UDNS */
@@ -571,6 +725,7 @@ static void req_free(struct AANode *node, void *arg)
 		freeaddrinfo(req->oldres);
 		req->oldres = NULL;
 	}
+	list_del(&req->znode);
 	free(req->name);
 	free(req);
 }
@@ -624,10 +779,11 @@ struct DNSToken *adns_resolve(struct DNSContext *ctx, const char *name, adns_cal
 		req->ctx = ctx;
 		req->namelen = namelen;
 		list_init(&req->ucb_list);
+		list_init(&req->znode);
 		aatree_insert(&ctx->req_tree, (uintptr_t)req->name, &req->node);
 		impl_launch_query(req);
 
-		zone_register(ctx, name);
+		zone_register(ctx, req);
 	}
 
 	/* remember user callback */
@@ -723,13 +879,6 @@ void adns_cancel(struct DNSContext *ctx, struct DNSToken *tk)
  * zone code
  */
 
-struct DNSZone {
-	struct List lnode;
-	struct AANode tnode;
-	const char *zonename;
-	uint64_t serial;
-};
-
 static void zone_item_free(struct AANode *n, void *arg)
 {
 	struct DNSZone *z = container_of(n, struct DNSZone, tnode);
@@ -757,19 +906,27 @@ static void zone_free(struct DNSContext *ctx)
 	aatree_destroy(&ctx->zone_tree);
 }
 
-static void zone_register(struct DNSContext *ctx, const char *hostname)
+static void zone_register(struct DNSContext *ctx, struct DNSRequest *req)
 {
 	struct DNSZone *z;
 	struct AANode *n;
 	const char *name;
 
-	name = strchr(hostname, '.');
-	if (!name)
+	log_debug("zone_register(%s)", req->name);
+
+	name = strchr(req->name, '.');
+	if (!name || name[1] == 0)
 		return;
+	name++;
+	log_debug("zone_register(%s): name=%s", req->name, name);
 
 	n = aatree_search(&ctx->zone_tree, (uintptr_t)name);
-	if (n)
-		return; /* already exists */
+	if (n) {
+		/* already exists */
+		z = container_of(n, struct DNSZone, tnode);
+		list_append(&z->host_list, &req->znode);
+		return;
+	}
 
 	/* create struct */
 	z = calloc(1, sizeof(*z));
@@ -784,5 +941,93 @@ static void zone_register(struct DNSContext *ctx, const char *hostname)
 	/* link */
 	aatree_insert(&ctx->zone_tree, (uintptr_t)z->zonename, &z->tnode);
 	list_append(&ctx->zone_list, &z->lnode);
+	list_append(&z->host_list, &req->znode);
+}
+
+static void zone_timer(int fd, short flg, void *arg)
+{
+	struct DNSContext *ctx = arg;
+	struct List *el;
+	struct DNSZone *z;
+
+	if (list_empty(&ctx->zone_list)) {
+		ctx->zone_state = 0;
+		return;
+	}
+
+	el = list_first(&ctx->zone_list);
+	z = container_of(el, struct DNSZone, lnode);
+	ctx->zone_state = 1;
+	ctx->cur_zone = z;
+	impl_query_soa_serial(ctx, z->zonename);
+}
+
+static void launch_zone_timer(struct DNSContext *ctx)
+{
+	struct timeval tv;
+
+	tv.tv_sec = cf_dns_zone_check_period / USEC;
+	tv.tv_usec = cf_dns_zone_check_period % USEC;
+
+	evtimer_set(&ctx->ev_zone_timer, zone_timer, ctx);
+	evtimer_add(&ctx->ev_zone_timer, &tv);
+
+	ctx->zone_state = 2;
+}
+
+void adns_zone_cache_maint(struct DNSContext *ctx)
+{
+	if (!cf_dns_zone_check_period) {
+		if (ctx->zone_state == 2) {
+			event_del(&ctx->ev_zone_timer);
+			ctx->zone_state = 0;
+		}
+		ctx->cur_zone = NULL;
+		return;
+	} else if (ctx->zone_state == 0) {
+		if (list_empty(&ctx->zone_list))
+			return;
+		launch_zone_timer(ctx);
+	}
+}
+
+static void zone_requeue(struct DNSContext *ctx, struct DNSZone *z)
+{
+	struct List *el;
+	struct DNSRequest *req;
+	list_for_each(el, &z->host_list) {
+		req = container_of(el, struct DNSRequest, znode);
+		if (!req->done)
+			continue;
+		req->res_ttl = 0;
+		impl_launch_query(req);
+	}
+}
+
+static void got_zone_serial(struct DNSContext *ctx, uint32_t *serial)
+{
+	struct DNSZone *z = ctx->cur_zone;
+	struct List *el;
+
+	if (!ctx->zone_state || !z)
+		return;
+
+	if (serial) {
+		if (*serial != z->serial) {
+			log_info("zone '%s' serial changed: old=%u new=%u",
+				 z->zonename, z->serial, *serial);
+			z->serial = *serial;
+			zone_requeue(ctx, z);
+		}
+	}
+
+	el = z->lnode.next;
+	if (el != &ctx->zone_list) {
+		z = container_of(el, struct DNSZone, lnode);
+		ctx->cur_zone = z;
+		impl_query_soa_serial(ctx, z->zonename);
+	} else {
+		launch_zone_timer(ctx);
+	}
 }
 

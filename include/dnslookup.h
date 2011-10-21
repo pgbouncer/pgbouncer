@@ -33,3 +33,5 @@ const char *adns_get_backend(void);
 
 void adns_zone_cache_maint(struct DNSContext *ctx);
 
+void adns_info(struct DNSContext *ctx, int *names, int *zones, int *queries, int *pending);
+

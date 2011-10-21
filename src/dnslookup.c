@@ -114,6 +114,8 @@ struct DNSContext {
 	struct DNSZone *cur_zone;
 	struct event ev_zone_timer;
 	int zone_state;
+
+	int active;	/* number of in-flight queries */
 };
 
 static void deliver_info(struct DNSRequest *req);
@@ -491,6 +493,11 @@ static bool impl_init(struct DNSContext *ctx)
 	if (!dctx)
 		return false;
 
+	dns_add_srch(dctx, NULL);
+	dns_add_serv(dctx, NULL);
+	if (dns_add_serv(dctx, "127.0.0.1") < 0)
+		fatal_perror("dns_add_serv failed");
+
 	udns = calloc(1, sizeof(*udns));
 	if (!udns)
 		return false;
@@ -662,10 +669,13 @@ static int impl_query_soa_serial(struct DNSContext *ctx, const char *zonename)
 
 static void deliver_info(struct DNSRequest *req)
 {
+	struct DNSContext *ctx = req->ctx;
 	struct DNSToken *ucb;
 	struct List *el;
 	const struct addrinfo *ai = req->current;
 	char sabuf[128];
+
+	ctx->active--;
 
 loop:
 	/* get next req */
@@ -781,9 +791,11 @@ struct DNSToken *adns_resolve(struct DNSContext *ctx, const char *name, adns_cal
 		list_init(&req->ucb_list);
 		list_init(&req->znode);
 		aatree_insert(&ctx->req_tree, (uintptr_t)req->name, &req->node);
-		impl_launch_query(req);
 
 		zone_register(ctx, req);
+
+		ctx->active++;
+		impl_launch_query(req);
 	}
 
 	/* remember user callback */
@@ -800,6 +812,7 @@ struct DNSToken *adns_resolve(struct DNSContext *ctx, const char *name, adns_cal
 		if (req->res_ttl < get_cached_time()) {
 			log_noise("dns: ttl over: %s", req->name);
 			req_reset(req);
+			ctx->active++;
 			impl_launch_query(req);
 		} else {
 			deliver_info(req);
@@ -874,6 +887,13 @@ void adns_cancel(struct DNSContext *ctx, struct DNSToken *tk)
 	free(tk);
 }
 
+void adns_info(struct DNSContext *ctx, int *names, int *zones, int *queries, int *pending)
+{
+	*names = ctx->req_tree.count;
+	*zones = ctx->zone_tree.count;
+	*queries = ctx->active;
+	*pending = 0;
+}
 
 /*
  * zone code
@@ -937,6 +957,8 @@ static void zone_register(struct DNSContext *ctx, struct DNSRequest *req)
 		free(z);
 		return;
 	}
+	list_init(&z->host_list);
+	list_init(&z->lnode);
 
 	/* link */
 	aatree_insert(&ctx->zone_tree, (uintptr_t)z->zonename, &z->tnode);
@@ -1000,6 +1022,7 @@ static void zone_requeue(struct DNSContext *ctx, struct DNSZone *z)
 		if (!req->done)
 			continue;
 		req->res_ttl = 0;
+		ctx->active++;
 		impl_launch_query(req);
 	}
 }
@@ -1009,11 +1032,19 @@ static void got_zone_serial(struct DNSContext *ctx, uint32_t *serial)
 	struct DNSZone *z = ctx->cur_zone;
 	struct List *el;
 
+	ctx->active--;
+
 	if (!ctx->zone_state || !z)
 		return;
 
+	log_debug("got_zone_serial: %u", serial ? *serial : 0);
+
 	if (serial) {
-		if (*serial != z->serial) {
+		/* wraparound compare */
+		int32_t s1 = z->serial;
+		int32_t s2 = *serial;
+		int32_t ds = s2 - s1;
+		if (ds > 0) {
 			log_info("zone '%s' serial changed: old=%u new=%u",
 				 z->zonename, z->serial, *serial);
 			z->serial = *serial;
@@ -1025,6 +1056,8 @@ static void got_zone_serial(struct DNSContext *ctx, uint32_t *serial)
 	if (el != &ctx->zone_list) {
 		z = container_of(el, struct DNSZone, lnode);
 		ctx->cur_zone = z;
+
+		ctx->active++;
 		impl_query_soa_serial(ctx, z->zonename);
 	} else {
 		launch_zone_timer(ctx);

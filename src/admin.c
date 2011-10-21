@@ -468,6 +468,14 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 	SENDLIST("login_clients", statlist_count(&login_client_list));
 	SENDLIST("free_servers", slab_free_count(server_cache));
 	SENDLIST("used_servers", slab_active_count(server_cache));
+	{
+		int names, zones, qry, pend;
+		adns_info(adns, &names, &zones, &qry, &pend);
+		SENDLIST("dns_names", names);
+		SENDLIST("dns_zones", zones);
+		SENDLIST("dns_queries", qry);
+		SENDLIST("dns_pending", pend);
+	}
 	admin_flush(admin, buf, "SHOW");
 	return true;
 }

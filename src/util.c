@@ -28,8 +28,8 @@
 int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstlen)
 {
 	const struct PgSocket *sock = ctx;
-	char *user, *db, *host;
-	char host6[INET6_ADDRSTRLEN];
+	const char *user, *db, *host;
+	char host6[PGADDR_BUF];
 	int port;
 
 	/* no prefix */
@@ -42,8 +42,10 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
 	if (pga_is_unix(&sock->remote_addr)) {
 		host = "unix";
 	} else {
-		pga_ntop(&sock->remote_addr, host6, INET6_ADDRSTRLEN);
-		host = host6;
+		memset(host6, 0, sizeof(host6));
+		host = pga_ntop(&sock->remote_addr, host6, sizeof(host6));
+		if (!host)
+			host = "(ntop-err)";
 	}
 	port = pga_port(&sock->remote_addr);
 

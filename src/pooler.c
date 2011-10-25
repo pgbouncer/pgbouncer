@@ -244,18 +244,14 @@ static void err_wait_func(int sock, short flags, void *arg)
 
 static const char *addrpair(const PgAddr *src, const PgAddr *dst)
 {
-	static char ip1buf[INET6_ADDRSTRLEN], ip2buf[INET6_ADDRSTRLEN],
-	            buf[INET6_ADDRSTRLEN+INET6_ADDRSTRLEN+128];
+	static char ip1buf[PGADDR_BUF], ip2buf[PGADDR_BUF],
+	            buf[2*PGADDR_BUF + 16];
 	const char *ip1, *ip2;
 	if (pga_is_unix(src))
 		return "unix->unix";
 
 	ip1 = pga_ntop(src, ip1buf, sizeof(ip1buf));
-	if (!ip1)
-		ip1 = strerror(errno);
 	ip2 = pga_ntop(src, ip2buf, sizeof(ip2buf));
-	if (!ip2)
-		ip2 = strerror(errno);
 	snprintf(buf, sizeof(buf), "%s:%d -> %s:%d",
 		 ip1, pga_port(src), ip2, pga_port(dst));
 	return buf;

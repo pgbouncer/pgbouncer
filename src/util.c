@@ -42,10 +42,7 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
 	if (pga_is_unix(&sock->remote_addr)) {
 		host = "unix";
 	} else {
-		memset(host6, 0, sizeof(host6));
 		host = pga_ntop(&sock->remote_addr, host6, sizeof(host6));
-		if (!host)
-			host = "(ntop-err)";
 	}
 	port = pga_port(&sock->remote_addr);
 
@@ -369,17 +366,29 @@ int pga_cmp_addr(const PgAddr *a, const PgAddr *b)
 /* convert pgaddr to string */
 const char *pga_ntop(const PgAddr *a, char *dst, int dstlen)
 {
+	const char *res = NULL;
+	char buf[PGADDR_BUF];
+
+	memset(buf, 0, sizeof(buf));
+
 	switch (pga_family(a)) {
 	case AF_UNIX:
-		strlcpy(dst, "unix", dstlen);
-		return dst;
+		res = "unix";
+		break;
 	case AF_INET:
-		return inet_ntop(AF_INET, &a->sin.sin_addr, dst, dstlen);
+		res = inet_ntop(AF_INET, &a->sin.sin_addr, buf, sizeof(buf));
+		break;
 	case AF_INET6:
-		return inet_ntop(AF_INET6, &a->sin6.sin6_addr, dst, dstlen);
+		res = inet_ntop(AF_INET6, &a->sin6.sin6_addr, buf, sizeof(buf));
+		break;
 	default:
-		return NULL;
+		res = "(bad-af)";
 	}
+	if (res == NULL)
+		res = "(err-ntop)";
+
+	strlcpy(dst, res, dstlen);
+	return dst;
 }
 
 /* parse address from string */
@@ -405,8 +414,7 @@ bool pga_pton(PgAddr *a, const char *s, int port)
 const char *pga_str(const PgAddr *a, char *dst, int dstlen)
 {
 	char buf[PGADDR_BUF];
-	if (!pga_ntop(a, buf, sizeof(buf)))
-		return NULL;
+	pga_ntop(a, buf, sizeof(buf));
 	snprintf(dst, dstlen, "%s@%d", buf, pga_port(a));
 	return dst;
 }

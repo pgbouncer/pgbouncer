@@ -523,7 +523,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 {
 	int pkt_avail = 0, send_avail = 0;
 	char ptrbuf[128], linkbuf[128];
-	char l_addr[32], r_addr[32];
+	char l_addr[PGADDR_BUF], r_addr[PGADDR_BUF];
 	IOBuf *io = sk->sbuf.io;
 
 	if (io) {

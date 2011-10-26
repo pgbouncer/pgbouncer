@@ -523,6 +523,8 @@ static void cleanup_inactive_autodatabases(void)
 	/* now kill the old ones */
 	statlist_for_each_safe(item, &autodatabase_idle_list, tmp) {
 		db = container_of(item, PgDatabase, head);
+		if (db->db_paused)
+			continue;
 		age = now - db->inactive_time;
 		if (age > cf_autodb_idle_timeout) 
 			kill_database(db);
@@ -601,7 +603,7 @@ void janitor_setup(void)
 	safe_evtimer_add(&full_maint_ev, &full_maint_period);
 }
 
-static void kill_pool(PgPool *pool)
+void kill_pool(PgPool *pool)
 {
 	const char *reason = "database removed";
 

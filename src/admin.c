@@ -1016,8 +1016,9 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		"\tSET key = arg\n"
 		"\tRELOAD\n"
 		"\tPAUSE [<db>]\n"
-		"\tSUSPEND\n"
 		"\tRESUME [<db>]\n"
+		"\tKILL <db>\n"
+		"\tSUSPEND\n"
 		"\tSHUTDOWN", "");
 	if (res)
 		res = admin_ready(admin, "SHOW");

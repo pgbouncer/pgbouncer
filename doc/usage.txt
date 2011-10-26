@@ -413,11 +413,17 @@ changeable::
 
 === PROCESS CONTROLLING COMMANDS ===
 
-==== PAUSE; ====
+==== PAUSE [db]; ====
 
 PgBouncer tries to disconnect from all servers, first waiting for all queries
 to complete. The command will not return before all queries are finished.  To be used
 at the time of database restart.
+
+If database name is given, only that database will be paused.
+
+==== KILL db; ====
+
+Immediately drop all client and server connections on given database.
 
 ==== SUSPEND; ====
 
@@ -425,7 +431,7 @@ All socket buffers are flushed and PgBouncer stops listening for data on them.
 The command will not return before all buffers are empty.  To be used at the time
 of PgBouncer online reboot.
 
-==== RESUME; ====
+==== RESUME [db]; ====
 
 Resume work from previous +PAUSE+ or +SUSPEND+ command.
 

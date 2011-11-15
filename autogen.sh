@@ -2,10 +2,20 @@
 
 # get install-sh, config.*
 rm -f config.sub config.guess install-sh ltmain.sh
-libtoolize --install --copy
+
+if libtoolize --help | grep "[-][-]install" > /dev/null; then
+  libtoolize --install --copy
+else
+  libtoolize --copy
+fi
+
 rm -f ltmain.sh
 
 rm -f lib/usual/config.* configure
-autoreconf -I lib/m4 -f
+
+aclocal -I ./lib/m4
+autoheader
+autoconf
+
 rm -rf autom4te*
 

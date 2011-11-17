@@ -493,11 +493,6 @@ static bool impl_init(struct DNSContext *ctx)
 	if (!dctx)
 		return false;
 
-	dns_add_srch(dctx, NULL);
-	dns_add_serv(dctx, NULL);
-	if (dns_add_serv(dctx, "127.0.0.1") < 0)
-		fatal_perror("dns_add_serv failed");
-
 	udns = calloc(1, sizeof(*udns));
 	if (!udns)
 		return false;
@@ -510,7 +505,7 @@ static bool impl_init(struct DNSContext *ctx)
 		log_warning("dns_open failed: fd=%d", fd);
 		return false;
 	}
-	event_set(&udns->ev_io, fd, EV_READ, udns_io_cb, ctx);
+	event_set(&udns->ev_io, fd, EV_READ | EV_PERSIST, udns_io_cb, ctx);
 	event_add(&udns->ev_io, NULL);
 
 	/* timer setup */
@@ -613,7 +608,6 @@ static int parse_soa(dnscc_t *qdn, dnscc_t *pkt, dnscc_t *cur, dnscc_t *end, voi
 	*result = soa;
 	return 0;
 failed:
-	log_error("parse_soa failed");
 	free(soa);
 	return DNS_E_PROTOCOL;
 }
@@ -634,15 +628,15 @@ static void udns_result_soa(struct dns_ctx *uctx, struct SOA *soa, void *data)
 	struct DNSContext *ctx = data;
 
 	if (!soa) {
-		log_debug("SOA query failed");
+		log_noise("SOA query failed");
 		got_zone_serial(ctx, NULL);
 		return;
 	}
 
-	log_debug("SOA1: cname=%s qname=%s ttl=%u nrr=%u",
+	log_noise("SOA1: cname=%s qname=%s ttl=%u nrr=%u",
 		  soa->dnssoa_cname, soa->dnssoa_qname,
 		  soa->dnssoa_ttl, soa->dnssoa_nrr);
-	log_debug("SOA2: nsname=%s hostmaster=%s serial=%u refresh=%u retry=%u expire=%u minttl=%u",
+	log_noise("SOA2: nsname=%s hostmaster=%s serial=%u refresh=%u retry=%u expire=%u minttl=%u",
 		  soa->dnssoa_nsname, soa->dnssoa_hostmaster, soa->dnssoa_serial, soa->dnssoa_refresh,
 		  soa->dnssoa_retry, soa->dnssoa_expire, soa->dnssoa_minttl);
 
@@ -657,6 +651,9 @@ static int impl_query_soa_serial(struct DNSContext *ctx, const char *zonename)
 
 	log_debug("udns: impl_query_soa_serial: name=%s", zonename);
 	q = submit_soa(udns->ctx, zonename, flags, udns_result_soa, ctx);
+	if (!q) {
+		log_error("impl_query_soa_serial failed: %s", zonename);
+	}
 	return 0;
 }
 
@@ -1037,8 +1034,6 @@ static void got_zone_serial(struct DNSContext *ctx, uint32_t *serial)
 	if (!ctx->zone_state || !z)
 		return;
 
-	log_debug("got_zone_serial: %u", serial ? *serial : 0);
-
 	if (serial) {
 		/* wraparound compare */
 		int32_t s1 = z->serial;
@@ -1049,7 +1044,11 @@ static void got_zone_serial(struct DNSContext *ctx, uint32_t *serial)
 				 z->zonename, z->serial, *serial);
 			z->serial = *serial;
 			zone_requeue(ctx, z);
+		} else {
+			log_debug("zone '%s' unchanged: serial=%u", z->zonename, *serial);
 		}
+	} else {
+		log_debug("failure to get zone '%s' serial", z->zonename);
 	}
 
 	el = z->lnode.next;

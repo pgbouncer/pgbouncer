@@ -344,6 +344,20 @@ Actual DNS TTL is ignored.  [seconds]
 
 Default: 15
 
+==== dns_zone_check_period ====
+
+Period to check if zone serial has changed.
+
+PgBouncer can collect dns zones from hostnames (everything after first dot)
+and then periodically check if zone serial changes.
+If it notices changes, all hostnames under that zone
+are looked up again.  If any host ip changes, it's connections
+are invalidated.
+
+Works only with UDNS backend (`--with-udns` to configure).
+
+Default: 0 (disabled)
+
 === Dangerous timeouts ===
 
 Setting following timeouts cause unexpected errors.
@@ -374,8 +388,8 @@ Default: 0 (disabled)
 
 ==== idle_transaction_timeout ====
 
-If client has been in "idle in transaction" state longer, it will be disconnected.
-[seconds]
+If client has been in "idle in transaction" state longer,
+it will be disconnected.  [seconds]
 
 Default: 0 (disabled)
 

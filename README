@@ -34,15 +34,21 @@ time instead just once at config load time.  This requires proper
 async DNS implementation.  Following list shows supported backends
 and their probing order:
 
-backend                    | parallel | EDNS0    | /etc/hosts | note
----------------------------+----------+----------+------------+------------------------
-udns                       | yes      | yes      | no         | ipv4-only
-evdns, libevent 2.x        | yes      | no       | yes        |
-getaddrinfo_a, glibc 2.9+  | yes      | yes (1)  | yes        | N/A on non-linux
-getaddrinfo, libc          | no       | yes (1)  | yes        | N/A on win32, requires pthreads
-evdns, libevent 1.x        | yes      | no       | no         | buggy
+.DNS backends
+[options="header"]
+|===========================================================================================
+| backend                    | parallel | EDNS0 (1) | /etc/hosts | SOA lookup (2) | note
 
-(1) To enable EDNS0, add 'options edns0' to /etc/resolv.conf
+| udns                       | yes      | yes       | no         | yes            | ipv4-only
+| evdns, libevent 2.x        | yes      | no        | yes        | no             |
+| getaddrinfo_a, glibc 2.9+  | yes      | yes (3)   | yes        | no             | N/A on non-linux
+| getaddrinfo, libc          | no       | yes (3)   | yes        | no             | N/A on win32, requires pthreads
+| evdns, libevent 1.x        | yes      | no        | no         | no             | buggy
+|===========================================================================================
+
+1. EDNS0 is required to have more then 8 addresses behind one hostname.
+2. SOA lookup is needed to re-check hostnames on zone serial change
+3. To enable EDNS0, add `options edns0` to /etc/resolv.conf
 
 `./configure` also has flags `--enable-evdns` and `--disable-evdns` which
 turn off automatic probing and force use of either `evdns` or `getaddrinfo_a()`.

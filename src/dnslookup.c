@@ -52,10 +52,10 @@
 
 #ifndef ZONE_RECHECK
 #define ZONE_RECHECK 0
-#define impl_query_soa_serial(ctx, name) (0)
+/* no implementation, also avoid 'unused' warning */
+#define impl_query_soa_serial(ctx, name) do { if (0) got_zone_serial(ctx, NULL); } while (0)
 #define cf_dns_zone_check_period (0)
 #endif
-
 
 /*
  * There can be several client request (tokens)
@@ -149,6 +149,9 @@ static struct addrinfo *mk_addrinfo(const struct in_addr ip4)
 	sa->sin_family = AF_INET;
 	ai->ai_addr = (struct sockaddr *)sa;
 	ai->ai_addrlen = sizeof(*sa);
+	ai->ai_protocol = IPPROTO_TCP;
+	ai->ai_socktype = SOCK_STREAM;
+	ai->ai_family = AF_INET;
 	return ai;
 }
 
@@ -259,6 +262,8 @@ static bool impl_init(struct DNSContext *ctx)
 
 static void impl_launch_query(struct DNSRequest *req)
 {
+	static const struct addrinfo hints = { .ai_socktype = SOCK_STREAM };
+
 	struct GaiContext *gctx = req->ctx->edns;
 	struct GaiRequest *grq = calloc(1, sizeof(*grq));
 	int res;
@@ -271,6 +276,7 @@ static void impl_launch_query(struct DNSRequest *req)
 	list_init(&grq->node);
 	grq->req = req;
 	grq->gairq.ar_name = req->name;
+	grq->gairq.ar_request = &hints;
 	list_append(&gctx->gairq_list, &grq->node);
 
 	cb = &grq->gairq;
@@ -324,10 +330,12 @@ static bool impl_init(struct DNSContext *ctx)
 
 static void impl_launch_query(struct DNSRequest *req)
 {
+	static const struct addrinfo hints = { .ai_socktype = SOCK_STREAM };
+
 	struct evdns_getaddrinfo_request *gai_req;
 	struct evdns_base *dns = req->ctx->edns;
 
-	gai_req = evdns_getaddrinfo(dns, req->name, NULL, NULL, got_result_gai, req);
+	gai_req = evdns_getaddrinfo(dns, req->name, NULL, &hints, got_result_gai, req);
 	log_noise("dns: evdns_getaddrinfo(%s)=%p", req->name, gai_req);
 }
 
@@ -866,6 +874,19 @@ static void got_result_gai(int result, struct addrinfo *res, void *arg)
 
 		if (req->oldres)
 			check_req_result_changes(req);
+
+		/* show all results */
+		if (cf_verbose > 1) {
+			const struct addrinfo *ai = res;
+			int n = 0;
+			char buf[128];
+			while (ai) {
+				log_noise("DNS: %s[%d] = %s [%s]", req->name, n++,
+					  sa2str(ai->ai_addr, buf, sizeof(buf)),
+					  ai->ai_socktype == SOCK_STREAM ? "STREAM" : "OTHER");
+				ai = ai->ai_next;
+			}
+		}
 	} else {
 		/* lookup failed */
 		log_warning("lookup failed: %s: result=%d", req->name, result);

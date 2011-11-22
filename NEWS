@@ -1,15 +1,67 @@
-2011-xx-xx  -  PgBouncer 1.x.x  -  ""
+2011-xx-xx  -  PgBouncer 1.5  -  ""
+
+  If you use more than 8 IPs behind one DNS name, you now need to
+  use EDNS0 protocol to query.  Only getaddrinfo_a()/getaddrinfo()
+  and UDNS backends support it, libevent 1.x/2.x does not.
+  To enable it for libc, add 'options edns0' to /etc/resolv.conf.
+
+  = Features =
+
+    * Detect DNS reply changes and invalidate connections to IPs no longer
+      present in latest reply.
+      (Petr Jelinek)
+
+    * DNS zone serial based hostname invalidation.  When option
+      dns_zone_check_period is set, all DNS zones will be queried
+      for SOA, and when serial has changed, all hostnames
+      will be queried.  This is needed to get deterministic
+      connection invalidation, because invalidation on lookup
+      is useless when no lookups are performed.
+      Works only with new UDNS backend.
+
+    * New SHOW DNS_HOSTS, SHOW DNS_ZONES commands to examine DNS cache.
+
+    * New param: min_pool_size - avoids dropping all connections
+      when there is no load.
+      (Filip Rembiałkowski)
+
+    * idle_in_transaction_timeout - kill transaction if idle too long.
+      Not set by default.
+
+    * New libudns backend for DNS lookups.  More featureful than evdns.
+      Use --with-udns to activate.  Does not work with IPv6 yet.
+
+    * KILL command, to immediately kill all connections for one database.
+      (Michael Tharp)
 
   = Fixes =
 
-    * Detect DNS reply changes and invalidate connections
-      to IPs no longer present in latest reply.
-      (Petr Jelinek)
+    * DNS now works with IPv6 hostnames.
 
-      If you have more than 8 IPs behind one DNS name, you need to
-      use EDNS0 protocol to query.  Only getaddrinfo_a()/getaddrinfo()
-      supports it, libevent does not.  To enable add 'options edns0'
-      to /etc/resolv.conf.
+    * Don't change connection state when NOTIFY arrives from server.
+
+    * Various documentation fixes.
+      (Dan McGee)
+
+    * Console: Support ident quoting with "".  Originally we did not
+      have any commands that took database names, so no quoting was needed.
+
+    * Console: allow numbers at the stard of word regex.  Trying
+      to use strict parser makes things too complex here.
+
+    * Don't expire auto DBs that are paused.
+      (Michael Tharp)
+
+    * Create auto databases as needed when doing PAUSE.
+      (Michael Tharp)
+
+    * Fix wrong log message issued by RESUME command.
+      (Peter Eisentraut)
+
+    * When user= without password= is in database connect string,
+      password will be taken from userlist.
+
+    * autogen.sh: work with older autoconf/automake.
 
 2011-06-16  -  PgBouncer 1.4.2  -  "Strike-First Algorithm"
 

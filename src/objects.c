@@ -509,7 +509,7 @@ bool check_fast_fail(PgSocket *client)
 	cnt = pool_server_count(pool) - statlist_count(&pool->new_server_list);
 	if (cnt)
 		return true;
-	disconnect_client(client, true, "no working server connection");
+	disconnect_client(client, true, "pgbouncer cannot connect to server");
 
 	/* usual relaunch wont work, as there are no waiting clients */
 	launch_new_connection(pool);

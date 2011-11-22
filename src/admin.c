@@ -23,6 +23,7 @@
 #include "bouncer.h"
 
 #include <usual/regex.h>
+#include <usual/netdb.h>
 
 /* regex elements */
 #define WS0	"[ \t\n\r]*"
@@ -756,6 +757,67 @@ static bool admin_show_mem(PgSocket *admin, const char *arg)
 	return true;
 }
 
+/* Command: SHOW DNS_HOSTS */
+
+static void dns_name_cb(void *arg, const char *name, const struct addrinfo *ai, usec_t ttl)
+{
+	PktBuf *buf = arg;
+	char *s, *end;
+	char adrs[1024];
+	usec_t now = get_cached_time();
+
+	end = adrs + sizeof(adrs) - 2;
+	for (s = adrs; ai && s < end; ai = ai->ai_next) {
+		if (s != adrs)
+			*s++ = ',';
+		sa2str(ai->ai_addr, s, end - s);
+		s += strlen(s);
+	}
+	*s = 0;
+
+	pktbuf_write_DataRow(buf, "sqs", name, (ttl - now) / USEC, adrs);
+}
+
+static bool admin_show_dns_hosts(PgSocket *admin, const char *arg)
+{
+	PktBuf *buf;
+
+	buf = pktbuf_dynamic(256);
+	if (!buf) {
+		admin_error(admin, "no mem");
+		return true;
+	}
+	pktbuf_write_RowDescription(buf, "sqs", "hostname", "ttl", "addrs");
+	adns_walk_names(adns, dns_name_cb, buf);
+	admin_flush(admin, buf, "SHOW");
+	return true;
+}
+
+/* Command: SHOW DNS_ZONES */
+
+static void dns_zone_cb(void *arg, const char *name, uint32_t serial, int nhosts)
+{
+	PktBuf *buf = arg;
+	pktbuf_write_DataRow(buf, "sqi", name, (uint64_t)serial, nhosts);
+}
+
+static bool admin_show_dns_zones(PgSocket *admin, const char *arg)
+{
+	PktBuf *buf;
+
+	buf = pktbuf_dynamic(256);
+	if (!buf) {
+		admin_error(admin, "no mem");
+		return true;
+	}
+	pktbuf_write_RowDescription(buf, "sqi", "zonename", "serial", "count");
+	adns_walk_zones(adns, dns_zone_cb, buf);
+	admin_flush(admin, buf, "SHOW");
+	return true;
+}
+
+/* Command: SHOW CONFIG */
+
 static void show_one_param(void *arg, const char *name, const char *val, bool reloadable)
 {
 	PktBuf *buf = arg;
@@ -763,7 +825,6 @@ static void show_one_param(void *arg, const char *name, const char *val, bool re
 			     reloadable ? "yes" : "no");
 }
 
-/* Command: SHOW CONFIG */
 static bool admin_show_config(PgSocket *admin, const char *arg)
 {
 	PktBuf *buf;
@@ -1013,6 +1074,7 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		"D\n\tSHOW HELP|CONFIG|DATABASES"
 		"|POOLS|CLIENTS|SERVERS|VERSION\n"
 		"\tSHOW STATS|FDS|SOCKETS|ACTIVE_SOCKETS|LISTS|MEM\n"
+		"\tSHOW DNS_HOSTS|DNS_ZONES\n"
 		"\tSET key = arg\n"
 		"\tRELOAD\n"
 		"\tPAUSE [<db>]\n"
@@ -1063,6 +1125,8 @@ static struct cmd_lookup show_map [] = {
 	{"version", admin_show_version},
 	{"totals", admin_show_totals},
 	{"mem", admin_show_mem},
+	{"dns_hosts", admin_show_dns_hosts},
+	{"dns_zones", admin_show_dns_zones},
 	{NULL, NULL}
 };
 

@@ -92,10 +92,10 @@ struct DNSRequest {
 
 /* zone name serial */
 struct DNSZone {
-	struct List lnode;	/* DNSContext->zone_list */
-	struct AANode tnode;	/* DNSContext->zone_tree */
+	struct List lnode;		/* DNSContext->zone_list */
+	struct AANode tnode;		/* DNSContext->zone_tree */
 
-	struct List host_list;	/* DNSRequest->znode */
+	struct StatList host_list;	/* DNSRequest->znode */
 
 	const char *zonename;
 	uint32_t serial;
@@ -962,7 +962,7 @@ static void zone_register(struct DNSContext *ctx, struct DNSRequest *req)
 	if (n) {
 		/* already exists */
 		z = container_of(n, struct DNSZone, tnode);
-		list_append(&z->host_list, &req->znode);
+		statlist_append(&z->host_list, &req->znode);
 		return;
 	}
 
@@ -975,13 +975,13 @@ static void zone_register(struct DNSContext *ctx, struct DNSRequest *req)
 		free(z);
 		return;
 	}
-	list_init(&z->host_list);
+	statlist_init(&z->host_list, "host_list");
 	list_init(&z->lnode);
 
 	/* link */
 	aatree_insert(&ctx->zone_tree, (uintptr_t)z->zonename, &z->tnode);
 	list_append(&ctx->zone_list, &z->lnode);
-	list_append(&z->host_list, &req->znode);
+	statlist_append(&z->host_list, &req->znode);
 }
 
 static void zone_timer(int fd, short flg, void *arg)
@@ -1035,7 +1035,7 @@ static void zone_requeue(struct DNSContext *ctx, struct DNSZone *z)
 {
 	struct List *el;
 	struct DNSRequest *req;
-	list_for_each(el, &z->host_list) {
+	statlist_for_each(el, &z->host_list) {
 		req = container_of(el, struct DNSRequest, znode);
 		if (!req->done)
 			continue;
@@ -1082,5 +1082,47 @@ static void got_zone_serial(struct DNSContext *ctx, uint32_t *serial)
 	} else {
 		launch_zone_timer(ctx);
 	}
+}
+
+/*
+ * Cache walkers
+ */
+
+struct WalkInfo {
+	adns_walk_name_f name_cb;
+	adns_walk_zone_f zone_cb;
+	void *arg;
+};
+
+static void walk_name(struct AANode *n, void *arg)
+{
+	struct WalkInfo *w = arg;
+	struct DNSRequest *req = container_of(n, struct DNSRequest, node);
+
+	w->name_cb(w->arg, req->name, req->result, req->res_ttl);
+}
+
+static void walk_zone(struct AANode *n, void *arg)
+{
+	struct WalkInfo *w = arg;
+	struct DNSZone *z = container_of(n, struct DNSZone, tnode);
+
+	w->zone_cb(w->arg, z->zonename, z->serial, statlist_count(&z->host_list));
+}
+
+void adns_walk_names(struct DNSContext *ctx, adns_walk_name_f cb, void *arg)
+{
+	struct WalkInfo w;
+	w.name_cb = cb;
+	w.arg = arg;
+	aatree_walk(&ctx->req_tree, AA_WALK_IN_ORDER, walk_name, &w);
+}
+
+void adns_walk_zones(struct DNSContext *ctx, adns_walk_zone_f cb, void *arg)
+{
+	struct WalkInfo w;
+	w.zone_cb = cb;
+	w.arg = arg;
+	aatree_walk(&ctx->zone_tree, AA_WALK_IN_ORDER, walk_zone, &w);
 }
 

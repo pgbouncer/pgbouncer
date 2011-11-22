@@ -18,6 +18,7 @@
 
 struct DNSContext;
 struct DNSToken;
+struct addrinfo;
 
 typedef void (*adns_callback_f)(void *arg, const struct sockaddr *sa, int salen);
 
@@ -35,3 +36,8 @@ void adns_zone_cache_maint(struct DNSContext *ctx);
 
 void adns_info(struct DNSContext *ctx, int *names, int *zones, int *queries, int *pending);
 
+typedef void (*adns_walk_name_f)(void *arg, const char *name, const struct addrinfo *ai, usec_t ttl);
+typedef void (*adns_walk_zone_f)(void *arg, const char *name, uint32_t serial, int nhosts);
+
+void adns_walk_names(struct DNSContext *ctx, adns_walk_name_f cb, void *arg);
+void adns_walk_zones(struct DNSContext *ctx, adns_walk_zone_f cb, void *arg);

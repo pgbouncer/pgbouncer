@@ -411,6 +411,33 @@ changeable::
   Either +yes+ or +no+, shows if the variable can be changed while running.
   If +no+, the variable can be changed only boot-time.
 
+==== SHOW DNS_HOSTS ====
+
+Show hostnames in DNS cache.
+
+hostname::
+  Host name.
+
+ttl::
+  How meny seconds until next lookup.
+
+addrs::
+  Comma separated list of addresses.
+
+==== SHOW DNS_ZONES ====
+
+Show DNS zones in cache.
+
+zonename::
+  Zone name.
+
+serial::
+  Current serial.
+
+count::
+  Hostnames belonging to this zone.
+
+
 === PROCESS CONTROLLING COMMANDS ===
 
 ==== PAUSE [db]; ====

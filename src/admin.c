@@ -907,7 +907,7 @@ static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 			return admin_error(admin, "Pooler is not paused/suspended");
 	} else {
 		PgDatabase *db = find_database(arg);
-		log_info("PAUSE '%s' command issued", arg);
+		log_info("RESUME '%s' command issued", arg);
 		if (db == NULL)
 			return admin_error(admin, "no such database: %s", arg);
 		if (!db->db_paused)

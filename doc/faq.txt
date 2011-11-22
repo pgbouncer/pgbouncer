@@ -1,6 +1,10 @@
 
 = PgBouncer FAQ =
 
+== How to connect to PgBouncer? ==
+
+PgBouncer acts as Postgres server, so simply point your client to PgBouncer port.
+
 == How to load-balance queries between several servers? ==
 
 Use a TCP connection load-balancer.  Either http://www.linuxvirtualserver.org/[LVS]

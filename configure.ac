@@ -6,7 +6,9 @@ AC_CONFIG_HEADER(lib/usual/config.h)
 AC_PREREQ([2.59])
 
 dnl unix/win32
-AC_USUAL_PORT_CHECK
+AC_USUAL_INIT
+
+LT_INIT
 
 dnl Checks for programs.
 AC_USUAL_PROGRAM_CHECK

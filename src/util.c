@@ -394,12 +394,13 @@ const char *pga_ntop(const PgAddr *a, char *dst, int dstlen)
 /* parse address from string */
 bool pga_pton(PgAddr *a, const char *s, int port)
 {
-	int res;
+	int res = 1;
 	if (strcmp(s, "unix") == 0) {
 		pga_set(a, AF_UNIX, port);
-		return true;
-	}
-	if (strchr(s, ':')) {
+	} else if (strcmp(s, "*") == 0) {
+		pga_set(a, AF_INET, port);
+		a->sin.sin_addr.s_addr = htonl(INADDR_ANY);
+	} else if (strchr(s, ':')) {
 		pga_set(a, AF_INET6, port);
 		res = inet_pton(AF_INET6, s, &a->sin6.sin6_addr);
 	} else {

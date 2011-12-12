@@ -1,14 +1,12 @@
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT(pgbouncer, 1.4.3dev1)
+AC_INIT(pgbouncer, 1.5rc1)
 AC_CONFIG_SRCDIR(src/janitor.c)
 AC_CONFIG_HEADER(lib/usual/config.h)
 AC_PREREQ([2.59])
 
-dnl unix/win32
+dnl basic init
 AC_USUAL_INIT
-
-LT_INIT
 
 dnl Checks for programs.
 AC_USUAL_PROGRAM_CHECK

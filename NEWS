@@ -34,6 +34,8 @@
     * KILL command, to immediately kill all connections for one database.
       (Michael Tharp)
 
+    * Move to Antimake build system to have better looking Makefiles.
+
   = Fixes =
 
     * DNS now works with IPv6 hostnames.
@@ -60,6 +62,8 @@
 
     * When user= without password= is in database connect string,
       password will be taken from userlist.
+
+    * Parse '*' properly in takeover code.
 
     * autogen.sh: work with older autoconf/automake.
 

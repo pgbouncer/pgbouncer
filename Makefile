@@ -55,7 +55,9 @@ EXTRA_DIST = AUTHORS COPYRIGHT Makefile \
 	     test/Makefile test/asynctest.c test/conntest.sh test/ctest6000.ini \
 	     test/ctest7000.ini test/run-conntest.sh test/stress.py test/test.ini \
 	     test/test.sh test/userlist.txt etc/example.debian.init.sh doc/fixman.py \
-	     win32/Makefile
+	     win32/Makefile \
+	     $(shell cd lib; git ls-files | sed 's,^,lib/,') \
+	     lib/usual/config.h.in
 
 ifeq ($(enable_debug),yes)
 CPPFLAGS += -DDBGVER="\"compiled by <$${USER}@`hostname`> at `date '+%Y-%m-%d %H:%M:%S'`\""

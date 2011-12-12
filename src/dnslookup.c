@@ -747,16 +747,21 @@ static void req_free(struct AANode *node, void *arg)
 
 struct DNSContext *adns_create_context(void)
 {
-	struct DNSContext *ctx = calloc(1, sizeof(*ctx));
+	struct DNSContext *ctx;
+
+	log_debug("adns_create_context: %s", adns_get_backend());
+
+	ctx = calloc(1, sizeof(*ctx));
 	if (!ctx)
 		return NULL;
 
 	aatree_init(&ctx->req_tree, req_cmp, req_free);
+	zone_init(ctx);
+
 	if (!impl_init(ctx)) {
 		adns_free_context(ctx);
 		return NULL;
 	}
-	zone_init(ctx);
 	return ctx;
 }
 

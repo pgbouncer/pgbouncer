@@ -1010,7 +1010,7 @@ static void launch_zone_timer(struct DNSContext *ctx)
 	tv.tv_usec = cf_dns_zone_check_period % USEC;
 
 	evtimer_set(&ctx->ev_zone_timer, zone_timer, ctx);
-	evtimer_add(&ctx->ev_zone_timer, &tv);
+	safe_evtimer_add(&ctx->ev_zone_timer, &tv);
 
 	ctx->zone_state = 2;
 }

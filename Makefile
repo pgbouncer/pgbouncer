@@ -51,6 +51,8 @@ DISTCLEANFILES = config.mak config.status lib/usual/config.h
 # manpages
 man_MANS = doc/pgbouncer.1 doc/pgbouncer.5
 
+SUBDIRS = doc
+
 # files in tgz
 EXTRA_DIST = AUTHORS COPYRIGHT Makefile \
 	     config.mak.in etc/mkauth.py \

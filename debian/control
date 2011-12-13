@@ -1,0 +1,12 @@
+Source: pgbouncer
+Section: database
+Priority: extra
+Maintainer: Marko Kreen <marko.kreen@skype.net>
+Standards-Version: 3.6.2
+Build-Depends: cdbs, debhelper (>= 7), libevent-dev (>= 1.3b), asciidoc, xmlto
+
+Package: pgbouncer
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Lightweight connection pooler for PostgreSQL
+ .

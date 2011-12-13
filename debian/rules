@@ -1,0 +1,11 @@
+#! /usr/bin/make -f
+
+DH_VERBOSE = 1
+DEB_BUILD_OPTIONS = nostrip
+
+DEB_CONFIGURE_EXTRA_FLAGS = --enable-debug
+#DEB_CONFIGURE_EXTRA_FLAGS = --enable-debug --with-udns
+
+include /usr/share/cdbs/1/rules/debhelper.mk
+include /usr/share/cdbs/1/class/autotools.mk
+

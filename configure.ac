@@ -139,10 +139,6 @@ AC_USUAL_DEBUG
 AC_USUAL_CASSERT
 AC_USUAL_WERROR
 
-if test \! "$srcdir" = "$builddir"; then
-  CPPFLAGS="-I\$(builddir)/include $CPPFLAGS"
-fi
-
 dnl Output findings
 AC_OUTPUT([config.mak])
 

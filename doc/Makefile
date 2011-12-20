@@ -1,63 +1,33 @@
+-include ../config.mak
 
 web = pgf:/home/pgfoundry.org/groups/pgbouncer/htdocs/
 
--include ../config.mak
+manpages = pgbouncer.1 pgbouncer.5
+EXTRA_DIST = config.txt usage.txt todo.txt faq.txt Makefile $(manpages)
+man_MANS = $(manpages)
+doc_DATA = config.html usage.html todo.html faq.html README.html
 
-MANPAGES = pgbouncer.1 pgbouncer.5
-HTML = config.html usage.html todo.html faq.html README.html
+SUBLOC = doc
+XMLTO ?= xmlto
+ASCIIDOC ?= asciidoc
+abs_top_srcdir ?= $(CURDIR)/..
+include $(abs_top_srcdir)/lib/mk/antimake.mk
 
-#FIXMAN = python fixman.py
-FIXMAN = cat
-
-ifneq ($(ASCIIDOC),)
-all: $(MANPAGES)
-install: $(MANPAGES)
-	mkdir -p $(DESTDIR)$(mandir)/man1/
-	mkdir -p $(DESTDIR)$(mandir)/man5/
-	install -m 644 pgbouncer.1 $(DESTDIR)$(mandir)/man1/
-	install -m 644 pgbouncer.5 $(DESTDIR)$(mandir)/man5/
-else
-all:
-
-install:
-	mkdir -p $(DESTDIR)$(mandir)/man1/
-	mkdir -p $(DESTDIR)$(mandir)/man5/
-	test -f pgbouncer.1 && install -m 644 pgbouncer.1 $(DESTDIR)$(mandir)/man1/
-	test -f pgbouncer.5 && install -m 644 pgbouncer.5 $(DESTDIR)$(mandir)/man5/
-endif
-
-html: $(HTML)
-
-ifneq ($(XMLTO),)
 pgbouncer.1: usage.xml
-	xmlto man $<
+	$(XMLTO) man $<
 
 pgbouncer.5: config.xml
-	xmlto man $<
-endif
+	$(XMLTO) man $<
 
-ifneq ($(ASCIIDOC),)
 %.xml: %.txt
-	#asciidoc -b docbook -d manpage -o - $< > $@
-	asciidoc -b docbook -d manpage -o - $< \
-	| $(FIXMAN) > $@
+	$(ASCIIDOC) -b docbook -d manpage -o $@ $<
 
 %.html: %.txt
-	asciidoc -a toc $<
+	$(ASCIIDOC) -a toc -o $@ $<
 
 README.html: ../README
-	asciidoc -a toc -o $@ $<
-endif
+	$(ASCIIDOC) -a toc -o $@ $<
 
-clean:
-	rm -f *.html
-
-distclean: clean
-	rm -f *.xml
-
-realclean: distclean
-	rm -f *.[1-9]
-
-web: $(HTML)
-	rsync -av $(HTML) $(web)/doc/
+web: $(doc_DATA)
+	rsync -av $(doc_DATA) $(web)/doc/
 

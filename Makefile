@@ -40,16 +40,14 @@ pgbouncer_SOURCES = \
 	include/util.h \
 	include/varcache.h
 
+pgbouncer_CPPFLAGS = -Iinclude
+
 pgbouncer_EMBED_LIBUSUAL = 1
 
 # docs to install as-is
-dist_doc_DATA = doc/overview.txt doc/usage.txt doc/config.txt doc/todo.txt doc/faq.txt \
-		README NEWS etc/pgbouncer.ini etc/userlist.txt
+dist_doc_DATA = README NEWS etc/pgbouncer.ini etc/userlist.txt
 
 DISTCLEANFILES = config.mak config.status lib/usual/config.h
-
-# manpages
-man_MANS = doc/pgbouncer.1 doc/pgbouncer.5
 
 SUBDIRS = doc
 
@@ -57,10 +55,11 @@ SUBDIRS = doc
 EXTRA_DIST = AUTHORS COPYRIGHT Makefile \
 	     config.mak.in etc/mkauth.py \
 	     config.sub config.guess install-sh autogen.sh \
-	     configure configure.ac debian/packages debian/changelog doc/Makefile \
+	     configure configure.ac \
+	     debian/compat debian/changelog debian/control debian/rules debian/copyright \
 	     test/Makefile test/asynctest.c test/conntest.sh test/ctest6000.ini \
 	     test/ctest7000.ini test/run-conntest.sh test/stress.py test/test.ini \
-	     test/test.sh test/userlist.txt etc/example.debian.init.sh doc/fixman.py \
+	     test/test.sh test/userlist.txt etc/example.debian.init.sh \
 	     win32/Makefile \
 	     $(shell cd lib; git ls-files | sed 's,^,lib/,') \
 	     lib/usual/config.h.in
@@ -79,7 +78,7 @@ LIBS :=
 EXTRA_pgbouncer_SOURCES = win32/win32support.c win32/win32support.h
 EXTRA_PROGRAMS = pgbevent
 ifeq ($(PORTNAME),win32)
-pgbouncer_CPPFLAGS = -I$(srcdir)/win32
+pgbouncer_CPPFLAGS += -Iwin32
 pgbouncer_SOURCES += $(EXTRA_pgbouncer_SOURCES)
 bin_PROGRAMS += pgbevent
 endif
@@ -99,7 +98,7 @@ AM_LANG_RC_LINK = false
 # now load antimake
 #
 
-USUAL_DIR = $(top_srcdir)/lib
+USUAL_DIR = lib
 
 abs_top_srcdir ?= $(CURDIR)
 include $(abs_top_srcdir)/lib/mk/antimake.mk

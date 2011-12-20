@@ -21,6 +21,7 @@
  */
 
 #include <usual/base.h>
+#include <usual/ctype.h>
 
 #ifdef WIN32
 #include "win32support.h"
@@ -29,7 +30,6 @@
 #include <sys/stat.h>
 
 #include <stdarg.h>
-#include <ctype.h>
 #include <limits.h>
 
 #ifdef HAVE_CRYPT_H

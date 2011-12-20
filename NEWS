@@ -35,6 +35,7 @@
       (Michael Tharp)
 
     * Move to Antimake build system to have better looking Makefiles.
+      Now GNU Make 3.81+ is required for building.
 
   = Fixes =
 
@@ -66,6 +67,9 @@
     * Parse '*' properly in takeover code.
 
     * autogen.sh: work with older autoconf/automake.
+
+    * Fix run-as-service crash on win32 due to bad basename() from
+      mingw/msvc runtime.  Now compat basename() is always used.
 
 2011-06-16  -  PgBouncer 1.4.2  -  "Strike-First Algorithm"
 

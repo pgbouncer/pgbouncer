@@ -110,6 +110,7 @@ config.mak:
 deb:
 	debuild -b -us -uc
 
+w32zip = pgbouncer-$(PACKAGE_VERSION)-win32.zip
 zip: configure clean
 	rm -rf buildexe
 	mkdir buildexe
@@ -120,5 +121,12 @@ zip: configure clean
 		&& i586-mingw32msvc-strip pgbouncer.exe pgbevent.dll \
 		&& zip pgbouncer.zip pgbouncer.exe pgbevent.dll doc/*.html
 	zip -l buildexe/pgbouncer.zip etc/pgbouncer.ini etc/userlist.txt
-	mv buildexe/pgbouncer.zip pgbouncer-$(PACKAGE_VERSION)-win32.zip
+	mv buildexe/pgbouncer.zip $(w32zip)
+
+zip-up: $(w32zip)
+	rsync $(w32zip) pgf:web/pgbouncer/htdocs/win32/
+
+tgz = pgbouncer-$(PACKAGE_VERSION).tar.gz
+tgz-up: $(tgz)
+	rsync $(tgz) pgf:web/pgbouncer/htdocs/testing/
 

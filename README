@@ -13,6 +13,8 @@ Downloads, bugtracking:
 Building
 ---------
 
+GNU Make 3.81+ is required for building.
+
 PgBouncer uses libevent for low-level socket handling.
 Libevent needs to be at least version 1.3b.  Preferably 2.x as
 Libevent 2.x has proper async DNS implementation.

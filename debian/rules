@@ -1,7 +1,9 @@
 #! /usr/bin/make -f
 
 DH_VERBOSE = 1
+
 DEB_BUILD_OPTIONS = nostrip
+export DEB_BUILD_OPTIONS
 
 override DEB_CONFIGURE_EXTRA_FLAGS = --enable-debug
 

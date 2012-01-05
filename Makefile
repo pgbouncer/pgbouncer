@@ -47,7 +47,7 @@ pgbouncer_EMBED_LIBUSUAL = 1
 # docs to install as-is
 dist_doc_DATA = README NEWS etc/pgbouncer.ini etc/userlist.txt
 
-DISTCLEANFILES = config.mak config.status lib/usual/config.h
+DISTCLEANFILES = config.mak config.status lib/usual/config.h config.log
 
 SUBDIRS = doc
 

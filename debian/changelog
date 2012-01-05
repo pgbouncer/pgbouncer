@@ -1,3 +1,9 @@
+pgbouncer (1.5-1) unstable; urgency=low
+
+  * v1.5
+
+ -- Marko Kreen <marko.kreen@skype.net>  Thu, 05 Jan 2012 14:59:43 +0200
+
 pgbouncer (1.5rc1-1) unstable; urgency=low
 
   * v1.5rc1

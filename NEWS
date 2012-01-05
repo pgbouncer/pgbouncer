@@ -1,9 +1,11 @@
-2011-xx-xx  -  PgBouncer 1.5  -  ""
+2012-01-05  -  PgBouncer 1.5  -  "Bouncing Satisified Clients Since 2007"
 
   If you use more than 8 IPs behind one DNS name, you now need to
   use EDNS0 protocol to query.  Only getaddrinfo_a()/getaddrinfo()
   and UDNS backends support it, libevent 1.x/2.x does not.
   To enable it for libc, add 'options edns0' to /etc/resolv.conf.
+
+  GNU Make 3.81+ is required for building.
 
   = Features =
 

@@ -527,6 +527,12 @@ for this database.
 Otherwise PgBouncer tries to log into the destination database with client
 username, meaning that there will be one pool per user.
 
+==== auth_user ====
+
+If +auth_user+ is set, any user not specified in auth_file will be
+queried from pg_shadow in the database using auth_user. Auth_user's
+password will be taken from auth_file.
+
 === Pool configuration ===
 
 ==== pool_size ====
@@ -610,7 +616,7 @@ So user `admin` with password `1234` will have MD5-hidden password
 === Minimal config ===
 
   [databases]
-  template1 = host=127.0.0.1 dbname=template1
+  template1 = host=127.0.0.1 dbname=template1 auth_user=someuser
 
   [pgbouncer]
   pool_mode = session

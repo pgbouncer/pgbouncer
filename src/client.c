@@ -22,6 +22,8 @@
 
 #include "bouncer.h"
 
+#include <usual/pgutil.h>
+
 static const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
 {
 	const uint8_t *bin = data->data + data->read_pos;
@@ -58,17 +60,113 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 	return false;
 }
 
-bool set_pool(PgSocket *client, const char *dbname, const char *username)
-{
-	PgDatabase *db;
-	PgUser *user;
+/* mask to get offset into valid_crypt_salt[] */
+#define SALT_MASK  0x3F
 
+static const char valid_crypt_salt[] =
+"./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
+static bool send_client_authreq(PgSocket *client)
+{
+	uint8_t saltlen = 0;
+	int res;
+	int auth = cf_auth_type;
+	uint8_t randbuf[2];
+
+	if (auth == AUTH_CRYPT) {
+		saltlen = 2;
+		get_random_bytes(randbuf, saltlen);
+		client->tmp_login_salt[0] = valid_crypt_salt[randbuf[0] & SALT_MASK];
+		client->tmp_login_salt[1] = valid_crypt_salt[randbuf[1] & SALT_MASK];
+		client->tmp_login_salt[2] = 0;
+	} else if (cf_auth_type == AUTH_MD5) {
+		saltlen = 4;
+		get_random_bytes((void*)client->tmp_login_salt, saltlen);
+	} else if (auth == AUTH_ANY)
+		auth = AUTH_TRUST;
+
+	SEND_generic(res, client, 'R', "ib", auth, client->tmp_login_salt, saltlen);
+	return res;
+}
+
+static void start_auth_request(PgSocket *client, const char *username)
+{
+	int res;
+	char quoted_username[64], query[128];
+
+	client->auth_user = client->db->auth_user;
+	/* have to fetch user info from db */
+	client->pool = get_pool(client->db, client->db->auth_user);
+	if (!find_server(client)) {
+		client->wait_for_user_conn = true;
+		return;
+	}
+	slog_noise(client, "Doing auth_conn query");
+	client->wait_for_user_conn = false;
+	client->wait_for_user = true;
+	if (!sbuf_pause(&client->sbuf)) {
+		release_server(client->link);
+		disconnect_client(client, true, "pause failed");
+		return;
+	}
+	client->link->ready = 0;
+
+	pg_quote_literal(quoted_username, username, sizeof(quoted_username));
+	snprintf(query, sizeof(query), "SELECT usename, passwd FROM pg_shadow WHERE usename=%s", quoted_username);
+	SEND_generic(res, client->link, 'Q', "s", query);
+	if (!res)
+		disconnect_server(client->link, false, "unable to send login query");
+}
+
+static bool finish_set_pool(PgSocket *client, bool takeover)
+{
+	PgUser *user = client->auth_user;
+	/* pool user may be forced */
+	if (client->db->forced_user) {
+		user = client->db->forced_user;
+	}
+	client->pool = get_pool(client->db, user);
+	if (!client->pool) {
+		disconnect_client(client, true, "no memory for pool");
+		return false;
+	}
+
+	if (cf_log_connections)
+		slog_info(client, "login attempt: db=%s user=%s", client->db->name, client->auth_user->name);
+
+	if (!check_fast_fail(client))
+		return false;
+
+	if (takeover)
+		return true;
+
+	if (client->pool->db->admin) {
+		if (!admin_post_login(client))
+			return false;
+	}
+
+	if (cf_auth_type <= AUTH_TRUST || client->own_user) {
+		if (!finish_client_login(client))
+			return false;
+	} else {
+		if (!send_client_authreq(client)) {
+			disconnect_client(client, false, "failed to send auth req");
+			return false;
+		}
+	}
+	return true;
+}
+
+bool set_pool(PgSocket *client, const char *dbname, const char *username, bool takeover)
+{
 	/* find database */
-	db = find_database(dbname);
-	if (!db) {
-		db = register_auto_database(dbname);
-		if (!db) {
+	client->db = find_database(dbname);
+	if (!client->db) {
+		client->db = register_auto_database(dbname);
+		if (!client->db) {
 			disconnect_client(client, true, "No such database: %s", dbname);
+			if (cf_log_connections)
+				slog_info(client, "login failed: db=%s user=%s", dbname, username);
 			return false;
 		}
 		else {
@@ -77,42 +175,128 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username)
 	}
 
 	/* are new connections allowed? */
-	if (db->db_disabled) {
+	if (client->db->db_disabled) {
 		disconnect_client(client, true, "database does not allow connections: %s", dbname);
 		return false;
+	}
+
+	if (client->db->admin) {
+		if (admin_pre_login(client, username))
+			return finish_set_pool(client, takeover);
 	}
 
 	/* find user */
 	if (cf_auth_type == AUTH_ANY) {
 		/* ignore requested user */
-		user = NULL;
-
-		if (db->forced_user == NULL) {
+		if (client->db->forced_user == NULL) {
 			slog_error(client, "auth_type=any requires forced user");
 			disconnect_client(client, true, "bouncer config error");
 			return false;
 		}
-		client->auth_user = db->forced_user;
+		client->auth_user = client->db->forced_user;
 	} else {
 		/* the user clients wants to log in as */
-		user = find_user(username);
-		if (!user) {
-			disconnect_client(client, true, "No such user: %s", username);
+		client->auth_user = find_user(username);
+		if (!client->auth_user && client->db->auth_user) {
+			if (takeover) {
+				client->auth_user = add_db_user(client->db, username, "");
+				return finish_set_pool(client, takeover);
+			}
+			start_auth_request(client, username);
 			return false;
 		}
-		client->auth_user = user;
+		if (!client->auth_user) {
+			disconnect_client(client, true, "No such user: %s", username);
+			if (cf_log_connections)
+				slog_info(client, "login failed: db=%s user=%s", dbname, username);
+			return false;
+		}
 	}
+	return finish_set_pool(client, takeover);
+}
 
-	/* pool user may be forced */
-	if (db->forced_user)
-		user = db->forced_user;
-	client->pool = get_pool(db, user);
-	if (!client->pool) {
-		disconnect_client(client, true, "no memory for pool");
+bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
+	uint16_t columns;
+	uint32_t length;
+	const char *username, *password;
+	PgUser user;
+
+	switch(pkt->type) {
+	case 'T':	/* RowDescription */
+		if (!mbuf_get_uint16be(&pkt->data, &columns)) {
+			disconnect_server(client->link, false, "bad packet");
+			return false;
+		}
+		if (columns != 2u) {
+			disconnect_server(client->link, false, "expected 1 column from login query, not %hu", columns);
+			return false;
+		}
+		break;
+	case 'D':	/* DataRow */
+		memset(&user, 0, sizeof(user));
+		if (!mbuf_get_uint16be(&pkt->data, &columns)) {
+			disconnect_server(client->link, false, "bad packet");
+			return false;
+		}
+		if (columns != 2u) {
+			disconnect_server(client->link, false, "expected 1 column from login query, not %hu", columns);
+			return false;
+		}
+		if (!mbuf_get_uint32be(&pkt->data, &length)) {
+			disconnect_server(client->link, false, "bad packet");
+			return false;
+		}
+		if (!mbuf_get_chars(&pkt->data, length, &username)) {
+			disconnect_server(client->link, false, "bad packet");
+			return false;
+		}
+		if (sizeof(user.name) - 1 < length)
+			length = sizeof(user.name) - 1;
+		memcpy(user.name, username, length);
+		if (!mbuf_get_uint32be(&pkt->data, &length)) {
+			disconnect_server(client->link, false, "bad packet");
+			return false;
+		}
+		if (length == (uint32_t)-1) {
+			// NULL - set an md5 password with an impossible value,
+			// so that nothing will ever match
+			password = "md5";
+			length = 3;
+		} else {
+			if (!mbuf_get_chars(&pkt->data, length, &password)) {
+				disconnect_server(client->link, false, "bad packet");
+				return false;
+			}
+		}
+		if (sizeof(user.passwd)  - 1 < length)
+			length = sizeof(user.passwd) - 1;
+		memcpy(user.passwd, password, length);
+
+		client->auth_user = add_db_user(client->db, user.name, user.passwd);
+		if (!client->auth_user) {
+			disconnect_server(client->link, false, "unable to allocate new user for auth");
+			return false;
+		}
+		break;
+	case 'C':	/* CommandComplete */
+		break;
+	case 'Z':	/* ReadyForQuery */
+		sbuf_prepare_skip(&client->link->sbuf, pkt->len);
+		if (!client->auth_user) {
+			if (cf_log_connections)
+				slog_info(client, "login failed: db=%s", client->db->name);
+			disconnect_client(client, true, "No such user");
+		} else {
+			slog_noise(client, "auth query complete");
+			sbuf_continue(&client->sbuf);
+		}
+		return true;
+	default:
+		disconnect_server(client->link, false, "unexpected response from login query");
 		return false;
 	}
-
-	return check_fast_fail(client);
+	sbuf_prepare_skip(&client->link->sbuf, pkt->len);
+	return true;
 }
 
 static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
@@ -164,45 +348,8 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 		}
 	}
 
-	/* find pool and log about it */
-	if (set_pool(client, dbname, username)) {
-		if (cf_log_connections)
-			slog_info(client, "login attempt: db=%s user=%s", dbname, username);
-		return true;
-	} else {
-		if (cf_log_connections)
-			slog_info(client, "login failed: db=%s user=%s", dbname, username);
-		return false;
-	}
-}
-
-/* mask to get offset into valid_crypt_salt[] */
-#define SALT_MASK  0x3F
-
-static const char valid_crypt_salt[] =
-"./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-
-static bool send_client_authreq(PgSocket *client)
-{
-	uint8_t saltlen = 0;
-	int res;
-	int auth = cf_auth_type;
-	uint8_t randbuf[2];
-
-	if (auth == AUTH_CRYPT) {
-		saltlen = 2;
-		get_random_bytes(randbuf, saltlen);
-		client->tmp_login_salt[0] = valid_crypt_salt[randbuf[0] & SALT_MASK];
-		client->tmp_login_salt[1] = valid_crypt_salt[randbuf[1] & SALT_MASK];
-		client->tmp_login_salt[2] = 0;
-	} else if (cf_auth_type == AUTH_MD5) {
-		saltlen = 4;
-		get_random_bytes((void*)client->tmp_login_salt, saltlen);
-	} else if (auth == AUTH_ANY)
-		auth = AUTH_TRUST;
-
-	SEND_generic(res, client, 'R', "ib", auth, client->tmp_login_salt, saltlen);
-	return res;
+	/* find pool */
+	return set_pool(client, dbname, username, false);
 }
 
 /* decide on packets of client in login phase */
@@ -244,28 +391,19 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		disconnect_client(client, true, "Old V2 protocol not supported");
 		return false;
 	case PKT_STARTUP:
-		if (client->pool) {
+		if (client->pool && !client->wait_for_user_conn && !client->wait_for_user) {
 			disconnect_client(client, true, "client re-sent startup pkt");
 			return false;
 		}
 
-		if (!decide_startup_pool(client, pkt))
+		if (client->wait_for_user) {
+			client->wait_for_user = false;
+			if (!finish_set_pool(client, false))
+				return false;
+		} else if (!decide_startup_pool(client, pkt)) {
 			return false;
-
-		if (client->pool->db->admin) {
-			if (!admin_pre_login(client))
-				return false;
 		}
 
-		if (cf_auth_type <= AUTH_TRUST || client->own_user) {
-			if (!finish_client_login(client))
-				return false;
-		} else {
-			if (!send_client_authreq(client)) {
-				disconnect_client(client, false, "failed to send auth req");
-				return false;
-			}
-		}
 		break;
 	case 'p':		/* PasswordMessage */
 		/* haven't requested it */

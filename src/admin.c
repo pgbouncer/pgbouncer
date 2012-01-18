@@ -1316,12 +1316,11 @@ bool admin_handle_client(PgSocket *admin, PktHdr *pkt)
  * Client is unauthenticated, look if it wants to connect
  * to special "pgbouncer" user.
  */
-bool admin_pre_login(PgSocket *client)
+bool admin_pre_login(PgSocket *client, const char *username)
 {
 	uid_t peer_uid = -1;
 	gid_t peer_gid = -1;
 	int res;
-	const char *username = client->auth_user->name;
 
 	client->admin_user = 0;
 	client->own_user = 0;
@@ -1332,6 +1331,7 @@ bool admin_pre_login(PgSocket *client)
 		if (res >= 0 && peer_uid == getuid()
 			&& strcmp("pgbouncer", username) == 0)
 		{
+			client->auth_user = admin_pool->db->forced_user;
 			client->own_user = 1;
 			client->admin_user = 1;
 			slog_info(client, "pgbouncer access from unix socket");
@@ -1341,21 +1341,33 @@ bool admin_pre_login(PgSocket *client)
 
 	/*
 	 * auth_mode=any does not keep original username around,
-	 * so username based checks do not work.
+	 * so username based check has to take place here
 	 */
 	if (cf_auth_type == AUTH_ANY) {
-		if (cf_log_connections)
-			slog_info(client, "auth_mode=any: allowing anybody in as admin");
-		client->admin_user = 1;
-		return true;
+		if (strlist_contains(cf_admin_users, username)) {
+			client->admin_user = 1;
+			return true;
+		} else if (strlist_contains(cf_stats_users, username)) {
+			return true;
+		}
 	}
+	return false;
+}
 
-	if (strlist_contains(cf_admin_users, username)) {
+bool admin_post_login(PgSocket *client)
+{
+	const char *username = client->auth_user->name;
+
+	if (cf_auth_type == AUTH_ANY)
+		return true;
+
+	if (client->admin_user || strlist_contains(cf_admin_users, username)) {
 		client->admin_user = 1;
 		return true;
 	} else if (strlist_contains(cf_stats_users, username)) {
 		return true;
 	}
+
 	disconnect_client(client, true, "not allowed");
 	return false;
 }

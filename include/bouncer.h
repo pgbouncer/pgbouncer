@@ -49,6 +49,7 @@ enum SocketState {
 	CL_JUSTFREE,		/* justfree_client_list */
 	CL_LOGIN,		/* login_client_list */
 	CL_WAITING,		/* pool->waiting_client_list */
+	CL_WAITING_LOGIN,	/*   - but return to CL_LOGIN instead of CL_ACTIVE */
 	CL_ACTIVE,		/* pool->active_client_list */
 	CL_CANCEL,		/* pool->cancel_req_list */
 
@@ -270,6 +271,7 @@ struct PgDatabase {
 	struct PktBuf *startup_params; /* partial StartupMessage (without user) be sent to server */
 
 	PgUser *forced_user;	/* if not NULL, the user/psw is forced */
+	PgUser *auth_user;	/* if not NULL, users not in userlist.txt will be looked up on the server */
 
 	const char *host;	/* host or unix socket name */
 	int port;
@@ -285,6 +287,8 @@ struct PgDatabase {
 
 	usec_t inactive_time;	/* when auto-database became inactive (to kill it after timeout) */
 	unsigned active_stamp;	/* set if autodb has connections */
+
+	struct AATree user_tree;	/* users that have been queried on this database */
 };
 
 
@@ -309,6 +313,8 @@ struct PgSocket {
 	bool exec_on_connect:1;	/* server: executing connect_query */
 
 	bool wait_for_welcome:1;/* client: no server yet in pool, cannot send welcome msg */
+	bool wait_for_user_conn:1;/* client: waiting for auth_conn server connection */
+	bool wait_for_user:1;	/* client: waiting for auth_conn query results */
 
 	bool suspended:1;	/* client/server: if the socket is suspended */
 
@@ -324,7 +330,10 @@ struct PgSocket {
 	PgAddr remote_addr;	/* ip:port for remote endpoint */
 	PgAddr local_addr;	/* ip:port for local endpoint */
 
-	struct DNSToken *dns_token;	/* ongoing request */
+	union {
+		struct DNSToken *dns_token;	/* ongoing request */
+		PgDatabase *db;			/* cache db while doing auth query */
+	};
 
 	VarCache vars;		/* state of interesting server parameters */
 

@@ -331,7 +331,7 @@ static void pool_client_maint(PgPool *pool)
 	if (cf_query_timeout > 0 || cf_query_wait_timeout > 0) {
 		statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
 			client = container_of(item, PgSocket, head);
-			Assert(client->state == CL_WAITING);
+			Assert(client->state == CL_WAITING || client->state == CL_WAITING_LOGIN);
 			if (client->query_start == 0) {
 				age = now - client->request_time;
 				//log_warning("query_start==0");
@@ -649,6 +649,7 @@ static void kill_database(PgDatabase *db)
 		statlist_remove(&autodatabase_idle_list, &db->head);
 	else
 		statlist_remove(&database_list, &db->head);
+	aatree_destroy(&db->user_tree);
 	slab_free(db_cache, db);
 }
 

@@ -426,6 +426,8 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 	struct List *item;
 	const char *f_user;
 	PktBuf *buf;
+	struct CfValue cv;
+	int pool_mode;
 
 	buf = pktbuf_dynamic(256);
 	if (!buf) {
@@ -433,18 +435,25 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "ssissii",
+	pktbuf_write_RowDescription(buf, "ssissiis",
 				    "name", "host", "port",
-				    "database", "force_user", "pool_size", "reserve_pool");
+				    "database", "force_user", "pool_size", "reserve_pool",
+				    "pool_mode");
 	statlist_for_each(item, &database_list) {
 		db = container_of(item, PgDatabase, head);
 
 		f_user = db->forced_user ? db->forced_user->name : NULL;
-		pktbuf_write_DataRow(buf, "ssissii",
+		pool_mode = db->pool_mode;
+		if (pool_mode == POOL_INHERIT)
+			pool_mode = cf_pool_mode;
+		cv.value_p = &pool_mode;
+		cv.extra = pool_mode_map;
+		pktbuf_write_DataRow(buf, "ssissiis",
 				     db->name, db->host, db->port,
 				     db->dbname, f_user,
 				     db->pool_size,
-				     db->res_pool_size);
+				     db->res_pool_size,
+				     cf_get_lookup(&cv));
 	}
 	admin_flush(admin, buf, "SHOW");
 	return true;
@@ -1291,6 +1300,7 @@ void admin_setup(void)
 	db->port = cf_listen_port;
 	db->pool_size = 2;
 	db->admin = 1;
+	db->pool_mode = POOL_STMT;
 	if (!force_user(db, "pgbouncer", ""))
 		fatal("no mem on startup - cannot alloc pgbouncer user");
 

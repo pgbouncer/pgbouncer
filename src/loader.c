@@ -177,9 +177,11 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	char *p, *key, *val;
 	PktBuf *msg;
 	PgDatabase *db;
+	struct CfValue cv;
 	int pool_size = -1;
 	int res_pool_size = -1;
 	int dbname_ofs;
+	int pool_mode = POOL_INHERIT;
 
 	char *tmp_connstr;
 	const char *dbname = name;
@@ -194,6 +196,9 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	char *appname = NULL;
 
 	int v_port;
+
+	cv.value_p = &pool_mode;
+	cv.extra = (const void *)pool_mode_map;
 
 	if (strcmp(name, "*") == 0) {
 		set_autodb(connstr);
@@ -233,7 +238,13 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			pool_size = atoi(val);
 		else if (strcmp("reserve_pool", key) == 0)
 			res_pool_size = atoi(val);
-		else if (strcmp("connect_query", key) == 0)
+		else if (strcmp("pool_mode", key) == 0) {
+			if (!cf_set_lookup(&cv, val)) {
+				log_error("skipping database %s because"
+					  " of invalid pool mode: %s", name, val);
+				goto fail;
+			}
+		} else if (strcmp("connect_query", key) == 0)
 			connect_query = val;
 		else if (strcmp("application_name", key) == 0)
 			appname = val;
@@ -302,6 +313,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	/* if pool_size < 0 it will be set later */
 	db->pool_size = pool_size;
 	db->res_pool_size = res_pool_size;
+	db->pool_mode = pool_mode;
 
 	if (db->host)
 		free(db->host);

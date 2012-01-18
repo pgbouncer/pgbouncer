@@ -376,6 +376,9 @@ force_user::
 pool_size::
   Maximum number of server connections.
 
+pool_mode::
+  The pooling mode in user for this database.
+
 ==== SHOW FDS; ====
 
 Internal command - shows list of fds in use with internal state attached to them.

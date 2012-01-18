@@ -212,7 +212,8 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		/* set ready only if no tx */
 		if (state == 'I') {
 			ready = true;
-		} else if (cf_pool_mode == POOL_STMT) {
+		} else if (server->pool->db->pool_mode == POOL_STMT ||
+			(server->pool->db->pool_mode == POOL_INHERIT && cf_pool_mode == POOL_STMT)) {
 			disconnect_server(server, true, "Long transactions not allowed");
 			return false;
 		} else if (state == 'T' || state == 'E') {
@@ -351,6 +352,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 	PgSocket *server = container_of(sbuf, PgSocket, sbuf);
 	PgPool *pool = server->pool;
 	PktHdr pkt;
+	int pool_mode;
 
 	Assert(is_server_socket(server));
 	Assert(server->state != SV_FREE);
@@ -417,8 +419,11 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			sbuf_continue(&client->sbuf);
 			break;
 		}
-		
-		if (cf_pool_mode  != POOL_SESSION || server->state == SV_TESTED) {
+
+		pool_mode = server->pool->db->pool_mode;
+		if (pool_mode == POOL_INHERIT)
+			pool_mode = cf_pool_mode;		
+		if (pool_mode  != POOL_SESSION || server->state == SV_TESTED) {
 			switch (server->state) {
 			case SV_ACTIVE:
 			case SV_TESTED:

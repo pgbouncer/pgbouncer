@@ -533,6 +533,11 @@ Query to be executed after a connection is established, but before
 allowing the connection to be used by any clients. If the query raises errors,
 they are logged but ignored otherwise.
 
+==== pool_mode ====
+
+Set the pool mode specific to this database. If not set,
+the default pool_mode is used.
+
 === Extra parameters ===
 
 They allow setting default parameters on server connection.

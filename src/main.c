@@ -65,6 +65,8 @@ char *cf_listen_addr;
 int cf_listen_port;
 int cf_listen_backlog;
 char *cf_unix_socket_dir;
+int cf_unix_socket_mode;
+char *cf_unix_socket_group;
 
 int cf_pool_mode = POOL_SESSION;
 
@@ -167,6 +169,8 @@ CF_ABS("listen_port", CF_INT, cf_listen_port, CF_NO_RELOAD, "6432"),
 CF_ABS("listen_backlog", CF_INT, cf_listen_backlog, CF_NO_RELOAD, "128"),
 #ifndef WIN32
 CF_ABS("unix_socket_dir", CF_STR, cf_unix_socket_dir, CF_NO_RELOAD, "/tmp"),
+CF_ABS("unix_socket_mode", CF_INT, cf_unix_socket_mode, CF_NO_RELOAD, "0777"),
+CF_ABS("unix_socket_group", CF_STR, cf_unix_socket_group, CF_NO_RELOAD, ""),
 #endif
 CF_ABS("auth_type", CF_LOOKUP(auth_type_map), cf_auth_type, 0, "md5"),
 CF_ABS("auth_file", CF_STR, cf_auth_file, 0, "unconfigured_file"),

@@ -336,6 +336,8 @@ extern char *cf_config_file;
 extern char *cf_jobname;
 
 extern char *cf_unix_socket_dir;
+extern int cf_unix_socket_mode;
+extern char *cf_unix_socket_group;
 extern char *cf_listen_addr;
 extern int cf_listen_port;
 extern int cf_listen_backlog;

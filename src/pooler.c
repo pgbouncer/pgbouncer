@@ -137,14 +137,8 @@ static bool add_listen(int af, const struct sockaddr *sa, int salen)
 	}
 
 	if (af == AF_UNIX) {
-		const struct sockaddr_un *un;
-		mode_t mode = 0777;
-		un = (struct sockaddr_un *)sa;
-		res = chmod(un->sun_path, mode);
-		if (res < 0)
-			/* failure to chmod to 0777 does not seem serious */
-			log_warning("add_listen: chmod(%s, 0%o) failed: %s",
-				    un->sun_path, mode, strerror(errno));
+		struct sockaddr_un *un = (struct sockaddr_un *)sa;
+		change_file_mode(un->sun_path, cf_unix_socket_mode, NULL, cf_unix_socket_group);
 	} else {
 		tune_accept(sock, cf_tcp_defer_accept);
 	}

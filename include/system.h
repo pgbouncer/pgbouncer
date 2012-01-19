@@ -67,3 +67,5 @@ static inline int lstat(const char *path, struct stat *st) { return stat(path, s
 
 void change_user(const char *user);
 
+void change_file_mode(const char *fn, mode_t mode, const char *user, const char *group);
+

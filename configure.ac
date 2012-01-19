@@ -11,15 +11,15 @@ AC_USUAL_INIT
 dnl Checks for programs.
 AC_USUAL_PROGRAM_CHECK
 
-dnl asciidoc >= 8.2
+dnl asciidoc >= 8.4
 AC_CHECK_PROGS(ASCIIDOC, asciidoc)
 if test -n "$ASCIIDOC"; then
-  AC_MSG_CHECKING([for asciidoc version >= 8.2])
+  AC_MSG_CHECKING([for asciidoc version >= 8.4])
   ver=`$ASCIIDOC --version 2>&1 | sed -e 's/asciidoc //'`
   case "$ver" in
 dnl hack to make possible to use [, ] in regex
 changequote({, })dnl
-  [0-7].*|8.[01]|8.[01].*)
+  [0-7].*|8.[0-3]|8.[0-3].*)
 changequote([, ])dnl
       AC_MSG_RESULT([$ver, too old])
       ASCIIDOC=""

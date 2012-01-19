@@ -374,6 +374,58 @@ fail:
 	return true;
 }
 
+bool parse_user(void *base, const char *name, const char *connstr)
+{
+	char *p, *key, *val, *tmp_connstr;
+	PgUser *user;
+	struct CfValue cv;
+	int pool_mode = POOL_INHERIT;
+
+	cv.value_p = &pool_mode;
+	cv.extra = (const void *)pool_mode_map;
+
+	tmp_connstr = strdup(connstr);
+	if (!tmp_connstr)
+		return false;
+
+	p = tmp_connstr;
+	while (*p) {
+		p = cstr_get_pair(p, &key, &val);
+		if (p == NULL) {
+			log_error("%s: syntax error in user settings", name);
+			goto fail;
+		} else if (!key[0])
+			break;
+
+		if (strcmp("pool_mode", key) == 0) {
+			if (!cf_set_lookup(&cv, val)) {
+				log_error("skipping user %s because"
+					  " of invalid pool mode: %s", name, val);
+				goto fail;
+			}
+		} else {
+			log_error("skipping user %s because"
+				  " of unknown parameter in settings: %s", name, key);
+			goto fail;
+		}
+	}
+
+	user = find_user(name);
+	if (!user) {
+		user = add_user(name, "");
+		if (!user) {
+			log_error("cannot create user, no memory?");
+			goto fail;
+		}
+	}
+
+	user->pool_mode = pool_mode;
+
+fail:
+	free(tmp_connstr);
+	return true;
+}
+
 /*
  * User file parsing
  */

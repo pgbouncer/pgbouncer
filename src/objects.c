@@ -357,6 +357,7 @@ PgUser *add_user(const char *name, const char *passwd)
 		put_in_order(&user->head, &user_list, cmp_user);
 
 		aatree_insert(&user_tree, (uintptr_t)user->name, &user->tree_node);
+		user->pool_mode = POOL_INHERIT;
 	}
 	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
 	return user;
@@ -372,6 +373,7 @@ PgUser *force_user(PgDatabase *db, const char *name, const char *passwd)
 			return NULL;
 		list_init(&user->head);
 		list_init(&user->pool_list);
+		user->pool_mode = POOL_INHERIT;
 	}
 	safe_strcpy(user->name, name, sizeof(user->name));
 	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));

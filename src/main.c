@@ -236,6 +236,9 @@ static const struct CfSect config_sects [] = {
 		.sect_name = "databases",
 		.set_key = parse_database,
 	}, {
+		.sect_name = "users",
+		.set_key = parse_user,
+	}, {
 		.sect_name = NULL,
 	}
 };

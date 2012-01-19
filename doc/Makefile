@@ -13,8 +13,8 @@ dist_man_MANS = $(manpages)
 endif
 else
 # we have asciidoc, build everything
-man_MANS = $(manpages)
-doc_DATA = config.html usage.html todo.html faq.html README.html
+dist_man_MANS = $(manpages)
+dist_doc_DATA = config.html usage.html todo.html faq.html README.html
 endif
 
 SUBLOC = doc

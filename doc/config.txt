@@ -62,6 +62,18 @@ Note: Not supported on Windows machines.
 
 Default: +/tmp+
 
+==== unix_socket_mode ====
+
+Filesystem mode for unix socket.
+
+Default: 0777
+
+==== unix_socket_group ====
+
+Group name to use for unix socket.
+
+Default: not set
+
 ==== user ====
 
 If set, specifies the Unix user to change to after startup. Works only if 

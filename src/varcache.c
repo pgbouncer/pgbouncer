@@ -67,8 +67,8 @@ set_value:
 	strpool_decref(cache->var_list[lk->idx]);
 	cache->var_list[lk->idx] = NULL;
 
-	/* ignore empty value */
-	if (!value || !value[0])
+	/* NULL value? */
+	if (!value)
 		return false;
 
 	/* set new value */

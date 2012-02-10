@@ -61,8 +61,16 @@ EXTRA_DIST = AUTHORS COPYRIGHT Makefile \
 	     test/ctest7000.ini test/run-conntest.sh test/stress.py test/test.ini \
 	     test/test.sh test/userlist.txt etc/example.debian.init.sh \
 	     win32/Makefile \
-	     $(shell cd lib; git ls-files | sed 's,^,lib/,') \
-	     lib/usual/config.h.in
+	     $(LIBUSUAL_DIST)
+
+# libusual files (fixme: list should be provided by libusual...)
+LIBUSUAL_DIST = $(filter-out %/config.h, $(wildcard \
+		lib/usual/*.[chg] lib/m4/*.m4 \
+		lib/usual/config.h.in \
+		lib/mk/antimake.mk lib/mk/antimake.txt \
+		lib/mk/install-sh lib/mk/std-autogen.sh \
+		lib/README lib/COPYRIGHT \
+		lib/find_modules.mk ))
 
 ifeq ($(enable_debug),yes)
 CPPFLAGS += -DDBGVER="\"compiled by <$${USER}@`hostname`> at `date '+%Y-%m-%d %H:%M:%S'`\""

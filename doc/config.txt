@@ -248,6 +248,12 @@ Log error messages pooler sends to clients.
 
 Default: 1
 
+==== stats_period ====
+
+Period for writing aggregated stats into log.
+
+Default: 60
+
 === Console access control ===
 
 ==== admin_users ====

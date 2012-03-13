@@ -163,8 +163,11 @@ static void set_autodb(const char *connstr)
 		log_warning("no mem to change autodb_connstr");
 		return;
 	}
-	if (cf_autodb_connstr)
+	if (cf_autodb_connstr) {
+		if (strcmp(connstr, cf_autodb_connstr) != 0)
+			tag_autodb_dirty();
 		free(cf_autodb_connstr);
+	}
 	cf_autodb_connstr = tmp;
 }
 

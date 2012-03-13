@@ -1297,7 +1297,6 @@ static void tag_dirty(PgSocket *sk)
 	sk->close_needed = 1;
 }
 
-
 void tag_database_dirty(PgDatabase *db)
 {
 	struct List *item;
@@ -1306,6 +1305,18 @@ void tag_database_dirty(PgDatabase *db)
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
 		if (pool->db == db)
+			for_each_server(pool, tag_dirty);
+	}
+}
+
+void tag_autodb_dirty(void)
+{
+	struct List *item;
+	PgPool *pool;
+
+	statlist_for_each(item, &pool_list) {
+		pool = container_of(item, PgPool, head);
+		if (pool->db->db_auto)
 			for_each_server(pool, tag_dirty);
 	}
 }

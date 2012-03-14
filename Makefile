@@ -70,7 +70,7 @@ LIBUSUAL_DIST = $(filter-out %/config.h, $(wildcard \
 		lib/mk/antimake.mk lib/mk/antimake.txt \
 		lib/mk/install-sh lib/mk/std-autogen.sh \
 		lib/README lib/COPYRIGHT \
-		lib/find_modules.mk ))
+		lib/find_modules.sh ))
 
 ifeq ($(enable_debug),yes)
 CPPFLAGS += -DDBGVER="\"compiled by <$${USER}@`hostname`> at `date '+%Y-%m-%d %H:%M:%S'`\""

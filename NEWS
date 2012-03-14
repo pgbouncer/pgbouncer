@@ -1,3 +1,37 @@
+2012-xx-xx  -  PgBouncer 1.5.1  -  ""
+
+  = Features =
+
+    * Parameters to tune permissions on unix socket:
+      unix_socket_mode=0777, unix_socket_group=''.
+
+  = Fixes =
+
+    * Allow empty string for server-side variable - this is
+      needed to get "application_name" properly working, as it's
+      the only parameter that does not have server-side default.
+
+    * If connect string changes, require refresh of server parameters.
+      Previously PgBouncer continued with old parameters,
+      which breaks in case of Postgres upgrade.
+
+    * If autodb connect string changes, drop old connections.
+
+    * cf_setint: Use strtol() instead atoi() to parse integer config
+      parameters.  It allows hex, octal and better error detection.
+
+    * Use sigqueue() to detect union sigval existence - fixes
+      compilation on HPUX.
+
+    * Remove 'git' command from Makefile, it throws random errors
+      in case of plain-tarball build.
+
+    * Document stats_period parameter.  This tunes the period for
+      stats output.
+
+    * Require Asciidoc >= 8.4, seems docs are not compatible with
+      earlier versions anymore.
+
 2012-01-05  -  PgBouncer 1.5  -  "Bouncing Satisified Clients Since 2007"
 
   If you use more than 8 IPs behind one DNS name, you now need to

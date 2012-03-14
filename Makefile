@@ -138,3 +138,7 @@ tgz = pgbouncer-$(PACKAGE_VERSION).tar.gz
 tgz-up: $(tgz)
 	rsync $(tgz) pgf:web/pgbouncer/htdocs/testing/
 
+.PHONY: tags
+tags:
+	ctags src/*.c include/*.h lib/usual/*.[ch]
+

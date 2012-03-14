@@ -14,7 +14,7 @@ endif
 else
 # we have asciidoc, build everything
 dist_man_MANS = $(manpages)
-dist_doc_DATA = config.html usage.html todo.html faq.html README.html
+doc_DATA = config.html usage.html todo.html faq.html README.html
 endif
 
 SUBLOC = doc

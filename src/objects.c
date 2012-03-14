@@ -1297,6 +1297,28 @@ static void tag_dirty(PgSocket *sk)
 	sk->close_needed = 1;
 }
 
+static void tag_pool_dirty(PgPool *pool)
+{
+	struct List *item, *tmp;
+	struct PgSocket *server;
+
+	/* reset welcome msg */
+	if (pool->welcome_msg) {
+		pktbuf_free(pool->welcome_msg);
+		pool->welcome_msg = NULL;
+	}
+	pool->welcome_msg_ready = 0;
+
+	/* drop all existing servers ASAP */
+	for_each_server(pool, tag_dirty);
+
+	/* drop servers login phase immediately */
+	statlist_for_each_safe(item, &pool->new_server_list, tmp) {
+		server = container_of(item, PgSocket, head);
+		disconnect_server(server, true, "connect string changed");
+	}
+}
+
 void tag_database_dirty(PgDatabase *db)
 {
 	struct List *item;
@@ -1305,7 +1327,7 @@ void tag_database_dirty(PgDatabase *db)
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
 		if (pool->db == db)
-			for_each_server(pool, tag_dirty);
+			tag_pool_dirty(pool);
 	}
 }
 
@@ -1317,7 +1339,7 @@ void tag_autodb_dirty(void)
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
 		if (pool->db->db_auto)
-			for_each_server(pool, tag_dirty);
+			tag_pool_dirty(pool);
 	}
 }
 

@@ -6,6 +6,8 @@ manpages = pgbouncer.1 pgbouncer.5
 
 EXTRA_DIST = config.txt usage.txt todo.txt faq.txt Makefile $(manpages)
 
+htmls = config.html usage.html todo.html faq.html README.html
+
 ifeq ($(ASCIIDOC),)
 ifneq ($(wildcard pgbouncer.[15]),)
 # no asciidoc, but we have manpages
@@ -14,7 +16,7 @@ endif
 else
 # we have asciidoc, build everything
 dist_man_MANS = $(manpages)
-doc_DATA = config.html usage.html todo.html faq.html README.html
+doc_DATA = $(htmls)
 endif
 
 SUBLOC = doc
@@ -40,7 +42,7 @@ README.html: ../README
 	$(ASCIIDOC) -a toc -o $@ $<
 
 web: $(doc_DATA)
-	rsync -av $(doc_DATA) $(web)/doc/
+	rsync -av $(htmls) $(web)/doc/
 
 endif # ASCIIDOC
 

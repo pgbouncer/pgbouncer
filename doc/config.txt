@@ -556,7 +556,7 @@ file in following format:
   "username2" "md5abcdef012342345" ...
 
 There should be at least 2 fields, surrounded by double quotes. The first
-field is the username and the second is either a plain-text or a MD5-hashed
+field is the username and the second is either a plain-text or a MD5-hidden
 password.  PgBouncer ignores the rest of the line.
 
 This file format is equivalent to text files used by PostgreSQL 8.x
@@ -567,6 +567,12 @@ Since PostgreSQL 9.0, the text files are not used anymore.  Thus the
 auth file needs to be generated.   See `./etc/mkauth.py` for sample script
 to generate auth file from `pg_shadow` table.
 
+PostgreSQL MD5-hidden password format:
+
+  "md5" + md5(password + username)
+
+So user `admin` with password `1234` will have MD5-hidden password
+`md545f2603610af569b6155c45067268c6b`.
 
 == EXAMPLE ==
 

@@ -1,4 +1,4 @@
-2012-xx-xx  -  PgBouncer 1.5.1  -  ""
+2012-04-17  -  PgBouncer 1.5.1  -  "Abort, Retry, Ignore?"
 
   = Features =
 
@@ -31,6 +31,8 @@
 
     * Require Asciidoc >= 8.4, seems docs are not compatible with
       earlier versions anymore.
+
+    * Stop trying to retry on EINTR from close().
 
 2012-01-05  -  PgBouncer 1.5  -  "Bouncing Satisified Clients Since 2007"
 

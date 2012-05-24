@@ -7,13 +7,18 @@ PgBouncer acts as Postgres server, so simply point your client to PgBouncer port
 
 == How to load-balance queries between several servers? ==
 
-Use a TCP connection load-balancer.  Either http://www.linuxvirtualserver.org/[LVS]
+1. Use a TCP connection load-balancer.  Either http://www.linuxvirtualserver.org/[LVS]
 or http://haproxy.1wt.eu/[HAProxy] seem to be good choices.  On PgBouncer
 side it may be good idea to make `server_lifetime` smaller and also
 turn `server_round_robin` on - by default idle connections are
 reused by LIFO algorithm which may work not so well when
 load-balancing is needed.
 
+2. DNS round-robin.  Use several IPs behind one DNS name.  PgBouncer does
+not look up DNS each time new connection is launched.  Instead it caches
+all IPs and does round-robin internally.  Note: if there is more than 8 IPs
+behind one name, the DNS backend must support EDNS0 protocol.
+See README for details.
 
 == How to use SSL connections with PgBouncer? ==
 

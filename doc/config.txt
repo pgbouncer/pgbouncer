@@ -94,7 +94,7 @@ Default: not set.
 
 How to authenticate users.
 
-md5:
+md5::
       Use MD5-based password check. `auth_file` may contain both MD5-encrypted
       or plain-text passwords.  This is the default authentication method.
 

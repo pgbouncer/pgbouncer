@@ -164,3 +164,26 @@ any session-based features, so there is no need to clean anything.
 The `server_reset_query` would only add unnecessary round-trip between
 transactions and would drop various caches that the next transaction
 would unnecessarily need to fill again.
+
+== How to know which client is on which server connection ==
+
+Use SHOW CLIENTS and SHOW SERVERS views on console.
+
+1. Use `ptr` and `link` to map local client connection to server connection.
+2. Use `addr` and `port` of client connection to identify TCP connection from client.
+3. Use `local_addr` and `local_port` to identify TCP connection to server.
+
+=== Overview of important fields in SHOW CLIENTS ===
+
+addr + port:: unique port on client host
+local_addr + local_port:: pgbouncer port
+ptr:: unique id for this connection
+link:: unique id for server connection this is currently linked to
+
+=== Overview of important fields in SHOW SERVERS ===
+
+addr + port:: server port this connects to
+local_addr + local_port:: unique port on pgbouncer host
+ptr:: unique id for this connection
+link:: unique id for client connection this is currently linked to
+

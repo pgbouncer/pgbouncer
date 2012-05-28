@@ -11,6 +11,8 @@ AC_USUAL_INIT
 dnl Checks for programs.
 AC_USUAL_PROGRAM_CHECK
 
+PKG_PROG_PKG_CONFIG
+
 dnl asciidoc >= 8.4
 AC_CHECK_PROGS(ASCIIDOC, asciidoc)
 if test -n "$ASCIIDOC"; then
@@ -75,8 +77,49 @@ AC_CHECK_FUNCS(crypt lstat)
 dnl Find libevent
 AC_USUAL_LIBEVENT
 
-dnl Find libudns
+##
+## DNS backend
+##
+
+# make sure all vars are set
+use_cares=auto
 use_udns=no
+use_evdns=no
+
+dnl Find c-ares
+AC_MSG_CHECKING([whether to use c-ares for DNS lookups])
+AC_ARG_WITH(cares,
+  AC_HELP_STRING([--with-cares=prefix],[Specify where c-ares is installed]),
+  [ if test "$withval" = "no"; then
+      use_cares=no
+    elif test "$withval" = "yes"; then
+      use_cares=yes
+    else
+      use_cares=yes
+      CARES_CFLAGS="-I$withval/include"
+      CARES_LIBS="-L$withval/lib -lcares"
+    fi
+  ], [])
+AC_MSG_RESULT([$use_cares])
+
+if test "$use_cares" = "auto"; then
+  PKG_CHECK_MODULES(CARES, [libcares >= 1.6.0], [use_cares=yes], [use_cares=no])
+fi
+
+if test "$use_cares" = "yes"; then
+  AC_DEFINE(USE_CARES, 1, [Use c-ares for name resolution.])
+
+  # does it support SOA parse
+  tmp_CFLAGS="$CFLAGS"
+  tmp_LIBS="$LIBS"
+  CFLAGS="$CARES_CFLAGS $CFLAGS"
+  LIBS="$CARES_LIBS $LIBS"
+  AC_CHECK_FUNCS(ares_parse_soa_reply)
+  LIBS="$tmp_LIBS"
+  CFLAGS="$tmp_CFLAGS"
+else
+
+dnl Find libudns
 AC_MSG_CHECKING([whether to use libudns])
 AC_ARG_WITH(udns,
   AC_HELP_STRING([--with-udns=prefix],[Specify where udns is installed]),
@@ -112,7 +155,6 @@ if test "$use_udns" = "yes"; then
 else # !udns
 
 dnl On libevent 2.x use evdns by default
-use_evdns=no
 if test "$ac_cv_func_evdns_base_new" = "yes"; then
   use_evdns=yes
 fi
@@ -129,11 +171,15 @@ else
 fi
 
 dnl Check if need getaddinfo_a compat
-if test "$use_evdns" = no; then
+if test "$use_udns.$use_cares.$use_evdns" = "no.no.no"; then
   AC_USUAL_GETADDRINFO_A
 fi
 
 fi # !udns
+
+fi # !cares
+
+## end of DNS
 
 AC_USUAL_DEBUG
 AC_USUAL_CASSERT

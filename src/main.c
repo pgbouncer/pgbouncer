@@ -635,6 +635,8 @@ static void main_loop_once(void)
 	reuse_just_freed_objects();
 	rescue_timers();
 	per_loop_pooler_maint();
+
+	adns_per_loop(adns);
 }
 
 static void takeover_part1(void)

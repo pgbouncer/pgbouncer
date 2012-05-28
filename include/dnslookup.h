@@ -41,3 +41,6 @@ typedef void (*adns_walk_zone_f)(void *arg, const char *name, uint32_t serial, i
 
 void adns_walk_names(struct DNSContext *ctx, adns_walk_name_f cb, void *arg);
 void adns_walk_zones(struct DNSContext *ctx, adns_walk_zone_f cb, void *arg);
+
+void adns_per_loop(struct DNSContext *ctx);
+

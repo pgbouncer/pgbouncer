@@ -23,13 +23,14 @@
 /*
  * Available backends:
  *
+ * c-ares - libcares
  * udns - libudns
  * getaddrinfo_a - glibc only
  * libevent1 - returns TTL, ignores hosts file.
  * libevent2 - does not return TTL, uses hosts file.
  */
 
-#if !defined(USE_EVDNS) && !defined(USE_UDNS)
+#if !defined(USE_EVDNS) && !defined(USE_UDNS) && !defined(USE_CARES)
 #define USE_GETADDRINFO_A
 #endif
 
@@ -44,6 +45,16 @@
 #include <evdns.h>
 #endif /* !EV_ET */
 #endif /* USE_EVDNS */
+
+#ifdef USE_CARES
+#include <ares.h>
+#include <ares_dns.h>
+#include <arpa/nameser.h>
+#define ZONE_RECHECK 1
+#else
+/* only c-ares requires this */
+#define impl_per_loop(ctx)
+#endif
 
 #ifdef USE_UDNS
 #include <udns.h>
@@ -132,28 +143,42 @@ static void got_zone_serial(struct DNSContext *ctx, uint32_t *serial);
  * Custom addrinfo generation
  */
 
-#if defined(USE_LIBEVENT1) || defined(USE_UDNS)
+#if defined(USE_LIBEVENT1) || defined(USE_UDNS) || defined(USE_CARES)
 
-static struct addrinfo *mk_addrinfo(const struct in_addr ip4)
+static struct addrinfo *mk_addrinfo(const void *adr, int af)
 {
 	struct addrinfo *ai;
-	struct sockaddr_in *sa;
+
 	ai = calloc(1, sizeof(*ai));
 	if (!ai)
 		return NULL;
-	sa = calloc(1, sizeof(*sa));
-	if (!sa) {
-		free(ai);
-		return NULL;
+
+	if (af == AF_INET) {
+		struct sockaddr_in *sa4;
+		sa4 = calloc(1, sizeof(*sa4));
+		if (!sa4)
+			goto failed;
+		memcpy(&sa4->sin_addr, adr, 4);
+		sa4->sin_family = af;
+		ai->ai_addr = (struct sockaddr *)sa4;
+		ai->ai_addrlen = sizeof(*sa4);
+	} else if (af == AF_INET6) {
+		struct sockaddr_in6 *sa6;
+		sa6 = calloc(1, sizeof(*sa6));
+		if (!sa6)
+			goto failed;
+		memcpy(&sa6->sin6_addr, adr, sizeof(*sa6));
+		sa6->sin6_family = af;
+		ai->ai_addr = (struct sockaddr *)sa6;
+		ai->ai_addrlen = sizeof(*sa6);
 	}
-	sa->sin_addr = ip4;
-	sa->sin_family = AF_INET;
-	ai->ai_addr = (struct sockaddr *)sa;
-	ai->ai_addrlen = sizeof(*sa);
 	ai->ai_protocol = IPPROTO_TCP;
 	ai->ai_socktype = SOCK_STREAM;
-	ai->ai_family = AF_INET;
+	ai->ai_family = af;
 	return ai;
+failed:
+	free(ai);
+	return NULL;
 }
 
 #define freeaddrinfo(x) local_freeaddrinfo(x)
@@ -169,21 +194,47 @@ static void freeaddrinfo(struct addrinfo *ai)
 	}
 }
 
-static struct addrinfo *convert_ipv4_result(const struct in_addr *adrs, int count)
+static inline struct addrinfo *convert_ipv4_result(const struct in_addr *adrs, int count)
 {
-	struct addrinfo *ai, *last = NULL;
+	struct addrinfo *ai, *first = NULL, *last = NULL;
 	int i;
 
-	for (i = count - 1; i >= 0; i--) {
-		ai = mk_addrinfo(adrs[i]);
+	for (i = 0; i < count; i++) {
+		ai = mk_addrinfo(&adrs[i], AF_INET);
 		if (!ai)
 			goto failed;
-		ai->ai_next = last;
+
+		if (!first)
+			first = ai;
+		else
+			last->ai_next = ai;
 		last = ai;
 	}
-	return last;
+	return first;
 failed:
-	freeaddrinfo(last);
+	freeaddrinfo(first);
+	return NULL;
+}
+
+static inline struct addrinfo *convert_hostent(const struct hostent *h)
+{
+	struct addrinfo *ai, *first = NULL, *last = NULL;
+	int i;
+
+	for (i = 0; h->h_addr_list[i]; i++) {
+		ai = mk_addrinfo(h->h_addr_list[i], h->h_addrtype);
+		if (!ai)
+			goto failed;
+
+		if (!first)
+			first = ai;
+		else
+			last->ai_next = ai;
+		last = ai;
+	}
+	return first;
+failed:
+	freeaddrinfo(first);
 	return NULL;
 }
 
@@ -677,6 +728,445 @@ static int impl_query_soa_serial(struct DNSContext *ctx, const char *zonename)
 
 
 /*
+ * ADNS with <ares.h>
+ */
+
+#ifdef USE_CARES
+
+#define MAX_CARES_FDS 16
+
+struct XaresFD {
+	struct event ev;		/* fd event state is persistent */
+	struct XaresMeta *meta;		/* pointer to parent context */
+	ares_socket_t sock;		/* socket value */
+	short wait;			/* EV_READ / EV_WRITE */
+	bool in_use;			/* is this slot assigned */
+};
+
+struct XaresMeta {
+	/* c-ares descriptor */
+	ares_channel chan;
+
+	/* how many elements in fds array are in use */
+	int max_fds;
+
+	/* static array for fds */
+	struct XaresFD fds[MAX_CARES_FDS];
+
+	/* timer event is one-shot */
+	struct event ev_timer;
+
+	/* is timer activated? */
+	bool timer_active;
+
+	/* If dns events happened during event loop,
+	   timer may need recalibration. */
+	int got_events;
+
+};
+
+const char *adns_get_backend(void)
+{
+	return "c-ares " ARES_VERSION_STR;
+}
+
+
+/* called by libevent on timer timeout */
+static void xares_timer_cb(int sock, short flags, void *arg)
+{
+	struct DNSContext *ctx = arg;
+	struct XaresMeta *meta = ctx->edns;
+
+	ares_process_fd(meta->chan, ARES_SOCKET_BAD, ARES_SOCKET_BAD);
+
+	meta->timer_active = 0;
+	meta->got_events = 1;
+}
+
+/* called by libevent on fd event */
+static void xares_fd_cb(int sock, short flags, void *arg)
+{
+	struct XaresFD *xfd = arg;
+	struct XaresMeta *meta = xfd->meta;
+	ares_socket_t r, w;
+
+	r = (flags & EV_READ) ? xfd->sock : ARES_SOCKET_BAD;
+	w = (flags & EV_WRITE) ? xfd->sock : ARES_SOCKET_BAD;
+	ares_process_fd(meta->chan, r, w);
+
+	meta->got_events = 1;
+}
+
+/* called by c-ares on new socket creation */
+static int xares_new_socket_cb(ares_socket_t sock, int sock_type, void *arg)
+{
+	struct DNSContext *ctx = arg;
+	struct XaresMeta *meta = ctx->edns;
+	struct XaresFD *xfd;
+	int pos;
+
+	/* find free slot in array */
+	for (pos = 0; pos < meta->max_fds; pos++) {
+		if (!meta->fds[pos].in_use)
+			break;
+	}
+	if (pos >= MAX_CARES_FDS) {
+		log_warning("c-ares fd overflow");
+		return ARES_ENOMEM;
+	}
+	if (pos == meta->max_fds)
+		meta->max_fds++;
+
+	/* fill it */
+	xfd = &meta->fds[pos];
+	xfd->meta = meta;
+	xfd->sock = sock;
+	xfd->wait = 0;
+	xfd->in_use = 1;
+	return ARES_SUCCESS;
+}
+
+/* called by c-ares on socket state change (r=w=0 means socket close) */
+static void xares_state_cb(void *arg, ares_socket_t sock, int r, int w)
+{
+	struct DNSContext *ctx = arg;
+	struct XaresMeta *meta = ctx->edns;
+	struct XaresFD *xfd;
+	int pos;
+	short new_wait = 0;
+
+	if (r)
+		new_wait |= EV_READ;
+	if (w)
+		new_wait |= EV_WRITE;
+
+	/* find socket */
+	for (pos = 0; pos < meta->max_fds; pos++) {
+		xfd = &meta->fds[pos];
+		if (!xfd->in_use)
+			continue;
+
+		if (xfd->sock != sock)
+			continue;
+
+		/* no change? */
+		if (xfd->wait == new_wait)
+			return;
+
+		goto re_set;
+	}
+
+	log_warning("adns: c-ares state change for unknown fd: %u", (unsigned)sock);
+	return;
+
+re_set:
+	if (xfd->wait)
+		event_del(&xfd->ev);
+	xfd->wait = new_wait;
+	if (new_wait) {
+		event_set(&xfd->ev, sock, new_wait | EV_PERSIST, xares_fd_cb, xfd);
+		event_add(&xfd->ev, NULL);
+	} else {
+		xfd->in_use = 0;
+	}
+	return;
+}
+
+/* called by c-ares on dns reply */
+static void xares_host_cb(void *arg, int status, int timeouts, struct hostent *h)
+{
+	struct DNSRequest *req = arg;
+	struct addrinfo *res = NULL;
+
+	log_noise("dns: xares_host_cb(%s)=%s", req->name, ares_strerror(status));
+	if (status == ARES_SUCCESS) {
+		res = convert_hostent(h);
+		got_result_gai(0, res, req);
+	} else {
+		log_debug("DNS lookup failed: %s - %s", req->name, ares_strerror(status));
+		got_result_gai(0, res, req);
+	}
+}
+
+/* send hostname query */
+static void impl_launch_query(struct DNSRequest *req)
+{
+	struct XaresMeta *meta = req->ctx->edns;
+
+	log_noise("dns: ares_gethostbyname(%s)", req->name);
+	ares_gethostbyname(meta->chan, req->name, AF_UNSPEC, xares_host_cb, req);
+
+	meta->got_events = 1;
+}
+
+/* re-set timer if any dns event happened */
+static void impl_per_loop(struct DNSContext *ctx)
+{
+	struct timeval tv, *tvp;
+	struct XaresMeta *meta = ctx->edns;
+
+	if (!meta->got_events)
+		return;
+
+	if (meta->timer_active) {
+		event_del(&meta->ev_timer);
+		meta->timer_active = false;
+	}
+
+	tvp = ares_timeout(meta->chan, NULL, &tv);
+	if (tvp != NULL) {
+		event_add(&meta->ev_timer, tvp);
+		meta->timer_active = true;
+	}
+
+	meta->got_events = 0;
+}
+
+/* c-ares setup */
+static bool impl_init(struct DNSContext *ctx)
+{
+	struct XaresMeta *meta;
+	int err;
+	int mask;
+	struct ares_options opts;
+
+	err = ares_library_init(ARES_LIB_INIT_ALL);
+	if (err) {
+		log_error("ares_library_init: %s", ares_strerror(err));
+		return false;
+	}
+
+	meta = calloc(1, sizeof(*meta));
+	if (!meta)
+		return false;
+
+	memset(&opts, 0, sizeof(opts));
+	opts.sock_state_cb = xares_state_cb;
+	opts.sock_state_cb_data = ctx;
+	mask = ARES_OPT_SOCK_STATE_CB;
+
+	err = ares_init_options(&meta->chan, &opts, mask);
+	if (err) {
+		free(meta);
+		log_error("ares_library_init: %s", ares_strerror(err));
+		return false;
+	}
+
+	ares_set_socket_callback(meta->chan, xares_new_socket_cb, ctx);
+
+	evtimer_set(&meta->ev_timer, xares_timer_cb, ctx);
+
+	ctx->edns = meta;
+	return true;
+}
+
+/* c-ares shutdown */
+static void impl_release(struct DNSContext *ctx)
+{
+	struct XaresMeta *meta = ctx->edns;
+
+	ares_destroy(meta->chan);
+	ares_library_cleanup();
+
+	if (meta->timer_active)
+		event_del(&meta->ev_timer);
+
+	free(meta);
+	ctx->edns = NULL;
+}
+
+/*
+ * query SOA with c-ares
+ */
+
+#ifndef HAVE_ARES_PARSE_SOA_REPLY
+
+#define ares_soa_reply		xares_soa_reply
+#define ares_parse_soa_reply	xares_parse_soa_reply
+
+struct ares_soa_reply {
+	char *nsname;
+	char *hostmaster;
+	uint32_t serial;
+	uint32_t refresh;
+	uint32_t retry;
+	uint32_t expire;
+	uint32_t minttl;
+};
+
+static void xares_free_soa(struct ares_soa_reply *soa)
+{
+	if (soa) {
+		if (soa->nsname)
+			free(soa->nsname);
+		if (soa->hostmaster)
+			free(soa->hostmaster);
+		free(soa);
+	}
+}
+
+/*
+ * Full SOA reply packet structure (rfc1035)
+ *
+ * 1) header
+ *   id:16, flags:16, qdcount:16, ancount:16, nscount:16, arcount:16
+ *
+ * 2) query (qdcount)
+ *   qname:name, qtype:16, qclass:16
+ *
+ * 3) answer (ancount)
+ *   name:name, type:16, class:16, ttl:32, rdlength:16
+ *
+ * 3.1) soa rdata
+ *   nsname:name, hostmaster:name,
+ *   serial:32, refresh:32, retry:32, expire:32, minimum:32
+ *
+ * 4) authority (nscount) - ignored
+ *
+ * 5) additional (arcount) - ignored
+ */
+static int ares_parse_soa_reply(const unsigned char *abuf, int alen, struct ares_soa_reply **soa_p)
+{
+	const unsigned char *aptr;
+	long len;
+	char *qname = NULL, *rr_name = NULL;
+	struct ares_soa_reply *soa = NULL;
+	int qdcount, ancount;
+	int status;
+
+	if (alen < NS_HFIXEDSZ)
+		return ARES_EBADRESP;
+
+	/* parse message header */
+	qdcount = DNS_HEADER_QDCOUNT(abuf);
+	ancount = DNS_HEADER_ANCOUNT(abuf);
+	if (qdcount != 1 || ancount != 1)
+		return ARES_EBADRESP;
+	aptr = abuf + NS_HFIXEDSZ;
+
+	/* allocate result struct */
+	soa = calloc(1, sizeof(*soa));
+	if (!soa)
+		return ARES_ENOMEM;
+
+	/* parse query */
+	status = ares_expand_name(aptr, abuf, alen, &qname, &len);
+	if (status != ARES_SUCCESS)
+		goto failed_stat;
+	aptr += len;
+
+	/* skip qtype & qclass */
+	if (aptr + NS_QFIXEDSZ > abuf + alen)
+		goto failed;
+	aptr += NS_QFIXEDSZ;
+
+	/* parse RR header */
+	status = ares_expand_name(aptr, abuf, alen, &rr_name, &len);
+	if (status != ARES_SUCCESS)
+		goto failed_stat;
+	aptr += len;
+
+	/* skip rr_type, rr_class, rr_ttl, rr_rdlen */
+	if (aptr + NS_RRFIXEDSZ > abuf + alen)
+		goto failed;
+	aptr += NS_RRFIXEDSZ;
+
+	/* nsname */
+	status = ares_expand_name(aptr, abuf, alen, &soa->nsname, &len);
+	if (status != ARES_SUCCESS)
+		goto failed_stat;
+	aptr += len;
+
+	/* hostmaster */
+	status = ares_expand_name(aptr, abuf, alen, &soa->hostmaster, &len);
+	if (status != ARES_SUCCESS)
+		goto failed_stat;
+	aptr += len;
+
+	/* integer fields */
+	if (aptr + 5*4 > abuf + alen)
+		goto failed;
+	soa->serial = DNS__32BIT(aptr + 0*4);
+	soa->refresh = DNS__32BIT(aptr + 1*4);
+	soa->retry = DNS__32BIT(aptr + 2*4);
+	soa->expire = DNS__32BIT(aptr + 3*4);
+	soa->minttl = DNS__32BIT(aptr + 4*4);
+
+	log_noise("Ares SOA result: qname=%s rr_name=%s serial=%u", qname, rr_name, soa->serial);
+
+	free(qname);
+	free(rr_name);
+
+	*soa_p = soa;
+
+	return ARES_SUCCESS;
+
+failed:
+	status = ARES_EBADRESP;
+
+failed_stat:
+	xares_free_soa(soa);
+	if (qname)
+		free(qname);
+	if (rr_name)
+		free(rr_name);
+	return (status == ARES_EBADNAME) ? ARES_EBADRESP : status;
+}
+
+#else /* HAVE_ARES_PARSE_SOA_REPLY */
+
+static void xares_free_soa(struct ares_soa_reply *soa)
+{
+	ares_free_data(soa);
+}
+
+#endif /* HAVE_ARES_PARSE_SOA_REPLY */
+
+
+/* called by c-ares on SOA reply */
+static void xares_soa_cb(void *arg, int status, int timeouts,
+			 unsigned char *abuf, int alen)
+{
+	struct DNSContext *ctx = arg;
+	struct XaresMeta *meta = ctx->edns;
+	struct ares_soa_reply *soa = NULL;
+
+	meta->got_events = 1;
+
+	log_noise("ares SOA result: %s", ares_strerror(status));
+	if (status != ARES_SUCCESS) {
+		got_zone_serial(ctx, NULL);
+		return;
+	}
+
+	status = ares_parse_soa_reply(abuf, alen, &soa);
+	if (status == ARES_SUCCESS) {
+		got_zone_serial(ctx, &soa->serial);
+	} else {
+		log_warning("ares_parse_soa: %s", ares_strerror(status));
+		got_zone_serial(ctx, NULL);
+	}
+
+	xares_free_soa(soa);
+}
+
+/* send SOA query */
+static int impl_query_soa_serial(struct DNSContext *ctx, const char *zonename)
+{
+	struct XaresMeta *meta = ctx->edns;
+
+	log_debug("dns: ares query SOA(%s)", zonename);
+	ares_search(meta->chan, zonename, ns_c_in, ns_t_soa,
+		    xares_soa_cb, ctx);
+
+	meta->got_events = 1;
+	return 0;
+}
+
+#endif /* USE_CARES */
+
+
+/*
  * Generic framework
  */
 
@@ -1141,5 +1631,10 @@ void adns_walk_zones(struct DNSContext *ctx, adns_walk_zone_f cb, void *arg)
 	w.zone_cb = cb;
 	w.arg = arg;
 	aatree_walk(&ctx->zone_tree, AA_WALK_IN_ORDER, walk_zone, &w);
+}
+
+void adns_per_loop(struct DNSContext *ctx)
+{
+	impl_per_loop(ctx);
 }
 

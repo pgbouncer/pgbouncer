@@ -1,3 +1,12 @@
+2012-05-29  -  PgBouncer 1.5.2  -  "Don't Chew, Just Swallow"
+
+  = Fixes =
+
+    * Due to mistake, reserve_pool_timeout was taken in microseconds,
+      not seconds, effectively activating reserve pool immediately
+      when pool got full.  Now use it as seconds, as was intended.
+      (Noticed by Keyur Govande)
+
 2012-04-17  -  PgBouncer 1.5.1  -  "Abort, Retry, Ignore?"
 
   = Features =

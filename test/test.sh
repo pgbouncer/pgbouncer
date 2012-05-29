@@ -5,7 +5,7 @@
 # - uses nc (netcat) with some tests, skips if not in path
 # - assumes postgres 8.2 fix your path so that it comes first
 
-export PATH=/usr/lib/postgresql/8.2/bin:$PATH
+export PATH=/usr/lib/postgresql/8.4/bin:$PATH
 export PGDATA=$PWD/pgdata
 export PGHOST=localhost
 export PGPORT=6667
@@ -34,7 +34,8 @@ rm -f $BOUNCER_LOG $PG_LOG
 
 if [ ! -d $PGDATA ]; then
 	mkdir $PGDATA
-	initdb >/dev/null 2>&1
+	initdb >> $PG_LOG 2>&1
+	sed -i "/unix_socket_directory/s:.*unix_socket_directory.*:unix_socket_directory = '/tmp':" pgdata/postgresql.conf
 fi
 
 pgctl start

@@ -165,7 +165,7 @@ The `server_reset_query` would only add unnecessary round-trip between
 transactions and would drop various caches that the next transaction
 would unnecessarily need to fill again.
 
-== How to know which client is on which server connection ==
+== How to know which client is on which server connection? ==
 
 Use SHOW CLIENTS and SHOW SERVERS views on console.
 
@@ -186,4 +186,17 @@ addr + port:: server port this connects to
 local_addr + local_port:: unique port on pgbouncer host
 ptr:: unique id for this connection
 link:: unique id for client connection this is currently linked to
+
+== Should PgBouncer be installed on webserver or database server? ==
+
+It depends.  Installing on webserver is good when short-connections are used,
+then the connection setup latency is minimised - TCP requires couple of packet
+roundtrips before connection is usable.  Installing on database
+server is good when there are many different hosts (eg. webservers)
+connecting to it, then their connections can be optimised together.
+
+It is also possible to install PgBouncer on both webserver and database
+servers.  Only negative aspect of that is that each PgBouncer hop
+adds small amount of latency to each query.  So it's probably
+best to simply test whether the payoff is worth the cost.
 

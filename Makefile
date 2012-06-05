@@ -42,6 +42,8 @@ pgbouncer_SOURCES = \
 
 pgbouncer_CPPFLAGS = -Iinclude
 
+# include libusual sources directly
+AM_FEATURES = libusual
 pgbouncer_EMBED_LIBUSUAL = 1
 
 # docs to install as-is

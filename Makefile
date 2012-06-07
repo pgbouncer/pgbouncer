@@ -82,7 +82,7 @@ endif
 # win32
 #
 
-pgbouncer_LIBS := $(LIBS)
+pgbouncer_LDADD := $(LIBS)
 LIBS :=
 
 EXTRA_pgbouncer_SOURCES = win32/win32support.c win32/win32support.h

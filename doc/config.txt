@@ -318,8 +318,7 @@ Default: 3600.0
 
 ==== server_idle_timeout ====
 
-If a server connection has been idle more than this many seconds, and there are 
-too many connections in the pool, this one can be dropped.
+If a server connection has been idle more than this many seconds it will be dropped.
 If 0 then timeout is disabled.  [seconds]
 
 Default: 600.0

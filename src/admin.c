@@ -29,7 +29,7 @@
 #define WS0	"[ \t\n\r]*"
 #define WS1	"[ \t\n\r]+"
 #define WORD	"(\"([^\"]+|\"\")*\"|[0-9a-z_]+)"
-#define STRING	"'(([^']*|'')*)'"
+#define STRING	"('([^']|'')*')"
 
 /* possible max + 1 */
 #define MAX_GROUPS 10
@@ -1020,49 +1020,44 @@ static bool admin_cmd_kill(PgSocket *admin, const char *arg)
 }
 
 /* extract substring from regex group */
-static void copy_arg(const char *src, regmatch_t *glist,
-		     int gnum, char *dst, unsigned dstmax)
+static bool copy_arg(const char *src, regmatch_t *glist,
+		     int gnum, char *dst, unsigned dstmax,
+		     char qchar)
 {
 	regmatch_t *g = &glist[gnum];
-	unsigned len = g->rm_eo - g->rm_so;
-	const char *s = src + g->rm_so;
+	unsigned len;
+	const char *s;
 	char *d = dst;
 	unsigned i;
-	if (len < dstmax) {
-		if (*s == '"') {
-			for (i = 1; i < len - 1; i++) {
-				if (s[i] == '"' && s[i+1] == '"')
-					i++;
-				*d++ = s[i];
-			}
-			len = d - dst;
-		} else {
-			memcpy(dst, s, len);
-		}
-	} else
-		len = 0;
-	dst[len] = 0;
-}
 
-/* extract quoted substring from regex group */
-static void copy_arg_unquote(const char *str, regmatch_t *glist,
-			     int gnum, char *dst, int dstmax)
-{
-	regmatch_t *g = &glist[gnum];
-	int len = g->rm_eo - g->rm_so;
-	const char *src = str + g->rm_so;
-	const char *end = src + len;
-
-	if (len < dstmax) {
-		while (src < end) {
-			if (src[0] == '\'' && src[1] == '\'') {
-				*dst++ = '\'';
-				src += 2;
-			} else
-				*dst++ = *src++;
-		}
+	/* no match, if regex allows, it must be fine */
+	if (g->rm_so < 0 || g->rm_eo < 0) {
+		dst[0] = 0;
+		return true;
 	}
-	*dst = 0;
+
+	len = g->rm_eo - g->rm_so;
+	s = src + g->rm_so;
+
+	/* too big value */
+	if (len >= dstmax) {
+		dst[0] = 0;
+		return false;
+	}
+
+	/* copy and unquote */
+	if (*s == qchar) {
+		for (i = 1; i < len - 1; i++) {
+			if (s[i] == qchar && s[i+1] == qchar)
+				i++;
+			*d++ = s[i];
+		}
+		len = d - dst;
+	} else {
+		memcpy(dst, s, len);
+	}
+	dst[len] = 0;
+	return true;
 }
 
 static bool admin_show_help(PgSocket *admin, const char *arg)
@@ -1157,35 +1152,44 @@ static bool admin_parse_query(PgSocket *admin, const char *q)
 	char arg[64];
 	char val[256];
 	bool res;
+	bool ok;
 
 	current_query = q;
 
 	if (regexec(&rc_cmd, q, MAX_GROUPS, grp, 0) == 0) {
-		copy_arg(q, grp, CMD_NAME, cmd, sizeof(cmd));
-		copy_arg(q, grp, CMD_ARG, arg, sizeof(arg));
+		ok = copy_arg(q, grp, CMD_NAME, cmd, sizeof(cmd), '"');
+		if (!ok)
+			goto failed;
+		ok = copy_arg(q, grp, CMD_ARG, arg, sizeof(arg), '"');
+		if (!ok)
+			goto failed;
 		res = exec_cmd(cmd_list, admin, cmd, arg);
 	} else if (regexec(&rc_set_str, q, MAX_GROUPS, grp, 0) == 0) {
-		copy_arg(q, grp, SET_KEY, arg, sizeof(arg));
-		copy_arg_unquote(q, grp, SET_VAL, val, sizeof(val));
-		if (!arg[0] || !val[0]) {
-			res = admin_error(admin, "bad arguments");
-		} else
-			res = admin_set(admin, arg, val);
+		ok = copy_arg(q, grp, SET_KEY, arg, sizeof(arg), '"');
+		if (!ok || !arg[0])
+			goto failed;
+		ok = copy_arg(q, grp, SET_VAL, val, sizeof(val), '\'');
+		if (!ok)
+			goto failed;
+		res = admin_set(admin, arg, val);
 	} else if (regexec(&rc_set_word, q, MAX_GROUPS, grp, 0) == 0) {
-		copy_arg(q, grp, SET_KEY, arg, sizeof(arg));
-		copy_arg(q, grp, SET_VAL, val, sizeof(val));
-		if (!arg[0] || !val[0]) {
-			res = admin_error(admin, "bad arguments");
-		} else
-			res = admin_set(admin, arg, val);
+		ok = copy_arg(q, grp, SET_KEY, arg, sizeof(arg), '"');
+		if (!ok || !arg[0])
+			goto failed;
+		ok = copy_arg(q, grp, SET_VAL, val, sizeof(val), '"');
+		if (!ok)
+			goto failed;
+		res = admin_set(admin, arg, val);
 	} else
 		res = syntax_error(admin);
-
+done:
 	current_query = NULL;
-
 	if (!res)
 		disconnect_client(admin, true, "failure");
 	return res;
+failed:
+	res = admin_error(admin, "bad arguments");
+	goto done;
 }
 
 /* handle packets */

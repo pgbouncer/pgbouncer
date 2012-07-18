@@ -22,6 +22,15 @@
 
 #include "bouncer.h"
 
+static const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
+{
+	const uint8_t *bin = data->data + data->read_pos;
+	unsigned int dlen;
+
+	dlen = mbuf_avail_for_read(data);
+	return bin2hex(bin, dlen, buf, buflen);
+}
+
 static bool check_client_passwd(PgSocket *client, const char *passwd)
 {
 	char md5[MD5_PASSWD_LEN + 1];
@@ -389,7 +398,9 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		}
 
 		if (!get_header(data, &pkt)) {
-			disconnect_client(client, true, "bad packet header");
+			char hex[8*2 + 1];
+			disconnect_client(client, true, "bad packet header: '%s'",
+					  hdr2hex(data, hex, sizeof(hex)));
 			return false;
 		}
 		slog_noise(client, "pkt='%c' len=%d", pkt_desc(&pkt), pkt.len);

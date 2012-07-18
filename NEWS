@@ -1,3 +1,25 @@
+2012-07-xx  -  PgBouncer 1.5.3  -  ""
+
+  = Minor Feature =
+
+    * max_packet_size - config parameter to tune maximum packet size
+      that is allowed through.  Default is kept same: (2G-1), but now
+      it can be made smaller.
+
+    * In case of unparseable packet header, show it in hex in log and
+      error message.
+
+  = Fixes =
+
+    * AntiMake: it used $(relpath) and $(abspath) to manupulate pathnames,
+      but the result was build failure when source tree path contained
+      symlinks.  The code is now changed to work on plain strings only.
+
+    * console: now SET can be used to set empty string values.
+
+    * config.txt: show that all timeouts can be set in floats.
+      This is well-hidden feature introduced in 1.4.
+
 2012-05-29  -  PgBouncer 1.5.2  -  "Don't Chew, Just Swallow"
 
   = Fixes =

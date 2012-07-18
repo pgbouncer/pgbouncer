@@ -51,19 +51,29 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
 			sock, db, user, host, port);
 }
 
+const char *bin2hex(const uint8_t *src, unsigned srclen, char *dst, unsigned dstlen)
+{
+	unsigned int i, j;
+	static const char hextbl [] = "0123456789abcdef";
+	if (!dstlen)
+		return "";
+	if (srclen*2+1 > dstlen)
+		srclen = (dstlen - 1) / 2;
+	for (i = j = 0; i < srclen; i++) {
+		dst[j++] = hextbl[src[i] >> 4];
+		dst[j++] = hextbl[src[i] & 15];
+	}
+	dst[j] = 0;
+	return dst;
+}
+
 /*
  * PostgreSQL MD5 hashing.
  */
 
 static void hash2hex(const uint8_t *hash, char *dst)
 {
-	int i;
-	static const char hextbl [] = "0123456789abcdef";
-	for (i = 0; i < MD5_DIGEST_LENGTH; i++) {
-		*dst++ = hextbl[hash[i] >> 4];
-		*dst++ = hextbl[hash[i] & 15];
-	}
-	*dst = 0;
+	bin2hex(hash, MD5_DIGEST_LENGTH, dst, 16*2+1);
 }
 
 void pg_md5_encrypt(const char *part1,

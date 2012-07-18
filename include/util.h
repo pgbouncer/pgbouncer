@@ -42,6 +42,8 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
 void pg_md5_encrypt(const char *part1, const char *part2, size_t p2len, char *dest);
 void get_random_bytes(uint8_t *dest, int len);
 
+const char *bin2hex(const uint8_t *src, unsigned srclen, char *dst, unsigned dstlen);
+
 bool tune_socket(int sock, bool is_unix) _MUSTCHECK;
 
 bool strlist_contains(const char *liststr, const char *str);

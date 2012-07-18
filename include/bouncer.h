@@ -385,6 +385,8 @@ extern int cf_pause_mode;
 extern int cf_shutdown;
 extern int cf_reboot;
 
+extern unsigned int cf_max_packet_size;
+
 extern int cf_sbuf_loopcnt;
 extern int cf_tcp_keepalive;
 extern int cf_tcp_keepcnt;

@@ -420,6 +420,13 @@ large.
 
 Default: 2048
 
+==== max_packet_size ====
+
+Maximum size for Postgres packets that PgBouncer allows through.  One packet
+is either one query or one resultset row.  Full resultset can be larger.
+
+Default: 2147483647
+
 ==== listen_backlog ====
 
 Backlog argument for listen(2).  Determines how many new unanswered connection

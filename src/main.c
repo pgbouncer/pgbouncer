@@ -100,6 +100,7 @@ int cf_server_round_robin;
 int cf_disable_pqexec;
 usec_t cf_dns_max_ttl;
 usec_t cf_dns_zone_check_period;
+unsigned int cf_max_packet_size;
 
 char *cf_ignore_startup_params;
 
@@ -208,6 +209,7 @@ CF_ABS("disable_pqexec", CF_INT, cf_disable_pqexec, CF_NO_RELOAD, "0"),
 CF_ABS("dns_max_ttl", CF_TIME_USEC, cf_dns_max_ttl, 0, "15"),
 CF_ABS("dns_zone_check_period", CF_TIME_USEC, cf_dns_zone_check_period, 0, "0"),
 
+CF_ABS("max_packet_size", CF_UINT, cf_max_packet_size, 0, "2147483647"),
 CF_ABS("pkt_buf", CF_INT, cf_sbuf_len, CF_NO_RELOAD, "2048"),
 CF_ABS("sbuf_loopcnt", CF_INT, cf_sbuf_loopcnt, 0, "5"),
 CF_ABS("tcp_defer_accept", DEFER_OPS, cf_tcp_defer_accept, 0, NULL),

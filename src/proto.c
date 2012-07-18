@@ -87,7 +87,7 @@ bool get_header(struct MBuf *data, PktHdr *pkt)
 	}
 
 	/* don't believe nonsense */
-	if (len < got || len >= 0x80000000)
+	if (len < got || len > cf_max_packet_size)
 		return false;
 
 	/* store pkt info */

@@ -303,7 +303,11 @@ PgDatabase *add_database(const char *name)
 			return NULL;
 
 		list_init(&db->head);
-		safe_strcpy(db->name, name, sizeof(db->name));
+		if (strlcpy(db->name, name, sizeof(db->name)) >= sizeof(db->name)) {
+			log_warning("Too long db name: %s", name);
+			slab_free(db_cache, db);
+			return NULL;
+		}
 		put_in_order(&db->head, &database_list, cmp_database);
 	}
 

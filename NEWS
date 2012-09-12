@@ -2,7 +2,8 @@
 
   = Features =
 
-    * ENABLE/DISABLE commands to forbid or allow access to one database.
+    * ENABLE/DISABLE commands to forbid or allow access to one database
+      without affecting existing clients.
 
   = Minor Features =
 

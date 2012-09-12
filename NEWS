@@ -1,6 +1,16 @@
-2012-07-xx  -  PgBouncer 1.5.3  -  ""
+2012-09-12  -  PgBouncer 1.5.3  -  "Quantum Toaster"
 
-  = Minor Feature =
+  = Critical fix =
+
+    * Too long database names can lead to crash, which
+      is remotely triggerable if autodbs are enabled.
+
+      The original checks assumed all names come from config files,
+      thus using fatal() was fine, but when autodbs are enabled
+      - by '*' in [databases] section - the database name can come
+      from network thus making remote shutdown possible.
+
+  = Minor Features =
 
     * max_packet_size - config parameter to tune maximum packet size
       that is allowed through.  Default is kept same: (2G-1), but now

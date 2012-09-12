@@ -355,6 +355,19 @@ static bool show_fds_from_list(PgSocket *admin, struct StatList *list)
 	return res;
 }
 
+static PgDatabase *find_or_register_database(PgSocket *admin, const char *name)
+{
+	PgDatabase *db = find_database(name);
+	if (db == NULL) {
+		db = register_auto_database(name);
+		if (db != NULL) {
+			slog_info(admin,
+			          "registered new auto-database: %s", name);
+                }
+	}
+        return db;
+}
+
 /*
  * Command: SHOW FDS
  *
@@ -959,15 +972,9 @@ static bool admin_cmd_pause(PgSocket *admin, const char *arg)
 	} else {
 		PgDatabase *db;
 		log_info("PAUSE '%s' command issued", arg);
-		db = find_database(arg);
-		if (db == NULL) {
-			db = register_auto_database(arg);
-			if (db == NULL) {
-				return admin_error(admin, "no such database: %s", arg);
-			} else {
-				slog_info(admin, "registered new auto-database for PAUSE: %s", arg);
-			}
-		}
+		db = find_or_register_database(admin, arg);
+		if (db == NULL)
+			return admin_error(admin, "no such database: %s", arg);
 		if (db == admin->pool->db)
 			return admin_error(admin, "cannot pause admin db: %s", arg);
 		db->db_paused = 1;
@@ -992,15 +999,9 @@ static bool admin_cmd_disable(PgSocket *admin, const char *arg)
 		return admin_error(admin, "a database is required");
 
 	log_info("DISABLE '%s' command issued", arg);
-	db = find_database(arg);
-	if (db == NULL) {
-		db = register_auto_database(arg);
-		if (db == NULL) {
-			return admin_error(admin, "no such database: %s", arg);
-		} else {
-			slog_info(admin, "registered new auto-database for DISABLE: %s", arg);
-		}
-	}
+	db = find_or_register_database(admin, arg);
+	if (db == NULL)
+		return admin_error(admin, "no such database: %s", arg);
 	if (db == admin->pool->db)
 		return admin_error(admin, "cannot disable admin db: %s", arg);
 
@@ -1047,15 +1048,9 @@ static bool admin_cmd_kill(PgSocket *admin, const char *arg)
 		return admin_error(admin, "a database is required");
 
 	log_info("KILL '%s' command issued", arg);
-	db = find_database(arg);
-	if (db == NULL) {
-		db = register_auto_database(arg);
-		if (db == NULL) {
-			return admin_error(admin, "no such database: %s", arg);
-		} else {
-			slog_info(admin, "registered new auto-database for KILL: %s", arg);
-		}
-	}
+	db = find_or_register_database(admin, arg);
+	if (db == NULL)
+		return admin_error(admin, "no such database: %s", arg);
 	if (db == admin->pool->db)
 		return admin_error(admin, "cannot kill admin db: %s", arg);
 

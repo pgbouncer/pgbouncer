@@ -1119,6 +1119,8 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		"\tRELOAD\n"
 		"\tPAUSE [<db>]\n"
 		"\tRESUME [<db>]\n"
+		"\tDISABLE <db>\n"
+		"\tENABLE <db>\n"
 		"\tKILL <db>\n"
 		"\tSUSPEND\n"
 		"\tSHUTDOWN", "");

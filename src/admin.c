@@ -980,6 +980,56 @@ static bool admin_cmd_pause(PgSocket *admin, const char *arg)
 	return true;
 }
 
+/* Command: DISABLE */
+static bool admin_cmd_disable(PgSocket *admin, const char *arg)
+{
+	PgDatabase *db;
+
+	if (!admin->admin_user)
+		return admin_error(admin, "admin access needed");
+
+	if (!arg[0])
+		return admin_error(admin, "a database is required");
+
+	log_info("DISABLE '%s' command issued", arg);
+	db = find_database(arg);
+	if (db == NULL) {
+		db = register_auto_database(arg);
+		if (db == NULL) {
+			return admin_error(admin, "no such database: %s", arg);
+		} else {
+			slog_info(admin, "registered new auto-database for DISABLE: %s", arg);
+		}
+	}
+	if (db == admin->pool->db)
+		return admin_error(admin, "cannot disable admin db: %s", arg);
+
+	db->db_disabled = 1;
+	return admin_ready(admin, "DISABLE");
+}
+
+/* Command: ENABLE */
+static bool admin_cmd_enable(PgSocket *admin, const char *arg)
+{
+	PgDatabase *db;
+
+	if (!admin->admin_user)
+		return admin_error(admin, "admin access needed");
+
+	if (!arg[0])
+		return admin_error(admin, "a database is required");
+
+	log_info("ENABLE '%s' command issued", arg);
+	db = find_database(arg);
+	if (db == NULL)
+		return admin_error(admin, "no such database: %s", arg);
+	if (db == admin->pool->db)
+		return admin_error(admin, "cannot disable admin db: %s", arg);
+
+	db->db_disabled = 0;
+	return admin_ready(admin, "ENABLE");
+}
+
 /* Command: KILL */
 static bool admin_cmd_kill(PgSocket *admin, const char *arg)
 {
@@ -1133,6 +1183,8 @@ static bool admin_cmd_show(PgSocket *admin, const char *arg)
 }
 
 static struct cmd_lookup cmd_list [] = {
+	{"disable", admin_cmd_disable},
+	{"enable", admin_cmd_enable},
 	{"kill", admin_cmd_kill},
 	{"pause", admin_cmd_pause},
 	{"reload", admin_cmd_reload},

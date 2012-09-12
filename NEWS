@@ -1,6 +1,10 @@
 2012-07-xx  -  PgBouncer 1.5.3  -  ""
 
-  = Minor Feature =
+  = Features =
+
+    * ENABLE/DISABLE commands to forbid or allow access to one database.
+
+  = Minor Features =
 
     * max_packet_size - config parameter to tune maximum packet size
       that is allowed through.  Default is kept same: (2G-1), but now

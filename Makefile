@@ -69,6 +69,7 @@ EXTRA_DIST = AUTHORS COPYRIGHT Makefile \
 LIBUSUAL_DIST = $(filter-out %/config.h, $(wildcard \
 		lib/usual/*.[chg] lib/m4/*.m4 \
 		lib/usual/config.h.in \
+		lib/mk/*.mk \
 		lib/mk/antimake.mk lib/mk/antimake.txt \
 		lib/mk/install-sh lib/mk/std-autogen.sh \
 		lib/README lib/COPYRIGHT \

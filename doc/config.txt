@@ -484,7 +484,7 @@ Database name can contain characters [0-9A-Za-z_.-] without quoting.
 Names that contain other chars need to be quoted with standard SQL
 ident quoting: double quotes where "" is taken as single quote.
 
-"\*" acts as fallback database: if the exact name does not exist,
+"*" acts as fallback database: if the exact name does not exist,
 its value is taken as connect string for requested database.
 Such automatically created database entries are cleaned up
 if they stay idle longer then the time specified in

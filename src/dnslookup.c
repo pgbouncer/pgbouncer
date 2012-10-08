@@ -286,7 +286,11 @@ static void impl_launch_query(struct DNSRequest *req)
 	return;
 
 failed:
-	log_warning("dns: getaddrinfo_a(%s)=%d", req->name, res);
+	if (res == EAI_SYSTEM)
+		log_warning("dns: getaddrinfo_a(%s)=%d, errno=%d (%s)",
+			    req->name, res, errno, strerror(errno));
+	else
+		log_warning("dns: getaddrinfo_a(%s)=%d", req->name, res);
 	list_del(&grq->node);
 	free(grq);
 failed2:

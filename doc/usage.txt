@@ -279,28 +279,30 @@ database::
   Database name.
 
 user::
-  Username.
+  User name.
 
 cl_active::
-  Count of currently +active+ client connections.
+  Client connections that are linked to server connection and can process queries.
 
 cl_waiting::
-  Count of currently +waiting+ client connections.
+  Client connections have sent queries but have not yet got a server connection.
 
 sv_active::
-  Count of currently +active+ server connections.
+  Server connections that linked to client.
 
 sv_idle::
-  Count of currently +idle+ server connections.
+  Server connections that unused and immediately usable for client queries.
 
 sv_used::
-  Count of currently +used+ server connections.
+  Server connections that have been idle more than `server_check_delay`,
+  so they needs `server_check_query` to run on it before it can be used.
 
 sv_tested::
-  Count of currently +tested+ server connections.
+  Server connections that are currently running either `server_reset_query`
+  or `server_check_query`.
 
 sv_login::
-  Count of server connections currently +logged in+ to PostgreSQL.
+  Server connections currently in logging in process.
 
 maxwait::
   How long the first (oldest) client in queue has waited, in seconds.

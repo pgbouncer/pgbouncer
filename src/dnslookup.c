@@ -475,6 +475,7 @@ static void udns_result_a4(struct dns_ctx *ctx, struct dns_rr_a4 *a4, void *data
 	if (a4) {
 		log_noise("udns_result_a4: %s: %d ips", req->name, a4->dnsa4_nrr);
 		res = convert_ipv4_result(a4->dnsa4_addr, a4->dnsa4_nrr);
+		free(a4);
 	}
 	got_result_gai(0, res, req);
 }
@@ -653,6 +654,8 @@ static void udns_result_soa(struct dns_ctx *uctx, struct SOA *soa, void *data)
 		  soa->dnssoa_retry, soa->dnssoa_expire, soa->dnssoa_minttl);
 
 	got_zone_serial(ctx, &soa->dnssoa_serial);
+
+	free(soa);
 }
 
 static int impl_query_soa_serial(struct DNSContext *ctx, const char *zonename)

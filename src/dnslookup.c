@@ -265,7 +265,7 @@ static void impl_launch_query(struct DNSRequest *req)
 	static const struct addrinfo hints = { .ai_socktype = SOCK_STREAM };
 
 	struct GaiContext *gctx = req->ctx->edns;
-	struct GaiRequest *grq = calloc(1, sizeof(*grq));
+	struct GaiRequest *grq;
 	int res;
 	struct gaicb *cb;
 

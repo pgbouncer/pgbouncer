@@ -75,6 +75,7 @@ struct DNSRequest {
 	struct List znode;	/* DNSZone->host_list */
 
 	struct DNSContext *ctx;
+	struct DNSZone *zone;
 
 	struct List ucb_list;	/* DNSToken->node */
 
@@ -747,7 +748,8 @@ static void req_free(struct AANode *node, void *arg)
 		freeaddrinfo(req->oldres);
 		req->oldres = NULL;
 	}
-	list_del(&req->znode);
+	if (req->zone)
+		statlist_remove(&req->zone->host_list, &req->znode);
 	free(req->name);
 	free(req);
 }
@@ -974,6 +976,7 @@ static void zone_register(struct DNSContext *ctx, struct DNSRequest *req)
 	if (n) {
 		/* already exists */
 		z = container_of(n, struct DNSZone, tnode);
+		req->zone = z;
 		statlist_append(&z->host_list, &req->znode);
 		return;
 	}
@@ -994,6 +997,7 @@ static void zone_register(struct DNSContext *ctx, struct DNSRequest *req)
 	aatree_insert(&ctx->zone_tree, (uintptr_t)z->zonename, &z->tnode);
 	list_append(&ctx->zone_list, &z->lnode);
 	statlist_append(&z->host_list, &req->znode);
+	req->zone = z;
 }
 
 static void zone_timer(int fd, short flg, void *arg)

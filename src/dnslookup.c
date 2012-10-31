@@ -1015,6 +1015,7 @@ static void zone_timer(int fd, short flg, void *arg)
 	z = container_of(el, struct DNSZone, lnode);
 	ctx->zone_state = 1;
 	ctx->cur_zone = z;
+	ctx->active++;
 	impl_query_soa_serial(ctx, z->zonename);
 }
 

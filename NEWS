@@ -1,3 +1,21 @@
+2012-11-28  -  PgBouncer 1.5.4  -  "No Leaks, Potty-Training Successful"
+
+  = Fixes =
+
+    * DNS: Fix memory leak in getaddrinfo_a() backend.
+
+    * DNS: Fix memory leak in udns backend.
+
+    * DNS: Fix stats calculation.
+
+    * DNS: Improve error message handling for getaddrinfo_a().
+
+    * Fix win32 compile.
+
+    * Fix compiler dependency support check in configure.
+
+    * Few documentation fixes.
+
 2012-09-12  -  PgBouncer 1.5.3  -  "Quantum Toaster"
 
   = Critical fix =

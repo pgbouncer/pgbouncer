@@ -462,6 +462,14 @@ at the time of database restart.
 
 If database name is given, only that database will be paused.
 
+==== DISABLE db; ====
+
+Reject all new client connections on the given database.
+
+==== ENABLE db; ====
+
+Allow new client connections after a previous +DISABLE+ command.
+
 ==== KILL db; ====
 
 Immediately drop all client and server connections on given database.

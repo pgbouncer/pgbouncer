@@ -105,6 +105,10 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username)
 		disconnect_client(client, true, "no memory for pool");
 		return false;
 	}
+	if (client->pool->db->db_disabled) {
+		disconnect_client(client, true, "pgbouncer database is disabled");
+		return false;
+	}
 
 	return check_fast_fail(client);
 }

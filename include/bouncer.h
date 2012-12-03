@@ -253,6 +253,7 @@ struct PgDatabase {
 	bool db_paused;		/* PAUSE <db>; was issued */
 	bool db_dead;		/* used on RELOAD/SIGHUP to later detect removed dbs */
 	bool db_auto;		/* is the database auto-created by autodb_connstr */
+	bool db_disabled;	/* is the database accepting new connections? */
 	bool admin;		/* internal console db */
 
 	struct PktBuf *startup_params; /* partial StartupMessage (without user) be sent to server */

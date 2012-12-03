@@ -364,9 +364,9 @@ static PgDatabase *find_or_register_database(PgSocket *admin, const char *name)
 		if (db != NULL) {
 			slog_info(admin,
 			          "registered new auto-database: %s", name);
-                }
+		}
 	}
-        return db;
+	return db;
 }
 
 /*
@@ -1006,7 +1006,7 @@ static bool admin_cmd_disable(PgSocket *admin, const char *arg)
 	db = find_or_register_database(admin, arg);
 	if (db == NULL)
 		return admin_error(admin, "no such database: %s", arg);
-	if (db == admin->pool->db)
+	if (db->admin)
 		return admin_error(admin, "cannot disable admin db: %s", arg);
 
 	db->db_disabled = 1;
@@ -1028,7 +1028,7 @@ static bool admin_cmd_enable(PgSocket *admin, const char *arg)
 	db = find_database(arg);
 	if (db == NULL)
 		return admin_error(admin, "no such database: %s", arg);
-	if (db == admin->pool->db)
+	if (db->admin)
 		return admin_error(admin, "cannot disable admin db: %s", arg);
 
 	db->db_disabled = 0;

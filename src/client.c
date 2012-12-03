@@ -76,6 +76,12 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username)
 		}
 	}
 
+	/* are new connections allowed? */
+	if (db->db_disabled) {
+		disconnect_client(client, true, "database does not allow connections: %s", dbname);
+		return false;
+	}
+
 	/* find user */
 	if (cf_auth_type == AUTH_ANY) {
 		/* ignore requested user */
@@ -103,10 +109,6 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username)
 	client->pool = get_pool(db, user);
 	if (!client->pool) {
 		disconnect_client(client, true, "no memory for pool");
-		return false;
-	}
-	if (client->pool->db->db_disabled) {
-		disconnect_client(client, true, "pgbouncer database is disabled");
 		return false;
 	}
 

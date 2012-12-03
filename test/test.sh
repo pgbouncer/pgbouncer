@@ -331,6 +331,23 @@ test_suspend_resume() {
 	test `wc -l <$LOGDIR/test.tmp` -eq 50
 }
 
+# test pause/resume
+test_enable_disable() {
+	rm -f $LOGDIR/test.tmp
+	psql -tAq p0 -c "select 'enabled 1'" >>$LOGDIR/test.tmp 2>&1
+
+	admin "disable p0"
+	psql -tAq p0 -c "select 'disabled 1'" >>$LOGDIR/test.tmp 2>&1
+	admin "enable p0"
+	psql -tAq p0 -c "select 'enabled 2'" >>$LOGDIR/test.tmp 2>&1
+
+	grep -q "enabled 1" $LOGDIR/test.tmp || return 1
+	grep -q "enabled 2" $LOGDIR/test.tmp || return 1
+	grep -q "disabled 1" $LOGDIR/test.tmp && return 1
+	grep -q "does not allow" $LOGDIR/test.tmp || return 1
+	return 0
+}
+
 # test pool database restart
 test_database_restart() {
 	admin "set server_login_retry=1"
@@ -396,6 +413,7 @@ test_pool_size
 test_online_restart
 test_pause_resume
 test_suspend_resume
+test_enable_disable
 test_database_restart
 test_database_change
 "

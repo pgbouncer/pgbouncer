@@ -24,6 +24,7 @@
 
 #include <usual/regex.h>
 #include <usual/netdb.h>
+#include <usual/endian.h>
 
 /* regex elements */
 #define WS0	"[ \t\n\r]*"
@@ -500,8 +501,8 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	return true;
 }
 
-#define SKF_STD "sssssisiTTss"
-#define SKF_DBG "sssssisiTTssiiiiiii"
+#define SKF_STD "sssssisiTTssi"
+#define SKF_DBG "sssssisiTTssiiiiiiii"
 
 static void socket_header(PktBuf *buf, bool debug)
 {
@@ -509,7 +510,7 @@ static void socket_header(PktBuf *buf, bool debug)
 				    "type", "user", "database", "state",
 				    "addr", "port", "local_addr", "local_port",
 				    "connect_time", "request_time",
-				    "ptr", "link",
+				    "ptr", "link", "backend_pid",
 				    "recv_pos", "pkt_pos", "pkt_remain",
 				    "send_pos", "send_remain",
 				    "pkt_avail", "send_avail");
@@ -523,6 +524,7 @@ static void adr2txt(const PgAddr *adr, char *dst, unsigned dstlen)
 static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 {
 	int pkt_avail = 0, send_avail = 0;
+	int backend_pid;
 	char ptrbuf[128], linkbuf[128];
 	char l_addr[PGADDR_BUF], r_addr[PGADDR_BUF];
 	IOBuf *io = sk->sbuf.io;
@@ -541,6 +543,8 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 	else
 		linkbuf[0] = 0;
 
+	backend_pid = be32dec(sk->cancel_key);
+
 	pktbuf_write_DataRow(buf, debug ? SKF_DBG : SKF_STD,
 			     is_server_socket(sk) ? "S" :"C",
 			     sk->auth_user ? sk->auth_user->name : "(nouser)",
@@ -549,7 +553,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 			     l_addr, pga_port(&sk->local_addr),
 			     sk->connect_time,
 			     sk->request_time,
-			     ptrbuf, linkbuf,
+			     ptrbuf, linkbuf, backend_pid,
 			     io ? io->recv_pos : 0,
 			     io ? io->parse_pos : 0,
 			     sk->sbuf.pkt_remain,

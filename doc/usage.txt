@@ -231,6 +231,10 @@ ptr::
 link::
   Address of client connection the server is paired with.
 
+backend_pid::
+  Pid of backend server process.  In case the server is another PgBouncer,
+  it will be a random number associated with this connection.
+
 ==== SHOW CLIENTS; ====
 
 type::
@@ -270,6 +274,10 @@ ptr::
 
 link::
   Address of server connection the client is paired with.
+
+backend_pid::
+  Random number sent to client as "backend process pid".
+  Usually unique, but not quaranteed.
 
 ==== SHOW POOLS; ====
 
@@ -367,11 +375,15 @@ pool_size::
 
 ==== SHOW FDS; ====
 
-Shows list of fds in use. When the connected user has username
-"pgbouncer", connects through Unix socket and has same UID as running
-process, the actual fds are passed over the connection. This mechanism is
-used to do an online restart.
+Internal command - shows list of fds in use with internal state attached to them.
+
+When the connected user has username "pgbouncer", connects through Unix socket
+and has same UID as running process, the actual fds are passed over the connection.
+This mechanism is used to do an online restart.
 Note: This does not work on Windows machines.
+
+This command also blocks internal event loop, so it should not be used
+while PgBouncer is in use.
 
 fd::
   File descriptor numeric value.

@@ -1076,6 +1076,13 @@ void accept_cancel_request(PgSocket *req)
 				goto found;
 			}
 		}
+		statlist_for_each(citem, &pool->waiting_client_list) {
+			client = container_of(citem, PgSocket, head);
+			if (memcmp(client->cancel_key, req->cancel_key, 8) == 0) {
+				main_client = client;
+				goto found;
+			}
+		}
 	}
 found:
 

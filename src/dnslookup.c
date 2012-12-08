@@ -167,7 +167,7 @@ static struct addrinfo *mk_addrinfo(const void *adr, int af)
 		sa6 = calloc(1, sizeof(*sa6));
 		if (!sa6)
 			goto failed;
-		memcpy(&sa6->sin6_addr, adr, sizeof(*sa6));
+		memcpy(&sa6->sin6_addr, adr, sizeof(sa6->sin6_addr));
 		sa6->sin6_family = af;
 		ai->ai_addr = (struct sockaddr *)sa6;
 		ai->ai_addrlen = sizeof(*sa6);

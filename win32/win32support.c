@@ -45,8 +45,8 @@ static const char usage_str[] =
 "  -V            Show version\n"
 "  -h            Show this help screen and exit\n"
 "Windows service registration:\n"
-"  -regservice   config.ini [-U username [-P password]]\n"
-"  -unregservice config.ini\n"
+"  --regservice config.ini [-U username [-P password]]\n"
+"  --unregservice config.ini\n"
 "";
 
 static void usage(int err, char *exe)
@@ -209,7 +209,7 @@ static void RegisterService(void)
 		fprintf(stderr, "Failed to determine path name: %s\n", strerror(GetLastError()));
 		exit(1);
 	}
-	snprintf(cmdline, sizeof(cmdline), "%s -service \"%s\"", self, config_fn);
+	snprintf(cmdline, sizeof(cmdline), "%s --service \"%s\"", self, config_fn);
 
 	manager = openSCM();
 	service = CreateService(manager, cf_jobname, cf_jobname, SERVICE_ALL_ACCESS, SERVICE_WIN32_OWN_PROCESS,
@@ -282,14 +282,14 @@ int main(int argc, char *argv[])
 
 	/* service cmdline */
 	if (argc >= 3) {
-		if (!strcmp(argv[1], "-service")) {
+		if (!strcmp(argv[1], "--service") || !strcmp(argv[1], "-service")) {
 			cf_quiet = 1;
 			cf_config_file = argv[2];
 			win32_servicestart();
 			return 0;
 		}
 
-		if (!strcmp(argv[1], "-regservice")) {
+		if (!strcmp(argv[1], "--regservice") || !strcmp(argv[1], "-regservice")) {
 			int i;
 			win32_load_config(argv[2]);
 			for (i = 3; i < argc; i++) {
@@ -306,7 +306,7 @@ int main(int argc, char *argv[])
 			return 0;
 		}
 
-		if (!strcmp(argv[1], "-unregservice")) {
+		if (!strcmp(argv[1], "--unregservice") || !strcmp(argv[1], "-unregservice")) {
 			win32_load_config(argv[2]);
 			UnRegisterService();
 			return 0;

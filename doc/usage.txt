@@ -16,8 +16,8 @@ On Windows computers, the options are:
 
 Additional options for setting up a Windows service:
 
-  pgbouncer.exe -regservice   <pgbouncer.ini>
-  pgbouncer.exe -unregservice <pgbouncer.ini>
+  pgbouncer.exe --regservice   <pgbouncer.ini>
+  pgbouncer.exe --unregservice <pgbouncer.ini>
 
 == DESCRIPTION ==
 
@@ -133,11 +133,11 @@ Basic setup and usage as following.
 -h::
       Show short help.
 
--regservice::
+--regservice::
       Win32: Register pgbouncer to run as Windows service.  The +service_name+
       config parameter value is used as name to register under.
 
--unregservice::
+--unregservice::
       Win32: Unregister Windows service.
 
 == ADMIN CONSOLE ==

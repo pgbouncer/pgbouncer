@@ -522,12 +522,15 @@ static void udns_result_a4(struct dns_ctx *ctx, struct dns_rr_a4 *a4, void *data
 	struct addrinfo *res = NULL;
 	int err;
 
-
 	err = dns_status(ctx);
-	if (a4) {
+	if (err < 0) {
+		log_warning("udns_result_a4: %s: query failed [%d]", req->name, err);
+	} else if (a4) {
 		log_noise("udns_result_a4: %s: %d ips", req->name, a4->dnsa4_nrr);
 		res = convert_ipv4_result(a4->dnsa4_addr, a4->dnsa4_nrr);
 		free(a4);
+	} else {
+		log_warning("udns_result_a4: %s: missing result", req->name);
 	}
 	got_result_gai(0, res, req);
 }

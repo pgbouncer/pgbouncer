@@ -194,3 +194,9 @@ test -f Makefile || {
   ln -s $srcdir/Makefile
 }
 
+echo ""
+echo "Results"
+echo "  c-ares = $use_cares"
+echo "  evdns = $use_evdns"
+echo "  udns = $use_udns"
+echo ""

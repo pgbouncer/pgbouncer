@@ -121,15 +121,16 @@ config.mak:
 deb:
 	debuild -b -us -uc
 
+w32arch = i686-w64-mingw32
 w32zip = pgbouncer-$(PACKAGE_VERSION)-win32.zip
 zip: configure clean
 	rm -rf buildexe
 	mkdir buildexe
 	cd buildexe \
-		&& ../configure --host=i586-mingw32msvc --disable-debug \
+		&& ../configure --host=$(w32arch) --disable-debug \
 			--with-libevent=/opt/apps/win32 --enable-evdns \
 		&& make \
-		&& i586-mingw32msvc-strip pgbouncer.exe pgbevent.dll \
+		&& $(warch)-strip pgbouncer.exe pgbevent.dll \
 		&& zip pgbouncer.zip pgbouncer.exe pgbevent.dll doc/*.html
 	zip -l buildexe/pgbouncer.zip etc/pgbouncer.ini etc/userlist.txt
 	mv buildexe/pgbouncer.zip $(w32zip)

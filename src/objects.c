@@ -801,6 +801,8 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 		server->dns_token = NULL;
 	}
 
+	server->pool->db->connection_count--;
+
 	change_server_state(server, SV_JUSTFREE);
 	if (!sbuf_close(&server->sbuf))
 		log_noise("sbuf_close failed, retry later");
@@ -1015,6 +1017,13 @@ void launch_new_connection(PgPool *pool)
 	}
 
 allow_new:
+	total = database_max_connections(pool->db);
+	if (total > 0 && pool->db->connection_count >= total) {
+		log_debug("launch_new_connection: database full (%d >= %d)",
+				pool->db->connection_count, total);
+		return;
+	}
+
 	/* get free conn object */
 	server = slab_alloc(server_cache);
 	if (!server) {
@@ -1028,6 +1037,7 @@ allow_new:
 	server->connect_time = get_cached_time();
 	pool->last_connect_time = get_cached_time();
 	change_server_state(server, SV_LOGIN);
+	pool->db->connection_count++;
 
 	dns_connect(server);
 }

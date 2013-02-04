@@ -179,6 +179,17 @@ use of additional connections from reserve pool.  0 disables.
 
 Default: 5.0
 
+==== max_db_connections ====
+
+Do not allow more than this many connections per-database (regardless of pool - i.e.
+user). It should be noted that when you hit the limit, closing a client connection
+to one pool will not immediately allow a server connection to be established for
+another pool, because the server connection for the first pool is still open.
+Once the server connection closes (due to idle timeout), a new server connection
+will immediately be opened for the waiting pool.
+
+Default: unlimited
+
 ==== server_round_robin ====
 
 By default, pgbouncer reuses server connections in LIFO (last-in, first-out) manner, 
@@ -550,6 +561,11 @@ they are logged but ignored otherwise.
 
 Set the pool mode specific to this database. If not set,
 the default pool_mode is used.
+
+==== max_db_connections ====
+
+Configure a database-wide maximum (i.e. all pools within the database will
+not have more than this many server connections).
 
 === Extra parameters ===
 

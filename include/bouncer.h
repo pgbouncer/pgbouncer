@@ -311,6 +311,7 @@ struct PgSocket {
 	bool close_needed:1;	/* server: this socket must be closed ASAP */
 	bool setting_vars:1;	/* server: setting client vars */
 	bool exec_on_connect:1;	/* server: executing connect_query */
+	bool resetting:1;	/* server: executing reset query from auth login; don't release on flush */
 
 	bool wait_for_welcome:1;/* client: no server yet in pool, cannot send welcome msg */
 	bool wait_for_user_conn:1;/* client: waiting for auth_conn server connection */

@@ -288,6 +288,7 @@ bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
 			disconnect_client(client, true, "No such user");
 		} else {
 			slog_noise(client, "auth query complete");
+			client->link->resetting = true;
 			sbuf_continue(&client->sbuf);
 		}
 		return true;

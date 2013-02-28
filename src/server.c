@@ -432,7 +432,8 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			break;
 		}
 
-		if (pool_pool_mode(pool)  != POOL_SESSION || server->state == SV_TESTED) {
+		if (pool_pool_mode(pool)  != POOL_SESSION || server->state == SV_TESTED || server->resetting) {
+			server->resetting = false;
 			switch (server->state) {
 			case SV_ACTIVE:
 			case SV_TESTED:

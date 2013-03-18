@@ -97,6 +97,8 @@ static bool add_listen(int af, const struct sockaddr *sa, int salen)
 	if (sock < 0)
 		goto failed;
 
+	/* SO_REUSEADDR behaviour it default in WIN32.  */
+#ifndef WIN32
 	/* relaxed binding */
 	if (af != AF_UNIX) {
 		val = 1;
@@ -105,6 +107,7 @@ static bool add_listen(int af, const struct sockaddr *sa, int salen)
 		if (res < 0)
 			goto failed;
 	}
+#endif
 
 #ifdef IPV6_V6ONLY
 	/* avoid ipv6 socket's attempt to takeover ipv4 port */

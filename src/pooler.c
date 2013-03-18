@@ -106,6 +106,17 @@ static bool add_listen(int af, const struct sockaddr *sa, int salen)
 			goto failed;
 	}
 
+#ifdef IPV6_V6ONLY
+	/* avoid ipv6 socket's attempt to takeover ipv4 port */
+	if (af == AF_INET6) {
+		val = 1;
+		errpos = "setsockopt/IPV6_V6ONLY";
+		res = setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &val, sizeof(val));
+		if (res < 0)
+			goto failed;
+	}
+#endif
+
 	/* bind it */
 	errpos = "bind";
 	res = bind(sock, sa, salen);

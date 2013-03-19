@@ -28,7 +28,7 @@
 #include <usual/string.h>
 #include <usual/logging.h>
 #include <usual/aatree.h>
-#include <usual/lookup3.h>
+#include <usual/hashing/lookup3.h>
 #include <usual/slab.h>
 #include <usual/socket.h>
 #include <usual/safeio.h>

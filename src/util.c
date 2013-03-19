@@ -22,8 +22,7 @@
 
 #include "bouncer.h"
 
-#define MD5_COMPAT
-#include <usual/md5.h>
+#include <usual/crypto/md5.h>
 
 int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstlen)
 {
@@ -80,13 +79,13 @@ void pg_md5_encrypt(const char *part1,
 		    const char *part2, size_t part2len,
 		    char *dest)
 {
-	MD5_CTX ctx;
+	struct md5_ctx ctx;
 	uint8_t hash[MD5_DIGEST_LENGTH];
 
-	MD5_Init(&ctx);
-	MD5_Update(&ctx, part1, strlen(part1));
-	MD5_Update(&ctx, part2, part2len);
-	MD5_Final(hash, &ctx);
+	md5_reset(&ctx);
+	md5_update(&ctx, part1, strlen(part1));
+	md5_update(&ctx, part2, part2len);
+	md5_final(&ctx, hash);
 
 	memcpy(dest, "md5", 3);
 	hash2hex(hash, dest + 3);

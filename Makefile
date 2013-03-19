@@ -67,7 +67,9 @@ EXTRA_DIST = AUTHORS COPYRIGHT Makefile \
 
 # libusual files (fixme: list should be provided by libusual...)
 LIBUSUAL_DIST = $(filter-out %/config.h, $(wildcard \
-		lib/usual/*.[chg] lib/m4/*.m4 \
+		lib/usual/*.[chg] \
+		lib/usual/*/*.[ch] \
+		lib/m4/*.m4 \
 		lib/usual/config.h.in \
 		lib/mk/*.mk \
 		lib/mk/antimake.mk lib/mk/antimake.txt \

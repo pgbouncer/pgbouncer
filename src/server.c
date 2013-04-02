@@ -316,8 +316,17 @@ static bool handle_connect(PgSocket *server)
 {
 	bool res = false;
 	PgPool *pool = server->pool;
+	char buf[PGADDR_BUF + 32];
 
 	fill_local_addr(server, sbuf_socket(&server->sbuf), pga_is_unix(&server->remote_addr));
+
+	if (cf_log_connections) {
+		if (pga_is_unix(&server->remote_addr))
+			slog_info(server, "new connection to server");
+		else
+			slog_info(server, "new connection to server (from %s)",
+				  pga_str(&server->local_addr, buf, sizeof(buf)));
+	}
 
 	if (!statlist_empty(&pool->cancel_req_list)) {
 		slog_debug(server, "use it for pending cancel req");

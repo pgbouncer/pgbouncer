@@ -443,6 +443,9 @@ const char *pga_str(const PgAddr *a, char *dst, int dstlen)
 {
 	char buf[PGADDR_BUF];
 	pga_ntop(a, buf, sizeof(buf));
-	snprintf(dst, dstlen, "%s@%d", buf, pga_port(a));
+	if (pga_family(a) == AF_INET6)
+		snprintf(dst, dstlen, "[%s]:%d", buf, pga_port(a));
+	else
+		snprintf(dst, dstlen, "%s:%d", buf, pga_port(a));
 	return dst;
 }

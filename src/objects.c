@@ -833,8 +833,7 @@ static void connect_server(struct PgSocket *server, const struct sockaddr *sa, i
 		pga_copy(&server->remote_addr, sa);
 	}
 
-	if (cf_log_connections)
-		slog_info(server, "new connection to server");
+	slog_debug(server, "launching new connection to server");
 
 	/* start connecting */
 	res = sbuf_connect(&server->sbuf, sa, salen,

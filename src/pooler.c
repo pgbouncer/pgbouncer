@@ -314,14 +314,6 @@ loop:
 
 	log_noise("new fd from accept=%d", fd);
 	if (is_unix) {
-		uid_t uid;
-		gid_t gid;
-		log_noise("getuid(): %d", (int)getuid());
-		if (getpeereid(fd, &uid, &gid) >= 0)
-			log_noise("unix peer uid: %d", (int)uid);
-		else
-			log_warning("unix peer uid failed: %s", strerror(errno));
-
 		client = accept_client(fd, true);
 	} else {
 		client = accept_client(fd, false);

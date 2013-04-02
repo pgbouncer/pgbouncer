@@ -556,7 +556,14 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 	else
 		linkbuf[0] = 0;
 
-	backend_pid = be32dec(sk->cancel_key);
+	/* get pid over unix socket */
+	if (pga_is_unix(&sk->remote_addr))
+		backend_pid = sk->remote_addr.scred.pid;
+	else
+		backend_pid = 0;
+	/* if that failed, get it from cancel key */
+	if (is_server_socket(sk) && backend_pid == 0)
+		backend_pid = be32dec(sk->cancel_key);
 
 	pktbuf_write_DataRow(buf, debug ? SKF_DBG : SKF_STD,
 			     is_server_socket(sk) ? "S" :"C",

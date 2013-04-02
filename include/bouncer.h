@@ -139,14 +139,21 @@ extern int cf_sbuf_len;
 /* buffer for pgaddr string conversions (with port) */
 #define PGADDR_BUF  (INET6_ADDRSTRLEN + 10)
 
+struct sockaddr_ucreds {
+	struct sockaddr_in sin;
+	uid_t uid;
+	pid_t pid;
+};
+
 /*
  * AF_INET,AF_INET6 are stored as-is,
- * AF_UNIX uses sockaddr_in port.
+ * AF_UNIX uses sockaddr_in port + uid/pid.
  */
 union PgAddr {
 	struct sockaddr sa;
 	struct sockaddr_in sin;
 	struct sockaddr_in6 sin6;
+	struct sockaddr_ucreds scred;
 };
 
 static inline bool pga_is_unix(const PgAddr *a) { return a->sa.sa_family == AF_UNIX; }

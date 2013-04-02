@@ -39,7 +39,13 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
 	db = sock->pool ? sock->pool->db->name : "(nodb)";
 	user = sock->auth_user ? sock->auth_user->name : "(nouser)";
 	if (pga_is_unix(&sock->remote_addr)) {
-		host = "unix";
+		unsigned long pid = sock->remote_addr.scred.pid;
+		if (pid) {
+			snprintf(host6, sizeof(host6), "unix(%lu)", pid);
+			host = host6;
+		} else {
+			host = "unix";
+		}
 	} else {
 		host = pga_ntop(&sock->remote_addr, host6, sizeof(host6));
 	}
@@ -237,7 +243,17 @@ void fill_remote_addr(PgSocket *sk, int fd, bool is_unix)
 	int err;
 
 	if (is_unix) {
+		uid_t uid = 0;
+		gid_t gid = 0;
+		pid_t pid = 0;
 		pga_set(dst, AF_UNIX, cf_listen_port);
+		if (getpeercreds(fd, &uid, &gid, &pid) >= 0) {
+			log_noise("unix peer uid: %d", (int)uid);
+		} else {
+			log_warning("unix peer uid failed: %s", strerror(errno));
+		}
+		dst->scred.uid = uid;
+		dst->scred.pid = pid;
 	} else {
 		err = getpeername(fd, (struct sockaddr *)dst, &len);
 		if (err < 0) {
@@ -255,6 +271,8 @@ void fill_local_addr(PgSocket *sk, int fd, bool is_unix)
 
 	if (is_unix) {
 		pga_set(dst, AF_UNIX, cf_listen_port);
+		dst->scred.uid = geteuid();
+		dst->scred.pid = getpid();
 	} else {
 		err = getsockname(fd, (struct sockaddr *)dst, &len);
 		if (err < 0) {

@@ -51,7 +51,7 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
 	}
 	port = pga_port(&sock->remote_addr);
 
-	return snprintf(dst, dstlen, "%c-%p: %s/%s@%s:%d ",
+	return snprintf(dst, dstlen, "%c-%p: %s/%s@[%s]:%d ",
 			is_server_socket(sock) ? 'S' : 'C',
 			sock, db, user, host, port);
 }

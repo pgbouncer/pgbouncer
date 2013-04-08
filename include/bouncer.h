@@ -156,6 +156,7 @@ union PgAddr {
 	struct sockaddr_ucreds scred;
 };
 
+static inline unsigned int pga_family(const PgAddr *a) { return a->sa.sa_family; }
 static inline bool pga_is_unix(const PgAddr *a) { return a->sa.sa_family == AF_UNIX; }
 
 int pga_port(const PgAddr *a);

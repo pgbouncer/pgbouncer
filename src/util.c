@@ -30,12 +30,15 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
 	const char *user, *db, *host;
 	char host6[PGADDR_BUF];
 	int port;
+	char stype;
 
 	/* no prefix */
 	if (!sock)
 		return 0;
 
 	/* format prefix */
+	stype = is_server_socket(sock) ? 'S' : 'C';
+	port = pga_port(&sock->remote_addr);
 	db = sock->pool ? sock->pool->db->name : "(nodb)";
 	user = sock->auth_user ? sock->auth_user->name : "(nouser)";
 	if (pga_is_unix(&sock->remote_addr)) {
@@ -49,11 +52,13 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
 	} else {
 		host = pga_ntop(&sock->remote_addr, host6, sizeof(host6));
 	}
-	port = pga_port(&sock->remote_addr);
 
-	return snprintf(dst, dstlen, "%c-%p: %s/%s@%s:%d ",
-			is_server_socket(sock) ? 'S' : 'C',
-			sock, db, user, host, port);
+	if (pga_family(&sock->remote_addr) == AF_INET6)
+		return snprintf(dst, dstlen, "%c-%p: %s/%s@[%s]:%d ",
+			stype, sock, db, user, host, port);
+	else
+		return snprintf(dst, dstlen, "%c-%p: %s/%s@%s:%d ",
+			stype, sock, db, user, host, port);
 }
 
 const char *bin2hex(const uint8_t *src, unsigned srclen, char *dst, unsigned dstlen)
@@ -326,11 +331,6 @@ void pga_copy(PgAddr *a, const struct sockaddr *sa)
 	case AF_UNIX:
 		log_error("pga_copy: AF_UNIX copy not supported");
 	}
-}
-
-static inline unsigned pga_family(const PgAddr *a)
-{
-	return a->sa.sa_family;
 }
 
 int pga_cmp_addr(const PgAddr *a, const PgAddr *b)

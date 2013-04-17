@@ -231,9 +231,12 @@ ptr::
 link::
   Address of client connection the server is paired with.
 
-backend_pid::
-  Pid of backend server process.  In case the server is another PgBouncer,
-  it will be a random number associated with this connection.
+remote_pid::
+  Pid of backend server process.  In case connection is made over
+  unix socket and OS supports getting process ID info, it's
+  OS pid.  Otherwise it's extracted from cancel packet server sent,
+  which should be PID in case server is Postgres, but it's a random
+  number in case server it another PgBouncer.
 
 ==== SHOW CLIENTS; ====
 
@@ -275,9 +278,9 @@ ptr::
 link::
   Address of server connection the client is paired with.
 
-backend_pid::
-  Random number sent to client as "backend process pid".
-  Usually unique, but not quaranteed.
+remote_pid::
+  Process ID, in case client connects over UNIX socket
+  and OS supports getting it.
 
 ==== SHOW POOLS; ====
 

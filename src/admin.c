@@ -523,7 +523,7 @@ static void socket_header(PktBuf *buf, bool debug)
 				    "type", "user", "database", "state",
 				    "addr", "port", "local_addr", "local_port",
 				    "connect_time", "request_time",
-				    "ptr", "link", "backend_pid",
+				    "ptr", "link", "remote_pid",
 				    "recv_pos", "pkt_pos", "pkt_remain",
 				    "send_pos", "send_remain",
 				    "pkt_avail", "send_avail");
@@ -537,7 +537,7 @@ static void adr2txt(const PgAddr *adr, char *dst, unsigned dstlen)
 static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 {
 	int pkt_avail = 0, send_avail = 0;
-	int backend_pid;
+	int remote_pid;
 	char ptrbuf[128], linkbuf[128];
 	char l_addr[PGADDR_BUF], r_addr[PGADDR_BUF];
 	IOBuf *io = sk->sbuf.io;
@@ -558,12 +558,12 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 
 	/* get pid over unix socket */
 	if (pga_is_unix(&sk->remote_addr))
-		backend_pid = sk->remote_addr.scred.pid;
+		remote_pid = sk->remote_addr.scred.pid;
 	else
-		backend_pid = 0;
+		remote_pid = 0;
 	/* if that failed, get it from cancel key */
-	if (is_server_socket(sk) && backend_pid == 0)
-		backend_pid = be32dec(sk->cancel_key);
+	if (is_server_socket(sk) && remote_pid == 0)
+		remote_pid = be32dec(sk->cancel_key);
 
 	pktbuf_write_DataRow(buf, debug ? SKF_DBG : SKF_STD,
 			     is_server_socket(sk) ? "S" :"C",
@@ -573,7 +573,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 			     l_addr, pga_port(&sk->local_addr),
 			     sk->connect_time,
 			     sk->request_time,
-			     ptrbuf, linkbuf, backend_pid,
+			     ptrbuf, linkbuf, remote_pid,
 			     io ? io->recv_pos : 0,
 			     io ? io->parse_pos : 0,
 			     sk->sbuf.pkt_remain,

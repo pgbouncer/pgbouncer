@@ -55,13 +55,13 @@ following function can be created:
 CREATE OR REPLACE FUNCTION deallocate_all()
 RETURNS void AS $$
 DECLARE
-    sql text;
+    sql record;
 BEGIN
     FOR sql IN
-	SELECT 'deallocate ' || quote_ident(name)
+	SELECT 'deallocate ' || quote_ident(name) as stmt
 	  FROM pg_catalog.pg_prepared_statements
     LOOP
-	EXECUTE sql;
+	EXECUTE sql.stmt;
     END LOOP;
 END;
 $$ LANGUAGE plpgsql;

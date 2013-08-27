@@ -976,6 +976,45 @@ static void dns_connect(struct PgSocket *server)
 	connect_server(server, sa, sa_len);
 }
 
+void check_oldest_connection(PgSocket **oldest_connection, PgSocket *connection)
+{
+	if (!connection)
+		return;
+	if (!*oldest_connection) {
+		*oldest_connection = connection;
+		return;
+	}
+	if (connection->request_time < (*oldest_connection)->request_time) {
+		*oldest_connection = connection;
+	}
+}
+
+/* evict the single most idle connection from among all pools to make room in the db */
+bool evict_connection(PgDatabase *db)
+{
+	struct List *item;
+	PgPool *pool;
+	PgSocket *oldest_connection = NULL;
+
+	statlist_for_each(item, &pool_list) {
+		pool = container_of(item, PgPool, head);
+		if (pool->db != db)
+			continue;
+		check_oldest_connection(&oldest_connection, last_socket(&pool->idle_server_list));
+		// only evict testing connections if nobody's waiting
+		if (statlist_empty(&pool->waiting_client_list)) {
+			check_oldest_connection(&oldest_connection, last_socket(&pool->used_server_list));
+			check_oldest_connection(&oldest_connection, last_socket(&pool->tested_server_list));
+		}
+	}
+
+	if (oldest_connection) {
+		disconnect_server(oldest_connection, true, "evicted");
+		return true;
+	}
+	return false;
+}
+
 /* the pool needs new connection, if possible */
 void launch_new_connection(PgPool *pool)
 {
@@ -1018,10 +1057,18 @@ void launch_new_connection(PgPool *pool)
 
 allow_new:
 	total = database_max_connections(pool->db);
-	if (total > 0 && pool->db->connection_count >= total) {
-		log_debug("launch_new_connection: database full (%d >= %d)",
-				pool->db->connection_count, total);
-		return;
+	if (total > 0) {
+		// try to evict unused connections first
+		while (pool->db->connection_count >= total) {
+			if (!evict_connection(pool->db)) {
+				break;
+			}
+		}
+		if (pool->db->connection_count >= total) {
+			log_debug("launch_new_connection: database full (%d >= %d)",
+					pool->db->connection_count, total);
+			return;
+		}
 	}
 
 	/* get free conn object */

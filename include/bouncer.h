@@ -450,6 +450,14 @@ first_socket(struct StatList *slist)
 	return container_of(slist->head.next, PgSocket, head);
 }
 
+static inline PgSocket *
+last_socket(struct StatList *slist)
+{
+	if (statlist_empty(slist))
+		return NULL;
+	return container_of(slist->head.prev, PgSocket, head);
+}
+
 void load_config(void);
 
 

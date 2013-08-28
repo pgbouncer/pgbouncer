@@ -1243,6 +1243,8 @@ bool use_server_socket(int fd, PgAddr *addr,
 		user = db->forced_user;
 	else
 		user = find_user(username);
+	if (!user && db->auth_user)
+		user = add_db_user(db, username, "");
 
 	pool = get_pool(db, user);
 	if (!pool)

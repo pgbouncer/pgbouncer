@@ -1313,6 +1313,8 @@ bool use_server_socket(int fd, PgAddr *addr,
 	if (!res)
 		return false;
 
+	db->connection_count++;
+
 	server->suspended = 1;
 	server->pool = pool;
 	server->auth_user = user;

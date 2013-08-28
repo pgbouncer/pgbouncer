@@ -32,7 +32,7 @@ extern struct Slab *iobuf_cache;
 PgDatabase *find_database(const char *name);
 PgUser *find_user(const char *name);
 PgPool *get_pool(PgDatabase *, PgUser *);
-void check_oldest_connection(PgSocket **oldest_connection, PgSocket *connection);
+PgSocket *compare_connections_by_time(PgSocket *lhs, PgSocket *rhs);
 bool evict_connection(PgDatabase *db)		_MUSTCHECK;
 bool find_server(PgSocket *client)		_MUSTCHECK;
 bool release_server(PgSocket *server)		/* _MUSTCHECK */;

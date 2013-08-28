@@ -976,17 +976,13 @@ static void dns_connect(struct PgSocket *server)
 	connect_server(server, sa, sa_len);
 }
 
-void check_oldest_connection(PgSocket **oldest_connection, PgSocket *connection)
+PgSocket *compare_connections_by_time(PgSocket *lhs, PgSocket *rhs)
 {
-	if (!connection)
-		return;
-	if (!*oldest_connection) {
-		*oldest_connection = connection;
-		return;
-	}
-	if (connection->request_time < (*oldest_connection)->request_time) {
-		*oldest_connection = connection;
-	}
+	if (!lhs)
+		return rhs;
+	if (!rhs)
+		return lhs;
+	return lhs->request_time < rhs->request_time ? lhs : rhs;
 }
 
 /* evict the single most idle connection from among all pools to make room in the db */
@@ -1000,11 +996,11 @@ bool evict_connection(PgDatabase *db)
 		pool = container_of(item, PgPool, head);
 		if (pool->db != db)
 			continue;
-		check_oldest_connection(&oldest_connection, last_socket(&pool->idle_server_list));
+		oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->idle_server_list));
 		// only evict testing connections if nobody's waiting
 		if (statlist_empty(&pool->waiting_client_list)) {
-			check_oldest_connection(&oldest_connection, last_socket(&pool->used_server_list));
-			check_oldest_connection(&oldest_connection, last_socket(&pool->tested_server_list));
+			oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->used_server_list));
+			oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->tested_server_list));
 		}
 	}
 

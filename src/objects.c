@@ -1188,7 +1188,8 @@ bool use_client_socket(int fd, PgAddr *addr,
 		       const char *dbname, const char *username,
 		       uint64_t ckey, int oldfd, int linkfd,
 		       const char *client_enc, const char *std_string,
-		       const char *datestyle, const char *timezone)
+		       const char *datestyle, const char *timezone,
+		       const char *password)
 {
 	PgSocket *client;
 	PktBuf tmp;
@@ -1198,7 +1199,7 @@ bool use_client_socket(int fd, PgAddr *addr,
 		return false;
 	client->suspended = 1;
 
-	if (!set_pool(client, dbname, username, true))
+	if (!set_pool(client, dbname, username, password, true))
 		return false;
 
 	change_client_state(client, CL_ACTIVE);
@@ -1223,7 +1224,8 @@ bool use_server_socket(int fd, PgAddr *addr,
 		       const char *dbname, const char *username,
 		       uint64_t ckey, int oldfd, int linkfd,
 		       const char *client_enc, const char *std_string,
-		       const char *datestyle, const char *timezone)
+		       const char *datestyle, const char *timezone,
+		       const char *password)
 {
 	PgDatabase *db = find_database(dbname);
 	PgUser *user;
@@ -1244,7 +1246,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 	else
 		user = find_user(username);
 	if (!user && db->auth_user)
-		user = add_db_user(db, username, "");
+		user = add_db_user(db, username, password);
 
 	pool = get_pool(db, user);
 	if (!pool)

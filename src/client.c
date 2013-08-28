@@ -157,7 +157,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	return true;
 }
 
-bool set_pool(PgSocket *client, const char *dbname, const char *username, bool takeover)
+bool set_pool(PgSocket *client, const char *dbname, const char *username, const char *password, bool takeover)
 {
 	/* find database */
 	client->db = find_database(dbname);
@@ -199,7 +199,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, bool t
 		client->auth_user = find_user(username);
 		if (!client->auth_user && client->db->auth_user) {
 			if (takeover) {
-				client->auth_user = add_db_user(client->db, username, "");
+				client->auth_user = add_db_user(client->db, username, password);
 				return finish_set_pool(client, takeover);
 			}
 			start_auth_request(client, username);
@@ -350,7 +350,7 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 	}
 
 	/* find pool */
-	return set_pool(client, dbname, username, false);
+	return set_pool(client, dbname, username, "", false);
 }
 
 /* decide on packets of client in login phase */

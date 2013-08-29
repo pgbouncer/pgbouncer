@@ -824,6 +824,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 
 	switch (client->state) {
 	case CL_ACTIVE:
+	case CL_LOGIN:
 		if (client->link) {
 			PgSocket *server = client->link;
 			/* ->ready may be set before all is sent */
@@ -836,7 +837,6 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 				disconnect_server(server, true, "unclean server");
 			}
 		}
-	case CL_LOGIN:
 	case CL_WAITING:
 	case CL_WAITING_LOGIN:
 	case CL_CANCEL:

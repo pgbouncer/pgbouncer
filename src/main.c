@@ -302,7 +302,7 @@ void load_config(void)
 	if (ok) {
 		/* load users if needed */
 		if (cf_auth_type >= AUTH_TRUST)
-			load_auth_file(cf_auth_file);
+			loader_users_check();
 		loaded = true;
 	} else if (!loaded) {
 		die("Cannot load config file");

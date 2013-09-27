@@ -463,6 +463,7 @@ bool load_auth_file(const char *fn)
 		return false;
 	}
 
+	log_debug("loading auth_file: \"%s\"", fn);
 	disable_users();
 
 	p = buf;

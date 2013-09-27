@@ -1361,7 +1361,9 @@ void admin_setup(void)
 	admin_pool = pool;
 
 	/* fake user, with disabled psw */
-	user = add_user("pgbouncer", "");
+	user = find_user("pgbouncer");
+	if (!user)
+	    user = add_user("pgbouncer", "");
 	if (!user)
 		fatal("cannot create admin user?");
 

@@ -22,6 +22,7 @@
 
 #include "system.h"
 
+#include <usual/cfparser.h>
 #include <usual/time.h>
 #include <usual/list.h>
 #include <usual/statlist.h>
@@ -120,6 +121,7 @@ extern int cf_sbuf_len;
 #define POOL_SESSION	0
 #define POOL_TX		1
 #define POOL_STMT	2
+#define POOL_INHERIT	3
 
 /* old style V2 header: len:4b code:4b */
 #define OLD_HEADER_LEN	8
@@ -249,6 +251,7 @@ struct PgUser {
 	struct AANode tree_node;	/* used to attach user to tree */
 	char name[MAX_USERNAME];
 	char passwd[MAX_PASSWORD];
+	int pool_mode;
 };
 
 /*
@@ -273,6 +276,7 @@ struct PgDatabase {
 
 	int pool_size;		/* max server connections in one pool */
 	int res_pool_size;	/* additional server connections in case of trouble */
+	int pool_mode;		/* pool mode for this database */
 
 	const char *dbname;	/* server-side name, pointer to inside startup_msg */
 
@@ -408,6 +412,8 @@ extern int cf_tcp_defer_accept;
 extern int cf_log_connections;
 extern int cf_log_disconnections;
 extern int cf_log_pooler_errors;
+
+extern const struct CfLookup pool_mode_map[];
 
 extern usec_t g_suspend_start;
 

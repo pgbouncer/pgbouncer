@@ -1394,13 +1394,14 @@ static void got_result_gai(int result, struct addrinfo *res, void *arg)
 				ai = ai->ai_next;
 			}
 		}
+		req->res_ttl = get_cached_time() + cf_dns_max_ttl;
 	} else {
 		/* lookup failed */
 		log_warning("lookup failed: %s: result=%d", req->name, result);
+		req->res_ttl = get_cached_time() + cf_dns_nxdomain_ttl;
 	}
 
 	req->done = true;
-	req->res_ttl = get_cached_time() + cf_dns_max_ttl;
 
 	deliver_info(req);
 }

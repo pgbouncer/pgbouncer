@@ -361,6 +361,13 @@ Actual DNS TTL is ignored.  [seconds]
 
 Default: 15.0
 
+==== dns_nxdomain_ttl ====
+
+How long error and NXDOMAIN DNS lookups can be cached. [seconds]
+
+Default: 15.0
+
+
 ==== dns_zone_check_period ====
 
 Period to check if zone serial has changed.

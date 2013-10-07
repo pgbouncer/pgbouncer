@@ -22,9 +22,7 @@ Waiting for contributors...
 
  * hba-style access control
 
- * per-db pool_mode
-
- * per-user pool_mode, other settings ([users], user=connstr?)
+ * other per-user settings
 
  * identd authentication
 

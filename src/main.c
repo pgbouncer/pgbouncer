@@ -151,7 +151,7 @@ static const struct CfLookup auth_type_map[] = {
 	{ NULL }
 };
 
-static const struct CfLookup pool_mode_map[] = {
+const struct CfLookup pool_mode_map[] = {
 	{ "session", POOL_SESSION },
 	{ "transaction", POOL_TX },
 	{ "statement", POOL_STMT },
@@ -237,6 +237,9 @@ static const struct CfSect config_sects [] = {
 	}, {
 		.sect_name = "databases",
 		.set_key = parse_database,
+	}, {
+		.sect_name = "users",
+		.set_key = parse_user,
 	}, {
 		.sect_name = NULL,
 	}

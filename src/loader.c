@@ -180,6 +180,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	struct CfValue cv;
 	int pool_size = -1;
 	int res_pool_size = -1;
+	int max_db_connections = -1;
 	int dbname_ofs;
 	int pool_mode = POOL_INHERIT;
 
@@ -189,6 +190,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	char *port = "5432";
 	char *username = NULL;
 	char *password = "";
+	char *auth_username = NULL;
 	char *client_encoding = NULL;
 	char *datestyle = NULL;
 	char *timezone = NULL;
@@ -228,6 +230,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			username = val;
 		else if (strcmp("password", key) == 0)
 			password = val;
+		else if (strcmp("auth_user", key) == 0)
+			auth_username = val;
 		else if (strcmp("client_encoding", key) == 0)
 			client_encoding = val;
 		else if (strcmp("datestyle", key) == 0)
@@ -238,6 +242,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			pool_size = atoi(val);
 		else if (strcmp("reserve_pool", key) == 0)
 			res_pool_size = atoi(val);
+		else if (strcmp("max_db_connections", key) == 0)
+			max_db_connections = atoi(val);
 		else if (strcmp("pool_mode", key) == 0) {
 			if (!cf_set_lookup(&cv, val)) {
 				log_error("skipping database %s because"
@@ -314,6 +320,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	db->pool_size = pool_size;
 	db->res_pool_size = res_pool_size;
 	db->pool_mode = pool_mode;
+	db->max_db_connections = max_db_connections;
 
 	if (db->host)
 		free(db->host);
@@ -355,6 +362,15 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	if (appname) {
 		pktbuf_put_string(msg, "application_name");
 		pktbuf_put_string(msg, appname);
+	}
+
+	if (auth_username != NULL) {
+		db->auth_user = find_user(auth_username);
+		if (!db->auth_user) {
+			db->auth_user = add_user(auth_username, "");
+		}
+	} else if (db->auth_user) {
+		db->auth_user = NULL;
 	}
 
 	/* if user is forces, create fake object for it */

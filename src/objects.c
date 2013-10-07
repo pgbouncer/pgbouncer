@@ -94,6 +94,13 @@ static int user_node_cmp(uintptr_t userptr, struct AANode *node)
 	return strcmp(name, user->name);
 }
 
+/* destroy PgUser, for usage with btree */
+static void user_node_release(struct AANode *node, void *arg)
+{
+	PgUser *user = container_of(node, PgUser, tree_node);
+	slab_free(user_cache, user);
+}
+
 /* initialization before config loading */
 void init_objects(void)
 {
@@ -133,8 +140,13 @@ void change_client_state(PgSocket *client, SocketState newstate)
 		statlist_remove(&justfree_client_list, &client->head);
 		break;
 	case CL_LOGIN:
+		if (newstate == CL_WAITING)
+			newstate = CL_WAITING_LOGIN;
 		statlist_remove(&login_client_list, &client->head);
 		break;
+	case CL_WAITING_LOGIN:
+		if (newstate == CL_ACTIVE)
+			newstate = CL_LOGIN;
 	case CL_WAITING:
 		statlist_remove(&pool->waiting_client_list, &client->head);
 		break;
@@ -163,6 +175,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 		statlist_append(&login_client_list, &client->head);
 		break;
 	case CL_WAITING:
+	case CL_WAITING_LOGIN:
 		statlist_append(&pool->waiting_client_list, &client->head);
 		break;
 	case CL_ACTIVE:
@@ -308,6 +321,7 @@ PgDatabase *add_database(const char *name)
 			slab_free(db_cache, db);
 			return NULL;
 		}
+		aatree_init(&db->user_tree, user_node_cmp, user_node_release);
 		put_in_order(&db->head, &database_list, cmp_database);
 	}
 
@@ -361,6 +375,31 @@ PgUser *add_user(const char *name, const char *passwd)
 		put_in_order(&user->head, &user_list, cmp_user);
 
 		aatree_insert(&user_tree, (uintptr_t)user->name, &user->tree_node);
+		user->pool_mode = POOL_INHERIT;
+	}
+	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
+	return user;
+}
+
+/* add or update db users */
+PgUser *add_db_user(PgDatabase *db, const char *name, const char *passwd)
+{
+	PgUser *user = NULL;
+	struct AANode *node;
+
+	node = aatree_search(&db->user_tree, (uintptr_t)name);
+	user = node ? container_of(node, PgUser, tree_node) : NULL;
+
+	if (user == NULL) {
+		user = slab_alloc(user_cache);
+		if (!user)
+			return NULL;
+
+		list_init(&user->head);
+		list_init(&user->pool_list);
+		safe_strcpy(user->name, name, sizeof(user->name));
+
+		aatree_insert(&db->user_tree, (uintptr_t)user->name, &user->tree_node);
 		user->pool_mode = POOL_INHERIT;
 	}
 	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
@@ -472,7 +511,7 @@ PgPool *get_pool(PgDatabase *db, PgUser *user)
 /* deactivate socket and put into wait queue */
 static void pause_client(PgSocket *client)
 {
-	Assert(client->state == CL_ACTIVE);
+	Assert(client->state == CL_ACTIVE || client->state == CL_LOGIN);
 
 	slog_debug(client, "pause_client");
 	change_client_state(client, CL_WAITING);
@@ -483,7 +522,7 @@ static void pause_client(PgSocket *client)
 /* wake client from wait */
 void activate_client(PgSocket *client)
 {
-	Assert(client->state == CL_WAITING);
+	Assert(client->state == CL_WAITING || client->state == CL_WAITING_LOGIN);
 
 	slog_debug(client, "activate_client");
 	change_client_state(client, CL_ACTIVE);
@@ -531,7 +570,7 @@ bool find_server(PgSocket *client)
 	bool res;
 	bool varchange = false;
 
-	Assert(client->state == CL_ACTIVE);
+	Assert(client->state == CL_ACTIVE || client->state == CL_LOGIN);
 
 	if (client->link)
 		return true;
@@ -762,6 +801,8 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 		server->dns_token = NULL;
 	}
 
+	server->pool->db->connection_count--;
+
 	change_server_state(server, SV_JUSTFREE);
 	if (!sbuf_close(&server->sbuf))
 		log_noise("sbuf_close failed, retry later");
@@ -785,6 +826,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 
 	switch (client->state) {
 	case CL_ACTIVE:
+	case CL_LOGIN:
 		if (client->link) {
 			PgSocket *server = client->link;
 			/* ->ready may be set before all is sent */
@@ -797,8 +839,8 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 				disconnect_server(server, true, "unclean server");
 			}
 		}
-	case CL_LOGIN:
 	case CL_WAITING:
+	case CL_WAITING_LOGIN:
 	case CL_CANCEL:
 		break;
 	default:
@@ -934,6 +976,41 @@ static void dns_connect(struct PgSocket *server)
 	connect_server(server, sa, sa_len);
 }
 
+PgSocket *compare_connections_by_time(PgSocket *lhs, PgSocket *rhs)
+{
+	if (!lhs)
+		return rhs;
+	if (!rhs)
+		return lhs;
+	return lhs->request_time < rhs->request_time ? lhs : rhs;
+}
+
+/* evict the single most idle connection from among all pools to make room in the db */
+bool evict_connection(PgDatabase *db)
+{
+	struct List *item;
+	PgPool *pool;
+	PgSocket *oldest_connection = NULL;
+
+	statlist_for_each(item, &pool_list) {
+		pool = container_of(item, PgPool, head);
+		if (pool->db != db)
+			continue;
+		oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->idle_server_list));
+		// only evict testing connections if nobody's waiting
+		if (statlist_empty(&pool->waiting_client_list)) {
+			oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->used_server_list));
+			oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->tested_server_list));
+		}
+	}
+
+	if (oldest_connection) {
+		disconnect_server(oldest_connection, true, "evicted");
+		return true;
+	}
+	return false;
+}
+
 /* the pool needs new connection, if possible */
 void launch_new_connection(PgPool *pool)
 {
@@ -975,6 +1052,21 @@ void launch_new_connection(PgPool *pool)
 	}
 
 allow_new:
+	total = database_max_connections(pool->db);
+	if (total > 0) {
+		// try to evict unused connections first
+		while (pool->db->connection_count >= total) {
+			if (!evict_connection(pool->db)) {
+				break;
+			}
+		}
+		if (pool->db->connection_count >= total) {
+			log_debug("launch_new_connection: database full (%d >= %d)",
+					pool->db->connection_count, total);
+			return;
+		}
+	}
+
 	/* get free conn object */
 	server = slab_alloc(server_cache);
 	if (!server) {
@@ -988,6 +1080,7 @@ allow_new:
 	server->connect_time = get_cached_time();
 	pool->last_connect_time = get_cached_time();
 	change_server_state(server, SV_LOGIN);
+	pool->db->connection_count++;
 
 	dns_connect(server);
 }
@@ -1148,7 +1241,8 @@ bool use_client_socket(int fd, PgAddr *addr,
 		       const char *dbname, const char *username,
 		       uint64_t ckey, int oldfd, int linkfd,
 		       const char *client_enc, const char *std_string,
-		       const char *datestyle, const char *timezone)
+		       const char *datestyle, const char *timezone,
+		       const char *password)
 {
 	PgSocket *client;
 	PktBuf tmp;
@@ -1158,7 +1252,7 @@ bool use_client_socket(int fd, PgAddr *addr,
 		return false;
 	client->suspended = 1;
 
-	if (!set_pool(client, dbname, username))
+	if (!set_pool(client, dbname, username, password, true))
 		return false;
 
 	change_client_state(client, CL_ACTIVE);
@@ -1183,7 +1277,8 @@ bool use_server_socket(int fd, PgAddr *addr,
 		       const char *dbname, const char *username,
 		       uint64_t ckey, int oldfd, int linkfd,
 		       const char *client_enc, const char *std_string,
-		       const char *datestyle, const char *timezone)
+		       const char *datestyle, const char *timezone,
+		       const char *password)
 {
 	PgDatabase *db = find_database(dbname);
 	PgUser *user;
@@ -1203,6 +1298,8 @@ bool use_server_socket(int fd, PgAddr *addr,
 		user = db->forced_user;
 	else
 		user = find_user(username);
+	if (!user && db->auth_user)
+		user = add_db_user(db, username, password);
 
 	pool = get_pool(db, user);
 	if (!pool)
@@ -1215,6 +1312,8 @@ bool use_server_socket(int fd, PgAddr *addr,
 	res = sbuf_accept(&server->sbuf, fd, pga_is_unix(addr));
 	if (!res)
 		return false;
+
+	db->connection_count++;
 
 	server->suspended = 1;
 	server->pool = pool;

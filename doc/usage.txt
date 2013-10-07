@@ -321,6 +321,8 @@ maxwait::
   not handle requests quick enough.  Reason may be either overloaded
   server or just too small of a +pool_size+ setting.
 
+pool_mode::
+  The pooling mode in use.
 
 ==== SHOW LISTS; ====
 
@@ -352,7 +354,11 @@ used_servers::
 
 ==== SHOW USERS; ====
 
-Shows one line per user, under the +name+ column name.
+name::
+  The user name
+
+pool_mode::
+  The user's override pool_mode, or NULL if the default will be used instead.
 
 ==== SHOW DATABASES; ====
 
@@ -375,6 +381,9 @@ force_user::
 
 pool_size::
   Maximum number of server connections.
+
+pool_mode::
+  The database's override pool_mode, or NULL if the default will be used instead.
 
 ==== SHOW FDS; ====
 

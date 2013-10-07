@@ -440,25 +440,34 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 	struct List *item;
 	const char *f_user;
 	PktBuf *buf;
+	struct CfValue cv;
+	const char *pool_mode_str;
 
+	cv.extra = pool_mode_map;
 	buf = pktbuf_dynamic(256);
 	if (!buf) {
 		admin_error(admin, "no mem");
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "ssissii",
+	pktbuf_write_RowDescription(buf, "ssissiis",
 				    "name", "host", "port",
-				    "database", "force_user", "pool_size", "reserve_pool");
+				    "database", "force_user", "pool_size", "reserve_pool",
+				    "pool_mode");
 	statlist_for_each(item, &database_list) {
 		db = container_of(item, PgDatabase, head);
 
 		f_user = db->forced_user ? db->forced_user->name : NULL;
-		pktbuf_write_DataRow(buf, "ssissii",
+		pool_mode_str = NULL;
+		cv.value_p = &db->pool_mode;
+		if (db->pool_mode != POOL_INHERIT)
+			pool_mode_str = cf_get_lookup(&cv);
+		pktbuf_write_DataRow(buf, "ssissiis",
 				     db->name, db->host, db->port,
 				     db->dbname, f_user,
 				     db->pool_size,
-				     db->res_pool_size);
+				     db->res_pool_size,
+				     pool_mode_str);
 	}
 	admin_flush(admin, buf, "SHOW");
 	return true;
@@ -501,14 +510,24 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	PgUser *user;
 	struct List *item;
 	PktBuf *buf = pktbuf_dynamic(256);
+	struct CfValue cv;
+	const char *pool_mode_str;
+
 	if (!buf) {
 		admin_error(admin, "no mem");
 		return true;
 	}
-	pktbuf_write_RowDescription(buf, "s", "name");
+	cv.extra = pool_mode_map;
+
+	pktbuf_write_RowDescription(buf, "ss", "name", "pool_mode");
 	statlist_for_each(item, &user_list) {
 		user = container_of(item, PgUser, head);
-		pktbuf_write_DataRow(buf, "s", user->name);
+		pool_mode_str = NULL;
+		cv.value_p = &user->pool_mode;
+		if (user->pool_mode != POOL_INHERIT)
+			pool_mode_str = cf_get_lookup(&cv);
+
+		pktbuf_write_DataRow(buf, "ss", user->name, pool_mode_str);
 	}
 	admin_flush(admin, buf, "SHOW");
 	return true;
@@ -722,22 +741,28 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 	PktBuf *buf;
 	PgSocket *waiter;
 	usec_t now = get_cached_time();
+	struct CfValue cv;
+	int pool_mode;
 
+	cv.extra = pool_mode_map;
+	cv.value_p = &pool_mode;
 	buf = pktbuf_dynamic(256);
 	if (!buf) {
 		admin_error(admin, "no mem");
 		return true;
 	}
-	pktbuf_write_RowDescription(buf, "ssiiiiiiii",
+	pktbuf_write_RowDescription(buf, "ssiiiiiiiis",
 				    "database", "user",
 				    "cl_active", "cl_waiting",
 				    "sv_active", "sv_idle",
 				    "sv_used", "sv_tested",
-				    "sv_login", "maxwait");
+				    "sv_login", "maxwait",
+				    "pool_mode");
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
 		waiter = first_socket(&pool->waiting_client_list);
-		pktbuf_write_DataRow(buf, "ssiiiiiiii",
+		pool_mode = pool_pool_mode(pool);
+		pktbuf_write_DataRow(buf, "ssiiiiiiiis",
 				     pool->db->name, pool->user->name,
 				     statlist_count(&pool->active_client_list),
 				     statlist_count(&pool->waiting_client_list),
@@ -748,7 +773,8 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 				     statlist_count(&pool->new_server_list),
 				     /* how long is the oldest client waited */
 				     (waiter && waiter->query_start)
-				     ?  (int)((now - waiter->query_start) / USEC) : 0);
+				     ?  (int)((now - waiter->query_start) / USEC) : 0,
+				     cf_get_lookup(&cv));
 	}
 	admin_flush(admin, buf, "SHOW");
 	return true;
@@ -1351,6 +1377,7 @@ void admin_setup(void)
 	db->port = cf_listen_port;
 	db->pool_size = 2;
 	db->admin = 1;
+	db->pool_mode = POOL_STMT;
 	if (!force_user(db, "pgbouncer", ""))
 		fatal("no mem on startup - cannot alloc pgbouncer user");
 

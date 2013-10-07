@@ -540,6 +540,11 @@ Query to be executed after a connection is established, but before
 allowing the connection to be used by any clients. If the query raises errors,
 they are logged but ignored otherwise.
 
+==== pool_mode ====
+
+Set the pool mode specific to this database. If not set,
+the default pool_mode is used.
+
 === Extra parameters ===
 
 They allow setting default parameters on server connection.
@@ -559,6 +564,19 @@ Ask specific +datestyle+ from server.
 ==== timezone ====
 
 Ask specific +timezone+ from server.
+
+== SECTION [users] ==
+
+This contains key=value pairs where key will be taken as a user name and
+value as a libpq connect-string style list of key=value pairs. As actual libpq is not
+used, so not all features from libpq can be used.
+
+=== Pool configuration ===
+
+==== pool_mode ====
+
+Set the pool mode to be used for all connections from this user. If not set, the
+database or default pool_mode is used.
 
 == AUTHENTICATION FILE FORMAT ==
 

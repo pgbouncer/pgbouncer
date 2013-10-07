@@ -171,8 +171,11 @@ static void per_loop_activate(PgPool *pool)
 {
 	struct List *item, *tmp;
 	PgSocket *client;
+	int sv_tested, sv_used;
 
 	/* see if any server have been freed */
+	sv_tested = statlist_count(&pool->tested_server_list);
+	sv_used = statlist_count(&pool->used_server_list);
 	statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
 		client = container_of(item, PgSocket, head);
 		if (!statlist_empty(&pool->idle_server_list)) {
@@ -185,13 +188,13 @@ static void per_loop_activate(PgPool *pool)
 
 			/* there is a ready server already */
 			activate_client(client);
-		} else if (!statlist_empty(&pool->tested_server_list)) {
+		} else if (sv_tested > 0) {
 			/* some connections are in testing process */
-			break;
-		} else if (!statlist_empty(&pool->used_server_list)) {
+			--sv_tested;
+		} else if (sv_used > 0) {
 			/* ask for more connections to be tested */
 			launch_recheck(pool);
-			break;
+			--sv_used;
 		} else {
 			/* not enough connections */
 			launch_new_connection(pool);

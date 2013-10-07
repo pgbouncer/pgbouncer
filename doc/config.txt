@@ -289,7 +289,9 @@ for 8.3 and above its enough to do:
   server_reset_query = DISCARD ALL;
 
 When transaction pooling is used, the `server_reset_query` should be empty,
-as clients should not use any session features.
+as clients should not use any session features.  If client does use session
+features, then they will be broken as transaction pooling will not guaratee
+that next query will be run on same connection.
 
 Default: DISCARD ALL
 

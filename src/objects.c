@@ -1347,9 +1347,26 @@ void tag_database_dirty(PgDatabase *db)
 
 void tag_autodb_dirty(void)
 {
-	struct List *item;
+	struct List *item, *tmp;
+	PgDatabase *db;
 	PgPool *pool;
 
+	/*
+	 * reload databases.
+	 */
+	statlist_for_each(item, &database_list) {
+		db = container_of(item, PgDatabase, head);
+		if (db->db_auto)
+			register_auto_database(db->name);
+	}
+	statlist_for_each_safe(item, &autodatabase_idle_list, tmp) {
+		db = container_of(item, PgDatabase, head);
+		if (db->db_auto)
+			register_auto_database(db->name);
+	}
+	/*
+	 * reload pools
+	 */
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
 		if (pool->db->db_auto)

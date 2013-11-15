@@ -159,16 +159,19 @@ static void set_connect_query(PgDatabase *db, const char *new)
 static void set_autodb(const char *connstr)
 {
 	char *tmp = strdup(connstr);
+	char *old = cf_autodb_connstr;
+
 	if (!tmp) {
 		log_warning("no mem to change autodb_connstr");
 		return;
 	}
-	if (cf_autodb_connstr) {
-		if (strcmp(connstr, cf_autodb_connstr) != 0)
-			tag_autodb_dirty();
-		free(cf_autodb_connstr);
-	}
+
 	cf_autodb_connstr = tmp;
+	if (old) {
+		if (strcmp(connstr, old) != 0)
+			tag_autodb_dirty();
+		free(old);
+	}
 }
 
 /* fill PgDatabase from connstr */

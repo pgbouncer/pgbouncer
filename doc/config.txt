@@ -84,9 +84,11 @@ Default: not set
 
 ==== auth_file ====
 
-The name of the file to load user names and passwords from. The file format 
-is the same as the PostgreSQL pg_auth/pg_pwd file, so this setting can be 
-pointed directly to one of those backend files.
+The name of the file to load user names and passwords from. The file format
+is the same as the PostgreSQL 8.x pg_auth/pg_pwd file, so this setting can be
+pointed directly to one of those backend files.  Since version 9.0, PostgreSQL
+does not use such text file, so it must be generated manually.  See section
+"AUTHENTICATION FILE FORMAT" below about details.
 
 Default: not set.
 

@@ -44,6 +44,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...) _
 PgDatabase * add_database(const char *name) _MUSTCHECK;
 PgDatabase *register_auto_database(const char *name);
 PgUser * add_user(const char *name, const char *passwd) _MUSTCHECK;
+PgUser * add_db_user(PgDatabase *db, const char *name, const char *passwd) _MUSTCHECK;
 PgUser * force_user(PgDatabase *db, const char *username, const char *passwd) _MUSTCHECK;
 
 void accept_cancel_request(PgSocket *req);
@@ -52,10 +53,12 @@ void forward_cancel_request(PgSocket *server);
 void launch_new_connection(PgPool *pool);
 
 bool use_client_socket(int fd, PgAddr *addr, const char *dbname, const char *username, uint64_t ckey, int oldfd, int linkfd,
-		       const char *client_end, const char *std_string, const char *datestyle, const char *timezone)
+		       const char *client_end, const char *std_string, const char *datestyle, const char *timezone,
+		       const char *password)
 			_MUSTCHECK;
 bool use_server_socket(int fd, PgAddr *addr, const char *dbname, const char *username, uint64_t ckey, int oldfd, int linkfd,
-		       const char *client_end, const char *std_string, const char *datestyle, const char *timezone)
+		       const char *client_end, const char *std_string, const char *datestyle, const char *timezone,
+		       const char *password)
 			_MUSTCHECK;
 
 void activate_client(PgSocket *client);

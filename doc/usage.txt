@@ -149,7 +149,7 @@ database +pgbouncer+
 
 Only users listed in configuration parameters +admin_users+ or +stats_users+
 are allowed to login to the console.  (Except when `auth_mode=any`, then
-any user is allowed in as an admin.)
+any user is allowed in as a stats_user.)
 
 Additionally, the username +pgbouncer+ is allowed to log in without password,
 if the login comes via Unix socket and the client has same Unix user uid

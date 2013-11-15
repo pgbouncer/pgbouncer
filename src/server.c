@@ -300,15 +300,19 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		Assert(client);
 		sbuf_prepare_skip(sbuf, pkt->len);
 	} else if (client) {
-		sbuf_prepare_send(sbuf, &client->sbuf, pkt->len);
-		if (ready && client->query_start) {
-			usec_t total;
-			total = get_cached_time() - client->query_start;
-			client->query_start = 0;
-			server->pool->stats.query_time += total;
-			slog_debug(client, "query time: %d us", (int)total);
-		} else if (ready) {
-			slog_warning(client, "FIXME: query end, but query_start == 0");
+		if (client->state == CL_LOGIN) {
+			return handle_auth_response(client, pkt);
+		} else {
+			sbuf_prepare_send(sbuf, &client->sbuf, pkt->len);
+			if (ready && client->query_start) {
+				usec_t total;
+				total = get_cached_time() - client->query_start;
+				client->query_start = 0;
+				server->pool->stats.query_time += total;
+				slog_debug(client, "query time: %d us", (int)total);
+			} else if (ready) {
+				slog_warning(client, "FIXME: query end, but query_start == 0");
+			}
 		}
 	} else {
 		if (server->state != SV_TESTED)
@@ -428,7 +432,8 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			break;
 		}
 
-		if (pool_pool_mode(pool)  != POOL_SESSION || server->state == SV_TESTED) {
+		if (pool_pool_mode(pool)  != POOL_SESSION || server->state == SV_TESTED || server->resetting) {
+			server->resetting = false;
 			switch (server->state) {
 			case SV_ACTIVE:
 			case SV_TESTED:

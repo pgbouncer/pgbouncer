@@ -16,7 +16,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 bool admin_handle_client(PgSocket *client, PktHdr *pkt)  _MUSTCHECK;
-bool admin_pre_login(PgSocket *client)  _MUSTCHECK;
+bool admin_pre_login(PgSocket *client, const char *username)  _MUSTCHECK;
+bool admin_post_login(PgSocket *client)  _MUSTCHECK;
 void admin_setup(void);
 bool admin_error(PgSocket *console, const char *fmt, ...)  _PRINTF(2, 3) /* _MUSTCHECK */;
 void admin_pause_done(void);

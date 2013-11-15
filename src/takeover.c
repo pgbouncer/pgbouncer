@@ -79,7 +79,7 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 {
 	int fd;
 	char *task, *saddr, *user, *db;
-	char *client_enc, *std_string, *datestyle, *timezone;
+	char *client_enc, *std_string, *datestyle, *timezone, *password;
 	int oldfd, port, linkfd;
 	int got;
 	uint64_t ckey;
@@ -99,9 +99,10 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 		fatal("broken fd packet");
 
 	/* parse row contents */
-	got = scan_text_result(pkt, "issssiqissss", &oldfd, &task, &user, &db,
+	got = scan_text_result(pkt, "issssiqisssss", &oldfd, &task, &user, &db,
 			       &saddr, &port, &ckey, &linkfd,
-			       &client_enc, &std_string, &datestyle, &timezone);
+			       &client_enc, &std_string, &datestyle, &timezone,
+			       &password);
 	if (got < 0 || task == NULL || saddr == NULL)
 		fatal("NULL data from old process");
 
@@ -109,6 +110,9 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 		  oldfd, fd, linkfd, task,
 		  user ? user : "NULL", db ? db : "NULL",
 		  client_enc ? client_enc : "NULL");
+
+	if (!password)
+		password = "";
 
 	/* fill address */
 	if (strcmp(saddr, "unix") == 0) {
@@ -121,10 +125,12 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	/* decide what to do with it */
 	if (strcmp(task, "client") == 0)
 		res = use_client_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
-				  client_enc, std_string, datestyle, timezone);
+				  client_enc, std_string, datestyle, timezone,
+				  password);
 	else if (strcmp(task, "server") == 0)
 		res = use_server_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
-				  client_enc, std_string, datestyle, timezone);
+				  client_enc, std_string, datestyle, timezone,
+				  password);
 	else if (strcmp(task, "pooler") == 0)
 		res = use_pooler_socket(fd, pga_is_unix(&addr));
 	else

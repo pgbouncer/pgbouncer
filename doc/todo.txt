@@ -4,9 +4,6 @@
 
 Significant amount of users feel the need for those.
 
- * auth_conn - access to pg_shadow, so auth_file is not needed.
-   [ flat-text files are gone in 9.0+ ]
-
  * Protocol-level plan cache.
 
  * LISTEN/NOTIFY.  Requires strict SQL format.

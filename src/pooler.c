@@ -339,6 +339,8 @@ bool use_pooler_socket(int sock, bool is_unix)
 		return false;
 
 	ls = calloc(1, sizeof(*ls));
+	if (!ls)
+		return false;
 	ls->fd = sock;
 	if (is_unix) {
 		pga_set(&ls->addr, AF_UNIX, cf_listen_port);

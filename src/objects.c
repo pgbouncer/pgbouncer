@@ -801,6 +801,8 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 		server->dns_token = NULL;
 	}
 
+	server->pool->db->connection_count--;
+
 	change_server_state(server, SV_JUSTFREE);
 	if (!sbuf_close(&server->sbuf))
 		log_noise("sbuf_close failed, retry later");
@@ -974,6 +976,41 @@ static void dns_connect(struct PgSocket *server)
 	connect_server(server, sa, sa_len);
 }
 
+PgSocket *compare_connections_by_time(PgSocket *lhs, PgSocket *rhs)
+{
+	if (!lhs)
+		return rhs;
+	if (!rhs)
+		return lhs;
+	return lhs->request_time < rhs->request_time ? lhs : rhs;
+}
+
+/* evict the single most idle connection from among all pools to make room in the db */
+bool evict_connection(PgDatabase *db)
+{
+	struct List *item;
+	PgPool *pool;
+	PgSocket *oldest_connection = NULL;
+
+	statlist_for_each(item, &pool_list) {
+		pool = container_of(item, PgPool, head);
+		if (pool->db != db)
+			continue;
+		oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->idle_server_list));
+		// only evict testing connections if nobody's waiting
+		if (statlist_empty(&pool->waiting_client_list)) {
+			oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->used_server_list));
+			oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->tested_server_list));
+		}
+	}
+
+	if (oldest_connection) {
+		disconnect_server(oldest_connection, true, "evicted");
+		return true;
+	}
+	return false;
+}
+
 /* the pool needs new connection, if possible */
 void launch_new_connection(PgPool *pool)
 {
@@ -1015,6 +1052,21 @@ void launch_new_connection(PgPool *pool)
 	}
 
 allow_new:
+	total = database_max_connections(pool->db);
+	if (total > 0) {
+		// try to evict unused connections first
+		while (pool->db->connection_count >= total) {
+			if (!evict_connection(pool->db)) {
+				break;
+			}
+		}
+		if (pool->db->connection_count >= total) {
+			log_debug("launch_new_connection: database full (%d >= %d)",
+					pool->db->connection_count, total);
+			return;
+		}
+	}
+
 	/* get free conn object */
 	server = slab_alloc(server_cache);
 	if (!server) {
@@ -1028,6 +1080,7 @@ allow_new:
 	server->connect_time = get_cached_time();
 	pool->last_connect_time = get_cached_time();
 	change_server_state(server, SV_LOGIN);
+	pool->db->connection_count++;
 
 	dns_connect(server);
 }
@@ -1259,6 +1312,8 @@ bool use_server_socket(int fd, PgAddr *addr,
 	res = sbuf_accept(&server->sbuf, fd, pga_is_unix(addr));
 	if (!res)
 		return false;
+
+	db->connection_count++;
 
 	server->suspended = 1;
 	server->pool = pool;

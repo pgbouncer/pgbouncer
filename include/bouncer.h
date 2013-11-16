@@ -279,6 +279,7 @@ struct PgDatabase {
 	int pool_size;		/* max server connections in one pool */
 	int res_pool_size;	/* additional server connections in case of trouble */
 	int pool_mode;		/* pool mode for this database */
+	int max_db_connections;	/* max server connections between all pools */
 
 	const char *dbname;	/* server-side name, pointer to inside startup_msg */
 
@@ -287,6 +288,8 @@ struct PgDatabase {
 
 	usec_t inactive_time;	/* when auto-database became inactive (to kill it after timeout) */
 	unsigned active_stamp;	/* set if autodb has connections */
+
+	int connection_count;	/* total connections for this database in all pools */
 
 	struct AATree user_tree;	/* users that have been queried on this database */
 };
@@ -371,6 +374,7 @@ extern int cf_default_pool_size;
 extern int cf_min_pool_size;
 extern int cf_res_pool_size;
 extern usec_t cf_res_pool_timeout;
+extern int cf_max_db_connections;
 
 extern char * cf_autodb_connstr;
 extern usec_t cf_autodb_idle_timeout;
@@ -444,6 +448,14 @@ first_socket(struct StatList *slist)
 	if (statlist_empty(slist))
 		return NULL;
 	return container_of(slist->head.next, PgSocket, head);
+}
+
+static inline PgSocket *
+last_socket(struct StatList *slist)
+{
+	if (statlist_empty(slist))
+		return NULL;
+	return container_of(slist->head.prev, PgSocket, head);
 }
 
 void load_config(void);

@@ -92,6 +92,7 @@ int cf_default_pool_size;
 int cf_min_pool_size;
 int cf_res_pool_size;
 usec_t cf_res_pool_timeout;
+int cf_max_db_connections;
 
 char *cf_server_reset_query;
 char *cf_server_check_query;
@@ -182,6 +183,7 @@ CF_ABS("default_pool_size", CF_INT, cf_default_pool_size, 0, "20"),
 CF_ABS("min_pool_size", CF_INT, cf_min_pool_size, 0, "0"),
 CF_ABS("reserve_pool_size", CF_INT, cf_res_pool_size, 0, "0"),
 CF_ABS("reserve_pool_timeout", CF_TIME_USEC, cf_res_pool_timeout, 0, "5"),
+CF_ABS("max_db_connections", CF_INT, cf_max_db_connections, 0, "0"),
 CF_ABS("syslog", CF_INT, cf_syslog, 0, "0"),
 CF_ABS("syslog_facility", CF_STR, cf_syslog_facility, 0, "daemon"),
 CF_ABS("syslog_ident", CF_STR, cf_syslog_ident, 0, "pgbouncer"),

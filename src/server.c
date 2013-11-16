@@ -195,6 +195,15 @@ int pool_pool_mode(PgPool *pool)
 	return pool_mode;
 }
 
+int database_max_connections(PgDatabase *db)
+{
+	if (db->max_db_connections <= 0) {
+		return cf_max_db_connections;
+        } else {
+		return db->max_db_connections;
+	}
+}
+
 /* process packets on logged in connection */
 static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 {

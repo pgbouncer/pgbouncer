@@ -92,7 +92,7 @@ static bool send_client_authreq(PgSocket *client)
 static void start_auth_request(PgSocket *client, const char *username)
 {
 	int res;
-	char quoted_username[64], query[128];
+	PktBuf *buf;
 
 	client->auth_user = client->db->auth_user;
 	/* have to fetch user info from db */
@@ -111,9 +111,18 @@ static void start_auth_request(PgSocket *client, const char *username)
 	}
 	client->link->ready = 0;
 
-	pg_quote_literal(quoted_username, username, sizeof(quoted_username));
-	snprintf(query, sizeof(query), "SELECT usename, passwd FROM pg_shadow WHERE usename=%s", quoted_username);
-	SEND_generic(res, client->link, 'Q', "s", query);
+	res = 0;
+	buf = pktbuf_dynamic(512);
+	if (buf) {
+		pktbuf_write_ExtQuery(buf, cf_auth_query, 1, username);
+		res = pktbuf_send_immediate(buf, client->link);
+		pktbuf_free(buf);
+		/*
+		 * Should do instead:
+		 *   res = pktbuf_send_queued(buf, client->link);
+		 * but that needs better integration with SBuf.
+		 */
+	}
 	if (!res)
 		disconnect_server(client->link, false, "unable to send login query");
 }
@@ -280,6 +289,10 @@ bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
 		}
 		break;
 	case 'C':	/* CommandComplete */
+		break;
+	case '1':	/* ParseComplete */
+		break;
+	case '2':	/* BindComplete */
 		break;
 	case 'Z':	/* ReadyForQuery */
 		sbuf_prepare_skip(&client->link->sbuf, pkt->len);

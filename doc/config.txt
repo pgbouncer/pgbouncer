@@ -115,6 +115,12 @@ any::
       databases are configured to log in as specific user.  Additionally, the console
       database allows any user to log in as admin.
 
+==== auth_query ====
+
+Query to load user's password from db.
+
+Default: SELECT usename, passwd FROM pg_shadow WHERE usename=$1
+
 ==== pool_mode ====
 
 Specifies when a server connection can be reused by other clients.

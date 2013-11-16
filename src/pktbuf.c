@@ -429,3 +429,44 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 	pktbuf_finish_packet(buf);
 }
 
+/*
+ * Send Parse+Bind+Execute with string parameters.
+ */
+void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...)
+{
+	va_list ap;
+	const char *val;
+	int len, i;
+
+	/* Parse */
+	pktbuf_write_generic(buf, 'P', "csh", 0, query, 0);
+
+	/* Bind */
+	pktbuf_start_packet(buf, 'B');
+	pktbuf_put_char(buf, 0);	/* portal name */
+	pktbuf_put_char(buf, 0);	/* query name */
+	pktbuf_put_uint16(buf, 0);	/* number of parameter format codes */
+	pktbuf_put_uint16(buf, nargs);	/* number of parameter values */
+
+	va_start(ap, nargs);
+	for (i = 0; i < nargs; i++) {
+		val = va_arg(ap, char *);
+		len = strlen(val);
+		pktbuf_put_uint32(buf, len);
+		pktbuf_put_bytes(buf, val, len);
+	}
+	va_end(ap);
+
+	pktbuf_put_uint16(buf, 0);	/* number of result-column format codes */
+	pktbuf_finish_packet(buf);
+
+	/* Describe */
+	pktbuf_write_generic(buf, 'D', "cc", 'P', 0);
+
+	/* Execute */
+	pktbuf_write_generic(buf, 'E', "ci", 0, 0);
+
+	/* Sync */
+	pktbuf_write_generic(buf, 'S', "");
+}
+

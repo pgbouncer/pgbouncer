@@ -73,6 +73,7 @@ void pktbuf_finish_packet(PktBuf *buf);
 void pktbuf_write_generic(PktBuf *buf, int type, const char *fmt, ...);
 void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...);
 void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...);
+void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
 
 /*
  * Shortcuts for actual packets.

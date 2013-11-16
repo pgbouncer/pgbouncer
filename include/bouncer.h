@@ -400,6 +400,7 @@ extern usec_t cf_dns_zone_check_period;
 
 extern int cf_auth_type;
 extern char *cf_auth_file;
+extern char *cf_auth_query;
 
 extern char *cf_pidfile;
 

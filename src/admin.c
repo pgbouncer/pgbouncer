@@ -244,7 +244,8 @@ static bool send_one_fd(PgSocket *admin,
 			const char *client_enc,
 			const char *std_strings,
 			const char *datestyle,
-			const char *timezone)
+			const char *timezone,
+			const char *password)
 {
 	struct msghdr msg;
 	struct cmsghdr *cmsg;
@@ -254,9 +255,10 @@ static bool send_one_fd(PgSocket *admin,
 
 	struct PktBuf *pkt = pktbuf_temp();
 
-	pktbuf_write_DataRow(pkt, "issssiqissss",
+	pktbuf_write_DataRow(pkt, "issssiqisssss",
 		      fd, task, user, db, addr, port, ckey, link,
-		      client_enc, std_strings, datestyle, timezone);
+		      client_enc, std_strings, datestyle, timezone,
+		      password);
 	if (pkt->failed)
 		return false;
 	iovec.iov_base = pkt->buf;
@@ -306,11 +308,14 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	const struct PStr *datestyle = v->var_list[VDateStyle];
 	const struct PStr *timezone = v->var_list[VTimeZone];
 	char addrbuf[PGADDR_BUF];
+	const char *password = NULL;
 
 	mbuf_init_fixed_reader(&tmp, sk->cancel_key, 8);
 	if (!mbuf_get_uint64be(&tmp, &ckey))
 		return false;
 
+	if (sk->pool->db->auth_user && sk->auth_user && !find_user(sk->auth_user->name))
+		password = sk->auth_user->passwd;
 
 	return send_one_fd(admin, sbuf_socket(&sk->sbuf),
 			   is_server_socket(sk) ? "server" : "client",
@@ -323,7 +328,8 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 			   client_encoding ? client_encoding->str : NULL,
 			   std_strings ? std_strings->str : NULL,
 			   datestyle ? datestyle->str : NULL,
-			   timezone ? timezone->str : NULL);
+			   timezone ? timezone->str : NULL,
+			   password);
 }
 
 static bool show_pooler_cb(void *arg, int fd, const PgAddr *a)
@@ -332,7 +338,7 @@ static bool show_pooler_cb(void *arg, int fd, const PgAddr *a)
 
 	return send_one_fd(arg, fd, "pooler", NULL, NULL,
 			   pga_ntop(a, buf, sizeof(buf)), pga_port(a), 0, 0,
-			   NULL, NULL, NULL, NULL);
+			   NULL, NULL, NULL, NULL, NULL);
 }
 
 /* send a row with sendmsg, optionally attaching a fd */
@@ -384,6 +390,7 @@ static bool admin_show_fds(PgSocket *admin, const char *arg)
 	 * Dangerous to show to everybody:
 	 * - can lock pooler as code flips async option
 	 * - show cancel keys for all users
+	 * - shows passwords (md5) for dynamic users
 	 */
 	if (!admin->admin_user)
 		return admin_error(admin, "admin access needed");
@@ -397,13 +404,13 @@ static bool admin_show_fds(PgSocket *admin, const char *arg)
 	/*
 	 * send resultset
 	 */
-	SEND_RowDescription(res, admin, "issssiqissss",
+	SEND_RowDescription(res, admin, "issssiqisssss",
 				 "fd", "task",
 				 "user", "database",
 				 "addr", "port",
 				 "cancel", "link",
 				 "client_encoding", "std_strings",
-				 "datestyle", "timezone");
+				 "datestyle", "timezone", "password");
 	if (res)
 		res = show_pooler_fds(admin);
 
@@ -1316,12 +1323,11 @@ bool admin_handle_client(PgSocket *admin, PktHdr *pkt)
  * Client is unauthenticated, look if it wants to connect
  * to special "pgbouncer" user.
  */
-bool admin_pre_login(PgSocket *client)
+bool admin_pre_login(PgSocket *client, const char *username)
 {
 	uid_t peer_uid = -1;
 	gid_t peer_gid = -1;
 	int res;
-	const char *username = client->auth_user->name;
 
 	client->admin_user = 0;
 	client->own_user = 0;
@@ -1332,6 +1338,7 @@ bool admin_pre_login(PgSocket *client)
 		if (res >= 0 && peer_uid == getuid()
 			&& strcmp("pgbouncer", username) == 0)
 		{
+			client->auth_user = admin_pool->db->forced_user;
 			client->own_user = 1;
 			client->admin_user = 1;
 			slog_info(client, "pgbouncer access from unix socket");
@@ -1341,21 +1348,33 @@ bool admin_pre_login(PgSocket *client)
 
 	/*
 	 * auth_mode=any does not keep original username around,
-	 * so username based checks do not work.
+	 * so username based check has to take place here
 	 */
 	if (cf_auth_type == AUTH_ANY) {
-		if (cf_log_connections)
-			slog_info(client, "auth_mode=any: allowing anybody in as admin");
-		client->admin_user = 1;
-		return true;
+		if (strlist_contains(cf_admin_users, username)) {
+			client->admin_user = 1;
+			return true;
+		} else if (strlist_contains(cf_stats_users, username)) {
+			return true;
+		}
 	}
+	return false;
+}
 
-	if (strlist_contains(cf_admin_users, username)) {
+bool admin_post_login(PgSocket *client)
+{
+	const char *username = client->auth_user->name;
+
+	if (cf_auth_type == AUTH_ANY)
+		return true;
+
+	if (client->admin_user || strlist_contains(cf_admin_users, username)) {
 		client->admin_user = 1;
 		return true;
 	} else if (strlist_contains(cf_stats_users, username)) {
 		return true;
 	}
+
 	disconnect_client(client, true, "not allowed");
 	return false;
 }

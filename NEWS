@@ -1,3 +1,66 @@
+2013-xx-xx  -  PgBouncer 1.6  -  ""
+
+  = Features =
+
+    * auth_user support
+      (Cody Cutrer)
+
+    * implement per-database pool_mode
+      (Cody Cutrer)
+
+    * add per-user pool_mode
+      (Cody Cutrer)
+
+    * implement database-wide connection limit
+      (Cody Cutrer)
+
+    * Add DISABLE/ENABLE commands to prevent new connections.
+      (William Grant)
+
+    * New DNS backend: c-ares
+
+    * Show remote_pid in SHOW CLIENTS/SERVERS.
+
+  = Cleanups =
+
+    * log: wrap ipv6 address with []
+
+    * log: On connect to server, show local ip and port
+
+    * win32: use gnu-style for long args: --foo
+
+    * Allow numbers in hostname, always try to parse with inet_pton
+
+    * Fix deallocate_all() in FAQ
+
+    * Fix incorrect keyword in example config file
+      (Magnus Hagander)
+
+  = Fixes =
+
+    * fix launching new connections during maintenance
+      (Cody Cutrer)
+
+    * don't load auth file twice at boot
+      (Cody Cutrer)
+
+    * Proper invalidation for autodbs
+
+    * ipv6: Set IPV6_V6ONLY on listen socket.
+
+    * win32: Don't set SO_REUSEADDR on listen socket.
+
+    * Fix IPv6 address memcpy
+
+    * Fix cancellation of of waiting clients
+      (Mathieu Fenniak)
+
+    * Small bug fix, must check calloc result
+      (Heikki Linnakangas)
+
+    * Add newline at the end of the PID file
+      (Peter Eisentraut)
+
 2012-11-28  -  PgBouncer 1.5.4  -  "No Leaks, Potty-Training Successful"
 
   = Fixes =

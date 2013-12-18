@@ -238,7 +238,7 @@ struct PgPool {
 /*
  * A user in login db.
  *
- * fixme: remove ->head as ->tree_node should be enough.
+ * FIXME: remove ->head as ->tree_node should be enough.
  *
  * For databases where remote user is forced, the pool is:
  * first(db->forced_user->pool_list), where pool_list has only one entry.

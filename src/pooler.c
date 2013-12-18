@@ -209,7 +209,7 @@ static void tune_accept(int sock, bool on)
 	const char *act = on ? "install" : "uninstall";
 	int res = 0;
 #ifdef TCP_DEFER_ACCEPT
-	int val = 45; /* fixme: proper value */
+	int val = 45; /* FIXME: proper value */
 	socklen_t vlen = sizeof(val);
 	res = getsockopt(sock, IPPROTO_TCP, TCP_DEFER_ACCEPT, &val, &vlen);
 	log_noise("old TCP_DEFER_ACCEPT on %d = %d", sock, val);

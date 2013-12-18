@@ -290,7 +290,7 @@ void sbuf_prepare_fetch(SBuf *sbuf, unsigned amount)
 
 	sbuf->pkt_action = ACT_CALL;
 	sbuf->pkt_remain = amount;
-	/* sbuf->dst = NULL; // fixme ?? */
+	/* sbuf->dst = NULL; // FIXME ?? */
 }
 
 /*************************

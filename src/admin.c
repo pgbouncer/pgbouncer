@@ -1479,7 +1479,7 @@ void admin_pause_done(void)
 			if (count_paused_databases() > 0)
 				res = admin_ready(admin, "PAUSE");
 			else
-				/* fixme */
+				/* FIXME */
 				fatal("admin_pause_done: bad state");
 		}
 

@@ -268,8 +268,10 @@ bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
 			return false;
 		}
 		if (length == (uint32_t)-1) {
-			// NULL - set an md5 password with an impossible value,
-			// so that nothing will ever match
+			/*
+			 * NULL - set an md5 password with an impossible value,
+			 * so that nothing will ever match
+			 */
 			password = "md5";
 			length = 3;
 		} else {
@@ -305,9 +307,11 @@ bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
 			client->link->resetting = true;
 			sbuf_continue(&client->sbuf);
 		}
-		// either sbuf_continue or disconnect_client could disconnect the server
-		// way down in their bowels of other callbacks. so check that, and
-		// return appropriately (similar to reuse_on_release)
+		/*
+		 * either sbuf_continue or disconnect_client could disconnect the server
+		 * way down in their bowels of other callbacks. so check that, and
+		 * return appropriately (similar to reuse_on_release)
+		 */
 		if (server->state == SV_FREE || server->state == SV_JUSTFREE)
 			return false;
 		return true;

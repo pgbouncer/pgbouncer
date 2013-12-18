@@ -949,7 +949,7 @@ static void dns_connect(struct PgSocket *server)
 		sa = (struct sockaddr *)&sa_un;
 		sa_len = sizeof(sa_un);
 		res = 1;
-	} else if (strchr(host, ':')) {  // assume IPv6 address on any : in addr
+	} else if (strchr(host, ':')) {  /* assume IPv6 address on any : in addr */
 		slog_noise(server, "inet6 socket: %s", db->host);
 		memset(&sa_in6, 0, sizeof(sa_in6));
 		sa_in6.sin6_family = AF_INET6;
@@ -957,7 +957,7 @@ static void dns_connect(struct PgSocket *server)
 		sa_in6.sin6_port = htons(db->port);
 		sa = (struct sockaddr *)&sa_in6;
 		sa_len = sizeof(sa_in6);
-	} else { // else try IPv4
+	} else { /* else try IPv4 */
 		slog_noise(server, "inet socket: %s", db->host);
 		memset(&sa_in, 0, sizeof(sa_in));
 		sa_in.sin_family = AF_INET;
@@ -1002,7 +1002,7 @@ bool evict_connection(PgDatabase *db)
 		if (pool->db != db)
 			continue;
 		oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->idle_server_list));
-		// only evict testing connections if nobody's waiting
+		/* only evict testing connections if nobody's waiting */
 		if (statlist_empty(&pool->waiting_client_list)) {
 			oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->used_server_list));
 			oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->tested_server_list));
@@ -1059,7 +1059,7 @@ void launch_new_connection(PgPool *pool)
 allow_new:
 	total = database_max_connections(pool->db);
 	if (total > 0) {
-		// try to evict unused connections first
+		/* try to evict unused connections first */
 		while (pool->db->connection_count >= total) {
 			if (!evict_connection(pool->db)) {
 				break;

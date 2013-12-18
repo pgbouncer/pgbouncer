@@ -334,7 +334,7 @@ static void pool_client_maint(PgPool *pool)
 			Assert(client->state == CL_WAITING || client->state == CL_WAITING_LOGIN);
 			if (client->query_start == 0) {
 				age = now - client->request_time;
-				//log_warning("query_start==0");
+				/* log_warning("query_start==0"); */
 			} else
 				age = now - client->query_start;
 

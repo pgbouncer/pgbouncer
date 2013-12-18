@@ -35,9 +35,9 @@ typedef struct DbConn {
 	PGconn		*con;
 	bool		logged_in;
 
-	//time_t		connect_time;
+	/* time_t		connect_time; */
 	int	query_count;
-	//const char	*query;
+	/* const char	*query; */
 	int _arglen;
 } DbConn;
 
@@ -232,7 +232,7 @@ static bool another_result(DbConn *db)
 
 	switch (PQresultStatus(res)) {
 	case PGRES_TUPLES_OK:
-		// todo: check result
+		/* todo: check result */
 		if (db->_arglen > 0) {
 			int curlen = strlen(PQgetvalue(res, 0, 0));
 			if (curlen != db->_arglen) {

@@ -202,7 +202,7 @@ static void create_unix_socket(const char *socket_dir, int listen_port)
  *
  * Related to tcp_synack_retries sysctl, default 5 (corresponds 180 secs).
  *
- * SO_ACCEPTFILTER needs to be set after listern(), maybe TCP_DEFER_ACCEPT too.
+ * SO_ACCEPTFILTER needs to be set after listen(), maybe TCP_DEFER_ACCEPT too.
  */
 static void tune_accept(int sock, bool on)
 {

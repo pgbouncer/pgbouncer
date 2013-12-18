@@ -246,7 +246,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 
 	/*
 	 * 'E' and 'N' packets currently set ->ready to 0.  Correct would
-	 * be to leave ->ready as-is, because overal TX state stays same.
+	 * be to leave ->ready as-is, because overall TX state stays same.
 	 * It matters for connections in IDLE or USED state which get dirty
 	 * suddenly but should not as they are still usable.
 	 *

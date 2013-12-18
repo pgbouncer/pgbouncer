@@ -213,7 +213,7 @@ static void conn_error(DbConn *db, const char *desc)
 }
 
 /*
- * Connection has a resultset avalable, fetch it.
+ * Connection has a resultset available, fetch it.
  *
  * Returns true if there may be more results coming,
  * false if all done.

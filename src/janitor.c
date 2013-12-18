@@ -235,7 +235,7 @@ static int per_loop_suspend(PgPool *pool, bool force_suspend)
 
 	active += suspend_socket_list(&pool->active_client_list, force_suspend);
 
-	/* this list is unsuspendable, but still need force_suspend and counting */
+	/* this list is not suspendable, but still need force_suspend and counting */
 	active += suspend_socket_list(&pool->waiting_client_list, force_suspend);
 	if (active)
 		per_loop_activate(pool);
@@ -598,7 +598,7 @@ skip_maint:
 	safe_evtimer_add(&full_maint_ev, &full_maint_period);
 }
 
-/* first-time initializtion */
+/* first-time initialization */
 void janitor_setup(void)
 {
 	/* launch maintenance */

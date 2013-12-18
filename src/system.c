@@ -99,7 +99,7 @@ void change_file_mode(const char *fn, mode_t mode,
 		} else {
 			gr = getgrnam(group_name);
 			if (!gr)
-				fatal("cound not find group '%s': %s",
+				fatal("could not find group '%s': %s",
 				      group_name, strerror(errno));
 			gid = gr->gr_gid;
 		}

@@ -124,7 +124,7 @@ bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
 
 	pktbuf_start_packet(pkt, 'Q');
 
-	/* grab quory position inside pkt */
+	/* grab query position inside pkt */
 	sql_ofs = pktbuf_written(pkt);
 
 	for (lk = lookup; lk->name; lk++) {

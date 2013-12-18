@@ -547,7 +547,7 @@ static bool sbuf_actual_recv(SBuf *sbuf, unsigned len)
 		sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
 		return false;
 	} else if (got < 0 && errno != EAGAIN) {
-		/* some error occured */
+		/* some error occurred */
 		sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
 		return false;
 	}

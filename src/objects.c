@@ -637,8 +637,8 @@ static bool reuse_on_release(PgSocket *server)
 
 		/*
 		 * As the activate_client() does full read loop,
-		 * then it may happen that linked client close
-		 * couses server close.  Report it.
+		 * then it may happen that linked client closing
+		 * causes server closing.  Report it.
 		 */
 		if (server->state == SV_FREE || server->state == SV_JUSTFREE)
 			res = false;

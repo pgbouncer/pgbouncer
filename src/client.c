@@ -362,7 +362,7 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 	if (!dbname || !dbname[0])
 		dbname = username;
 
-	/* check if limit allows, dont limit admin db
+	/* check if limit allows, don't limit admin db
 	   nb: new incoming conn will be attached to PgSocket, thus
 	   get_active_client_count() counts it */
 	if (get_active_client_count() > cf_max_client_conn) {
@@ -507,7 +507,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		if (client->pool->db->admin)
 			return admin_handle_client(client, pkt);
 
-		/* aquire server */
+		/* acquire server */
 		if (!find_server(client))
 			return false;
 

@@ -43,7 +43,7 @@
 #define FULLVER   PACKAGE_NAME " version " PACKAGE_VERSION
 #endif
 
-/* each state corresponts to a list */
+/* each state corresponds to a list */
 enum SocketState {
 	CL_FREE,		/* free_client_list */
 	CL_JUSTFREE,		/* justfree_client_list */
@@ -193,7 +193,7 @@ struct PgPool {
 	struct List head;			/* entry in global pool_list */
 	struct List map_head;			/* entry in user->pool_list */
 
-	PgDatabase *db;			/* corresponging database */
+	PgDatabase *db;			/* corresponding database */
 	PgUser *user;			/* user logged in as */
 
 	struct StatList active_client_list;	/* waiting events logged in clients */
@@ -244,7 +244,7 @@ struct PgPool {
  * first(db->forced_user->pool_list), where pool_list has only one entry.
  *
  * Otherwise, ->pool_list contains multiple pools, for all PgDatabases
- * whis user has logged in.
+ * which user has logged in.
  */
 struct PgUser {
 	struct List head;		/* used to attach user to list */
@@ -352,7 +352,7 @@ struct PgSocket {
 #define tmp_sk_linkfd	query_start
 /* takeover_clean_socket() needs to clean those up */
 
-/* where the salt is temporarly stored */
+/* where the salt is temporarily stored */
 #define tmp_login_salt  cancel_key
 
 /* main.c */

@@ -268,8 +268,10 @@ bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
 			return false;
 		}
 		if (length == (uint32_t)-1) {
-			// NULL - set an md5 password with an impossible value,
-			// so that nothing will ever match
+			/*
+			 * NULL - set an md5 password with an impossible value,
+			 * so that nothing will ever match
+			 */
 			password = "md5";
 			length = 3;
 		} else {
@@ -305,9 +307,11 @@ bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
 			client->link->resetting = true;
 			sbuf_continue(&client->sbuf);
 		}
-		// either sbuf_continue or disconnect_client could disconnect the server
-		// way down in their bowels of other callbacks. so check that, and
-		// return appropriately (similar to reuse_on_release)
+		/*
+		 * either sbuf_continue or disconnect_client could disconnect the server
+		 * way down in their bowels of other callbacks. so check that, and
+		 * return appropriately (similar to reuse_on_release)
+		 */
 		if (server->state == SV_FREE || server->state == SV_JUSTFREE)
 			return false;
 		return true;
@@ -358,7 +362,7 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 	if (!dbname || !dbname[0])
 		dbname = username;
 
-	/* check if limit allows, dont limit admin db
+	/* check if limit allows, don't limit admin db
 	   nb: new incoming conn will be attached to PgSocket, thus
 	   get_active_client_count() counts it */
 	if (get_active_client_count() > cf_max_client_conn) {
@@ -503,7 +507,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		if (client->pool->db->admin)
 			return admin_handle_client(client, pkt);
 
-		/* aquire server */
+		/* acquire server */
 		if (!find_server(client))
 			return false;
 

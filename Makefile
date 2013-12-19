@@ -65,7 +65,7 @@ EXTRA_DIST = AUTHORS COPYRIGHT Makefile \
 	     win32/Makefile \
 	     $(LIBUSUAL_DIST)
 
-# libusual files (fixme: list should be provided by libusual...)
+# libusual files (FIXME: list should be provided by libusual...)
 LIBUSUAL_DIST = $(filter-out %/config.h, $(wildcard \
 		lib/usual/*.[chg] \
 		lib/usual/*/*.[ch] \

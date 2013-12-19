@@ -183,7 +183,7 @@ loop:
 
 	/* move listpos further */
 	listpos = p + len;
-	/* survive len=0 and avoid unneccesary compare */
+	/* survive len=0 and avoid unnecessary compare */
 	if (*listpos)
 		listpos++;
 

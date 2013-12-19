@@ -928,7 +928,7 @@ static bool admin_cmd_shutdown(PgSocket *admin, const char *arg)
 
 	/*
 	 * note: new pooler expects unix socket file gone when it gets
-	 * event from fd.  currently atexit() cleanup should be called
+	 * event from fd.  Currently atexit() cleanup should be called
 	 * before closing open sockets.
 	 */
 	log_info("SHUTDOWN command issued");
@@ -1293,7 +1293,7 @@ bool admin_handle_client(PgSocket *admin, PktHdr *pkt)
 	const char *q;
 	bool res;
 
-	/* dont tolerate partial packets */
+	/* don't tolerate partial packets */
 	if (incomplete_pkt(pkt)) {
 		disconnect_client(admin, true, "incomplete pkt");
 		return false;
@@ -1479,7 +1479,7 @@ void admin_pause_done(void)
 			if (count_paused_databases() > 0)
 				res = admin_ready(admin, "PAUSE");
 			else
-				/* fixme */
+				/* FIXME */
 				fatal("admin_pause_done: bad state");
 		}
 

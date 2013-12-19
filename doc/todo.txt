@@ -54,16 +54,16 @@ Waiting for contributors...
  * units for config parameters.
  * some preliminary notification that fd limit is full
 
- * Move all "look-at-full-packet" situtations to SBUF_EV_PKT_CALLBACK
+ * Move all "look-at-full-packet" situations to SBUF_EV_PKT_CALLBACK
 
  * `pool_mode = plproxy` - use postgres in full-duplex mode for autocommit
    queries, multiplexing several queries into one connection.  Should result
-   in more effiicent CPU usage of server.
+   in more efficient CPU usage of server.
 
- * SMP: spread sockets over per-cpu threads.  needs confirmation that
-   single-threadedness can be problem.  it can also be that only
-   accept() + login handling of short connection is problem.
+ * SMP: spread sockets over per-cpu threads.  Needs confirmation that
+   single-threadedness can be problem.  It can also be that only
+   accept() + login handling of short connection is problem
    that could be solved by just having threads for login handling,
-   which would be lot simpler.  or just deciding that its not
+   which would be lot simpler or just deciding that it is not
    worth fixing.
 

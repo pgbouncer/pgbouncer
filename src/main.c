@@ -17,7 +17,7 @@
  */
 
 /*
- * Launcer for all the rest.
+ * Launcher for all the rest.
  */
 
 #include "bouncer.h"
@@ -317,7 +317,7 @@ void load_config(void)
 		die("Cannot load config file");
 	} else {
 		log_warning("Config file loading failed");
-		/* if ini file missing, dont kill anybody */
+		/* if ini file missing, don't kill anybody */
 		set_dbs_dead(false);
 	}
 
@@ -454,7 +454,7 @@ static void go_daemon(void)
 	if (!cf_pidfile[0])
 		fatal("daemon needs pidfile configured");
 
-	/* dont log to stdout anymore */
+	/* don't log to stdout anymore */
 	cf_quiet = 1;
 
 	/* send stdin, stdout, stderr to /dev/null */

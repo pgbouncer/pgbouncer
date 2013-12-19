@@ -35,9 +35,9 @@ typedef struct DbConn {
 	PGconn		*con;
 	bool		logged_in;
 
-	//time_t		connect_time;
+	/* time_t		connect_time; */
 	int	query_count;
-	//const char	*query;
+	/* const char	*query; */
 	int _arglen;
 } DbConn;
 
@@ -213,7 +213,7 @@ static void conn_error(DbConn *db, const char *desc)
 }
 
 /*
- * Connection has a resultset avalable, fetch it.
+ * Connection has a resultset available, fetch it.
  *
  * Returns true if there may be more results coming,
  * false if all done.
@@ -232,7 +232,7 @@ static bool another_result(DbConn *db)
 
 	switch (PQresultStatus(res)) {
 	case PGRES_TUPLES_OK:
-		// todo: check result
+		/* TODO: check result */
 		if (db->_arglen > 0) {
 			int curlen = strlen(PQgetvalue(res, 0, 0));
 			if (curlen != db->_arglen) {

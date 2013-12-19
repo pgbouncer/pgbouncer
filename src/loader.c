@@ -40,7 +40,7 @@ static char *cstr_skip_ws(char *p)
 	return p;
 }
 
-/* parse paramenter name before '=' */
+/* parse parameter name before '=' */
 static char *cstr_get_key(char *p, char **dst_p)
 {
 	char *end;
@@ -104,7 +104,7 @@ static char *cstr_get_value(char *p, char **dst_p)
 }
 
 /*
- * Get key=val pair from connstring.  returns position it stopped
+ * Get key=val pair from connstring.  Returns position it stopped
  * or NULL on error.  EOF is signaled by *key = 0.
  */
 static char * cstr_get_pair(char *p,

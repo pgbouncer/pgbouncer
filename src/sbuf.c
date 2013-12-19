@@ -260,7 +260,7 @@ void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, unsigned amount)
 {
 	AssertActive(sbuf);
 	Assert(sbuf->pkt_remain == 0);
-	//Assert(sbuf->pkt_action == ACT_UNSET || sbuf->pkt_action == ACT_SEND || iobuf_amount_pending(&sbuf->io));
+	/* Assert(sbuf->pkt_action == ACT_UNSET || sbuf->pkt_action == ACT_SEND || iobuf_amount_pending(&sbuf->io)); */
 	Assert(amount > 0);
 
 	sbuf->pkt_action = ACT_SEND;
@@ -273,7 +273,7 @@ void sbuf_prepare_skip(SBuf *sbuf, unsigned amount)
 {
 	AssertActive(sbuf);
 	Assert(sbuf->pkt_remain == 0);
-	//Assert(sbuf->pkt_action == ACT_UNSET || iobuf_send_pending_avail(&sbuf->io));
+	/* Assert(sbuf->pkt_action == ACT_UNSET || iobuf_send_pending_avail(&sbuf->io)); */
 	Assert(amount > 0);
 
 	sbuf->pkt_action = ACT_SKIP;
@@ -285,12 +285,12 @@ void sbuf_prepare_fetch(SBuf *sbuf, unsigned amount)
 {
 	AssertActive(sbuf);
 	Assert(sbuf->pkt_remain == 0);
-	//Assert(sbuf->pkt_action == ACT_UNSET || iobuf_send_pending_avail(&sbuf->io));
+	/* Assert(sbuf->pkt_action == ACT_UNSET || iobuf_send_pending_avail(&sbuf->io)); */
 	Assert(amount > 0);
 
 	sbuf->pkt_action = ACT_CALL;
 	sbuf->pkt_remain = amount;
-	/* sbuf->dst = NULL; // fixme ?? */
+	/* sbuf->dst = NULL; // FIXME ?? */
 }
 
 /*************************
@@ -547,7 +547,7 @@ static bool sbuf_actual_recv(SBuf *sbuf, unsigned len)
 		sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
 		return false;
 	} else if (got < 0 && errno != EAGAIN) {
-		/* some error occured */
+		/* some error occurred */
 		sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
 		return false;
 	}

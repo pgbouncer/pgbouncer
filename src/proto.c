@@ -61,7 +61,7 @@ bool get_header(struct MBuf *data, PktHdr *pkt)
 			log_noise("get_header: unknown special pkt");
 			return false;
 		}
-		/* dont tolerate partial pkt */
+		/* don't tolerate partial pkt */
 		if (mbuf_avail_for_read(&hdr) < OLD_HEADER_LEN - 2) {
 			log_noise("get_header: less than 8 bytes for special pkt");
 			return false;

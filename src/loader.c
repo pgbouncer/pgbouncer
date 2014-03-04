@@ -399,6 +399,8 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	PgUser *user;
 	struct CfValue cv;
 	int pool_mode = POOL_INHERIT;
+	int max_user_connections = -1;
+
 
 	cv.value_p = &pool_mode;
 	cv.extra = (const void *)pool_mode_map;
@@ -422,6 +424,9 @@ bool parse_user(void *base, const char *name, const char *connstr)
 					  " of invalid pool mode: %s", name, val);
 				goto fail;
 			}
+
+		} else if (strcmp("max_user_connections", key) == 0) {
+			max_user_connections = atoi(val);
 		} else {
 			log_error("skipping user %s because"
 				  " of unknown parameter in settings: %s", name, key);
@@ -439,6 +444,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	}
 
 	user->pool_mode = pool_mode;
+	user->max_user_connections = max_user_connections;
 
 fail:
 	free(tmp_connstr);

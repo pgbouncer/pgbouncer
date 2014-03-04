@@ -204,6 +204,15 @@ int database_max_connections(PgDatabase *db)
 	}
 }
 
+int user_max_connections(PgUser *user)
+{
+	if (user->max_user_connections <= 0) {
+		return cf_max_user_connections;
+	} else {
+		return user->max_user_connections;
+	}
+}
+
 /* process packets on logged in connection */
 static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 {

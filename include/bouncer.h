@@ -427,6 +427,7 @@ extern int cf_tcp_defer_accept;
 extern int cf_log_connections;
 extern int cf_log_disconnections;
 extern int cf_log_pooler_errors;
+extern int cf_application_name_add_host;
 
 extern const struct CfLookup pool_mode_map[];
 

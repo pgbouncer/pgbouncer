@@ -227,6 +227,15 @@ exclusively use Extended Query protocol will stay working.
 
 Default: 0
 
+==== application_name_add_host ====
+
+Add the client host address and port to the application name setting set on connection start.
+This helps in identifying the source of bad queries etc. The setting will be overwritten
+without any detection if the application does SET APPLICATION_NAME after connecting.
+Note that this is on by default.
+
+Default: 1
+
 === Log settings ===
 
 ==== syslog ====

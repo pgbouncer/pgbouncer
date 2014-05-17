@@ -28,6 +28,9 @@ When this is installed just run:
 If the OS does not have libevent available as package, it can be
 downloaded from http://monkey.org/~provos/libevent/
 
+If you are building from git, or are building for Windows, please see 
+separate build instructions below.
+
 DNS lookup support
 ------------------
 
@@ -73,7 +76,7 @@ you can run configure:
 	$ make install
 
 Additional packages required: autoconf, automake, libtool,
-autoconf-archive, asciidoc 8.x, xmlto.
+autoconf-archive, asciidoc 8.x, xmlto, and pkg-config.
 
 Building for WIN32
 ------------------

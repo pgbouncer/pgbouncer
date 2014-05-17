@@ -168,6 +168,7 @@ void pga_copy(PgAddr *a, const struct sockaddr *sa);
 bool pga_pton(PgAddr *a, const char *s, int port);
 const char *pga_ntop(const PgAddr *a, char *dst, int dstlen);
 const char *pga_str(const PgAddr *a, char *dst, int dstlen);
+const char *pga_details(const PgAddr *a, char *dst, int dstlen);
 int pga_cmp_addr(const PgAddr *a, const PgAddr *b);
 
 /*

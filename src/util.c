@@ -406,7 +406,38 @@ const char *pga_str(const PgAddr *a, char *dst, int dstlen)
 	pga_ntop(a, buf, sizeof(buf));
 	if (pga_family(a) == AF_INET6)
 		snprintf(dst, dstlen, "[%s]:%d", buf, pga_port(a));
+	else if (pga_family(a) == AF_UNIX && a->scred.pid)
+		snprintf(dst, dstlen, "%s:%d$%u", buf, pga_port(a), a->scred.pid);
 	else
 		snprintf(dst, dstlen, "%s:%d", buf, pga_port(a));
 	return dst;
 }
+
+static const char *cached_hostname(void)
+{
+	static char cache[HOST_NAME_MAX + 1];
+	int err;
+
+	if (cache[0] == 0) {
+		err = gethostname(cache, sizeof(cache));
+		if (err != 0)
+			strlcpy(cache, "somehost", sizeof(cache));
+	}
+	return cache;
+}
+
+const char *pga_details(const PgAddr *a, char *dst, int dstlen)
+{
+	char buf[PGADDR_BUF];
+	pga_ntop(a, buf, sizeof(buf));
+	if (pga_family(a) == AF_INET6)
+		snprintf(dst, dstlen, "[%s]:%d", buf, pga_port(a));
+	else if (pga_family(a) == AF_UNIX && a->scred.pid)
+		snprintf(dst, dstlen, "%s(%u@%s):%d", buf, a->scred.pid, cached_hostname(), pga_port(a));
+	else
+		snprintf(dst, dstlen, "%s:%d", buf, pga_port(a));
+	return dst;
+}
+
+
+

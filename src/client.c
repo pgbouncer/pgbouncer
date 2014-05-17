@@ -323,6 +323,27 @@ bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
 	return true;
 }
 
+static void set_appname(PgSocket *client, const char *app_name)
+{
+	char buf[400], abuf[300];
+	const char *details;
+
+	if (cf_application_name_add_host) {
+		/* give app a name */
+		if (!app_name)
+			app_name = "app";
+
+		/* add details */
+		details = pga_details(&client->remote_addr, abuf, sizeof(abuf));
+		snprintf(buf, sizeof(buf), "%s - %s", app_name, details);
+		app_name = buf;
+	}
+	if (app_name) {
+		slog_debug(client, "using application_name: %s", app_name);
+		varcache_set(&client->vars, "application_name", app_name);
+	}
+}
+
 static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 {
 	const char *username = NULL, *dbname = NULL;
@@ -344,16 +365,8 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 		} else if (strcmp(key, "user") == 0) {
 			slog_debug(client, "got var: %s=%s", key, val);
 			username = val;
-		} else if (cf_application_name_add_host &&
-				   strcmp(key, "application_name") == 0) {
-			int port = pga_port(&client->remote_addr);
-			static char ipbuf[PGADDR_BUF], buf[1024];
-			const char *ip;
-
-			ip = pga_ntop(&client->remote_addr, ipbuf, sizeof(ipbuf));
-			snprintf(buf, sizeof(buf), "%s (%s:%d)", val, ip, port);
-			slog_debug(client,"using application name %s",buf);
-			varcache_set(&client->vars, key, buf);
+		} else if (strcmp(key, "application_name") == 0) {
+			set_appname(client, val);
 			appname_found = true;
 		} else if (varcache_set(&client->vars, key, val)) {
 			slog_debug(client, "got var: %s=%s", key, val);
@@ -374,17 +387,9 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 	if (!dbname || !dbname[0])
 		dbname = username;
 
-	/* default application_name to "client at <addr>:<port>" */
-	if (!appname_found && cf_application_name_add_host) {
-		int port = pga_port(&client->remote_addr);
-		static char ipbuf[PGADDR_BUF], buf[1024];
-		const char *ip;
-
-		ip = pga_ntop(&client->remote_addr, ipbuf, sizeof(ipbuf));
-		snprintf(buf, sizeof(buf), "client at %s:%d", ip, port);
-		slog_debug(client,"using default application name %s",buf);
-		varcache_set(&client->vars, key, buf);
-	}
+	/* create application_name if requested */
+	if (!appname_found)
+		set_appname(client, NULL);
 
 	/* check if limit allows, don't limit admin db
 	   nb: new incoming conn will be attached to PgSocket, thus

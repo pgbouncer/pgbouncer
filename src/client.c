@@ -328,6 +328,7 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 	const char *username = NULL, *dbname = NULL;
 	const char *key, *val;
 	bool ok;
+	bool appname_found = false;
 
 	while (1) {
 		ok = mbuf_get_string(&pkt->data, &key);
@@ -343,6 +344,17 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 		} else if (strcmp(key, "user") == 0) {
 			slog_debug(client, "got var: %s=%s", key, val);
 			username = val;
+		} else if (cf_application_name_add_host &&
+				   strcmp(key, "application_name") == 0) {
+			int port = pga_port(&client->remote_addr);
+			static char ipbuf[PGADDR_BUF], buf[1024];
+			const char *ip;
+
+			ip = pga_ntop(&client->remote_addr, ipbuf, sizeof(ipbuf));
+			snprintf(buf, sizeof(buf), "%s (%s:%d)", val, ip, port);
+			slog_debug(client,"using application name %s",buf);
+			varcache_set(&client->vars, key, buf);
+			appname_found = true;
 		} else if (varcache_set(&client->vars, key, val)) {
 			slog_debug(client, "got var: %s=%s", key, val);
 		} else if (strlist_contains(cf_ignore_startup_params, key)) {
@@ -361,6 +373,18 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 	/* if missing dbname, default to username */
 	if (!dbname || !dbname[0])
 		dbname = username;
+
+	/* default application_name to "client at <addr>:<port>" */
+	if (!appname_found && cf_application_name_add_host) {
+		int port = pga_port(&client->remote_addr);
+		static char ipbuf[PGADDR_BUF], buf[1024];
+		const char *ip;
+
+		ip = pga_ntop(&client->remote_addr, ipbuf, sizeof(ipbuf));
+		snprintf(buf, sizeof(buf), "client at %s:%d", ip, port);
+		slog_debug(client,"using default application name %s",buf);
+		varcache_set(&client->vars, key, buf);
+	}
 
 	/* check if limit allows, don't limit admin db
 	   nb: new incoming conn will be attached to PgSocket, thus

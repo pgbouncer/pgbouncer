@@ -115,4 +115,3 @@ But before you need to register pgbevent.dll:
 	$ regsvr32 pgbevent.dll
 
 To unregister it, do `regsvr32 /u pgbevent.dll`.
-

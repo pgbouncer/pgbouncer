@@ -562,6 +562,12 @@ bool load_auth_file(const char *fn)
 		if (!*p)
 			break;
 
+		/* skip commented-out lines */
+		if (*p == ';') {
+			while (*p && *p != '\n') p++;
+			continue;
+		}
+
 		/* start of line */
 		if (*p != '"') {
 			log_error("broken auth file");

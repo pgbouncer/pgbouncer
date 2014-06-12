@@ -5,21 +5,38 @@
     * auth_user support
       (Cody Cutrer)
 
-    * implement per-database pool_mode
+    * Pooling mode can be configured both per-database and per-user.
       (Cody Cutrer)
 
-    * add per-user pool_mode
-      (Cody Cutrer)
-
-    * implement database-wide connection limit
-      (Cody Cutrer)
+    * Per-database and per-user connection limits: max_db_connections and
+      max_user_connections.
+      (Cody Cutrer / Pavel Stehule)
 
     * Add DISABLE/ENABLE commands to prevent new connections.
       (William Grant)
 
-    * New DNS backend: c-ares
+    * New DNS backend: c-ares.  Only DNS backend that supports all
+      interesting features:  /etc/hosts with refresh, SOA lookup,
+      large replies (via TCP/EDNS+UDP), IPv6.  It is the preferred
+      backend now, and probably will be *only* backend in the future,
+      as it's pointless to support zoo of inadequate libraries.
 
-    * Show remote_pid in SHOW CLIENTS/SERVERS.
+    * Show remote_pid in SHOW CLIENTS/SERVERS.  Available for clients that
+      connect over unix sockets and both tcp and unix socket server.
+      In case of tcp-server, the pid is taken from cancel key.
+
+    * Add separate config param (dns_nxdomain_ttl) for controlling
+      negative dns caching.
+      (Cody Cutrer)
+
+    * Add the client host IP address and port to application_name.
+      This is enabled by a config parameter application_name_add_host
+      which defaults to 'on'.
+      (Andrew Dunstan)
+
+    * Config files have '%include FILENAME' directive to allow configuration
+      to be split into several files.
+      (Andrew Dunstan)
 
   = Cleanups =
 
@@ -35,6 +52,9 @@
 
     * Fix incorrect keyword in example config file
       (Magnus Hagander)
+
+    * Allow comments (with ';') in auth files.
+      (Guillaume Aubert)
 
   = Fixes =
 
@@ -52,7 +72,7 @@
 
     * Fix IPv6 address memcpy
 
-    * Fix cancellation of of waiting clients
+    * Fix cancellation of of waiting clients.
       (Mathieu Fenniak)
 
     * Small bug fix, must check calloc result

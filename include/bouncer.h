@@ -317,6 +317,9 @@ struct PgSocket {
 	bool setting_vars:1;	/* server: setting client vars */
 	bool exec_on_connect:1;	/* server: executing connect_query */
 	bool resetting:1;	/* server: executing reset query from auth login; don't release on flush */
+	bool fresh:1;		/* server: sockets was not used by any other client */
+
+	bool single_use:1;	/* client: client would not to allow to reuse server */
 
 	bool wait_for_welcome:1;/* client: no server yet in pool, cannot send welcome msg */
 	bool wait_for_user_conn:1;/* client: waiting for auth_conn server connection */
@@ -430,6 +433,8 @@ extern int cf_tcp_defer_accept;
 extern int cf_log_connections;
 extern int cf_log_disconnections;
 extern int cf_log_pooler_errors;
+
+extern char *cf_single_use_apps;
 
 extern const struct CfLookup pool_mode_map[];
 

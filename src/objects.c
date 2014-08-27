@@ -54,6 +54,8 @@ static STATLIST(justfree_server_list);
 /* init autodb idle list */
 STATLIST(autodatabase_idle_list);
 
+static void tag_dirty(PgSocket *sk);
+
 /* fast way to get number of active clients */
 int get_active_client_count(void)
 {
@@ -832,6 +834,18 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 			PgSocket *server = client->link;
 			/* ->ready may be set before all is sent */
 			if (server->ready && sbuf_is_empty(&server->sbuf)) {
+
+				/* application from single use apps list disallow a reuse of fresh server */
+				if (server->fresh) {
+					if (client->single_use) {
+						log_debug("disconnect single use client with fresh server, disconnect server");
+						tag_dirty(server);
+					} else {
+						log_debug("server is not fresh now");
+						server->fresh = 0;
+					}
+				}
+
 				/* retval does not matter here */
 				release_server(server);
 			} else {
@@ -1125,6 +1139,8 @@ allow_new:
 	server->pool = pool;
 	server->auth_user = server->pool->user;
 	server->connect_time = get_cached_time();
+	server->fresh = 1;
+
 	pool->last_connect_time = get_cached_time();
 	change_server_state(server, SV_LOGIN);
 	pool->db->connection_count++;
@@ -1149,6 +1165,7 @@ PgSocket *accept_client(int sock, bool is_unix)
 
 	client->connect_time = client->request_time = get_cached_time();
 	client->query_start = 0;
+	client->single_use = 0;
 
 	/* FIXME: take local and remote address from pool_accept() */
 	fill_remote_addr(client, sock, is_unix);
@@ -1574,4 +1591,3 @@ void reuse_just_freed_objects(void)
 			close_works = sbuf_close(&sk->sbuf);
 	}
 }
-

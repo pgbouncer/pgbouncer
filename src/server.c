@@ -22,6 +22,22 @@
 
 #include "bouncer.h"
 
+static bool is_single_use_app(const char *key, const char *val)
+{
+	bool res = false;
+
+	if (cf_single_use_apps != '\0') {
+		/* check application name, if it is on list of single use applications */
+		if (strcasecmp("application_name", key) == 0)
+			if (strlist_contains(cf_single_use_apps, val)) {
+				log_debug("application from single use application list");
+				res = true;
+			}
+	}
+
+	return res;
+}
+
 static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 {
 	const char *key, *val;
@@ -45,6 +61,9 @@ static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 	if (client) {
 		slog_debug(client, "setting client var: %s='%s'", key, val);
 		varcache_set(&client->vars, key, val);
+
+		if (is_single_use_app(key, val))
+			client->single_use = true;
 	}
 
 	if (startup) {

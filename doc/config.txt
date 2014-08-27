@@ -207,6 +207,16 @@ another pool, because the server connection for the first pool is still open.
 Once the server connection closes (due to idle timeout), a new server connection
 will immediately be opened for the waiting pool.
 
+==== single_use_apps ====
+
+Sometimes you don't would to hold server connection - some maintanance task can
+use high number of connections without possibility (or probability) of connection
+reuse. An option single_use_apps allows to set a list of applications like described.
+New connections created for these applications are close immediately when client
+connection is closed.
+
+Default: empty
+
 ==== server_round_robin ====
 
 By default, pgbouncer reuses server connections in LIFO (last-in, first-out) manner, 

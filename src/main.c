@@ -136,6 +136,8 @@ int cf_log_connections;
 int cf_log_disconnections;
 int cf_log_pooler_errors;
 
+char *cf_single_use_apps;
+
 /*
  * config file description
  */
@@ -233,6 +235,8 @@ CF_ABS("stats_period", CF_INT, cf_stats_period, 0, "60"),
 CF_ABS("log_connections", CF_INT, cf_log_connections, 0, "1"),
 CF_ABS("log_disconnections", CF_INT, cf_log_disconnections, 0, "1"),
 CF_ABS("log_pooler_errors", CF_INT, cf_log_pooler_errors, 0, "1"),
+
+CF_ABS("single_use_apps", CF_STR, cf_single_use_apps, 0, ""),
 {NULL}
 };
 

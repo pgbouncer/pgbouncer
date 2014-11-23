@@ -649,7 +649,8 @@ static void main_loop_once(void)
 	rescue_timers();
 	per_loop_pooler_maint();
 
-	adns_per_loop(adns);
+	if (adns)
+		adns_per_loop(adns);
 }
 
 static void takeover_part1(void)

@@ -23,6 +23,7 @@
 #include "bouncer.h"
 
 #include <usual/crypto/md5.h>
+#include <usual/crypto/csrandom.h>
 
 int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstlen)
 {
@@ -105,9 +106,7 @@ void pg_md5_encrypt(const char *part1,
 /* wrapped for getting random bytes */
 void get_random_bytes(uint8_t *dest, int len)
 {
-	int i;
-	for (i = 0; i < len; i++)
-		dest[i] = random() & 255;
+	csrandom_bytes(dest, len);
 }
 
 /* set needed socket options */

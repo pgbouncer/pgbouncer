@@ -1,8 +1,14 @@
-2013-xx-xx  -  PgBouncer 1.6  -  ""
+2015-xx-xx  -  PgBouncer 1.6  -  ""
 
   = Features =
 
-    * auth_user support
+    * Load user password hash from postgres database.
+      New parameters:
+        auth_user - user to use for connecting same db and fetching user info.
+                    Can be set per-database too.
+        auth_query - SQL query to run under auth_user.
+             Default: "SELECT usename, passwd FROM pg_shadow WHERE usename=$1"
+
       (Cody Cutrer)
 
     * Pooling mode can be configured both per-database and per-user.
@@ -20,6 +26,11 @@
       large replies (via TCP/EDNS+UDP), IPv6.  It is the preferred
       backend now, and probably will be *only* backend in the future,
       as it's pointless to support zoo of inadequate libraries.
+
+      SNAFU: c-ares versions <= 1.10 have bug which breaks CNAME-s support
+      when IPv6 has been enabled.  (Fixed upstream.)  As a workaround,
+      c-ares <= 1.10 is used IPv4-only.  So PgBouncer will drop other backends
+      only when c-ares >1.10 (still unreleased) has been out some time...
 
     * Show remote_pid in SHOW CLIENTS/SERVERS.  Available for clients that
       connect over unix sockets and both tcp and unix socket server.

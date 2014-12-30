@@ -44,7 +44,7 @@ and their probing order:
 |===========================================================================================
 | backend                    | parallel | EDNS0 (1) | /etc/hosts | SOA lookup (2) | note
 
-| c-ares                     | yes      | yes       | yes        | yes            |
+| c-ares                     | yes      | yes       | yes        | yes            | ipv6+CNAME buggy in <=1.10
 | udns                       | yes      | yes       | no         | yes            | ipv4-only
 | evdns, libevent 2.x        | yes      | no        | yes        | no             | does not check /etc/hosts updates
 | getaddrinfo_a, glibc 2.9+  | yes      | yes (3)   | yes        | no             | N/A on non-linux

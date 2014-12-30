@@ -895,9 +895,24 @@ static void xares_host_cb(void *arg, int status, int timeouts, struct hostent *h
 static void impl_launch_query(struct DNSRequest *req)
 {
 	struct XaresMeta *meta = req->ctx->edns;
+	int af;
 
+/*
+ * c-ares <= 1.10 cannot resolve CNAME with AF_UNSPEC.
+ *
+ * Force IPv4 there.
+ *
+ * Fixed in "host_callback: Fall back to AF_INET on searching with AF_UNSPEC" (c1fe47f)
+ * in c-ares repo.
+ */
+#if ARES_VERSION <= 0x10A00
+#warning Forcing c-ares to be IPv4-only.
+	af = AF_INET;
+#else
+	af = AF_UNSPEC;
+#endif
 	log_noise("dns: ares_gethostbyname(%s)", req->name);
-	ares_gethostbyname(meta->chan, req->name, AF_UNSPEC, xares_host_cb, req);
+	ares_gethostbyname(meta->chan, req->name, af, xares_host_cb, req);
 
 	meta->got_events = 1;
 }

@@ -576,7 +576,7 @@ bool find_server(PgSocket *client)
 		return true;
 
 	/* try to get idle server, if allowed */
-	if (cf_pause_mode == P_PAUSE) {
+	if (cf_pause_mode == P_PAUSE || pool->db->db_paused) {
 		server = NULL;
 	} else {
 		while (1) {

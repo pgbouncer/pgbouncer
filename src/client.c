@@ -39,6 +39,12 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 	const char *correct;
 	PgUser *user = client->auth_user;
 
+	/* auth_user may be missing */
+	if (!user) {
+		slog_error(client, "Password packet before auth packet?");
+		return false;
+	}
+
 	/* disallow empty passwords */
 	if (!*passwd || !*user->passwd)
 		return false;

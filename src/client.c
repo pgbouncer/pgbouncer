@@ -262,6 +262,12 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		}
 		break;
 	case 'p':		/* PasswordMessage */
+		/* too early */
+		if (!client->auth_user) {
+			disconnect_client(client, true, "client password pkt before startup packet");
+			return false;
+		}
+
 		/* haven't requested it */
 		if (cf_auth_type <= AUTH_TRUST) {
 			disconnect_client(client, true, "unrequested passwd pkt");

@@ -39,12 +39,6 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 	const char *correct;
 	PgUser *user = client->auth_user;
 
-	/* auth_user may be missing */
-	if (!user) {
-		slog_error(client, "Password packet before auth packet?");
-		return false;
-	}
-
 	/* disallow empty passwords */
 	if (!*passwd || !*user->passwd)
 		return false;
@@ -465,6 +459,12 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 
 		break;
 	case 'p':		/* PasswordMessage */
+		/* too early */
+		if (!client->auth_user) {
+			disconnect_client(client, true, "client password pkt before startup packet");
+			return false;
+		}
+
 		/* haven't requested it */
 		if (cf_auth_type <= AUTH_TRUST) {
 			disconnect_client(client, true, "unrequested passwd pkt");

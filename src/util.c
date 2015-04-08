@@ -414,7 +414,7 @@ const char *pga_str(const PgAddr *a, char *dst, int dstlen)
 
 static const char *cached_hostname(void)
 {
-	static char cache[HOST_NAME_MAX + 1];
+	static char cache[256];
 	int err;
 
 	if (cache[0] == 0) {

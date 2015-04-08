@@ -8,7 +8,7 @@ Homepage:
   http://wiki.postgresql.org/wiki/PgBouncer
 
 Downloads, bugtracking:
-  http://pgfoundry.org/projects/pgbouncer
+  https://github.com/pgbouncer/pgbouncer
 
 Building
 ---------

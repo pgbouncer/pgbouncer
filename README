@@ -5,10 +5,10 @@ PgBouncer
 Lightweight connection pooler for PostgreSQL.
 
 Homepage:
-  http://wiki.postgresql.org/wiki/PgBouncer
+  https://pgbouncer.github.io/
 
-Downloads, bugtracking:
-  http://pgfoundry.org/projects/pgbouncer
+Sources, bugtracking:
+  https://github.com/pgbouncer/pgbouncer/
 
 Building
 ---------

@@ -52,7 +52,7 @@ and their probing order:
 | evdns, libevent 1.x        | yes      | no        | no         | no             | buggy
 |===========================================================================================
 
-1. EDNS0 is required to have more then 8 addresses behind one hostname.
+1. EDNS0 is required to have more than 8 addresses behind one hostname.
 2. SOA lookup is needed to re-check hostnames on zone serial change
 3. To enable EDNS0, add `options edns0` to /etc/resolv.conf
 

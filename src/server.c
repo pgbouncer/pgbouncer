@@ -141,7 +141,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 			/* deliberately ignore transaction status */
 		} else if (server->pool->db->connect_query) {
 			server->exec_on_connect = 1;
-			slog_debug(server, "server conect ok, send exec_on_connect");
+			slog_debug(server, "server connect ok, send exec_on_connect");
 			SEND_generic(res, server, 'Q', "s", server->pool->db->connect_query);
 			if (!res)
 				disconnect_server(server, false, "exec_on_connect query failed");
@@ -260,7 +260,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	 * suddenly but should not as they are still usable.
 	 *
 	 * But the 'E' or 'N' packet between transactions signifies probably
-	 * dying backend.  This its better to tag server as dirty and drop
+	 * dying backend.  It is better to tag server as dirty and drop
 	 * it later.
 	 */
 	case 'E':		/* ErrorResponse */

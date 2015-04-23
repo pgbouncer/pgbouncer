@@ -62,7 +62,7 @@ failed_store:
 }
 
 /* we cannot log in at all, notify clients */
-static void kill_pool_logins(PgPool *pool, PktHdr *errpkt)
+static void kill_pool_logins(PgPool *pool, PktHdr *errpkt, bool force)
 {
 	struct List *item, *tmp;
 	PgSocket *client;
@@ -74,7 +74,7 @@ static void kill_pool_logins(PgPool *pool, PktHdr *errpkt)
 
 	statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
 		client = container_of(item, PgSocket, head);
-		if (!client->wait_for_welcome)
+		if (!client->wait_for_welcome && !force)
 			continue;
 
 		disconnect_client(client, true, "%s", msg);
@@ -87,6 +87,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 	SBuf *sbuf = &server->sbuf;
 	bool res = false;
 	const uint8_t *ckey;
+	bool force_disconnect = false;
 
 	if (incomplete_pkt(pkt)) {
 		disconnect_server(server, true, "partial pkt in login phase");
@@ -115,8 +116,16 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 		break;
 
 	case 'E':		/* ErrorResponse */
-		if (!server->pool->welcome_msg_ready)
-			kill_pool_logins(server->pool, pkt);
+		if (cf_server_max_connect_timeout > 0)
+		{
+			usec_t connect_time = get_cached_time() - server->pool->first_connect_time;
+
+			if (connect_time > cf_server_max_connect_timeout)
+				force_disconnect = true;
+		}
+
+		if (!server->pool->welcome_msg_ready || force_disconnect)
+			kill_pool_logins(server->pool, pkt, force_disconnect);
 		else
 			log_server_error("S: login failed", pkt);
 

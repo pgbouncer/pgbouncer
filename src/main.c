@@ -115,6 +115,7 @@ usec_t cf_autodb_idle_timeout;
 usec_t cf_server_lifetime;
 usec_t cf_server_idle_timeout;
 usec_t cf_server_connect_timeout;
+usec_t cf_server_max_connect_timeout;
 usec_t cf_server_login_retry;
 usec_t cf_query_timeout;
 usec_t cf_query_wait_timeout;
@@ -210,6 +211,7 @@ CF_ABS("idle_transaction_timeout", CF_TIME_USEC, cf_idle_transaction_timeout, 0,
 CF_ABS("server_lifetime", CF_TIME_USEC, cf_server_lifetime, 0, "3600"),
 CF_ABS("server_idle_timeout", CF_TIME_USEC, cf_server_idle_timeout, 0, "600"),
 CF_ABS("server_connect_timeout", CF_TIME_USEC, cf_server_connect_timeout, 0, "15"),
+CF_ABS("server_max_connect_timeout", CF_TIME_USEC, cf_server_max_connect_timeout, 0, "120"),
 CF_ABS("server_login_retry", CF_TIME_USEC, cf_server_login_retry, 0, "15"),
 CF_ABS("server_round_robin", CF_INT, cf_server_round_robin, 0, "0"),
 CF_ABS("suspend_timeout", CF_TIME_USEC, cf_suspend_timeout, 0, "10"),

@@ -1142,6 +1142,10 @@ allow_new:
 	server->fresh = 1;
 
 	pool->last_connect_time = get_cached_time();
+
+	if (!pool->last_connect_failed)
+		pool->first_connect_time = pool->last_connect_time;
+
 	change_server_state(server, SV_LOGIN);
 	pool->db->connection_count++;
 	pool->user->connection_count++;

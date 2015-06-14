@@ -30,7 +30,7 @@ typedef enum {
 } SBufEvent;
 
 /*
- * If less that this amount of data is pending, then
+ * If less than this amount of data is pending, then
  * prefer to merge it with next recv().
  *
  * It needs to be larger than data handler wants

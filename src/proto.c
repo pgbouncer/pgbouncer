@@ -42,7 +42,7 @@ bool get_header(struct MBuf *data, PktHdr *pkt)
 	mbuf_copy(data, &hdr);
 
 	if (mbuf_avail_for_read(&hdr) < NEW_HEADER_LEN) {
-		log_noise("get_header: less then 5 bytes available");
+		log_noise("get_header: less than 5 bytes available");
 		return false;
 	}
 	if (!mbuf_get_byte(&hdr, &type8))

@@ -71,15 +71,15 @@ bool get_header(struct MBuf *data, PktHdr *pkt)
 		len = len16;
 		if (!mbuf_get_uint32be(&hdr, &code))
 			return false;
-		if (code == PKT_CANCEL)
+		if (code == PKT_CANCEL) {
 			type = PKT_CANCEL;
-		else if (code == PKT_SSLREQ)
+		} else if (code == PKT_SSLREQ) {
 			type = PKT_SSLREQ;
-		else if ((code >> 16) == 3 && (code & 0xFFFF) < 2)
+		} else if ((code >> 16) == 3 && (code & 0xFFFF) < 2) {
 			type = PKT_STARTUP;
-		else if (code == PKT_STARTUP_V2)
+		} else if (code == PKT_STARTUP_V2) {
 			type = PKT_STARTUP_V2;
-		else {
+		} else {
 			log_noise("get_header: unknown special pkt: len=%u code=%u", len, code);
 			return false;
 		}
@@ -95,10 +95,11 @@ bool get_header(struct MBuf *data, PktHdr *pkt)
 	pkt->len = len;
 
 	/* fill pkt with only data for this packet */
-	if (len > mbuf_avail_for_read(data))
+	if (len > mbuf_avail_for_read(data)) {
 		avail = mbuf_avail_for_read(data);
-	else
+	} else {
 		avail = len;
+	}
 	if (!mbuf_slice(data, avail, &pkt->data))
 		return false;
 
@@ -141,10 +142,11 @@ void parse_server_error(PktHdr *pkt, const char **level_p, const char **msg_p)
 			break;
 		if (!mbuf_get_string(&pkt->data, &val))
 			break;
-		if (type == 'S')
+		if (type == 'S') {
 			level = val;
-		else if (type == 'M')
+		} else if (type == 'M') {
 			msg = val;
+		}
 	}
 	*level_p = level;
 	*msg_p = msg;
@@ -156,10 +158,11 @@ void log_server_error(const char *note, PktHdr *pkt)
 
 	parse_server_error(pkt, &level, &msg);
 
-	if (!msg || !level)
+	if (!msg || !level) {
 		log_error("%s: partial error message, cannot log", note);
-	else
+	} else {
 		log_error("%s: %s: %s", note, level, msg);
+	}
 }
 
 
@@ -298,8 +301,9 @@ static bool login_md5_psw(PgSocket *server, const uint8_t *salt)
 	if (!isMD5(user->passwd)) {
 		pg_md5_encrypt(user->passwd, user->name, strlen(user->name), txt);
 		src = txt + 3;
-	} else
+	} else {
 		src = user->passwd + 3;
+	}
 	pg_md5_encrypt(src, (char *)salt, 4, txt);
 
 	return send_password(server, txt);
@@ -399,9 +403,10 @@ int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...)
 				xval[len] = 0;
 				val = xval;
 			}
-		} else
+		} else {
 			/* tuple was shorter than requested */
 			val = NULL;
+		}
 
 		switch (tupdesc[i]) {
 		case 'i':

@@ -144,9 +144,9 @@ static void launch_recheck(PgPool *pool)
 	}
 
 	/* is the check needed? */
-	if (q == NULL || q[0] == 0)
+	if (q == NULL || q[0] == 0) {
 		need_check = false;
-	else if (cf_server_check_delay > 0) {
+	} else if (cf_server_check_delay > 0) {
 		usec_t now = get_cached_time();
 		if (now - server->request_time < cf_server_check_delay)
 			need_check = false;
@@ -159,9 +159,10 @@ static void launch_recheck(PgPool *pool)
 		SEND_generic(res, server, 'Q', "s", q);
 		if (!res)
 			disconnect_server(server, false, "test query failed");
-	} else
+	} else {
 		/* make immediately available */
 		release_server(server);
+	}
 }
 
 /*
@@ -278,8 +279,9 @@ void per_loop_maint(void)
 			if (pool->db->db_paused) {
 				partial_pause = 1;
 				active += per_loop_pause(pool);
-			} else
+			} else {
 				per_loop_activate(pool);
+			}
 			break;
 		case P_PAUSE:
 			active += per_loop_pause(pool);
@@ -294,8 +296,9 @@ void per_loop_maint(void)
 	case P_SUSPEND:
 		if (force_suspend) {
 			close_client_list(&login_client_list, "suspend_timeout");
-		} else
+		} else {
 			active += statlist_count(&login_client_list);
+		}
 	case P_PAUSE:
 		if (!active)
 			admin_pause_done();
@@ -335,13 +338,15 @@ static void pool_client_maint(PgPool *pool)
 			if (client->query_start == 0) {
 				age = now - client->request_time;
 				/* log_warning("query_start==0"); */
-			} else
+			} else {
 				age = now - client->query_start;
+			}
 
-			if (cf_query_timeout > 0 && age > cf_query_timeout)
+			if (cf_query_timeout > 0 && age > cf_query_timeout) {
 				disconnect_client(client, true, "query_timeout");
-			else if (cf_query_wait_timeout > 0 && age > cf_query_wait_timeout)
+			} else if (cf_query_wait_timeout > 0 && age > cf_query_wait_timeout) {
 				disconnect_client(client, true, "query_wait_timeout");
+			}
 		}
 	}
 
@@ -529,10 +534,11 @@ static void cleanup_inactive_autodatabases(void)
 		if (db->db_paused)
 			continue;
 		age = now - db->inactive_time;
-		if (age > cf_autodb_idle_timeout) 
+		if (age > cf_autodb_idle_timeout) {
 			kill_database(db);
-		else
+		} else {
 			break;
+		}
 	}
 }
 
@@ -645,10 +651,11 @@ static void kill_database(PgDatabase *db)
 		slab_free(user_cache, db->forced_user);
 	if (db->connect_query)
 		free((void *)db->connect_query);
-	if (db->inactive_time)
+	if (db->inactive_time) {
 		statlist_remove(&autodatabase_idle_list, &db->head);
-	else
+	} else {
 		statlist_remove(&database_list, &db->head);
+	}
 	aatree_destroy(&db->user_tree);
 	slab_free(db_cache, db);
 }

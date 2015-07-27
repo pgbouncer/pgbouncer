@@ -121,9 +121,10 @@ bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, int sa_len, int timeout
 	 * common stuff
 	 */
 	sock = socket(sa->sa_family, SOCK_STREAM, 0);
-	if (sock < 0)
+	if (sock < 0) {
 		/* probably fd limit */
 		goto failed;
+	}
 
 	if (!tune_socket(sock, is_unix))
 		goto failed;
@@ -233,11 +234,11 @@ bool sbuf_close(SBuf *sbuf)
 		/* event_del() acts funny occasionally, debug it */
 		errno = 0;
 		if (event_del(&sbuf->ev) < 0) {
-			if (errno)
+			if (errno) {
 				log_warning("event_del: %s", strerror(errno));
-			else
+			} else {
 				log_warning("event_del: libevent error");
-
+			}
 			/* we can retry whole sbuf_close() if needed */
 			/* if (errno == ENOMEM) return false; */
 		}
@@ -317,13 +318,13 @@ static bool sbuf_call_proto(SBuf *sbuf, int event)
 	Assert(event != SBUF_EV_READ || iobuf_amount_parse(io) > 0);
 
 	/* if pkt callback, limit only with current packet */
-	if (event == SBUF_EV_PKT_CALLBACK)
+	if (event == SBUF_EV_PKT_CALLBACK) {
 		iobuf_parse_limit(io, &mbuf, sbuf->pkt_remain);
-	else if (event == SBUF_EV_READ)
+	} else if (event == SBUF_EV_READ) {
 		iobuf_parse_all(io, &mbuf);
-	else
+	} else {
 		memset(&mbuf, 0, sizeof(mbuf));
-
+	}
 	res = sbuf->proto_cb(sbuf, event, &mbuf);
 
 	AssertSanity(sbuf);
@@ -367,9 +368,10 @@ static void sbuf_send_cb(int sock, short flags, void *arg)
 	if (res) {
 		/* here we should certainly skip recv() */
 		sbuf_main_loop(sbuf, SKIP_RECV);
-	} else
+	} else {
 		/* drop if problems */
 		sbuf_call_proto(sbuf, SBUF_EV_SEND_FAILED);
+	}
 }
 
 /* socket is full, wait until it's writable again */
@@ -432,8 +434,9 @@ try_more:
 			if (!sbuf_queue_send(sbuf))
 				/* drop if queue failed */
 				sbuf_call_proto(sbuf, SBUF_EV_SEND_FAILED);
-		} else
+		} else {
 			sbuf_call_proto(sbuf, SBUF_EV_SEND_FAILED);
+		}
 		return false;
 	}
 
@@ -516,9 +519,10 @@ static void sbuf_try_resync(SBuf *sbuf, bool release)
 {
 	IOBuf *io = sbuf->io;
 
-	if (io)
+	if (io) {
 		log_noise("resync: done=%d, parse=%d, recv=%d",
 			  io->done_pos, io->parse_pos, io->recv_pos);
+	}
 	AssertActive(sbuf);
 
 	if (!io)
@@ -527,8 +531,9 @@ static void sbuf_try_resync(SBuf *sbuf, bool release)
 	if (release && iobuf_empty(io)) {
 		slab_free(iobuf_cache, io);
 		sbuf->io = NULL;
-	} else
+	} else {
 		iobuf_try_resync(io, SBUF_SMALL_PKT);
+	}
 }
 
 /* actually ask kernel for more data */
@@ -710,8 +715,9 @@ bool sbuf_answer(SBuf *sbuf, const void *buf, unsigned len)
 	res = safe_send(sbuf->sock, buf, len, 0);
 	if (res < 0) {
 		log_debug("sbuf_answer: error sending: %s", strerror(errno));
-	} else if ((unsigned)res != len)
+	} else if ((unsigned)res != len) {
 		log_debug("sbuf_answer: partial send: len=%d sent=%d", len, res);
+	}
 	return (unsigned)res == len;
 }
 

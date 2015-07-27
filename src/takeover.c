@@ -95,8 +95,9 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 		/* get the fd */
 		memcpy(&fd, CMSG_DATA(cmsg), sizeof(int));
 		log_debug("got fd: %d", fd);
-	} else
+	} else {
 		fatal("broken fd packet");
+	}
 
 	/* parse row contents */
 	got = scan_text_result(pkt, "issssiqisssss", &oldfd, &task, &user, &db,
@@ -123,18 +124,19 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	}
 
 	/* decide what to do with it */
-	if (strcmp(task, "client") == 0)
+	if (strcmp(task, "client") == 0) {
 		res = use_client_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
 				  client_enc, std_string, datestyle, timezone,
 				  password);
-	else if (strcmp(task, "server") == 0)
+	} else if (strcmp(task, "server") == 0) {
 		res = use_server_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
 				  client_enc, std_string, datestyle, timezone,
 				  password);
-	else if (strcmp(task, "pooler") == 0)
+	} else if (strcmp(task, "pooler") == 0) {
 		res = use_pooler_socket(fd, pga_is_unix(&addr));
-	else
+	} else {
 		fatal("unknown task: %s", task);
+	}
 
 	if (!res)
 		fatal("socket takeover failed - no mem?");
@@ -213,8 +215,9 @@ static void next_command(PgSocket *bouncer, struct MBuf *pkt)
 		log_info("SHOW FDS finished");
 
 		takeover_finish_part1(bouncer);
-	} else
+	} else {
 		fatal("got bad CMD from old bouncer: %s", cmd);
+	}
 
 	if (!res)
 		fatal("command send failed");

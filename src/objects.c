@@ -242,12 +242,13 @@ void change_server_state(PgSocket *server, SocketState newstate)
 		statlist_append(&pool->tested_server_list, &server->head);
 		break;
 	case SV_IDLE:
-		if (server->close_needed || cf_server_round_robin)
+		if (server->close_needed || cf_server_round_robin) {
 			/* try to avoid immediate usage then */
 			statlist_append(&pool->idle_server_list, &server->head);
-		else
+		} else {
 			/* otherwise use LIFO */
 			statlist_prepend(&pool->idle_server_list, &server->head);
+		}
 		break;
 	case SV_ACTIVE:
 		statlist_append(&pool->active_server_list, &server->head);
@@ -294,9 +295,9 @@ static void put_in_order(struct List *newitem, struct StatList *list,
 
 	statlist_for_each(item, list) {
 		res = cmpfn(item, newitem);
-		if (res == 0)
+		if (res == 0) {
 			fatal("put_in_order: found existing elem");
-		else if (res > 0) {
+		} else if (res > 0) {
 			statlist_put_before(list, newitem, item);
 			return;
 		}
@@ -581,14 +582,15 @@ bool find_server(PgSocket *client)
 	} else {
 		while (1) {
 			server = first_socket(&pool->idle_server_list);
-			if (!server)
+			if (!server) {
 				break;
-			else if (server->close_needed)
+			} else if (server->close_needed) {
 				disconnect_server(server, true, "obsolete connection");
-			else if (!server->ready)
+			} else if (!server->ready) {
 				disconnect_server(server, true, "idle server got dirty");
-			else
+			} else {
 				break;
+			}
 		}
 
 		if (!server && !check_fast_fail(client))
@@ -617,8 +619,9 @@ bool find_server(PgSocket *client)
 			res = false; /* don't process client data yet */
 			if (!sbuf_pause(&client->sbuf))
 				disconnect_client(client, true, "pause failed");
-		} else
+		} else {
 			res = true;
+		}
 	} else {
 		pause_client(client);
 		res = false;
@@ -694,16 +697,17 @@ bool release_server(PgSocket *server)
 		server->link->link = NULL;
 		server->link = NULL;
 
-		if (*cf_server_reset_query)
+		if (*cf_server_reset_query) {
 			/* notify reset is required */
 			newstate = SV_TESTED;
-		else if (cf_server_check_delay == 0 && *cf_server_check_query)
+		} else if (cf_server_check_delay == 0 && *cf_server_check_query) {
 			/*
 			 * deprecated: before reset_query, the check_delay = 0
 			 * was used to get same effect.  This if() can be removed
 			 * after couple of releases.
 			 */
 			newstate = SV_USED;
+		}
 	case SV_USED:
 	case SV_TESTED:
 		break;
@@ -731,11 +735,12 @@ bool release_server(PgSocket *server)
 	slog_noise(server, "release_server: new state=%d", newstate);
 	change_server_state(server, newstate);
 
-	if (newstate == SV_IDLE)
+	if (newstate == SV_IDLE) {
 		/* immediately process waiters, to give fair chance */
 		return reuse_on_release(server);
-	else if (newstate == SV_TESTED)
+	} else if (newstate == SV_TESTED) {
 		return reset_on_release(server);
+	}
 
 	return true;
 }
@@ -1342,10 +1347,11 @@ bool use_server_socket(int fd, PgAddr *addr,
 			return true;
 	}
 
-	if (db->forced_user)
+	if (db->forced_user) {
 		user = db->forced_user;
-	else
+	} else {
 		user = find_user(username);
+	}
 	if (!user && db->auth_user)
 		user = add_db_user(db, username, password);
 
@@ -1561,17 +1567,19 @@ void reuse_just_freed_objects(void)
 
 	statlist_for_each_safe(item, &justfree_client_list, tmp) {
 		sk = container_of(item, PgSocket, head);
-		if (sbuf_is_closed(&sk->sbuf))
+		if (sbuf_is_closed(&sk->sbuf)) {
 			change_client_state(sk, CL_FREE);
-		else if (close_works)
+		} else if (close_works) {
 			close_works = sbuf_close(&sk->sbuf);
+		}
 	}
 	statlist_for_each_safe(item, &justfree_server_list, tmp) {
 		sk = container_of(item, PgSocket, head);
-		if (sbuf_is_closed(&sk->sbuf))
+		if (sbuf_is_closed(&sk->sbuf)) {
 			change_server_state(sk, SV_FREE);
-		else if (close_works)
+		} else if (close_works) {
 			close_works = sbuf_close(&sk->sbuf);
+		}
 	}
 }
 

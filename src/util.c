@@ -54,12 +54,13 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
 		host = pga_ntop(&sock->remote_addr, host6, sizeof(host6));
 	}
 
-	if (pga_family(&sock->remote_addr) == AF_INET6)
+	if (pga_family(&sock->remote_addr) == AF_INET6) {
 		return snprintf(dst, dstlen, "%c-%p: %s/%s@[%s]:%d ",
 			stype, sock, db, user, host, port);
-	else
+	} else {
 		return snprintf(dst, dstlen, "%c-%p: %s/%s@%s:%d ",
 			stype, sock, db, user, host, port);
+	}
 }
 
 const char *bin2hex(const uint8_t *src, unsigned srclen, char *dst, unsigned dstlen)
@@ -403,12 +404,13 @@ const char *pga_str(const PgAddr *a, char *dst, int dstlen)
 {
 	char buf[PGADDR_BUF];
 	pga_ntop(a, buf, sizeof(buf));
-	if (pga_family(a) == AF_INET6)
+	if (pga_family(a) == AF_INET6) {
 		snprintf(dst, dstlen, "[%s]:%d", buf, pga_port(a));
-	else if (pga_family(a) == AF_UNIX && a->scred.pid)
+	} else if (pga_family(a) == AF_UNIX && a->scred.pid) {
 		snprintf(dst, dstlen, "%s:%d$%u", buf, pga_port(a), a->scred.pid);
-	else
+	} else {
 		snprintf(dst, dstlen, "%s:%d", buf, pga_port(a));
+	}
 	return dst;
 }
 
@@ -429,12 +431,13 @@ const char *pga_details(const PgAddr *a, char *dst, int dstlen)
 {
 	char buf[PGADDR_BUF];
 	pga_ntop(a, buf, sizeof(buf));
-	if (pga_family(a) == AF_INET6)
+	if (pga_family(a) == AF_INET6) {
 		snprintf(dst, dstlen, "[%s]:%d", buf, pga_port(a));
-	else if (pga_family(a) == AF_UNIX && a->scred.pid)
+	} else if (pga_family(a) == AF_UNIX && a->scred.pid) {
 		snprintf(dst, dstlen, "%s(%u@%s):%d", buf, a->scred.pid, cached_hostname(), pga_port(a));
-	else
+	} else {
 		snprintf(dst, dstlen, "%s:%d", buf, pga_port(a));
+	}
 	return dst;
 }
 

@@ -108,15 +108,17 @@ void change_file_mode(const char *fn, mode_t mode,
 	/* change user/group */
 	if (uid != (uid_t)-1 || gid != (gid_t)-1) {
 		res = chown(fn, uid, gid);
-		if (res != 0)
+		if (res != 0) {
 			fatal("chown(%s, %d, %d) failed: %s",
 			      fn, uid, gid, strerror(errno));
+		}
 	}
 
 	/* change mode */
 	res = chmod(fn, mode);
-	if (res != 0)
+	if (res != 0) {
 		fatal("Failure to chmod(%s, 0%o): %s",
 		      fn, mode, strerror(errno));
+	}
 }
 

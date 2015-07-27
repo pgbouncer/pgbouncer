@@ -267,10 +267,11 @@ static const char *addrpair(const PgAddr *src, const PgAddr *dst)
 
 static const char *conninfo(const PgSocket *sk)
 {
-	if (is_server_socket(sk))
+	if (is_server_socket(sk)) {
 		return addrpair(&sk->local_addr, &sk->remote_addr);
-	else
+	} else {
 		return addrpair(&sk->remote_addr, &sk->local_addr);
+	}
 }
 
 /* got new connection, associate it with client struct */

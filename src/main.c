@@ -783,10 +783,11 @@ int main(int argc, char *argv[])
 	janitor_setup();
 	stats_setup();
 
-	if (did_takeover)
+	if (did_takeover) {
 		takeover_finish();
-	else
+	} else {
 		pooler_setup();
+	}
 
 	write_pidfile();
 

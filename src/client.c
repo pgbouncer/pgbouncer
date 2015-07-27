@@ -82,8 +82,9 @@ static bool send_client_authreq(PgSocket *client)
 	} else if (cf_auth_type == AUTH_MD5) {
 		saltlen = 4;
 		get_random_bytes((void*)client->tmp_login_salt, saltlen);
-	} else if (auth == AUTH_ANY)
+	} else if (auth == AUTH_ANY) {
 		auth = AUTH_TRUST;
+	}
 
 	SEND_generic(res, client, 'R', "ib", auth, client->tmp_login_salt, saltlen);
 	return res;
@@ -177,8 +178,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			if (cf_log_connections)
 				slog_info(client, "login failed: db=%s user=%s", dbname, username);
 			return false;
-		}
-		else {
+		} else {
 			slog_info(client, "registered new auto-database: db = %s", dbname );
 		}
 	}
@@ -425,8 +425,9 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 			/* the packet was already parsed */
 			sbuf_prepare_skip(sbuf, pkt->len);
 			return true;
-		} else
+		} else {
 			return false;
+		}
 	}
 
 	switch (pkt->type) {
@@ -486,8 +487,9 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		{
 			memcpy(client->cancel_key, key, BACKENDKEY_LEN);
 			accept_cancel_request(client);
-		} else
+		} else {
 			disconnect_client(client, false, "bad cancel request");
+		}
 		return false;
 	default:
 		disconnect_client(client, false, "bad packet");

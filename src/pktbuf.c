@@ -131,8 +131,9 @@ static void pktbuf_send_func(int fd, short flags, void *arg)
 			log_error("pktbuf_send_func: %s", strerror(errno));
 			pktbuf_free(buf);
 		}
-	} else
+	} else {
 		pktbuf_free(buf);
+	}
 }
 
 bool pktbuf_send_queued(PktBuf *buf, PgSocket *sk)
@@ -369,8 +370,9 @@ void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...)
 		} else if (tupdesc[i] == 'T') {
 			pktbuf_put_uint32(buf, TEXTOID);
 			pktbuf_put_uint16(buf, -1);
-		} else
+		} else {
 			fatal("bad tupdesc");
+		}
 		pktbuf_put_uint32(buf, 0);
 		pktbuf_put_uint16(buf, 0);
 	}
@@ -412,8 +414,9 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 		} else if (tupdesc[i] == 'T') {
 			usec_t time = va_arg(ap, usec_t);
 			val = format_time_s(time, tmp, sizeof(tmp));
-		} else
+		} else {
 			fatal("bad tupdesc: %s", tupdesc);
+		}
 
 		if (val) {
 			len = strlen(val);

@@ -220,44 +220,45 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		if (p == NULL) {
 			log_error("%s: syntax error in connstring", name);
 			goto fail;
-		} else if (!key[0])
+		} else if (!key[0]) {
 			break;
+		}
 
-		if (strcmp("dbname", key) == 0)
+		if (strcmp("dbname", key) == 0) {
 			dbname = val;
-		else if (strcmp("host", key) == 0)
+		} else if (strcmp("host", key) == 0) {
 			host = val;
-		else if (strcmp("port", key) == 0)
+		} else if (strcmp("port", key) == 0) {
 			port = val;
-		else if (strcmp("user", key) == 0)
+		} else if (strcmp("user", key) == 0) {
 			username = val;
-		else if (strcmp("password", key) == 0)
+		} else if (strcmp("password", key) == 0) {
 			password = val;
-		else if (strcmp("auth_user", key) == 0)
+		} else if (strcmp("auth_user", key) == 0) {
 			auth_username = val;
-		else if (strcmp("client_encoding", key) == 0)
+		} else if (strcmp("client_encoding", key) == 0) {
 			client_encoding = val;
-		else if (strcmp("datestyle", key) == 0)
+		} else if (strcmp("datestyle", key) == 0) {
 			datestyle = val;
-		else if (strcmp("timezone", key) == 0)
+		} else if (strcmp("timezone", key) == 0) {
 			timezone = val;
-		else if (strcmp("pool_size", key) == 0)
+		} else if (strcmp("pool_size", key) == 0) {
 			pool_size = atoi(val);
-		else if (strcmp("reserve_pool", key) == 0)
+		} else if (strcmp("reserve_pool", key) == 0) {
 			res_pool_size = atoi(val);
-		else if (strcmp("max_db_connections", key) == 0)
+		} else if (strcmp("max_db_connections", key) == 0) {
 			max_db_connections = atoi(val);
-		else if (strcmp("pool_mode", key) == 0) {
+		} else if (strcmp("pool_mode", key) == 0) {
 			if (!cf_set_lookup(&cv, val)) {
 				log_error("skipping database %s because"
 					  " of invalid pool mode: %s", name, val);
 				goto fail;
 			}
-		} else if (strcmp("connect_query", key) == 0)
+		} else if (strcmp("connect_query", key) == 0) {
 			connect_query = val;
-		else if (strcmp("application_name", key) == 0)
+		} else if (strcmp("application_name", key) == 0) {
 			appname = val;
-		else {
+		} else {
 			log_error("skipping database %s because"
 				  " of unknown parameter in connstring: %s", name, key);
 			goto fail;
@@ -296,25 +297,26 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	/* if updating old db, check if anything changed */
 	if (db->dbname) {
 		bool changed = false;
-		if (strcmp(db->dbname, dbname) != 0)
+		if (strcmp(db->dbname, dbname) != 0) {
 			changed = true;
-		else if (!!host != !!db->host)
+		} else if (!!host != !!db->host) {
 			changed = true;
-		else if (host && strcmp(host, db->host) != 0)
+		} else if (host && strcmp(host, db->host) != 0) {
 			changed = true;
-		else if (v_port != db->port)
+		} else if (v_port != db->port) {
 			changed = true;
-		else if (username && !db->forced_user)
+		} else if (username && !db->forced_user) {
 			changed = true;
-		else if (username && strcmp(username, db->forced_user->name) != 0)
+		} else if (username && strcmp(username, db->forced_user->name) != 0) {
 			changed = true;
-		else if (!username && db->forced_user)
+		} else if (!username && db->forced_user) {
 			changed = true;
-		else if ((db->connect_query && !connect_query)
+		} else if ((db->connect_query && !connect_query)
 			 || (!db->connect_query && connect_query)
 			 || (connect_query && strcmp(connect_query, db->connect_query) != 0))
+		{
 			changed = true;
-
+		}
 		if (changed)
 			tag_database_dirty(db);
 	}
@@ -380,9 +382,10 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	if (username != NULL) {
 		if (!force_user(db, username, password))
 			log_warning("db setup failed, trying to continue");
-	} else if (db->forced_user)
+	} else if (db->forced_user) {
 		log_warning("losing forced user not supported,"
 			    " keeping old setting");
+	}
 
 	/* remember dbname */
 	db->dbname = (char *)msg->buf + dbname_ofs;
@@ -415,8 +418,9 @@ bool parse_user(void *base, const char *name, const char *connstr)
 		if (p == NULL) {
 			log_error("%s: syntax error in user settings", name);
 			goto fail;
-		} else if (!key[0])
+		} else if (!key[0]) {
 			break;
+		}
 
 		if (strcmp("pool_mode", key) == 0) {
 			if (!cf_set_lookup(&cv, val)) {
@@ -424,7 +428,6 @@ bool parse_user(void *base, const char *name, const char *connstr)
 					  " of invalid pool mode: %s", name, val);
 				goto fail;
 			}
-
 		} else if (strcmp("max_user_connections", key) == 0) {
 			max_user_connections = atoi(val);
 		} else {

@@ -198,7 +198,7 @@ will immediately be opened for the waiting pool.
 
 Default: unlimited
 
-==== max_user_connection ====
+==== max_user_connections ====
 
 Do not allow more than this many connections per-user (regardless of pool - i.e.
 user). It should be noted that when you hit the limit, closing a client connection
@@ -245,6 +245,23 @@ Note that this is on by default.
 
 Default: 1
 
+==== conffile ====
+
+Show location of current config file.  Changing it will make PgBouncer use another
+config file for next `RELOAD` / `SIGHUP`.
+
+Default: file from command line.
+
+==== service_name ====
+
+Used on win32 service registration.
+
+Default: pgbouncer
+
+==== job_name ====
+
+Alias for `service_name`.
+
 === Log settings ===
 
 ==== syslog ====
@@ -290,6 +307,13 @@ Default: 1
 Period for writing aggregated stats into log.
 
 Default: 60
+
+==== verbose ====
+
+Increase verbosity.  Mirrors "-v" switch on command line.
+Using "-v -v" on command line is same as `verbose=2` in config.
+
+Default: 0
 
 === Console access control ===
 
@@ -488,6 +512,13 @@ PgBouncer for a long time.  One loop processes one `pkt_buf` amount of data.
 0 means no limit.
 
 Default: 5
+
+==== suspend_timeout ====
+
+How many seconds to wait for buffer flush during SUSPEND or reboot (-R).
+Connection is dropped if flush does not succeed.
+
+Default: 10
 
 ==== tcp_defer_accept ====
 

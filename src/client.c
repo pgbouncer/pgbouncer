@@ -595,7 +595,7 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		disconnect_server(client->link, false, "Server connection closed");
 		break;
 	case SBUF_EV_READ:
-		if (mbuf_avail_for_read(data) < NEW_HEADER_LEN && client->state != CL_LOGIN) {
+		if (mbuf_avail_for_read(data) < NEW_HEADER_LEN) {
 			slog_noise(client, "C: got partial header, trying to wait a bit");
 			return false;
 		}

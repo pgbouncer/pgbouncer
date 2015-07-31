@@ -67,6 +67,9 @@
     * Allow comments (with ';') in auth files.
       (Guillaume Aubert)
 
+    * Fix spelling mistakes in log messages and comments.
+      (Dmitriy Olshevskiy)
+
   = Fixes =
 
     * fix launching new connections during maintenance
@@ -91,6 +94,12 @@
 
     * Add newline at the end of the PID file
       (Peter Eisentraut)
+
+    * Don't allow new server connections when PAUSE <db> was issued.
+      (Petr Jelinek)
+
+    * Fix 'bad packet' during login when header is delayed.
+      (Michał Trojnara, Marko Kreen)
 
 2012-11-28  -  PgBouncer 1.5.4  -  "No Leaks, Potty-Training Successful"
 

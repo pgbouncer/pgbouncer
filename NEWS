@@ -104,6 +104,10 @@
     * Fix errors detected by Coverty.
       (Euler Taveira)
 
+    * Disable server_idle_timeout when server count gets below min_pool (#60)
+      (Marko Kreen)
+
+
 2012-11-28  -  PgBouncer 1.5.4  -  "No Leaks, Potty-Training Successful"
 
   = Fixes =

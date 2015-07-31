@@ -239,11 +239,11 @@ Default: 0
 ==== application_name_add_host ====
 
 Add the client host address and port to the application name setting set on connection start.
-This helps in identifying the source of bad queries etc. The setting will be overwritten
-without any detection if the application does SET APPLICATION_NAME after connecting.
-Note that this is on by default.
+This helps in identifying the source of bad queries etc.  This logic applies
+only on start of connection, if application_name is later changed with SET,
+pgbouncer does not change it again.
 
-Default: 1
+Default: 0
 
 ==== conffile ====
 

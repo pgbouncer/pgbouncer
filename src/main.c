@@ -234,7 +234,7 @@ CF_ABS("stats_period", CF_INT, cf_stats_period, 0, "60"),
 CF_ABS("log_connections", CF_INT, cf_log_connections, 0, "1"),
 CF_ABS("log_disconnections", CF_INT, cf_log_disconnections, 0, "1"),
 CF_ABS("log_pooler_errors", CF_INT, cf_log_pooler_errors, 0, "1"),
-CF_ABS("application_name_add_host", CF_INT, cf_application_name_add_host, 0, "1"),
+CF_ABS("application_name_add_host", CF_INT, cf_application_name_add_host, 0, "0"),
 {NULL}
 };
 

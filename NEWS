@@ -42,7 +42,7 @@
 
     * Add the client host IP address and port to application_name.
       This is enabled by a config parameter application_name_add_host
-      which defaults to 'on'.
+      which defaults to 'off'.
       (Andrew Dunstan)
 
     * Config files have '%include FILENAME' directive to allow configuration

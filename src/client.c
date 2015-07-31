@@ -597,11 +597,11 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		disconnect_server(client->link, false, "Server connection closed");
 		break;
 	case SBUF_EV_READ:
-		if (mbuf_avail_for_read(data) < NEW_HEADER_LEN && client->state != CL_LOGIN) {
+		/* Wait until full packet headers is available. */
+		if (incomplete_header(data)) {
 			slog_noise(client, "C: got partial header, trying to wait a bit");
 			return false;
 		}
-
 		if (!get_header(data, &pkt)) {
 			char hex[8*2 + 1];
 			disconnect_client(client, true, "bad packet header: '%s'",

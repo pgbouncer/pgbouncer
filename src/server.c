@@ -399,7 +399,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		disconnect_client(server->link, false, "unexpected eof");
 		break;
 	case SBUF_EV_READ:
-		if (mbuf_avail_for_read(data) < NEW_HEADER_LEN) {
+		if (incomplete_header(data)) {
 			slog_noise(server, "S: got partial header, trying to wait a bit");
 			break;
 		}

@@ -124,11 +124,6 @@ extern int cf_sbuf_len;
 #define POOL_STMT	2
 #define POOL_INHERIT	3
 
-/* old style V2 header: len:4b code:4b */
-#define OLD_HEADER_LEN	8
-/* new style V3 packet header len - type:1b, len:4b */ 
-#define NEW_HEADER_LEN	5
-
 #define BACKENDKEY_LEN	8
 
 /* buffer size for startup noise */

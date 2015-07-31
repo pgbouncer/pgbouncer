@@ -114,7 +114,7 @@ static void pktbuf_send_func(int fd, short flags, void *arg)
 	amount = buf->write_pos - buf->send_pos;
 	res = safe_send(fd, buf->buf + buf->send_pos, amount, 0);
 	if (res < 0) {
-		if (res == EAGAIN) {
+		if (errno == EAGAIN) {
 			res = 0;
 		} else {
 			log_error("pktbuf_send_func: %s", strerror(errno));

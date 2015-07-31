@@ -387,13 +387,17 @@ int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...)
 	va_start(ap, tupdesc);
 	for (i = 0; i < asked; i++) {
 		if (i < ncol) {
-			if (!mbuf_get_uint32be(pkt, &len))
+			if (!mbuf_get_uint32be(pkt, &len)) {
+				va_end(ap);
 				return -1;
+			}
 			if ((int32_t)len < 0) {
 				val = NULL;
 			} else {
-				if (!mbuf_get_chars(pkt, len, &val))
+				if (!mbuf_get_chars(pkt, len, &val)) {
+					va_end(ap);
 					return -1;
+				}
 			}
 
 			/* hack to zero-terminate the result */

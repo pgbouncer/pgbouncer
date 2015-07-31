@@ -555,6 +555,7 @@ static bool impl_init(struct DNSContext *ctx)
 	int fd;
 	struct dns_ctx *dctx;
 	struct UdnsMeta *udns;
+	int err;
 
 	dns_init(NULL, 0);
 
@@ -575,7 +576,9 @@ static bool impl_init(struct DNSContext *ctx)
 		return false;
 	}
 	event_set(&udns->ev_io, fd, EV_READ | EV_PERSIST, udns_io_cb, ctx);
-	event_add(&udns->ev_io, NULL);
+	err = event_add(&udns->ev_io, NULL);
+	if (err < 0)
+		log_warning("impl_init: event_add failed: %s", strerror(errno));
 
 	/* timer setup */
 	evtimer_set(&udns->ev_timer, udns_timer_cb, ctx);
@@ -869,7 +872,8 @@ re_set:
 	xfd->wait = new_wait;
 	if (new_wait) {
 		event_set(&xfd->ev, sock, new_wait | EV_PERSIST, xares_fd_cb, xfd);
-		event_add(&xfd->ev, NULL);
+		if (event_add(&xfd->ev, NULL) < 0)
+			log_warning("adns: event_add failed: %s", strerror(errno));
 	} else {
 		xfd->in_use = 0;
 	}
@@ -934,7 +938,8 @@ static void impl_per_loop(struct DNSContext *ctx)
 
 	tvp = ares_timeout(meta->chan, NULL, &tv);
 	if (tvp != NULL) {
-		event_add(&meta->ev_timer, tvp);
+		if (event_add(&meta->ev_timer, tvp) < 0)
+			log_warning("impl_per_loop: event_add failed: %s", strerror(errno));
 		meta->timer_active = true;
 	}
 

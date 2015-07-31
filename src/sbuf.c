@@ -341,7 +341,7 @@ static bool sbuf_wait_for_data(SBuf *sbuf)
 	event_set(&sbuf->ev, sbuf->sock, EV_READ | EV_PERSIST, sbuf_recv_cb, sbuf);
 	err = event_add(&sbuf->ev, NULL);
 	if (err < 0) {
-		log_warning("sbuf_wait_for_data: event_add: %s", strerror(errno));
+		log_warning("sbuf_wait_for_data: event_add failed: %s", strerror(errno));
 		return false;
 	}
 	sbuf->wait_type = W_RECV;

@@ -101,6 +101,9 @@
     * Fix 'bad packet' during login when header is delayed.
       (Michał Trojnara, Marko Kreen)
 
+    * Fix errors detected by Coverty.
+      (Euler Taveira)
+
 2012-11-28  -  PgBouncer 1.5.4  -  "No Leaks, Potty-Training Successful"
 
   = Fixes =

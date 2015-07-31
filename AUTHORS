@@ -1,26 +1,31 @@
 
-Maintainer
-----------
+Maintainers
+-----------
 Marko Kreen
-
+Petr Jelinek
 
 Contributors
 ------------
 Alexander Schöcke
+Andrew Dunstan
 Bjoern Metzdorf
+Cody Cutrer
 Dan McGee
 David Fetter
 David Galoyan
 David Sommerseth
 Devrim GÜNDÜZ
 Dimitri Fontaine
+Dmitriy Olshevskiy
 Dominique Hermsdorff
 Emmanuel Courreges
 Filip Rembiałkowski
 Giorgio Valoti
+Guillaume Aubert
 Guillaume Lelarge
 Greg Sabino Mullane
 Hannu Krosing
+Heikki Linnakangas
 Hiroshi Saito
 Hubert Depesz Lubaczewski
 Jacob Coby
@@ -28,12 +33,16 @@ James Pye
 Jørgen Austvik
 Lou Picciano
 Magne Mæhre
+Magnus Hagander
 Martin Pihlak
+Mathieu Fenniak
 Michael Tharp
+Michał Trojnara
+Pavel Stehule
 Peter Eisentraut
 Petr Jelinek
 Pierre-Emmanuel André
 Rich Schaaf
 Robert Gogolok
 Teodor Sigaev
-
+William Grant

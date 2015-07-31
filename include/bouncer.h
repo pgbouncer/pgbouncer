@@ -220,12 +220,15 @@ struct PgPool {
 	unsigned welcome_msg_ready:1;
 };
 
-#define pool_server_count(pool) ( \
+#define pool_connected_server_count(pool) ( \
 		statlist_count(&(pool)->active_server_list) + \
 		statlist_count(&(pool)->idle_server_list) + \
-		statlist_count(&(pool)->new_server_list) + \
 		statlist_count(&(pool)->tested_server_list) + \
 		statlist_count(&(pool)->used_server_list))
+
+#define pool_server_count(pool) ( \
+		pool_connected_server_count(pool) + \
+		statlist_count(&(pool)->new_server_list))
 
 #define pool_client_count(pool) ( \
 		statlist_count(&(pool)->active_client_list) + \

@@ -392,7 +392,8 @@ static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle
 			disconnect_server(server, true, "SV_IDLE server got dirty");
 		} else if (server->state == SV_USED && !server->ready) {
 			disconnect_server(server, true, "SV_USED server got dirty");
-		} else if (cf_server_idle_timeout > 0 && idle > cf_server_idle_timeout) {
+		} else if (cf_server_idle_timeout > 0 && idle > cf_server_idle_timeout
+			   && (cf_min_pool_size == 0 || pool_connected_server_count(pool) > cf_min_pool_size)) {
 			disconnect_server(server, true, "server idle timeout");
 		} else if (age >= cf_server_lifetime) {
 			if (pool->last_lifetime_disconnect + lifetime_kill_gap <= now) {
@@ -415,17 +416,7 @@ static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle
 static void check_pool_size(PgPool *pool)
 {
 	PgSocket *server;
-	int cur = statlist_count(&pool->active_server_list)
-		+ statlist_count(&pool->idle_server_list)
-		+ statlist_count(&pool->used_server_list)
-		+ statlist_count(&pool->tested_server_list);
-		
-		/* cancel pkt may create new srv conn without
-		 * taking pool_size into account
-		 *
-		 * statlist_count(&pool->new_server_list)
-		 */
-
+	int cur = pool_connected_server_count(pool);
 	int many = cur - (pool->db->pool_size + pool->db->res_pool_size);
 
 	Assert(pool->db->pool_size >= 0);

@@ -5,17 +5,18 @@
 # - uses nc (netcat) with some tests, skips if not in path
 # - assumes postgres 8.2 fix your path so that it comes first
 
-export PATH=/usr/lib/postgresql/8.4/bin:$PATH
+export PATH=/usr/lib/postgresql/9.4/bin:$PATH
 export PGDATA=$PWD/pgdata
 export PGHOST=localhost
 export PGPORT=6667
 export EF_ALLOW_MALLOC_0=1
+export LANG=C
 
 BOUNCER_LOG=test.log
 BOUNCER_INI=test.ini
 BOUNCER_PID=test.pid
 BOUNCER_PORT=`sed -n '/^listen_port/s/listen_port.*=[^0-9]*//p' $BOUNCER_INI`
-BOUNCER_EXE="./pgbouncer"
+BOUNCER_EXE="../pgbouncer"
 
 LOGDIR=log
 NC_PORT=6668
@@ -28,25 +29,39 @@ pgctl() {
 
 ulimit -c unlimited
 
+which initdb > /dev/null || {
+  echo "initdb not found, need postgres tools in PATH"
+  exit 1
+}
+
+stopit() {
+  test -f "$1" && { kill `cat "$1"`; rm -f "$1"; }
+}
+
+stopit test.pid
+stopit pgdata/postmaster.pid
+
 mkdir -p $LOGDIR
 rm -f $BOUNCER_LOG $PG_LOG
-# rm -r $PGDATA
+rm -rf $PGDATA
 
 if [ ! -d $PGDATA ]; then
 	mkdir $PGDATA
 	initdb >> $PG_LOG 2>&1
-	sed -i "/unix_socket_directory/s:.*unix_socket_directory.*:unix_socket_directory = '/tmp':" pgdata/postgresql.conf
+	sed -r -i "/unix_socket_director/s:.*(unix_socket_director.*=).*:\\1 '/tmp':" pgdata/postgresql.conf
 fi
 
 pgctl start
 sleep 5
 
+echo "Creating databases"
 psql -p $PG_PORT -l |grep p0 > /dev/null || {
 	psql -p $PG_PORT -c "create user bouncer" template1
 	createdb -p $PG_PORT p0
 	createdb -p $PG_PORT p1
 }
 
+echo "Starting bouncer"
 $BOUNCER_EXE -d $BOUNCER_INI
 sleep 1
 

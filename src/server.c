@@ -239,7 +239,10 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 
 		/* set ready only if no tx */
 		if (state == 'I')
-			ready = true;
+		{
+			if (! server->wait_for_bind)
+				ready = true;
+		}
 		else if (pool_pool_mode(server->pool) == POOL_STMT) {
 			disconnect_server(server, true, "Long transactions not allowed");
 			return false;
@@ -264,6 +267,10 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	 * it later.
 	 */
 	case 'E':		/* ErrorResponse */
+
+		/* make sure we don't keep witing for a bind if we have an error */
+		server->wait_for_bind = false;
+
 		if (server->setting_vars) {
 			/*
 			 * the SET and user query will be different TX

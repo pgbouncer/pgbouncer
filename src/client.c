@@ -500,10 +500,22 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 	return true;
 }
 
+static bool is_unnamed_statement_parse(PktHdr *pkt)
+{
+
+	if (pkt->type != 'P')
+		return false; /* not a Parse packet */
+	if (pkt->data.data[5] != '\0')
+		return false; /* not the unnamed statement */
+	return true;
+}
+
 /* decide on packets of logged-in client */
 static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 {
 	SBuf *sbuf = &client->sbuf;
+
+	slog_debug(client,"client packet type %c",pkt->type);
 
 	switch (pkt->type) {
 
@@ -553,6 +565,13 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		/* tag the server as dirty */
 		client->link->ready = false;
 		client->link->idle_tx = false;
+
+		if (is_unnamed_statement_parse(pkt))
+			client->link->wait_for_bind = true;
+		else if (pkt->type == 'B' || pkt->type == 'Q')
+			client->link->wait_for_bind = false;
+
+		slog_debug(client,"wait_for_bind: %d",client->link->wait_for_bind);
 
 		/* forward the packet */
 		sbuf_prepare_send(sbuf, &client->link->sbuf, pkt->len);

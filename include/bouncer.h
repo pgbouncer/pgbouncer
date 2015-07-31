@@ -324,6 +324,8 @@ struct PgSocket {
 	bool own_user:1;	/* console client: client with same uid on unix socket */
 	bool wait_for_response:1;/* console client: waits for completion of PAUSE/SUSPEND cmd */
 
+	bool wait_for_bind:1;  /* state of extended query mode on unnamed statement */
+
 	usec_t connect_time;	/* when connection was made */
 	usec_t request_time;	/* last activity time */
 	usec_t query_start;	/* query start moment */

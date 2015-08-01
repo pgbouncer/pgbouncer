@@ -12,7 +12,7 @@ pgbouncer - Lightweight connection pooler for PostgreSQL.
   [pgbouncer]
   ...
 
-== DESCRIPTION == 
+== DESCRIPTION ==
 
 Config file is in "ini" format. Section names are between " and
 ". Lines starting with ";" or "#" are taken as comments and
@@ -111,7 +111,7 @@ trust::
       No authentication is done. Username must still exist in `auth_file`.
 
 any::
-      Like the `trust` method, but the username given is ignored. Requires that all 
+      Like the `trust` method, but the username given is ignored. Requires that all
       databases are configured to log in as specific user.  Additionally, the console
       database allows any user to log in as admin.
 
@@ -150,7 +150,7 @@ the theoretical maximum is:
   max_client_conn + (max_pool_size * total_databases)
 
 The theoretical maximum should be never reached, unless somebody deliberately
-crafts special load for it.  Still, it means you should set the number of 
+crafts special load for it.  Still, it means you should set the number of
 file descriptors to a safely high number.
 
 Search for `ulimit` in your favourite shell man page.
@@ -209,8 +209,8 @@ will immediately be opened for the waiting pool.
 
 ==== server_round_robin ====
 
-By default, pgbouncer reuses server connections in LIFO (last-in, first-out) manner, 
-so that few connections get the most load.  This gives best performance if you have 
+By default, pgbouncer reuses server connections in LIFO (last-in, first-out) manner,
+so that few connections get the most load.  This gives best performance if you have
 a single server serving a database.  But if there is TCP round-robin behind a database
 IP, then it is better if pgbouncer also uses connections in that manner, thus
 achieving uniform load.
@@ -222,7 +222,7 @@ Default: 0
 By default, PgBouncer allows only parameters it can keep track of in startup
 packets - `client_encoding`, `datestyle`, `timezone` and `standard_conforming_strings`.
 
-All others parameters will raise an error.  To allow others parameters, they can be 
+All others parameters will raise an error.  To allow others parameters, they can be
 specified here, so that pgbouncer knows that they are handled by admin and it can ignore them.
 
 Default: empty
@@ -373,7 +373,7 @@ Default: SELECT 1;
 
 ==== server_lifetime ====
 
-The pooler will try to close server connections that have been connected longer 
+The pooler will try to close server connections that have been connected longer
 than this. Setting it to 0 means the connection is to be used only once,
 then closed. [seconds]
 
@@ -388,7 +388,7 @@ Default: 600.0
 
 ==== server_connect_timeout ====
 
-If connection and login won't finish in this amount of time, the connection 
+If connection and login won't finish in this amount of time, the connection
 will be closed. [seconds]
 
 Default: 15.0
@@ -402,8 +402,8 @@ Default: 15.0
 
 ==== client_login_timeout ====
 
-If a client connects but does not manage to login in this amount of time, it 
-will be disconnected. Mainly needed to avoid dead connections stalling 
+If a client connects but does not manage to login in this amount of time, it
+will be disconnected. Mainly needed to avoid dead connections stalling
 SUSPEND and thus online restart. [seconds]
 
 Default: 60.0
@@ -467,8 +467,8 @@ Default: 0.0 (disabled)
 
 ==== client_idle_timeout ====
 
-Client connections idling longer than this many seconds are closed. This should 
-be larger than the client-side connection lifetime settings, and only used 
+Client connections idling longer than this many seconds are closed. This should
+be larger than the client-side connection lifetime settings, and only used
 for network problems. [seconds]
 
 Default: 0.0 (disabled)
@@ -507,7 +507,7 @@ Default: 128
 ==== sbuf_loopcnt ====
 
 How many times to process data on one connection, before proceeding.
-Without this limit, one connection with a big resultset can stall 
+Without this limit, one connection with a big resultset can stall
 PgBouncer for a long time.  One loop processes one `pkt_buf` amount of data.
 0 means no limit.
 
@@ -591,7 +591,7 @@ Default: 5432
 ==== user, password ====
 
 If +user=+ is set, all connections to the destination database will be
-done with the specified user, meaning that there will be only one pool 
+done with the specified user, meaning that there will be only one pool
 for this database.
 
 Otherwise PgBouncer tries to log into the destination database with client
@@ -659,12 +659,24 @@ used, so not all features from libpq can be used.
 Set the pool mode to be used for all connections from this user. If not set, the
 database or default pool_mode is used.
 
+== INCLUDE DIRECTIVE ==
+
+The PgBouncer config file can contain include directives, which specify
+another config file to read and process. This allows for splitting the
+configuration file into physically separate parts. The include directives look
+like this:
+
+  %include filename
+
+If the file name is not absolute path it is taken as relative to current
+working directory.
+
 == AUTHENTICATION FILE FORMAT ==
 
 PgBouncer needs its own user database. The users are loaded from a text
 file in following format:
 
-  "username1" "password" ... 
+  "username1" "password" ...
   "username2" "md5abcdef012342345" ...
 
 There should be at least 2 fields, surrounded by double quotes. The first

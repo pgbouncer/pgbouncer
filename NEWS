@@ -1,3 +1,13 @@
+20xx-xx-xx  -  PgBouncer 1.7  -  ""
+
+  = Features =
+
+    * SSL connection, auth via client cert.
+
+    * HBA-style access control file.
+
+    * Unix sockets support "peer" auth.
+
 2015-08-01  -  PgBouncer 1.6  -  "Zombies of the future"
 
   = Features =

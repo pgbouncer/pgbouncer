@@ -29,6 +29,7 @@ struct PktBuf {
 
 	int send_pos;
 	struct event *ev;
+	PgSocket *queued_dst;
 
 	unsigned failed:1;
 	unsigned sending:1;

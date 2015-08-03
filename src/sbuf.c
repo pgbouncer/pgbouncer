@@ -67,6 +67,16 @@ static bool sbuf_after_connect_check(SBuf *sbuf)  _MUSTCHECK;
 
 static inline IOBuf *get_iobuf(SBuf *sbuf) { return sbuf->io; }
 
+/* regular I/O */
+static int raw_sbufio_recv(struct SBuf *sbuf, void *dst, unsigned int len);
+static int raw_sbufio_send(struct SBuf *sbuf, const void *data, unsigned int len);
+static int raw_sbufio_close(struct SBuf *sbuf);
+static const SBufIO raw_sbufio_ops = {
+	raw_sbufio_recv,
+	raw_sbufio_send,
+	raw_sbufio_close
+};
+
 /*********************************
  * Public functions
  *********************************/
@@ -76,6 +86,7 @@ void sbuf_init(SBuf *sbuf, sbuf_cb_t proto_fn)
 {
 	memset(sbuf, 0, sizeof(SBuf));
 	sbuf->proto_cb = proto_fn;
+	sbuf->ops = &raw_sbufio_ops;
 }
 
 /* got new socket from accept() */
@@ -243,8 +254,7 @@ bool sbuf_close(SBuf *sbuf)
 			/* if (errno == ENOMEM) return false; */
 		}
 	}
-	if (sbuf->sock > 0)
-		safe_close(sbuf->sock);
+	sbuf_op_close(sbuf);
 	sbuf->dst = NULL;
 	sbuf->sock = 0;
 	sbuf->pkt_remain = 0;
@@ -428,8 +438,11 @@ try_more:
 	}
 
 	/* actually send it */
-	res = iobuf_send_pending(io, sbuf->dst->sock);
-	if (res < 0) {
+	//res = iobuf_send_pending(io, sbuf->dst->sock);
+	res = sbuf_op_send(sbuf->dst, io->buf + io->done_pos, avail);
+	if (res > 0) {
+		io->done_pos += res;
+	} else if (res < 0) {
 		if (errno == EAGAIN) {
 			if (!sbuf_queue_send(sbuf))
 				/* drop if queue failed */
@@ -541,13 +554,14 @@ static bool sbuf_actual_recv(SBuf *sbuf, unsigned len)
 {
 	int got;
 	IOBuf *io = sbuf->io;
-
-	AssertActive(sbuf);
-	Assert(len > 0);
-	Assert(iobuf_amount_recv(io) >= len);
-
-	got = iobuf_recv_limit(io, sbuf->sock, len);
-	if (got == 0) {
+	uint8_t *dst = io->buf + io->recv_pos;
+	unsigned avail = iobuf_amount_recv(io);
+	if (len > avail)
+		len = avail;
+	got = sbuf_op_recv(sbuf, dst, len);
+	if (got > 0) {
+		io->recv_pos += got;
+	} else if (got == 0) {
 		/* eof from socket */
 		sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
 		return false;
@@ -712,12 +726,35 @@ bool sbuf_answer(SBuf *sbuf, const void *buf, unsigned len)
 	int res;
 	if (sbuf->sock <= 0)
 		return false;
-	res = safe_send(sbuf->sock, buf, len, 0);
+	res = sbuf_op_send(sbuf, buf, len);
 	if (res < 0) {
 		log_debug("sbuf_answer: error sending: %s", strerror(errno));
 	} else if ((unsigned)res != len) {
 		log_debug("sbuf_answer: partial send: len=%d sent=%d", len, res);
 	}
 	return (unsigned)res == len;
+}
+
+/*
+ * Standard IO ops.
+ */
+
+static int raw_sbufio_recv(struct SBuf *sbuf, void *dst, unsigned int len)
+{
+	return safe_recv(sbuf->sock, dst, len, 0);
+}
+
+static int raw_sbufio_send(struct SBuf *sbuf, const void *data, unsigned int len)
+{
+	return safe_send(sbuf->sock, data, len, 0);
+}
+
+static int raw_sbufio_close(struct SBuf *sbuf)
+{
+	if (sbuf->sock > 0) {
+		safe_close(sbuf->sock);
+		sbuf->sock = 0;
+	}
+	return 0;
 }
 

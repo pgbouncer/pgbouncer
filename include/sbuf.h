@@ -41,6 +41,7 @@ typedef enum {
 
 /* fwd def */
 typedef struct SBuf SBuf;
+typedef struct SBufIO SBufIO;
 
 /* callback should return true if it used one of sbuf_prepare_* on sbuf,
    false if it used sbuf_pause(), sbuf_close() or simply wants to wait for
@@ -51,6 +52,12 @@ typedef bool (*sbuf_cb_t)(SBuf *sbuf,
 
 /* for some reason, libevent has no typedef for callback */
 typedef void (*sbuf_libevent_cb)(int, short, void *);
+
+struct SBufIO {
+	int (*sbufio_recv)(SBuf *sbuf, void *buf, unsigned int len);
+	int (*sbufio_send)(SBuf *sbuf, const void *data, unsigned int len);
+	int (*sbufio_close)(SBuf *sbuf);
+};
 
 /*
  * Stream Buffer.
@@ -73,6 +80,8 @@ struct SBuf {
 	SBuf *dst;		/* target SBuf for current packet */
 
 	IOBuf *io;		/* data buffer, lazily allocated */
+
+	const SBufIO *ops;	/* normal vs. TLS */
 };
 
 #define sbuf_socket(sbuf) ((sbuf)->sock)
@@ -108,4 +117,22 @@ static inline bool sbuf_is_closed(SBuf *sbuf)
 	return sbuf->sock == 0;
 }
 
+/*
+ * Lowlevel operations.
+ */
+
+static inline int sbuf_op_recv(SBuf *sbuf, void *buf, unsigned int len)
+{
+	return sbuf->ops->sbufio_recv(sbuf, buf, len);
+}
+
+static inline int sbuf_op_send(SBuf *sbuf, const void *buf, unsigned int len)
+{
+	return sbuf->ops->sbufio_send(sbuf, buf, len);
+}
+
+static inline int sbuf_op_close(SBuf *sbuf)
+{
+	return sbuf->ops->sbufio_close(sbuf);
+}
 

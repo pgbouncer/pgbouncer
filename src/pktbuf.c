@@ -87,14 +87,13 @@ struct PktBuf *pktbuf_temp(void)
 
 bool pktbuf_send_immediate(PktBuf *buf, PgSocket *sk)
 {
-	int fd = sbuf_socket(&sk->sbuf);
 	uint8_t *pos = buf->buf + buf->send_pos;
 	int amount = buf->write_pos - buf->send_pos;
 	int res;
 
 	if (buf->failed)
 		return false;
-	res = safe_send(fd, pos, amount, 0);
+	res = sbuf_op_send(&sk->sbuf, pos, amount);
 	if (res < 0) {
 		log_debug("pktbuf_send_immediate: %s", strerror(errno));
 	}
@@ -104,6 +103,7 @@ bool pktbuf_send_immediate(PktBuf *buf, PgSocket *sk)
 static void pktbuf_send_func(int fd, short flags, void *arg)
 {
 	PktBuf *buf = arg;
+	SBuf *sbuf = &buf->queued_dst->sbuf;
 	int amount, res;
 
 	log_debug("pktbuf_send_func(%d, %d, %p)", fd, (int)flags, buf);
@@ -112,7 +112,7 @@ static void pktbuf_send_func(int fd, short flags, void *arg)
 		return;
 
 	amount = buf->write_pos - buf->send_pos;
-	res = safe_send(fd, buf->buf + buf->send_pos, amount, 0);
+	res = sbuf_op_send(sbuf, buf->buf + buf->send_pos, amount);
 	if (res < 0) {
 		if (errno == EAGAIN) {
 			res = 0;
@@ -138,8 +138,6 @@ static void pktbuf_send_func(int fd, short flags, void *arg)
 
 bool pktbuf_send_queued(PktBuf *buf, PgSocket *sk)
 {
-	int fd = sbuf_socket(&sk->sbuf);
-
 	Assert(!buf->sending);
 	Assert(!buf->fixed_buf);
 
@@ -148,7 +146,8 @@ bool pktbuf_send_queued(PktBuf *buf, PgSocket *sk)
 		return send_pooler_error(sk, true, "result prepare failed");
 	} else {
 		buf->sending = 1;
-		pktbuf_send_func(fd, EV_WRITE, buf);
+		buf->queued_dst = sk;
+		pktbuf_send_func(sk->sbuf.sock, EV_WRITE, buf);
 		return true;
 	}
 }

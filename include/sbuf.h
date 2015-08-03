@@ -27,6 +27,7 @@ typedef enum {
 	SBUF_EV_CONNECT_OK,	/* got connection */
 	SBUF_EV_FLUSH,		/* data is sent, buffer empty */
 	SBUF_EV_PKT_CALLBACK,	/* next part of pkt data */
+	SBUF_EV_TLS_READY	/* TLS was established */
 } SBufEvent;
 
 /*
@@ -38,6 +39,8 @@ typedef enum {
  * but currently also ServerParam pkt.
  */
 #define SBUF_SMALL_PKT	64
+
+struct tls;
 
 /* fwd def */
 typedef struct SBuf SBuf;
@@ -82,6 +85,8 @@ struct SBuf {
 	IOBuf *io;		/* data buffer, lazily allocated */
 
 	const SBufIO *ops;	/* normal vs. TLS */
+	struct tls *tls;	/* TLS context */
+	const char *tls_host;	/* target hostname */
 };
 
 #define sbuf_socket(sbuf) ((sbuf)->sock)
@@ -89,6 +94,10 @@ struct SBuf {
 void sbuf_init(SBuf *sbuf, sbuf_cb_t proto_fn);
 bool sbuf_accept(SBuf *sbuf, int read_sock, bool is_unix)  _MUSTCHECK;
 bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, int sa_len, int timeout_sec)  _MUSTCHECK;
+
+void sbuf_tls_setup(void);
+bool sbuf_tls_accept(SBuf *sbuf)  _MUSTCHECK;
+bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)  _MUSTCHECK;
 
 bool sbuf_pause(SBuf *sbuf) _MUSTCHECK;
 void sbuf_continue(SBuf *sbuf);
@@ -102,6 +111,7 @@ void sbuf_prepare_fetch(SBuf *sbuf, unsigned amount);
 bool sbuf_answer(SBuf *sbuf, const void *buf, unsigned len)  _MUSTCHECK;
 
 bool sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb cb)  _MUSTCHECK;
+bool sbuf_use_callback_once(SBuf *sbuf, short ev, sbuf_libevent_cb user_cb) _MUSTCHECK;
 
 /*
  * Returns true if SBuf is has no data buffered

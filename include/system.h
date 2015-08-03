@@ -32,6 +32,8 @@
 #include <stdarg.h>
 #include <limits.h>
 
+#include <usual/tls/tls.h>
+
 #ifdef HAVE_CRYPT_H
 #include <crypt.h>
 #endif

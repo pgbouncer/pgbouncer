@@ -181,6 +181,8 @@ fi # !cares
 
 ## end of DNS
 
+AC_USUAL_TLS
+
 AC_USUAL_DEBUG
 AC_USUAL_CASSERT
 AC_USUAL_WERROR
@@ -199,4 +201,5 @@ echo "Results"
 echo "  c-ares = $use_cares"
 echo "  evdns = $use_evdns"
 echo "  udns = $use_udns"
+echo "  tls = $tls_support"
 echo ""

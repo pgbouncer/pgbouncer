@@ -31,6 +31,11 @@
 #include <sys/resource.h>
 #endif
 
+#ifndef DEFAULT_TLS_CIPHERS
+/* enable only PFS, deprioritize/remove slower ones */
+#define DEFAULT_TLS_CIPHERS "EECDH+HIGH:EDH+HIGH:+AES256:+SHA256:+SHA384:+SSLv3:+EDH:-CAMELLIA:-3DES:!DSS:!aNULL"
+#endif
+
 static const char usage_str[] =
 "Usage: %s [OPTION]... config.ini\n"
 "  -d, --daemon           Run in background (as a daemon)\n"
@@ -137,6 +142,22 @@ int cf_log_disconnections;
 int cf_log_pooler_errors;
 int cf_application_name_add_host;
 
+int cf_client_tls_sslmode;
+char *cf_client_tls_protocols;
+char *cf_client_tls_ca_file;
+char *cf_client_tls_cert_file;
+char *cf_client_tls_key_file;
+char *cf_client_tls_ciphers;
+char *cf_client_tls_dheparams;
+char *cf_client_tls_ecdhecurve;
+
+int cf_server_tls_sslmode;
+char *cf_server_tls_protocols;
+char *cf_server_tls_ca_file;
+char *cf_server_tls_cert_file;
+char *cf_server_tls_key_file;
+char *cf_server_tls_ciphers;
+
 /*
  * config file description
  */
@@ -159,6 +180,18 @@ const struct CfLookup pool_mode_map[] = {
 	{ "session", POOL_SESSION },
 	{ "transaction", POOL_TX },
 	{ "statement", POOL_STMT },
+	{ NULL }
+};
+
+const struct CfLookup sslmode_map[] = {
+	{ "disabled", SSLMODE_DISABLED },
+#ifdef USE_TLS
+	{ "allow", SSLMODE_ALLOW },
+	{ "prefer", SSLMODE_PREFER },
+	{ "require", SSLMODE_REQUIRE },
+	{ "verify-ca", SSLMODE_VERIFY_CA },
+	{ "verify-full", SSLMODE_VERIFY_FULL },
+#endif
 	{ NULL }
 };
 
@@ -235,6 +268,23 @@ CF_ABS("log_connections", CF_INT, cf_log_connections, 0, "1"),
 CF_ABS("log_disconnections", CF_INT, cf_log_disconnections, 0, "1"),
 CF_ABS("log_pooler_errors", CF_INT, cf_log_pooler_errors, 0, "1"),
 CF_ABS("application_name_add_host", CF_INT, cf_application_name_add_host, 0, "0"),
+
+CF_ABS("client_tls_sslmode", CF_LOOKUP(sslmode_map), cf_client_tls_sslmode, CF_NO_RELOAD, "disabled"),
+CF_ABS("client_tls_ca_file", CF_STR, cf_client_tls_ca_file, CF_NO_RELOAD, ""),
+CF_ABS("client_tls_cert_file", CF_STR, cf_client_tls_cert_file, CF_NO_RELOAD, ""),
+CF_ABS("client_tls_key_file", CF_STR, cf_client_tls_key_file, CF_NO_RELOAD, ""),
+CF_ABS("client_tls_protocols", CF_STR, cf_client_tls_protocols, CF_NO_RELOAD, "all"),
+CF_ABS("client_tls_ciphers", CF_STR, cf_client_tls_ciphers, CF_NO_RELOAD, DEFAULT_TLS_CIPHERS),
+CF_ABS("client_tls_dheparams", CF_STR, cf_client_tls_dheparams, CF_NO_RELOAD, "auto"),
+CF_ABS("client_tls_ecdhcurve", CF_STR, cf_client_tls_ecdhecurve, CF_NO_RELOAD, "auto"),
+
+CF_ABS("server_tls_sslmode", CF_LOOKUP(sslmode_map), cf_server_tls_sslmode, CF_NO_RELOAD, "disabled"),
+CF_ABS("server_tls_ca_file", CF_STR, cf_server_tls_ca_file, CF_NO_RELOAD, ""),
+CF_ABS("server_tls_cert_file", CF_STR, cf_server_tls_cert_file, CF_NO_RELOAD, ""),
+CF_ABS("server_tls_key_file", CF_STR, cf_server_tls_key_file, CF_NO_RELOAD, ""),
+CF_ABS("server_tls_protocols", CF_STR, cf_server_tls_protocols, CF_NO_RELOAD, "all"),
+CF_ABS("server_tls_ciphers", CF_STR, cf_server_tls_ciphers, CF_NO_RELOAD, DEFAULT_TLS_CIPHERS),
+
 {NULL}
 };
 
@@ -735,6 +785,8 @@ int main(int argc, char *argv[])
 	main_config.loaded = true;
 	init_caches();
 	logging_prefix_cb = log_socket_prefix;
+
+	sbuf_tls_setup();
 
 	/* prefer cmdline over config for username */
 	if (arg_username) {

@@ -40,7 +40,7 @@ pgbouncer_SOURCES = \
 	include/util.h \
 	include/varcache.h
 
-pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS)
+pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(TLS_CPPFLAGS)
 
 # include libusual sources directly
 AM_FEATURES = libusual
@@ -85,7 +85,8 @@ endif
 # win32
 #
 
-pgbouncer_LDADD := $(CARES_LIBS) $(LIBS)
+pgbouncer_LDFLAGS := $(TLS_LDFLAGS)
+pgbouncer_LDADD := $(CARES_LIBS) $(TLS_LIBS) $(LIBS)
 LIBS :=
 
 EXTRA_pgbouncer_SOURCES = win32/win32support.c win32/win32support.h

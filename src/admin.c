@@ -270,7 +270,7 @@ static bool send_one_fd(PgSocket *admin,
 	msg.msg_iovlen = 1;
 
 	/* attach a fd */
-	if (pga_is_unix(&admin->remote_addr) && admin->own_user) {
+	if (pga_is_unix(&admin->remote_addr) && admin->own_user && !admin->sbuf.tls) {
 		msg.msg_control = cntbuf;
 		msg.msg_controllen = sizeof(cntbuf);
 
@@ -313,6 +313,10 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	const struct PStr *timezone = v->var_list[VTimeZone];
 	char addrbuf[PGADDR_BUF];
 	const char *password = NULL;
+
+	/* Skip TLS sockets */
+	if (sk->sbuf.tls || (sk->link && sk->link->sbuf.tls))
+		return true;
 
 	mbuf_init_fixed_reader(&tmp, sk->cancel_key, 8);
 	if (!mbuf_get_uint64be(&tmp, &ckey))
@@ -546,8 +550,8 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	return true;
 }
 
-#define SKF_STD "sssssisiTTssi"
-#define SKF_DBG "sssssisiTTssiiiiiiii"
+#define SKF_STD "sssssisiTTssis"
+#define SKF_DBG "sssssisiTTssisiiiiiii"
 
 static void socket_header(PktBuf *buf, bool debug)
 {
@@ -555,7 +559,8 @@ static void socket_header(PktBuf *buf, bool debug)
 				    "type", "user", "database", "state",
 				    "addr", "port", "local_addr", "local_port",
 				    "connect_time", "request_time",
-				    "ptr", "link", "remote_pid",
+				    "ptr", "link", "remote_pid", "tls",
+				    /* debug follows */
 				    "recv_pos", "pkt_pos", "pkt_remain",
 				    "send_pos", "send_remain",
 				    "pkt_avail", "send_avail");
@@ -573,6 +578,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 	char ptrbuf[128], linkbuf[128];
 	char l_addr[PGADDR_BUF], r_addr[PGADDR_BUF];
 	IOBuf *io = sk->sbuf.io;
+	char infobuf[96] = "";
 
 	if (io) {
 		pkt_avail = iobuf_amount_parse(sk->sbuf.io);
@@ -597,6 +603,9 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 	if (is_server_socket(sk) && remote_pid == 0)
 		remote_pid = be32dec(sk->cancel_key);
 
+	if (sk->sbuf.tls)
+		tls_get_connection_info(sk->sbuf.tls, infobuf, sizeof infobuf);
+
 	pktbuf_write_DataRow(buf, debug ? SKF_DBG : SKF_STD,
 			     is_server_socket(sk) ? "S" :"C",
 			     sk->auth_user ? sk->auth_user->name : "(nouser)",
@@ -605,7 +614,8 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 			     l_addr, pga_port(&sk->local_addr),
 			     sk->connect_time,
 			     sk->request_time,
-			     ptrbuf, linkbuf, remote_pid,
+			     ptrbuf, linkbuf, remote_pid, infobuf,
+			     /* debug */
 			     io ? io->recv_pos : 0,
 			     io ? io->parse_pos : 0,
 			     sk->sbuf.pkt_remain,

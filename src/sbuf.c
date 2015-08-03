@@ -40,6 +40,7 @@ enum WaitType {
 	W_CONNECT,
 	W_RECV,
 	W_SEND,
+	W_ONCE
 };
 
 #define AssertSanity(sbuf) do { \
@@ -76,6 +77,20 @@ static const SBufIO raw_sbufio_ops = {
 	raw_sbufio_send,
 	raw_sbufio_close
 };
+
+/* I/O over TLS */
+#ifdef USE_TLS
+static int tls_sbufio_recv(struct SBuf *sbuf, void *dst, unsigned int len);
+static int tls_sbufio_send(struct SBuf *sbuf, const void *data, unsigned int len);
+static int tls_sbufio_close(struct SBuf *sbuf);
+static const SBufIO tls_sbufio_ops = {
+	tls_sbufio_recv,
+	tls_sbufio_send,
+	tls_sbufio_close
+};
+static void sbuf_tls_accept_cb(int fd, short flags, void *_sbuf);
+static void sbuf_tls_connect_cb(int fd, short flags, void *_sbuf);
+#endif
 
 /*********************************
  * Public functions
@@ -234,6 +249,31 @@ bool sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb user_cb)
 		return false;
 	}
 	sbuf->wait_type = W_RECV;
+	return true;
+}
+
+bool sbuf_use_callback_once(SBuf *sbuf, short ev, sbuf_libevent_cb user_cb)
+{
+	int err;
+	AssertActive(sbuf);
+
+	if (sbuf->wait_type != W_NONE) {
+		err = event_del(&sbuf->ev);
+		sbuf->wait_type = W_NONE; /* make sure its called only once */
+		if (err < 0) {
+			log_warning("sbuf_queue_once: event_del failed: %s", strerror(errno));
+			return false;
+		}
+	}
+
+	/* setup one one-off event handler */
+	event_set(&sbuf->ev, sbuf->sock, ev, user_cb, sbuf);
+	err = event_add(&sbuf->ev, NULL);
+	if (err < 0) {
+		log_warning("sbuf_queue_once: event_add failed: %s", strerror(errno));
+		return false;
+	}
+	sbuf->wait_type = W_ONCE;
 	return true;
 }
 
@@ -758,3 +798,285 @@ static int raw_sbufio_close(struct SBuf *sbuf)
 	return 0;
 }
 
+/*
+ * TLS support.
+ */
+
+#ifdef USE_TLS
+
+static struct tls_config *client_accept_conf;
+static struct tls_config *server_connect_conf;
+static struct tls *client_accept_base;
+
+/*
+ * TLS setup
+ */
+
+static void setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
+		      const char *protocols, const char *ciphers,
+		      const char *keyfile, const char *certfile, const char *cafile,
+		      const char *dheparams, const char *ecdhecurve,
+		      bool does_connect)
+{
+	int err;
+	if (*protocols) {
+		uint32_t protos = TLS_PROTOCOLS_ALL;
+		err = tls_config_parse_protocols(&protos, protocols);
+		if (err) {
+			log_error("Invalid %s_protocols: %s", pfx, protocols);
+		} else {
+			tls_config_set_protocols(conf, protos);
+		}
+	}
+	if (*ciphers) {
+		err = tls_config_set_ciphers(conf, ciphers);
+		if (err)
+			log_error("Invalid %s_ciphers: %s", pfx, ciphers);
+	}
+	if (*dheparams) {
+		err = tls_config_set_dheparams(conf, dheparams);
+		if (err)
+			log_error("Invalid %s_dheparams: %s", pfx, dheparams);
+	}
+	if (*ecdhecurve) {
+		err = tls_config_set_ecdhecurve(conf, ecdhecurve);
+		if (err)
+			log_error("Invalid %s_ecdhecurve: %s", pfx, ecdhecurve);
+	}
+	if (*cafile) {
+		err = tls_config_set_ca_file(conf, cafile);
+		if (err)
+			log_error("Invalid %s_ca_file: %s", pfx, cafile);
+	}
+	if (*keyfile) {
+		err = tls_config_set_key_file(conf, keyfile);
+		if (err)
+			log_error("Invalid %s_key_file: %s", pfx, keyfile);
+	}
+	if (*certfile) {
+		err = tls_config_set_cert_file(conf, certfile);
+		if (err)
+			log_error("Invalid %s_cert_file: %s", pfx, certfile);
+	}
+
+	if (sslmode == SSLMODE_VERIFY_FULL) {
+		tls_config_verify(conf);
+	} else if (sslmode == SSLMODE_VERIFY_CA) {
+		tls_config_insecure_noverifyname(conf);
+	} else {
+		tls_config_insecure_noverifycert(conf);
+		tls_config_insecure_noverifyname(conf);
+	}
+}
+
+void sbuf_tls_setup(void)
+{
+	int err;
+
+	if (cf_client_tls_sslmode != SSLMODE_DISABLED) {
+		if (!*cf_client_tls_key_file || !*cf_client_tls_cert_file)
+			die("To allow TLS connections from clients, client_tls_key_file and client_tls_cert_file must be set.");
+	}
+	if (cf_auth_type == AUTH_CERT) {
+		if (cf_client_tls_sslmode != SSLMODE_VERIFY_FULL)
+			die("auth_type=cert requires client_tls_sslmode=SSLMODE_VERIFY_FULL");
+		if (*cf_client_tls_ca_file == '\0')
+			die("auth_type=cert requires client_tls_ca_file");
+	} else if (cf_client_tls_sslmode > SSLMODE_VERIFY_CA && *cf_client_tls_ca_file == '\0') {
+		die("client_tls_sslmode requires client_tls_ca_file");
+	}
+
+	err = tls_init();
+	if (err)
+		fatal("tls_init failed");
+
+	if (cf_server_tls_sslmode != SSLMODE_DISABLED) {
+		server_connect_conf = tls_config_new();
+		if (!server_connect_conf)
+			die("tls_config_new failed 1");
+		setup_tls(server_connect_conf, "server_tls", cf_server_tls_sslmode,
+			  cf_server_tls_protocols, cf_server_tls_ciphers,
+			  cf_server_tls_key_file, cf_server_tls_cert_file,
+			  cf_server_tls_ca_file, "", "", true);
+	}
+
+	if (cf_client_tls_sslmode != SSLMODE_DISABLED) {
+		client_accept_conf = tls_config_new();
+		if (!client_accept_conf)
+			die("tls_config_new failed 2");
+		setup_tls(client_accept_conf, "client_tls", cf_client_tls_sslmode,
+			  cf_client_tls_protocols, cf_client_tls_ciphers,
+			  cf_client_tls_key_file, cf_client_tls_cert_file,
+			  cf_client_tls_ca_file, cf_client_tls_dheparams,
+			  cf_client_tls_ecdhecurve, false);
+
+		client_accept_base = tls_server();
+		if (!client_accept_base)
+			die("server_base failed");
+		err = tls_configure(client_accept_base, client_accept_conf);
+		if (err)
+			die("TLS setup failed: %s", tls_error(client_accept_base));
+	}
+}
+
+/*
+ * Accept TLS connection.
+ */
+
+static bool handle_tls_accept(struct SBuf *sbuf)
+{
+	int err;
+
+	err = tls_accept_fds(client_accept_base, &sbuf->tls, sbuf->sock, sbuf->sock);
+	log_noise("tls_accept_fds: err=%d", err);
+	if (err == TLS_READ_AGAIN) {
+		return sbuf_use_callback_once(sbuf, EV_READ, sbuf_tls_accept_cb);
+	} else if (err == TLS_WRITE_AGAIN) {
+		return sbuf_use_callback_once(sbuf, EV_WRITE, sbuf_tls_accept_cb);
+	} else if (err == 0) {
+		sbuf_call_proto(sbuf, SBUF_EV_TLS_READY);
+		return true;
+	} else {
+		log_warning("TLS accept error: %s", tls_error(sbuf->tls));
+		return false;
+	}
+}
+
+static void sbuf_tls_accept_cb(int fd, short flags, void *_sbuf)
+{
+	SBuf *sbuf = _sbuf;
+	sbuf->wait_type = W_NONE;
+	if (!handle_tls_accept(sbuf))
+		sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
+}
+
+bool sbuf_tls_accept(SBuf *sbuf)
+{
+	sbuf->ops = &tls_sbufio_ops;
+	return handle_tls_accept(sbuf);
+}
+
+/*
+ * Connect to remote TLS host.
+ */
+
+static bool handle_tls_connect(SBuf *sbuf)
+{
+	int err;
+
+	err = tls_connect_fds(sbuf->tls, sbuf->sock, sbuf->sock, sbuf->tls_host);
+	log_noise("tls_connect_fds: err=%d", err);
+	if (err == TLS_READ_AGAIN) {
+		return sbuf_use_callback_once(sbuf, EV_READ, sbuf_tls_connect_cb);
+	} else if (err == TLS_WRITE_AGAIN) {
+		return sbuf_use_callback_once(sbuf, EV_WRITE, sbuf_tls_connect_cb);
+	} else if (err == 0) {
+		sbuf_call_proto(sbuf, SBUF_EV_TLS_READY);
+		return true;
+	} else {
+		log_warning("TLS connect error: %s", tls_error(sbuf->tls));
+		return false;
+	}
+}
+
+static void sbuf_tls_connect_cb(int fd, short flags, void *_sbuf)
+{
+	SBuf *sbuf = _sbuf;
+	sbuf->wait_type = W_NONE;
+	if (!handle_tls_connect(sbuf))
+		sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
+}
+
+bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
+{
+	struct tls *ctls;
+	int err;
+
+	if (cf_server_tls_sslmode != SSLMODE_VERIFY_FULL)
+		hostname = NULL;
+
+	ctls = tls_client();
+	if (!ctls)
+		return false;
+	err = tls_configure(ctls, server_connect_conf);
+	if (err) {
+		log_error("tls client config failed: %s", tls_error(ctls));
+		tls_free(ctls);
+		return false;
+	}
+
+	sbuf->tls = ctls;
+	sbuf->tls_host = hostname;
+	sbuf->ops = &tls_sbufio_ops;
+
+	return handle_tls_connect(sbuf);
+}
+
+/*
+ * TLS IO ops.
+ */
+
+static int tls_sbufio_recv(struct SBuf *sbuf, void *dst, unsigned int len)
+{
+	int err;
+	size_t out = 0;
+
+	err = tls_read(sbuf->tls, dst, len, &out);
+	log_noise("tls_read: req=%u err=%d out=%d", len, err, (int)out);
+	if (!err) {
+		return out;
+	} else if (err == TLS_READ_AGAIN) {
+		errno = EAGAIN;
+	} else if (err == TLS_WRITE_AGAIN) {
+		log_warning("tls_sbufio_recv: got TLS_WRITE_AGAIN");
+		errno = EIO;
+	} else {
+		log_warning("tls_sbufio_recv: %s", tls_error(sbuf->tls));
+		errno = EIO;
+	}
+	return -1;
+}
+
+static int tls_sbufio_send(struct SBuf *sbuf, const void *data, unsigned int len)
+{
+	size_t out = 0;
+	int err;
+
+	err = tls_write(sbuf->tls, data, len, &out);
+	log_noise("tls_write: req=%u err=%d out=%d", len, err, (int)out);
+	if (!err) {
+		return out;
+	} else if (err == TLS_WRITE_AGAIN) {
+		errno = EAGAIN;
+	} else if (err == TLS_READ_AGAIN) {
+		log_warning("tls_sbufio_send: got TLS_READ_AGAIN");
+		errno = EIO;
+	} else {
+		log_warning("tls_sbufio_send: %s", tls_error(sbuf->tls));
+		errno = EIO;
+	}
+	return -1;
+}
+
+static int tls_sbufio_close(struct SBuf *sbuf)
+{
+	log_noise("tls_close");
+	if (sbuf->tls) {
+		tls_close(sbuf->tls);
+		tls_free(sbuf->tls);
+		sbuf->tls = NULL;
+	}
+	if (sbuf->sock > 0) {
+		safe_close(sbuf->sock);
+		sbuf->sock = 0;
+	}
+	return 0;
+}
+
+#else
+
+void sbuf_tls_setup(void) { }
+bool sbuf_tls_accept(SBuf *sbuf) { return false; }
+bool sbuf_tls_connect(SBuf *sbuf, const char *hostname) { return false; }
+
+#endif

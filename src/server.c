@@ -369,11 +369,51 @@ static bool handle_connect(PgSocket *server)
 		disconnect_server(server, false, "sent cancel req");
 	} else {
 		/* proceed with login */
-		res = send_startup_packet(server);
+		if (cf_server_tls_sslmode > SSLMODE_DISABLED) {
+			slog_noise(server, "P: SSL request");
+			res = send_sslreq_packet(server);
+			if (res)
+				server->wait_sslchar = true;
+		} else {
+			slog_noise(server, "P: startup");
+			res = send_startup_packet(server);
+		}
 		if (!res)
 			disconnect_server(server, false, "startup pkt failed");
 	}
 	return res;
+}
+
+static bool handle_sslchar(PgSocket *server, struct MBuf *data)
+{
+	uint8_t schar = '?';
+	bool ok;
+
+	server->wait_sslchar = false;
+
+	ok = mbuf_get_byte(data, &schar);
+	if (!ok || (schar != 'S' && schar != 'N') || mbuf_avail_for_read(data) != 0) {
+		disconnect_server(server, false, "bad sslreq answer");
+		return false;
+	}
+
+	if (schar == 'S') {
+		slog_noise(server, "launching tls");
+		ok = sbuf_tls_connect(&server->sbuf, server->pool->db->host);
+	} else if (cf_server_tls_sslmode >= SSLMODE_REQUIRE) {
+		disconnect_server(server, false, "server refused SSL");
+		return false;
+	} else {
+		/* proceed with non-TLS connection */
+		ok = send_startup_packet(server);
+	}
+
+	if (ok) {
+		sbuf_prepare_skip(&server->sbuf, 1);
+	} else {
+		disconnect_server(server, false, "sslreq processing failed");
+	}
+	return ok;
 }
 
 /* callback from SBuf */
@@ -383,6 +423,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 	PgSocket *server = container_of(sbuf, PgSocket, sbuf);
 	PgPool *pool = server->pool;
 	PktHdr pkt;
+	char infobuf[96];
 
 	Assert(is_server_socket(server));
 	Assert(server->state != SV_FREE);
@@ -399,6 +440,10 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		disconnect_client(server->link, false, "unexpected eof");
 		break;
 	case SBUF_EV_READ:
+		if (server->wait_sslchar) {
+			res = handle_sslchar(server, data);
+			break;
+		}
 		if (incomplete_header(data)) {
 			slog_noise(server, "S: got partial header, trying to wait a bit");
 			break;
@@ -467,6 +512,23 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		break;
 	case SBUF_EV_PKT_CALLBACK:
 		slog_warning(server, "SBUF_EV_PKT_CALLBACK with state=%d", server->state);
+		break;
+	case SBUF_EV_TLS_READY:
+		Assert(server->state == SV_LOGIN);
+
+		tls_get_connection_info(server->sbuf.tls, infobuf, sizeof infobuf);
+		if (cf_log_connections) {
+			slog_info(server, "SSL established: %s", infobuf);
+		} else {
+			slog_noise(server, "SSL established: %s", infobuf);
+		}
+
+		server->request_time = get_cached_time();
+		res = send_startup_packet(server);
+		if (res)
+			sbuf_continue(&server->sbuf);
+		else
+			disconnect_server(server, false, "TLS startup failed");
 		break;
 	}
 	if (!res && pool->db->admin)

@@ -68,6 +68,15 @@ enum PauseMode {
 	P_SUSPEND = 2		/* wait for buffers to be empty */
 };
 
+enum SSLMode {
+	SSLMODE_DISABLED,
+	SSLMODE_ALLOW,
+	SSLMODE_PREFER,
+	SSLMODE_REQUIRE,
+	SSLMODE_VERIFY_CA,
+	SSLMODE_VERIFY_FULL
+};
+
 #define is_server_socket(sk) ((sk)->state >= SV_FREE)
 
 
@@ -327,6 +336,8 @@ struct PgSocket {
 	bool own_user:1;	/* console client: client with same uid on unix socket */
 	bool wait_for_response:1;/* console client: waits for completion of PAUSE/SUSPEND cmd */
 
+	bool wait_sslchar:1;	/* server: waiting for ssl response: S/N */
+
 	usec_t connect_time;	/* when connection was made */
 	usec_t request_time;	/* last activity time */
 	usec_t query_start;	/* query start moment */
@@ -430,6 +441,22 @@ extern int cf_log_connections;
 extern int cf_log_disconnections;
 extern int cf_log_pooler_errors;
 extern int cf_application_name_add_host;
+
+extern int cf_client_tls_sslmode;
+extern char *cf_client_tls_protocols;
+extern char *cf_client_tls_ca_file;
+extern char *cf_client_tls_cert_file;
+extern char *cf_client_tls_key_file;
+extern char *cf_client_tls_ciphers;
+extern char *cf_client_tls_dheparams;
+extern char *cf_client_tls_ecdhecurve;
+
+extern int cf_server_tls_sslmode;
+extern char *cf_server_tls_protocols;
+extern char *cf_server_tls_ca_file;
+extern char *cf_server_tls_cert_file;
+extern char *cf_server_tls_key_file;
+extern char *cf_server_tls_ciphers;
 
 extern const struct CfLookup pool_mode_map[];
 

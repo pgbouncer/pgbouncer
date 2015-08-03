@@ -171,10 +171,23 @@ fail:
 	return false;
 }
 
+static bool login_as_unix_peer(PgSocket *client)
+{
+	if (!pga_is_unix(&client->remote_addr))
+		goto fail;
+	if (!check_unix_peer_name(sbuf_socket(&client->sbuf), client->auth_user->name))
+		goto fail;
+	return finish_client_login(client);
+fail:
+	disconnect_client(client, true, "unix socket login rejected");
+	return false;
+}
+
 static bool finish_set_pool(PgSocket *client, bool takeover)
 {
 	PgUser *user = client->auth_user;
 	bool ok = false;
+	int auth;
 
 	/* pool user may be forced */
 	if (client->db->forced_user) {
@@ -212,7 +225,13 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	if (client->own_user)
 		return finish_client_login(client);
 
-	switch (cf_auth_type) {
+	auth = cf_auth_type;
+	if (auth == AUTH_HBA) {
+		auth = hba_eval(parsed_hba, &client->remote_addr, !!client->sbuf.tls,
+				client->db->name, client->auth_user->name);
+	}
+
+	switch (auth) {
 	case AUTH_ANY:
 	case AUTH_TRUST:
 		ok = finish_client_login(client);
@@ -224,6 +243,9 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		break;
 	case AUTH_CERT:
 		ok = login_via_cert(client);
+		break;
+	case AUTH_PEER:
+		ok = login_as_unix_peer(client);
 		break;
 	default:
 		disconnect_client(client, true, "login rejected");

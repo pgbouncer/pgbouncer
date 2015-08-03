@@ -108,6 +108,7 @@ extern int cf_sbuf_len;
 #include "stats.h"
 #include "takeover.h"
 #include "janitor.h"
+#include "hba.h"
 
 /* to avoid allocations will use static buffers */
 #define MAX_DBNAME	64
@@ -122,6 +123,9 @@ extern int cf_sbuf_len;
 #define AUTH_MD5	5
 #define AUTH_CREDS	6
 #define AUTH_CERT	7
+#define AUTH_PEER	8
+#define AUTH_HBA	9
+#define AUTH_REJECT	10
 
 /* type codes for weird pkts */
 #define PKT_STARTUP_V2  0x20000
@@ -415,6 +419,7 @@ extern usec_t cf_dns_zone_check_period;
 extern int cf_auth_type;
 extern char *cf_auth_file;
 extern char *cf_auth_query;
+extern char *cf_auth_hba_file;
 
 extern char *cf_pidfile;
 
@@ -464,6 +469,7 @@ extern const struct CfLookup pool_mode_map[];
 extern usec_t g_suspend_start;
 
 extern struct DNSContext *adns;
+extern struct HBA *parsed_hba;
 
 static inline PgSocket * _MUSTCHECK
 pop_socket(struct StatList *slist)

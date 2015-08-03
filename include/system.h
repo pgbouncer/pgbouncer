@@ -67,6 +67,8 @@ static inline char *crypt(const char *p, const char *s) { return NULL; }
 static inline int lstat(const char *path, struct stat *st) { return stat(path, st); }
 #endif
 
+bool check_unix_peer_name(int fd, const char *username);
+
 void change_user(const char *user);
 
 void change_file_mode(const char *fn, mode_t mode, const char *user, const char *group);

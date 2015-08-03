@@ -1,0 +1,51 @@
+
+# METHOD: trust, reject, md5, password, peer, cert
+
+# local      DATABASE  USER  METHOD  [OPTIONS]
+# host       DATABASE  USER  ADDRESS  METHOD  [OPTIONS]
+# hostssl    DATABASE  USER  ADDRESS  METHOD  [OPTIONS]
+# hostnossl  DATABASE  USER  ADDRESS  METHOD  [OPTIONS]
+
+# ws
+ 	 	 	
+			# z
+
+# testing
+
+local		dbp		all					peer
+local		all		userp					password
+local		dbz		userz					trust
+local		all		all					md5
+
+hostssl		all		all	10.0.0.0/8			cert
+hostnossl	all		all	11.0.0.0/8			md5
+host		all		all	127.0.0.0  255.255.255.0	password
+
+host		db1		all	0.0.0.0/0			md5
+host		all		user1	15.0.0.0/8			md5
+
+host		tmp1,all	user1,user2 , user3			16.0.0.0/8	md5
+host		tmp2,all	u1,u2,u3,u4,u5,u6,u7,u8,u9,u10,u11,u2	17.0.0.0/8	md5
+host		d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11	t18user		18.0.0.0/8	trust # comment
+
+host		"all"		"all"		19.0.0.0/8	cert
+host		"q1""q2"	"a , b"		19.0.0.0/8	cert
+
+# mask
+host		mdb	muser		199.199.199.199/32	cert
+
+host		mdb2	muser		128.0.0.0/9		trust
+host		mdb2	muser		128.0.0.0/8		md5
+host		mdb2	muser		128.0.0.0/7		cert
+host		mdb2	muser		128.0.0.0/6		password
+host		mdb2	muser		128.0.0.0/5		cert
+host		mdb2	muser		128.0.0.0/4		trust
+host		mdb2	muser		128.0.0.0/3		md5
+host		mdb2	muser		128.0.0.0/2		password
+host		mdb2	muser		128.0.0.0/1		cert
+
+# ipv6
+host		mdb	muser		ff11::0/16		md5
+host		mdb	muser		ff20::/12		md5
+host		mdb	muser		::1/128			trust
+

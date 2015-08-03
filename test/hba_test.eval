@@ -1,0 +1,82 @@
+
+# peer
+md5		db	user		unix
+peer		dbp	user		unix
+password	db	userp		unix
+trust		dbz	userz		unix
+
+# hostssl
+cert		db	user		10.1.1.1	tls
+reject		db	user		10.1.1.1
+reject		db	user		13.1.1.1
+
+# hostnossl
+reject		db	user		11.1.1.1	tls
+md5		db	user		11.1.1.1
+reject		db	user		13.1.1.1
+
+# host
+password	db	user		127.0.0.2	tls
+password	db	user		127.0.0.3
+reject		db	user		127.0.1.4
+
+# db1 filt
+reject		db1x	user		127.0.1.4
+md5		db1	user		127.0.1.4
+
+# user1 filt
+md5		db1z	user1		15.0.0.1
+reject		db1z	user2		15.0.0.1
+
+# someusers
+reject		db2	user		16.0.0.1
+md5		db2	user1		16.0.0.1
+md5		db2	user2		16.0.0.1
+md5		db2	user3		16.0.0.1
+reject		db2	user4		16.0.0.1
+
+# manyusers
+md5		db2	u1		17.0.0.1
+md5		db2	u2		17.0.0.1
+md5		db2	u3		17.0.0.1
+md5		db2	u4		17.0.0.1
+md5		db2	u5		17.0.0.1
+md5		db2	u6		17.0.0.1
+md5		db2	u7		17.0.0.1
+md5		db2	u8		17.0.0.1
+md5		db2	u9		17.0.0.1
+md5		db2	u10		17.0.0.1
+md5		db2	u11		17.0.0.1
+
+# manydbs
+reject		d1	user		18.0.0.2
+trust		d1	t18user		18.0.0.2
+trust		d2	t18user		18.0.0.2
+trust		d3	t18user		18.0.0.2
+trust		d4	t18user		18.0.0.2
+trust		d5	t18user		18.0.0.2
+trust		d6	t18user		18.0.0.2
+trust		d7	t18user		18.0.0.2
+trust		d8	t18user		18.0.0.2
+trust		d9	t18user		18.0.0.2
+trust		d10	t18user		18.0.0.2
+trust		d11	t18user		18.0.0.2
+
+# quoting
+reject		db	t19user		19.0.0.2
+cert		all	all		19.0.0.2
+cert		q1"q2	a , b		19.0.0.2
+
+# bitmask
+cert		mdb	muser		199.199.199.199
+reject		mdb	muser		199.199.199.198
+reject		mdb	muser		199.199.199.200
+
+cert		mdb2	muser		254.1.1.1
+
+# ipv6
+md5		mdb	muser		ff11:2::1
+md5		mdb	muser		ff22:3::1
+trust		mdb	muser		::1
+reject		mdb	muser		::2
+

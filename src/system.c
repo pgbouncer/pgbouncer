@@ -122,3 +122,23 @@ void change_file_mode(const char *fn, mode_t mode,
 	}
 }
 
+/*
+ * UNIX socket helper.
+ */
+
+bool check_unix_peer_name(int fd, const char *username)
+{
+	int res;
+	uid_t peer_uid = -1;
+	gid_t peer_gid = -1;
+	struct passwd *pw;
+
+	res = getpeereid(fd, &peer_uid, &peer_gid);
+	if (res < 0)
+		return false;
+	pw = getpwuid(peer_uid);
+	if (!pw)
+		return false;
+	return strcmp(pw->pw_name, username) == 0;
+}
+

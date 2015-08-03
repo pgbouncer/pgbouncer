@@ -121,6 +121,7 @@ extern int cf_sbuf_len;
 #define AUTH_CRYPT	4
 #define AUTH_MD5	5
 #define AUTH_CREDS	6
+#define AUTH_CERT	7
 
 /* type codes for weird pkts */
 #define PKT_STARTUP_V2  0x20000

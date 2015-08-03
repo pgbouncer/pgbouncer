@@ -173,6 +173,7 @@ static const struct CfLookup auth_type_map[] = {
 	{ "crypt", AUTH_CRYPT },
 #endif
 	{ "md5", AUTH_MD5 },
+	{ "cert", AUTH_CERT },
 	{ NULL }
 };
 
@@ -185,13 +186,11 @@ const struct CfLookup pool_mode_map[] = {
 
 const struct CfLookup sslmode_map[] = {
 	{ "disabled", SSLMODE_DISABLED },
-#ifdef USE_TLS
 	{ "allow", SSLMODE_ALLOW },
 	{ "prefer", SSLMODE_PREFER },
 	{ "require", SSLMODE_REQUIRE },
 	{ "verify-ca", SSLMODE_VERIFY_CA },
 	{ "verify-full", SSLMODE_VERIFY_FULL },
-#endif
 	{ NULL }
 };
 

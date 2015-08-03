@@ -26,6 +26,10 @@
 
 #include "bouncer.h"
 
+#ifdef USUAL_LIBSSL_FOR_TLS
+#define USE_TLS
+#endif
+
 /* sbuf_main_loop() skip_recv values */
 #define DO_RECV		false
 #define SKIP_RECV	true

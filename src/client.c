@@ -82,11 +82,15 @@ static bool send_client_authreq(PgSocket *client)
 	} else if (cf_auth_type == AUTH_MD5) {
 		saltlen = 4;
 		get_random_bytes((void*)client->tmp_login_salt, saltlen);
-	} else if (auth == AUTH_ANY) {
-		auth = AUTH_TRUST;
+	} else if (cf_auth_type == AUTH_PLAIN) {
+		/* nothing to do */
+	} else {
+		return false;
 	}
 
 	SEND_generic(res, client, 'R', "ib", auth, client->tmp_login_salt, saltlen);
+	if (!res)
+		disconnect_client(client, false, "failed to send auth req");
 	return res;
 }
 
@@ -128,9 +132,50 @@ static void start_auth_request(PgSocket *client, const char *username)
 		disconnect_server(client->link, false, "unable to send login query");
 }
 
+static bool login_via_cert(PgSocket *client)
+{
+	struct tls *tls = client->sbuf.tls;
+	struct tls_cert_info *cert;
+
+	if (!tls) {
+		disconnect_client(client, true, "TLS connection required");
+		return false;
+	}
+	if (tls_get_peer_cert(client->sbuf.tls, &cert) < 0 || !cert) {
+		disconnect_client(client, true, "TLS client certificate required");
+		return false;
+	}
+
+	log_debug("TLS cert login: CN=%s/C=%s/L=%s/ST=%s/O=%s/OU=%s/email=%s",
+		  cert->common_name ? cert->common_name : "(null)",
+		  cert->country_name ? cert->country_name : "(null)",
+		  cert->locality_name ? cert->locality_name : "(null)",
+		  cert->state_or_province_name ? cert->state_or_province_name : "(null)",
+		  cert->organization_name ? cert->organization_name : "(null)",
+		  cert->organizational_unit_name ? cert->organizational_unit_name : "(null)",
+		  cert->email_address ? cert->email_address : "(null)");
+	if (!cert->common_name) {
+		disconnect_client(client, true, "Invalid TLS certificate");
+		goto fail;
+	}
+	if (strcmp(cert->common_name, client->auth_user->name) != 0) {
+		disconnect_client(client, true, "TLS certificate name mismatch");
+		goto fail;
+	}
+	tls_cert_free(cert);
+
+	/* login successful */
+	return finish_client_login(client);
+fail:
+	tls_cert_free(cert);
+	return false;
+}
+
 static bool finish_set_pool(PgSocket *client, bool takeover)
 {
 	PgUser *user = client->auth_user;
+	bool ok = false;
+
 	/* pool user may be forced */
 	if (client->db->forced_user) {
 		user = client->db->forced_user;
@@ -164,16 +209,27 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 			return false;
 	}
 
-	if (cf_auth_type <= AUTH_TRUST || client->own_user) {
-		if (!finish_client_login(client))
-			return false;
-	} else {
-		if (!send_client_authreq(client)) {
-			disconnect_client(client, false, "failed to send auth req");
-			return false;
-		}
+	if (client->own_user)
+		return finish_client_login(client);
+
+	switch (cf_auth_type) {
+	case AUTH_ANY:
+	case AUTH_TRUST:
+		ok = finish_client_login(client);
+		break;
+	case AUTH_PLAIN:
+	case AUTH_CRYPT:
+	case AUTH_MD5:
+		ok = send_client_authreq(client);
+		break;
+	case AUTH_CERT:
+		ok = login_via_cert(client);
+		break;
+	default:
+		disconnect_client(client, true, "login rejected");
+		ok = false;
 	}
-	return true;
+	return ok;
 }
 
 bool set_pool(PgSocket *client, const char *dbname, const char *username, const char *password, bool takeover)
@@ -443,7 +499,6 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 	case PKT_SSLREQ:
 		slog_noise(client, "C: req SSL");
 
-#ifdef USE_TLS
 		if (client->sbuf.tls) {
 			disconnect_client(client, false, "SSL req inside SSL");
 			return false;
@@ -460,7 +515,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 			}
 			break;
 		}
-#endif
+
 		/* reject SSL attempt */
 		slog_noise(client, "P: nak");
 		if (!sbuf_answer(&client->sbuf, "N", 1)) {

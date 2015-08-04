@@ -31,11 +31,6 @@
 #include <sys/resource.h>
 #endif
 
-#ifndef DEFAULT_TLS_CIPHERS
-/* enable only PFS, deprioritize/remove slower ones */
-#define DEFAULT_TLS_CIPHERS "EECDH+HIGH:EDH+HIGH:+AES256:+SHA256:+SHA384:+SSLv3:+EDH:-CAMELLIA:-3DES:!DSS:!aNULL"
-#endif
-
 static const char usage_str[] =
 "Usage: %s [OPTION]... config.ini\n"
 "  -d, --daemon           Run in background (as a daemon)\n"
@@ -278,7 +273,7 @@ CF_ABS("client_tls_ca_file", CF_STR, cf_client_tls_ca_file, CF_NO_RELOAD, ""),
 CF_ABS("client_tls_cert_file", CF_STR, cf_client_tls_cert_file, CF_NO_RELOAD, ""),
 CF_ABS("client_tls_key_file", CF_STR, cf_client_tls_key_file, CF_NO_RELOAD, ""),
 CF_ABS("client_tls_protocols", CF_STR, cf_client_tls_protocols, CF_NO_RELOAD, "all"),
-CF_ABS("client_tls_ciphers", CF_STR, cf_client_tls_ciphers, CF_NO_RELOAD, DEFAULT_TLS_CIPHERS),
+CF_ABS("client_tls_ciphers", CF_STR, cf_client_tls_ciphers, CF_NO_RELOAD, "fast"),
 CF_ABS("client_tls_dheparams", CF_STR, cf_client_tls_dheparams, CF_NO_RELOAD, "auto"),
 CF_ABS("client_tls_ecdhcurve", CF_STR, cf_client_tls_ecdhecurve, CF_NO_RELOAD, "auto"),
 
@@ -287,7 +282,7 @@ CF_ABS("server_tls_ca_file", CF_STR, cf_server_tls_ca_file, CF_NO_RELOAD, ""),
 CF_ABS("server_tls_cert_file", CF_STR, cf_server_tls_cert_file, CF_NO_RELOAD, ""),
 CF_ABS("server_tls_key_file", CF_STR, cf_server_tls_key_file, CF_NO_RELOAD, ""),
 CF_ABS("server_tls_protocols", CF_STR, cf_server_tls_protocols, CF_NO_RELOAD, "all"),
-CF_ABS("server_tls_ciphers", CF_STR, cf_server_tls_ciphers, CF_NO_RELOAD, DEFAULT_TLS_CIPHERS),
+CF_ABS("server_tls_ciphers", CF_STR, cf_server_tls_ciphers, CF_NO_RELOAD, "fast"),
 
 {NULL}
 };

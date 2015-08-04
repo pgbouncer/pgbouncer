@@ -115,6 +115,7 @@ Basic setup and usage as following.
       is no active process, boot normally.
       Note: Works only if OS supports Unix sockets and the `unix_socket_dir`
       is not disabled in config.  Does not work on Windows machines.
+      Does not work with TLS connections, they are dropped.
 
 -u user::
       Switch to the given user on startup.

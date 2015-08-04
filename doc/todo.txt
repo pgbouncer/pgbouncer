@@ -8,20 +8,13 @@ Significant amount of users feel the need for those.
 
  * LISTEN/NOTIFY.  Requires strict SQL format.
 
- * SSL support.  Although stunnel works for plain SSL,
-   it cannot be linked with Postgres authentication.
-
  * Load-balancing / failover.
 
 Waiting for contributors...
 
 == Problems / cleanups ==
 
- * hba-style access control
-
  * other per-user settings
-
- * identd authentication
 
  * Maintenance order vs. lifetime_kill_gap:
    http://lists.pgfoundry.org/pipermail/pgbouncer-general/2011-February/000679.html[]

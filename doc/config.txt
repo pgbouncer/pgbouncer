@@ -92,9 +92,26 @@ does not use such text file, so it must be generated manually.  See section
 
 Default: not set.
 
+
+==== auth_hba_file ====
+
+HBA configuration file to use when `auth_type=hba`.
+
+Default: not set
+
 ==== auth_type ====
 
 How to authenticate users.
+
+hba::
+      Actual auth type is loaded from `auth_hba_file`.  This allows different
+      authentication methods different access paths.  Example: connection
+      over unix socket use `peer` auth method, connection over TCP
+      must use TLS.
+
+cert::
+      Client must connect over TLS connection with valid client cert.
+      Username is then taken from CommonName field from certificate.
 
 md5::
       Use MD5-based password check. `auth_file` may contain both MD5-encrypted
@@ -102,10 +119,10 @@ md5::
 
 crypt::
       Use crypt(3) based password check. `auth_file` must contain plain-text
-      passwords.
+      passwords.  Deprecated, removed in PostgreSQL 8.4.
 
 plain::
-      Clear-text password is sent over wire.
+      Clear-text password is sent over wire.  Deprecated.
 
 trust::
       No authentication is done. Username must still exist in `auth_file`.
@@ -445,6 +462,143 @@ Works only with UDNS backend (`--with-udns` to configure).
 
 Default: 0.0 (disabled)
 
+=== TLS settings ===
+
+==== client_tls_sslmode ====
+
+TLS mode to use for connections from clients.  TLS connections
+are disabled by default.  When enabled, `client_tls_key_file`
+and `client_tls_cert_file` must be also configures to set up
+key and cert PgBouncer uses to accept client connections.
+
+`disabled`::
+	Plain TCP.  If client requests TLS, it's ignored.
+
+`allow`::
+	If client requests TLS, it is used.  If not, plain TCP is used.
+	If client uses client-certificate, it is not validated.
+
+`prefer`::
+	Same as `allow`.
+
+`require`::
+	Client must use TLS.  If not, client connection is rejected.
+	If client uses client-certificate, it is not validated.
+
+`verify-ca`::
+	Client must use TLS with valid client certificate.
+
+`verify-full`::
+	Same as `verify-ca`.
+
+Default: `disabled`
+
+==== client_tls_key_file ====
+
+Private key for PgBouncer to accept client connections.
+
+Default: not set.
+
+==== client_tls_cert_file ====
+
+Certificate for private key.  Clients can validate it.
+
+Default: not set.
+
+==== client_tls_ca_file ====
+
+Root certificate file to validate client certificates.
+
+Default: unset.
+
+==== client_tls_protocols ====
+
+Which TLS protocol versions are allowed.  Allowed values: `tlsv1.0`, `tlsv1.1`, `tlsv1.2`.
+Shortcuts: `all` (tlsv1.0,tlsv1.1,tlsv1.2), `secure` (tlsv1.2), `legacy` (all).
+
+Default: `all`
+
+==== client_tls_ciphers ====
+
+Default: `fast`
+
+==== client_tls_ecdhcurve ====
+
+Elliptic Curve name to use for ECDH key exchanges.
+
+Allowed values: `none` (DH is disabled), `auto` (256-bit ECDH), curve name.
+
+Default: `auto`
+
+==== client_tls_dheparams ====
+
+DHE key exchange type.
+
+Allowed values: `none` (DH is disabled), `auto` (2048-bit DH), `legacy` (1024-bit DH).
+
+Default: `auto`
+
+==== server_tls_sslmode ====
+
+TLS mode to use for connections to PostgreSQL servers.
+TLS connections are disabled by default.
+
+`disabled`::
+	Plain TCP.  TCP is not event requested from server.
+
+`allow`::
+	FIXME: if server rejects plain, try TLS?
+
+`prefer`::
+	TLS connection is always requested first from PostgreSQL,
+	when refused connection will be establised over plain TCP.
+	Server certificate is not validated.
+
+`require`::
+	Connection must go over TLS.  If server rejects it,
+	plain TCP is not attempted.  Server certificate is not validated.
+
+`verify-ca`::
+	Connection must go over TLS and server certificate must be valid
+	according to `server_tls_ca_file`.  Server hostname is not checked
+	against certificate.
+
+`verify-full`::
+	Connection must go over TLS and server certificate must be valid
+	according to `server_tls_ca_file`.  Server hostname must match
+	certificate info.
+
+Default: `disabled`
+
+==== server_tls_ca_file ====
+
+Root certificate file to validate PostgreSQL server certificates.
+
+Default: unset.
+
+==== server_tls_key_file ====
+
+Private key for PgBouncer to authenticate against PostgreSQL server.
+
+Default: not set.
+
+==== server_tls_cert_file ====
+
+Certificate for private key.  PostgreSQL server can validate it.
+
+Default: not set.
+
+==== server_tls_protocols ====
+
+Which TLS protocol versions are allowed.  Allowed values: `tlsv1.0`, `tlsv1.1`, `tlsv1.2`.
+Shortcuts: `all` (tlsv1.0,tlsv1.1,tlsv1.2), `secure` (tlsv1.2), `legacy` (all).
+
+Default: `all`
+
+==== server_tls_ciphers ====
+
+Default: `fast`
+
 === Dangerous timeouts ===
 
 Setting following timeouts cause unexpected errors.
@@ -697,6 +851,21 @@ PostgreSQL MD5-hidden password format:
 
 So user `admin` with password `1234` will have MD5-hidden password
 `md545f2603610af569b6155c45067268c6b`.
+
+== HBA FILE FORMAT ==
+
+It follows the format of PostgreSQL pg_hba.conf file:
+http://www.postgresql.org/docs/9.4/static/auth-pg-hba-conf.html
+
+There are following differences:
+
+* Supported record types: `local`, `host`, `hostssl`, `hostnossl`.
+* Database field: Supports `all`, `sameuser`, `@file`, multiple names.  Not supported: `replication`, `samerole`, `samegroup`.
+* Username field: Supports `all`, `@file`, multiple names.  Not supported: `+groupname`.
+* Address field: Supported IPv4, IPv6.  Not supported: DNS names, domain prefixes.
+* Auth-method field:  Supported methods: `trust`, `reject`, `md5`, `password`, `peer`, `cert`.
+  Not supported: `gss`, `sspi`, `ident`, `ldap`, `radius`, `pam`.
+  Also username map (`map=`) parameter is not supported.
 
 == EXAMPLE ==
 

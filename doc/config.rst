@@ -105,31 +105,31 @@ auth_type
 
 How to authenticate users.
 
-``hba``
+hba
     Actual auth type is loaded from `auth_hba_file`_.  This allows different
     authentication methods different access paths.  Example: connection
     over unix socket use ``peer`` auth method, connection over TCP
     must use TLS.
 
-``cert``
+cert
     Client must connect over TLS connection with valid client cert.
     Username is then taken from CommonName field from certificate.
 
-``md5``
+md5
     Use MD5-based password check. `auth_file`_ may contain both MD5-encrypted
     or plain-text passwords.  This is the default authentication method.
 
-``crypt``
+crypt
     Use crypt(3) based password check. `auth_file`_ must contain plain-text
     passwords.  Deprecated, removed in PostgreSQL 8.4.
 
-``plain``
+plain
     Clear-text password is sent over wire.  Deprecated.
 
-``trust``
+trust
     No authentication is done. Username must still exist in `auth_file`_.
 
-``any``
+any
     Like the ``trust`` method, but the username given is ignored. Requires that all
     databases are configured to log in as specific user.  Additionally, the console
     database allows any user to log in as admin.
@@ -146,13 +146,13 @@ pool_mode
 
 Specifies when a server connection can be reused by other clients.
 
-``session``
+session
     Server is released back to pool after client disconnects.  Default.
 
-``transaction``
+transaction
     Server is released back to pool after transaction finishes.
 
-``statement``
+statement
     Server is released back to pool after query finishes. Long transactions
     spanning multiple statements are disallowed in this mode.
 
@@ -519,24 +519,24 @@ are disabled by default.  When enabled, `client_tls_key_file`_
 and `client_tls_cert_file`_ must be also configured to set up
 key and cert PgBouncer uses to accept client connections.
 
-``disabled``
+disabled
     Plain TCP.  If client requests TLS, it's ignored.  Default.
 
-``allow``
+allow
     If client requests TLS, it is used.  If not, plain TCP is used.
     If client uses client-certificate, it is not validated.
 
-``prefer``
+prefer
     Same as ``allow``.
 
-``require``
+require
     Client must use TLS.  If not, client connection is rejected.
     If client uses client-certificate, it is not validated.
 
-``verify-ca``
+verify-ca
     Client must use TLS with valid client certificate.
 
-``verify-full``
+verify-full
     Same as ``verify-ca``.
 
 client_tls_key_file
@@ -597,27 +597,27 @@ server_tls_sslmode
 TLS mode to use for connections to PostgreSQL servers.
 TLS connections are disabled by default.
 
-``disabled``
+disabled
     Plain TCP.  TCP is not event requested from server.  Default.
 
-``allow``
+allow
     FIXME: if server rejects plain, try TLS?
 
-``prefer``
+prefer
     TLS connection is always requested first from PostgreSQL,
     when refused connection will be establised over plain TCP.
     Server certificate is not validated.
 
-``require``
+require
     Connection must go over TLS.  If server rejects it,
     plain TCP is not attempted.  Server certificate is not validated.
 
-``verify-ca``
+verify-ca
     Connection must go over TLS and server certificate must be valid
     according to `server_tls_ca_file`_.  Server hostname is not checked
     against certificate.
 
-``verify-full``
+verify-full
     Connection must go over TLS and server certificate must be valid
     according to `server_tls_ca_file`_.  Server hostname must match
     certificate info.

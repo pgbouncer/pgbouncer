@@ -810,7 +810,7 @@ host
 ----
 
 Hostname or IP address to connect to.  Hostnames are resolved
-on connect time, the result is cached per +dns_max_ttl+ parameter.
+on connect time, the result is cached per ``dns_max_ttl`` parameter.
 If DNS returns several results, they are used in round-robin
 manner.
 
@@ -824,7 +824,7 @@ Default: 5432
 user, password
 --------------
 
-If +user=+ is set, all connections to the destination database will be
+If ``user=`` is set, all connections to the destination database will be
 done with the specified user, meaning that there will be only one pool
 for this database.
 
@@ -834,7 +834,7 @@ username, meaning that there will be one pool per user.
 auth_user
 ---------
 
-If +auth_user+ is set, any user not specified in auth_file will be
+If ``auth_user`` is set, any user not specified in auth_file will be
 queried from pg_shadow in the database using auth_user. Auth_user's
 password will be taken from auth_file.
 
@@ -866,7 +866,7 @@ not have more than this many server connections).
 client_encoding
 ---------------
 
-Ask specific +client_encoding+ from server.
+Ask specific ``client_encoding`` from server.
 
 datestyle
 ---------

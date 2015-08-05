@@ -24,15 +24,15 @@ DESCRIPTION
 ===========
 
 **pgbouncer** is a PostgreSQL connection pooler. Any target application
-can be connected to +pgbouncer+ as if it were a PostgreSQL server,
-and +pgbouncer+ will create a connection to the actual server, or it
+can be connected to **pgbouncer** as if it were a PostgreSQL server,
+and **pgbouncer** will create a connection to the actual server, or it
 will reuse one of its existing connections.
 
-The aim of +pgbouncer+ is to lower the performance impact of opening
+The aim of **pgbouncer** is to lower the performance impact of opening
 new connections to PostgreSQL.
 
 In order not to compromise transaction semantics for connection
-pooling, +pgbouncer+ supports several types of pooling when
+pooling, **pgbouncer** supports several types of pooling when
 rotating connections:
 
 Session pooling
@@ -51,16 +51,16 @@ Statement pooling
     pool immediately after a query completes. Multi-statement
     transactions are disallowed in this mode as they would break.
 
-The administration interface of +pgbouncer+ consists of some new
-+SHOW+ commands available when connected to a special 'virtual'
-database +pgbouncer+.
+The administration interface of **pgbouncer** consists of some new
+``SHOW`` commands available when connected to a special 'virtual'
+database **pgbouncer**.
 
 Quick-start
 ===========
 
 Basic setup and usage as following.
 
-1. Create a pgbouncer.ini file.  Details in +pgbouncer(5)+.  Simple example::
+1. Create a pgbouncer.ini file.  Details in **pgbouncer(5)**.  Simple example::
 
     [databases]
     template1 = host=127.0.0.1 port=5432 dbname=template1
@@ -78,17 +78,17 @@ Basic setup and usage as following.
 
     "someuser" "same_password_as_in_server"
 
-3. Launch +pgbouncer+::
+3. Launch **pgbouncer**::
 
      $ pgbouncer -d pgbouncer.ini
 
-4. Have your application (or the +psql+ client) connect to
-   +pgbouncer+ instead of directly to PostgreSQL server::
+4. Have your application (or the **psql** client) connect to
+   **pgbouncer** instead of directly to PostgreSQL server::
 
     $ psql -p 6543 -U someuser template1
 
-5. Manage +pgbouncer+ by connecting to the special administration
-   database +pgbouncer+ and issuing +show help;+ to begin::
+5. Manage **pgbouncer** by connecting to the special administration
+   database **pgbouncer** and issuing ``show help;`` to begin::
 
       $ psql -p 6543 -U someuser pgbouncer
       pgbouncer=# show help;
@@ -111,7 +111,7 @@ Command line switches
 
 -d
     Run in background. Without it the process will run in foreground.
-    Note: Does not work on Windows, +pgbouncer+ need to run as service there.
+    Note: Does not work on Windows, **pgbouncer** need to run as service there.
 
 -R
     Do an online restart. That means connecting to the running process,
@@ -139,7 +139,7 @@ Command line switches
     Show short help.
 
 --regservice
-    Win32: Register pgbouncer to run as Windows service.  The +service_name+
+    Win32: Register pgbouncer to run as Windows service.  The **service_name**
     config parameter value is used as name to register under.
 
 --unregservice
@@ -149,22 +149,22 @@ Admin console
 =============
 
 The console is available by connecting as normal to the
-database +pgbouncer+::
+database **pgbouncer**::
 
   $ psql -p 6543 pgbouncer
 
-Only users listed in configuration parameters +admin_users+ or +stats_users+
+Only users listed in configuration parameters **admin_users** or **stats_users**
 are allowed to login to the console.  (Except when `auth_mode=any`, then
 any user is allowed in as a stats_user.)
 
-Additionally, the username +pgbouncer+ is allowed to log in without password,
+Additionally, the username **pgbouncer** is allowed to log in without password,
 if the login comes via Unix socket and the client has same Unix user uid
 as the running process.
 
 Show commands
 ~~~~~~~~~~~~~
 
-The +SHOW+ commands output information. Each command is described below.
+The **SHOW** commands output information. Each command is described below.
 
 SHOW STATS;
 -----------
@@ -175,16 +175,16 @@ database
     Statistics are presented per database.
 
 total_requests
-    Total number of +SQL+ requests pooled by +pgbouncer+.
+    Total number of SQL requests pooled by **pgbouncer**.
 
 total_received
-    Total volume in bytes of network traffic received by +pgbouncer+.
+    Total volume in bytes of network traffic received by **pgbouncer**.
 
 total_sent
-    Total volume in bytes of network traffic sent by +pgbouncer+.
+    Total volume in bytes of network traffic sent by **pgbouncer**.
 
 total_query_time
-    Total number of microseconds spent by +pgbouncer+ when actively
+    Total number of microseconds spent by **pgbouncer** when actively
     connected to PostgreSQL.
 
 avg_req
@@ -206,14 +206,14 @@ type
     S, for server.
 
 user
-    Username +pgbouncer+ uses to connect to server.
+    Username **pgbouncer** uses to connect to server.
 
 database
     Database name.
 
 state
-    State of the pgbouncer server connection, one of +active+, +used+ or
-    +idle+.
+    State of the pgbouncer server connection, one of **active**, **used** or
+    **idle**.
 
 addr
   IP address of PostgreSQL server.
@@ -260,8 +260,8 @@ database
     Database name.
 
 state
-    State of the client connection, one of +active+, +used+, +waiting+
-    or +idle+.
+    State of the client connection, one of **active**, **used**, **waiting**
+    or **idle**.
 
 addr
     IP address of client.
@@ -330,7 +330,7 @@ maxwait
     How long the first (oldest) client in queue has waited, in seconds.
     If this starts increasing, then the current pool of servers does
     not handle requests quick enough.  Reason may be either overloaded
-    server or just too small of a +pool_size+ setting.
+    server or just too small of a **pool_size** setting.
 
 pool_mode
     The pooling mode in use.
@@ -356,7 +356,7 @@ used_clients
     Count of used clients.
 
 login_clients
-    Count of clients in +login+ state.
+    Count of clients in **login** state.
 
 free_servers
     Count of free servers.
@@ -416,7 +416,7 @@ fd
     File descriptor numeric value.
 
 task
-    One of +pooler+, +client+ or +server+.
+    One of **pooler**, **client** or **server**.
 
 user
     User of the connection using the FD.
@@ -425,7 +425,7 @@ database
     Database of the connection using the FD.
 
 addr
-    IP address of the connection using the FD, +unix+ if a unix socket
+    IP address of the connection using the FD, **unix** if a unix socket
     is used.
 
 port
@@ -450,8 +450,8 @@ value
     Configuration value
 
 changeable
-    Either +yes+ or +no+, shows if the variable can be changed while running.
-    If +no+, the variable can be changed only boot-time.
+    Either **yes** or **no**, shows if the variable can be changed while running.
+    If **no**, the variable can be changed only boot-time.
 
 SHOW DNS_HOSTS;
 ---------------
@@ -502,7 +502,7 @@ Reject all new client connections on the given database.
 ENABLE db;
 ----------
 
-Allow new client connections after a previous +DISABLE+ command.
+Allow new client connections after a previous **DISABLE** command.
 
 KILL db;
 --------
@@ -519,7 +519,7 @@ of PgBouncer online reboot.
 RESUME [db];
 ------------
 
-Resume work from previous +PAUSE+ or +SUSPEND+ command.
+Resume work from previous **PAUSE** or **SUSPEND** command.
 
 SHUTDOWN;
 ---------
@@ -536,13 +536,13 @@ Signals
 ~~~~~~~
 
 SIGHUP
-    Reload config. Same as issuing command +RELOAD;+ on console.
+    Reload config. Same as issuing command **RELOAD;** on console.
 
 SIGINT
-    Safe shutdown. Same as issuing +PAUSE;+ and +SHUTDOWN;+ on console.
+    Safe shutdown. Same as issuing **PAUSE;** and **SHUTDOWN;** on console.
 
 SIGTERM
-    Immediate shutdown.  Same as issuing +SHUTDOWN;+ on console.
+    Immediate shutdown.  Same as issuing **SHUTDOWN;** on console.
 
 Libevent settings
 ~~~~~~~~~~~~~~~~~

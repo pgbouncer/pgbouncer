@@ -52,7 +52,8 @@ dist_doc_DATA = README NEWS etc/pgbouncer.ini etc/userlist.txt
 
 DISTCLEANFILES = config.mak config.status lib/usual/config.h config.log
 
-SUBDIRS = doc
+DIST_SUBDIRS = doc
+dist_man_MANS = doc/pgbouncer.1 doc/pgbouncer.5
 
 # files in tgz
 EXTRA_DIST = AUTHORS COPYRIGHT Makefile \

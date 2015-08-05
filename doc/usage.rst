@@ -74,7 +74,7 @@ Basic setup and usage as following.
     pidfile = pgbouncer.pid
     admin_users = someuser
 
-2. Create a users.txt file::
+2. Create ``users.txt`` file that contains users allowed in::
 
     "someuser" "same_password_as_in_server"
 
@@ -102,7 +102,7 @@ Basic setup and usage as following.
         RESUME
         SHUTDOWN
 
-  6. If you made changes to the pgbouncer.ini file, you can reload it with::
+6. If you made changes to the pgbouncer.ini file, you can reload it with::
 
       pgbouncer=# RELOAD;
 

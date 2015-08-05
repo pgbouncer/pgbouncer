@@ -938,7 +938,7 @@ So user `admin` with password `1234` will have MD5-hidden password
 HBA file format
 ===============
 
-It follows the format of PostgreSQL pg_hba.conf file:
+It follows the format of PostgreSQL pg_hba.conf file -
 http://www.postgresql.org/docs/9.4/static/auth-pg-hba-conf.html
 
 There are following differences:

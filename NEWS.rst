@@ -131,6 +131,13 @@ PgBouncer 1.6.x
 PgBouncer 1.5.x
 ---------------
 
+**2015-04-09  -  PgBouncer 1.5.5  -  "Play Dead To Win"**
+
+- Fixes
+
+  * Fix remote crash - invalid packet order causes lookup of NULL
+    pointer.  Not exploitable, just DoS.
+
 **2012-11-28  -  PgBouncer 1.5.4  -  "No Leaks, Potty-Training Successful"**
 
 - Fixes

@@ -290,6 +290,8 @@ bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
 			return false;
 		}
 		break;
+	case 'N':	/* NoticeResponse */
+		break;
 	case 'C':	/* CommandComplete */
 		break;
 	case '1':	/* ParseComplete */

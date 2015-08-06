@@ -741,14 +741,19 @@ Older libevent versions crash with new restart code.
     syslog_facility=daemon/user/local0.
 
   * Less scary online restart (-R)
+
     - Move FD loading before fork, so it logs to console and can be canceled by ^C
+
     - Keep SHUTDOWN after fork, so ^C would be safe
+
     - A connect() is attempted to unix socket to see if anyone is listening.
       Now -R can be used even when no previous process was running.  If there
       is previous process, but -R is not used, startup fails.
 
   * New console commands:
+
     - SHOW TOTALS that shows stats summary (as goes to log) plus mem usage.
+
     - SHOW ACTIVE_SOCKETS - like show sockets; but filter only active ones.
 
 - Less visible features
@@ -771,12 +776,16 @@ Older libevent versions crash with new restart code.
     depending on it.
 
   * Internal improvements:
+
     - Packet buffers are allocated lazily and reused.  This should bring
       huge decrease in memory usage.  This also makes realistic to use
       big pktbuf with lot of connections.
+
     - Lot's of error handling improvements, PgBouncer should now
       survive OOM situations gracefully.
+
     - Use slab allocator for memory management.
+
     - Lots of code cleanups.
 
 - Fixes

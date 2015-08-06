@@ -2,8 +2,9 @@
 
 # Notes:
 # - uses iptables and -F with some tests, probably not very friendly to your firewall
-# - uses nc (netcat) with some tests, skips if not in path
-# - assumes postgres 8.2 fix your path so that it comes first
+
+[ "$(echo {1..2})" = "1 2" ] || exec bash $0 "$@"
+cd $(dirname $0)
 
 export PATH=/usr/lib/postgresql/9.4/bin:$PATH
 export PGDATA=$PWD/pgdata
@@ -30,12 +31,39 @@ pgctl() {
 ulimit -c unlimited
 
 which initdb > /dev/null || {
-  echo "initdb not found, need postgres tools in PATH"
-  exit 1
+	echo "initdb not found, need postgres tools in PATH"
+	exit 1
 }
 
+# System configuration checks
+grep -q "^\"${USER}\"" userlist.txt || echo "\"${USER}\" \"01234\"" >> userlist.txt
+
+case `uname` in
+Darwin|OpenBSD)
+	sudo pfctl -a pgbouncer -F all -q 2>&1 | grep -q "pfctl:" && {
+		cat <<-EOF
+		Please enable PF and add the following rule to /etc/pf.conf
+		
+		  anchor "pgbouncer/*"
+		
+		EOF
+		exit 1
+	}
+	;;
+esac
+
+# System configuration checks
+SED_ERE_OP='-E'
+NC_WAIT_OP='-w 5'
+case `uname` in
+Linux)
+	SED_ERE_OP='-r'
+	NC_WAIT_OP='-q 5'
+	;;
+esac
+
 stopit() {
-  test -f "$1" && { kill `cat "$1"`; rm -f "$1"; }
+	test -f "$1" && { kill `cat "$1"`; rm -f "$1"; }
 }
 
 stopit test.pid
@@ -48,7 +76,7 @@ rm -rf $PGDATA
 if [ ! -d $PGDATA ]; then
 	mkdir $PGDATA
 	initdb >> $PG_LOG 2>&1
-	sed -r -i "/unix_socket_director/s:.*(unix_socket_director.*=).*:\\1 '/tmp':" pgdata/postgresql.conf
+	sed $SED_ERE_OP -i "/unix_socket_director/s:.*(unix_socket_director.*=).*:\\1 '/tmp':" pgdata/postgresql.conf
 fi
 
 pgctl start
@@ -73,8 +101,9 @@ fw_drop_port() {
 	case `uname` in
 	Linux)
 		sudo iptables -A OUTPUT -p tcp --dport $1 -j DROP;;
-	Darwin)
-		sudo ipfw add 100 drop tcp from any to 127.0.0.1 dst-port $1;;
+	Darwin|OpenBSD)
+		echo "block drop out proto tcp from any to 127.0.0.1 port $1" \
+		    | sudo pfctl -a pgbouncer -f -;;
 	*)
 		echo "Unknown OS";;
 	esac
@@ -83,8 +112,9 @@ fw_reject_port() {
 	case `uname` in
 	Linux)
 		sudo iptables -A OUTPUT -p tcp --dport $1 -j REJECT --reject-with tcp-reset;;
-	Darwin)
-		sudo ipfw add 100 reset tcp from any to 127.0.0.1 dst-port $1;;
+	Darwin|OpenBSD)
+		echo "block return-rst out proto tcp from any to 127.0.0.1 port $1" \
+		    | sudo pfctl -a pgbouncer -f -;;
 	*)
 		echo "Unknown OS";;
 	esac
@@ -94,8 +124,8 @@ fw_reset() {
 	case `uname` in
 	Linux)
 		sudo iptables -F OUTPUT;;
-	Darwin)
-		sudo ipfw del 100;;
+	Darwin|OpenBSD)
+		pfctl -a pgbouncer -F all;;
 	*)
 		echo "Unknown OS"; exit 1;;
 	esac
@@ -122,7 +152,7 @@ admin() {
 }
 
 runtest() {
-	echo -n "`date` running $1 ... "
+	printf "`date` running $1 ... "
 	eval $1 >$LOGDIR/$1.log 2>&1
 	if [ $? -eq 0 ]; then
 		echo "ok"
@@ -194,8 +224,8 @@ test_server_login_retry() {
 test_server_connect_timeout_establish() {
 	which nc >/dev/null || return 1
 
-	echo nc -q 5 -l $NC_PORT
-	nc -l -q 5 $NC_PORT >/dev/null &
+	echo nc $NC_WAIT_OP -l $NC_PORT
+	nc $NC_WAIT_OP -l $NC_PORT >/dev/null &
 	sleep 2
 	admin "set query_timeout=3"
 	admin "set server_connect_timeout=2"
@@ -246,7 +276,7 @@ test_max_client_conn() {
 	admin "set max_client_conn=5"
 	admin "show config"
 
-	for i in `seq 1 4`; do
+	for i in {1..4}; do
 		psql p1 -c "select now() as sleeping from pg_sleep(3);" &
 	done
 
@@ -272,7 +302,7 @@ test_max_client_conn() {
 test_pool_size() {
 	
 	docount() {
-		for i in `seq 10`; do
+		for i in {1..10}; do
 			psql $1 -c "select pg_sleep(0.5)"  &
 		done
 		wait
@@ -290,10 +320,10 @@ test_pool_size() {
 test_online_restart() {
 # max_client_conn=10
 # default_pool_size=5
-	for i in `seq 1 5`; do 
+	for i in {1..5}; do 
 		echo "`date` attempt $i"
 
-		for j in `seq 1 5`; do 
+		for j in {1..5}; do 
 			psql -c "select now() as sleeping from pg_sleep(2)" p1  &
 		done
 
@@ -311,11 +341,11 @@ test_online_restart() {
 # test pause/resume
 test_pause_resume() {
 	rm -f $LOGDIR/test.tmp
-	for i in `seq 1 50`; do
+	for i in {1..50}; do
 		psql -tAq p0 -c 'select 1 from pg_sleep(0.1)' >>$LOGDIR/test.tmp
 	done &
 
-	for i in `seq 1 5`; do
+	for i in {1..5}; do
 		admin "pause"
 		sleep 1
 		admin "resume"
@@ -329,11 +359,11 @@ test_pause_resume() {
 # test suspend/resume
 test_suspend_resume() {
 	rm -f $LOGDIR/test.tmp
-	for i in `seq 1 50`; do
+	for i in {1..50}; do
 		psql -tAq p0 -c 'select 1 from pg_sleep(0.1)' >>$LOGDIR/test.tmp
 	done &
 
-	for i in `seq 1 5`; do
+	for i in {1..5}; do
 		psql -h /tmp -p $BOUNCER_PORT pgbouncer -U pgbouncer <<-PSQL_EOF
 		suspend;
 		\! sleep 1
@@ -374,7 +404,7 @@ test_database_restart() {
 
 
 	# do with some more clients
-	for i in `seq 1 5`; do
+	for i in {1..5}; do
 		psql p0 -c "select pg_sleep($i)" &
 		psql p1 -c "select pg_sleep($i)" &
 	done

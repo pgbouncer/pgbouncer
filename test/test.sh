@@ -1,9 +1,8 @@
-#!/bin/sh
+#!/bin/bash
 
 # Notes:
 # - uses iptables and -F with some tests, probably not very friendly to your firewall
 
-[ "$(echo {1..2})" = "1 2" ] || exec bash $0 "$@"
 cd $(dirname $0)
 
 export PATH=/usr/lib/postgresql/9.4/bin:$PATH

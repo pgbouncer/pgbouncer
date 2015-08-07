@@ -115,13 +115,19 @@ extern int cf_sbuf_len;
 #define MAX_USERNAME	64
 #define MAX_PASSWORD	64
 
-/* auth modes, should match PG's */
+/* no-auth modes */
 #define AUTH_ANY	-1 /* same as trust but without username check */
-#define AUTH_TRUST	0
+#define AUTH_TRUST	AUTH_OK
+
+/* protocol codes */
+#define AUTH_OK		0
+#define AUTH_KRB	2
 #define AUTH_PLAIN	3
-/* #define AUTH_CRYPT	4 */
+#define AUTH_CRYPT	4
 #define AUTH_MD5	5
-/* #define AUTH_CREDS	6 */
+#define AUTH_CREDS	6
+
+/* internal codes */
 #define AUTH_CERT	7
 #define AUTH_PEER	8
 #define AUTH_HBA	9

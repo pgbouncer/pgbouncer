@@ -36,7 +36,6 @@ static const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
 static bool check_client_passwd(PgSocket *client, const char *passwd)
 {
 	char md5[MD5_PASSWD_LEN + 1];
-	const char *correct;
 	PgUser *user = client->auth_user;
 
 	/* disallow empty passwords */
@@ -46,9 +45,6 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 	switch (cf_auth_type) {
 	case AUTH_PLAIN:
 		return strcmp(user->passwd, passwd) == 0;
-	case AUTH_CRYPT:
-		correct = crypt(user->passwd, (char *)client->tmp_login_salt);
-		return correct && strcmp(correct, passwd) == 0;
 	case AUTH_MD5:
 		if (strlen(passwd) != MD5_PASSWD_LEN)
 			return false;
@@ -60,26 +56,13 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 	return false;
 }
 
-/* mask to get offset into valid_crypt_salt[] */
-#define SALT_MASK  0x3F
-
-static const char valid_crypt_salt[] =
-"./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-
 static bool send_client_authreq(PgSocket *client)
 {
 	uint8_t saltlen = 0;
 	int res;
 	int auth = cf_auth_type;
-	uint8_t randbuf[2];
 
-	if (auth == AUTH_CRYPT) {
-		saltlen = 2;
-		get_random_bytes(randbuf, saltlen);
-		client->tmp_login_salt[0] = valid_crypt_salt[randbuf[0] & SALT_MASK];
-		client->tmp_login_salt[1] = valid_crypt_salt[randbuf[1] & SALT_MASK];
-		client->tmp_login_salt[2] = 0;
-	} else if (cf_auth_type == AUTH_MD5) {
+	if (cf_auth_type == AUTH_MD5) {
 		saltlen = 4;
 		get_random_bytes((void*)client->tmp_login_salt, saltlen);
 	} else if (cf_auth_type == AUTH_PLAIN) {
@@ -237,7 +220,6 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		ok = finish_client_login(client);
 		break;
 	case AUTH_PLAIN:
-	case AUTH_CRYPT:
 	case AUTH_MD5:
 		ok = send_client_authreq(client);
 		break;

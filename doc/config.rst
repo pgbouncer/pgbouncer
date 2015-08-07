@@ -119,10 +119,6 @@ md5
     Use MD5-based password check. `auth_file`_ may contain both MD5-encrypted
     or plain-text passwords.  This is the default authentication method.
 
-crypt
-    Use crypt(3) based password check. `auth_file`_ must contain plain-text
-    passwords.  Deprecated, removed in PostgreSQL 8.4.
-
 plain
     Clear-text password is sent over wire.  Deprecated.
 

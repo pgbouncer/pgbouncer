@@ -167,9 +167,6 @@ static const struct CfLookup auth_type_map[] = {
 	{ "any", AUTH_ANY },
 	{ "trust", AUTH_TRUST },
 	{ "plain", AUTH_PLAIN },
-#ifdef HAVE_CRYPT
-	{ "crypt", AUTH_CRYPT },
-#endif
 	{ "md5", AUTH_MD5 },
 	{ "cert", AUTH_CERT },
 	{ "hba", AUTH_HBA },

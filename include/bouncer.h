@@ -119,9 +119,9 @@ extern int cf_sbuf_len;
 #define AUTH_ANY	-1 /* same as trust but without username check */
 #define AUTH_TRUST	0
 #define AUTH_PLAIN	3
-#define AUTH_CRYPT	4
+/* #define AUTH_CRYPT	4 */
 #define AUTH_MD5	5
-#define AUTH_CREDS	6
+/* #define AUTH_CREDS	6 */
 #define AUTH_CERT	7
 #define AUTH_PEER	8
 #define AUTH_HBA	9

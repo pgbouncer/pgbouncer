@@ -34,9 +34,6 @@
 
 #include <usual/tls/tls.h>
 
-#ifdef HAVE_CRYPT_H
-#include <crypt.h>
-#endif
 #ifdef HAVE_LIBGEN_H
 #include <libgen.h>
 #endif
@@ -60,9 +57,6 @@
  * libc compat functions.
  */
 
-#ifndef HAVE_CRYPT
-static inline char *crypt(const char *p, const char *s) { return NULL; }
-#endif
 #ifndef HAVE_LSTAT
 static inline int lstat(const char *path, struct stat *st) { return stat(path, st); }
 #endif

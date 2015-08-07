@@ -26,7 +26,6 @@ AC_CHECK_TOOL([STRIP], [strip])
 
 dnl Checks for header files.
 AC_USUAL_HEADER_CHECK
-AC_CHECK_HEADERS([crypt.h])
 AC_CHECK_HEADERS([sys/resource.h sys/wait.h])
 
 dnl Checks for typedefs, structures, and compiler characteristics.
@@ -46,12 +45,11 @@ m4_ifdef([AC_TYPE_UINT8_T], [
 
 dnl Checks for library functions.
 AC_USUAL_FUNCTION_CHECK
-AC_SEARCH_LIBS(crypt, crypt)
 AC_SEARCH_LIBS(clock_gettime, rt)
 AC_SEARCH_LIBS(getsockname, socket)
 AC_SEARCH_LIBS(gethostbyname, nsl)
 AC_SEARCH_LIBS(hstrerror, resolv)
-AC_CHECK_FUNCS(crypt lstat)
+AC_CHECK_FUNCS(lstat)
 
 dnl Find libevent
 AC_USUAL_LIBEVENT

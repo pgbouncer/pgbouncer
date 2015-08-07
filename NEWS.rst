@@ -12,6 +12,10 @@ Unreleased
 
   * Unix sockets support "peer" auth.
 
+- Cleanups
+
+  * Remove **crypt** auth.
+
 PgBouncer 1.6.x
 ---------------
 

@@ -611,12 +611,16 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	case 'F':		/* FunctionCall */
 
 	/* request immediate response from server */
-	case 'H':		/* Flush */
 	case 'S':		/* Sync */
+		client->expect_rfq_count++;
+		break;
+	case 'H':		/* Flush */
+		break;
 
 	/* copy end markers */
 	case 'c':		/* CopyDone(F/B) */
 	case 'f':		/* CopyFail(F/B) */
+		break;
 
 	/*
 	 * extended protocol allows server (and thus pooler)

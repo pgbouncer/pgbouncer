@@ -336,6 +336,7 @@ struct PgSocket {
 	bool setting_vars:1;	/* server: setting client vars */
 	bool exec_on_connect:1;	/* server: executing connect_query */
 	bool resetting:1;	/* server: executing reset query from auth login; don't release on flush */
+	bool copy_mode:1;	/* server: in copy stream, ignores any Sync packets */
 
 	bool wait_for_welcome:1;/* client: no server yet in pool, cannot send welcome msg */
 	bool wait_for_user_conn:1;/* client: waiting for auth_conn server connection */
@@ -348,6 +349,8 @@ struct PgSocket {
 	bool wait_for_response:1;/* console client: waits for completion of PAUSE/SUSPEND cmd */
 
 	bool wait_sslchar:1;	/* server: waiting for ssl response: S/N */
+
+	int expect_rfq_count;	/* client: count of ReadyForQuery packets client should see */
 
 	usec_t connect_time;	/* when connection was made */
 	usec_t request_time;	/* last activity time */

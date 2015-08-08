@@ -246,6 +246,14 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		} else if (state == 'T' || state == 'E') {
 			idle_tx = true;
 		}
+
+		if (client && !server->setting_vars) {
+			if (client->expect_rfq_count > 0) {
+				client->expect_rfq_count--;
+			} else if (server->state == SV_ACTIVE) {
+				slog_debug(client, "unexpected ReadyForQuery - expect_rfq_count=%d", client->expect_rfq_count);
+			}
+		}
 		break;
 
 	case 'S':		/* ParameterStatus */
@@ -279,6 +287,17 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			disconnect_server(server, true, "invalid server parameter");
 			return false;
 		}
+	case 'C':		/* CommandComplete */
+
+		/* ErrorResponse and CommandComplete show end of copy mode */
+		if (server->copy_mode) {
+			server->copy_mode = false;
+
+			/* it's impossible to track sync count over copy */
+			if (client)
+				client->expect_rfq_count = 0;
+		}
+		break;
 
 	case 'N':		/* NoticeResponse */
 		break;
@@ -289,6 +308,11 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		ready = server->ready;
 		break;
 
+	/* copy mode */
+	case 'G':		/* CopyInResponse */
+	case 'H':		/* CopyOutResponse */
+		server->copy_mode = true;
+		break;
 	/* chat packets */
 	case '2':		/* BindComplete */
 	case '3':		/* CloseComplete */
@@ -297,11 +321,8 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	case 'I':		/* EmptyQueryResponse == CommandComplete */
 	case 'V':		/* FunctionCallResponse */
 	case 'n':		/* NoData */
-	case 'G':		/* CopyInResponse */
-	case 'H':		/* CopyOutResponse */
 	case '1':		/* ParseComplete */
 	case 's':		/* PortalSuspended */
-	case 'C':		/* CommandComplete */
 
 	/* data packets, there will be more coming */
 	case 'd':		/* CopyData(F/B) */
@@ -495,11 +516,17 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			break;
 		}
 
-		if (pool_pool_mode(pool)  != POOL_SESSION || server->state == SV_TESTED || server->resetting) {
+		if (pool_pool_mode(pool) != POOL_SESSION || server->state == SV_TESTED || server->resetting) {
 			server->resetting = false;
 			switch (server->state) {
 			case SV_ACTIVE:
 			case SV_TESTED:
+				/* keep link if client expects more Syncs */
+				if (server->link) {
+					if (server->link->expect_rfq_count > 0)
+						break;
+				}
+
 				/* retval does not matter here */
 				release_server(server);
 				break;

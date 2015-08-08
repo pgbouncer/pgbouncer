@@ -422,7 +422,7 @@ test_database_change() {
 	db1=`psql -tAq p1 -c "select current_database()"`
 
 	cp test.ini test.ini.bak
-	sed 's/\(p1 = port=6666 host=127.0.0.1 dbname=\)\(p1\)/\1p0/g' test.ini >test2.ini
+	sed '/^p1 =/s/dbname=p1/dbname=p0/g' test.ini >test2.ini
 	mv test2.ini test.ini
 
 	kill -HUP `cat $BOUNCER_PID`
@@ -437,7 +437,7 @@ test_database_change() {
 	admin "show databases"
 	admin "show pools"
 
-	test $db1 = "p1" -a $db2 = "p0"
+	test "$db1" = "p1" -a "$db2" = "p0"
 }
 
 echo "Testing for sudo access."

@@ -628,28 +628,6 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	case 'B':		/* Bind */
 	case 'D':		/* Describe */
 	case 'd':		/* CopyData(F/B) */
-
-		/* update stats */
-		if (!client->query_start) {
-			client->pool->stats.request_count++;
-			client->query_start = get_cached_time();
-		}
-
-		if (client->pool->db->admin)
-			return admin_handle_client(client, pkt);
-
-		/* acquire server */
-		if (!find_server(client))
-			return false;
-
-		client->pool->stats.client_bytes += pkt->len;
-
-		/* tag the server as dirty */
-		client->link->ready = false;
-		client->link->idle_tx = false;
-
-		/* forward the packet */
-		sbuf_prepare_send(sbuf, &client->link->sbuf, pkt->len);
 		break;
 
 	/* client wants to go away */
@@ -661,6 +639,29 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		disconnect_client(client, false, "client close request");
 		return false;
 	}
+
+	/* update stats */
+	if (!client->query_start) {
+		client->pool->stats.request_count++;
+		client->query_start = get_cached_time();
+	}
+
+	if (client->pool->db->admin)
+		return admin_handle_client(client, pkt);
+
+	/* acquire server */
+	if (!find_server(client))
+		return false;
+
+	client->pool->stats.client_bytes += pkt->len;
+
+	/* tag the server as dirty */
+	client->link->ready = false;
+	client->link->idle_tx = false;
+
+	/* forward the packet */
+	sbuf_prepare_send(sbuf, &client->link->sbuf, pkt->len);
+
 	return true;
 }
 

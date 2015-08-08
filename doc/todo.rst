@@ -14,6 +14,26 @@ Significant amount of users feel the need for those.
 
 Waiting for contributors...
 
+Conceptual issues
+-----------------
+
+* **server_reset_query** vs. per-db **pool_mode**.   Session and transaction
+  pooling mode should not use same **server_reset_query**.
+  For session-pooling it should be ``DISCARD ALL``, for non-session pooling
+  it should be empty, but maybe there are setups where it is useful.
+
+  Solutions:
+
+  1. Just disable **server_reset_query** for non session-mode pools.
+  2. New option that disables **server_reset_query** for non-session-mode pools.
+  3. 2 new Separate settings for tx modes, keep **server_reset_query** for sessions:
+     **server_reset_query_transaction**, **server_reset_query_statement**.
+  4. 3 new Separate settings for differnet modes:
+
+     - **server_reset_query_session**
+     - **server_reset_query_transaction**
+     - **server_reset_query_statement**
+
 Problems / cleanups
 -------------------
 

@@ -201,6 +201,9 @@ static const struct CfLookup auth_type_map[] = {
 #ifdef HAVE_PAM
 	{ "pam", AUTH_PAM },
 #endif
+#ifdef HAVE_LDAP
+	{ "ldap", AUTH_LDAP },
+#endif
 	{ "scram-sha-256", AUTH_SCRAM_SHA_256 },
 	{ NULL }
 };
@@ -406,8 +409,9 @@ void load_config(void)
 	ok = cf_load_file(&main_config, cf_config_file);
 	if (ok) {
 		/* load users if needed */
-		if (requires_auth_file(cf_auth_type))
+		if (requires_auth_file(cf_auth_type)) {
 			loader_users_check();
+		}
 		loaded = true;
 	} else if (!loaded) {
 		die("cannot load config file");
@@ -751,6 +755,7 @@ static void main_loop_once(void)
 			log_warning("event_loop failed: %s", strerror(errno));
 	}
 	pam_poll();
+	ldap_poll();
 	per_loop_maint();
 	reuse_just_freed_objects();
 	rescue_timers();
@@ -996,6 +1001,7 @@ int main(int argc, char *argv[])
 	stats_setup();
 
 	pam_init();
+	auth_ldap_init();
 
 	if (did_takeover) {
 		takeover_finish();

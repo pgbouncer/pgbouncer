@@ -301,6 +301,13 @@ pam
     compatible with databases using the `auth_user` option. The service name reported to
     PAM is "pgbouncer". `pam` is not supported in the HBA configuration file.
 
+ldap
+:   LDAP is used to authenticate users with ldap server(OPENLDAP on linux or AD on windows).
+    In order to use ldap, `auth_type` needs to be set to `hba`. User's name needs to be
+    set in `auth_file` which name to be set under pgbouncer section. The value of
+    `auth_hba_file` has also to be set. And the content of the `auth_hba_file` could be
+    the same format like `pg_hba.conf` in postgres.
+
 ### auth_hba_file
 
 HBA configuration file to use when `auth_type` is `hba`.

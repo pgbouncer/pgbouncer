@@ -84,7 +84,7 @@ static int hba_test_eval(struct HBA *hba, char *ln, int linenr)
 	if (!pga_pton(&pgaddr, addr, 9999))
 		die("hbatest: invalid addr on line #%d", linenr);
 
-	res = hba_eval(hba, &pgaddr, !!tls, db, user);
+	res = hba_eval(hba, &pgaddr, !!tls, db, user, NULL);
 	if (strcmp(method2string(res), exp) == 0) {
 		res = 0;
 	} else {

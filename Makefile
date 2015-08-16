@@ -13,6 +13,7 @@ pgbouncer_SOURCES = \
 	src/main.c \
 	src/objects.c \
 	src/pam.c \
+	src/auth_ldap.c \
 	src/pktbuf.c \
 	src/pooler.c \
 	src/proto.c \
@@ -39,6 +40,7 @@ pgbouncer_SOURCES = \
 	include/loader.h \
 	include/objects.h \
 	include/pam.h \
+	include/auth_ldap.h \
 	include/pktbuf.h \
 	include/pooler.h \
 	include/proto.h \
@@ -59,7 +61,8 @@ pgbouncer_SOURCES = \
 	include/common/unicode_norm.h \
 	include/common/unicode_norm_table.h
 
-pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(LIBEVENT_CFLAGS) $(TLS_CPPFLAGS)
+COMMON_CFLAGS = -g -Wall -DLDAP_DEPRECATED
+pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(LIBEVENT_CFLAGS) $(TLS_CPPFLAGS) $(COMMON_CFLAGS)
 
 # include libusual sources directly
 AM_FEATURES = libusual

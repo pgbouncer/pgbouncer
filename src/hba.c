@@ -53,6 +53,9 @@ struct HBARule {
 	uint8_t rule_mask[16];
 	struct HBAName db_name;
 	struct HBAName user_name;
+#ifdef HAVE_LDAP
+	char *auth_options;
+#endif
 };
 
 struct HBA {
@@ -272,11 +275,19 @@ static bool eat(struct TokParser *p, enum TokType ttype)
 	}
 	return false;
 }
-
+#ifdef HAVE_LDAP
+static void eat_all(struct TokParser *p)
+{
+	p->cur_tok = TOK_EOL;
+}
+#endif
 static bool eat_kw(struct TokParser *p, const char *kw)
 {
 	if (p->cur_tok == TOK_IDENT && strcmp(kw, p->cur_tok_str) == 0) {
-		next_token(p);
+#ifdef HAVE_LDAP
+		if(strcmp(kw, "ldap") != 0) /* Need to get the start of content after ldap */
+#endif
+			next_token(p);
 		return true;
 	}
 	return false;
@@ -454,6 +465,9 @@ static void rule_free(struct HBARule *rule)
 {
 	strset_free(rule->db_name.name_set);
 	strset_free(rule->user_name.name_set);
+#ifdef HAVE_LDAP
+	free(rule->auth_options);
+#endif
 	free(rule);
 }
 
@@ -592,10 +606,24 @@ static bool parse_line(struct HBA *hba, struct TokParser *tp, int linenr, const 
 		rule->rule_method = AUTH_CERT;
 	} else if (eat_kw(tp, "scram-sha-256")) {
 		rule->rule_method = AUTH_SCRAM_SHA_256;
+#ifdef HAVE_LDAP
+	} else if (eat_kw(tp, "ldap")) {
+		rule->rule_method = AUTH_LDAP;
+#endif
 	} else {
 		log_warning("hba line %d: unsupported method: buf=%s", linenr, tp->buf);
 		goto failed;
 	}
+
+#ifdef HAVE_LDAP
+	if (rule->rule_method == AUTH_LDAP) {
+		if ((rule->auth_options = strdup(tp->pos)) == NULL) {
+			log_warning("hba line %d: cannot get auth_options: buf=%s", linenr, tp->pos);
+			goto failed;
+		}
+		eat_all(tp);
+	}
+#endif
 
 	if (!eat(tp, TOK_EOL)) {
 		log_warning("hba line %d: unsupported parameters", linenr);
@@ -701,7 +729,7 @@ static bool match_inet6(const struct HBARule *rule, PgAddr *addr)
 		(src[2] & mask[2]) == base[2] && (src[3] & mask[3]) == base[3];
 }
 
-int hba_eval(struct HBA *hba, PgAddr *addr, bool is_tls, const char *dbname, const char *username)
+int hba_eval(struct HBA *hba, PgAddr *addr, bool is_tls, const char *dbname, const char *username, char **dst)
 {
 	struct List *el;
 	struct HBARule *rule;
@@ -740,6 +768,13 @@ int hba_eval(struct HBA *hba, PgAddr *addr, bool is_tls, const char *dbname, con
 		if (!name_match(&rule->user_name, username, unamelen, dbname))
 			continue;
 
+#ifdef HAVE_LDAP
+		if (rule->rule_method == AUTH_LDAP) {
+			if (dst != NULL) {
+				*dst = rule->auth_options;
+			}
+		}
+#endif
 		/* rule matches */
 		return rule->rule_method;
 	}

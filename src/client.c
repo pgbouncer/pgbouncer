@@ -37,12 +37,13 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 {
 	char md5[MD5_PASSWD_LEN + 1];
 	PgUser *user = client->auth_user;
+	int auth_type = client->client_auth_type;
 
 	/* disallow empty passwords */
 	if (!*passwd || !*user->passwd)
 		return false;
 
-	switch (cf_auth_type) {
+	switch (auth_type) {
 	case AUTH_PLAIN:
 		return strcmp(user->passwd, passwd) == 0;
 	case AUTH_MD5:
@@ -60,18 +61,18 @@ static bool send_client_authreq(PgSocket *client)
 {
 	uint8_t saltlen = 0;
 	int res;
-	int auth = cf_auth_type;
+	int auth_type = client->client_auth_type;
 
-	if (cf_auth_type == AUTH_MD5) {
+	if (auth_type == AUTH_MD5) {
 		saltlen = 4;
 		get_random_bytes((void*)client->tmp_login_salt, saltlen);
-	} else if (cf_auth_type == AUTH_PLAIN) {
+	} else if (auth_type == AUTH_PLAIN) {
 		/* nothing to do */
 	} else {
 		return false;
 	}
 
-	SEND_generic(res, client, 'R', "ib", auth, client->tmp_login_salt, saltlen);
+	SEND_generic(res, client, 'R', "ib", auth_type, client->tmp_login_salt, saltlen);
 	if (!res)
 		disconnect_client(client, false, "failed to send auth req");
 	return res;
@@ -214,6 +215,9 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		auth = hba_eval(parsed_hba, &client->remote_addr, !!client->sbuf.tls,
 				client->db->name, client->auth_user->name);
 	}
+
+	/* remember method */
+	client->client_auth_type = auth;
 
 	switch (auth) {
 	case AUTH_ANY:

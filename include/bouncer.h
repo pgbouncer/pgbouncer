@@ -328,6 +328,8 @@ struct PgSocket {
 
 	PgUser *auth_user;	/* presented login, for client it may differ from pool->user */
 
+	int client_auth_type;	/* auth method decided by hba */
+
 	SocketState state:8;	/* this also specifies socket location */
 
 	bool ready:1;		/* server: accepts new query */

@@ -119,6 +119,7 @@ static bool login_via_cert(PgSocket *client)
 {
 	struct tls *tls = client->sbuf.tls;
 	struct tls_cert_info *cert;
+	struct tls_cert_entity *subj;
 
 	if (!tls) {
 		disconnect_client(client, true, "TLS connection required");
@@ -129,19 +130,19 @@ static bool login_via_cert(PgSocket *client)
 		return false;
 	}
 
-	log_debug("TLS cert login: CN=%s/C=%s/L=%s/ST=%s/O=%s/OU=%s/email=%s",
-		  cert->common_name ? cert->common_name : "(null)",
-		  cert->country_name ? cert->country_name : "(null)",
-		  cert->locality_name ? cert->locality_name : "(null)",
-		  cert->state_or_province_name ? cert->state_or_province_name : "(null)",
-		  cert->organization_name ? cert->organization_name : "(null)",
-		  cert->organizational_unit_name ? cert->organizational_unit_name : "(null)",
-		  cert->email_address ? cert->email_address : "(null)");
-	if (!cert->common_name) {
+	subj = &cert->subject;
+	log_debug("TLS cert login: CN=%s/C=%s/L=%s/ST=%s/O=%s/OU=%s",
+		  subj->common_name ? subj->common_name : "(null)",
+		  subj->country_name ? subj->country_name : "(null)",
+		  subj->locality_name ? subj->locality_name : "(null)",
+		  subj->state_or_province_name ? subj->state_or_province_name : "(null)",
+		  subj->organization_name ? subj->organization_name : "(null)",
+		  subj->organizational_unit_name ? subj->organizational_unit_name : "(null)");
+	if (!subj->common_name) {
 		disconnect_client(client, true, "Invalid TLS certificate");
 		goto fail;
 	}
-	if (strcmp(cert->common_name, client->auth_user->name) != 0) {
+	if (strcmp(subj->common_name, client->auth_user->name) != 0) {
 		disconnect_client(client, true, "TLS certificate name mismatch");
 		goto fail;
 	}

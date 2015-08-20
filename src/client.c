@@ -565,12 +565,6 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 			return false;
 		}
 
-		/* haven't requested it */
-		if (cf_auth_type <= AUTH_TRUST) {
-			disconnect_client(client, true, "unrequested passwd pkt");
-			return false;
-		}
-
 		ok = mbuf_get_string(&pkt->data, &passwd);
 		if (ok && check_client_passwd(client, passwd)) {
 			if (!finish_client_login(client))

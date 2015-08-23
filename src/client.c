@@ -119,14 +119,14 @@ static void start_auth_request(PgSocket *client, const char *username)
 static bool login_via_cert(PgSocket *client)
 {
 	struct tls *tls = client->sbuf.tls;
-	struct tls_cert_info *cert;
-	struct tls_cert_entity *subj;
+	struct tls_cert *cert;
+	struct tls_cert_dname *subj;
 
 	if (!tls) {
 		disconnect_client(client, true, "TLS connection required");
 		return false;
 	}
-	if (tls_get_peer_cert(client->sbuf.tls, &cert) < 0 || !cert) {
+	if (tls_get_peer_cert(client->sbuf.tls, &cert, NULL) < 0 || !cert) {
 		disconnect_client(client, true, "TLS client certificate required");
 		return false;
 	}

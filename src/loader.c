@@ -378,7 +378,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		db->auth_user = NULL;
 	}
 
-	/* if user is forces, create fake object for it */
+	/* if user is forced, create fake object for it */
 	if (username != NULL) {
 		if (!force_user(db, username, password))
 			log_warning("db setup failed, trying to continue");

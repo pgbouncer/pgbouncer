@@ -403,6 +403,16 @@ that next query will be run on same connection.
 
 Default: DISCARD ALL
 
+server_reset_query_always
+-------------------------
+
+Whether `server_reset_query`_ should be run in all pooling modes.  When this
+setting is off (default), the `server_reset_query`_ will be run only in pools
+that are in sessions-pooling mode.  Connections in transaction-pooling mode
+should not have any need for reset query.
+
+Default: 0
+
 server_check_delay
 ------------------
 

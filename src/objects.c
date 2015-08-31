@@ -697,7 +697,9 @@ bool release_server(PgSocket *server)
 		server->link->link = NULL;
 		server->link = NULL;
 
-		if (*cf_server_reset_query) {
+		if (*cf_server_reset_query && (cf_server_reset_query_always ||
+					       pool_pool_mode(pool) == POOL_SESSION))
+		{
 			/* notify reset is required */
 			newstate = SV_TESTED;
 		} else if (cf_server_check_delay == 0 && *cf_server_check_query) {

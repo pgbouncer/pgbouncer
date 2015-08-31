@@ -1368,9 +1368,11 @@ bool admin_pre_login(PgSocket *client, const char *username)
 	 */
 	if (cf_auth_type == AUTH_ANY) {
 		if (strlist_contains(cf_admin_users, username)) {
+			client->auth_user = admin_pool->db->forced_user;
 			client->admin_user = 1;
 			return true;
 		} else if (strlist_contains(cf_stats_users, username)) {
+			client->auth_user = admin_pool->db->forced_user;
 			return true;
 		}
 	}

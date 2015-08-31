@@ -385,6 +385,7 @@ extern usec_t cf_suspend_timeout;
 extern usec_t cf_server_lifetime;
 extern usec_t cf_server_idle_timeout;
 extern char * cf_server_reset_query;
+extern int cf_server_reset_query_always;
 extern char * cf_server_check_query;
 extern usec_t cf_server_check_delay;
 extern usec_t cf_server_connect_timeout;

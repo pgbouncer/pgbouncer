@@ -356,6 +356,17 @@ that next query will be run on same connection.
 
 Default: DISCARD ALL
 
+==== server_reset_query_always ====
+
+Whether server_reset_query should be run in all pooling modes.  When this
+setting is off (default), the server_reset_query will be run only in pools
+that are in sessions-pooling mode.  Connections in transaction-pooling mode
+should not have any need for reset query.
+
+It is set by default in 1.6, the default will change to "off" in 1.7.
+
+Default: 1
+
 ==== server_check_delay ====
 
 How long to keep released connections available for immediate re-use, without running

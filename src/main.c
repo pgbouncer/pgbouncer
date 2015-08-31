@@ -97,6 +97,7 @@ int cf_max_db_connections;
 int cf_max_user_connections;
 
 char *cf_server_reset_query;
+int cf_server_reset_query_always;
 char *cf_server_check_query;
 usec_t cf_server_check_delay;
 int cf_server_round_robin;
@@ -199,6 +200,7 @@ CF_ABS("user", CF_STR, cf_username, CF_NO_RELOAD, NULL),
 CF_ABS("autodb_idle_timeout", CF_TIME_USEC, cf_autodb_idle_timeout, 0, "3600"),
 
 CF_ABS("server_reset_query", CF_STR, cf_server_reset_query, 0, "DISCARD ALL"),
+CF_ABS("server_reset_query_always", CF_INT, cf_server_reset_query_always, 0, "1");
 CF_ABS("server_check_query", CF_STR, cf_server_check_query, 0, "select 1"),
 CF_ABS("server_check_delay", CF_TIME_USEC, cf_server_check_delay, 0, "30"),
 CF_ABS("query_timeout", CF_TIME_USEC, cf_query_timeout, 0, "0"),

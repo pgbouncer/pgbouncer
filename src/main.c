@@ -233,7 +233,7 @@ CF_ABS("server_reset_query_always", CF_INT, cf_server_reset_query_always, 0, "0"
 CF_ABS("server_check_query", CF_STR, cf_server_check_query, 0, "select 1"),
 CF_ABS("server_check_delay", CF_TIME_USEC, cf_server_check_delay, 0, "30"),
 CF_ABS("query_timeout", CF_TIME_USEC, cf_query_timeout, 0, "0"),
-CF_ABS("query_wait_timeout", CF_TIME_USEC, cf_query_wait_timeout, 0, "0"),
+CF_ABS("query_wait_timeout", CF_TIME_USEC, cf_query_wait_timeout, 0, "120"),
 CF_ABS("client_idle_timeout", CF_TIME_USEC, cf_client_idle_timeout, 0, "0"),
 CF_ABS("client_login_timeout", CF_TIME_USEC, cf_client_login_timeout, 0, "60"),
 CF_ABS("idle_transaction_timeout", CF_TIME_USEC, cf_idle_transaction_timeout, 0, "0"),

@@ -684,7 +684,10 @@ Maximum time queries are allowed to spend waiting for execution. If the query
 is not assigned to a server during that time, the client is disconnected. This
 is used to prevent unresponsive servers from grabbing up connections. [seconds]
 
-Default: 0.0 (disabled)
+It also helps when server is down or database rejects connections for any reason.
+If this is disabled, clients will be queued infinitely.
+
+Default: 120
 
 client_idle_timeout
 -------------------

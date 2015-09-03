@@ -8,14 +8,16 @@ Significant amount of users feel the need for those.
 
 * Protocol-level plan cache.
 
-* Load-balancing / failover.
-
 * LISTEN/NOTIFY.  Requires strict SQL format.
 
 Waiting for contributors...
 
 Conceptual issues
 -----------------
+
+* Bad naming in data strctures:
+  * PgSocket->auth_user [vs. PgDatabase->auth_user]
+  * PgSocket->db [vs. PgPool->db]
 
 * **server_reset_query** vs. per-db **pool_mode**.   Session and transaction
   pooling mode should not use same **server_reset_query**.
@@ -73,6 +75,10 @@ Problems / cleanups
 
 Dubious/complicated features
 ----------------------------
+
+* Load-balancing / failover.  Both are already solved via DNS.
+  Adding load-balancing config in pgbouncer might be good idea.
+  Adding failover decision-making is not...
 
 * User-based route.  Simplest would be to move db info to pool
   and fill username into dns.

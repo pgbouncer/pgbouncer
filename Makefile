@@ -130,9 +130,10 @@ zip: configure clean
 	mkdir buildexe
 	cd buildexe \
 		&& ../configure --host=$(w32arch) --disable-debug \
+			--without-cares \
 			--with-libevent=/opt/apps/win32 --enable-evdns \
 		&& make \
-		&& $(warch)-strip pgbouncer.exe pgbevent.dll \
+		&& $(w32arch)-strip pgbouncer.exe pgbevent.dll \
 		&& zip pgbouncer.zip pgbouncer.exe pgbevent.dll doc/*.html
 	zip -l buildexe/pgbouncer.zip etc/pgbouncer.ini etc/userlist.txt
 	mv buildexe/pgbouncer.zip $(w32zip)

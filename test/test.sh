@@ -86,6 +86,12 @@ psql -p $PG_PORT -l |grep p0 > /dev/null || {
 	psql -p $PG_PORT -c "create user bouncer" template1
 	createdb -p $PG_PORT p0
 	createdb -p $PG_PORT p1
+	createdb -p $PG_PORT p3
+}
+
+psql -p $PG_PORT -d p0 -c "select * from pg_user" | grep pswcheck > /dev/null || {
+	psql -p $PG_PORT p0 -c "create user pswcheck with superuser createdb password 'pgbouncer-check';" || return 1
+	psql -p $PG_PORT p0 -c "create user someuser with password 'anypasswd';" || return 1
 }
 
 echo "Starting bouncer"
@@ -440,11 +446,33 @@ test_database_change() {
 	test "$db1" = "p1" -a "$db2" = "p0"
 }
 
+# test connect string change
+test_auth_user() {
+	admin "set auth_type='md5'"
+	curuser=`psql -d "dbname=authdb user=someuser password=anypasswd" -tAq -c "select current_user;"`
+	echo "curuser=$curuser"
+	test "$curuser" = "someuser" || return 1
+
+	curuser2=`psql -d "dbname=authdb user=nouser password=anypasswd" -tAq -c "select current_user;"`
+	echo "curuser2=$curuser2"
+	test "$curuser2" = "" || return 1
+
+	curuser2=`psql -d "dbname=authdb user=someuser password=badpasswd" -tAq -c "select current_user;"`
+	echo "curuser2=$curuser2"
+	test "$curuser2" = "" || return 1
+
+	admin "show databases"
+	admin "show pools"
+
+	return 0
+}
+
 echo "Testing for sudo access."
 sudo true && CAN_SUDO=1
 
 testlist="
 test_server_login_retry
+test_auth_user
 test_client_idle_timeout
 test_server_lifetime
 test_server_idle_timeout

@@ -12,12 +12,40 @@ Unreleased
 
   * Unix sockets support "peer" auth.
 
+  * query_wait_timeout is set by default.
+
 - Cleanups
 
   * Remove **crypt** auth.
 
 PgBouncer 1.6.x
 ---------------
+
+**2015-09-03  -  PgBouncer 1.6.1  -  "Studio Audience Approves"**
+
+- Features
+
+  * New setting: `server_reset_query_always`.  When set,
+    disables `server_reset_query` use on non-session pools.
+    PgBouncer introduces per-pool pool_mode, but session-pooling
+    and transaction-pooling should not use same reset query.
+    In fact, transaction-pooling should not use any reset query.
+
+    It is set in 1.6.x, but will be disabled in 1.7.
+
+- Fixes
+
+  * [SECURITY]  Remove invalid assignment of `auth_user`. (#69)
+    When `auth_user` is set and client asks non-existing username,
+    client will log in as `auth_user`.  Not good.
+
+  * Skip NoticeResponce in handle_auth_response.  Otherwise verbose
+    log levels on server cause login failures.
+
+  * console: Fill `auth_user` when auth_type=any.  Otherwise
+    logging can crash (#67).
+
+  * Various portability fixes (OpenBSD, Solaris, OSX).
 
 **2015-08-01  -  PgBouncer 1.6  -  "Zombies of the future"**
 
@@ -583,7 +611,7 @@ PgBouncer 1.3.x
 
   * Add STATS to SHOW HELP text.
 
-  * doc/usage.txt: the time units in console results are in 
+  * doc/usage.txt: the time units in console results are in
     microseconds, not milliseconds.
 
 **2009-02-18  -  PgBouncer 1.3 -  "New Ki-Smash Finishing Move"**
@@ -732,7 +760,7 @@ Older libevent versions crash with new restart code.
 
   * New database option: connect_query to allow run a query on new
     connections before they are taken into use.
-    
+
     (Teodor Sigaev)
 
   * New config var 'ignore_startup_parameters' to allow and ignore

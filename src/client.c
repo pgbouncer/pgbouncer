@@ -83,7 +83,6 @@ static void start_auth_request(PgSocket *client, const char *username)
 	int res;
 	PktBuf *buf;
 
-	client->auth_user = client->db->auth_user;
 	/* have to fetch user info from db */
 	client->pool = get_pool(client->db, client->db->auth_user);
 	if (!find_server(client)) {

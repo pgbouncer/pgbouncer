@@ -199,6 +199,25 @@ avg_sent
 avg_query
     Average query duration in microseconds.
 
+total_server
+    Total number of server connections openned since startup.
+
+total_client
+    Total number of client connections openned since startup.
+
+total_client_time
+    Total number of microseconds spent by clients connected
+    to **pgbouncer**.
+
+avg_server
+    Average number of server connections openned by second.
+
+avg_client
+    Average number of client connections openned by second.
+
+avg_client_time
+    Average client connection duration in microseconds.
+
 SHOW SERVERS;
 -------------
 

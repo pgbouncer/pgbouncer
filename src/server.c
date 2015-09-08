@@ -151,6 +151,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 		/* login ok */
 		slog_debug(server, "server login ok, start accepting queries");
 		server->ready = 1;
+		server->pool->stats.server_count++;
 
 		/* got all params */
 		finish_welcome_msg(server);

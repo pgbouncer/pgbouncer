@@ -190,9 +190,12 @@ int pga_cmp_addr(const PgAddr *a, const PgAddr *b);
  * Stats, kept per-pool.
  */
 struct PgStats {
+	uint64_t server_count;
+	uint64_t client_count;
 	uint64_t request_count;
 	uint64_t server_bytes;
 	uint64_t client_bytes;
+	usec_t client_time;	/* total cli session time in us */
 	usec_t query_time;	/* total req time in us */
 };
 

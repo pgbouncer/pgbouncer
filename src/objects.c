@@ -837,6 +837,9 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 	case CL_LOGIN:
 		if (client->link) {
 			PgSocket *server = client->link;
+
+			client->pool->stats.client_time += now - client->connect_time;
+
 			/* ->ready may be set before all is sent */
 			if (server->ready && sbuf_is_empty(&server->sbuf)) {
 				/* retval does not matter here */
@@ -1202,6 +1205,8 @@ bool finish_client_login(PgSocket *client)
 		return false;
 
 	slog_debug(client, "logged in");
+
+	client->pool->stats.client_count++;
 
 	return true;
 }

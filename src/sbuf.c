@@ -92,8 +92,7 @@ static const SBufIO tls_sbufio_ops = {
 	tls_sbufio_send,
 	tls_sbufio_close
 };
-static void sbuf_tls_accept_cb(int fd, short flags, void *_sbuf);
-static void sbuf_tls_connect_cb(int fd, short flags, void *_sbuf);
+static void sbuf_tls_handshake_cb(int fd, short flags, void *_sbuf);
 #endif
 
 /*********************************
@@ -863,13 +862,24 @@ static void setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
 			log_error("Invalid %s_cert_file: %s", pfx, certfile);
 	}
 
-	if (sslmode == SSLMODE_VERIFY_FULL) {
-		tls_config_verify(conf);
-	} else if (sslmode == SSLMODE_VERIFY_CA) {
-		tls_config_insecure_noverifyname(conf);
+	if (does_connect) {
+		/* TLS client, check server? */
+		if (sslmode == SSLMODE_VERIFY_FULL) {
+			tls_config_verify(conf);
+		} else if (sslmode == SSLMODE_VERIFY_CA) {
+			tls_config_verify(conf);
+			tls_config_insecure_noverifyname(conf);
+		} else {
+			tls_config_insecure_noverifycert(conf);
+			tls_config_insecure_noverifyname(conf);
+		}
 	} else {
-		tls_config_insecure_noverifycert(conf);
-		tls_config_insecure_noverifyname(conf);
+		/* TLS server, check client? */
+		if (sslmode == SSLMODE_VERIFY_FULL) {
+			tls_config_verify_client_optional(conf);
+		} else if (sslmode == SSLMODE_VERIFY_CA) {
+			tls_config_verify_client_optional(conf);
+		}
 	}
 }
 
@@ -924,72 +934,59 @@ void sbuf_tls_setup(void)
 }
 
 /*
- * Accept TLS connection.
+ * TLS handshake
  */
 
-static bool handle_tls_accept(struct SBuf *sbuf)
+static bool handle_tls_handshake(SBuf *sbuf)
 {
 	int err;
 
-	err = tls_accept_fds(client_accept_base, &sbuf->tls, sbuf->sock, sbuf->sock);
-	log_noise("tls_accept_fds: err=%d", err);
-	if (err == TLS_READ_AGAIN) {
-		return sbuf_use_callback_once(sbuf, EV_READ, sbuf_tls_accept_cb);
-	} else if (err == TLS_WRITE_AGAIN) {
-		return sbuf_use_callback_once(sbuf, EV_WRITE, sbuf_tls_accept_cb);
+	err = tls_handshake(sbuf->tls);
+	log_noise("tls_handshake: err=%d", err);
+	if (err == TLS_WANT_POLLIN) {
+		return sbuf_use_callback_once(sbuf, EV_READ, sbuf_tls_handshake_cb);
+	} else if (err == TLS_WANT_POLLOUT) {
+		return sbuf_use_callback_once(sbuf, EV_WRITE, sbuf_tls_handshake_cb);
 	} else if (err == 0) {
 		sbuf_call_proto(sbuf, SBUF_EV_TLS_READY);
 		return true;
 	} else {
-		log_warning("TLS accept error: %s", tls_error(sbuf->tls));
+		log_warning("TLS handshake error: %s", tls_error(sbuf->tls));
 		return false;
 	}
 }
 
-static void sbuf_tls_accept_cb(int fd, short flags, void *_sbuf)
+static void sbuf_tls_handshake_cb(int fd, short flags, void *_sbuf)
 {
 	SBuf *sbuf = _sbuf;
 	sbuf->wait_type = W_NONE;
-	if (!handle_tls_accept(sbuf))
+	if (!handle_tls_handshake(sbuf))
 		sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
 }
 
+/*
+ * Accept TLS connection.
+ */
+
 bool sbuf_tls_accept(SBuf *sbuf)
 {
+	int err;
+
 	sbuf->ops = &tls_sbufio_ops;
-	return handle_tls_accept(sbuf);
+
+	err = tls_accept_fds(client_accept_base, &sbuf->tls, sbuf->sock, sbuf->sock);
+	log_noise("tls_accept_fds: err=%d", err);
+	if (err < 0) {
+		log_warning("TLS accept error: %s", tls_error(sbuf->tls));
+		return false;
+	}
+
+	return handle_tls_handshake(sbuf);
 }
 
 /*
  * Connect to remote TLS host.
  */
-
-static bool handle_tls_connect(SBuf *sbuf)
-{
-	int err;
-
-	err = tls_connect_fds(sbuf->tls, sbuf->sock, sbuf->sock, sbuf->tls_host);
-	log_noise("tls_connect_fds: err=%d", err);
-	if (err == TLS_READ_AGAIN) {
-		return sbuf_use_callback_once(sbuf, EV_READ, sbuf_tls_connect_cb);
-	} else if (err == TLS_WRITE_AGAIN) {
-		return sbuf_use_callback_once(sbuf, EV_WRITE, sbuf_tls_connect_cb);
-	} else if (err == 0) {
-		sbuf_call_proto(sbuf, SBUF_EV_TLS_READY);
-		return true;
-	} else {
-		log_warning("TLS connect error: %s", tls_error(sbuf->tls));
-		return false;
-	}
-}
-
-static void sbuf_tls_connect_cb(int fd, short flags, void *_sbuf)
-{
-	SBuf *sbuf = _sbuf;
-	sbuf->wait_type = W_NONE;
-	if (!handle_tls_connect(sbuf))
-		sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
-}
 
 bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
 {
@@ -1003,7 +1000,7 @@ bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
 	if (!ctls)
 		return false;
 	err = tls_configure(ctls, server_connect_conf);
-	if (err) {
+	if (err < 0) {
 		log_error("tls client config failed: %s", tls_error(ctls));
 		tls_free(ctls);
 		return false;
@@ -1013,7 +1010,13 @@ bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
 	sbuf->tls_host = hostname;
 	sbuf->ops = &tls_sbufio_ops;
 
-	return handle_tls_connect(sbuf);
+	err = tls_connect_fds(sbuf->tls, sbuf->sock, sbuf->sock, sbuf->tls_host);
+	if (err < 0) {
+		log_warning("TLS connect error: %s", tls_error(sbuf->tls));
+		return false;
+	}
+
+	return handle_tls_handshake(sbuf);
 }
 
 /*
@@ -1022,17 +1025,16 @@ bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
 
 static int tls_sbufio_recv(struct SBuf *sbuf, void *dst, unsigned int len)
 {
-	int err;
-	size_t out = 0;
+	ssize_t out = 0;
 
-	err = tls_read(sbuf->tls, dst, len, &out);
-	log_noise("tls_read: req=%u err=%d out=%d", len, err, (int)out);
-	if (!err) {
+	out = tls_read(sbuf->tls, dst, len);
+	log_noise("tls_read: req=%u out=%d", len, (int)out);
+	if (out >= 0) {
 		return out;
-	} else if (err == TLS_READ_AGAIN) {
+	} else if (out == TLS_WANT_POLLIN) {
 		errno = EAGAIN;
-	} else if (err == TLS_WRITE_AGAIN) {
-		log_warning("tls_sbufio_recv: got TLS_WRITE_AGAIN");
+	} else if (out == TLS_WANT_POLLOUT) {
+		log_warning("tls_sbufio_recv: got TLS_WANT_POLLOUT");
 		errno = EIO;
 	} else {
 		log_warning("tls_sbufio_recv: %s", tls_error(sbuf->tls));
@@ -1043,17 +1045,16 @@ static int tls_sbufio_recv(struct SBuf *sbuf, void *dst, unsigned int len)
 
 static int tls_sbufio_send(struct SBuf *sbuf, const void *data, unsigned int len)
 {
-	size_t out = 0;
-	int err;
+	ssize_t out;
 
-	err = tls_write(sbuf->tls, data, len, &out);
-	log_noise("tls_write: req=%u err=%d out=%d", len, err, (int)out);
-	if (!err) {
+	out = tls_write(sbuf->tls, data, len);
+	log_noise("tls_write: req=%u out=%d", len, (int)out);
+	if (out >= 0) {
 		return out;
-	} else if (err == TLS_WRITE_AGAIN) {
+	} else if (out == TLS_WANT_POLLOUT) {
 		errno = EAGAIN;
-	} else if (err == TLS_READ_AGAIN) {
-		log_warning("tls_sbufio_send: got TLS_READ_AGAIN");
+	} else if (out == TLS_WANT_POLLIN) {
+		log_warning("tls_sbufio_send: got TLS_WANT_POLLIN");
 		errno = EIO;
 	} else {
 		log_warning("tls_sbufio_send: %s", tls_error(sbuf->tls));

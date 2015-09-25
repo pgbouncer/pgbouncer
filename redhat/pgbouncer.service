@@ -1,0 +1,26 @@
+[Unit]
+Description=PgBouncer Service
+Requires=network.target
+After=network.target
+
+[Service]
+User=pgbouncer
+Group=pgbouncer
+
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=pgbouncer
+
+Environment=LANG=C
+Environment=CONFIG_PATH=/etc/pgbouncer/pgbouncer.ini
+EnvironmentFile=-/etc/sysconfig/pgbouncer
+
+Type=forking
+Restart=on-failure
+
+PIDFile=/var/run/pgbouncer/pgbouncer.pid
+ExecStart=/usr/bin/pgbouncer -d ${CONFIG_PATH}
+ExecReload=/bin/kill -HUP $MAINPID
+
+[Install]
+WantedBy=multi-user.target

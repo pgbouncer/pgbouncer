@@ -1,12 +1,12 @@
 /*
  * PgBouncer - Lightweight connection pooler for PostgreSQL.
- * 
+ *
  * Copyright (c) 2007-2009  Marko Kreen, Skype Technologies OÜ
- * 
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -335,7 +335,7 @@ PgDatabase *register_auto_database(const char *name)
 	PgDatabase *db;
 	int len;
 	char *cs;
-	
+
 	if (!cf_autodb_connstr)
 		return NULL;
 
@@ -601,6 +601,18 @@ bool find_server(PgSocket *client)
 
 	/* send var changes */
 	if (server) {
+		/* clear the server's search_path when assigning it to a client so that
+		   it can be set to the value of the client via varcache_apply below */
+		if (cf_consistent_search_path && pool_pool_mode(pool) != POOL_SESSION) {
+			/* HACK: apply_var() will skip search_path if the server
+			   or client are null, so we set it to an empty string. */
+			varcache_set(&server->vars, "search_path", "");
+		} else {
+			/* otherwise, we need to NULL it to prevent applying
+			   the client's value to the server */
+			varcache_set(&server->vars, "search_path", NULL);
+		}
+
 		res = varcache_apply(server, client, &varchange);
 		if (!res) {
 			disconnect_server(server, true, "var change failed");
@@ -653,7 +665,7 @@ static bool reuse_on_release(PgSocket *server)
 static bool reset_on_release(PgSocket *server)
 {
 	bool res;
-	
+
 	Assert(server->state == SV_TESTED);
 
 	slog_debug(server, "Resetting: %s", cf_server_reset_query);
@@ -1297,7 +1309,7 @@ bool use_client_socket(int fd, PgAddr *addr,
 		       uint64_t ckey, int oldfd, int linkfd,
 		       const char *client_enc, const char *std_string,
 		       const char *datestyle, const char *timezone,
-		       const char *password)
+		       const char *password, const char *search_path)
 {
 	PgSocket *client;
 	PktBuf tmp;
@@ -1324,6 +1336,7 @@ bool use_client_socket(int fd, PgAddr *addr,
 	varcache_set(&client->vars, "standard_conforming_strings", std_string);
 	varcache_set(&client->vars, "datestyle", datestyle);
 	varcache_set(&client->vars, "timezone", timezone);
+	varcache_set(&client->vars, "search_path", search_path);
 
 	return true;
 }
@@ -1333,7 +1346,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 		       uint64_t ckey, int oldfd, int linkfd,
 		       const char *client_enc, const char *std_string,
 		       const char *datestyle, const char *timezone,
-		       const char *password)
+		       const char *password, const char *search_path)
 {
 	PgDatabase *db = find_database(dbname);
 	PgUser *user;
@@ -1341,7 +1354,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 	PgSocket *server;
 	PktBuf tmp;
 	bool res;
-	
+
 	/* if the database not found, it's an auto database -> registering... */
 	if (!db) {
 		db = register_auto_database(dbname);
@@ -1400,6 +1413,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 	varcache_set(&server->vars, "standard_conforming_strings", std_string);
 	varcache_set(&server->vars, "datestyle", datestyle);
 	varcache_set(&server->vars, "timezone", timezone);
+	varcache_set(&server->vars, "search_path", search_path);
 
 	return true;
 }

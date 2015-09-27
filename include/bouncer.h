@@ -476,6 +476,8 @@ extern char *cf_server_tls_cert_file;
 extern char *cf_server_tls_key_file;
 extern char *cf_server_tls_ciphers;
 
+extern int cf_consistent_search_path;
+
 extern const struct CfLookup pool_mode_map[];
 
 extern usec_t g_suspend_start;

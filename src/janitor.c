@@ -586,7 +586,7 @@ static void do_full_maint(int sock, short flags, void *arg)
 		return;
 	}
 
-	if (cf_auth_type >= AUTH_TRUST)
+	if (requires_auth_file(cf_auth_type))
 		loader_users_check();
 
 	adns_zone_cache_maint(adns);

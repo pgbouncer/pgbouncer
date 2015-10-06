@@ -132,6 +132,9 @@ extern int cf_sbuf_len;
 #define AUTH_PEER	8
 #define AUTH_HBA	9
 #define AUTH_REJECT	10
+#ifdef HAVE_PAM
+#define AUTH_PAM	11
+#endif
 
 /* type codes for weird pkts */
 #define PKT_STARTUP_V2  0x20000
@@ -508,6 +511,7 @@ last_socket(struct StatList *slist)
 	return container_of(slist->head.prev, PgSocket, head);
 }
 
+bool requires_auth_file(int);
 void load_config(void);
 
 

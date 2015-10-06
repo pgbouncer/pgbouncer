@@ -171,6 +171,9 @@ static const struct CfLookup auth_type_map[] = {
 	{ "md5", AUTH_MD5 },
 	{ "cert", AUTH_CERT },
 	{ "hba", AUTH_HBA },
+#ifdef HAVE_PAM
+	{ "pam", AUTH_PAM },
+#endif
 	{ NULL }
 };
 
@@ -350,6 +353,17 @@ static void set_dbs_dead(bool flag)
 	}
 }
 
+// Tells if the specified auth type requires data from the auth file.
+bool requires_auth_file(int auth_type)
+{
+#ifdef HAVE_PAM
+	// For PAM authentication auth file is not used
+	if (auth_type == AUTH_PAM)
+		return false;
+#endif
+	return auth_type >= AUTH_TRUST;
+}
+
 /* config loading, tries to be tolerant to errors */
 void load_config(void)
 {
@@ -362,7 +376,7 @@ void load_config(void)
 	ok = cf_load_file(&main_config, cf_config_file);
 	if (ok) {
 		/* load users if needed */
-		if (cf_auth_type >= AUTH_TRUST)
+		if (requires_auth_file(cf_auth_type))
 			loader_users_check();
 		loaded = true;
 	} else if (!loaded) {

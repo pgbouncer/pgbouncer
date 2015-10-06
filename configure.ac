@@ -54,6 +54,22 @@ AC_CHECK_FUNCS(lstat)
 dnl Find libevent
 AC_USUAL_LIBEVENT
 
+dnl Check for PAM authorization support
+pam_support=no
+AC_ARG_WITH(pam,
+  AC_HELP_STRING([--with-pam],[Enable PAM support]),
+  [ PAM=
+    if test "$withval" != no; then
+        # Look for PAM header and lib
+        AC_CHECK_HEADERS(security/pam_appl.h, [have_pam_header=t])
+        AC_SEARCH_LIBS(pam_start, pam, [have_libpam=t])
+        if test x"${have_pam_header}" != x -a x"${have_libpam}" != x; then
+          pam_support=yes
+          AC_DEFINE(HAVE_PAM, 1, [PAM support])
+        fi
+    fi
+  ], [])
+
 ##
 ## DNS backend
 ##
@@ -179,4 +195,5 @@ echo "  c-ares = $use_cares"
 echo "  evdns = $use_evdns"
 echo "  udns = $use_udns"
 echo "  tls = $tls_support"
+echo "  PAM = $pam_support"
 echo ""

@@ -49,9 +49,8 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 	bool empty_user_password = !*user->passwd;
 
 #ifdef HAVE_PAM
-	// Empty passwords for PAM are allowed since we ignore auth_file and local 
-	// passwords completely, and use users with empty passwords to dynamically
-	// populate local users list during PAM authorization.
+	// Empty passwords for PAM are allowed since we forcibly create users
+	// with empty passwords in set_pool if the requested username doesn't exist.
 	if (auth_type == AUTH_PAM)
 		empty_user_password = false;
 #endif
@@ -246,8 +245,6 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	/* remember method */
 	client->client_auth_type = auth;
 
-	slog_debug(client, "Chosen authorization method: %d", auth);
-
 	switch (auth) {
 	case AUTH_ANY:
 	case AUTH_TRUST:
@@ -322,14 +319,16 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 		}
 #ifdef HAVE_PAM
 		/* Here we need to do a hack because we don't know actual auth type at this point.
-		 * If we can't find the user then we create a disabled one and use it instead.
-		 * For PAM authorization password is not needed so such user will work fine,
-		 * for other types of authorization (coming from HBA) the user can't be used
-		 * due to empty password, so we don't introduce any security breach (hopefully).
+		 * We pre-create the user in the PAM user pool when we suspect that PAM can
+		 * be used. The user is created without password thus we disable access
+		 * in non-PAM scenario, otherwise the password will be set later after 
+		 * the actual authorization takes place.
 		 */
+		// TODO: due to lack of auth type takeover procedure is not so straightforward,
+		// must be thinked more.
 		if (cf_auth_type == AUTH_PAM || cf_auth_type == AUTH_HBA) {
 			if (!client->auth_user) {
-				client->auth_user = add_user(username, "");
+				client->auth_user = add_pam_user(username, "");
 				if (!client->auth_user)
 					// actual disconnect will happen in the next if, here we just
 					// report an error locally
@@ -616,6 +615,15 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 
 		ok = mbuf_get_string(&pkt->data, &passwd);
 		if (ok && check_client_passwd(client, passwd)) {
+#ifdef HAVE_PAM
+			/* After successful authorization set up proper password for
+			 * the previously created user so the connection to the server
+			 * can be established when user is not forced.
+			 */
+			if (client->client_auth_type == AUTH_PAM) {
+				safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
+			}
+#endif
 			if (!finish_client_login(client))
 				return false;
 		} else {
@@ -908,7 +916,6 @@ static int pam_conversation(int msgc,
 
 		switch (msgv[i]->msg_style) {
 		case PAM_PROMPT_ECHO_OFF:
-			slog_debug(appdata->client, "checking password '%s'", appdata->passwd);
 			(*rspv)[i].resp = strdup(appdata->passwd);
 			if ((*rspv)[i].resp == NULL) {
 				slog_warning(

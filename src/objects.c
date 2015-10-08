@@ -27,7 +27,18 @@ STATLIST(user_list);
 STATLIST(database_list);
 STATLIST(pool_list);
 
+// All locally defined users (in auth_file) are kept here.
 struct AATree user_tree;
+
+#ifdef HAVE_PAM
+
+// All PAM users are kept here. We need to differentiate two user
+// lists to avoid user clashing for different authorization types,
+// and because pam_user_tree is closer to PgDatabase.user_tree in
+// logic.
+struct AATree pam_user_tree;
+
+#endif
 
 /*
  * client and server objects will be pre-allocated
@@ -105,6 +116,9 @@ static void user_node_release(struct AANode *node, void *arg)
 void init_objects(void)
 {
 	aatree_init(&user_tree, user_node_cmp, NULL);
+#ifdef HAVE_PAM
+	aatree_init(&pam_user_tree, user_node_cmp, NULL);
+#endif
 	user_cache = slab_create("user_cache", sizeof(PgUser), 0, NULL, USUAL_ALLOC);
 	db_cache = slab_create("db_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
 	pool_cache = slab_create("pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
@@ -406,6 +420,35 @@ PgUser *add_db_user(PgDatabase *db, const char *name, const char *passwd)
 	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
 	return user;
 }
+
+#ifdef HAVE_PAM
+
+/* Add PAM user. The logic is same as in add_db_user */
+PgUser *add_pam_user(const char *name, const char *passwd)
+{
+	PgUser *user = NULL;
+	struct AANode *node;
+
+	node = aatree_search(&pam_user_tree, (uintptr_t)name);
+	user = node ? container_of(node, PgUser, tree_node) : NULL;
+
+	if (user == NULL) {
+		user = slab_alloc(user_cache);
+		if (!user)
+			return NULL;
+
+		list_init(&user->head);
+		list_init(&user->pool_list);
+		safe_strcpy(user->name, name, sizeof(user->name));
+
+		aatree_insert(&pam_user_tree, (uintptr_t)user->name, &user->tree_node);
+		user->pool_mode = POOL_INHERIT;
+	}
+	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
+	return user;
+}
+
+#endif
 
 /* create separate user object for storing server user info */
 PgUser *force_user(PgDatabase *db, const char *name, const char *passwd)

@@ -304,6 +304,22 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			return false;
 		}
 		client->auth_user = client->db->forced_user;
+#ifdef HAVE_PAM
+	} else if (cf_auth_type == AUTH_PAM) {
+		// TODO: takeover
+		if (client->db->auth_user) {
+			slog_error(client, "PAM can't be used together with database authorization");
+			disconnect_client(client, true, "bouncer config error");
+			return false;
+		}
+		// Password will be set after successful authorization
+		client->auth_user = add_pam_user(username, "");
+		if (!client->auth_user) {
+			slog_error(client, "set_pool(): failed to allocate new PAM user");
+			disconnect_client(client, true, "bouncer resources exhaustion");
+			return false;
+		}
+#endif
 	} else {
 		/* the user clients wants to log in as */
 		client->auth_user = find_user(username);
@@ -315,25 +331,6 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			start_auth_request(client, username);
 			return false;
 		}
-#ifdef HAVE_PAM
-		/* Here we need to do a hack because we don't know actual auth type at this point.
-		 * We pre-create the user in the PAM user pool when we suspect that PAM can
-		 * be used. The user is created without password thus we disable access
-		 * in non-PAM scenario, otherwise the password will be set later after 
-		 * the actual authorization takes place.
-		 */
-		// TODO: due to lack of auth type takeover procedure is not so straightforward,
-		// must be thinked more.
-		if (cf_auth_type == AUTH_PAM || cf_auth_type == AUTH_HBA) {
-			if (!client->auth_user) {
-				client->auth_user = add_pam_user(username, "");
-				if (!client->auth_user)
-					// actual disconnect will happen in the next if, here we just
-					// report an error locally
-					slog_error(client, "set_pool(): failed to allocate new user");
-			}
-		}
-#endif
 		if (!client->auth_user) {
 			disconnect_client(client, true, "No such user: %s", username);
 			if (cf_log_connections)

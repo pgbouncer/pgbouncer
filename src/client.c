@@ -619,7 +619,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 			 * can be established when user is not forced.
 			 */
 			if (client->client_auth_type == AUTH_PAM) {
-				safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
+				safe_strcpy(client->auth_user->passwd, passwd, sizeof(client->auth_user->passwd));
 			}
 #endif
 			if (!finish_client_login(client))

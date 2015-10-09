@@ -325,6 +325,12 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	if (sk->pool->db->auth_user && sk->auth_user && !find_user(sk->auth_user->name))
 		password = sk->auth_user->passwd;
 
+#ifdef HAVE_PAM
+	// PAM requires passwords as well since they are not stored externally
+	if (cf_auth_type == AUTH_PAM && !find_user(sk->auth_user->name))
+		password = sk->auth_user->passwd;
+#endif
+
 	return send_one_fd(admin, sbuf_socket(&sk->sbuf),
 			   is_server_socket(sk) ? "server" : "client",
 			   sk->auth_user ? sk->auth_user->name : NULL,

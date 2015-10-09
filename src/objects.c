@@ -1394,6 +1394,10 @@ bool use_server_socket(int fd, PgAddr *addr,
 
 	if (db->forced_user) {
 		user = db->forced_user;
+#ifdef HAVE_PAM
+	} else if (cf_auth_type == AUTH_PAM) {
+		user = add_pam_user(username, password);
+#endif
 	} else {
 		user = find_user(username);
 	}

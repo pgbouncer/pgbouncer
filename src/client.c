@@ -812,6 +812,7 @@ static int pam_conversation(int msgc,
 static bool pam_check_client_passwd(PgSocket *client, const char *passwd)
 {
 	pam_handle_t *hpam;
+	char raddr[PGADDR_BUF];
 	int rc;
 
 	struct pam_appdata appdata = {
@@ -830,14 +831,25 @@ static bool pam_check_client_passwd(PgSocket *client, const char *passwd)
 		return false;
 	}
 
-	rc = pam_authenticate(hpam, 0); // TODO: set PAM_SILENT?
+	// Set rhost too in case if some PAM modules want to take it into account (and for logging too)
+	pga_ntop(&client->remote_addr, raddr, sizeof(raddr));
+	rc = pam_set_item(hpam, PAM_RHOST, raddr);
+	if (rc != PAM_SUCCESS) {
+		slog_warning(client, "pam_set_item(): can't set PAM_RHOST to '%s'", raddr);
+		pam_end(hpam, rc);
+		return false;
+	}
+
+	// Here the authentication is performed
+	rc = pam_authenticate(hpam, PAM_SILENT);
 	if (rc != PAM_SUCCESS) {
 		slog_warning(client, "pam_authenticate() failed: %s", pam_strerror(hpam, rc));
 		pam_end(hpam, rc);
 		return false;
 	}
 
-	rc = pam_acct_mgmt(hpam, PAM_SILENT); // TODO: is it required?
+	// And here we check that the account is not expired, verifies access hours, etc
+	rc = pam_acct_mgmt(hpam, PAM_SILENT);
 	if (rc != PAM_SUCCESS) {
 		slog_warning(client, "pam_acct_mgmt() failed: %s", pam_strerror(hpam, rc));
 		pam_end(hpam, rc);
@@ -851,13 +863,6 @@ static bool pam_check_client_passwd(PgSocket *client, const char *passwd)
 
 	return true;
 }
-
-/*
-static int pam_setup_user_data()
-{
-	return PAM_SUCCESS;
-}
-*/
 
 static int pam_conversation(int msgc,
 							const struct pam_message **msgv,

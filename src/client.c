@@ -25,8 +25,8 @@
 #include <usual/pgutil.h>
 
 #ifdef HAVE_PAM
-// Forward declarations 
-static bool pam_check_client_passwd(PgSocket *client, const char *passwd);
+// Forward declarations
+ static bool pam_check_client_passwd(PgSocket *client, const char *passwd);
 #endif
 
 static const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
@@ -43,8 +43,6 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 	char md5[MD5_PASSWD_LEN + 1];
 	PgUser *user = client->auth_user;
 	int auth_type = client->client_auth_type;
-
-	slog_debug(client, "check_client_passwd(): auth_type=%d", auth_type);
 
 	bool empty_user_password = !*user->passwd;
 
@@ -72,7 +70,7 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 #ifdef HAVE_PAM
 	case AUTH_PAM:
 		return pam_check_client_passwd(client, passwd);
-#endif	
+#endif
 	}
 	return false;
 }
@@ -83,12 +81,12 @@ static bool send_client_authreq(PgSocket *client)
 	int res;
 	int auth_type = client->client_auth_type;
 
-#ifdef HAVE_PAM		
+#ifdef HAVE_PAM
 	// Always use plain text to communicate with clients during PAM authorization
 	if (auth_type == AUTH_PAM) {
 		auth_type = AUTH_PLAIN;
 	}
-#endif		
+#endif
 
 	if (auth_type == AUTH_MD5) {
 		saltlen = 4;
@@ -254,7 +252,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	case AUTH_MD5:
 #ifdef HAVE_PAM
 	case AUTH_PAM:
-#endif	
+#endif
 		ok = send_client_authreq(client);
 		break;
 	case AUTH_CERT:
@@ -335,7 +333,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 					slog_error(client, "set_pool(): failed to allocate new user");
 			}
 		}
-#endif		
+#endif
 		if (!client->auth_user) {
 			disconnect_client(client, true, "No such user: %s", username);
 			if (cf_log_connections)
@@ -810,9 +808,9 @@ struct pam_appdata {
 };
 
 // Forward declaration
-static int pam_conversation(int msgc, 
-							const struct pam_message **msgv, 
-							struct pam_response **rspv, 
+static int pam_conversation(int msgc,
+							const struct pam_message **msgv,
+							struct pam_response **rspv,
 							void *authdata);
 
 static bool pam_check_client_passwd(PgSocket *client, const char *passwd)
@@ -830,15 +828,11 @@ static bool pam_check_client_passwd(PgSocket *client, const char *passwd)
 		.appdata_ptr = &appdata
 	};
 
-	slog_debug(client, "Starting PAM conversation procedure");
-
 	rc = pam_start(PGBOUNCER_PAM_SERVICE, client->auth_user->name, &pam_conv, &hpam);
 	if (rc != PAM_SUCCESS) {
 		slog_warning(client, "pam_start() failed: %s", pam_strerror(NULL, rc));
 		return false;
 	}
-
-	slog_debug(client, "pam_start() completed.");
 
 	rc = pam_authenticate(hpam, 0); // TODO: set PAM_SILENT?
 	if (rc != PAM_SUCCESS) {
@@ -847,16 +841,12 @@ static bool pam_check_client_passwd(PgSocket *client, const char *passwd)
 		return false;
 	}
 
-	slog_debug(client, "pam_authenticate() completed.");
-
 	rc = pam_acct_mgmt(hpam, PAM_SILENT); // TODO: is it required?
 	if (rc != PAM_SUCCESS) {
 		slog_warning(client, "pam_acct_mgmt() failed: %s", pam_strerror(hpam, rc));
 		pam_end(hpam, rc);
 		return false;
 	}
-
-	slog_debug(client, "pam_acct_mgmt() completed.");
 
 	rc = pam_end(hpam, rc);
 	if (rc != PAM_SUCCESS) {
@@ -873,9 +863,9 @@ static int pam_setup_user_data()
 }
 */
 
-static int pam_conversation(int msgc, 
-							const struct pam_message **msgv, 
-							struct pam_response **rspv, 
+static int pam_conversation(int msgc,
+							const struct pam_message **msgv,
+							struct pam_response **rspv,
 							void *authdata)
 {
 	struct pam_appdata *appdata = (struct pam_appdata *)authdata;
@@ -896,12 +886,12 @@ static int pam_conversation(int msgc,
 	}
 
 	// Allocate and fill with zeroes an array of responses.
-	// By filling with zeroes we automatically set resp_retcode to 
+	// By filling with zeroes we automatically set resp_retcode to
 	// zero and simplify freeing resp on errors.
 	*rspv = malloc(msgc * sizeof(struct pam_response));
 	if (*rspv == NULL) {
 		slog_warning(
-			appdata->client, 
+			appdata->client,
 			"pam_conversation(): not enough memory for responses");
 		return PAM_CONV_ERR;
 	}
@@ -919,7 +909,7 @@ static int pam_conversation(int msgc,
 			(*rspv)[i].resp = strdup(appdata->passwd);
 			if ((*rspv)[i].resp == NULL) {
 				slog_warning(
-					appdata->client, 
+					appdata->client,
 					"pam_conversation(): not enough memory for password");
 				rc = PAM_CONV_ERR;
 			}
@@ -927,8 +917,8 @@ static int pam_conversation(int msgc,
 
 		case PAM_ERROR_MSG:
 			slog_warning(
-				appdata->client, 
-				"pam_conversation(): PAM error: %s", 
+				appdata->client,
+				"pam_conversation(): PAM error: %s",
 				msgv[i]->msg);
 			break;
 

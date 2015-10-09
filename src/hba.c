@@ -583,10 +583,10 @@ static bool parse_line(struct HBA *hba, struct TokParser *tp, int linenr, const 
 		rule->rule_method = AUTH_PEER;
 	} else if (eat_kw(tp, "cert")) {
 		rule->rule_method = AUTH_CERT;
-#ifdef HAVE_PAM		
+#ifdef HAVE_PAM
 	} else if (eat_kw(tp, "pam")) {
 		rule->rule_method = AUTH_PAM;
-#endif		
+#endif
 	} else {
 		log_warning("hba line %d: unsupported method: buf=%s", linenr, tp->buf);
 		goto failed;

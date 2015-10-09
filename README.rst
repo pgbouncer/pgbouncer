@@ -65,6 +65,12 @@ and their probing order:
 `./configure` also has flags `--enable-evdns` and `--disable-evdns` which
 turn off automatic probing and force use of either `evdns` or `getaddrinfo_a()`.
 
+PAM authorization
+-----------------
+
+To enable PAM authorization `./configure` has a flag `--with-pam` (default value is no). When compiled with
+PAM support new global authorization type `pam` appears which can be used to validate users through PAM.
+
 Building from GIT
 -----------------
 

@@ -24,10 +24,8 @@
 
 #include <usual/pgutil.h>
 
-#ifdef HAVE_PAM
 // Forward declarations
- static bool pam_check_client_passwd(PgSocket *client, const char *passwd);
-#endif
+static bool pam_check_client_passwd(PgSocket *client, const char *passwd);
 
 static const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
 {
@@ -46,12 +44,10 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 
 	bool empty_user_password = !*user->passwd;
 
-#ifdef HAVE_PAM
 	// Empty passwords for PAM are allowed since we forcibly create users
 	// with empty passwords in set_pool if the requested username doesn't exist.
 	if (auth_type == AUTH_PAM)
 		empty_user_password = false;
-#endif
 
 	/* disallow empty passwords */
 	if (!*passwd || empty_user_password)
@@ -67,10 +63,8 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 			pg_md5_encrypt(user->passwd, user->name, strlen(user->name), user->passwd);
 		pg_md5_encrypt(user->passwd + 3, (char *)client->tmp_login_salt, 4, md5);
 		return strcmp(md5, passwd) == 0;
-#ifdef HAVE_PAM
 	case AUTH_PAM:
 		return pam_check_client_passwd(client, passwd);
-#endif
 	}
 	return false;
 }
@@ -81,12 +75,10 @@ static bool send_client_authreq(PgSocket *client)
 	int res;
 	int auth_type = client->client_auth_type;
 
-#ifdef HAVE_PAM
 	// Always use plain text to communicate with clients during PAM authorization
 	if (auth_type == AUTH_PAM) {
 		auth_type = AUTH_PLAIN;
 	}
-#endif
 
 	if (auth_type == AUTH_MD5) {
 		saltlen = 4;
@@ -250,9 +242,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		break;
 	case AUTH_PLAIN:
 	case AUTH_MD5:
-#ifdef HAVE_PAM
 	case AUTH_PAM:
-#endif
 		ok = send_client_authreq(client);
 		break;
 	case AUTH_CERT:
@@ -304,7 +294,6 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			return false;
 		}
 		client->auth_user = client->db->forced_user;
-#ifdef HAVE_PAM
 	} else if (cf_auth_type == AUTH_PAM) {
 		if (client->db->auth_user) {
 			slog_error(client, "PAM can't be used together with database authorization");
@@ -318,7 +307,6 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			disconnect_client(client, true, "bouncer resources exhaustion");
 			return false;
 		}
-#endif
 	} else {
 		/* the user clients wants to log in as */
 		client->auth_user = find_user(username);
@@ -609,7 +597,6 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 
 		ok = mbuf_get_string(&pkt->data, &passwd);
 		if (ok && check_client_passwd(client, passwd)) {
-#ifdef HAVE_PAM
 			/* After successful authorization set up proper password for
 			 * the previously created user so the connection to the server
 			 * can be established when user is not forced.
@@ -617,7 +604,6 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 			if (client->client_auth_type == AUTH_PAM) {
 				safe_strcpy(client->auth_user->passwd, passwd, sizeof(client->auth_user->passwd));
 			}
-#endif
 			if (!finish_client_login(client))
 				return false;
 		} else {
@@ -790,6 +776,7 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 	return res;
 }
 
+
 #ifdef HAVE_PAM
 
 #include <security/pam_appl.h>
@@ -939,6 +926,13 @@ static int pam_conversation(int msgc,
 	}
 
 	return rc;
+}
+
+#else // !HAVE_PAM
+
+static bool pam_check_client_passwd(PgSocket *client, const char *passwd)
+{
+	return false;
 }
 
 #endif

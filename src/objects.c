@@ -1,12 +1,12 @@
 /*
  * PgBouncer - Lightweight connection pooler for PostgreSQL.
- * 
+ *
  * Copyright (c) 2007-2009  Marko Kreen, Skype Technologies OÜ
- * 
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -27,13 +27,15 @@ STATLIST(user_list);
 STATLIST(database_list);
 STATLIST(pool_list);
 
-// All locally defined users (in auth_file) are kept here.
+/* All locally defined users (in auth_file) are kept here. */
 struct AATree user_tree;
 
-// All PAM users are kept here. We need to differentiate two user
-// lists to avoid user clashing for different authorization types,
-// and because pam_user_tree is closer to PgDatabase.user_tree in
-// logic.
+/*
+ * All PAM users are kept here. We need to differentiate two user
+ * lists to avoid user clashing for different authorization types,
+ * and because pam_user_tree is closer to PgDatabase.user_tree in
+ * logic.
+ */
 struct AATree pam_user_tree;
 
 /*
@@ -343,7 +345,7 @@ PgDatabase *register_auto_database(const char *name)
 	PgDatabase *db;
 	int len;
 	char *cs;
-	
+
 	if (!cf_autodb_connstr)
 		return NULL;
 
@@ -686,7 +688,7 @@ static bool reuse_on_release(PgSocket *server)
 static bool reset_on_release(PgSocket *server)
 {
 	bool res;
-	
+
 	Assert(server->state == SV_TESTED);
 
 	slog_debug(server, "Resetting: %s", cf_server_reset_query);
@@ -1374,7 +1376,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 	PgSocket *server;
 	PktBuf tmp;
 	bool res;
-	
+
 	/* if the database not found, it's an auto database -> registering... */
 	if (!db) {
 		db = register_auto_database(dbname);

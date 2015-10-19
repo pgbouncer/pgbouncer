@@ -1,12 +1,12 @@
 /*
  * PgBouncer - Lightweight connection pooler for PostgreSQL.
- * 
+ *
  * Copyright (c) 2007-2009  Marko Kreen, Skype Technologies OÜ
- * 
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -24,7 +24,7 @@
 
 #include <usual/pgutil.h>
 
-// Forward declarations
+/* Forward declarations */
 static bool pam_check_client_passwd(PgSocket *client, const char *passwd);
 
 static const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
@@ -44,8 +44,10 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 
 	bool empty_user_password = !*user->passwd;
 
-	// Empty passwords for PAM are allowed since we forcibly create users
-	// with empty passwords in set_pool if the requested username doesn't exist.
+	/*
+	 * Empty passwords for PAM are allowed since we forcibly create users
+	 * with empty passwords in set_pool if the requested username doesn't exist.
+	 */
 	if (auth_type == AUTH_PAM)
 		empty_user_password = false;
 
@@ -75,7 +77,7 @@ static bool send_client_authreq(PgSocket *client)
 	int res;
 	int auth_type = client->client_auth_type;
 
-	// Always use plain text to communicate with clients during PAM authorization
+	/* Always use plain text to communicate with clients during PAM authorization */
 	if (auth_type == AUTH_PAM) {
 		auth_type = AUTH_PLAIN;
 	}
@@ -300,7 +302,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			disconnect_client(client, true, "bouncer config error");
 			return false;
 		}
-		// Password will be set after successful authorization when not in takeover mode
+		/* Password will be set after successful authorization when not in takeover mode */
 		client->auth_user = add_pam_user(username, password);
 		if (!client->auth_user) {
 			slog_error(client, "set_pool(): failed to allocate new PAM user");
@@ -781,16 +783,16 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 
 #include <security/pam_appl.h>
 
-// Name of the service to be passed to PAM
+/* Name of the service to be passed to PAM */
 #define PGBOUNCER_PAM_SERVICE "pgbouncer"
 
-// The structure is used to pass data into the PAM conversation function
+/* The structure is used to pass data into the PAM conversation function */
 struct pam_appdata {
 	PgSocket *client;
 	const char *passwd;
 };
 
-// Forward declaration
+/* Forward declaration */
 static int pam_conversation(int msgc,
 							const struct pam_message **msgv,
 							struct pam_response **rspv,
@@ -818,7 +820,7 @@ static bool pam_check_client_passwd(PgSocket *client, const char *passwd)
 		return false;
 	}
 
-	// Set rhost too in case if some PAM modules want to take it into account (and for logging too)
+	/* Set rhost too in case if some PAM modules want to take it into account (and for logging too) */
 	pga_ntop(&client->remote_addr, raddr, sizeof(raddr));
 	rc = pam_set_item(hpam, PAM_RHOST, raddr);
 	if (rc != PAM_SUCCESS) {
@@ -827,7 +829,7 @@ static bool pam_check_client_passwd(PgSocket *client, const char *passwd)
 		return false;
 	}
 
-	// Here the authentication is performed
+	/* Here the authentication is performed */
 	rc = pam_authenticate(hpam, PAM_SILENT);
 	if (rc != PAM_SUCCESS) {
 		slog_warning(client, "pam_authenticate() failed: %s", pam_strerror(hpam, rc));
@@ -835,7 +837,7 @@ static bool pam_check_client_passwd(PgSocket *client, const char *passwd)
 		return false;
 	}
 
-	// And here we check that the account is not expired, verifies access hours, etc
+	/* And here we check that the account is not expired, verifies access hours, etc */
 	rc = pam_acct_mgmt(hpam, PAM_SILENT);
 	if (rc != PAM_SUCCESS) {
 		slog_warning(client, "pam_acct_mgmt() failed: %s", pam_strerror(hpam, rc));
@@ -873,9 +875,10 @@ static int pam_conversation(int msgc,
 		return PAM_CONV_ERR;
 	}
 
-	// Allocate and fill with zeroes an array of responses.
-	// By filling with zeroes we automatically set resp_retcode to
-	// zero and simplify freeing resp on errors.
+	/* Allocate and fill with zeroes an array of responses.
+	 * By filling with zeroes we automatically set resp_retcode to
+	 * zero and simplify freeing resp on errors.
+	 */
 	*rspv = malloc(msgc * sizeof(struct pam_response));
 	if (*rspv == NULL) {
 		slog_warning(
@@ -928,7 +931,7 @@ static int pam_conversation(int msgc,
 	return rc;
 }
 
-#else // !HAVE_PAM
+#else /* !HAVE_PAM */
 
 static bool pam_check_client_passwd(PgSocket *client, const char *passwd)
 {

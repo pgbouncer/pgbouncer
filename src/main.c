@@ -713,6 +713,7 @@ static void main_loop_once(void)
 		if (errno != EINTR)
 			log_warning("event_loop failed: %s", strerror(errno));
 	}
+	pam_poll(); // CHECKME and TODO: some timeout should be set for the event loop, otherwise pam_poll will not be called until some activity is done on other sockets.
 	per_loop_maint();
 	reuse_just_freed_objects();
 	rescue_timers();
@@ -826,6 +827,7 @@ int main(int argc, char *argv[])
 	check_limits();
 
 	admin_setup();
+	pam_init();
 
 	if (cf_reboot) {
 		if (check_old_process_unix()) {

@@ -66,6 +66,7 @@ AC_ARG_WITH(pam,
         if test x"${have_pam_header}" != x -a x"${have_libpam}" != x; then
           pam_support=yes
           AC_DEFINE(HAVE_PAM, 1, [PAM support])
+          LIBS="-lpthread $LIBS"
         fi
     fi
   ], [])

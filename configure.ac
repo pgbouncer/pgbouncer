@@ -60,13 +60,18 @@ AC_ARG_WITH(pam,
   AC_HELP_STRING([--with-pam],[Enable PAM support]),
   [ PAM=
     if test "$withval" != no; then
+        have_pthreads=no
         # Look for PAM header and lib
         AC_CHECK_HEADERS(security/pam_appl.h, [have_pam_header=t])
+        AC_CHECK_HEADERS(pthread.h, [have_pthreads=yes])
         AC_SEARCH_LIBS(pam_start, pam, [have_libpam=t])
-        if test x"${have_pam_header}" != x -a x"${have_libpam}" != x; then
+        AC_SEARCH_LIBS(pthread_create, pthread, [], [have_pthreads=no])
+        if test x"${have_pthreads}" != xyes; then
+           AC_MSG_ERROR([pthread library should be available for PAM support])
+        fi
+        if test x"${have_pam_header}" != x -a x"${have_libpam}" != x -a x"${have_pthreads}" = xyes; then
           pam_support=yes
           AC_DEFINE(HAVE_PAM, 1, [PAM support])
-          LIBS="-lpthread $LIBS"
         fi
     fi
   ], [])

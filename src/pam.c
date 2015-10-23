@@ -148,6 +148,8 @@ void pam_auth_begin(PgSocket *client, const char *passwd)
 		"pam_auth_begin(): pam_first_taken_slot=%d, pam_first_free_slot=%d",
 		pam_first_taken_slot, pam_first_free_slot);
 
+	client->wait_for_auth = 1;
+
 	/* Check that we have free slots in the queue, and if no
 	 * then block until one is available.
 	 */
@@ -197,8 +199,6 @@ int pam_poll(void)
 			break;
 		}
 
-		log_debug("pam_poll(): completed request in the queue");
-
 		if (is_valid_socket(request)) {
 			pam_auth_finish(request);
 		}
@@ -231,8 +231,11 @@ static void* pam_auth_worker(void *arg)
 
 		pthread_mutex_unlock(&pam_queue_tail_mutex);
 
+		log_debug("pam_auth_worker(): processing slot %d", current_slot);
+
 		/* We have at least one request in the queue */
 		request = &pam_auth_queue[current_slot];
+		current_slot = (current_slot + 1) % PAM_REQUEST_QUEUE_SIZE;
 
 		/* If the socket is already in the wrong state or reused then ignore it.
 		 * This check is not safe and should not be trusted (the socket state
@@ -240,6 +243,7 @@ static void* pam_auth_worker(void *arg)
 		 * sockets and thus save some time.
 		 */
 		if (!is_valid_socket(request)) {
+			log_debug("pam_auth_worker(): invalid socket in slot %d", current_slot);
 			request->status = PAM_STATUS_FAILED;
 			continue;
 		}
@@ -250,7 +254,7 @@ static void* pam_auth_worker(void *arg)
 			request->status = PAM_STATUS_FAILED;
 		}
 
-		current_slot = (current_slot + 1) % PAM_REQUEST_QUEUE_SIZE;
+		log_debug("pam_auth_worker(): authorization completed, status=%d", request->status);
 	}
 
 	return NULL;
@@ -275,13 +279,10 @@ static void pam_auth_finish(struct pam_auth_request *request)
 {
 	PgSocket *client = request->client;
 	bool authenticated = (request->status == PAM_STATUS_SUCCESS);
-	bool rc;
 
 	if (authenticated) {
 		safe_strcpy(client->auth_user->passwd, request->password, sizeof(client->auth_user->passwd));
-		rc = finish_client_login(client);
-		// CHECKME: is it required to do something here based on rc?
-		rc = rc;
+		sbuf_continue(&client->sbuf);
 	} else {
 		disconnect_client(client, true, "Auth failed");
 	}

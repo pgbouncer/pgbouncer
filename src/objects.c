@@ -1221,6 +1221,8 @@ bool finish_client_login(PgSocket *client)
 		fatal("bad client state");
 	}
 
+	client->wait_for_auth = 0;
+
 	/* check if we know server signature */
 	if (!client->pool->welcome_msg_ready) {
 		log_debug("finish_client_login: no welcome message, pause");

@@ -40,17 +40,8 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 	PgUser *user = client->auth_user;
 	int auth_type = client->client_auth_type;
 
-	bool empty_user_password = !*user->passwd;
-
-	/*
-	 * Empty passwords for PAM are allowed since we forcibly create users
-	 * with empty passwords in set_pool if the requested username doesn't exist.
-	 */
-	if (auth_type == AUTH_PAM)
-		empty_user_password = false;
-
 	/* disallow empty passwords */
-	if (!*passwd || empty_user_password)
+	if (!*passwd || !*user->passwd)
 		return false;
 
 	switch (auth_type) {
@@ -524,7 +515,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		return false;
 	}
 
-	if (client->wait_for_welcome) {
+	if (client->wait_for_welcome || client->wait_for_auth) {
 		if  (finish_client_login(client)) {
 			/* the packet was already parsed */
 			sbuf_prepare_skip(sbuf, pkt->len);
@@ -597,7 +588,10 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 
 		if (ok) {
 			if (client->client_auth_type == AUTH_PAM) {
-				slog_debug(client, "Beginning PAM authentication (state=%d)", client->state);
+				if (!sbuf_pause(&client->sbuf)) {
+					disconnect_client(client, true, "pause failed");
+					return false;
+				}
 				pam_auth_begin(client, passwd);
 				return false;
 			}

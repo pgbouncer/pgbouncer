@@ -345,6 +345,7 @@ struct PgSocket {
 	bool wait_for_welcome:1;/* client: no server yet in pool, cannot send welcome msg */
 	bool wait_for_user_conn:1;/* client: waiting for auth_conn server connection */
 	bool wait_for_user:1;	/* client: waiting for auth_conn query results */
+	bool wait_for_auth:1;	/* client: waiting for external auth (PAM) to be completed */
 
 	bool suspended:1;	/* client/server: if the socket is suspended */
 

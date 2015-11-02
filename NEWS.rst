@@ -1,22 +1,34 @@
 PgBouncer changelog
 ===================
 
-Unreleased
-----------
+PgBouncer 1.7.x
+---------------
+
+**2015-xx-xx  -  PgBouncer 1.7  -  ""**
 
 - Features
 
-  * SSL connection, auth via client cert.
+  * Support TLS connections.  OpenSSL/LibreSSL is used
+    as backend implementation.
 
-  * HBA-style access control file.
+  * Support authentication via TLS client certificate.
 
   * Unix sockets support "peer" auth.
 
-  * query_wait_timeout is set by default.
+  * HBA-style access control file.  This allows to configure
+    TLS for network connections and "peer" authentication
+    for local connections.
 
 - Cleanups
 
-  * Remove **crypt** auth.
+  * Set `query_wait_timeout` to 120s by default.  Current default
+    (0) causes infinite queueing, which is not useful.
+
+  * Disable `server_reset_query_always` by default.  Now reset
+    query is used only in pools that are in session mode.
+
+  * Remove **crypt** auth.  It's obsolete and not supported
+    by PostgreSQL since 8.4.
 
 PgBouncer 1.6.x
 ---------------

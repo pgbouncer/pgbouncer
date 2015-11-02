@@ -26,6 +26,7 @@ pgbouncer_SOURCES = \
 	include/bouncer.h \
 	include/client.h \
 	include/dnslookup.h \
+	include/hba.h \
 	include/iobuf.h \
 	include/janitor.h \
 	include/loader.h \
@@ -52,18 +53,14 @@ dist_doc_DATA = README.rst NEWS.rst etc/pgbouncer.ini etc/userlist.txt
 
 DISTCLEANFILES = config.mak config.status lib/usual/config.h config.log
 
-DIST_SUBDIRS = doc
+DIST_SUBDIRS = doc test
 dist_man_MANS = doc/pgbouncer.1 doc/pgbouncer.5
 
 # files in tgz
-EXTRA_DIST = AUTHORS COPYRIGHT Makefile \
-	     config.mak.in etc/mkauth.py \
-	     config.sub config.guess install-sh autogen.sh \
-	     configure configure.ac \
+EXTRA_DIST = AUTHORS COPYRIGHT Makefile config.mak.in config.sub config.guess \
+	     install-sh autogen.sh configure configure.ac \
 	     debian/compat debian/changelog debian/control debian/rules debian/copyright \
-	     test/Makefile test/asynctest.c test/conntest.sh test/ctest6000.ini \
-	     test/ctest7000.ini test/run-conntest.sh test/stress.py test/test.ini \
-	     test/test.sh test/userlist.txt etc/example.debian.init.sh \
+	     etc/mkauth.py etc/example.debian.init.sh \
 	     win32/Makefile \
 	     $(LIBUSUAL_DIST)
 

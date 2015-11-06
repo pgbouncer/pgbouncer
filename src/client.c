@@ -579,6 +579,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 {
 	SBuf *sbuf = &client->sbuf;
+	int rfq_delta = 0;
 
 	switch (pkt->type) {
 
@@ -593,7 +594,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 
 	/* request immediate response from server */
 	case 'S':		/* Sync */
-		client->expect_rfq_count++;
+		rfq_delta++;
 		break;
 	case 'H':		/* Flush */
 		break;
@@ -637,6 +638,11 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	/* acquire server */
 	if (!find_server(client))
 		return false;
+
+	/* postpone rfq change until certain that client will not be paused */
+	if (rfq_delta) {
+		client->expect_rfq_count += rfq_delta;
+	}
 
 	client->pool->stats.client_bytes += pkt->len;
 

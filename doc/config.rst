@@ -718,7 +718,7 @@ Internal buffer size for packets. Affects size of TCP packets sent and general
 memory usage. Actual libpq packets can be larger than this so, no need to set it
 large.
 
-Default: 2048
+Default: 4096
 
 max_packet_size
 ---------------

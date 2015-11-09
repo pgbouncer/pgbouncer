@@ -51,6 +51,8 @@ PgBouncer 1.6.x
     When `auth_user` is set and client asks non-existing username,
     client will log in as `auth_user`.  Not good.
 
+    `CVE-2015-6817 <https://access.redhat.com/security/cve/cve-2015-6817>`_
+
   * Skip NoticeResponce in handle_auth_response.  Otherwise verbose
     log levels on server cause login failures.
 
@@ -211,6 +213,8 @@ PgBouncer 1.5.x
     thus using fatal() was fine, but when autodbs are enabled
     - by '*' in [databases] section - the database name can come
     from network thus making remote shutdown possible.
+
+    `CVE-2012-4575 <https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2012-4575>`_
 
 - Minor Features
 

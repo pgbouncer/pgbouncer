@@ -20,6 +20,7 @@
 
 #include <usual/cxextra.h>
 #include <usual/cbtree.h>
+#include <usual/fileutil.h>
 
 enum RuleType {
 	RULE_LOCAL,
@@ -670,7 +671,7 @@ static bool match_inet4(const struct HBARule *rule, PgAddr *addr)
 	const uint32_t *src, *base, *mask;
 	if (pga_family(addr) != AF_INET)
 		return false;
-	src = &addr->sin.sin_addr.s_addr;
+	src = (uint32_t *)&addr->sin.sin_addr.s_addr;
 	base = (uint32_t *)rule->rule_addr;
 	mask = (uint32_t *)rule->rule_mask;
 	return (src[0] & mask[0]) == base[0];

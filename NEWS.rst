@@ -13,19 +13,35 @@ PgBouncer 1.7.x
 
   * Support authentication via TLS client certificate.
 
-  * Unix sockets support "peer" auth.
+  * Support "peer" authentication on Unix sockets.
 
-  * HBA-style access control file.  This allows to configure
-    TLS for network connections and "peer" authentication
-    for local connections.
+  * Support Host Based Access control file, like
+    `pg_hba.conf <http://www.postgresql.org/docs/9.4/static/auth-pg-hba-conf.html>`_
+    in Postgres.  This allows to configure TLS for network connections and "peer"
+    authentication for local connections.
 
 - Cleanups
 
   * Set `query_wait_timeout` to 120s by default.  Current default
-    (0) causes infinite queueing, which is not useful.
+    (0) causes infinite queueing, which is not useful.  That
+    means if client has pending query and has not been
+    assigned to server connection, the client connection will
+    be dropped.
 
   * Disable `server_reset_query_always` by default.  Now reset
     query is used only in pools that are in session mode.
+
+  * Increase pkt_buf to 4096 bytes.  Improves performance with TLS.
+    The behaviour is probably load-specific, but it should be
+    safe to do as since v1.2 the packet buffers are split
+    from connections and used lazily from pool.
+
+  * Support pipelining count expected ReadyForQuery packets.
+    This avoids releasing server too early.  Fixes
+    `#52 <https://github.com/pgbouncer/pgbouncer/issues/52>`_.
+
+  * Adapt system tests to work with modern BSD and MacOS.
+    (Eric Radman)
 
   * Remove **crypt** auth.  It's obsolete and not supported
     by PostgreSQL since 8.4.

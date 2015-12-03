@@ -71,6 +71,8 @@ AC_ARG_WITH(cares,
       use_cares=no
     elif test "$withval" = "yes"; then
       use_cares=yes
+      CARES_CFLAGS=""
+      CARES_LIBS="-lcares"
     else
       use_cares=yes
       CARES_CFLAGS="-I$withval/include"

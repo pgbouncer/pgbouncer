@@ -39,6 +39,13 @@
 #define ACT_SKIP 2
 #define ACT_CALL 3
 
+enum TLSState {
+	SBUF_TLS_NONE,
+	SBUF_TLS_DO_HANDSHAKE,
+	SBUF_TLS_IN_HANDSHAKE,
+	SBUF_TLS_OK,
+};
+
 enum WaitType {
 	W_NONE = 0,
 	W_CONNECT,
@@ -69,6 +76,7 @@ static void sbuf_main_loop(SBuf *sbuf, bool skip_recv);
 static bool sbuf_call_proto(SBuf *sbuf, int event) /* _MUSTCHECK */;
 static bool sbuf_actual_recv(SBuf *sbuf, unsigned len)  _MUSTCHECK;
 static bool sbuf_after_connect_check(SBuf *sbuf)  _MUSTCHECK;
+static bool handle_tls_handshake(SBuf *sbuf) /* _MUSTCHECK */;
 
 static inline IOBuf *get_iobuf(SBuf *sbuf) { return sbuf->io; }
 
@@ -720,6 +728,11 @@ skip_recv:
 	/* notify proto that all is sent */
 	if (sbuf_is_empty(sbuf))
 		sbuf_call_proto(sbuf, SBUF_EV_FLUSH);
+
+	if (sbuf->tls_state == SBUF_TLS_DO_HANDSHAKE) {
+		sbuf->pkt_action = SBUF_TLS_IN_HANDSHAKE;
+		handle_tls_handshake(sbuf);
+	}
 }
 
 /* check if there is any error pending on socket */
@@ -948,6 +961,7 @@ static bool handle_tls_handshake(SBuf *sbuf)
 	} else if (err == TLS_WANT_POLLOUT) {
 		return sbuf_use_callback_once(sbuf, EV_WRITE, sbuf_tls_handshake_cb);
 	} else if (err == 0) {
+		sbuf->tls_state = SBUF_TLS_OK;
 		sbuf_call_proto(sbuf, SBUF_EV_TLS_READY);
 		return true;
 	} else {
@@ -972,6 +986,9 @@ bool sbuf_tls_accept(SBuf *sbuf)
 {
 	int err;
 
+	if (!sbuf_pause(sbuf))
+		return false;
+
 	sbuf->ops = &tls_sbufio_ops;
 
 	err = tls_accept_fds(client_accept_base, &sbuf->tls, sbuf->sock, sbuf->sock);
@@ -981,7 +998,8 @@ bool sbuf_tls_accept(SBuf *sbuf)
 		return false;
 	}
 
-	return handle_tls_handshake(sbuf);
+	sbuf->tls_state = SBUF_TLS_DO_HANDSHAKE;
+	return true;
 }
 
 /*
@@ -992,6 +1010,9 @@ bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
 {
 	struct tls *ctls;
 	int err;
+
+	if (!sbuf_pause(sbuf))
+		return false;
 
 	if (cf_server_tls_sslmode != SSLMODE_VERIFY_FULL)
 		hostname = NULL;
@@ -1016,7 +1037,8 @@ bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
 		return false;
 	}
 
-	return handle_tls_handshake(sbuf);
+	sbuf->tls_state = SBUF_TLS_DO_HANDSHAKE;
+	return true;
 }
 
 /*
@@ -1026,6 +1048,11 @@ bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
 static int tls_sbufio_recv(struct SBuf *sbuf, void *dst, unsigned int len)
 {
 	ssize_t out = 0;
+
+	if (sbuf->tls_state != SBUF_TLS_OK) {
+		errno = EIO;
+		return -1;
+	}
 
 	out = tls_read(sbuf->tls, dst, len);
 	log_noise("tls_read: req=%u out=%d", len, (int)out);
@@ -1046,6 +1073,11 @@ static int tls_sbufio_recv(struct SBuf *sbuf, void *dst, unsigned int len)
 static int tls_sbufio_send(struct SBuf *sbuf, const void *data, unsigned int len)
 {
 	ssize_t out;
+
+	if (sbuf->tls_state != SBUF_TLS_OK) {
+		errno = EIO;
+		return -1;
+	}
 
 	out = tls_write(sbuf->tls, data, len);
 	log_noise("tls_write: req=%u out=%d", len, (int)out);

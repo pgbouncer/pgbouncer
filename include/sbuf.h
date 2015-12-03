@@ -73,6 +73,7 @@ struct SBuf {
 
 	uint8_t wait_type;	/* track wait state */
 	uint8_t pkt_action;	/* method for handling current pkt */
+	uint8_t tls_state;	/* progress of tls */
 
 	int sock;		/* fd for this socket */
 

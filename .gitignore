@@ -9,6 +9,11 @@
 /pgbouncer
 /.objs
 /tags
+/test/.objs
+/test/hba_test
+/test/log
+/test/test.log
+/test/test.pid
 
 *.html
 *.xml

@@ -617,11 +617,12 @@ struct HBA *hba_load_rules(const char *fn)
 	if (!hba)
 		goto out;
 
+	list_init(&hba->rules);
+
 	f = fopen(fn, "r");
 	if (!f)
 		goto out;
 
-	list_init(&hba->rules);
 	for (linenr = 1; ; linenr++) {
 		len = getline(&ln, &lnbuf, f);
 		if (len < 0)

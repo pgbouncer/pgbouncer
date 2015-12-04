@@ -155,3 +155,6 @@ htmls:
 		mkdir -p html && rst2html $$f > html/`basename $$f`.html; \
 	done
 
+doc/pgbouncer.1 doc/pgbouncer.5:
+	$(MAKE) -C doc
+

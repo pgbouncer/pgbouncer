@@ -526,7 +526,9 @@ void activate_client(PgSocket *client)
 	usec_t now = get_time_usec();
 
 	Assert(client->state == CL_WAITING || client->state == CL_WAITING_LOGIN);
-	slog_debug(client, "activate_client: %ldus", (now - client->query_start));
+  	if (cf_log_activations)
+    		slog_info(client, "activate_client: %ldus", (now - client->query_start));
+	slog_debug(client, "activate_client");
 	change_client_state(client, CL_ACTIVE);
 	sbuf_continue(&client->sbuf);
 }

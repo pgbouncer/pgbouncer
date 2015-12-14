@@ -339,7 +339,15 @@ log_pooler_errors
 
 Log error messages pooler sends to clients.
 
-Default: 1
+log_activations
+---------------
+
+Log every time a client has waited for a client to be available, and how much time
+it has spent on that state.
+This happens when there are not any available servers and we have to wait for new
+ones to be created or become available for use.
+
+Default: 0
 
 stats_period
 ------------

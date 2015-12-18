@@ -4,7 +4,7 @@ PgBouncer changelog
 PgBouncer 1.7.x
 ---------------
 
-**2015-xx-xx  -  PgBouncer 1.7  -  ""**
+**2015-12-18  -  PgBouncer 1.7  -  "Colors Vary After Resurrection"**
 
 - Features
 
@@ -40,11 +40,18 @@ PgBouncer 1.7.x
     This avoids releasing server too early.  Fixes
     `#52 <https://github.com/pgbouncer/pgbouncer/issues/52>`_.
 
+  * Improved sbuf_loopcnt logic - socket is guarateed to be
+    reprocessed even if there are no event from socket.
+    Required for TLS as it has it's own buffering.
+
   * Adapt system tests to work with modern BSD and MacOS.
     (Eric Radman)
 
   * Remove **crypt** auth.  It's obsolete and not supported
     by PostgreSQL since 8.4.
+
+  * Fix plain "--with-cares" configure option - without argument
+    it was broken.
 
 PgBouncer 1.6.x
 ---------------

@@ -637,7 +637,10 @@ static void kill_database(PgDatabase *db)
 		if (pool->db == db)
 			kill_pool(pool);
 	}
+
 	pktbuf_free(db->startup_params);
+	free(db->host);
+
 	if (db->forced_user)
 		slab_free(user_cache, db->forced_user);
 	if (db->connect_query)

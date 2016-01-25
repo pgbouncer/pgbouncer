@@ -83,3 +83,5 @@ void init_objects(void);
 
 void init_caches(void);
 
+void objects_cleanup(void);
+

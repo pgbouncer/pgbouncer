@@ -73,16 +73,22 @@ void pktbuf_static(PktBuf *buf, uint8_t *data, int len)
 	buf->fixed_buf = 1;
 }
 
+static PktBuf *temp_pktbuf;
+
 struct PktBuf *pktbuf_temp(void)
 {
-	static PktBuf *temp_pktbuf;
-
 	if (!temp_pktbuf)
 		temp_pktbuf = pktbuf_dynamic(512);
 	if (!temp_pktbuf)
 		fatal("failed to create temp pktbuf");
 	pktbuf_reset(temp_pktbuf);
 	return temp_pktbuf;
+}
+
+void pktbuf_cleanup(void)
+{
+	pktbuf_free(temp_pktbuf);
+	temp_pktbuf = NULL;
 }
 
 bool pktbuf_send_immediate(PktBuf *buf, PgSocket *sk)

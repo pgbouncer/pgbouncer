@@ -147,3 +147,5 @@ static inline int sbuf_op_close(SBuf *sbuf)
 	return sbuf->ops->sbufio_close(sbuf);
 }
 
+void sbuf_cleanup(void);
+

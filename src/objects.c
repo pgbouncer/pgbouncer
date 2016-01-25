@@ -1585,3 +1585,39 @@ void reuse_just_freed_objects(void)
 	}
 }
 
+void objects_cleanup(void)
+{
+	struct List *item;
+	PgDatabase *db;
+
+	/* close can be postpones, just in case call twice */
+	reuse_just_freed_objects();
+	reuse_just_freed_objects();
+
+	statlist_for_each(item, &database_list) {
+		db = container_of(item, PgDatabase, head);
+		db->db_dead = 1;
+	}
+	config_postprocess();
+
+	memset(&login_client_list, 0, sizeof login_client_list);
+	memset(&user_list, 0, sizeof user_list);
+	memset(&database_list, 0, sizeof database_list);
+	memset(&pool_list, 0, sizeof pool_list);
+	memset(&user_tree, 0, sizeof user_tree);
+	memset(&autodatabase_idle_list, 0, sizeof autodatabase_idle_list);
+
+	slab_destroy(server_cache);
+	server_cache = NULL;
+	slab_destroy(client_cache);
+	client_cache = NULL;
+	slab_destroy(db_cache);
+	db_cache = NULL;
+	slab_destroy(pool_cache);
+	pool_cache = NULL;
+	slab_destroy(user_cache);
+	user_cache = NULL;
+	slab_destroy(iobuf_cache);
+	iobuf_cache = NULL;
+}
+

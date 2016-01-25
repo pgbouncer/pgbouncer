@@ -26,6 +26,7 @@
 #include <usual/err.h>
 #include <usual/cfparser.h>
 #include <usual/getopt.h>
+#include <usual/slab.h>
 
 #ifdef HAVE_SYS_RESOURCE_H
 #include <sys/resource.h>
@@ -554,9 +555,12 @@ static void go_daemon(void)
 
 static void remove_pidfile(void)
 {
-	if (!cf_pidfile[0])
-		return;
-	unlink(cf_pidfile);
+	if (cf_pidfile) {
+		if (cf_pidfile[0])
+			unlink(cf_pidfile);
+		free(cf_pidfile);
+		cf_pidfile = NULL;
+	}
 }
 
 static void check_pidfile(void)
@@ -733,6 +737,64 @@ static void dns_setup(void)
 		fatal_perror("dns setup failed");
 }
 
+static void xfree(char **ptr_p)
+{
+	if (*ptr_p) {
+		free(*ptr_p);
+		*ptr_p = NULL;
+	}
+}
+
+static void cleanup(void)
+{
+	adns_free_context(adns);
+	adns = NULL;
+
+	admin_cleanup();
+	objects_cleanup();
+	sbuf_cleanup();
+
+	event_base_free(NULL);
+
+	tls_deinit();
+	varcache_deinit();
+	pktbuf_cleanup();
+
+	reset_logging();
+
+	xfree(&cf_username);
+	xfree(&cf_config_file);
+	xfree(&cf_listen_addr);
+	xfree(&cf_unix_socket_dir);
+	xfree(&cf_unix_socket_group);
+	xfree(&cf_auth_file);
+	xfree(&cf_auth_hba_file);
+	xfree(&cf_auth_query);
+	xfree(&cf_server_reset_query);
+	xfree(&cf_server_check_query);
+	xfree(&cf_ignore_startup_params);
+	xfree(&cf_autodb_connstr);
+	xfree(&cf_jobname);
+	xfree(&cf_admin_users);
+	xfree(&cf_stats_users);
+	xfree(&cf_client_tls_protocols);
+	xfree(&cf_client_tls_ca_file);
+	xfree(&cf_client_tls_cert_file);
+	xfree(&cf_client_tls_key_file);
+	xfree(&cf_client_tls_ciphers);
+	xfree(&cf_client_tls_dheparams);
+	xfree(&cf_client_tls_ecdhecurve);
+	xfree(&cf_server_tls_protocols);
+	xfree(&cf_server_tls_ca_file);
+	xfree(&cf_server_tls_cert_file);
+	xfree(&cf_server_tls_key_file);
+	xfree(&cf_server_tls_ciphers);
+
+	xfree((char **)&cf_logfile);
+	xfree((char **)&cf_syslog_ident);
+	xfree((char **)&cf_syslog_facility);
+}
+
 /* boot everything */
 int main(int argc, char *argv[])
 {
@@ -856,6 +918,8 @@ int main(int argc, char *argv[])
 	/* main loop */
 	while (cf_shutdown < 2)
 		main_loop_once();
+
+	cleanup();
 
 	return 0;
 }

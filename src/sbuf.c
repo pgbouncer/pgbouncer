@@ -1148,10 +1148,24 @@ static int tls_sbufio_close(struct SBuf *sbuf)
 	return 0;
 }
 
+void sbuf_cleanup(void)
+{
+	tls_free(client_accept_base);
+	tls_config_free(client_accept_conf);
+	tls_config_free(server_connect_conf);
+	client_accept_conf = NULL;
+	server_connect_conf = NULL;
+	client_accept_base = NULL;
+}
+
 #else
 
 void sbuf_tls_setup(void) { }
 bool sbuf_tls_accept(SBuf *sbuf) { return false; }
 bool sbuf_tls_connect(SBuf *sbuf, const char *hostname) { return false; }
+
+void sbuf_cleanup(void)
+{
+}
 
 #endif

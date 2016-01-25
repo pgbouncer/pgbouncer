@@ -69,6 +69,14 @@ static PgPool *admin_pool;
 /* only valid during processing */
 static const char *current_query;
 
+void admin_cleanup(void)
+{
+	regfree(&rc_cmd);
+	regfree(&rc_set_str);
+	regfree(&rc_set_word);
+	admin_pool = NULL;
+}
+
 static bool syntax_error(PgSocket *admin)
 {
 	return admin_error(admin, "invalid command '%s', use SHOW HELP;",

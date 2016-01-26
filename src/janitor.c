@@ -508,7 +508,6 @@ static void cleanup_client_logins(void)
 	}
 }
 
-static void kill_database(PgDatabase *db);
 static void cleanup_inactive_autodatabases(void)
 {
 	struct List *item, *tmp;
@@ -625,7 +624,7 @@ void kill_pool(PgPool *pool)
 	slab_free(pool_cache, pool);
 }
 
-static void kill_database(PgDatabase *db)
+void kill_database(PgDatabase *db)
 {
 	PgPool *pool;
 	struct List *item, *tmp;

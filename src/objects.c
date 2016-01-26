@@ -1587,18 +1587,21 @@ void reuse_just_freed_objects(void)
 
 void objects_cleanup(void)
 {
-	struct List *item;
+	struct List *item, *tmp;
 	PgDatabase *db;
 
 	/* close can be postpones, just in case call twice */
 	reuse_just_freed_objects();
 	reuse_just_freed_objects();
 
-	statlist_for_each(item, &database_list) {
+	statlist_for_each_safe(item, &autodatabase_idle_list, tmp) {
 		db = container_of(item, PgDatabase, head);
-		db->db_dead = 1;
+		kill_database(db);
 	}
-	config_postprocess();
+	statlist_for_each_safe(item, &database_list, tmp) {
+		db = container_of(item, PgDatabase, head);
+		kill_database(db);
+	}
 
 	memset(&login_client_list, 0, sizeof login_client_list);
 	memset(&user_list, 0, sizeof user_list);

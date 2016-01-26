@@ -1168,4 +1168,9 @@ void sbuf_cleanup(void)
 {
 }
 
+static bool handle_tls_handshake(SBuf *sbuf)
+{
+	return false;
+}
+
 #endif

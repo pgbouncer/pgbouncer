@@ -927,8 +927,10 @@ static void setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
 	} else {
 		/* TLS server, check client? */
 		if (sslmode == SSLMODE_VERIFY_FULL) {
-			tls_config_verify_client_optional(conf);
+			tls_config_verify_client(conf);
 		} else if (sslmode == SSLMODE_VERIFY_CA) {
+			tls_config_verify_client(conf);
+		} else {
 			tls_config_verify_client_optional(conf);
 		}
 	}

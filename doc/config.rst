@@ -389,18 +389,16 @@ Query sent to server on connection release, before making it
 available to other clients.  At that moment no transaction is in
 progress so it should not include ``ABORT`` or ``ROLLBACK``.
 
-A good choice for Postgres 8.2 and below is::
+The query is supposed to clean any changes made to database session
+so that next client gets connection in well-defined state.  Default is
+``DISCARD ALL`` which cleans everything, but that leaves next client
+no pre-cached state.  It can be made lighter, eg ``DEALLOCATE ALL``
+to just drop prepared statements, if application does not break when
+some state is kept around.
 
-  server_reset_query = RESET ALL; SET SESSION AUTHORIZATION DEFAULT;
-
-for 8.3 and above its enough to do::
-
-  server_reset_query = DISCARD ALL;
-
-When transaction pooling is used, the `server_reset_query`_ should be empty,
-as clients should not use any session features.  If client does use session
-features, then they will be broken as transaction pooling will not guarantee
-that next query will be run on same connection.
+When transaction pooling is used, the `server_reset_query`_ is not used,
+as clients must not use any session-based features as each transaction
+ends up in different connection and thus gets different session state.
 
 Default: DISCARD ALL
 
@@ -411,6 +409,11 @@ Whether `server_reset_query`_ should be run in all pooling modes.  When this
 setting is off (default), the `server_reset_query`_ will be run only in pools
 that are in sessions-pooling mode.  Connections in transaction-pooling mode
 should not have any need for reset query.
+
+It is workaround for broken setups that run apps that use session features
+over transaction-pooled pgbouncer.  Is changes non-deterministic breakage
+to deterministic breakage - client always lose their state after each
+transaction.
 
 Default: 0
 

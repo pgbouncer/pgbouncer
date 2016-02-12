@@ -148,7 +148,7 @@ tgz-up: $(tgz)
 
 .PHONY: tags
 tags:
-	ctags src/*.c include/*.h lib/usual/*.[ch]
+	ctags src/*.c include/*.h lib/usual/*.[ch] lib/usual/*/*.[ch]
 
 htmls:
 	for f in *.rst doc/*.rst; do \

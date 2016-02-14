@@ -78,8 +78,6 @@ static bool sbuf_actual_recv(SBuf *sbuf, unsigned len)  _MUSTCHECK;
 static bool sbuf_after_connect_check(SBuf *sbuf)  _MUSTCHECK;
 static bool handle_tls_handshake(SBuf *sbuf) /* _MUSTCHECK */;
 
-static inline IOBuf *get_iobuf(SBuf *sbuf) { return sbuf->io; }
-
 /* regular I/O */
 static int raw_sbufio_recv(struct SBuf *sbuf, void *dst, unsigned int len);
 static int raw_sbufio_send(struct SBuf *sbuf, const void *data, unsigned int len);

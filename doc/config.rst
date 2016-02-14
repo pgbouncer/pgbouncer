@@ -529,7 +529,7 @@ are disabled by default.  When enabled, `client_tls_key_file`_
 and `client_tls_cert_file`_ must be also configured to set up
 key and cert PgBouncer uses to accept client connections.
 
-disabled
+disable
     Plain TCP.  If client requests TLS, it's ignored.  Default.
 
 allow
@@ -607,7 +607,7 @@ server_tls_sslmode
 TLS mode to use for connections to PostgreSQL servers.
 TLS connections are disabled by default.
 
-disabled
+disable
     Plain TCP.  TCP is not event requested from server.  Default.
 
 allow

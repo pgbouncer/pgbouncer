@@ -183,7 +183,7 @@ const struct CfLookup pool_mode_map[] = {
 };
 
 const struct CfLookup sslmode_map[] = {
-	{ "disabled", SSLMODE_DISABLED },
+	{ "disable", SSLMODE_DISABLED },
 	{ "allow", SSLMODE_ALLOW },
 	{ "prefer", SSLMODE_PREFER },
 	{ "require", SSLMODE_REQUIRE },
@@ -268,7 +268,7 @@ CF_ABS("log_disconnections", CF_INT, cf_log_disconnections, 0, "1"),
 CF_ABS("log_pooler_errors", CF_INT, cf_log_pooler_errors, 0, "1"),
 CF_ABS("application_name_add_host", CF_INT, cf_application_name_add_host, 0, "0"),
 
-CF_ABS("client_tls_sslmode", CF_LOOKUP(sslmode_map), cf_client_tls_sslmode, CF_NO_RELOAD, "disabled"),
+CF_ABS("client_tls_sslmode", CF_LOOKUP(sslmode_map), cf_client_tls_sslmode, CF_NO_RELOAD, "disable"),
 CF_ABS("client_tls_ca_file", CF_STR, cf_client_tls_ca_file, CF_NO_RELOAD, ""),
 CF_ABS("client_tls_cert_file", CF_STR, cf_client_tls_cert_file, CF_NO_RELOAD, ""),
 CF_ABS("client_tls_key_file", CF_STR, cf_client_tls_key_file, CF_NO_RELOAD, ""),
@@ -277,7 +277,7 @@ CF_ABS("client_tls_ciphers", CF_STR, cf_client_tls_ciphers, CF_NO_RELOAD, "fast"
 CF_ABS("client_tls_dheparams", CF_STR, cf_client_tls_dheparams, CF_NO_RELOAD, "auto"),
 CF_ABS("client_tls_ecdhcurve", CF_STR, cf_client_tls_ecdhecurve, CF_NO_RELOAD, "auto"),
 
-CF_ABS("server_tls_sslmode", CF_LOOKUP(sslmode_map), cf_server_tls_sslmode, CF_NO_RELOAD, "disabled"),
+CF_ABS("server_tls_sslmode", CF_LOOKUP(sslmode_map), cf_server_tls_sslmode, CF_NO_RELOAD, "disable"),
 CF_ABS("server_tls_ca_file", CF_STR, cf_server_tls_ca_file, CF_NO_RELOAD, ""),
 CF_ABS("server_tls_cert_file", CF_STR, cf_server_tls_cert_file, CF_NO_RELOAD, ""),
 CF_ABS("server_tls_key_file", CF_STR, cf_server_tls_key_file, CF_NO_RELOAD, ""),

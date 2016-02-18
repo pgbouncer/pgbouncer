@@ -12,32 +12,12 @@ Significant amount of users feel the need for those.
 
 Waiting for contributors...
 
-Conceptual issues
------------------
+Problems / cleanups
+-------------------
 
 * Bad naming in data strctures:
   * PgSocket->auth_user [vs. PgDatabase->auth_user]
   * PgSocket->db [vs. PgPool->db]
-
-* **server_reset_query** vs. per-db **pool_mode**.   Session and transaction
-  pooling mode should not use same **server_reset_query**.
-  For session-pooling it should be ``DISCARD ALL``, for non-session pooling
-  it should be empty, but maybe there are setups where it is useful.
-
-  Solutions:
-
-  1. Just disable **server_reset_query** for non session-mode pools.
-  2. New option that disables **server_reset_query** for non-session-mode pools.
-  3. Two new settings for tx modes, keep **server_reset_query** for sessions:
-     **server_reset_query_transaction**, **server_reset_query_statement**.
-  4. Three new separate settings for different modes:
-
-     - **server_reset_query_session**
-     - **server_reset_query_transaction**
-     - **server_reset_query_statement**
-
-Problems / cleanups
--------------------
 
 * other per-user settings
 

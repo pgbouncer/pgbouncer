@@ -3,7 +3,7 @@ Section: database
 Priority: extra
 Maintainer: Marko Kreen <marko.kreen@skype.net>
 Standards-Version: 3.6.2
-Build-Depends: cdbs, debhelper (>= 7), libevent-dev (>= 1.3b), asciidoc, xmlto, make (>= 3.81)
+Build-Depends: cdbs, debhelper (>= 7), libevent-dev (>= 1.3b), asciidoc, xmlto, make (>= 3.81), build-essential, debhelper (>= 7), libssl-dev (>= 1.0.1), libevent-dev (>= 2.0), doxygen
 
 Package: pgbouncer
 Architecture: any

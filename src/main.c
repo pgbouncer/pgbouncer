@@ -513,7 +513,7 @@ static void go_daemon(void)
 {
 	int pid, fd;
 
-	if (!cf_pidfile[0])
+	if (!cf_pidfile || !cf_pidfile[0])
 		fatal("daemon needs pidfile configured");
 
 	/* don't log to stdout anymore */
@@ -570,7 +570,7 @@ static void check_pidfile(void)
 	pid_t pid = 0;
 	int fd, res;
 
-	if (!cf_pidfile[0])
+	if (!cf_pidfile || !cf_pidfile[0])
 		return;
 
 	/* check if pidfile exists */
@@ -616,7 +616,7 @@ static void write_pidfile(void)
 	pid_t pid;
 	int res, fd;
 
-	if (!cf_pidfile[0])
+	if (!cf_pidfile || !cf_pidfile[0])
 		return;
 
 	pid = getpid();

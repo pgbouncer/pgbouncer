@@ -76,10 +76,6 @@ LIBUSUAL_DIST = $(filter-out %/config.h, $(wildcard \
 		lib/README lib/COPYRIGHT \
 		lib/find_modules.sh ))
 
-ifeq ($(enable_debug),yes)
-CPPFLAGS += -DDBGVER="\"compiled by <$${USER}@`hostname`> at `date '+%Y-%m-%d %H:%M:%S'`\""
-endif
-
 #
 # win32
 #

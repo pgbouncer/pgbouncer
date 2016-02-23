@@ -603,7 +603,9 @@ static void check_pidfile(void)
 
 	/* seems the pidfile is not in use */
 	log_info("Stale pidfile, removing");
-	remove_pidfile();
+	err = unlink(cf_pidfile);
+	if (err != 0)
+		fatal_perror("Cannot remove stale pidfile");
 	return;
 
 locked_pidfile:

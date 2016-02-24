@@ -568,7 +568,7 @@ static void check_pidfile(void)
 	char buf[128 + 1];
 	struct stat st;
 	pid_t pid = 0;
-	int fd, res;
+	int fd, res, err;
 
 	if (!cf_pidfile || !cf_pidfile[0])
 		return;

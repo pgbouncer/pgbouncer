@@ -58,6 +58,18 @@ void takeover_finish(void)
 	disconnect_server(old_bouncer, false, "disko over");
 	old_bouncer = NULL;
 
+	if (cf_pidfile && cf_pidfile[0]) {
+		log_info("waiting for old pidfile to go away");
+		while (1) {
+			struct stat st;
+			if (stat(cf_pidfile, &st) < 0) {
+				if (errno == ENOENT)
+					break;
+			}
+			usleep(USEC/10);
+		}
+	}
+
 	log_info("old process killed, resuming work");
 	resume_all();
 }

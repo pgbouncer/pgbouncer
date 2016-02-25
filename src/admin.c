@@ -69,8 +69,6 @@ static PgPool *admin_pool;
 /* only valid during processing */
 static const char *current_query;
 
-bool got_show_fds;
-
 void admin_cleanup(void)
 {
 	regfree(&rc_cmd);
@@ -370,8 +368,6 @@ static bool show_fds_from_list(PgSocket *admin, struct StatList *list)
 	struct List *item;
 	PgSocket *sk;
 	bool res = true;
-
-	got_show_fds = true;
 
 	statlist_for_each(item, list) {
 		sk = container_of(item, PgSocket, head);

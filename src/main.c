@@ -922,9 +922,7 @@ int main(int argc, char *argv[])
 	while (cf_shutdown < 2)
 		main_loop_once();
 
-	/* proper cleanup, unless there is takeover */
-	if (!got_show_fds)
-		cleanup();
+	cleanup();
 
 	return 0;
 }

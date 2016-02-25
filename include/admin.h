@@ -15,9 +15,6 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-
-extern bool got_show_fds;
-
 bool admin_handle_client(PgSocket *client, PktHdr *pkt)  _MUSTCHECK;
 bool admin_pre_login(PgSocket *client, const char *username)  _MUSTCHECK;
 bool admin_post_login(PgSocket *client)  _MUSTCHECK;

@@ -922,7 +922,8 @@ int main(int argc, char *argv[])
 	while (cf_shutdown < 2)
 		main_loop_once();
 
-	cleanup();
+	/* not useful for production loads */
+	if (0) cleanup();
 
 	return 0;
 }

@@ -4,6 +4,32 @@ PgBouncer changelog
 PgBouncer 1.7.x
 ---------------
 
+**2016-02-26  -  PgBouncer 1.7.2  -  "Finally Airborne"**
+
+- Fixes
+
+  * Fix crash on stale pidfile removal.  Problem introduced in 1.7.1.
+
+  * Disable cleanup - it breaks takeover and is not useful
+    for production loads.  Problem introduced in 1.7.1.
+
+  * After takeover, wait until pidfile is gone before booting.
+    Slow shutdown due to memory cleanup exposed existing race.
+    (`#113 <https://github.com/pgbouncer/pgbouncer/issues/113>`_)
+
+- Cleanups
+
+  * Make build reproducible by dropping DBGVER handling.
+    (`#112 <https://github.com/pgbouncer/pgbouncer/issues/112>`_)
+
+  * Antimake: Sort file list from $(wildcard), newer gmake does not
+    sort it anymore.
+    (`#111 <https://github.com/pgbouncer/pgbouncer/issues/111>`_)
+
+  * Show libssl version in log.
+
+  * deb: Turn on full hardening.
+
 **2016-02-18  -  PgBouncer 1.7.1  -  "Forward To Five Friends Or Else"**
 
 WARNING: Since version 1.7, `server_reset_query` is not executed when

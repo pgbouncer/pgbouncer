@@ -1,9 +1,10 @@
 Source: pgbouncer
 Section: database
 Priority: extra
-Maintainer: Marko Kreen <marko.kreen@skype.net>
+Maintainer: Marko Kreen <markokr@gmail.com>
 Standards-Version: 3.6.2
-Build-Depends: debhelper (>= 9), libevent-dev (>= 2.0), python-docutils, make (>= 3.81), libssl-dev (>= 1.0.1), libc-ares-dev
+Build-Depends: debhelper (>= 9), make (>= 3.81), python-docutils,
+ libevent-dev (>= 2.0), libssl-dev (>= 1.0.1), libc-ares-dev (>= 1.7.0)
 
 Package: pgbouncer
 Architecture: any
@@ -14,4 +15,5 @@ Description: Lightweight connection pooler for PostgreSQL
  create a connection to the actual server, or it will reuse one of its existing
  connections.
  .
- The aim of pgbouncer is to lower the performance impact of opening new connections to PostgreSQL.
+ The aim of pgbouncer is to lower the performance impact of opening
+ new connections to PostgreSQL.

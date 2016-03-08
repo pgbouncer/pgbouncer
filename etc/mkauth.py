@@ -16,7 +16,7 @@ except IOError:
 # create new file data
 db = psycopg2.connect(sys.argv[2])
 curs = db.cursor()
-curs.execute("select usename, 'md5' || md5(passwd || usename) from pg_shadow order by 1")
+curs.execute("select usename, case when left( passwd, 3 )='md5' then passwd else 'md5' || md5(passwd || usename) end from pg_shadow order by 1")
 lines = []
 for user, psw in curs.fetchall():
     user = user.replace('"', '""')

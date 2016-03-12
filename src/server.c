@@ -370,8 +370,9 @@ static bool handle_connect(PgSocket *server)
 	bool res = false;
 	PgPool *pool = server->pool;
 	char buf[PGADDR_BUF + 32];
+	bool is_unix = pga_is_unix(&server->remote_addr);
 
-	fill_local_addr(server, sbuf_socket(&server->sbuf), pga_is_unix(&server->remote_addr));
+	fill_local_addr(server, sbuf_socket(&server->sbuf), is_unix);
 
 	if (cf_log_connections) {
 		if (pga_is_unix(&server->remote_addr))
@@ -390,7 +391,7 @@ static bool handle_connect(PgSocket *server)
 		disconnect_server(server, false, "sent cancel req");
 	} else {
 		/* proceed with login */
-		if (cf_server_tls_sslmode > SSLMODE_DISABLED) {
+		if (cf_server_tls_sslmode > SSLMODE_DISABLED && !is_unix) {
 			slog_noise(server, "P: SSL request");
 			res = send_sslreq_packet(server);
 			if (res)

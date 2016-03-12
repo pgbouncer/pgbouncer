@@ -469,6 +469,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 	const char *passwd;
 	const uint8_t *key;
 	bool ok;
+	bool is_unix = pga_is_unix(&client->remote_addr);
 
 	SBuf *sbuf = &client->sbuf;
 
@@ -496,7 +497,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 			disconnect_client(client, false, "SSL req inside SSL");
 			return false;
 		}
-		if (cf_client_tls_sslmode != SSLMODE_DISABLED) {
+		if (cf_client_tls_sslmode != SSLMODE_DISABLED && !is_unix) {
 			slog_noise(client, "P: SSL ack");
 			if (!sbuf_answer(&client->sbuf, "S", 1)) {
 				disconnect_client(client, false, "failed to ack SSL");
@@ -521,7 +522,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		return false;
 	case PKT_STARTUP:
 		/* require SSL except on unix socket */
-		if (cf_client_tls_sslmode >= SSLMODE_REQUIRE && !client->sbuf.tls && !pga_is_unix(&client->remote_addr)) {
+		if (cf_client_tls_sslmode >= SSLMODE_REQUIRE && !client->sbuf.tls && !is_unix) {
 			disconnect_client(client, true, "SSL required");
 			return false;
 		}

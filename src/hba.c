@@ -629,9 +629,8 @@ struct HBA *hba_load_rules(const char *fn)
 			break;
 		parse_from_string(&tp, ln);
 		if (!parse_line(hba, &tp, linenr, fn)) {
-			free(hba);
-			hba = NULL;
-			break;
+			/* Ignore line, but parse to the end. */
+			continue;
 		}
 	}
 out:

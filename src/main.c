@@ -138,6 +138,7 @@ char *cf_stats_users;
 int cf_stats_period;
 
 int cf_log_connections;
+int cf_log_disconnections;
 int cf_log_client_disconnections;
 int cf_log_server_disconnections;
 int cf_log_pooler_errors;
@@ -265,6 +266,7 @@ CF_ABS("admin_users", CF_STR, cf_admin_users, 0, ""),
 CF_ABS("stats_users", CF_STR, cf_stats_users, 0, ""),
 CF_ABS("stats_period", CF_INT, cf_stats_period, 0, "60"),
 CF_ABS("log_connections", CF_INT, cf_log_connections, 0, "1"),
+CF_ABS("cf_log_disconnections", CF_INT, cf_log_disconnections, 0, "1"),
 CF_ABS("cf_log_client_disconnections", CF_INT, cf_log_client_disconnections, 0, "1"),
 CF_ABS("cf_log_server_disconnections", CF_INT, cf_log_server_disconnections, 0, "1"),
 CF_ABS("log_pooler_errors", CF_INT, cf_log_pooler_errors, 0, "1"),

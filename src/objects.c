@@ -828,7 +828,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 	va_end(ap);
 	reason = buf;
 
-	if (cf_log_client_disconnections)
+	if (cf_log_disconnections)
 		slog_info(client, "closing because: %s (age=%" PRIu64 ")", reason,
 			  (now - client->connect_time) / USEC);
 

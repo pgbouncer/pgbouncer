@@ -747,6 +747,7 @@ bool release_server(PgSocket *server)
 	return true;
 }
 
+
 /* drop server connection */
 void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 {

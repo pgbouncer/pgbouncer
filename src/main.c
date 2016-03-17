@@ -138,7 +138,6 @@ char *cf_stats_users;
 int cf_stats_period;
 
 int cf_log_connections;
-int cf_log_disconnections;
 int cf_log_client_disconnections;
 int cf_log_server_disconnections;
 int cf_log_pooler_errors;

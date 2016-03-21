@@ -1,12 +1,12 @@
 /*
  * PgBouncer - Lightweight connection pooler for PostgreSQL.
- * 
+ *
  * Copyright (c) 2007-2009  Marko Kreen, Skype Technologies OÜ
- * 
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -27,7 +27,16 @@ STATLIST(user_list);
 STATLIST(database_list);
 STATLIST(pool_list);
 
+/* All locally defined users (in auth_file) are kept here. */
 struct AATree user_tree;
+
+/*
+ * All PAM users are kept here. We need to differentiate two user
+ * lists to avoid user clashing for different authorization types,
+ * and because pam_user_tree is closer to PgDatabase.user_tree in
+ * logic.
+ */
+struct AATree pam_user_tree;
 
 /*
  * client and server objects will be pre-allocated
@@ -105,6 +114,7 @@ static void user_node_release(struct AANode *node, void *arg)
 void init_objects(void)
 {
 	aatree_init(&user_tree, user_node_cmp, NULL);
+	aatree_init(&pam_user_tree, user_node_cmp, NULL);
 	user_cache = slab_create("user_cache", sizeof(PgUser), 0, NULL, USUAL_ALLOC);
 	db_cache = slab_create("db_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
 	pool_cache = slab_create("pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
@@ -335,7 +345,7 @@ PgDatabase *register_auto_database(const char *name)
 	PgDatabase *db;
 	int len;
 	char *cs;
-	
+
 	if (!cf_autodb_connstr)
 		return NULL;
 
@@ -401,6 +411,31 @@ PgUser *add_db_user(PgDatabase *db, const char *name, const char *passwd)
 		safe_strcpy(user->name, name, sizeof(user->name));
 
 		aatree_insert(&db->user_tree, (uintptr_t)user->name, &user->tree_node);
+		user->pool_mode = POOL_INHERIT;
+	}
+	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
+	return user;
+}
+
+/* Add PAM user. The logic is same as in add_db_user */
+PgUser *add_pam_user(const char *name, const char *passwd)
+{
+	PgUser *user = NULL;
+	struct AANode *node;
+
+	node = aatree_search(&pam_user_tree, (uintptr_t)name);
+	user = node ? container_of(node, PgUser, tree_node) : NULL;
+
+	if (user == NULL) {
+		user = slab_alloc(user_cache);
+		if (!user)
+			return NULL;
+
+		list_init(&user->head);
+		list_init(&user->pool_list);
+		safe_strcpy(user->name, name, sizeof(user->name));
+
+		aatree_insert(&pam_user_tree, (uintptr_t)user->name, &user->tree_node);
 		user->pool_mode = POOL_INHERIT;
 	}
 	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
@@ -653,7 +688,7 @@ static bool reuse_on_release(PgSocket *server)
 static bool reset_on_release(PgSocket *server)
 {
 	bool res;
-	
+
 	Assert(server->state == SV_TESTED);
 
 	slog_debug(server, "Resetting: %s", cf_server_reset_query);
@@ -1186,6 +1221,8 @@ bool finish_client_login(PgSocket *client)
 		fatal("bad client state");
 	}
 
+	client->wait_for_auth = 0;
+
 	/* check if we know server signature */
 	if (!client->pool->welcome_msg_ready) {
 		log_debug("finish_client_login: no welcome message, pause");
@@ -1341,7 +1378,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 	PgSocket *server;
 	PktBuf tmp;
 	bool res;
-	
+
 	/* if the database not found, it's an auto database -> registering... */
 	if (!db) {
 		db = register_auto_database(dbname);
@@ -1351,6 +1388,8 @@ bool use_server_socket(int fd, PgAddr *addr,
 
 	if (db->forced_user) {
 		user = db->forced_user;
+	} else if (cf_auth_type == AUTH_PAM) {
+		user = add_pam_user(username, password);
 	} else {
 		user = find_user(username);
 	}

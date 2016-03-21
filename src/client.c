@@ -1,12 +1,12 @@
 /*
  * PgBouncer - Lightweight connection pooler for PostgreSQL.
- * 
+ *
  * Copyright (c) 2007-2009  Marko Kreen, Skype Technologies OÜ
- * 
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -21,6 +21,7 @@
  */
 
 #include "bouncer.h"
+#include "pam.h"
 
 #include <usual/pgutil.h>
 
@@ -62,6 +63,11 @@ static bool send_client_authreq(PgSocket *client)
 	uint8_t saltlen = 0;
 	int res;
 	int auth_type = client->client_auth_type;
+
+	/* Always use plain text to communicate with clients during PAM authorization */
+	if (auth_type == AUTH_PAM) {
+		auth_type = AUTH_PLAIN;
+	}
 
 	if (auth_type == AUTH_MD5) {
 		saltlen = 4;
@@ -208,6 +214,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		break;
 	case AUTH_PLAIN:
 	case AUTH_MD5:
+	case AUTH_PAM:
 		ok = send_client_authreq(client);
 		break;
 	case AUTH_CERT:
@@ -259,6 +266,19 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			return false;
 		}
 		client->auth_user = client->db->forced_user;
+	} else if (cf_auth_type == AUTH_PAM) {
+		if (client->db->auth_user) {
+			slog_error(client, "PAM can't be used together with database authorization");
+			disconnect_client(client, true, "bouncer config error");
+			return false;
+		}
+		/* Password will be set after successful authorization when not in takeover mode */
+		client->auth_user = add_pam_user(username, password);
+		if (!client->auth_user) {
+			slog_error(client, "set_pool(): failed to allocate new PAM user");
+			disconnect_client(client, true, "bouncer resources exhaustion");
+			return false;
+		}
 	} else {
 		/* the user clients wants to log in as */
 		client->auth_user = find_user(username);
@@ -479,7 +499,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		return false;
 	}
 
-	if (client->wait_for_welcome) {
+	if (client->wait_for_welcome || client->wait_for_auth) {
 		if  (finish_client_login(client)) {
 			/* the packet was already parsed */
 			sbuf_prepare_skip(sbuf, pkt->len);
@@ -549,12 +569,24 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		}
 
 		ok = mbuf_get_string(&pkt->data, &passwd);
-		if (ok && check_client_passwd(client, passwd)) {
-			if (!finish_client_login(client))
+
+		if (ok) {
+			if (client->client_auth_type == AUTH_PAM) {
+				if (!sbuf_pause(&client->sbuf)) {
+					disconnect_client(client, true, "pause failed");
+					return false;
+				}
+				pam_auth_begin(client, passwd);
 				return false;
-		} else {
-			disconnect_client(client, true, "Auth failed");
-			return false;
+			}
+
+			if (check_client_passwd(client, passwd)) {
+				if (!finish_client_login(client))
+					return false;
+			} else {
+				disconnect_client(client, true, "Auth failed");
+				return false;
+			}
 		}
 		break;
 	case PKT_CANCEL:
@@ -727,4 +759,3 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 	}
 	return res;
 }
-

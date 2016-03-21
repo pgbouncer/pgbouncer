@@ -106,6 +106,11 @@ auth_type
 
 How to authenticate users.
 
+pam
+    PAM is used to authenticate users, `auth_file`_ is ignored. This method is not
+    compatible with databases using `auth_user`_ option. Service name reported to
+    PAM is "pgbouncer". Also, `pam` is still not supported in HBA configuration file.
+
 hba
     Actual auth type is loaded from `auth_hba_file`_.  This allows different
     authentication methods different access paths.  Example: connection

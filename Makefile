@@ -12,6 +12,7 @@ pgbouncer_SOURCES = \
 	src/loader.c \
 	src/main.c \
 	src/objects.c \
+	src/pam.c \
 	src/pktbuf.c \
 	src/pooler.c \
 	src/proto.c \

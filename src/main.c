@@ -1,12 +1,12 @@
 /*
  * PgBouncer - Lightweight connection pooler for PostgreSQL.
- * 
+ *
  * Copyright (c) 2007-2009  Marko Kreen, Skype Technologies OÜ
- * 
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -172,6 +172,9 @@ static const struct CfLookup auth_type_map[] = {
 	{ "md5", AUTH_MD5 },
 	{ "cert", AUTH_CERT },
 	{ "hba", AUTH_HBA },
+#ifdef HAVE_PAM
+	{ "pam", AUTH_PAM },
+#endif
 	{ NULL }
 };
 
@@ -351,6 +354,15 @@ static void set_dbs_dead(bool flag)
 	}
 }
 
+/* Tells if the specified auth type requires data from the auth file. */
+bool requires_auth_file(int auth_type)
+{
+	/* For PAM authentication auth file is not used */
+	if (auth_type == AUTH_PAM)
+		return false;
+	return auth_type >= AUTH_TRUST;
+}
+
 /* config loading, tries to be tolerant to errors */
 void load_config(void)
 {
@@ -363,7 +375,7 @@ void load_config(void)
 	ok = cf_load_file(&main_config, cf_config_file);
 	if (ok) {
 		/* load users if needed */
-		if (cf_auth_type >= AUTH_TRUST)
+		if (requires_auth_file(cf_auth_type))
 			loader_users_check();
 		loaded = true;
 	} else if (!loaded) {
@@ -707,6 +719,7 @@ static void main_loop_once(void)
 		if (errno != EINTR)
 			log_warning("event_loop failed: %s", strerror(errno));
 	}
+	pam_poll();
 	per_loop_maint();
 	reuse_just_freed_objects();
 	rescue_timers();
@@ -878,6 +891,7 @@ int main(int argc, char *argv[])
 	check_limits();
 
 	admin_setup();
+	pam_init();
 
 	if (cf_reboot) {
 		if (check_old_process_unix()) {

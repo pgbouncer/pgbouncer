@@ -1,3 +1,9 @@
+pgbouncer (1.7.2cdb-1) precise; urgency=medium
+
+  * v1.7.2 with CartoDB patch
+
+ -- Antonio Zamorano <azamorano@gmail.com>  Mon, 21 Mar 2016 16:19:03 +0100
+
 pgbouncer (1.7.2-1) unstable; urgency=low
 
   * v1.7.2

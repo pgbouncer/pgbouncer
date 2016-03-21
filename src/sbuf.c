@@ -78,8 +78,6 @@ static bool sbuf_actual_recv(SBuf *sbuf, unsigned len)  _MUSTCHECK;
 static bool sbuf_after_connect_check(SBuf *sbuf)  _MUSTCHECK;
 static bool handle_tls_handshake(SBuf *sbuf) /* _MUSTCHECK */;
 
-static inline IOBuf *get_iobuf(SBuf *sbuf) { return sbuf->io; }
-
 /* regular I/O */
 static int raw_sbufio_recv(struct SBuf *sbuf, void *dst, unsigned int len);
 static int raw_sbufio_send(struct SBuf *sbuf, const void *data, unsigned int len);
@@ -927,8 +925,10 @@ static void setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
 	} else {
 		/* TLS server, check client? */
 		if (sslmode == SSLMODE_VERIFY_FULL) {
-			tls_config_verify_client_optional(conf);
+			tls_config_verify_client(conf);
 		} else if (sslmode == SSLMODE_VERIFY_CA) {
+			tls_config_verify_client(conf);
+		} else {
 			tls_config_verify_client_optional(conf);
 		}
 	}
@@ -1148,10 +1148,29 @@ static int tls_sbufio_close(struct SBuf *sbuf)
 	return 0;
 }
 
+void sbuf_cleanup(void)
+{
+	tls_free(client_accept_base);
+	tls_config_free(client_accept_conf);
+	tls_config_free(server_connect_conf);
+	client_accept_conf = NULL;
+	server_connect_conf = NULL;
+	client_accept_base = NULL;
+}
+
 #else
 
 void sbuf_tls_setup(void) { }
 bool sbuf_tls_accept(SBuf *sbuf) { return false; }
 bool sbuf_tls_connect(SBuf *sbuf, const char *hostname) { return false; }
+
+void sbuf_cleanup(void)
+{
+}
+
+static bool handle_tls_handshake(SBuf *sbuf)
+{
+	return false;
+}
 
 #endif

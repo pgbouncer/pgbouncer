@@ -26,6 +26,7 @@
 #include <usual/err.h>
 #include <usual/cfparser.h>
 #include <usual/getopt.h>
+#include <usual/slab.h>
 
 #ifdef HAVE_SYS_RESOURCE_H
 #include <sys/resource.h>
@@ -183,7 +184,7 @@ const struct CfLookup pool_mode_map[] = {
 };
 
 const struct CfLookup sslmode_map[] = {
-	{ "disabled", SSLMODE_DISABLED },
+	{ "disable", SSLMODE_DISABLED },
 	{ "allow", SSLMODE_ALLOW },
 	{ "prefer", SSLMODE_PREFER },
 	{ "require", SSLMODE_REQUIRE },
@@ -269,7 +270,7 @@ CF_ABS("log_activations", CF_INT, cf_log_activations, 0, "0"),
 CF_ABS("log_pooler_errors", CF_INT, cf_log_pooler_errors, 0, "1"),
 CF_ABS("application_name_add_host", CF_INT, cf_application_name_add_host, 0, "0"),
 
-CF_ABS("client_tls_sslmode", CF_LOOKUP(sslmode_map), cf_client_tls_sslmode, CF_NO_RELOAD, "disabled"),
+CF_ABS("client_tls_sslmode", CF_LOOKUP(sslmode_map), cf_client_tls_sslmode, CF_NO_RELOAD, "disable"),
 CF_ABS("client_tls_ca_file", CF_STR, cf_client_tls_ca_file, CF_NO_RELOAD, ""),
 CF_ABS("client_tls_cert_file", CF_STR, cf_client_tls_cert_file, CF_NO_RELOAD, ""),
 CF_ABS("client_tls_key_file", CF_STR, cf_client_tls_key_file, CF_NO_RELOAD, ""),
@@ -278,7 +279,7 @@ CF_ABS("client_tls_ciphers", CF_STR, cf_client_tls_ciphers, CF_NO_RELOAD, "fast"
 CF_ABS("client_tls_dheparams", CF_STR, cf_client_tls_dheparams, CF_NO_RELOAD, "auto"),
 CF_ABS("client_tls_ecdhcurve", CF_STR, cf_client_tls_ecdhecurve, CF_NO_RELOAD, "auto"),
 
-CF_ABS("server_tls_sslmode", CF_LOOKUP(sslmode_map), cf_server_tls_sslmode, CF_NO_RELOAD, "disabled"),
+CF_ABS("server_tls_sslmode", CF_LOOKUP(sslmode_map), cf_server_tls_sslmode, CF_NO_RELOAD, "disable"),
 CF_ABS("server_tls_ca_file", CF_STR, cf_server_tls_ca_file, CF_NO_RELOAD, ""),
 CF_ABS("server_tls_cert_file", CF_STR, cf_server_tls_cert_file, CF_NO_RELOAD, ""),
 CF_ABS("server_tls_key_file", CF_STR, cf_server_tls_key_file, CF_NO_RELOAD, ""),
@@ -514,7 +515,7 @@ static void go_daemon(void)
 {
 	int pid, fd;
 
-	if (!cf_pidfile[0])
+	if (!cf_pidfile || !cf_pidfile[0])
 		fatal("daemon needs pidfile configured");
 
 	/* don't log to stdout anymore */
@@ -556,9 +557,12 @@ static void go_daemon(void)
 
 static void remove_pidfile(void)
 {
-	if (!cf_pidfile[0])
-		return;
-	unlink(cf_pidfile);
+	if (cf_pidfile) {
+		if (cf_pidfile[0])
+			unlink(cf_pidfile);
+		free(cf_pidfile);
+		cf_pidfile = NULL;
+	}
 }
 
 static void check_pidfile(void)
@@ -566,9 +570,9 @@ static void check_pidfile(void)
 	char buf[128 + 1];
 	struct stat st;
 	pid_t pid = 0;
-	int fd, res;
+	int fd, res, err;
 
-	if (!cf_pidfile[0])
+	if (!cf_pidfile || !cf_pidfile[0])
 		return;
 
 	/* check if pidfile exists */
@@ -601,7 +605,9 @@ static void check_pidfile(void)
 
 	/* seems the pidfile is not in use */
 	log_info("Stale pidfile, removing");
-	remove_pidfile();
+	err = unlink(cf_pidfile);
+	if (err != 0)
+		fatal_perror("Cannot remove stale pidfile");
 	return;
 
 locked_pidfile:
@@ -614,7 +620,7 @@ static void write_pidfile(void)
 	pid_t pid;
 	int res, fd;
 
-	if (!cf_pidfile[0])
+	if (!cf_pidfile || !cf_pidfile[0])
 		return;
 
 	pid = getpid();
@@ -735,6 +741,64 @@ static void dns_setup(void)
 		fatal_perror("dns setup failed");
 }
 
+static void xfree(char **ptr_p)
+{
+	if (*ptr_p) {
+		free(*ptr_p);
+		*ptr_p = NULL;
+	}
+}
+
+static void cleanup(void)
+{
+	adns_free_context(adns);
+	adns = NULL;
+
+	admin_cleanup();
+	objects_cleanup();
+	sbuf_cleanup();
+
+	event_base_free(NULL);
+
+	tls_deinit();
+	varcache_deinit();
+	pktbuf_cleanup();
+
+	reset_logging();
+
+	xfree(&cf_username);
+	xfree(&cf_config_file);
+	xfree(&cf_listen_addr);
+	xfree(&cf_unix_socket_dir);
+	xfree(&cf_unix_socket_group);
+	xfree(&cf_auth_file);
+	xfree(&cf_auth_hba_file);
+	xfree(&cf_auth_query);
+	xfree(&cf_server_reset_query);
+	xfree(&cf_server_check_query);
+	xfree(&cf_ignore_startup_params);
+	xfree(&cf_autodb_connstr);
+	xfree(&cf_jobname);
+	xfree(&cf_admin_users);
+	xfree(&cf_stats_users);
+	xfree(&cf_client_tls_protocols);
+	xfree(&cf_client_tls_ca_file);
+	xfree(&cf_client_tls_cert_file);
+	xfree(&cf_client_tls_key_file);
+	xfree(&cf_client_tls_ciphers);
+	xfree(&cf_client_tls_dheparams);
+	xfree(&cf_client_tls_ecdhecurve);
+	xfree(&cf_server_tls_protocols);
+	xfree(&cf_server_tls_ca_file);
+	xfree(&cf_server_tls_cert_file);
+	xfree(&cf_server_tls_key_file);
+	xfree(&cf_server_tls_ciphers);
+
+	xfree((char **)&cf_logfile);
+	xfree((char **)&cf_syslog_ident);
+	xfree((char **)&cf_syslog_facility);
+}
+
 /* boot everything */
 int main(int argc, char *argv[])
 {
@@ -852,12 +916,16 @@ int main(int argc, char *argv[])
 
 	write_pidfile();
 
-	log_info("process up: %s, libevent %s (%s), adns: %s", PACKAGE_STRING,
-		 event_get_version(), event_get_method(), adns_get_backend());
+	log_info("process up: %s, libevent %s (%s), adns: %s, tls: %s", PACKAGE_STRING,
+		 event_get_version(), event_get_method(), adns_get_backend(),
+		 tls_backend_version());
 
 	/* main loop */
 	while (cf_shutdown < 2)
 		main_loop_once();
+
+	/* not useful for production loads */
+	if (0) cleanup();
 
 	return 0;
 }

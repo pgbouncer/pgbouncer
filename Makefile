@@ -65,7 +65,7 @@ EXTRA_DIST = AUTHORS COPYRIGHT Makefile config.mak.in config.sub config.guess \
 	     $(LIBUSUAL_DIST)
 
 # libusual files (FIXME: list should be provided by libusual...)
-LIBUSUAL_DIST = $(filter-out %/config.h, $(wildcard \
+LIBUSUAL_DIST = $(filter-out %/config.h, $(sort $(wildcard \
 		lib/usual/*.[chg] \
 		lib/usual/*/*.[ch] \
 		lib/m4/*.m4 \
@@ -74,11 +74,7 @@ LIBUSUAL_DIST = $(filter-out %/config.h, $(wildcard \
 		lib/mk/antimake.mk lib/mk/antimake.txt \
 		lib/mk/install-sh lib/mk/std-autogen.sh \
 		lib/README lib/COPYRIGHT \
-		lib/find_modules.sh ))
-
-ifeq ($(enable_debug),yes)
-CPPFLAGS += -DDBGVER="\"compiled by <$${USER}@`hostname`> at `date '+%Y-%m-%d %H:%M:%S'`\""
-endif
+		lib/find_modules.sh )))
 
 #
 # win32
@@ -148,7 +144,7 @@ tgz-up: $(tgz)
 
 .PHONY: tags
 tags:
-	ctags src/*.c include/*.h lib/usual/*.[ch]
+	ctags src/*.c include/*.h lib/usual/*.[ch] lib/usual/*/*.[ch]
 
 htmls:
 	for f in *.rst doc/*.rst; do \

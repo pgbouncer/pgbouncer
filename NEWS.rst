@@ -4,6 +4,84 @@ PgBouncer changelog
 PgBouncer 1.7.x
 ---------------
 
+**2016-02-26  -  PgBouncer 1.7.2  -  "Finally Airborne"**
+
+- Fixes
+
+  * Fix crash on stale pidfile removal.  Problem introduced in 1.7.1.
+
+  * Disable cleanup - it breaks takeover and is not useful
+    for production loads.  Problem introduced in 1.7.1.
+
+  * After takeover, wait until pidfile is gone before booting.
+    Slow shutdown due to memory cleanup exposed existing race.
+    (`#113 <https://github.com/pgbouncer/pgbouncer/issues/113>`_)
+
+- Cleanups
+
+  * Make build reproducible by dropping DBGVER handling.
+    (`#112 <https://github.com/pgbouncer/pgbouncer/issues/112>`_)
+
+  * Antimake: Sort file list from $(wildcard), newer gmake does not
+    sort it anymore.
+    (`#111 <https://github.com/pgbouncer/pgbouncer/issues/111>`_)
+
+  * Show libssl version in log.
+
+  * deb: Turn on full hardening.
+
+**2016-02-18  -  PgBouncer 1.7.1  -  "Forward To Five Friends Or Else"**
+
+WARNING: Since version 1.7, `server_reset_query` is not executed when
+database is in transaction-pooling mode.  Seems this was not highlighted
+enough in 1.7 announcement.  If your apps depend on that happening, use
+`server_reset_query_always` to restore previous behaviour.
+
+Otherwise main work of this release was to track down TLS-related memory
+leak, which turned out to not exist.  Instead there is libssl build in
+Debian/wheezy which has 600k overhead per connection (without leaking)
+instead expected 20-30k.  Something to keep an eye on when using TLS.
+
+- Fixes
+
+  * TLS: Rename sslmode "disabled" to "disable" as that is what
+    PostgreSQL uses.
+
+  * TLS: `client_tls_sslmode=verify-ca/-full` now reject
+    connections without client certificate.
+    (`#104 <https://github.com/pgbouncer/pgbouncer/issues/104>`_)
+
+  * TLS: `client_tls_sslmode=allow/require` do validate client
+    certificate if sent.  Previously they left cert validation
+    unconfigured so connections with client cert failed.
+    (`#105 <https://github.com/pgbouncer/pgbouncer/issues/105>`_)
+
+  * Fix memleak when freeing database.
+
+  * Fix potential memleak in tls_handshake().
+
+  * Fix EOF handling in tls_handshake().
+
+  * Fix too small memset in asn1_time_parse compat.
+
+  * Fix non-TLS (`--without-openssl`) build.
+    (`#101 <https://github.com/pgbouncer/pgbouncer/issues/101>`_)
+
+  * Fix various issues with Windows build.
+    (`#100 <https://github.com/pgbouncer/pgbouncer/issues/100>`_)
+
+- Cleanups
+
+  * TLS: Use SSL_MODE_RELEASE_BUFFERS to decrease memory usage
+    of inactive connections.
+
+  * Clean allocated memory on exit.  Helps to run memory-leak checkers.
+
+  * Improve `server_reset_query` documentation.
+    (`#110 <https://github.com/pgbouncer/pgbouncer/issues/110>`_)
+
+  * Add TLS options to sample config.
+
 **2015-12-18  -  PgBouncer 1.7  -  "Colors Vary After Resurrection"**
 
 - Features

@@ -37,11 +37,7 @@
 #include <usual/event.h>
 #include <usual/strpool.h>
 
-#ifdef DBGVER
-#define FULLVER   PACKAGE_NAME " version " PACKAGE_VERSION " (" DBGVER ")"
-#else
 #define FULLVER   PACKAGE_NAME " version " PACKAGE_VERSION
-#endif
 
 /* each state corresponds to a list */
 enum SocketState {

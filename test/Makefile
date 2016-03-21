@@ -1,12 +1,7 @@
 
-#PGINC = -I$(shell pg_config --includedir)
-#PGLIB = -L$(shell pg_config --libdir)
-#CPPFLAGS += -I../include -I../lib $(PGINC)
-#LDFLAGS += $(PGLIB)
-#LIBS := -lpq $(LIBS)
-#ifeq ($(PORTNAME),win32)
-#CPPFLAGS += -I../win32
-#endif
+PG_CPPFLAGS = -I$(shell pg_config --includedir)
+PG_LIBS = -lpq
+PG_LDFLAGS = -L$(shell pg_config --libdir)
 
 USUAL_DIR = ../lib
 
@@ -24,7 +19,11 @@ hba_test_SOURCES = hba_test.c ../src/hba.c ../src/util.c
 hba_test_EMBED_LIBUSUAL = 1
 
 EXTRA_PROGRAMS = asynctest
+asynctest_CPPFLAGS = -I../include $(PG_CPPFLAGS)
+asynctest_LDFLAGS = $(PG_LDFLAGS)
+asynctest_LDADD = $(PG_LIBS)
 asynctest_SOURCES = asynctest.c
+asynctest_EMBED_LIBUSUAL = 1
 
 AM_FEATURES = libusual
 

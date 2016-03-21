@@ -146,5 +146,5 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
 #define SEND_PasswordMessage(res, sk, psw) \
 	SEND_wrap(512, pktbuf_write_PasswordMessage, res, sk, psw)
 
-
+void pktbuf_cleanup(void);
 

@@ -785,9 +785,10 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 		 * usually disconnect means problems in startup phase,
 		 * except when sending cancel packet
 		 */
-		if (!server->ready)
+		if (!server->ready) {
 			pool->last_connect_failed = 1;
-		else
+	                pool->last_connect_failed_time = server->connect_time;
+		} else
 			send_term = 0;
 		break;
 	default:
@@ -1065,7 +1066,7 @@ void launch_new_connection(PgPool *pool)
 	/* if server bounces, don't retry too fast */
 	if (pool->last_connect_failed) {
 		usec_t now = get_cached_time();
-		if (now - pool->last_connect_time < cf_server_login_retry) {
+		if (now - pool->last_connect_failed_time < cf_server_login_retry) {
 			log_debug("launch_new_connection: last failed, wait");
 			return;
 		}
@@ -1132,7 +1133,6 @@ allow_new:
 	server->pool = pool;
 	server->auth_user = server->pool->user;
 	server->connect_time = get_cached_time();
-	pool->last_connect_time = get_cached_time();
 	change_server_state(server, SV_LOGIN);
 	pool->db->connection_count++;
 	pool->user->connection_count++;

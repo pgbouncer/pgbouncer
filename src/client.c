@@ -45,7 +45,26 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 
 	switch (auth_type) {
 	case AUTH_PLAIN:
-		return strcmp(user->passwd, passwd) == 0;
+		if (isMD5(user->passwd)) {
+			pg_md5_encrypt(passwd, user->name, strlen(user->name), md5);
+			if (strcmp(user->passwd, md5) == 0) {
+				/*
+				 * This user's credentials were correct, and we previously only
+				 * knew the MD5 version, so we will cache them for when we need
+				 * to open connections to upstream servers.
+				 */
+				user = add_db_user(client->db, user->name, passwd);
+				if(!user) {
+					disconnect_client(client, true, "unable to allocate user after password check");
+				}
+
+				return true;
+			}
+
+			return false;
+		} else {
+			return strcmp(user->passwd, passwd) == 0;
+		}
 	case AUTH_MD5:
 		if (strlen(passwd) != MD5_PASSWD_LEN)
 			return false;

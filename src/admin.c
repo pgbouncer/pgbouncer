@@ -792,7 +792,7 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 				    "sv_active", "sv_idle",
 				    "sv_used", "sv_tested",
 				    "sv_login", "maxwait",
-				    "pool_mode");
+                    "maxwait_us", "pool_mode");
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
 		waiter = first_socket(&pool->waiting_client_list);
@@ -809,6 +809,9 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 				     /* how long is the oldest client waited */
 				     (waiter && waiter->query_start)
 				     ?  (int)((now - waiter->query_start) / USEC) : 0,
+				     /* how long has the oldest client waited, in microseconds */
+				     (waiter && waiter->query_start)
+				     ?  (int)((now - waiter->query_start)) : 0,
 				     cf_get_lookup(&cv));
 	}
 	admin_flush(admin, buf, "SHOW");

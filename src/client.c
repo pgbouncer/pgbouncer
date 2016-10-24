@@ -24,6 +24,7 @@
 #include "pam.h"
 
 #include <usual/pgutil.h>
+#include <usual/tls/tls_cert.h>
 
 static const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
 {
@@ -135,7 +136,8 @@ static bool login_via_cert(PgSocket *client)
 	}
 
 	log_debug("TLS cert login: %s", tls_peer_cert_subject(client->sbuf.tls));
-	if (!tls_peer_cert_contains_name(client->sbuf.tls, client->auth_user->name)) {
+   
+	if (!tls_peer_cert_contains_name(client->sbuf.tls, client->auth_user->name) && !client->auth_user->has_map) {
 		disconnect_client(client, true, "TLS certificate name mismatch");
 		return false;
 	}
@@ -161,6 +163,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	PgUser *user = client->auth_user;
 	bool ok = false;
 	int auth;
+
 
 	/* pool user may be forced */
 	if (client->db->forced_user) {
@@ -200,8 +203,13 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 
 	auth = cf_auth_type;
 	if (auth == AUTH_HBA) {
-		auth = hba_eval(parsed_hba, &client->remote_addr, !!client->sbuf.tls,
-				client->db->name, client->auth_user->name);
+    slog_debug(client,"Connecting from HBA rules\n");
+
+    if ( !!client->sbuf.tls ) {
+      tls_get_common_name(client->sbuf.tls, client->auth_user->name, client->auth_user->matched_name);
+    }
+
+		auth = hba_eval(parsed_hba, client);
 	}
 
 	/* remember method */

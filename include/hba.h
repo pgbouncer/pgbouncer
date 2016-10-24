@@ -20,5 +20,4 @@ struct HBA;
 
 struct HBA *hba_load_rules(const char *fn);
 void hba_free(struct HBA *hba);
-int hba_eval(struct HBA *hba, PgAddr *addr, bool is_tls, const char *dbname, const char *username);
-
+int hba_eval(struct HBA *hba, PgSocket *client);

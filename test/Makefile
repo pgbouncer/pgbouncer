@@ -14,7 +14,7 @@ EXTRA_DIST = conntest.sh ctest6000.ini ctest7000.ini run-conntest.sh \
 
 noinst_PROGRAMS = hba_test
 hba_test_CPPFLAGS = -I../include
-hba_test_CFLAGS = -O0
+hba_test_CFLAGS = -O0 -g -std=c99
 hba_test_SOURCES = hba_test.c ../src/hba.c ../src/util.c
 hba_test_EMBED_LIBUSUAL = 1
 
@@ -36,3 +36,5 @@ all: run_test
 run_test: hba_test
 	./hba_test
 
+valgrind: hba_test
+	valgrind --leak-check=full ./hba_test > valtest.txt 2>&1

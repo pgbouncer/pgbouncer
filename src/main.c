@@ -52,7 +52,7 @@ static void usage(int err, char *exe)
 struct DNSContext *adns;
 
 struct HBA *parsed_hba;
-
+struct MapList *map_list;
 /*
  * configuration storage
  */
@@ -90,6 +90,7 @@ int cf_tcp_keepintvl;
 int cf_auth_type = AUTH_MD5;
 char *cf_auth_file;
 char *cf_auth_hba_file;
+char *cf_auth_ident_file;
 char *cf_auth_query;
 
 int cf_max_client_conn;
@@ -214,6 +215,7 @@ CF_ABS("unix_socket_group", CF_STR, cf_unix_socket_group, CF_NO_RELOAD, ""),
 CF_ABS("auth_type", CF_LOOKUP(auth_type_map), cf_auth_type, 0, "md5"),
 CF_ABS("auth_file", CF_STR, cf_auth_file, 0, "unconfigured_file"),
 CF_ABS("auth_hba_file", CF_STR, cf_auth_hba_file, 0, ""),
+CF_ABS("auth_ident_file", CF_STR, cf_auth_ident_file, 0, ""),
 CF_ABS("auth_query", CF_STR, cf_auth_query, 0, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1"),
 CF_ABS("pool_mode", CF_LOOKUP(pool_mode_map), cf_pool_mode, 0, "session"),
 CF_ABS("max_client_conn", CF_INT, cf_max_client_conn, 0, "100"),
@@ -388,6 +390,7 @@ void load_config(void)
 
 	if (cf_auth_type == AUTH_HBA) {
 		struct HBA *hba = hba_load_rules(cf_auth_hba_file);
+		hba_load_map(cf_auth_ident_file, map_list);
 		if (hba) {
 			if (parsed_hba)
 				hba_free(parsed_hba);
@@ -784,6 +787,7 @@ static void cleanup(void)
 	xfree(&cf_unix_socket_group);
 	xfree(&cf_auth_file);
 	xfree(&cf_auth_hba_file);
+	xfree(&cf_auth_ident_file);
 	xfree(&cf_auth_query);
 	xfree(&cf_server_reset_query);
 	xfree(&cf_server_check_query);
@@ -829,6 +833,7 @@ int main(int argc, char *argv[])
 		{NULL, 0, NULL, 0}
 	};
 
+  map_list = calloc(sizeof(*map_list), 1);
 	setprogname(basename(argv[0]));
 
 	/* parse cmdline */
@@ -938,6 +943,7 @@ int main(int argc, char *argv[])
 
 	/* not useful for production loads */
 	if (0) cleanup();
+  free(map_list);
 
 	return 0;
 }

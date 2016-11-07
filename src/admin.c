@@ -1529,18 +1529,11 @@ void admin_pause_done(void)
 /* admin on console has pressed ^C */
 void admin_handle_cancel(PgSocket *admin)
 {
-	bool res;
-
 	/* weird, but no reason to fail */
 	if (!admin->wait_for_response)
 		slog_warning(admin, "admin cancel request for non-waiting client?");
 
 	if (cf_pause_mode != P_NONE)
 		full_resume();
-
-	/* notify readiness */
-	SEND_ReadyForQuery(res, admin);
-	if (!res)
-		disconnect_client(admin, false, "readiness send failed");
 }
 

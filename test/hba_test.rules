@@ -17,7 +17,7 @@ local		all		userp					password
 local		dbz		userz					trust
 local		all		all					md5
 
-hostssl		all		all	10.0.0.0/8			cert
+hostssl		all		all	10.0.0.0/8			cert map=gui
 hostnossl	all		all	11.0.0.0/8			md5
 host		all		all	127.0.0.0  255.255.255.0	password
 

@@ -16,6 +16,8 @@ int cf_tcp_keepidle;
 int cf_tcp_keepalive;
 int cf_tcp_socket_buffer;
 int cf_listen_port;
+struct MapList *map_list;
+
 
 static const char *method2string[] = {
 	"trust",
@@ -40,20 +42,23 @@ static char *get_token(char **ln_p)
 	while (*ln && *ln != '\t') ln++;
 	end = ln;
 	while (*ln && *ln == '\t') ln++;
-
-	*ln_p = ln;
-	if (tok == end)
-		return NULL;
-	*end = 0;
+*ln_p = ln; if (tok == end) return NULL; *end = 0;
 	return tok;
 }
 
 static int hba_test_eval(struct HBA *hba, char *ln, int linenr)
 {
-	const char *addr=NULL, *user=NULL, *db=NULL, *tls=NULL, *exp=NULL;
+  struct PgSocket *client;
+	const char *addr=NULL,  *db=NULL, *tls=NULL, *exp=NULL;
+  char *user=NULL;
 	PgAddr pgaddr;
 	int res;
 
+  client = malloc(sizeof(*client));
+  if(client== NULL)
+  {
+    die("No memory for client");
+  }
 	if (ln[0] == '#')
 		return 0;
 	exp = get_token(&ln);
@@ -61,6 +66,7 @@ static int hba_test_eval(struct HBA *hba, char *ln, int linenr)
 	user = get_token(&ln);
 	addr = get_token(&ln);
 	tls = get_token(&ln);
+
 	if (!exp)
 		return 0;
 	if (!db || !user)
@@ -69,7 +75,16 @@ static int hba_test_eval(struct HBA *hba, char *ln, int linenr)
 	if (!pga_pton(&pgaddr, addr, 9999))
 		die("hbatest: invalid addr on line #%d", linenr);
 
-	res = hba_eval(hba, &pgaddr, !!tls, db, user);
+  pga_pton(&(client->remote_addr),addr,1);
+  client->sbuf.tls        = tls ? malloc(sizeof(struct tls*)) : NULL;
+ 
+  client->db = malloc(sizeof(struct PgDatabase*));
+  strcpy(client->db->name,db);
+
+  client->auth_user = malloc( sizeof(struct PgUser*) );
+  strcpy(client->auth_user->name,user);
+
+	res = hba_eval(hba, client);
 	if (strcmp(method2string[res], exp) == 0) {
 		res = 0;
 	} else {
@@ -77,6 +92,8 @@ static int hba_test_eval(struct HBA *hba, char *ln, int linenr)
 			    linenr, exp, method2string[res], user, db, addr);
 		res = 1;
 	}
+
+  /* free(client); */
 	return res;
 }
 
@@ -89,8 +106,15 @@ static void hba_test(void)
 	ssize_t len;
 	int linenr;
 	int nfailed = 0;
+  char *name = "map_ident_test.rules";
 
 	hba = hba_load_rules("hba_test.rules");
+  map_list = calloc(sizeof(*map_list), 1);
+
+  if( map_list )
+  {
+    hba_load_map(name,map_list);
+  }
 	if (!hba)
 		die("hbatest: did not find config");
 
@@ -106,18 +130,38 @@ static void hba_test(void)
 			ln[len-1] = 0;
 		nfailed += hba_test_eval(hba, ln, linenr);
 	}
-	free(ln);
-	fclose(f);
-	hba_free(hba);
 	if (nfailed)
 		errx(1, "HBA test failures: %d", nfailed);
 	else
 		printf("HBA test OK\n");
+	free(ln);
+	fclose(f);
+	hba_free(hba);
 }
 
+static void hba_map_test(void)
+{
+  struct List *el;
+  struct HBAIdent *map;
+  char *cur_tag;
+  char *name = "map_ident_test.rules";
+  map_list = malloc( sizeof(map_list) );
+  hba_load_map(name, map_list);
+
+  list_for_each(el, &map_list->maps){
+    map = container_of(el, struct HBAIdent, node);
+    cur_tag = "gui";
+    if ( strcmp( map->mapname, cur_tag) == 0 ) {
+      continue;
+    }
+  }
+  return;
+}
 int main(void)
 {
 	hba_test();
+  hba_map_test();
+  printf("My process ID : %d\n", getpid());
 	return 0;
 }
 

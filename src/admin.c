@@ -1451,7 +1451,7 @@ void admin_setup(void)
 		fatal("cannot create admin welcome");
 	pktbuf_write_AuthenticationOk(msg);
 	pktbuf_write_ParameterStatus(msg, "server_version", PACKAGE_VERSION "/bouncer");
-	pktbuf_write_ParameterStatus(msg, "client_encoding", "UNICODE");
+	pktbuf_write_ParameterStatus(msg, "client_encoding", "UTF8");
 	pktbuf_write_ParameterStatus(msg, "server_encoding", "SQL_ASCII");
 	pktbuf_write_ParameterStatus(msg, "DateStyle", "ISO");
 	pktbuf_write_ParameterStatus(msg, "TimeZone", "GMT");

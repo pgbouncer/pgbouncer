@@ -1452,7 +1452,7 @@ void admin_setup(void)
 	pktbuf_write_AuthenticationOk(msg);
 	pktbuf_write_ParameterStatus(msg, "server_version", PACKAGE_VERSION "/bouncer");
 	pktbuf_write_ParameterStatus(msg, "client_encoding", "UTF8");
-	pktbuf_write_ParameterStatus(msg, "server_encoding", "SQL_ASCII");
+	pktbuf_write_ParameterStatus(msg, "server_encoding", "UTF8");
 	pktbuf_write_ParameterStatus(msg, "DateStyle", "ISO");
 	pktbuf_write_ParameterStatus(msg, "TimeZone", "GMT");
 	pktbuf_write_ParameterStatus(msg, "standard_conforming_strings", "on");

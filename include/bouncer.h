@@ -191,6 +191,7 @@ struct PgStats {
 	uint64_t request_count;
 	uint64_t server_bytes;
 	uint64_t client_bytes;
+	uint64_t pool_waitings;
 	usec_t query_time;	/* total req time in us */
 };
 

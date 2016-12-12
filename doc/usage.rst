@@ -199,6 +199,10 @@ avg_sent
 avg_query
     Average query duration in microseconds.
 
+total_homeless
+  Total number of clients who left in an unexpected manner:
+  network problems, client killed by SIGKILL and so on.
+
 SHOW SERVERS;
 -------------
 

@@ -21,6 +21,7 @@
  */
 
 #include "bouncer.h"
+#include <usual/endian.h>
 
 /* those items will be allocated as needed, never freed */
 STATLIST(user_list);
@@ -851,12 +852,45 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 		log_noise("sbuf_close failed, retry later");
 }
 
+/* cancel homeless postgresql backend */
+static void cancel_homeless_backend(PgSocket *server, PgSocket *client)
+{
+	/*
+	 * function for canceling postgresql backend
+	 * if client goes away abnormally.
+	 */
+	PgSocket *new_socket = client;
+	char remote_addr_txt[PGADDR_BUF];
+	char client_addr_txt[PGADDR_BUF];
+	int  remote_pid;
+	int  remote_port;
+
+	/* get some info for logging */
+	pga_ntop(&client->remote_addr, client_addr_txt, sizeof(client_addr_txt));
+	pga_ntop(&server->remote_addr, remote_addr_txt, sizeof(remote_addr_txt));
+	remote_port = pga_port(&server->remote_addr);
+	remote_pid = be32dec(server->cancel_key);
+
+	slog_info(server, "sending cancel request to server %s:%d, pid %d",
+				 remote_addr_txt, remote_port, remote_pid);
+	slog_info(server, "client %s goes away abnormally", client_addr_txt);
+
+	memcpy(new_socket->cancel_key, server->cancel_key, 8);
+
+	/* send cancel request from new socket */
+	accept_cancel_request(new_socket);
+
+	/* add stats */
+	client->pool->stats.homeless_count++;
+}
+
 /* drop client connection */
 void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 {
 	char buf[128];
 	va_list ap;
 	usec_t now = get_cached_time();
+	bool hold_connection = false;
 
 	va_start(ap, reason);
 	vsnprintf(buf, sizeof(buf), reason, ap);
@@ -877,6 +911,12 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 				/* retval does not matter here */
 				release_server(server);
 			} else {
+				/* cancel homeless PostgreSQL backend */
+				if (cf_cancel_homeless_backend == 1) {
+					hold_connection = true;
+					cancel_homeless_backend(server, client);
+				}
+
 				server->link = NULL;
 				client->link = NULL;
 				disconnect_server(server, true, "unclean server");
@@ -899,7 +939,12 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 		send_pooler_error(client, false, reason);
 	}
 
-	change_client_state(client, CL_JUSTFREE);
+	/*
+	 * we don't want to free new 'cancel' connection for homeless client
+	 */
+	if (!hold_connection)
+		change_client_state(client, CL_JUSTFREE);
+
 	if (!sbuf_close(&client->sbuf))
 		log_noise("sbuf_close failed, retry later");
 }

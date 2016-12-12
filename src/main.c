@@ -158,6 +158,8 @@ char *cf_server_tls_cert_file;
 char *cf_server_tls_key_file;
 char *cf_server_tls_ciphers;
 
+int cf_cancel_homeless_backend;
+
 /*
  * config file description
  */
@@ -286,6 +288,8 @@ CF_ABS("server_tls_cert_file", CF_STR, cf_server_tls_cert_file, CF_NO_RELOAD, ""
 CF_ABS("server_tls_key_file", CF_STR, cf_server_tls_key_file, CF_NO_RELOAD, ""),
 CF_ABS("server_tls_protocols", CF_STR, cf_server_tls_protocols, CF_NO_RELOAD, "all"),
 CF_ABS("server_tls_ciphers", CF_STR, cf_server_tls_ciphers, CF_NO_RELOAD, "fast"),
+
+CF_ABS("cancel_homeless_backend", CF_INT, cf_cancel_homeless_backend, 0, "0"),
 
 {NULL}
 };

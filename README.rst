@@ -87,7 +87,7 @@ you can run configure::
 	$ make
 	$ make install
 
-Additional packages required: autoconf, automake, libtool,
+Additional packages required: autoconf, automake, libevent-dev, libtool,
 autoconf-archive, python-docutils, and pkg-config.
 
 Building for WIN32

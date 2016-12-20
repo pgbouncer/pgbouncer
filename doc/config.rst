@@ -144,6 +144,9 @@ Query to load user's password from database.
 Direct access to pg_shadow requires admin rights.  It's preferable to
 use non-admin user that calls SECURITY DEFINER function instead.
 
+Note that the query is run inside target database, so if a function
+is used it needs to be installed into each database.
+
 Default: ``SELECT usename, passwd FROM pg_shadow WHERE usename=$1``
 
 pool_mode

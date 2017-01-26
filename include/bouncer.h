@@ -231,6 +231,8 @@ struct PgPool {
 
 	usec_t last_lifetime_disconnect;/* last time when server_lifetime was applied */
 
+	/* remember first attempt for connect */
+	usec_t first_connect_time;
 	/* if last connect failed, there should be delay before next */
 	usec_t last_connect_time;
 	unsigned last_connect_failed:1;
@@ -415,6 +417,7 @@ extern int cf_server_reset_query_always;
 extern char * cf_server_check_query;
 extern usec_t cf_server_check_delay;
 extern usec_t cf_server_connect_timeout;
+extern usec_t cf_server_max_connect_timeout;
 extern usec_t cf_server_login_retry;
 extern usec_t cf_query_timeout;
 extern usec_t cf_query_wait_timeout;

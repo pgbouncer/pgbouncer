@@ -1,3 +1,9 @@
+pgbouncer (1.7.2cdb-1) precise; urgency=medium
+
+  * v1.7.2 with CartoDB patch
+
+ -- Antonio Zamorano <azamorano@gmail.com>  Mon, 21 Mar 2016 16:19:03 +0100
+
 pgbouncer (1.7.2-1) unstable; urgency=low
 
   * v1.7.2
@@ -9,6 +15,12 @@ pgbouncer (1.7.1-1) unstable; urgency=low
   * v1.7.1
 
  -- Marko Kreen <markokr@gmail.com>  Thu, 18 Feb 2016 18:34:55 +0200
+
+pgbouncer (1.7cdb-1) precise; urgency=medium
+
+  * v1.7 with CartoDB patch
+
+ -- Antonio Zamorano <azamorano@gmail.com>  Fri, 19 Feb 2016 12:22:54 +0100
 
 pgbouncer (1.7-1) unstable; urgency=low
 

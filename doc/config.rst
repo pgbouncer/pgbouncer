@@ -171,13 +171,13 @@ Maximum number of client connections allowed.  When increased then the file
 descriptor limits should also be increased.  Note that actual number of file
 descriptors used is more than max_client_conn.  Theoretical maximum used is::
 
-  max_client_conn + (max_pool_size * total_databases * total_users)
+  max_client_conn = (max_pool_size * total_databases * total_users)
 
 if each user connects under its own username to server.  If a database user
 is specified in connect string (all users connect under same username),
 the theoretical maximum is::
 
-  max_client_conn + (max_pool_size * total_databases)
+  max_client_conn = (max_pool_size * total_databases)
 
 The theoretical maximum should be never reached, unless somebody deliberately
 crafts special load for it.  Still, it means you should set the number of

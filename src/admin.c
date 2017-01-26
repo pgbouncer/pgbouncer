@@ -169,6 +169,7 @@ static const struct FakeParam fake_param_list[] = {
 	{ "standard_conforming_strings", "on" },
 	{ "datestyle", "ISO" },
 	{ "timezone", "GMT" },
+	{ "search_path", NULL },
 	{ NULL },
 };
 
@@ -253,7 +254,8 @@ static bool send_one_fd(PgSocket *admin,
 			const char *std_strings,
 			const char *datestyle,
 			const char *timezone,
-			const char *password)
+			const char *password,
+			const char *search_path)
 {
 	struct msghdr msg;
 	struct cmsghdr *cmsg;
@@ -263,10 +265,10 @@ static bool send_one_fd(PgSocket *admin,
 
 	struct PktBuf *pkt = pktbuf_temp();
 
-	pktbuf_write_DataRow(pkt, "issssiqisssss",
+	pktbuf_write_DataRow(pkt, "issssiqissssss",
 		      fd, task, user, db, addr, port, ckey, link,
 		      client_enc, std_strings, datestyle, timezone,
-		      password);
+		      password, search_path);
 	if (pkt->failed)
 		return false;
 	iovec.iov_base = pkt->buf;
@@ -316,6 +318,7 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	VarCache *v = &sk->vars;
 	uint64_t ckey;
 	const struct PStr *client_encoding = v->var_list[VClientEncoding];
+	const struct PStr *search_path = v->var_list[VSearchPath];
 	const struct PStr *std_strings = v->var_list[VStdStr];
 	const struct PStr *datestyle = v->var_list[VDateStyle];
 	const struct PStr *timezone = v->var_list[VTimeZone];
@@ -349,7 +352,8 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 			   std_strings ? std_strings->str : NULL,
 			   datestyle ? datestyle->str : NULL,
 			   timezone ? timezone->str : NULL,
-			   password);
+			   password,
+			   search_path ? search_path->str : NULL);
 }
 
 static bool show_pooler_cb(void *arg, int fd, const PgAddr *a)
@@ -358,7 +362,7 @@ static bool show_pooler_cb(void *arg, int fd, const PgAddr *a)
 
 	return send_one_fd(arg, fd, "pooler", NULL, NULL,
 			   pga_ntop(a, buf, sizeof(buf)), pga_port(a), 0, 0,
-			   NULL, NULL, NULL, NULL, NULL);
+			   NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
 /* send a row with sendmsg, optionally attaching a fd */
@@ -424,13 +428,14 @@ static bool admin_show_fds(PgSocket *admin, const char *arg)
 	/*
 	 * send resultset
 	 */
-	SEND_RowDescription(res, admin, "issssiqisssss",
+	SEND_RowDescription(res, admin, "issssiqissssss",
 				 "fd", "task",
 				 "user", "database",
 				 "addr", "port",
 				 "cancel", "link",
 				 "client_encoding", "std_strings",
-				 "datestyle", "timezone", "password");
+				 "datestyle", "timezone",
+				 "password", "search_path");
 	if (res)
 		res = show_pooler_fds(admin);
 

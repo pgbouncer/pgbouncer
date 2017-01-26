@@ -91,7 +91,7 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 {
 	int fd;
 	char *task, *saddr, *user, *db;
-	char *client_enc, *std_string, *datestyle, *timezone, *password;
+	char *client_enc, *std_string, *datestyle, *timezone, *password, *search_path;
 	int oldfd, port, linkfd;
 	int got;
 	uint64_t ckey;
@@ -112,10 +112,10 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	}
 
 	/* parse row contents */
-	got = scan_text_result(pkt, "issssiqisssss", &oldfd, &task, &user, &db,
+	got = scan_text_result(pkt, "issssiqissssss", &oldfd, &task, &user, &db,
 			       &saddr, &port, &ckey, &linkfd,
 			       &client_enc, &std_string, &datestyle, &timezone,
-			       &password);
+			       &password, &search_path);
 	if (got < 0 || task == NULL || saddr == NULL)
 		fatal("NULL data from old process");
 
@@ -139,11 +139,11 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	if (strcmp(task, "client") == 0) {
 		res = use_client_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
 				  client_enc, std_string, datestyle, timezone,
-				  password);
+				  password, search_path);
 	} else if (strcmp(task, "server") == 0) {
 		res = use_server_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
 				  client_enc, std_string, datestyle, timezone,
-				  password);
+				  password, search_path);
 	} else if (strcmp(task, "pooler") == 0) {
 		res = use_pooler_socket(fd, pga_is_unix(&addr));
 	} else {

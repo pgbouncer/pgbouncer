@@ -25,6 +25,13 @@
 
 #include <usual/pgutil.h>
 
+static inline const char *str_skip_ws(const char *p)
+{
+  while (*p && isspace(*p))
+    p++;
+  return p;
+}
+
 static const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
 {
 	const uint8_t *bin = data->data + data->read_pos;
@@ -608,6 +615,109 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 	return true;
 }
 
+static char *scan_for_search_path(struct MBuf *buf, const char type)
+{
+	size_t token_length      = 0;
+	const char * query_str_p = (char *)buf->data + buf->read_pos;
+	const char * nul         = memchr(query_str_p, 0, mbuf_avail_for_read(buf));
+
+	if (!nul) {
+		log_debug("scan_for_search_path: couldn't find null terminator.");
+		return NULL;
+	}
+
+	/* A Parse packet's buffer is composed of the following elements:
+			<null terminated string: prepared statement name>
+			<null terminated string: query string>
+			...
+	   So, to get to the query string, we need to skip past the "prepared statement name" */
+	if (type == 'P') {
+		size_t skip_length = (nul - query_str_p) + 1;
+		query_str_p += skip_length;
+
+		/* make sure we have a null terminated query string */
+		nul = memchr(query_str_p, 0, mbuf_avail_for_read(buf) - skip_length);
+		if (!nul) {
+			log_debug("scan_for_search_path: "
+			          "couldn't find null terminator for query component of Parse packet.");
+			return NULL;
+		}
+	}
+
+#define TOKEN_CHECK(token) \
+	do { \
+		query_str_p  = str_skip_ws(query_str_p); \
+		token_length = strlen(token); \
+		if (strncasecmp(token, query_str_p, token_length) == 0) { \
+			query_str_p += token_length; \
+		} else { \
+			return NULL; \
+		} \
+	} while(0)
+
+	TOKEN_CHECK("SET");
+	TOKEN_CHECK("SEARCH_PATH");
+
+	query_str_p = str_skip_ws(query_str_p);
+
+	/* check for '=' or 'TO' */
+	if (*query_str_p == '=') {
+		query_str_p++;
+	} else {
+		if (toupper(*query_str_p++) != 'T') return NULL;
+		if (toupper(*query_str_p++) != 'O') return NULL;
+	}
+
+	/* skip the last bit of whitespace, leading up to the actual search_path */
+	return (char *) str_skip_ws(query_str_p);
+}
+
+static bool store_client_search_path(PgSocket *client, PktHdr *pkt)
+{
+	/* 112 is large enough for varcache.c::apply_var to not fail */
+	char spath[112];
+	char *spath_p = NULL;
+	char *end     = NULL;
+	size_t length = 0;
+
+	spath_p = scan_for_search_path(&pkt->data, pkt->type);
+	if (spath_p) {
+		length = strlen(spath_p);
+		/* make sure client didn't send an empty search_path */
+		if (length == 0 || *spath_p == ';') {
+			slog_warning(client, "encountered empty search_path; skipping");
+			return false;
+		}
+
+		/* find where the search_path ends and semicolon/whitespace begins */
+		end = spath_p + length - 1;
+		while(end > spath_p && (isspace(*end) || *end == ';'))
+			end--;
+
+		/* and now length is the length of the actual search_path,
+		   sans trailing semicolon/whitespaces */
+		length = (end - spath_p + 1);
+
+		/* make sure our search path is smaller than spath with room for
+		   a null terminator */
+		if (length >= sizeof(spath) - 1) {
+			slog_warning(client, "unable to store search_path; too big (%.*s)", (int) length, spath_p);
+			return false;
+		}
+
+		/* only copy the calculated length, which takes into account
+		   whitespace and semicolons, as defined above */
+		strncpy(spath, spath_p, length);
+		spath[length] = 0; /* we have to null terminate on our own here */
+
+		slog_noise(client, "storing search path (%s)", spath);
+		varcache_set(&client->vars, "search_path", spath);
+		return true;
+	}
+
+	return false;
+}
+
 /* decide on packets of logged-in client */
 static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 {
@@ -657,6 +767,12 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	case 'X': /* Terminate */
 		disconnect_client(client, false, "client close request");
 		return false;
+	}
+
+ 	if (pkt->type == 'Q' || pkt->type == 'P') {
+		/* search_path caching is superfluous in session pool mode, so don't do it */
+		if (cf_consistent_search_path && pool_pool_mode(client->pool) != POOL_SESSION)
+			store_client_search_path(client, pkt);
 	}
 
 	/* update stats */

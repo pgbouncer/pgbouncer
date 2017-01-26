@@ -1,12 +1,12 @@
 /*
  * PgBouncer - Lightweight connection pooler for PostgreSQL.
- * 
+ *
  * Copyright (c) 2007-2009  Marko Kreen, Skype Technologies OÜ
- * 
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -35,6 +35,7 @@ static const struct var_lookup lookup [] = {
  {"TimeZone",                    VTimeZone },
  {"standard_conforming_strings", VStdStr },
  {"application_name",            VAppName },
+ {"search_path",                 VSearchPath },
  {NULL},
 };
 
@@ -99,9 +100,29 @@ static int apply_var(PktBuf *pkt, const char *key,
 	if (strcasecmp(cval->str, sval->str) == 0)
 		return 0;
 
-	/* the string may have been taken from startup pkt */
-	if (!pg_quote_literal(qbuf, cval->str, sizeof(qbuf)))
-		return 0;
+	/*
+	   Assume the client quoted the search_path correctly, otherwise
+	   pg_quote_literal will incorrectly quote something like
+
+	   		"public", "shared_extensions"
+	   to:
+	   		'"public", "shared_extensions"'
+
+	   Given the above, we memcpy instead of pg_quote_literal if we are
+	   working on the search_path key/value.
+	*/
+	if (strncasecmp("search_path", key, 11) != 0) {
+		/* the string may have been taken from startup pkt */
+		if (!pg_quote_literal(qbuf, cval->str, sizeof(qbuf)))
+			return 0;
+	} else {
+		if (strlen(cval->str) >= sizeof(qbuf)) {
+			log_warning("varcache_apply: search_path to long; skipping (%s)", cval->str);
+			return 0;
+		}
+		/* include null terminator in copy */
+		memcpy(qbuf, cval->str, strlen(cval->str) + 1);
+	}
 
 	/* add SET statement to packet */
 	len = snprintf(buf, sizeof(buf), "SET %s=%s;", key, qbuf);

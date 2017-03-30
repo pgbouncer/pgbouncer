@@ -550,6 +550,13 @@ bool load_auth_file(const char *fn)
 
 	buf = load_file(fn, NULL);
 	if (buf == NULL) {
+		/*
+		 * Defaults to the string unconfigured_file, so don't log
+		 * error in this case.
+		 */
+		if (strcmp(fn, "unconfigured_file"))
+			log_error("could not open auth_file %s: %m", fn);
+
 		/* reset file info */
 		auth_loaded(NULL);
 		return false;

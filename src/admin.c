@@ -1377,7 +1377,7 @@ bool admin_pre_login(PgSocket *client, const char *username)
 	}
 
 	/*
-	 * auth_mode=any does not keep original username around,
+	 * auth_type=any does not keep original username around,
 	 * so username based check has to take place here
 	 */
 	if (cf_auth_type == AUTH_ANY) {

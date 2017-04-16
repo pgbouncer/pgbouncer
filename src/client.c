@@ -314,7 +314,7 @@ bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
 			return false;
 		}
 		if (columns != 2u) {
-			disconnect_server(server, false, "expected 1 column from login query, not %hu", columns);
+			disconnect_server(server, false, "expected 2 columns from login query, not %hu", columns);
 			return false;
 		}
 		break;
@@ -325,7 +325,7 @@ bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
 			return false;
 		}
 		if (columns != 2u) {
-			disconnect_server(server, false, "expected 1 column from login query, not %hu", columns);
+			disconnect_server(server, false, "expected 2 columns from login query, not %hu", columns);
 			return false;
 		}
 		if (!mbuf_get_uint32be(&pkt->data, &length)) {

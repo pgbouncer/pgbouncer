@@ -398,8 +398,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	PgUser *user;
 	struct CfValue cv;
 	int pool_mode = POOL_INHERIT;
-	int max_user_connections = -1;
-
+	int max_user_connections = MAXCONN_FALLBACK;
 
 	cv.value_p = &pool_mode;
 	cv.extra = (const void *)pool_mode_map;

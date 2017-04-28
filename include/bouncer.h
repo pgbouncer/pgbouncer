@@ -180,6 +180,9 @@ extern int cf_sbuf_len;
 #define POOL_STMT	2
 #define POOL_INHERIT	3
 
+#define MAXCONN_UNLIMITED 0
+#define MAXCONN_FALLBACK  -1
+
 #define BACKENDKEY_LEN	8
 
 /* buffer size for startup noise */

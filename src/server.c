@@ -212,7 +212,11 @@ int database_max_connections(PgDatabase *db)
 
 int user_max_connections(PgUser *user)
 {
-	if (user->max_user_connections <= 0) {
+	// user->max_user_connections == MAXCONN_FALLBACK (-1) is the default, which means
+	// "not specified for this user, fall back to global setting." While
+	// max_user_connections == MAXCONN_UNLIMITED (0) can be specified explicitly in the
+	// per-user settings.
+	if (user->max_user_connections == MAXCONN_FALLBACK) {
 		return cf_max_user_connections;
 	} else {
 		return user->max_user_connections;

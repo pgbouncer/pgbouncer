@@ -61,6 +61,7 @@ enum SocketState {
 	CL_LOGIN,		/* login_client_list */
 	CL_WAITING,		/* pool->waiting_client_list */
 	CL_WAITING_LOGIN,	/*   - but return to CL_LOGIN instead of CL_ACTIVE */
+	CL_WAITING_SLOT,	/*   - notify on transition in and out of this state */
 	CL_ACTIVE,		/* pool->active_client_list */
 	CL_CANCEL,		/* pool->cancel_req_list */
 
@@ -71,6 +72,16 @@ enum SocketState {
 	SV_ACTIVE,		/* pool->active_server_list */
 	SV_USED,		/* pool->used_server_list */
 	SV_TESTED		/* pool->tested_server_list */
+};
+
+enum LaunchResult {
+	LAUNCH_SUCCESS = 0,	/* launched a new connection */
+	LAUNCH_THROTTLED,	/* we allow only small number of connection attempts at a time */
+	LAUNCH_RETRY_WAIT,	/* if server bounces, don't retry too fast */
+	LAUNCH_POOL_FULL,	/* reached maximum total connections in pool */
+	LAUNCH_DATABASE_FULL,	/* reached maximum connections for this database */
+	LAUNCH_USER_FULL,	/* reached maximum connections for this user */
+	LAUNCH_OUT_OF_MEMORY,	/* out of memory: slab_alloc from server_cache failed */
 };
 
 enum PauseMode {

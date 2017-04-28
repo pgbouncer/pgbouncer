@@ -1010,6 +1010,8 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 				res = handle_client_work(client, &pkt);
 			break;
 		case CL_WAITING:
+		case CL_WAITING_LOGIN:
+		case CL_WAITING_SLOT:
 			fatal("why waiting client in client_proto()");
 		default:
 			fatal("bad client state: %d", client->state);

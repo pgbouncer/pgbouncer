@@ -135,12 +135,7 @@ Building for OS/X
 
 After cloning the git repository:
 
-        $ brew install autoconf
-        $ brew install automake
-        $ brew install libtool
-        $ brew install openssl
-        $ brew remove libevent
-        $ brew install c-ares
+        $ brew install autoconf automake libtool openssl libevent c-ares
         $ ACLOCAL_PATH=/usr/local/Cellar/pkg-config/0.29.2/share/aclocal ./autogen.sh
         $ ./configure --with-libevent=/usr/local/Cellar/libevent/2.1.8 --with-cares=/usr/local/Cellar/c-ares/1.12.0 --with-openssl=/usr/local/opt/openssl
         $ make

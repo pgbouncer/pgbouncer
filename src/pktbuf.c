@@ -73,10 +73,10 @@ void pktbuf_static(PktBuf *buf, uint8_t *data, int len)
 	buf->fixed_buf = 1;
 }
 
+static PktBuf *temp_pktbuf;
+
 struct PktBuf *pktbuf_temp(void)
 {
-	static PktBuf *temp_pktbuf;
-
 	if (!temp_pktbuf)
 		temp_pktbuf = pktbuf_dynamic(512);
 	if (!temp_pktbuf)
@@ -85,16 +85,21 @@ struct PktBuf *pktbuf_temp(void)
 	return temp_pktbuf;
 }
 
+void pktbuf_cleanup(void)
+{
+	pktbuf_free(temp_pktbuf);
+	temp_pktbuf = NULL;
+}
+
 bool pktbuf_send_immediate(PktBuf *buf, PgSocket *sk)
 {
-	int fd = sbuf_socket(&sk->sbuf);
 	uint8_t *pos = buf->buf + buf->send_pos;
 	int amount = buf->write_pos - buf->send_pos;
 	int res;
 
 	if (buf->failed)
 		return false;
-	res = safe_send(fd, pos, amount, 0);
+	res = sbuf_op_send(&sk->sbuf, pos, amount);
 	if (res < 0) {
 		log_debug("pktbuf_send_immediate: %s", strerror(errno));
 	}
@@ -104,6 +109,7 @@ bool pktbuf_send_immediate(PktBuf *buf, PgSocket *sk)
 static void pktbuf_send_func(int fd, short flags, void *arg)
 {
 	PktBuf *buf = arg;
+	SBuf *sbuf = &buf->queued_dst->sbuf;
 	int amount, res;
 
 	log_debug("pktbuf_send_func(%d, %d, %p)", fd, (int)flags, buf);
@@ -112,9 +118,9 @@ static void pktbuf_send_func(int fd, short flags, void *arg)
 		return;
 
 	amount = buf->write_pos - buf->send_pos;
-	res = safe_send(fd, buf->buf + buf->send_pos, amount, 0);
+	res = sbuf_op_send(sbuf, buf->buf + buf->send_pos, amount);
 	if (res < 0) {
-		if (res == EAGAIN) {
+		if (errno == EAGAIN) {
 			res = 0;
 		} else {
 			log_error("pktbuf_send_func: %s", strerror(errno));
@@ -131,14 +137,13 @@ static void pktbuf_send_func(int fd, short flags, void *arg)
 			log_error("pktbuf_send_func: %s", strerror(errno));
 			pktbuf_free(buf);
 		}
-	} else
+	} else {
 		pktbuf_free(buf);
+	}
 }
 
 bool pktbuf_send_queued(PktBuf *buf, PgSocket *sk)
 {
-	int fd = sbuf_socket(&sk->sbuf);
-
 	Assert(!buf->sending);
 	Assert(!buf->fixed_buf);
 
@@ -147,7 +152,8 @@ bool pktbuf_send_queued(PktBuf *buf, PgSocket *sk)
 		return send_pooler_error(sk, true, "result prepare failed");
 	} else {
 		buf->sending = 1;
-		pktbuf_send_func(fd, EV_WRITE, buf);
+		buf->queued_dst = sk;
+		pktbuf_send_func(sk->sbuf.sock, EV_WRITE, buf);
 		return true;
 	}
 }
@@ -369,8 +375,9 @@ void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...)
 		} else if (tupdesc[i] == 'T') {
 			pktbuf_put_uint32(buf, TEXTOID);
 			pktbuf_put_uint16(buf, -1);
-		} else
+		} else {
 			fatal("bad tupdesc");
+		}
 		pktbuf_put_uint32(buf, 0);
 		pktbuf_put_uint16(buf, 0);
 	}
@@ -412,8 +419,9 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 		} else if (tupdesc[i] == 'T') {
 			usec_t time = va_arg(ap, usec_t);
 			val = format_time_s(time, tmp, sizeof(tmp));
-		} else
+		} else {
 			fatal("bad tupdesc: %s", tupdesc);
+		}
 
 		if (val) {
 			len = strlen(val);

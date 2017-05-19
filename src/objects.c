@@ -1,12 +1,12 @@
 /*
  * PgBouncer - Lightweight connection pooler for PostgreSQL.
- * 
+ *
  * Copyright (c) 2007-2009  Marko Kreen, Skype Technologies OÜ
- * 
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -27,7 +27,16 @@ STATLIST(user_list);
 STATLIST(database_list);
 STATLIST(pool_list);
 
+/* All locally defined users (in auth_file) are kept here. */
 struct AATree user_tree;
+
+/*
+ * All PAM users are kept here. We need to differentiate two user
+ * lists to avoid user clashing for different authorization types,
+ * and because pam_user_tree is closer to PgDatabase.user_tree in
+ * logic.
+ */
+struct AATree pam_user_tree;
 
 /*
  * client and server objects will be pre-allocated
@@ -105,6 +114,7 @@ static void user_node_release(struct AANode *node, void *arg)
 void init_objects(void)
 {
 	aatree_init(&user_tree, user_node_cmp, NULL);
+	aatree_init(&pam_user_tree, user_node_cmp, NULL);
 	user_cache = slab_create("user_cache", sizeof(PgUser), 0, NULL, USUAL_ALLOC);
 	db_cache = slab_create("db_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
 	pool_cache = slab_create("pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
@@ -242,12 +252,13 @@ void change_server_state(PgSocket *server, SocketState newstate)
 		statlist_append(&pool->tested_server_list, &server->head);
 		break;
 	case SV_IDLE:
-		if (server->close_needed || cf_server_round_robin)
+		if (server->close_needed || cf_server_round_robin) {
 			/* try to avoid immediate usage then */
 			statlist_append(&pool->idle_server_list, &server->head);
-		else
+		} else {
 			/* otherwise use LIFO */
 			statlist_prepend(&pool->idle_server_list, &server->head);
+		}
 		break;
 	case SV_ACTIVE:
 		statlist_append(&pool->active_server_list, &server->head);
@@ -294,9 +305,9 @@ static void put_in_order(struct List *newitem, struct StatList *list,
 
 	statlist_for_each(item, list) {
 		res = cmpfn(item, newitem);
-		if (res == 0)
+		if (res == 0) {
 			fatal("put_in_order: found existing elem");
-		else if (res > 0) {
+		} else if (res > 0) {
 			statlist_put_before(list, newitem, item);
 			return;
 		}
@@ -334,7 +345,7 @@ PgDatabase *register_auto_database(const char *name)
 	PgDatabase *db;
 	int len;
 	char *cs;
-	
+
 	if (!cf_autodb_connstr)
 		return NULL;
 
@@ -400,6 +411,31 @@ PgUser *add_db_user(PgDatabase *db, const char *name, const char *passwd)
 		safe_strcpy(user->name, name, sizeof(user->name));
 
 		aatree_insert(&db->user_tree, (uintptr_t)user->name, &user->tree_node);
+		user->pool_mode = POOL_INHERIT;
+	}
+	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
+	return user;
+}
+
+/* Add PAM user. The logic is same as in add_db_user */
+PgUser *add_pam_user(const char *name, const char *passwd)
+{
+	PgUser *user = NULL;
+	struct AANode *node;
+
+	node = aatree_search(&pam_user_tree, (uintptr_t)name);
+	user = node ? container_of(node, PgUser, tree_node) : NULL;
+
+	if (user == NULL) {
+		user = slab_alloc(user_cache);
+		if (!user)
+			return NULL;
+
+		list_init(&user->head);
+		list_init(&user->pool_list);
+		safe_strcpy(user->name, name, sizeof(user->name));
+
+		aatree_insert(&pam_user_tree, (uintptr_t)user->name, &user->tree_node);
 		user->pool_mode = POOL_INHERIT;
 	}
 	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
@@ -556,7 +592,7 @@ bool check_fast_fail(PgSocket *client)
 		return true;
 	disconnect_client(client, true, "pgbouncer cannot connect to server");
 
-	/* usual relaunch wont work, as there are no waiting clients */
+	/* usual relaunch won't work, as there are no waiting clients */
 	launch_new_connection(pool);
 
 	return false;
@@ -576,19 +612,20 @@ bool find_server(PgSocket *client)
 		return true;
 
 	/* try to get idle server, if allowed */
-	if (cf_pause_mode == P_PAUSE) {
+	if (cf_pause_mode == P_PAUSE || pool->db->db_paused) {
 		server = NULL;
 	} else {
 		while (1) {
 			server = first_socket(&pool->idle_server_list);
-			if (!server)
+			if (!server) {
 				break;
-			else if (server->close_needed)
+			} else if (server->close_needed) {
 				disconnect_server(server, true, "obsolete connection");
-			else if (!server->ready)
+			} else if (!server->ready) {
 				disconnect_server(server, true, "idle server got dirty");
-			else
+			} else {
 				break;
+			}
 		}
 
 		if (!server && !check_fast_fail(client))
@@ -617,8 +654,9 @@ bool find_server(PgSocket *client)
 			res = false; /* don't process client data yet */
 			if (!sbuf_pause(&client->sbuf))
 				disconnect_client(client, true, "pause failed");
-		} else
+		} else {
 			res = true;
+		}
 	} else {
 		pause_client(client);
 		res = false;
@@ -650,7 +688,7 @@ static bool reuse_on_release(PgSocket *server)
 static bool reset_on_release(PgSocket *server)
 {
 	bool res;
-	
+
 	Assert(server->state == SV_TESTED);
 
 	slog_debug(server, "Resetting: %s", cf_server_reset_query);
@@ -694,16 +732,19 @@ bool release_server(PgSocket *server)
 		server->link->link = NULL;
 		server->link = NULL;
 
-		if (*cf_server_reset_query)
+		if (*cf_server_reset_query && (cf_server_reset_query_always ||
+					       pool_pool_mode(pool) == POOL_SESSION))
+		{
 			/* notify reset is required */
 			newstate = SV_TESTED;
-		else if (cf_server_check_delay == 0 && *cf_server_check_query)
+		} else if (cf_server_check_delay == 0 && *cf_server_check_query) {
 			/*
 			 * deprecated: before reset_query, the check_delay = 0
 			 * was used to get same effect.  This if() can be removed
 			 * after couple of releases.
 			 */
 			newstate = SV_USED;
+		}
 	case SV_USED:
 	case SV_TESTED:
 		break;
@@ -731,11 +772,12 @@ bool release_server(PgSocket *server)
 	slog_noise(server, "release_server: new state=%d", newstate);
 	change_server_state(server, newstate);
 
-	if (newstate == SV_IDLE)
+	if (newstate == SV_IDLE) {
 		/* immediately process waiters, to give fair chance */
 		return reuse_on_release(server);
-	else if (newstate == SV_TESTED)
+	} else if (newstate == SV_TESTED) {
 		return reset_on_release(server);
+	}
 
 	return true;
 }
@@ -1179,6 +1221,8 @@ bool finish_client_login(PgSocket *client)
 		fatal("bad client state");
 	}
 
+	client->wait_for_auth = 0;
+
 	/* check if we know server signature */
 	if (!client->pool->welcome_msg_ready) {
 		log_debug("finish_client_login: no welcome message, pause");
@@ -1236,8 +1280,6 @@ found:
 
 	/* not linked client, just drop it then */
 	if (!main_client->link) {
-		bool res;
-
 		/* let administrative cancel be handled elsewhere */
 		if (main_client->pool->db->admin) {
 			disconnect_client(req, false, "cancel request for console client");
@@ -1247,10 +1289,6 @@ found:
 
 		disconnect_client(req, false, "cancel request for idle client");
 
-		/* notify readiness */
-		SEND_ReadyForQuery(res, main_client);
-		if (!res)
-			disconnect_client(main_client, true, "ReadyForQuery for main_client failed");
 		return;
 	}
 
@@ -1334,7 +1372,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 	PgSocket *server;
 	PktBuf tmp;
 	bool res;
-	
+
 	/* if the database not found, it's an auto database -> registering... */
 	if (!db) {
 		db = register_auto_database(dbname);
@@ -1342,10 +1380,13 @@ bool use_server_socket(int fd, PgAddr *addr,
 			return true;
 	}
 
-	if (db->forced_user)
+	if (db->forced_user) {
 		user = db->forced_user;
-	else
+	} else if (cf_auth_type == AUTH_PAM) {
+		user = add_pam_user(username, password);
+	} else {
 		user = find_user(username);
+	}
 	if (!user && db->auth_user)
 		user = add_db_user(db, username, password);
 
@@ -1561,17 +1602,58 @@ void reuse_just_freed_objects(void)
 
 	statlist_for_each_safe(item, &justfree_client_list, tmp) {
 		sk = container_of(item, PgSocket, head);
-		if (sbuf_is_closed(&sk->sbuf))
+		if (sbuf_is_closed(&sk->sbuf)) {
 			change_client_state(sk, CL_FREE);
-		else if (close_works)
+		} else if (close_works) {
 			close_works = sbuf_close(&sk->sbuf);
+		}
 	}
 	statlist_for_each_safe(item, &justfree_server_list, tmp) {
 		sk = container_of(item, PgSocket, head);
-		if (sbuf_is_closed(&sk->sbuf))
+		if (sbuf_is_closed(&sk->sbuf)) {
 			change_server_state(sk, SV_FREE);
-		else if (close_works)
+		} else if (close_works) {
 			close_works = sbuf_close(&sk->sbuf);
+		}
 	}
+}
+
+void objects_cleanup(void)
+{
+	struct List *item, *tmp;
+	PgDatabase *db;
+
+	/* close can be postpones, just in case call twice */
+	reuse_just_freed_objects();
+	reuse_just_freed_objects();
+
+	statlist_for_each_safe(item, &autodatabase_idle_list, tmp) {
+		db = container_of(item, PgDatabase, head);
+		kill_database(db);
+	}
+	statlist_for_each_safe(item, &database_list, tmp) {
+		db = container_of(item, PgDatabase, head);
+		kill_database(db);
+	}
+
+	memset(&login_client_list, 0, sizeof login_client_list);
+	memset(&user_list, 0, sizeof user_list);
+	memset(&database_list, 0, sizeof database_list);
+	memset(&pool_list, 0, sizeof pool_list);
+	memset(&user_tree, 0, sizeof user_tree);
+	memset(&autodatabase_idle_list, 0, sizeof autodatabase_idle_list);
+
+	slab_destroy(server_cache);
+	server_cache = NULL;
+	slab_destroy(client_cache);
+	client_cache = NULL;
+	slab_destroy(db_cache);
+	db_cache = NULL;
+	slab_destroy(pool_cache);
+	pool_cache = NULL;
+	slab_destroy(user_cache);
+	user_cache = NULL;
+	slab_destroy(iobuf_cache);
+	iobuf_cache = NULL;
 }
 

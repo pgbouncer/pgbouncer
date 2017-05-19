@@ -1,12 +1,12 @@
 /*
  * PgBouncer - Lightweight connection pooler for PostgreSQL.
- * 
+ *
  * Copyright (c) 2007-2009  Marko Kreen, Skype Technologies OÜ
- * 
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -37,11 +37,7 @@
 #include <usual/event.h>
 #include <usual/strpool.h>
 
-#ifdef DBGVER
-#define FULLVER   PACKAGE_NAME " version " PACKAGE_VERSION " (" DBGVER ")"
-#else
 #define FULLVER   PACKAGE_NAME " version " PACKAGE_VERSION
-#endif
 
 /* each state corresponds to a list */
 enum SocketState {
@@ -66,6 +62,15 @@ enum PauseMode {
 	P_NONE = 0,		/* active pooling */
 	P_PAUSE = 1,		/* wait for client to finish work */
 	P_SUSPEND = 2		/* wait for buffers to be empty */
+};
+
+enum SSLMode {
+	SSLMODE_DISABLED,
+	SSLMODE_ALLOW,
+	SSLMODE_PREFER,
+	SSLMODE_REQUIRE,
+	SSLMODE_VERIFY_CA,
+	SSLMODE_VERIFY_FULL
 };
 
 #define is_server_socket(sk) ((sk)->state >= SV_FREE)
@@ -99,19 +104,32 @@ extern int cf_sbuf_len;
 #include "stats.h"
 #include "takeover.h"
 #include "janitor.h"
+#include "hba.h"
+#include "pam.h"
 
 /* to avoid allocations will use static buffers */
 #define MAX_DBNAME	64
 #define MAX_USERNAME	64
 #define MAX_PASSWORD	64
 
-/* auth modes, should match PG's */
+/* no-auth modes */
 #define AUTH_ANY	-1 /* same as trust but without username check */
-#define AUTH_TRUST	0
+#define AUTH_TRUST	AUTH_OK
+
+/* protocol codes */
+#define AUTH_OK		0
+#define AUTH_KRB	2
 #define AUTH_PLAIN	3
 #define AUTH_CRYPT	4
 #define AUTH_MD5	5
 #define AUTH_CREDS	6
+
+/* internal codes */
+#define AUTH_CERT	7
+#define AUTH_PEER	8
+#define AUTH_HBA	9
+#define AUTH_REJECT	10
+#define AUTH_PAM	11
 
 /* type codes for weird pkts */
 #define PKT_STARTUP_V2  0x20000
@@ -123,11 +141,6 @@ extern int cf_sbuf_len;
 #define POOL_TX		1
 #define POOL_STMT	2
 #define POOL_INHERIT	3
-
-/* old style V2 header: len:4b code:4b */
-#define OLD_HEADER_LEN	8
-/* new style V3 packet header len - type:1b, len:4b */ 
-#define NEW_HEADER_LEN	5
 
 #define BACKENDKEY_LEN	8
 
@@ -225,12 +238,15 @@ struct PgPool {
 	unsigned welcome_msg_ready:1;
 };
 
-#define pool_server_count(pool) ( \
+#define pool_connected_server_count(pool) ( \
 		statlist_count(&(pool)->active_server_list) + \
 		statlist_count(&(pool)->idle_server_list) + \
-		statlist_count(&(pool)->new_server_list) + \
 		statlist_count(&(pool)->tested_server_list) + \
 		statlist_count(&(pool)->used_server_list))
+
+#define pool_server_count(pool) ( \
+		pool_connected_server_count(pool) + \
+		statlist_count(&(pool)->new_server_list))
 
 #define pool_client_count(pool) ( \
 		statlist_count(&(pool)->active_client_list) + \
@@ -310,6 +326,8 @@ struct PgSocket {
 
 	PgUser *auth_user;	/* presented login, for client it may differ from pool->user */
 
+	int client_auth_type;	/* auth method decided by hba */
+
 	SocketState state:8;	/* this also specifies socket location */
 
 	bool ready:1;		/* server: accepts new query */
@@ -318,16 +336,22 @@ struct PgSocket {
 	bool setting_vars:1;	/* server: setting client vars */
 	bool exec_on_connect:1;	/* server: executing connect_query */
 	bool resetting:1;	/* server: executing reset query from auth login; don't release on flush */
+	bool copy_mode:1;	/* server: in copy stream, ignores any Sync packets */
 
 	bool wait_for_welcome:1;/* client: no server yet in pool, cannot send welcome msg */
 	bool wait_for_user_conn:1;/* client: waiting for auth_conn server connection */
 	bool wait_for_user:1;	/* client: waiting for auth_conn query results */
+	bool wait_for_auth:1;	/* client: waiting for external auth (PAM) to be completed */
 
 	bool suspended:1;	/* client/server: if the socket is suspended */
 
 	bool admin_user:1;	/* console client: has admin rights */
 	bool own_user:1;	/* console client: client with same uid on unix socket */
 	bool wait_for_response:1;/* console client: waits for completion of PAUSE/SUSPEND cmd */
+
+	bool wait_sslchar:1;	/* server: waiting for ssl response: S/N */
+
+	int expect_rfq_count;	/* client: count of ReadyForQuery packets client should see */
 
 	usec_t connect_time;	/* when connection was made */
 	usec_t request_time;	/* last activity time */
@@ -387,6 +411,7 @@ extern usec_t cf_suspend_timeout;
 extern usec_t cf_server_lifetime;
 extern usec_t cf_server_idle_timeout;
 extern char * cf_server_reset_query;
+extern int cf_server_reset_query_always;
 extern char * cf_server_check_query;
 extern usec_t cf_server_check_delay;
 extern usec_t cf_server_connect_timeout;
@@ -405,6 +430,7 @@ extern usec_t cf_dns_zone_check_period;
 extern int cf_auth_type;
 extern char *cf_auth_file;
 extern char *cf_auth_query;
+extern char *cf_auth_hba_file;
 
 extern char *cf_pidfile;
 
@@ -433,11 +459,28 @@ extern int cf_log_disconnections;
 extern int cf_log_pooler_errors;
 extern int cf_application_name_add_host;
 
+extern int cf_client_tls_sslmode;
+extern char *cf_client_tls_protocols;
+extern char *cf_client_tls_ca_file;
+extern char *cf_client_tls_cert_file;
+extern char *cf_client_tls_key_file;
+extern char *cf_client_tls_ciphers;
+extern char *cf_client_tls_dheparams;
+extern char *cf_client_tls_ecdhecurve;
+
+extern int cf_server_tls_sslmode;
+extern char *cf_server_tls_protocols;
+extern char *cf_server_tls_ca_file;
+extern char *cf_server_tls_cert_file;
+extern char *cf_server_tls_key_file;
+extern char *cf_server_tls_ciphers;
+
 extern const struct CfLookup pool_mode_map[];
 
 extern usec_t g_suspend_start;
 
 extern struct DNSContext *adns;
+extern struct HBA *parsed_hba;
 
 static inline PgSocket * _MUSTCHECK
 pop_socket(struct StatList *slist)
@@ -464,10 +507,10 @@ last_socket(struct StatList *slist)
 	return container_of(slist->head.prev, PgSocket, head);
 }
 
+bool requires_auth_file(int);
 void load_config(void);
 
 
 bool set_config_param(const char *key, const char *val);
 void config_for_each(void (*param_cb)(void *arg, const char *name, const char *val, bool reloadable),
 		     void *arg);
-

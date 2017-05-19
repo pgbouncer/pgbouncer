@@ -16,6 +16,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+/* old style V2 header: len:4b code:4b */
+#define OLD_HEADER_LEN	8
+/* new style V3 packet header len - type:1b, len:4b */
+#define NEW_HEADER_LEN	5
+
 /*
  * parsed packet header, plus whatever data is
  * available in SBuf for this packet.
@@ -45,6 +50,7 @@ bool welcome_client(PgSocket *client) _MUSTCHECK;
 bool answer_authreq(PgSocket *server, PktHdr *pkt) _MUSTCHECK;
 
 bool send_startup_packet(PgSocket *server) _MUSTCHECK;
+bool send_sslreq_packet(PgSocket *server) _MUSTCHECK;
 
 int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...) _MUSTCHECK;
 
@@ -52,6 +58,17 @@ int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...) _MUSTCHECK;
 static inline bool incomplete_pkt(const PktHdr *pkt)
 {
 	return mbuf_written(&pkt->data) != pkt->len;
+}
+
+/* is packet header completely in buffer */
+static inline bool incomplete_header(const struct MBuf *data) {
+	uint32_t avail = mbuf_avail_for_read(data);
+	if (avail >= OLD_HEADER_LEN)
+		return false;
+	if (avail < NEW_HEADER_LEN)
+		return true;
+	/* is it old V2 header? */
+	return data->data[data->read_pos] == 0;
 }
 
 /* one char desc */

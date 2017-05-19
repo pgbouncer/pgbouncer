@@ -1,12 +1,12 @@
 /*
  * PgBouncer - Lightweight connection pooler for PostgreSQL.
- * 
+ *
  * Copyright (c) 2007-2009  Marko Kreen, Skype Technologies OÜ
- * 
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -21,6 +21,7 @@
  */
 
 #include "bouncer.h"
+#include "pam.h"
 
 #include <usual/pgutil.h>
 
@@ -36,19 +37,16 @@ static const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
 static bool check_client_passwd(PgSocket *client, const char *passwd)
 {
 	char md5[MD5_PASSWD_LEN + 1];
-	const char *correct;
 	PgUser *user = client->auth_user;
+	int auth_type = client->client_auth_type;
 
 	/* disallow empty passwords */
 	if (!*passwd || !*user->passwd)
 		return false;
 
-	switch (cf_auth_type) {
+	switch (auth_type) {
 	case AUTH_PLAIN:
 		return strcmp(user->passwd, passwd) == 0;
-	case AUTH_CRYPT:
-		correct = crypt(user->passwd, (char *)client->tmp_login_salt);
-		return correct && strcmp(correct, passwd) == 0;
 	case AUTH_MD5:
 		if (strlen(passwd) != MD5_PASSWD_LEN)
 			return false;
@@ -60,32 +58,29 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 	return false;
 }
 
-/* mask to get offset into valid_crypt_salt[] */
-#define SALT_MASK  0x3F
-
-static const char valid_crypt_salt[] =
-"./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-
 static bool send_client_authreq(PgSocket *client)
 {
 	uint8_t saltlen = 0;
 	int res;
-	int auth = cf_auth_type;
-	uint8_t randbuf[2];
+	int auth_type = client->client_auth_type;
 
-	if (auth == AUTH_CRYPT) {
-		saltlen = 2;
-		get_random_bytes(randbuf, saltlen);
-		client->tmp_login_salt[0] = valid_crypt_salt[randbuf[0] & SALT_MASK];
-		client->tmp_login_salt[1] = valid_crypt_salt[randbuf[1] & SALT_MASK];
-		client->tmp_login_salt[2] = 0;
-	} else if (cf_auth_type == AUTH_MD5) {
+	/* Always use plain text to communicate with clients during PAM authorization */
+	if (auth_type == AUTH_PAM) {
+		auth_type = AUTH_PLAIN;
+	}
+
+	if (auth_type == AUTH_MD5) {
 		saltlen = 4;
 		get_random_bytes((void*)client->tmp_login_salt, saltlen);
-	} else if (auth == AUTH_ANY)
-		auth = AUTH_TRUST;
+	} else if (auth_type == AUTH_PLAIN) {
+		/* nothing to do */
+	} else {
+		return false;
+	}
 
-	SEND_generic(res, client, 'R', "ib", auth, client->tmp_login_salt, saltlen);
+	SEND_generic(res, client, 'R', "ib", auth_type, client->tmp_login_salt, saltlen);
+	if (!res)
+		disconnect_client(client, false, "failed to send auth req");
 	return res;
 }
 
@@ -94,7 +89,6 @@ static void start_auth_request(PgSocket *client, const char *username)
 	int res;
 	PktBuf *buf;
 
-	client->auth_user = client->db->auth_user;
 	/* have to fetch user info from db */
 	client->pool = get_pool(client->db, client->db->auth_user);
 	if (!find_server(client)) {
@@ -127,9 +121,47 @@ static void start_auth_request(PgSocket *client, const char *username)
 		disconnect_server(client->link, false, "unable to send login query");
 }
 
+static bool login_via_cert(PgSocket *client)
+{
+	struct tls *tls = client->sbuf.tls;
+
+	if (!tls) {
+		disconnect_client(client, true, "TLS connection required");
+		return false;
+	}
+	if (!tls_peer_cert_provided(client->sbuf.tls)) {
+		disconnect_client(client, true, "TLS client certificate required");
+		return false;
+	}
+
+	log_debug("TLS cert login: %s", tls_peer_cert_subject(client->sbuf.tls));
+	if (!tls_peer_cert_contains_name(client->sbuf.tls, client->auth_user->name)) {
+		disconnect_client(client, true, "TLS certificate name mismatch");
+		return false;
+	}
+
+	/* login successful */
+	return finish_client_login(client);
+}
+
+static bool login_as_unix_peer(PgSocket *client)
+{
+	if (!pga_is_unix(&client->remote_addr))
+		goto fail;
+	if (!check_unix_peer_name(sbuf_socket(&client->sbuf), client->auth_user->name))
+		goto fail;
+	return finish_client_login(client);
+fail:
+	disconnect_client(client, true, "unix socket login rejected");
+	return false;
+}
+
 static bool finish_set_pool(PgSocket *client, bool takeover)
 {
 	PgUser *user = client->auth_user;
+	bool ok = false;
+	int auth;
+
 	/* pool user may be forced */
 	if (client->db->forced_user) {
 		user = client->db->forced_user;
@@ -140,8 +172,17 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		return false;
 	}
 
-	if (cf_log_connections)
-		slog_info(client, "login attempt: db=%s user=%s", client->db->name, client->auth_user->name);
+	if (cf_log_connections) {
+		if (client->sbuf.tls) {
+			char infobuf[96] = "";
+			tls_get_connection_info(client->sbuf.tls, infobuf, sizeof infobuf);
+			slog_info(client, "login attempt: db=%s user=%s tls=%s",
+				  client->db->name, client->auth_user->name, infobuf);
+		} else {
+			slog_info(client, "login attempt: db=%s user=%s tls=no",
+				  client->db->name, client->auth_user->name);
+		}
+	}
 
 	if (!check_fast_fail(client))
 		return false;
@@ -154,16 +195,39 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 			return false;
 	}
 
-	if (cf_auth_type <= AUTH_TRUST || client->own_user) {
-		if (!finish_client_login(client))
-			return false;
-	} else {
-		if (!send_client_authreq(client)) {
-			disconnect_client(client, false, "failed to send auth req");
-			return false;
-		}
+	if (client->own_user)
+		return finish_client_login(client);
+
+	auth = cf_auth_type;
+	if (auth == AUTH_HBA) {
+		auth = hba_eval(parsed_hba, &client->remote_addr, !!client->sbuf.tls,
+				client->db->name, client->auth_user->name);
 	}
-	return true;
+
+	/* remember method */
+	client->client_auth_type = auth;
+
+	switch (auth) {
+	case AUTH_ANY:
+	case AUTH_TRUST:
+		ok = finish_client_login(client);
+		break;
+	case AUTH_PLAIN:
+	case AUTH_MD5:
+	case AUTH_PAM:
+		ok = send_client_authreq(client);
+		break;
+	case AUTH_CERT:
+		ok = login_via_cert(client);
+		break;
+	case AUTH_PEER:
+		ok = login_as_unix_peer(client);
+		break;
+	default:
+		disconnect_client(client, true, "login rejected");
+		ok = false;
+	}
+	return ok;
 }
 
 bool set_pool(PgSocket *client, const char *dbname, const char *username, const char *password, bool takeover)
@@ -177,8 +241,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			if (cf_log_connections)
 				slog_info(client, "login failed: db=%s user=%s", dbname, username);
 			return false;
-		}
-		else {
+		} else {
 			slog_info(client, "registered new auto-database: db = %s", dbname );
 		}
 	}
@@ -203,6 +266,19 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			return false;
 		}
 		client->auth_user = client->db->forced_user;
+	} else if (cf_auth_type == AUTH_PAM) {
+		if (client->db->auth_user) {
+			slog_error(client, "PAM can't be used together with database authorization");
+			disconnect_client(client, true, "bouncer config error");
+			return false;
+		}
+		/* Password will be set after successful authorization when not in takeover mode */
+		client->auth_user = add_pam_user(username, password);
+		if (!client->auth_user) {
+			slog_error(client, "set_pool(): failed to allocate new PAM user");
+			disconnect_client(client, true, "bouncer resources exhaustion");
+			return false;
+		}
 	} else {
 		/* the user clients wants to log in as */
 		client->auth_user = find_user(username);
@@ -289,6 +365,8 @@ bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
 			disconnect_server(server, false, "unable to allocate new user for auth");
 			return false;
 		}
+		break;
+	case 'N':	/* NoticeResponse */
 		break;
 	case 'C':	/* CommandComplete */
 		break;
@@ -411,6 +489,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 	const char *passwd;
 	const uint8_t *key;
 	bool ok;
+	bool is_unix = pga_is_unix(&client->remote_addr);
 
 	SBuf *sbuf = &client->sbuf;
 
@@ -420,21 +499,39 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		return false;
 	}
 
-	if (client->wait_for_welcome) {
+	if (client->wait_for_welcome || client->wait_for_auth) {
 		if  (finish_client_login(client)) {
 			/* the packet was already parsed */
 			sbuf_prepare_skip(sbuf, pkt->len);
 			return true;
-		} else
+		} else {
 			return false;
+		}
 	}
 
 	switch (pkt->type) {
 	case PKT_SSLREQ:
 		slog_noise(client, "C: req SSL");
-		slog_noise(client, "P: nak");
+
+		if (client->sbuf.tls) {
+			disconnect_client(client, false, "SSL req inside SSL");
+			return false;
+		}
+		if (cf_client_tls_sslmode != SSLMODE_DISABLED && !is_unix) {
+			slog_noise(client, "P: SSL ack");
+			if (!sbuf_answer(&client->sbuf, "S", 1)) {
+				disconnect_client(client, false, "failed to ack SSL");
+				return false;
+			}
+			if (!sbuf_tls_accept(&client->sbuf)) {
+				disconnect_client(client, false, "failed to accept SSL");
+				return false;
+			}
+			break;
+		}
 
 		/* reject SSL attempt */
+		slog_noise(client, "P: nak");
 		if (!sbuf_answer(&client->sbuf, "N", 1)) {
 			disconnect_client(client, false, "failed to nak SSL");
 			return false;
@@ -444,6 +541,12 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		disconnect_client(client, true, "Old V2 protocol not supported");
 		return false;
 	case PKT_STARTUP:
+		/* require SSL except on unix socket */
+		if (cf_client_tls_sslmode >= SSLMODE_REQUIRE && !client->sbuf.tls && !is_unix) {
+			disconnect_client(client, true, "SSL required");
+			return false;
+		}
+
 		if (client->pool && !client->wait_for_user_conn && !client->wait_for_user) {
 			disconnect_client(client, true, "client re-sent startup pkt");
 			return false;
@@ -459,19 +562,31 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 
 		break;
 	case 'p':		/* PasswordMessage */
-		/* haven't requested it */
-		if (cf_auth_type <= AUTH_TRUST) {
-			disconnect_client(client, true, "unrequested passwd pkt");
+		/* too early */
+		if (!client->auth_user) {
+			disconnect_client(client, true, "client password pkt before startup packet");
 			return false;
 		}
 
 		ok = mbuf_get_string(&pkt->data, &passwd);
-		if (ok && check_client_passwd(client, passwd)) {
-			if (!finish_client_login(client))
+
+		if (ok) {
+			if (client->client_auth_type == AUTH_PAM) {
+				if (!sbuf_pause(&client->sbuf)) {
+					disconnect_client(client, true, "pause failed");
+					return false;
+				}
+				pam_auth_begin(client, passwd);
 				return false;
-		} else {
-			disconnect_client(client, true, "Auth failed");
-			return false;
+			}
+
+			if (check_client_passwd(client, passwd)) {
+				if (!finish_client_login(client))
+					return false;
+			} else {
+				disconnect_client(client, true, "Auth failed");
+				return false;
+			}
 		}
 		break;
 	case PKT_CANCEL:
@@ -480,8 +595,9 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		{
 			memcpy(client->cancel_key, key, BACKENDKEY_LEN);
 			accept_cancel_request(client);
-		} else
+		} else {
 			disconnect_client(client, false, "bad cancel request");
+		}
 		return false;
 	default:
 		disconnect_client(client, false, "bad packet");
@@ -496,6 +612,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 {
 	SBuf *sbuf = &client->sbuf;
+	int rfq_delta = 0;
 
 	switch (pkt->type) {
 
@@ -509,12 +626,16 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	case 'F':		/* FunctionCall */
 
 	/* request immediate response from server */
-	case 'H':		/* Flush */
 	case 'S':		/* Sync */
+		rfq_delta++;
+		break;
+	case 'H':		/* Flush */
+		break;
 
 	/* copy end markers */
 	case 'c':		/* CopyDone(F/B) */
 	case 'f':		/* CopyFail(F/B) */
+		break;
 
 	/*
 	 * extended protocol allows server (and thus pooler)
@@ -526,28 +647,6 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	case 'B':		/* Bind */
 	case 'D':		/* Describe */
 	case 'd':		/* CopyData(F/B) */
-
-		/* update stats */
-		if (!client->query_start) {
-			client->pool->stats.request_count++;
-			client->query_start = get_cached_time();
-		}
-
-		if (client->pool->db->admin)
-			return admin_handle_client(client, pkt);
-
-		/* acquire server */
-		if (!find_server(client))
-			return false;
-
-		client->pool->stats.client_bytes += pkt->len;
-
-		/* tag the server as dirty */
-		client->link->ready = false;
-		client->link->idle_tx = false;
-
-		/* forward the packet */
-		sbuf_prepare_send(sbuf, &client->link->sbuf, pkt->len);
 		break;
 
 	/* client wants to go away */
@@ -559,6 +658,34 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		disconnect_client(client, false, "client close request");
 		return false;
 	}
+
+	/* update stats */
+	if (!client->query_start) {
+		client->pool->stats.request_count++;
+		client->query_start = get_cached_time();
+	}
+
+	if (client->pool->db->admin)
+		return admin_handle_client(client, pkt);
+
+	/* acquire server */
+	if (!find_server(client))
+		return false;
+
+	/* postpone rfq change until certain that client will not be paused */
+	if (rfq_delta) {
+		client->expect_rfq_count += rfq_delta;
+	}
+
+	client->pool->stats.client_bytes += pkt->len;
+
+	/* tag the server as dirty */
+	client->link->ready = false;
+	client->link->idle_tx = false;
+
+	/* forward the packet */
+	sbuf_prepare_send(sbuf, &client->link->sbuf, pkt->len);
+
 	return true;
 }
 
@@ -589,11 +716,11 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		disconnect_server(client->link, false, "Server connection closed");
 		break;
 	case SBUF_EV_READ:
-		if (mbuf_avail_for_read(data) < NEW_HEADER_LEN && client->state != CL_LOGIN) {
+		/* Wait until full packet headers is available. */
+		if (incomplete_header(data)) {
 			slog_noise(client, "C: got partial header, trying to wait a bit");
 			return false;
 		}
-
 		if (!get_header(data, &pkt)) {
 			char hex[8*2 + 1];
 			disconnect_client(client, true, "bad packet header: '%s'",
@@ -625,7 +752,10 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 	case SBUF_EV_PKT_CALLBACK:
 		/* unused ATM */
 		break;
+	case SBUF_EV_TLS_READY:
+		sbuf_continue(&client->sbuf);
+		res = true;
+		break;
 	}
 	return res;
 }
-

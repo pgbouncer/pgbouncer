@@ -177,3 +177,9 @@ void varcache_add_params(PktBuf *pkt, VarCache *vars)
 	}
 }
 
+void varcache_deinit(void)
+{
+	strpool_free(vpool);
+	vpool = NULL;
+}
+

@@ -141,7 +141,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 			/* deliberately ignore transaction status */
 		} else if (server->pool->db->connect_query) {
 			server->exec_on_connect = 1;
-			slog_debug(server, "server conect ok, send exec_on_connect");
+			slog_debug(server, "server connect ok, send exec_on_connect");
 			SEND_generic(res, server, 'Q', "s", server->pool->db->connect_query);
 			if (!res)
 				disconnect_server(server, false, "exec_on_connect query failed");
@@ -246,6 +246,14 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		} else if (state == 'T' || state == 'E') {
 			idle_tx = true;
 		}
+
+		if (client && !server->setting_vars) {
+			if (client->expect_rfq_count > 0) {
+				client->expect_rfq_count--;
+			} else if (server->state == SV_ACTIVE) {
+				slog_debug(client, "unexpected ReadyForQuery - expect_rfq_count=%d", client->expect_rfq_count);
+			}
+		}
 		break;
 
 	case 'S':		/* ParameterStatus */
@@ -260,7 +268,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	 * suddenly but should not as they are still usable.
 	 *
 	 * But the 'E' or 'N' packet between transactions signifies probably
-	 * dying backend.  This its better to tag server as dirty and drop
+	 * dying backend.  It is better to tag server as dirty and drop
 	 * it later.
 	 */
 	case 'E':		/* ErrorResponse */
@@ -279,6 +287,17 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			disconnect_server(server, true, "invalid server parameter");
 			return false;
 		}
+	case 'C':		/* CommandComplete */
+
+		/* ErrorResponse and CommandComplete show end of copy mode */
+		if (server->copy_mode) {
+			server->copy_mode = false;
+
+			/* it's impossible to track sync count over copy */
+			if (client)
+				client->expect_rfq_count = 0;
+		}
+		break;
 
 	case 'N':		/* NoticeResponse */
 		break;
@@ -289,6 +308,11 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		ready = server->ready;
 		break;
 
+	/* copy mode */
+	case 'G':		/* CopyInResponse */
+	case 'H':		/* CopyOutResponse */
+		server->copy_mode = true;
+		break;
 	/* chat packets */
 	case '2':		/* BindComplete */
 	case '3':		/* CloseComplete */
@@ -297,11 +321,8 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	case 'I':		/* EmptyQueryResponse == CommandComplete */
 	case 'V':		/* FunctionCallResponse */
 	case 'n':		/* NoData */
-	case 'G':		/* CopyInResponse */
-	case 'H':		/* CopyOutResponse */
 	case '1':		/* ParseComplete */
 	case 's':		/* PortalSuspended */
-	case 'C':		/* CommandComplete */
 
 	/* data packets, there will be more coming */
 	case 'd':		/* CopyData(F/B) */
@@ -349,8 +370,9 @@ static bool handle_connect(PgSocket *server)
 	bool res = false;
 	PgPool *pool = server->pool;
 	char buf[PGADDR_BUF + 32];
+	bool is_unix = pga_is_unix(&server->remote_addr);
 
-	fill_local_addr(server, sbuf_socket(&server->sbuf), pga_is_unix(&server->remote_addr));
+	fill_local_addr(server, sbuf_socket(&server->sbuf), is_unix);
 
 	if (cf_log_connections) {
 		if (pga_is_unix(&server->remote_addr))
@@ -369,11 +391,51 @@ static bool handle_connect(PgSocket *server)
 		disconnect_server(server, false, "sent cancel req");
 	} else {
 		/* proceed with login */
-		res = send_startup_packet(server);
+		if (cf_server_tls_sslmode > SSLMODE_DISABLED && !is_unix) {
+			slog_noise(server, "P: SSL request");
+			res = send_sslreq_packet(server);
+			if (res)
+				server->wait_sslchar = true;
+		} else {
+			slog_noise(server, "P: startup");
+			res = send_startup_packet(server);
+		}
 		if (!res)
 			disconnect_server(server, false, "startup pkt failed");
 	}
 	return res;
+}
+
+static bool handle_sslchar(PgSocket *server, struct MBuf *data)
+{
+	uint8_t schar = '?';
+	bool ok;
+
+	server->wait_sslchar = false;
+
+	ok = mbuf_get_byte(data, &schar);
+	if (!ok || (schar != 'S' && schar != 'N') || mbuf_avail_for_read(data) != 0) {
+		disconnect_server(server, false, "bad sslreq answer");
+		return false;
+	}
+
+	if (schar == 'S') {
+		slog_noise(server, "launching tls");
+		ok = sbuf_tls_connect(&server->sbuf, server->pool->db->host);
+	} else if (cf_server_tls_sslmode >= SSLMODE_REQUIRE) {
+		disconnect_server(server, false, "server refused SSL");
+		return false;
+	} else {
+		/* proceed with non-TLS connection */
+		ok = send_startup_packet(server);
+	}
+
+	if (ok) {
+		sbuf_prepare_skip(&server->sbuf, 1);
+	} else {
+		disconnect_server(server, false, "sslreq processing failed");
+	}
+	return ok;
 }
 
 /* callback from SBuf */
@@ -383,6 +445,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 	PgSocket *server = container_of(sbuf, PgSocket, sbuf);
 	PgPool *pool = server->pool;
 	PktHdr pkt;
+	char infobuf[96];
 
 	Assert(is_server_socket(server));
 	Assert(server->state != SV_FREE);
@@ -399,7 +462,11 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		disconnect_client(server->link, false, "unexpected eof");
 		break;
 	case SBUF_EV_READ:
-		if (mbuf_avail_for_read(data) < NEW_HEADER_LEN) {
+		if (server->wait_sslchar) {
+			res = handle_sslchar(server, data);
+			break;
+		}
+		if (incomplete_header(data)) {
 			slog_noise(server, "S: got partial header, trying to wait a bit");
 			break;
 		}
@@ -450,11 +517,17 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			break;
 		}
 
-		if (pool_pool_mode(pool)  != POOL_SESSION || server->state == SV_TESTED || server->resetting) {
+		if (pool_pool_mode(pool) != POOL_SESSION || server->state == SV_TESTED || server->resetting) {
 			server->resetting = false;
 			switch (server->state) {
 			case SV_ACTIVE:
 			case SV_TESTED:
+				/* keep link if client expects more Syncs */
+				if (server->link) {
+					if (server->link->expect_rfq_count > 0)
+						break;
+				}
+
 				/* retval does not matter here */
 				release_server(server);
 				break;
@@ -467,6 +540,23 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		break;
 	case SBUF_EV_PKT_CALLBACK:
 		slog_warning(server, "SBUF_EV_PKT_CALLBACK with state=%d", server->state);
+		break;
+	case SBUF_EV_TLS_READY:
+		Assert(server->state == SV_LOGIN);
+
+		tls_get_connection_info(server->sbuf.tls, infobuf, sizeof infobuf);
+		if (cf_log_connections) {
+			slog_info(server, "SSL established: %s", infobuf);
+		} else {
+			slog_noise(server, "SSL established: %s", infobuf);
+		}
+
+		server->request_time = get_cached_time();
+		res = send_startup_packet(server);
+		if (res)
+			sbuf_continue(&server->sbuf);
+		else
+			disconnect_server(server, false, "TLS startup failed");
 		break;
 	}
 	if (!res && pool->db->admin)

@@ -29,6 +29,7 @@ struct PktBuf {
 
 	int send_pos;
 	struct event *ev;
+	PgSocket *queued_dst;
 
 	unsigned failed:1;
 	unsigned sending:1;
@@ -105,6 +106,9 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
 #define pktbuf_write_Notice(buf, msg) \
 	pktbuf_write_generic(buf, 'N', "sscss", "SNOTICE", "C00000", 'M', msg, "");
 
+#define pktbuf_write_SSLRequest(buf) \
+	pktbuf_write_generic(buf, PKT_SSLREQ, "")
+
 /*
  * Shortcut for creating DataRow in memory.
  */
@@ -142,5 +146,5 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
 #define SEND_PasswordMessage(res, sk, psw) \
 	SEND_wrap(512, pktbuf_write_PasswordMessage, res, sk, psw)
 
-
+void pktbuf_cleanup(void);
 

@@ -1,12 +1,19 @@
 Source: pgbouncer
 Section: database
 Priority: extra
-Maintainer: Marko Kreen <marko.kreen@skype.net>
+Maintainer: Marko Kreen <markokr@gmail.com>
 Standards-Version: 3.6.2
-Build-Depends: cdbs, debhelper (>= 7), libevent-dev (>= 1.3b), asciidoc, xmlto, make (>= 3.81)
+Build-Depends: debhelper (>= 9), make (>= 3.81), python-docutils,
+ libevent-dev (>= 2.0), libssl-dev (>= 1.0.1), libc-ares-dev (>= 1.7.0)
 
 Package: pgbouncer
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}, adduser
 Description: Lightweight connection pooler for PostgreSQL
+ PgBouncer is a PostgreSQL connection pooler. Any target application can be
+ connected to pgbouncer as if it were a PostgreSQL server, and pgbouncer will
+ create a connection to the actual server, or it will reuse one of its existing
+ connections.
  .
+ The aim of pgbouncer is to lower the performance impact of opening
+ new connections to PostgreSQL.

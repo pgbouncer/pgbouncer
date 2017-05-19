@@ -85,7 +85,7 @@ static void cleanup_sockets(void)
 static bool add_listen(int af, const struct sockaddr *sa, int salen)
 {
 	struct ListenSocket *ls;
-	int sock, res, val;
+	int sock, res;
 	char buf[128];
 	const char *errpos;
 
@@ -101,7 +101,7 @@ static bool add_listen(int af, const struct sockaddr *sa, int salen)
 #ifndef WIN32
 	/* relaxed binding */
 	if (af != AF_UNIX) {
-		val = 1;
+		int val = 1;
 		errpos = "setsockopt";
 		res = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val));
 		if (res < 0)
@@ -112,7 +112,7 @@ static bool add_listen(int af, const struct sockaddr *sa, int salen)
 #ifdef IPV6_V6ONLY
 	/* avoid ipv6 socket's attempt to takeover ipv4 port */
 	if (af == AF_INET6) {
-		val = 1;
+		int val = 1;
 		errpos = "setsockopt/IPV6_V6ONLY";
 		res = setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &val, sizeof(val));
 		if (res < 0)
@@ -267,10 +267,11 @@ static const char *addrpair(const PgAddr *src, const PgAddr *dst)
 
 static const char *conninfo(const PgSocket *sk)
 {
-	if (is_server_socket(sk))
+	if (is_server_socket(sk)) {
 		return addrpair(&sk->local_addr, &sk->remote_addr);
-	else
+	} else {
 		return addrpair(&sk->remote_addr, &sk->local_addr);
+	}
 }
 
 /* got new connection, associate it with client struct */

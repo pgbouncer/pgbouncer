@@ -144,9 +144,9 @@ static void launch_recheck(PgPool *pool)
 	}
 
 	/* is the check needed? */
-	if (q == NULL || q[0] == 0)
+	if (q == NULL || q[0] == 0) {
 		need_check = false;
-	else if (cf_server_check_delay > 0) {
+	} else if (cf_server_check_delay > 0) {
 		usec_t now = get_cached_time();
 		if (now - server->request_time < cf_server_check_delay)
 			need_check = false;
@@ -159,9 +159,10 @@ static void launch_recheck(PgPool *pool)
 		SEND_generic(res, server, 'Q', "s", q);
 		if (!res)
 			disconnect_server(server, false, "test query failed");
-	} else
+	} else {
 		/* make immediately available */
 		release_server(server);
+	}
 }
 
 /*
@@ -278,8 +279,9 @@ void per_loop_maint(void)
 			if (pool->db->db_paused) {
 				partial_pause = 1;
 				active += per_loop_pause(pool);
-			} else
+			} else {
 				per_loop_activate(pool);
+			}
 			break;
 		case P_PAUSE:
 			active += per_loop_pause(pool);
@@ -294,8 +296,9 @@ void per_loop_maint(void)
 	case P_SUSPEND:
 		if (force_suspend) {
 			close_client_list(&login_client_list, "suspend_timeout");
-		} else
+		} else {
 			active += statlist_count(&login_client_list);
+		}
 	case P_PAUSE:
 		if (!active)
 			admin_pause_done();
@@ -335,13 +338,15 @@ static void pool_client_maint(PgPool *pool)
 			if (client->query_start == 0) {
 				age = now - client->request_time;
 				/* log_warning("query_start==0"); */
-			} else
+			} else {
 				age = now - client->query_start;
+			}
 
-			if (cf_query_timeout > 0 && age > cf_query_timeout)
+			if (cf_query_timeout > 0 && age > cf_query_timeout) {
 				disconnect_client(client, true, "query_timeout");
-			else if (cf_query_wait_timeout > 0 && age > cf_query_wait_timeout)
+			} else if (cf_query_wait_timeout > 0 && age > cf_query_wait_timeout) {
 				disconnect_client(client, true, "query_wait_timeout");
+			}
 		}
 	}
 
@@ -387,7 +392,8 @@ static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle
 			disconnect_server(server, true, "SV_IDLE server got dirty");
 		} else if (server->state == SV_USED && !server->ready) {
 			disconnect_server(server, true, "SV_USED server got dirty");
-		} else if (cf_server_idle_timeout > 0 && idle > cf_server_idle_timeout) {
+		} else if (cf_server_idle_timeout > 0 && idle > cf_server_idle_timeout
+			   && (cf_min_pool_size == 0 || pool_connected_server_count(pool) > cf_min_pool_size)) {
 			disconnect_server(server, true, "server idle timeout");
 		} else if (age >= cf_server_lifetime) {
 			if (pool->last_lifetime_disconnect + lifetime_kill_gap <= now) {
@@ -410,17 +416,7 @@ static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle
 static void check_pool_size(PgPool *pool)
 {
 	PgSocket *server;
-	int cur = statlist_count(&pool->active_server_list)
-		+ statlist_count(&pool->idle_server_list)
-		+ statlist_count(&pool->used_server_list)
-		+ statlist_count(&pool->tested_server_list);
-		
-		/* cancel pkt may create new srv conn without
-		 * taking pool_size into account
-		 *
-		 * statlist_count(&pool->new_server_list)
-		 */
-
+	int cur = pool_connected_server_count(pool);
 	int many = cur - (pool->db->pool_size + pool->db->res_pool_size);
 
 	Assert(pool->db->pool_size >= 0);
@@ -512,7 +508,6 @@ static void cleanup_client_logins(void)
 	}
 }
 
-static void kill_database(PgDatabase *db);
 static void cleanup_inactive_autodatabases(void)
 {
 	struct List *item, *tmp;
@@ -529,10 +524,11 @@ static void cleanup_inactive_autodatabases(void)
 		if (db->db_paused)
 			continue;
 		age = now - db->inactive_time;
-		if (age > cf_autodb_idle_timeout) 
+		if (age > cf_autodb_idle_timeout) {
 			kill_database(db);
-		else
+		} else {
 			break;
+		}
 	}
 }
 
@@ -589,7 +585,7 @@ static void do_full_maint(int sock, short flags, void *arg)
 		return;
 	}
 
-	if (cf_auth_type >= AUTH_TRUST)
+	if (requires_auth_file(cf_auth_type))
 		loader_users_check();
 
 	adns_zone_cache_maint(adns);
@@ -628,7 +624,7 @@ void kill_pool(PgPool *pool)
 	slab_free(pool_cache, pool);
 }
 
-static void kill_database(PgDatabase *db)
+void kill_database(PgDatabase *db)
 {
 	PgPool *pool;
 	struct List *item, *tmp;
@@ -640,15 +636,19 @@ static void kill_database(PgDatabase *db)
 		if (pool->db == db)
 			kill_pool(pool);
 	}
+
 	pktbuf_free(db->startup_params);
+	free(db->host);
+
 	if (db->forced_user)
 		slab_free(user_cache, db->forced_user);
 	if (db->connect_query)
 		free((void *)db->connect_query);
-	if (db->inactive_time)
+	if (db->inactive_time) {
 		statlist_remove(&autodatabase_idle_list, &db->head);
-	else
+	} else {
 		statlist_remove(&database_list, &db->head);
+	}
 	aatree_destroy(&db->user_tree);
 	slab_free(db_cache, db);
 }

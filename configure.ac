@@ -1,6 +1,6 @@
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT(pgbouncer, 1.6rc1)
+AC_INIT(pgbouncer, 1.7.2)
 AC_CONFIG_SRCDIR(src/janitor.c)
 AC_CONFIG_HEADER(lib/usual/config.h)
 AC_PREREQ([2.59])
@@ -13,29 +13,8 @@ AC_USUAL_PROGRAM_CHECK
 
 PKG_PROG_PKG_CONFIG
 
-dnl asciidoc >= 8.4
-AC_CHECK_PROGS(ASCIIDOC, asciidoc)
-if test -n "$ASCIIDOC"; then
-  AC_MSG_CHECKING([for asciidoc version >= 8.4])
-  ver=`$ASCIIDOC --version 2>&1 | sed -e 's/asciidoc //'`
-  case "$ver" in
-dnl hack to make possible to use [, ] in regex
-changequote({, })dnl
-  [0-7].*|8.[0-3]|8.[0-3].*)
-changequote([, ])dnl
-      AC_MSG_RESULT([$ver, too old])
-      ASCIIDOC=""
-      ;;
-  *)
-      AC_MSG_RESULT([$ver, ok])
-      ;;
-  esac
-fi
-
-dnl check for xmlto, but only if asciidoc is found
-if test -n "$ASCIIDOC"; then
-  AC_CHECK_PROGS(XMLTO, xmlto)
-fi
+dnl check for rst2man
+AC_CHECK_PROGS(RST2MAN, rst2man)
 
 dnl check for windows tools
 if test "$PORTNAME" = "win32"; then
@@ -47,7 +26,6 @@ AC_CHECK_TOOL([STRIP], [strip])
 
 dnl Checks for header files.
 AC_USUAL_HEADER_CHECK
-AC_CHECK_HEADERS([crypt.h])
 AC_CHECK_HEADERS([sys/resource.h sys/wait.h])
 
 dnl Checks for typedefs, structures, and compiler characteristics.
@@ -67,15 +45,36 @@ m4_ifdef([AC_TYPE_UINT8_T], [
 
 dnl Checks for library functions.
 AC_USUAL_FUNCTION_CHECK
-AC_SEARCH_LIBS(crypt, crypt)
 AC_SEARCH_LIBS(clock_gettime, rt)
 AC_SEARCH_LIBS(getsockname, socket)
 AC_SEARCH_LIBS(gethostbyname, nsl)
 AC_SEARCH_LIBS(hstrerror, resolv)
-AC_CHECK_FUNCS(crypt lstat)
+AC_CHECK_FUNCS(lstat)
 
 dnl Find libevent
 AC_USUAL_LIBEVENT
+
+dnl Check for PAM authorization support
+pam_support=no
+AC_ARG_WITH(pam,
+  AC_HELP_STRING([--with-pam],[Enable PAM support]),
+  [ PAM=
+    if test "$withval" != no; then
+        have_pthreads=no
+        # Look for PAM header and lib
+        AC_CHECK_HEADERS(security/pam_appl.h, [have_pam_header=t])
+        AC_CHECK_HEADERS(pthread.h, [have_pthreads=yes])
+        AC_SEARCH_LIBS(pam_start, pam, [have_libpam=t])
+        AC_SEARCH_LIBS(pthread_create, pthread, [], [have_pthreads=no])
+        if test x"${have_pthreads}" != xyes; then
+           AC_MSG_ERROR([pthread library should be available for PAM support])
+        fi
+        if test x"${have_pam_header}" != x -a x"${have_libpam}" != x -a x"${have_pthreads}" = xyes; then
+          pam_support=yes
+          AC_DEFINE(HAVE_PAM, 1, [PAM support])
+        fi
+    fi
+  ], [])
 
 ##
 ## DNS backend
@@ -94,6 +93,8 @@ AC_ARG_WITH(cares,
       use_cares=no
     elif test "$withval" = "yes"; then
       use_cares=yes
+      CARES_CFLAGS=""
+      CARES_LIBS="-lcares"
     else
       use_cares=yes
       CARES_CFLAGS="-I$withval/include"
@@ -181,6 +182,8 @@ fi # !cares
 
 ## end of DNS
 
+AC_USUAL_TLS
+
 AC_USUAL_DEBUG
 AC_USUAL_CASSERT
 AC_USUAL_WERROR
@@ -199,4 +202,6 @@ echo "Results"
 echo "  c-ares = $use_cares"
 echo "  evdns = $use_evdns"
 echo "  udns = $use_udns"
+echo "  tls = $tls_support"
+echo "  PAM = $pam_support"
 echo ""

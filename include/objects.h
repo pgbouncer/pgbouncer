@@ -50,6 +50,8 @@ PgUser * add_user(const char *name, const char *passwd) _MUSTCHECK;
 PgUser * add_db_user(PgDatabase *db, const char *name, const char *passwd) _MUSTCHECK;
 PgUser * force_user(PgDatabase *db, const char *username, const char *passwd) _MUSTCHECK;
 
+PgUser * add_pam_user(const char *name, const char *passwd) _MUSTCHECK;
+
 void accept_cancel_request(PgSocket *req);
 void forward_cancel_request(PgSocket *server);
 
@@ -82,4 +84,6 @@ void reuse_just_freed_objects(void);
 void init_objects(void);
 
 void init_caches(void);
+
+void objects_cleanup(void);
 

@@ -108,15 +108,37 @@ void change_file_mode(const char *fn, mode_t mode,
 	/* change user/group */
 	if (uid != (uid_t)-1 || gid != (gid_t)-1) {
 		res = chown(fn, uid, gid);
-		if (res != 0)
+		if (res != 0) {
 			fatal("chown(%s, %d, %d) failed: %s",
 			      fn, uid, gid, strerror(errno));
+		}
 	}
 
 	/* change mode */
 	res = chmod(fn, mode);
-	if (res != 0)
+	if (res != 0) {
 		fatal("Failure to chmod(%s, 0%o): %s",
 		      fn, mode, strerror(errno));
+	}
+}
+
+/*
+ * UNIX socket helper.
+ */
+
+bool check_unix_peer_name(int fd, const char *username)
+{
+	int res;
+	uid_t peer_uid = -1;
+	gid_t peer_gid = -1;
+	struct passwd *pw;
+
+	res = getpeereid(fd, &peer_uid, &peer_gid);
+	if (res < 0)
+		return false;
+	pw = getpwuid(peer_uid);
+	if (!pw)
+		return false;
+	return strcmp(pw->pw_name, username) == 0;
 }
 

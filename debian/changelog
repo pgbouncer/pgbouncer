@@ -1,3 +1,39 @@
+pgbouncer (1.7.2-1) unstable; urgency=low
+
+  * v1.7.2
+
+ -- Marko Kreen <markokr@gmail.com>  Fri, 26 Feb 2016 10:29:47 +0200
+
+pgbouncer (1.7.1-1) unstable; urgency=low
+
+  * v1.7.1
+
+ -- Marko Kreen <markokr@gmail.com>  Thu, 18 Feb 2016 18:34:55 +0200
+
+pgbouncer (1.7-1) unstable; urgency=low
+
+  * v1.7
+
+ -- Marko Kreen <markokr@gmail.com>  Fri, 18 Dec 2015 19:57:16 +0200
+
+pgbouncer (1.7~rc1-1) unstable; urgency=low
+
+  * 1.7rc1
+
+ -- Marko Kreen <markokr@gmail.com>  Mon, 02 Nov 2015 18:11:58 +0200
+
+pgbouncer (1.7~dev-1) unstable; urgency=low
+
+  * v1.7dev
+
+ -- Marko Kreen <markokr@gmail.com>  Mon, 03 Aug 2015 23:47:46 +0300
+
+pgbouncer (1.6-1) unstable; urgency=low
+
+  * v1.6
+
+ -- Petr Jelinek <pjmodos@pjmodos.net>  Sat, 01 Aug 2015 11:53:28 +0200
+
 pgbouncer (1.6rc1-1) unstable; urgency=low
 
   * v1.6rc1

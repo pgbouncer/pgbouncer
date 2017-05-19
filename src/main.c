@@ -1,12 +1,12 @@
 /*
  * PgBouncer - Lightweight connection pooler for PostgreSQL.
- * 
+ *
  * Copyright (c) 2007-2009  Marko Kreen, Skype Technologies OÜ
- * 
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -26,6 +26,7 @@
 #include <usual/err.h>
 #include <usual/cfparser.h>
 #include <usual/getopt.h>
+#include <usual/slab.h>
 
 #ifdef HAVE_SYS_RESOURCE_H
 #include <sys/resource.h>
@@ -49,6 +50,8 @@ static void usage(int err, char *exe)
 
 /* async dns handler */
 struct DNSContext *adns;
+
+struct HBA *parsed_hba;
 
 /*
  * configuration storage
@@ -86,6 +89,7 @@ int cf_tcp_keepintvl;
 
 int cf_auth_type = AUTH_MD5;
 char *cf_auth_file;
+char *cf_auth_hba_file;
 char *cf_auth_query;
 
 int cf_max_client_conn;
@@ -97,6 +101,7 @@ int cf_max_db_connections;
 int cf_max_user_connections;
 
 char *cf_server_reset_query;
+int cf_server_reset_query_always;
 char *cf_server_check_query;
 usec_t cf_server_check_delay;
 int cf_server_round_robin;
@@ -137,6 +142,22 @@ int cf_log_disconnections;
 int cf_log_pooler_errors;
 int cf_application_name_add_host;
 
+int cf_client_tls_sslmode;
+char *cf_client_tls_protocols;
+char *cf_client_tls_ca_file;
+char *cf_client_tls_cert_file;
+char *cf_client_tls_key_file;
+char *cf_client_tls_ciphers;
+char *cf_client_tls_dheparams;
+char *cf_client_tls_ecdhecurve;
+
+int cf_server_tls_sslmode;
+char *cf_server_tls_protocols;
+char *cf_server_tls_ca_file;
+char *cf_server_tls_cert_file;
+char *cf_server_tls_key_file;
+char *cf_server_tls_ciphers;
+
 /*
  * config file description
  */
@@ -148,10 +169,12 @@ static const struct CfLookup auth_type_map[] = {
 	{ "any", AUTH_ANY },
 	{ "trust", AUTH_TRUST },
 	{ "plain", AUTH_PLAIN },
-#ifdef HAVE_CRYPT
-	{ "crypt", AUTH_CRYPT },
-#endif
 	{ "md5", AUTH_MD5 },
+	{ "cert", AUTH_CERT },
+	{ "hba", AUTH_HBA },
+#ifdef HAVE_PAM
+	{ "pam", AUTH_PAM },
+#endif
 	{ NULL }
 };
 
@@ -159,6 +182,16 @@ const struct CfLookup pool_mode_map[] = {
 	{ "session", POOL_SESSION },
 	{ "transaction", POOL_TX },
 	{ "statement", POOL_STMT },
+	{ NULL }
+};
+
+const struct CfLookup sslmode_map[] = {
+	{ "disable", SSLMODE_DISABLED },
+	{ "allow", SSLMODE_ALLOW },
+	{ "prefer", SSLMODE_PREFER },
+	{ "require", SSLMODE_REQUIRE },
+	{ "verify-ca", SSLMODE_VERIFY_CA },
+	{ "verify-full", SSLMODE_VERIFY_FULL },
 	{ NULL }
 };
 
@@ -180,6 +213,7 @@ CF_ABS("unix_socket_group", CF_STR, cf_unix_socket_group, CF_NO_RELOAD, ""),
 #endif
 CF_ABS("auth_type", CF_LOOKUP(auth_type_map), cf_auth_type, 0, "md5"),
 CF_ABS("auth_file", CF_STR, cf_auth_file, 0, "unconfigured_file"),
+CF_ABS("auth_hba_file", CF_STR, cf_auth_hba_file, 0, ""),
 CF_ABS("auth_query", CF_STR, cf_auth_query, 0, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1"),
 CF_ABS("pool_mode", CF_LOOKUP(pool_mode_map), cf_pool_mode, 0, "session"),
 CF_ABS("max_client_conn", CF_INT, cf_max_client_conn, 0, "100"),
@@ -199,10 +233,11 @@ CF_ABS("user", CF_STR, cf_username, CF_NO_RELOAD, NULL),
 CF_ABS("autodb_idle_timeout", CF_TIME_USEC, cf_autodb_idle_timeout, 0, "3600"),
 
 CF_ABS("server_reset_query", CF_STR, cf_server_reset_query, 0, "DISCARD ALL"),
+CF_ABS("server_reset_query_always", CF_INT, cf_server_reset_query_always, 0, "0"),
 CF_ABS("server_check_query", CF_STR, cf_server_check_query, 0, "select 1"),
 CF_ABS("server_check_delay", CF_TIME_USEC, cf_server_check_delay, 0, "30"),
 CF_ABS("query_timeout", CF_TIME_USEC, cf_query_timeout, 0, "0"),
-CF_ABS("query_wait_timeout", CF_TIME_USEC, cf_query_wait_timeout, 0, "0"),
+CF_ABS("query_wait_timeout", CF_TIME_USEC, cf_query_wait_timeout, 0, "120"),
 CF_ABS("client_idle_timeout", CF_TIME_USEC, cf_client_idle_timeout, 0, "0"),
 CF_ABS("client_login_timeout", CF_TIME_USEC, cf_client_login_timeout, 0, "60"),
 CF_ABS("idle_transaction_timeout", CF_TIME_USEC, cf_idle_transaction_timeout, 0, "0"),
@@ -219,7 +254,7 @@ CF_ABS("dns_nxdomain_ttl", CF_TIME_USEC, cf_dns_nxdomain_ttl, 0, "15"),
 CF_ABS("dns_zone_check_period", CF_TIME_USEC, cf_dns_zone_check_period, 0, "0"),
 
 CF_ABS("max_packet_size", CF_UINT, cf_max_packet_size, 0, "2147483647"),
-CF_ABS("pkt_buf", CF_INT, cf_sbuf_len, CF_NO_RELOAD, "2048"),
+CF_ABS("pkt_buf", CF_INT, cf_sbuf_len, CF_NO_RELOAD, "4096"),
 CF_ABS("sbuf_loopcnt", CF_INT, cf_sbuf_loopcnt, 0, "5"),
 CF_ABS("tcp_defer_accept", DEFER_OPS, cf_tcp_defer_accept, 0, NULL),
 CF_ABS("tcp_socket_buffer", CF_INT, cf_tcp_socket_buffer, 0, "0"),
@@ -234,7 +269,24 @@ CF_ABS("stats_period", CF_INT, cf_stats_period, 0, "60"),
 CF_ABS("log_connections", CF_INT, cf_log_connections, 0, "1"),
 CF_ABS("log_disconnections", CF_INT, cf_log_disconnections, 0, "1"),
 CF_ABS("log_pooler_errors", CF_INT, cf_log_pooler_errors, 0, "1"),
-CF_ABS("application_name_add_host", CF_INT, cf_application_name_add_host, 0, "1"),
+CF_ABS("application_name_add_host", CF_INT, cf_application_name_add_host, 0, "0"),
+
+CF_ABS("client_tls_sslmode", CF_LOOKUP(sslmode_map), cf_client_tls_sslmode, CF_NO_RELOAD, "disable"),
+CF_ABS("client_tls_ca_file", CF_STR, cf_client_tls_ca_file, CF_NO_RELOAD, ""),
+CF_ABS("client_tls_cert_file", CF_STR, cf_client_tls_cert_file, CF_NO_RELOAD, ""),
+CF_ABS("client_tls_key_file", CF_STR, cf_client_tls_key_file, CF_NO_RELOAD, ""),
+CF_ABS("client_tls_protocols", CF_STR, cf_client_tls_protocols, CF_NO_RELOAD, "all"),
+CF_ABS("client_tls_ciphers", CF_STR, cf_client_tls_ciphers, CF_NO_RELOAD, "fast"),
+CF_ABS("client_tls_dheparams", CF_STR, cf_client_tls_dheparams, CF_NO_RELOAD, "auto"),
+CF_ABS("client_tls_ecdhcurve", CF_STR, cf_client_tls_ecdhecurve, CF_NO_RELOAD, "auto"),
+
+CF_ABS("server_tls_sslmode", CF_LOOKUP(sslmode_map), cf_server_tls_sslmode, CF_NO_RELOAD, "disable"),
+CF_ABS("server_tls_ca_file", CF_STR, cf_server_tls_ca_file, CF_NO_RELOAD, ""),
+CF_ABS("server_tls_cert_file", CF_STR, cf_server_tls_cert_file, CF_NO_RELOAD, ""),
+CF_ABS("server_tls_key_file", CF_STR, cf_server_tls_key_file, CF_NO_RELOAD, ""),
+CF_ABS("server_tls_protocols", CF_STR, cf_server_tls_protocols, CF_NO_RELOAD, "all"),
+CF_ABS("server_tls_ciphers", CF_STR, cf_server_tls_ciphers, CF_NO_RELOAD, "fast"),
+
 {NULL}
 };
 
@@ -302,6 +354,15 @@ static void set_dbs_dead(bool flag)
 	}
 }
 
+/* Tells if the specified auth type requires data from the auth file. */
+bool requires_auth_file(int auth_type)
+{
+	/* For PAM authentication auth file is not used */
+	if (auth_type == AUTH_PAM)
+		return false;
+	return auth_type >= AUTH_TRUST;
+}
+
 /* config loading, tries to be tolerant to errors */
 void load_config(void)
 {
@@ -314,7 +375,7 @@ void load_config(void)
 	ok = cf_load_file(&main_config, cf_config_file);
 	if (ok) {
 		/* load users if needed */
-		if (cf_auth_type >= AUTH_TRUST)
+		if (requires_auth_file(cf_auth_type))
 			loader_users_check();
 		loaded = true;
 	} else if (!loaded) {
@@ -323,6 +384,15 @@ void load_config(void)
 		log_warning("Config file loading failed");
 		/* if ini file missing, don't kill anybody */
 		set_dbs_dead(false);
+	}
+
+	if (cf_auth_type == AUTH_HBA) {
+		struct HBA *hba = hba_load_rules(cf_auth_hba_file);
+		if (hba) {
+			if (parsed_hba)
+				hba_free(parsed_hba);
+			parsed_hba = hba;
+		}
 	}
 
 	/* reset pool_size, kill dbs */
@@ -455,7 +525,7 @@ static void go_daemon(void)
 {
 	int pid, fd;
 
-	if (!cf_pidfile[0])
+	if (!cf_pidfile || !cf_pidfile[0])
 		fatal("daemon needs pidfile configured");
 
 	/* don't log to stdout anymore */
@@ -497,9 +567,12 @@ static void go_daemon(void)
 
 static void remove_pidfile(void)
 {
-	if (!cf_pidfile[0])
-		return;
-	unlink(cf_pidfile);
+	if (cf_pidfile) {
+		if (cf_pidfile[0])
+			unlink(cf_pidfile);
+		free(cf_pidfile);
+		cf_pidfile = NULL;
+	}
 }
 
 static void check_pidfile(void)
@@ -507,9 +580,9 @@ static void check_pidfile(void)
 	char buf[128 + 1];
 	struct stat st;
 	pid_t pid = 0;
-	int fd, res;
+	int fd, res, err;
 
-	if (!cf_pidfile[0])
+	if (!cf_pidfile || !cf_pidfile[0])
 		return;
 
 	/* check if pidfile exists */
@@ -542,7 +615,9 @@ static void check_pidfile(void)
 
 	/* seems the pidfile is not in use */
 	log_info("Stale pidfile, removing");
-	remove_pidfile();
+	err = unlink(cf_pidfile);
+	if (err != 0)
+		fatal_perror("Cannot remove stale pidfile");
 	return;
 
 locked_pidfile:
@@ -555,7 +630,7 @@ static void write_pidfile(void)
 	pid_t pid;
 	int res, fd;
 
-	if (!cf_pidfile[0])
+	if (!cf_pidfile || !cf_pidfile[0])
 		return;
 
 	pid = getpid();
@@ -644,6 +719,7 @@ static void main_loop_once(void)
 		if (errno != EINTR)
 			log_warning("event_loop failed: %s", strerror(errno));
 	}
+	pam_poll();
 	per_loop_maint();
 	reuse_just_freed_objects();
 	rescue_timers();
@@ -674,6 +750,64 @@ static void dns_setup(void)
 	adns = adns_create_context();
 	if (!adns)
 		fatal_perror("dns setup failed");
+}
+
+static void xfree(char **ptr_p)
+{
+	if (*ptr_p) {
+		free(*ptr_p);
+		*ptr_p = NULL;
+	}
+}
+
+static void cleanup(void)
+{
+	adns_free_context(adns);
+	adns = NULL;
+
+	admin_cleanup();
+	objects_cleanup();
+	sbuf_cleanup();
+
+	event_base_free(NULL);
+
+	tls_deinit();
+	varcache_deinit();
+	pktbuf_cleanup();
+
+	reset_logging();
+
+	xfree(&cf_username);
+	xfree(&cf_config_file);
+	xfree(&cf_listen_addr);
+	xfree(&cf_unix_socket_dir);
+	xfree(&cf_unix_socket_group);
+	xfree(&cf_auth_file);
+	xfree(&cf_auth_hba_file);
+	xfree(&cf_auth_query);
+	xfree(&cf_server_reset_query);
+	xfree(&cf_server_check_query);
+	xfree(&cf_ignore_startup_params);
+	xfree(&cf_autodb_connstr);
+	xfree(&cf_jobname);
+	xfree(&cf_admin_users);
+	xfree(&cf_stats_users);
+	xfree(&cf_client_tls_protocols);
+	xfree(&cf_client_tls_ca_file);
+	xfree(&cf_client_tls_cert_file);
+	xfree(&cf_client_tls_key_file);
+	xfree(&cf_client_tls_ciphers);
+	xfree(&cf_client_tls_dheparams);
+	xfree(&cf_client_tls_ecdhecurve);
+	xfree(&cf_server_tls_protocols);
+	xfree(&cf_server_tls_ca_file);
+	xfree(&cf_server_tls_cert_file);
+	xfree(&cf_server_tls_key_file);
+	xfree(&cf_server_tls_ciphers);
+
+	xfree((char **)&cf_logfile);
+	xfree((char **)&cf_syslog_ident);
+	xfree((char **)&cf_syslog_facility);
 }
 
 /* boot everything */
@@ -736,6 +870,8 @@ int main(int argc, char *argv[])
 	init_caches();
 	logging_prefix_cb = log_socket_prefix;
 
+	sbuf_tls_setup();
+
 	/* prefer cmdline over config for username */
 	if (arg_username) {
 		if (cf_username)
@@ -783,19 +919,26 @@ int main(int argc, char *argv[])
 	janitor_setup();
 	stats_setup();
 
-	if (did_takeover)
+	pam_init();
+
+	if (did_takeover) {
 		takeover_finish();
-	else
+	} else {
 		pooler_setup();
+	}
 
 	write_pidfile();
 
-	log_info("process up: %s, libevent %s (%s), adns: %s", PACKAGE_STRING,
-		 event_get_version(), event_get_method(), adns_get_backend());
+	log_info("process up: %s, libevent %s (%s), adns: %s, tls: %s", PACKAGE_STRING,
+		 event_get_version(), event_get_method(), adns_get_backend(),
+		 tls_backend_version());
 
 	/* main loop */
 	while (cf_shutdown < 2)
 		main_loop_once();
+
+	/* not useful for production loads */
+	if (0) cleanup();
 
 	return 0;
 }

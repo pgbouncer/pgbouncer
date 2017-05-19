@@ -42,7 +42,7 @@ bool get_header(struct MBuf *data, PktHdr *pkt)
 	mbuf_copy(data, &hdr);
 
 	if (mbuf_avail_for_read(&hdr) < NEW_HEADER_LEN) {
-		log_noise("get_header: less then 5 bytes available");
+		log_noise("get_header: less than 5 bytes available");
 		return false;
 	}
 	if (!mbuf_get_byte(&hdr, &type8))
@@ -71,15 +71,15 @@ bool get_header(struct MBuf *data, PktHdr *pkt)
 		len = len16;
 		if (!mbuf_get_uint32be(&hdr, &code))
 			return false;
-		if (code == PKT_CANCEL)
+		if (code == PKT_CANCEL) {
 			type = PKT_CANCEL;
-		else if (code == PKT_SSLREQ)
+		} else if (code == PKT_SSLREQ) {
 			type = PKT_SSLREQ;
-		else if ((code >> 16) == 3 && (code & 0xFFFF) < 2)
+		} else if ((code >> 16) == 3 && (code & 0xFFFF) < 2) {
 			type = PKT_STARTUP;
-		else if (code == PKT_STARTUP_V2)
+		} else if (code == PKT_STARTUP_V2) {
 			type = PKT_STARTUP_V2;
-		else {
+		} else {
 			log_noise("get_header: unknown special pkt: len=%u code=%u", len, code);
 			return false;
 		}
@@ -95,10 +95,11 @@ bool get_header(struct MBuf *data, PktHdr *pkt)
 	pkt->len = len;
 
 	/* fill pkt with only data for this packet */
-	if (len > mbuf_avail_for_read(data))
+	if (len > mbuf_avail_for_read(data)) {
 		avail = mbuf_avail_for_read(data);
-	else
+	} else {
 		avail = len;
+	}
 	if (!mbuf_slice(data, avail, &pkt->data))
 		return false;
 
@@ -141,10 +142,11 @@ void parse_server_error(PktHdr *pkt, const char **level_p, const char **msg_p)
 			break;
 		if (!mbuf_get_string(&pkt->data, &val))
 			break;
-		if (type == 'S')
+		if (type == 'S') {
 			level = val;
-		else if (type == 'M')
+		} else if (type == 'M') {
 			msg = val;
+		}
 	}
 	*level_p = level;
 	*msg_p = msg;
@@ -156,10 +158,11 @@ void log_server_error(const char *note, PktHdr *pkt)
 
 	parse_server_error(pkt, &level, &msg);
 
-	if (!msg || !level)
+	if (!msg || !level) {
 		log_error("%s: partial error message, cannot log", note);
-	else
+	} else {
 		log_error("%s: %s: %s", note, level, msg);
+	}
 }
 
 
@@ -272,23 +275,6 @@ static bool login_clear_psw(PgSocket *server)
 	return send_password(server, user->passwd);
 }
 
-static bool login_crypt_psw(PgSocket *server, const uint8_t *salt)
-{
-	char saltbuf[3];
-	const char *enc;
-	PgUser *user = get_srv_psw(server);
-
-	slog_debug(server, "P: send crypt password");
-	memcpy(saltbuf, salt, 2);
-	saltbuf[2] = 0;
-	enc = crypt(user->passwd, saltbuf);
-	if (!enc) {
-		slog_warning(server, "crypt failed");
-		return false;
-	}
-	return send_password(server, enc);
-}
-
 static bool login_md5_psw(PgSocket *server, const uint8_t *salt)
 {
 	char txt[MD5_PASSWD_LEN + 1], *src;
@@ -298,8 +284,9 @@ static bool login_md5_psw(PgSocket *server, const uint8_t *salt)
 	if (!isMD5(user->passwd)) {
 		pg_md5_encrypt(user->passwd, user->name, strlen(user->name), txt);
 		src = txt + 3;
-	} else
+	} else {
 		src = user->passwd + 3;
+	}
 	pg_md5_encrypt(src, (char *)salt, 4, txt);
 
 	return send_password(server, txt);
@@ -319,33 +306,22 @@ bool answer_authreq(PgSocket *server, PktHdr *pkt)
 	if (!mbuf_get_uint32be(&pkt->data, &cmd))
 		return false;
 	switch (cmd) {
-	case 0:
+	case AUTH_OK:
 		slog_debug(server, "S: auth ok");
 		res = true;
 		break;
-	case 3:
+	case AUTH_PLAIN:
 		slog_debug(server, "S: req cleartext password");
 		res = login_clear_psw(server);
 		break;
-	case 4:
-		slog_debug(server, "S: req crypt psw");
-		if (!mbuf_get_bytes(&pkt->data, 2, &salt))
-			return false;
-		res = login_crypt_psw(server, salt);
-		break;
-	case 5:
+	case AUTH_MD5:
 		slog_debug(server, "S: req md5-crypted psw");
 		if (!mbuf_get_bytes(&pkt->data, 4, &salt))
 			return false;
 		res = login_md5_psw(server, salt);
 		break;
-	case 2: /* kerberos */
-	case 6: /* deprecated usage of SCM_RIGHTS */
-		slog_error(server, "unsupported auth method: %d", cmd);
-		res = false;
-		break;
 	default:
-		slog_error(server, "unknown auth method: %d", cmd);
+		slog_error(server, "unknown/unsupported auth method: %d", cmd);
 		res = false;
 		break;
 	}
@@ -363,6 +339,13 @@ bool send_startup_packet(PgSocket *server)
 				    db->startup_params->buf,
 				    db->startup_params->write_pos);
 	return pktbuf_send_immediate(pkt, server);
+}
+
+bool send_sslreq_packet(PgSocket *server)
+{
+	int res;
+	SEND_wrap(16, pktbuf_write_SSLRequest, res, server);
+	return res;
 }
 
 int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...)
@@ -383,13 +366,17 @@ int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...)
 	va_start(ap, tupdesc);
 	for (i = 0; i < asked; i++) {
 		if (i < ncol) {
-			if (!mbuf_get_uint32be(pkt, &len))
+			if (!mbuf_get_uint32be(pkt, &len)) {
+				va_end(ap);
 				return -1;
+			}
 			if ((int32_t)len < 0) {
 				val = NULL;
 			} else {
-				if (!mbuf_get_chars(pkt, len, &val))
+				if (!mbuf_get_chars(pkt, len, &val)) {
+					va_end(ap);
 					return -1;
+				}
 			}
 
 			/* hack to zero-terminate the result */
@@ -399,9 +386,10 @@ int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...)
 				xval[len] = 0;
 				val = xval;
 			}
-		} else
+		} else {
 			/* tuple was shorter than requested */
 			val = NULL;
+		}
 
 		switch (tupdesc[i]) {
 		case 'i':

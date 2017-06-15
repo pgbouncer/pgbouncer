@@ -403,8 +403,11 @@ bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
 
 static void set_appname(PgSocket *client, const char *app_name)
 {
+	uint16_t priority;
 	char buf[400], abuf[300];
 	const char *details;
+
+	priority = find_priority_for_application(app_name ? app_name : "default");
 
 	if (cf_application_name_add_host) {
 		/* give app a name */
@@ -416,9 +419,11 @@ static void set_appname(PgSocket *client, const char *app_name)
 		snprintf(buf, sizeof(buf), "%s - %s", app_name, details);
 		app_name = buf;
 	}
+
 	if (app_name) {
-		slog_debug(client, "using application_name: %s", app_name);
+		slog_debug(client, "using application_name: %s @ priority %hu", app_name, priority);
 		varcache_set(&client->vars, "application_name", app_name);
+		client->priority = priority;
 	}
 }
 

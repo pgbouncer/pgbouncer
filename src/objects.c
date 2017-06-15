@@ -45,12 +45,16 @@ struct AATree pam_user_tree;
  */
 STATLIST(login_client_list);
 
+/* All configuration-defined priorities are kept here. */
+struct AATree priorities_tree;
+
 struct Slab *server_cache;
 struct Slab *client_cache;
 struct Slab *db_cache;
 struct Slab *pool_cache;
 struct Slab *user_cache;
 struct Slab *iobuf_cache;
+struct Slab *priority_cache;
 
 /*
  * libevent may still report events when event_del()
@@ -110,14 +114,24 @@ static void user_node_release(struct AANode *node, void *arg)
 	slab_free(user_cache, user);
 }
 
+/* compare priority by name, for usage with AATree */
+static int priority_node_name_cmp(uintptr_t userptr, struct AANode *node)
+{
+        const char *name = (const char *)userptr;
+        SocketPriority *priority = container_of(node, SocketPriority, tree_node);
+        return strcmp(name, priority->name);
+}
+
 /* initialization before config loading */
 void init_objects(void)
 {
 	aatree_init(&user_tree, user_node_cmp, NULL);
 	aatree_init(&pam_user_tree, user_node_cmp, NULL);
+	aatree_init(&priorities_tree, priority_node_name_cmp, NULL);
 	user_cache = slab_create("user_cache", sizeof(PgUser), 0, NULL, USUAL_ALLOC);
 	db_cache = slab_create("db_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
 	pool_cache = slab_create("pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
+	priority_cache = slab_create("priority_cache", sizeof(SocketPriority), 0, NULL, USUAL_ALLOC);
 
 	if (!user_cache || !db_cache || !pool_cache)
 		fatal("cannot create initial caches");
@@ -460,6 +474,26 @@ PgUser *force_user(PgDatabase *db, const char *name, const char *passwd)
 	return user;
 }
 
+/* add or update a socket priority */
+SocketPriority *add_priority(const char *name, uint16_t value)
+{
+	SocketPriority *priority = NULL;
+	struct AANode *node;
+
+	node = aatree_search(&priorities_tree, (uintptr_t)name);
+	priority = node ? container_of(node, SocketPriority, tree_node) : NULL;
+
+	if (priority == NULL) {
+		priority = slab_alloc(priority_cache);
+		if (!priority)
+			return NULL;
+		priority->name = strdup(name);
+		aatree_insert(&priorities_tree, (uintptr_t)priority->name, &priority->tree_node);
+	}
+	priority->priority = value;
+	return priority;
+}
+
 /* find an existing database */
 PgDatabase *find_database(const char *name)
 {
@@ -492,6 +526,17 @@ PgUser *find_user(const char *name)
 	node = aatree_search(&user_tree, (uintptr_t)name);
 	user = node ? container_of(node, PgUser, tree_node) : NULL;
 	return user;
+}
+
+/* find priority by name */
+uint16_t find_priority_for_application(const char *app_name)
+{
+	SocketPriority *priority = NULL;
+	struct AANode *node;
+
+	node = aatree_search(&priorities_tree, (uintptr_t)app_name);
+	priority = node ? container_of(node, SocketPriority, tree_node) : NULL;
+	return priority ? priority->priority : DEFAULT_SOCKET_PRIORITY;
 }
 
 /* create new pool object */

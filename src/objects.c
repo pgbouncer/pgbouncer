@@ -151,6 +151,21 @@ void init_caches(void)
 	iobuf_cache = slab_create("iobuf_cache", IOBUF_SIZE, 0, do_iobuf_reset, USUAL_ALLOC);
 }
 
+static void add_to_wait_list_with_priority(PgPool *pool, PgSocket *client)
+{
+	struct List *item, *tmp;
+	PgSocket *citem;
+
+	statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
+		citem = container_of(item, PgSocket, head);
+		if (citem->priority < client->priority) {
+			statlist_put_before(&pool->waiting_client_list, &client->head, item);
+			return;
+		}
+	}
+	statlist_append(&pool->waiting_client_list, &client->head);
+}
+
 /* state change means moving between lists */
 void change_client_state(PgSocket *client, SocketState newstate)
 {
@@ -200,7 +215,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 		break;
 	case CL_WAITING:
 	case CL_WAITING_LOGIN:
-		statlist_append(&pool->waiting_client_list, &client->head);
+		add_to_wait_list_with_priority(pool, client);
 		break;
 	case CL_ACTIVE:
 		statlist_append(&pool->active_client_list, &client->head);

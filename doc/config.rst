@@ -921,6 +921,25 @@ Set the pool mode to be used for all connections from this user. If not set, the
 database or default pool_mode is used.
 
 
+Section [priorities]
+====================
+
+This contains key=value pairs where key will be taken as an application_name
+and value as a priority between 0 and 65535. When an application connects, the
+connection is assigned a priority. When there are not enough database connections
+to service the client connections, available space will be given out in strict
+priority order, larger priorities first.
+
+
+Caveats:
+--------
+
+1) The key (an application name) must be an exact match for the application_name
+variable that the client application sends to the server.
+
+1) Priorities are not weights, they are ordering, so starvation is possible.
+
+
 Include directive
 =================
 

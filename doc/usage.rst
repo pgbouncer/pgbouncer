@@ -199,7 +199,7 @@ avg_sent
 avg_query
     Average query duration in microseconds.
 
-total_homeless
+total_orphan
   Total number of clients who left in an unexpected manner:
   network problems, client killed by SIGKILL and so on.
 

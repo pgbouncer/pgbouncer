@@ -852,8 +852,8 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 		log_noise("sbuf_close failed, retry later");
 }
 
-/* cancel homeless postgresql backend */
-static void cancel_homeless_backend(PgSocket *server, PgSocket *client)
+/* cancel orphan postgresql backend */
+static void cancel_orphan_backend(PgSocket *server, PgSocket *client)
 {
 	/*
 	 * function for canceling postgresql backend
@@ -881,7 +881,7 @@ static void cancel_homeless_backend(PgSocket *server, PgSocket *client)
 	accept_cancel_request(new_socket);
 
 	/* add stats */
-	client->pool->stats.homeless_count++;
+	client->pool->stats.orphan_count++;
 }
 
 /* drop client connection */
@@ -911,10 +911,10 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 				/* retval does not matter here */
 				release_server(server);
 			} else {
-				/* cancel homeless PostgreSQL backend */
-				if (cf_cancel_homeless_backend == 1) {
+				/* cancel orphan PostgreSQL backend */
+				if (cf_cancel_orphan_backend == 1) {
 					hold_connection = true;
-					cancel_homeless_backend(server, client);
+					cancel_orphan_backend(server, client);
 				}
 
 				server->link = NULL;
@@ -940,7 +940,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 	}
 
 	/*
-	 * we don't want to free new 'cancel' connection for homeless client
+	 * we don't want to free new 'cancel' connection for orphan client
 	 */
 	if (!hold_connection)
 		change_client_state(client, CL_JUSTFREE);

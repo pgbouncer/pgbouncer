@@ -373,7 +373,6 @@ static bool parse_namefile(struct HBAName *hname, const char *fn, bool is_db)
 			break;
 	}
 	free_parser(&tp);
-	free(fn);
 	free(ln);
 	fclose(f);
 	return ok;
@@ -418,6 +417,7 @@ static bool parse_names(struct HBAName *hname, struct TokParser *tp, bool is_db,
 				free(fn);
 				if (!ok)
 					return false;
+				next_token(tp);
 				goto eat_comma;
 			}
 			/* fallthrough */
@@ -448,6 +448,8 @@ eat_comma:
 
 static void rule_free(struct HBARule *rule)
 {
+	strset_free(rule->db_name.name_set);
+	strset_free(rule->user_name.name_set);
 	free(rule);
 }
 

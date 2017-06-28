@@ -193,7 +193,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	char *port = "5432";
 	char *username = NULL;
 	char *password = "";
-	char *auth_username = NULL;
+	char *auth_username = cf_auth_user;
 	char *client_encoding = NULL;
 	char *datestyle = NULL;
 	char *timezone = NULL;

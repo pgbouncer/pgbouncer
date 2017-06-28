@@ -149,6 +149,16 @@ is used it needs to be installed into each database.
 
 Default: ``SELECT usename, passwd FROM pg_shadow WHERE usename=$1``
 
+auth_user
+---------
+
+If ``auth_user`` is set, any user not specified in auth_file will be
+queried through the ``auth_query`` query from pg_shadow in the database
+using ``auth_user``. Auth_user's password will be taken from ``auth_file``.
+
+Direct access to pg_shadow requires admin rights.  It's preferable to
+use non-admin user that calls SECURITY DEFINER function instead.
+
 pool_mode
 ---------
 
@@ -860,12 +870,7 @@ The length for ``password`` is limited to 128 characters maximum.
 auth_user
 ---------
 
-If ``auth_user`` is set, any user not specified in auth_file will be
-queried from pg_shadow in the database using ``auth_user``. Auth_user's
-password will be taken from ``auth_file``.
-
-Direct access to pg_shadow requires admin rights.  It's preferable to
-use non-admin user that calls SECURITY DEFINER function instead.
+Override of the global ``auth_user`` setting, if specified.
 
 pool_size
 ---------

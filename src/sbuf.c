@@ -175,7 +175,7 @@ bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, int sa_len, int timeout
 		/* unix socket gives connection immediately */
 		sbuf_connect_cb(sock, EV_WRITE, sbuf);
 		return true;
-	} else if (errno == EINPROGRESS) {
+	} else if (errno == EINPROGRESS || errno == WSAEWOULDBLOCK) {
 		/* tcp socket needs waiting */
 		event_set(&sbuf->ev, sock, EV_WRITE, sbuf_connect_cb, sbuf);
 		res = event_add(&sbuf->ev, &timeout);

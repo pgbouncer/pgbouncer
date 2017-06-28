@@ -855,6 +855,8 @@ for this database.
 Otherwise PgBouncer tries to log into the destination database with client
 username, meaning that there will be one pool per user.
 
+The length for ``password`` is limited to 128 characters maximum.
+
 auth_user
 ---------
 

@@ -130,3 +130,15 @@ To unregister it, do::
     
         $ regsvr32 /u pgbevent.dll
 
+Building for OS/X
+-----------------
+
+After cloning the git repository:
+
+        $ brew install autoconf automake libtool openssl libevent c-ares
+        $ ACLOCAL_PATH=/usr/local/Cellar/pkg-config/0.29.2/share/aclocal ./autogen.sh
+        $ ./configure --with-libevent=/usr/local/Cellar/libevent/2.1.8 --with-cares=/usr/local/Cellar/c-ares/1.12.0 --with-openssl=/usr/local/opt/openssl
+        $ make
+
+(You may need to adjust the paths above to reflect the actual package version numbers)
+

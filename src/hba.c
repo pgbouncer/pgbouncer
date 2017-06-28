@@ -373,7 +373,6 @@ static bool parse_namefile(struct HBAName *hname, const char *fn, bool is_db)
 			break;
 	}
 	free_parser(&tp);
-	free(fn);
 	free(ln);
 	fclose(f);
 	return ok;

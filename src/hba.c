@@ -417,6 +417,7 @@ static bool parse_names(struct HBAName *hname, struct TokParser *tp, bool is_db,
 				free(fn);
 				if (!ok)
 					return false;
+				next_token(tp);
 				goto eat_comma;
 			}
 			/* fallthrough */

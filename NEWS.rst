@@ -713,8 +713,8 @@ PgBouncer 1.3.x
 
   * Fix SHOW DATABASES which was broken due to column addition.
 
-  * Console access was disabled when "auth_mode=any" as pgbouncer dropped username.
-    Fix: if "auth_mode=any", allow any user to console as admin.
+  * Console access was disabled when "auth_type=any" as pgbouncer dropped username.
+    Fix: if "auth_type=any", allow any user to console as admin.
 
   * Fix bad CUSTOM_ALIGN macro.  Luckily it's unused if OS already
     defines ALIGN macro thus seems the bug has not happened in wild.

@@ -154,7 +154,7 @@ database **pgbouncer**::
   $ psql -p 6543 pgbouncer
 
 Only users listed in configuration parameters **admin_users** or **stats_users**
-are allowed to login to the console.  (Except when `auth_mode=any`, then
+are allowed to login to the console.  (Except when `auth_type=any`, then
 any user is allowed in as a stats_user.)
 
 Additionally, the username **pgbouncer** is allowed to log in without password,

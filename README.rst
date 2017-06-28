@@ -69,7 +69,7 @@ PAM authorization
 -----------------
 
 To enable PAM authorization `./configure` has a flag `--with-pam` (default value is no). When compiled with
-PAM support new global authorization type `pam` appears which can be used to validate users through PAM.
+PAM support new global authorization type `pam` appears which can be used to validate users through PAM. Additional packages required: libpam-dev
 
 Building from GIT
 -----------------

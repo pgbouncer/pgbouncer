@@ -564,8 +564,8 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	return true;
 }
 
-#define SKF_STD "sssssisiTTssis"
-#define SKF_DBG "sssssisiTTssisiiiiiii"
+#define SKF_STD "sssssisiTTiissis"
+#define SKF_DBG "sssssisiTTiissisiiiiiii"
 
 static void socket_header(PktBuf *buf, bool debug)
 {
@@ -573,6 +573,7 @@ static void socket_header(PktBuf *buf, bool debug)
 				    "type", "user", "database", "state",
 				    "addr", "port", "local_addr", "local_port",
 				    "connect_time", "request_time",
+				    "wait", "wait_us",
 				    "ptr", "link", "remote_pid", "tls",
 				    /* debug follows */
 				    "recv_pos", "pkt_pos", "pkt_remain",
@@ -593,6 +594,8 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 	char l_addr[PGADDR_BUF], r_addr[PGADDR_BUF];
 	IOBuf *io = sk->sbuf.io;
 	char infobuf[96] = "";
+	usec_t now = get_cached_time();
+	usec_t wait_time = sk->query_start ? now - sk->query_start : 0;
 
 	if (io) {
 		pkt_avail = iobuf_amount_parse(sk->sbuf.io);
@@ -628,6 +631,8 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 			     l_addr, pga_port(&sk->local_addr),
 			     sk->connect_time,
 			     sk->request_time,
+			     (int)(wait_time / USEC),
+			     (int)(wait_time % USEC),
 			     ptrbuf, linkbuf, remote_pid, infobuf,
 			     /* debug */
 			     io ? io->recv_pos : 0,
@@ -778,6 +783,7 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 	PktBuf *buf;
 	PgSocket *waiter;
 	usec_t now = get_cached_time();
+	usec_t max_wait;
 	struct CfValue cv;
 	int pool_mode;
 
@@ -788,18 +794,19 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 		admin_error(admin, "no mem");
 		return true;
 	}
-	pktbuf_write_RowDescription(buf, "ssiiiiiiiis",
+	pktbuf_write_RowDescription(buf, "ssiiiiiiiiis",
 				    "database", "user",
 				    "cl_active", "cl_waiting",
 				    "sv_active", "sv_idle",
 				    "sv_used", "sv_tested",
 				    "sv_login", "maxwait",
-				    "pool_mode");
+				    "maxwait_us", "pool_mode");
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
 		waiter = first_socket(&pool->waiting_client_list);
+		max_wait = (waiter && waiter->query_start) ? now - waiter->query_start : 0;
 		pool_mode = pool_pool_mode(pool);
-		pktbuf_write_DataRow(buf, "ssiiiiiiiis",
+		pktbuf_write_DataRow(buf, "ssiiiiiiiiis",
 				     pool->db->name, pool->user->name,
 				     statlist_count(&pool->active_client_list),
 				     statlist_count(&pool->waiting_client_list),
@@ -809,8 +816,8 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 				     statlist_count(&pool->tested_server_list),
 				     statlist_count(&pool->new_server_list),
 				     /* how long is the oldest client waited */
-				     (waiter && waiter->query_start)
-				     ?  (int)((now - waiter->query_start) / USEC) : 0,
+				     (int)(max_wait / USEC),
+				     (int)(max_wait % USEC),
 				     cf_get_lookup(&cv));
 	}
 	admin_flush(admin, buf, "SHOW");

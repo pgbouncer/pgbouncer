@@ -448,6 +448,8 @@ eat_comma:
 
 static void rule_free(struct HBARule *rule)
 {
+	strset_free(rule->db_name.name_set);
+	strset_free(rule->user_name.name_set);
 	free(rule);
 }
 

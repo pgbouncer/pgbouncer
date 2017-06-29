@@ -91,8 +91,8 @@ AC_ARG_WITH(cares,
   AC_HELP_STRING([--with-cares=prefix],[Specify where c-ares is installed]),
   [ if test "$withval" = "no"; then
       use_cares=no
-    elif test "$withval" = "yes"; then
-      use_cares=yes
+    elif test "$withval" = "yes" || test "$withval" = "auto"; then
+      use_cares="$withval"
       CARES_CFLAGS=""
       CARES_LIBS="-lcares"
     else

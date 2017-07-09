@@ -534,7 +534,7 @@ If it notices changes, all hostnames under that zone
 are looked up again.  If any host ip changes, it's connections
 are invalidated.
 
-Works only with UDNS backend (``--with-udns`` to configure).
+Works only with UDNS and c-ares backends (``--with-udns`` or ``--with-cares`` to configure).
 
 Default: 0.0 (disabled)
 

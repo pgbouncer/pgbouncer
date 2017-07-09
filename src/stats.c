@@ -191,7 +191,7 @@ static void refresh_stats(int s, short flags, void *arg)
 	log_info("Stats: %" PRIu64 " req/s,"
 		 " in %" PRIu64 " b/s,"
 		 " out %" PRIu64 " b/s,"
-		 "query %" PRIu64 " us",
+		 " query %" PRIu64 " us",
 		 avg.request_count, avg.client_bytes,
 		 avg.server_bytes, avg.query_time);
 

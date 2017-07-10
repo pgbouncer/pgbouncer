@@ -551,7 +551,7 @@ uint16_t find_priority_for_application(const char *app_name)
 
 	node = aatree_search(&priorities_tree, (uintptr_t)app_name);
 	priority = node ? container_of(node, SocketPriority, tree_node) : NULL;
-	return priority ? priority->priority : DEFAULT_SOCKET_PRIORITY;
+	return priority ? priority->priority : cf_default_priority;
 }
 
 /* create new pool object */

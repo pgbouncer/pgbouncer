@@ -388,8 +388,6 @@ struct SocketPriority {
 	uint16_t priority;	/* The priority value of sockets matching name. */
 };
 
-#define DEFAULT_SOCKET_PRIORITY 1
-
 /* where the salt is temporarily stored */
 #define tmp_login_salt  cancel_key
 
@@ -414,6 +412,7 @@ extern int cf_res_pool_size;
 extern usec_t cf_res_pool_timeout;
 extern int cf_max_db_connections;
 extern int cf_max_user_connections;
+extern int cf_default_priority;
 
 extern char * cf_autodb_connstr;
 extern usec_t cf_autodb_idle_timeout;

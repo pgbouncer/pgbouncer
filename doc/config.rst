@@ -252,6 +252,16 @@ another pool, because the server connection for the first pool is still open.
 Once the server connection closes (due to idle timeout), a new server connection
 will immediately be opened for the waiting pool.
 
+default_priority
+----------------
+
+The priority assigned to client connections that do not have a configured priority
+in the [priorities] section, or that have no app_name. It must be in the range of
+1-65535. Setting this larger than 1 allows configurations to de-prioritize matching
+applications below the default.
+
+Default: 10
+
 server_round_robin
 ------------------
 

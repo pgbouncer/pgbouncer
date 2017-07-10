@@ -420,11 +420,12 @@ static void set_appname(PgSocket *client, const char *app_name)
 		app_name = buf;
 	}
 
-	if (app_name) {
-		slog_debug(client, "using application_name: %s @ priority %hu", app_name, priority);
+	if (app_name)
 		varcache_set(&client->vars, "application_name", app_name);
-		client->priority = priority;
-	}
+
+	slog_debug(client, "setting priority to %hu for application_name \"%s\"",
+		priority, app_name ? app_name : "default");
+	client->priority = priority;
 }
 
 static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)

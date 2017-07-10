@@ -46,7 +46,7 @@ struct AATree pam_user_tree;
 STATLIST(login_client_list);
 
 /* All configuration-defined priorities are kept here. */
-struct AATree priorities_tree;
+STATLIST(priorities_list);
 
 struct Slab *server_cache;
 struct Slab *client_cache;
@@ -114,20 +114,11 @@ static void user_node_release(struct AANode *node, void *arg)
 	slab_free(user_cache, user);
 }
 
-/* compare priority by name, for usage with AATree */
-static int priority_node_name_cmp(uintptr_t userptr, struct AANode *node)
-{
-        const char *name = (const char *)userptr;
-        SocketPriority *priority = container_of(node, SocketPriority, tree_node);
-        return strcmp(name, priority->name);
-}
-
 /* initialization before config loading */
 void init_objects(void)
 {
 	aatree_init(&user_tree, user_node_cmp, NULL);
 	aatree_init(&pam_user_tree, user_node_cmp, NULL);
-	aatree_init(&priorities_tree, priority_node_name_cmp, NULL);
 	user_cache = slab_create("user_cache", sizeof(PgUser), 0, NULL, USUAL_ALLOC);
 	db_cache = slab_create("db_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
 	pool_cache = slab_create("pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
@@ -490,22 +481,25 @@ PgUser *force_user(PgDatabase *db, const char *name, const char *passwd)
 }
 
 /* add or update a socket priority */
-SocketPriority *add_priority(const char *name, uint16_t value)
+SocketPriority *add_priority(const char *prefix_matcher, uint16_t value)
 {
 	SocketPriority *priority = NULL;
-	struct AANode *node;
+	struct List *item = NULL;
 
-	node = aatree_search(&priorities_tree, (uintptr_t)name);
-	priority = node ? container_of(node, SocketPriority, tree_node) : NULL;
-
-	if (priority == NULL) {
-		priority = slab_alloc(priority_cache);
-		if (!priority)
-			return NULL;
-		priority->name = strdup(name);
-		aatree_insert(&priorities_tree, (uintptr_t)priority->name, &priority->tree_node);
+	statlist_for_each(item, &priorities_list) {
+		priority = container_of(item, SocketPriority, list_node);
+		if (0 == strcmp(priority->prefix_matcher, prefix_matcher)) {
+			priority->priority = value;
+			return priority;
+		}
 	}
+
+	priority = slab_alloc(priority_cache);
+	if (!priority)
+		return NULL;
+	priority->prefix_matcher = strdup(prefix_matcher);
 	priority->priority = value;
+	statlist_append(&priorities_list, &priority->list_node);
 	return priority;
 }
 
@@ -547,11 +541,16 @@ PgUser *find_user(const char *name)
 uint16_t find_priority_for_application(const char *app_name)
 {
 	SocketPriority *priority = NULL;
-	struct AANode *node;
+	struct List *item = NULL;
 
-	node = aatree_search(&priorities_tree, (uintptr_t)app_name);
-	priority = node ? container_of(node, SocketPriority, tree_node) : NULL;
-	return priority ? priority->priority : cf_default_priority;
+	statlist_for_each(item, &priorities_list) {
+		priority = container_of(item, SocketPriority, list_node);
+
+		// Perform prefix matching against the given app name.
+		if (0 == strncmp(app_name, priority->prefix_matcher, strlen(priority->prefix_matcher)))
+			return priority->priority;
+	}
+	return cf_default_priority;
 }
 
 /* create new pool object */
@@ -1702,6 +1701,7 @@ void objects_cleanup(void)
 	memset(&pool_list, 0, sizeof pool_list);
 	memset(&user_tree, 0, sizeof user_tree);
 	memset(&autodatabase_idle_list, 0, sizeof autodatabase_idle_list);
+	memset(&priorities_list, 0, sizeof priorities_list);
 
 	slab_destroy(server_cache);
 	server_cache = NULL;
@@ -1715,5 +1715,7 @@ void objects_cleanup(void)
 	user_cache = NULL;
 	slab_destroy(iobuf_cache);
 	iobuf_cache = NULL;
+	slab_destroy(priority_cache);
+	priority_cache = NULL;
 }
 

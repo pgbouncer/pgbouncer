@@ -383,8 +383,8 @@ struct PgSocket {
 /* takeover_clean_socket() needs to clean those up */
 
 struct SocketPriority {
-	struct AANode tree_node;	/* used to attach user to tree */
-	char *name;		/* The application_name to be assigned priority. */
+	struct List list_node;	/* used to attach user to tree */
+	char *prefix_matcher;	/* The application_name prefix matcher. */
 	uint16_t priority;	/* The priority value of sockets matching name. */
 };
 

@@ -189,8 +189,8 @@ static void refresh_stats(int s, short flags, void *arg)
 	calc_average(&avg, &cur_total, &old_total);
 	/* send totals to logfile */
 	log_info("Stats: %" PRIu64 " req/s,"
-		 " in %" PRIu64 " b/s,"
-		 " out %" PRIu64 " b/s,"
+		 " in %" PRIu64 " B/s,"
+		 " out %" PRIu64 " B/s,"
 		 " query %" PRIu64 " us",
 		 avg.request_count, avg.client_bytes,
 		 avg.server_bytes, avg.query_time);

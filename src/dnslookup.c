@@ -382,6 +382,9 @@ static bool impl_init(struct DNSContext *ctx)
 		log_warning("evdns_base_new failed");
 		return false;
 	}
+	if (!cf_dns_randomize_case) {
+		evdns_base_set_option(ctx->edns, "randomize-case", "0");
+	}
 	return true;
 }
 
@@ -391,7 +394,6 @@ static void impl_launch_query(struct DNSRequest *req)
 
 	struct evdns_getaddrinfo_request *gai_req;
 	struct evdns_base *dns = req->ctx->edns;
-
 	gai_req = evdns_getaddrinfo(dns, req->name, NULL, &hints, got_result_gai, req);
 	log_noise("dns: evdns_getaddrinfo(%s)=%p", req->name, gai_req);
 }

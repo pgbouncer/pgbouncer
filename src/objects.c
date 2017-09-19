@@ -185,6 +185,9 @@ void change_client_state(PgSocket *client, SocketState newstate)
 		statlist_append(&login_client_list, &client->head);
 		break;
 	case CL_WAITING:
+                /* count only logged in clients waiting for busy pool */
+		if (pool->active_server_list.cur_count >= pool->db->pool_size)
+			pool->stats.pool_waitings++;
 	case CL_WAITING_LOGIN:
 		statlist_append(&pool->waiting_client_list, &client->head);
 		break;

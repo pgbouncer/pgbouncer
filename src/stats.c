@@ -29,6 +29,7 @@ static void reset_stats(PgStats *stat)
 	stat->query_time = 0;
 	stat->xact_count = 0;
 	stat->xact_time = 0;
+	stat->wait_time = 0;
 }
 
 static void stat_add(PgStats *total, PgStats *stat)
@@ -39,6 +40,7 @@ static void stat_add(PgStats *total, PgStats *stat)
 	total->query_time += stat->query_time;
 	total->xact_count += stat->xact_count;
 	total->xact_time += stat->xact_time;
+	total->wait_time += stat->wait_time;
 }
 
 static void calc_average(PgStats *avg, PgStats *cur, PgStats *old)
@@ -67,19 +69,23 @@ static void calc_average(PgStats *avg, PgStats *cur, PgStats *old)
 
 	if (xact_count > 0)
 		avg->xact_time = (cur->xact_time - old->xact_time) / xact_count;
+
+	avg->wait_time = USEC * (cur->wait_time - old->wait_time) / dur;
 }
 
 static void write_stats(PktBuf *buf, PgStats *stat, PgStats *old, char *dbname)
 {
 	PgStats avg;
 	calc_average(&avg, stat, old);
-	pktbuf_write_DataRow(buf, "sqqqqqqqqqqqq", dbname,
+	pktbuf_write_DataRow(buf, "sqqqqqqqqqqqqqq", dbname,
 			     stat->xact_count, stat->query_count,
 			     stat->client_bytes, stat->server_bytes,
 			     stat->xact_time, stat->query_time,
+			     stat->wait_time,
 			     avg.xact_count, avg.query_count,
 			     avg.client_bytes, avg.server_bytes,
-			     avg.xact_time, avg.query_time);
+			     avg.xact_time, avg.query_time,
+			     avg.wait_time);
 }
 
 bool admin_database_stats(PgSocket *client, struct StatList *pool_list)
@@ -102,13 +108,15 @@ bool admin_database_stats(PgSocket *client, struct StatList *pool_list)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "sqqqqqqqqqqqq", "database",
+	pktbuf_write_RowDescription(buf, "sqqqqqqqqqqqqqq", "database",
 				    "total_xact_count", "total_query_count",
 				    "total_received", "total_sent",
 				    "total_xact_time", "total_query_time",
+				    "total_wait_time",
 				    "avg_xact_count", "avg_query_count",
 				    "avg_recv", "avg_sent",
-				    "avg_xact_time", "avg_query_time");
+				    "avg_xact_time", "avg_query_time",
+				    "avg_wait_time");
 	statlist_for_each(item, pool_list) {
 		pool = container_of(item, PgPool, head);
 
@@ -176,12 +184,14 @@ bool show_stat_totals(PgSocket *client, struct StatList *pool_list)
 	WTOTAL(server_bytes);
 	WTOTAL(xact_time);
 	WTOTAL(query_time);
+	WTOTAL(wait_time);
 	WAVG(xact_count);
 	WAVG(query_count);
 	WAVG(client_bytes);
 	WAVG(server_bytes);
 	WAVG(xact_time);
 	WAVG(query_time);
+	WAVG(wait_time);
 
 	admin_flush(client, buf, "SHOW");
 	return true;
@@ -215,10 +225,12 @@ static void refresh_stats(int s, short flags, void *arg)
 		 " in %" PRIu64 " B/s,"
 		 " out %" PRIu64 " B/s,"
 		 " xact %" PRIu64 " us,"
-		 " query %" PRIu64 " us",
+		 " query %" PRIu64 " us"
+		 " wait time %" PRIu64 " us",
 		 avg.xact_count, avg.query_count,
 		 avg.client_bytes, avg.server_bytes,
-		 avg.xact_time, avg.query_time);
+		 avg.xact_time, avg.query_time,
+		 avg.wait_time);
 
 	safe_evtimer_add(&ev_stats, &period);
 }

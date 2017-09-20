@@ -195,6 +195,9 @@ total_query_time
     Total number of microseconds spent by **pgbouncer** when actively
     connected to PostgreSQL, executing queries.
 
+total_wait_time
+    Time spent by clients waiting for a server in microseconds.
+
 avg_xact_count
     Average transactions per second in last stat period.
 
@@ -212,6 +215,10 @@ avg_xact_time
 
 avg_query_time
     Average query duration in microseconds.
+
+avg_wait_time
+    Time spent by clients waiting for a server in microseconds (average
+    per second).
 
 SHOW SERVERS;
 -------------

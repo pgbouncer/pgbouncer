@@ -194,6 +194,7 @@ struct PgStats {
 	uint64_t client_bytes;
 	usec_t xact_time;	/* total transaction time in us */
 	usec_t query_time;	/* total query time in us */
+	usec_t wait_time;	/* total time clients had to wait */
 };
 
 /*
@@ -359,6 +360,7 @@ struct PgSocket {
 	usec_t request_time;	/* last activity time */
 	usec_t query_start;	/* query start moment */
 	usec_t xact_start;	/* xact start moment */
+	usec_t wait_start;	/* waiting start moment */
 
 	uint8_t cancel_key[BACKENDKEY_LEN]; /* client: generated, server: remote */
 	PgAddr remote_addr;	/* ip:port for remote endpoint */

@@ -185,6 +185,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 		statlist_append(&login_client_list, &client->head);
 		break;
 	case CL_WAITING:
+		client->wait_start = get_cached_time();
 	case CL_WAITING_LOGIN:
 		statlist_append(&pool->waiting_client_list, &client->head);
 		break;
@@ -560,6 +561,11 @@ void activate_client(PgSocket *client)
 {
 	Assert(client->state == CL_WAITING || client->state == CL_WAITING_LOGIN);
 
+	Assert(client->wait_start > 0);
+
+	/* acount for time client spent waiting for server */
+	client->pool->stats.wait_time += (get_cached_time() - client->wait_start);
+
 	slog_debug(client, "activate_client");
 	change_client_state(client, CL_ACTIVE);
 	sbuf_continue(&client->sbuf);
@@ -607,6 +613,9 @@ bool find_server(PgSocket *client)
 	bool varchange = false;
 
 	Assert(client->state == CL_ACTIVE || client->state == CL_LOGIN);
+
+	/* no wait by default */
+	client->wait_start = 0;
 
 	if (client->link)
 		return true;

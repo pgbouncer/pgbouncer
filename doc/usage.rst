@@ -174,8 +174,11 @@ Shows statistics.
 database
     Statistics are presented per database.
 
-total_requests
-    Total number of SQL requests pooled by **pgbouncer**.
+total_xact_count
+    Total number of SQL transactions pooled by **pgbouncer**.
+
+total_query_count
+    Total number of SQL queries pooled by **pgbouncer**.
 
 total_received
     Total volume in bytes of network traffic received by **pgbouncer**.
@@ -183,12 +186,20 @@ total_received
 total_sent
     Total volume in bytes of network traffic sent by **pgbouncer**.
 
+total_xact_time
+    Total number of microseconds spent by **pgbouncer** when connected
+    to PostgreSQL in a transaction, either idle in transaction or
+    executing queries.
+
 total_query_time
     Total number of microseconds spent by **pgbouncer** when actively
-    connected to PostgreSQL.
+    connected to PostgreSQL, executing queries.
 
-avg_req
-    Average requests per second in last stat period.
+avg_xact_count
+    Average transactions per second in last stat period.
+
+avg_query_count
+    Average queries per second in last stat period.
 
 avg_recv
     Average received (from clients) bytes per second.
@@ -196,7 +207,10 @@ avg_recv
 avg_sent
     Average sent (to clients) bytes per second.
 
-avg_query
+avg_xact_time
+	Average transaction duration in microseconds.
+
+avg_query_time
     Average query duration in microseconds.
 
 SHOW SERVERS;

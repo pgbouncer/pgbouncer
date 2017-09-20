@@ -188,10 +188,12 @@ int pga_cmp_addr(const PgAddr *a, const PgAddr *b);
  * Stats, kept per-pool.
  */
 struct PgStats {
-	uint64_t request_count;
+	uint64_t xact_count;
+	uint64_t query_count;
 	uint64_t server_bytes;
 	uint64_t client_bytes;
-	usec_t query_time;	/* total req time in us */
+	usec_t xact_time;	/* total transaction time in us */
+	usec_t query_time;	/* total query time in us */
 };
 
 /*
@@ -356,6 +358,7 @@ struct PgSocket {
 	usec_t connect_time;	/* when connection was made */
 	usec_t request_time;	/* last activity time */
 	usec_t query_start;	/* query start moment */
+	usec_t xact_start;	/* xact start moment */
 
 	uint8_t cancel_key[BACKENDKEY_LEN]; /* client: generated, server: remote */
 	PgAddr remote_addr;	/* ip:port for remote endpoint */

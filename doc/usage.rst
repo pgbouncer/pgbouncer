@@ -220,6 +220,18 @@ avg_wait_time
     Time spent by clients waiting for a server in microseconds (average
     per second).
 
+SHOW STATS_TOTALS;
+------------------
+
+Subset of **SHOW STATS** showing the total values (**total_**).
+
+
+SHOW STATS_AVERAGES;
+--------------------
+
+Subset of **SHOW STATS** showing the average values (**avg_**).
+
+
 SHOW SERVERS;
 -------------
 

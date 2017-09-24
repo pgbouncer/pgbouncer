@@ -19,5 +19,7 @@
 void stats_setup(void);
 
 bool admin_database_stats(PgSocket *client, struct StatList *pool_list)  _MUSTCHECK;
+bool admin_database_stats_totals(PgSocket *client, struct StatList *pool_list)  _MUSTCHECK;
+bool admin_database_stats_averages(PgSocket *client, struct StatList *pool_list)  _MUSTCHECK;
 bool show_stat_totals(PgSocket *client, struct StatList *pool_list)  _MUSTCHECK;
 

@@ -148,6 +148,140 @@ bool admin_database_stats(PgSocket *client, struct StatList *pool_list)
 	return true;
 }
 
+static void write_stats_totals(PktBuf *buf, PgStats *stat, PgStats *old, char *dbname)
+{
+	PgStats avg;
+	calc_average(&avg, stat, old);
+	pktbuf_write_DataRow(buf, "sqqqqqqq", dbname,
+			     stat->xact_count, stat->query_count,
+			     stat->client_bytes, stat->server_bytes,
+			     stat->xact_time, stat->query_time,
+			     stat->wait_time);
+}
+
+bool admin_database_stats_totals(PgSocket *client, struct StatList *pool_list)
+{
+	PgPool *pool;
+	struct List *item;
+	PgDatabase *cur_db = NULL;
+	PgStats st_total, st_db, old_db, old_total;
+	int rows = 0;
+	PktBuf *buf;
+
+	reset_stats(&st_total);
+	reset_stats(&st_db);
+	reset_stats(&old_db);
+	reset_stats(&old_total);
+
+	buf = pktbuf_dynamic(512);
+	if (!buf) {
+		admin_error(client, "no mem");
+		return true;
+	}
+
+	pktbuf_write_RowDescription(buf, "sqqqqqqq", "database",
+				    "xact_count", "query_count",
+				    "bytes_received", "bytes_sent",
+				    "xact_time", "query_time",
+				    "wait_time");
+	statlist_for_each(item, pool_list) {
+		pool = container_of(item, PgPool, head);
+
+		if (!cur_db)
+			cur_db = pool->db;
+
+		if (pool->db != cur_db) {
+			write_stats_totals(buf, &st_db, &old_db, cur_db->name);
+
+			rows ++;
+			cur_db = pool->db;
+			stat_add(&st_total, &st_db);
+			stat_add(&old_total, &old_db);
+			reset_stats(&st_db);
+			reset_stats(&old_db);
+		}
+
+		stat_add(&st_db, &pool->stats);
+		stat_add(&old_db, &pool->older_stats);
+	}
+	if (cur_db) {
+		write_stats_totals(buf, &st_db, &old_db, cur_db->name);
+		stat_add(&st_total, &st_db);
+		stat_add(&old_total, &old_db);
+		rows ++;
+	}
+	admin_flush(client, buf, "SHOW");
+
+	return true;
+}
+
+static void write_stats_averages(PktBuf *buf, PgStats *stat, PgStats *old, char *dbname)
+{
+	PgStats avg;
+	calc_average(&avg, stat, old);
+	pktbuf_write_DataRow(buf, "sqqqqqqq", dbname,
+			     avg.xact_count, avg.query_count,
+			     avg.client_bytes, avg.server_bytes,
+			     avg.xact_time, avg.query_time,
+			     avg.wait_time);
+}
+
+bool admin_database_stats_averages(PgSocket *client, struct StatList *pool_list)
+{
+	PgPool *pool;
+	struct List *item;
+	PgDatabase *cur_db = NULL;
+	PgStats st_total, st_db, old_db, old_total;
+	int rows = 0;
+	PktBuf *buf;
+
+	reset_stats(&st_total);
+	reset_stats(&st_db);
+	reset_stats(&old_db);
+	reset_stats(&old_total);
+
+	buf = pktbuf_dynamic(512);
+	if (!buf) {
+		admin_error(client, "no mem");
+		return true;
+	}
+
+	pktbuf_write_RowDescription(buf, "sqqqqqqq", "database",
+				    "xact_count", "query_count",
+				    "bytes_received", "bytes_sent",
+				    "xact_time", "query_time",
+				    "wait_time");
+	statlist_for_each(item, pool_list) {
+		pool = container_of(item, PgPool, head);
+
+		if (!cur_db)
+			cur_db = pool->db;
+
+		if (pool->db != cur_db) {
+			write_stats_averages(buf, &st_db, &old_db, cur_db->name);
+
+			rows ++;
+			cur_db = pool->db;
+			stat_add(&st_total, &st_db);
+			stat_add(&old_total, &old_db);
+			reset_stats(&st_db);
+			reset_stats(&old_db);
+		}
+
+		stat_add(&st_db, &pool->stats);
+		stat_add(&old_db, &pool->older_stats);
+	}
+	if (cur_db) {
+		write_stats_averages(buf, &st_db, &old_db, cur_db->name);
+		stat_add(&st_total, &st_db);
+		stat_add(&old_total, &old_db);
+		rows ++;
+	}
+	admin_flush(client, buf, "SHOW");
+
+	return true;
+}
+
 bool show_stat_totals(PgSocket *client, struct StatList *pool_list)
 {
 	PgPool *pool;

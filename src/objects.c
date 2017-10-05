@@ -345,7 +345,6 @@ PgDatabase *register_auto_database(const char *name)
 	PgDatabase *db;
 	int len;
 	char *cs;
-
 	if (!cf_autodb_connstr)
 		return NULL;
 
@@ -598,7 +597,7 @@ bool check_fast_fail(PgSocket *client)
 	return false;
 }
 
-/* link if found, otherwise put into wait queue */
+/* link if found, otherwise put into wait queue, or disconnect */
 bool find_server(PgSocket *client)
 {
 	PgPool *pool = client->pool;
@@ -610,6 +609,13 @@ bool find_server(PgSocket *client)
 
 	if (client->link)
 		return true;
+        /* check if there are already the maximum number of waiting clients */
+	if ((pool->db->max_waiting_clients != -1) &&
+	    (pool->db->max_waiting_clients <= statlist_count(&pool->waiting_client_list))) {
+		slog_debug(client, "Too many waiting clients");
+		disconnect_client(client, true, "too many waiting clients");
+		return false;
+	}
 
 	/* try to get idle server, if allowed */
 	if (cf_pause_mode == P_PAUSE || pool->db->db_paused) {

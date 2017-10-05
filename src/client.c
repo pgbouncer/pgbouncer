@@ -92,7 +92,8 @@ static void start_auth_request(PgSocket *client, const char *username)
 	/* have to fetch user info from db */
 	client->pool = get_pool(client->db, client->db->auth_user);
 	if (!find_server(client)) {
-		client->wait_for_user_conn = true;
+                if (client->state != CL_JUSTFREE)
+			client->wait_for_user_conn = true;
 		return;
 	}
 	slog_noise(client, "Doing auth_conn query");

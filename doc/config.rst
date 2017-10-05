@@ -897,6 +897,13 @@ max_db_connections
 Configure a database-wide maximum (i.e. all pools within the database will
 not have more than this many server connections).
 
+max_waiting_clients
+-------------------
+
+Configure a pool-wide maximum (i.e. each pool within the database will not have
+more than this many waiting clients.) Total maximum connected clients per pool
+are pool_size + the number of waiting clients on that pool.
+
 client_encoding
 ---------------
 

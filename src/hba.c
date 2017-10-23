@@ -392,12 +392,15 @@ static bool parse_names(struct HBAName *hname, struct TokParser *tp, bool is_db,
 				goto eat_comma;
 			}
 			if (eat_kw(tp, "samerole")) {
+				log_warning("samerole is not supported");
 				return false;
 			}
 			if (eat_kw(tp, "samegroup")) {
+				log_warning("samegroup is not supported");
 				return false;
 			}
 			if (eat_kw(tp, "replication")) {
+				log_warning("replication is not supported");
 				return false;
 			}
 		}
@@ -631,6 +634,8 @@ struct HBA *hba_load_rules(const char *fn)
 			break;
 		parse_from_string(&tp, ln);
 		if (!parse_line(hba, &tp, linenr, fn)) {
+			/* Tell the admin where to look for the problem. */
+			log_warning("problem in hba config LINE %d", linenr);
 			/* Ignore line, but parse to the end. */
 			continue;
 		}

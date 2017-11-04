@@ -1194,8 +1194,9 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		"SNOTICE", "C00000", "MConsole usage",
 		"D\n\tSHOW HELP|CONFIG|DATABASES"
 		"|POOLS|CLIENTS|SERVERS|VERSION\n"
-		"\tSHOW STATS|FDS|SOCKETS|ACTIVE_SOCKETS|LISTS|MEM\n"
+		"\tSHOW FDS|SOCKETS|ACTIVE_SOCKETS|LISTS|MEM\n"
 		"\tSHOW DNS_HOSTS|DNS_ZONES\n"
+		"\tSHOW STATS|STATS_TOTALS|STATS_AVERAGES\n"
 		"\tSET key = arg\n"
 		"\tRELOAD\n"
 		"\tPAUSE [<db>]\n"

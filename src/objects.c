@@ -550,7 +550,7 @@ bool check_fast_fail(PgSocket *client)
 	PgPool *pool = client->pool;
 
 	/* reject if no servers and last connect failed */
-	if (!pool->last_connect_failed)
+	if (pool->last_connect_failed_time == 0)
 		return true;
 	cnt = pool_server_count(pool) - statlist_count(&pool->new_server_list);
 	if (cnt)
@@ -714,7 +714,7 @@ bool release_server(PgSocket *server)
 	case SV_TESTED:
 		break;
 	case SV_LOGIN:
-		pool->last_connect_failed = 0;
+		pool->last_connect_failed_time = 0;
 		break;
 	default:
 		fatal("bad server state in release_server (%d)", server->state);
@@ -785,10 +785,9 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 		 * usually disconnect means problems in startup phase,
 		 * except when sending cancel packet
 		 */
-		if (!server->ready) {
-			pool->last_connect_failed = 1;
-	                pool->last_connect_failed_time = server->connect_time;
-		} else
+		if (!server->ready)
+			pool->last_connect_failed_time = server->connect_time;
+		else
 			send_term = 0;
 		break;
 	default:
@@ -1064,7 +1063,7 @@ void launch_new_connection(PgPool *pool)
 	}
 
 	/* if server bounces, don't retry too fast */
-	if (pool->last_connect_failed) {
+	if (pool->last_connect_failed_time > 0) {
 		usec_t now = get_cached_time();
 		if (now - pool->last_connect_failed_time < cf_server_login_retry) {
 			log_debug("launch_new_connection: last failed, wait");

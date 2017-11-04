@@ -231,7 +231,6 @@ struct PgPool {
 
 	/* if last connect failed, there should be delay before next */
 	usec_t last_connect_failed_time;
-	unsigned last_connect_failed:1;
 
 	unsigned welcome_msg_ready:1;
 };

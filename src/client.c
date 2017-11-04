@@ -661,8 +661,14 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 
 	/* update stats */
 	if (!client->query_start) {
-		client->pool->stats.request_count++;
+		client->pool->stats.query_count++;
 		client->query_start = get_cached_time();
+	}
+
+	/* remember timestamp of the first query in a transaction */
+	if (!client->xact_start) {
+		client->pool->stats.xact_count++;
+		client->xact_start = client->query_start;
 	}
 
 	if (client->pool->db->admin)

@@ -1226,6 +1226,16 @@ static bool admin_show_stats(PgSocket *admin, const char *arg)
 	return admin_database_stats(admin, &pool_list);
 }
 
+static bool admin_show_stats_totals(PgSocket *admin, const char *arg)
+{
+	return admin_database_stats_totals(admin, &pool_list);
+}
+
+static bool admin_show_stats_averages(PgSocket *admin, const char *arg)
+{
+	return admin_database_stats_averages(admin, &pool_list);
+}
+
 static bool admin_show_totals(PgSocket *admin, const char *arg)
 {
 	return show_stat_totals(admin, &pool_list);
@@ -1244,6 +1254,8 @@ static struct cmd_lookup show_map [] = {
 	{"sockets", admin_show_sockets},
 	{"active_sockets", admin_show_active_sockets},
 	{"stats", admin_show_stats},
+	{"stats_totals", admin_show_stats_totals},
+	{"stats_averages", admin_show_stats_averages},
 	{"users", admin_show_users},
 	{"version", admin_show_version},
 	{"totals", admin_show_totals},

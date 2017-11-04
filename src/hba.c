@@ -635,7 +635,7 @@ struct HBA *hba_load_rules(const char *fn)
 		parse_from_string(&tp, ln);
 		if (!parse_line(hba, &tp, linenr, fn)) {
 			/* Tell the admin where to look for the problem. */
-			log_warning("problem in hba config LINE %d", linenr);
+			log_warning("could not parse hba config line %d", linenr);
 			/* Ignore line, but parse to the end. */
 			continue;
 		}

@@ -250,7 +250,7 @@ static enum TokType next_token(struct TokParser *p)
 			if (isspace((unsigned char)*s))
 				break;
 		}
-		if (!tok_buf_check(p, s - p->pos))
+		if (!tok_buf_check(p, s - p->pos + 1))
 			return TOK_FAIL;
 		memcpy(p->buf, p->pos, s - p->pos);
 		p->buf[s - p->pos] = 0;

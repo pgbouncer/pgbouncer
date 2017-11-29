@@ -445,17 +445,22 @@ PgUser *add_pam_user(const char *name, const char *passwd)
 /* create separate user object for storing server user info */
 PgUser *force_user(PgDatabase *db, const char *name, const char *passwd)
 {
-	PgUser *user = db->forced_user;
+	PgUser *user = find_user(name);
+
 	if (!user) {
 		user = slab_alloc(user_cache);
 		if (!user)
 			return NULL;
+
 		list_init(&user->head);
 		list_init(&user->pool_list);
+
 		user->pool_mode = POOL_INHERIT;
+
+		safe_strcpy(user->name, name, sizeof(user->name));
+		safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
 	}
-	safe_strcpy(user->name, name, sizeof(user->name));
-	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
+
 	db->forced_user = user;
 	return user;
 }

@@ -221,6 +221,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	char state;
 	SBuf *sbuf = &server->sbuf;
 	PgSocket *client = server->link;
+	bool async_response = false;
 
 	Assert(!server->pool->db->admin);
 
@@ -306,6 +307,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	case 'A':		/* NotificationResponse */
 		idle_tx = server->idle_tx;
 		ready = server->ready;
+		async_response = true;
 		break;
 
 	/* copy mode */
@@ -351,7 +353,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 				client->query_start = 0;
 				server->pool->stats.query_time += total;
 				slog_debug(client, "query time: %d us", (int)total);
-			} else if (ready || idle_tx) {
+			} else if ((ready || idle_tx) && !async_response) {
 				slog_warning(client, "FIXME: query end, but query_start == 0");
 			}
 
@@ -362,7 +364,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 				client->xact_start = 0;
 				server->pool->stats.xact_time += total;
 				slog_debug(client, "transaction time: %d us", (int)total);
-			} else if (ready) {
+			} else if (ready && !async_response) {
 				slog_warning(client, "FIXME: transaction end, but xact_start == 0");
 			}
 		}

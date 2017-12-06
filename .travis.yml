@@ -1,0 +1,12 @@
+language: c
+addons:
+  apt:
+    packages:
+      - libevent-dev
+compiler:
+  - clang
+  - gcc
+script:
+  - ./autogen.sh
+  - ./configure --enable-cassert --enable-werror --with-pam
+  - make

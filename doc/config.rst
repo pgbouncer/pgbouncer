@@ -394,7 +394,7 @@ stats_users
 -----------
 
 Comma-separated list of database users that are allowed to connect and
-run read-only queries on console. Thats means all SHOW commands except
+run read-only queries on console. That means all SHOW commands except
 SHOW FDS.
 
 Default: empty.
@@ -896,6 +896,13 @@ max_db_connections
 
 Configure a database-wide maximum (i.e. all pools within the database will
 not have more than this many server connections).
+
+application_name
+----------------
+
+Set application name on connection start.  This logic applies only on start of
+connection, if application_name is later changed with SET, pgbouncer does not
+change it again.
 
 client_encoding
 ---------------

@@ -159,6 +159,8 @@ using ``auth_user``. Auth_user's password will be taken from ``auth_file``.
 Direct access to pg_shadow requires admin rights.  It's preferable to
 use non-admin user that calls SECURITY DEFINER function instead.
 
+Default: not set.
+
 pool_mode
 ---------
 

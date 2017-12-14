@@ -16,10 +16,10 @@ include $(abs_top_srcdir)/lib/mk/antimake.mk
 
 
 pgbouncer.1: usage.rst frag-usage-man
-	$(SED) -e '4r frag-usage-man' usage.rst | $(RST2MAN) > $@
+	$(SED) -e '4r frag-usage-man' usage.rst | $(RST2MAN) --exit-status=2 > $@
 
 pgbouncer.5: config.rst frag-config-man
-	$(SED) -e '4r frag-config-man' config.rst | $(RST2MAN) > $@
+	$(SED) -e '4r frag-config-man' config.rst | $(RST2MAN) --exit-status=2 > $@
 
 web:
 	make -C ../../pgbouncer.github.io

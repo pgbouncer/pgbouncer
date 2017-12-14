@@ -1,7 +1,5 @@
 -include ../config.mak
 
-RST2MAN ?= rst2man
-
 manpages = pgbouncer.1 pgbouncer.5
 
 dist_man_MANS = $(manpages)

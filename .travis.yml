@@ -3,6 +3,7 @@ addons:
   apt:
     packages:
       - libevent-dev
+      - python-docutils
 compiler:
   - clang
   - gcc

@@ -149,6 +149,8 @@ is used it needs to be installed into each database.
 
 Default: ``SELECT usename, passwd FROM pg_shadow WHERE usename=$1``
 
+.. _auth_user:
+
 auth_user
 ---------
 

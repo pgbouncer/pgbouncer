@@ -1,0 +1,14 @@
+dependencies:
+    pre:
+        - sudo apt-get update
+        - sudo apt-get install --yes autoconf automake libtool autoconf-archive python-docutils pkg-config  # From https://github.com/pgbouncer/pgbouncer#building-from-git
+        - sudo apt-get install --yes libevent-dev libssl-dev  # From https://github.com/pgbouncer/pgbouncer#building
+        - sudo apt-get install --yes postgresql  # For testing
+test:
+    pre:
+        - git submodule init
+        - git submodule update
+    override:
+        - ./autogen.sh
+        - ./configure --prefix=/usr/local
+        - make

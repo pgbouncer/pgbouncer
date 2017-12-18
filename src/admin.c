@@ -869,7 +869,13 @@ static void dns_name_cb(void *arg, const char *name, const struct addrinfo *ai, 
 	}
 	*s = 0;
 
-	pktbuf_write_DataRow(buf, "sqs", name, (ttl - now) / USEC, adrs);
+	/*
+	 * Ttl can be smaller than now if we are waiting for dns reply for long.
+	 *
+	 * It's better to show 0 in that case as otherwise it confuses users into
+	 * thinking that there is large ttl for the name.
+	 */
+	pktbuf_write_DataRow(buf, "sqs", name, ttl < now ? 0 : (ttl - now) / USEC, adrs);
 }
 
 static bool admin_show_dns_hosts(PgSocket *admin, const char *arg)

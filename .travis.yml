@@ -11,3 +11,4 @@ script:
   - ./autogen.sh
   - ./configure --enable-cassert --enable-werror --with-pam
   - make
+  - make dist

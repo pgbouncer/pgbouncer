@@ -557,7 +557,7 @@ bool load_auth_file(const char *fn)
 
 	buf = load_file(fn, NULL);
 	if (buf == NULL) {
-		log_error("could not open auth_file %s: %m", fn);
+		log_error("could not open auth_file %s: %s", fn, strerror(errno));
 		return NULL;
 	}
 

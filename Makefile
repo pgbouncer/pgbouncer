@@ -32,6 +32,7 @@ pgbouncer_SOURCES = \
 	include/janitor.h \
 	include/loader.h \
 	include/objects.h \
+	include/pam.h \
 	include/pktbuf.h \
 	include/pooler.h \
 	include/proto.h \

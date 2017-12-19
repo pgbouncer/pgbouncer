@@ -9,6 +9,9 @@ compiler:
   - gcc
 script:
   - ./autogen.sh
-  - ./configure --enable-cassert --enable-werror --with-pam
+  - ./configure --prefix=$HOME/install --enable-cassert --enable-werror --with-pam
   - make
+  - make install
   - make dist
+  - tar -x -f pgbouncer-*.tar.gz
+  - cd pgbouncer-* && ./configure --prefix=$HOME/install2 --enable-cassert --enable-werror --with-pam && make && make install

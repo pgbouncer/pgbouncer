@@ -2,20 +2,32 @@ language: c
 addons:
   apt:
     packages:
+      - libc-ares-dev
       - libevent-dev
+      - libudns-dev
       - python-docutils
 compiler:
   - clang
   - gcc
+env:
+  matrix:
+    - configure_args=''
+    - configure_args='--disable-evdns --without-cares --without-udns'
+    - configure_args='--enable-evdns  --without-cares --without-udns'
+    - configure_args='--disable-evdns --with-cares    --without-udns --disable-werror'
+    - configure_args='--disable-evdns --without-cares --with-udns    --disable-werror'
+    - configure_args='--with-pam'
+    - configure_args='--with-openssl'
+    - configure_args='--without-openssl'
 script: |
   set -e
   ./autogen.sh
-  ./configure --prefix=$HOME/install --enable-cassert --enable-werror --with-pam
+  ./configure --prefix=$HOME/install --enable-cassert --enable-werror --without-cares $configure_args
   make
   make install
   make dist
   tar -x -f pgbouncer-*.tar.gz
   cd pgbouncer-*
-  ./configure --prefix=$HOME/install2 --enable-cassert --enable-werror --with-pam
+  ./configure --prefix=$HOME/install2 --enable-werror --without-cares $configure_args
   make
   make install

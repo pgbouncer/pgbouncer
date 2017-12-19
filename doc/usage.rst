@@ -223,13 +223,13 @@ avg_wait_time
 SHOW STATS_TOTALS;
 ------------------
 
-Subset of **SHOW STATS** showing the total values (**total_**).
+Subset of **SHOW STATS** showing the total values (**total\_**).
 
 
 SHOW STATS_AVERAGES;
 --------------------
 
-Subset of **SHOW STATS** showing the average values (**avg_**).
+Subset of **SHOW STATS** showing the average values (**avg\_**).
 
 
 SHOW SERVERS;

@@ -1,6 +1,50 @@
 PgBouncer changelog
 ===================
 
+PgBouncer 1.8.x
+---------------
+
+**2017-12-19  -  PgBouncer 1.8  -  "Confident at the Helm"**
+
+- Features
+
+  * Support PAM authentication.  (Enable with `--with-pam`.)
+
+  * Add `paused` and `disabled` fields to `SHOW DATABASES` output.
+
+  * Add `maxwait_us` field to `SHOW POOLS` output.
+
+  * Add `wait` and `wait_us` fields to `SHOW` commands output.
+
+  * Add new commands `SHOW STATS_TOTALS` and `SHOW STATS_AVERAGES`.
+
+  * Track queries and transactions separately in `SHOW STATS`.  The
+    fields `total_query_time`, `avg_query`, `avg_query`, and
+    `avg_query` have been replaced by new fields.
+
+  * Add `wait_time` to `SHOW STATS`.
+
+- Fixes
+
+  * Updated libusual supports OpenSSL 1.1.
+
+  * Do not attempt to use TLS on Unix sockets.
+
+  * When parsing `pg_hba.conf`, keep parsing after erroneous lines instead of rejecting the whole file.
+    (`#118 <https://github.com/pgbouncer/pgbouncer/issues/118>`_)
+
+  * Several other hba parsing fixes.
+
+  * Fix race condition when canceling query.
+    (`#141 <https://github.com/pgbouncer/pgbouncer/issues/141>`_)
+
+- Cleanups
+
+  * `auth_user` setting is now also allowed globally, not only per database.
+    (`#142 <https://github.com/pgbouncer/pgbouncer/issues/142>`_)
+
+  * Set console client and server encoding to `UTF8`.
+
 PgBouncer 1.7.x
 ---------------
 

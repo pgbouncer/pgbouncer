@@ -1,3 +1,9 @@
+pgbouncer (1.8-1) unstable; urgency=low
+
+  * v1.8
+
+ -- Peter Eisentraut <peter@eisentraut.org>  Tue, 19 Dec 2017 00:00:00 +0000
+
 pgbouncer (1.7.2-1) unstable; urgency=low
 
   * v1.7.2

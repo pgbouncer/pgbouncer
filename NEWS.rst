@@ -4,6 +4,13 @@ PgBouncer changelog
 PgBouncer 1.8.x
 ---------------
 
+**2017-12-20  -  PgBouncer 1.8.1  -  "Ground-and-pound Mentality"**
+
+- Fixes
+
+  * Include file `include/pam.h` into distribution tarball.  This
+    prevented the 1.8 tarball from building at all.
+
 **2017-12-19  -  PgBouncer 1.8  -  "Confident at the Helm"**
 
 - Features

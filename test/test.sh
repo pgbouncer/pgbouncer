@@ -276,6 +276,22 @@ test_server_check_delay() {
 	test "`cat $LOGDIR/test.tmp`" = "1"
 }
 
+# max_waiting_clients
+test_max_waiting_clients() {
+	for i in {1..3}; do
+		psql p0 -c "select now() as sleeping${i} from pg_sleep(3);" &
+	done
+	sleep 1
+
+	# shouldn't be allowed
+	psql p0 -c "select now() as exhausted"  && return 1
+
+	# should be ok
+	echo 'waiting for clients to complete ...'
+	wait
+	psql p0 -c "select now() as ok"  || return 1
+}
+
 # max_client_conn
 test_max_client_conn() {
 	admin "set max_client_conn=5"
@@ -480,6 +496,7 @@ test_query_timeout
 test_server_connect_timeout_establish
 test_server_connect_timeout_reject
 test_server_check_delay
+test_max_waiting_clients
 test_max_client_conn
 test_pool_size
 test_online_restart

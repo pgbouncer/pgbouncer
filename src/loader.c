@@ -367,6 +367,10 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	if (appname) {
 		pktbuf_put_string(msg, "application_name");
 		pktbuf_put_string(msg, appname);
+	} else {
+		/* adding 'pgbouncer' as fallback_application_name */
+		pktbuf_put_string(msg, "application_name");
+		pktbuf_put_string(msg, "pgbouncer");   
 	}
 
 	if (auth_username != NULL) {

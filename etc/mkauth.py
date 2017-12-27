@@ -3,7 +3,7 @@
 import sys, os, tempfile, psycopg2
 
 if len(sys.argv) != 3:
-    print 'usage: mkauth DSTFN CONNSTR'
+    print('usage: mkauth DSTFN CONNSTR')
     sys.exit(1)
 
 # read old file

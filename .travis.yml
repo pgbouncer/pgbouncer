@@ -2,9 +2,13 @@ language: c
 addons:
   apt:
     packages:
+      - debhelper
+      - devscripts
+      - fakeroot
       - libc-ares-dev
       - libevent-dev
       - libudns-dev
+      - lintian
       - python-docutils
 compiler:
   - clang
@@ -31,3 +35,7 @@ script: |
   ./configure --prefix=$HOME/install2 --enable-werror --without-cares $configure_args
   make
   make install
+  cd ..
+  make distclean
+  ./configure
+  make deb

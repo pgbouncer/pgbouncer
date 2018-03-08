@@ -569,13 +569,19 @@ Signals
 ~~~~~~~
 
 SIGHUP
-    Reload config. Same as issuing command **RELOAD;** on console.
+    Reload config. Same as issuing the command **RELOAD;** on the console.
 
 SIGINT
-    Safe shutdown. Same as issuing **PAUSE;** and **SHUTDOWN;** on console.
+    Safe shutdown. Same as issuing **PAUSE;** and **SHUTDOWN;** on the console.
 
 SIGTERM
-    Immediate shutdown.  Same as issuing **SHUTDOWN;** on console.
+    Immediate shutdown. Same as issuing **SHUTDOWN;** on the console.
+
+SIGUSR1
+    Same as issuing **PAUSE;** on the console.
+
+SIGUSR2
+    Same as issuing **RESUME;** on the console.
 
 Libevent settings
 ~~~~~~~~~~~~~~~~~

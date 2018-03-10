@@ -84,6 +84,7 @@ typedef struct PgStats PgStats;
 typedef union PgAddr PgAddr;
 typedef enum SocketState SocketState;
 typedef struct PktHdr PktHdr;
+typedef struct SocketPriority SocketPriority;
 
 extern int cf_sbuf_len;
 
@@ -354,6 +355,8 @@ struct PgSocket {
 
 	bool wait_sslchar:1;	/* server: waiting for ssl response: S/N */
 
+	uint16_t priority;	/* client: weight for determining position in wait queue */
+
 	int expect_rfq_count;	/* client: count of ReadyForQuery packets client should see */
 
 	usec_t connect_time;	/* when connection was made */
@@ -384,6 +387,12 @@ struct PgSocket {
 #define tmp_sk_linkfd	query_start
 /* takeover_clean_socket() needs to clean those up */
 
+struct SocketPriority {
+	struct List list_node;	/* used to attach user to tree */
+	char *prefix_matcher;	/* The application_name prefix matcher. */
+	uint16_t priority;	/* The priority value of sockets matching name. */
+};
+
 /* where the salt is temporarily stored */
 #define tmp_login_salt  cancel_key
 
@@ -408,6 +417,7 @@ extern int cf_res_pool_size;
 extern usec_t cf_res_pool_timeout;
 extern int cf_max_db_connections;
 extern int cf_max_user_connections;
+extern int cf_default_priority;
 
 extern char * cf_autodb_connstr;
 extern usec_t cf_autodb_idle_timeout;

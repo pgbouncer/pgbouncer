@@ -256,6 +256,16 @@ another pool, because the server connection for the first pool is still open.
 Once the server connection closes (due to idle timeout), a new server connection
 will immediately be opened for the waiting pool.
 
+default_priority
+----------------
+
+The priority assigned to client connections that do not have a configured priority
+in the [priorities] section, or that have no app_name. It must be in the range of
+1-65535. Setting this larger than 1 allows configurations to de-prioritize matching
+applications below the default.
+
+Default: 10
+
 server_round_robin
 ------------------
 
@@ -930,6 +940,60 @@ pool_mode
 
 Set the pool mode to be used for all connections from this user. If not set, the
 database or default pool_mode is used.
+
+
+Section [priorities]
+====================
+
+This contains key=value pairs where key will be taken as an prefix matcher
+against the application_name client connection parameter and value as a
+priority between 0 and 65535. When an application connects, the connection is
+assigned a priority. When there are not enough database connections to service
+the client connections, available space will be given out in strict priority
+order, larger priorities first. If there is no matching priority in this
+section, the configured default_priority will be assigned.
+
+Example:
+--------
+
+Many postgres clients append details about their internal state to the
+connection. This frequently leads to connection lists like the following::
+
+  resque-1.27.4: Processing proc...499450757 [QueuedEmail]
+  Passenger RubyApp: /data/current (production)
+  resque-1.27.4: Processing proc...499449561 [QueuedEmail]
+  resque-1.27.4: Processing proc...499450363 [QueuedEmail]
+  psql
+  sidekiq 4.1.2 blue [5 of 5 busy]
+  resque-1.27.4: Processing proc...499450545 [QueuedEmail]
+  resque-1.27.4: Processing proc...499452283 [QueuedEmail]
+  resque-1.27.4: Processing proc...499449819 [QueuedEmail]
+  sidekiq 4.1.2 blue [4 of 5 busy]
+  resque-1.27.4: Processing proc...499450301 [QueuedEmail]
+  sidekiq 4.1.2 green [0 of 5 busy]
+
+Since the keys in this section match against only the prefix of the client's
+application_name, that allows us to order this mess with the following, simple
+priorities section::
+
+  [pgbouncer]
+  default_priority = 10
+
+  [priorities]
+  psql = 100
+  Passenger = 30
+  sidekiq = 20
+  resque = 5
+
+With this configuration, psql will always get the next free connection,
+Passenger will cut in line in front of sidekiq, sidekiq will cut in front of
+any clients not configured here, and resque will lose out to everything else,
+even applications not listed in the configuration.
+
+Caveats:
+--------
+
+1) Priorities are not weights, they are ordering, so starvation is possible.
 
 
 Include directive

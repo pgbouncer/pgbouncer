@@ -31,6 +31,7 @@ extern struct Slab *iobuf_cache;
 
 PgDatabase *find_database(const char *name);
 PgUser *find_user(const char *name);
+uint16_t find_priority_for_application(const char *app_name);
 PgPool *get_pool(PgDatabase *, PgUser *);
 PgSocket *compare_connections_by_time(PgSocket *lhs, PgSocket *rhs);
 bool evict_connection(PgDatabase *db)		_MUSTCHECK;
@@ -49,6 +50,7 @@ PgDatabase *register_auto_database(const char *name);
 PgUser * add_user(const char *name, const char *passwd) _MUSTCHECK;
 PgUser * add_db_user(PgDatabase *db, const char *name, const char *passwd) _MUSTCHECK;
 PgUser * force_user(PgDatabase *db, const char *username, const char *passwd) _MUSTCHECK;
+SocketPriority *add_priority(const char *prefix_matcher, uint16_t value) _MUSTCHECK;
 
 PgUser * add_pam_user(const char *name, const char *passwd) _MUSTCHECK;
 

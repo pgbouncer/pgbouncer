@@ -623,3 +623,17 @@ bool load_auth_file(const char *fn)
 	return true;
 }
 
+bool parse_priority(void *base, const char *name, const char *params)
+{
+	SocketPriority *priority;
+	uint16_t value;
+
+	value = (uint16_t)strtol(params, NULL, 10);
+
+	priority = add_priority(name, value);
+	if (!priority)
+		log_warning("cannot create priority, no memory");
+
+	return true;
+}
+

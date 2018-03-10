@@ -45,12 +45,16 @@ struct AATree pam_user_tree;
  */
 STATLIST(login_client_list);
 
+/* All configuration-defined priorities are kept here. */
+STATLIST(priorities_list);
+
 struct Slab *server_cache;
 struct Slab *client_cache;
 struct Slab *db_cache;
 struct Slab *pool_cache;
 struct Slab *user_cache;
 struct Slab *iobuf_cache;
+struct Slab *priority_cache;
 
 /*
  * libevent may still report events when event_del()
@@ -118,6 +122,7 @@ void init_objects(void)
 	user_cache = slab_create("user_cache", sizeof(PgUser), 0, NULL, USUAL_ALLOC);
 	db_cache = slab_create("db_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
 	pool_cache = slab_create("pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
+	priority_cache = slab_create("priority_cache", sizeof(SocketPriority), 0, NULL, USUAL_ALLOC);
 
 	if (!user_cache || !db_cache || !pool_cache)
 		fatal("cannot create initial caches");
@@ -135,6 +140,21 @@ void init_caches(void)
 	server_cache = slab_create("server_cache", sizeof(PgSocket), 0, construct_server, USUAL_ALLOC);
 	client_cache = slab_create("client_cache", sizeof(PgSocket), 0, construct_client, USUAL_ALLOC);
 	iobuf_cache = slab_create("iobuf_cache", IOBUF_SIZE, 0, do_iobuf_reset, USUAL_ALLOC);
+}
+
+static void add_to_wait_list_with_priority(PgPool *pool, PgSocket *client)
+{
+	struct List *item, *tmp;
+	PgSocket *citem;
+
+	statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
+		citem = container_of(item, PgSocket, head);
+		if (citem->priority < client->priority) {
+			statlist_put_before(&pool->waiting_client_list, &client->head, item);
+			return;
+		}
+	}
+	statlist_append(&pool->waiting_client_list, &client->head);
 }
 
 /* state change means moving between lists */
@@ -187,7 +207,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	case CL_WAITING:
 		client->wait_start = get_cached_time();
 	case CL_WAITING_LOGIN:
-		statlist_append(&pool->waiting_client_list, &client->head);
+		add_to_wait_list_with_priority(pool, client);
 		break;
 	case CL_ACTIVE:
 		statlist_append(&pool->active_client_list, &client->head);
@@ -461,6 +481,29 @@ PgUser *force_user(PgDatabase *db, const char *name, const char *passwd)
 	return user;
 }
 
+/* add or update a socket priority */
+SocketPriority *add_priority(const char *prefix_matcher, uint16_t value)
+{
+	SocketPriority *priority = NULL;
+	struct List *item = NULL;
+
+	statlist_for_each(item, &priorities_list) {
+		priority = container_of(item, SocketPriority, list_node);
+		if (0 == strcmp(priority->prefix_matcher, prefix_matcher)) {
+			priority->priority = value;
+			return priority;
+		}
+	}
+
+	priority = slab_alloc(priority_cache);
+	if (!priority)
+		return NULL;
+	priority->prefix_matcher = strdup(prefix_matcher);
+	priority->priority = value;
+	statlist_append(&priorities_list, &priority->list_node);
+	return priority;
+}
+
 /* find an existing database */
 PgDatabase *find_database(const char *name)
 {
@@ -493,6 +536,22 @@ PgUser *find_user(const char *name)
 	node = aatree_search(&user_tree, (uintptr_t)name);
 	user = node ? container_of(node, PgUser, tree_node) : NULL;
 	return user;
+}
+
+/* find priority by name */
+uint16_t find_priority_for_application(const char *app_name)
+{
+	SocketPriority *priority = NULL;
+	struct List *item = NULL;
+
+	statlist_for_each(item, &priorities_list) {
+		priority = container_of(item, SocketPriority, list_node);
+
+		// Perform prefix matching against the given app name.
+		if (0 == strncmp(app_name, priority->prefix_matcher, strlen(priority->prefix_matcher)))
+			return priority->priority;
+	}
+	return cf_default_priority;
 }
 
 /* create new pool object */
@@ -1651,6 +1710,7 @@ void objects_cleanup(void)
 	memset(&pool_list, 0, sizeof pool_list);
 	memset(&user_tree, 0, sizeof user_tree);
 	memset(&autodatabase_idle_list, 0, sizeof autodatabase_idle_list);
+	memset(&priorities_list, 0, sizeof priorities_list);
 
 	slab_destroy(server_cache);
 	server_cache = NULL;
@@ -1664,5 +1724,7 @@ void objects_cleanup(void)
 	user_cache = NULL;
 	slab_destroy(iobuf_cache);
 	iobuf_cache = NULL;
+	slab_destroy(priority_cache);
+	priority_cache = NULL;
 }
 

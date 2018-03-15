@@ -23,4 +23,3 @@ pgbouncer.5: config.rst frag-config-man
 
 web:
 	make -C ../../pgbouncer.github.io
-

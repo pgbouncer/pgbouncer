@@ -35,4 +35,3 @@ all: run_test
 
 run_test: hba_test
 	./hba_test
-

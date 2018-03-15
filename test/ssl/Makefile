@@ -1,4 +1,3 @@
-
 EXTRA_DIST = lib.sh newca.sh newsite.sh test.ini test.sh Makefile \
 	     TestCA1/ca.crt TestCA1/ca.key TestCA1/config.ini \
 	     TestCA1/index.txt TestCA1/serial \
@@ -11,4 +10,3 @@ SUBLOC = test/ssl
 
 include ../../config.mak
 include ../../lib/mk/antimake.mk
-

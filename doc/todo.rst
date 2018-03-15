@@ -77,4 +77,3 @@ Dubious/complicated features
   that could be solved by just having threads for login handling,
   which would be lot simpler or just deciding that it is not
   worth fixing.
-

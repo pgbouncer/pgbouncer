@@ -1,0 +1,10 @@
+*.rst				whitespace=-blank-at-eol
+doc/frag-*-man			whitespace=-blank-at-eof
+test/hba_test.rules		-whitespace
+test/ssl/TestCA1/certs/*.pem	whitespace=-blank-at-eol
+test/ssl/TestCA1/sites/*.crt	whitespace=-blank-at-eol
+test/test.sh			whitespace=-blank-at-eol
+win32/eventmsg.rc		whitespace=-blank-at-eol
+
+# Avoid confusing ASCII underlines with leftover merge conflict markers
+*.rst		conflict-marker-size=32

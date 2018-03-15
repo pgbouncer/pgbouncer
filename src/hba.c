@@ -129,7 +129,7 @@ bool strset_add(struct StrSet *set, const char *str, unsigned int len)
 		set->nodes[set->count++] = node;
 		return true;
 	}
-	
+
 	if (!set->cbtree) {
 		set->cbtree = cbtree_create(strset_node_key, NULL, set, set->pool);
 		if (!set->cbtree)
@@ -550,7 +550,7 @@ static bool parse_line(struct HBA *hba, struct TokParser *tp, int linenr, const 
 			log_warning("hba line %d: failed to parse address - %s", linenr, addr);
 			goto failed;
 		}
-		
+
 		if (nmask) {
 			if (!parse_nmask(rule, nmask)) {
 				log_warning("hba line %d: invalid mask", linenr);
@@ -740,4 +740,3 @@ int hba_eval(struct HBA *hba, PgAddr *addr, bool is_tls, const char *dbname, con
 	}
 	return AUTH_REJECT;
 }
-

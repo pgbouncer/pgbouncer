@@ -149,7 +149,7 @@ psql_bouncer() {
 
 # server_lifetime
 test_server_ssl() {
-	reconf_bouncer "auth_type = trust" "server_tls_sslmode = require" 
+	reconf_bouncer "auth_type = trust" "server_tls_sslmode = require"
 	echo "hostssl all all 127.0.0.1/32 trust" > pgdata/pg_hba.conf
 	reconf_pgsql "ssl=on" "ssl_ca_file='root.crt'"
 	psql_bouncer -q -d p0 -c "select 'ssl-connect'" | tee tmp/test.tmp0
@@ -164,7 +164,7 @@ test_server_ssl_verify() {
 		"server_tls_ca_file = TestCA1/ca.crt"
 
 	echo "hostssl all all 127.0.0.1/32 trust" > pgdata/pg_hba.conf
-	reconf_pgsql "ssl=on" "ssl_ca_file='root.crt'" 
+	reconf_pgsql "ssl=on" "ssl_ca_file='root.crt'"
 	psql_bouncer -q -d p0 -c "select 'ssl-full-connect'" | tee tmp/test.tmp1
 	grep -q "ssl-full-connect"  tmp/test.tmp1
 	rc=$?

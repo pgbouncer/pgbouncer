@@ -1665,4 +1665,3 @@ void objects_cleanup(void)
 	slab_destroy(iobuf_cache);
 	iobuf_cache = NULL;
 }
-

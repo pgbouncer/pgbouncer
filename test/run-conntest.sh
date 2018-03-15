@@ -8,4 +8,3 @@ createdb conntest
 ./asynctest
 
 # now run conntest.sh on another console
-

@@ -1,12 +1,12 @@
 /*
  * PgBouncer - Lightweight connection pooler for PostgreSQL.
- * 
+ *
  * Copyright (c) 2007-2009  Marko Kreen, Skype Technologies OÜ
- * 
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -174,7 +174,7 @@ bool strlist_contains(const char *liststr, const char *str)
 {
 	int c, len = strlen(str);
 	const char *p, *listpos = liststr;
-	
+
 loop:
 	/* find string fragment, later check if actual token */
 	p = strstr(listpos, str);
@@ -267,7 +267,7 @@ void safe_evtimer_add(struct event *ev, struct timeval *tv)
 {
 	int res;
 	struct timer_slot *ts;
-	
+
 	res = evtimer_add(ev, tv);
 	if (res >= 0)
 		return;
@@ -440,6 +440,3 @@ const char *pga_details(const PgAddr *a, char *dst, int dstlen)
 	}
 	return dst;
 }
-
-
-

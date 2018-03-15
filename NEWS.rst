@@ -1178,4 +1178,3 @@ PgBouncer 1.0.x
 **2007-03-13  -  PgBouncer 1.0  -  "Tuunitud bemm"**
 
 - First public release.
-

@@ -50,5 +50,3 @@ while true; do
   fw_reset
   sleep 6
 done
-
-

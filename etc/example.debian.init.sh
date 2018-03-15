@@ -27,7 +27,7 @@ case "$1" in
 
   stop)
     echo -n "Stopping server: $NAME"
-    start-stop-daemon --stop --pidfile $PIDFILE 
+    start-stop-daemon --stop --pidfile $PIDFILE
     ;;
 
   reload | force-reload)
@@ -53,4 +53,3 @@ else
 	echo " failed"
 	exit 1
 fi
-

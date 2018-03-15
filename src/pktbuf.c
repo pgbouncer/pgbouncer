@@ -1,12 +1,12 @@
 /*
  * PgBouncer - Lightweight connection pooler for PostgreSQL.
- * 
+ *
  * Copyright (c) 2007-2009  Marko Kreen, Skype Technologies OÜ
- * 
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -174,7 +174,7 @@ static void make_room(PktBuf *buf, int len)
 		buf->failed = 1;
 		return;
 	}
-	
+
 	while (newlen < need)
 		newlen = newlen * 2;
 
@@ -220,7 +220,7 @@ void pktbuf_put_uint32(PktBuf *buf, uint32_t val)
 	pos[0] = (val >> 24) & 255;
 	pos[1] = (val >> 16) & 255;
 	pos[2] = (val >> 8) & 255;
-	pos[3] = val & 255; 
+	pos[3] = val & 255;
 	buf->write_pos += 4;
 }
 
@@ -281,7 +281,7 @@ void pktbuf_finish_packet(PktBuf *buf)
 	*pos++ = (len >> 24) & 255;
 	*pos++ = (len >> 16) & 255;
 	*pos++ = (len >> 8) & 255;
-	*pos++ = len & 255; 
+	*pos++ = len & 255;
 }
 
 /* types:
@@ -477,4 +477,3 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...)
 	/* Sync */
 	pktbuf_write_generic(buf, 'S', "");
 }
-

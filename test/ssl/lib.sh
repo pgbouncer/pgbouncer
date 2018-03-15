@@ -15,7 +15,7 @@ umask 077
 
 run() {
   echo '$' "$@"
-  "$@" 2>&1 | sed 's/^/  > /' 
+  "$@" 2>&1 | sed 's/^/  > /'
 }
 
 # key -> csr
@@ -49,4 +49,3 @@ run_ca() {
     cp "${CaName}/certs/$ser.pem" "$2"
   fi
 }
-

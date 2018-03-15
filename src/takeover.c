@@ -1,12 +1,12 @@
 /*
  * PgBouncer - Lightweight connection pooler for PostgreSQL.
- * 
+ *
  * Copyright (c) 2007-2009  Marko Kreen, Skype Technologies OÜ
- * 
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -213,7 +213,7 @@ static void next_command(PgSocket *bouncer, struct MBuf *pkt)
 {
 	bool res = true;
 	const char *cmd;
-	
+
 	if (!mbuf_get_string(pkt, &cmd))
 		fatal("bad result pkt");
 
@@ -240,7 +240,7 @@ static void takeover_parse_data(PgSocket *bouncer,
 {
 	struct cmsghdr *cmsg;
 	PktHdr pkt;
-	
+
 	cmsg = msg->msg_controllen ? CMSG_FIRSTHDR(msg) : NULL;
 
 	while (mbuf_avail_for_read(data) > 0) {
@@ -357,4 +357,3 @@ void takeover_login_failed(void)
 {
 	fatal("login failed");
 }
-

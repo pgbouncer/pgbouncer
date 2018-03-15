@@ -10,4 +10,3 @@ export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
 override_dh_auto_clean:
 	if test -f config.mak; then $(MAKE) clean; fi
-

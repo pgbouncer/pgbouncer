@@ -31,4 +31,3 @@ run_req -new -key "$pfx.key" -out "$pfx.csr" -- CN="$DstName" "$@"
 
 # accept certs
 run_ca -days $days -policy pol-server -in "$pfx.csr" -out "$pfx.crt"
-

@@ -1,4 +1,3 @@
-
 # METHOD: trust, reject, md5, password, peer, cert
 
 # local      DATABASE  USER  METHOD  [OPTIONS]
@@ -48,4 +47,3 @@ host		mdb2	muser		128.0.0.0/1		cert
 host		mdb	muser		ff11::0/16		md5
 host		mdb	muser		ff20::/12		md5
 host		mdb	muser		::1/128			trust
-

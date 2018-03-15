@@ -12,5 +12,3 @@ for opt in `grep CF_ABS "$sources" | sed -r 's/^[^"]*"([^"]*)".*/\1/'`; do
     fi
   done
 done
-
-

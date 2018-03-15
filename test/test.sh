@@ -212,7 +212,7 @@ test_client_idle_timeout() {
 	return 0
 }
 
-# server_login_retry 
+# server_login_retry
 test_server_login_retry() {
 	admin "set query_timeout=10"
 	admin "set server_login_retry=1"
@@ -236,7 +236,7 @@ test_server_connect_timeout_establish() {
 	admin "set server_connect_timeout=2"
 	psql -X -c "select now()" p2
 	# client will always see query_timeout, need to grep for connect timeout
-	grep "closing because: connect timeout" $BOUNCER_LOG 
+	grep "closing because: connect timeout" $BOUNCER_LOG
 	rc=$?
 	# didnt seem to die otherwise
 	killall nc
@@ -305,7 +305,6 @@ test_max_client_conn() {
 
 # - max pool size
 test_pool_size() {
-	
 	docount() {
 		for i in {1..10}; do
 			psql -X -c "select pg_sleep(0.5)" $1 &
@@ -325,10 +324,10 @@ test_pool_size() {
 test_online_restart() {
 # max_client_conn=10
 # default_pool_size=5
-	for i in {1..5}; do 
+	for i in {1..5}; do
 		echo "`date` attempt $i"
 
-		for j in {1..5}; do 
+		for j in {1..5}; do
 			psql -X -c "select now() as sleeping from pg_sleep(2)" p1 &
 		done
 

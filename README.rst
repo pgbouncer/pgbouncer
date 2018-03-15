@@ -31,7 +31,7 @@ When dependencies are installed just run::
     $ make
     $ make install
 
-If you are building from git, or are building for Windows, please see 
+If you are building from git, or are building for Windows, please see
 separate build instructions below.
 
 DNS lookup support
@@ -127,6 +127,5 @@ But before you need to register pgbevent.dll::
 	$ regsvr32 pgbevent.dll
 
 To unregister it, do::
-    
-        $ regsvr32 /u pgbevent.dll
 
+        $ regsvr32 /u pgbevent.dll

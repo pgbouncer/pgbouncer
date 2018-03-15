@@ -1662,4 +1662,3 @@ void adns_per_loop(struct DNSContext *ctx)
 {
 	impl_per_loop(ctx);
 }
-

@@ -1,12 +1,12 @@
 /*
  * PgBouncer - Lightweight connection pooler for PostgreSQL.
- * 
+ *
  * Copyright (c) 2007-2009  Marko Kreen, Skype Technologies OÜ
- * 
+ *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
  * copyright notice and this permission notice appear in all copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
  * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -47,7 +47,7 @@ void change_user(const char *user)
 	pw = getpwnam(user);
 	if (pw == NULL)
 		fatal("could not find user '%s' to switch to", user);
-	
+
 	gset[0] = pw->pw_gid;
 	if (getuid() == 0) {
 		if (setgroups(1, gset) < 0)
@@ -141,4 +141,3 @@ bool check_unix_peer_name(int fd, const char *username)
 		return false;
 	return strcmp(pw->pw_name, username) == 0;
 }
-

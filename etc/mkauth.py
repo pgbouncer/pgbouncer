@@ -33,4 +33,3 @@ if old != cur:
     f.write(cur)
     f.close()
     os.rename(tmpfn, fn)
-

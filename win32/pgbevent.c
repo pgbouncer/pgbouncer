@@ -84,4 +84,3 @@ BOOL WINAPI DllMain(HANDLE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
 		g_module = hModule;
 	return TRUE;
 }
-

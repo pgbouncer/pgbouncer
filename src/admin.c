@@ -1564,4 +1564,3 @@ void admin_handle_cancel(PgSocket *admin)
 	if (cf_pause_mode != P_NONE)
 		full_resume();
 }
-

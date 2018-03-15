@@ -1,4 +1,3 @@
-
 # peer
 md5		db	user		unix
 peer		dbp	user		unix
@@ -79,4 +78,3 @@ md5		mdb	muser		ff11:2::1
 md5		mdb	muser		ff22:3::1
 trust		mdb	muser		::1
 reject		mdb	muser		::2
-

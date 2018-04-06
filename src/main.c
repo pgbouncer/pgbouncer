@@ -116,8 +116,9 @@ char *cf_ignore_startup_params;
 
 char *cf_autodb_connstr; /* here is "" different from NULL */
 
-usec_t cf_autodb_idle_timeout;
+int cf_server_max_requests;
 
+usec_t cf_autodb_idle_timeout;
 usec_t cf_server_lifetime;
 usec_t cf_server_idle_timeout;
 usec_t cf_server_connect_timeout;
@@ -244,6 +245,7 @@ CF_ABS("client_idle_timeout", CF_TIME_USEC, cf_client_idle_timeout, 0, "0"),
 CF_ABS("client_login_timeout", CF_TIME_USEC, cf_client_login_timeout, 0, "60"),
 CF_ABS("idle_transaction_timeout", CF_TIME_USEC, cf_idle_transaction_timeout, 0, "0"),
 CF_ABS("server_lifetime", CF_TIME_USEC, cf_server_lifetime, 0, "3600"),
+CF_ABS("server_max_requests", CF_INT, cf_server_max_requests, 0, "0"),
 CF_ABS("server_idle_timeout", CF_TIME_USEC, cf_server_idle_timeout, 0, "600"),
 CF_ABS("server_connect_timeout", CF_TIME_USEC, cf_server_connect_timeout, 0, "15"),
 CF_ABS("server_login_retry", CF_TIME_USEC, cf_server_login_retry, 0, "15"),

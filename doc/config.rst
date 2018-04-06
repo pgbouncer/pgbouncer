@@ -468,6 +468,14 @@ then closed. [seconds]
 
 Default: 3600.0
 
+server_max_requests
+-------------------
+
+The pooler will try to close server connections after they have serviced this many requests.
+Setting it to 0 means there is no limit.
+
+Default: 0
+
 server_idle_timeout
 -------------------
 

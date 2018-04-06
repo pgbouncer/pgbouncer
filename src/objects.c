@@ -707,6 +707,13 @@ static bool reset_on_release(PgSocket *server)
 	return res;
 }
 
+static bool enough_requests(PgSocket *server)
+{
+	if (cf_server_max_requests && server->server_requests >= cf_server_max_requests)
+		return true;
+	return false;
+}
+
 static bool life_over(PgSocket *server)
 {
 	PgPool *pool = server->pool;
@@ -768,6 +775,13 @@ bool release_server(PgSocket *server)
 	if (server->state != SV_LOGIN && life_over(server)) {
 		disconnect_server(server, true, "server_lifetime");
 		pool->last_lifetime_disconnect = get_cached_time();
+		return false;
+	}
+
+	/* enforce maximum request limit on release */
+	server->server_requests += 1;
+	if (server->state != SV_LOGIN && enough_requests(server)) {
+		disconnect_server(server, true, "server_max_requests");
 		return false;
 	}
 
@@ -854,7 +868,8 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 
 	server->pool->db->connection_count--;
 	server->pool->user->connection_count--;
-
+	server->server_requests = 0;
+	
 	change_server_state(server, SV_JUSTFREE);
 	if (!sbuf_close(&server->sbuf))
 		log_noise("sbuf_close failed, retry later");

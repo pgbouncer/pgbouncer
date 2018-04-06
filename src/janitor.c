@@ -400,6 +400,8 @@ static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle
 				disconnect_server(server, true, "server lifetime over");
 				pool->last_lifetime_disconnect = now;
 			}
+		} else if (cf_server_max_requests && server->server_requests >= cf_server_max_requests) {
+			disconnect_server(server, true, "server max requests");
 		} else if (cf_pause_mode == P_PAUSE) {
 			disconnect_server(server, true, "pause mode");
 		} else if (idle_test && *cf_server_check_query) {

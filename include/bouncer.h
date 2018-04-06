@@ -355,7 +355,8 @@ struct PgSocket {
 	bool wait_sslchar:1;	/* server: waiting for ssl response: S/N */
 
 	int expect_rfq_count;	/* client: count of ReadyForQuery packets client should see */
-
+	int server_requests;	/* count of server requests processed so far */
+	
 	usec_t connect_time;	/* when connection was made */
 	usec_t request_time;	/* last activity time */
 	usec_t query_start;	/* query start moment */
@@ -408,6 +409,7 @@ extern int cf_res_pool_size;
 extern usec_t cf_res_pool_timeout;
 extern int cf_max_db_connections;
 extern int cf_max_user_connections;
+extern int cf_server_max_requests;
 
 extern char * cf_autodb_connstr;
 extern usec_t cf_autodb_idle_timeout;

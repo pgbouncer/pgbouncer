@@ -318,6 +318,13 @@ job_name
 
 Alias for `service_name`_.
 
+stats_period
+------------
+
+Period for writing aggregated stats into log.
+
+Default: 60
+
 
 Log settings
 ============
@@ -366,12 +373,12 @@ Log error messages pooler sends to clients.
 
 Default: 1
 
-stats_period
-------------
+log_stats
+-----------------
 
-Period for writing aggregated stats into log.
+Log statistics.
 
-Default: 60
+Default: 1
 
 verbose
 -------

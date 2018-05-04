@@ -931,6 +931,8 @@ static void setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
 		} else {
 			tls_config_verify_client_optional(conf);
 		}
+		/* prefer our cipher set if we're a server */
+		tls_config_prefer_ciphers_server(conf);
 	}
 }
 

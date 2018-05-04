@@ -606,7 +606,9 @@ Default: ``all``
 client_tls_ciphers
 ------------------
 
-Default: ``fast``
+Default is the same as the Postgres default
+
+Default: ``HIGH:MEDIUM:+3DES:!aNULL``
 
 client_tls_ecdhcurve
 --------------------

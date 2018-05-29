@@ -1305,8 +1305,16 @@ found:
 	if (!sbuf_close(&req->sbuf))
 		log_noise("sbuf_close failed, retry later");
 
-	/* remember server key */
 	server = main_client->link;
+
+	/* ignore cancel request if the server is setting vars*/
+	if (server->setting_vars) {
+                slog_error(req, "ignore cancel request");
+		disconnect_client(req, false, "don't cancel server during setting vars");
+		return;
+	}
+
+	/* remember server key */
 	memcpy(req->cancel_key, server->cancel_key, 8);
 
 	/* attach to target pool */

@@ -524,7 +524,7 @@ static bool parse_line(struct HBA *hba, struct TokParser *tp, int linenr, const 
 	rule = calloc(sizeof *rule, 1);
 	if (!rule) {
 		log_warning("hba: no mem for rule");
-		goto failed;
+		return false;
 	}
 	rule->rule_type = rtype;
 

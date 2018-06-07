@@ -359,7 +359,6 @@ static bool parse_namefile(struct HBAName *hname, const char *fn, bool is_db)
 
 	f = fopen(fn, "r");
 	if (!f) {
-		free(fn);
 		return false;
 	}
 	for (linenr = 1; ; linenr++) {

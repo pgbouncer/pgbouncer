@@ -210,6 +210,15 @@ int database_max_connections(PgDatabase *db)
 	}
 }
 
+int database_idle_timeout(PgDatabase *db)
+{
+	if (db->server_idle_timeout <= 0) {
+		return cf_server_idle_timeout;
+        } else {
+		return db->server_idle_timeout;
+	}
+}
+
 int user_max_connections(PgUser *user)
 {
 	if (user->max_user_connections <= 0) {

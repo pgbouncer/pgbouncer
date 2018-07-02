@@ -320,6 +320,7 @@ struct PgDatabase {
 	int res_pool_size;	/* additional server connections in case of trouble */
 	int pool_mode;		/* pool mode for this database */
 	int max_db_connections;	/* max server connections between all pools */
+	int server_idle_timeout; /* server idle timeout for this database */
 
 	const char *dbname;	/* server-side name, pointer to inside startup_msg */
 

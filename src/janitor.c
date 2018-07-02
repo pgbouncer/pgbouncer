@@ -440,7 +440,7 @@ static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle
 			disconnect_server(server, true, "SV_IDLE server got dirty");
 		} else if (server->state == SV_USED && !server->ready) {
 			disconnect_server(server, true, "SV_USED server got dirty");
-		} else if (cf_server_idle_timeout > 0 && idle > cf_server_idle_timeout
+		} else if (database_idle_timeout(pool->db) > 0 && idle > database_idle_timeout(pool->db)
 			   && (cf_min_pool_size == 0 || pool_connected_server_count(pool) > cf_min_pool_size)) {
 			disconnect_server(server, true, "server idle timeout");
 		} else if (age >= cf_server_lifetime) {

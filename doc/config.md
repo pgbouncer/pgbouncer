@@ -879,6 +879,11 @@ the default pool_mode is used.
 Configure a database-wide maximum (i.e. all pools within the database will
 not have more than this many server connections).
 
+### server_idle_timeout
+
+Set the server idle timeout for this database. If not set,
+the default server_idle_timeout is used.
+
 ### client_encoding
 
 Ask specific `client_encoding` from server.

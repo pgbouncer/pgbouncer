@@ -94,13 +94,14 @@ Basic setup and usage as following.
       pgbouncer=# show help;
       NOTICE:  Console usage
       DETAIL:
-        SHOW [HELP|CONFIG|DATABASES|FDS|POOLS|CLIENTS|SERVERS|SOCKETS|LISTS|VERSION]
+        SHOW [HELP|CONFIG|DATABASES|FDS|POOLS|CLIENTS|SERVERS|SOCKETS|LISTS|VERSION|...]
         SET key = arg
         RELOAD
         PAUSE
         SUSPEND
         RESUME
         SHUTDOWN
+        [...]
 
 6. If you made changes to the pgbouncer.ini file, you can reload it with::
 

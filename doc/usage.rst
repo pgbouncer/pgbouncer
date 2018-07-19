@@ -485,7 +485,8 @@ value
 
 changeable
     Either **yes** or **no**, shows if the variable can be changed while running.
-    If **no**, the variable can be changed only boot-time.
+    If **no**, the variable can be changed only at boot time.  Use
+    **SET** to change a variable at run time.
 
 SHOW DNS_HOSTS;
 ---------------
@@ -565,6 +566,21 @@ RELOAD;
 
 The PgBouncer process will reload its configuration file and update
 changeable settings.
+
+Other commands
+~~~~~~~~~~~~~~
+
+SET key = arg
+-------------
+
+Changes a configuration setting (see also **SHOW CONFIG**).  For example::
+
+    SET log_connections = 1;
+    SET server_check_query = 'select 2';
+
+(Note that this command is run on the PgBouncer admin console and sets
+PgBouncer settings.  A **SET** command run on another database will be
+passed to the PostgreSQL backend like any other SQL command.)
 
 Signals
 ~~~~~~~

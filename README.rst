@@ -17,11 +17,13 @@ PgBouncer depends on few things to get compiled:
 
 * `GNU Make`_ 3.81+
 * libevent_ 2.0
+* `pkg-config`_
 * (optional) OpenSSL_ 1.0.1 for TLS support.
 * (optional) `c-ares`_ as alternative to libevent's evdns.
 
 .. _GNU Make: https://www.gnu.org/software/make/
 .. _libevent: http://libevent.org/
+.. _`pkg-config`: https://www.freedesktop.org/wiki/Software/pkg-config/
 .. _OpenSSL: https://www.openssl.org/
 .. _`c-ares`: http://c-ares.haxx.se/
 
@@ -87,8 +89,7 @@ you can run configure::
 	$ make
 	$ make install
 
-Additional packages required: autoconf, automake, libevent-dev, libtool,
-autoconf-archive, python-docutils, and pkg-config.
+Additional packages required: autoconf, automake, libtool, python-docutils
 
 Building for WIN32
 ------------------

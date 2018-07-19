@@ -31,7 +31,7 @@ When dependencies are installed just run::
     $ make
     $ make install
 
-If you are building from git, or are building for Windows, please see
+If you are building from Git, or are building for Windows, please see
 separate build instructions below.
 
 DNS lookup support
@@ -71,10 +71,10 @@ PAM authorization
 To enable PAM authorization `./configure` has a flag `--with-pam` (default value is no). When compiled with
 PAM support new global authorization type `pam` appears which can be used to validate users through PAM.
 
-Building from GIT
+Building from Git
 -----------------
 
-Building PgBouncer from GIT requires that you fetch libusual
+Building PgBouncer from Git requires that you fetch libusual
 submodule and generate the header and config files before
 you can run configure::
 

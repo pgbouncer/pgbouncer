@@ -35,7 +35,10 @@ which initdb > /dev/null || {
 }
 
 # System configuration checks
-grep -q "^\"${USER}\"" userlist.txt || echo "\"${USER}\" \"01234\"" >> userlist.txt
+if ! grep -q "^\"${USER}\"" userlist.txt; then
+	cp userlist.txt userlist.txt.bak
+	echo "\"${USER}\" \"01234\"" >> userlist.txt
+fi
 
 echo "Testing for sudo access."
 sudo true && CAN_SUDO=1
@@ -149,6 +152,7 @@ complete() {
 	test -f $BOUNCER_PID && kill `cat $BOUNCER_PID` >/dev/null 2>&1
 	pgctl -m fast stop
 	rm -f $BOUNCER_PID
+	test -e userlist.txt.bak && mv userlist.txt.bak userlist.txt
 }
 
 die() {

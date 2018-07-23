@@ -37,19 +37,24 @@ which initdb > /dev/null || {
 # System configuration checks
 grep -q "^\"${USER}\"" userlist.txt || echo "\"${USER}\" \"01234\"" >> userlist.txt
 
-case `uname` in
-Darwin|OpenBSD)
-	sudo pfctl -a pgbouncer -F all -q 2>&1 | grep -q "pfctl:" && {
-		cat <<-EOF
-		Please enable PF and add the following rule to /etc/pf.conf
-		
-		  anchor "pgbouncer/*"
-		
-		EOF
-		exit 1
-	}
-	;;
-esac
+echo "Testing for sudo access."
+sudo true && CAN_SUDO=1
+
+if test -n "$CAN_SUDO"; then
+	case `uname` in
+	Darwin|OpenBSD)
+		sudo pfctl -a pgbouncer -F all -q 2>&1 | grep -q "pfctl:" && {
+			cat <<-EOF
+			Please enable PF and add the following rule to /etc/pf.conf
+			
+			  anchor "pgbouncer/*"
+			
+			EOF
+			exit 1
+		}
+		;;
+	esac
+fi
 
 # System configuration checks
 SED_ERE_OP='-E'
@@ -465,9 +470,6 @@ test_auth_user() {
 
 	return 0
 }
-
-echo "Testing for sudo access."
-sudo true && CAN_SUDO=1
 
 testlist="
 test_server_login_retry

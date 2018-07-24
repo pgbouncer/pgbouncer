@@ -212,7 +212,7 @@ avg_sent
     Average sent (to clients) bytes per second.
 
 avg_xact_time
-	Average transaction duration in microseconds.
+    Average transaction duration in microseconds.
 
 avg_query_time
     Average query duration in microseconds.
@@ -267,6 +267,12 @@ connect_time
 request_time
     When last request was issued.
 
+wait
+    Current waiting time in seconds.
+
+wait_us
+    Microsecond part of the current waiting time.
+
 ptr
     Address of internal object for this connection.
     Used as unique ID.
@@ -280,6 +286,9 @@ remote_pid
     OS PID.  Otherwise it's extracted from cancel packet server sent,
     which should be PID in case server is PostgreSQL, but it's a random
     number in case server it is another PgBouncer.
+
+tls
+    A string with TLS connection information, or empty if not using TLS.
 
 SHOW CLIENTS;
 -------------
@@ -315,6 +324,12 @@ connect_time
 request_time
     Timestamp of latest client request.
 
+wait
+    Current waiting time in seconds.
+
+wait_us
+    Microsecond part of the current waiting time.
+
 ptr
     Address of internal object for this connection.
     Used as unique ID.
@@ -325,6 +340,9 @@ link
 remote_pid
     Process ID, in case client connects over Unix socket
     and OS supports getting it.
+
+tls
+    A string with TLS connection information, or empty if not using TLS.
 
 SHOW POOLS;
 -----------
@@ -366,6 +384,9 @@ maxwait
     not handle requests quick enough.  Reason may be either overloaded
     server or just too small of a **pool_size** setting.
 
+maxwait_us
+    Microsecond part of the maximum waiting time.
+
 pool_mode
     The pooling mode in use.
 
@@ -397,6 +418,18 @@ free_servers
 
 used_servers
     Count of used servers.
+
+dns_names
+    Count of DNS names in the cache.
+
+dns_zones
+    Count of DNS zones in the cache.
+
+dns_queries
+    Count of in-flight DNS queries.
+
+dns_pending
+    not used
 
 SHOW USERS;
 -----------
@@ -432,6 +465,19 @@ pool_size
 
 pool_mode
     The database's override pool_mode, or NULL if the default will be used instead.
+
+max_connections
+    Maximum number of allowed connections for this database, as set by
+    **max_db_connections**, either globally or per database.
+
+current_connections
+    Current number of connections for this database.
+
+paused
+    1 if this database is currently paused, else 0.
+
+disabled
+    1 if this database is currently disabled, else 0.
 
 SHOW FDS;
 ---------
@@ -502,8 +548,8 @@ ttl
 addrs
     Comma separated list of addresses.
 
-SHOW DNS_ZONES
---------------
+SHOW DNS_ZONES;
+---------------
 
 Show DNS zones in cache.
 
@@ -570,8 +616,8 @@ changeable settings.
 Other commands
 ~~~~~~~~~~~~~~
 
-SET key = arg
--------------
+SET key = arg;
+--------------
 
 Changes a configuration setting (see also **SHOW CONFIG**).  For example::
 

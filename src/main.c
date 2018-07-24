@@ -857,8 +857,10 @@ int main(int argc, char *argv[])
 			break;
 		case 'h':
 			usage(0, argv[0]);
+			break;
 		default:
 			usage(1, argv[0]);
+			break;
 		}
 	}
 	if (optind + 1 != argc) {

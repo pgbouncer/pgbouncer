@@ -601,6 +601,7 @@ static bool sbuf_process_pending(SBuf *sbuf)
 			res = sbuf_call_proto(sbuf, SBUF_EV_PKT_CALLBACK);
 			if (!res)
 				return false;
+			/* fallthrough */
 			/* after callback, skip pkt */
 		case ACT_SKIP:
 			iobuf_tag_skip(io, avail);

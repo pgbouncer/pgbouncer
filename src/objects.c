@@ -157,6 +157,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	case CL_WAITING_LOGIN:
 		if (newstate == CL_ACTIVE)
 			newstate = CL_LOGIN;
+		/* fallthrough */
 	case CL_WAITING:
 		statlist_remove(&pool->waiting_client_list, &client->head);
 		break;
@@ -186,6 +187,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 		break;
 	case CL_WAITING:
 		client->wait_start = get_cached_time();
+		/* fallthrough */
 	case CL_WAITING_LOGIN:
 		statlist_append(&pool->waiting_client_list, &client->head);
 		break;

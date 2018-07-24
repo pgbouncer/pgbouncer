@@ -102,6 +102,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 
 		case 'E':	/* log & ignore errors */
 			log_server_error("S: error while executing exec_on_query", pkt);
+			/* fallthrough */
 		default:	/* ignore rest */
 			sbuf_prepare_skip(sbuf, pkt->len);
 			return true;
@@ -288,6 +289,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			disconnect_server(server, true, "invalid server parameter");
 			return false;
 		}
+		/* fallthrough */
 	case 'C':		/* CommandComplete */
 
 		/* ErrorResponse and CommandComplete show end of copy mode */

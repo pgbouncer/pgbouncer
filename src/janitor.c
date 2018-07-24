@@ -299,6 +299,7 @@ void per_loop_maint(void)
 		} else {
 			active += statlist_count(&login_client_list);
 		}
+		/* fallthrough */
 	case P_PAUSE:
 		if (!active)
 			admin_pause_done();

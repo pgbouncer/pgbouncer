@@ -623,7 +623,11 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 			disconnect_client(client, true, "PQexec disallowed");
 			return false;
 		}
+		rfq_delta++;
+		break;
 	case 'F':		/* FunctionCall */
+		rfq_delta++;
+		break;
 
 	/* request immediate response from server */
 	case 'S':		/* Sync */

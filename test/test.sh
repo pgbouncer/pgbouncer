@@ -389,7 +389,7 @@ test_suspend_resume() {
 	test `wc -l <$LOGDIR/test.tmp` -eq 50
 }
 
-# test pause/resume
+# test enable/disable
 test_enable_disable() {
 	rm -f $LOGDIR/test.tmp
 	psql -X -tAq -c "select 'enabled 1'" >>$LOGDIR/test.tmp p0 2>&1
@@ -454,7 +454,7 @@ test_database_change() {
 	test "$db1" = "p1" -a "$db2" = "p0"
 }
 
-# test connect string change
+# test auth_user
 test_auth_user() {
 	admin "set auth_type='md5'"
 	curuser=`psql -X -d "dbname=authdb user=someuser password=anypasswd" -tAq -c "select current_user;"`

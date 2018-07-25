@@ -359,7 +359,7 @@ static void refresh_stats(int s, short flags, void *arg)
 		 " in %" PRIu64 " B/s,"
 		 " out %" PRIu64 " B/s,"
 		 " xact %" PRIu64 " us,"
-		 " query %" PRIu64 " us"
+		 " query %" PRIu64 " us,"
 		 " wait time %" PRIu64 " us",
 		 avg.xact_count, avg.query_count,
 		 avg.client_bytes, avg.server_bytes,

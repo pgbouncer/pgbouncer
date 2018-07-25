@@ -613,6 +613,13 @@ RELOAD;
 The PgBouncer process will reload its configuration file and update
 changeable settings.
 
+PgBouncer notices when a configuration file reload changes the
+connection parameters of a database definition.  An existing server
+connection to the old destination will be closed when the server
+connection is next released (according to the pooling mode), and new
+server connections will immediately use the updated connection
+parameters.
+
 Other commands
 ~~~~~~~~~~~~~~
 

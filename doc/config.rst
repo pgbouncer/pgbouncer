@@ -848,7 +848,10 @@ host
 ----
 
 Host name or IP address to connect to.  Host names are resolved
-on connect time, the result is cached per ``dns_max_ttl`` parameter.
+at connect time, the result is cached per ``dns_max_ttl`` parameter.
+When a host name's resolution changes, existing server connections are
+automatically closed when they are released (according to the pooling
+mode), and new server connections immediately use the new resolution.
 If DNS returns several results, they are used in round-robin
 manner.
 

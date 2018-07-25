@@ -643,7 +643,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 			     pkt_avail, send_avail);
 }
 
-/* Helper for SHOW CLIENTS */
+/* Helper for SHOW CLIENTS/SERVERS/SOCKETS */
 static void show_socket_list(PktBuf *buf, struct StatList *list, const char *state, bool debug)
 {
 	struct List *item;

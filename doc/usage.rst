@@ -273,6 +273,11 @@ wait
 wait_us
     Microsecond part of the current waiting time.
 
+close_needed
+    1 if the connection will be closed as soon as possible,
+    because a configuration file reload or DNS update changed the
+    connection information.
+
 ptr
     Address of internal object for this connection.
     Used as unique ID.
@@ -329,6 +334,9 @@ wait
 
 wait_us
     Microsecond part of the current waiting time.
+
+close_needed
+    not used for clients
 
 ptr
     Address of internal object for this connection.

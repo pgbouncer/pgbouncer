@@ -1075,6 +1075,38 @@ static bool admin_cmd_pause(PgSocket *admin, const char *arg)
 	return true;
 }
 
+/* Command: RECONNECT */
+static bool admin_cmd_reconnect(PgSocket *admin, const char *arg)
+{
+	if (!admin->admin_user)
+		return admin_error(admin, "admin access needed");
+
+	if (!arg[0]) {
+		struct List *item;
+		PgPool *pool;
+
+		log_info("RECONNECT command issued");
+		statlist_for_each(item, &pool_list) {
+			pool = container_of(item, PgPool, head);
+			if (pool->db->admin)
+				continue;
+			tag_database_dirty(pool->db);
+		}
+	} else {
+		PgDatabase *db;
+
+		log_info("RECONNECT '%s' command issued", arg);
+		db = find_or_register_database(admin, arg);
+		if (db == NULL)
+			return admin_error(admin, "no such database: %s", arg);
+		if (db == admin->pool->db)
+			return admin_error(admin, "cannot reconnect admin db: %s", arg);
+		tag_database_dirty(db);
+	}
+
+	return admin_ready(admin, "RECONNECT");
+}
+
 /* Command: DISABLE */
 static bool admin_cmd_disable(PgSocket *admin, const char *arg)
 {
@@ -1210,6 +1242,7 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		"\tRESUME [<db>]\n"
 		"\tDISABLE <db>\n"
 		"\tENABLE <db>\n"
+		"\tRECONNECT [<db>]\n"
 		"\tKILL <db>\n"
 		"\tSUSPEND\n"
 		"\tSHUTDOWN", "");
@@ -1285,6 +1318,7 @@ static struct cmd_lookup cmd_list [] = {
 	{"enable", admin_cmd_enable},
 	{"kill", admin_cmd_kill},
 	{"pause", admin_cmd_pause},
+	{"reconnect", admin_cmd_reconnect},
 	{"reload", admin_cmd_reload},
 	{"resume", admin_cmd_resume},
 	{"select", admin_cmd_show},

@@ -458,6 +458,16 @@ test_database_change() {
 	test "$db1" = "p1" -a "$db2" = "p0"
 }
 
+# test reconnect
+test_reconnect() {
+	bp1=`psql -X -tAq -c "select pg_backend_pid()" p1`
+	admin "reconnect p1"
+	sleep 1
+	bp2=`psql -X -tAq -c "select pg_backend_pid()" p1`
+	echo "bp1=$bp1 bp2=$bp2"
+	test "$bp1" != "$bp2"
+}
+
 # test auth_user
 test_auth_user() {
 	admin "set auth_type='md5'"
@@ -497,6 +507,7 @@ test_suspend_resume
 test_enable_disable
 test_database_restart
 test_database_change
+test_reconnect
 "
 
 if [ $# -gt 0 ]; then

@@ -276,7 +276,7 @@ wait_us
 close_needed
     1 if the connection will be closed as soon as possible,
     because a configuration file reload or DNS update changed the
-    connection information.
+    connection information or **RECONNECT** was issued.
 
 ptr
     Address of internal object for this connection.
@@ -595,6 +595,33 @@ ENABLE db;
 ----------
 
 Allow new client connections after a previous **DISABLE** command.
+
+RECONNECT [db];
+---------------
+
+Close each open server connection for the given database, or all
+databases, after it is released (according to the pooling mode), even
+if its lifetime is not up yet.  New server connections can be made
+immediately and will connect as necessary according to the pool size
+settings.
+
+This command is useful when the server connection setup has changed,
+for example to perform a gradual switchover to a new server.  It is
+*not* necessary to run this command when the connection string in
+pgbouncer.ini has been changed and reloaded (see **RELOAD**) or when
+DNS resolution has changed, because then the equivalent of this
+command will be run automatically.  This command is only necessary if
+something downstream of PgBouncer routes the connections.
+
+After this command is run, there could be an extended period where
+some server connections go to an old destination and some server
+connections go to a new destination.  This is likely only sensible
+when switching read-only traffic between read-only replicas, or when
+switching between nodes of a multimaster replication setup.  If all
+connections need to be switched at the same time, **PAUSE** is
+recommended instead.  To close server connections without waiting (for
+example, in emergency failover rather than gradual switchover
+scenarios), also consider **KILL**.
 
 KILL db;
 --------

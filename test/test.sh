@@ -468,6 +468,29 @@ test_reconnect() {
 	test "$bp1" != "$bp2"
 }
 
+# test server_fast_close
+test_fast_close() {
+	(
+		echo "select pg_backend_pid();"
+		sleep 2
+		echo "select pg_backend_pid();"
+		echo "\q"
+	) | psql -X -tAq -f- -d p3 >$LOGDIR/testout.tmp 2>$LOGDIR/testerr.tmp &
+	sleep 1
+	admin "set server_fast_close = 1"
+	admin "reconnect p3"
+	wait
+
+	admin "show databases"
+	admin "show pools"
+	admin "show servers"
+
+	# If this worked correctly, the session will be closed between
+	# the two queries, so the second query will fail and leave an
+	# error.
+	test `wc -l <$LOGDIR/testout.tmp` -eq 1 && test `wc -l <$LOGDIR/testerr.tmp` -ge 1
+}
+
 # test auth_user
 test_auth_user() {
 	admin "set auth_type='md5'"
@@ -508,6 +531,7 @@ test_enable_disable
 test_database_restart
 test_database_change
 test_reconnect
+test_fast_close
 "
 
 if [ $# -gt 0 ]; then

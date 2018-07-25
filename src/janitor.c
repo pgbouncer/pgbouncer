@@ -457,6 +457,16 @@ static void pool_server_maint(PgPool *pool)
 	check_unused_servers(pool, &pool->tested_server_list, 0);
 	check_unused_servers(pool, &pool->idle_server_list, 1);
 
+	/* disconnect close_needed active servers if server_fast_close is set */
+	if (cf_server_fast_close) {
+		statlist_for_each_safe(item, &pool->active_server_list, tmp) {
+			server = container_of(item, PgSocket, head);
+			Assert(server->state == SV_ACTIVE);
+			if (server->ready && server->close_needed)
+				disconnect_server(server, true, "database configuration changed");
+		}
+	}
+
 	/* where query got did not get answer in query_timeout */
 	if (cf_query_timeout > 0 || cf_idle_transaction_timeout > 0) {
 		statlist_for_each_safe(item, &pool->active_server_list, tmp) {

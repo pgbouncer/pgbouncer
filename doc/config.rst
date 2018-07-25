@@ -459,6 +459,30 @@ If an empty string, then sanity checking is disabled.
 
 Default: SELECT 1;
 
+server_fast_close
+-----------------
+
+Disconnect a server in session pooling mode immediately or after the
+end of the current transaction if it is in "close_needed" mode (set by
+**RECONNECT**, **RELOAD** that changes connection settings, or DNS
+change), rather than waiting for the session end.  In statement or
+transaction pooling mode, this has no effect since that is the default
+behavior there.
+
+If because of this setting a server connection is closed before the
+end of the client session, the client connection is also closed.  This
+ensures that the client notices that the session has been interrupted.
+
+This setting makes connection configuration changes take effect sooner
+if session pooling and long-running sessions are used.  The downside
+is that client sessions are liable to be interrupted by a
+configuration change, so client applications will need logic to
+reconnect and reestablish session state.  But note that no
+transactions will be lost, because running transactions are not
+interrupted, only idle sessions.
+
+Default: 0
+
 server_lifetime
 ---------------
 

@@ -419,6 +419,7 @@ extern char * cf_server_reset_query;
 extern int cf_server_reset_query_always;
 extern char * cf_server_check_query;
 extern usec_t cf_server_check_delay;
+extern int cf_server_fast_close;
 extern usec_t cf_server_connect_timeout;
 extern usec_t cf_server_login_retry;
 extern usec_t cf_query_timeout;

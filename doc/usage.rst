@@ -575,6 +575,9 @@ at the time of database restart.
 
 If database name is given, only that database will be paused.
 
+New client connections to a paused database will wait until **RESUME**
+is called.
+
 DISABLE db;
 -----------
 
@@ -590,6 +593,9 @@ KILL db;
 
 Immediately drop all client and server connections on given database.
 
+New client connections to a killed database will wait until **RESUME**
+is called.
+
 SUSPEND;
 --------
 
@@ -597,10 +603,13 @@ All socket buffers are flushed and PgBouncer stops listening for data on them.
 The command will not return before all buffers are empty.  To be used at the time
 of PgBouncer online reboot.
 
+New client connections to a suspended database will wait until
+**RESUME** is called.
+
 RESUME [db];
 ------------
 
-Resume work from previous **PAUSE** or **SUSPEND** command.
+Resume work from previous **KILL**, **PAUSE**, or **SUSPEND** command.
 
 SHUTDOWN;
 ---------

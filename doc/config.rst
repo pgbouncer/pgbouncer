@@ -462,7 +462,7 @@ Default: SELECT 1;
 server_lifetime
 ---------------
 
-The pooler will try to close server connections that have been connected longer
+The pooler will close an unused server connection that has been connected longer
 than this. Setting it to 0 means the connection is to be used only once,
 then closed. [seconds]
 

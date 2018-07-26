@@ -1184,6 +1184,49 @@ static bool admin_cmd_kill(PgSocket *admin, const char *arg)
 	return admin_ready(admin, "KILL");
 }
 
+/* Command: WAIT_CLOSE */
+static bool admin_cmd_wait_close(PgSocket *admin, const char *arg)
+{
+	if (!admin->admin_user)
+		return admin_error(admin, "admin access needed");
+
+       if (!arg[0]) {
+	       struct List *item;
+	       PgPool *pool;
+	       int active = 0;
+
+	       log_info("WAIT_CLOSE command issued");
+	       statlist_for_each(item, &pool_list) {
+		       PgDatabase *db;
+
+		       pool = container_of(item, PgPool, head);
+		       db = pool->db;
+		       db->db_wait_close = 1;
+		       active += count_db_active(db);
+	       }
+	       if (active > 0)
+		       admin->wait_for_response = 1;
+	       else
+		       return admin_ready(admin, "WAIT_CLOSE");
+       } else {
+	       PgDatabase *db;
+
+	       log_info("WAIT_CLOSE '%s' command issued", arg);
+	       db = find_or_register_database(admin, arg);
+	       if (db == NULL)
+		       return admin_error(admin, "no such database: %s", arg);
+	       if (db == admin->pool->db)
+		       return admin_error(admin, "cannot wait in admin db: %s", arg);
+	       db->db_wait_close = 1;
+	       if (count_db_active(db) > 0)
+		       admin->wait_for_response = 1;
+	       else
+		       return admin_ready(admin, "WAIT_CLOSE");
+       }
+
+       return true;
+}
+
 /* extract substring from regex group */
 static bool copy_arg(const char *src, regmatch_t *glist,
 		     int gnum, char *dst, unsigned dstmax,
@@ -1245,7 +1288,8 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		"\tRECONNECT [<db>]\n"
 		"\tKILL <db>\n"
 		"\tSUSPEND\n"
-		"\tSHUTDOWN", "");
+		"\tSHUTDOWN\n",
+		"\tWAIT_CLOSE [<db>]", "");
 	if (res)
 		res = admin_ready(admin, "SHOW");
 	return res;
@@ -1325,6 +1369,7 @@ static struct cmd_lookup cmd_list [] = {
 	{"show", admin_cmd_show},
 	{"shutdown", admin_cmd_shutdown},
 	{"suspend", admin_cmd_suspend},
+	{"wait_close", admin_cmd_wait_close},
 	{NULL, NULL}
 };
 
@@ -1586,6 +1631,26 @@ void admin_pause_done(void)
 		log_info("admin disappeared when suspended, doing RESUME");
 		cf_pause_mode = P_NONE;
 		resume_all();
+	}
+}
+
+void admin_wait_close_done(void)
+{
+	struct List *item, *tmp;
+	PgSocket *admin;
+	bool res;
+
+	statlist_for_each_safe(item, &admin_pool->active_client_list, tmp) {
+		admin = container_of(item, PgSocket, head);
+		if (!admin->wait_for_response)
+			continue;
+
+		res = admin_ready(admin, "WAIT_CLOSE");
+
+		if (!res)
+			disconnect_client(admin, false, "dead admin");
+		else
+			admin->wait_for_response = 0;
 	}
 }
 

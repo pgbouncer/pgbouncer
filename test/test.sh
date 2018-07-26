@@ -491,6 +491,33 @@ test_fast_close() {
 	test `wc -l <$LOGDIR/testout.tmp` -eq 1 && test `wc -l <$LOGDIR/testerr.tmp` -ge 1
 }
 
+# test wait_close
+test_wait_close() {
+	(
+		echo "select pg_backend_pid();"
+		sleep 2
+		echo "select pg_backend_pid();"
+		echo "\q"
+	) | psql -X -tAq -f- -d p3 &
+	psql_pid=$!
+	sleep 1
+	admin "reconnect p3"
+	admin "wait_close p3"
+
+	# psql should no longer be running now.  (Without the wait it
+	# would still be running.)
+	kill -0 $psql_pid
+	psql_running=$?
+
+	wait
+
+	admin "show databases"
+	admin "show pools"
+	admin "show servers"
+
+	test $psql_running -ne 0
+}
+
 # test auth_user
 test_auth_user() {
 	admin "set auth_type='md5'"
@@ -532,6 +559,7 @@ test_database_restart
 test_database_change
 test_reconnect
 test_fast_close
+test_wait_close
 "
 
 if [ $# -gt 0 ]; then

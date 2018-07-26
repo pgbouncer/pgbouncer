@@ -254,6 +254,43 @@ static int per_loop_suspend(PgPool *pool, bool force_suspend)
 }
 
 /*
+ * Count the servers in server_list that have close_needed set.
+ */
+static int count_close_needed(struct StatList *server_list)
+{
+	struct List *item;
+	PgSocket *server;
+	int count = 0;
+
+	statlist_for_each(item, server_list) {
+		server = container_of(item, PgSocket, head);
+		if (server->close_needed)
+			count++;
+	}
+
+	return count;
+}
+
+/*
+ * Per-loop tasks for WAIT_CLOSE
+ */
+static int per_loop_wait_close(PgPool *pool)
+{
+	int count = 0;
+
+	if (pool->db->admin)
+		return 0;
+
+	count += count_close_needed(&pool->active_server_list);
+	count += count_close_needed(&pool->idle_server_list);
+	count += count_close_needed(&pool->new_server_list);
+	count += count_close_needed(&pool->tested_server_list);
+	count += count_close_needed(&pool->used_server_list);
+
+	return count;
+}
+
+/*
  * this function is called for each event loop.
  */
 void per_loop_maint(void)
@@ -261,7 +298,9 @@ void per_loop_maint(void)
 	struct List *item;
 	PgPool *pool;
 	int active = 0;
+	int waiting_count = 0;
 	int partial_pause = 0;
+	int partial_wait = 0;
 	bool force_suspend = false;
 
 	if (cf_pause_mode == P_SUSPEND && cf_suspend_timeout > 0) {
@@ -290,6 +329,11 @@ void per_loop_maint(void)
 			active += per_loop_suspend(pool, force_suspend);
 			break;
 		}
+
+		if (pool->db->db_wait_close) {
+			partial_wait = 1;
+			waiting_count += per_loop_wait_close(pool);
+		}
 	}
 
 	switch (cf_pause_mode) {
@@ -309,6 +353,9 @@ void per_loop_maint(void)
 			admin_pause_done();
 		break;
 	}
+
+	if (partial_wait && !waiting_count)
+		admin_wait_close_done();
 }
 
 /* maintaining clients in pool */

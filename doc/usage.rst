@@ -664,6 +664,15 @@ connection is next released (according to the pooling mode), and new
 server connections will immediately use the updated connection
 parameters.
 
+WAIT_CLOSE [<db>];
+------------------
+
+Wait until all server connections, either of the specified database or
+of all databases, have cleared the "close_needed" state (see **SHOW
+SERVERS**).  This can be called after a **RECONNECT** or **RELOAD** to
+wait until the respective configuration change has been fully
+activated, for example in switchover scripts.
+
 Other commands
 ~~~~~~~~~~~~~~
 

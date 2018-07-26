@@ -61,11 +61,9 @@ fi
 
 # System configuration checks
 SED_ERE_OP='-E'
-NC_WAIT_OP='-w 5'
 case `uname` in
 Linux)
 	SED_ERE_OP='-r'
-	NC_WAIT_OP='-q 5'
 	;;
 esac
 
@@ -237,17 +235,23 @@ test_server_login_retry() {
 # server_connect_timeout - uses netcat to start dummy server
 test_server_connect_timeout_establish() {
 	which nc >/dev/null || return 1
-
-	echo nc $NC_WAIT_OP -l $NC_PORT
-	nc $NC_WAIT_OP -l $NC_PORT >/dev/null &
+	if nc -h 2>&1 | grep -q 'nc -l -p port'; then
+		# traditional or GNU style
+		set -- nc -l -p $NC_PORT
+	else
+		# BSD style
+		set -- nc -l $NC_PORT
+	fi
+	echo "$@"
+	"$@" >/dev/null &
 	sleep 2
+
 	admin "set query_timeout=3"
 	admin "set server_connect_timeout=2"
 	psql -X -c "select now()" p2
 	# client will always see query_timeout, need to grep for connect timeout
 	grep "closing because: connect timeout" $BOUNCER_LOG
 	rc=$?
-	# didnt seem to die otherwise
 	killall nc
 	return $rc
 }

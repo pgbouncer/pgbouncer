@@ -243,7 +243,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		if (state == 'I')
 			ready = true;
 		else if (pool_pool_mode(server->pool) == POOL_STMT) {
-			disconnect_server(server, true, "Long transactions not allowed");
+			disconnect_server(server, true, "long transactions not allowed");
 			return false;
 		} else if (state == 'T' || state == 'E') {
 			idle_tx = true;

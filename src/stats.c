@@ -354,7 +354,7 @@ static void refresh_stats(int s, short flags, void *arg)
 	}
 	calc_average(&avg, &cur_total, &old_total);
 	/* send totals to logfile */
-	log_info("Stats: %" PRIu64 " xacts/s,"
+	log_info("stats: %" PRIu64 " xacts/s,"
 		 " %" PRIu64 " queries/s,"
 		 " in %" PRIu64 " B/s,"
 		 " out %" PRIu64 " B/s,"

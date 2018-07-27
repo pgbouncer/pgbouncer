@@ -570,7 +570,7 @@ static bool parse_line(struct HBA *hba, struct TokParser *tp, int linenr, const 
 		}
 		if (bad_mask(rule)) {
 			char buf1[128], buf2[128];
-			log_warning("Addres does not match mask in %s line #%d: %s / %s", parent_filename, linenr,
+			log_warning("address does not match mask in %s line #%d: %s / %s", parent_filename, linenr,
 				    inet_ntop(rule->rule_af, rule->rule_addr, buf1, sizeof buf1),
 				    inet_ntop(rule->rule_af, rule->rule_mask, buf2, sizeof buf2));
 		}

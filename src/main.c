@@ -381,9 +381,9 @@ void load_config(void)
 			loader_users_check();
 		loaded = true;
 	} else if (!loaded) {
-		die("Cannot load config file");
+		die("cannot load config file");
 	} else {
-		log_warning("Config file loading failed");
+		log_warning("config file loading failed");
 		/* if ini file missing, don't kill anybody */
 		set_dbs_dead(false);
 	}
@@ -416,18 +416,18 @@ static struct event ev_sigint;
 
 static void handle_sigterm(int sock, short flags, void *arg)
 {
-	log_info("Got SIGTERM, fast exit");
+	log_info("got SIGTERM, fast exit");
 	/* pidfile cleanup happens via atexit() */
 	exit(1);
 }
 
 static void handle_sigint(int sock, short flags, void *arg)
 {
-	log_info("Got SIGINT, shutting down");
+	log_info("got SIGINT, shutting down");
 	if (cf_reboot)
-		fatal("Takeover was in progress, going down immediately");
+		fatal("takeover was in progress, going down immediately");
 	if (cf_pause_mode == P_SUSPEND)
-		fatal("Suspend was in progress, going down immediately");
+		fatal("suspend was in progress, going down immediately");
 	cf_pause_mode = P_PAUSE;
 	cf_shutdown = 1;
 }
@@ -441,10 +441,10 @@ static struct event ev_sighup;
 static void handle_sigusr1(int sock, short flags, void *arg)
 {
 	if (cf_pause_mode == P_NONE) {
-		log_info("Got SIGUSR1, pausing all activity");
+		log_info("got SIGUSR1, pausing all activity");
 		cf_pause_mode = P_PAUSE;
 	} else {
-		log_info("Got SIGUSR1, but already paused/suspended");
+		log_info("got SIGUSR1, but already paused/suspended");
 	}
 }
 
@@ -452,28 +452,28 @@ static void handle_sigusr2(int sock, short flags, void *arg)
 {
 	switch (cf_pause_mode) {
 	case P_SUSPEND:
-		log_info("Got SIGUSR2, continuing from SUSPEND");
+		log_info("got SIGUSR2, continuing from SUSPEND");
 		resume_all();
 		cf_pause_mode = P_NONE;
 		break;
 	case P_PAUSE:
-		log_info("Got SIGUSR2, continuing from PAUSE");
+		log_info("got SIGUSR2, continuing from PAUSE");
 		cf_pause_mode = P_NONE;
 		break;
 	case P_NONE:
-		log_info("Got SIGUSR1, but not paused/suspended");
+		log_info("got SIGUSR1, but not paused/suspended");
 	}
 
 	/* avoid surprise later if cf_shutdown stays set */
 	if (cf_shutdown) {
-		log_info("Canceling shutdown");
+		log_info("canceling shutdown");
 		cf_shutdown = 0;
 	}
 }
 
 static void handle_sighup(int sock, short flags, void *arg)
 {
-	log_info("Got SIGHUP re-reading config");
+	log_info("got SIGHUP, re-reading config");
 	load_config();
 }
 #endif
@@ -616,10 +616,10 @@ static void check_pidfile(void)
 		goto locked_pidfile;
 
 	/* seems the pidfile is not in use */
-	log_info("Stale pidfile, removing");
+	log_info("stale pidfile, removing");
 	err = unlink(cf_pidfile);
 	if (err != 0)
-		fatal_perror("Cannot remove stale pidfile");
+		fatal_perror("cannot remove stale pidfile");
 	return;
 
 locked_pidfile:
@@ -681,7 +681,7 @@ static void check_limits(void)
 			fd_count += db->pool_size * total_users;
 	}
 
-	log_info("File descriptor limit: %d (H:%d), max_client_conn: %d, max fds possible: %d",
+	log_info("file descriptor limit: %d (H:%d), max_client_conn: %d, max fds possible: %d",
 		 (int)lim.rlim_cur, (int)lim.rlim_max, cf_max_client_conn, fd_count);
 }
 

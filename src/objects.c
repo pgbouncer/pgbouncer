@@ -331,7 +331,7 @@ PgDatabase *add_database(const char *name)
 
 		list_init(&db->head);
 		if (strlcpy(db->name, name, sizeof(db->name)) >= sizeof(db->name)) {
-			log_warning("Too long db name: %s", name);
+			log_warning("too long db name: %s", name);
 			slab_free(db_cache, db);
 			return NULL;
 		}
@@ -702,7 +702,7 @@ static bool reset_on_release(PgSocket *server)
 
 	Assert(server->state == SV_TESTED);
 
-	slog_debug(server, "Resetting: %s", cf_server_reset_query);
+	slog_debug(server, "resetting: %s", cf_server_reset_query);
 	SEND_generic(res, server, 'Q', "s", cf_server_reset_query);
 	if (!res)
 		disconnect_server(server, false, "reset query failed");
@@ -994,7 +994,7 @@ static void dns_connect(struct PgSocket *server)
 		sa_un.sun_family = AF_UNIX;
 		unix_dir = host ? host : cf_unix_socket_dir;
 		if (!unix_dir || !*unix_dir) {
-			log_error("Unix socket dir not configured: %s", db->name);
+			log_error("unix socket dir not configured: %s", db->name);
 			disconnect_server(server, false, "cannot connect");
 			return;
 		}
@@ -1126,7 +1126,7 @@ void launch_new_connection(PgPool *pool)
 			PgSocket *c = first_socket(&pool->waiting_client_list);
 			if (c && (now - c->request_time) >= cf_res_pool_timeout) {
 				if (total < pool->db->pool_size + pool->db->res_pool_size) {
-					slog_warning(c, "Taking connection from reserve_pool");
+					slog_warning(c, "taking connection from reserve_pool");
 					goto allow_new;
 				}
 			}

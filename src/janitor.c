@@ -154,7 +154,7 @@ static void launch_recheck(PgPool *pool)
 
 	if (need_check) {
 		/* send test query, wait for result */
-		slog_debug(server, "P: Checking: %s", q);
+		slog_debug(server, "P: checking: %s", q);
 		change_server_state(server, SV_TESTED);
 		SEND_generic(res, server, 'Q', "s", q);
 		if (!res)
@@ -440,7 +440,7 @@ static void check_pool_size(PgPool *pool)
 	    cf_reboot == 0 &&
 	    pool_client_count(pool) > 0)
 	{
-		log_debug("Launching new connection to satisfy min_pool_size");
+		log_debug("launching new connection to satisfy min_pool_size");
 		launch_new_connection(pool);
 	}
 }

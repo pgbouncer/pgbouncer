@@ -501,7 +501,7 @@ int main(int argc, char *argv[])
         wsresult = WSAStartup(MAKEWORD(2,0),&wsaData);
         if (wsresult != 0)
         {
-                fatal("Cannot start the network subsystem -%d", wsresult);
+                fatal("cannot start the network subsystem: -%d", wsresult);
         }
 #endif
 	if (throttle_connects < 0 || throttle_queries < 0 || numcon < 0)

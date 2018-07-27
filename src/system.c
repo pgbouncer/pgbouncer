@@ -117,7 +117,7 @@ void change_file_mode(const char *fn, mode_t mode,
 	/* change mode */
 	res = chmod(fn, mode);
 	if (res != 0) {
-		fatal("Failure to chmod(%s, 0%o): %s",
+		fatal("failure to chmod(%s, 0%o): %s",
 		      fn, mode, strerror(errno));
 	}
 }

@@ -876,7 +876,7 @@ static void setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
 		uint32_t protos = TLS_PROTOCOLS_ALL;
 		err = tls_config_parse_protocols(&protos, protocols);
 		if (err) {
-			log_error("Invalid %s_protocols: %s", pfx, protocols);
+			log_error("invalid %s_protocols: %s", pfx, protocols);
 		} else {
 			tls_config_set_protocols(conf, protos);
 		}
@@ -884,32 +884,32 @@ static void setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
 	if (*ciphers) {
 		err = tls_config_set_ciphers(conf, ciphers);
 		if (err)
-			log_error("Invalid %s_ciphers: %s", pfx, ciphers);
+			log_error("invalid %s_ciphers: %s", pfx, ciphers);
 	}
 	if (*dheparams) {
 		err = tls_config_set_dheparams(conf, dheparams);
 		if (err)
-			log_error("Invalid %s_dheparams: %s", pfx, dheparams);
+			log_error("invalid %s_dheparams: %s", pfx, dheparams);
 	}
 	if (*ecdhecurve) {
 		err = tls_config_set_ecdhecurve(conf, ecdhecurve);
 		if (err)
-			log_error("Invalid %s_ecdhecurve: %s", pfx, ecdhecurve);
+			log_error("invalid %s_ecdhecurve: %s", pfx, ecdhecurve);
 	}
 	if (*cafile) {
 		err = tls_config_set_ca_file(conf, cafile);
 		if (err)
-			log_error("Invalid %s_ca_file: %s", pfx, cafile);
+			log_error("invalid %s_ca_file: %s", pfx, cafile);
 	}
 	if (*keyfile) {
 		err = tls_config_set_key_file(conf, keyfile);
 		if (err)
-			log_error("Invalid %s_key_file: %s", pfx, keyfile);
+			log_error("invalid %s_key_file: %s", pfx, keyfile);
 	}
 	if (*certfile) {
 		err = tls_config_set_cert_file(conf, certfile);
 		if (err)
-			log_error("Invalid %s_cert_file: %s", pfx, certfile);
+			log_error("invalid %s_cert_file: %s", pfx, certfile);
 	}
 
 	if (does_connect) {

@@ -1004,7 +1004,7 @@ static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 		if (cf_pause_mode != P_NONE)
 			full_resume();
 		else
-			return admin_error(admin, "Pooler is not paused/suspended");
+			return admin_error(admin, "pooler is not paused/suspended");
 	} else {
 		PgDatabase *db = find_database(arg);
 		log_info("RESUME '%s' command issued", arg);
@@ -1548,7 +1548,7 @@ void admin_pause_done(void)
 	if (statlist_empty(&admin_pool->active_client_list)
 	    && cf_pause_mode == P_SUSPEND)
 	{
-		log_info("Admin disappeared when suspended, doing RESUME");
+		log_info("admin disappeared when suspended, doing RESUME");
 		cf_pause_mode = P_NONE;
 		resume_all();
 	}

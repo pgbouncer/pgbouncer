@@ -5,8 +5,9 @@ fw_drop_port() {
 	case `uname` in
 	Linux)
 		sudo iptables -A OUTPUT -p tcp --dport $1 -j DROP;;
-	Darwin)
-		sudo ipfw add 100 drop tcp from any to 127.0.0.1 dst-port $1;;
+	Darwin|OpenBSD)
+		echo "block drop out proto tcp from any to 127.0.0.1 port $1" \
+		    | sudo pfctl -a pgbouncer -f -;;
 	*)
 		echo "Unknown OS";;
 	esac
@@ -16,8 +17,9 @@ fw_reject_port() {
 	case `uname` in
 	Linux)
 		sudo iptables -A OUTPUT -p tcp --dport $1 -j REJECT --reject-with tcp-reset;;
-	Darwin)
-		sudo ipfw add 100 reset tcp from any to 127.0.0.1 dst-port $1;;
+	Darwin|OpenBSD)
+		echo "block return-rst out proto tcp from any to 127.0.0.1 port $1" \
+		    | sudo pfctl -a pgbouncer -f -;;
 	*)
 		echo "Unknown OS";;
 	esac
@@ -28,8 +30,8 @@ fw_reset() {
 	case `uname` in
 	Linux)
 		sudo iptables -F;;
-	Darwin)
-		sudo ipfw del 100;;
+	Darwin|OpenBSD)
+		sudo pfctl -a pgbouncer -F all;;
 	*)
 		echo "Unknown OS"; exit 1;;
 	esac

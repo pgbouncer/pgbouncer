@@ -136,7 +136,7 @@ fw_reset() {
 	Linux)
 		sudo iptables -F OUTPUT;;
 	Darwin|OpenBSD)
-		pfctl -a pgbouncer -F all;;
+		sudo pfctl -a pgbouncer -F all;;
 	*)
 		echo "Unknown OS"; exit 1;;
 	esac

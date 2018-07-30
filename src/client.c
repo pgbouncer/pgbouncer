@@ -242,7 +242,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 				slog_info(client, "login failed: db=%s user=%s", dbname, username);
 			return false;
 		} else {
-			slog_info(client, "registered new auto-database: db = %s", dbname );
+			slog_info(client, "registered new auto-database: db=%s", dbname);
 		}
 	}
 

@@ -169,6 +169,7 @@ static bool another_result(DbConn *db)
 				       db->_arglen, curlen);
 			}
 		}
+		/* fallthrough */
 	case PGRES_COMMAND_OK:
 		PQclear(res);
 		break;

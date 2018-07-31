@@ -1,7 +1,7 @@
 #!/bin/sh
 
 fw_drop_port() {
-        echo "fw_drop_port"
+	echo "fw_drop_port"
 	case `uname` in
 	Linux)
 		sudo iptables -A OUTPUT -p tcp --dport $1 -j DROP;;
@@ -13,7 +13,7 @@ fw_drop_port() {
 	esac
 }
 fw_reject_port() {
-        echo "fw_reject_port"
+	echo "fw_reject_port"
 	case `uname` in
 	Linux)
 		sudo iptables -A OUTPUT -p tcp --dport $1 -j REJECT --reject-with tcp-reset;;
@@ -26,7 +26,7 @@ fw_reject_port() {
 }
 
 fw_reset() {
-        echo "fw_reset"
+	echo "fw_reset"
 	case `uname` in
 	Linux)
 		sudo iptables -F;;

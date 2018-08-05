@@ -295,6 +295,7 @@ struct PgDatabase {
 
 	PgUser *forced_user;	/* if not NULL, the user/psw is forced */
 	PgUser *auth_user;	/* if not NULL, users not in userlist.txt will be looked up on the server */
+	const char *auth_dbname; /* is the database used for authentication */
 
 	const char *host;	/* host or unix socket name */
 	int port;

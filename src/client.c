@@ -88,9 +88,27 @@ static void start_auth_request(PgSocket *client, const char *username)
 {
 	int res;
 	PktBuf *buf;
+	PgDatabase *authdb = client->db;
+
+	if (client->db->auth_dbname != NULL) {
+		authdb = find_database(client->db->auth_dbname);
+		if (authdb == NULL) {
+			authdb = client->db;
+			log_info(
+				"%s database not found, using %s instead",
+				client->db->auth_dbname, client->db->dbname
+			);
+		} else if (authdb->db_disabled) {
+			authdb = client->db;
+			log_info(
+				"database %s does not allow connections, using %s instead",
+				client->db->auth_dbname, client->db->dbname
+			);
+		}
+	}
 
 	/* have to fetch user info from db */
-	client->pool = get_pool(client->db, client->db->auth_user);
+	client->pool = get_pool(authdb, client->db->auth_user);
 	if (!find_server(client)) {
 		client->wait_for_user_conn = true;
 		return;

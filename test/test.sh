@@ -49,9 +49,9 @@ if test -n "$CAN_SUDO"; then
 		sudo pfctl -a pgbouncer -F all -q 2>&1 | grep -q "pfctl:" && {
 			cat <<-EOF
 			Please enable PF and add the following rule to /etc/pf.conf
-			
+
 			  anchor "pgbouncer/*"
-			
+
 			EOF
 			exit 1
 		}
@@ -75,8 +75,8 @@ stopit test.pid
 stopit pgdata/postmaster.pid
 
 mkdir -p $LOGDIR
-rm -f $BOUNCER_LOG $PG_LOG
-rm -rf $PGDATA
+echo > $BOUNCER_LOG
+echo > $PG_LOG
 
 if [ ! -d $PGDATA ]; then
 	mkdir $PGDATA
@@ -250,7 +250,7 @@ test_server_connect_timeout_establish() {
 	admin "set server_connect_timeout=2"
 	psql -X -c "select now()" p2
 	# client will always see query_timeout, need to grep for connect timeout
-	grep "closing because: connect timeout" $BOUNCER_LOG
+	grep "closing because: query_timeout" $BOUNCER_LOG
 	rc=$?
 	killall nc
 	return $rc
@@ -524,6 +524,16 @@ test_auth_user() {
 	curuser=`psql -X -d "dbname=authdb user=someuser password=anypasswd" -tAq -c "select current_user;"`
 	echo "curuser=$curuser"
 	test "$curuser" = "someuser" || return 1
+
+	admin "disable p0";
+	admin "set auth_type='md5'"
+	curuser=`psql -X -d "dbname=authdb user=someuser password=anypasswd" -tAq -c "select current_user;"`
+	grep "database p0 does not allow connections, using p1 instead" $BOUNCER_LOG
+	test $? || return 1
+
+	admin "show databases"
+	admin "show pools"
+	admin "enable p0";
 
 	curuser2=`psql -X -d "dbname=authdb user=nouser password=anypasswd" -tAq -c "select current_user;"`
 	echo "curuser2=$curuser2"

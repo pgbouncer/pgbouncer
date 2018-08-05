@@ -194,6 +194,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	char *username = NULL;
 	char *password = "";
 	char *auth_username = cf_auth_user;
+	char *auth_dbname = NULL;
 	char *client_encoding = NULL;
 	char *datestyle = NULL;
 	char *timezone = NULL;
@@ -236,6 +237,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			password = val;
 		} else if (strcmp("auth_user", key) == 0) {
 			auth_username = val;
+		} else if (strcmp("auth_dbname", key) == 0) {
+			auth_dbname = val;
 		} else if (strcmp("client_encoding", key) == 0) {
 			client_encoding = val;
 		} else if (strcmp("datestyle", key) == 0) {
@@ -377,6 +380,12 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	} else if (db->auth_user) {
 		db->auth_user = NULL;
 	}
+
+	if (db->auth_dbname)
+		free(db->auth_dbname);
+	db->auth_dbname = NULL;
+	if(auth_dbname != NULL)
+		db->auth_dbname = strdup(auth_dbname);
 
 	/* if user is forced, create fake object for it */
 	if (username != NULL) {

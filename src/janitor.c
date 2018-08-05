@@ -697,6 +697,9 @@ void kill_database(PgDatabase *db)
 
 	pktbuf_free(db->startup_params);
 	free(db->host);
+	if(db->auth_dbname) {
+		free(db->auth_dbname);
+	}
 
 	if (db->forced_user)
 		slab_free(user_cache, db->forced_user);

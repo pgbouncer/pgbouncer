@@ -184,7 +184,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	int pool_size = -1;
 	int res_pool_size = -1;
 	int max_db_connections = -1;
-	int server_idle_timeout = -1;
+	usec_t server_idle_timeout = 0;
 	int dbname_ofs;
 	int pool_mode = POOL_INHERIT;
 
@@ -250,7 +250,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		} else if (strcmp("max_db_connections", key) == 0) {
 			max_db_connections = atoi(val);
 		} else if (strcmp("server_idle_timeout", key) == 0) {
-			server_idle_timeout = atoi(val);
+			server_idle_timeout = atol(val);
 		} else if (strcmp("pool_mode", key) == 0) {
 			if (!cf_set_lookup(&cv, val)) {
 				log_error("skipping database %s because"

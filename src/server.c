@@ -210,7 +210,7 @@ int database_max_connections(PgDatabase *db)
 	}
 }
 
-int database_idle_timeout(PgDatabase *db)
+usec_t database_idle_timeout(PgDatabase *db)
 {
 	if (db->server_idle_timeout <= 0) {
 		return cf_server_idle_timeout;

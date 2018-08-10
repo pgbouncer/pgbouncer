@@ -20,5 +20,5 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *pkt)  _MUSTCHECK;
 void kill_pool_logins(PgPool *pool, const char *msg);
 int pool_pool_mode(PgPool *pool) _MUSTCHECK;
 int database_max_connections(PgDatabase *db) _MUSTCHECK;
-int database_idle_timeout(PgDatabase *db) _MUSTCHECK;
+usec_t database_idle_timeout(PgDatabase *db) _MUSTCHECK;
 int user_max_connections(PgUser *user) _MUSTCHECK;

@@ -28,7 +28,7 @@ PgBouncer 1.9.x
 
   * Improve signals documentation
 
-  * Improve quick star documentation
+  * Improve quick start documentation
 
   * Document SET command
 

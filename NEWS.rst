@@ -4,7 +4,7 @@ PgBouncer changelog
 PgBouncer 1.9.x
 ---------------
 
-**2018-08-03  -  PgBouncer 1.9.0  -  "Chaos Survival"**
+**2018-08-13  -  PgBouncer 1.9.0  -  "Chaos Survival"**
 
 - Features
 

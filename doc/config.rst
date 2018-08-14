@@ -1053,16 +1053,17 @@ Database defaults::
   ; access to destination database will go with single user
   forcedb = host=127.0.0.1 port=300 user=baz password=foo client_encoding=UNICODE datestyle=ISO
 
-Example of secure function for auth_query::
+Example of a secure function for auth_query::
 
   CREATE OR REPLACE FUNCTION pgbouncer.user_lookup(in i_username text, out uname text, out phash text)
-  RETURNS record AS $$
-  BEGIN
-      SELECT usename, passwd FROM pg_catalog.pg_shadow
-      WHERE usename = i_username INTO uname, phash;
-      RETURN;
-  END;
-  $$ LANGUAGE plpgsql SECURITY DEFINER;
+  RETURNS record
+  LANGUAGE SQL
+  SECURITY DEFINER
+  AS $$
+    SELECT usename::text, passwd
+    FROM pg_catalog.pg_shadow
+    WHERE usename = i_username AND NOT usesuper;
+  $$;
   REVOKE ALL ON FUNCTION pgbouncer.user_lookup(text) FROM public, pgbouncer;
   GRANT EXECUTE ON FUNCTION pgbouncer.user_lookup(text) TO pgbouncer;
 

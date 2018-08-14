@@ -25,6 +25,7 @@ env:
     - configure_args='--without-openssl'
 script: |
   set -e
+  etc/optscan.sh
   ./autogen.sh
   ./configure --prefix=$HOME/install --enable-cassert --enable-werror --without-cares $configure_args
   make

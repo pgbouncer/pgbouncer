@@ -41,7 +41,7 @@ done
 
 mkdir -p $LOGDIR
 rm -fr $BOUNCER_LOG $PG_LOG
-rm -rr $PGDATA
+rm -fr $PGDATA
 
 if [ ! -d $PGDATA ]; then
 	echo "initdb"

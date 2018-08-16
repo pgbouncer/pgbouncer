@@ -9,7 +9,7 @@ fw_drop_port() {
 		echo "block drop out proto tcp from any to 127.0.0.1 port $1" \
 		    | sudo pfctl -a pgbouncer -f -;;
 	*)
-		echo "Unknown OS";;
+		echo "Unknown OS"; exit 1;;
 	esac
 }
 fw_reject_port() {
@@ -21,7 +21,7 @@ fw_reject_port() {
 		echo "block return-rst out proto tcp from any to 127.0.0.1 port $1" \
 		    | sudo pfctl -a pgbouncer -f -;;
 	*)
-		echo "Unknown OS";;
+		echo "Unknown OS"; exit 1;;
 	esac
 }
 

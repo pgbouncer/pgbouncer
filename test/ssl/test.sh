@@ -124,7 +124,7 @@ admin() {
 }
 
 runtest() {
-	echo -n "`date` running $1 ... "
+	printf "`date` running $1 ... "
 	eval $1 >$LOGDIR/$1.log 2>&1
 	if [ $? -eq 0 ]; then
 		echo "ok"

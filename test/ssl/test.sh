@@ -69,8 +69,8 @@ pgctl start
 sleep 5
 
 echo "createdb"
-psql -p $PG_PORT -l | grep p0 > /dev/null || {
-	psql -p $PG_PORT -c "create user bouncer" template1
+psql -X -p $PG_PORT -l | grep p0 > /dev/null || {
+	psql -X -o /dev/null -p $PG_PORT -c "create user bouncer" template1
 	createdb -p $PG_PORT p0
 	createdb -p $PG_PORT p1
 }
@@ -120,7 +120,7 @@ die() {
 }
 
 admin() {
-	psql -h /tmp -U pgbouncer pgbouncer -c "$@;" || die "Cannot contact bouncer!"
+	psql -X -h /tmp -U pgbouncer pgbouncer -c "$@;" || die "Cannot contact bouncer!"
 }
 
 runtest() {
@@ -140,11 +140,11 @@ runtest() {
 }
 
 psql_pg() {
-	psql -U bouncer -h 127.0.0.1 -p $PG_PORT "$@"
+	psql -X -U bouncer -h 127.0.0.1 -p $PG_PORT "$@"
 }
 
 psql_bouncer() {
-	PGUSER=bouncer psql "$@"
+	PGUSER=bouncer psql -X "$@"
 }
 
 # server_lifetime

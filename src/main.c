@@ -894,9 +894,6 @@ int main(int argc, char *argv[])
 	if (getuid() == 0)
 		fatal("PgBouncer should not run as root");
 
-	/* need to do that after loading config */
-	check_limits();
-
 	admin_setup();
 
 	if (cf_reboot) {
@@ -916,6 +913,10 @@ int main(int argc, char *argv[])
 
 	if (cf_daemon)
 		go_daemon();
+
+	/* need to do that after loading config; also do after
+	 * go_daemon() so that output goes to log file */
+	check_limits();
 
 	/* initialize subsystems, order important */
 	srandom(time(NULL) ^ getpid());

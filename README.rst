@@ -148,5 +148,5 @@ See the `entrypoint.sh` for more info
 
 Or you can mount a config file::
 
-        $ docker run -d -v pgbouncer:/etc/pgbouncer/pgbouncer.ini \
+        $ docker run -d -v pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini \
               pgbouncer

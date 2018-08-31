@@ -130,3 +130,23 @@ But before you need to register pgbevent.dll::
 To unregister it, do::
 
         $ regsvr32 /u pgbevent.dll
+
+Building with Docker
+--------------------
+
+Simply run::
+
+        $ docker build -t pgbouncer .
+
+You can then run it with the certain environment variables::
+
+        $ docker run -d -e DB_HOST=pghost -e DB_USER=pguser \
+                        -e DB_PASSWORD=pgpass \
+                        pgbouncer
+
+See the `entrypoint.sh` for more info
+
+Or you can mount a config file::
+
+        $ docker run -d -v pgbouncer:/etc/pgbouncer/pgbouncer.ini \
+              pgbouncer

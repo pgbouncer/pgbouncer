@@ -470,6 +470,9 @@ force_user
 
 pool_size
     Maximum number of server connections.
+    
+reserve_pool
+   Maximum number additional connections for this database.
 
 pool_mode
     The database's override pool_mode, or NULL if the default will be used instead.

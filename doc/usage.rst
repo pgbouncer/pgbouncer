@@ -377,7 +377,7 @@ sv_idle
 
 sv_used
     Server connections that have been idle more than `server_check_delay`,
-    so they needs `server_check_query` to run on it before it can be used.
+    so they need `server_check_query` to run on them before they can be used.
 
 sv_tested
     Server connections that are currently running either `server_reset_query`
@@ -470,6 +470,9 @@ force_user
 
 pool_size
     Maximum number of server connections.
+    
+reserve_pool
+   Maximum number additional connections for this database.
 
 pool_mode
     The database's override pool_mode, or NULL if the default will be used instead.

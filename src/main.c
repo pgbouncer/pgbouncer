@@ -683,7 +683,7 @@ static void check_limits(void)
 			fd_count += db->pool_size * total_users;
 	}
 
-	log_info("file descriptor limit: %d (H:%d), max_client_conn: %d, max fds possible: %d",
+	log_info("kernel file descriptor limit: %d (hard: %d); max_client_conn: %d, max expected fd use: %d",
 		 (int)lim.rlim_cur, (int)lim.rlim_max, cf_max_client_conn, fd_count);
 }
 

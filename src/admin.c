@@ -330,7 +330,7 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	if (!mbuf_get_uint64be(&tmp, &ckey))
 		return false;
 
-	if (sk->pool->db->auth_user && sk->auth_user && !find_user(sk->auth_user->name))
+	if (sk->pool && sk->pool->db->auth_user && sk->auth_user && !find_user(sk->auth_user->name))
 		password = sk->auth_user->passwd;
 
 	/* PAM requires passwords as well since they are not stored externally */

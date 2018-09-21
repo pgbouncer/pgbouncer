@@ -164,10 +164,15 @@ admin() {
 }
 
 runtest() {
+	local status
+
 	printf "`date` running $1 ... "
 	eval $1 >$LOGDIR/$1.log 2>&1
-	if [ $? -eq 0 ]; then
+	status=$?
+	if [ $status -eq 0 ]; then
 		echo "ok"
+	elif [ $status -eq 77 ]; then
+		echo "skipped"
 	else
 		echo "FAILED"
 	fi
@@ -177,6 +182,8 @@ runtest() {
 	wait
 	# start with fresh config
 	kill -HUP `cat $BOUNCER_PID`
+
+	return $status
 }
 
 # server_lifetime
@@ -258,7 +265,7 @@ test_server_connect_timeout_establish() {
 
 # server_connect_timeout - block with iptables
 test_server_connect_timeout_reject() {
-	test -z $CAN_SUDO && return 1
+	test -z $CAN_SUDO && return 77
 	admin "set query_timeout=5"
 	admin "set server_connect_timeout=3"
 	fw_drop_port $PG_PORT
@@ -270,7 +277,7 @@ test_server_connect_timeout_reject() {
 
 # server_check_delay
 test_server_check_delay() {
-	test -z $CAN_SUDO && return 1
+	test -z $CAN_SUDO && return 77
 
 	admin "set server_check_delay=2"
 	admin "set server_login_retry=3"
@@ -566,11 +573,18 @@ if [ $# -gt 0 ]; then
 	testlist=$@
 fi
 
+total_status=0
 for test in $testlist
 do
 	runtest $test
+	status=$?
+	if [ $status -eq 1 ]; then
+		total_status=1
+	fi
 done
 
 complete
+
+exit $total_status
 
 # vim: sts=0 sw=8 noet nosmarttab:

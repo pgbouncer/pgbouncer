@@ -124,9 +124,12 @@ admin() {
 }
 
 runtest() {
+	local status
+
 	printf "`date` running $1 ... "
 	eval $1 >$LOGDIR/$1.log 2>&1
-	if [ $? -eq 0 ]; then
+	status=$?
+	if [ $status -eq 0 ]; then
 		echo "ok"
 	else
 		echo "FAILED"
@@ -137,6 +140,8 @@ runtest() {
 	wait
 	# start with fresh config
 	kill -HUP `cat $BOUNCER_PID`
+
+	return $status
 }
 
 psql_pg() {
@@ -238,11 +243,18 @@ if [ $# -gt 0 ]; then
 	testlist="$*"
 fi
 
+total_status=0
 for test in $testlist
 do
 	runtest $test
+	status=$?
+	if [ $status -eq 1 ]; then
+		total_status=1
+	fi
 done
 
 complete
+
+exit $total_status
 
 # vim: sts=0 sw=8 noet nosmarttab:

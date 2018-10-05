@@ -94,13 +94,14 @@ Basic setup and usage as following.
       pgbouncer=# show help;
       NOTICE:  Console usage
       DETAIL:
-        SHOW [HELP|CONFIG|DATABASES|FDS|POOLS|CLIENTS|SERVERS|SOCKETS|LISTS|VERSION]
+        SHOW [HELP|CONFIG|DATABASES|FDS|POOLS|CLIENTS|SERVERS|SOCKETS|LISTS|VERSION|...]
         SET key = arg
         RELOAD
         PAUSE
         SUSPEND
         RESUME
         SHUTDOWN
+        [...]
 
 6. If you made changes to the pgbouncer.ini file, you can reload it with::
 
@@ -211,7 +212,7 @@ avg_sent
     Average sent (to clients) bytes per second.
 
 avg_xact_time
-	Average transaction duration in microseconds.
+    Average transaction duration in microseconds.
 
 avg_query_time
     Average query duration in microseconds.
@@ -266,6 +267,17 @@ connect_time
 request_time
     When last request was issued.
 
+wait
+    Current waiting time in seconds.
+
+wait_us
+    Microsecond part of the current waiting time.
+
+close_needed
+    1 if the connection will be closed as soon as possible,
+    because a configuration file reload or DNS update changed the
+    connection information or **RECONNECT** was issued.
+
 ptr
     Address of internal object for this connection.
     Used as unique ID.
@@ -279,6 +291,9 @@ remote_pid
     OS PID.  Otherwise it's extracted from cancel packet server sent,
     which should be PID in case server is PostgreSQL, but it's a random
     number in case server it is another PgBouncer.
+
+tls
+    A string with TLS connection information, or empty if not using TLS.
 
 SHOW CLIENTS;
 -------------
@@ -314,6 +329,15 @@ connect_time
 request_time
     Timestamp of latest client request.
 
+wait
+    Current waiting time in seconds.
+
+wait_us
+    Microsecond part of the current waiting time.
+
+close_needed
+    not used for clients
+
 ptr
     Address of internal object for this connection.
     Used as unique ID.
@@ -324,6 +348,9 @@ link
 remote_pid
     Process ID, in case client connects over Unix socket
     and OS supports getting it.
+
+tls
+    A string with TLS connection information, or empty if not using TLS.
 
 SHOW POOLS;
 -----------
@@ -350,7 +377,7 @@ sv_idle
 
 sv_used
     Server connections that have been idle more than `server_check_delay`,
-    so they needs `server_check_query` to run on it before it can be used.
+    so they need `server_check_query` to run on them before they can be used.
 
 sv_tested
     Server connections that are currently running either `server_reset_query`
@@ -364,6 +391,9 @@ maxwait
     If this starts increasing, then the current pool of servers does
     not handle requests quick enough.  Reason may be either overloaded
     server or just too small of a **pool_size** setting.
+
+maxwait_us
+    Microsecond part of the maximum waiting time.
 
 pool_mode
     The pooling mode in use.
@@ -397,6 +427,18 @@ free_servers
 used_servers
     Count of used servers.
 
+dns_names
+    Count of DNS names in the cache.
+
+dns_zones
+    Count of DNS zones in the cache.
+
+dns_queries
+    Count of in-flight DNS queries.
+
+dns_pending
+    not used
+
 SHOW USERS;
 -----------
 
@@ -429,8 +471,24 @@ force_user
 pool_size
     Maximum number of server connections.
 
+reserve_pool
+    Maximum number of additional connections for this database.
+
 pool_mode
     The database's override pool_mode, or NULL if the default will be used instead.
+
+max_connections
+    Maximum number of allowed connections for this database, as set by
+    **max_db_connections**, either globally or per database.
+
+current_connections
+    Current number of connections for this database.
+
+paused
+    1 if this database is currently paused, else 0.
+
+disabled
+    1 if this database is currently disabled, else 0.
 
 SHOW FDS;
 ---------
@@ -484,7 +542,8 @@ value
 
 changeable
     Either **yes** or **no**, shows if the variable can be changed while running.
-    If **no**, the variable can be changed only boot-time.
+    If **no**, the variable can be changed only at boot time.  Use
+    **SET** to change a variable at run time.
 
 SHOW DNS_HOSTS;
 ---------------
@@ -500,8 +559,8 @@ ttl
 addrs
     Comma separated list of addresses.
 
-SHOW DNS_ZONES
---------------
+SHOW DNS_ZONES;
+---------------
 
 Show DNS zones in cache.
 
@@ -527,6 +586,9 @@ at the time of database restart.
 
 If database name is given, only that database will be paused.
 
+New client connections to a paused database will wait until **RESUME**
+is called.
+
 DISABLE db;
 -----------
 
@@ -537,10 +599,40 @@ ENABLE db;
 
 Allow new client connections after a previous **DISABLE** command.
 
+RECONNECT [db];
+---------------
+
+Close each open server connection for the given database, or all
+databases, after it is released (according to the pooling mode), even
+if its lifetime is not up yet.  New server connections can be made
+immediately and will connect as necessary according to the pool size
+settings.
+
+This command is useful when the server connection setup has changed,
+for example to perform a gradual switchover to a new server.  It is
+*not* necessary to run this command when the connection string in
+pgbouncer.ini has been changed and reloaded (see **RELOAD**) or when
+DNS resolution has changed, because then the equivalent of this
+command will be run automatically.  This command is only necessary if
+something downstream of PgBouncer routes the connections.
+
+After this command is run, there could be an extended period where
+some server connections go to an old destination and some server
+connections go to a new destination.  This is likely only sensible
+when switching read-only traffic between read-only replicas, or when
+switching between nodes of a multimaster replication setup.  If all
+connections need to be switched at the same time, **PAUSE** is
+recommended instead.  To close server connections without waiting (for
+example, in emergency failover rather than gradual switchover
+scenarios), also consider **KILL**.
+
 KILL db;
 --------
 
 Immediately drop all client and server connections on given database.
+
+New client connections to a killed database will wait until **RESUME**
+is called.
 
 SUSPEND;
 --------
@@ -549,10 +641,13 @@ All socket buffers are flushed and PgBouncer stops listening for data on them.
 The command will not return before all buffers are empty.  To be used at the time
 of PgBouncer online reboot.
 
+New client connections to a suspended database will wait until
+**RESUME** is called.
+
 RESUME [db];
 ------------
 
-Resume work from previous **PAUSE** or **SUSPEND** command.
+Resume work from previous **KILL**, **PAUSE**, or **SUSPEND** command.
 
 SHUTDOWN;
 ---------
@@ -564,6 +659,37 @@ RELOAD;
 
 The PgBouncer process will reload its configuration file and update
 changeable settings.
+
+PgBouncer notices when a configuration file reload changes the
+connection parameters of a database definition.  An existing server
+connection to the old destination will be closed when the server
+connection is next released (according to the pooling mode), and new
+server connections will immediately use the updated connection
+parameters.
+
+WAIT_CLOSE [<db>];
+------------------
+
+Wait until all server connections, either of the specified database or
+of all databases, have cleared the "close_needed" state (see **SHOW
+SERVERS**).  This can be called after a **RECONNECT** or **RELOAD** to
+wait until the respective configuration change has been fully
+activated, for example in switchover scripts.
+
+Other commands
+~~~~~~~~~~~~~~
+
+SET key = arg;
+--------------
+
+Changes a configuration setting (see also **SHOW CONFIG**).  For example::
+
+    SET log_connections = 1;
+    SET server_check_query = 'select 2';
+
+(Note that this command is run on the PgBouncer admin console and sets
+PgBouncer settings.  A **SET** command run on another database will be
+passed to the PostgreSQL backend like any other SQL command.)
 
 Signals
 ~~~~~~~

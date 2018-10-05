@@ -35,29 +35,35 @@ which initdb > /dev/null || {
 }
 
 # System configuration checks
-grep -q "^\"${USER}\"" userlist.txt || echo "\"${USER}\" \"01234\"" >> userlist.txt
+if ! grep -q "^\"${USER}\"" userlist.txt; then
+	cp userlist.txt userlist.txt.bak
+	echo "\"${USER}\" \"01234\"" >> userlist.txt
+fi
 
-case `uname` in
-Darwin|OpenBSD)
-	sudo pfctl -a pgbouncer -F all -q 2>&1 | grep -q "pfctl:" && {
-		cat <<-EOF
-		Please enable PF and add the following rule to /etc/pf.conf
-		
-		  anchor "pgbouncer/*"
-		
-		EOF
-		exit 1
-	}
-	;;
-esac
+echo "Testing for sudo access."
+sudo true && CAN_SUDO=1
+
+if test -n "$CAN_SUDO"; then
+	case `uname` in
+	Darwin|OpenBSD)
+		sudo pfctl -a pgbouncer -F all -q 2>&1 | grep -q "pfctl:" && {
+			cat <<-EOF
+			Please enable PF and add the following rule to /etc/pf.conf
+			
+			  anchor "pgbouncer/*"
+			
+			EOF
+			exit 1
+		}
+		;;
+	esac
+fi
 
 # System configuration checks
 SED_ERE_OP='-E'
-NC_WAIT_OP='-w 5'
 case `uname` in
 Linux)
 	SED_ERE_OP='-r'
-	NC_WAIT_OP='-q 5'
 	;;
 esac
 
@@ -110,7 +116,7 @@ fw_drop_port() {
 		echo "block drop out proto tcp from any to 127.0.0.1 port $1" \
 		    | sudo pfctl -a pgbouncer -f -;;
 	*)
-		echo "Unknown OS";;
+		echo "Unknown OS"; exit 1;;
 	esac
 }
 fw_reject_port() {
@@ -121,7 +127,7 @@ fw_reject_port() {
 		echo "block return-rst out proto tcp from any to 127.0.0.1 port $1" \
 		    | sudo pfctl -a pgbouncer -f -;;
 	*)
-		echo "Unknown OS";;
+		echo "Unknown OS"; exit 1;;
 	esac
 }
 
@@ -130,7 +136,7 @@ fw_reset() {
 	Linux)
 		sudo iptables -F OUTPUT;;
 	Darwin|OpenBSD)
-		pfctl -a pgbouncer -F all;;
+		sudo pfctl -a pgbouncer -F all;;
 	*)
 		echo "Unknown OS"; exit 1;;
 	esac
@@ -144,6 +150,7 @@ complete() {
 	test -f $BOUNCER_PID && kill `cat $BOUNCER_PID` >/dev/null 2>&1
 	pgctl -m fast stop
 	rm -f $BOUNCER_PID
+	test -e userlist.txt.bak && mv userlist.txt.bak userlist.txt
 }
 
 die() {
@@ -157,10 +164,15 @@ admin() {
 }
 
 runtest() {
+	local status
+
 	printf "`date` running $1 ... "
 	eval $1 >$LOGDIR/$1.log 2>&1
-	if [ $? -eq 0 ]; then
+	status=$?
+	if [ $status -eq 0 ]; then
 		echo "ok"
+	elif [ $status -eq 77 ]; then
+		echo "skipped"
 	else
 		echo "FAILED"
 	fi
@@ -170,6 +182,8 @@ runtest() {
 	wait
 	# start with fresh config
 	kill -HUP `cat $BOUNCER_PID`
+
+	return $status
 }
 
 # server_lifetime
@@ -228,24 +242,30 @@ test_server_login_retry() {
 # server_connect_timeout - uses netcat to start dummy server
 test_server_connect_timeout_establish() {
 	which nc >/dev/null || return 1
-
-	echo nc $NC_WAIT_OP -l $NC_PORT
-	nc $NC_WAIT_OP -l $NC_PORT >/dev/null &
+	if nc -h 2>&1 | grep -q 'nc -l -p port'; then
+		# traditional or GNU style
+		set -- nc -l -p $NC_PORT
+	else
+		# BSD style
+		set -- nc -l $NC_PORT
+	fi
+	echo "$@"
+	"$@" >/dev/null &
 	sleep 2
+
 	admin "set query_timeout=3"
 	admin "set server_connect_timeout=2"
 	psql -X -c "select now()" p2
 	# client will always see query_timeout, need to grep for connect timeout
 	grep "closing because: connect timeout" $BOUNCER_LOG
 	rc=$?
-	# didnt seem to die otherwise
 	killall nc
 	return $rc
 }
 
 # server_connect_timeout - block with iptables
 test_server_connect_timeout_reject() {
-	test -z $CAN_SUDO && return 1
+	test -z $CAN_SUDO && return 77
 	admin "set query_timeout=5"
 	admin "set server_connect_timeout=3"
 	fw_drop_port $PG_PORT
@@ -257,7 +277,7 @@ test_server_connect_timeout_reject() {
 
 # server_check_delay
 test_server_check_delay() {
-	test -z $CAN_SUDO && return 1
+	test -z $CAN_SUDO && return 77
 
 	admin "set server_check_delay=2"
 	admin "set server_login_retry=3"
@@ -380,7 +400,7 @@ test_suspend_resume() {
 	test `wc -l <$LOGDIR/test.tmp` -eq 50
 }
 
-# test pause/resume
+# test enable/disable
 test_enable_disable() {
 	rm -f $LOGDIR/test.tmp
 	psql -X -tAq -c "select 'enabled 1'" >>$LOGDIR/test.tmp p0 2>&1
@@ -445,7 +465,67 @@ test_database_change() {
 	test "$db1" = "p1" -a "$db2" = "p0"
 }
 
-# test connect string change
+# test reconnect
+test_reconnect() {
+	bp1=`psql -X -tAq -c "select pg_backend_pid()" p1`
+	admin "reconnect p1"
+	sleep 1
+	bp2=`psql -X -tAq -c "select pg_backend_pid()" p1`
+	echo "bp1=$bp1 bp2=$bp2"
+	test "$bp1" != "$bp2"
+}
+
+# test server_fast_close
+test_fast_close() {
+	(
+		echo "select pg_backend_pid();"
+		sleep 2
+		echo "select pg_backend_pid();"
+		echo "\q"
+	) | psql -X -tAq -f- -d p3 >$LOGDIR/testout.tmp 2>$LOGDIR/testerr.tmp &
+	sleep 1
+	admin "set server_fast_close = 1"
+	admin "reconnect p3"
+	wait
+
+	admin "show databases"
+	admin "show pools"
+	admin "show servers"
+
+	# If this worked correctly, the session will be closed between
+	# the two queries, so the second query will fail and leave an
+	# error.
+	test `wc -l <$LOGDIR/testout.tmp` -eq 1 && test `wc -l <$LOGDIR/testerr.tmp` -ge 1
+}
+
+# test wait_close
+test_wait_close() {
+	(
+		echo "select pg_backend_pid();"
+		sleep 2
+		echo "select pg_backend_pid();"
+		echo "\q"
+	) | psql -X -tAq -f- -d p3 &
+	psql_pid=$!
+	sleep 1
+	admin "reconnect p3"
+	admin "wait_close p3"
+
+	# psql should no longer be running now.  (Without the wait it
+	# would still be running.)
+	kill -0 $psql_pid
+	psql_running=$?
+
+	wait
+
+	admin "show databases"
+	admin "show pools"
+	admin "show servers"
+
+	test $psql_running -ne 0
+}
+
+# test auth_user
 test_auth_user() {
 	admin "set auth_type='md5'"
 	curuser=`psql -X -d "dbname=authdb user=someuser password=anypasswd" -tAq -c "select current_user;"`
@@ -466,9 +546,6 @@ test_auth_user() {
 	return 0
 }
 
-echo "Testing for sudo access."
-sudo true && CAN_SUDO=1
-
 testlist="
 test_server_login_retry
 test_auth_user
@@ -487,17 +564,27 @@ test_suspend_resume
 test_enable_disable
 test_database_restart
 test_database_change
+test_reconnect
+test_fast_close
+test_wait_close
 "
 
 if [ $# -gt 0 ]; then
 	testlist=$@
 fi
 
+total_status=0
 for test in $testlist
 do
 	runtest $test
+	status=$?
+	if [ $status -eq 1 ]; then
+		total_status=1
+	fi
 done
 
 complete
+
+exit $total_status
 
 # vim: sts=0 sw=8 noet nosmarttab:

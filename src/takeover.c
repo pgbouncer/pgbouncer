@@ -325,7 +325,7 @@ bool takeover_login(PgSocket *bouncer)
 {
 	bool res;
 
-	slog_info(bouncer, "Login OK, sending SUSPEND");
+	slog_info(bouncer, "login OK, sending SUSPEND");
 	SEND_generic(res, bouncer, 'Q', "s", "SUSPEND;");
 	if (res) {
 		/* use own callback */

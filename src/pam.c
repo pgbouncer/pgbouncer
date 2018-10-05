@@ -118,17 +118,17 @@ void pam_init(void)
 
 	rc = pthread_mutex_init(&pam_queue_tail_mutex, NULL);
 	if (rc != 0) {
-		fatal("Failed to init a mutex");
+		fatal("failed to init a mutex");
 	}
 
 	rc = pthread_cond_init(&pam_data_available, NULL);
 	if (rc != 0) {
-		fatal("Failed to init a condition variable");
+		fatal("failed to init a condition variable");
 	}
 
 	rc = pthread_create(&pam_worker_thread, NULL, &pam_auth_worker, NULL);
 	if (rc != 0) {
-		fatal("Failed to create the authentication thread");
+		fatal("failed to create the authentication thread");
 	}
 }
 
@@ -154,7 +154,7 @@ void pam_auth_begin(PgSocket *client, const char *passwd)
 	 * then block until one is available.
 	 */
 	if (next_free_slot == pam_first_taken_slot)
-		slog_debug(client, "PAM queue is full, waiting.");
+		slog_debug(client, "PAM queue is full, waiting");
 
 	while (next_free_slot == pam_first_taken_slot) {
 		if (pam_poll() == 0) {
@@ -284,7 +284,7 @@ static void pam_auth_finish(struct pam_auth_request *request)
 		safe_strcpy(client->auth_user->passwd, request->password, sizeof(client->auth_user->passwd));
 		sbuf_continue(&client->sbuf);
 	} else {
-		disconnect_client(client, true, "Auth failed");
+		disconnect_client(client, true, "auth failed");
 	}
 }
 

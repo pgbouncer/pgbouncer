@@ -1,6 +1,55 @@
 PgBouncer changelog
 ===================
 
+PgBouncer 1.9.x
+---------------
+
+**2018-08-13  -  PgBouncer 1.9.0  -  "Chaos Survival"**
+
+- Features
+
+  * RECONNECT command
+
+  * WAIT_CLOSE command
+
+  * Fast close - Disconnect a server in session pool mode immediately if
+    it is in "close_needed" (reconnect) mode.
+
+  * Add close_needed column to SHOW SERVERS
+
+- Fixes
+
+  * Avoid double-free in parse_filename
+  * Avoid NULL pointer deref in parse_line
+
+- Cleanups
+
+  * Port mkauth.py to Python 3
+
+  * Improve signals documentation
+
+  * Improve quick start documentation
+
+  * Document SET command
+
+  * Correct list of required software
+
+  * Fix -Wimplicit-fallthrough warnings
+
+  * Add missing documentation for various SHOW fields
+
+  * Document reconnect behavior on reload and DNS change
+
+  * Document that KILL requires RESUME afterwards
+
+  * Clarify documentation of server_lifetime
+
+  * Typos and capitalization fixes in messages and docs
+
+  * Fix psql invocation in tests
+
+  * Various other test setup improvements
+
 PgBouncer 1.8.x
 ---------------
 
@@ -26,7 +75,7 @@ PgBouncer 1.8.x
   * Add new commands `SHOW STATS_TOTALS` and `SHOW STATS_AVERAGES`.
 
   * Track queries and transactions separately in `SHOW STATS`.  The
-    fields `total_query_time`, `avg_query`, `avg_query`, and
+    fields `total_requests`, `avg_req`, and
     `avg_query` have been replaced by new fields.
 
   * Add `wait_time` to `SHOW STATS`.

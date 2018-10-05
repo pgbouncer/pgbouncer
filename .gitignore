@@ -12,6 +12,7 @@
 /test/.objs
 /test/hba_test
 /test/log
+/test/pgdata/
 /test/test.log
 /test/test.pid
 

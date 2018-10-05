@@ -285,6 +285,7 @@ struct PgDatabase {
 	char name[MAX_DBNAME];	/* db name for clients */
 
 	bool db_paused;		/* PAUSE <db>; was issued */
+	bool db_wait_close;	/* WAIT_CLOSE was issued for this database */
 	bool db_dead;		/* used on RELOAD/SIGHUP to later detect removed dbs */
 	bool db_auto;		/* is the database auto-created by autodb_connstr */
 	bool db_disabled;	/* is the database accepting new connections? */
@@ -419,6 +420,7 @@ extern char * cf_server_reset_query;
 extern int cf_server_reset_query_always;
 extern char * cf_server_check_query;
 extern usec_t cf_server_check_delay;
+extern int cf_server_fast_close;
 extern usec_t cf_server_connect_timeout;
 extern usec_t cf_server_login_retry;
 extern usec_t cf_query_timeout;

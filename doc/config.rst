@@ -185,13 +185,13 @@ Maximum number of client connections allowed.  When increased then the file
 descriptor limits should also be increased.  Note that actual number of file
 descriptors used is more than max_client_conn.  Theoretical maximum used is::
 
-  max_client_conn + (max_pool_size * total_databases * total_users)
+  max_client_conn + (max pool_size * total databases * total users)
 
 if each user connects under its own username to server.  If a database user
 is specified in connect string (all users connect under same username),
 the theoretical maximum is::
 
-  max_client_conn + (max_pool_size * total_databases)
+  max_client_conn + (max pool_size * total databases)
 
 The theoretical maximum should be never reached, unless somebody deliberately
 crafts special load for it.  Still, it means you should set the number of
@@ -459,10 +459,34 @@ If an empty string, then sanity checking is disabled.
 
 Default: SELECT 1;
 
+server_fast_close
+-----------------
+
+Disconnect a server in session pooling mode immediately or after the
+end of the current transaction if it is in "close_needed" mode (set by
+**RECONNECT**, **RELOAD** that changes connection settings, or DNS
+change), rather than waiting for the session end.  In statement or
+transaction pooling mode, this has no effect since that is the default
+behavior there.
+
+If because of this setting a server connection is closed before the
+end of the client session, the client connection is also closed.  This
+ensures that the client notices that the session has been interrupted.
+
+This setting makes connection configuration changes take effect sooner
+if session pooling and long-running sessions are used.  The downside
+is that client sessions are liable to be interrupted by a
+configuration change, so client applications will need logic to
+reconnect and reestablish session state.  But note that no
+transactions will be lost, because running transactions are not
+interrupted, only idle sessions.
+
+Default: 0
+
 server_lifetime
 ---------------
 
-The pooler will try to close server connections that have been connected longer
+The pooler will close an unused server connection that has been connected longer
 than this. Setting it to 0 means the connection is to be used only once,
 then closed. [seconds]
 
@@ -848,7 +872,10 @@ host
 ----
 
 Host name or IP address to connect to.  Host names are resolved
-on connect time, the result is cached per ``dns_max_ttl`` parameter.
+at connect time, the result is cached per ``dns_max_ttl`` parameter.
+When a host name's resolution changes, existing server connections are
+automatically closed when they are released (according to the pooling
+mode), and new server connections immediately use the new resolution.
 If DNS returns several results, they are used in round-robin
 manner.
 
@@ -881,6 +908,11 @@ pool_size
 
 Set maximum size of pools for this database.  If not set,
 the default_pool_size is used.
+
+reserve_pool
+------------
+Set additional connections for this database. If not set, reserve_pool_size is
+used.
 
 connect_query
 -------------

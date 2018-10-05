@@ -354,13 +354,13 @@ static void refresh_stats(int s, short flags, void *arg)
 	}
 	calc_average(&avg, &cur_total, &old_total);
 	/* send totals to logfile */
-	log_info("Stats: %" PRIu64 " xacts/s,"
+	log_info("stats: %" PRIu64 " xacts/s,"
 		 " %" PRIu64 " queries/s,"
 		 " in %" PRIu64 " B/s,"
 		 " out %" PRIu64 " B/s,"
 		 " xact %" PRIu64 " us,"
-		 " query %" PRIu64 " us"
-		 " wait time %" PRIu64 " us",
+		 " query %" PRIu64 " us,"
+		 " wait %" PRIu64 " us",
 		 avg.xact_count, avg.query_count,
 		 avg.client_bytes, avg.server_bytes,
 		 avg.xact_time, avg.query_time,

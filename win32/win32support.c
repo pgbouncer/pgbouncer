@@ -278,7 +278,7 @@ int main(int argc, char *argv[])
 
 	/* initialize socket subsystem */
 	if (WSAStartup(MAKEWORD(2,0), &wsaData))
-		fatal("Cannot start the network subsystem");
+		fatal("cannot start the network subsystem");
 
 	/* service cmdline */
 	if (argc >= 3) {

@@ -1,3 +1,9 @@
+pgbouncer (1.9.0-1) unstable; urgency=low
+
+  * v1.9.0
+
+ -- Petr Jelinek <pjmodos@pjmodos.net>  Mon, 13 Aug 2018 00:00:00 +0000
+
 pgbouncer (1.8.1-1) unstable; urgency=low
 
   * v1.8.1

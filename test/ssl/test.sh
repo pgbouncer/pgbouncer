@@ -41,7 +41,7 @@ done
 
 mkdir -p $LOGDIR
 rm -fr $BOUNCER_LOG $PG_LOG
-rm -rr $PGDATA
+rm -fr $PGDATA
 
 if [ ! -d $PGDATA ]; then
 	echo "initdb"
@@ -69,8 +69,8 @@ pgctl start
 sleep 5
 
 echo "createdb"
-psql -p $PG_PORT -l | grep p0 > /dev/null || {
-	psql -p $PG_PORT -c "create user bouncer" template1
+psql -X -p $PG_PORT -l | grep p0 > /dev/null || {
+	psql -X -o /dev/null -p $PG_PORT -c "create user bouncer" template1
 	createdb -p $PG_PORT p0
 	createdb -p $PG_PORT p1
 }
@@ -120,13 +120,16 @@ die() {
 }
 
 admin() {
-	psql -h /tmp -U pgbouncer pgbouncer -c "$@;" || die "Cannot contact bouncer!"
+	psql -X -h /tmp -U pgbouncer pgbouncer -c "$@;" || die "Cannot contact bouncer!"
 }
 
 runtest() {
-	echo -n "`date` running $1 ... "
+	local status
+
+	printf "`date` running $1 ... "
 	eval $1 >$LOGDIR/$1.log 2>&1
-	if [ $? -eq 0 ]; then
+	status=$?
+	if [ $status -eq 0 ]; then
 		echo "ok"
 	else
 		echo "FAILED"
@@ -137,14 +140,16 @@ runtest() {
 	wait
 	# start with fresh config
 	kill -HUP `cat $BOUNCER_PID`
+
+	return $status
 }
 
 psql_pg() {
-	psql -U bouncer -h 127.0.0.1 -p $PG_PORT "$@"
+	psql -X -U bouncer -h 127.0.0.1 -p $PG_PORT "$@"
 }
 
 psql_bouncer() {
-	PGUSER=bouncer psql "$@"
+	PGUSER=bouncer psql -X "$@"
 }
 
 # server_lifetime
@@ -238,11 +243,18 @@ if [ $# -gt 0 ]; then
 	testlist="$*"
 fi
 
+total_status=0
 for test in $testlist
 do
 	runtest $test
+	status=$?
+	if [ $status -eq 1 ]; then
+		total_status=1
+	fi
 done
 
 complete
+
+exit $total_status
 
 # vim: sts=0 sw=8 noet nosmarttab:

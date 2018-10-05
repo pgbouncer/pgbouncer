@@ -16,6 +16,7 @@ Problems / cleanups
 -------------------
 
 * Bad naming in data strctures:
+
   * PgSocket->auth_user [vs. PgDatabase->auth_user]
   * PgSocket->db [vs. PgPool->db]
 
@@ -41,6 +42,7 @@ Problems / cleanups
 * cleanup of logging levels, to make log more useful
 
 * to test:
+
   - signal flood
   - no mem / no fds handling
 

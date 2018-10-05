@@ -105,6 +105,7 @@ char *cf_server_reset_query;
 int cf_server_reset_query_always;
 char *cf_server_check_query;
 usec_t cf_server_check_delay;
+int cf_server_fast_close;
 int cf_server_round_robin;
 int cf_disable_pqexec;
 usec_t cf_dns_max_ttl;
@@ -238,6 +239,7 @@ CF_ABS("server_reset_query", CF_STR, cf_server_reset_query, 0, "DISCARD ALL"),
 CF_ABS("server_reset_query_always", CF_INT, cf_server_reset_query_always, 0, "0"),
 CF_ABS("server_check_query", CF_STR, cf_server_check_query, 0, "select 1"),
 CF_ABS("server_check_delay", CF_TIME_USEC, cf_server_check_delay, 0, "30"),
+CF_ABS("server_fast_close", CF_INT, cf_server_fast_close, 0, "0"),
 CF_ABS("query_timeout", CF_TIME_USEC, cf_query_timeout, 0, "0"),
 CF_ABS("query_wait_timeout", CF_TIME_USEC, cf_query_wait_timeout, 0, "120"),
 CF_ABS("client_idle_timeout", CF_TIME_USEC, cf_client_idle_timeout, 0, "0"),
@@ -381,9 +383,9 @@ void load_config(void)
 			loader_users_check();
 		loaded = true;
 	} else if (!loaded) {
-		die("Cannot load config file");
+		die("cannot load config file");
 	} else {
-		log_warning("Config file loading failed");
+		log_warning("config file loading failed");
 		/* if ini file missing, don't kill anybody */
 		set_dbs_dead(false);
 	}
@@ -416,18 +418,18 @@ static struct event ev_sigint;
 
 static void handle_sigterm(int sock, short flags, void *arg)
 {
-	log_info("Got SIGTERM, fast exit");
+	log_info("got SIGTERM, fast exit");
 	/* pidfile cleanup happens via atexit() */
 	exit(1);
 }
 
 static void handle_sigint(int sock, short flags, void *arg)
 {
-	log_info("Got SIGINT, shutting down");
+	log_info("got SIGINT, shutting down");
 	if (cf_reboot)
-		fatal("Takeover was in progress, going down immediately");
+		fatal("takeover was in progress, going down immediately");
 	if (cf_pause_mode == P_SUSPEND)
-		fatal("Suspend was in progress, going down immediately");
+		fatal("suspend was in progress, going down immediately");
 	cf_pause_mode = P_PAUSE;
 	cf_shutdown = 1;
 }
@@ -441,10 +443,10 @@ static struct event ev_sighup;
 static void handle_sigusr1(int sock, short flags, void *arg)
 {
 	if (cf_pause_mode == P_NONE) {
-		log_info("Got SIGUSR1, pausing all activity");
+		log_info("got SIGUSR1, pausing all activity");
 		cf_pause_mode = P_PAUSE;
 	} else {
-		log_info("Got SIGUSR1, but already paused/suspended");
+		log_info("got SIGUSR1, but already paused/suspended");
 	}
 }
 
@@ -452,28 +454,28 @@ static void handle_sigusr2(int sock, short flags, void *arg)
 {
 	switch (cf_pause_mode) {
 	case P_SUSPEND:
-		log_info("Got SIGUSR2, continuing from SUSPEND");
+		log_info("got SIGUSR2, continuing from SUSPEND");
 		resume_all();
 		cf_pause_mode = P_NONE;
 		break;
 	case P_PAUSE:
-		log_info("Got SIGUSR2, continuing from PAUSE");
+		log_info("got SIGUSR2, continuing from PAUSE");
 		cf_pause_mode = P_NONE;
 		break;
 	case P_NONE:
-		log_info("Got SIGUSR1, but not paused/suspended");
+		log_info("got SIGUSR1, but not paused/suspended");
 	}
 
 	/* avoid surprise later if cf_shutdown stays set */
 	if (cf_shutdown) {
-		log_info("Canceling shutdown");
+		log_info("canceling shutdown");
 		cf_shutdown = 0;
 	}
 }
 
 static void handle_sighup(int sock, short flags, void *arg)
 {
-	log_info("Got SIGHUP re-reading config");
+	log_info("got SIGHUP, re-reading config");
 	load_config();
 }
 #endif
@@ -616,10 +618,10 @@ static void check_pidfile(void)
 		goto locked_pidfile;
 
 	/* seems the pidfile is not in use */
-	log_info("Stale pidfile, removing");
+	log_info("stale pidfile, removing");
 	err = unlink(cf_pidfile);
 	if (err != 0)
-		fatal_perror("Cannot remove stale pidfile");
+		fatal_perror("cannot remove stale pidfile");
 	return;
 
 locked_pidfile:
@@ -681,7 +683,7 @@ static void check_limits(void)
 			fd_count += db->pool_size * total_users;
 	}
 
-	log_info("File descriptor limit: %d (H:%d), max_client_conn: %d, max fds possible: %d",
+	log_info("kernel file descriptor limit: %d (hard: %d); max_client_conn: %d, max expected fd use: %d",
 		 (int)lim.rlim_cur, (int)lim.rlim_max, cf_max_client_conn, fd_count);
 }
 
@@ -857,8 +859,10 @@ int main(int argc, char *argv[])
 			break;
 		case 'h':
 			usage(0, argv[0]);
+			break;
 		default:
 			usage(1, argv[0]);
+			break;
 		}
 	}
 	if (optind + 1 != argc) {
@@ -890,9 +894,6 @@ int main(int argc, char *argv[])
 	if (getuid() == 0)
 		fatal("PgBouncer should not run as root");
 
-	/* need to do that after loading config */
-	check_limits();
-
 	admin_setup();
 
 	if (cf_reboot) {
@@ -912,6 +913,10 @@ int main(int argc, char *argv[])
 
 	if (cf_daemon)
 		go_daemon();
+
+	/* need to do that after loading config; also do after
+	 * go_daemon() so that output goes to log file */
+	check_limits();
 
 	/* initialize subsystems, order important */
 	srandom(time(NULL) ^ getpid());

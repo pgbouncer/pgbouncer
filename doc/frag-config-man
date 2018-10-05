@@ -2,8 +2,8 @@
 configuration file for pgbouncer
 --------------------------------
 
-:Date: 2017-12-20
-:Version: 1.8.1
+:Date: 2018-08-13
+:Version: 1.9.0
 :Manual section: 5
 :Manual group: Databases
 

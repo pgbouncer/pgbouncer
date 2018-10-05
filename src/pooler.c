@@ -162,7 +162,7 @@ static bool add_listen(int af, const struct sockaddr *sa, int salen)
 	return true;
 
 failed:
-	log_warning("Cannot listen on %s: %s(): %s",
+	log_warning("cannot listen on %s: %s(): %s",
 		    sa2str(sa, buf, sizeof(buf)),
 		    errpos, strerror(errno));
 	if (sock >= 0)
@@ -290,7 +290,7 @@ static void pool_accept(int sock, short flags, void *arg)
 	bool is_unix = pga_is_unix(&ls->addr);
 
 	if(!(flags & EV_READ)) {
-		log_warning("No EV_READ in pool_accept");
+		log_warning("no EV_READ in pool_accept");
 		return;
 	}
 loop:

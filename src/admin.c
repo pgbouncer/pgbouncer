@@ -330,7 +330,7 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	if (!mbuf_get_uint64be(&tmp, &ckey))
 		return false;
 
-	if (sk->pool->db->auth_user && sk->auth_user && !find_user(sk->auth_user->name))
+	if (sk->pool && sk->pool->db->auth_user && sk->auth_user && !find_user(sk->auth_user->name))
 		password = sk->auth_user->passwd;
 
 	/* PAM requires passwords as well since they are not stored externally */
@@ -564,8 +564,8 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	return true;
 }
 
-#define SKF_STD "sssssisiTTiissis"
-#define SKF_DBG "sssssisiTTiissisiiiiiii"
+#define SKF_STD "sssssisiTTiiissis"
+#define SKF_DBG "sssssisiTTiiissisiiiiiii"
 
 static void socket_header(PktBuf *buf, bool debug)
 {
@@ -573,7 +573,7 @@ static void socket_header(PktBuf *buf, bool debug)
 				    "type", "user", "database", "state",
 				    "addr", "port", "local_addr", "local_port",
 				    "connect_time", "request_time",
-				    "wait", "wait_us",
+				    "wait", "wait_us", "close_needed",
 				    "ptr", "link", "remote_pid", "tls",
 				    /* debug follows */
 				    "recv_pos", "pkt_pos", "pkt_remain",
@@ -633,6 +633,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 			     sk->request_time,
 			     (int)(wait_time / USEC),
 			     (int)(wait_time % USEC),
+			     sk->close_needed,
 			     ptrbuf, linkbuf, remote_pid, infobuf,
 			     /* debug */
 			     io ? io->recv_pos : 0,
@@ -643,7 +644,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 			     pkt_avail, send_avail);
 }
 
-/* Helper for SHOW CLIENTS */
+/* Helper for SHOW CLIENTS/SERVERS/SOCKETS */
 static void show_socket_list(PktBuf *buf, struct StatList *list, const char *state, bool debug)
 {
 	struct List *item;
@@ -1004,7 +1005,7 @@ static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 		if (cf_pause_mode != P_NONE)
 			full_resume();
 		else
-			return admin_error(admin, "Pooler is not paused/suspended");
+			return admin_error(admin, "pooler is not paused/suspended");
 	} else {
 		PgDatabase *db = find_database(arg);
 		log_info("RESUME '%s' command issued", arg);
@@ -1072,6 +1073,38 @@ static bool admin_cmd_pause(PgSocket *admin, const char *arg)
 	}
 
 	return true;
+}
+
+/* Command: RECONNECT */
+static bool admin_cmd_reconnect(PgSocket *admin, const char *arg)
+{
+	if (!admin->admin_user)
+		return admin_error(admin, "admin access needed");
+
+	if (!arg[0]) {
+		struct List *item;
+		PgPool *pool;
+
+		log_info("RECONNECT command issued");
+		statlist_for_each(item, &pool_list) {
+			pool = container_of(item, PgPool, head);
+			if (pool->db->admin)
+				continue;
+			tag_database_dirty(pool->db);
+		}
+	} else {
+		PgDatabase *db;
+
+		log_info("RECONNECT '%s' command issued", arg);
+		db = find_or_register_database(admin, arg);
+		if (db == NULL)
+			return admin_error(admin, "no such database: %s", arg);
+		if (db == admin->pool->db)
+			return admin_error(admin, "cannot reconnect admin db: %s", arg);
+		tag_database_dirty(db);
+	}
+
+	return admin_ready(admin, "RECONNECT");
 }
 
 /* Command: DISABLE */
@@ -1151,6 +1184,49 @@ static bool admin_cmd_kill(PgSocket *admin, const char *arg)
 	return admin_ready(admin, "KILL");
 }
 
+/* Command: WAIT_CLOSE */
+static bool admin_cmd_wait_close(PgSocket *admin, const char *arg)
+{
+	if (!admin->admin_user)
+		return admin_error(admin, "admin access needed");
+
+       if (!arg[0]) {
+	       struct List *item;
+	       PgPool *pool;
+	       int active = 0;
+
+	       log_info("WAIT_CLOSE command issued");
+	       statlist_for_each(item, &pool_list) {
+		       PgDatabase *db;
+
+		       pool = container_of(item, PgPool, head);
+		       db = pool->db;
+		       db->db_wait_close = 1;
+		       active += count_db_active(db);
+	       }
+	       if (active > 0)
+		       admin->wait_for_response = 1;
+	       else
+		       return admin_ready(admin, "WAIT_CLOSE");
+       } else {
+	       PgDatabase *db;
+
+	       log_info("WAIT_CLOSE '%s' command issued", arg);
+	       db = find_or_register_database(admin, arg);
+	       if (db == NULL)
+		       return admin_error(admin, "no such database: %s", arg);
+	       if (db == admin->pool->db)
+		       return admin_error(admin, "cannot wait in admin db: %s", arg);
+	       db->db_wait_close = 1;
+	       if (count_db_active(db) > 0)
+		       admin->wait_for_response = 1;
+	       else
+		       return admin_ready(admin, "WAIT_CLOSE");
+       }
+
+       return true;
+}
+
 /* extract substring from regex group */
 static bool copy_arg(const char *src, regmatch_t *glist,
 		     int gnum, char *dst, unsigned dstmax,
@@ -1209,9 +1285,11 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		"\tRESUME [<db>]\n"
 		"\tDISABLE <db>\n"
 		"\tENABLE <db>\n"
+		"\tRECONNECT [<db>]\n"
 		"\tKILL <db>\n"
 		"\tSUSPEND\n"
-		"\tSHUTDOWN", "");
+		"\tSHUTDOWN\n",
+		"\tWAIT_CLOSE [<db>]", "");
 	if (res)
 		res = admin_ready(admin, "SHOW");
 	return res;
@@ -1284,12 +1362,14 @@ static struct cmd_lookup cmd_list [] = {
 	{"enable", admin_cmd_enable},
 	{"kill", admin_cmd_kill},
 	{"pause", admin_cmd_pause},
+	{"reconnect", admin_cmd_reconnect},
 	{"reload", admin_cmd_reload},
 	{"resume", admin_cmd_resume},
 	{"select", admin_cmd_show},
 	{"show", admin_cmd_show},
 	{"shutdown", admin_cmd_shutdown},
 	{"suspend", admin_cmd_suspend},
+	{"wait_close", admin_cmd_wait_close},
 	{NULL, NULL}
 };
 
@@ -1548,9 +1628,29 @@ void admin_pause_done(void)
 	if (statlist_empty(&admin_pool->active_client_list)
 	    && cf_pause_mode == P_SUSPEND)
 	{
-		log_info("Admin disappeared when suspended, doing RESUME");
+		log_info("admin disappeared when suspended, doing RESUME");
 		cf_pause_mode = P_NONE;
 		resume_all();
+	}
+}
+
+void admin_wait_close_done(void)
+{
+	struct List *item, *tmp;
+	PgSocket *admin;
+	bool res;
+
+	statlist_for_each_safe(item, &admin_pool->active_client_list, tmp) {
+		admin = container_of(item, PgSocket, head);
+		if (!admin->wait_for_response)
+			continue;
+
+		res = admin_ready(admin, "WAIT_CLOSE");
+
+		if (!res)
+			disconnect_client(admin, false, "dead admin");
+		else
+			admin->wait_for_response = 0;
 	}
 }
 

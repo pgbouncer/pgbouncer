@@ -282,7 +282,10 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 	} else {
 		/* the user clients wants to log in as */
 		client->auth_user = find_user(username);
-		if (!client->auth_user && client->db->auth_user) {
+		/* the user may not exist yet, or they may exist but their password is yet to be queried
+		   (e.g. if they are present in the [users] section of the .ini file
+		*/
+		if ((!client->auth_user || strlen(client->auth_user->passwd) == 0) && client->db->auth_user) {
 			if (takeover) {
 				client->auth_user = add_db_user(client->db, username, password);
 				return finish_set_pool(client, takeover);

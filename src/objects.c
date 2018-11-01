@@ -186,9 +186,8 @@ void change_client_state(PgSocket *client, SocketState newstate)
 		statlist_append(&login_client_list, &client->head);
 		break;
 	case CL_WAITING:
-		client->wait_start = get_cached_time();
-		/* fallthrough */
 	case CL_WAITING_LOGIN:
+		client->wait_start = get_cached_time();
 		statlist_append(&pool->waiting_client_list, &client->head);
 		break;
 	case CL_ACTIVE:

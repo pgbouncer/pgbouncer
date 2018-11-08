@@ -336,6 +336,10 @@ bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
 			disconnect_server(server, false, "bad packet");
 			return false;
 		}
+		if (length == (uint32_t)-1) {
+			slog_debug(client, "auth_query returned empty result");
+			break;
+		}
 		if (sizeof(user.name) - 1 < length)
 			length = sizeof(user.name) - 1;
 		memcpy(user.name, username, length);

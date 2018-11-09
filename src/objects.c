@@ -592,8 +592,8 @@ bool check_fast_fail(PgSocket *client)
 	int cnt;
 	PgPool *pool = client->pool;
 
-	/* reject if no servers and last connect failed */
-	if (!pool->last_connect_failed)
+	/* reject if no servers are available and the last login failed */
+	if (!pool->last_login_failed)
 		return true;
 	cnt = pool_server_count(pool) - statlist_count(&pool->new_server_list);
 	if (cnt)
@@ -760,6 +760,7 @@ bool release_server(PgSocket *server)
 	case SV_TESTED:
 		break;
 	case SV_LOGIN:
+		pool->last_login_failed = 0;
 		pool->last_connect_failed = 0;
 		break;
 	default:
@@ -832,9 +833,20 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 		 * except when sending cancel packet
 		 */
 		if (!server->ready)
+		{
+			pool->last_login_failed = 1;
 			pool->last_connect_failed = 1;
+		}
 		else
+		{
+			/*
+			 * We did manage to connect and used the connection for query
+			 * cancellation, so to the best of our knowledge we can connect to
+			 * the server, reset last_connect_failed accordingly.
+			 */
+			pool->last_connect_failed = 0;
 			send_term = 0;
+		}
 		break;
 	default:
 		fatal("disconnect_server: bad server state (%d)", server->state);

@@ -243,7 +243,7 @@ static void* pam_auth_worker(void *arg)
 		 * sockets and thus save some time.
 		 */
 		if (!is_valid_socket(request)) {
-			log_debug("pam_auth_worker(): invalid socket in slot %d", current_slot);
+			log_error("pam_auth_worker(): invalid socket in slot %d", current_slot);
 			request->status = PAM_STATUS_FAILED;
 			continue;
 		}
@@ -297,7 +297,7 @@ static int pam_conversation(int msgc,
 	int i, rc;
 
 	if (msgc < 1 || msgv == NULL || request == NULL) {
-		log_debug(
+		log_error(
 			"pam_conversation(): wrong input, msgc=%d, msgv=%p, authdata=%p",
 			msgc, msgv, authdata);
 		return PAM_CONV_ERR;
@@ -337,7 +337,7 @@ static int pam_conversation(int msgc,
 			break;
 
 		default:
-			log_debug(
+			log_error(
 				"pam_conversation(): unhandled message, msg_style=%d",
 				msgv[i]->msg_style);
 			break;

@@ -780,13 +780,13 @@ static bool sbuf_after_connect_check(SBuf *sbuf)
 
 	err = getsockopt(sbuf->sock, SOL_SOCKET, SO_ERROR, (void*)&optval, &optlen);
 	if (err < 0) {
-		log_debug("sbuf_after_connect_check: getsockopt: %s",
-			  strerror(errno));
+		log_error("sbuf_after_connect_check: getsockopt: %s",
+				  strerror(errno));
 		return false;
 	}
 	if (optval != 0) {
-		log_debug("sbuf_after_connect_check: pending error: %s",
-			  strerror(optval));
+		log_error("sbuf_after_connect_check: pending error: %s",
+				  strerror(optval));
 		return false;
 	}
 	return true;
@@ -821,9 +821,9 @@ bool sbuf_answer(SBuf *sbuf, const void *buf, unsigned len)
 		return false;
 	res = sbuf_op_send(sbuf, buf, len);
 	if (res < 0) {
-		log_debug("sbuf_answer: error sending: %s", strerror(errno));
+		log_error("sbuf_answer: error sending: %s", strerror(errno));
 	} else if ((unsigned)res != len) {
-		log_debug("sbuf_answer: partial send: len=%d sent=%d", len, res);
+		log_error("sbuf_answer: partial send: len=%d sent=%d", len, res);
 	}
 	return (unsigned)res == len;
 }

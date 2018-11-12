@@ -1124,7 +1124,9 @@ void launch_new_connection(PgPool *pool)
 	if (pool->last_connect_failed) {
 		usec_t now = get_cached_time();
 		if (now - pool->last_connect_time < cf_server_login_retry) {
-			log_debug("launch_new_connection: last failed, wait");
+			log_warning("launch_new_connection: waiting for %" PRIu64 " us "
+						"before attempting another connection attempt.",
+						cf_server_login_retry);
 			return;
 		}
 	}
@@ -1143,8 +1145,8 @@ void launch_new_connection(PgPool *pool)
 				}
 			}
 		}
-		log_debug("launch_new_connection: pool full (%d >= %d)",
-				total, pool->db->pool_size);
+		log_warning("launch_new_connection: pool full (%d >= %d)",
+					total, pool->db->pool_size);
 		return;
 	}
 
@@ -1158,8 +1160,8 @@ allow_new:
 			}
 		}
 		if (pool->db->connection_count >= total) {
-			log_debug("launch_new_connection: database full (%d >= %d)",
-					pool->db->connection_count, total);
+			log_warning("launch_new_connection: database full (%d >= %d)",
+						pool->db->connection_count, total);
 			return;
 		}
 	}
@@ -1173,8 +1175,8 @@ allow_new:
 			}
 		}
 		if (pool->user->connection_count >= total) {
-			log_debug("launch_new_connection: user full (%d >= %d)",
-					pool->user->connection_count, total);
+			log_warning("launch_new_connection: user full (%d >= %d)",
+						pool->user->connection_count, total);
 			return;
 		}
 	}
@@ -1182,7 +1184,7 @@ allow_new:
 	/* get free conn object */
 	server = slab_alloc(server_cache);
 	if (!server) {
-		log_debug("launch_new_connection: no memory");
+		log_error("launch_new_connection: no memory");
 		return;
 	}
 
@@ -1224,7 +1226,7 @@ PgSocket *accept_client(int sock, bool is_unix)
 	res = sbuf_accept(&client->sbuf, sock, is_unix);
 	if (!res) {
 		if (cf_log_connections)
-			slog_debug(client, "failed connection attempt");
+			slog_error(client, "failed connection attempt");
 		return NULL;
 	}
 

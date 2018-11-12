@@ -891,7 +891,7 @@ static void xares_host_cb(void *arg, int status, int timeouts, struct hostent *h
 		res = convert_hostent(h);
 		got_result_gai(0, res, req);
 	} else {
-		log_debug("DNS lookup failed: %s - %s", req->name, ares_strerror(status));
+		log_error("DNS lookup failed: %s - %s", req->name, ares_strerror(status));
 		got_result_gai(0, res, req);
 	}
 }
@@ -1601,7 +1601,7 @@ static void got_zone_serial(struct DNSContext *ctx, uint32_t *serial)
 			log_debug("zone '%s' unchanged: serial=%u", z->zonename, *serial);
 		}
 	} else {
-		log_debug("failure to get zone '%s' serial", z->zonename);
+		log_error("failure to get zone '%s' serial", z->zonename);
 	}
 
 	el = z->lnode.next;

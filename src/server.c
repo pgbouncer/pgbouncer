@@ -253,7 +253,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			if (client->expect_rfq_count > 0) {
 				client->expect_rfq_count--;
 			} else if (server->state == SV_ACTIVE) {
-				slog_debug(client, "unexpected ReadyForQuery - expect_rfq_count=%d", client->expect_rfq_count);
+				slog_error(client, "unexpected ReadyForQuery - expect_rfq_count=%d", client->expect_rfq_count);
 			}
 		}
 		break;

@@ -811,7 +811,7 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 	reason = buf;
 
 	if (cf_log_disconnections)
-		slog_info(server, "closing because: %s (age=%" PRIu64 ")", reason,
+		slog_info(server, "closing because: %s (age=%" PRIu64 "s)", reason,
 			  (now - server->connect_time) / USEC);
 
 	switch (server->state) {
@@ -887,7 +887,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 	reason = buf;
 
 	if (cf_log_disconnections)
-		slog_info(client, "closing because: %s (age=%" PRIu64 ")", reason,
+		slog_info(client, "closing because: %s (age=%" PRIu64 "s)", reason,
 			  (now - client->connect_time) / USEC);
 
 	switch (client->state) {

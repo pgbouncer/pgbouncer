@@ -78,13 +78,13 @@ LIBUSUAL_DIST = $(filter-out %/config.h, $(sort $(wildcard \
 		lib/README lib/COPYRIGHT \
 		lib/find_modules.sh )))
 
-#
-# win32
-#
-
 pgbouncer_LDFLAGS := $(TLS_LDFLAGS)
 pgbouncer_LDADD := $(CARES_LIBS) $(TLS_LIBS) $(LIBS)
 LIBS :=
+
+#
+# win32
+#
 
 EXTRA_pgbouncer_SOURCES = win32/win32support.c win32/win32support.h
 EXTRA_PROGRAMS = pgbevent

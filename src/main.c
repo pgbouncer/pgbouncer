@@ -67,6 +67,9 @@ char *cf_config_file;
 char *cf_listen_addr;
 int cf_listen_port;
 int cf_listen_backlog;
+#ifdef HAVE_SO_REUSEPORT
+int cf_listen_reuseport;
+#endif
 char *cf_unix_socket_dir;
 int cf_unix_socket_mode;
 char *cf_unix_socket_group;
@@ -208,6 +211,9 @@ CF_ABS("pidfile", CF_STR, cf_pidfile, CF_NO_RELOAD, ""),
 CF_ABS("listen_addr", CF_STR, cf_listen_addr, CF_NO_RELOAD, ""),
 CF_ABS("listen_port", CF_INT, cf_listen_port, CF_NO_RELOAD, "6432"),
 CF_ABS("listen_backlog", CF_INT, cf_listen_backlog, CF_NO_RELOAD, "128"),
+#ifdef HAVE_SO_REUSEPORT
+CF_ABS("listen_reuseport", CF_INT, cf_listen_reuseport, CF_NO_RELOAD, "0"),
+#endif
 #ifndef WIN32
 CF_ABS("unix_socket_dir", CF_STR, cf_unix_socket_dir, CF_NO_RELOAD, "/tmp"),
 CF_ABS("unix_socket_mode", CF_INT, cf_unix_socket_mode, CF_NO_RELOAD, "0777"),

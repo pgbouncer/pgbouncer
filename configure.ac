@@ -184,6 +184,19 @@ fi # !cares
 
 ## end of DNS
 
+AC_MSG_CHECKING([whether so_reuseport is available])
+AC_LINK_IFELSE([AC_LANG_SOURCE([
+  #include <sys/socket.h>
+  int main(void) {
+    int val = 1;
+    setsockopt(0, SOL_SOCKET, SO_REUSEPORT, &val, 0);
+  } ])],
+[
+  AC_MSG_RESULT([yes])
+  AC_DEFINE(HAVE_SO_REUSEPORT, 1, [SO_REUSEPORT support])
+],
+[AC_MSG_RESULT([no])])
+
 AC_USUAL_TLS
 
 AC_USUAL_DEBUG

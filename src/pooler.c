@@ -120,6 +120,16 @@ static bool add_listen(int af, const struct sockaddr *sa, int salen)
 	}
 #endif
 
+#ifdef HAVE_SO_REUSEPORT
+	if (cf_listen_reuseport && af != AF_UNIX) {
+		int val = 1;
+		errpos = "setsockopt/SO_REUSEPORT";
+		res = setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val));
+		if (res < 0)
+			goto failed;
+	}
+#endif
+
 	/* bind it */
 	errpos = "bind";
 	res = bind(sock, sa, salen);

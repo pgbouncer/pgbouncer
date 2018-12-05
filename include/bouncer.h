@@ -401,6 +401,9 @@ extern char *cf_unix_socket_group;
 extern char *cf_listen_addr;
 extern int cf_listen_port;
 extern int cf_listen_backlog;
+#ifdef HAVE_SO_REUSEPORT
+extern int cf_listen_reuseport;
+#endif
 
 extern int cf_pool_mode;
 extern int cf_max_client_conn;

@@ -47,6 +47,13 @@ Which port to listen on. Applies to both TCP and Unix sockets.
 
 Default: 6432
 
+listen_reuseport
+----------------
+
+Whether to enable SO_REUSPORT or not. Applies to only TCP sockets.
+
+Default: 0
+
 unix_socket_dir
 ---------------
 

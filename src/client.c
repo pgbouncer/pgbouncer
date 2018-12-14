@@ -406,6 +406,8 @@ static void set_appname(PgSocket *client, const char *app_name)
 	char buf[400], abuf[300];
 	const char *details;
 
+	if (cf_application_name_disable) return;
+
 	if (cf_application_name_add_host) {
 		/* give app a name */
 		if (!app_name)

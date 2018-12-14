@@ -298,6 +298,14 @@ pgbouncer does not change it again.
 
 Default: 0
 
+application_name_disable
+------------------------
+
+Disable setting the application name from pgbouncer.  Setting application name can be
+expensive in some situations.
+
+Default: 0
+
 conffile
 --------
 

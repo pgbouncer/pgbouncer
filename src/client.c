@@ -374,6 +374,8 @@ bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
 		break;
 	case '2':	/* BindComplete */
 		break;
+	case 'S': /* ParameterStatus */
+		break;
 	case 'Z':	/* ReadyForQuery */
 		sbuf_prepare_skip(&client->link->sbuf, pkt->len);
 		if (!client->auth_user) {

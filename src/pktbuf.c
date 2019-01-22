@@ -391,8 +391,8 @@ void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...)
  * send DataRow.
  *
  * tupdesc keys:
- * 'i' - int4
- * 'q' - int8
+ * 'i' - int4, limited to 2^31
+ * 'q' - int8, limited to 2^63
  * 's' - string
  * 'T' - usec_t to date
  */
@@ -409,10 +409,10 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 	va_start(ap, tupdesc);
 	for (i = 0; i < ncol; i++) {
 		if (tupdesc[i] == 'i') {
-			snprintf(tmp, sizeof(tmp), "%d", va_arg(ap, int));
+			snprintf(tmp, sizeof(tmp), "%d", va_arg(ap, int) & 0x7fffffff);
 			val = tmp;
 		} else if (tupdesc[i] == 'q') {
-			snprintf(tmp, sizeof(tmp), "%" PRIu64, va_arg(ap, uint64_t));
+			snprintf(tmp, sizeof(tmp), "%" PRIu64, va_arg(ap, uint64_t) & 0x7fffffffffffffff);
 			val = tmp;
 		} else if (tupdesc[i] == 's') {
 			val = va_arg(ap, char *);

@@ -441,7 +441,8 @@ PgUser *add_pam_user(const char *name, const char *passwd)
 		aatree_insert(&pam_user_tree, (uintptr_t)user->name, &user->tree_node);
 		user->pool_mode = POOL_INHERIT;
 	}
-	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
+	if(strcmp(passwd,"") != 0)
+		safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
 	return user;
 }
 
@@ -591,12 +592,15 @@ bool check_fast_fail(PgSocket *client)
 {
 	int cnt;
 	PgPool *pool = client->pool;
+	usec_t now = get_cached_time();
 
 	/* reject if no servers are available and the last login failed */
 	if (!pool->last_login_failed)
 		return true;
 	cnt = pool_server_count(pool) - statlist_count(&pool->new_server_list);
 	if (cnt)
+		return true;
+	if (cf_auth_type == AUTH_PAM && now - pool->last_connect_time > cf_server_login_retry)
 		return true;
 	disconnect_client(client, true, "pgbouncer cannot connect to server");
 

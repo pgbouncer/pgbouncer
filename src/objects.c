@@ -426,6 +426,8 @@ PgUser *add_pam_user(const char *name, const char *passwd)
 	PgUser *user = NULL;
 	struct AANode *node;
 
+	char *tmpname=name;
+	tmpname[MAX_USERNAME-1]='\0';
 	node = aatree_search(&pam_user_tree, (uintptr_t)name);
 	user = node ? container_of(node, PgUser, tree_node) : NULL;
 

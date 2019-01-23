@@ -426,9 +426,11 @@ PgUser *add_pam_user(const char *name, const char *passwd)
 	PgUser *user = NULL;
 	struct AANode *node;
 
-	char *tmpname=name;
+	char *tmpname=calloc(1,MAX_USERNAME);
+	strncpy(tmpname,name,MAX_USERNAME);
 	tmpname[MAX_USERNAME-1]='\0';
-	node = aatree_search(&pam_user_tree, (uintptr_t)name);
+	
+	node = aatree_search(&pam_user_tree, (uintptr_t)tmpname);
 	user = node ? container_of(node, PgUser, tree_node) : NULL;
 
 	if (user == NULL) {
@@ -438,7 +440,7 @@ PgUser *add_pam_user(const char *name, const char *passwd)
 
 		list_init(&user->head);
 		list_init(&user->pool_list);
-		safe_strcpy(user->name, name, sizeof(user->name));
+		safe_strcpy(user->name, tmpname, sizeof(user->name));
 
 		aatree_insert(&pam_user_tree, (uintptr_t)user->name, &user->tree_node);
 		user->pool_mode = POOL_INHERIT;

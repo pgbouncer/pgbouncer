@@ -1460,6 +1460,20 @@ bool use_server_socket(int fd, PgAddr *addr,
 	return true;
 }
 
+void for_each_client(PgPool *pool, void (*func)(PgSocket *sk))
+{
+	struct List *item;
+
+	statlist_for_each(item, &pool->active_client_list)
+		func(container_of(item, PgSocket, head));
+
+	statlist_for_each(item, &pool->waiting_client_list)
+		func(container_of(item, PgSocket, head));
+
+	statlist_for_each(item, &pool->cancel_req_list)
+		func(container_of(item, PgSocket, head));
+}
+
 void for_each_server(PgPool *pool, void (*func)(PgSocket *sk))
 {
 	struct List *item;
@@ -1522,7 +1536,7 @@ static void tag_dirty(PgSocket *sk)
 	sk->close_needed = 1;
 }
 
-static void tag_pool_dirty(PgPool *pool)
+static void tag_pool_servers_dirty(PgPool *pool)
 {
 	struct List *item, *tmp;
 	struct PgSocket *server;
@@ -1544,6 +1558,19 @@ static void tag_pool_dirty(PgPool *pool)
 	}
 }
 
+void tag_database_clients_dirty(PgDatabase *db)
+{
+	struct List *item;
+	PgPool *pool;
+
+	statlist_for_each(item, &pool_list) {
+		pool = container_of(item, PgPool, head);
+		/* drop all existing clients ASAP */
+		if (pool->db == db)
+			for_each_client(pool, tag_dirty);
+	}
+}
+
 void tag_database_dirty(PgDatabase *db)
 {
 	struct List *item;
@@ -1552,7 +1579,7 @@ void tag_database_dirty(PgDatabase *db)
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
 		if (pool->db == db)
-			tag_pool_dirty(pool);
+			tag_pool_servers_dirty(pool);
 	}
 }
 
@@ -1581,7 +1608,7 @@ void tag_autodb_dirty(void)
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
 		if (pool->db->db_auto)
-			tag_pool_dirty(pool);
+			tag_pool_servers_dirty(pool);
 	}
 }
 

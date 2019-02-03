@@ -144,6 +144,6 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
 	SEND_wrap(16, pktbuf_write_CancelRequest, res, sk, key)
 
 #define SEND_PasswordMessage(res, sk, psw) \
-	SEND_wrap(512, pktbuf_write_PasswordMessage, res, sk, psw)
+	SEND_wrap(MAX_PASSWORD, pktbuf_write_PasswordMessage, res, sk, psw)
 
 void pktbuf_cleanup(void);

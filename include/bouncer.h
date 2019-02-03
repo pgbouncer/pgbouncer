@@ -110,7 +110,7 @@ extern int cf_sbuf_len;
 /* to avoid allocations will use static buffers */
 #define MAX_DBNAME	64
 #define MAX_USERNAME	64
-#define MAX_PASSWORD	128
+#define MAX_PASSWORD	2048
 
 /* no-auth modes */
 #define AUTH_ANY	-1 /* same as trust but without username check */

@@ -358,19 +358,13 @@ void per_loop_maint(void)
 		admin_wait_close_done();
 }
 
-static void check_unused_clients(PgPool *pool, struct StatList *slist)
+static void check_client_for_close_needed(PgSocket *client)
 {
-	struct List *item, *tmp;
-	PgSocket *client;
-
-	/* disconnect idle client if close_needed was set */
-	statlist_for_each_safe(item, slist, tmp) {
-		client = container_of(item, PgSocket, head);
-		if (client->link)
-			continue;
-		if (client->close_needed)
-			disconnect_client(client, true, "close_needed (reconnect client)");
-	}
+	/* Ignore if the client currently has an active link */
+	if (client->link)
+		return;
+	if (client->close_needed)
+		disconnect_client(client, false, "close_needed (reconnect client)");
 }
 
 /* maintaining clients in pool */
@@ -382,9 +376,7 @@ static void pool_client_maint(PgPool *pool)
 	usec_t age;
 
 	/* find and disconnect idle servers */
-	check_unused_clients(pool, &pool->active_client_list);
-	check_unused_clients(pool, &pool->waiting_client_list);
-	check_unused_clients(pool, &pool->cancel_req_list);
+	for_each_client(pool, check_client_for_close_needed);
 
 	/* force client_idle_timeout */
 	if (cf_client_idle_timeout > 0) {

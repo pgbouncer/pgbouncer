@@ -1462,15 +1462,15 @@ bool use_server_socket(int fd, PgAddr *addr,
 
 void for_each_client(PgPool *pool, void (*func)(PgSocket *sk))
 {
-	struct List *item;
+	struct List *item, *tmp;
 
-	statlist_for_each(item, &pool->active_client_list)
+	statlist_for_each_safe(item, &pool->active_client_list, tmp)
 		func(container_of(item, PgSocket, head));
 
-	statlist_for_each(item, &pool->waiting_client_list)
+	statlist_for_each_safe(item, &pool->waiting_client_list, tmp)
 		func(container_of(item, PgSocket, head));
 
-	statlist_for_each(item, &pool->cancel_req_list)
+	statlist_for_each_safe(item, &pool->cancel_req_list, tmp)
 		func(container_of(item, PgSocket, head));
 }
 

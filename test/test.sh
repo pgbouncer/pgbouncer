@@ -465,8 +465,8 @@ test_database_change() {
 	test "$db1" = "p1" -a "$db2" = "p0"
 }
 
-# test client reconnect
-test_client_reconnect() {
+# test reconnect clients
+test_reconnect_clients() {
 	(
 		echo "begin;"
 		echo "select pg_sleep(1);"
@@ -478,7 +478,7 @@ test_client_reconnect() {
 	) | psql -X -tAq -f- -d p4 >$LOGDIR/testout.tmp 2>$LOGDIR/testerr.tmp &
 
 	sleep 1
-	admin "client_reconnect p4"
+	admin "reconnect_clients p4"
 	clients_before=$(admin "show clients")
 	wait
 	clients_after=$(admin "show clients")
@@ -505,7 +505,7 @@ test_client_fast_close_enabled() {
 
 	sleep 1
 	admin "set client_fast_close = 1"
-	admin "client_reconnect p3"
+	admin "reconnect_clients p3"
 	clients_before=$(admin "show clients")
 	wait
 	clients_after=$(admin "show clients")
@@ -530,7 +530,7 @@ test_client_fast_close_disabled() {
 	sleep 1
 	admin "set client_fast_close = 0"
 	clients_before=$(admin "show clients")
-	admin "client_reconnect p3"
+	admin "reconnect_clients p3"
 	sleep 1
 	clients_after=$(admin "show clients")
 
@@ -640,7 +640,7 @@ test_suspend_resume
 test_enable_disable
 test_database_restart
 test_database_change
-test_client_reconnect
+test_reconnect_clients
 test_client_fast_close_enabled
 test_client_fast_close_disabled
 test_reconnect

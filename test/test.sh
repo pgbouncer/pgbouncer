@@ -483,9 +483,9 @@ test_reconnect_clients() {
 	wait
 	clients_after=$(admin "show clients")
 
-	# The first "show clients" have one connected client to p4. The second
-	# should have no connected clients to p4 since the client reconnect will
-	# close the connection after the transaction completes.
+	# The first "show clients" should have one connected client to p4. The
+	# second should have no connected clients to p4 since the client reconnect
+	# will close the connection after the transaction completes.
 	echo "clients_before=$clients_before clients_after=$clients_after"
 	test `echo $clients_before | grep p4 | wc -l` -eq 1 && test `echo $clients_after | grep p4 | wc -l` -eq 0 &&
 

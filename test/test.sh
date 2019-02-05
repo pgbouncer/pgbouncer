@@ -504,7 +504,7 @@ test_reconnect() {
 }
 
 # test server_fast_close
-test_server_fast_close() {
+test_fast_close() {
 	(
 		echo "select pg_backend_pid();"
 		sleep 2
@@ -594,7 +594,7 @@ test_database_restart
 test_database_change
 test_reconnect_clients
 test_reconnect
-test_server_fast_close
+test_fast_close
 test_wait_close
 "
 

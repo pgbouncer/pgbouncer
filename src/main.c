@@ -105,6 +105,7 @@ char *cf_server_reset_query;
 int cf_server_reset_query_always;
 char *cf_server_check_query;
 usec_t cf_server_check_delay;
+int cf_client_fast_close;
 int cf_server_fast_close;
 int cf_server_round_robin;
 int cf_disable_pqexec;
@@ -239,6 +240,7 @@ CF_ABS("server_reset_query", CF_STR, cf_server_reset_query, 0, "DISCARD ALL"),
 CF_ABS("server_reset_query_always", CF_INT, cf_server_reset_query_always, 0, "0"),
 CF_ABS("server_check_query", CF_STR, cf_server_check_query, 0, "select 1"),
 CF_ABS("server_check_delay", CF_TIME_USEC, cf_server_check_delay, 0, "30"),
+CF_ABS("client_fast_close", CF_INT, cf_client_fast_close, 0, "0"),
 CF_ABS("server_fast_close", CF_INT, cf_server_fast_close, 0, "0"),
 CF_ABS("query_timeout", CF_TIME_USEC, cf_query_timeout, 0, "0"),
 CF_ABS("query_wait_timeout", CF_TIME_USEC, cf_query_wait_timeout, 0, "120"),

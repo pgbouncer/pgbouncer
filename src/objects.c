@@ -1531,7 +1531,16 @@ static void for_each_server_filtered(PgPool *pool, void (*func)(PgSocket *sk), b
 }
 
 
-static void tag_dirty(PgSocket *sk)
+static void tag_client_dirty(PgSocket *client)
+{
+	/* Do not tag clients in POOL_SESSION without client_fast_close enabled. */
+	if (!cf_client_fast_close && pool_pool_mode(client->pool) == POOL_SESSION)
+		return;
+
+	client->close_needed = 1;
+}
+
+static void tag_server_dirty(PgSocket *sk)
 {
 	sk->close_needed = 1;
 }
@@ -1549,7 +1558,7 @@ static void tag_pool_servers_dirty(PgPool *pool)
 	pool->welcome_msg_ready = 0;
 
 	/* drop all existing servers ASAP */
-	for_each_server(pool, tag_dirty);
+	for_each_server(pool, tag_server_dirty);
 
 	/* drop servers login phase immediately */
 	statlist_for_each_safe(item, &pool->new_server_list, tmp) {
@@ -1567,7 +1576,7 @@ void tag_database_clients_dirty(PgDatabase *db)
 		pool = container_of(item, PgPool, head);
 		/* drop all existing clients ASAP */
 		if (pool->db == db)
-			for_each_client(pool, tag_dirty);
+			for_each_client(pool, tag_client_dirty);
 	}
 }
 
@@ -1630,7 +1639,7 @@ void tag_host_addr_dirty(const char *host, const struct sockaddr *sa)
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
 		if (pool->db->host && strcmp(host, pool->db->host) == 0) {
-			for_each_server_filtered(pool, tag_dirty, server_remote_addr_filter, &addr);
+			for_each_server_filtered(pool, tag_server_dirty, server_remote_addr_filter, &addr);
 		}
 	}
 }

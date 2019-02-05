@@ -360,13 +360,9 @@ void per_loop_maint(void)
 
 static void check_client_for_close_needed(PgSocket *client)
 {
-	if (!client->close_needed)
-		return;
-
-	/* POOL_SESSION clients will only be tagged with client_fast_close enabled.
-	   At this point, we only need to wait for the link to become ready. This
-	   will wait until POOL_TRANSACTION clients are finished as well. */
-	if (client->link && !client->link->ready)
+	/* Ignore if the client is not diry or the client is in the middle
+	   of a transaction */
+	if (!client->close_needed || client->link)
 		return;
 
 	disconnect_client(client, false, "close_needed (reconnect client)");

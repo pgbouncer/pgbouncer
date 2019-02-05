@@ -493,54 +493,6 @@ test_reconnect_clients() {
 	test `wc -l <$LOGDIR/testout.tmp` -eq 3 && test `wc -l <$LOGDIR/testerr.tmp` -eq 0
 }
 
-# test client_fast_close when enabled
-test_client_fast_close_enabled() {
-	(
-		echo "begin;"
-		sleep 2
-		echo "select 1;"
-		echo "commit;"
-		echo "\q"
-	) | psql -X -tAq -f- -d p3 >$LOGDIR/testout.tmp 2>$LOGDIR/testerr.tmp &
-
-	sleep 1
-	admin "set client_fast_close = 1"
-	admin "reconnect_clients p3"
-	clients_before=$(admin "show clients")
-	wait
-	clients_after=$(admin "show clients")
-
-	# We should have 1 session pooled client before with "closed_needed" set to true,
-	# and after the transaction finishes, we should no clients connected to p3.
-	echo "clients_before=$clients_before clients_after=$clients_after"
-	test `echo $clients_before | grep p3 | wc -l` -eq 1 && test `echo $clients_after | grep p3 | wc -l` -eq 0 &&
-
-	# Make sure the "select 1" completes successfully.
-	test `wc -l <$LOGDIR/testout.tmp` -eq 1 && test `wc -l <$LOGDIR/testerr.tmp` -eq 0
-}
-
-# test client_fast_close when disabled
-test_client_fast_close_disabled() {
-	(
-		echo "select 1;"
-		sleep 3
-		echo "\q"
-	) | psql -X -tAq -f- -d p3 >$LOGDIR/testout.tmp 2>$LOGDIR/testerr.tmp &
-	psql_pid=$!
-	sleep 1
-	admin "set client_fast_close = 0"
-	clients_before=$(admin "show clients")
-	admin "reconnect_clients p3"
-	sleep 1
-	clients_after=$(admin "show clients")
-
-	# With client_fast_close disabled, a client in POOL_SESSION mode will not
-	# be tagged as dirty or closed.
-	echo "clients_before=$clients_before clients_after=$clients_after"
-	test `echo $clients_before | grep p3 | wc -l` -eq 1 && test `echo $clients_after | grep p3 | wc -l` -eq 1
-}
-
-
 # test reconnect
 test_reconnect() {
 	bp1=`psql -X -tAq -c "select pg_backend_pid()" p1`
@@ -641,8 +593,6 @@ test_enable_disable
 test_database_restart
 test_database_change
 test_reconnect_clients
-test_client_fast_close_enabled
-test_client_fast_close_disabled
 test_reconnect
 test_server_fast_close
 test_wait_close

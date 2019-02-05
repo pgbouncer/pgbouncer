@@ -1533,8 +1533,8 @@ static void for_each_server_filtered(PgPool *pool, void (*func)(PgSocket *sk), b
 
 static void tag_client_dirty(PgSocket *client)
 {
-	/* Do not tag clients in POOL_SESSION without client_fast_close enabled. */
-	if (!cf_client_fast_close && pool_pool_mode(client->pool) == POOL_SESSION)
+	/* Do not tag clients in POOL_SESSION mode. */
+	if (pool_pool_mode(client->pool) == POOL_SESSION)
 		return;
 
 	client->close_needed = 1;

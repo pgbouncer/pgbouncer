@@ -257,6 +257,21 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			return finish_set_pool(client, takeover);
 	}
 
+	/* avoid dealing with invalid data below, and give an
+	 * appropriate error message */
+	if (strlen(username) >= MAX_USERNAME) {
+		disconnect_client(client, true, "username too long");
+		if (cf_log_connections)
+			slog_info(client, "login failed: db=%s user=%s", dbname, username);
+		return false;
+	}
+	if (strlen(password) >= MAX_PASSWORD) {
+		disconnect_client(client, true, "password too long");
+		if (cf_log_connections)
+			slog_info(client, "login failed: db=%s user=%s", dbname, username);
+		return false;
+	}
+
 	/* find user */
 	if (cf_auth_type == AUTH_ANY) {
 		/* ignore requested user */

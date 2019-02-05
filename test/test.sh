@@ -49,9 +49,9 @@ if test -n "$CAN_SUDO"; then
 		sudo pfctl -a pgbouncer -F all -q 2>&1 | grep -q "pfctl:" && {
 			cat <<-EOF
 			Please enable PF and add the following rule to /etc/pf.conf
-			
+
 			  anchor "pgbouncer/*"
-			
+
 			EOF
 			exit 1
 		}
@@ -465,6 +465,82 @@ test_database_change() {
 	test "$db1" = "p1" -a "$db2" = "p0"
 }
 
+# test client reconnect
+test_client_reconnect() {
+	(
+		echo "begin;"
+		echo "select pg_sleep(1);"
+		sleep 1
+		echo "select pg_sleep(1);"
+		echo "select 1;"
+		echo "commit;"
+		echo "\q"
+	) | psql -X -tAq -f- -d p4 >$LOGDIR/testout.tmp 2>$LOGDIR/testerr.tmp &
+
+	sleep 1
+	admin "client_reconnect p4"
+	clients_before=$(admin "show clients")
+	wait
+	clients_after=$(admin "show clients")
+
+	# The first "show clients" have one connected client to p4. The second
+	# should have no connected clients to p4 since the client reconnect will
+	# close the connection after the transaction completes.
+	echo "clients_before=$clients_before clients_after=$clients_after"
+	test `echo $clients_before | grep p4 | wc -l` -eq 1 && test `echo $clients_after | grep p4 | wc -l` -eq 0 &&
+
+	# Make sure stdout has 3 successful responses and stderr is empty.
+	test `wc -l <$LOGDIR/testout.tmp` -eq 3 && test `wc -l <$LOGDIR/testerr.tmp` -eq 0
+}
+
+# test client_fast_close when enabled
+test_client_fast_close_enabled() {
+	(
+		echo "begin;"
+		sleep 2
+		echo "select 1;"
+		echo "commit;"
+		echo "\q"
+	) | psql -X -tAq -f- -d p3 >$LOGDIR/testout.tmp 2>$LOGDIR/testerr.tmp &
+
+	sleep 1
+	admin "set client_fast_close = 1"
+	admin "client_reconnect p3"
+	clients_before=$(admin "show clients")
+	wait
+	clients_after=$(admin "show clients")
+
+	# We should have 1 session pooled client before with "closed_needed" set to true,
+	# and after the transaction finishes, we should no clients connected to p3.
+	echo "clients_before=$clients_before clients_after=$clients_after"
+	test `echo $clients_before | grep p3 | wc -l` -eq 1 && test `echo $clients_after | grep p3 | wc -l` -eq 0 &&
+
+	# Make sure the "select 1" completes successfully.
+	test `wc -l <$LOGDIR/testout.tmp` -eq 1 && test `wc -l <$LOGDIR/testerr.tmp` -eq 0
+}
+
+# test client_fast_close when disabled
+test_client_fast_close_disabled() {
+	(
+		echo "select 1;"
+		sleep 3
+		echo "\q"
+	) | psql -X -tAq -f- -d p3 >$LOGDIR/testout.tmp 2>$LOGDIR/testerr.tmp &
+	psql_pid=$!
+	sleep 1
+	admin "set client_fast_close = 0"
+	clients_before=$(admin "show clients")
+	admin "client_reconnect p3"
+	sleep 1
+	clients_after=$(admin "show clients")
+
+	# With client_fast_close disabled, a client in POOL_SESSION mode will not
+	# be tagged as dirty or closed.
+	echo "clients_before=$clients_before clients_after=$clients_after"
+	test `echo $clients_before | grep p3 | wc -l` -eq 1 && test `echo $clients_after | grep p3 | wc -l` -eq 1
+}
+
+
 # test reconnect
 test_reconnect() {
 	bp1=`psql -X -tAq -c "select pg_backend_pid()" p1`
@@ -476,7 +552,7 @@ test_reconnect() {
 }
 
 # test server_fast_close
-test_fast_close() {
+test_server_fast_close() {
 	(
 		echo "select pg_backend_pid();"
 		sleep 2
@@ -564,8 +640,11 @@ test_suspend_resume
 test_enable_disable
 test_database_restart
 test_database_change
+test_client_reconnect
+test_client_fast_close_enabled
+test_client_fast_close_disabled
 test_reconnect
-test_fast_close
+test_server_fast_close
 test_wait_close
 "
 

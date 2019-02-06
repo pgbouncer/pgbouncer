@@ -84,10 +84,7 @@ Default: not set
 auth_file
 ---------
 
-The name of the file to load user names and passwords from. The file format
-is the same as the PostgreSQL 8.x pg_auth/pg_pwd file, so this setting can be
-pointed directly to one of those backend files.  Since version 9.0, PostgreSQL
-does not use such text file, so it must be generated manually.  See
+The name of the file to load user names and passwords from.  See
 section `Authentication file format`_ below about details.
 
 Default: not set.
@@ -990,20 +987,17 @@ There should be at least 2 fields, surrounded by double quotes. The first
 field is the username and the second is either a plain-text or a MD5-hidden
 password.  PgBouncer ignores the rest of the line.
 
-This file format is equivalent to text files used by PostgreSQL 8.x
-for authentication info, thus allowing PgBouncer to work directly
-on PostgreSQL authentication files in data directory.
-
-Since PostgreSQL 9.0, the text files are not used anymore.  Thus the
-auth file needs to be generated.   See `./etc/mkauth.py` for sample script
-to generate auth file from `pg_shadow` table.
-
 PostgreSQL MD5-hidden password format::
 
   "md5" + md5(password + username)
 
 So user `admin` with password `1234` will have MD5-hidden password
 `md545f2603610af569b6155c45067268c6b`.
+
+The authentication file can be written by hand, but it's also useful
+to generate it from some other list of users and passwords.  See
+`./etc/mkauth.py` for a sample script to generate the authentication
+file from the `pg_shadow` system table.
 
 HBA file format
 ===============

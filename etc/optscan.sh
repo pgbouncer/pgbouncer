@@ -3,7 +3,7 @@
 # Check if all options in main.c are defined in sample ini and docs
 
 sources="src/main.c"
-targets="doc/config.rst etc/pgbouncer.ini"
+targets="doc/config.md etc/pgbouncer.ini"
 
 status=0
 

@@ -3,7 +3,7 @@ Section: database
 Priority: extra
 Maintainer: Marko Kreen <markokr@gmail.com>
 Standards-Version: 3.6.2
-Build-Depends: debhelper (>= 9), make (>= 3.81), python-docutils,
+Build-Depends: debhelper (>= 9), make (>= 3.81), pandoc (>= 2.0),
  libevent-dev (>= 2.0), libssl-dev (>= 1.0.1), libc-ares-dev (>= 1.7.0)
 
 Package: pgbouncer

@@ -17,7 +17,7 @@
  */
 
 /*
- * Config and pg_auth file reading.
+ * Config and auth file reading.
  */
 
 #include "bouncer.h"
@@ -546,7 +546,7 @@ static void disable_users(void)
 	}
 }
 
-/* load list of users from pg_auth/pg_psw file */
+/* load list of users from auth_file */
 bool load_auth_file(const char *fn)
 {
 	char *user, *password, *buf, *p;

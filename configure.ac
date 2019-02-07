@@ -13,8 +13,7 @@ AC_USUAL_PROGRAM_CHECK
 
 PKG_PROG_PKG_CONFIG
 
-dnl check for rst2man
-AC_CHECK_PROGS(RST2MAN, rst2man, rst2man)
+AC_CHECK_PROGS(PANDOC, pandoc, pandoc)
 
 dnl check for windows tools
 if test "$PORTNAME" = "win32"; then

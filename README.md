@@ -4,30 +4,28 @@ PgBouncer
 
 Lightweight connection pooler for PostgreSQL.
 
-Homepage
-    https://pgbouncer.github.io
+Homepage: <https://pgbouncer.github.io>
 
-Sources, bugtracking
-    https://github.com/pgbouncer/pgbouncer
+Sources, bugtracking: <https://github.com/pgbouncer/pgbouncer>
 
 Building
 ---------
 
 PgBouncer depends on few things to get compiled:
 
-* `GNU Make`_ 3.81+
-* libevent_ 2.0
-* `pkg-config`_
-* (optional) OpenSSL_ 1.0.1 for TLS support.
-* (optional) `c-ares`_ as alternative to libevent's evdns.
+* [GNU Make] 3.81+
+* [libevent] 2.0
+* [pkg-config]
+* [OpenSSL] 1.0.1 for TLS support.
+* (optional) [c-ares] as alternative to libevent's evdns.
 
-.. _GNU Make: https://www.gnu.org/software/make/
-.. _libevent: http://libevent.org/
-.. _`pkg-config`: https://www.freedesktop.org/wiki/Software/pkg-config/
-.. _OpenSSL: https://www.openssl.org/
-.. _`c-ares`: http://c-ares.haxx.se/
+[GNU Make]: https://www.gnu.org/software/make/
+[libevent]: http://libevent.org/
+[pkg-config]: https://www.freedesktop.org/wiki/Software/pkg-config/
+[OpenSSL]: https://www.openssl.org/
+[c-ares]: http://c-ares.haxx.se/
 
-When dependencies are installed just run::
+When dependencies are installed just run:
 
     $ ./configure --prefix=/usr/local --with-libevent=libevent-prefix
     $ make
@@ -44,21 +42,14 @@ time instead just once at config load time.  This requires proper
 async DNS implementation.  Following list shows supported backends
 and their probing order:
 
-+----------------------------+----------+-----------+------------+----------------+---------------------------------------+
 | backend                    | parallel | EDNS0 (1) | /etc/hosts | SOA lookup (2) | note                                  |
-+============================+==========+===========+============+================+=======================================+
+|----------------------------|----------|-----------|------------|----------------|---------------------------------------|
 | c-ares                     | yes      | yes       | yes        | yes            | ipv6+CNAME buggy in <=1.10            |
-+----------------------------+----------+-----------+------------+----------------+---------------------------------------+
 | udns                       | yes      | yes       | no         | yes            | ipv4-only                             |
-+----------------------------+----------+-----------+------------+----------------+---------------------------------------+
 | evdns, libevent 2.x        | yes      | no        | yes        | no             | does not check /etc/hosts updates     |
-+----------------------------+----------+-----------+------------+----------------+---------------------------------------+
 | getaddrinfo_a, glibc 2.9+  | yes      | yes (3)   | yes        | no             | N/A on non-linux                      |
-+----------------------------+----------+-----------+------------+----------------+---------------------------------------+
 | getaddrinfo, libc          | no       | yes (3)   | yes        | no             | N/A on win32, requires pthreads       |
-+----------------------------+----------+-----------+------------+----------------+---------------------------------------+
 | evdns, libevent 1.x        | yes      | no        | no         | no             | buggy                                 |
-+----------------------------+----------+-----------+------------+----------------+---------------------------------------+
 
 1. EDNS0 is required to have more than 8 addresses behind one hostname.
 2. SOA lookup is needed to re-check hostnames on zone serial change
@@ -78,7 +69,7 @@ Building from Git
 
 Building PgBouncer from Git requires that you fetch libusual
 submodule and generate the header and config files before
-you can run configure::
+you can run configure:
 
 	$ git clone https://github.com/pgbouncer/pgbouncer.git
 	$ cd pgbouncer
@@ -89,7 +80,7 @@ you can run configure::
 	$ make
 	$ make install
 
-Additional packages required: autoconf, automake, libtool, python-docutils
+Additional packages required: autoconf, automake, libtool, pandoc
 
 Building for WIN32
 ------------------
@@ -98,12 +89,12 @@ At the moment only build env tested is MINGW32 / MSYS.  Cygwin
 and Visual $ANYTHING are untested.  Libevent 2.x is required
 for DNS hostname lookup.
 
-Then do the usual::
+Then do the usual:
 
 	$ ./configure ...
 	$ make
 
-If cross-compiling from Unix::
+If cross-compiling from Unix:
 
 	$ ./configure --host=i586-mingw32msvc ...
 
@@ -114,19 +105,19 @@ Running from command-line goes as usual, except -d (daemonize),
 -R (reboot) and -u (switch user) switches will not work.
 
 To run pgbouncer as a Windows service, you need to configure
-`service_name` parameter to set name for service.  Then::
+`service_name` parameter to set name for service.  Then:
 
 	$ pgbouncer -regservice config.ini
 
-To uninstall service::
+To uninstall service:
 
 	$ pgbouncer -unregservice config.ini
 
 To use Windows Event Log, set "syslog = 1" in config file.
-But before you need to register pgbevent.dll::
+But before you need to register pgbevent.dll:
 
 	$ regsvr32 pgbevent.dll
 
-To unregister it, do::
+To unregister it, do:
 
-        $ regsvr32 /u pgbevent.dll
+	$ regsvr32 /u pgbevent.dll

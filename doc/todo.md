@@ -23,7 +23,7 @@ Problems / cleanups
 * other per-user settings
 
 * Maintenance order vs. lifetime_kill_gap:
-  http://lists.pgfoundry.org/pipermail/pgbouncer-general/2011-February/000679.html
+  <http://lists.pgfoundry.org/pipermail/pgbouncer-general/2011-February/000679.html>
 
 * per_loop_maint/per_loop_activate take too much time in case
   of moderate load and lots of pools.  Perhaps active_pool_list

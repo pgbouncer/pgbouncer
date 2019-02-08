@@ -35,7 +35,7 @@
 static const char usage_str[] =
 "Usage: %s [OPTION]... config.ini\n"
 "  -d, --daemon           Run in background (as a daemon)\n"
-"  -R, --restart          Do a online restart\n"
+"  -R, --restart          Do an online restart\n"
 "  -q, --quiet            Run quietly\n"
 "  -v, --verbose          Increase verbosity\n"
 "  -u, --user=<username>  Assume identity of <username>\n"

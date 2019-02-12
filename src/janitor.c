@@ -392,8 +392,10 @@ static void pool_client_maint(PgPool *pool)
 
 			if (cf_query_timeout > 0 && age > cf_query_timeout) {
 				disconnect_client(client, true, "query_timeout");
+				pool->stats.query_timeout_count++;
 			} else if (cf_query_wait_timeout > 0 && age > cf_query_wait_timeout) {
 				disconnect_client(client, true, "query_wait_timeout");
+				pool->stats.query_wait_timeout_count++;
 			}
 		}
 	}
@@ -524,6 +526,7 @@ static void pool_server_maint(PgPool *pool)
 			age = now - server->link->request_time;
 			if (cf_query_timeout > 0 && age > cf_query_timeout) {
 				disconnect_server(server, true, "query timeout");
+				pool->stats.query_timeout_count++;
 			} else if (cf_idle_transaction_timeout > 0 &&
 				   server->idle_tx &&
 				   age > cf_idle_transaction_timeout)

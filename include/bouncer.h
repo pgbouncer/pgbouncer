@@ -190,6 +190,8 @@ int pga_cmp_addr(const PgAddr *a, const PgAddr *b);
 struct PgStats {
 	uint64_t xact_count;
 	uint64_t query_count;
+	uint64_t query_timeout_count;
+	uint64_t query_wait_timeout_count;
 	uint64_t server_bytes;
 	uint64_t client_bytes;
 	usec_t xact_time;	/* total transaction time in us */

@@ -1080,6 +1080,8 @@ static bool admin_cmd_pause(PgSocket *admin, const char *arg)
 			return admin_error(admin, "no such database: %s", arg);
 		if (db == admin->pool->db)
 			return admin_error(admin, "cannot pause admin db: %s", arg);
+		if (db->db_paused)
+			return admin_error(admin, "already suspended/paused: %s", arg);
 		db->db_paused = 1;
 		if (count_db_active(db) == 0)
 			return admin_ready(admin, "PAUSE");

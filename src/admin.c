@@ -1661,6 +1661,29 @@ void admin_pause_done(void)
 	}
 }
 
+static void admin_pause_canceled(PgSocket *admin) {
+	bool res;
+
+	if (admin->wait_for_db) {
+		admin->wait_for_db->db_paused = 0;
+		log_info("PAUSE '%s' canceled", admin->wait_for_db->dbname);
+
+	} else if (cf_pause_mode != P_NONE) {
+		full_resume();
+		log_info("PAUSE canceled");
+	}
+
+	res = admin_error(admin, "PAUSE interrupted");
+
+	if (!res) {
+		disconnect_client(admin, false, "dead admin");
+		return;
+	}
+
+	admin->wait_for_response = WAIT_CMD_NONE;
+	admin->wait_for_db = NULL;
+}
+
 void admin_wait_close_done(void)
 {
 	struct List *item, *tmp;
@@ -1684,13 +1707,50 @@ void admin_wait_close_done(void)
 	}
 }
 
+static void admin_wait_close_canceled(PgSocket *admin) {
+	bool res;
+
+	if (admin->wait_for_db)
+		admin->wait_for_db->db_wait_close = 0;
+
+	else {
+		struct List *item;
+		PgPool *pool;
+
+		statlist_for_each(item, &pool_list) {
+			PgDatabase *db;
+
+			pool = container_of(item, PgPool, head);
+			db = pool->db;
+			db->db_wait_close = 0;
+		}
+	}
+
+	res = admin_error(admin, "WAIT_CLOSE interrupted");
+
+	if (!res) {
+		disconnect_client(admin, false, "dead admin");
+		return;
+	}
+
+	admin->wait_for_response = WAIT_CMD_NONE;
+	admin->wait_for_db = NULL;
+}
+
 /* admin on console has pressed ^C */
 void admin_handle_cancel(PgSocket *admin)
 {
-	/* weird, but no reason to fail */
-	if (!admin->wait_for_response)
-		slog_warning(admin, "admin cancel request for non-waiting client?");
+	switch (admin->wait_for_response) {
+	case WAIT_CMD_PAUSE:
+		admin_pause_canceled(admin);
+		break;
 
-	if (cf_pause_mode != P_NONE)
-		full_resume();
+	case WAIT_CMD_WAIT_CLOSE:
+		admin_wait_close_canceled(admin);
+		break;
+
+	default:
+	/* weird, but no reason to fail */
+		slog_warning(admin, "admin cancel request for non-waiting client?");
+	}
 }

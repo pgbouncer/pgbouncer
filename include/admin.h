@@ -26,3 +26,4 @@ bool admin_flush(PgSocket *admin, PktBuf *buf, const char *desc) /* _MUSTCHECK *
 bool admin_ready(PgSocket *admin, const char *desc)  _MUSTCHECK;
 void admin_handle_cancel(PgSocket *client);
 void admin_cleanup(void);
+void admin_cancel_all_pauses(PgDatabase *db);

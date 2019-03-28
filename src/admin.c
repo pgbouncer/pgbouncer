@@ -1021,6 +1021,7 @@ static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 			full_resume();
 		else
 			return admin_error(admin, "pooler is not paused/suspended");
+		admin_cancel_all_pauses(NULL);
 	} else {
 		PgDatabase *db = find_database(arg);
 		log_info("RESUME '%s' command issued", arg);
@@ -1029,6 +1030,7 @@ static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 		if (!db->db_paused)
 			return admin_error(admin, "database %s is not paused", arg);
 		db->db_paused = 0;
+		admin_cancel_all_pauses(db);
 	}
 	return admin_ready(admin, "RESUME");
 }
@@ -1752,5 +1754,19 @@ void admin_handle_cancel(PgSocket *admin)
 	default:
 	/* weird, but no reason to fail */
 		slog_warning(admin, "admin cancel request for non-waiting client?");
+	}
+}
+
+void admin_cancel_all_pauses(PgDatabase *db) {
+	struct List *item, *tmp;
+	PgSocket *admin;
+
+	statlist_for_each_safe(item, &admin_pool->active_client_list, tmp) {
+		admin = container_of(item, PgSocket, head);
+		if (admin->wait_for_response != WAIT_CMD_PAUSE)
+			continue;
+
+		if (admin->wait_for_db == db)
+			admin_pause_canceled(admin);
 	}
 }

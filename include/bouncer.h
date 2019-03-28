@@ -88,6 +88,12 @@ enum SSLMode {
 	SSLMODE_VERIFY_FULL
 };
 
+enum WaitCommand {
+	WAIT_CMD_NONE = 0,
+	WAIT_CMD_PAUSE = 1,
+	WAIT_CMD_WAIT_CLOSE = 2
+};
+
 #define is_server_socket(sk) ((sk)->state >= SV_FREE)
 
 
@@ -100,6 +106,7 @@ typedef union PgAddr PgAddr;
 typedef enum SocketState SocketState;
 typedef struct PktHdr PktHdr;
 typedef struct ScramState ScramState;
+typedef enum WaitCommand WaitCommand;
 
 extern int cf_sbuf_len;
 
@@ -394,7 +401,8 @@ struct PgSocket {
 
 	bool admin_user:1;	/* console client: has admin rights */
 	bool own_user:1;	/* console client: client with same uid on unix socket */
-	bool wait_for_response:1;/* console client: waits for completion of PAUSE/SUSPEND cmd */
+	WaitCommand wait_for_response:2; /* console client: waits for completion of PAUSE/SUSPEND cmd */
+	PgDatabase *wait_for_db; /* console client: target related to wait_for_response */
 
 	bool wait_sslchar:1;	/* server: waiting for ssl response: S/N */
 

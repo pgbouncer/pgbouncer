@@ -1205,41 +1205,41 @@ static bool admin_cmd_wait_close(PgSocket *admin, const char *arg)
 	if (!admin->admin_user)
 		return admin_error(admin, "admin access needed");
 
-       if (!arg[0]) {
-	       struct List *item;
-	       PgPool *pool;
-	       int active = 0;
+	if (!arg[0]) {
+		struct List *item;
+		PgPool *pool;
+		int active = 0;
 
-	       log_info("WAIT_CLOSE command issued");
-	       statlist_for_each(item, &pool_list) {
-		       PgDatabase *db;
+		log_info("WAIT_CLOSE command issued");
+		statlist_for_each(item, &pool_list) {
+			PgDatabase *db;
 
-		       pool = container_of(item, PgPool, head);
-		       db = pool->db;
-		       db->db_wait_close = 1;
-		       active += count_db_active(db);
-	       }
-	       if (active > 0)
-		       admin->wait_for_response = 1;
-	       else
-		       return admin_ready(admin, "WAIT_CLOSE");
-       } else {
-	       PgDatabase *db;
+			pool = container_of(item, PgPool, head);
+			db = pool->db;
+			db->db_wait_close = 1;
+			active += count_db_active(db);
+		}
+		if (active > 0)
+			admin->wait_for_response = 1;
+		else
+			return admin_ready(admin, "WAIT_CLOSE");
+	} else {
+		PgDatabase *db;
 
-	       log_info("WAIT_CLOSE '%s' command issued", arg);
-	       db = find_or_register_database(admin, arg);
-	       if (db == NULL)
-		       return admin_error(admin, "no such database: %s", arg);
-	       if (db == admin->pool->db)
-		       return admin_error(admin, "cannot wait in admin db: %s", arg);
-	       db->db_wait_close = 1;
-	       if (count_db_active(db) > 0)
-		       admin->wait_for_response = 1;
-	       else
-		       return admin_ready(admin, "WAIT_CLOSE");
-       }
+		log_info("WAIT_CLOSE '%s' command issued", arg);
+		db = find_or_register_database(admin, arg);
+		if (db == NULL)
+			return admin_error(admin, "no such database: %s", arg);
+		if (db == admin->pool->db)
+			return admin_error(admin, "cannot wait in admin db: %s", arg);
+		db->db_wait_close = 1;
+		if (count_db_active(db) > 0)
+			admin->wait_for_response = 1;
+		else
+			return admin_ready(admin, "WAIT_CLOSE");
+	}
 
-       return true;
+	return true;
 }
 
 /* extract substring from regex group */

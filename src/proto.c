@@ -26,6 +26,54 @@
  * parse protocol header from struct MBuf
  */
 
+/* parses proxy protocol header from buffer, returns true if detected */
+bool get_proxy_protocol_header(struct MBuf *data, PktHdr *pkt)
+{
+	struct MBuf hdr;
+	const char *v1;
+	const uint8_t *v2;
+	char *end;
+	int len, size;
+
+	const char sigv1[5] = "PROXY";
+	const char sigv2[12] = "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A";
+
+	mbuf_copy(data, &hdr);
+
+	len = mbuf_avail_for_read(&hdr);
+
+	/* proxy protocol v2 */
+	if (len >= PP2_MIN_LEN && mbuf_get_bytes(&hdr, 12, &v2) && memcmp(v2, sigv2, 12) == 0) {
+		pkt->type = PKT_PP_V2;
+		pkt->len = len;
+		if (!mbuf_slice(data, len, &pkt->data)) /* tag header as read */
+			return false;
+		return true;
+	}
+
+	mbuf_rewind_reader(&hdr);
+
+	/* proxy protocol v1 */
+	if (len >= PP1_MIN_LEN && mbuf_get_string(&hdr, &v1) && memcmp(v1, sigv1, 5) == 0) {
+		size = strlen(v1);
+		end = memchr(v1, '\r', size - 1);
+		if (!end || end[1] != '\n') {
+			log_noise("partial of invalid proxy protocol v1 header");
+			return false;
+		}
+		*end = '\0'; /* terminate string for parsing */
+
+		pkt->type = PKT_PP_V1;
+		pkt->len = size;
+
+		if (!mbuf_slice(data, size, &pkt->data)) /* tag header as read */
+			return false;
+		return true;
+	}
+
+	return false;
+}
+
 /* parses pkt header from buffer, returns false if failed */
 bool get_header(struct MBuf *data, PktHdr *pkt)
 {

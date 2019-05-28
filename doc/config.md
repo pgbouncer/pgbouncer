@@ -141,6 +141,12 @@ use non-admin user that calls SECURITY DEFINER function instead.
 
 Default: not set.
 
+### proxy_protocol_networks
+
+Comma-separated list of hosts to trust when they send a PROXY protocol header.
+
+Default: not set.
+
 ### pool_mode
 
 Specifies when a server connection can be reused by other clients.

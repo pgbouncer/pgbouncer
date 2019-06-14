@@ -316,6 +316,12 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 	} else {
 		/* the user clients wants to log in as */
 		client->auth_user = find_user(username);
+		if (!client->auth_user && !client->db->auth_user && cf_auth_user) {
+			client->db->auth_user = find_user(cf_auth_user);
+			if (!client->db->auth_user) {
+				client->db->auth_user = add_user(cf_auth_user, "");
+			}
+		}
 		if (!client->auth_user && client->db->auth_user) {
 			if (takeover) {
 				client->auth_user = add_db_user(client->db, username, password);

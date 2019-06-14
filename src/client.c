@@ -322,7 +322,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 				client->db->auth_user = add_user(cf_auth_user, "");
 			}
 		}
-		if (!client->auth_user && client->db->auth_user) {
+		if ((!client->auth_user || (client->auth_user->passwd[0] == '\0')) && client->db->auth_user) {
 			if (takeover) {
 				client->auth_user = add_db_user(client->db, username, password);
 				return finish_set_pool(client, takeover);
@@ -404,10 +404,14 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
 			length = sizeof(user.passwd) - 1;
 		memcpy(user.passwd, password, length);
 
-		client->auth_user = add_db_user(client->db, user.name, user.passwd);
-		if (!client->auth_user) {
-			disconnect_server(server, false, "unable to allocate new user for auth");
-			return false;
+		if (client->auth_user) {
+			memcpy(client->auth_user->passwd, password, length);
+		} else {
+			client->auth_user = add_db_user(client->db, user.name, user.passwd);
+			if (!client->auth_user) {
+				disconnect_server(server, false, "unable to allocate new user for auth");
+				return false;
+			}
 		}
 		break;
 	case 'N':	/* NoticeResponse */

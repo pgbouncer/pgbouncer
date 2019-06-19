@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import sys, os, re, time, psycopg
+import sys, os, re, time, psycopg2
 import threading, thread, random
 
 n_thread = 100
@@ -61,9 +61,9 @@ class WorkThread(threading.Thread):
                 except: pass
 
     def main_loop(self):
-        db = psycopg.connect(get_connstr())
+        db = psycopg2.connect(get_connstr())
         if not longtx:
-            db.autocommit(1)
+            db.autocommit = True
         n = 0
         while n < 10:
             self.do_work(db)

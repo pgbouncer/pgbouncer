@@ -12,7 +12,7 @@ conn_data = {
     'dbname': 'marko',
     #'host': '127.0.0.1',
     'host': '/tmp',
-    'port': '6000',
+    'port': '6432',
     'user': 'marko',
     #'password': '',
     'connect_timeout': '5',

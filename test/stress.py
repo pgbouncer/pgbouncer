@@ -1,11 +1,16 @@
 #! /usr/bin/env python
 
-import sys, os, re, time, psycopg2
-import threading, thread, random
+import sys
+import os
+import re
+import time
+import psycopg2
+import threading
+import thread
+import random
 
 n_thread = 100
-longtx = 0
-tx_sleep = 0
+longtx = False
 tx_sleep = 8
 
 conn_data = {
@@ -18,11 +23,13 @@ conn_data = {
     'connect_timeout': '5',
 }
 
+
 def get_connstr():
     tmp = []
     for k, v in conn_data.items():
         tmp.append(k+'='+v)
     return " ".join(tmp)
+
 
 class WorkThread(threading.Thread):
     def __init__(self):
@@ -46,7 +53,8 @@ class WorkThread(threading.Thread):
     def run(self):
         try:
             time.sleep(random.random() * 10.0)
-        except: pass
+        except Exception:
+            pass
         while 1:
             try:
                 self.main_loop()
@@ -58,7 +66,8 @@ class WorkThread(threading.Thread):
                 print d
                 try:
                     time.sleep(5)
-                except: pass
+                except Exception:
+                    pass
 
     def main_loop(self):
         db = psycopg2.connect(get_connstr())
@@ -77,6 +86,7 @@ class WorkThread(threading.Thread):
         time.sleep(tx_sleep * random.random() + 1)
         if longtx:
             db.commit()
+
 
 def main():
     print "connstr", get_connstr()
@@ -101,6 +111,7 @@ def main():
                 cnt += t.fetch_cnt()
             avg = cnt / dur
             print "avg", avg
+
 
 if __name__ == '__main__':
     try:

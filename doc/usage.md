@@ -50,7 +50,7 @@ Statement pooling
     transactions are disallowed in this mode as they would break.
 
 The administration interface of **pgbouncer** consists of some new
-``SHOW`` commands available when connected to a special "virtual"
+`SHOW` commands available when connected to a special "virtual"
 database **pgbouncer**.
 
 ## Quick-start
@@ -66,12 +66,12 @@ Basic setup and usage as following.
         listen_port = 6543
         listen_addr = 127.0.0.1
         auth_type = md5
-        auth_file = users.txt
+        auth_file = userlist.txt
         logfile = pgbouncer.log
         pidfile = pgbouncer.pid
         admin_users = someuser
 
-2. Create ``users.txt`` file that contains users allowed in:
+2. Create `userlist.txt` file that contains users allowed in:
 
         "someuser" "same_password_as_in_server"
 
@@ -85,10 +85,10 @@ Basic setup and usage as following.
         $ psql -p 6543 -U someuser template1
 
 5. Manage **pgbouncer** by connecting to the special administration
-   database **pgbouncer** and issuing ``show help;`` to begin:
+   database **pgbouncer** and issuing `SHOW HELP;` to begin:
 
         $ psql -p 6543 -U someuser pgbouncer
-        pgbouncer=# show help;
+        pgbouncer=# SHOW HELP;
         NOTICE:  Console usage
         DETAIL:
           SHOW [HELP|CONFIG|DATABASES|FDS|POOLS|CLIENTS|SERVERS|SOCKETS|LISTS|VERSION|...]
@@ -161,7 +161,7 @@ as the running process.
 
 The **SHOW** commands output information. Each command is described below.
 
-#### SHOW STATS;
+#### SHOW STATS
 
 Shows statistics.
 
@@ -214,17 +214,17 @@ avg_wait_time
 :   Time spent by clients waiting for a server in microseconds (average
     per second).
 
-#### SHOW STATS_TOTALS;
+#### SHOW STATS_TOTALS
 
 Subset of **SHOW STATS** showing the total values (**total_**).
 
 
-#### SHOW STATS_AVERAGES;
+#### SHOW STATS_AVERAGES
 
 Subset of **SHOW STATS** showing the average values (**avg_**).
 
 
-#### SHOW SERVERS;
+#### SHOW SERVERS
 
 type
 :   S, for server.
@@ -285,7 +285,7 @@ remote_pid
 tls
 :   A string with TLS connection information, or empty if not using TLS.
 
-#### SHOW CLIENTS;
+#### SHOW CLIENTS
 
 type
 :   C, for client.
@@ -341,7 +341,7 @@ remote_pid
 tls
 :   A string with TLS connection information, or empty if not using TLS.
 
-#### SHOW POOLS;
+#### SHOW POOLS
 
 A new pool entry is made for each couple of (database, user).
 
@@ -386,7 +386,7 @@ maxwait_us
 pool_mode
 :   The pooling mode in use.
 
-#### SHOW LISTS;
+#### SHOW LISTS
 
 Show following internal information, in columns (not rows):
 
@@ -426,7 +426,7 @@ dns_queries
 dns_pending
 :   not used
 
-#### SHOW USERS;
+#### SHOW USERS
 
 name
 :   The user name
@@ -434,7 +434,7 @@ name
 pool_mode
 :   The user's override pool_mode, or NULL if the default will be used instead.
 
-#### SHOW DATABASES;
+#### SHOW DATABASES
 
 name
 :   Name of configured database entry.
@@ -475,7 +475,7 @@ paused
 disabled
 :   1 if this database is currently disabled, else 0.
 
-#### SHOW FDS;
+#### SHOW FDS
 
 Internal command - shows list of file descriptors in use with internal state attached to them.
 
@@ -512,7 +512,7 @@ cancel
 link
 :   fd for corresponding server/client.  NULL if idle.
 
-#### SHOW CONFIG;
+#### SHOW CONFIG
 
 Show the current configuration settings, one per row, with following
 columns:
@@ -528,7 +528,7 @@ changeable
     If **no**, the variable can be changed only at boot time.  Use
     **SET** to change a variable at run time.
 
-#### SHOW DNS_HOSTS;
+#### SHOW DNS_HOSTS
 
 Show host names in DNS cache.
 
@@ -541,7 +541,7 @@ ttl
 addrs
 :   Comma separated list of addresses.
 
-#### SHOW DNS_ZONES;
+#### SHOW DNS_ZONES
 
 Show DNS zones in cache.
 
@@ -557,7 +557,7 @@ count
 
 ### Process controlling commands
 
-#### PAUSE [db];
+#### PAUSE [db]
 
 PgBouncer tries to disconnect from all servers, first waiting for all queries
 to complete. The command will not return before all queries are finished.  To be used
@@ -568,15 +568,15 @@ If database name is given, only that database will be paused.
 New client connections to a paused database will wait until **RESUME**
 is called.
 
-#### DISABLE db;
+#### DISABLE db
 
 Reject all new client connections on the given database.
 
-#### ENABLE db;
+#### ENABLE db
 
 Allow new client connections after a previous **DISABLE** command.
 
-#### RECONNECT [db];
+#### RECONNECT [db]
 
 Close each open server connection for the given database, or all
 databases, after it is released (according to the pooling mode), even
@@ -602,14 +602,14 @@ recommended instead.  To close server connections without waiting (for
 example, in emergency failover rather than gradual switchover
 scenarios), also consider **KILL**.
 
-#### KILL db;
+#### KILL db
 
 Immediately drop all client and server connections on given database.
 
 New client connections to a killed database will wait until **RESUME**
 is called.
 
-#### SUSPEND;
+#### SUSPEND
 
 All socket buffers are flushed and PgBouncer stops listening for data on them.
 The command will not return before all buffers are empty.  To be used at the time
@@ -618,15 +618,15 @@ of PgBouncer online reboot.
 New client connections to a suspended database will wait until
 **RESUME** is called.
 
-#### RESUME [db];
+#### RESUME [db]
 
 Resume work from previous **KILL**, **PAUSE**, or **SUSPEND** command.
 
-#### SHUTDOWN;
+#### SHUTDOWN
 
 The PgBouncer process will exit.
 
-#### RELOAD;
+#### RELOAD
 
 The PgBouncer process will reload its configuration file and update
 changeable settings.
@@ -638,7 +638,7 @@ connection is next released (according to the pooling mode), and new
 server connections will immediately use the updated connection
 parameters.
 
-#### WAIT_CLOSE [<db>];
+#### WAIT_CLOSE [<db>]
 
 Wait until all server connections, either of the specified database or
 of all databases, have cleared the "close_needed" state (see **SHOW
@@ -648,7 +648,7 @@ activated, for example in switchover scripts.
 
 ### Other commands
 
-#### SET key = arg;
+#### SET key = arg
 
 Changes a configuration setting (see also **SHOW CONFIG**).  For example:
 
@@ -662,19 +662,19 @@ passed to the PostgreSQL backend like any other SQL command.)
 ### Signals
 
 SIGHUP
-:   Reload config. Same as issuing the command **RELOAD;** on the console.
+:   Reload config. Same as issuing the command **RELOAD** on the console.
 
 SIGINT
-:   Safe shutdown. Same as issuing **PAUSE;** and **SHUTDOWN;** on the console.
+:   Safe shutdown. Same as issuing **PAUSE** and **SHUTDOWN** on the console.
 
 SIGTERM
-:   Immediate shutdown. Same as issuing **SHUTDOWN;** on the console.
+:   Immediate shutdown. Same as issuing **SHUTDOWN** on the console.
 
 SIGUSR1
-:   Same as issuing **PAUSE;** on the console.
+:   Same as issuing **PAUSE** on the console.
 
 SIGUSR2
-:   Same as issuing **RESUME;** on the console.
+:   Same as issuing **RESUME** on the console.
 
 ### Libevent settings
 

@@ -582,28 +582,23 @@ static void remove_pidfile(void)
 static void check_pidfile(void)
 {
 	char buf[128 + 1];
-	struct stat st;
 	pid_t pid = 0;
 	int fd, res, err;
 
 	if (!cf_pidfile || !cf_pidfile[0])
 		return;
 
-	/* check if pidfile exists */
-	if (stat(cf_pidfile, &st) < 0) {
-		if (errno != ENOENT)
-			fatal_perror("stat");
-		return;
-	}
-
 	/* read old pid */
 	fd = open(cf_pidfile, O_RDONLY);
-	if (fd < 0)
-		goto locked_pidfile;
+	if (fd < 0) {
+		if (errno == ENOENT)
+			return;
+		fatal_perror("could not open pidfile");
+	}
 	res = read(fd, buf, sizeof(buf) - 1);
 	close(fd);
 	if (res <= 0)
-		goto locked_pidfile;
+		fatal_perror("could not read pidfile");
 
 	/* parse pid */
 	buf[res] = 0;
@@ -621,7 +616,7 @@ static void check_pidfile(void)
 	log_info("stale pidfile, removing");
 	err = unlink(cf_pidfile);
 	if (err != 0)
-		fatal_perror("cannot remove stale pidfile");
+		fatal_perror("could not remove stale pidfile");
 	return;
 
 locked_pidfile:

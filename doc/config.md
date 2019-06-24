@@ -551,8 +551,8 @@ Default: unset.
 
 ### client_tls_protocols
 
-Which TLS protocol versions are allowed.  Allowed values: `tlsv1.0`, `tlsv1.1`, `tlsv1.2`.
-Shortcuts: `all` (tlsv1.0,tlsv1.1,tlsv1.2), `secure` (tlsv1.2), `legacy` (all).
+Which TLS protocol versions are allowed.  Allowed values: `tlsv1.0`, `tlsv1.1`, `tlsv1.2`, `tlsv1.3`.
+Shortcuts: `all` (tlsv1.0,tlsv1.1,tlsv1.2,tlsv1.3), `secure` (tlsv1.2,tlsv1.3), `legacy` (all).
 
 Default: `all`
 
@@ -626,8 +626,8 @@ Default: not set.
 
 ### server_tls_protocols
 
-Which TLS protocol versions are allowed.  Allowed values: `tlsv1.0`, `tlsv1.1`, `tlsv1.2`.
-Shortcuts: `all` (tlsv1.0,tlsv1.1,tlsv1.2), `secure` (tlsv1.2), `legacy` (all).
+Which TLS protocol versions are allowed.  Allowed values: `tlsv1.0`, `tlsv1.1`, `tlsv1.2`, `tlsv1.3`.
+Shortcuts: `all` (tlsv1.0,tlsv1.1,tlsv1.2,tlsv1.3), `secure` (tlsv1.2,tlsv1.3), `legacy` (all).
 
 Default: `all`
 

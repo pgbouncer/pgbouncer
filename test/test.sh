@@ -214,6 +214,30 @@ test_query_timeout() {
 	return 0
 }
 
+# idle_transaction_timeout
+test_idle_transaction_timeout() {
+	admin "set pool_mode=transaction"
+	admin "set idle_transaction_timeout=2"
+
+	psql -X --set ON_ERROR_STOP=1 p0 <<-PSQL_EOF
+	begin;
+	\! sleep 3
+	select now();
+	PSQL_EOF
+	test $? -eq 0 && return 1
+
+	# test for GH issue #125
+	psql -X --set ON_ERROR_STOP=1 p0 <<-PSQL_EOF
+	begin;
+	select pg_sleep(1);
+	\! sleep 2
+	select now();
+	PSQL_EOF
+	test $? -ne 0 && return 1
+
+	return 0
+}
+
 # client_idle_timeout
 test_client_idle_timeout() {
 	admin "set client_idle_timeout=2"
@@ -553,6 +577,7 @@ test_client_idle_timeout
 test_server_lifetime
 test_server_idle_timeout
 test_query_timeout
+test_idle_transaction_timeout
 test_server_connect_timeout_establish
 test_server_connect_timeout_reject
 test_server_check_delay

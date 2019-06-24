@@ -496,7 +496,7 @@ static void check_pool_size(PgPool *pool)
 static void pool_server_maint(PgPool *pool)
 {
 	struct List *item, *tmp;
-	usec_t age, now = get_cached_time();
+	usec_t now = get_cached_time();
 	PgSocket *server;
 
 	/* find and disconnect idle servers */
@@ -514,19 +514,32 @@ static void pool_server_maint(PgPool *pool)
 		}
 	}
 
-	/* where query got did not get answer in query_timeout */
+	/* handle query_timeout and idle_transaction_timeout */
 	if (cf_query_timeout > 0 || cf_idle_transaction_timeout > 0) {
 		statlist_for_each_safe(item, &pool->active_server_list, tmp) {
+			usec_t age_client, age_server;
+
 			server = container_of(item, PgSocket, head);
 			Assert(server->state == SV_ACTIVE);
 			if (server->ready)
 				continue;
-			age = now - server->link->request_time;
-			if (cf_query_timeout > 0 && age > cf_query_timeout) {
+
+			/*
+			 * Note the different age calculations:
+			 * query_timeout counts from the last request
+			 * of the client (the client started the
+			 * query), idle_transaction_timeout counts
+			 * from the last request of the server (the
+			 * server sent the idle information).
+			 */
+			age_client = now - server->link->request_time;
+			age_server = now - server->request_time;
+
+			if (cf_query_timeout > 0 && age_client > cf_query_timeout) {
 				disconnect_server(server, true, "query timeout");
 			} else if (cf_idle_transaction_timeout > 0 &&
 				   server->idle_tx &&
-				   age > cf_idle_transaction_timeout)
+				   age_server > cf_idle_transaction_timeout)
 			{
 				disconnect_server(server, true, "idle transaction timeout");
 			}
@@ -536,6 +549,8 @@ static void pool_server_maint(PgPool *pool)
 	/* find connections that got connect, but could not log in */
 	if (cf_server_connect_timeout > 0) {
 		statlist_for_each_safe(item, &pool->new_server_list, tmp) {
+			usec_t age;
+
 			server = container_of(item, PgSocket, head);
 			Assert(server->state == SV_LOGIN);
 

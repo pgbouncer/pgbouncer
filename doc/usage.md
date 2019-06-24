@@ -223,6 +223,9 @@ Subset of **SHOW STATS** showing the total values (**total_**).
 
 Subset of **SHOW STATS** showing the average values (**avg_**).
 
+#### SHOW TOTALS
+
+Like **SHOW STATS** but aggregated across all databases.
 
 #### SHOW SERVERS
 
@@ -512,6 +515,12 @@ cancel
 link
 :   fd for corresponding server/client.  NULL if idle.
 
+#### SHOW SOCKETS, SHOW ACTIVE_SOCKETS
+
+Shows low-level information about sockets or only active sockets.
+This includes the information shown under **SHOW CLIENTS** and **SHOW
+SERVERS** as well as other more low-level information.
+
 #### SHOW CONFIG
 
 Show the current configuration settings, one per row, with following
@@ -527,6 +536,12 @@ changeable
 :   Either **yes** or **no**, shows if the variable can be changed while running.
     If **no**, the variable can be changed only at boot time.  Use
     **SET** to change a variable at run time.
+
+#### SHOW MEM
+
+Shows low-level information about the current sizes of various
+internal memory allocations.  The information presented is subject to
+change.
 
 #### SHOW DNS_HOSTS
 

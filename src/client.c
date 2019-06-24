@@ -754,7 +754,7 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 					  hdr2hex(data, hex, sizeof(hex)));
 			return false;
 		}
-		slog_noise(client, "pkt='%c' len=%d", pkt_desc(&pkt), pkt.len);
+		slog_noise(client, "read pkt='%c' len=%d", pkt_desc(&pkt), pkt.len);
 
 		client->request_time = get_cached_time();
 		switch (client->state) {

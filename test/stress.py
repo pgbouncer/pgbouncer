@@ -6,7 +6,6 @@ import re
 import time
 import psycopg2
 import threading
-import thread
 import random
 
 n_thread = 100
@@ -62,8 +61,8 @@ class WorkThread(threading.Thread):
                 break
             except SystemExit:
                 break
-            except Exception, d:
-                print d
+            except Exception as d:
+                print(d)
                 try:
                     time.sleep(5)
                 except Exception:
@@ -89,7 +88,7 @@ class WorkThread(threading.Thread):
 
 
 def main():
-    print "connstr", get_connstr()
+    print("connstr %s" % get_connstr())
 
     thread_list = []
     while len(thread_list) < n_thread:
@@ -97,7 +96,7 @@ def main():
         t.start()
         thread_list.append(t)
 
-    print "started %d threads" % len(thread_list)
+    print("started %d threads" % len(thread_list))
 
     last = time.time()
     while 1:
@@ -110,7 +109,7 @@ def main():
             for t in thread_list:
                 cnt += t.fetch_cnt()
             avg = cnt / dur
-            print "avg", avg
+            print("avg %s" % avg)
 
 
 if __name__ == '__main__':
@@ -120,5 +119,5 @@ if __name__ == '__main__':
         pass
     except KeyboardInterrupt:
         pass
-    #except Exception, d:
+    #except Exception as d:
     #    print d

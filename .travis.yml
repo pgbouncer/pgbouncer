@@ -9,9 +9,8 @@ addons:
       - libevent-dev
       - libudns-dev
       - lintian
-before_install:
-  - wget https://github.com/jgm/pandoc/releases/download/2.4/pandoc-2.4-1-amd64.deb
-  - sudo dpkg -i pandoc-2.4-1-amd64.deb
+      - pandoc
+      - python
 compiler:
   - clang
   - gcc

@@ -8,6 +8,14 @@ Homepage: <https://pgbouncer.github.io>
 
 Sources, bugtracking: <https://github.com/pgbouncer/pgbouncer>
 
+
+Pushpay Fork of PgBouncer
+-------------------------
+
+This fork has support for long passwords. AWS IAM authentication generates short lived cryptographic tokens to connect to AWS RDS  Aurora postgres. This eliminates the need for preshared password and can use the access token and secret to generate a password for db connection.
+
+See [Amazon RDS for PostgreSQL now supports IAM Authentication](https://aws.amazon.com/about-aws/whats-new/2018/09/amazon-rds-postgresql-now-supports-iam-authentication/)
+
 Building
 ---------
 

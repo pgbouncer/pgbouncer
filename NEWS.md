@@ -1,6 +1,40 @@
 PgBouncer changelog
 ===================
 
+PgBouncer 1.10.x
+----------------
+
+**2019-07-01  -  PgBouncer 1.10.0  -  "Afraid of the World"**
+
+- Features
+  * Add support for enabling and disabling TLS 1.3.  (TLS 1.3 was
+    already supported, depending on the OpenSSL library, but now the
+    configuration settings to pick the TLS protocol versions also
+    support it.)
+- Fixes
+  * Fix TLS 1.3 support.  This was broken with OpenSSL 1.1.1 and
+    1.1.1a (but not before or after).
+  * Fix a rare crash in `SHOW FDS`
+    ([#311](https://github.com/pgbouncer/pgbouncer/issues/311)).
+  * Fix an issue that could lead to prolonged downtime if many cancel
+    requests arrive
+    ([#329](https://github.com/pgbouncer/pgbouncer/issues/329)).
+  * Avoid "unexpected response from login query" after a postgres
+    reload
+    ([#220](https://github.com/pgbouncer/pgbouncer/issues/220)).
+  * Fix `idle_transaction_timeout` calculation
+    ([#125](https://github.com/pgbouncer/pgbouncer/issues/125)).  The
+    bug would lead to premature timeouts in specific situations.
+- Cleanups
+  * Make various log and error messages more precise.
+  * Fix issues found by Coverity (none had a significant impact in
+    practice).
+  * Improve and document all test scripts.
+  * Add additional SHOW commands to the documentation.
+  * Convert the documentation from rst to Markdown.
+  * Python scripts in the source tree are all compatible with Python 3
+    now.
+
 PgBouncer 1.9.x
 ---------------
 

@@ -1,4 +1,4 @@
-% PGBOUNCER(1) 1.9.0 | Databases
+% PGBOUNCER(1) 1.10.0 | Databases
 
 ## Name
 

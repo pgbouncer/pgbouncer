@@ -22,7 +22,10 @@
 int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstlen);
 
 #define slog_error(sk, args...) log_generic(LG_ERROR, sk, ## args)
-#define slog_warning(sk, args...) log_generic(LG_WARNING, sk, ## args)
+#define slog_warning(sk, args...)  do { \
+		if (unlikely(cf_log_warnings > 0)) \
+			log_generic(LG_WARNING, sk, ## args) \
+	} while (0)
 #define slog_info(sk, args...) log_generic(LG_INFO, sk, ## args)
 #define slog_debug(sk, args...) do { \
 		if (unlikely(cf_verbose > 0)) \

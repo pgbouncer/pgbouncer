@@ -1,3 +1,4 @@
+dist: xenial
 language: c
 addons:
   apt:
@@ -26,10 +27,13 @@ env:
     - configure_args='--without-openssl'
 script: |
   set -e
+  PATH=/usr/lib/postgresql/9.5/bin:$PATH
   etc/optscan.sh
   ./autogen.sh
   ./configure --prefix=$HOME/install --enable-cassert --enable-werror --without-cares $configure_args
   make
+  make -C test
+  (cd test/ && ./test.sh)
   make install
   make dist
   tar -x -f pgbouncer-*.tar.gz

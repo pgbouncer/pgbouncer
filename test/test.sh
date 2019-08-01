@@ -95,8 +95,8 @@ psql -X -p $PG_PORT -l | grep p0 > /dev/null || {
 }
 
 psql -X -p $PG_PORT -d p0 -c "select * from pg_user" | grep pswcheck > /dev/null || {
-	psql -X -o /dev/null -p $PG_PORT -c "create user pswcheck with superuser createdb password 'pgbouncer-check';" p0 || return 1
-	psql -X -o /dev/null -p $PG_PORT -c "create user someuser with password 'anypasswd';" p0 || return 1
+	psql -X -o /dev/null -p $PG_PORT -c "create user pswcheck with superuser createdb password 'pgbouncer-check';" p0 || exit 1
+	psql -X -o /dev/null -p $PG_PORT -c "create user someuser with password 'anypasswd';" p0 || exit 1
 }
 
 echo "Starting bouncer"

@@ -1,5 +1,7 @@
 #! /bin/sh
 
+cd $(dirname $0)
+
 rm -rf TestCA1
 
 (
@@ -17,13 +19,13 @@ export EF_ALLOW_MALLOC_0=1
 
 mkdir -p tmp
 
-BOUNCER_LOG=tmp/test.log
+BOUNCER_LOG=test.log
 BOUNCER_INI=test.ini
-BOUNCER_PID=tmp/test.pid
+BOUNCER_PID=test.pid
 BOUNCER_PORT=`sed -n '/^listen_port/s/listen_port.*=[^0-9]*//p' $BOUNCER_INI`
 BOUNCER_EXE="../../pgbouncer"
 
-LOGDIR=tmp
+LOGDIR=log
 PG_PORT=6666
 PG_LOG=$LOGDIR/pg.log
 
@@ -31,16 +33,15 @@ pgctl() {
 	pg_ctl -o "-p $PG_PORT" -D $PGDATA $@ >>$PG_LOG 2>&1
 }
 
-rm -f core
 ulimit -c unlimited
 
-for f in pgdata/postmaster.pid tmp/test.pid; do
-	test -f $f && { kill `cat $f` || true; }
+for f in pgdata/postmaster.pid test.pid; do
+	test -f $f && { kill `head -n1 $f` || true; }
 done
 
 mkdir -p $LOGDIR
-rm -fr $BOUNCER_LOG $PG_LOG
-rm -fr $PGDATA
+rm -f $BOUNCER_LOG $PG_LOG
+rm -rf $PGDATA
 
 if [ ! -d $PGDATA ]; then
 	echo "initdb"
@@ -82,7 +83,7 @@ reconf_bouncer() {
 	for ln in "$@"; do
 		echo "$ln" >> tmp/test.ini
 	done
-	test -f tmp/test.pid && kill `cat tmp/test.pid`
+	test -f test.pid && kill `cat test.pid`
 	sleep 1
 	$BOUNCER_EXE -v -v -v -d tmp/test.ini
 }
@@ -132,6 +133,7 @@ runtest() {
 		echo "ok"
 	else
 		echo "FAILED"
+		cat $LOGDIR/$1.log | sed 's/^/# /'
 	fi
 	date >> $LOGDIR/$1.log
 

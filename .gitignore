@@ -15,6 +15,11 @@
 /test/pgdata/
 /test/test.log
 /test/test.pid
+/test/ssl/log
+/test/ssl/tmp/
+/test/ssl/pgdata/
+/test/ssl/test.log
+/test/ssl/test.pid
 /test/ssl/TestCA1/
 
 *.html

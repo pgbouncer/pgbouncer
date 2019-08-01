@@ -174,6 +174,7 @@ runtest() {
 		echo "skipped"
 	else
 		echo "FAILED"
+		cat $LOGDIR/$1.log | sed 's/^/# /'
 	fi
 	date >> $LOGDIR/$1.log
 

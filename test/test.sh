@@ -457,6 +457,11 @@ test_database_restart() {
 
 	wait
 	psql -X -c "select now() as p0_after_restart" p0 || return 1
+
+	# connect to clear server_login_retry state
+	psql -X -c "select now() as p1_after_restart" p1
+
+	return 0
 }
 
 # test connect string change
@@ -521,7 +526,7 @@ test_fast_close() {
 test_wait_close() {
 	(
 		echo "select pg_backend_pid();"
-		sleep 2
+		sleep 3
 		echo "select pg_backend_pid();"
 		echo "\q"
 	) | psql -X -tAq -f- -d p3 &
@@ -529,9 +534,10 @@ test_wait_close() {
 	sleep 1
 	admin "reconnect p3"
 	admin "wait_close p3"
+	sleep 1  # give psql a moment to exit
 
-	# psql should no longer be running now.  (Without the wait it
-	# would still be running.)
+	# psql should no longer be running now.  (Without the
+	# wait_close it would still be running.)
 	kill -0 $psql_pid
 	psql_running=$?
 

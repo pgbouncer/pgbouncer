@@ -19,7 +19,6 @@ BOUNCER_PORT=`sed -n '/^listen_port/s/listen_port.*=[^0-9]*//p' $BOUNCER_INI`
 BOUNCER_EXE="../pgbouncer"
 
 LOGDIR=log
-NC_PORT=6668
 PG_PORT=6666
 PG_LOG=$LOGDIR/pg.log
 
@@ -68,7 +67,7 @@ Linux)
 esac
 
 stopit() {
-	test -f "$1" && { kill `cat "$1"`; rm -f "$1"; }
+	test -f "$1" && { kill `head -n1 "$1"`; rm -f "$1"; }
 }
 
 stopit test.pid
@@ -263,27 +262,23 @@ test_server_login_retry() {
 	return $rc
 }
 
-# server_connect_timeout - uses netcat to start dummy server
+# server_connect_timeout
 test_server_connect_timeout_establish() {
-	which nc >/dev/null || return 1
-	if nc -h 2>&1 | grep -q 'nc -l -p port'; then
-		# traditional or GNU style
-		set -- nc -l -p $NC_PORT
-	else
-		# BSD style
-		set -- nc -l $NC_PORT
-	fi
-	echo "$@"
-	"$@" >/dev/null &
-	sleep 2
+	psql -X -p $PG_PORT -c "alter system set pre_auth_delay to '60s'" p0
+	kill -HUP `head -n1 pgdata/postmaster.pid`
+	sleep 1
 
 	admin "set query_timeout=3"
 	admin "set server_connect_timeout=2"
-	psql -X -c "select now()" p2
+	psql -X -c "select now()" p0
 	# client will always see query_timeout, need to grep for connect timeout
 	grep "closing because: connect timeout" $BOUNCER_LOG
 	rc=$?
-	killall nc
+
+	rm -f pgdata/postgresql.auto.conf
+	kill -HUP `head -n1 pgdata/postmaster.pid`
+	sleep 1
+
 	return $rc
 }
 

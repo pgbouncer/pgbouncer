@@ -24,7 +24,6 @@ BOUNCER_PORT=`sed -n '/^listen_port/s/listen_port.*=[^0-9]*//p' $BOUNCER_INI`
 BOUNCER_EXE="../../pgbouncer"
 
 LOGDIR=tmp
-NC_PORT=6668
 PG_PORT=6666
 PG_LOG=$LOGDIR/pg.log
 

@@ -15,6 +15,7 @@
 /test/pgdata/
 /test/test.log
 /test/test.pid
+/test/ssl/TestCA1/
 
 *.html
 *.xml

@@ -81,6 +81,17 @@ if [ ! -d $PGDATA ]; then
 	mkdir $PGDATA
 	initdb >> $PG_LOG 2>&1
 	sed $SED_ERE_OP -i "/unix_socket_director/s:.*(unix_socket_director.*=).*:\\1 '/tmp':" pgdata/postgresql.conf
+	cat >>pgdata/postgresql.conf <<-EOF
+	log_connections = on
+	EOF
+	cat >pgdata/pg_hba.conf <<-EOF
+	local  p5   all                md5
+	host   p5   all  127.0.0.1/32  md5
+	host   p5   all  ::1/128       md5
+	local  all  all                trust
+	host   all  all  127.0.0.1/32  trust
+	host   all  all  ::1/128       trust
+	EOF
 fi
 
 pgctl start
@@ -88,15 +99,17 @@ sleep 5
 
 echo "Creating databases"
 psql -X -p $PG_PORT -l | grep p0 > /dev/null || {
-	psql -X -o /dev/null -p $PG_PORT -c "create user bouncer" template1
-	createdb -p $PG_PORT p0
-	createdb -p $PG_PORT p1
-	createdb -p $PG_PORT p3
+	psql -X -o /dev/null -p $PG_PORT -c "create user bouncer" template1 || exit 1
+	for dbname in p0 p1 p3 p5; do
+		createdb -p $PG_PORT $dbname || exit 1
+	done
 }
 
 psql -X -p $PG_PORT -d p0 -c "select * from pg_user" | grep pswcheck > /dev/null || {
+	echo "Creating users"
 	psql -X -o /dev/null -p $PG_PORT -c "create user pswcheck with superuser createdb password 'pgbouncer-check';" p0 || exit 1
 	psql -X -o /dev/null -p $PG_PORT -c "create user someuser with password 'anypasswd';" p0 || exit 1
+	psql -X -o /dev/null -p $PG_PORT -c "create user muser1 password 'foo';" p0 || exit 1
 }
 
 echo "Starting bouncer"
@@ -572,6 +585,32 @@ test_auth_user() {
 	return 0
 }
 
+# test md5 authentication from PgBouncer to PostgreSQL server
+test_md5_server() {
+	admin "set auth_type='trust'"
+
+	# good password
+	psql -X -c "select 1" p5 || return 1
+	# bad password
+	psql -X -c "select 2" p5x && return 1
+
+	return 0
+}
+
+# test md5 authentication from client to PgBouncer
+test_md5_client() {
+	admin "set auth_type='md5'"
+
+	# good password
+	PGPASSWORD=foo psql -X -U muser1 -c "select 1" p1 || return 1
+	# bad password
+	PGPASSWORD=wrong psql -X -U muser2 -c "select 2" p1 && return 1
+
+	admin "set auth_type='trust'"
+
+	return 0
+}
+
 testlist="
 test_server_login_retry
 test_auth_user
@@ -594,6 +633,8 @@ test_database_change
 test_reconnect
 test_fast_close
 test_wait_close
+test_md5_server
+test_md5_client
 "
 
 if [ $# -gt 0 ]; then

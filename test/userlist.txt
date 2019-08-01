@@ -3,3 +3,8 @@
 ;Commented out line should be ignored.
 "pgbouncer" "fake"
 "pswcheck" "pgbouncer-check"
+
+;the following pairs of passwords are "foo" and "bar"
+
+"muser1" "md5ab8b744ff66bee42dc47bae34ca17959"
+"muser2" "md598455b3585818e23c2653a59f6d84551"

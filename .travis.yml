@@ -34,6 +34,9 @@ script: |
   make
   make -C test
   (cd test/ && ./test.sh)
+  if echo x"$configure_args" | grep -q with-openssl; then
+    (cd test/ssl/ && ./test.sh)
+  fi
   make install
   make dist
   tar -x -f pgbouncer-*.tar.gz

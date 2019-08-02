@@ -242,8 +242,8 @@ test_idle_transaction_timeout() {
 	# test for GH issue #125
 	psql -X --set ON_ERROR_STOP=1 p0 <<-PSQL_EOF
 	begin;
-	select pg_sleep(1);
-	\! sleep 2
+	select pg_sleep(2);
+	\! sleep 1
 	select now();
 	PSQL_EOF
 	test $? -ne 0 && return 1

@@ -1000,7 +1000,6 @@ static void dns_connect(struct PgSocket *server)
 	int res;
 
 	if (!host || host[0] == '/') {
-		slog_noise(server, "unix socket: %s", sa_un.sun_path);
 		memset(&sa_un, 0, sizeof(sa_un));
 		sa_un.sun_family = AF_UNIX;
 		unix_dir = host ? host : cf_unix_socket_dir;
@@ -1011,6 +1010,7 @@ static void dns_connect(struct PgSocket *server)
 		}
 		snprintf(sa_un.sun_path, sizeof(sa_un.sun_path),
 			 "%s/.s.PGSQL.%d", unix_dir, db->port);
+		slog_noise(server, "unix socket: %s", sa_un.sun_path);
 		sa = (struct sockaddr *)&sa_un;
 		sa_len = sizeof(sa_un);
 		res = 1;

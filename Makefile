@@ -122,7 +122,7 @@ deb:
 	debuild -b -us -uc
 
 w32arch = i686-w64-mingw32
-w32zip = pgbouncer-$(PACKAGE_VERSION)-win32.zip
+w32zip = $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)-win32.zip
 zip: configure clean
 	rm -rf buildexe
 	mkdir buildexe
@@ -140,7 +140,7 @@ zip: configure clean
 zip-up: $(w32zip)
 	rsync $(w32zip) pgf:web/pgbouncer/htdocs/win32/
 
-tgz = pgbouncer-$(PACKAGE_VERSION).tar.gz
+tgz = $(PACKAGE_TARNAME)-$(PACKAGE_VERSION).tar.gz
 tgz-up: $(tgz)
 	rsync $(tgz) pgf:web/pgbouncer/htdocs/testing/
 

@@ -30,7 +30,7 @@ PG_PORT=6666
 PG_LOG=$LOGDIR/pg.log
 
 pgctl() {
-	pg_ctl -o "-p $PG_PORT" -D $PGDATA $@ >>$PG_LOG 2>&1
+	pg_ctl -w -o "-p $PG_PORT" -D $PGDATA $@ >>$PG_LOG 2>&1
 }
 
 ulimit -c unlimited
@@ -66,7 +66,6 @@ if [ ! -d $PGDATA ]; then
 fi
 
 pgctl start
-sleep 5
 
 echo "createdb"
 psql -X -p $PG_PORT -l | grep p0 > /dev/null || {

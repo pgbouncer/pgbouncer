@@ -5,6 +5,7 @@ addons:
     packages:
       - debhelper
       - devscripts
+      - electric-fence
       - fakeroot
       - libc-ares-dev
       - libevent-dev
@@ -25,6 +26,7 @@ env:
     - configure_args='--with-pam'
     - configure_args='--with-openssl'
     - configure_args='--without-openssl'
+    - configure_args='--with-openssl --with-pam' use_efence=yes
 script: |
   set -e
   PATH=/usr/lib/postgresql/9.5/bin:$PATH
@@ -33,10 +35,16 @@ script: |
   ./configure --prefix=$HOME/install --enable-cassert --enable-werror --without-cares $configure_args
   make
   make -C test
-  (cd test/ && ./test.sh)
-  if echo x"$configure_args" | grep -q with-openssl; then
-    (cd test/ssl/ && ./test.sh)
-  fi
+  (
+    if [ x"$use_efence" = x"yes" ]; then
+      export LD_PRELOAD=/usr/lib/libefence.so
+      export EF_ALLOW_MALLOC_0=1
+    fi
+    (cd test/ && ./test.sh)
+    if echo x"$configure_args" | grep -q with-openssl; then
+      (cd test/ssl/ && ./test.sh)
+    fi
+  )
   make install
   make dist
   tar -x -f pgbouncer-*.tar.gz

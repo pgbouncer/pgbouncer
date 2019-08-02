@@ -112,24 +112,37 @@ extern int cf_sbuf_len;
 #define MAX_USERNAME	64
 #define MAX_PASSWORD	128
 
+/*
+ * AUTH_* symbols are used for both protocol handling and
+ * configuration settings (auth_type, hba).  Some are only applicable
+ * to one or the other.
+ */
+
 /* no-auth modes */
 #define AUTH_ANY	-1 /* same as trust but without username check */
 #define AUTH_TRUST	AUTH_OK
 
-/* protocol codes */
+/* protocol codes in Authentication* 'R' messages from server */
 #define AUTH_OK		0
-#define AUTH_KRB	2
+#define AUTH_KRB4	1	/* not supported */
+#define AUTH_KRB5	2	/* not supported */
 #define AUTH_PLAIN	3
-#define AUTH_CRYPT	4
+#define AUTH_CRYPT	4	/* not supported */
 #define AUTH_MD5	5
-#define AUTH_CREDS	6
+#define AUTH_SCM_CREDS	6	/* not supported */
+#define AUTH_GSS	7	/* not supported */
+#define AUTH_GSS_CONT	8	/* not supported */
+#define AUTH_SSPI	9	/* not supported */
+#define AUTH_SASL	10	/* not supported */
+#define AUTH_SASL_CONT	11	/* not supported */
+#define AUTH_SASL_FIN	12	/* not supported */
 
 /* internal codes */
-#define AUTH_CERT	7
-#define AUTH_PEER	8
-#define AUTH_HBA	9
-#define AUTH_REJECT	10
-#define AUTH_PAM	11
+#define AUTH_CERT	107
+#define AUTH_PEER	108
+#define AUTH_HBA	109
+#define AUTH_REJECT	110
+#define AUTH_PAM	111
 
 /* type codes for weird pkts */
 #define PKT_STARTUP_V2  0x20000

@@ -1,4 +1,4 @@
-% PGBOUNCER.INI(5) 1.10.0 | Databases
+% PGBOUNCER.INI(5) @PACKAGE_VERSION@ | Databases
 
 ## Name
 

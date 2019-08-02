@@ -19,6 +19,8 @@ include $(abs_top_srcdir)/lib/mk/antimake.mk
 
 PYTHON = python
 
+export PACKAGE_VERSION
+
 pgbouncer.%: pgbouncer_%.md
 	$(PANDOC) -s -t man -o $@ $<
 

@@ -1,9 +1,13 @@
 #!/usr/bin/env python
 
 import fileinput
+import os
 import sys
 
 for line in fileinput.input():
+    # substitute package version
+    if line.startswith('% '):
+        line = line.replace('@PACKAGE_VERSION@', os.environ['PACKAGE_VERSION'])
     # drop level-1 header
     if line.startswith('# '):
         continue

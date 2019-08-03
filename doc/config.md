@@ -841,14 +841,20 @@ Ask specific **timezone** from server.
 
 ## Section [users]
 
-This contains key=value pairs where key will be taken as a user name and
-value as a libpq connect-string style list of key=value pairs. As actual libpq is not
-used, so not all features from libpq can be used.
+This contains key=value pairs where the key will be taken as a user name and
+the value as a libpq connect-string style list of key=value pairs of
+configuration settings specific for this user.  Only a few settings
+are available here.
 
 ### pool_mode
 
 Set the pool mode to be used for all connections from this user. If not set, the
 database or default pool_mode is used.
+
+### max_user_connections
+
+Configure a maximum for the user (i.e. all pools with the user will
+not have more than this many server connections).
 
 
 ## Include directive

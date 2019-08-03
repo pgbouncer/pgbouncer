@@ -461,6 +461,7 @@ extern char *cf_ignore_startup_params;
 extern char *cf_admin_users;
 extern char *cf_stats_users;
 extern int cf_stats_period;
+extern int cf_log_stats;
 
 extern int cf_pause_mode;
 extern int cf_shutdown;

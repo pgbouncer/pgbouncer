@@ -163,7 +163,8 @@ The **SHOW** commands output information. Each command is described below.
 
 #### SHOW STATS
 
-Shows statistics.
+Shows statistics.  In this and related commands, the total figures are
+since process start, the averages are updated every `stats_period`.
 
 database
 :   Statistics are presented per database.

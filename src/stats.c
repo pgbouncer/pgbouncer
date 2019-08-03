@@ -336,7 +336,7 @@ static void refresh_stats(int s, short flags, void *arg)
 	struct List *item;
 	PgPool *pool;
 	struct timeval period = { cf_stats_period, 0 };
-	PgStats old_total, cur_total, avg;
+	PgStats old_total, cur_total;
 
 	reset_stats(&old_total);
 	reset_stats(&cur_total);
@@ -349,22 +349,29 @@ static void refresh_stats(int s, short flags, void *arg)
 		pool->older_stats = pool->newer_stats;
 		pool->newer_stats = pool->stats;
 
-		stat_add(&cur_total, &pool->stats);
-		stat_add(&old_total, &pool->older_stats);
+		if (cf_log_stats) {
+			stat_add(&cur_total, &pool->stats);
+			stat_add(&old_total, &pool->older_stats);
+		}
 	}
-	calc_average(&avg, &cur_total, &old_total);
-	/* send totals to logfile */
-	log_info("stats: %" PRIu64 " xacts/s,"
-		 " %" PRIu64 " queries/s,"
-		 " in %" PRIu64 " B/s,"
-		 " out %" PRIu64 " B/s,"
-		 " xact %" PRIu64 " us,"
-		 " query %" PRIu64 " us,"
-		 " wait %" PRIu64 " us",
-		 avg.xact_count, avg.query_count,
-		 avg.client_bytes, avg.server_bytes,
-		 avg.xact_time, avg.query_time,
-		 avg.wait_time);
+
+	if (cf_log_stats) {
+		PgStats avg;
+
+		calc_average(&avg, &cur_total, &old_total);
+
+		log_info("stats: %" PRIu64 " xacts/s,"
+			 " %" PRIu64 " queries/s,"
+			 " in %" PRIu64 " B/s,"
+			 " out %" PRIu64 " B/s,"
+			 " xact %" PRIu64 " us,"
+			 " query %" PRIu64 " us,"
+			 " wait %" PRIu64 " us",
+			 avg.xact_count, avg.query_count,
+			 avg.client_bytes, avg.server_bytes,
+			 avg.xact_time, avg.query_time,
+			 avg.wait_time);
+	}
 
 	safe_evtimer_add(&ev_stats, &period);
 }

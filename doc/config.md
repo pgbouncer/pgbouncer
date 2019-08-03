@@ -281,6 +281,14 @@ Default: pgbouncer
 
 Alias for `service_name`.
 
+### stats_period
+
+Sets how often the averages shown in various `SHOW` commands are
+updated and how often aggregated statistics are written to the log
+(but see `log_stats`). [seconds]
+
+Default: 60
+
 
 ## Log settings
 
@@ -322,11 +330,13 @@ Log error messages pooler sends to clients.
 
 Default: 1
 
-### stats_period
+### log_stats
 
-Period for writing aggregated stats into log.
+Write aggregated statistics into the log, every `stats_period`.  This
+can be disabled if external monitoring tools are used to grab the same
+data from `SHOW` commands.
 
-Default: 60
+Default: 1
 
 ### verbose
 

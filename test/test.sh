@@ -612,6 +612,13 @@ test_password_client() {
 	# bad password
 	PGPASSWORD=wrong psql -X -U puser2 -c "select 2" p1 && return 1
 
+	# test with users that have an md5 password stored
+
+	# good password
+	PGPASSWORD=foo psql -X -U muser1 -c "select 1" p1 || return 1
+	# bad password
+	PGPASSWORD=wrong psql -X -U muser2 -c "select 2" p1 && return 1
+
 	admin "set auth_type='trust'"
 
 	return 0

@@ -46,7 +46,11 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 
 	switch (auth_type) {
 	case AUTH_PLAIN:
-		return strcmp(user->passwd, passwd) == 0;
+		if (isMD5(user->passwd)) {
+			pg_md5_encrypt(passwd, user->name, strlen(user->name), md5);
+			return strcmp(user->passwd, md5) == 0;
+		} else
+			return strcmp(user->passwd, passwd) == 0;
 	case AUTH_MD5:
 		if (strlen(passwd) != MD5_PASSWD_LEN)
 			return false;

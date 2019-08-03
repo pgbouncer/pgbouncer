@@ -77,7 +77,7 @@ static void write_stats(PktBuf *buf, PgStats *stat, PgStats *old, char *dbname)
 {
 	PgStats avg;
 	calc_average(&avg, stat, old);
-	pktbuf_write_DataRow(buf, "sqqqqqqqqqqqqqq", dbname,
+	pktbuf_write_DataRow(buf, "snnnnnnnnnnnnnn", dbname,
 			     stat->xact_count, stat->query_count,
 			     stat->client_bytes, stat->server_bytes,
 			     stat->xact_time, stat->query_time,
@@ -108,7 +108,7 @@ bool admin_database_stats(PgSocket *client, struct StatList *pool_list)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "sqqqqqqqqqqqqqq", "database",
+	pktbuf_write_RowDescription(buf, "snnnnnnnnnnnnnn", "database",
 				    "total_xact_count", "total_query_count",
 				    "total_received", "total_sent",
 				    "total_xact_time", "total_query_time",
@@ -152,7 +152,7 @@ static void write_stats_totals(PktBuf *buf, PgStats *stat, PgStats *old, char *d
 {
 	PgStats avg;
 	calc_average(&avg, stat, old);
-	pktbuf_write_DataRow(buf, "sqqqqqqq", dbname,
+	pktbuf_write_DataRow(buf, "snnnnnnn", dbname,
 			     stat->xact_count, stat->query_count,
 			     stat->client_bytes, stat->server_bytes,
 			     stat->xact_time, stat->query_time,
@@ -179,7 +179,7 @@ bool admin_database_stats_totals(PgSocket *client, struct StatList *pool_list)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "sqqqqqqq", "database",
+	pktbuf_write_RowDescription(buf, "snnnnnnn", "database",
 				    "xact_count", "query_count",
 				    "bytes_received", "bytes_sent",
 				    "xact_time", "query_time",
@@ -219,7 +219,7 @@ static void write_stats_averages(PktBuf *buf, PgStats *stat, PgStats *old, char 
 {
 	PgStats avg;
 	calc_average(&avg, stat, old);
-	pktbuf_write_DataRow(buf, "sqqqqqqq", dbname,
+	pktbuf_write_DataRow(buf, "snnnnnnn", dbname,
 			     avg.xact_count, avg.query_count,
 			     avg.client_bytes, avg.server_bytes,
 			     avg.xact_time, avg.query_time,
@@ -246,7 +246,7 @@ bool admin_database_stats_averages(PgSocket *client, struct StatList *pool_list)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "sqqqqqqq", "database",
+	pktbuf_write_RowDescription(buf, "snnnnnnn", "database",
 				    "xact_count", "query_count",
 				    "bytes_received", "bytes_sent",
 				    "xact_time", "query_time",

@@ -363,6 +363,8 @@ void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...)
 		pktbuf_put_string(buf, name);
 		pktbuf_put_uint32(buf, 0);
 		pktbuf_put_uint16(buf, 0);
+		uint64_t typemod = 0;
+
 		if (tupdesc[i] == 's') {
 			pktbuf_put_uint32(buf, TEXTOID);
 			pktbuf_put_uint16(buf, -1);
@@ -372,13 +374,17 @@ void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...)
 		} else if (tupdesc[i] == 'q') {
 			pktbuf_put_uint32(buf, INT8OID);
 			pktbuf_put_uint16(buf, 8);
+		} else if (tupdesc[i] == 'n') {
+			pktbuf_put_uint32(buf, NUMERICOID);
+			pktbuf_put_uint16(buf, 0xffff);
+			typemod = NUMERIC_TYPEMOD;
 		} else if (tupdesc[i] == 'T') {
 			pktbuf_put_uint32(buf, TEXTOID);
 			pktbuf_put_uint16(buf, -1);
 		} else {
 			fatal("bad tupdesc");
 		}
-		pktbuf_put_uint32(buf, 0);
+		pktbuf_put_uint32(buf, typemod);
 		pktbuf_put_uint16(buf, 0);
 	}
 	va_end(ap);
@@ -393,6 +399,7 @@ void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...)
  * tupdesc keys:
  * 'i' - int4
  * 'q' - int8
+ * 'n' - numeric
  * 's' - string
  * 'T' - usec_t to date
  */
@@ -413,6 +420,9 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 			val = tmp;
 		} else if (tupdesc[i] == 'q') {
 			snprintf(tmp, sizeof(tmp), "%" PRIu64, va_arg(ap, uint64_t));
+			val = tmp;
+		} else if (tupdesc[i] == 'n') {
+			snprintf(tmp, sizeof(tmp), "%" PRIu64 ".0", va_arg(ap, uint64_t));
 			val = tmp;
 		} else if (tupdesc[i] == 's') {
 			val = va_arg(ap, char *);

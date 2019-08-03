@@ -52,6 +52,10 @@
 #define INT8OID 20
 #define INT4OID 23
 #define TEXTOID 25
+#define NUMERICOID 1700
+
+/* NUMERIC(20, 0) */
+#define NUMERIC_TYPEMOD 0x140005
 
 /*
  * libc compat functions.

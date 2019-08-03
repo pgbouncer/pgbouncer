@@ -54,8 +54,13 @@
 #define TEXTOID 25
 #define NUMERICOID 1700
 
-/* NUMERIC(20, 0) */
-#define NUMERIC_TYPEMOD 0x140005
+#define VARHDRSZ 4
+/*
+   For numerics, typmod is calculated via:
+   typmod = VARHDRSZ + (precision << 16) + (scale & 0xffff)
+   https://github.com/postgres/postgres/blob/REL_11_4/src/backend/utils/adt/numeric.c#L977-L978
+*/
+#define NUMERIC_TYPMOD ((20 << 16) + VARHDRSZ)  /* NUMERIC(20, 0) */
 
 /*
  * libc compat functions.

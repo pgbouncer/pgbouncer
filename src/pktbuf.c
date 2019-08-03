@@ -348,6 +348,7 @@ void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...)
 	va_list ap;
 	char *name;
 	int i, ncol = strlen(tupdesc);
+	uint64_t typemod;
 
 	log_noise("write RowDescription");
 
@@ -358,12 +359,12 @@ void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...)
 	va_start(ap, tupdesc);
 	for (i = 0; i < ncol; i++) {
 		name = va_arg(ap, char *);
+		typemod = 0;
 
 		/* Fields: name, reloid, colnr, oid, typsize, typmod, fmt */
 		pktbuf_put_string(buf, name);
 		pktbuf_put_uint32(buf, 0);
 		pktbuf_put_uint16(buf, 0);
-		uint64_t typemod = 0;
 
 		if (tupdesc[i] == 's') {
 			pktbuf_put_uint32(buf, TEXTOID);

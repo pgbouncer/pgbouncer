@@ -85,6 +85,9 @@ if [ ! -d $PGDATA ]; then
 	log_connections = on
 	EOF
 	cat >pgdata/pg_hba.conf <<-EOF
+	local  p4   all                password
+	host   p4   all  127.0.0.1/32  password
+	host   p4   all  ::1/128       password
 	local  p5   all                md5
 	host   p5   all  127.0.0.1/32  md5
 	host   p5   all  ::1/128       md5
@@ -99,7 +102,7 @@ pgctl start
 echo "Creating databases"
 psql -X -p $PG_PORT -l | grep p0 > /dev/null || {
 	psql -X -o /dev/null -p $PG_PORT -c "create user bouncer" template1 || exit 1
-	for dbname in p0 p1 p3 p5; do
+	for dbname in p0 p1 p3 p4 p5; do
 		createdb -p $PG_PORT $dbname || exit 1
 	done
 }
@@ -584,6 +587,36 @@ test_auth_user() {
 	return 0
 }
 
+# test plain-text password authentication from PgBouncer to PostgreSQL server
+#
+# The PostgreSQL server no longer supports storing plain-text
+# passwords, so the server-side user actually uses md5 passwords in
+# this test case, but the communication is still in plain text.
+test_password_server() {
+	admin "set auth_type='trust'"
+
+	# good password
+	psql -X -c "select 1" p4 || return 1
+	# bad password
+	psql -X -c "select 2" p4x && return 1
+
+	return 0
+}
+
+# test plain-text password authentication from client to PgBouncer
+test_password_client() {
+	admin "set auth_type='plain'"
+
+	# good password
+	PGPASSWORD=foo psql -X -U puser1 -c "select 1" p1 || return 1
+	# bad password
+	PGPASSWORD=wrong psql -X -U puser2 -c "select 2" p1 && return 1
+
+	admin "set auth_type='trust'"
+
+	return 0
+}
+
 # test md5 authentication from PgBouncer to PostgreSQL server
 test_md5_server() {
 	admin "set auth_type='trust'"
@@ -632,6 +665,8 @@ test_database_change
 test_reconnect
 test_fast_close
 test_wait_close
+test_password_server
+test_password_client
 test_md5_server
 test_md5_client
 "

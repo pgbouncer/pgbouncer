@@ -6,5 +6,8 @@
 
 ;the following pairs of passwords are "foo" and "bar"
 
+"puser1" "foo"
+"puser2" "bar"
+
 "muser1" "md5ab8b744ff66bee42dc47bae34ca17959"
 "muser2" "md598455b3585818e23c2653a59f6d84551"

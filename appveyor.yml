@@ -1,0 +1,17 @@
+environment:
+  matrix:
+    - MSYSTEM: MINGW32
+    - MSYSTEM: MINGW64
+
+install:
+  - git submodule update --init --recursive
+  - set PATH=C:/msys64/usr/bin;%PATH%
+  - sh -l -c "pacman --noconfirm -S --needed base-devel ${MINGW_PACKAGE_PREFIX}-toolchain ${MINGW_PACKAGE_PREFIX}-libevent ${MINGW_PACKAGE_PREFIX}-openssl python"
+
+build_script:
+  - set HOME=.
+  - set PATH=C:/msys64/usr/bin;%PATH%
+  - sh -l -c "./autogen.sh"
+  - sh -l -c "./configure PANDOC=true || { cat config.log; exit 1; }"
+  - sh -l -c "make"
+#TODO:  - sh -l -c "make install"

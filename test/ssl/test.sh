@@ -23,7 +23,7 @@ BOUNCER_LOG=test.log
 BOUNCER_INI=test.ini
 BOUNCER_PID=test.pid
 BOUNCER_PORT=`sed -n '/^listen_port/s/listen_port.*=[^0-9]*//p' $BOUNCER_INI`
-BOUNCER_EXE="../../pgbouncer"
+BOUNCER_EXE="$BOUNCER_EXE_PREFIX ../../pgbouncer"
 
 LOGDIR=log
 PG_PORT=6666

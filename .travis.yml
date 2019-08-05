@@ -13,6 +13,7 @@ addons:
       - lintian
       - pandoc
       - python
+      - valgrind
 compiler:
   - clang
   - gcc
@@ -26,7 +27,8 @@ env:
     - configure_args='--with-pam'
     - configure_args='--with-openssl'
     - configure_args='--without-openssl'
-    - configure_args='--with-openssl --with-pam' use_efence=yes
+    - use_efence=yes   configure_args='--with-openssl --with-pam'
+    - use_valgrind=yes configure_args='--without-openssl --with-pam'
 script: |
   set -e
   PATH=/usr/lib/postgresql/9.5/bin:$PATH
@@ -40,9 +42,18 @@ script: |
       export LD_PRELOAD=/usr/lib/libefence.so
       export EF_ALLOW_MALLOC_0=1
     fi
+    if [ x"$use_valgrind" = x"yes" ]; then
+      export BOUNCER_EXE_PREFIX="valgrind --quiet --track-origins=yes --read-var-info=yes --error-markers=VALGRIND-ERROR-BEGIN,VALGRIND-ERROR-END --log-file=$HOME/valgrind.%p.log"
+    fi
     (cd test/ && ./test.sh)
     if echo x"$configure_args" | grep -q with-openssl; then
       (cd test/ssl/ && ./test.sh)
+    fi
+    if [ x"$use_valgrind" = x"yes" ]; then
+      if grep -q VALGRIND-ERROR $HOME/valgrind.*.log; then
+        cat $HOME/valgrind.*.log
+        exit 1
+      fi
     fi
   )
   make install

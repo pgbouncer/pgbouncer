@@ -48,7 +48,7 @@ and their probing order:
 | udns                       | yes      | yes       | no         | yes            | ipv4-only                             |
 | evdns, libevent 2.x        | yes      | no        | yes        | no             | does not check /etc/hosts updates     |
 | getaddrinfo_a, glibc 2.9+  | yes      | yes (3)   | yes        | no             | N/A on non-linux                      |
-| getaddrinfo, libc          | no       | yes (3)   | yes        | no             | N/A on win32, requires pthreads       |
+| getaddrinfo, libc          | no       | yes (3)   | yes        | no             | N/A on Windows, requires pthreads     |
 | evdns, libevent 1.x        | yes      | no        | no         | no             | buggy                                 |
 
 1. EDNS0 is required to have more than 8 addresses behind one hostname.
@@ -82,14 +82,14 @@ you can run configure:
 
 Additional packages required: autoconf, automake, libtool, pandoc
 
-Building for WIN32
-------------------
+Building on Windows
+-------------------
 
-At the moment only build env tested is MINGW32 / MSYS.  Cygwin
-and Visual $ANYTHING are untested.  Libevent 2.x is required
+At the moment, the only build environment tested is MinGW/MSYS.
+Cygwin and Visual $ANYTHING are untested.  Libevent 2.x is required
 for DNS hostname lookup.
 
-Then do the usual:
+To build on MinGW, do the usual:
 
 	$ ./configure ...
 	$ make
@@ -98,13 +98,13 @@ If cross-compiling from Unix:
 
 	$ ./configure --host=i586-mingw32msvc ...
 
-Running on WIN32
-----------------
+Running on Windows
+------------------
 
-Running from command-line goes as usual, except -d (daemonize),
+Running from command-line goes as usual, except that the -d (daemonize),
 -R (reboot) and -u (switch user) switches will not work.
 
-To run pgbouncer as a Windows service, you need to configure
+To run pgbouncer as a Windows service, you need to configure the
 `service_name` parameter to set name for service.  Then:
 
 	$ pgbouncer -regservice config.ini

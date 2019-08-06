@@ -88,6 +88,7 @@ struct SBuf {
 	const SBufIO *ops;	/* normal vs. TLS */
 	struct tls *tls;	/* TLS context */
 	const char *tls_host;	/* target hostname */
+	void *tls_ctx_pool_ref;	/* reference to TLS context pool */
 };
 
 #define sbuf_socket(sbuf) ((sbuf)->sock)
@@ -96,7 +97,7 @@ void sbuf_init(SBuf *sbuf, sbuf_cb_t proto_fn);
 bool sbuf_accept(SBuf *sbuf, int read_sock, bool is_unix)  _MUSTCHECK;
 bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, int sa_len, int timeout_sec)  _MUSTCHECK;
 
-void sbuf_tls_setup(void);
+void sbuf_tls_setup( bool loaded);
 bool sbuf_tls_accept(SBuf *sbuf)  _MUSTCHECK;
 bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)  _MUSTCHECK;
 

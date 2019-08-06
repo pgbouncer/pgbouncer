@@ -21,6 +21,7 @@ pgbouncer_SOURCES = \
 	src/stats.c \
 	src/system.c \
 	src/takeover.c \
+	src/tlsctxpool.c \
 	src/util.c \
 	src/varcache.c \
 	include/admin.h \
@@ -41,6 +42,7 @@ pgbouncer_SOURCES = \
 	include/stats.h \
 	include/system.h \
 	include/takeover.h \
+	include/tlsctxpool.h \
 	include/util.h \
 	include/varcache.h
 

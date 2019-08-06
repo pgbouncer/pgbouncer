@@ -25,6 +25,7 @@
  */
 
 #include "bouncer.h"
+#include "tlsctxpool.h"
 
 #ifdef USUAL_LIBSSL_FOR_TLS
 #define USE_TLS
@@ -857,10 +858,6 @@ static int raw_sbufio_close(struct SBuf *sbuf)
 
 #ifdef USE_TLS
 
-static struct tls_config *client_accept_conf;
-static struct tls_config *server_connect_conf;
-static struct tls *client_accept_base;
-
 /*
  * TLS setup
  */
@@ -935,41 +932,96 @@ static void setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
 	}
 }
 
-void sbuf_tls_setup(void)
+const char tls_configuration_is_partially_loaded[] = "New TLS setup may by partially loaded or discarded. Previous valid values are still used.";
+static void fallback_server( const bool loaded, const char *error_message );
+static void fallback_client( const bool loaded, const char *error_message );
+
+static void fallback_server( const bool loaded, const char *error_message ) {
+	if ( ! loaded)
+		die("%s", error_message);
+	log_error("%s", error_message);
+	if( tlsctxpool_isset_conf()) {
+		log_error("%s", tls_configuration_is_partially_loaded);
+	} else {
+		log_error("FALLBACK - cf_server_tls_sslmode DISABLED"); // TODO
+		cf_server_tls_sslmode = SSLMODE_DISABLED;
+	}
+}
+
+static void fallback_client( const bool loaded, const char *error_message) {
+	if ( ! loaded)
+		die("%s", error_message);
+	log_error("%s", error_message);
+	if( tlsctxpool_isset_base()) {
+		log_error("%s", tls_configuration_is_partially_loaded);
+	} else {
+		log_error("FALLBACK - cf_client_tls_sslmode DISABLED"); // TODO
+		cf_client_tls_sslmode = SSLMODE_DISABLED;
+	}
+}
+
+void sbuf_tls_setup( bool loaded)
 {
 	int err;
 
 	if (cf_client_tls_sslmode != SSLMODE_DISABLED) {
-		if (!*cf_client_tls_key_file || !*cf_client_tls_cert_file)
-			die("To allow TLS connections from clients, client_tls_key_file and client_tls_cert_file must be set.");
+		if (!*cf_client_tls_key_file || !*cf_client_tls_cert_file) {
+			fallback_client( loaded, "To allow TLS connections from clients, client_tls_key_file and client_tls_cert_file must be set.");
+			return;
+		}
 	}
 	if (cf_auth_type == AUTH_CERT) {
 		if (cf_client_tls_sslmode != SSLMODE_VERIFY_FULL)
-			die("auth_type=cert requires client_tls_sslmode=SSLMODE_VERIFY_FULL");
+			fallback_client( loaded, "auth_type=cert requires client_tls_sslmode=SSLMODE_VERIFY_FULL");
 		if (*cf_client_tls_ca_file == '\0')
-			die("auth_type=cert requires client_tls_ca_file");
+			fallback_client( loaded, "auth_type=cert requires client_tls_ca_file");
+		cf_client_tls_sslmode = SSLMODE_VERIFY_FULL; // previous correct setting will bee used
+		return;
 	} else if (cf_client_tls_sslmode > SSLMODE_VERIFY_CA && *cf_client_tls_ca_file == '\0') {
-		die("client_tls_sslmode requires client_tls_ca_file");
+		fallback_client( loaded, "client_tls_sslmode requires client_tls_ca_file");
+		return;
 	}
 
 	err = tls_init();
-	if (err)
-		fatal("tls_init failed");
+	if (err) {
+		fallback_client( loaded, "tls_init failed");
+		fallback_server( loaded, "tls_init failed");
+		// TODO stejne nevim, co s tim. init vrati chybu jen pri prvnim neuspesnem volani (pak vzdy ok), tak snad to bude stacit drzet vypnute
+		// TODO kolize s authtype cert
+		return;
+		//fatal("tls_init failed");
+	}
 
 	if (cf_server_tls_sslmode != SSLMODE_DISABLED) {
+		struct tls_config *server_connect_conf;
 		server_connect_conf = tls_config_new();
-		if (!server_connect_conf)
-			die("tls_config_new failed 1");
+		if (!server_connect_conf) {
+			// nothing to freeing
+			fallback_server( loaded, "tls_config_new for servers failed");
+			return;
+		}
 		setup_tls(server_connect_conf, "server_tls", cf_server_tls_sslmode,
 			  cf_server_tls_protocols, cf_server_tls_ciphers,
 			  cf_server_tls_key_file, cf_server_tls_cert_file,
 			  cf_server_tls_ca_file, "", "", true);
+		if( ! tlsctxpool_register(NULL, server_connect_conf)) {
+			tls_config_free(server_connect_conf);
+			fallback_server( loaded, "TLS configuration context pool is exhausted.");
+			return;
+		}
+	} else {
+		tlsctxpool_clean( false);
 	}
 
 	if (cf_client_tls_sslmode != SSLMODE_DISABLED) {
+		struct tls_config *client_accept_conf;
+		struct tls *client_accept_base;
 		client_accept_conf = tls_config_new();
-		if (!client_accept_conf)
-			die("tls_config_new failed 2");
+		if (!client_accept_conf) {
+			// nothing to free
+			fallback_client( loaded, "tls_config_new for clients failed");
+			return;
+		}
 		setup_tls(client_accept_conf, "client_tls", cf_client_tls_sslmode,
 			  cf_client_tls_protocols, cf_client_tls_ciphers,
 			  cf_client_tls_key_file, cf_client_tls_cert_file,
@@ -977,11 +1029,27 @@ void sbuf_tls_setup(void)
 			  cf_client_tls_ecdhecurve, false);
 
 		client_accept_base = tls_server();
-		if (!client_accept_base)
-			die("server_base failed");
+		if (!client_accept_base) {
+			tls_config_free(client_accept_conf);
+			fallback_client( loaded, "server_base failed");
+			return;
+		}
 		err = tls_configure(client_accept_base, client_accept_conf);
-		if (err)
-			die("TLS setup failed: %s", tls_error(client_accept_base));
+		if (err) {
+			log_error( "TLS setup failed: %s", tls_error(client_accept_base));
+			tls_free(client_accept_base);
+			tls_config_free(client_accept_conf);
+			fallback_client( loaded, "TLS setup failed, see above");
+			return;
+		}
+		if (!tlsctxpool_register(client_accept_base, client_accept_conf)) {
+			tls_free(client_accept_base);
+			tls_config_free(client_accept_conf);
+			fallback_client( loaded, "TLS configuration context pool is exhausted.");
+			return;
+		}
+	} else {
+		tlsctxpool_clean( false);
 	}
 }
 
@@ -1023,16 +1091,18 @@ static void sbuf_tls_handshake_cb(int fd, short flags, void *_sbuf)
 
 bool sbuf_tls_accept(SBuf *sbuf)
 {
+	struct tls * client_accept_base;
 	int err;
 
 	if (!sbuf_pause(sbuf))
 		return false;
 
 	sbuf->ops = &tls_sbufio_ops;
-
+	client_accept_base = tlsctxpool_book_tls_base( &sbuf->tls_ctx_pool_ref);
 	err = tls_accept_fds(client_accept_base, &sbuf->tls, sbuf->sock, sbuf->sock);
 	log_noise("tls_accept_fds: err=%d", err);
 	if (err < 0) {
+		tlsctxpool_release( &sbuf->tls_ctx_pool_ref);
 		log_warning("TLS accept error: %s", tls_error(sbuf->tls));
 		return false;
 	}
@@ -1047,6 +1117,7 @@ bool sbuf_tls_accept(SBuf *sbuf)
 
 bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
 {
+	struct tls_config *server_connect_conf;
 	struct tls *ctls;
 	int err;
 
@@ -1059,9 +1130,11 @@ bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
 	ctls = tls_client();
 	if (!ctls)
 		return false;
+	server_connect_conf = tlsctxpool_book_tls_conf( &sbuf->tls_ctx_pool_ref);
 	err = tls_configure(ctls, server_connect_conf);
 	if (err < 0) {
 		log_error("tls client config failed: %s", tls_error(ctls));
+		tlsctxpool_release( &sbuf->tls_ctx_pool_ref);
 		tls_free(ctls);
 		return false;
 	}
@@ -1073,6 +1146,8 @@ bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
 	err = tls_connect_fds(sbuf->tls, sbuf->sock, sbuf->sock, sbuf->tls_host);
 	if (err < 0) {
 		log_warning("TLS connect error: %s", tls_error(sbuf->tls));
+		tlsctxpool_release( &sbuf->tls_ctx_pool_ref);
+		// TODO uvolnit i jine veci?
 		return false;
 	}
 
@@ -1141,6 +1216,7 @@ static int tls_sbufio_close(struct SBuf *sbuf)
 		tls_close(sbuf->tls);
 		tls_free(sbuf->tls);
 		sbuf->tls = NULL;
+		tlsctxpool_release(&sbuf->tls_ctx_pool_ref);
 	}
 	if (sbuf->sock > 0) {
 		safe_close(sbuf->sock);
@@ -1151,12 +1227,7 @@ static int tls_sbufio_close(struct SBuf *sbuf)
 
 void sbuf_cleanup(void)
 {
-	tls_free(client_accept_base);
-	tls_config_free(client_accept_conf);
-	tls_config_free(server_connect_conf);
-	client_accept_conf = NULL;
-	server_connect_conf = NULL;
-	client_accept_base = NULL;
+	tlsctxpool_clean( true);
 }
 
 #else

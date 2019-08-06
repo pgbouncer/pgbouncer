@@ -275,21 +275,21 @@ CF_ABS("log_disconnections", CF_INT, cf_log_disconnections, 0, "1"),
 CF_ABS("log_pooler_errors", CF_INT, cf_log_pooler_errors, 0, "1"),
 CF_ABS("application_name_add_host", CF_INT, cf_application_name_add_host, 0, "0"),
 
-CF_ABS("client_tls_sslmode", CF_LOOKUP(sslmode_map), cf_client_tls_sslmode, CF_NO_RELOAD, "disable"),
-CF_ABS("client_tls_ca_file", CF_STR, cf_client_tls_ca_file, CF_NO_RELOAD, ""),
-CF_ABS("client_tls_cert_file", CF_STR, cf_client_tls_cert_file, CF_NO_RELOAD, ""),
-CF_ABS("client_tls_key_file", CF_STR, cf_client_tls_key_file, CF_NO_RELOAD, ""),
-CF_ABS("client_tls_protocols", CF_STR, cf_client_tls_protocols, CF_NO_RELOAD, "all"),
-CF_ABS("client_tls_ciphers", CF_STR, cf_client_tls_ciphers, CF_NO_RELOAD, "fast"),
-CF_ABS("client_tls_dheparams", CF_STR, cf_client_tls_dheparams, CF_NO_RELOAD, "auto"),
-CF_ABS("client_tls_ecdhcurve", CF_STR, cf_client_tls_ecdhecurve, CF_NO_RELOAD, "auto"),
+CF_ABS("client_tls_sslmode", CF_LOOKUP(sslmode_map), cf_client_tls_sslmode, 0, "disable"),
+CF_ABS("client_tls_ca_file", CF_STR, cf_client_tls_ca_file, 0, ""),
+CF_ABS("client_tls_cert_file", CF_STR, cf_client_tls_cert_file, 0, ""),
+CF_ABS("client_tls_key_file", CF_STR, cf_client_tls_key_file, 0, ""),
+CF_ABS("client_tls_protocols", CF_STR, cf_client_tls_protocols, 0, "all"),
+CF_ABS("client_tls_ciphers", CF_STR, cf_client_tls_ciphers, 0, "fast"),
+CF_ABS("client_tls_dheparams", CF_STR, cf_client_tls_dheparams, 0, "auto"),
+CF_ABS("client_tls_ecdhcurve", CF_STR, cf_client_tls_ecdhecurve, 0, "auto"),
 
-CF_ABS("server_tls_sslmode", CF_LOOKUP(sslmode_map), cf_server_tls_sslmode, CF_NO_RELOAD, "disable"),
-CF_ABS("server_tls_ca_file", CF_STR, cf_server_tls_ca_file, CF_NO_RELOAD, ""),
-CF_ABS("server_tls_cert_file", CF_STR, cf_server_tls_cert_file, CF_NO_RELOAD, ""),
-CF_ABS("server_tls_key_file", CF_STR, cf_server_tls_key_file, CF_NO_RELOAD, ""),
-CF_ABS("server_tls_protocols", CF_STR, cf_server_tls_protocols, CF_NO_RELOAD, "all"),
-CF_ABS("server_tls_ciphers", CF_STR, cf_server_tls_ciphers, CF_NO_RELOAD, "fast"),
+CF_ABS("server_tls_sslmode", CF_LOOKUP(sslmode_map), cf_server_tls_sslmode, 0, "disable"),
+CF_ABS("server_tls_ca_file", CF_STR, cf_server_tls_ca_file, 0, ""),
+CF_ABS("server_tls_cert_file", CF_STR, cf_server_tls_cert_file, 0, ""),
+CF_ABS("server_tls_key_file", CF_STR, cf_server_tls_key_file, 0, ""),
+CF_ABS("server_tls_protocols", CF_STR, cf_server_tls_protocols, 0, "all"),
+CF_ABS("server_tls_ciphers", CF_STR, cf_server_tls_ciphers, 0, "fast"),
 
 {NULL}
 };
@@ -405,6 +405,8 @@ void load_config(void)
 	/* reopen logfile */
 	if (main_config.loaded)
 		reset_logging();
+
+	sbuf_tls_setup(main_config.loaded);
 }
 
 /*
@@ -871,8 +873,6 @@ int main(int argc, char *argv[])
 	main_config.loaded = true;
 	init_caches();
 	logging_prefix_cb = log_socket_prefix;
-
-	sbuf_tls_setup();
 
 	/* prefer cmdline over config for username */
 	if (arg_username) {

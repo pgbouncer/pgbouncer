@@ -971,12 +971,16 @@ void sbuf_tls_setup( bool loaded)
 		}
 	}
 	if (cf_auth_type == AUTH_CERT) {
-		if (cf_client_tls_sslmode != SSLMODE_VERIFY_FULL)
+		if (cf_client_tls_sslmode != SSLMODE_VERIFY_FULL) {
 			fallback_client( loaded, "auth_type=cert requires client_tls_sslmode=SSLMODE_VERIFY_FULL");
-		if (*cf_client_tls_ca_file == '\0')
+			cf_client_tls_sslmode = SSLMODE_VERIFY_FULL; // previous correct setting will bee used
+			return;
+		}
+		if (*cf_client_tls_ca_file == '\0') {
 			fallback_client( loaded, "auth_type=cert requires client_tls_ca_file");
-		cf_client_tls_sslmode = SSLMODE_VERIFY_FULL; // previous correct setting will bee used
-		return;
+			cf_client_tls_sslmode = SSLMODE_VERIFY_FULL; // previous correct setting will bee used
+			return;
+		}
 	} else if (cf_client_tls_sslmode > SSLMODE_VERIFY_CA && *cf_client_tls_ca_file == '\0') {
 		fallback_client( loaded, "client_tls_sslmode requires client_tls_ca_file");
 		return;
@@ -1232,7 +1236,7 @@ void sbuf_cleanup(void)
 
 #else
 
-void sbuf_tls_setup(void) { }
+void sbuf_tls_setup(bool loaded) { }
 bool sbuf_tls_accept(SBuf *sbuf) { return false; }
 bool sbuf_tls_connect(SBuf *sbuf, const char *hostname) { return false; }
 

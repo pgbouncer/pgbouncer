@@ -907,18 +907,16 @@ file from the `pg_shadow` system table.
 
 ## HBA file format
 
-It follows the format of PostgreSQL pg_hba.conf file -
-<http://www.postgresql.org/docs/9.4/static/auth-pg-hba-conf.html>
-
-There are following differences:
+It follows the format of the PostgreSQL `pg_hba.conf` file
+(see <https://www.postgresql.org/docs/current/auth-pg-hba-conf.html>).
 
 * Supported record types: `local`, `host`, `hostssl`, `hostnossl`.
 * Database field: Supports `all`, `sameuser`, `@file`, multiple names.  Not supported: `replication`, `samerole`, `samegroup`.
 * Username field: Supports `all`, `@file`, multiple names.  Not supported: `+groupname`.
 * Address field: Supported IPv4, IPv6.  Not supported: DNS names, domain prefixes.
-* Auth-method field:  Supported methods: `trust`, `reject`, `md5`, `password`, `peer`, `cert`.
-  Not supported: `gss`, `sspi`, `ident`, `ldap`, `radius`, `pam`.
-  Also username map (`map=`) parameter is not supported.
+* Auth-method field: Only methods supported by PgBouncer's `auth_type`
+  are supported, except `any` and `pam`, which only work globally.
+  Username map (`map=`) parameter is not supported.
 
 
 ## Example

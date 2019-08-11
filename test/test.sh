@@ -112,6 +112,9 @@ psql -X -p $PG_PORT -d p0 -c "select * from pg_user" | grep pswcheck > /dev/null
 	psql -X -o /dev/null -p $PG_PORT -c "create user pswcheck with superuser createdb password 'pgbouncer-check';" p0 || exit 1
 	psql -X -o /dev/null -p $PG_PORT -c "create user someuser with password 'anypasswd';" p0 || exit 1
 	psql -X -o /dev/null -p $PG_PORT -c "create user muser1 password 'foo';" p0 || exit 1
+	psql -X -o /dev/null -p $PG_PORT -c "create user muser2 password 'wrong';" p0 || exit 1
+	psql -X -o /dev/null -p $PG_PORT -c "create user puser1 password 'foo';" p0 || exit 1
+	psql -X -o /dev/null -p $PG_PORT -c "create user puser2 password 'wrong';" p0 || exit 1
 }
 
 echo "Starting bouncer"
@@ -595,10 +598,15 @@ test_auth_user() {
 test_password_server() {
 	admin "set auth_type='trust'"
 
-	# good password
+	# good password from ini
 	psql -X -c "select 1" p4 || return 1
-	# bad password
+	# bad password from ini
 	psql -X -c "select 2" p4x && return 1
+
+	# good password from auth_file
+	psql -X -c "select 1" p4y || return 1
+	# bad password from auth_file
+	psql -X -c "select 1" p4z && return 1
 
 	return 0
 }
@@ -630,10 +638,15 @@ test_password_client() {
 test_md5_server() {
 	admin "set auth_type='trust'"
 
-	# good password
+	# good password from ini
 	psql -X -c "select 1" p5 || return 1
-	# bad password
+	# bad password from ini
 	psql -X -c "select 2" p5x && return 1
+
+	# good password from auth_file
+	psql -X -c "select 1" p5y || return 1
+	# bad password from auth_file
+	psql -X -c "select 1" p5z && return 1
 
 	return 0
 }

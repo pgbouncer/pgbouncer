@@ -795,7 +795,7 @@ Default: not set, meaning to use a Unix socket.
 
 Default: 5432
 
-### user, password
+### user
 
 If `user=` is set, all connections to the destination database will be
 done with the specified user, meaning that there will be only one pool
@@ -804,7 +804,12 @@ for this database.
 Otherwise PgBouncer tries to log into the destination database with client
 username, meaning that there will be one pool per user.
 
+### password
+
 The length for `password` is limited to 128 characters maximum.
+
+If no password is specified here, the password from the `auth_file` or
+`auth_query` will be used.
 
 ### auth_user
 

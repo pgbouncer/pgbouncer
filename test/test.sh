@@ -607,6 +607,8 @@ test_password_server() {
 test_password_client() {
 	admin "set auth_type='plain'"
 
+	# test with users that have a plain-text password stored
+
 	# good password
 	PGPASSWORD=foo psql -X -U puser1 -c "select 1" p1 || return 1
 	# bad password
@@ -639,6 +641,15 @@ test_md5_server() {
 # test md5 authentication from client to PgBouncer
 test_md5_client() {
 	admin "set auth_type='md5'"
+
+	# test with users that have a plain-text password stored
+
+	# good password
+	PGPASSWORD=foo psql -X -U puser1 -c "select 1" p1 || return 1
+	# bad password
+	PGPASSWORD=wrong psql -X -U puser2 -c "select 2" p1 && return 1
+
+	# test with users that have an md5 password stored
 
 	# good password
 	PGPASSWORD=foo psql -X -U muser1 -c "select 1" p1 || return 1

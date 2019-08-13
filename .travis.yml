@@ -28,7 +28,7 @@ env:
     - configure_args='--with-openssl'
     - configure_args='--without-openssl'
     - use_efence=yes   configure_args='--with-openssl --with-pam'
-    - use_valgrind=yes configure_args='--without-openssl --with-pam'
+    - use_valgrind=yes configure_args='--without-openssl'
 script: |
   set -e
   PATH=/usr/lib/postgresql/9.5/bin:$PATH

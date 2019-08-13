@@ -11,7 +11,6 @@ rm -rf TestCA1
 ./newsite.sh TestCA1 random C=QQ O=Org1 L=computer OU=Dev
 ) > /dev/null
 
-export PATH=/usr/lib/postgresql/9.4/bin:$PATH
 export PGDATA=$PWD/pgdata
 export PGHOST=localhost
 export PGPORT=6667

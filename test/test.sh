@@ -5,7 +5,6 @@
 
 cd $(dirname $0)
 
-export PATH=/usr/lib/postgresql/9.4/bin:$PATH
 export PGDATA=$PWD/pgdata
 export PGHOST=localhost
 export PGPORT=6667

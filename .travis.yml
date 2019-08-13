@@ -43,7 +43,7 @@ script: |
       export EF_ALLOW_MALLOC_0=1
     fi
     if [ x"$use_valgrind" = x"yes" ]; then
-      export BOUNCER_EXE_PREFIX="valgrind --quiet --track-origins=yes --read-var-info=yes --error-markers=VALGRIND-ERROR-BEGIN,VALGRIND-ERROR-END --log-file=$HOME/valgrind.%p.log"
+      export BOUNCER_EXE_PREFIX="valgrind --quiet --leak-check=full --show-reachable=no --track-origins=yes --error-markers=VALGRIND-ERROR-BEGIN,VALGRIND-ERROR-END --log-file=$HOME/valgrind.%p.log"
     fi
     (cd test/ && ./test.sh)
     if echo x"$configure_args" | grep -q with-openssl; then

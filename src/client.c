@@ -504,6 +504,65 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 	return set_pool(client, dbname, username, "", false);
 }
 
+/* parse proxy protocol v1 and set client address and port if proxy is in a trusted network */
+bool handle_proxy_protocol_v1(PgSocket *client, PktHdr *pkt)
+{
+	const char *str, *fam, *saddr;
+	char *token, *tokens[6], *copy;
+	int elems, i, sport;
+
+	SBuf *sbuf = &client->sbuf;
+
+	elems = 6; /* number of elements sent by the protocol */
+
+	/* ignore parsing if no network has been configured */
+	if (cf_proxy_protocol_networks == NULL) {
+		sbuf_prepare_skip(sbuf, pkt->len);
+		return true;
+	}
+
+	if (!mbuf_get_string(&pkt->data, &str)) {
+		disconnect_client(client, true, "cannot parse proxy protocol v1 string");
+		return false;
+	}
+
+	/* tokenize input */
+	copy = strdup(str);
+	token = strtok(copy, " ");
+	i = 0;
+	while (token != NULL && i < elems - 1) {
+		tokens[i] = token;
+		token = strtok(NULL, " ");
+		i++;
+	}
+
+	fam = tokens[1];
+	saddr = tokens[2];
+	sport = atoi(tokens[4]);
+
+	if (strcmp(fam, "TCP4") == 0 || strcmp(fam, "TCP6") == 0) {
+		/* TODO add safety check on proxy IP */
+		slog_noise(client, "updating client source address to %s:%d", saddr, sport);
+		if (!pga_pton(&(client->remote_addr), saddr, sport)) {
+			disconnect_client(client, true, "cannot update client remote address");
+			return false;
+		}
+	} else {
+		disconnect_client(client, true, "unsupported network familly sent by proxy protocol");
+		return false;
+	}
+
+	sbuf_prepare_skip(sbuf, pkt->len);
+	return true;
+}
+
+/* override client informations sent by proxy protocol v2 */
+bool handle_proxy_protocol_v2(PgSocket *client, PktHdr *pkt)
+{
+	disconnect_client(client, true, "proxy protocol v2 not supported");
+	return false;
+}
+
 /* decide on packets of client in login phase */
 static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 {
@@ -581,6 +640,14 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 			return false;
 		}
 
+		break;
+	case PKT_PP_V1:		/* PROXY protocol v1 */
+		if (!handle_proxy_protocol_v1(client, pkt))
+			return false;
+		break;
+	case PKT_PP_V2:		/* PROXY protocol v2 */
+		if (!handle_proxy_protocol_v2(client, pkt))
+			return false;
 		break;
 	case 'p':		/* PasswordMessage */
 		/* too early */
@@ -752,7 +819,8 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			slog_noise(client, "C: got partial header, trying to wait a bit");
 			return false;
 		}
-		if (!get_header(data, &pkt)) {
+
+		if (!get_proxy_protocol_header(data, &pkt) && !get_header(data, &pkt)) {
 			char hex[8*2 + 1];
 			disconnect_client(client, true, "bad packet header: '%s'",
 					  hdr2hex(data, hex, sizeof(hex)));

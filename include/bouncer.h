@@ -149,6 +149,8 @@ extern int cf_sbuf_len;
 #define PKT_STARTUP     0x30000
 #define PKT_CANCEL      80877102
 #define PKT_SSLREQ      80877103
+#define PKT_PP_V1       80877104
+#define PKT_PP_V2       80877105
 
 #define POOL_SESSION	0
 #define POOL_TX		1
@@ -426,6 +428,8 @@ extern int cf_max_user_connections;
 
 extern char * cf_autodb_connstr;
 extern usec_t cf_autodb_idle_timeout;
+
+extern char * cf_proxy_protocol_networks;
 
 extern usec_t cf_suspend_timeout;
 extern usec_t cf_server_lifetime;

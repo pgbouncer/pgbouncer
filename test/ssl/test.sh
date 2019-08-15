@@ -34,9 +34,18 @@ pgctl() {
 
 ulimit -c unlimited
 
-for f in pgdata/postmaster.pid test.pid; do
-	test -f $f && { kill `head -n1 $f` || true; }
-done
+stopit() {
+	local pid
+	if test -f "$1"; then
+		pid=`head -n1 "$1"`
+		kill $pid
+		while kill -0 $pid 2>/dev/null; do sleep 0.1; done
+		rm -f "$1"
+	fi
+}
+
+stopit test.pid
+stopit pgdata/postmaster.pid
 
 mkdir -p $LOGDIR
 rm -f $BOUNCER_LOG $PG_LOG
@@ -72,9 +81,6 @@ psql -X -p $PG_PORT -l | grep p0 > /dev/null || {
 	createdb -p $PG_PORT p0
 	createdb -p $PG_PORT p1
 }
-
-$BOUNCER_EXE -d $BOUNCER_INI
-sleep 1
 
 reconf_bouncer() {
 	cp test.ini tmp/test.ini
@@ -124,7 +130,11 @@ admin() {
 runtest() {
 	local status
 
+	$BOUNCER_EXE -d $BOUNCER_INI
+	until psql -X -h /tmp -U pgbouncer -d pgbouncer -c "show version" 2>/dev/null 1>&2; do sleep 0.1; done
+
 	printf "`date` running $1 ... "
+	echo "# $1 begin" >>$BOUNCER_LOG
 	eval $1 >$LOGDIR/$1.log 2>&1
 	status=$?
 	if [ $status -eq 0 ]; then
@@ -137,8 +147,9 @@ runtest() {
 
 	# allow background processing to complete
 	wait
-	# start with fresh config
-	kill -HUP `cat $BOUNCER_PID`
+
+	stopit test.pid
+	echo "# $1 end" >>$BOUNCER_LOG
 
 	return $status
 }

@@ -66,7 +66,13 @@ Linux)
 esac
 
 stopit() {
-	test -f "$1" && { kill `head -n1 "$1"`; rm -f "$1"; }
+	local pid
+	if test -f "$1"; then
+		pid=`head -n1 "$1"`
+		kill $pid
+		while kill -0 $pid 2>/dev/null; do sleep 0.1; done
+		rm -f "$1"
+	fi
 }
 
 stopit test.pid
@@ -115,10 +121,6 @@ psql -X -p $PG_PORT -d p0 -c "select * from pg_user" | grep pswcheck > /dev/null
 	psql -X -o /dev/null -p $PG_PORT -c "create user puser1 password 'foo';" p0 || exit 1
 	psql -X -o /dev/null -p $PG_PORT -c "create user puser2 password 'wrong';" p0 || exit 1
 }
-
-echo "Starting bouncer"
-$BOUNCER_EXE -d $BOUNCER_INI
-sleep 1
 
 #
 #  fw hacks
@@ -182,7 +184,11 @@ admin() {
 runtest() {
 	local status
 
+	$BOUNCER_EXE -d $BOUNCER_INI
+	until psql -X -h /tmp -U pgbouncer -d pgbouncer -c "show version" 2>/dev/null 1>&2; do sleep 0.1; done
+
 	printf "`date` running $1 ... "
+	echo "# $1 begin" >>$BOUNCER_LOG
 	eval $1 >$LOGDIR/$1.log 2>&1
 	status=$?
 	if [ $status -eq 0 ]; then
@@ -197,8 +203,9 @@ runtest() {
 
 	# allow background processing to complete
 	wait
-	# start with fresh config
-	kill -HUP `cat $BOUNCER_PID`
+
+	stopit test.pid
+	echo "# $1 end" >>$BOUNCER_LOG
 
 	return $status
 }

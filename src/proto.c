@@ -75,6 +75,8 @@ bool get_header(struct MBuf *data, PktHdr *pkt)
 			type = PKT_CANCEL;
 		} else if (code == PKT_SSLREQ) {
 			type = PKT_SSLREQ;
+		} else if (code == PKT_GSSENCREQ) {
+			type = PKT_GSSENCREQ;
 		} else if ((code >> 16) == 3 && (code & 0xFFFF) < 2) {
 			type = PKT_STARTUP;
 		} else if (code == PKT_STARTUP_V2) {

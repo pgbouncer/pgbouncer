@@ -149,6 +149,7 @@ extern int cf_sbuf_len;
 #define PKT_STARTUP     0x30000
 #define PKT_CANCEL      80877102
 #define PKT_SSLREQ      80877103
+#define PKT_GSSENCREQ   80877104
 
 #define POOL_SESSION	0
 #define POOL_TX		1

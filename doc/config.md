@@ -104,8 +104,17 @@ cert
     Username is then taken from CommonName field from certificate.
 
 md5
-:   Use MD5-based password check. `auth_file` may contain both MD5-encrypted
-    or plain-text passwords.  This is the default authentication method.
+:   Use MD5-based password check.  This is the default authentication
+    method.  `auth_file` may contain both MD5-encrypted or plain-text
+    passwords.  If `md5` is configured and a user has a SCRAM secret,
+    then SCRAM authentication is used automatically instead.
+
+scram-sha-256
+:   Use password check with SCRAM-SHA-256.  `auth_file` has to contain
+    SCRAM secrets or plain-text passwords.  Note that SCRAM secrets
+    can only be used for verifying the password of a client but not
+    for logging into a server.  To be able to use SCRAM on server
+    connections, use plain-text passwords.
 
 plain
 :   Clear-text password is sent over wire.  Deprecated.
@@ -806,7 +815,7 @@ username, meaning that there will be one pool per user.
 
 ### password
 
-The length for `password` is limited to 128 characters maximum.
+The length for `password` is limited to 160 characters maximum.
 
 If no password is specified here, the password from the `auth_file` or
 `auth_query` will be used.
@@ -892,10 +901,11 @@ file in following format:
 
     "username1" "password" ...
     "username2" "md5abcdef012342345" ...
+    "username2" "SCRAM-SHA-256$<iterations>:<salt>$<storedkey>:<serverkey>"
 
 There should be at least 2 fields, surrounded by double quotes. The first
-field is the username and the second is either a plain-text or a MD5-hidden
-password.  PgBouncer ignores the rest of the line.
+field is the username and the second is either a plain-text, a MD5-hidden
+password, or a SCRAM secret.  PgBouncer ignores the rest of the line.
 
 PostgreSQL MD5-hidden password format:
 
@@ -903,6 +913,12 @@ PostgreSQL MD5-hidden password format:
 
 So user `admin` with password `1234` will have MD5-hidden password
 `md545f2603610af569b6155c45067268c6b`.
+
+PostgreSQL SCRAM secret format:
+
+    SCRAM-SHA-256$<iterations>:<salt>$<storedkey>:<serverkey>
+
+See the PostgreSQL documentation and RFC 5803 for details on this.
 
 The authentication file can be written by hand, but it's also useful
 to generate it from some other list of users and passwords.  See

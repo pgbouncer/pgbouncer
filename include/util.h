@@ -37,8 +37,6 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
  * password tools
  */
 #define MD5_PASSWD_LEN  35
-#define isMD5(passwd) (memcmp(passwd, "md5", 3) == 0 \
-		&& strlen(passwd) == MD5_PASSWD_LEN)
 void pg_md5_encrypt(const char *part1, const char *part2, size_t p2len, char *dest);
 void get_random_bytes(uint8_t *dest, int len);
 

@@ -21,6 +21,7 @@
  */
 
 #include "bouncer.h"
+#include "scram.h"
 
 /* those items will be allocated as needed, never freed */
 STATLIST(user_list);
@@ -865,6 +866,8 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 		server->dns_token = NULL;
 	}
 
+	free_scram_state(&server->scram_state);
+
 	server->pool->db->connection_count--;
 	server->pool->user->connection_count--;
 
@@ -920,6 +923,8 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 		 */
 		send_pooler_error(client, false, reason);
 	}
+
+	free_scram_state(&client->scram_state);
 
 	change_client_state(client, CL_JUSTFREE);
 	if (!sbuf_close(&client->sbuf))

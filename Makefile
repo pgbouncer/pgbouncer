@@ -17,12 +17,18 @@ pgbouncer_SOURCES = \
 	src/pooler.c \
 	src/proto.c \
 	src/sbuf.c \
+	src/scram.c \
 	src/server.c \
 	src/stats.c \
 	src/system.c \
 	src/takeover.c \
 	src/util.c \
 	src/varcache.c \
+	src/common/base64.c \
+	src/common/saslprep.c \
+	src/common/scram-common.c \
+	src/common/unicode_norm.c \
+	src/common/wchar.c \
 	include/admin.h \
 	include/bouncer.h \
 	include/client.h \
@@ -37,12 +43,20 @@ pgbouncer_SOURCES = \
 	include/pooler.h \
 	include/proto.h \
 	include/sbuf.h \
+	include/scram.h \
 	include/server.h \
 	include/stats.h \
 	include/system.h \
 	include/takeover.h \
 	include/util.h \
-	include/varcache.h
+	include/varcache.h \
+	include/common/base64.h \
+	include/common/pg_wchar.h \
+	include/common/postgres_compat.h \
+	include/common/saslprep.h \
+	include/common/scram-common.h \
+	include/common/unicode_norm.h \
+	include/common/unicode_norm_table.h
 
 pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(TLS_CPPFLAGS)
 

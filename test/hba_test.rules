@@ -14,6 +14,7 @@
 local		dbp		all					peer
 local		all		userp					password
 local		dbz		userz					trust
+local		dbs		users					scram-sha-256
 local		all		all					md5
 
 hostssl		all		all	10.0.0.0/8			cert

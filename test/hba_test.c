@@ -38,6 +38,8 @@ static const char *method2string(int method)
 		return "reject";
 	case AUTH_PAM:
 		return "pam";
+	case AUTH_SCRAM_SHA_256:
+		return "scram-sha-256";
 	default:
 		return "???";
 	}

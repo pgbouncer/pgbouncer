@@ -103,6 +103,12 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
 #define pktbuf_write_PasswordMessage(buf, psw) \
 	pktbuf_write_generic(buf, 'p', "s", psw)
 
+#define pkgbuf_write_SASLInitialResponseMessage(buf, mech, cir) \
+	pktbuf_write_generic(buf, 'p', "sib", mech, strlen(cir), cir, strlen(cir))
+
+#define pkgbuf_write_SASLResponseMessage(buf, cr) \
+	pktbuf_write_generic(buf, 'p', "b", cr, strlen(cr))
+
 #define pktbuf_write_Notice(buf, msg) \
 	pktbuf_write_generic(buf, 'N', "sscss", "SNOTICE", "C00000", 'M', msg, "");
 
@@ -145,5 +151,11 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
 
 #define SEND_PasswordMessage(res, sk, psw) \
 	SEND_wrap(512, pktbuf_write_PasswordMessage, res, sk, psw)
+
+#define SEND_SASLInitialResponseMessage(res, sk, mech, cir) \
+	SEND_wrap(512, pkgbuf_write_SASLInitialResponseMessage, res, sk, mech, cir)
+
+#define SEND_SASLResponseMessage(res, sk, cr) \
+	SEND_wrap(512, pkgbuf_write_SASLResponseMessage, res, sk, cr)
 
 void pktbuf_cleanup(void);

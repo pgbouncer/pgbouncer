@@ -84,6 +84,7 @@ typedef struct PgStats PgStats;
 typedef union PgAddr PgAddr;
 typedef enum SocketState SocketState;
 typedef struct PktHdr PktHdr;
+typedef struct ScramState ScramState;
 
 extern int cf_sbuf_len;
 
@@ -110,7 +111,8 @@ extern int cf_sbuf_len;
 /* to avoid allocations will use static buffers */
 #define MAX_DBNAME	64
 #define MAX_USERNAME	64
-#define MAX_PASSWORD	128
+/* typical SCRAM-SHA-256 verifier takes at least 133 bytes */
+#define MAX_PASSWORD	160
 
 /*
  * AUTH_* symbols are used for both protocol handling and
@@ -133,9 +135,9 @@ extern int cf_sbuf_len;
 #define AUTH_GSS	7	/* not supported */
 #define AUTH_GSS_CONT	8	/* not supported */
 #define AUTH_SSPI	9	/* not supported */
-#define AUTH_SASL	10	/* not supported */
-#define AUTH_SASL_CONT	11	/* not supported */
-#define AUTH_SASL_FIN	12	/* not supported */
+#define AUTH_SASL	10
+#define AUTH_SASL_CONT	11
+#define AUTH_SASL_FIN	12
 
 /* internal codes */
 #define AUTH_CERT	107
@@ -143,6 +145,7 @@ extern int cf_sbuf_len;
 #define AUTH_HBA	109
 #define AUTH_REJECT	110
 #define AUTH_PAM	111
+#define AUTH_SCRAM_SHA_256	112
 
 /* type codes for weird pkts */
 #define PKT_STARTUP_V2  0x20000
@@ -386,6 +389,19 @@ struct PgSocket {
 		struct DNSToken *dns_token;	/* ongoing request */
 		PgDatabase *db;			/* cache db while doing auth query */
 	};
+
+	struct ScramState {
+		char *client_nonce;
+		char *client_first_message_bare;
+		char *client_final_message_without_proof;
+		char *server_nonce;
+		char *server_first_message;
+		uint8_t	*SaltedPassword;
+		int iterations;
+		char *salt;	/* base64-encoded */
+		uint8_t StoredKey[32];	/* SHA256_DIGEST_LENGTH */
+		uint8_t ServerKey[32];
+	} scram_state;
 
 	VarCache vars;		/* state of interesting server parameters */
 

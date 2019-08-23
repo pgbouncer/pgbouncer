@@ -770,6 +770,23 @@ test_scram_client() {
 	return 0
 }
 
+# test all the show commands
+#
+# This test right now just runs all the commands without checking the
+# output, which would be difficult.  This at least ensures the
+# commands don't completely die.  The output can be manually eyeballed
+# in the test log file.
+test_show() {
+	for what in clients config databases fds help lists pools servers sockets active_sockets stats stats_totals stats_averages users version totals mem dns_hosts dns_zones; do
+		    echo "=> show $what;"
+		    psql -X -h /tmp -U pgbouncer -d pgbouncer -c "show $what;" || return 1
+	done
+
+	psql -X -h /tmp -U pgbouncer -d pgbouncer -c "show bogus;" && return 1
+
+	return 0
+}
+
 testlist="
 test_server_login_retry
 test_auth_user
@@ -798,6 +815,7 @@ test_md5_server
 test_md5_client
 test_scram_server
 test_scram_client
+test_show
 "
 
 if [ $# -gt 0 ]; then

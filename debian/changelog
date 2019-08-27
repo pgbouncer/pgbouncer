@@ -1,3 +1,9 @@
+pgbouncer (1.11.0-1) unstable; urgency=low
+
+  * v1.11.0
+
+ -- Peter Eisentraut <peter@eisentraut.org>  Tue, 27 Aug 2019 00:00:00 +0000
+
 pgbouncer (1.10.0-1) unstable; urgency=low
 
   * v1.10.0

@@ -1,6 +1,37 @@
 PgBouncer changelog
 ===================
 
+PgBouncer 1.11.x
+----------------
+
+**2019-08-27  -  PgBouncer 1.11.0  -  "Instinct for Greatness"**
+
+- Features
+  * Add support for SCRAM authentication for clients and servers.  A
+    new authentication type `scram-sha-256` is added.
+  * Handle `auth_type=password` when the stored password is md5, like
+    a PostgreSQL server
+    would. ([#129](https://github.com/pgbouncer/pgbouncer/pull/129))
+  * Add option `log_stats` to disable printing stats to
+    log. ([#287](https://github.com/pgbouncer/pgbouncer/pull/287))
+  * Add time zone to log timestamps.
+  * Put PID into [brackets] in log prefix.
+- Fixes
+  * Fix OpenSSL configure test when running against newer OpenSSL with
+    `-Werror`.
+  * Fix wait time computation with `auth_user`.  This would either
+    crash or report garbage values for wait
+    time. ([#393](https://github.com/pgbouncer/pgbouncer/pull/393))
+  * Handle GSSENCRequest packet, added in PostgreSQL 12.  It doesn't
+    do anything right now, but it avoids confusing error messages
+    about "bad packet header".
+- Cleanups
+  * Many improvements in the test suite and several new tests
+  * Fix several compiler warnings on Windows.
+  * Expand documentation of the `[users]` section and add to example
+    config
+    file. ([#330](https://github.com/pgbouncer/pgbouncer/pull/330))
+
 PgBouncer 1.10.x
 ----------------
 

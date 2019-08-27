@@ -46,6 +46,7 @@ script: |
   etc/optscan.sh
   ./autogen.sh
   ./configure --prefix=$HOME/install --enable-cassert --enable-werror --without-cares $configure_args
+  PACKAGE_VERSION=$(sed -n 's/PACKAGE_VERSION = //p' config.mak)
   make
   make -C test
   (
@@ -69,8 +70,8 @@ script: |
   )
   make install
   make dist
-  tar -x -f pgbouncer-*.tar.gz
-  cd pgbouncer-*
+  tar -x -f pgbouncer-${PACKAGE_VERSION}.tar.gz
+  cd pgbouncer-${PACKAGE_VERSION}/
   ./configure --prefix=$HOME/install2 --enable-werror --without-cares $configure_args
   make
   make install

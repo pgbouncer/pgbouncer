@@ -919,7 +919,7 @@ static void impl_launch_query(struct DNSRequest *req)
  * in c-ares repo.
  */
 #if ARES_VERSION <= 0x10A00
-#warning Forcing c-ares to be IPv4-only.
+#warning c-ares <=1.10 has buggy IPv6 support; this PgBouncer build will use IPv4 only.
 	af = AF_INET;
 #else
 	af = AF_UNSPEC;

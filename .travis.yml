@@ -1,4 +1,4 @@
-dist: xenial
+dist: bionic
 language: c
 addons:
   apt:
@@ -31,15 +31,13 @@ env:
     - configure_args='' PGVERSION=9.5
     - configure_args='--disable-evdns --without-cares --without-udns'
     - configure_args='--enable-evdns  --without-cares --without-udns'
-    - configure_args='--disable-evdns --with-cares    --without-udns --disable-werror'
+    - configure_args='--disable-evdns --with-cares    --without-udns'
     - configure_args='--disable-evdns --without-cares --with-udns'
     - configure_args='--with-pam'
     - configure_args='--with-openssl'
     - configure_args='--without-openssl'
-    - use_efence=yes   configure_args='--with-openssl --with-pam'
-    - use_efence=yes   PGVERSION=9.5 configure_args='--with-openssl --with-pam'
-    - use_valgrind=yes configure_args='--without-openssl'
-    - use_valgrind=yes PGVERSION=9.5 configure_args='--without-openssl'
+    - use_valgrind=yes
+    - use_valgrind=yes PGVERSION=9.5
 script: |
   set -e
   PATH=/usr/lib/postgresql/${PGVERSION}/bin:$PATH

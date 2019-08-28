@@ -194,6 +194,8 @@ static void freeaddrinfo(struct addrinfo *ai)
 	}
 }
 
+#if defined(USE_LIBEVENT1) || defined(USE_UDNS)
+
 static inline struct addrinfo *convert_ipv4_result(const struct in_addr *adrs, int count)
 {
 	struct addrinfo *ai, *first = NULL, *last = NULL;
@@ -216,6 +218,10 @@ failed:
 	return NULL;
 }
 
+#endif /* USE_LIBEVENT1 || USE_UDNS */
+
+#ifdef USE_CARES
+
 static inline struct addrinfo *convert_hostent(const struct hostent *h)
 {
 	struct addrinfo *ai, *first = NULL, *last = NULL;
@@ -237,6 +243,8 @@ failed:
 	freeaddrinfo(first);
 	return NULL;
 }
+
+#endif /* USE_CARES */
 
 #endif /* custom addrinfo */
 

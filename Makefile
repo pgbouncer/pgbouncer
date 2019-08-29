@@ -132,6 +132,10 @@ config.mak:
 	@echo "Please run ./configure"
 	@exit 1
 
+check: all
+	etc/optscan.sh
+	make -C test check
+
 deb:
 	debuild -b -us -uc
 

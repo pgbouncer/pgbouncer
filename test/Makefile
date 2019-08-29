@@ -31,7 +31,9 @@ AM_FEATURES = libusual
 include ../config.mak
 include ../lib/mk/antimake.mk
 
-all: run_test
-
-run_test: hba_test
+check: all
+	./test.sh
 	./hba_test
+ifeq ($(tls_support),yes)
+	$(MAKE) -C ssl check
+endif

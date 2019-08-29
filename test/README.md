@@ -18,13 +18,19 @@ Various ways to test PgBouncer:
     prompt, and those tests will be skipped.  Check the source if
     there are any doubts.
 
+    This test is run by `make check`.
+
 - `ssl/test.sh`
 
     Tests SSL/TLS functionality.  Otherwise very similar to `test.sh`.
 
+    This test is run by `make check` if TLS support is enabled.
+
 - `hba_test`
 
-    Tests hba parsing.  Run `make all` to build and `make check` to execute.
+    Tests hba parsing.  Run `make all` to build and `./hba_test` to execute.
+
+    This test is run by `make check`.
 
 - `run-conntest.sh`
 

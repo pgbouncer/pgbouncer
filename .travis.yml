@@ -41,12 +41,10 @@ env:
 script: |
   set -e
   PATH=/usr/lib/postgresql/${PGVERSION}/bin:$PATH
-  etc/optscan.sh
   ./autogen.sh
   ./configure --prefix=$HOME/install --enable-cassert --enable-werror --without-cares $configure_args
   PACKAGE_VERSION=$(sed -n 's/PACKAGE_VERSION = //p' config.mak)
   make
-  make -C test
   (
     if [ x"$use_efence" = x"yes" ]; then
       export LD_PRELOAD=/usr/lib/libefence.so
@@ -55,10 +53,7 @@ script: |
     if [ x"$use_valgrind" = x"yes" ]; then
       export BOUNCER_EXE_PREFIX="valgrind --quiet --leak-check=full --show-reachable=no --track-origins=yes --error-markers=VALGRIND-ERROR-BEGIN,VALGRIND-ERROR-END --log-file=$HOME/valgrind.%p.log"
     fi
-    (cd test/ && ./test.sh)
-    if echo x"$configure_args" | grep -q with-openssl; then
-      (cd test/ssl/ && ./test.sh)
-    fi
+    make check
     if [ x"$use_valgrind" = x"yes" ]; then
       if grep -q VALGRIND-ERROR $HOME/valgrind.*.log; then
         cat $HOME/valgrind.*.log

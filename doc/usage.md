@@ -709,5 +709,3 @@ From libevent docs:
 pgbouncer(5) - man page of configuration settings descriptions.
 
 <https://pgbouncer.github.io/>
-
-<https://wiki.postgresql.org/wiki/PgBouncer>

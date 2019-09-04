@@ -109,8 +109,8 @@ extern int cf_sbuf_len;
 #include "pam.h"
 
 /* to avoid allocations will use static buffers */
-#define MAX_DBNAME	64
-#define MAX_USERNAME	64
+#define MAX_DBNAME	160
+#define MAX_USERNAME	128
 /* typical SCRAM-SHA-256 verifier takes at least 133 bytes */
 #define MAX_PASSWORD	160
 

@@ -41,10 +41,6 @@
 #include <sys/uio.h>
 #endif
 
-#ifndef UNIX_PATH_MAX
-#define UNIX_PATH_MAX  128 /* actual sizeof() will be applied later anyway */
-#endif
-
 /*
  * libc compat functions.
  */

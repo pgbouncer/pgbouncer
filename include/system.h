@@ -46,14 +46,6 @@
 #endif
 
 /*
- * PostgreSQL type OIDs for resultsets.
- */
-
-#define INT8OID 20
-#define INT4OID 23
-#define TEXTOID 25
-
-/*
  * libc compat functions.
  */
 

@@ -77,7 +77,7 @@ static void write_stats(PktBuf *buf, PgStats *stat, PgStats *old, char *dbname)
 {
 	PgStats avg;
 	calc_average(&avg, stat, old);
-	pktbuf_write_DataRow(buf, "sqqqqqqqqqqqqqq", dbname,
+	pktbuf_write_DataRow(buf, "sNNNNNNNNNNNNNN", dbname,
 			     stat->xact_count, stat->query_count,
 			     stat->client_bytes, stat->server_bytes,
 			     stat->xact_time, stat->query_time,
@@ -108,7 +108,7 @@ bool admin_database_stats(PgSocket *client, struct StatList *pool_list)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "sqqqqqqqqqqqqqq", "database",
+	pktbuf_write_RowDescription(buf, "sNNNNNNNNNNNNNN", "database",
 				    "total_xact_count", "total_query_count",
 				    "total_received", "total_sent",
 				    "total_xact_time", "total_query_time",
@@ -152,7 +152,7 @@ static void write_stats_totals(PktBuf *buf, PgStats *stat, PgStats *old, char *d
 {
 	PgStats avg;
 	calc_average(&avg, stat, old);
-	pktbuf_write_DataRow(buf, "sqqqqqqq", dbname,
+	pktbuf_write_DataRow(buf, "sNNNNNNN", dbname,
 			     stat->xact_count, stat->query_count,
 			     stat->client_bytes, stat->server_bytes,
 			     stat->xact_time, stat->query_time,
@@ -179,7 +179,7 @@ bool admin_database_stats_totals(PgSocket *client, struct StatList *pool_list)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "sqqqqqqq", "database",
+	pktbuf_write_RowDescription(buf, "sNNNNNNN", "database",
 				    "xact_count", "query_count",
 				    "bytes_received", "bytes_sent",
 				    "xact_time", "query_time",
@@ -219,7 +219,7 @@ static void write_stats_averages(PktBuf *buf, PgStats *stat, PgStats *old, char 
 {
 	PgStats avg;
 	calc_average(&avg, stat, old);
-	pktbuf_write_DataRow(buf, "sqqqqqqq", dbname,
+	pktbuf_write_DataRow(buf, "sNNNNNNN", dbname,
 			     avg.xact_count, avg.query_count,
 			     avg.client_bytes, avg.server_bytes,
 			     avg.xact_time, avg.query_time,
@@ -246,7 +246,7 @@ bool admin_database_stats_averages(PgSocket *client, struct StatList *pool_list)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "sqqqqqqq", "database",
+	pktbuf_write_RowDescription(buf, "sNNNNNNN", "database",
 				    "xact_count", "query_count",
 				    "bytes_received", "bytes_sent",
 				    "xact_time", "query_time",
@@ -307,10 +307,10 @@ bool show_stat_totals(PgSocket *client, struct StatList *pool_list)
 
 	calc_average(&avg, &st_total, &old_total);
 
-	pktbuf_write_RowDescription(buf, "sq", "name", "value");
+	pktbuf_write_RowDescription(buf, "sN", "name", "value");
 
-#define WTOTAL(name) pktbuf_write_DataRow(buf, "sq", "total_" #name, st_total.name)
-#define WAVG(name) pktbuf_write_DataRow(buf, "sq", "avg_" #name, avg.name)
+#define WTOTAL(name) pktbuf_write_DataRow(buf, "sN", "total_" #name, st_total.name)
+#define WAVG(name) pktbuf_write_DataRow(buf, "sN", "avg_" #name, avg.name)
 
 	WTOTAL(xact_count);
 	WTOTAL(query_count);

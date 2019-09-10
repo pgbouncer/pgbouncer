@@ -89,9 +89,9 @@ Default: not set
 How to authenticate users.
 
 pam
-:   PAM is used to authenticate users, `auth_file` is ignored. This method is not
+    PAM is used to authenticate users, `auth_file` is ignored. This method is not
     compatible with databases using `auth_user` option. Service name reported to
-    PAM is "pgbouncer". Also, `pam` is still not supported in HBA configuration file.
+    PAM is "pgbouncer".
 
 hba
 :   Actual auth type is loaded from `auth_hba_file`.  This allows different
@@ -936,7 +936,7 @@ It follows the format of the PostgreSQL `pg_hba.conf` file
 * Username field: Supports `all`, `@file`, multiple names.  Not supported: `+groupname`.
 * Address field: Supported IPv4, IPv6.  Not supported: DNS names, domain prefixes.
 * Auth-method field: Only methods supported by PgBouncer's `auth_type`
-  are supported, except `any` and `pam`, which only work globally.
+  are supported, except `any`, which only works globally.
   Username map (`map=`) parameter is not supported.
 
 

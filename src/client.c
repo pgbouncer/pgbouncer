@@ -246,6 +246,8 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 
 bool set_pool(PgSocket *client, const char *dbname, const char *username, const char *password, bool takeover)
 {
+	int auth;
+
 	/* find database */
 	client->db = find_database(dbname);
 	if (!client->db) {
@@ -286,8 +288,14 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 		return false;
 	}
 
+	if (cf_auth_type == AUTH_HBA)
+		auth = hba_eval(parsed_hba, &client->remote_addr, !!client->sbuf.tls,
+						client->db->name, username);
+	else
+		auth = cf_auth_type;
+
 	/* find user */
-	if (cf_auth_type == AUTH_ANY) {
+	if (auth == AUTH_ANY) {
 		/* ignore requested user */
 		if (client->db->forced_user == NULL) {
 			slog_error(client, "auth_type=any requires forced user");
@@ -295,7 +303,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			return false;
 		}
 		client->auth_user = client->db->forced_user;
-	} else if (cf_auth_type == AUTH_PAM) {
+	} else if (auth == AUTH_PAM) {
 		if (client->db->auth_user) {
 			slog_error(client, "PAM can't be used together with database authorization");
 			disconnect_client(client, true, "bouncer config error");

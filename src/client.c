@@ -246,6 +246,8 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 
 bool set_pool(PgSocket *client, const char *dbname, const char *username, const char *password, bool takeover)
 {
+	Assert((password && takeover) || (!password && !takeover));
+
 	/* find database */
 	client->db = find_database(dbname);
 	if (!client->db) {
@@ -279,7 +281,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			slog_info(client, "login failed: db=%s user=%s", dbname, username);
 		return false;
 	}
-	if (strlen(password) >= MAX_PASSWORD) {
+	if (password && strlen(password) >= MAX_PASSWORD) {
 		disconnect_client(client, true, "password too long");
 		if (cf_log_connections)
 			slog_info(client, "login failed: db=%s user=%s", dbname, username);
@@ -511,7 +513,7 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 	}
 
 	/* find pool */
-	return set_pool(client, dbname, username, "", false);
+	return set_pool(client, dbname, username, NULL, false);
 }
 
 static bool scram_client_first(PgSocket *client, uint32_t datalen, const uint8_t *data)

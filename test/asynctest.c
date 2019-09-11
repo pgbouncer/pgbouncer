@@ -84,7 +84,6 @@ static DbConn *new_db(const char *connstr)
 
 static void set_idle(DbConn *db)
 {
-	Assert(item_in_list(&db->head, &active_list.head));
 	statlist_remove(&active_list, &db->head);
 	statlist_append(&idle_list, &db->head);
 	log_debug("%p: set_idle", db);
@@ -92,7 +91,6 @@ static void set_idle(DbConn *db)
 
 static void set_active(DbConn *db)
 {
-	Assert(item_in_list(&db->head, &idle_list.head));
 	statlist_remove(&idle_list, &db->head);
 	statlist_append(&active_list, &db->head);
 	log_debug("%p: set_active", db);

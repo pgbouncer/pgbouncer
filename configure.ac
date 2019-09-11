@@ -85,7 +85,7 @@ AC_ARG_WITH(pam,
 # make sure all vars are set
 use_cares=auto
 use_udns=no
-use_evdns=no
+use_evdns=yes
 
 dnl Find c-ares
 AC_MSG_CHECKING([whether to use c-ares for DNS lookups])
@@ -158,11 +158,6 @@ if test "$use_udns" = "yes"; then
   [AC_MSG_ERROR([not found, cannot proceed])])
 
 else # !udns
-
-dnl On libevent 2.x use evdns by default
-if test "$ac_cv_func_evdns_base_new" = "yes"; then
-  use_evdns=yes
-fi
 
 dnl Allow user to override the decision
 AC_ARG_ENABLE(evdns, AC_HELP_STRING([--enable-evdns],[Use libevent for DNS lookups (default on libevent 2.x)]),

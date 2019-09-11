@@ -35,15 +35,9 @@
 #endif
 
 #ifdef USE_EVDNS
-#ifdef EV_ET
-#define USE_LIBEVENT2
 #include <event2/dns.h>
 #define addrinfo evutil_addrinfo
 #define freeaddrinfo evutil_freeaddrinfo
-#else /* !EV_ET */
-#define USE_LIBEVENT1
-#include <evdns.h>
-#endif /* !EV_ET */
 #endif /* USE_EVDNS */
 
 #ifdef USE_CARES
@@ -143,7 +137,7 @@ static void got_zone_serial(struct DNSContext *ctx, uint32_t *serial);
  * Custom addrinfo generation
  */
 
-#if defined(USE_LIBEVENT1) || defined(USE_UDNS) || defined(USE_CARES)
+#if defined(USE_UDNS) || defined(USE_CARES)
 
 static struct addrinfo *mk_addrinfo(const void *adr, int af)
 {
@@ -194,7 +188,7 @@ static void freeaddrinfo(struct addrinfo *ai)
 	}
 }
 
-#if defined(USE_LIBEVENT1) || defined(USE_UDNS)
+#if defined(USE_UDNS)
 
 static inline struct addrinfo *convert_ipv4_result(const struct in_addr *adrs, int count)
 {
@@ -218,7 +212,7 @@ failed:
 	return NULL;
 }
 
-#endif /* USE_LIBEVENT1 || USE_UDNS */
+#endif /* USE_UDNS */
 
 #ifdef USE_CARES
 
@@ -376,7 +370,7 @@ static void impl_release(struct DNSContext *ctx)
  * ADNS with libevent2 <event2/dns.h>
  */
 
-#ifdef USE_LIBEVENT2
+#ifdef USE_EVDNS
 
 const char *adns_get_backend(void)
 {
@@ -410,60 +404,7 @@ static void impl_release(struct DNSContext *ctx)
 	evdns_base_free(dns, 0);
 }
 
-#endif /* USE_LIBEVENT2 */
-
-
-/*
- * ADNS with libevent 1.x <evdns.h>
- */
-
-#ifdef USE_LIBEVENT1
-
-const char *adns_get_backend(void)
-{
-	return "evdns1";
-}
-
-static void got_result_evdns(int result, char type, int count, int ttl, void *addresses, void *arg)
-{
-	struct DNSRequest *req = arg;
-	struct addrinfo *ai;
-
-	log_noise("dns: got_result_evdns: type=%d cnt=%d ttl=%d", type, count, ttl);
-	if (result == DNS_IPv4_A) {
-		ai = convert_ipv4_result(addresses, count);
-		if (ai) {
-			got_result_gai(0, ai, req);
-			return;
-		}
-	}
-	/* lookup failed */
-	got_result_gai(1, NULL, req);
-}
-
-static bool impl_init(struct DNSContext *ctx)
-{
-	return evdns_init() == 0;
-}
-
-static void impl_launch_query(struct DNSRequest *req)
-{
-	int err;
-
-	err = evdns_resolve_ipv4(req->name, 0, got_result_evdns, req);
-	log_noise("dns(%s): evdns_resolve_ipv4 = %d", req->name, err);
-	if (err != 0 && !req->done) {
-		/* if callback was not yet called, do it now */
-		got_result_gai(1, NULL, req);
-	}
-}
-
-static void impl_release(struct DNSContext *ctx)
-{
-	evdns_shutdown(0);
-}
-
-#endif /* USE_LIBEVENT1 */
+#endif /* USE_EVDNS */
 
 
 /*

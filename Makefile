@@ -58,7 +58,7 @@ pgbouncer_SOURCES = \
 	include/common/unicode_norm.h \
 	include/common/unicode_norm_table.h
 
-pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(TLS_CPPFLAGS)
+pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(LIBEVENT_CFLAGS) $(TLS_CPPFLAGS)
 
 # include libusual sources directly
 AM_FEATURES = libusual
@@ -93,7 +93,7 @@ LIBUSUAL_DIST = $(filter-out %/config.h, $(sort $(wildcard \
 		lib/find_modules.sh )))
 
 pgbouncer_LDFLAGS := $(TLS_LDFLAGS)
-pgbouncer_LDADD := $(CARES_LIBS) $(TLS_LIBS) $(LIBS)
+pgbouncer_LDADD := $(CARES_LIBS) $(LIBEVENT_LIBS) $(TLS_LIBS) $(LIBS)
 LIBS :=
 
 #
@@ -148,7 +148,7 @@ zip: configure clean
 		&& ../configure --host=$(w32arch) --disable-debug \
 			--without-openssl \
 			--without-cares \
-			--with-libevent=/opt/apps/win32 --enable-evdns \
+			--enable-evdns \
 		&& make \
 		&& $(w32arch)-strip pgbouncer.exe pgbevent.dll \
 		&& zip pgbouncer.zip pgbouncer.exe pgbevent.dll doc/*.html

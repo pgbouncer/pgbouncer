@@ -54,7 +54,7 @@ AC_SEARCH_LIBS(hstrerror, resolv)
 AC_CHECK_FUNCS(lstat)
 
 dnl Find libevent
-AC_USUAL_LIBEVENT
+PKG_CHECK_MODULES(LIBEVENT, libevent)
 
 dnl Check for PAM authorization support
 pam_support=no

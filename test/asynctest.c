@@ -11,7 +11,6 @@
 #undef main
 #endif
 
-#include <usual/event.h>
 #include <usual/logging.h>
 #include <usual/getopt.h>
 #include <usual/logging.h>
@@ -20,6 +19,7 @@
 #include <usual/time.h>
 #include <usual/string.h>
 
+#include <event.h>
 #include <libpq-fe.h>
 
 static char *simple_query = "select 1";

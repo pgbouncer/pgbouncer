@@ -34,8 +34,9 @@
 #include <usual/socket.h>
 #include <usual/safeio.h>
 #include <usual/mbuf.h>
-#include <usual/event.h>
 #include <usual/strpool.h>
+
+#include <event.h>
 
 #define FULLVER   PACKAGE_NAME " version " PACKAGE_VERSION
 

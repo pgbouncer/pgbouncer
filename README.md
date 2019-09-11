@@ -27,7 +27,7 @@ PgBouncer depends on few things to get compiled:
 
 When dependencies are installed just run:
 
-    $ ./configure --prefix=/usr/local --with-libevent=libevent-prefix
+    $ ./configure --prefix=/usr/local
     $ make
     $ make install
 

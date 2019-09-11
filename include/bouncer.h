@@ -314,7 +314,7 @@ struct PgDatabase {
 	PgUser *forced_user;	/* if not NULL, the user/psw is forced */
 	PgUser *auth_user;	/* if not NULL, users not in userlist.txt will be looked up on the server */
 
-	const char *host;	/* host or unix socket name */
+	char *host;		/* host or unix socket name */
 	int port;
 
 	int pool_size;		/* max server connections in one pool */
@@ -325,7 +325,7 @@ struct PgDatabase {
 	const char *dbname;	/* server-side name, pointer to inside startup_msg */
 
 	/* startup commands to send to server after connect. malloc-ed */
-	const char *connect_query;
+	char *connect_query;
 
 	usec_t inactive_time;	/* when auto-database became inactive (to kill it after timeout) */
 	unsigned active_stamp;	/* set if autodb has connections */

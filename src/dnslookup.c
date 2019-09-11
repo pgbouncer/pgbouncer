@@ -84,7 +84,7 @@ struct DNSRequest {
 
 	struct List ucb_list;	/* DNSToken->node */
 
-	const char *name;
+	char *name;
 	int namelen;
 
 	bool done;
@@ -103,7 +103,7 @@ struct DNSZone {
 
 	struct StatList host_list;	/* DNSRequest->znode */
 
-	const char *zonename;
+	char *zonename;
 	uint32_t serial;
 };
 

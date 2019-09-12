@@ -3,7 +3,7 @@ language: c
 addons:
   apt:
     sources:
-      - sourceline: 'deb http://apt.postgresql.org/pub/repos/apt/ xenial-pgdg main'
+      - sourceline: 'deb http://apt.postgresql.org/pub/repos/apt/ bionic-pgdg main'
         key_url: 'https://www.postgresql.org/media/keys/ACCC4CF8.asc'
     update: true
     packages:

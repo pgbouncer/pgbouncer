@@ -116,13 +116,13 @@ bool pktbuf_send_immediate(PktBuf *buf, PgSocket *sk)
 	return res == amount;
 }
 
-static void pktbuf_send_func(int fd, short flags, void *arg)
+static void pktbuf_send_func(evutil_socket_t fd, short flags, void *arg)
 {
 	PktBuf *buf = arg;
 	SBuf *sbuf = &buf->queued_dst->sbuf;
 	int amount, res;
 
-	log_debug("pktbuf_send_func(%d, %d, %p)", fd, (int)flags, buf);
+	log_debug("pktbuf_send_func(%" PRId64 ", %d, %p)", (int64_t)fd, (int)flags, buf);
 
 	if (buf->failed)
 		return;

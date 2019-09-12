@@ -419,14 +419,14 @@ void load_config(void)
 static struct event ev_sigterm;
 static struct event ev_sigint;
 
-static void handle_sigterm(int sock, short flags, void *arg)
+static void handle_sigterm(evutil_socket_t sock, short flags, void *arg)
 {
 	log_info("got SIGTERM, fast exit");
 	/* pidfile cleanup happens via atexit() */
 	exit(1);
 }
 
-static void handle_sigint(int sock, short flags, void *arg)
+static void handle_sigint(evutil_socket_t sock, short flags, void *arg)
 {
 	log_info("got SIGINT, shutting down");
 	if (cf_reboot)

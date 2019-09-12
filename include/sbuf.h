@@ -54,7 +54,7 @@ typedef bool (*sbuf_cb_t)(SBuf *sbuf,
 			struct MBuf *mbuf);
 
 /* for some reason, libevent has no typedef for callback */
-typedef void (*sbuf_libevent_cb)(int, short, void *);
+typedef void (*sbuf_libevent_cb)(evutil_socket_t, short, void *);
 
 struct SBufIO {
 	int (*sbufio_recv)(SBuf *sbuf, void *buf, unsigned int len);

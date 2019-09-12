@@ -244,7 +244,7 @@ void pooler_tune_accept(bool on)
 	}
 }
 
-static void err_wait_func(int sock, short flags, void *arg)
+static void err_wait_func(evutil_socket_t sock, short flags, void *arg)
 {
 	if (cf_pause_mode != P_SUSPEND)
 		resume_pooler();
@@ -275,7 +275,7 @@ static const char *conninfo(const PgSocket *sk)
 }
 
 /* got new connection, associate it with client struct */
-static void pool_accept(int sock, short flags, void *arg)
+static void pool_accept(evutil_socket_t sock, short flags, void *arg)
 {
 	struct ListenSocket *ls = arg;
 	int fd;

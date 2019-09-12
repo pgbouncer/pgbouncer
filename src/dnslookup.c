@@ -1464,7 +1464,7 @@ static void zone_register(struct DNSContext *ctx, struct DNSRequest *req)
 	req->zone = z;
 }
 
-static void zone_timer(int fd, short flg, void *arg)
+static void zone_timer(evutil_socket_t fd, short flg, void *arg)
 {
 	struct DNSContext *ctx = arg;
 	struct List *el;

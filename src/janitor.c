@@ -606,7 +606,7 @@ static void cleanup_inactive_autodatabases(void)
 }
 
 /* full-scale maintenance, done only occasionally */
-static void do_full_maint(int sock, short flags, void *arg)
+static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 {
 	struct List *item, *tmp;
 	PgPool *pool;

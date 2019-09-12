@@ -331,7 +331,7 @@ bool show_stat_totals(PgSocket *client, struct StatList *pool_list)
 	return true;
 }
 
-static void refresh_stats(int s, short flags, void *arg)
+static void refresh_stats(evutil_socket_t s, short flags, void *arg)
 {
 	struct List *item;
 	PgPool *pool;

@@ -693,6 +693,13 @@ it will be disconnected.  [seconds]
 
 Default: 0.0 (disabled)
 
+### suspend_timeout
+
+How many seconds to wait for buffer flush during SUSPEND or reboot (-R).
+Connection is dropped if flush does not succeed.
+
+Default: 10
+
 
 ## Low-level network settings
 
@@ -726,13 +733,6 @@ PgBouncer for a long time.  One loop processes one `pkt_buf` amount of data.
 0 means no limit.
 
 Default: 5
-
-### suspend_timeout
-
-How many seconds to wait for buffer flush during SUSPEND or reboot (-R).
-Connection is dropped if flush does not succeed.
-
-Default: 10
 
 ### tcp_defer_accept
 

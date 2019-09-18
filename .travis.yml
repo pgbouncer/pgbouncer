@@ -29,10 +29,9 @@ env:
   matrix:
     - configure_args=''
     - configure_args='' PGVERSION=9.5
-    - configure_args='--disable-evdns --without-cares --without-udns'
-    - configure_args='--enable-evdns  --without-cares --without-udns'
-    - configure_args='--disable-evdns --with-cares    --without-udns'
-    - configure_args='--disable-evdns --without-cares --with-udns'
+    - configure_args='--with-cares'
+    - configure_args='--with-udns'
+    - configure_args='--disable-evdns'
     - configure_args='--with-pam'
     - configure_args='--with-openssl'
     - configure_args='--without-openssl'

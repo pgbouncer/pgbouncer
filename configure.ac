@@ -83,9 +83,9 @@ AC_ARG_WITH(pam,
 ##
 
 # make sure all vars are set
-use_cares=auto
+use_cares=no
 use_udns=no
-use_evdns=yes
+use_evdns=no
 
 dnl Find c-ares
 AC_MSG_CHECKING([whether to use c-ares for DNS lookups])
@@ -104,7 +104,7 @@ AC_ARG_WITH(cares,
       CARES_CFLAGS="-I$withval/include"
       CARES_LIBS="-L$withval/lib -lcares"
     fi
-  ], [])
+  ], [use_cares=auto])
 AC_MSG_RESULT([$use_cares])
 
 if test "$use_cares" = "auto"; then
@@ -122,7 +122,8 @@ if test "$use_cares" = "yes"; then
   AC_CHECK_FUNCS(ares_parse_soa_reply)
   LIBS="$tmp_LIBS"
   CFLAGS="$tmp_CFLAGS"
-else
+
+else # !cares
 
 dnl Find libudns
 AC_MSG_CHECKING([whether to use libudns])
@@ -160,8 +161,8 @@ if test "$use_udns" = "yes"; then
 else # !udns
 
 dnl Allow user to override the decision
-AC_ARG_ENABLE(evdns, AC_HELP_STRING([--enable-evdns],[Use libevent for DNS lookups (default on libevent 2.x)]),
-              [use_evdns=$enableval])
+AC_ARG_ENABLE(evdns, AC_HELP_STRING([--disable-evdns], [do not use libevent for DNS lookups]),
+              [use_evdns=$enableval], [use_evdns=yes])
 AC_MSG_CHECKING([whether to use libevent for DNS lookups])
 if test "$use_evdns" = "yes"; then
   AC_DEFINE(USE_EVDNS, 1, [Use libevent for DNS lookups.])
@@ -197,10 +198,19 @@ test -f Makefile || {
 }
 
 echo ""
-echo "Results"
-echo "  c-ares = $use_cares"
-echo "  evdns = $use_evdns"
-echo "  udns = $use_udns"
-echo "  tls = $tls_support"
-echo "  PAM = $pam_support"
+echo "Results:"
+dnl Note: Report here should match selection in src/dnslookup.c
+if test "$use_cares" = "yes"; then
+  echo "  adns = c-ares"
+elif test "$use_udns" = "yes"; then
+  echo "  adns = udns"
+elif test "$use_evdns" = "yes"; then
+  echo "  adns = evdns2"
+elif test "$ac_cv_usual_glibc_gaia" = "yes"; then
+  echo "  adns = libc"
+else
+  echo "  adns = compat"
+fi
+echo "  pam  = $pam_support"
+echo "  tls  = $tls_support"
 echo ""

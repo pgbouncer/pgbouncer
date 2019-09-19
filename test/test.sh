@@ -235,6 +235,17 @@ runtest() {
 	return $status
 }
 
+# show version and --version
+test_show_version() {
+	v1=$($BOUNCER_EXE --version) || return 1
+	v2=$(psql -X -tAq -h /tmp -U pgbouncer -d pgbouncer -c "show version;") || return 1
+
+	echo "v1=$v1"
+	echo "v2=$v2"
+
+	test x"$v1" = x"$v2"
+}
+
 # server_lifetime
 test_server_lifetime() {
 	admin "set server_lifetime=2"
@@ -778,7 +789,7 @@ test_scram_client() {
 # commands don't completely die.  The output can be manually eyeballed
 # in the test log file.
 test_show() {
-	for what in clients config databases fds help lists pools servers sockets active_sockets stats stats_totals stats_averages users version totals mem dns_hosts dns_zones; do
+	for what in clients config databases fds help lists pools servers sockets active_sockets stats stats_totals stats_averages users totals mem dns_hosts dns_zones; do
 		    echo "=> show $what;"
 		    psql -X -h /tmp -U pgbouncer -d pgbouncer -c "show $what;" || return 1
 	done
@@ -789,6 +800,7 @@ test_show() {
 }
 
 testlist="
+test_show_version
 test_server_login_retry
 test_auth_user
 test_client_idle_timeout

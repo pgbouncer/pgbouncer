@@ -571,6 +571,11 @@ count
 :   Host names belonging to this zone.
 
 
+#### SHOW VERSION
+
+Show the PgBouncer version string.
+
+
 ### Process controlling commands
 
 #### PAUSE [db]

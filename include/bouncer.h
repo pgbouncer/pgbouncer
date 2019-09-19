@@ -38,8 +38,6 @@
 
 #include <event.h>
 
-#define FULLVER   PACKAGE_NAME " version " PACKAGE_VERSION
-
 /* each state corresponds to a list */
 enum SocketState {
 	CL_FREE,		/* free_client_list */

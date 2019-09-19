@@ -1306,7 +1306,7 @@ static bool admin_show_version(PgSocket *admin, const char *arg)
 	}
 
 	pktbuf_write_RowDescription(buf, "s", "version");
-	pktbuf_write_DataRow(buf, "s", FULLVER);
+	pktbuf_write_DataRow(buf, "s", PACKAGE_STRING);
 
 	admin_flush(admin, buf, "SHOW");
 

@@ -844,7 +844,7 @@ int main(int argc, char *argv[])
 			cf_verbose++;
 			break;
 		case 'V':
-			printf("%s\n", FULLVER);
+			printf("%s\n", PACKAGE_STRING);
 			return 0;
 		case 'd':
 			cf_daemon = 1;

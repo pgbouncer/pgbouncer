@@ -219,6 +219,7 @@ runtest() {
 		echo "ok"
 	elif [ $status -eq 77 ]; then
 		echo "skipped"
+		status=0
 	else
 		echo "FAILED"
 		cat $LOGDIR/$1.log | sed 's/^/# /'
@@ -827,7 +828,7 @@ for test in $testlist
 do
 	runtest $test
 	status=$?
-	if [ $status -eq 1 ]; then
+	if [ $status -ne 0 ]; then
 		total_status=1
 	fi
 done

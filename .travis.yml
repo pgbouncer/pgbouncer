@@ -33,7 +33,6 @@ env:
     - configure_args='--with-udns'
     - configure_args='--disable-evdns'
     - configure_args='--with-pam'
-    - configure_args='--with-openssl'
     - configure_args='--without-openssl'
     - use_valgrind=yes
     - use_valgrind=yes PGVERSION=9.5

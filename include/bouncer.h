@@ -486,6 +486,7 @@ extern int cf_reboot;
 extern unsigned int cf_max_packet_size;
 
 extern int cf_sbuf_loopcnt;
+extern int cf_so_reuseport;
 extern int cf_tcp_keepalive;
 extern int cf_tcp_keepcnt;
 extern int cf_tcp_keepidle;

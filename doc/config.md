@@ -734,6 +734,35 @@ PgBouncer for a long time.  One loop processes one `pkt_buf` amount of data.
 
 Default: 5
 
+### so_reuseport
+
+Specifies whether to set the socket option `SO_REUSEPORT` on TCP
+listening sockets.  On some operating systems, this allows running
+multiple PgBouncer instances on the same host listening on the same
+port and having the kernel distribute the connections automatically.
+This option is a way to get PgBouncer to use more CPU cores.
+(PgBouncer is single-threaded and uses one CPU core per instance.)
+
+The behavior in detail depends on the operating system kernel.  As of
+this writing, this setting has the desired effect on (sufficiently
+recent versions of) Linux, DragonFlyBSD, and FreeBSD.  (On FreeBSD, it
+applies the socket option `SO_REUSEPORT_LB` instead.)  Some other
+operating systems support the socket option but it won't have the
+desired effect: It will allow multiple processes to bind to the same
+port but only one of them will get the connections.  See your
+operating system's setsockopt() documentation for details.
+
+On systems that don't support the socket option at all, turning this
+setting on will result in an error.
+
+Each PgBouncer instance on the same host needs different settings for
+at least `unix_socket_dir` and `pidfile`, as well as `logfile` if that
+is used.  Also note that if you make use of this option, you can no
+longer connect to a specific PgBouncer instance via TCP/IP, which
+might have implications for monitoring and metrics collection.
+
+Default: 0
+
 ### tcp_defer_accept
 
 For details on this and other tcp options, please see `man 7 tcp`.

@@ -795,8 +795,26 @@ bool release_server(PgSocket *server)
 	return true;
 }
 
+static void disconnect_server_ext(PgSocket *server, bool notify, bool noblame, const char *reason, va_list ap);
+
 /* drop server connection */
 void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
+{
+	va_list ap;
+	va_start(ap, reason);
+	disconnect_server_ext(server, notify, false, reason, ap);
+	va_end(ap);
+}
+
+void disconnect_server_noblame(PgSocket *server, bool notify, const char *reason, ...)
+{
+	va_list ap;
+	va_start(ap, reason);
+	disconnect_server_ext(server, notify, true, reason, ap);
+	va_end(ap);
+}
+
+static void disconnect_server_ext(PgSocket *server, bool notify, bool noblame, const char *reason, va_list ap)
 {
 	PgPool *pool = server->pool;
 	PgSocket *client;
@@ -804,16 +822,13 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 	int send_term = 1;
 	usec_t now = get_cached_time();
 	char buf[128];
-	va_list ap;
 
-	va_start(ap, reason);
 	vsnprintf(buf, sizeof(buf), reason, ap);
-	va_end(ap);
 	reason = buf;
 
 	if (cf_log_disconnections)
-		slog_info(server, "closing because: %s (age=%" PRIu64 "s)", reason,
-			  (now - server->connect_time) / USEC);
+		slog_info(server, "closing because: %s (age=%" PRIu64 "s, state=%d, ready=%d)", reason,
+			  (now - server->connect_time) / USEC, server->state, server->ready);
 
 	switch (server->state) {
 	case SV_ACTIVE:
@@ -835,8 +850,11 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 		 */
 		if (!server->ready)
 		{
-			pool->last_login_failed = 1;
-			pool->last_connect_failed = 1;
+			if (!noblame) {
+				slog_noise(server, "setting last_login_failed and last_connect_failed to 1");
+				pool->last_login_failed = 1;
+				pool->last_connect_failed = 1;
+			}
 		}
 		else
 		{
@@ -1545,7 +1563,7 @@ static void tag_pool_dirty(PgPool *pool)
 	/* drop servers login phase immediately */
 	statlist_for_each_safe(item, &pool->new_server_list, tmp) {
 		server = container_of(item, PgSocket, head);
-		disconnect_server(server, true, "connect string changed");
+		disconnect_server_noblame(server, true, "connect string changed");
 	}
 }
 

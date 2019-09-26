@@ -795,25 +795,8 @@ bool release_server(PgSocket *server)
 	return true;
 }
 
-static void disconnect_server_ext(PgSocket *server, bool notify, bool noblame, const char *reason, va_list ap);
-
 /* drop server connection */
-void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
-{
-	va_list ap;
-	va_start(ap, reason);
-	disconnect_server_ext(server, notify, false, reason, ap);
-	va_end(ap);
-}
-
-void disconnect_server_noblame(PgSocket *server, bool notify, const char *reason, ...)
-{
-	va_list ap;
-	va_start(ap, reason);
-	disconnect_server_ext(server, notify, true, reason, ap);
-	va_end(ap);
-}
-
+_PRINTF(4, 0)
 static void disconnect_server_ext(PgSocket *server, bool notify, bool noblame, const char *reason, va_list ap)
 {
 	PgPool *pool = server->pool;
@@ -893,6 +876,22 @@ static void disconnect_server_ext(PgSocket *server, bool notify, bool noblame, c
 	change_server_state(server, SV_JUSTFREE);
 	if (!sbuf_close(&server->sbuf))
 		log_noise("sbuf_close failed, retry later");
+}
+
+void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
+{
+	va_list ap;
+	va_start(ap, reason);
+	disconnect_server_ext(server, notify, false, reason, ap);
+	va_end(ap);
+}
+
+void disconnect_server_noblame(PgSocket *server, bool notify, const char *reason, ...)
+{
+	va_list ap;
+	va_start(ap, reason);
+	disconnect_server_ext(server, notify, true, reason, ap);
+	va_end(ap);
 }
 
 /* drop client connection */

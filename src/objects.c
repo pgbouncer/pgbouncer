@@ -33,7 +33,7 @@ struct AATree user_tree;
 
 /*
  * All PAM users are kept here. We need to differentiate two user
- * lists to avoid user clashing for different authorization types,
+ * lists to avoid user clashing for different authentication types,
  * and because pam_user_tree is closer to PgDatabase.user_tree in
  * logic.
  */

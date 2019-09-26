@@ -27,11 +27,11 @@
 #include <pthread.h>
 #include <security/pam_appl.h>
 
-/* The request is waiting in the queue or being authorized */
+/* The request is waiting in the queue or being authenticated */
 #define PAM_STATUS_IN_PROGRESS  1
-/* The request was successfully authorized */
+/* The request was successfully authenticated */
 #define PAM_STATUS_SUCCESS      2
-/* The request failed authorization */
+/* The request failed authentication */
 #define PAM_STATUS_FAILED       3
 
 /*
@@ -43,7 +43,7 @@
 
 
 struct pam_auth_request {
-	/* The socket we check authorization for */
+	/* The socket we check authentication for */
 	PgSocket *client;
 
 	/* CHECKME: The socket can be closed and reused while the request is waiting
@@ -53,7 +53,7 @@ struct pam_auth_request {
 	usec_t connect_time;
 
 	/* Same as in client->remote_addr.
-	 * We want to minimize synchronization between the authorization thread and
+	 * We want to minimize synchronization between the authentication thread and
 	 * the rest of pgbouncer, so the username and remote_addr are explicitly stored here.
 	 */
 	PgAddr remote_addr;
@@ -254,7 +254,7 @@ static void* pam_auth_worker(void *arg)
 			request->status = PAM_STATUS_FAILED;
 		}
 
-		log_debug("pam_auth_worker(): authorization completed, status=%d", request->status);
+		log_debug("pam_auth_worker(): authentication completed, status=%d", request->status);
 	}
 
 	return NULL;
@@ -272,7 +272,7 @@ static bool is_valid_socket(const struct pam_auth_request *request) {
 }
 
 /*
- * Finishes the handshake after successful or unsuccessful authorization.
+ * Finishes the handshake after successful or unsuccessful authentication.
  * The function is only called from the main thread.
  */
 static void pam_auth_finish(struct pam_auth_request *request)

@@ -56,7 +56,7 @@ AC_CHECK_FUNCS(lstat)
 dnl Find libevent
 PKG_CHECK_MODULES(LIBEVENT, libevent)
 
-dnl Check for PAM authorization support
+dnl Check for PAM authentication support
 pam_support=no
 AC_ARG_WITH(pam,
   AC_HELP_STRING([--with-pam], [build with PAM support]),

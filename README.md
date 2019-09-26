@@ -67,11 +67,11 @@ to pick udns, else libevent is used.  Specify `--disable-evdns` to
 disable the use of libevent's evdns and fall back to a libc-based
 implementation.
 
-PAM authorization
------------------
+PAM authentication
+------------------
 
-To enable PAM authorization `./configure` has a flag `--with-pam` (default value is no). When compiled with
-PAM support new global authorization type `pam` appears which can be used to validate users through PAM.
+To enable PAM authentication `./configure` has a flag `--with-pam` (default value is no). When compiled with
+PAM support new global authentication type `pam` appears which can be used to validate users through PAM.
 
 Building from Git
 -----------------

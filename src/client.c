@@ -299,11 +299,11 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 		client->auth_user = client->db->forced_user;
 	} else if (cf_auth_type == AUTH_PAM) {
 		if (client->db->auth_user) {
-			slog_error(client, "PAM can't be used together with database authorization");
+			slog_error(client, "PAM can't be used together with database authentication");
 			disconnect_client(client, true, "bouncer config error");
 			return false;
 		}
-		/* Password will be set after successful authorization when not in takeover mode */
+		/* Password will be set after successful authentication when not in takeover mode */
 		client->auth_user = add_pam_user(username, password);
 		if (!client->auth_user) {
 			slog_error(client, "set_pool(): failed to allocate new PAM user");

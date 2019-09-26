@@ -20,16 +20,6 @@
 
 #include <usual/netdb.h>
 
-/*
- * Available backends:
- *
- * c-ares - libcares
- * udns - libudns
- * getaddrinfo_a - glibc only
- * libevent1 - returns TTL, ignores hosts file.
- * libevent2 - does not return TTL, uses hosts file.
- */
-
 #if !defined(USE_EVDNS) && !defined(USE_UDNS) && !defined(USE_CARES)
 #define USE_GETADDRINFO_A
 #endif

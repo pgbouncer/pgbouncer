@@ -59,7 +59,7 @@ PKG_CHECK_MODULES(LIBEVENT, libevent)
 dnl Check for PAM authorization support
 pam_support=no
 AC_ARG_WITH(pam,
-  AC_HELP_STRING([--with-pam],[Enable PAM support]),
+  AC_HELP_STRING([--with-pam], [build with PAM support]),
   [ PAM=
     if test "$withval" != no; then
         have_pthreads=no
@@ -90,7 +90,7 @@ use_evdns=no
 dnl Find c-ares
 AC_MSG_CHECKING([whether to use c-ares for DNS lookups])
 AC_ARG_WITH(cares,
-  AC_HELP_STRING([--with-cares=prefix],[Specify where c-ares is installed]),
+  AC_HELP_STRING([--with-cares@<:@=PREFIX@:>@], [build with c-ares support]),
   [ if test "$withval" = "no"; then
       use_cares=no
     elif test "$withval" = "yes"; then
@@ -128,7 +128,7 @@ else # !cares
 dnl Find libudns
 AC_MSG_CHECKING([whether to use libudns])
 AC_ARG_WITH(udns,
-  AC_HELP_STRING([--with-udns=prefix],[Specify where udns is installed]),
+  AC_HELP_STRING([--with-udns@<:@=PREFIX@:>@], [build with udns support]),
   [ if test "$withval" = "no"; then
       use_udns=no
     elif test "$withval" = "yes"; then

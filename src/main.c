@@ -753,7 +753,7 @@ static void dns_setup(void)
 		return;
 	adns = adns_create_context();
 	if (!adns)
-		fatal_perror("dns setup failed");
+		fatal("dns setup failed");
 }
 
 static void xfree(char **ptr_p)

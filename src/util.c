@@ -279,7 +279,7 @@ void safe_evtimer_add(struct event *ev, struct timeval *tv)
 		return;
 
 	if (timer_backup_used >= TIMER_BACKUP_SLOTS)
-		fatal_perror("TIMER_BACKUP_SLOTS full");
+		fatal("TIMER_BACKUP_SLOTS full");
 
 	ts = &timer_backup_list[timer_backup_used++];
 	ts->ev = ev;

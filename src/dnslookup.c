@@ -371,7 +371,7 @@ static bool impl_init(struct DNSContext *ctx)
 {
 	ctx->edns = evdns_base_new(NULL, 1);
 	if (!ctx->edns) {
-		log_warning("evdns_base_new failed");
+		log_error("evdns_base_new failed");
 		return false;
 	}
 	return true;
@@ -511,7 +511,7 @@ static bool impl_init(struct DNSContext *ctx)
 	/* i/o callback setup */
 	fd = dns_open(dctx);
 	if (fd <= 0) {
-		log_warning("dns_open failed: fd=%d", fd);
+		log_error("dns_open failed: fd=%d", fd);
 		return false;
 	}
 	event_set(&udns->ev_io, fd, EV_READ | EV_PERSIST, udns_io_cb, ctx);

@@ -520,6 +520,20 @@ Works only with UDNS and c-ares backends (`--with-udns` or `--with-cares` to con
 
 Default: 0.0 (disabled)
 
+### resolv_conf
+
+The location of a custom `resolv.conf` file.  This is to allow
+specifying custom DNS servers and perhaps other name resolution
+options, independent of the global operating system configuration.
+
+Requires evdns (>= 2.0.3) or c-ares (>= 1.15.0) backend.
+
+The parsing of the file is done by the DNS backend library, not
+PgBouncer, so see the library's documentation for details on allowed
+syntax and directives.
+
+Default: empty (use operating system defaults)
+
 
 ## TLS settings
 

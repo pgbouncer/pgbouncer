@@ -286,7 +286,14 @@ static void dns_signal(int f, short ev, void *arg)
 
 static bool impl_init(struct DNSContext *ctx)
 {
-	struct GaiContext *gctx = calloc(1, sizeof(*gctx));
+	struct GaiContext *gctx;
+
+	if (cf_resolv_conf && cf_resolv_conf[0]) {
+		log_error("resolv_conf setting is not supported by libc adns");
+		return false;
+	}
+
+	gctx = calloc(1, sizeof(*gctx));
 	if (!gctx)
 		return false;
 	list_init(&gctx->gairq_list);
@@ -367,12 +374,47 @@ const char *adns_get_backend(void)
 	return "evdns2";
 }
 
+/*
+ * Confusingly, this is not the same as evdns_err_to_string().
+ */
+static const char *_evdns_base_resolv_conf_parse_err_to_string(int err)
+{
+	switch (err) {
+	case 0: return "no error";
+	case 1: return "failed to open file";
+	case 2: return "failed to stat file";
+	case 3: return "file too large";
+	case 4: return "out of memory";
+	case 5: return "short read from file";
+	case 6: return "no nameservers listed in the file";
+	default: return "[Unknown error code]";
+	}
+}
+
 static bool impl_init(struct DNSContext *ctx)
 {
-	ctx->edns = evdns_base_new(NULL, 1);
-	if (!ctx->edns) {
-		log_error("evdns_base_new failed");
-		return false;
+	if (cf_resolv_conf && cf_resolv_conf[0]) {
+		int err;
+
+		ctx->edns = evdns_base_new(NULL, 0);
+		if (!ctx->edns) {
+			log_error("evdns_base_new failed");
+			return false;
+		}
+		err = evdns_base_resolv_conf_parse(ctx->edns, DNS_OPTIONS_ALL,
+						   cf_resolv_conf);
+		if (err) {
+			log_error("evdns parsing of \"%s\" failed: %s",
+				  cf_resolv_conf,
+				  _evdns_base_resolv_conf_parse_err_to_string(err));
+			return false;
+		}
+	} else {
+		ctx->edns = evdns_base_new(NULL, 1);
+		if (!ctx->edns) {
+			log_error("evdns_base_new failed");
+			return false;
+		}
 	}
 	return true;
 }
@@ -495,6 +537,11 @@ static bool impl_init(struct DNSContext *ctx)
 	struct dns_ctx *dctx;
 	struct UdnsMeta *udns;
 	int err;
+
+	if (cf_resolv_conf && cf_resolv_conf[0]) {
+		log_error("resolv_conf setting is not supported by udns");
+		return false;
+	}
 
 	dns_init(NULL, 0);
 
@@ -907,6 +954,17 @@ static bool impl_init(struct DNSContext *ctx)
 	opts.sock_state_cb = xares_state_cb;
 	opts.sock_state_cb_data = ctx;
 	mask = ARES_OPT_SOCK_STATE_CB;
+	if (cf_resolv_conf && cf_resolv_conf[0]) {
+#ifdef ARES_OPT_RESOLVCONF
+		opts.resolvconf_path = strdup(cf_resolv_conf);
+		if (!opts.resolvconf_path)
+			return false;
+		mask |= ARES_OPT_RESOLVCONF;
+#else
+		log_error("resolv_conf setting is not supported by this version of c-ares");
+		return false;
+#endif
+	}
 
 	err = ares_init_options(&meta->chan, &opts, mask);
 	if (err) {

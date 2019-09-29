@@ -172,6 +172,17 @@ fw_reject_port() {
 		echo "Unknown OS"; exit 1;;
 	esac
 }
+fw_reject_port_silent() {
+	case `uname` in
+	Linux)
+		sudo iptables -A OUTPUT -p tcp --dport $1 -j REJECT;;
+	Darwin|OpenBSD)
+		echo "block out proto tcp from any to 127.0.0.1 port $1" \
+		    | sudo pfctl -a pgbouncer -f -;;
+	*)
+		echo "Unknown OS"; exit 1;;
+	esac
+}
 
 fw_reset() {
 	case `uname` in
@@ -321,6 +332,34 @@ test_server_login_retry() {
 	rc=$?
 	wait
 	return $rc
+}
+
+# tcp_user_timeout
+test_tcp_user_timeout() {
+	case `uname` in
+	Linux)
+		# timeout at ~7s
+		admin "set tcp_user_timeout=2000"
+		admin "set tcp_keepalive=1"
+		admin "set tcp_keepidle=1"
+		admin "set tcp_keepintvl=2"
+		admin "set tcp_keepcnt=3"
+
+		# make sure a connection is active
+		psql -X -c "select now()" p0
+
+		# block connectivity
+		fw_reject_port_silent $PG_PORT
+
+		# wait longer than timeout takes to kick in
+		sleep 8
+		fw_reset
+
+		# verify connection was dropped
+		grep 'closing because: server conn crashed?' $BOUNCER_LOG;;
+	*)
+		echo "TCP_USER_TIMEOUT not supported on OS"; return 77;;
+	esac
 }
 
 # server_connect_timeout
@@ -811,6 +850,7 @@ test_idle_transaction_timeout
 test_server_connect_timeout_establish
 test_server_connect_timeout_reject
 test_server_check_delay
+test_tcp_user_timeout
 test_max_client_conn
 test_pool_size
 test_online_restart

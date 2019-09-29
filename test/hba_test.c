@@ -15,6 +15,7 @@ int cf_tcp_keepcnt;
 int cf_tcp_keepintvl;
 int cf_tcp_keepidle;
 int cf_tcp_keepalive;
+int cf_tcp_user_timeout;
 int cf_tcp_socket_buffer;
 int cf_listen_port;
 

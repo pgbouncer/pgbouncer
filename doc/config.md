@@ -787,6 +787,12 @@ Default: 45 on Linux, otherwise 0
 
 Default: not set
 
+### tcp_user_timeout
+
+Enables socket-level timeout in milliseconds. This solves the situation where a database server on the end of a connection fails to kill a TCP connectionn properly after a shutdown or crash. TCP connections then get stuck and need clearing out. The Linux kernel setting `tcp_retries2` default value means stuck TCP connections get cleaned up after about 15 minutes. Setting `tcp_user_timeout` to a lower value means the connections get cleaned up more quickly if they're stuck.
+
+This setting works alongside the below keep alive settings. Read more about specifics here: https://blog.cloudflare.com/when-tcp-sockets-refuse-to-die/
+
 ### tcp_keepalive
 
 Turns on basic keepalive with OS defaults.

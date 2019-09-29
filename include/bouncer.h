@@ -250,7 +250,7 @@ struct PgPool {
 
 	usec_t last_lifetime_disconnect;/* last time when server_lifetime was applied */
 
-	/* if last connect failed, there should be delay before next */
+	/* if last connect to server failed, there should be delay before next */
 	usec_t last_connect_time;
 	unsigned last_connect_failed:1;
 	unsigned last_login_failed:1;

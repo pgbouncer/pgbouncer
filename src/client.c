@@ -532,6 +532,7 @@ static bool scram_client_first(PgSocket *client, uint32_t datalen, const uint8_t
 	input = ibuf;
 	slog_debug(client, "SCRAM client-first-message = \"%s\"", input);
 	if (!read_client_first_message(client, input,
+				       &client->scram_state.cbind_flag,
 				       &client->scram_state.client_first_message_bare,
 				       &client->scram_state.client_nonce))
 		goto failed;

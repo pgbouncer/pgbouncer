@@ -396,6 +396,7 @@ struct PgSocket {
 		char *server_nonce;
 		char *server_first_message;
 		uint8_t	*SaltedPassword;
+		char cbind_flag;
 		int iterations;
 		char *salt;	/* base64-encoded */
 		uint8_t StoredKey[32];	/* SHA256_DIGEST_LENGTH */

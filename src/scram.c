@@ -560,12 +560,14 @@ bool verify_server_signature(ScramState *scram_state, const char *ServerSignatur
  */
 
 bool read_client_first_message(PgSocket *client, char *input,
+			       char *cbind_flag_p,
 			       char **client_first_message_bare_p,
 			       char **client_nonce_p)
 {
 	char *client_first_message_bare = NULL;
 	char *client_nonce = NULL;
 
+	*cbind_flag_p = *input;
 	switch (*input) {
 	case 'n':
 		/* Client does not support channel binding */
@@ -657,12 +659,15 @@ bool read_client_final_message(PgSocket *client, const uint8_t *raw_input, char 
 	/*
 	 * Read channel-binding.  We don't support channel binding, so
 	 * it's expected to always be "biws", which is "n,,",
-	 * base64-encoded.
+	 * base64-encoded, or "eSws", which is "y,,".  We also have to
+	 * check whether the flag is the same one that the client
+	 * originally sent.
 	 */
 	channel_binding = read_attr_value(client, &input, 'c');
 	if (channel_binding == NULL)
 		goto failed;
-	if (strcmp(channel_binding, "biws") != 0) {
+	if (!(strcmp(channel_binding, "biws") == 0 && client->scram_state.cbind_flag == 'n') &&
+	    !(strcmp(channel_binding, "eSws") == 0 && client->scram_state.cbind_flag == 'y')) {
 		slog_error(client, "unexpected SCRAM channel-binding attribute in client-final-message");
 		goto failed;
 	}

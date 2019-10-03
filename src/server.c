@@ -361,7 +361,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 				server->pool->stats.query_time += total;
 				slog_debug(client, "query time: %d us", (int)total);
 			} else if ((ready || idle_tx) && !async_response) {
-				slog_warning(client, "FIXME: query end, but query_start == 0");
+				slog_debug(client, "FIXME: query end, but query_start == 0");
 			}
 
 			/* statement ending in "idle" ends a transaction */
@@ -372,7 +372,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 				server->pool->stats.xact_time += total;
 				slog_debug(client, "transaction time: %d us", (int)total);
 			} else if (ready && !async_response) {
-				slog_warning(client, "FIXME: transaction end, but xact_start == 0");
+				slog_debug(client, "FIXME: transaction end, but xact_start == 0");
 			}
 		}
 	} else {

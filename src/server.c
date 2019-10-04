@@ -54,10 +54,10 @@ static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 
 	return true;
 failed:
-	disconnect_server(server, true, "broken ParameterStatus packet");
+	disconnect_server(server, true, true, "broken ParameterStatus packet");
 	return false;
 failed_store:
-	disconnect_server(server, true, "failed to store ParameterStatus");
+	disconnect_server(server, true, true, "failed to store ParameterStatus");
 	return false;
 }
 
@@ -94,7 +94,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 	const uint8_t *ckey;
 
 	if (incomplete_pkt(pkt)) {
-		disconnect_server(server, true, "partial pkt in login phase");
+		disconnect_server(server, true, true, "partial pkt in login phase");
 		return false;
 	}
 
@@ -117,7 +117,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 	switch (pkt->type) {
 	default:
 		slog_error(server, "unknown pkt from server: '%c'", pkt_desc(pkt));
-		disconnect_server(server, true, "unknown pkt from server");
+		disconnect_server(server, true, true, "unknown pkt from server");
 		break;
 
 	case 'E':		/* ErrorResponse */
@@ -126,7 +126,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 		else
 			log_server_error("S: login failed", pkt);
 
-		disconnect_server(server, true, "login failed");
+		disconnect_server(server, true, true, "login failed");
 		break;
 
 	/* packets that need closer look */
@@ -134,7 +134,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 		slog_debug(server, "calling login_answer");
 		res = answer_authreq(server, pkt);
 		if (!res)
-			disconnect_server(server, false, "failed to answer authreq");
+			disconnect_server(server, false, true, "failed to answer authreq");
 		break;
 
 	case 'S':		/* ParameterStatus */
@@ -150,7 +150,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 			slog_debug(server, "server connect ok, send exec_on_connect");
 			SEND_generic(res, server, 'Q', "s", server->pool->db->connect_query);
 			if (!res)
-				disconnect_server(server, false, "exec_on_connect query failed");
+				disconnect_server(server, false, true, "exec_on_connect query failed");
 			break;
 		}
 
@@ -172,7 +172,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 	/* ignorable packets */
 	case 'K':		/* BackendKeyData */
 		if (!mbuf_get_bytes(&pkt->data, BACKENDKEY_LEN, &ckey)) {
-			disconnect_server(server, true, "bad cancel key");
+			disconnect_server(server, true, true, "bad cancel key");
 			return false;
 		}
 		memcpy(server->cancel_key, ckey, BACKENDKEY_LEN);
@@ -234,7 +234,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	switch (pkt->type) {
 	default:
 		slog_error(server, "unknown pkt: '%c'", pkt_desc(pkt));
-		disconnect_server(server, true, "unknown pkt");
+		disconnect_server(server, true, true, "unknown pkt");
 		return false;
 
 	/* pooling decisions will be based on this packet */
@@ -248,7 +248,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		if (state == 'I')
 			ready = true;
 		else if (pool_pool_mode(server->pool) == POOL_STMT) {
-			disconnect_server(server, true, "transaction blocks not allowed in statement pooling mode");
+			disconnect_server(server, true, true, "transaction blocks not allowed in statement pooling mode");
 			return false;
 		} else if (state == 'T' || state == 'E') {
 			idle_tx = true;
@@ -291,7 +291,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			 *
 			 * no reason to keep such guys.
 			 */
-			disconnect_server(server, true, "invalid server parameter");
+			disconnect_server(server, true, true, "invalid server parameter");
 			return false;
 		}
 		/* fallthrough */
@@ -410,7 +410,7 @@ static bool handle_connect(PgSocket *server)
 		forward_cancel_request(server);
 		/* notify disconnect_server() that connect did not fail */
 		server->ready = 1;
-		disconnect_server(server, false, "sent cancel req");
+		disconnect_server(server, false, true, "sent cancel req");
 	} else {
 		/* proceed with login */
 		if (cf_server_tls_sslmode > SSLMODE_DISABLED && !is_unix) {
@@ -423,7 +423,7 @@ static bool handle_connect(PgSocket *server)
 			res = send_startup_packet(server);
 		}
 		if (!res)
-			disconnect_server(server, false, "startup pkt failed");
+			disconnect_server(server, false, true, "startup pkt failed");
 	}
 	return res;
 }
@@ -437,7 +437,7 @@ static bool handle_sslchar(PgSocket *server, struct MBuf *data)
 
 	ok = mbuf_get_byte(data, &schar);
 	if (!ok || (schar != 'S' && schar != 'N') || mbuf_avail_for_read(data) != 0) {
-		disconnect_server(server, false, "bad sslreq answer");
+		disconnect_server(server, false, true, "bad sslreq answer");
 		return false;
 	}
 
@@ -445,7 +445,7 @@ static bool handle_sslchar(PgSocket *server, struct MBuf *data)
 		slog_noise(server, "launching tls");
 		ok = sbuf_tls_connect(&server->sbuf, server->pool->db->host);
 	} else if (cf_server_tls_sslmode >= SSLMODE_REQUIRE) {
-		disconnect_server(server, false, "server refused SSL");
+		disconnect_server(server, false, true, "server refused SSL");
 		return false;
 	} else {
 		/* proceed with non-TLS connection */
@@ -455,7 +455,7 @@ static bool handle_sslchar(PgSocket *server, struct MBuf *data)
 	if (ok) {
 		sbuf_prepare_skip(&server->sbuf, 1);
 	} else {
-		disconnect_server(server, false, "sslreq processing failed");
+		disconnect_server(server, false, true, "sslreq processing failed");
 	}
 	return ok;
 }
@@ -478,7 +478,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 
 	switch (evtype) {
 	case SBUF_EV_RECV_FAILED:
-		disconnect_server(server, false, "server conn crashed?");
+		disconnect_server(server, false, true, "server conn crashed?");
 		break;
 	case SBUF_EV_SEND_FAILED:
 		disconnect_client(server->link, false, "unexpected eof");
@@ -495,7 +495,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 
 		/* parse pkt header */
 		if (!get_header(data, &pkt)) {
-			disconnect_server(server, true, "bad pkt header");
+			disconnect_server(server, true, true, "bad pkt header");
 			break;
 		}
 		slog_noise(server, "read pkt='%c', len=%d", pkt_desc(&pkt), pkt.len);
@@ -517,7 +517,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		break;
 	case SBUF_EV_CONNECT_FAILED:
 		Assert(server->state == SV_LOGIN);
-		disconnect_server(server, false, "connect failed");
+		disconnect_server(server, false, true, "connect failed");
 		break;
 	case SBUF_EV_CONNECT_OK:
 		slog_debug(server, "S: connect ok");
@@ -578,7 +578,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		if (res)
 			sbuf_continue(&server->sbuf);
 		else
-			disconnect_server(server, false, "TLS startup failed");
+			disconnect_server(server, false, true, "TLS startup failed");
 		break;
 	}
 	if (!res && pool->db->admin)

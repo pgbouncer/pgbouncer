@@ -125,7 +125,7 @@ static void start_auth_request(PgSocket *client, const char *username)
 		 */
 	}
 	if (!res)
-		disconnect_server(client->link, false, "unable to send login query");
+		disconnect_server(client->link, false, true, "unable to send login query");
 }
 
 static bool login_via_cert(PgSocket *client)
@@ -341,37 +341,37 @@ bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
 	switch(pkt->type) {
 	case 'T':	/* RowDescription */
 		if (!mbuf_get_uint16be(&pkt->data, &columns)) {
-			disconnect_server(server, false, "bad packet");
+			disconnect_server(server, false, true, "bad packet");
 			return false;
 		}
 		if (columns != 2u) {
-			disconnect_server(server, false, "expected 2 columns from login query, not %hu", columns);
+			disconnect_server(server, false, true, "expected 2 columns from login query, not %hu", columns);
 			return false;
 		}
 		break;
 	case 'D':	/* DataRow */
 		memset(&user, 0, sizeof(user));
 		if (!mbuf_get_uint16be(&pkt->data, &columns)) {
-			disconnect_server(server, false, "bad packet");
+			disconnect_server(server, false, true, "bad packet");
 			return false;
 		}
 		if (columns != 2u) {
-			disconnect_server(server, false, "expected 2 columns from login query, not %hu", columns);
+			disconnect_server(server, false, true, "expected 2 columns from login query, not %hu", columns);
 			return false;
 		}
 		if (!mbuf_get_uint32be(&pkt->data, &length)) {
-			disconnect_server(server, false, "bad packet");
+			disconnect_server(server, false, true, "bad packet");
 			return false;
 		}
 		if (!mbuf_get_chars(&pkt->data, length, &username)) {
-			disconnect_server(server, false, "bad packet");
+			disconnect_server(server, false, true, "bad packet");
 			return false;
 		}
 		if (sizeof(user.name) - 1 < length)
 			length = sizeof(user.name) - 1;
 		memcpy(user.name, username, length);
 		if (!mbuf_get_uint32be(&pkt->data, &length)) {
-			disconnect_server(server, false, "bad packet");
+			disconnect_server(server, false, true, "bad packet");
 			return false;
 		}
 		if (length == (uint32_t)-1) {
@@ -383,7 +383,7 @@ bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
 			length = 3;
 		} else {
 			if (!mbuf_get_chars(&pkt->data, length, &password)) {
-				disconnect_server(server, false, "bad packet");
+				disconnect_server(server, false, true, "bad packet");
 				return false;
 			}
 		}
@@ -393,7 +393,7 @@ bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
 
 		client->auth_user = add_db_user(client->db, user.name, user.passwd);
 		if (!client->auth_user) {
-			disconnect_server(server, false, "unable to allocate new user for auth");
+			disconnect_server(server, false, true, "unable to allocate new user for auth");
 			return false;
 		}
 		break;
@@ -427,7 +427,7 @@ bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
 			return false;
 		return true;
 	default:
-		disconnect_server(server, false, "unexpected response from login query");
+		disconnect_server(server, false, true, "unexpected response from login query");
 		return false;
 	}
 	sbuf_prepare_skip(&server->sbuf, pkt->len);
@@ -904,7 +904,7 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		disconnect_client(client, false, "client unexpected eof");
 		break;
 	case SBUF_EV_SEND_FAILED:
-		disconnect_server(client->link, false, "server connection closed");
+		disconnect_server(client->link, false, true, "server connection closed");
 		break;
 	case SBUF_EV_READ:
 		/* Wait until full packet headers is available. */

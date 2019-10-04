@@ -34,7 +34,7 @@ static void close_server_list(struct StatList *sk_list, const char *reason)
 
 	statlist_for_each_safe(item, sk_list, tmp) {
 		server = container_of(item, PgSocket, head);
-		disconnect_server_noblame(server, true, "%s", reason);
+		disconnect_server(server, true, false, "%s", reason);
 	}
 }
 
@@ -63,7 +63,7 @@ bool suspend_socket(PgSocket *sk, bool force_suspend)
 		return sk->suspended;
 
 	if (is_server_socket(sk))
-		disconnect_server_noblame(sk, true, "suspend_timeout");
+		disconnect_server(sk, true, false, "suspend_timeout");
 	else
 		disconnect_client(sk, true, "suspend_timeout");
 	return true;
@@ -140,7 +140,7 @@ static void launch_recheck(PgPool *pool)
 			return;
 		if (server->ready)
 			break;
-		disconnect_server(server, true, "idle server got dirty");
+		disconnect_server(server, true, true, "idle server got dirty");
 	}
 
 	/* is the check needed? */
@@ -158,7 +158,7 @@ static void launch_recheck(PgPool *pool)
 		change_server_state(server, SV_TESTED);
 		SEND_generic(res, server, 'Q', "s", q);
 		if (!res)
-			disconnect_server(server, false, "test query failed");
+			disconnect_server(server, false, true, "test query failed");
 	} else {
 		/* make immediately available */
 		release_server(server);
@@ -435,21 +435,21 @@ static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle
 		idle = now - server->request_time;
 
 		if (server->close_needed) {
-			disconnect_server_noblame(server, true, "database configuration changed");
+			disconnect_server(server, true, false, "database configuration changed");
 		} else if (server->state == SV_IDLE && !server->ready) {
-			disconnect_server(server, true, "SV_IDLE server got dirty");
+			disconnect_server(server, true, true, "SV_IDLE server got dirty");
 		} else if (server->state == SV_USED && !server->ready) {
-			disconnect_server(server, true, "SV_USED server got dirty");
+			disconnect_server(server, true, true, "SV_USED server got dirty");
 		} else if (cf_server_idle_timeout > 0 && idle > cf_server_idle_timeout
 			   && (cf_min_pool_size == 0 || pool_connected_server_count(pool) > cf_min_pool_size)) {
-			disconnect_server_noblame(server, true, "server idle timeout");
+			disconnect_server(server, true, true, "server idle timeout");
 		} else if (age >= cf_server_lifetime) {
 			if (pool->last_lifetime_disconnect + lifetime_kill_gap <= now) {
-				disconnect_server_noblame(server, true, "server lifetime over");
+				disconnect_server(server, true, false, "server lifetime over");
 				pool->last_lifetime_disconnect = now;
 			}
 		} else if (cf_pause_mode == P_PAUSE) {
-			disconnect_server_noblame(server, true, "pause mode");
+			disconnect_server(server, true, false, "pause mode");
 		} else if (idle_test && *cf_server_check_query) {
 			if (idle > cf_server_check_delay)
 				change_server_state(server, SV_USED);
@@ -475,7 +475,7 @@ static void check_pool_size(PgPool *pool)
 			server = first_socket(&pool->idle_server_list);
 		if (!server)
 			break;
-		disconnect_server_noblame(server, true, "too many servers in the pool");
+		disconnect_server(server, true, false, "too many servers in the pool");
 		many--;
 		cur--;
 	}
@@ -510,7 +510,7 @@ static void pool_server_maint(PgPool *pool)
 			server = container_of(item, PgSocket, head);
 			Assert(server->state == SV_ACTIVE);
 			if (server->ready && server->close_needed)
-				disconnect_server_noblame(server, true, "database configuration changed");
+				disconnect_server(server, true, false, "database configuration changed");
 		}
 	}
 
@@ -536,12 +536,12 @@ static void pool_server_maint(PgPool *pool)
 			age_server = now - server->request_time;
 
 			if (cf_query_timeout > 0 && age_client > cf_query_timeout) {
-				disconnect_server_noblame(server, true, "query timeout");
+				disconnect_server(server, true, false, "query timeout");
 			} else if (cf_idle_transaction_timeout > 0 &&
 				   server->idle_tx &&
 				   age_server > cf_idle_transaction_timeout)
 			{
-				disconnect_server_noblame(server, true, "idle transaction timeout");
+				disconnect_server(server, true, false, "idle transaction timeout");
 			}
 		}
 	}
@@ -556,7 +556,7 @@ static void pool_server_maint(PgPool *pool)
 
 			age = now - server->connect_time;
 			if (age > cf_server_connect_timeout)
-				disconnect_server(server, true, "connect timeout");
+				disconnect_server(server, true, true, "connect timeout");
 		}
 	}
 

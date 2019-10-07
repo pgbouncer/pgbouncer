@@ -313,10 +313,10 @@ test_client_idle_timeout() {
 # server_login_retry
 test_server_login_retry() {
 	admin "set query_timeout=10"
-	admin "set server_login_retry=1"
+	admin "set server_login_retry=3"
 
-	(pgctl -m fast stop; sleep 3; pgctl start) &
-	sleep 1
+	pgctl -m fast stop
+	(sleep 1; pgctl start) &
 	psql -X -c "select now()" p0
 	rc=$?
 	wait

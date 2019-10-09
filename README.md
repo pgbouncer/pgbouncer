@@ -1,4 +1,3 @@
-
 PgBouncer
 =========
 
@@ -6,7 +5,7 @@ Lightweight connection pooler for PostgreSQL.
 
 Homepage: <https://pgbouncer.github.io>
 
-Sources, bugtracking: <https://github.com/pgbouncer/pgbouncer>
+Sources, bug tracking: <https://github.com/pgbouncer/pgbouncer>
 
 Building
 ---------
@@ -14,13 +13,14 @@ Building
 PgBouncer depends on few things to get compiled:
 
 * [GNU Make] 3.81+
-* [libevent] 2.0
+* [Libevent] 2.0+
 * [pkg-config]
-* [OpenSSL] 1.0.1 for TLS support.
-* (optional) [c-ares] as alternative to libevent's evdns.
+* [OpenSSL] 1.0.1+ for TLS support
+* (optional) [c-ares] as alternative to Libevent's evdns
+* (optional) PAM libraries
 
 [GNU Make]: https://www.gnu.org/software/make/
-[libevent]: http://libevent.org/
+[Libevent]: http://libevent.org/
 [pkg-config]: https://www.freedesktop.org/wiki/Software/pkg-config/
 [OpenSSL]: https://www.openssl.org/
 [c-ares]: http://c-ares.haxx.se/
@@ -56,29 +56,30 @@ their probing order:
 
 c-ares is the most fully-featured implementation and is recommended
 for most uses and binary packaging (if a sufficiently new version is
-available).  libevent's built-in evdns is also suitable for many uses,
+available).  Libevent's built-in evdns is also suitable for many uses,
 with the listed restrictions.  The other backends are mostly legacy
 options at this point and don't receive much testing anymore.
 
 By default, c-ares is used if it can be found.  Its use can be forced
 with `configure --with-cares` or disabled with `--without-cares`.  If
 c-ares is not used (not found or disabled), then specify `--with-udns`
-to pick udns, else libevent is used.  Specify `--disable-evdns` to
-disable the use of libevent's evdns and fall back to a libc-based
+to pick udns, else Libevent is used.  Specify `--disable-evdns` to
+disable the use of Libevent's evdns and fall back to a libc-based
 implementation.
 
 PAM authentication
 ------------------
 
-To enable PAM authentication `./configure` has a flag `--with-pam` (default value is no). When compiled with
-PAM support new global authentication type `pam` appears which can be used to validate users through PAM.
+To enable PAM authentication, `./configure` has a flag `--with-pam`
+(default value is no).  When compiled with PAM support, a new global
+authentication type `pam` is available to validate users through PAM.
 
 Building from Git
 -----------------
 
-Building PgBouncer from Git requires that you fetch libusual
-submodule and generate the header and config files before
-you can run configure:
+Building PgBouncer from Git requires that you fetch the libusual
+submodule and generate the header and configuration files before
+you can run `configure`:
 
 	$ git clone https://github.com/pgbouncer/pgbouncer.git
 	$ cd pgbouncer
@@ -109,10 +110,10 @@ If cross-compiling from Unix:
 Running on Windows
 ------------------
 
-Running from command-line goes as usual, except that the -d (daemonize),
--R (reboot) and -u (switch user) switches will not work.
+Running from the command line goes as usual, except that the `-d` (daemonize),
+`-R` (reboot), and `-u` (switch user) switches will not work.
 
-To run pgbouncer as a Windows service, you need to configure the
+To run PgBouncer as a Windows service, you need to configure the
 `service_name` parameter to set name for service.  Then:
 
 	$ pgbouncer -regservice config.ini
@@ -121,8 +122,8 @@ To uninstall service:
 
 	$ pgbouncer -unregservice config.ini
 
-To use Windows Event Log, set "syslog = 1" in config file.
-But before you need to register pgbevent.dll:
+To use the Windows event log, set `syslog = 1` in the configuration file.
+But before that you need to register `pgbevent.dll`:
 
 	$ regsvr32 pgbevent.dll
 

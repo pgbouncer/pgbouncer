@@ -3,7 +3,7 @@ dnl Process this file with autoconf to produce a configure script.
 AC_INIT([PgBouncer],
         [1.11.0],
         [https://github.com/pgbouncer/pgbouncer/issues], [],
-        [https://pgbouncer.github.io/])
+        [https://www.pgbouncer.org/])
 AC_CONFIG_SRCDIR(src/janitor.c)
 AC_CONFIG_HEADER(lib/usual/config.h)
 AC_PREREQ([2.59])

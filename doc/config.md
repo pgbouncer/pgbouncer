@@ -1030,4 +1030,4 @@ Example of a secure function for `auth_query`:
 
 pgbouncer(1) - man page for general usage, console commands
 
-<https://pgbouncer.github.io/>
+<https://www.pgbouncer.org/>

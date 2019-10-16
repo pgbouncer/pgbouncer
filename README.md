@@ -3,7 +3,7 @@ PgBouncer
 
 Lightweight connection pooler for PostgreSQL.
 
-Homepage: <https://pgbouncer.github.io>
+Homepage: <https://www.pgbouncer.org/>
 
 Sources, bug tracking: <https://github.com/pgbouncer/pgbouncer>
 

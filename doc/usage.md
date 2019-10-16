@@ -713,4 +713,4 @@ From the Libevent documentation:
 
 pgbouncer(5) - man page of configuration settings descriptions
 
-<https://pgbouncer.github.io/>
+<https://www.pgbouncer.org/>

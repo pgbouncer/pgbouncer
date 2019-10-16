@@ -870,9 +870,8 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 
 	/* notify server and close connection */
 	if (send_term && notify) {
-		if (!sbuf_answer(&server->sbuf, pkt_term, sizeof(pkt_term)))
-			/* ignore result */
-			notify = false;
+		bool _ignore = sbuf_answer(&server->sbuf, pkt_term, sizeof(pkt_term));
+		(void) _ignore;
 	}
 
 	if (server->dns_token) {

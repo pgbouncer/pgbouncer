@@ -715,13 +715,16 @@ try_more:
 
 	/* avoid spending too much time on single socket */
 	if (cf_sbuf_loopcnt > 0 && loopcnt >= cf_sbuf_loopcnt) {
+		bool _ignore;
+
 		log_debug("loopcnt full");
 		/*
 		 * sbuf_process_pending() avoids some data if buffer is full,
 		 * but as we exit processing loop here, we need to retry
 		 * after resync to process all data. (result is ignored)
 		 */
-		ok = sbuf_process_pending(sbuf);
+		_ignore = sbuf_process_pending(sbuf);
+		(void) _ignore;
 
 		sbuf_wait_for_data_forced(sbuf);
 		return;

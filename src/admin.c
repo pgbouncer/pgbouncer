@@ -1610,7 +1610,6 @@ void admin_pause_done(void)
 		if (!admin->wait_for_response)
 			continue;
 
-		res = false;
 		switch (cf_pause_mode) {
 		case P_PAUSE:
 			res = admin_ready(admin, "PAUSE");
@@ -1621,9 +1620,11 @@ void admin_pause_done(void)
 		default:
 			if (count_paused_databases() > 0)
 				res = admin_ready(admin, "PAUSE");
-			else
+			else {
 				/* FIXME */
 				fatal("admin_pause_done: bad state");
+				res = false;
+			}
 		}
 
 		if (!res)

@@ -1,6 +1,52 @@
 PgBouncer changelog
 ===================
 
+PgBouncer 1.12.x
+----------------
+
+**2019-10-17  -  PgBouncer 1.12.0  -  "It's about learning and getting better"**
+
+This release contains a variety of minor enhancements and fixes.
+
+- Features
+  * Add a setting to turn on the `SO_REUSEPORT` socket option.  On
+    some operating systems, this allows running multiple PgBouncer
+    instances on the same host listening on the same port and having
+    the kernel distribute the connections automatically.
+  * Add a setting to use a `resolv.conf` file separate from the
+    operating system.  This allows setting custom DNS servers and
+    perhaps other DNS options.
+  * Send the output of `SHOW VERSION` as a normal result row instead
+    of a NOTICE message.  This makes it easier to consume and is
+    consistent with other `SHOW` commands.
+
+- Fixes
+  * Send statistics columns as `numeric` instead of `bigint`.  This
+    avoids some client libraries failing on values that overflow the
+    `bigint`
+    range. ([#360](https://github.com/pgbouncer/pgbouncer/pull/360),
+    [#401](https://github.com/pgbouncer/pgbouncer/pull/401))
+  * Fix issue with PAM users losing their
+    password. ([#285](https://github.com/pgbouncer/pgbouncer/issues/285))
+  * Accept SCRAM channel binding enabled clients.  Previously, a
+    client supporting channel binding (that is, PostgreSQL 11+) would
+    get a connection failure when connecting to PgBouncer in certain
+    situations.  (PgBouncer does not support channel binding.  This
+    change just fixes support for clients that offer it.)
+  * Fix compilation with newer versions of musl-libc (used by Alpine
+    Linux).
+
+- Cleanups
+  * Add `make check` target.  This allows running all the tests from a
+    single command.
+  * Remove references to the PostgreSQL wiki.  All information is now
+    either in the PgBouncer documentation or on the web site.
+  * Remove support for Libevent version 1.x.  Libevent 2.x is now
+    required.  Libevent is now detected using pkg-config.
+  * Fix compiler warnings on macOS and Windows.  The build on these
+    platforms should now be free of warnings.
+  * Fix some warnings from LLVM scan-build.
+
 PgBouncer 1.11.x
 ----------------
 

@@ -534,15 +534,28 @@ static PgPool *new_pool(PgDatabase *db, PgUser *user)
 PgPool *get_pool(PgDatabase *db, PgUser *user)
 {
 	struct List *item;
-	PgPool *pool;
+	PgPool *pool_list_item;
 
 	if (!db || !user)
 		return NULL;
 
 	list_for_each(item, &user->pool_list) {
-		pool = container_of(item, PgPool, map_head);
-		if (pool->db == db)
-			return pool;
+		pool_list_item = container_of(item, PgPool, map_head);
+		if (pool_list_item->db == db)
+			return pool_list_item;
+	}
+
+	// We may already have a pool for this database name and user name, with a different user
+	// object, for example because we have users with the same name from auth_file, PAM and/or
+	// auth_query, so search the global list too:
+
+	statlist_for_each(item, &pool_list) {
+		pool_list_item = container_of(item, PgPool, head);
+		if (strcmp(pool_list_item->db->name, db->name) == 0 &&
+			strcmp(pool_list_item->user->name, user->name) == 0)
+		{
+			return pool_list_item;
+		}
 	}
 
 	return new_pool(db, user);

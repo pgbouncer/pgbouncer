@@ -150,7 +150,7 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
 	SEND_wrap(16, pktbuf_write_CancelRequest, res, sk, key)
 
 #define SEND_PasswordMessage(res, sk, psw) \
-	SEND_wrap(512, pktbuf_write_PasswordMessage, res, sk, psw)
+	SEND_wrap(2048, pktbuf_write_PasswordMessage, res, sk, psw)
 
 #define SEND_SASLInitialResponseMessage(res, sk, mech, cir) \
 	SEND_wrap(512, pkgbuf_write_SASLInitialResponseMessage, res, sk, mech, cir)

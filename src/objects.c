@@ -368,6 +368,8 @@ PgDatabase *register_auto_database(const char *name)
 			db->pool_size = cf_default_pool_size;
 		if (db->res_pool_size < 0)
 			db->res_pool_size = cf_res_pool_size;
+		if (db->forced_user != NULL)
+			get_pool(db, db->forced_user);
 	}
 
 	return db;

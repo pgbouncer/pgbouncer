@@ -97,6 +97,7 @@ char *cf_auth_query;
 int cf_max_client_conn;
 int cf_default_pool_size;
 int cf_min_pool_size;
+int cf_min_pool_size_requires_clients;
 int cf_res_pool_size;
 usec_t cf_res_pool_timeout;
 int cf_max_db_connections;
@@ -227,6 +228,7 @@ CF_ABS("pool_mode", CF_LOOKUP(pool_mode_map), cf_pool_mode, 0, "session"),
 CF_ABS("max_client_conn", CF_INT, cf_max_client_conn, 0, "100"),
 CF_ABS("default_pool_size", CF_INT, cf_default_pool_size, 0, "20"),
 CF_ABS("min_pool_size", CF_INT, cf_min_pool_size, 0, "0"),
+CF_ABS("min_pool_size_requires_clients", CF_INT, cf_min_pool_size_requires_clients, 0, "1"),
 CF_ABS("reserve_pool_size", CF_INT, cf_res_pool_size, 0, "0"),
 CF_ABS("reserve_pool_timeout", CF_TIME_USEC, cf_res_pool_timeout, 0, "5"),
 CF_ABS("max_db_connections", CF_INT, cf_max_db_connections, 0, "0"),

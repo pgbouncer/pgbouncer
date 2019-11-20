@@ -420,6 +420,32 @@ test_pool_size() {
 	return 0
 }
 
+# min pool size
+test_min_pool_size() {
+    docount() {
+        cnt=`psql -X -tAq -c "select count(1) from pg_stat_activity where usename='bouncer' and datname='$1'" postgres`
+        echo $cnt
+    }
+    
+    # Change the setting so that clients are required to be connected in order
+    # to maintain the min pool size. Since no clients have connected yet, the 
+    # pool should be unitialized (0 connections).
+    admin "set min_pool_size=2"
+    admin "set min_pool_size_requires_clients=1"
+    sleep 1
+    test `docount p0` -ne 0 && return 1
+    
+    # Change the setting so that clients are not required to be connected in
+    # order to maintain the min pool size. In this case, the pool should be
+    # initialized even though no clients are connected.
+    admin "set min_pool_size=2"
+    admin "set min_pool_size_requires_clients=0"
+    sleep 1
+    test `docount p0` -ne 2 && return 1
+    
+    return 0
+}
+
 # test online restart while clients running
 test_online_restart() {
 # max_client_conn=10
@@ -813,6 +839,7 @@ test_server_connect_timeout_reject
 test_server_check_delay
 test_max_client_conn
 test_pool_size
+test_min_pool_size
 test_online_restart
 test_pause_resume
 test_suspend_resume

@@ -485,7 +485,8 @@ static void check_pool_size(PgPool *pool)
 	    cur < pool->db->pool_size &&
 	    cf_pause_mode == P_NONE &&
 	    cf_reboot == 0 &&
-	    pool_client_count(pool) > 0)
+		(cf_min_pool_size_requires_clients == 0 || (cf_min_pool_size_requires_clients == 1
+				&& pool_client_count(pool) > 0)))
 	{
 		log_debug("launching new connection to satisfy min_pool_size");
 		launch_new_connection(pool);
@@ -743,5 +744,10 @@ void config_postprocess(void)
 			db->pool_size = cf_default_pool_size;
 		if (db->res_pool_size < 0)
 			db->res_pool_size = cf_res_pool_size;
+		if (db->forced_user != NULL) {
+			// Initialize pool object for each database that has a forced user.
+			// Only creates data structures. Does not create connections.
+			get_pool(db, db->forced_user);
+		}
 	}
 }

@@ -38,6 +38,7 @@
 
 #include <event.h>
 
+
 /* each state corresponds to a list */
 enum SocketState {
 	CL_FREE,		/* free_client_list */
@@ -86,6 +87,11 @@ typedef struct PktHdr PktHdr;
 typedef struct ScramState ScramState;
 
 extern int cf_sbuf_len;
+
+/* pgbouncer-rr extensions */
+#include "pycall.h"
+#include "route_connection.h"
+#include "rewrite_query.h"
 
 #include "util.h"
 #include "iobuf.h"
@@ -500,6 +506,11 @@ extern int cf_log_connections;
 extern int cf_log_disconnections;
 extern int cf_log_pooler_errors;
 extern int cf_application_name_add_host;
+
+/* pgbouncer-rr extensions */
+extern char *cf_routing_rules_py_module_file;
+extern char *cf_rewrite_query_py_module_file;
+extern char *cf_rewrite_query_disconnect_on_failure;
 
 extern int cf_client_tls_sslmode;
 extern char *cf_client_tls_protocols;

@@ -138,6 +138,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 		break;
 
 	case 'S':		/* ParameterStatus */
+	    slog_info(server, "Load parameter on server startup");
 		res = load_parameter(server, pkt, true);
 		break;
 
@@ -264,6 +265,8 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		break;
 
 	case 'S':		/* ParameterStatus */
+	    slog_debug(server, "Packet type S");
+	    slog_info(server, "Load parameter on server handle_server_work");
 		if (!load_parameter(server, pkt, false))
 			return false;
 		break;
@@ -509,6 +512,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		case SV_USED:
 		case SV_ACTIVE:
 		case SV_IDLE:
+		    slog_info(server, "Reading data from server : %d", evtype);
 			res = handle_server_work(server, &pkt);
 			break;
 		default:

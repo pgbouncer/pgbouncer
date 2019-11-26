@@ -53,8 +53,8 @@ pgbouncer_SOURCES = \
 	include/takeover.h \
 	include/util.h \
 	include/pycall.h \
-        include/route_connection.h \
-        include/rewrite_query.h \
+	include/route_connection.h \
+	include/rewrite_query.h \
 	include/varcache.h \
 	include/common/base64.h \
 	include/common/pg_wchar.h \

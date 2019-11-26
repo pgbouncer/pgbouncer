@@ -147,6 +147,11 @@ int cf_log_disconnections;
 int cf_log_pooler_errors;
 int cf_application_name_add_host;
 
+/* pgbouncer-rr  extension */
+char *cf_routing_rules_py_module_file;
+char *cf_rewrite_query_py_module_file;
+char *cf_rewrite_query_disconnect_on_failure;
+
 int cf_client_tls_sslmode;
 char *cf_client_tls_protocols;
 char *cf_client_tls_ca_file;
@@ -281,6 +286,11 @@ CF_ABS("log_connections", CF_INT, cf_log_connections, 0, "1"),
 CF_ABS("log_disconnections", CF_INT, cf_log_disconnections, 0, "1"),
 CF_ABS("log_pooler_errors", CF_INT, cf_log_pooler_errors, 0, "1"),
 CF_ABS("application_name_add_host", CF_INT, cf_application_name_add_host, 0, "0"),
+
+/* pgbouncer-rr extensions */
+CF_ABS("routing_rules_py_module_file", CF_STR, cf_routing_rules_py_module_file, 0, "not_enabled"),
+CF_ABS("rewrite_query_py_module_file", CF_STR, cf_rewrite_query_py_module_file, 0, "not_enabled"),
+CF_ABS("rewrite_query_disconnect_on_failure", CF_STR, cf_rewrite_query_disconnect_on_failure, 0, "false"),
 
 CF_ABS("client_tls_sslmode", CF_LOOKUP(sslmode_map), cf_client_tls_sslmode, CF_NO_RELOAD, "disable"),
 CF_ABS("client_tls_ca_file", CF_STR, cf_client_tls_ca_file, CF_NO_RELOAD, ""),

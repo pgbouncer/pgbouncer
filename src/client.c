@@ -455,12 +455,24 @@ static void set_appname(PgSocket *client, const char *app_name)
 	}
 }
 
+static void set_search_path(PgSocket *client, const char *search_path)
+{
+	char buf[400], abuf[300];
+	const char *details;
+
+	if (search_path) {
+		slog_debug(client, "using application_name: %s", search_path);
+		varcache_set(&client->vars, "search_path", search_path);
+	}
+}
+
 static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 {
 	const char *username = NULL, *dbname = NULL;
 	const char *key, *val;
 	bool ok;
 	bool appname_found = false;
+	bool search_path_found = false;
 
 	while (1) {
 		ok = mbuf_get_string(&pkt->data, &key);
@@ -479,6 +491,9 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 		} else if (strcmp(key, "application_name") == 0) {
 			set_appname(client, val);
 			appname_found = true;
+		} else if  (strcmp(key, "search_path") == 0) {
+		    set_search_path(client, val);
+			search_path_found = true;
 		} else if (strlist_contains(cf_ignore_startup_params, key)) {
 			slog_debug(client, "ignoring startup parameter: %s=%s", key, val);
 		} else if (varcache_set(&client->vars, key, val)) {
@@ -501,6 +516,10 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 	/* create application_name if requested */
 	if (!appname_found)
 		set_appname(client, NULL);
+
+	/* create application_name if requested */
+	if (!search_path_found)
+		set_search_path(client, NULL);
 
 	/* check if limit allows, don't limit admin db
 	   nb: new incoming conn will be attached to PgSocket, thus

@@ -199,6 +199,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	char *timezone = NULL;
 	char *connect_query = NULL;
 	char *appname = NULL;
+	char *searchpath = NULL;
 
 	int v_port;
 
@@ -258,6 +259,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			connect_query = val;
 		} else if (strcmp("application_name", key) == 0) {
 			appname = val;
+	    } else if (strcmp("search_path", key) == 0) {
+			searchpath = val;
 		} else {
 			log_error("skipping database %s because"
 				  " of unknown parameter in connstring: %s", name, key);
@@ -367,6 +370,11 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	if (appname) {
 		pktbuf_put_string(msg, "application_name");
 		pktbuf_put_string(msg, appname);
+	}
+
+	if (searchpath) {
+	    pktbuf_put_string(msg, "search_path");
+		pktbuf_put_string(msg, searchpath);
 	}
 
 	if (auth_username != NULL) {

@@ -231,7 +231,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	bool async_response = false;
 
 	Assert(!server->pool->db->admin);
-
+    slog_info(server, "handle_server_work pkt: '%c'", pkt_desc(pkt));
 	switch (pkt->type) {
 	default:
 		slog_error(server, "unknown pkt: '%c'", pkt_desc(pkt));

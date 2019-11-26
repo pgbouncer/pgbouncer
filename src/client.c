@@ -903,7 +903,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 
 	/* forward the packet */
 	sbuf_prepare_send(sbuf, &client->link->sbuf, pkt->len);
-
+    slog_error(client, "handle_client_work: pkt type: '%c'", pkt->type);
 	return true;
 }
 
@@ -975,5 +975,6 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		res = true;
 		break;
 	}
+	slog_info(client, "End of client_proto");
 	return res;
 }

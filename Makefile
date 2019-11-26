@@ -24,8 +24,8 @@ pgbouncer_SOURCES = \
 	src/takeover.c \
 	src/util.c \
 	src/pycall.c \
-    src/route_connection.c \
-    src/rewrite_query.c \
+        src/route_connection.c \
+        src/rewrite_query.c \
 	src/varcache.c \
 	src/common/base64.c \
 	src/common/saslprep.c \
@@ -53,8 +53,8 @@ pgbouncer_SOURCES = \
 	include/takeover.h \
 	include/util.h \
 	include/pycall.h \
-    include/route_connection.h \
-    include/rewrite_query.h \
+        include/route_connection.h \
+        include/rewrite_query.h \
 	include/varcache.h \
 	include/common/base64.h \
 	include/common/pg_wchar.h \

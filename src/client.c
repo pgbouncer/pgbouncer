@@ -819,8 +819,8 @@ static char* get_search_path(PgSocket *client, PktHdr *pkt)
 	char *search_path = NULL;
 	int number_of_words = 0;
 
-	slog_info(client, "*********Statement String %.30s ***********", query_str);
-    slog_info(client, "*********Query String %.30s ***********", query_str);
+	slog_info(client, "*********Statement String %s ***********", query_str);
+    slog_info(client, "*********Query String %s ***********", query_str);
     if (strstr(query_str, "search_path") != NULL) {
         char *ptr = strtok(query_str, delim);
         while (ptr != NULL){
@@ -876,6 +876,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	    char *search_path = get_search_path(client, pkt);
 	    if (search_path != NULL){
 	        slog_info(client, "Search path of the client: '%s'",search_path);
+	        varcache_set(&client->vars, "search_path", search_path);
 	    }
 	    break;
 	case 'E':		/* Execute */
@@ -913,6 +914,12 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
     if (pkt->type == 'Q' || pkt->type == 'P') {
         if (!rewrite_query(client, pkt)) {
             return false;
+        }
+        schema = varcache_get(&client->vars, "search_path");
+        if (schema != NULL){
+            slog_info(client, "Schema for the query: %s", schema);
+        } else {
+           slog_info(client, "Schema not found for the query");
         }
         route_client_connection(client, pkt);
     }

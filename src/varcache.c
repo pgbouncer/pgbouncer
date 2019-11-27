@@ -80,6 +80,25 @@ set_value:
 	return true;
 }
 
+char* varcache_get(VarCache *cache, const char *key)
+{
+	const struct var_lookup *lk;
+	struct PStr *pstr = NULL;
+
+	if (!vpool) {
+		vpool = strpool_create(USUAL_ALLOC);
+		if (!vpool)
+			return NULL;
+	}
+
+	for (lk = lookup; lk->name; lk++) {
+		if (strcasecmp(lk->name, key) == 0)
+			return cache->var_list[lk->idx];
+	}
+	return NULL;
+}
+
+
 static int apply_var(PktBuf *pkt, const char *key,
 		     const struct PStr *cval,
 		     const struct PStr *sval)

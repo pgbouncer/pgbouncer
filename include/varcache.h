@@ -14,6 +14,7 @@ struct VarCache {
 	struct PStr *var_list[NumVars];
 };
 
+char* varcache_get(VarCache *cache, const char *key);
 bool varcache_set(VarCache *cache, const char *key, const char *value) /* _MUSTCHECK */;
 bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p) _MUSTCHECK;
 void varcache_fill_unset(VarCache *src, PgSocket *dst);

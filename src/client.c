@@ -835,6 +835,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		rfq_delta++;
 		slog_info(client, "Load parameter on client handle_client_work, Packet Type: '%c'",   pkt->type);
 		char *pkt_start = (char *) &sbuf->io->buf[sbuf->io->parse_pos];
+		int i;
 	    printHex(pkt_start, pkt->len);
 	    for(i = 0; i < 30; i++) {
 	        printf("%c", pkt_start[i]);

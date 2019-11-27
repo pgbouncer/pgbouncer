@@ -865,7 +865,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	case 'S':		/* Sync */
 		rfq_delta++;
 		slog_info(client, "Load parameter on client handle_client_work, Packet Type: '%c'",   pkt->type);
-		pkt_start = (char *) &sbuf->io->buf[sbuf->io->parse_pos];
+		char *pkt_start = (char *) &sbuf->io->buf[sbuf->io->parse_pos];
 	    printHex(pkt_start, pkt->len);
 		break;
 	case 'H':		/* Flush */

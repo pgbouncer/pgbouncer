@@ -812,8 +812,6 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 static bool load_parameter(PgSocket *client, PktHdr *pkt)
 {
 	const char *key, *val;
-	PgSocket *client = client->link;
-
 	/*
 	 * Want to see complete packet.  That means SMALL_PKT
 	 * in sbuf.c must be larger than max param pkt.

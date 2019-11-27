@@ -824,7 +824,7 @@ static bool load_parameter(PgSocket *client, PktHdr *pkt)
 	if (!mbuf_get_string(&pkt->data, &val))
 		goto failed;
 	slog_debug(client, "S: param: %s = %s", key, val);
-	varcache_set(&client->vars, key, val);
+	// varcache_set(&client->vars, key, val);
 	return true;
 failed:
 	return false;
@@ -856,7 +856,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		rfq_delta++;
 		 slog_info(client, "Load parameter on client handle_client_work, Packet Type: '%c'",   pkt->type);
 		if (!load_parameter(client, pkt))
-		    slog_error(client, "Load parameter on client handle_client_work, Packet Type: '%c'",   pkt->type);
+		    slog_error(client, "Failed Load packet, Packet Type: '%c'",   pkt->type);
 			return false;
 		break;
 	case 'H':		/* Flush */

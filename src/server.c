@@ -475,7 +475,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 	/* may happen if close failed */
 	if (server->state == SV_JUSTFREE)
 		return false;
-    slog_info(server, "1. Reading data from server : %d", evtype);
+
 	switch (evtype) {
 	case SBUF_EV_RECV_FAILED:
 		disconnect_server(server, false, "server conn crashed?");
@@ -509,7 +509,6 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		case SV_USED:
 		case SV_ACTIVE:
 		case SV_IDLE:
-		    slog_info(server, "2. Reading data from server : %d", evtype);
 			res = handle_server_work(server, &pkt);
 			break;
 		default:

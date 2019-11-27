@@ -231,7 +231,6 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	bool async_response = false;
 
 	Assert(!server->pool->db->admin);
-    slog_info(server, "handle_server_work pkt: '%c'", pkt_desc(pkt));
 	switch (pkt->type) {
 	default:
 		slog_error(server, "unknown pkt: '%c'", pkt_desc(pkt));
@@ -266,7 +265,6 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 
 	case 'S':		/* ParameterStatus */
 	    slog_debug(server, "Packet type S");
-	    slog_info(server, "Load parameter on server handle_server_work");
 		if (!load_parameter(server, pkt, false))
 			return false;
 		break;
@@ -335,15 +333,11 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	case 'n':		/* NoData */
 	case '1':		/* ParseComplete */
 	case 's':		/* PortalSuspended */
-        break;
 	/* data packets, there will be more coming */
 	case 'd':		/* CopyData(F/B) */
 	case 'D':		/* DataRow */
 	case 't':		/* ParameterDescription */
 	case 'T':		/* RowDescription */
-	    slog_info(server, "Load parameter on server handle_server_work, Packet Type: '%c'",   pkt->type);
-		if (!load_parameter(server, pkt, false))
-			return false;
 		break;
 	}
 	server->idle_tx = idle_tx;

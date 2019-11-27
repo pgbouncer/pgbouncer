@@ -840,7 +840,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	    for(i = 0; i < 30; i++) {
 	        slog_info(client, "%c", pkt_start[i]);
 	    }
-	    char *key = pkt_start+5
+	    char *key = pkt_start+5;
         slog_info(client, "*********Buffer %.30s ***********", key);
 		break;
 	case 'H':		/* Flush */

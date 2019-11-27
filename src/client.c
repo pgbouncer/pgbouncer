@@ -809,6 +809,31 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 	return true;
 }
 
+static char* get_search_path(PgSocket *client, PktHdr *pkt)
+{
+    SBuf *sbuf = &client->sbuf;
+	char *pkt_start = (char *) &sbuf->io->buf[sbuf->io->parse_pos];
+	char delim[] = " ";
+	char *stmt_str = pkt_start + 5;
+	char *query_str = stmt_str + strlen(stmt_str) + 1;
+	char *search_path = NULL;
+	int number_of_words = 0;
+
+	slog_info(client, "*********Statement String %.30s ***********", query_str);
+    slog_info(client, "*********Query String %.30s ***********", query_str);
+    if (strstr(query_str, "search_path") != NULL) {
+        char *ptr = strtok(query_str, delim);
+        while (ptr != NULL){
+            number_of_words++;
+            if (number_of_words == 4){
+                search_path = ptr;
+            }
+            ptr = strtok(NULL, delim);
+        }
+    }
+    return search_path;
+}
+
 /* decide on packets of logged-in client */
 static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 {
@@ -833,15 +858,6 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	/* request immediate response from server */
 	case 'S':		/* Sync */
 		rfq_delta++;
-		slog_info(client, "Load parameter on client handle_client_work, Packet Type: '%c'",   pkt->type);
-		char *pkt_start = (char *) &sbuf->io->buf[sbuf->io->parse_pos];
-		int i;
-	    printHex(pkt_start, pkt->len);
-	    for(i = 0; i < 30; i++) {
-	        slog_info(client, "%c", pkt_start[i]);
-	    }
-	    char *key = pkt_start+5;
-        slog_info(client, "*********Buffer %.30s ***********", key);
 		break;
 	case 'H':		/* Flush */
 		break;
@@ -856,6 +872,12 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	 * to buffer packets until sync or flush is sent by client
 	 */
 	case 'P':		/* Parse */
+	    slog_info(client, "Load parameter on client handle_client_work, Packet Type: '%c'",   pkt->type);
+	    char *search_path = get_search_path(client, pkt);
+	    if (search_path != NULL){
+	        slog_info(client, "Search path of the client: '%s'",search_path);
+	    }
+	    break;
 	case 'E':		/* Execute */
 	case 'C':		/* Close */
 	case 'B':		/* Bind */

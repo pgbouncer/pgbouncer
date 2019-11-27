@@ -838,10 +838,10 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		int i;
 	    printHex(pkt_start, pkt->len);
 	    for(i = 0; i < 30; i++) {
-	        slog_info("%c", pkt_start[i]);
+	        slog_info(client, "%c", pkt_start[i]);
 	    }
 	    char *key = pkt_start+5
-        slog_info("*********Buffer %.30s ***********",key);
+        slog_info(client, "*********Buffer %.30s ***********", key);
 		break;
 	case 'H':		/* Flush */
 		break;

@@ -809,26 +809,35 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 	return true;
 }
 
-static bool load_parameter(PgSocket *client, PktHdr *pkt)
-{
-	const char *key, *val;
-	/*
-	 * Want to see complete packet.  That means SMALL_PKT
-	 * in sbuf.c must be larger than max param pkt.
-	 */
-	if (incomplete_pkt(pkt))
-		return false;
-
-	if (!mbuf_get_string(&pkt->data, &key))
-		goto failed;
-	if (!mbuf_get_string(&pkt->data, &val))
-		goto failed;
-	slog_debug(client, "S: param: %s = %s", key, val);
-	// varcache_set(&client->vars, key, val);
-	return true;
-failed:
-    slog_debug(client, "Broken parameter S from client");
-	return false;
+/* Packet dump for debugging */
+void printHex(void *buffer, const unsigned int n) {
+	char* data = (char*) buffer;
+	unsigned int i = 0;
+	char line[17] = { };
+	printf("%.8lX | ", (uintptr_t) data);
+	while (i < n) {
+		line[i % 16] = *(data + i);
+		if ((line[i % 16] < 32) || (line[i % 16] > 126)) {
+			line[i % 16] = '.';
+		}
+		printf("%.2X", (unsigned char) *(data + i));
+		i++;
+		if (i % 4 == 0) {
+			if (i % 16 == 0) {
+				if (i < n - 1)
+					printf(" | %s\n%.8lX | ", (char *) &line,
+							(uintptr_t) data + i);
+			} else {
+				printf(" ");
+			}
+		}
+	}
+	while (i % 16 > 0) {
+		(i % 4 == 0) ? printf("   ") : printf("  ");
+		line[i % 16] = ' ';
+		i++;
+	}
+	printf(" | %s\n", (char *) &line);
 }
 
 /* decide on packets of logged-in client */
@@ -855,10 +864,9 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	/* request immediate response from server */
 	case 'S':		/* Sync */
 		rfq_delta++;
-		 slog_info(client, "Load parameter on client handle_client_work, Packet Type: '%c'",   pkt->type);
-		if (!load_parameter(client, pkt))
-		    slog_error(client, "Failed Load packet, Packet Type: '%c'",   pkt->type);
-			return false;
+		slog_info(client, "Load parameter on client handle_client_work, Packet Type: '%c'",   pkt->type);
+		pkt_start = (char *) &sbuf->io->buf[sbuf->io->parse_pos];
+	    printHex(pkt_start, pkt->len);
 		break;
 	case 'H':		/* Flush */
 		break;

@@ -457,11 +457,8 @@ static void set_appname(PgSocket *client, const char *app_name)
 
 static void set_search_path(PgSocket *client, const char *search_path)
 {
-	char buf[400], abuf[300];
-	const char *details;
-
 	if (search_path) {
-		slog_debug(client, "using application_name: %s", search_path);
+		slog_debug(client, "using search path: %s", search_path);
 		varcache_set(&client->vars, "search_path", search_path);
 	}
 }
@@ -839,6 +836,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 {
 	SBuf *sbuf = &client->sbuf;
 	int rfq_delta = 0;
+	char *schema = NULL;
 
 	switch (pkt->type) {
 

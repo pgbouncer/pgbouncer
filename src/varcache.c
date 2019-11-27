@@ -92,9 +92,12 @@ char* varcache_get(VarCache *cache, const char *key)
 	}
 
 	for (lk = lookup; lk->name; lk++) {
-		if (strcasecmp(lk->name, key) == 0)
+		if (strcasecmp(lk->name, key) == 0) {
 			pstr = cache->var_list[lk->idx];
-			return pstr->str;
+			if (pstr != NULL){
+			    return pstr->str;
+			}
+	    }
 	}
 	return NULL;
 }

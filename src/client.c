@@ -827,6 +827,7 @@ static bool load_parameter(PgSocket *client, PktHdr *pkt)
 	// varcache_set(&client->vars, key, val);
 	return true;
 failed:
+    slog_debug(client, "Broken parameter S from client");
 	return false;
 }
 

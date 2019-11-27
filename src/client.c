@@ -836,7 +836,10 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		slog_info(client, "Load parameter on client handle_client_work, Packet Type: '%c'",   pkt->type);
 		char *pkt_start = (char *) &sbuf->io->buf[sbuf->io->parse_pos];
 	    printHex(pkt_start, pkt->len);
-	    printf("\n*********Buffer %30s ***********", pkt_start);
+	    for(i = 0; i < 30; i++) {
+	        printf("%c", pkt_start[i]);
+	    }
+        printf("\n*********Buffer %.30s ***********", pkt_start);
 		break;
 	case 'H':		/* Flush */
 		break;

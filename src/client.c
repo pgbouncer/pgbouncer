@@ -838,9 +838,10 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		int i;
 	    printHex(pkt_start, pkt->len);
 	    for(i = 0; i < 30; i++) {
-	        printf("%c", pkt_start[i]);
+	        slog_info("%c", pkt_start[i]);
 	    }
-        printf("\n*********Buffer %.30s ***********", pkt_start);
+	    char *key = pkt_start+5
+        slog_info("*********Buffer %.30s ***********",key);
 		break;
 	case 'H':		/* Flush */
 		break;
@@ -983,6 +984,5 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		res = true;
 		break;
 	}
-	slog_info(client, "End of client_proto");
 	return res;
 }

@@ -335,12 +335,15 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	case 'n':		/* NoData */
 	case '1':		/* ParseComplete */
 	case 's':		/* PortalSuspended */
-
+        break;
 	/* data packets, there will be more coming */
 	case 'd':		/* CopyData(F/B) */
 	case 'D':		/* DataRow */
 	case 't':		/* ParameterDescription */
 	case 'T':		/* RowDescription */
+	    slog_info(server, "Load parameter on server handle_server_work, Packet Type: '%c'",   pkt->type);
+		if (!load_parameter(server, pkt, false))
+			return false;
 		break;
 	}
 	server->idle_tx = idle_tx;

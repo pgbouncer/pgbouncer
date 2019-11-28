@@ -924,6 +924,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
         } else {
            slog_info(client, "Schema not found for the query");
         }
+        // route_client_connection(client, pkt, schema);
         route_client_connection(client, pkt, schema);
     }
 

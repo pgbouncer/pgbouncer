@@ -837,6 +837,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	SBuf *sbuf = &client->sbuf;
 	int rfq_delta = 0;
 	char *schema = NULL;
+	char *search_path = NULL;
 
 	switch (pkt->type) {
 
@@ -847,7 +848,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 			disconnect_client(client, true, "PQexec disallowed");
 			return false;
 		}
-		char *search_path = get_search_path(client, pkt);
+		search_path = get_search_path(client, pkt);
 	    if (search_path != NULL){
 	        slog_info(client, "Search path of the client: '%s'",search_path);
 	        varcache_set(&client->vars, "search_path", search_path);
@@ -876,7 +877,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	 */
 	case 'P':		/* Parse */
 	    slog_info(client, "Load parameter on client handle_client_work, Packet Type: '%c'",   pkt->type);
-	    char *search_path = get_search_path(client, pkt);
+	    search_path = get_search_path(client, pkt);
 	    if (search_path != NULL){
 	        slog_info(client, "Search path of the client: '%s'",search_path);
 	        varcache_set(&client->vars, "search_path", search_path);

@@ -61,6 +61,12 @@ Group name to use for Unix socket.
 
 Default: not set
 
+### krb_server_keyfile
+
+Path to the Kerberos service keytab.
+
+Default: /etc/krb5.keytab
+
 ### user
 
 If set, specifies the Unix user to change to after startup. Works only if
@@ -113,6 +119,12 @@ scram-sha-256
     can only be used for verifying the password of a client but not
     for logging into a server.  To be able to use SCRAM on server
     connections, use plain-text passwords.
+
+gss
+:   Use GSSAPI to authenticate. `auth_file` has to contain usnernames, but
+    can have empty passwords. Note that GSSAPI can only be used for
+    authenticating users, and will not be forwared to authenticate users in
+    PostgreSQL.
 
 plain
 :   The clear-text password is sent over the wire.  Deprecated.

@@ -811,12 +811,17 @@ static char* get_search_path(PgSocket *client, PktHdr *pkt)
     SBuf *sbuf = &client->sbuf;
 	char *pkt_start = (char *) &sbuf->io->buf[sbuf->io->parse_pos];
 	char delim[] = " ";
-	char *stmt_str = pkt_start + 5;
-	char *query_str = stmt_str + strlen(stmt_str) + 1;
+	char *stmt_str = NULL;
+	char *query_str = NULL;
 	char *search_path = NULL;
 	int number_of_words = 0;
 
-	slog_info(client, "*********Statement String %s ***********", query_str);
+	if (pkt->type == 'Q') {
+		query_str = (char *) pkt_start + 5;
+	} else if (pkt->type == 'P') {
+		stmt_str = pkt_start + 5;
+		query_str = stmt_str + strlen(stmt_str) + 1;
+	}
     slog_info(client, "*********Query String %s ***********", query_str);
     if (strstr(query_str, "search_path") != NULL) {
         char *ptr = strtok(query_str, delim);

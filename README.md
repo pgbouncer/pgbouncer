@@ -18,6 +18,7 @@ PgBouncer depends on few things to get compiled:
 * [OpenSSL] 1.0.1+ for TLS support
 * (optional) [c-ares] as alternative to Libevent's evdns
 * (optional) PAM libraries
+* (optional) GSSAPI libraries
 
 [GNU Make]: https://www.gnu.org/software/make/
 [Libevent]: http://libevent.org/
@@ -73,6 +74,26 @@ PAM authentication
 To enable PAM authentication, `./configure` has a flag `--with-pam`
 (default value is no).  When compiled with PAM support, a new global
 authentication type `pam` is available to validate users through PAM.
+
+GSSAPI authentication
+---------------------
+
+To enable GSSAPI authentication, `./configure` has a flag `--with-gss`
+(default value is no).  When compiled with GSSAPI support a new global
+authentication type 'gss' is available to validate users through GSSAPI
+and Kerberos. This require a correctly configured Kerberized environment.
+
+To enable GSSAPI in run-time the `auth_type` should be set to `gss` and
+the `krb_server_keyfile` should be assigned the full path to the service
+keytab (usually the 'postgres' service). It can be accessed using
+PGBouncer directly, given that the process user has read access to that
+file, or if GSSProxy is configured properly it should be able to protect
+against privilege escalation.
+
+This authentication does not delegate the user identity to PostgreSQL, but
+if the connections between PGBouncer and PostgreSQL are set-up in safe
+enough way a trust relationship could enable an end-to-end user identity
+propagation.
 
 Building from Git
 -----------------

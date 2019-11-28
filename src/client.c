@@ -1,7 +1,7 @@
 /*
  * PgBouncer - Lightweight connection pooler for PostgreSQL.
  *
- * Copyright (c) 2007-2009  Marko Kreen, Skype Technologies OÃœ
+ * Copyright (c) 2007-2009  Marko Kreen, Skype Technologies OÜ
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -82,7 +82,11 @@ static bool send_client_authreq(PgSocket *client)
 		SEND_generic(res, client, 'R', "i", AUTH_PLAIN);
 	} else if (auth_type == AUTH_SCRAM_SHA_256) {
 		SEND_generic(res, client, 'R', "iss", AUTH_SASL, "SCRAM-SHA-256", "");
-	} else {
+#ifdef HAVE_GSS
+	} else if (auth_type == AUTH_GSS) {
+                SEND_generic(res, client, 'R', "i", AUTH_GSS);
+#endif
+        } else {
 		return false;
 	}
 
@@ -229,8 +233,11 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	case AUTH_MD5:
 	case AUTH_PAM:
 	case AUTH_SCRAM_SHA_256:
+#ifdef HAVE_GSS
+        case AUTH_GSS:
+#endif
 		ok = send_client_authreq(client);
-		break;
+                break;
 	case AUTH_CERT:
 		ok = login_via_cert(client);
 		break;
@@ -617,6 +624,243 @@ failed:
 	return false;
 }
 
+#ifdef HAVE_GSS
+
+/* Convenience macro */
+#define goto_ret(LABEL) log_debug(#LABEL); retval = LABEL; goto LABEL
+
+static int gssapi_acquire_credentials(char* service_name,
+                                      gss_cred_id_t* server_credentials,
+                                      char* hostname, char* keytab)
+{
+  enum {
+    ok = 0,
+    malloc_failed = -1,
+    gss_import_name_failed = -2,
+    gss_acquire_cred_from_failed = -3
+  };
+  int retval = ok;
+  gss_name_t server_name = NULL;
+  OM_uint32 min_stat;
+  OM_uint32 maj_stat;
+
+  gss_key_value_element_desc ccache_element = {.key = "ccache", .value = NULL}; /* Just prepare for delefagation to PostgreSQL */
+  gss_key_value_element_desc keytab_element = {.key = "keytab", .value = keytab};
+  gss_key_value_element_desc elements[2];
+  gss_key_value_set_desc cred_store = {.elements = &ccache_element, .count = 1};
+  gss_OID_set mech_set = GSS_C_NO_OID_SET;
+  gss_cred_usage_t cred_usage = GSS_C_INITIATE;
+  char* service_princ_name;
+  gss_buffer_desc buf_name;
+
+  mech_set = GSS_C_NULL_OID_SET;
+
+  service_princ_name = malloc(strlen(service_name) + strlen("/") + strlen(hostname) + 1);
+  if (NULL == service_princ_name) {
+    goto_ret(malloc_failed);
+  }
+  sprintf(service_princ_name, "%s/%s", service_name, hostname);
+  log_debug("Importing service name for '%s'", service_princ_name);
+
+  buf_name.length = strlen(service_princ_name);
+  buf_name.value = service_princ_name;
+
+  if (GSS_S_COMPLETE != gss_import_name(&min_stat, &buf_name, GSS_KRB5_NT_PRINCIPAL_NAME, &server_name)) {
+    goto_ret(gss_import_name_failed);
+  }
+
+  if (NULL != keytab) {
+    elements[0] = ccache_element;
+    elements[1] = keytab_element;
+    cred_store.count = 2;
+    cred_store.elements = elements;
+    cred_usage = GSS_C_BOTH;
+
+    cred_usage = GSS_C_ACCEPT;
+
+    log_debug("Acquire creds from:");
+    log_debug("   %s %s", elements[0].key, elements[0].value);
+    log_debug("   %s %s", elements[1].key, elements[1].value);
+
+    maj_stat = gss_acquire_cred_from(&min_stat,
+                                     server_name,
+                                     GSS_C_INDEFINITE,
+                                     mech_set,
+                                     cred_usage,
+                                     &cred_store,
+                                     server_credentials,
+                                     NULL,
+                                     NULL);
+  }
+  else {
+
+    cred_usage = GSS_C_ACCEPT;
+
+    log_debug("Acquireing GSS creds");
+
+    maj_stat = gss_acquire_cred(&min_stat,
+                                server_name,
+                                GSS_C_INDEFINITE,
+                                mech_set,
+                                cred_usage,
+                                server_credentials,
+                                NULL,
+                                NULL);
+  }
+
+  if (GSS_S_COMPLETE != maj_stat) {
+    goto_ret(gss_acquire_cred_from_failed);
+  }
+
+ gss_acquire_cred_from_failed:
+  gss_release_name(&min_stat, &server_name);
+ gss_import_name_failed:
+  free(service_princ_name);
+ malloc_failed:
+  return retval;
+}
+
+
+static int gssapi_establish_context(PgSocket *clnt, PktHdr *pkt,
+                                    gss_cred_id_t server_credentials,
+                                    gss_ctx_id_t* context, gss_buffer_t client_name,
+                                    OM_uint32* ret_flags,
+                                    gss_cred_id_t* delegated_credentials,
+                                    const char* service_name, char **ccname)
+{
+  enum {
+    ok = 0,
+    send_token_failed = -1,
+    no_content = -2,
+    gss_accept_sec_context_failed = -3,
+    gss_release_name_failed = -4
+  };
+  int retval = ok;
+  gss_buffer_desc send_tok;
+  gss_name_t client;
+  gss_OID doid;
+  OM_uint32 maj_stat, min_stat, acc_sec_min_stat;
+  uint8_t* token;
+  uint32_t length;
+  gss_buffer_desc gbuf;
+
+  if (GSS_INITIAL == clnt->gss.state) {
+    *context = GSS_C_NO_CONTEXT;
+  }
+
+  length = mbuf_avail_for_read(&pkt->data);
+
+  /*
+   * Get the tooken that the client sends as part of the context
+   * initialization process.
+   */
+  if (!mbuf_get_bytes(&pkt->data, length, (const uint8_t **)&token)) {
+    log_debug("Unable to get %d bytes", length);
+    return false;
+  }
+  gbuf.length = length;
+  gbuf.value = token;
+
+  log_debug("Received GSSAPI token.");
+
+  /* Accept the context. */
+  maj_stat = gss_accept_sec_context(&acc_sec_min_stat,
+                                    context,
+                                    server_credentials,
+                                    &gbuf,
+                                    GSS_C_NO_CHANNEL_BINDINGS,
+                                    &client,
+                                    &doid,
+                                    &send_tok,
+                                    ret_flags,
+                                    NULL,
+                                    delegated_credentials);
+
+  log_debug("Evaluation of GSSAPI token");
+
+  if (GSS_S_COMPLETE != maj_stat) {
+    goto_ret(gss_accept_sec_context_failed);
+  }
+
+  /* Send back token to the client, if expected to do so. */
+  if (0 != send_tok.length) {
+    PktBuf _buf;
+    int res;
+    uint8_t _data[512];
+
+    log_debug("Acknowledged and returing token to client");
+
+    /* Construct a custom response with the token */
+    pktbuf_static(&_buf, _data, sizeof(_data));
+    pktbuf_put_char(&_buf, 'R');
+    pktbuf_put_uint32(&_buf, send_tok.length + 4 + 4);
+    pktbuf_put_uint32(&_buf, AUTH_GSS_CONT);
+    pktbuf_put_bytes(&_buf, send_tok.value, send_tok.length);
+
+    if (false == (res = pktbuf_send_immediate(&_buf, clnt))) {
+      goto_ret(send_token_failed);
+    }
+
+    gss_release_buffer(&min_stat, &send_tok);
+  }
+
+  if ((GSS_S_COMPLETE != maj_stat) && (GSS_S_CONTINUE_NEEDED != maj_stat)) {
+    if (GSS_C_NO_CONTEXT == *context) {
+      log_debug("No content");
+      gss_delete_sec_context(&min_stat, context, GSS_C_NO_BUFFER);
+      return no_content;
+    }
+  }
+
+  if (GSS_S_CONTINUE_NEEDED == maj_stat) {
+    clnt->gss.state = GSS_CONTINUE;
+    log_debug("Will run GSSAPI continuation in another pass later");
+  }
+  else {
+    clnt->gss.state = GSS_DONE;
+
+    if (*ret_flags & GSS_C_DELEG_FLAG)
+      log_debug("context flag: GSS_C_DELEG_FLAG");
+    if (*ret_flags & GSS_C_MUTUAL_FLAG)
+      log_debug("context flag: GSS_C_MUTUAL_FLAG");
+    if (*ret_flags & GSS_C_REPLAY_FLAG)
+      log_debug("context flag: GSS_C_REPLAY_FLAG");
+    if (*ret_flags & GSS_C_SEQUENCE_FLAG)
+      log_debug("context flag: GSS_C_SEQUENCE_FLAG");
+    if (*ret_flags & GSS_C_CONF_FLAG )
+      log_debug("context flag: GSS_C_CONF_FLAG");
+    if (*ret_flags & GSS_C_INTEG_FLAG )
+      log_debug("context flag: GSS_C_INTEG_FLAG");
+
+    if (GSS_C_NO_CREDENTIAL != *delegated_credentials) {
+      log_debug("Have delegated credentials for service %s user %s, "
+                "local storage is not supported yet.",
+                service_name, (char*)client_name->value);
+      /* Not implemented yet */
+    }
+    else {
+      log_debug("No delegated credentials."); /* Just for the info */
+    }
+
+    if (GSS_S_COMPLETE != gss_release_name(&min_stat, &client)) {
+      goto_ret(gss_release_name_failed);
+    }
+  }
+
+ gss_release_name_failed:
+ send_token_failed:
+ gss_accept_sec_context_failed:
+
+  /* Clean-up the security context */
+  gss_delete_sec_context(&min_stat, context, GSS_C_NO_BUFFER);
+  return retval;
+}
+
+#undef goto_ret
+
+#endif
+
+
 /* decide on packets of client in login phase */
 static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 {
@@ -747,6 +991,45 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 					return false;
 				}
 			}
+#ifdef HAVE_GSS
+                } else if (client->client_auth_type == AUTH_GSS) {
+                        /* Server credentials (keytab context) might be better to store once globally
+                         * but this encapsulation feels safer, currently */
+                        if (GSS_C_NO_CREDENTIAL == client->gss.server_credentials) {
+                                char hostname[1024];
+                                struct hostent* h;
+                                hostname[1023] = '\0';
+                                gethostname(hostname, 1023);
+                                h = gethostbyname(hostname);
+                                if (0 != gssapi_acquire_credentials("postgres",
+                                                                    &client->gss.server_credentials,
+                                                                    h->h_name,
+                                                                    cf_krb_server_keyfile)) {
+                                        disconnect_client(client, true, "acquring GSS credentials failed");
+                                        return false;
+                                }
+                        }
+
+                        /* Interpret the received security context */
+                        if (0 != gssapi_establish_context(client,
+                                                          pkt,
+                                                          client->gss.server_credentials,
+                                                          &client->gss.ctx,
+                                                          &client->gss.client_name,
+                                                          &client->gss.flags,
+                                                          &client->gss.delegated_credentials,
+                                                          "postgres",
+                                                          NULL))
+                        {
+                                disconnect_client(client, true, "accepting GSS security context failed");
+                                return false;
+                        }
+
+                        /* All good */
+                        if (!finish_client_login(client)) {
+                          return false;
+                        }
+#endif
 		} else {
 			/* process as PasswordMessage */
 			ok = mbuf_get_string(&pkt->data, &passwd);
@@ -772,6 +1055,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		}
 		break;
 	case PKT_CANCEL:
+          fprintf(stderr, "DEBUG: PKT_CANCEL\n");
 		if (mbuf_avail_for_read(&pkt->data) == BACKENDKEY_LEN
 		    && mbuf_get_bytes(&pkt->data, BACKENDKEY_LEN, &key))
 		{
@@ -795,7 +1079,6 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 {
 	SBuf *sbuf = &client->sbuf;
 	int rfq_delta = 0;
-
 	switch (pkt->type) {
 
 	/* one-packet queries */

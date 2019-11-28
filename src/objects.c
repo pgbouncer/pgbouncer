@@ -1,7 +1,7 @@
 /*
  * PgBouncer - Lightweight connection pooler for PostgreSQL.
  *
- * Copyright (c) 2007-2009  Marko Kreen, Skype Technologies OÃœ
+ * Copyright (c) 2007-2009  Marko Kreen, Skype Technologies OÜ
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -895,6 +895,16 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 	char buf[128];
 	va_list ap;
 	usec_t now = get_cached_time();
+#ifdef HAVE_GSS
+        OM_uint32 min_stat;
+        /* Server credentials (keytab context) might be better to store once globally
+         * but this encapsulation feels safer, currently */
+        if ((GSS_C_NO_CREDENTIAL != client->gss.server_credentials) &&
+            (client->client_auth_type == AUTH_GSS)) {
+                slog_debug(client, "Cleaning up GSSAPI server credentials");
+                gss_release_cred(&min_stat, &client->gss.server_credentials);
+        }
+#endif
 
 	va_start(ap, reason);
 	vsnprintf(buf, sizeof(buf), reason, ap);

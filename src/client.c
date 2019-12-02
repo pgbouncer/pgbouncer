@@ -835,7 +835,11 @@ static char* get_search_path(PgSocket *client, PktHdr *pkt)
             ptr = strtok(NULL, delim);
         }
     }
-    slog_info(client, "*********Search Path String %s ***********", search_path_buf);
+    if (search_path_buf != NULL) {
+        slog_info(client, "*********Search Path String %s ***********", search_path_buf);
+    } else {
+        slog_info(client, "*********Search Path String is NULL ***********");
+    }
     return search_path_buf;
 }
 
@@ -857,7 +861,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 			return false;
 		}
 		search_path = get_search_path(client, pkt);
-	    if (strlen(search_path) == 0){
+	    if (search_path != NULL){
 	        slog_info(client, "Search path of the client: '%s'",search_path);
 	        varcache_set(&client->vars, "search_path", search_path);
 	    }
@@ -886,7 +890,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	case 'P':		/* Parse */
 	    slog_info(client, "Load parameter on client handle_client_work, Packet Type: '%c'",   pkt->type);
 	    search_path = get_search_path(client, pkt);
-	    if (strlen(search_path) == 0){
+	    if (search_path  != NULL){
 	        slog_info(client, "Search path of the client: '%s'",search_path);
 	        varcache_set(&client->vars, "search_path", search_path);
 	    }

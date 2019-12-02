@@ -120,6 +120,30 @@ static bool add_listen(int af, const struct sockaddr *sa, int salen)
 	}
 #endif
 
+	/*
+	 * If configured, set SO_REUSEPORT or equivalent.  If it's not
+	 * enabled, just leave the socket alone.  (We could also unset
+	 * the socket option in that case, but this area is fairly
+	 * unportable, so perhaps better to avoid it.)
+	 */
+	if (af != AF_UNIX && cf_so_reuseport) {
+#if defined(SO_REUSEPORT)
+		int val = 1;
+		errpos = "setsockopt/SO_REUSEPORT";
+		res = setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val));
+		if (res < 0)
+			goto failed;
+#elif defined(SO_REUSEPORT_LB)
+		int val = 1;
+		errpos = "setsockopt/SO_REUSEPORT_LB";
+		res = setsockopt(sock, SOL_SOCKET, SO_REUSEPORT_LB, &val, sizeof(val));
+		if (res < 0)
+			goto failed;
+#else
+		fatal("so_reuseport not supported on this platform");
+#endif
+	}
+
 	/* bind it */
 	errpos = "bind";
 	res = bind(sock, sa, salen);
@@ -244,7 +268,7 @@ void pooler_tune_accept(bool on)
 	}
 }
 
-static void err_wait_func(int sock, short flags, void *arg)
+static void err_wait_func(evutil_socket_t sock, short flags, void *arg)
 {
 	if (cf_pause_mode != P_SUSPEND)
 		resume_pooler();
@@ -275,7 +299,7 @@ static const char *conninfo(const PgSocket *sk)
 }
 
 /* got new connection, associate it with client struct */
-static void pool_accept(int sock, short flags, void *arg)
+static void pool_accept(evutil_socket_t sock, short flags, void *arg)
 {
 	struct ListenSocket *ls = arg;
 	int fd;

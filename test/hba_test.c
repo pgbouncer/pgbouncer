@@ -8,7 +8,8 @@
 #include <usual/mbuf.h>
 #include <usual/socket.h>
 #include <usual/err.h>
-#include <usual/event.h>
+
+#include <event.h>
 
 int cf_tcp_keepcnt;
 int cf_tcp_keepintvl;

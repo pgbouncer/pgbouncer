@@ -6,7 +6,7 @@
     pgbouncer [-d][-R][-v][-u user] <pgbouncer.ini>
     pgbouncer -V|-h
 
-On Windows computers, the options are:
+On Windows, the options are:
 
     pgbouncer.exe [-v][-u user] <pgbouncer.ini>
     pgbouncer.exe -V|-h
@@ -32,20 +32,20 @@ rotating connections:
 
 Session pooling
 
-:   Most polite method. When client connects, a server connection will
+:   Most polite method. When a client connects, a server connection will
     be assigned to it for the whole duration the client stays connected. When
     the client disconnects, the server connection will be put back into the pool.
     This is the default method.
 
 Transaction pooling
 
-:   A server connection is assigned to client only during a transaction.
+:   A server connection is assigned to a client only during a transaction.
     When PgBouncer notices that transaction is over, the server connection
     will be put back into the pool.
 
 Statement pooling
 
-:   Most aggressive method. The server connection will be put back into
+:   Most aggressive method. The server connection will be put back into the
     pool immediately after a query completes. Multi-statement
     transactions are disallowed in this mode as they would break.
 
@@ -55,7 +55,7 @@ database **pgbouncer**.
 
 ## Quick-start
 
-Basic setup and usage as following.
+Basic setup and usage is as follows.
 
 1. Create a pgbouncer.ini file.  Details in **pgbouncer(5)**.  Simple example:
 
@@ -63,7 +63,7 @@ Basic setup and usage as following.
         template1 = host=127.0.0.1 port=5432 dbname=template1
 
         [pgbouncer]
-        listen_port = 6543
+        listen_port = 6432
         listen_addr = 127.0.0.1
         auth_type = md5
         auth_file = userlist.txt
@@ -71,7 +71,7 @@ Basic setup and usage as following.
         pidfile = pgbouncer.pid
         admin_users = someuser
 
-2. Create `userlist.txt` file that contains users allowed in:
+2. Create a `userlist.txt` file that contains the users allowed in:
 
         "someuser" "same_password_as_in_server"
 
@@ -80,14 +80,14 @@ Basic setup and usage as following.
         $ pgbouncer -d pgbouncer.ini
 
 4. Have your application (or the **psql** client) connect to
-   **pgbouncer** instead of directly to PostgreSQL server:
+   **pgbouncer** instead of directly to the PostgreSQL server:
 
-        $ psql -p 6543 -U someuser template1
+        $ psql -p 6432 -U someuser template1
 
 5. Manage **pgbouncer** by connecting to the special administration
    database **pgbouncer** and issuing `SHOW HELP;` to begin:
 
-        $ psql -p 6543 -U someuser pgbouncer
+        $ psql -p 6432 -U someuser pgbouncer
         pgbouncer=# SHOW HELP;
         NOTICE:  Console usage
         DETAIL:
@@ -107,15 +107,15 @@ Basic setup and usage as following.
 ## Command line switches
 
 -d
-:   Run in background. Without it the process will run in foreground.
-    Note: Does not work on Windows, **pgbouncer** need to run as service there.
+:   Run in the background. Without it, the process will run in the foreground.
+    Note: Does not work on Windows; **pgbouncer** need to run as service there.
 
 -R
 :   Do an online restart. That means connecting to the running process,
     loading the open sockets from it, and then using them.  If there
     is no active process, boot normally.
     Note: Works only if OS supports Unix sockets and the `unix_socket_dir`
-    is not disabled in config.  Does not work on Windows machines.
+    is not disabled in configuration.  Does not work on Windows.
     Does not work with TLS connections, they are dropped.
 
 -u user
@@ -125,7 +125,7 @@ Basic setup and usage as following.
 :   Increase verbosity.  Can be used multiple times.
 
 -q
-:   Be quiet - do not log to stdout.  Note this does not affect
+:   Be quiet: do not log to stdout.  This does not affect
     logging verbosity, only that stdout is not to be used.
     For use in init.d scripts.
 
@@ -137,7 +137,7 @@ Basic setup and usage as following.
 
 --regservice
 :   Win32: Register pgbouncer to run as Windows service.  The **service_name**
-    config parameter value is used as name to register under.
+    configuration parameter value is used as the name to register under.
 
 --unregservice
 :   Win32: Unregister Windows service.
@@ -147,14 +147,14 @@ Basic setup and usage as following.
 The console is available by connecting as normal to the
 database **pgbouncer**:
 
-    $ psql -p 6543 pgbouncer
+    $ psql -p 6432 pgbouncer
 
-Only users listed in configuration parameters **admin_users** or **stats_users**
-are allowed to login to the console.  (Except when `auth_type=any`, then
+Only users listed in the configuration parameters **admin_users** or **stats_users**
+are allowed to log in to the console.  (Except when `auth_type=any`, then
 any user is allowed in as a stats_user.)
 
-Additionally, the username **pgbouncer** is allowed to log in without password,
-if the login comes via Unix socket and the client has same Unix user UID
+Additionally, the user name **pgbouncer** is allowed to log in without password,
+if the login comes via the Unix socket and the client has same Unix user UID
 as the running process.
 
 ### Show commands
@@ -191,7 +191,7 @@ total_query_time
     connected to PostgreSQL, executing queries.
 
 total_wait_time
-:   Time spent by clients waiting for a server in microseconds.
+:   Time spent by clients waiting for a server, in microseconds.
 
 avg_xact_count
 :   Average transactions per second in last stat period.
@@ -206,13 +206,13 @@ avg_sent
 :   Average sent (to clients) bytes per second.
 
 avg_xact_time
-:   Average transaction duration in microseconds.
+:   Average transaction duration, in microseconds.
 
 avg_query_time
-:   Average query duration in microseconds.
+:   Average query duration, in microseconds.
 
 avg_wait_time
-:   Time spent by clients waiting for a server in microseconds (average
+:   Time spent by clients waiting for a server, in microseconds (average
     per second).
 
 #### SHOW STATS_TOTALS
@@ -282,9 +282,9 @@ link
 remote_pid
 :   PID of backend server process.  In case connection is made over
     Unix socket and OS supports getting process ID info, its
-    OS PID.  Otherwise it's extracted from cancel packet server sent,
-    which should be PID in case server is PostgreSQL, but it's a random
-    number in case server it is another PgBouncer.
+    OS PID.  Otherwise it's extracted from cancel packet the server sent,
+    which should be the PID in case the server is PostgreSQL, but it's a random
+    number in case the server it is another PgBouncer.
 
 tls
 :   A string with TLS connection information, or empty if not using TLS.
@@ -359,29 +359,29 @@ cl_active
 :   Client connections that are linked to server connection and can process queries.
 
 cl_waiting
-:   Client connections have sent queries but have not yet got a server connection.
+:   Client connections that have sent queries but have not yet got a server connection.
 
 sv_active
-:   Server connections that linked to client.
+:   Server connections that are linked to a client.
 
 sv_idle
-:   Server connections that unused and immediately usable for client queries.
+:   Server connections that are unused and immediately usable for client queries.
 
 sv_used
-:   Server connections that have been idle more than `server_check_delay`,
-    so they need `server_check_query` to run on them before they can be used.
+:   Server connections that have been idle for more than `server_check_delay`,
+    so they need `server_check_query` to run on them before they can be used again.
 
 sv_tested
 :   Server connections that are currently running either `server_reset_query`
     or `server_check_query`.
 
 sv_login
-:   Server connections currently in logging in process.
+:   Server connections currently in the process of logging in.
 
 maxwait
-:   How long the first (oldest) client in queue has waited, in seconds.
+:   How long the first (oldest) client in the queue has waited, in seconds.
     If this starts increasing, then the current pool of servers does
-    not handle requests quick enough.  Reason may be either overloaded
+    not handle requests quickly enough.  The reason may be either an overloaded
     server or just too small of a **pool_size** setting.
 
 maxwait_us
@@ -453,7 +453,7 @@ database
 :   Actual database name pgbouncer connects to.
 
 force_user
-:   When user is part of the connection string, the connection between
+:   When the user is part of the connection string, the connection between
     pgbouncer and PostgreSQL is forced to the given user, whatever the
     client user.
 
@@ -483,10 +483,10 @@ disabled
 
 Internal command - shows list of file descriptors in use with internal state attached to them.
 
-When the connected user has user name "pgbouncer", connects through Unix socket
-and has same UID as the running process, the actual FDs are passed over the connection.
+When the connected user has the user name "pgbouncer", connects through the Unix socket
+and has same the UID as the running process, the actual FDs are passed over the connection.
 This mechanism is used to do an online restart.
-Note: This does not work on Windows machines.
+Note: This does not work on Windows.
 
 This command also blocks the internal event loop, so it should not be used
 while PgBouncer is in use.
@@ -524,7 +524,7 @@ SERVERS** as well as other more low-level information.
 
 #### SHOW CONFIG
 
-Show the current configuration settings, one per row, with following
+Show the current configuration settings, one per row, with the following
 columns:
 
 key
@@ -569,6 +569,11 @@ serial
 
 count
 :   Host names belonging to this zone.
+
+
+#### SHOW VERSION
+
+Show the PgBouncer version string.
 
 
 ### Process controlling commands
@@ -654,7 +659,7 @@ connection is next released (according to the pooling mode), and new
 server connections will immediately use the updated connection
 parameters.
 
-#### WAIT_CLOSE [<db>]
+#### WAIT_CLOSE [db]
 
 Wait until all server connections, either of the specified database or
 of all databases, have cleared the "close_needed" state (see **SHOW
@@ -694,7 +699,7 @@ SIGUSR2
 
 ### Libevent settings
 
-From libevent docs:
+From the Libevent documentation:
 
 > It is possible to disable support for epoll, kqueue, devpoll, poll
 > or select by setting the environment variable EVENT_NOEPOLL,
@@ -706,6 +711,6 @@ From libevent docs:
 
 ## See also
 
-pgbouncer(5) - man page of configuration settings descriptions.
+pgbouncer(5) - man page of configuration settings descriptions
 
-<https://pgbouncer.github.io/>
+<https://www.pgbouncer.org/>

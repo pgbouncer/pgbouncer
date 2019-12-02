@@ -1297,13 +1297,20 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 
 static bool admin_show_version(PgSocket *admin, const char *arg)
 {
-	bool res;
-	SEND_generic(res, admin, 'N',
-		"ssss", "SNOTICE", "C00000",
-		"M" FULLVER, "");
-	if (res)
-		res = admin_ready(admin, "SHOW");
-	return res;
+	PktBuf *buf;
+
+	buf = pktbuf_dynamic(128);
+	if (!buf) {
+		admin_error(admin, "no mem");
+		return true;
+	}
+
+	pktbuf_write_RowDescription(buf, "s", "version");
+	pktbuf_write_DataRow(buf, "s", PACKAGE_STRING);
+
+	admin_flush(admin, buf, "SHOW");
+
+	return true;
 }
 
 static bool admin_show_stats(PgSocket *admin, const char *arg)
@@ -1603,7 +1610,6 @@ void admin_pause_done(void)
 		if (!admin->wait_for_response)
 			continue;
 
-		res = false;
 		switch (cf_pause_mode) {
 		case P_PAUSE:
 			res = admin_ready(admin, "PAUSE");
@@ -1614,9 +1620,11 @@ void admin_pause_done(void)
 		default:
 			if (count_paused_databases() > 0)
 				res = admin_ready(admin, "PAUSE");
-			else
+			else {
 				/* FIXME */
 				fatal("admin_pause_done: bad state");
+				res = false;
+			}
 		}
 
 		if (!res)

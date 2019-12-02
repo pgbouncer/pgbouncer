@@ -57,6 +57,7 @@ bool verify_server_signature(ScramState *scram_state, const char *ServerSignatur
  */
 
 bool read_client_first_message(PgSocket *client, char *input,
+			       char *cbind_flag_p,
 			       char **client_first_message_bare_p,
 			       char **client_nonce_p);
 

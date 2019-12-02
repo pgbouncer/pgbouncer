@@ -34,10 +34,9 @@
 #include <usual/socket.h>
 #include <usual/safeio.h>
 #include <usual/mbuf.h>
-#include <usual/event.h>
 #include <usual/strpool.h>
 
-#define FULLVER   PACKAGE_NAME " version " PACKAGE_VERSION
+#include <event.h>
 
 /* each state corresponds to a list */
 enum SocketState {
@@ -251,7 +250,7 @@ struct PgPool {
 
 	usec_t last_lifetime_disconnect;/* last time when server_lifetime was applied */
 
-	/* if last connect failed, there should be delay before next */
+	/* if last connect to server failed, there should be delay before next */
 	usec_t last_connect_time;
 	unsigned last_connect_failed:1;
 	unsigned last_login_failed:1;
@@ -314,7 +313,7 @@ struct PgDatabase {
 	PgUser *forced_user;	/* if not NULL, the user/psw is forced */
 	PgUser *auth_user;	/* if not NULL, users not in userlist.txt will be looked up on the server */
 
-	const char *host;	/* host or unix socket name */
+	char *host;		/* host or unix socket name */
 	int port;
 
 	int pool_size;		/* max server connections in one pool */
@@ -325,7 +324,7 @@ struct PgDatabase {
 	const char *dbname;	/* server-side name, pointer to inside startup_msg */
 
 	/* startup commands to send to server after connect. malloc-ed */
-	const char *connect_query;
+	char *connect_query;
 
 	usec_t inactive_time;	/* when auto-database became inactive (to kill it after timeout) */
 	unsigned active_stamp;	/* set if autodb has connections */
@@ -397,6 +396,7 @@ struct PgSocket {
 		char *server_nonce;
 		char *server_first_message;
 		uint8_t	*SaltedPassword;
+		char cbind_flag;
 		int iterations;
 		char *salt;	/* base64-encoded */
 		uint8_t StoredKey[32];	/* SHA256_DIGEST_LENGTH */
@@ -464,6 +464,7 @@ extern int cf_disable_pqexec;
 extern usec_t cf_dns_max_ttl;
 extern usec_t cf_dns_nxdomain_ttl;
 extern usec_t cf_dns_zone_check_period;
+extern char *cf_resolv_conf;
 
 extern int cf_auth_type;
 extern char *cf_auth_file;
@@ -487,6 +488,7 @@ extern int cf_reboot;
 extern unsigned int cf_max_packet_size;
 
 extern int cf_sbuf_loopcnt;
+extern int cf_so_reuseport;
 extern int cf_tcp_keepalive;
 extern int cf_tcp_keepcnt;
 extern int cf_tcp_keepidle;

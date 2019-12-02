@@ -12,6 +12,6 @@ build_script:
   - set HOME=.
   - set PATH=C:/msys64/usr/bin;%PATH%
   - sh -l -c "./autogen.sh"
-  - sh -l -c "./configure PANDOC=true || { cat config.log; exit 1; }"
+  - sh -l -c "./configure --enable-werror PANDOC=true || { cat config.log; exit 1; }"
   - sh -l -c "make"
 #TODO:  - sh -l -c "make install"

@@ -5,6 +5,7 @@
 /config.status
 /config.sub
 /configure
+/debian/changelog
 /install-sh
 /pgbouncer
 /.objs

@@ -286,7 +286,7 @@ static void takeover_parse_data(PgSocket *bouncer,
  *
  * use always recvmsg, to keep code simpler
  */
-static void takeover_recv_cb(int sock, short flags, void *arg)
+static void takeover_recv_cb(evutil_socket_t sock, short flags, void *arg)
 {
 	PgSocket *bouncer = container_of(arg, PgSocket, sbuf);
 	uint8_t data_buf[STARTUP_BUF * 2];

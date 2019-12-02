@@ -225,6 +225,8 @@ static bool parse_scram_verifier(const char *verifier, int *iterations, char **s
 	if (decoded_len < 0)
 		goto invalid_verifier;
 	*salt = strdup(salt_str);
+	if (!*salt)
+		goto invalid_verifier;
 
 	/*
 	 * Decode StoredKey and ServerKey.
@@ -253,6 +255,7 @@ invalid_verifier:
 	free(decoded_stored_buf);
 	free(decoded_server_buf);
 	free(v);
+	free(*salt);
 	*salt = NULL;
 	return false;
 }
@@ -332,7 +335,7 @@ char *build_client_final_message(ScramState *scram_state,
 	size_t len;
 	uint8_t	client_proof[SCRAM_KEY_LEN];
 
-	len = snprintf(buf, sizeof(buf), "c=biws,r=%s", server_nonce);
+	snprintf(buf, sizeof(buf), "c=biws,r=%s", server_nonce);
 
 	scram_state->client_final_message_without_proof = strdup(buf);
 	if (scram_state->client_final_message_without_proof == NULL)
@@ -560,12 +563,15 @@ bool verify_server_signature(ScramState *scram_state, const char *ServerSignatur
  */
 
 bool read_client_first_message(PgSocket *client, char *input,
+			       char *cbind_flag_p,
 			       char **client_first_message_bare_p,
 			       char **client_nonce_p)
 {
 	char *client_first_message_bare = NULL;
 	char *client_nonce = NULL;
+	char *client_nonce_copy = NULL;
 
+	*cbind_flag_p = *input;
 	switch (*input) {
 	case 'n':
 		/* Client does not support channel binding */
@@ -622,22 +628,25 @@ bool read_client_first_message(PgSocket *client, char *input,
 		slog_error(client, "non-printable characters in SCRAM nonce");
 		goto failed;
 	}
-	client_nonce = strdup(client_nonce);
-	if (client_nonce == NULL)
+	client_nonce_copy = strdup(client_nonce);
+	if (client_nonce_copy == NULL)
 		goto failed;
 
 	/*
 	 * There can be any number of optional extensions after this.  We don't
 	 * support any extensions, so ignore them.
 	 */
-	while (*input != '\0')
-		read_any_attr(client, &input, NULL);
+	while (*input != '\0') {
+		if (!read_any_attr(client, &input, NULL))
+			goto failed;
+	}
 
 	*client_first_message_bare_p = client_first_message_bare;
-	*client_nonce_p = client_nonce;
+	*client_nonce_p = client_nonce_copy;
 	return true;
 failed:
 	free(client_first_message_bare);
+	free(client_nonce_copy);
 	return false;
 }
 
@@ -650,6 +659,7 @@ bool read_client_final_message(PgSocket *client, const uint8_t *raw_input, char 
 	char *channel_binding;
 	char *client_final_nonce;
 	char *proof_start;
+	char *value;
 	char *encoded_proof;
 	char *proof = NULL;
 	int prooflen;
@@ -657,12 +667,15 @@ bool read_client_final_message(PgSocket *client, const uint8_t *raw_input, char 
 	/*
 	 * Read channel-binding.  We don't support channel binding, so
 	 * it's expected to always be "biws", which is "n,,",
-	 * base64-encoded.
+	 * base64-encoded, or "eSws", which is "y,,".  We also have to
+	 * check whether the flag is the same one that the client
+	 * originally sent.
 	 */
 	channel_binding = read_attr_value(client, &input, 'c');
 	if (channel_binding == NULL)
 		goto failed;
-	if (strcmp(channel_binding, "biws") != 0) {
+	if (!(strcmp(channel_binding, "biws") == 0 && client->scram_state.cbind_flag == 'n') &&
+	    !(strcmp(channel_binding, "eSws") == 0 && client->scram_state.cbind_flag == 'y')) {
 		slog_error(client, "unexpected SCRAM channel-binding attribute in client-final-message");
 		goto failed;
 	}
@@ -673,13 +686,15 @@ bool read_client_final_message(PgSocket *client, const uint8_t *raw_input, char 
 	do
 	{
 		proof_start = input - 1;
-		encoded_proof = read_any_attr(client, &input, &attr);
-	} while (attr != 'p');
+		value = read_any_attr(client, &input, &attr);
+	} while (value && attr != 'p');
 
-	if (!encoded_proof) {
+	if (!value) {
 		slog_error(client, "could not read proof");
 		goto failed;
 	}
+
+	encoded_proof = value;
 
 	proof = malloc(pg_b64_dec_len(strlen(encoded_proof)));
 	if (proof == NULL) {

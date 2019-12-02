@@ -3,7 +3,7 @@ language: c
 addons:
   apt:
     sources:
-      - sourceline: 'deb http://apt.postgresql.org/pub/repos/apt/ xenial-pgdg main'
+      - sourceline: 'deb http://apt.postgresql.org/pub/repos/apt/ bionic-pgdg main'
         key_url: 'https://www.postgresql.org/media/keys/ACCC4CF8.asc'
     update: true
     packages:
@@ -29,12 +29,10 @@ env:
   matrix:
     - configure_args=''
     - configure_args='' PGVERSION=9.5
-    - configure_args='--disable-evdns --without-cares --without-udns'
-    - configure_args='--enable-evdns  --without-cares --without-udns'
-    - configure_args='--disable-evdns --with-cares    --without-udns'
-    - configure_args='--disable-evdns --without-cares --with-udns'
+    - configure_args='--with-cares'
+    - configure_args='--with-udns'
+    - configure_args='--disable-evdns'
     - configure_args='--with-pam'
-    - configure_args='--with-openssl'
     - configure_args='--without-openssl'
     - use_valgrind=yes
     - use_valgrind=yes PGVERSION=9.5

@@ -219,6 +219,7 @@ runtest() {
 		echo "ok"
 	elif [ $status -eq 77 ]; then
 		echo "skipped"
+		status=0
 	else
 		echo "FAILED"
 		cat $LOGDIR/$1.log | sed 's/^/# /'
@@ -232,6 +233,17 @@ runtest() {
 	echo "# $1 end" >>$BOUNCER_LOG
 
 	return $status
+}
+
+# show version and --version
+test_show_version() {
+	v1=$($BOUNCER_EXE --version) || return 1
+	v2=$(psql -X -tAq -h /tmp -U pgbouncer -d pgbouncer -c "show version;") || return 1
+
+	echo "v1=$v1"
+	echo "v2=$v2"
+
+	test x"$v1" = x"$v2"
 }
 
 # server_lifetime
@@ -301,10 +313,10 @@ test_client_idle_timeout() {
 # server_login_retry
 test_server_login_retry() {
 	admin "set query_timeout=10"
-	admin "set server_login_retry=1"
+	admin "set server_login_retry=3"
 
-	(pgctl -m fast stop; sleep 3; pgctl start) &
-	sleep 1
+	pgctl -m fast stop
+	(sleep 1; pgctl start) &
 	psql -X -c "select now()" p0
 	rc=$?
 	wait
@@ -777,7 +789,7 @@ test_scram_client() {
 # commands don't completely die.  The output can be manually eyeballed
 # in the test log file.
 test_show() {
-	for what in clients config databases fds help lists pools servers sockets active_sockets stats stats_totals stats_averages users version totals mem dns_hosts dns_zones; do
+	for what in clients config databases fds help lists pools servers sockets active_sockets stats stats_totals stats_averages users totals mem dns_hosts dns_zones; do
 		    echo "=> show $what;"
 		    psql -X -h /tmp -U pgbouncer -d pgbouncer -c "show $what;" || return 1
 	done
@@ -788,6 +800,7 @@ test_show() {
 }
 
 testlist="
+test_show_version
 test_server_login_retry
 test_auth_user
 test_client_idle_timeout
@@ -827,7 +840,7 @@ for test in $testlist
 do
 	runtest $test
 	status=$?
-	if [ $status -eq 1 ]; then
+	if [ $status -ne 0 ]; then
 		total_status=1
 	fi
 done

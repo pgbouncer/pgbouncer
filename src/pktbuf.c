@@ -22,6 +22,16 @@
 
 #include "bouncer.h"
 
+
+/*
+ * PostgreSQL type OIDs for result sets
+ */
+#define INT8OID 20
+#define INT4OID 23
+#define TEXTOID 25
+#define NUMERICOID 1700
+
+
 void pktbuf_free(PktBuf *buf)
 {
 	if (!buf || buf->fixed_buf)
@@ -106,13 +116,13 @@ bool pktbuf_send_immediate(PktBuf *buf, PgSocket *sk)
 	return res == amount;
 }
 
-static void pktbuf_send_func(int fd, short flags, void *arg)
+static void pktbuf_send_func(evutil_socket_t fd, short flags, void *arg)
 {
 	PktBuf *buf = arg;
 	SBuf *sbuf = &buf->queued_dst->sbuf;
 	int amount, res;
 
-	log_debug("pktbuf_send_func(%d, %d, %p)", fd, (int)flags, buf);
+	log_debug("pktbuf_send_func(%" PRId64 ", %d, %p)", (int64_t)fd, (int)flags, buf);
 
 	if (buf->failed)
 		return;
@@ -341,6 +351,7 @@ void pktbuf_write_generic(PktBuf *buf, int type, const char *pktdesc, ...)
  * 'i' - int4
  * 'q' - int8
  * 's' - string
+ * 'N' - uint64_t to numeric
  * 'T' - usec_t to date
  */
 void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...)
@@ -372,13 +383,16 @@ void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...)
 		} else if (tupdesc[i] == 'q') {
 			pktbuf_put_uint32(buf, INT8OID);
 			pktbuf_put_uint16(buf, 8);
+		} else if (tupdesc[i] == 'N') {
+			pktbuf_put_uint32(buf, NUMERICOID);
+			pktbuf_put_uint16(buf, -1);
 		} else if (tupdesc[i] == 'T') {
 			pktbuf_put_uint32(buf, TEXTOID);
 			pktbuf_put_uint16(buf, -1);
 		} else {
 			fatal("bad tupdesc");
 		}
-		pktbuf_put_uint32(buf, 0);
+		pktbuf_put_uint32(buf, -1);
 		pktbuf_put_uint16(buf, 0);
 	}
 	va_end(ap);
@@ -394,6 +408,7 @@ void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...)
  * 'i' - int4
  * 'q' - int8
  * 's' - string
+ * 'N' - uint64_t to numeric
  * 'T' - usec_t to date
  */
 void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
@@ -411,7 +426,7 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 		if (tupdesc[i] == 'i') {
 			snprintf(tmp, sizeof(tmp), "%d", va_arg(ap, int));
 			val = tmp;
-		} else if (tupdesc[i] == 'q') {
+		} else if (tupdesc[i] == 'q' || tupdesc[i] == 'N') {
 			snprintf(tmp, sizeof(tmp), "%" PRIu64, va_arg(ap, uint64_t));
 			val = tmp;
 		} else if (tupdesc[i] == 's') {

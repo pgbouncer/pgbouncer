@@ -411,7 +411,7 @@ static bool parse_names(struct HBAName *hname, struct TokParser *tp, bool is_db,
 
 			if (tok[0] == '@') {
 				bool ok;
-				const char *fn;
+				char *fn;
 				fn = path_join_dirname(parent_filename, tok + 1);
 				if (!fn)
 					return false;

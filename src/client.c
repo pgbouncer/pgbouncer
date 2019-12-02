@@ -246,6 +246,8 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 
 bool set_pool(PgSocket *client, const char *dbname, const char *username, const char *password, bool takeover)
 {
+	Assert((password && takeover) || (!password && !takeover));
+
 	/* find database */
 	client->db = find_database(dbname);
 	if (!client->db) {
@@ -279,7 +281,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			slog_info(client, "login failed: db=%s user=%s", dbname, username);
 		return false;
 	}
-	if (strlen(password) >= MAX_PASSWORD) {
+	if (password && strlen(password) >= MAX_PASSWORD) {
 		disconnect_client(client, true, "password too long");
 		if (cf_log_connections)
 			slog_info(client, "login failed: db=%s user=%s", dbname, username);
@@ -297,11 +299,11 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 		client->auth_user = client->db->forced_user;
 	} else if (cf_auth_type == AUTH_PAM) {
 		if (client->db->auth_user) {
-			slog_error(client, "PAM can't be used together with database authorization");
+			slog_error(client, "PAM can't be used together with database authentication");
 			disconnect_client(client, true, "bouncer config error");
 			return false;
 		}
-		/* Password will be set after successful authorization when not in takeover mode */
+		/* Password will be set after successful authentication when not in takeover mode */
 		client->auth_user = add_pam_user(username, password);
 		if (!client->auth_user) {
 			slog_error(client, "set_pool(): failed to allocate new PAM user");
@@ -511,7 +513,7 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 	}
 
 	/* find pool */
-	return set_pool(client, dbname, username, "", false);
+	return set_pool(client, dbname, username, NULL, false);
 }
 
 static bool scram_client_first(PgSocket *client, uint32_t datalen, const uint8_t *data)
@@ -530,6 +532,7 @@ static bool scram_client_first(PgSocket *client, uint32_t datalen, const uint8_t
 	input = ibuf;
 	slog_debug(client, "SCRAM client-first-message = \"%s\"", input);
 	if (!read_client_first_message(client, input,
+				       &client->scram_state.cbind_flag,
 				       &client->scram_state.client_first_message_bare,
 				       &client->scram_state.client_nonce))
 		goto failed;

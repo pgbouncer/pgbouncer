@@ -76,6 +76,7 @@ int cf_pool_mode = POOL_SESSION;
 /* sbuf config */
 int cf_sbuf_len;
 int cf_sbuf_loopcnt;
+int cf_so_reuseport;
 int cf_tcp_socket_buffer;
 #if defined(TCP_DEFER_ACCEPT) || defined(SO_ACCEPTFILTER)
 int cf_tcp_defer_accept = 1;
@@ -111,6 +112,7 @@ int cf_disable_pqexec;
 usec_t cf_dns_max_ttl;
 usec_t cf_dns_nxdomain_ttl;
 usec_t cf_dns_zone_check_period;
+char *cf_resolv_conf;
 unsigned int cf_max_packet_size;
 
 char *cf_ignore_startup_params;
@@ -209,6 +211,7 @@ CF_ABS("logfile", CF_STR, cf_logfile, 0, ""),
 CF_ABS("pidfile", CF_STR, cf_pidfile, CF_NO_RELOAD, ""),
 CF_ABS("listen_addr", CF_STR, cf_listen_addr, CF_NO_RELOAD, ""),
 CF_ABS("listen_port", CF_INT, cf_listen_port, CF_NO_RELOAD, "6432"),
+CF_ABS("so_reuseport", CF_INT, cf_so_reuseport, CF_NO_RELOAD, "0"),
 CF_ABS("listen_backlog", CF_INT, cf_listen_backlog, CF_NO_RELOAD, "128"),
 #ifndef WIN32
 CF_ABS("unix_socket_dir", CF_STR, cf_unix_socket_dir, CF_NO_RELOAD, "/tmp"),
@@ -258,6 +261,7 @@ CF_ABS("disable_pqexec", CF_INT, cf_disable_pqexec, CF_NO_RELOAD, "0"),
 CF_ABS("dns_max_ttl", CF_TIME_USEC, cf_dns_max_ttl, 0, "15"),
 CF_ABS("dns_nxdomain_ttl", CF_TIME_USEC, cf_dns_nxdomain_ttl, 0, "15"),
 CF_ABS("dns_zone_check_period", CF_TIME_USEC, cf_dns_zone_check_period, 0, "0"),
+CF_ABS("resolv_conf", CF_STR, cf_resolv_conf, CF_NO_RELOAD, ""),
 
 CF_ABS("max_packet_size", CF_UINT, cf_max_packet_size, 0, "2147483647"),
 CF_ABS("pkt_buf", CF_INT, cf_sbuf_len, CF_NO_RELOAD, "4096"),
@@ -419,14 +423,14 @@ void load_config(void)
 static struct event ev_sigterm;
 static struct event ev_sigint;
 
-static void handle_sigterm(int sock, short flags, void *arg)
+static void handle_sigterm(evutil_socket_t sock, short flags, void *arg)
 {
 	log_info("got SIGTERM, fast exit");
 	/* pidfile cleanup happens via atexit() */
 	exit(1);
 }
 
-static void handle_sigint(int sock, short flags, void *arg)
+static void handle_sigint(evutil_socket_t sock, short flags, void *arg)
 {
 	log_info("got SIGINT, shutting down");
 	if (cf_reboot)
@@ -751,7 +755,7 @@ static void dns_setup(void)
 		return;
 	adns = adns_create_context();
 	if (!adns)
-		fatal_perror("dns setup failed");
+		fatal("dns setup failed");
 }
 
 static void xfree(char **ptr_p)
@@ -844,7 +848,7 @@ int main(int argc, char *argv[])
 			cf_verbose++;
 			break;
 		case 'V':
-			printf("%s\n", FULLVER);
+			printf("%s\n", PACKAGE_STRING);
 			return 0;
 		case 'd':
 			cf_daemon = 1;

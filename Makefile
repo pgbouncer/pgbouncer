@@ -58,7 +58,7 @@ pgbouncer_SOURCES = \
 	include/common/unicode_norm.h \
 	include/common/unicode_norm_table.h
 
-pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(TLS_CPPFLAGS)
+pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(LIBEVENT_CFLAGS) $(TLS_CPPFLAGS)
 
 # include libusual sources directly
 AM_FEATURES = libusual
@@ -80,6 +80,8 @@ EXTRA_DIST = AUTHORS COPYRIGHT Makefile config.mak.in config.sub config.guess \
 	     win32/Makefile \
 	     $(LIBUSUAL_DIST)
 
+MAINTAINERCLEANFILES = debian/changelog
+
 # libusual files (FIXME: list should be provided by libusual...)
 LIBUSUAL_DIST = $(filter-out %/config.h, $(sort $(wildcard \
 		lib/usual/*.[chg] \
@@ -93,7 +95,7 @@ LIBUSUAL_DIST = $(filter-out %/config.h, $(sort $(wildcard \
 		lib/find_modules.sh )))
 
 pgbouncer_LDFLAGS := $(TLS_LDFLAGS)
-pgbouncer_LDADD := $(CARES_LIBS) $(TLS_LIBS) $(LIBS)
+pgbouncer_LDADD := $(CARES_LIBS) $(LIBEVENT_LIBS) $(TLS_LIBS) $(LIBS)
 LIBS :=
 
 #
@@ -136,8 +138,16 @@ check: all
 	etc/optscan.sh
 	make -C test check
 
-deb:
+deb: debian/changelog
 	debuild -b -us -uc
+
+debian/changelog: NEWS.md
+	echo '$(PACKAGE_TARNAME) ($(PACKAGE_VERSION)-1) unstable; urgency=low' >$@
+	echo >>$@
+	echo '  * v$(PACKAGE_VERSION)' >>$@
+	echo >>$@
+	printf ' -- PgBouncer developers <noreply@localhost>  ' >>$@
+	date -u -R -d `sed -E -n '/^\*\*/ { s/^.*([0-9]{4}-[0-9]{2}-[0-9]{2}).*/\1/;p;q }' $<` >>$@
 
 w32arch = i686-w64-mingw32
 w32zip = $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)-win32.zip
@@ -148,7 +158,7 @@ zip: configure clean
 		&& ../configure --host=$(w32arch) --disable-debug \
 			--without-openssl \
 			--without-cares \
-			--with-libevent=/opt/apps/win32 --enable-evdns \
+			--enable-evdns \
 		&& make \
 		&& $(w32arch)-strip pgbouncer.exe pgbevent.dll \
 		&& zip pgbouncer.zip pgbouncer.exe pgbevent.dll doc/*.html

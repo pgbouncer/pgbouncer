@@ -606,7 +606,7 @@ static void cleanup_inactive_autodatabases(void)
 }
 
 /* full-scale maintenance, done only occasionally */
-static void do_full_maint(int sock, short flags, void *arg)
+static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 {
 	struct List *item, *tmp;
 	PgPool *pool;
@@ -716,7 +716,7 @@ void kill_database(PgDatabase *db)
 	if (db->forced_user)
 		slab_free(user_cache, db->forced_user);
 	if (db->connect_query)
-		free((void *)db->connect_query);
+		free(db->connect_query);
 	if (db->inactive_time) {
 		statlist_remove(&autodatabase_idle_list, &db->head);
 	} else {

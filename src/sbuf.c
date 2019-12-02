@@ -67,9 +67,9 @@ enum WaitType {
 static bool sbuf_queue_send(SBuf *sbuf) _MUSTCHECK;
 static bool sbuf_send_pending(SBuf *sbuf) _MUSTCHECK;
 static bool sbuf_process_pending(SBuf *sbuf) _MUSTCHECK;
-static void sbuf_connect_cb(int sock, short flags, void *arg);
-static void sbuf_recv_cb(int sock, short flags, void *arg);
-static void sbuf_send_cb(int sock, short flags, void *arg);
+static void sbuf_connect_cb(evutil_socket_t sock, short flags, void *arg);
+static void sbuf_recv_cb(evutil_socket_t sock, short flags, void *arg);
+static void sbuf_send_cb(evutil_socket_t sock, short flags, void *arg);
 static void sbuf_try_resync(SBuf *sbuf, bool release);
 static bool sbuf_wait_for_data(SBuf *sbuf) _MUSTCHECK;
 static void sbuf_main_loop(SBuf *sbuf, bool skip_recv);
@@ -98,7 +98,7 @@ static const SBufIO tls_sbufio_ops = {
 	tls_sbufio_send,
 	tls_sbufio_close
 };
-static void sbuf_tls_handshake_cb(int fd, short flags, void *_sbuf);
+static void sbuf_tls_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
 #endif
 
 /*********************************
@@ -407,7 +407,7 @@ static bool sbuf_wait_for_data(SBuf *sbuf)
 	return true;
 }
 
-static void sbuf_recv_forced_cb(int sock, short flags, void *arg)
+static void sbuf_recv_forced_cb(evutil_socket_t sock, short flags, void *arg)
 {
 	SBuf *sbuf = arg;
 
@@ -444,7 +444,7 @@ static bool sbuf_wait_for_data_forced(SBuf *sbuf)
 }
 
 /* libevent EV_WRITE: called when dest socket is writable again */
-static void sbuf_send_cb(int sock, short flags, void *arg)
+static void sbuf_send_cb(evutil_socket_t sock, short flags, void *arg)
 {
 	SBuf *sbuf = arg;
 	bool res;
@@ -661,7 +661,7 @@ static bool sbuf_actual_recv(SBuf *sbuf, unsigned len)
 }
 
 /* callback for libevent EV_READ */
-static void sbuf_recv_cb(int sock, short flags, void *arg)
+static void sbuf_recv_cb(evutil_socket_t sock, short flags, void *arg)
 {
 	SBuf *sbuf = arg;
 	sbuf_main_loop(sbuf, DO_RECV);
@@ -715,13 +715,16 @@ try_more:
 
 	/* avoid spending too much time on single socket */
 	if (cf_sbuf_loopcnt > 0 && loopcnt >= cf_sbuf_loopcnt) {
+		bool _ignore;
+
 		log_debug("loopcnt full");
 		/*
 		 * sbuf_process_pending() avoids some data if buffer is full,
 		 * but as we exit processing loop here, we need to retry
 		 * after resync to process all data. (result is ignored)
 		 */
-		ok = sbuf_process_pending(sbuf);
+		_ignore = sbuf_process_pending(sbuf);
+		(void) _ignore;
 
 		sbuf_wait_for_data_forced(sbuf);
 		return;
@@ -794,7 +797,7 @@ static bool sbuf_after_connect_check(SBuf *sbuf)
 }
 
 /* callback for libevent EV_WRITE when connecting */
-static void sbuf_connect_cb(int sock, short flags, void *arg)
+static void sbuf_connect_cb(evutil_socket_t sock, short flags, void *arg)
 {
 	SBuf *sbuf = arg;
 
@@ -1010,7 +1013,7 @@ static bool handle_tls_handshake(SBuf *sbuf)
 	}
 }
 
-static void sbuf_tls_handshake_cb(int fd, short flags, void *_sbuf)
+static void sbuf_tls_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf)
 {
 	SBuf *sbuf = _sbuf;
 	sbuf->wait_type = W_NONE;

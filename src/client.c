@@ -853,11 +853,12 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 			disconnect_client(client, true, "PQexec disallowed");
 			return false;
 		}
+		/*
 		search_path = get_search_path(client, pkt);
 	    if (search_path != NULL){
 	        slog_info(client, "Search path of the client: '%s'",search_path);
 	        varcache_set(&client->vars, "search_path", search_path);
-	    }
+	    }*/
 		rfq_delta++;
 		break;
 	case 'F':		/* FunctionCall */

@@ -231,6 +231,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	bool async_response = false;
 
 	Assert(!server->pool->db->admin);
+	slog_debug(server, "Packet from the server : '%c'", pkt_desc(pkt));
 	switch (pkt->type) {
 	default:
 		slog_error(server, "unknown pkt: '%c'", pkt_desc(pkt));
@@ -280,6 +281,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	 * it later.
 	 */
 	case 'E':		/* ErrorResponse */
+	    log_server_error(server, "Packet from the server", pkt);
 		if (server->setting_vars) {
 			/*
 			 * the SET and user query will be different TX

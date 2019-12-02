@@ -281,7 +281,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	 * it later.
 	 */
 	case 'E':		/* ErrorResponse */
-	    log_server_error(server, "Packet from the server", pkt);
+	    log_server_error("Packet from the server", pkt);
 		if (server->setting_vars) {
 			/*
 			 * the SET and user query will be different TX

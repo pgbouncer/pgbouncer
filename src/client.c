@@ -951,7 +951,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 
 	/* forward the packet */
 	sbuf_prepare_send(sbuf, &client->link->sbuf, pkt->len);
-    slog_error(client, "handle_client_work: pkt type: '%c'", pkt->type);
+    slog_info(client, "handle_client_work: pkt type: '%c'", pkt->type);
 	return true;
 }
 

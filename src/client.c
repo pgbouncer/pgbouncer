@@ -811,6 +811,7 @@ static char* get_search_path(PgSocket *client, PktHdr *pkt)
     SBuf *sbuf = &client->sbuf;
 	char *pkt_start = (char *) &sbuf->io->buf[sbuf->io->parse_pos];
 	char delim[] = " ";
+	char search_path_buf[255] = "";
 	char *stmt_str = NULL;
 	char *query_str = NULL;
 	char *search_path = NULL;
@@ -829,11 +830,12 @@ static char* get_search_path(PgSocket *client, PktHdr *pkt)
             number_of_words++;
             if (number_of_words == 4){
                 search_path = ptr;
+                strcpy(search_path_buf, search_path);
             }
             ptr = strtok(NULL, delim);
         }
     }
-    return search_path;
+    return search_path_buf;
 }
 
 /* decide on packets of logged-in client */
@@ -853,12 +855,11 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 			disconnect_client(client, true, "PQexec disallowed");
 			return false;
 		}
-		/*
 		search_path = get_search_path(client, pkt);
-	    if (search_path != NULL){
+	    if (strlen(search_path) == 0){
 	        slog_info(client, "Search path of the client: '%s'",search_path);
 	        varcache_set(&client->vars, "search_path", search_path);
-	    }*/
+	    }
 		rfq_delta++;
 		break;
 	case 'F':		/* FunctionCall */
@@ -884,7 +885,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	case 'P':		/* Parse */
 	    slog_info(client, "Load parameter on client handle_client_work, Packet Type: '%c'",   pkt->type);
 	    search_path = get_search_path(client, pkt);
-	    if (search_path != NULL){
+	    if (strlen(search_path) == 0){
 	        slog_info(client, "Search path of the client: '%s'",search_path);
 	        varcache_set(&client->vars, "search_path", search_path);
 	    }

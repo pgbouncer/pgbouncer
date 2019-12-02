@@ -822,15 +822,16 @@ static char* get_search_path(PgSocket *client, PktHdr *pkt)
 		stmt_str = pkt_start + 5;
 		query_str = stmt_str + strlen(stmt_str) + 1;
 	}
+	char query_string_buf [strlen(query_str) + 1];
+	memcpy(query_string_buf, query_str, strlen(query_str) + 1);
     slog_info(client, "*********Query String %s ***********", query_str);
     if (strstr(query_str, "search_path") != NULL) {
-        char *ptr = strtok(query_str, delim);
+        char *ptr = strtok(query_string_buf, delim);
         while (ptr != NULL){
             number_of_words++;
             if (number_of_words == 4){
-                search_path_buf = (char *) malloc(sizeof(char) * 255);
-                strncpy(search_path_buf, ptr, strlen(ptr));
-                search_path_buf[strlen(ptr)] = '\0';
+                search_path_buf = (char *) malloc(strlen(ptr) + 1);
+                strncpy(search_path_buf, ptr, strlen(ptr)+1);
             }
             ptr = strtok(NULL, delim);
         }

@@ -811,11 +811,10 @@ static char* get_search_path(PgSocket *client, PktHdr *pkt)
     SBuf *sbuf = &client->sbuf;
 	char *pkt_start = (char *) &sbuf->io->buf[sbuf->io->parse_pos];
 	char delim[] = " ";
-	char search_path_buf[255] = "";
 	char *stmt_str = NULL;
 	char *query_str = NULL;
-	char *search_path = NULL;
 	int number_of_words = 0;
+	char *search_path_buf = NULL:
 
 	if (pkt->type == 'Q') {
 		query_str = (char *) pkt_start + 5;
@@ -829,12 +828,14 @@ static char* get_search_path(PgSocket *client, PktHdr *pkt)
         while (ptr != NULL){
             number_of_words++;
             if (number_of_words == 4){
-                search_path = ptr;
-                strcpy(search_path_buf, search_path);
+                search_path_buf = (char *) malloc(sizeof(char) * 255);
+                strncpy(search_path_buf, ptr, strlen(ptr));
+                search_path_buf[strlen(ptr)] = '\0';
             }
             ptr = strtok(NULL, delim);
         }
     }
+    slog_info(client, "*********Search Path String %s ***********", search_path_buf);
     return search_path_buf;
 }
 

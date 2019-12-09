@@ -76,7 +76,7 @@ dist_man_MANS = doc/pgbouncer.1 doc/pgbouncer.5
 EXTRA_DIST = AUTHORS COPYRIGHT Makefile config.mak.in config.sub config.guess \
 	     install-sh autogen.sh configure configure.ac \
 	     debian/compat debian/changelog debian/control debian/rules debian/copyright \
-	     etc/mkauth.py etc/example.debian.init.sh \
+	     etc/mkauth.py etc/optscan.sh etc/example.debian.init.sh \
 	     win32/Makefile \
 	     $(LIBUSUAL_DIST)
 

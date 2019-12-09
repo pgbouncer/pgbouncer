@@ -236,7 +236,7 @@ test_client_ssl() {
 	return $rc
 }
 
-test_client_ssl() {
+test_client_ssl_verify() {
 	reconf_bouncer "auth_type = trust" "server_tls_sslmode = prefer" \
 		"client_tls_sslmode = require" \
 		"client_tls_key_file = TestCA1/sites/01-localhost.key" \
@@ -285,6 +285,7 @@ test_server_ssl
 test_server_ssl_verify
 test_server_ssl_pg_auth
 test_client_ssl
+test_client_ssl_verify
 test_client_ssl_auth
 test_client_ssl_scram
 "

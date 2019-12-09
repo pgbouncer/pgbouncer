@@ -17,8 +17,6 @@ SUBLOC = doc
 abs_top_srcdir ?= $(CURDIR)/..
 include $(abs_top_srcdir)/lib/mk/antimake.mk
 
-PYTHON = python
-
 export PACKAGE_VERSION
 
 pgbouncer.%: pgbouncer_%.md

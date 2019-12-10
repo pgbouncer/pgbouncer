@@ -849,6 +849,10 @@ int main(int argc, char *argv[])
 			break;
 		case 'V':
 			printf("%s\n", PACKAGE_STRING);
+			printf("libevent %s\nadns: %s\ntls: %s\n",
+			       event_get_version(),
+			       adns_get_backend(),
+			       tls_backend_version());
 			return 0;
 		case 'd':
 			cf_daemon = 1;

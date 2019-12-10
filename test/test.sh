@@ -237,7 +237,7 @@ runtest() {
 
 # show version and --version
 test_show_version() {
-	v1=$($BOUNCER_EXE --version) || return 1
+	v1=$($BOUNCER_EXE --version | head -n 1) || return 1
 	v2=$(psql -X -tAq -h /tmp -U pgbouncer -d pgbouncer -c "show version;") || return 1
 
 	echo "v1=$v1"

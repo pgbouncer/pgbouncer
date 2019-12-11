@@ -32,20 +32,23 @@
 #include <sys/resource.h>
 #endif
 
-static const char usage_str[] =
-"Usage: %s [OPTION]... config.ini\n"
-"  -d, --daemon           Run in background (as a daemon)\n"
-"  -R, --restart          Do an online restart\n"
-"  -q, --quiet            Run quietly\n"
-"  -v, --verbose          Increase verbosity\n"
-"  -u, --user=<username>  Assume identity of <username>\n"
-"  -V, --version          Show version\n"
-"  -h, --help             Show this help screen and exit\n";
-
-static void usage(int err, char *exe)
+static void usage(const char *exe)
 {
-	printf(usage_str, basename(exe));
-	exit(err);
+	printf("%s is a connection pooler for PostgreSQL.\n\n", exe);
+	printf("Usage:\n");
+	printf("  %s [OPTION]... CONFIG_FILE\n", exe);
+	printf("\nOptions:\n");
+	printf("  -d, --daemon         run in background (as a daemon)\n");
+	printf("  -q, --quiet          run quietly\n");
+	printf("  -R, --restart        do an online restart\n");
+	printf("  -u, --user=USERNAME  assume identity of USERNAME\n");
+	printf("  -v, --verbose        increase verbosity\n");
+	printf("  -V, --version        show version, then exit\n");
+	printf("  -h, --help           show this help, then exit\n");
+	printf("\n");
+	printf("Report bugs to: %s\n", PACKAGE_BUGREPORT);
+	printf("%s home page: <%s>\n", PACKAGE_NAME, PACKAGE_URL);
+	exit(0);
 }
 
 /* async dns handler */
@@ -864,15 +867,17 @@ int main(int argc, char *argv[])
 			arg_username = optarg;
 			break;
 		case 'h':
-			usage(0, argv[0]);
+			usage(argv[0]);
 			break;
 		default:
-			usage(1, argv[0]);
+			fprintf(stderr, "Try \"%s --help\" for more information.\n", argv[0]);
+			exit(1);
 			break;
 		}
 	}
 	if (optind + 1 != argc) {
-		fprintf(stderr, "Need config file.  See pgbouncer -h for usage.\n");
+		fprintf(stderr, "%s: no configuration file specified\n", argv[0]);
+		fprintf(stderr, "Try \"%s --help\" for more information.\n", argv[0]);
 		exit(1);
 	}
 	cf_config_file = xstrdup(argv[optind]);

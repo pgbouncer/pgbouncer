@@ -138,10 +138,8 @@ static void WINAPI win32_servicemain(DWORD argc, LPSTR *argv)
 
 	/* register control request handler */
 	hStatus = RegisterServiceCtrlHandler(servicename, win32_servicehandler);
-	if (hStatus == 0) {
-		fatal("could not connect to service control handler: %s", strerror(GetLastError()));
-		exit(1);
-	}
+	if (hStatus == 0)
+		die("could not connect to service control handler: %s", strerror(GetLastError()));
 
 	/* Tell SCM we are running before we make any API calls */
 	win32_setservicestatus(SERVICE_RUNNING);
@@ -278,7 +276,7 @@ int main(int argc, char *argv[])
 
 	/* initialize socket subsystem */
 	if (WSAStartup(MAKEWORD(2,0), &wsaData))
-		fatal("cannot start the network subsystem");
+		die("could not start the network subsystem");
 
 	/* service cmdline */
 	if (argc >= 3) {

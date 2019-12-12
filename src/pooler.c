@@ -140,7 +140,7 @@ static bool add_listen(int af, const struct sockaddr *sa, int salen)
 		if (res < 0)
 			goto failed;
 #else
-		fatal("so_reuseport not supported on this platform");
+		die("so_reuseport not supported on this platform");
 #endif
 	}
 
@@ -211,7 +211,7 @@ static void create_unix_socket(const char *socket_dir, int listen_port)
 	snprintf(lockfile, sizeof(lockfile), "%s.lock", un.sun_path);
 	res = lstat(lockfile, &st);
 	if (res == 0)
-		fatal("unix port %d is in use", listen_port);
+		die("unix port %d is in use", listen_port);
 
 	/* expect old bouncer gone */
 	unlink(un.sun_path);
@@ -448,7 +448,7 @@ static bool parse_addr(void *arg, const char *addr)
 
 	res = getaddrinfo(addr, service, &hints, &gaires);
 	if (res != 0) {
-		fatal("getaddrinfo('%s', '%d') = %s [%d]", addr ? addr : "*",
+		die("getaddrinfo('%s', '%d') = %s [%d]", addr ? addr : "*",
 		      cf_listen_port, gai_strerror(res), res);
 	}
 
@@ -477,13 +477,13 @@ void pooler_setup(void)
 
 	ok = parse_word_list(cf_listen_addr, parse_addr, NULL);
 	if (!ok)
-		fatal("failed to parse listen_addr list: %s", cf_listen_addr);
+		die("failed to parse listen_addr list: %s", cf_listen_addr);
 
 	if (cf_unix_socket_dir && *cf_unix_socket_dir)
 		create_unix_socket(cf_unix_socket_dir, cf_listen_port);
 
 	if (!statlist_count(&sock_list))
-		fatal("nowhere to listen on");
+		die("nowhere to listen on");
 
 	resume_pooler();
 }

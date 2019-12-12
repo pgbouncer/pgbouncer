@@ -341,7 +341,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	} else {
 		msg = pktbuf_dynamic(128);
 		if (!msg)
-			fatal("cannot allocate startup buf");
+			die("out of memory");
 		db->startup_params = msg;
 	}
 

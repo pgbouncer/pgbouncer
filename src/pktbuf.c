@@ -90,7 +90,7 @@ struct PktBuf *pktbuf_temp(void)
 	if (!temp_pktbuf)
 		temp_pktbuf = pktbuf_dynamic(512);
 	if (!temp_pktbuf)
-		fatal("failed to create temp pktbuf");
+		die("out of memory");
 	pktbuf_reset(temp_pktbuf);
 	return temp_pktbuf;
 }

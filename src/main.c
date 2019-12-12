@@ -437,9 +437,9 @@ static void handle_sigint(evutil_socket_t sock, short flags, void *arg)
 {
 	log_info("got SIGINT, shutting down");
 	if (cf_reboot)
-		fatal("takeover was in progress, going down immediately");
+		die("takeover was in progress, going down immediately");
 	if (cf_pause_mode == P_SUSPEND)
-		fatal("suspend was in progress, going down immediately");
+		die("suspend was in progress, going down immediately");
 	cf_pause_mode = P_PAUSE;
 	cf_shutdown = 1;
 }
@@ -540,7 +540,7 @@ static void go_daemon(void)
 	int pid, fd;
 
 	if (!cf_pidfile || !cf_pidfile[0])
-		fatal("daemon needs pidfile configured");
+		die("daemon needs pidfile configured");
 
 	/* don't log to stdout anymore */
 	cf_quiet = 1;
@@ -548,7 +548,7 @@ static void go_daemon(void)
 	/* send stdin, stdout, stderr to /dev/null */
 	fd = open("/dev/null", O_RDWR);
 	if (fd < 0)
-		fatal_perror("/dev/null");
+		die("could not open /dev/null: %s", strerror(errno));
 	dup2(fd, 0);
 	dup2(fd, 1);
 	dup2(fd, 2);
@@ -558,19 +558,19 @@ static void go_daemon(void)
 	/* fork new process */
 	pid = fork();
 	if (pid < 0)
-		fatal_perror("fork");
+		die("fork failed: %s", strerror(errno));
 	if (pid > 0)
 		_exit(0);
 
 	/* create new session */
 	pid = setsid();
 	if (pid < 0)
-		fatal_perror("setsid");
+		die("setsid failed: %s", strerror(errno));
 
 	/* fork again to avoid being session leader */
 	pid = fork();
 	if (pid < 0)
-		fatal_perror("fork");
+		die("fork failed: %s", strerror(errno));
 	if (pid > 0)
 		_exit(0);
 }
@@ -603,12 +603,12 @@ static void check_pidfile(void)
 	if (fd < 0) {
 		if (errno == ENOENT)
 			return;
-		fatal_perror("could not open pidfile");
+		die("could not open pidfile '%s': %s", cf_pidfile, strerror(errno));
 	}
 	res = read(fd, buf, sizeof(buf) - 1);
 	close(fd);
 	if (res <= 0)
-		fatal_perror("could not read pidfile");
+		die("could not read pidfile '%s': %s", cf_pidfile, strerror(errno));
 
 	/* parse pid */
 	buf[res] = 0;
@@ -626,11 +626,11 @@ static void check_pidfile(void)
 	log_info("stale pidfile, removing");
 	err = unlink(cf_pidfile);
 	if (err != 0)
-		fatal_perror("could not remove stale pidfile");
+		die("could not remove stale pidfile: %s", strerror(errno));
 	return;
 
 locked_pidfile:
-	fatal("pidfile exists, another instance running?");
+	die("pidfile exists, another instance running?");
 }
 
 static void write_pidfile(void)
@@ -647,10 +647,10 @@ static void write_pidfile(void)
 
 	fd = open(cf_pidfile, O_WRONLY | O_CREAT | O_EXCL, 0644);
 	if (fd < 0)
-		fatal_perror("%s", cf_pidfile);
+		die("could not open pidfile '%s': %s", cf_pidfile, strerror(errno));
 	res = safe_write(fd, buf, strlen(buf));
 	if (res < 0)
-		fatal_perror("%s", cf_pidfile);
+		die("could not write pidfile '%s': %s", cf_pidfile, strerror(errno));
 	close(fd);
 
 	/* only remove when we have it actually written */
@@ -709,7 +709,7 @@ static bool check_old_process_unix(void)
 
 	fd = socket(domain, SOCK_STREAM, 0);
 	if (fd < 0)
-		fatal_perror("cannot create socket");
+		die("could not create socket: %s", strerror(errno));
 	res = safe_connect(fd, (struct sockaddr *)&sa_un, len);
 	safe_close(fd);
 	if (res < 0)
@@ -744,7 +744,7 @@ static void takeover_part1(void)
 	void *evtmp = event_init();
 
 	if (!cf_unix_socket_dir || !*cf_unix_socket_dir)
-		fatal("cannot reboot if unix dir not configured");
+		die("cannot reboot if unix dir not configured");
 
 	takeover_init();
 	while (cf_reboot)
@@ -758,7 +758,7 @@ static void dns_setup(void)
 		return;
 	adns = adns_create_context();
 	if (!adns)
-		fatal("dns setup failed");
+		die("dns setup failed");
 }
 
 static void xfree(char **ptr_p)
@@ -903,7 +903,7 @@ int main(int argc, char *argv[])
 
 	/* disallow running as root */
 	if (getuid() == 0)
-		fatal("PgBouncer should not run as root");
+		die("PgBouncer should not run as root");
 
 	admin_setup();
 
@@ -918,7 +918,7 @@ int main(int argc, char *argv[])
 		}
 	} else {
 		if (check_old_process_unix())
-			fatal("unix socket is in use, cannot continue");
+			die("unix socket is in use, cannot continue");
 		check_pidfile();
 	}
 
@@ -932,7 +932,7 @@ int main(int argc, char *argv[])
 	/* initialize subsystems, order important */
 	srandom(time(NULL) ^ getpid());
 	if (!event_init())
-		fatal("event_init() failed");
+		die("event_init() failed");
 	dns_setup();
 	signal_setup();
 	janitor_setup();

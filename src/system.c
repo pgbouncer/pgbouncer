@@ -46,19 +46,19 @@ void change_user(const char *user)
 	/* check for a valid username */
 	pw = getpwnam(user);
 	if (pw == NULL)
-		fatal("could not find user '%s' to switch to", user);
+		die("could not find user '%s' to switch to", user);
 
 	gset[0] = pw->pw_gid;
 	if (getuid() == 0) {
 		if (setgroups(1, gset) < 0)
-			fatal_perror("failed to reset groups");
+			die("failed to reset groups: %s", strerror(errno));
 	}
 
 	if (setgid(pw->pw_gid) < 0 || setuid(pw->pw_uid) < 0)
-		fatal_perror("failed to assume identity of user '%s'", user);
+		die("failed to assume identity of user '%s': %s", user, strerror(errno));
 
 	if (getuid() != pw->pw_uid || geteuid() != pw->pw_uid)
-		fatal("setuid() failed to work");
+		die("setuid() failed to work");
 }
 
 /* set permissions & mode for file */
@@ -83,7 +83,7 @@ void change_file_mode(const char *fn, mode_t mode,
 			/* check for a valid username */
 			pw = getpwnam(user_name);
 			if (!pw)
-				fatal("could not find user '%s': %s",
+				die("could not find user '%s': %s",
 				      user_name, strerror(errno));
 			uid = pw->pw_uid;
 		}
@@ -99,7 +99,7 @@ void change_file_mode(const char *fn, mode_t mode,
 		} else {
 			gr = getgrnam(group_name);
 			if (!gr)
-				fatal("could not find group '%s': %s",
+				die("could not find group '%s': %s",
 				      group_name, strerror(errno));
 			gid = gr->gr_gid;
 		}
@@ -109,7 +109,7 @@ void change_file_mode(const char *fn, mode_t mode,
 	if (uid != (uid_t)-1 || gid != (gid_t)-1) {
 		res = chown(fn, uid, gid);
 		if (res != 0) {
-			fatal("chown(%s, %d, %d) failed: %s",
+			die("chown(%s, %d, %d) failed: %s",
 			      fn, uid, gid, strerror(errno));
 		}
 	}
@@ -117,7 +117,7 @@ void change_file_mode(const char *fn, mode_t mode,
 	/* change mode */
 	res = chmod(fn, mode);
 	if (res != 0) {
-		fatal("failure to chmod(%s, 0%o): %s",
+		die("failure to chmod(%s, 0%o): %s",
 		      fn, mode, strerror(errno));
 	}
 }

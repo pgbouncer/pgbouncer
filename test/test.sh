@@ -48,7 +48,7 @@ else
 fi
 
 # System configuration checks
-if ! grep -q "^\"${USER}\"" userlist.txt; then
+if ! grep -q "^\"${USER:=$(id -un)}\"" userlist.txt; then
 	cp userlist.txt userlist.txt.bak
 	echo "\"${USER}\" \"01234\"" >> userlist.txt
 fi

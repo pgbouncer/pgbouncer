@@ -7,14 +7,10 @@ addons:
         key_url: 'https://www.postgresql.org/media/keys/ACCC4CF8.asc'
     update: true
     packages:
-      - debhelper
-      - devscripts
       - electric-fence
-      - fakeroot
       - libc-ares-dev
       - libevent-dev
       - libudns-dev
-      - lintian
       - pandoc
       - postgresql-9.5
       - postgresql-11
@@ -66,7 +62,3 @@ script: |
   ./configure --prefix=$HOME/install2 --enable-werror --without-cares $configure_args
   make
   make install
-  cd ..
-  make distclean
-  ./configure
-  make deb

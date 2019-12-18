@@ -108,6 +108,7 @@ char *cf_server_check_query;
 usec_t cf_server_check_delay;
 int cf_server_fast_close;
 int cf_server_round_robin;
+int cf_server_shuffle_hosts;
 int cf_disable_pqexec;
 usec_t cf_dns_max_ttl;
 usec_t cf_dns_nxdomain_ttl;
@@ -255,6 +256,7 @@ CF_ABS("server_idle_timeout", CF_TIME_USEC, cf_server_idle_timeout, 0, "600"),
 CF_ABS("server_connect_timeout", CF_TIME_USEC, cf_server_connect_timeout, 0, "15"),
 CF_ABS("server_login_retry", CF_TIME_USEC, cf_server_login_retry, 0, "15"),
 CF_ABS("server_round_robin", CF_INT, cf_server_round_robin, 0, "0"),
+CF_ABS("server_shuffle_hosts", CF_INT, cf_server_shuffle_hosts, 0, "0"),
 CF_ABS("suspend_timeout", CF_TIME_USEC, cf_suspend_timeout, 0, "10"),
 CF_ABS("ignore_startup_parameters", CF_STR, cf_ignore_startup_params, 0, ""),
 CF_ABS("disable_pqexec", CF_INT, cf_disable_pqexec, CF_NO_RELOAD, "0"),

@@ -1387,8 +1387,6 @@ static void check_req_result_changes(struct DNSRequest *req)
 }
 
 /* shuffle the order of the addrinfo linked list */
-/* RFC 3493: The freeaddrinfo() function must support the freeing of arbitrary
-   sublists of an addrinfo list originally returned by getaddrinfo(). */
 static struct addrinfo * shuffle_addrinfo(struct addrinfo *ai)
 {
 	int i, j, n;
@@ -1440,7 +1438,7 @@ static void got_result_gai(int result, struct addrinfo *res, void *arg)
 
 	if (result == 0 && res) {
 		if (cf_server_shuffle_hosts) {
-			log_info("DNS: %s shuffled addrinfo", req->name);
+			log_noise("DNS: shuffled addrinfo: %s", req->name);
 			res = shuffle_addrinfo(res);
 		}
 		req->result = res;

@@ -1161,7 +1161,7 @@ void launch_new_connection(PgPool *pool)
 				}
 			}
 		}
-		log_debug("launch_new_connection: pool full (%d >= %d)",
+		log_warning("launch_new_connection: pool full (%d >= %d)",
 				total, pool->db->pool_size);
 		return;
 	}
@@ -1176,7 +1176,7 @@ allow_new:
 			}
 		}
 		if (pool->db->connection_count >= total) {
-			log_debug("launch_new_connection: database full (%d >= %d)",
+			log_warning("launch_new_connection: database full (%d >= %d)",
 					pool->db->connection_count, total);
 			return;
 		}
@@ -1191,7 +1191,7 @@ allow_new:
 			}
 		}
 		if (pool->user->connection_count >= total) {
-			log_debug("launch_new_connection: user full (%d >= %d)",
+			log_warning("launch_new_connection: user full (%d >= %d)",
 					pool->user->connection_count, total);
 			return;
 		}
@@ -1200,7 +1200,7 @@ allow_new:
 	/* get free conn object */
 	server = slab_alloc(server_cache);
 	if (!server) {
-		log_debug("launch_new_connection: no memory");
+		log_warning("launch_new_connection: no memory");
 		return;
 	}
 

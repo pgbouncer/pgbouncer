@@ -243,6 +243,14 @@ achieving uniform load.
 
 Default: 0
 
+### server_shuffle_hosts
+
+This feature shuffles the host list returned from DNS. If DNS load balancing or
+round robin DNS is not used, this setting can provide a simple way to distribute
+connections across PostgreSQL servers.
+
+Default: 0
+
 ### ignore_startup_parameters
 
 By default, PgBouncer allows only parameters it can keep track of in startup

@@ -51,6 +51,9 @@ static void usage(const char *exe)
 	exit(0);
 }
 
+/* global libevent handle */
+struct event_base *pgb_event_base;
+
 /* async dns handler */
 struct DNSContext *adns;
 
@@ -506,30 +509,30 @@ static void signal_setup(void)
 
 	/* install handlers */
 
-	signal_set(&ev_sigusr1, SIGUSR1, handle_sigusr1, NULL);
-	err = signal_add(&ev_sigusr1, NULL);
+	evsignal_assign(&ev_sigusr1, pgb_event_base, SIGUSR1, handle_sigusr1, NULL);
+	err = evsignal_add(&ev_sigusr1, NULL);
 	if (err < 0)
-		fatal_perror("signal_add");
+		fatal_perror("evsignal_add");
 
-	signal_set(&ev_sigusr2, SIGUSR2, handle_sigusr2, NULL);
-	err = signal_add(&ev_sigusr2, NULL);
+	evsignal_assign(&ev_sigusr2, pgb_event_base, SIGUSR2, handle_sigusr2, NULL);
+	err = evsignal_add(&ev_sigusr2, NULL);
 	if (err < 0)
-		fatal_perror("signal_add");
+		fatal_perror("evsignal_add");
 
-	signal_set(&ev_sighup, SIGHUP, handle_sighup, NULL);
-	err = signal_add(&ev_sighup, NULL);
+	evsignal_assign(&ev_sighup, pgb_event_base, SIGHUP, handle_sighup, NULL);
+	err = evsignal_add(&ev_sighup, NULL);
 	if (err < 0)
-		fatal_perror("signal_add");
+		fatal_perror("evsignal_add");
 #endif
-	signal_set(&ev_sigterm, SIGTERM, handle_sigterm, NULL);
-	err = signal_add(&ev_sigterm, NULL);
+	evsignal_assign(&ev_sigterm, pgb_event_base, SIGTERM, handle_sigterm, NULL);
+	err = evsignal_add(&ev_sigterm, NULL);
 	if (err < 0)
-		fatal_perror("signal_add");
+		fatal_perror("evsignal_add");
 
-	signal_set(&ev_sigint, SIGINT, handle_sigint, NULL);
-	err = signal_add(&ev_sigint, NULL);
+	evsignal_assign(&ev_sigint, pgb_event_base, SIGINT, handle_sigint, NULL);
+	err = evsignal_add(&ev_sigint, NULL);
 	if (err < 0)
-		fatal_perror("signal_add");
+		fatal_perror("evsignal_add");
 }
 
 /*
@@ -723,7 +726,7 @@ static void main_loop_once(void)
 
 	reset_time_cache();
 
-	err = event_loop(EVLOOP_ONCE);
+	err = event_base_loop(pgb_event_base, EVLOOP_ONCE);
 	if (err < 0) {
 		if (errno != EINTR)
 			log_warning("event_loop failed: %s", strerror(errno));
@@ -741,7 +744,10 @@ static void main_loop_once(void)
 static void takeover_part1(void)
 {
 	/* use temporary libevent base */
-	void *evtmp = event_init();
+	struct event_base *evtmp;
+
+	evtmp = pgb_event_base;
+	pgb_event_base = event_base_new();
 
 	if (!cf_unix_socket_dir || !*cf_unix_socket_dir)
 		die("cannot reboot if unix dir not configured");
@@ -749,7 +755,9 @@ static void takeover_part1(void)
 	takeover_init();
 	while (cf_reboot)
 		main_loop_once();
-	event_base_free(evtmp);
+
+	event_base_free(pgb_event_base);
+	pgb_event_base = evtmp;
 }
 
 static void dns_setup(void)
@@ -778,7 +786,7 @@ static void cleanup(void)
 	objects_cleanup();
 	sbuf_cleanup();
 
-	event_base_free(NULL);
+	event_base_free(pgb_event_base);
 
 	tls_deinit();
 	varcache_deinit();
@@ -931,8 +939,8 @@ int main(int argc, char *argv[])
 
 	/* initialize subsystems, order important */
 	srandom(time(NULL) ^ getpid());
-	if (!event_init())
-		die("event_init() failed");
+	if (!(pgb_event_base = event_base_new()))
+		die("event_base_new() failed");
 	dns_setup();
 	signal_setup();
 	janitor_setup();
@@ -949,7 +957,7 @@ int main(int argc, char *argv[])
 	write_pidfile();
 
 	log_info("process up: %s, libevent %s (%s), adns: %s, tls: %s", PACKAGE_STRING,
-		 event_get_version(), event_get_method(), adns_get_backend(),
+		 event_get_version(), event_base_get_method(pgb_event_base), adns_get_backend(),
 		 tls_backend_version());
 
 	/* main loop */

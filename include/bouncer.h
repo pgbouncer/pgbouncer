@@ -36,7 +36,13 @@
 #include <usual/mbuf.h>
 #include <usual/strpool.h>
 
-#include <event.h>
+#include <event2/event.h>
+#include <event2/event_struct.h>
+
+
+/* global libevent handle */
+extern struct event_base *pgb_event_base;
+
 
 /* each state corresponds to a list */
 enum SocketState {

@@ -975,7 +975,7 @@ static bool admin_cmd_shutdown(PgSocket *admin, const char *arg)
 	 */
 	log_info("SHUTDOWN command issued");
 	cf_shutdown = 2;
-	event_loopbreak();
+	event_base_loopbreak(pgb_event_base);
 
 	return true;
 }

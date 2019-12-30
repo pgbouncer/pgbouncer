@@ -654,7 +654,7 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	if (cf_shutdown == 1 && get_active_server_count() == 0) {
 		log_info("server connections dropped, exiting");
 		cf_shutdown = 2;
-		event_loopbreak();
+		event_base_loopbreak(pgb_event_base);
 		return;
 	}
 
@@ -671,7 +671,7 @@ skip_maint:
 void janitor_setup(void)
 {
 	/* launch maintenance */
-	evtimer_set(&full_maint_ev, do_full_maint, NULL);
+	evtimer_assign(&full_maint_ev, pgb_event_base, do_full_maint, NULL);
 	safe_evtimer_add(&full_maint_ev, &full_maint_period);
 }
 

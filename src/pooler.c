@@ -331,7 +331,7 @@ loop:
 		 * wait a bit, hope that admin resolves somehow
 		 */
 		log_error("accept() failed: %s", strerror(errno));
-		evtimer_set(&ev_err, err_wait_func, NULL);
+		evtimer_assign(&ev_err, pgb_event_base, err_wait_func, NULL);
 		safe_evtimer_add(&ev_err, &err_timeout);
 		suspend_pooler();
 		return;
@@ -414,7 +414,7 @@ void resume_pooler(void)
 		ls = container_of(el, struct ListenSocket, node);
 		if (ls->active)
 			continue;
-		event_set(&ls->ev, ls->fd, EV_READ | EV_PERSIST, pool_accept, ls);
+		event_assign(&ls->ev, pgb_event_base, ls->fd, EV_READ | EV_PERSIST, pool_accept, ls);
 		if (event_add(&ls->ev, NULL) < 0) {
 			log_warning("event_add failed: %s", strerror(errno));
 			return;

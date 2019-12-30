@@ -19,10 +19,13 @@
 #include <usual/time.h>
 #include <usual/string.h>
 
-#include <event.h>
+#include <event2/event.h>
+#include <event2/event_struct.h>
 #include <libpq-fe.h>
 
 static char *simple_query = "select 1";
+
+static struct event_base *evbase;
 
 typedef struct DbConn {
 	struct List	head;
@@ -96,7 +99,7 @@ static void set_active(DbConn *db)
 
 static void wait_event(DbConn *db, short ev, event_callback_fn fn)
 {
-	event_set(&db->ev, PQsocket(db->con), ev, fn, db);
+	event_assign(&db->ev, evbase, PQsocket(db->con), ev, fn, db);
 	if (event_add(&db->ev, NULL) < 0)
 		fatal_perror("event_add");
 }
@@ -410,7 +413,7 @@ static void run_stats(int fd, short ev, void *arg)
 	}
 
 	if (!last_time)
-		evtimer_set(&ev_stats, run_stats, NULL);
+		evtimer_assign(&ev_stats, evbase, run_stats, NULL);
 	if (evtimer_add(&ev_stats, &period) < 0)
 		fatal_perror("evtimer_add");
 
@@ -513,7 +516,7 @@ int main(int argc, char *argv[])
 		statlist_append(&idle_list, &db->head);
 	}
 
-	event_init();
+	evbase = event_base_new();
 
 	run_stats(0, 0, NULL);
 
@@ -522,7 +525,7 @@ int main(int argc, char *argv[])
 	while (1) {
 		handle_idle();
 		reset_time_cache();
-		if (event_loop(EVLOOP_ONCE) < 0)
+		if (event_base_loop(evbase, EVLOOP_ONCE) < 0)
 			log_error("event_loop: %s", strerror(errno));
 	}
 	return 0;

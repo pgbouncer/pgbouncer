@@ -302,8 +302,8 @@ static bool impl_init(struct DNSContext *ctx)
 	gctx->sev.sigev_notify = SIGEV_SIGNAL;
 	gctx->sev.sigev_signo = SIGALRM;
 
-	signal_set(&gctx->ev, SIGALRM, dns_signal, gctx);
-	if (signal_add(&gctx->ev, NULL) < 0) {
+	evsignal_assign(&gctx->ev, pgb_event_base, SIGALRM, dns_signal, gctx);
+	if (evsignal_add(&gctx->ev, NULL) < 0) {
 		free(gctx);
 		return false;
 	}
@@ -354,7 +354,7 @@ static void impl_release(struct DNSContext *ctx)
 {
 	struct GaiContext *gctx = ctx->edns;
 	if (gctx) {
-		signal_del(&gctx->ev);
+		evsignal_del(&gctx->ev);
 		free(gctx);
 		ctx->edns = NULL;
 	}
@@ -561,13 +561,13 @@ static bool impl_init(struct DNSContext *ctx)
 		log_error("dns_open failed: fd=%d", fd);
 		return false;
 	}
-	event_set(&udns->ev_io, fd, EV_READ | EV_PERSIST, udns_io_cb, ctx);
+	event_assign(&udns->ev_io, pgb_event_base, fd, EV_READ | EV_PERSIST, udns_io_cb, ctx);
 	err = event_add(&udns->ev_io, NULL);
 	if (err < 0)
 		log_warning("impl_init: event_add failed: %s", strerror(errno));
 
 	/* timer setup */
-	evtimer_set(&udns->ev_timer, udns_timer_cb, ctx);
+	evtimer_assign(&udns->ev_timer, pgb_event_base, udns_timer_cb, ctx);
 	dns_set_tmcbck(udns->ctx, udns_timer_setter, ctx);
 
 	return true;
@@ -857,7 +857,7 @@ re_set:
 		event_del(&xfd->ev);
 	xfd->wait = new_wait;
 	if (new_wait) {
-		event_set(&xfd->ev, sock, new_wait | EV_PERSIST, xares_fd_cb, xfd);
+		event_assign(&xfd->ev, pgb_event_base, sock, new_wait | EV_PERSIST, xares_fd_cb, xfd);
 		if (event_add(&xfd->ev, NULL) < 0)
 			log_warning("adns: event_add failed: %s", strerror(errno));
 	} else {
@@ -975,7 +975,7 @@ static bool impl_init(struct DNSContext *ctx)
 
 	ares_set_socket_callback(meta->chan, xares_new_socket_cb, ctx);
 
-	evtimer_set(&meta->ev_timer, xares_timer_cb, ctx);
+	evtimer_assign(&meta->ev_timer, pgb_event_base, xares_timer_cb, ctx);
 
 	ctx->edns = meta;
 	return true;
@@ -1538,7 +1538,7 @@ static void launch_zone_timer(struct DNSContext *ctx)
 	tv.tv_sec = cf_dns_zone_check_period / USEC;
 	tv.tv_usec = cf_dns_zone_check_period % USEC;
 
-	evtimer_set(&ctx->ev_zone_timer, zone_timer, ctx);
+	evtimer_assign(&ctx->ev_zone_timer, pgb_event_base, zone_timer, ctx);
 	safe_evtimer_add(&ctx->ev_zone_timer, &tv);
 
 	ctx->zone_state = 2;

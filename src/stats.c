@@ -384,6 +384,6 @@ void stats_setup(void)
 	old_stamp = new_stamp - USEC;
 
 	/* launch stats */
-	evtimer_set(&ev_stats, refresh_stats, NULL);
+	evtimer_assign(&ev_stats, pgb_event_base, refresh_stats, NULL);
 	safe_evtimer_add(&ev_stats, &period);
 }

@@ -53,9 +53,6 @@ typedef bool (*sbuf_cb_t)(SBuf *sbuf,
 			SBufEvent evtype,
 			struct MBuf *mbuf);
 
-/* for some reason, libevent has no typedef for callback */
-typedef void (*sbuf_libevent_cb)(evutil_socket_t, short, void *);
-
 struct SBufIO {
 	int (*sbufio_recv)(SBuf *sbuf, void *buf, unsigned int len);
 	int (*sbufio_send)(SBuf *sbuf, const void *data, unsigned int len);
@@ -111,8 +108,8 @@ void sbuf_prepare_fetch(SBuf *sbuf, unsigned amount);
 
 bool sbuf_answer(SBuf *sbuf, const void *buf, unsigned len)  _MUSTCHECK;
 
-bool sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb cb)  _MUSTCHECK;
-bool sbuf_use_callback_once(SBuf *sbuf, short ev, sbuf_libevent_cb user_cb) _MUSTCHECK;
+bool sbuf_continue_with_callback(SBuf *sbuf, event_callback_fn cb)  _MUSTCHECK;
+bool sbuf_use_callback_once(SBuf *sbuf, short ev, event_callback_fn user_cb) _MUSTCHECK;
 
 /*
  * Returns true if SBuf is has no data buffered

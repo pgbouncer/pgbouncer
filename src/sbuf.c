@@ -243,7 +243,7 @@ void sbuf_continue(SBuf *sbuf)
  *
  * The callback will be called with arg given to sbuf_init.
  */
-bool sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb user_cb)
+bool sbuf_continue_with_callback(SBuf *sbuf, event_callback_fn user_cb)
 {
 	int err;
 
@@ -261,7 +261,7 @@ bool sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb user_cb)
 	return true;
 }
 
-bool sbuf_use_callback_once(SBuf *sbuf, short ev, sbuf_libevent_cb user_cb)
+bool sbuf_use_callback_once(SBuf *sbuf, short ev, event_callback_fn user_cb)
 {
 	int err;
 	AssertActive(sbuf);

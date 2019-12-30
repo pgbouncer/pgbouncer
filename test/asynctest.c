@@ -24,8 +24,6 @@
 
 static char *simple_query = "select 1";
 
-typedef void (*libev_cb_f)(int sock, short flags, void *arg);
-
 typedef struct DbConn {
 	struct List	head;
 	const char	*connstr;
@@ -96,7 +94,7 @@ static void set_active(DbConn *db)
 	log_debug("%p: set_active", db);
 }
 
-static void wait_event(DbConn *db, short ev, libev_cb_f fn)
+static void wait_event(DbConn *db, short ev, event_callback_fn fn)
 {
 	event_set(&db->ev, PQsocket(db->con), ev, fn, db);
 	if (event_add(&db->ev, NULL) < 0)

@@ -407,15 +407,15 @@ test_max_client_conn() {
 test_pool_size() {
 	docount() {
 		for i in {1..10}; do
-			psql -X -c "select pg_sleep(0.5)" $1 &
+			psql -X -c "select pg_sleep(0.5)" $1 >/dev/null &
 		done
 		wait
-		cnt=`psql -X -tAq -c "select count(1) from pg_stat_activity where usename='bouncer' and datname='$1'" $1`
+		cnt=`psql -X -p $PG_PORT -tAq -c "select count(1) from pg_stat_activity where usename='bouncer' and datname='$1'" postgres`
 		echo $cnt
 	}
 
-	test `docount p0` -ne 2 && return 1
-	test `docount p1` -ne 5 && return 1
+	test `docount p0` -eq 2 || return 1
+	test `docount p1` -eq 5 || return 1
 
 	return 0
 }

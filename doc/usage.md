@@ -240,8 +240,8 @@ database
 :   Database name.
 
 state
-:   State of the pgbouncer server connection, one of **active**, **used** or
-    **idle**.
+:   State of the pgbouncer server connection, one of **active**, **used**,
+    **idle**, **tested** or **new**.
 
 addr
 :   IP address of PostgreSQL server.

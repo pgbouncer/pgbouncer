@@ -123,7 +123,7 @@ pgctl start
 echo "Creating databases"
 psql -X -p $PG_PORT -l | grep p0 > /dev/null || {
 	psql -X -o /dev/null -p $PG_PORT -c "create user bouncer" template1 || exit 1
-	for dbname in p0 p1 p3 p4 p5 p6; do
+	for dbname in p0 p1 p3 p4 p5 p6 p7; do
 		createdb -p $PG_PORT $dbname || exit 1
 	done
 }
@@ -132,6 +132,7 @@ psql -X -p $PG_PORT -d p0 -c "select * from pg_user" | grep pswcheck > /dev/null
 	echo "Creating users"
 	psql -X -o /dev/null -p $PG_PORT -c "create user pswcheck with superuser createdb password 'pgbouncer-check';" p0 || exit 1
 	psql -X -o /dev/null -p $PG_PORT -c "create user someuser with password 'anypasswd';" p0 || exit 1
+	psql -X -o /dev/null -p $PG_PORT -c "create user maxedout;" p0 || exit 1
 	if $pg_supports_scram; then
 		psql -X -o /dev/null -p $PG_PORT -c "set password_encryption = 'md5'; create user muser1 password 'foo';" p0 || exit 1
 		psql -X -o /dev/null -p $PG_PORT -c "set password_encryption = 'md5'; create user muser2 password 'wrong';" p0 || exit 1
@@ -416,6 +417,45 @@ test_pool_size() {
 
 	test `docount p0` -eq 2 || return 1
 	test `docount p1` -eq 5 || return 1
+
+	return 0
+}
+
+test_max_db_connections() {
+	local users
+
+	# some users, doesn't matter which ones
+	users=(muser1 muser2 puser1 puser2)
+
+	docount() {
+		for i in {1..10}; do
+			psql -X -U ${users[$(($i % 4))]} -c "select pg_sleep(0.5)" p2 >/dev/null &
+		done
+		wait
+		cnt=`psql -X -p $PG_PORT -tAq -c "select count(1) from pg_stat_activity where usename in ('muser1', 'muser2', 'puser1', 'puser2') and datname='p0'" postgres`
+		echo $cnt
+	}
+
+	test `docount` -eq 4 || return 1
+
+	return 0
+}
+
+test_max_user_connections() {
+	local databases
+
+	databases=(p7a p7b p7c)
+
+	docount() {
+		for i in {1..10}; do
+			psql -X -U maxedout -c "select pg_sleep(0.5)" ${databases[$(($i % 3))]} >/dev/null &
+		done
+		wait
+		cnt=`psql -X -p $PG_PORT -tAq -c "select count(1) from pg_stat_activity where datname = 'p7'" postgres`
+		echo $cnt
+	}
+
+	test `docount` -eq 3 || return 1
 
 	return 0
 }
@@ -813,6 +853,8 @@ test_server_connect_timeout_reject
 test_server_check_delay
 test_max_client_conn
 test_pool_size
+test_max_db_connections
+test_max_user_connections
 test_online_restart
 test_pause_resume
 test_suspend_resume

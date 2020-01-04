@@ -215,23 +215,40 @@ Default: 5.0
 
 ### max_db_connections
 
-Do not allow more than this many connections per database (regardless of pool, i.e.
-user). It should be noted that when you hit the limit, closing a client connection
-to one pool will not immediately allow a server connection to be established for
-another pool, because the server connection for the first pool is still open.
-Once the server connection closes (due to idle timeout), a new server connection
-will immediately be opened for the waiting pool.
+Do not allow more than this many server connections per database
+(regardless of user).  This considers the PgBouncer database that the
+client has connected to, not the PostgreSQL database of the outgoing
+connection.
 
-Default: unlimited
+This can also be set per database in the `[databases]` section.
+
+Note that when you hit the limit, closing a client connection to one
+pool will not immediately allow a server connection to be established
+for another pool, because the server connection for the first pool is
+still open.  Once the server connection closes (due to idle timeout),
+a new server connection will immediately be opened for the waiting
+pool.
+
+Default: 0 (unlimited)
 
 ### max_user_connections
 
-Do not allow more than this many connections per-user (regardless of pool, i.e.
-user). It should be noted that when you hit the limit, closing a client connection
-to one pool will not immediately allow a server connection to be established for
-another pool, because the server connection for the first pool is still open.
-Once the server connection closes (due to idle timeout), a new server connection
-will immediately be opened for the waiting pool.
+Do not allow more than this many server connections per user
+(regardless of database).  This considers the PgBouncer user that is
+associated with a pool, which is either the user specified for the
+server connection or in absence of that the user the client has
+connected as.
+
+This can also be set per user in the `[users]` section.
+
+Note that when you hit the limit, closing a client connection to one
+pool will not immediately allow a server connection to be established
+for another pool, because the server connection for the first pool is
+still open.  Once the server connection closes (due to idle timeout),
+a new server connection will immediately be opened for the waiting
+pool.
+
+Default: 0 (unlimited)
 
 ### server_round_robin
 

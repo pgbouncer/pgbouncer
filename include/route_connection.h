@@ -15,6 +15,6 @@ This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS O
  * applied to client query.
  */
 
-bool route_client_connection (PgSocket *client, PktHdr *pkt);
+bool route_client_connection (PgSocket *client, char *schema, PktHdr *pkt);
 
 

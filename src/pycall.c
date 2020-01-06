@@ -18,7 +18,7 @@ This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS O
 #include "bouncer.h"
 #include <usual/pgutil.h>
 
-char *pycall(PgSocket *client, char *username, char *query_str, char *py_file,
+char *pycall(PgSocket *client, char *username, char* schema, char *query_str, char *py_file,
 		char* py_function) {
 	PyObject *pName = NULL, *pModule = NULL, *pFunc = NULL;
 	PyObject *pArgs = NULL, *pValue = NULL;
@@ -89,8 +89,8 @@ char *pycall(PgSocket *client, char *username, char *query_str, char *py_file,
 		goto finish;
 	}
 
-	/* Call function with two arguments - username and query_str */
-	pArgs = PyTuple_New(2);
+	/* Call function with three arguments - username, schema and query_str */
+	pArgs = PyTuple_New(3);
 	if (pArgs == NULL) {
 		slog_error(client, "Python module <%s>: out of memory", py_module);
 		goto finish;
@@ -101,12 +101,20 @@ char *pycall(PgSocket *client, char *username, char *query_str, char *py_file,
 		goto finish;
 	}
 	PyTuple_SetItem(pArgs, 0, pValue);
-	pValue = PyString_FromString(query_str);
+
+	pValue = PyString_FromString(schema);
 	if (pValue == NULL) {
 		slog_error(client, "Python module <%s>: out of memory", py_module);
 		goto finish;
 	}
 	PyTuple_SetItem(pArgs, 1, pValue);
+
+	pValue = PyString_FromString(query_str);
+	if (pValue == NULL) {
+		slog_error(client, "Python module <%s>: out of memory", py_module);
+		goto finish;
+	}
+	PyTuple_SetItem(pArgs, 2, pValue);
 	pValue = PyObject_CallObject(pFunc, pArgs);
 	if (pValue == NULL) {
 		slog_error(client, "Python Function <%s> failed to return a value",

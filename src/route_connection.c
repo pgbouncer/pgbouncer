@@ -27,7 +27,7 @@ char *call_python_routing_rules(PgSocket *client, char *query_str);
  *  - apply routing rules to query string contained in the buffer, and determine target database
  *  - locate connection pool for target database to client object, and return
  */
-bool route_client_connection(PgSocket *client, PktHdr *pkt) {
+bool route_client_connection(PgSocket *client, char* schema, PktHdr *pkt) {
 	SBuf *sbuf = &client->sbuf;
 	char *pkt_start;
 	char *query_str;
@@ -60,14 +60,18 @@ bool route_client_connection(PgSocket *client, PktHdr *pkt) {
 	slog_debug(client, "route_client_connection: Username => %s", client->auth_user->name);
 	slog_debug(client, "route_client_connection: Query => %s", query_str);
 	slog_debug(client, "route_client_connection: Packet Type => '%c'", pkt->type);
-
+	if (schema != NULL){
+	    slog_debug(client, "route_client_connection: Schema => %s", schema);
+	} else {
+	    slog_debug(client, "route_client_connection: Schema public");
+	}
 	if (strcmp(cf_routing_rules_py_module_file, "not_enabled") == 0) {
 		slog_debug(client,
 				"Query routing not enabled in config (routing_rules_py_module_file)");
 		return true;
 	}
 
-	dbname = pycall(client, client->auth_user->name, query_str,cf_routing_rules_py_module_file,
+	dbname = pycall(client, client->auth_user->name, schema, query_str,cf_routing_rules_py_module_file,
 			"routing_rules");
 	if (dbname == NULL) {
 		slog_debug(client, "routing_rules returned 'None' - existing connection preserved");

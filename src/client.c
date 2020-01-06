@@ -936,10 +936,9 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
         if (schema != NULL){
             slog_info(client, "Schema for the query: %s", schema);
         } else {
-           slog_info(client, "Schema not found for the query");
+           slog_info(client, "Schema for the query: public");
         }
-        // route_client_connection(client, pkt, schema);
-        route_client_connection(client, pkt);
+        route_client_connection(client, schema, pkt);
     }
 
 	/* acquire server */

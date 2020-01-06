@@ -14,7 +14,7 @@ This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS O
  * pgbouncer-rr extension: client connection rewriting
  */
 
-bool rewrite_query(PgSocket *client, PktHdr *pkt);
+bool rewrite_query(PgSocket *client, char *schema, PktHdr *pkt);
 
 
 void printHex(void *buffer, const unsigned int n) ;

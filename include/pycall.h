@@ -14,4 +14,4 @@ This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS O
  * pgbouncer-rr extension: call external python function
  */
 
-char *pycall(PgSocket *client, char *username, char *query_str, char *py_file, char* py_function) ;
+char *pycall(PgSocket *client, char *username, char *schema, char *query_str, char *py_file, char* py_function) ;

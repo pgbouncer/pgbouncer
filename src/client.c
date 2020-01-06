@@ -929,14 +929,14 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		return admin_handle_client(client, pkt);
     /* pgbouncer-rr extensions: query rewrite & client connection routing */
     if (pkt->type == 'Q' || pkt->type == 'P') {
-        if (!rewrite_query(client, pkt)) {
-            return false;
-        }
         schema = varcache_get(&client->vars, "search_path");
         if (schema != NULL){
             slog_info(client, "Schema for the query: %s", schema);
         } else {
            slog_info(client, "Schema for the query: public");
+        }
+        if (!rewrite_query(client, schema, pkt)) {
+            return false;
         }
         route_client_connection(client, schema, pkt);
     }

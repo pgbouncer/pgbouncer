@@ -31,7 +31,7 @@ bool is_rewritten(char *query);
 /* rewrite_query:
  * applied to packets of type 'Q' (Query) and 'P' (Prepare) only
  */
-bool rewrite_query(PgSocket *client, PktHdr *pkt) {
+bool rewrite_query(PgSocket *client, char* schema, PktHdr *pkt) {
 	SBuf *sbuf = &client->sbuf;
 	char *pkt_start;
 	char *stmt_str="", *query_str, *loggable_query_str, *tmp_new_query_str, *new_query_str;
@@ -68,10 +68,15 @@ bool rewrite_query(PgSocket *client, PktHdr *pkt) {
 	loggable_query_str = strip_newlines(query_str) ;
 	slog_debug(client, "rewrite_query: Username => %s", client->auth_user->name);
 	slog_debug(client, "rewrite_query: Orig Query=> %s", loggable_query_str);
+	if (schema != NULL){
+	    slog_debug(client, "route_client_connection: Schema => %s", schema);
+	} else {
+	    slog_debug(client, "route_client_connection: Schema public");
+	}
 	free(loggable_query_str);
 
 	/* call python function to rewrite the query */
-	tmp_new_query_str = pycall(client, client->auth_user->name, query_str, cf_rewrite_query_py_module_file,
+	tmp_new_query_str = pycall(client, client->auth_user->name, schema, query_str, cf_rewrite_query_py_module_file,
 			"rewrite_query");
 	if (tmp_new_query_str == NULL) {
 		slog_debug(client, "query unchanged");

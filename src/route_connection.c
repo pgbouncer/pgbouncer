@@ -64,6 +64,7 @@ bool route_client_connection(PgSocket *client, char* schema, PktHdr *pkt) {
 	    slog_debug(client, "route_client_connection: Schema => %s", schema);
 	} else {
 	    slog_debug(client, "route_client_connection: Schema public");
+	    return false;
 	}
 	if (strcmp(cf_routing_rules_py_module_file, "not_enabled") == 0) {
 		slog_debug(client,

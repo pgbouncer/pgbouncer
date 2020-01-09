@@ -72,6 +72,7 @@ bool rewrite_query(PgSocket *client, char* schema, PktHdr *pkt) {
 	    slog_debug(client, "route_client_connection: Schema => %s", schema);
 	} else {
 	    slog_debug(client, "route_client_connection: Schema public");
+	    return false;
 	}
 	free(loggable_query_str);
 

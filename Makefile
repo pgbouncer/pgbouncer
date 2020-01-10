@@ -133,7 +133,7 @@ config.mak:
 
 check: all
 	etc/optscan.sh
-	make -C test check
+	$(MAKE) -C test check
 
 w32arch = i686-w64-mingw32
 w32zip = $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)-win32.zip
@@ -145,7 +145,7 @@ zip: configure clean
 			--without-openssl \
 			--without-cares \
 			--enable-evdns \
-		&& make \
+		&& $(MAKE) \
 		&& $(w32arch)-strip pgbouncer.exe pgbevent.dll \
 		&& zip pgbouncer.zip pgbouncer.exe pgbevent.dll doc/*.html
 	zip -l buildexe/pgbouncer.zip etc/pgbouncer.ini etc/userlist.txt

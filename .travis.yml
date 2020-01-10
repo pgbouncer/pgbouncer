@@ -1,37 +1,44 @@
 dist: bionic
 language: c
-addons:
-  apt:
-    sources:
-      - sourceline: 'deb http://apt.postgresql.org/pub/repos/apt/ bionic-pgdg main'
-        key_url: 'https://www.postgresql.org/media/keys/ACCC4CF8.asc'
-    update: true
-    packages:
-      - electric-fence
-      - libc-ares-dev
-      - libevent-dev
-      - libudns-dev
-      - pandoc
-      - postgresql-9.5
-      - postgresql-11
-      - python
-      - valgrind
-compiler:
-  - clang
-  - gcc
 env:
   global:
     - PGVERSION=11
-  matrix:
-    - configure_args=''
-    - configure_args='' PGVERSION=9.5
-    - configure_args='--with-cares'
-    - configure_args='--with-udns'
-    - configure_args='--disable-evdns'
-    - configure_args='--with-pam'
-    - configure_args='--without-openssl'
-    - use_valgrind=yes
-    - use_valgrind=yes PGVERSION=9.5
+jobs:
+  include:
+  - env: configure_args=''
+  - env: configure_args='' PGVERSION=9.5
+  - env: configure_args='--with-cares'
+  - env: configure_args='--with-udns'
+  - env: configure_args='--disable-evdns'
+  - env: configure_args='--with-pam'
+  - env: configure_args='--without-openssl'
+  - compiler: clang
+  - dist: trusty
+  - dist: xenial
+  - env: use_valgrind=yes
+  - env: use_valgrind=yes PGVERSION=9.5
+  - env: use_efence=yes configure_args='--with-pam'
+    dist: xenial
+  - env: use_efence=yes PGVERSION=9.5 configure_args='--with-pam'
+    dist: xenial
+before_install: |
+  set -e
+  curl https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+  echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+  sudo apt-get update
+  # workaround for https://github.com/travis-ci/travis-cookbooks/pull/221
+  if [ "$TRAVIS_DIST" = 'trusty' ]; then
+    sudo service postgresql stop
+    echo 'exit 0' | sudo tee /etc/init.d/postgresql
+    sudo chmod a+x /etc/init.d/postgresql
+  fi
+install: |
+  set -e
+  pkgs="libc-ares-dev libevent-dev libudns-dev pandoc python"
+  pkgs="$pkgs postgresql-${PGVERSION}"
+  if [ x"$use_efence" = x"yes" ]; then pkgs="$pkgs electric-fence"; fi
+  if [ x"$use_valgrind" = x"yes" ]; then pkgs="$pkgs valgrind"; fi
+  sudo apt-get -y install $pkgs
 script: |
   set -e
   PATH=/usr/lib/postgresql/${PGVERSION}/bin:$PATH

@@ -476,7 +476,7 @@ static void handle_sigusr2(int sock, short flags, void *arg)
 		cf_pause_mode = P_NONE;
 		break;
 	case P_NONE:
-		log_info("got SIGUSR1, but not paused/suspended");
+		log_info("got SIGUSR2, but not paused/suspended");
 	}
 
 	/* avoid surprise later if cf_shutdown stays set */

@@ -164,6 +164,11 @@ extern int cf_sbuf_len;
 #define POOL_STMT	2
 #define POOL_INHERIT	3
 
+#define APPHOST_NONE	0
+#define APPHOST_ADDRESS	1
+#define APPHOST_HOSTNAME	2
+#define APPHOST_BOTH	3
+
 #define BACKENDKEY_LEN	8
 
 /* buffer size for startup noise */
@@ -204,6 +209,7 @@ bool pga_pton(PgAddr *a, const char *s, int port);
 const char *pga_ntop(const PgAddr *a, char *dst, int dstlen);
 const char *pga_str(const PgAddr *a, char *dst, int dstlen);
 const char *pga_details(const PgAddr *a, char *dst, int dstlen);
+const char *cached_hostname(void);
 int pga_cmp_addr(const PgAddr *a, const PgAddr *b);
 
 /*

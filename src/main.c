@@ -151,7 +151,7 @@ int cf_log_stats;
 int cf_log_connections;
 int cf_log_disconnections;
 int cf_log_pooler_errors;
-int cf_application_name_add_host;
+int cf_application_name_add_host = APPHOST_NONE;
 
 int cf_client_tls_sslmode;
 char *cf_client_tls_protocols;
@@ -204,6 +204,14 @@ const struct CfLookup sslmode_map[] = {
 	{ "require", SSLMODE_REQUIRE },
 	{ "verify-ca", SSLMODE_VERIFY_CA },
 	{ "verify-full", SSLMODE_VERIFY_FULL },
+	{ NULL }
+};
+
+const struct CfLookup application_name_add_host_map[] = {
+	{ "none", APPHOST_NONE },
+	{ "address", APPHOST_ADDRESS },
+	{ "hostname", APPHOST_HOSTNAME },
+	{ "both", APPHOST_BOTH },
 	{ NULL }
 };
 
@@ -286,7 +294,7 @@ CF_ABS("log_stats", CF_INT, cf_log_stats, 0, "1"),
 CF_ABS("log_connections", CF_INT, cf_log_connections, 0, "1"),
 CF_ABS("log_disconnections", CF_INT, cf_log_disconnections, 0, "1"),
 CF_ABS("log_pooler_errors", CF_INT, cf_log_pooler_errors, 0, "1"),
-CF_ABS("application_name_add_host", CF_INT, cf_application_name_add_host, 0, "0"),
+CF_ABS("application_name_add_host", CF_LOOKUP(application_name_add_host_map), cf_application_name_add_host, 0, "none"),
 
 CF_ABS("client_tls_sslmode", CF_LOOKUP(sslmode_map), cf_client_tls_sslmode, CF_NO_RELOAD, "disable"),
 CF_ABS("client_tls_ca_file", CF_STR, cf_client_tls_ca_file, CF_NO_RELOAD, ""),

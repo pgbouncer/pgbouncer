@@ -420,7 +420,7 @@ const char *pga_str(const PgAddr *a, char *dst, int dstlen)
 	return dst;
 }
 
-static const char *cached_hostname(void)
+const char *cached_hostname(void)
 {
 	static char cache[256];
 	int err;

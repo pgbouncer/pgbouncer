@@ -439,14 +439,25 @@ static void set_appname(PgSocket *client, const char *app_name)
 	char buf[400], abuf[300];
 	const char *details;
 
-	if (cf_application_name_add_host) {
+	if (cf_application_name_add_host != APPHOST_NONE) {
 		/* give app a name */
 		if (!app_name)
 			app_name = "app";
 
 		/* add details */
-		details = pga_details(&client->remote_addr, abuf, sizeof(abuf));
-		snprintf(buf, sizeof(buf), "%s - %s", app_name, details);
+		switch (cf_application_name_add_host) {
+		case APPHOST_HOSTNAME:
+			snprintf(buf, sizeof(buf), "%s [%s]", app_name, cached_hostname());
+			break;
+		case APPHOST_ADDRESS:
+			details = pga_details(&client->remote_addr, abuf, sizeof(abuf));
+			snprintf(buf, sizeof(buf), "%s - %s", app_name, details);
+			break;
+		case APPHOST_BOTH:
+			details = pga_details(&client->remote_addr, abuf, sizeof(abuf));
+			snprintf(buf, sizeof(buf), "%s - %s [%s]", app_name, details, cached_hostname());
+			break;
+		}
 		app_name = buf;
 	}
 	if (app_name) {

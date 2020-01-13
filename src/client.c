@@ -815,6 +815,7 @@ static char* get_search_path(PgSocket *client, PktHdr *pkt)
 	char *query_str = NULL;
 	int number_of_words = 0;
 	char *search_path_buf = NULL;
+	char *schema = NULL;
 
 	if (pkt->type == 'Q') {
 		query_str = (char *) pkt_start + 5;
@@ -829,12 +830,11 @@ static char* get_search_path(PgSocket *client, PktHdr *pkt)
         char *ptr = strtok(query_string_buf, delim);
         while (ptr != NULL){
             number_of_words++;
-            if (number_of_words == 4){
-                search_path_buf = (char *) malloc(strlen(ptr) + 1);
-                strncpy(search_path_buf, ptr, strlen(ptr)+1);
-            }
+            schema = ptr;
             ptr = strtok(NULL, delim);
         }
+        search_path_buf = (char *) malloc(strlen(schema) + 1);
+        strncpy(search_path_buf, schema, strlen(schema)+1);
     }
     if (search_path_buf != NULL) {
         slog_info(client, "*********Search Path String %s ***********", search_path_buf);
@@ -938,7 +938,12 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
         if (!rewrite_query(client, schema, pkt)) {
             return false;
         }
-        route_client_connection(client, schema, pkt);
+        if (schema != NULL){
+            route_client_connection(client, schema, pkt);
+        } else {
+            route_client_connection(client, "", pkt);
+        }
+
     }
 
 	/* acquire server */

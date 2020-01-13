@@ -645,9 +645,9 @@ bool find_server(PgSocket *client)
 			if (!server) {
 				break;
 			} else if (server->close_needed) {
-				disconnect_server(server, true, "obsolete connection");
+				disconnect_server(server, true, true, "obsolete connection");
 			} else if (!server->ready) {
-				disconnect_server(server, true, "idle server got dirty");
+				disconnect_server(server, true, true, "idle server got dirty");
 			} else {
 				break;
 			}
@@ -663,7 +663,7 @@ bool find_server(PgSocket *client)
 	if (server) {
 		res = varcache_apply(server, client, &varchange);
 		if (!res) {
-			disconnect_server(server, true, "var change failed");
+			disconnect_server(server, true, true, "var change failed");
 			server = NULL;
 		}
 	}
@@ -719,7 +719,7 @@ static bool reset_on_release(PgSocket *server)
 	slog_debug(server, "resetting: %s", cf_server_reset_query);
 	SEND_generic(res, server, 'Q', "s", cf_server_reset_query);
 	if (!res)
-		disconnect_server(server, false, "reset query failed");
+		disconnect_server(server, false, true, "reset query failed");
 	return res;
 }
 
@@ -783,14 +783,14 @@ bool release_server(PgSocket *server)
 
 	/* enforce lifetime immediately on release */
 	if (server->state != SV_LOGIN && life_over(server)) {
-		disconnect_server(server, true, "server_lifetime");
+		disconnect_server(server, true, true, "server_lifetime");
 		pool->last_lifetime_disconnect = get_cached_time();
 		return false;
 	}
 
 	/* enforce close request */
 	if (server->close_needed) {
-		disconnect_server(server, true, "close_needed");
+		disconnect_server(server, true, true, "close_needed");
 		return false;
 	}
 
@@ -809,7 +809,8 @@ bool release_server(PgSocket *server)
 }
 
 /* drop server connection */
-void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
+_PRINTF(4, 5)
+void disconnect_server(PgSocket *server, bool notify, bool suspect_server_fault, const char *reason, ...)
 {
 	PgPool *pool = server->pool;
 	PgSocket *client;
@@ -825,8 +826,8 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 	reason = buf;
 
 	if (cf_log_disconnections)
-		slog_info(server, "closing because: %s (age=%" PRIu64 "s)", reason,
-			  (now - server->connect_time) / USEC);
+		slog_info(server, "closing because: %s (age=%" PRIu64 "s, state=%d, ready=%d)", reason,
+			  (now - server->connect_time) / USEC, server->state, server->ready);
 
 	switch (server->state) {
 	case SV_ACTIVE:
@@ -848,8 +849,11 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 		 */
 		if (!server->ready)
 		{
-			pool->last_login_failed = 1;
-			pool->last_connect_failed = 1;
+			if (suspect_server_fault) {
+				slog_noise(server, "setting last_login_failed and last_connect_failed to 1");
+				pool->last_login_failed = 1;
+				pool->last_connect_failed = 1;
+			}
 		}
 		else
 		{
@@ -917,7 +921,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 			} else {
 				server->link = NULL;
 				client->link = NULL;
-				disconnect_server(server, true, "unclean server");
+				disconnect_server(server, true, true, "unclean server");
 			}
 		}
 	case CL_WAITING:
@@ -979,7 +983,7 @@ static void dns_callback(void *arg, const struct sockaddr *sa, int salen)
 	server->dns_token = NULL;
 
 	if (!sa) {
-		disconnect_server(server, true, "server dns lookup failed");
+		disconnect_server(server, true, true, "server dns lookup failed");
 		return;
 	} else if (sa->sa_family == AF_INET) {
 		char buf[64];
@@ -998,7 +1002,7 @@ static void dns_callback(void *arg, const struct sockaddr *sa, int salen)
 		slog_debug(server, "dns_callback: inet6: %s",
 			   sa2str(sa, buf, sizeof(buf)));
 	} else {
-		disconnect_server(server, true, "unknown address family: %d", sa->sa_family);
+		disconnect_server(server, true, true, "unknown address family: %d", sa->sa_family);
 		return;
 	}
 
@@ -1023,7 +1027,7 @@ static void dns_connect(struct PgSocket *server)
 		unix_dir = host ? host : cf_unix_socket_dir;
 		if (!unix_dir || !*unix_dir) {
 			log_error("unix socket dir not configured: %s", db->name);
-			disconnect_server(server, false, "cannot connect");
+			disconnect_server(server, false, true, "cannot connect");
 			return;
 		}
 		snprintf(sa_un.sun_path, sizeof(sa_un.sun_path),
@@ -1093,7 +1097,7 @@ bool evict_connection(PgDatabase *db)
 	}
 
 	if (oldest_connection) {
-		disconnect_server(oldest_connection, true, "evicted");
+		disconnect_server(oldest_connection, true, true, "evicted");
 		return true;
 	}
 	return false;
@@ -1119,7 +1123,7 @@ bool evict_user_connection(PgUser *user)
 	}
 
 	if (oldest_connection) {
-		disconnect_server(oldest_connection, true, "evicted");
+		disconnect_server(oldest_connection, true, true, "evicted");
 		return true;
 	}
 	return false;
@@ -1526,7 +1530,6 @@ static void for_each_server_filtered(PgPool *pool, void (*func)(PgSocket *sk), b
 		if (filter(sk, filter_arg))
 			func(sk);
 	}
-
 	statlist_for_each(item, &pool->new_server_list) {
 		sk = container_of(item, PgSocket, head);
 		if (filter(sk, filter_arg))
@@ -1558,7 +1561,7 @@ static void tag_pool_dirty(PgPool *pool)
 	/* drop servers login phase immediately */
 	statlist_for_each_safe(item, &pool->new_server_list, tmp) {
 		server = container_of(item, PgSocket, head);
-		disconnect_server(server, true, "connect string changed");
+		disconnect_server(server, true, false, "connect string changed");
 	}
 }
 

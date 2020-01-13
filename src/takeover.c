@@ -55,7 +55,7 @@ void takeover_finish(void)
 			die("sky is falling - error while waiting result from SHUTDOWN: %s", strerror(errno));
 	}
 
-	disconnect_server(old_bouncer, false, "disko over");
+	disconnect_server(old_bouncer, false, true, "disko over");
 	old_bouncer = NULL;
 
 	if (cf_pidfile && cf_pidfile[0]) {

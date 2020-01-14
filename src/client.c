@@ -817,6 +817,7 @@ static char* get_search_path(PgSocket *client, PktHdr *pkt)
 	int number_of_words = 0;
 	char *search_path_buf = NULL;
 	char *schema = NULL;
+	char *query = NULL, *search_query=NULL;
 
 	if (pkt->type == 'Q') {
 		query_str = (char *) pkt_start + 5;

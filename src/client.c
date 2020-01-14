@@ -811,6 +811,7 @@ static char* get_search_path(PgSocket *client, PktHdr *pkt)
     SBuf *sbuf = &client->sbuf;
 	char *pkt_start = (char *) &sbuf->io->buf[sbuf->io->parse_pos];
 	char delim[] = " ";
+	char delim1[] = ";";
 	char *stmt_str = NULL;
 	char *query_str = NULL;
 	int number_of_words = 0;
@@ -824,14 +825,21 @@ static char* get_search_path(PgSocket *client, PktHdr *pkt)
 		query_str = stmt_str + strlen(stmt_str) + 1;
 	}
 	char query_string_buf [strlen(query_str) + 1];
+	char query_searchpath_buf [strlen(query_str) + 1];
 	memcpy(query_string_buf, query_str, strlen(query_str) + 1);
     slog_info(client, "*********Query String %s ***********", query_str);
+    memcpy(query_string_buf, query_str, strlen(query_str) + 1);
     if (strstr(query_str, "search_path") != NULL) {
-        char *ptr = strtok(query_string_buf, delim);
-        while (ptr != NULL){
-            number_of_words++;
-            schema = ptr;
-            ptr = strtok(NULL, delim);
+        char *str_ptr1 = query_string_buf;
+        while (query=strtok_r(str_ptr1, delim1, &str_ptr1)){
+            if (strstr(query, "search_path") != NULL){
+                memcpy(query_searchpath_buf, query, strlen(query) + 1);
+                char *str_ptr2 = query_searchpath_buf;
+                while (search_query=strtok_r(str_ptr2, delim, &str_ptr2)){
+                   number_of_words++;
+                   schema = search_query;
+                }
+            }
         }
         search_path_buf = (char *) malloc(strlen(schema) + 1);
         strncpy(search_path_buf, schema, strlen(schema)+1);

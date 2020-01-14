@@ -280,7 +280,7 @@ Default: 0
 
 ### application_name_add_host
 
-Add the client hostname or host address and port to the application name setting set on connection start.
+Add pgbouncer server hostname or client host address and port to the application name setting set on connection start.
 This helps in identifying the source of bad queries etc.  This logic applies
 only on start of connection.  If `application_name` is later changed with SET,
 PgBouncer does not change it again.
@@ -289,7 +289,7 @@ address
 :   Add client host address and port to the application name setting.
 
 hostname
-:   Add hostname to the application name setting. gethostname() is called once at the start.
+:   Add pgbouncer server hostname to the application name setting. gethostname() is called once at the start.
 
 both
 :   Add both options. Example: `appname - ip:port [hostname]`

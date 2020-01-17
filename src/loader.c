@@ -22,10 +22,6 @@
 
 #include "bouncer.h"
 
-#ifdef HAVE_NETDB_H
-#include <netdb.h>
-#endif
-
 #include <usual/fileutil.h>
 
 /*

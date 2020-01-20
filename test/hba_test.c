@@ -9,8 +9,6 @@
 #include <usual/socket.h>
 #include <usual/err.h>
 
-#include <event2/event.h>
-
 int cf_tcp_keepcnt;
 int cf_tcp_keepintvl;
 int cf_tcp_keepidle;

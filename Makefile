@@ -24,8 +24,8 @@ pgbouncer_SOURCES = \
 	src/takeover.c \
 	src/util.c \
 	src/pycall.c \
-        src/route_connection.c \
-        src/rewrite_query.c \
+    src/route_connection.c \
+    src/rewrite_query.c \
 	src/varcache.c \
 	src/common/base64.c \
 	src/common/saslprep.c \
@@ -101,8 +101,9 @@ LIBUSUAL_DIST = $(filter-out %/config.h, $(sort $(wildcard \
 
 
 python_LDFLAGS = -lpthread -ldl -lutil -lm -lpython2.7 -Xlinker -export-dynamic
+routing_LDFLAGS = -llibpq
 pgbouncer_LDFLAGS := $(TLS_LDFLAGS)
-pgbouncer_LDADD := $(CARES_LIBS) $(LIBEVENT_LIBS) $(TLS_LIBS) $(LIBS) $(python_LDFLAGS)
+pgbouncer_LDADD := $(CARES_LIBS) $(LIBEVENT_LIBS) $(TLS_LIBS) $(LIBS) $(python_LDFLAGS) $(routing_LDFLAGS)
 LIBS :=
 
 #

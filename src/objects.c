@@ -26,6 +26,7 @@
 /* those items will be allocated as needed, never freed */
 STATLIST(user_list);
 STATLIST(database_list);
+STATLIST(schema_list);
 STATLIST(pool_list);
 
 /* All locally defined users (in auth_file) are kept here. */
@@ -49,6 +50,7 @@ STATLIST(login_client_list);
 struct Slab *server_cache;
 struct Slab *client_cache;
 struct Slab *db_cache;
+struct Slab *schema_cache;
 struct Slab *pool_cache;
 struct Slab *user_cache;
 struct Slab *iobuf_cache;
@@ -119,8 +121,9 @@ void init_objects(void)
 	user_cache = slab_create("user_cache", sizeof(PgUser), 0, NULL, USUAL_ALLOC);
 	db_cache = slab_create("db_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
 	pool_cache = slab_create("pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
+	schema_cache = slab_create("db_cache", sizeof(PgSchema), 0, NULL, USUAL_ALLOC);
 
-	if (!user_cache || !db_cache || !pool_cache)
+	if (!user_cache || !db_cache || !pool_cache || !schema_cache)
 		fatal("cannot create initial caches");
 }
 
@@ -299,6 +302,14 @@ static int cmp_database(struct List *i1, struct List *i2)
 	return strcmp(db1->name, db2->name);
 }
 
+/* compare db names, for use with put_in_order */
+static int cmp_schema(struct List *i1, struct List *i2)
+{
+	PgSchema *schema1 = container_of(i1, PgSchema, head);
+	PgSchema *schema2 = container_of(i2, PgSchema, head);
+	return strcmp(schema1->name, schema2->name);
+}
+
 /* put elem into list in correct pos */
 static void put_in_order(struct List *newitem, struct StatList *list,
 			 int (*cmpfn)(struct List *, struct List *))
@@ -341,6 +352,35 @@ PgDatabase *add_database(const char *name)
 
 	return db;
 }
+
+/* create new object if new, then return it */
+PgSchema *add_schema(const char *name, const char *dbkey)
+{
+	PgSchema *schema = find_schema(name);
+
+	/* create new object if needed */
+	if (schema == NULL) {
+		schema = slab_alloc(schema_cache);
+		if (!schema)
+			return NULL;
+
+		list_init(&schema->head);
+		if (strlcpy(schema->name, name, sizeof(schema->name)) >= sizeof(schema->name)) {
+			log_warning("too long db name: %s", name);
+			slab_free(schema_cache, schema);
+			return NULL;
+		}
+		if (strlcpy(schema->dbname, dbkey, sizeof(schema->dbname)) >= sizeof(schema->dbname)) {
+			log_warning("too long db name: %s", name);
+			slab_free(schema_cache, schema);
+			return NULL;
+		}
+		put_in_order(&schema->head, &schema_list, cmp_schema);
+	}
+
+	return schema;
+}
+
 
 /* register new auto database */
 PgDatabase *register_auto_database(const char *name)
@@ -483,6 +523,19 @@ PgDatabase *find_database(const char *name)
 			put_in_order(&db->head, &database_list, cmp_database);
 			return db;
 		}
+	}
+	return NULL;
+}
+
+/* find an existing database */
+PgSchema *find_schema(const char *name)
+{
+	struct List *item;
+	PgSchema *schema;
+	statlist_for_each(item, &schema_list) {
+		schema = container_of(item, PgSchema, head);
+		if (strcmp(schema->name, name) == 0)
+			return schema;
 	}
 	return NULL;
 }
@@ -1680,6 +1733,7 @@ void objects_cleanup(void)
 	memset(&login_client_list, 0, sizeof login_client_list);
 	memset(&user_list, 0, sizeof user_list);
 	memset(&database_list, 0, sizeof database_list);
+	memset(&schema_list, 0, sizeof schema_list);
 	memset(&pool_list, 0, sizeof pool_list);
 	memset(&user_tree, 0, sizeof user_tree);
 	memset(&autodatabase_idle_list, 0, sizeof autodatabase_idle_list);
@@ -1690,6 +1744,8 @@ void objects_cleanup(void)
 	client_cache = NULL;
 	slab_destroy(db_cache);
 	db_cache = NULL;
+	slab_destroy(schema_cache);
+	schema_cache = NULL;
 	slab_destroy(pool_cache);
 	pool_cache = NULL;
 	slab_destroy(user_cache);

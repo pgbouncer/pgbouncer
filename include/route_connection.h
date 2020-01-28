@@ -15,6 +15,8 @@ This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS O
  * applied to client query.
  */
 
+PgSchema* find_schema_to_cluster_mapping(PgSocket *client, char *schema_name);
+char* get_database_cluster_key(PgSocket *client, char* schema_name, char* query_str);
 bool route_client_connection (PgSocket *client, char *schema, PktHdr *pkt);
 
 

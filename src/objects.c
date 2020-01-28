@@ -359,6 +359,7 @@ PgSchema *add_schema(const char *name, const char *dbkey)
 	PgSchema *schema = find_schema(name);
 
 	/* create new object if needed */
+	log_debug("Create schema object for schema: %s", name);
 	if (schema == NULL) {
 		schema = slab_alloc(schema_cache);
 		if (!schema)
@@ -532,6 +533,7 @@ PgSchema *find_schema(const char *name)
 {
 	struct List *item;
 	PgSchema *schema;
+	log_debug("Find schema : %s", name);
 	statlist_for_each(item, &schema_list) {
 		schema = container_of(item, PgSchema, head);
 		if (strcmp(schema->name, name) == 0)

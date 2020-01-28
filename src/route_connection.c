@@ -183,7 +183,7 @@ char* get_database_cluster_key(PgSocket *client, char* schema_name, char* query_
     if (client == NULL) {
 		return NULL;
 	}
-	if (schema == NULL) {
+	if (schema == NULL || strlen(schema_name) == 0) {
 		slog_error(client, "schema for the query is NULL");
 		return NULL;
 	}

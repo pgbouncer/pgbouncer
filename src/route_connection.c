@@ -20,6 +20,7 @@ This file is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS O
 #include <libpq-fe.h>
 #include <string.h>
 
+
 static void
 get_app_tenant_service(PgSocket *client, char *schema, char *app, char *tenant, char *service_name){
     /*
@@ -212,7 +213,7 @@ bool route_client_connection(PgSocket *client, char* schema, PktHdr *pkt) {
 	SBuf *sbuf = &client->sbuf;
 	char *pkt_start;
 	char *query_str;
-	char *dbname;
+	char *dbname = NULL;
 	PgDatabase *db;
 	PgPool *pool;
 
@@ -257,9 +258,10 @@ bool route_client_connection(PgSocket *client, char* schema, PktHdr *pkt) {
 
 	dbname = pycall(client, client->auth_user->name, schema, query_str,cf_routing_rules_py_module_file,
 			"routing_rules");
-    */
 
+    */
     dbname = get_database_cluster_key(client, schema, query_str);
+
 
 	if (dbname == NULL) {
 		slog_debug(client, "routing_rules returned 'None' - existing connection preserved");

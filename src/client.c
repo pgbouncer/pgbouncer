@@ -818,8 +818,6 @@ static char* get_search_path(PgSocket *client, PktHdr *pkt)
 	char *search_path_buf = NULL;
 	char *schema = NULL;
 	char *query = NULL, *search_query=NULL;
-	char query_string_buf [strlen(query_str) + 1];
-	char query_searchpath_buf [strlen(query_str) + 1];
 	char *str_ptr2 = NULL;
 
 	if (pkt->type == 'Q') {
@@ -828,6 +826,8 @@ static char* get_search_path(PgSocket *client, PktHdr *pkt)
 		stmt_str = pkt_start + 5;
 		query_str = stmt_str + strlen(stmt_str) + 1;
 	}
+    char query_string_buf [strlen(query_str) + 1];
+	char query_searchpath_buf [strlen(query_str) + 1];
 
 	memcpy(query_string_buf, query_str, strlen(query_str) + 1);
     slog_info(client, "*********Query String %s ***********", query_str);

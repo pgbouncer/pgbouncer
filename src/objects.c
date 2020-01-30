@@ -378,7 +378,7 @@ PgSchema *add_schema(const char *name, const char *dbkey)
 		}
 		put_in_order(&schema->head, &schema_list, cmp_schema);
 	}
-
+    log_debug("Create schema object Successfull for schema: %s", name);
 	return schema;
 }
 
@@ -533,12 +533,13 @@ PgSchema *find_schema(const char *name)
 {
 	struct List *item;
 	PgSchema *schema;
-	log_debug("Find schema : %s", name);
+	log_info("Find schema : %s", name);
 	statlist_for_each(item, &schema_list) {
 		schema = container_of(item, PgSchema, head);
 		if (strcmp(schema->name, name) == 0)
 			return schema;
 	}
+	log_debug("Schema not found : %s", name);
 	return NULL;
 }
 

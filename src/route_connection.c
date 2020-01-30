@@ -32,10 +32,12 @@ get_app_tenant_service(PgSocket *client, char *schema, char *app, char *tenant, 
     :return: app, tenant and schema names
     */
     char *token;
+    char schema_name_copy[255]="";
     if (schema == NULL || client == NULL){
         return;
     }
-    token = strtok(schema, "_");
+    strcpy(schema_name_copy, schema);
+    token = strtok(schema_name_copy, "_");
     // loop through the string to extract all other tokens
     if (token == NULL ) {
          slog_error(client, "App name parsing failed.");
@@ -54,7 +56,7 @@ get_app_tenant_service(PgSocket *client, char *schema, char *app, char *tenant, 
         return;
     }
     strcpy(service_name, token);
-    slog_error(client, "App: %s, tenant: %s and service name: %s.", app, tenant, service_name);
+    slog_info(client, "App: %s, tenant: %s and service name: %s.", app, tenant, service_name);
     return;
 }
 
@@ -75,10 +77,11 @@ PgSchema* find_schema_to_cluster_mapping(PgSocket *client, char *schema_name){
     char *cluster_name = NULL;
     char db_key[100];
     PgSchema *schema = NULL;
-    const char *cluster_id_query_values[3] = {(char *)&app_name, (char *)&tenant_name,(char *)&service_name};
-    char *cluster_id_query = "select cluster_id from tenant_mapping where app_name=$1::varchar and tenant_name=$2::varchar and service_name='$3::varchar";
-    char *cluster_name_query = "select cluster_name from cluster_info where id=$1::varchar";
+    char *cluster_id_query = "select cluster_id from tenant_mapping where app_name = $1 and tenant_name = $2 and service_name = $3";
+    char *cluster_name_query = "select cluster_name from cluster_info where id = $1";
     int nFields = 0;
+    const char *cluster_id_query_values[3];
+    const char *cluster_name_values[1];
 
     if (client == NULL){
 		return NULL;
@@ -90,6 +93,10 @@ PgSchema* find_schema_to_cluster_mapping(PgSocket *client, char *schema_name){
     }
 
     get_app_tenant_service(client, schema_name, app_name, tenant_name, service_name);
+
+    // = {(char *)&app_name, (char *)&tenant_name,(char *)&service_name};
+    slog_debug(client, "Connecting to db: %s, db: %s, user: %s, host: %s",
+                schema_name, pg_db, pg_user, pg_host);
     conn = PQsetdbLogin(pg_host, pg_port, NULL, NULL, pg_db, pg_user, pg_pwd);
 
     /* Check to see that the backend connection was successfully made */
@@ -99,14 +106,17 @@ PgSchema* find_schema_to_cluster_mapping(PgSocket *client, char *schema_name){
         PQfinish(conn);
         return NULL;
     }
-
+    slog_debug(client, "Successfully connected Schema: %s, db: %s, user: %s, host:%s",
+                schema_name, pg_db, pg_user, pg_host);
     /*
      * Get the cluster id from the query
      */
-
-
+    cluster_id_query_values[0] = (char *)app_name;
+    cluster_id_query_values[1] = (char *)tenant_name;
+    cluster_id_query_values[2] = (char *)service_name;
     res = PQexecParams(conn, cluster_id_query, 3, NULL, cluster_id_query_values, NULL, NULL, 0);
     if (PQresultStatus(res) != PGRES_TUPLES_OK){
+        slog_error(client, "Request Failed.");
         slog_error(client, "select cluster_id failed for schema: %s,  failed: %s", schema_name, PQerrorMessage(conn));
         PQclear(res);
         PQfinish(conn);
@@ -114,6 +124,7 @@ PgSchema* find_schema_to_cluster_mapping(PgSocket *client, char *schema_name){
 
     }
     nFields = PQnfields(res);
+    slog_debug(client, "Total number of entries in the response: %d",nFields);
     /* next, print out the rows */
     for (row = 0; row < PQntuples(res); row++){
         for (col = 0; col < nFields; col++) {
@@ -127,12 +138,11 @@ PgSchema* find_schema_to_cluster_mapping(PgSocket *client, char *schema_name){
         return NULL;
     }
     slog_debug(client, "cluster id = %s, schema = %s", cluster_id, schema_name);
-
     PQclear(res);
     /*
      * Get the cluster name from the query
      */
-    const char *cluster_name_values[1] = {(char *)cluster_id};
+    cluster_name_values[0] = (char *)cluster_id;
     res = PQexecParams(conn, cluster_name_query, 1, NULL, cluster_name_values, NULL, NULL, 0);
     if (PQresultStatus(res) != PGRES_TUPLES_OK){
         slog_error(client, "select cluster_name failed for schema: %s,  failed: %s", schema_name, PQerrorMessage(conn));
@@ -154,9 +164,6 @@ PgSchema* find_schema_to_cluster_mapping(PgSocket *client, char *schema_name){
         PQfinish(conn);
         return NULL;
     }
-    slog_debug(client, "cluster name = %s, schema = %s", cluster_id, schema_name);
-
-
     PQclear(res);
     /* close the connection to the database and cleanup */
     PQfinish(conn);
@@ -166,6 +173,7 @@ PgSchema* find_schema_to_cluster_mapping(PgSocket *client, char *schema_name){
     strcat(db_key, "_");
     strcat(db_key, "db");
     strcat(db_key, ".write");
+    slog_info(client, "cluster name = %s, schema = %s dbkey=%s", cluster_id, schema_name, db_key);
     schema  = add_schema(schema_name, db_key);
     if (schema == NULL){
         slog_error(client, "schema addition to database failed = %s", schema_name);
@@ -184,7 +192,7 @@ char* get_database_cluster_key(PgSocket *client, char* schema_name, char* query_
     if (client == NULL) {
 		return NULL;
 	}
-	if (schema == NULL || strlen(schema_name) == 0) {
+	if (schema_name == NULL || strlen(schema_name) == 0) {
 		slog_error(client, "schema for the query is NULL");
 		return NULL;
 	}
@@ -200,6 +208,7 @@ char* get_database_cluster_key(PgSocket *client, char* schema_name, char* query_
 	       return NULL;
 	   }
 	}
+	slog_info(client, "Cluster mapping for the schema : %s, dbkey: %s", schema_name, schema->dbname);
 	return schema->dbname;
 }
 

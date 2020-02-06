@@ -946,9 +946,9 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
         } else {
            slog_info(client, "Schema for the query: public");
         }
-        if (!rewrite_query(client, schema, pkt)) {
+        /*if (!rewrite_query(client, schema, pkt)) {
             return false;
-        }
+        }*/
         if (schema != NULL){
             route_client_connection(client, schema, pkt);
         } else {

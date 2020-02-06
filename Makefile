@@ -101,7 +101,7 @@ LIBUSUAL_DIST = $(filter-out %/config.h, $(sort $(wildcard \
 
 python_LDFLAGS = -lpthread -ldl -lutil -lm -Xlinker -export-dynamic
 pgbouncer_LDFLAGS := $(TLS_LDFLAGS)
-pgbouncer_LDADD := $(CARES_LIBS) $(LIBEVENT_LIBS) $(TLS_LIBS) $(LIBS) $(python_LDFLAGS)
+pgbouncer_LDADD := $(CARES_LIBS) $(LIBEVENT_LIBS) $(TLS_LIBS) $(LIBS) 
 LIBS :=
 
 #

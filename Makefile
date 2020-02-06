@@ -65,8 +65,7 @@ pgbouncer_SOURCES = \
 	include/common/unicode_norm_table.h
 
 # pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(LIBEVENT_CFLAGS) $(TLS_CPPFLAGS)
-python_CPPFLAGS = -I/usr/include/python2.7 -I/usr/include/python2.7
-pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(LIBEVENT_CFLAGS) $(TLS_CPPFLAGS) $(python_CPPFLAGS)
+pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(LIBEVENT_CFLAGS) $(TLS_CPPFLAGS) 
 
 # include libusual sources directly
 AM_FEATURES = libusual

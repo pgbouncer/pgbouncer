@@ -979,7 +979,7 @@ static void dns_callback(void *arg, const struct sockaddr *sa, int salen)
 	server->dns_token = NULL;
 
 	if (!sa) {
-		disconnect_server(server, true, "server dns lookup failed");
+		disconnect_server(server, true, "server DNS lookup failed");
 		return;
 	} else if (sa->sa_family == AF_INET) {
 		char buf[64];

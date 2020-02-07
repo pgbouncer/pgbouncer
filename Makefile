@@ -61,8 +61,7 @@ pgbouncer_SOURCES = \
 	include/common/unicode_norm_table.h
 
 # pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(LIBEVENT_CFLAGS) $(TLS_CPPFLAGS)
-python_CPPFLAGS = -I/usr/include/python2.7 -I/usr/include/python2.7
-pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(LIBEVENT_CFLAGS) $(TLS_CPPFLAGS) $(python_CPPFLAGS)
+pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(LIBEVENT_CFLAGS) $(TLS_CPPFLAGS) 
 
 # include libusual sources directly
 AM_FEATURES = libusual
@@ -96,10 +95,10 @@ LIBUSUAL_DIST = $(filter-out %/config.h, $(sort $(wildcard \
 		lib/find_modules.sh )))
 
 
-python_LDFLAGS = -lpthread -ldl -lutil -lm -lpython2.7 -Xlinker -export-dynamic
+python_LDFLAGS = -lpthread -ldl -lutil -lm -Xlinker -export-dynamic
 pg_LDFLAGS = -lpq
 pgbouncer_LDFLAGS := $(TLS_LDFLAGS)
-pgbouncer_LDADD := $(CARES_LIBS) $(LIBEVENT_LIBS) $(TLS_LIBS) $(LIBS) $(python_LDFLAGS) $(pg_LDFLAGS)
+pgbouncer_LDADD := $(CARES_LIBS) $(LIBEVENT_LIBS) $(TLS_LIBS) $(LIBS) $(python_LDFLAGS) 
 LIBS :=
 
 #

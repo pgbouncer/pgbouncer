@@ -213,8 +213,7 @@ runtest() {
 	until psql -X -h /tmp -U pgbouncer -d pgbouncer -c "show version" 2>/dev/null 1>&2; do sleep 0.1; done
 
 	printf "`date` running $1 ... "
-	echo "# $1 begin" >>$BOUNCER_LOG
-	eval $1 >$LOGDIR/$1.log 2>&1
+	eval $1 >$LOGDIR/$1.out 2>&1
 	status=$?
 	if [ $status -eq 0 ]; then
 		echo "ok"
@@ -223,15 +222,15 @@ runtest() {
 		status=0
 	else
 		echo "FAILED"
-		cat $LOGDIR/$1.log | sed 's/^/# /'
+		cat $LOGDIR/$1.out | sed 's/^/# /'
 	fi
-	date >> $LOGDIR/$1.log
+	date >> $LOGDIR/$1.out
 
 	# allow background processing to complete
 	wait
 
 	stopit test.pid
-	echo "# $1 end" >>$BOUNCER_LOG
+	mv $BOUNCER_LOG $LOGDIR/$1.log
 
 	return $status
 }

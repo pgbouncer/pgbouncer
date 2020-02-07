@@ -1468,15 +1468,15 @@ bool admin_handle_client(PgSocket *admin, PktHdr *pkt)
  */
 bool admin_pre_login(PgSocket *client, const char *username)
 {
-	uid_t peer_uid = -1;
-	gid_t peer_gid = -1;
-	int res;
-
 	client->admin_user = 0;
 	client->own_user = 0;
 
 	/* tag same uid as special */
 	if (pga_is_unix(&client->remote_addr)) {
+		uid_t peer_uid;
+		gid_t peer_gid;
+		int res;
+
 		res = getpeereid(sbuf_socket(&client->sbuf), &peer_uid, &peer_gid);
 		if (res >= 0 && peer_uid == getuid()
 			&& strcmp("pgbouncer", username) == 0)

@@ -58,7 +58,7 @@ sudo true && CAN_SUDO=1
 
 if test -n "$CAN_SUDO"; then
 	case `uname` in
-	Darwin|OpenBSD)
+	OpenBSD)
 		sudo pfctl -a pgbouncer -F all -q 2>&1 | grep -q "pfctl:" && {
 			cat <<-EOF
 			Please enable PF and add the following rule to /etc/pf.conf
@@ -151,11 +151,29 @@ psql -X -p $PG_PORT -d p0 -c "select * from pg_user" | grep pswcheck > /dev/null
 #  fw hacks
 #
 
+fw_enable() {
+	case `uname` in
+	Darwin)
+		fw_token=$(sudo pfctl -E 2>&1 | grep '^Token' | cut -d ' ' -f 3);;
+	esac
+}
+
+fw_disable() {
+	case `uname` in
+	Darwin)
+		sudo pfctl -X "$fw_token";;
+	esac
+}
+
 fw_drop_port() {
+	fw_enable
 	case `uname` in
 	Linux)
 		sudo iptables -A OUTPUT -p tcp --dport $1 -j DROP;;
-	Darwin|OpenBSD)
+	Darwin)
+		echo "block drop out proto tcp from any to 127.0.0.1 port $1" \
+		    | sudo pfctl -f -;;
+	OpenBSD)
 		echo "block drop out proto tcp from any to 127.0.0.1 port $1" \
 		    | sudo pfctl -a pgbouncer -f -;;
 	*)
@@ -163,10 +181,14 @@ fw_drop_port() {
 	esac
 }
 fw_reject_port() {
+	fw_enable
 	case `uname` in
 	Linux)
 		sudo iptables -A OUTPUT -p tcp --dport $1 -j REJECT --reject-with tcp-reset;;
-	Darwin|OpenBSD)
+	Darwin)
+		echo "block return-rst out proto tcp from any to 127.0.0.1 port $1" \
+		    | sudo pfctl -f -;;
+	OpenBSD)
 		echo "block return-rst out proto tcp from any to 127.0.0.1 port $1" \
 		    | sudo pfctl -a pgbouncer -f -;;
 	*)
@@ -175,10 +197,13 @@ fw_reject_port() {
 }
 
 fw_reset() {
+	fw_disable
 	case `uname` in
 	Linux)
 		sudo iptables -F OUTPUT;;
-	Darwin|OpenBSD)
+	Darwin)
+		sudo pfctl -F all;;
+	OpenBSD)
 		sudo pfctl -a pgbouncer -F all;;
 	*)
 		echo "Unknown OS"; exit 1;;

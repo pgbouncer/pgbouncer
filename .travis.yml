@@ -54,7 +54,7 @@ script: |
     if [ x"$use_valgrind" = x"yes" ]; then
       export BOUNCER_EXE_PREFIX="valgrind --quiet --leak-check=full --show-reachable=no --track-origins=yes --error-markers=VALGRIND-ERROR-BEGIN,VALGRIND-ERROR-END --log-file=$HOME/valgrind.%p.log"
     fi
-    make check
+    make check USE_SUDO=1
     if [ x"$use_valgrind" = x"yes" ]; then
       if grep -q VALGRIND-ERROR $HOME/valgrind.*.log; then
         cat $HOME/valgrind.*.log

@@ -53,10 +53,7 @@ if ! grep -q "^\"${USER:=$(id -un)}\"" userlist.txt; then
 	echo "\"${USER}\" \"01234\"" >> userlist.txt
 fi
 
-echo "Testing for sudo access."
-sudo true && CAN_SUDO=1
-
-if test -n "$CAN_SUDO"; then
+if test -n "$USE_SUDO"; then
 	case `uname` in
 	OpenBSD)
 		sudo pfctl -a pgbouncer -F all -q 2>&1 | grep -q "pfctl:" && {
@@ -370,7 +367,7 @@ test_server_connect_timeout_establish() {
 
 # server_connect_timeout - block with iptables
 test_server_connect_timeout_reject() {
-	test -z $CAN_SUDO && return 77
+	test -z "$USE_SUDO" && return 77
 	admin "set query_timeout=5"
 	admin "set server_connect_timeout=3"
 	fw_drop_port $PG_PORT
@@ -382,7 +379,7 @@ test_server_connect_timeout_reject() {
 
 # server_check_delay
 test_server_check_delay() {
-	test -z $CAN_SUDO && return 77
+	test -z "$USE_SUDO" && return 77
 
 	admin "set server_check_delay=2"
 	admin "set server_login_retry=3"

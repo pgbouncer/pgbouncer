@@ -822,6 +822,17 @@ Default: not set
 
 Default: not set
 
+### tcp_user_timeout
+
+Sets the `TCP_USER_TIMEOUT` socket option.  This specifies the maximum
+amount of time in milliseconds that transmitted data may remain
+unacknowledged before the TCP connection is forcibly closed.  If set
+to 0, then operating system's default is used.
+
+This is currently only supported on Linux.
+
+Default: 0
+
 
 ## Section [databases]
 

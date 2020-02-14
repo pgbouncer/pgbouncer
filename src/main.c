@@ -93,6 +93,7 @@ int cf_tcp_keepalive;
 int cf_tcp_keepcnt;
 int cf_tcp_keepidle;
 int cf_tcp_keepintvl;
+int cf_tcp_user_timeout;
 
 int cf_auth_type = AUTH_MD5;
 char *cf_auth_file;
@@ -278,6 +279,7 @@ CF_ABS("tcp_keepalive", CF_INT, cf_tcp_keepalive, 0, "1"),
 CF_ABS("tcp_keepcnt", CF_INT, cf_tcp_keepcnt, 0, "0"),
 CF_ABS("tcp_keepidle", CF_INT, cf_tcp_keepidle, 0, "0"),
 CF_ABS("tcp_keepintvl", CF_INT, cf_tcp_keepintvl, 0, "0"),
+CF_ABS("tcp_user_timeout", CF_INT, cf_tcp_user_timeout, 0, "0"),
 CF_ABS("verbose", CF_INT, cf_verbose, 0, NULL),
 CF_ABS("admin_users", CF_STR, cf_admin_users, 0, ""),
 CF_ABS("stats_users", CF_STR, cf_stats_users, 0, ""),

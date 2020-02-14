@@ -345,6 +345,33 @@ test_server_login_retry() {
 	return $rc
 }
 
+# tcp_user_timeout
+test_tcp_user_timeout() {
+	test -z "$USE_SUDO" && return 77
+	test `uname` = Linux || return 77
+	# Doesn't seem to work with older kernels (Ubuntu trusty is
+	# affected), not sure what the actual cut-off is.
+	case `uname -r` in 1.*|2.*|3.*|4.*) return 77;; esac
+
+	admin "set tcp_user_timeout=1000"
+	admin "set query_timeout=5"
+
+	# make a connection is active
+	psql -X -c "select now()" p0
+
+	# block connectivity
+	fw_drop_port $PG_PORT
+
+	# try to use the connection again
+	psql -X -c "select now()" p0
+
+	fw_reset
+
+	# without tcp_user_timeout, you get a different error message
+	# about "query timeout" instead
+	grep -F 'closing because: server conn crashed?' $BOUNCER_LOG
+}
+
 # server_connect_timeout
 test_server_connect_timeout_establish() {
 	psql -X -p $PG_PORT -c "alter system set pre_auth_delay to '60s'" p0
@@ -872,6 +899,7 @@ test_idle_transaction_timeout
 test_server_connect_timeout_establish
 test_server_connect_timeout_reject
 test_server_check_delay
+test_tcp_user_timeout
 test_max_client_conn
 test_pool_size
 test_max_db_connections

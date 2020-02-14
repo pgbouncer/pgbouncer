@@ -142,6 +142,22 @@ bool tune_socket(int sock, bool is_unix)
 		goto fail;
 
 	/*
+	 * TCP user timeout
+	 */
+	if (cf_tcp_user_timeout) {
+		errpos = "setsockopt/TCP_USER_TIMEOUT";
+#ifdef TCP_USER_TIMEOUT
+		val = cf_tcp_user_timeout;
+		res = setsockopt(sock, IPPROTO_TCP, TCP_USER_TIMEOUT, &val, sizeof(val));
+		if (res < 0)
+			goto fail;
+#else
+		errno = EINVAL;
+		goto fail;
+#endif
+	}
+
+	/*
 	 * set in-kernel socket buffer size
 	 */
 	if (cf_tcp_socket_buffer) {

@@ -335,7 +335,6 @@ static void refresh_stats(evutil_socket_t s, short flags, void *arg)
 {
 	struct List *item;
 	PgPool *pool;
-	struct timeval period = { cf_stats_period, 0 };
 	PgStats old_total, cur_total;
 
 	reset_stats(&old_total);
@@ -372,8 +371,6 @@ static void refresh_stats(evutil_socket_t s, short flags, void *arg)
 			 avg.xact_time, avg.query_time,
 			 avg.wait_time);
 	}
-
-	safe_evtimer_add(&ev_stats, &period);
 }
 
 void stats_setup(void)
@@ -384,6 +381,6 @@ void stats_setup(void)
 	old_stamp = new_stamp - USEC;
 
 	/* launch stats */
-	evtimer_assign(&ev_stats, pgb_event_base, refresh_stats, NULL);
-	safe_evtimer_add(&ev_stats, &period);
+	event_assign(&ev_stats, pgb_event_base, -1, EV_PERSIST, refresh_stats, NULL);
+	event_add(&ev_stats, &period);
 }

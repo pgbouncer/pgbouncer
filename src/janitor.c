@@ -619,7 +619,7 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	 * Avoid doing anything that may surprise other pgbouncer.
 	 */
 	if (cf_pause_mode == P_SUSPEND)
-		goto skip_maint;
+		return;
 
 	statlist_for_each_safe(item, &pool_list, tmp) {
 		pool = container_of(item, PgPool, head);
@@ -662,17 +662,14 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 		loader_users_check();
 
 	adns_zone_cache_maint(adns);
-
-skip_maint:
-	safe_evtimer_add(&full_maint_ev, &full_maint_period);
 }
 
 /* first-time initialization */
 void janitor_setup(void)
 {
 	/* launch maintenance */
-	evtimer_assign(&full_maint_ev, pgb_event_base, do_full_maint, NULL);
-	safe_evtimer_add(&full_maint_ev, &full_maint_period);
+	event_assign(&full_maint_ev, pgb_event_base, -1, EV_PERSIST, do_full_maint, NULL);
+	event_add(&full_maint_ev, &full_maint_period);
 }
 
 void kill_pool(PgPool *pool)

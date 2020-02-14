@@ -396,7 +396,7 @@ static bool impl_init(struct DNSContext *ctx)
 	if (cf_resolv_conf && cf_resolv_conf[0]) {
 		int err;
 
-		ctx->edns = evdns_base_new(NULL, 0);
+		ctx->edns = evdns_base_new(pgb_event_base, 0);
 		if (!ctx->edns) {
 			log_error("evdns_base_new failed");
 			return false;
@@ -410,7 +410,7 @@ static bool impl_init(struct DNSContext *ctx)
 			return false;
 		}
 	} else {
-		ctx->edns = evdns_base_new(NULL, 1);
+		ctx->edns = evdns_base_new(pgb_event_base, 1);
 		if (!ctx->edns) {
 			log_error("evdns_base_new failed");
 			return false;

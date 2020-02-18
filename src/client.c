@@ -363,6 +363,10 @@ bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
 			disconnect_server(server, false, "bad packet");
 			return false;
 		}
+		if (length == (uint32_t)-1) {
+			disconnect_server(server, false, "login query response contained null user name");
+			return false;
+		}
 		if (!mbuf_get_chars(&pkt->data, length, &username)) {
 			disconnect_server(server, false, "bad packet");
 			return false;

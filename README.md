@@ -74,6 +74,13 @@ To enable PAM authentication, `./configure` has a flag `--with-pam`
 (default value is no).  When compiled with PAM support, a new global
 authentication type `pam` is available to validate users through PAM.
 
+systemd integration
+-------------------
+
+To enable systemd integration, use the `configure` option
+`--with-systemd`.  This allows using `Type=notify` service units.  See
+`etc/pgbouncer.service` for an example.
+
 Building from Git
 -----------------
 

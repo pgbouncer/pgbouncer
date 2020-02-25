@@ -12,6 +12,7 @@ jobs:
   - env: configure_args='--disable-evdns'
   - env: configure_args='--with-pam'
   - env: configure_args='--without-openssl'
+  - env: configure_args='--with-systemd'
   - compiler: clang
   - dist: trusty
   - dist: xenial
@@ -36,6 +37,7 @@ install: |
   set -e
   pkgs="libc-ares-dev libevent-dev libudns-dev pandoc python"
   pkgs="$pkgs postgresql-${PGVERSION}"
+  case $configure_args in *with-systemd*) pkgs="$pkgs libsystemd-dev";; esac
   if [ x"$use_efence" = x"yes" ]; then pkgs="$pkgs electric-fence"; fi
   if [ x"$use_valgrind" = x"yes" ]; then pkgs="$pkgs valgrind"; fi
   sudo apt-get -y install $pkgs

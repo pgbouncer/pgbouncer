@@ -39,6 +39,13 @@
 #include <event2/event.h>
 #include <event2/event_struct.h>
 
+#ifdef USE_SYSTEMD
+#include <systemd/sd-daemon.h>
+#else
+#define sd_notify(ue, s)
+#define sd_notifyf(ue, f, ...)
+#endif
+
 
 /* global libevent handle */
 extern struct event_base *pgb_event_base;

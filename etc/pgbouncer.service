@@ -1,0 +1,33 @@
+# Example systemd service unit for PgBouncer
+#
+# - Adjust the paths in ExecStart for your installation.
+#
+# - The User setting requires careful consideration.  PgBouncer needs
+#   to be able to place a Unix-domain socket file where PostgreSQL
+#   clients will look for it.  In the olden days, this was in /tmp,
+#   but systems using systemd now prefer something like
+#   /var/run/postgresql/.  But then some systems also lock down that
+#   directory so that only the postgres user can write to it.  That
+#   means you either need to run PgBouncer as the postgres user, or
+#   you create a separate user and add it to the postgres group and
+#   make /var/run/postgresql/ group-writable.  For packagers and
+#   deployment systems, this requires delicate coordination between
+#   the PgBouncer and the PostgreSQL packages/components.  There is no
+#   single satisfactory answer right now.
+#
+[Unit]
+Description=connection pooler for PostgreSQL
+Documentation=man:pgbouncer(1)
+Documentation=https://www.pgbouncer.org/
+After=network.target
+
+[Service]
+Type=notify
+User=postgres
+ExecStart=/usr/bin/pgbouncer /etc/pgbouncer/pgbouncer.ini
+ExecReload=/bin/kill -HUP $MAINPID
+KillSignal=SIGINT
+#LimitNOFILE=1024
+
+[Install]
+WantedBy=multi-user.target

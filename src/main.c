@@ -441,6 +441,7 @@ static void handle_sigterm(evutil_socket_t sock, short flags, void *arg)
 static void handle_sigint(evutil_socket_t sock, short flags, void *arg)
 {
 	log_info("got SIGINT, shutting down");
+	sd_notify(0, "STOPPING=1");
 	if (cf_reboot)
 		die("takeover was in progress, going down immediately");
 	if (cf_pause_mode == P_SUSPEND)
@@ -491,7 +492,9 @@ static void handle_sigusr2(int sock, short flags, void *arg)
 static void handle_sighup(int sock, short flags, void *arg)
 {
 	log_info("got SIGHUP, re-reading config");
+	sd_notify(0, "RELOADING=1");
 	load_config();
+	sd_notify(0, "READY=1");
 }
 #endif
 
@@ -961,6 +964,8 @@ int main(int argc, char *argv[])
 	log_info("process up: %s, libevent %s (%s), adns: %s, tls: %s", PACKAGE_STRING,
 		 event_get_version(), event_base_get_method(pgb_event_base), adns_get_backend(),
 		 tls_backend_version());
+
+	sd_notify(0, "READY=1");
 
 	/* main loop */
 	while (cf_shutdown < 2)

@@ -989,10 +989,22 @@ PostgreSQL SCRAM secret format:
 
 See the PostgreSQL documentation and RFC 5803 for details on this.
 
+The passwords or secrets stored in the authentication file serve two
+purposes.  First, they are used to verify the passwords of incoming
+client connections, if a password-based authentication method is
+configured.  Second, they are used as the passwords for outgoing
+connections to the backend server, if the backend server requires
+password-based authentication (unless the password is specified
+directly in the database's connection string).  The latter works if
+the password is stored in plain text or MD5-hashed.  SCRAM secrets
+cannot be used for logging into a server.
+
 The authentication file can be written by hand, but it's also useful
 to generate it from some other list of users and passwords.  See
 `./etc/mkauth.py` for a sample script to generate the authentication
-file from the `pg_shadow` system table.
+file from the `pg_shadow` system table.  Alternatively, use
+`auth_query` instead of `auth_file` to avoid having to maintain a
+separate authentication file.
 
 
 ## HBA file format

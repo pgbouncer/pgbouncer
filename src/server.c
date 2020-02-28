@@ -44,7 +44,11 @@ static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 
 	if (client) {
 		slog_debug(client, "setting client var: %s='%s'", key, val);
-		varcache_set(&client->vars, key, val);
+		if (cf_application_name_add_host && (strcmp(key, "application_name") == 0)) {
+			set_appname(client, val);
+		} else {
+			varcache_set(&client->vars, key, val);
+		}
 	}
 
 	if (startup) {

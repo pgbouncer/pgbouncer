@@ -19,3 +19,4 @@ void varcache_fill_unset(VarCache *src, PgSocket *dst);
 void varcache_clean(VarCache *cache);
 void varcache_add_params(PktBuf *pkt, VarCache *vars);
 void varcache_deinit(void);
+const char *varcache_get(VarCache *cache, const char *lk);

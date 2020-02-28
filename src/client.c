@@ -441,15 +441,23 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
 	return true;
 }
 
-static void set_appname(PgSocket *client, const char *app_name)
+void set_appname(PgSocket *client, const char *app_name)
 {
 	char buf[400], abuf[300];
 	const char *details;
 
 	if (cf_application_name_add_host) {
-		/* give app a name */
-		if (!app_name)
+		if (app_name) {
+			const char *current_appname = varcache_get(&client->vars, "application_name");
+			if (current_appname && (strcmp(current_appname, app_name) == 0))
+			{
+				slog_debug(client, "ignoring the set_appname, it's already set");
+				return;
+			}
+		} else {
+			/* give app a name */
 			app_name = "app";
+		}
 
 		/* add details */
 		details = pga_details(&client->remote_addr, abuf, sizeof(abuf));

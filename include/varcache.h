@@ -25,3 +25,5 @@ void varcache_clean(VarCache *cache);
 void varcache_add_params(PktBuf *pkt, VarCache *vars);
 void varcache_deinit(void);
 void varcache_set_canonical(PgSocket *server, PgSocket *client);
+const char *varcache_get(VarCache *cache, const char *lk);
+

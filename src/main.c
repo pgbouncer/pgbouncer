@@ -40,7 +40,7 @@ static void usage(const char *exe)
 	printf("\nOptions:\n");
 	printf("  -d, --daemon         run in background (as a daemon)\n");
 	printf("  -q, --quiet          run quietly\n");
-	printf("  -R, --restart        do an online restart\n");
+	printf("  -R, --reboot         do an online reboot\n");
 	printf("  -u, --user=USERNAME  assume identity of USERNAME\n");
 	printf("  -v, --verbose        increase verbosity\n");
 	printf("  -V, --version        show version, then exit\n");

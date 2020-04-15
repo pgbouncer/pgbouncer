@@ -626,8 +626,10 @@ struct HBA *hba_load_rules(const char *fn)
 	list_init(&hba->rules);
 
 	f = fopen(fn, "r");
-	if (!f)
+	if (!f) {
+		log_error("could not open hba config file %s: %s", fn, strerror(errno));
 		goto out;
+	}
 
 	for (linenr = 1; ; linenr++) {
 		len = getline(&ln, &lnbuf, f);

@@ -106,11 +106,11 @@ Basic setup and usage is as follows.
 
 ## Command line switches
 
-`-d`
+`-d`, `--daemon`
 :   Run in the background. Without it, the process will run in the foreground.
     Note: Does not work on Windows; **pgbouncer** need to run as service there.
 
-`-R`
+`-R`, `--reboot`
 :   Do an online restart. That means connecting to the running process,
     loading the open sockets from it, and then using them.  If there
     is no active process, boot normally.
@@ -118,21 +118,21 @@ Basic setup and usage is as follows.
     is not disabled in configuration.  Does not work on Windows.
     Does not work with TLS connections, they are dropped.
 
-`-u` _USERNAME_
+`-u` _USERNAME_, `--user=`_USERNAME_
 :   Switch to the given user on startup.
 
-`-v`
+`-v`, `--verbose`
 :   Increase verbosity.  Can be used multiple times.
 
-`-q`
+`-q`, `--quiet`
 :   Be quiet: do not log to stdout.  This does not affect
     logging verbosity, only that stdout is not to be used.
     For use in init.d scripts.
 
-`-V`
+`-V`, `--version`
 :   Show version.
 
-`-h`
+`-h`, `--help`
 :   Show short help.
 
 `--regservice`

@@ -298,6 +298,7 @@ struct PgUser {
 	int pool_mode;
 	int max_user_connections;	/* how much server connections are allowed */
 	int connection_count;	/* how much connections are used by user now */
+	usec_t query_wait_timeout; /* how much a user is allowed to wait for a query to be assigned to a backend */
 };
 
 /*

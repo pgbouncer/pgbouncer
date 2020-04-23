@@ -379,7 +379,7 @@ static void pool_client_maint(PgPool *pool)
 	}
 
 	/* force timeouts for waiting queries */
-	if (cf_query_timeout > 0 || cf_query_wait_timeout > 0) {
+	if (cf_query_timeout > 0 || cf_query_wait_timeout > 0 || pool->user->query_wait_timeout > 0) {
 		statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
 			client = container_of(item, PgSocket, head);
 			Assert(client->state == CL_WAITING || client->state == CL_WAITING_LOGIN);
@@ -392,7 +392,10 @@ static void pool_client_maint(PgPool *pool)
 
 			if (cf_query_timeout > 0 && age > cf_query_timeout) {
 				disconnect_client(client, true, "query_timeout");
-			} else if (cf_query_wait_timeout > 0 && age > cf_query_wait_timeout) {
+			} else if (pool->user->query_wait_timeout > 0 && age > pool->user->query_wait_timeout) {
+				disconnect_client(client, true, "query_wait_timeout");
+			}
+			else if (cf_query_wait_timeout > 0 && age > cf_query_wait_timeout) {
 				disconnect_client(client, true, "query_wait_timeout");
 			}
 		}

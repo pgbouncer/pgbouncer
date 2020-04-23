@@ -398,7 +398,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	PgUser *user;
 	struct CfValue cv;
 	int pool_mode = POOL_INHERIT;
-	int max_user_connections = -1;
+	int max_user_connections = -1, query_wait_timeout = -1;
 
 
 	cv.value_p = &pool_mode;
@@ -426,7 +426,11 @@ bool parse_user(void *base, const char *name, const char *connstr)
 			}
 		} else if (strcmp("max_user_connections", key) == 0) {
 			max_user_connections = atoi(val);
-		} else {
+		} else if (strcmp("query_wait_timeout", key) == 0) {
+			query_wait_timeout = ((usec_t)atoi(val)) * USEC; /* Connection age is in usec while setting is in sec. */
+		}
+
+		else {
 			log_error("skipping user %s because"
 				  " of unknown parameter in settings: %s", name, key);
 			goto fail;
@@ -444,6 +448,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 
 	user->pool_mode = pool_mode;
 	user->max_user_connections = max_user_connections;
+	user->query_wait_timeout = query_wait_timeout;
 
 fail:
 	free(tmp_connstr);

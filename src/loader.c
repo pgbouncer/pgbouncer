@@ -398,7 +398,8 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	PgUser *user;
 	struct CfValue cv;
 	int pool_mode = POOL_INHERIT;
-	int max_user_connections = -1, query_wait_timeout = -1;
+	int max_user_connections = -1;
+	usec_t query_wait_timeout = 0;
 
 
 	cv.value_p = &pool_mode;

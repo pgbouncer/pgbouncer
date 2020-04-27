@@ -1,6 +1,38 @@
 PgBouncer changelog
 ===================
 
+PgBouncer 1.13.x
+----------------
+
+**2020-04-27  -  PgBouncer 1.13.0  -  "My favourite game"**
+
+- Features
+  * Add configuration setting `tcp_user_timeout`, to set the
+    corresponding socket option.
+  * `client_tls_protocols` and `server_tls_protocols` now default to
+    `secure`, which means only TLS 1.2 and TLS 1.3 are enabled.  Older
+    versions are still supported, they are just not turned on by
+    default.
+  * Add support for systemd service notifications.  Right now, this
+    allows using `Type=notify` service units.  More integration is
+    planned for future versions.
+
+- Fixes
+  * Fix multiline log messages
+    ([libusual #24](https://github.com/libusual/libusual/pull/24))
+  * Handle null user names returned from `auth_query` properly
+    ([#340](https://github.com/pgbouncer/pgbouncer/pull/340))
+
+- Cleanups
+  * The Debian packaging files under `debian` have been removed.  It
+    is recommended to use the packages from https://apt.postgresql.org/.
+  * Numerous fixes and improvements in the test suite
+  * The tests no longer try to use sudo by default.  This can now be
+    activated explicitly by setting the environment variable
+    `USE_SUDO`.
+  * The libevent API use was updated to use version 2 style interfaces
+    and to no longer use deprecated interfaces from version 1.
+
 PgBouncer 1.12.x
 ----------------
 

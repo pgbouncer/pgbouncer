@@ -5,7 +5,7 @@
  * This implements Unicode normalization, per the documentation at
  * http://www.unicode.org/reports/tr15/.
  *
- * Portions Copyright (c) 2017-2018, PostgreSQL Global Development Group
+ * Portions Copyright (c) 2017-2019, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
  *	  src/common/unicode_norm.c
@@ -61,7 +61,7 @@ static pg_unicode_decomposition *
 get_code_entry(pg_wchar code)
 {
 	return bsearch(&(code),
-				   (void *) UnicodeDecompMain,
+				   UnicodeDecompMain,
 				   lengthof(UnicodeDecompMain),
 				   sizeof(pg_unicode_decomposition),
 				   conv_compare);
@@ -302,7 +302,7 @@ decompose_code(pg_wchar code, pg_wchar **result, int *current)
  * The input is a 0-terminated array of codepoints.
  *
  * In frontend, returns a 0-terminated array of codepoints, allocated with
- * malloc. Or NULL if we run out of memory. In frontend, the returned
+ * malloc. Or NULL if we run out of memory. In backend, the returned
  * string is palloc'd instead, and OOM is reported with ereport().
  */
 pg_wchar *

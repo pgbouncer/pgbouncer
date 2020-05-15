@@ -135,7 +135,9 @@ psql -X -p $PG_PORT -d p0 -c "select * from pg_user" | grep pswcheck > /dev/null
 		psql -X -o /dev/null -p $PG_PORT -c "set password_encryption = 'md5'; create user muser2 password 'wrong';" p0 || exit 1
 		psql -X -o /dev/null -p $PG_PORT -c "set password_encryption = 'md5'; create user puser1 password 'foo';" p0 || exit 1
 		psql -X -o /dev/null -p $PG_PORT -c "set password_encryption = 'md5'; create user puser2 password 'wrong';" p0 || exit 1
-		psql -X -o /dev/null -p $PG_PORT -c "set password_encryption = 'scram-sha-256'; create user scramuser1 password 'foo';" p0 || exit 1
+		# match SCRAM secret in userlist.txt
+		psql -X -o /dev/null -p $PG_PORT -c "set password_encryption = 'scram-sha-256'; create user scramuser1 password '"'SCRAM-SHA-256$4096:D76gvGUVj9Z4DNiGoabOBg==$RukL0Xo3Ql/2F9FsD7mcQ3GATG2fD3PA71qY1JagGDs=:BhKUwyyivFm7Tq2jDJVXSVRbRDgTWyBilZKgg6DDuYU='"';" p0 || exit 1
+		psql -X -o /dev/null -p $PG_PORT -c "set password_encryption = 'scram-sha-256'; create user scramuser3 password 'baz';" p0 || exit 1
 	else
 		psql -X -o /dev/null -p $PG_PORT -c "set password_encryption = on; create user muser1 password 'foo';" p0 || exit 1
 		psql -X -o /dev/null -p $PG_PORT -c "set password_encryption = on; create user muser2 password 'wrong';" p0 || exit 1
@@ -870,6 +872,22 @@ test_scram_client() {
 	return 0
 }
 
+# test SCRAM authentication from client to PgBouncer and on to server
+test_scram_both() {
+	$pg_supports_scram || return 77
+
+	admin "set auth_type='scram-sha-256'"
+
+	# plain-text password in userlist.txt
+	PGPASSWORD=baz psql -X -U scramuser3 -c "select 1" p61 || return 1
+
+	# SCRAM password in userlist.txt
+	# (cannot currently log in to server with that)
+	PGPASSWORD=foo psql -X -U scramuser1 -c "select 1" p62 && return 1
+
+	return 0
+}
+
 # test all the show commands
 #
 # This test right now just runs all the commands without checking the
@@ -919,6 +937,7 @@ test_md5_server
 test_md5_client
 test_scram_server
 test_scram_client
+test_scram_both
 test_show
 "
 

@@ -15,3 +15,5 @@
 
 "scramuser1" "SCRAM-SHA-256$4096:D76gvGUVj9Z4DNiGoabOBg==$RukL0Xo3Ql/2F9FsD7mcQ3GATG2fD3PA71qY1JagGDs=:BhKUwyyivFm7Tq2jDJVXSVRbRDgTWyBilZKgg6DDuYU="
 "scramuser2" "SCRAM-SHA-256$4096:BUYIT9YAsWf036OHLPfv2Q==$zuk7pzdEc5tvftsRIuwlStNxVc+wIE/xfDs7ahsKN0k=:Lov6mndE0DmlgtY60e1LyDsLctQyoH+Bvkm9K9njSa8="
+
+"scramuser3" "baz"

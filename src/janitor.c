@@ -395,8 +395,7 @@ static void pool_client_maint(PgPool *pool)
 			} else if (pool->user->query_wait_timeout > 0 && age > pool->user->query_wait_timeout) {
 				disconnect_client(client, true, "query_wait_timeout");
 			}
-			else if (pool->user->query_wait_timeout <= 0 && cf_query_wait_timeout > 0 && age > cf_query_wait_timeout) {
-				/* user-set query_wait_timeout overrides global query_wait_timeout */
+			else if (cf_query_wait_timeout > 0 && age > cf_query_wait_timeout) {
 				disconnect_client(client, true, "query_wait_timeout");
 			}
 		}

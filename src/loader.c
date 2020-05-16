@@ -429,9 +429,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 			max_user_connections = atoi(val);
 		} else if (strcmp("query_wait_timeout", key) == 0) {
 			query_wait_timeout = ((usec_t)atoi(val)) * USEC; /* Connection age is in usec while setting is in sec. */
-		}
-
-		else {
+		} else {
 			log_error("skipping user %s because"
 				  " of unknown parameter in settings: %s", name, key);
 			goto fail;

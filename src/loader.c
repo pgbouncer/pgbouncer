@@ -289,6 +289,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	/* assuming not an autodb */
 	db->db_auto = 0;
 	db->inactive_time = 0;
+	db->unhealthy_login_count = 0;
+	db->first_unhealthy_login = 0;
 
 	/* if updating old db, check if anything changed */
 	if (db->dbname) {

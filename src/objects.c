@@ -917,6 +917,10 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 			} else {
 				server->link = NULL;
 				client->link = NULL;
+				client->pool->db->unhealthy_login_count++; /* if too many of these, we'll disallow client connections for a while */
+				if (!client->pool->db->first_unhealthy_login) {
+					client->pool->db->first_unhealthy_login = get_cached_time();
+				}
 				disconnect_server(server, true, "unclean server");
 			}
 		}

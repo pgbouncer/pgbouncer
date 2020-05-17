@@ -338,6 +338,9 @@ struct PgDatabase {
 	int connection_count;	/* total connections for this database in all pools */
 
 	struct AATree user_tree;	/* users that have been queried on this database */
+
+	int unhealthy_login_count; /* The number of unhealthy logins */
+	usec_t first_unhealthy_login; /* The first time this happened */
 };
 
 
@@ -522,6 +525,10 @@ extern char *cf_server_tls_ca_file;
 extern char *cf_server_tls_cert_file;
 extern char *cf_server_tls_key_file;
 extern char *cf_server_tls_ciphers;
+
+
+extern int cf_unhealthy_login_count;
+extern usec_t cf_unhealthy_login_count_timeout;
 
 extern const struct CfLookup pool_mode_map[];
 

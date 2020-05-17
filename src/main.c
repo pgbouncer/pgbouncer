@@ -107,6 +107,7 @@ int cf_res_pool_size;
 usec_t cf_res_pool_timeout;
 int cf_max_db_connections;
 int cf_max_user_connections;
+int cf_unhealthy_login_count;
 
 char *cf_server_reset_query;
 int cf_server_reset_query_always;
@@ -137,6 +138,7 @@ usec_t cf_client_idle_timeout;
 usec_t cf_client_login_timeout;
 usec_t cf_idle_transaction_timeout;
 usec_t cf_suspend_timeout;
+usec_t cf_unhealthy_login_count_timeout;
 
 usec_t g_suspend_start;
 
@@ -268,6 +270,9 @@ CF_ABS("dns_max_ttl", CF_TIME_USEC, cf_dns_max_ttl, 0, "15"),
 CF_ABS("dns_nxdomain_ttl", CF_TIME_USEC, cf_dns_nxdomain_ttl, 0, "15"),
 CF_ABS("dns_zone_check_period", CF_TIME_USEC, cf_dns_zone_check_period, 0, "0"),
 CF_ABS("resolv_conf", CF_STR, cf_resolv_conf, CF_NO_RELOAD, ""),
+
+CF_ABS("unhealthy_login_count", CF_INT, cf_unhealthy_login_count, 0, "0"),
+CF_ABS("unhealthy_login_count_timeout", CF_TIME_USEC, cf_unhealthy_login_count_timeout, 0, "5"),
 
 CF_ABS("max_packet_size", CF_UINT, cf_max_packet_size, 0, "2147483647"),
 CF_ABS("pkt_buf", CF_INT, cf_sbuf_len, CF_NO_RELOAD, "4096"),

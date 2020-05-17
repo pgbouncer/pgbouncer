@@ -270,16 +270,19 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 
 	/* debounce clients while database recovers from a problem, if enabled */
 	if (cf_unhealthy_login_count > 0) {
-		if (client->db->unhealthy_login_count >= cf_unhealthy_login_count) {
+		if (client->db->unhealthy_login_count > 0) {
+			usec_t unhealthy_timer = get_cached_time() - client->db->first_unhealthy_login;
+
 			/* unhealthy timeout expired, reset the counter and allow login */
-			if (get_cached_time() - client->db->first_unhealthy_login >= cf_unhealthy_login_count_timeout) {
+			if (unhealthy_timer > cf_unhealthy_login_count_timeout) {
 				client->db->first_unhealthy_login = 0;
 				client->db->unhealthy_login_count = 0;
-			} else {
+			} else if (client->db->unhealthy_login_count > cf_unhealthy_login_count) {
 				disconnect_client(client, true, "try again later, database unhealthy: %s", dbname);
 				return false;
 			}
 		}
+
 	}
 
 	if (client->db->admin) {

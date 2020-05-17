@@ -250,6 +250,14 @@ pool.
 
 Default: 0 (unlimited)
 
+### unhealthy_login_count
+
+How many bad logins have to take place before a database is considered unhealthy.
+New logins will be disallowed for `unhealthy_login_count_timeout` seconds. When the
+timeout happens, the counter is reset back to 0.
+
+Default: 5
+
 ### server_round_robin
 
 By default, PgBouncer reuses server connections in LIFO (last-in, first-out) manner,
@@ -727,6 +735,13 @@ How many seconds to wait for buffer flush during SUSPEND or reboot (-R).
 A connection is dropped if the flush does not succeed.
 
 Default: 10
+
+### unhealthy_login_count_timeout
+
+How many seconds to wait before allowing new client logins after a database
+has been decided to be unhealthy.
+
+Default: 5
 
 
 ## Low-level network settings

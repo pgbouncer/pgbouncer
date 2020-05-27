@@ -1379,7 +1379,7 @@ bool use_client_socket(int fd, PgAddr *addr,
 		       const char *dbname, const char *username,
 		       uint64_t ckey, int oldfd, int linkfd,
 		       const char *client_enc, const char *std_string,
-		       const char *datestyle, const char *timezone,
+		       const char *datestyle, const char *intervalstyle, const char *timezone,
 		       const char *password,
 		       const char *scram_client_key, int scram_client_key_len,
 		       const char *scram_server_key, int scram_server_key_len)
@@ -1445,6 +1445,7 @@ bool use_client_socket(int fd, PgAddr *addr,
 	varcache_set(&client->vars, "client_encoding", client_enc);
 	varcache_set(&client->vars, "standard_conforming_strings", std_string);
 	varcache_set(&client->vars, "datestyle", datestyle);
+	varcache_set(&client->vars, "intervalstyle", intervalstyle);
 	varcache_set(&client->vars, "timezone", timezone);
 
 	return true;
@@ -1454,7 +1455,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 		       const char *dbname, const char *username,
 		       uint64_t ckey, int oldfd, int linkfd,
 		       const char *client_enc, const char *std_string,
-		       const char *datestyle, const char *timezone,
+		       const char *datestyle, const char *intervalstyle, const char *timezone,
 		       const char *password,
 		       const char *scram_client_key, int scram_client_key_len,
 		       const char *scram_server_key, int scram_server_key_len)
@@ -1525,6 +1526,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 	varcache_set(&server->vars, "client_encoding", client_enc);
 	varcache_set(&server->vars, "standard_conforming_strings", std_string);
 	varcache_set(&server->vars, "datestyle", datestyle);
+	varcache_set(&server->vars, "intervalstyle", intervalstyle);
 	varcache_set(&server->vars, "timezone", timezone);
 
 	return true;

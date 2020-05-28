@@ -8,18 +8,25 @@
 #   but systems using systemd now prefer something like
 #   /var/run/postgresql/.  But then some systems also lock down that
 #   directory so that only the postgres user can write to it.  That
-#   means you either need to run PgBouncer as the postgres user, or
-#   you create a separate user and add it to the postgres group and
-#   make /var/run/postgresql/ group-writable.  For packagers and
-#   deployment systems, this requires delicate coordination between
-#   the PgBouncer and the PostgreSQL packages/components.  There is no
-#   single satisfactory answer right now.
+#   means you need to either
+#
+#   - run PgBouncer as the postgres user, or
+#
+#   - create a separate user and add it to the postgres group and
+#     make /var/run/postgresql/ group-writable, or
+#
+#   - use systemd to create the sockets; see pgbouncer.socket nearby.
+#
+#   For packagers and deployment systems, this requires some
+#   coordination between the PgBouncer and the PostgreSQL
+#   packages/components.
 #
 [Unit]
 Description=connection pooler for PostgreSQL
 Documentation=man:pgbouncer(1)
 Documentation=https://www.pgbouncer.org/
 After=network.target
+#Requires=pgbouncer.socket
 
 [Service]
 Type=notify

@@ -466,21 +466,63 @@ static bool parse_addr(void *arg, const char *addr)
 /* listen on socket - should happen after all other initializations */
 void pooler_setup(void)
 {
-	bool ok;
-	static int init_done = 0;
+	int n;
+	char **names = NULL;
 
-	if (!init_done) {
-		/* remove socket on shutdown */
-		atexit(cleanup_sockets);
-		init_done = 1;
+	n = sd_listen_fds_with_names(0, &names);
+	if (n > 0) {
+		if (cf_listen_addr && *cf_listen_addr)
+			log_warning("sockets passed from service manager, cf_listen_addr ignored");
+		if (cf_unix_socket_dir && *cf_unix_socket_dir && strcmp(cf_unix_socket_dir, DEFAULT_UNIX_SOCKET_DIR) != 0)
+			log_warning("sockets passed from service manager, cf_unix_socket_dir ignored");
+
+		for (int i = 0; i < n; i++) {
+			int fd = SD_LISTEN_FDS_START + i;
+			struct ListenSocket *ls;
+			bool ok = true;
+
+			ls = calloc(1, sizeof(*ls));
+			if (!ls)
+				die("out of memory");
+			list_init(&ls->node);
+			ls->fd = fd;
+			if (sd_is_socket(fd, AF_UNIX, 0, -1)) {
+				pga_set(&ls->addr, AF_UNIX, 0);
+				if (!tune_socket(fd, true))
+					ok = false;
+			} else if (sd_is_socket(fd, AF_INET, 0, -1)) {
+				pga_set(&ls->addr, AF_INET, 0);
+				if (!tune_socket(fd, false))
+					ok = false;
+				tune_accept(fd, cf_tcp_defer_accept);
+			} else if (sd_is_socket(fd, AF_INET6, 0, -1)) {
+				pga_set(&ls->addr, AF_INET6, 0);
+				if (!tune_socket(fd, false))
+					ok = false;
+				tune_accept(fd, cf_tcp_defer_accept);
+			}
+			if (!ok)
+				die("failed to set up socket passed from service manager (%s, fd %d)", names[i], fd);
+			log_info("socket passed from service manager (%s, fd %d)", names[i], fd);
+			statlist_append(&sock_list, &ls->node);
+		}
+	} else {
+		bool ok;
+		static int init_done = 0;
+
+		if (!init_done) {
+			/* remove socket on shutdown */
+			atexit(cleanup_sockets);
+			init_done = 1;
+		}
+
+		ok = parse_word_list(cf_listen_addr, parse_addr, NULL);
+		if (!ok)
+			die("failed to parse listen_addr list: %s", cf_listen_addr);
+
+		if (cf_unix_socket_dir && *cf_unix_socket_dir)
+			create_unix_socket(cf_unix_socket_dir, cf_listen_port);
 	}
-
-	ok = parse_word_list(cf_listen_addr, parse_addr, NULL);
-	if (!ok)
-		die("failed to parse listen_addr list: %s", cf_listen_addr);
-
-	if (cf_unix_socket_dir && *cf_unix_socket_dir)
-		create_unix_socket(cf_unix_socket_dir, cf_listen_port);
 
 	if (!statlist_count(&sock_list))
 		die("nowhere to listen on");

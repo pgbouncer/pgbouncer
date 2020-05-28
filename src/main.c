@@ -221,7 +221,7 @@ CF_ABS("listen_port", CF_INT, cf_listen_port, CF_NO_RELOAD, "6432"),
 CF_ABS("so_reuseport", CF_INT, cf_so_reuseport, CF_NO_RELOAD, "0"),
 CF_ABS("listen_backlog", CF_INT, cf_listen_backlog, CF_NO_RELOAD, "128"),
 #ifndef WIN32
-CF_ABS("unix_socket_dir", CF_STR, cf_unix_socket_dir, CF_NO_RELOAD, "/tmp"),
+CF_ABS("unix_socket_dir", CF_STR, cf_unix_socket_dir, CF_NO_RELOAD, DEFAULT_UNIX_SOCKET_DIR),
 CF_ABS("unix_socket_mode", CF_INT, cf_unix_socket_mode, CF_NO_RELOAD, "0777"),
 CF_ABS("unix_socket_group", CF_STR, cf_unix_socket_group, CF_NO_RELOAD, ""),
 #endif
@@ -707,7 +707,7 @@ static bool check_old_process_unix(void)
 	int domain = AF_UNIX;
 	int res, fd;
 
-	if (!cf_unix_socket_dir || !*cf_unix_socket_dir)
+	if (!cf_unix_socket_dir || !*cf_unix_socket_dir || sd_listen_fds(0) > 0)
 		return false;
 
 	memset(&sa_un, 0, len);
@@ -756,6 +756,9 @@ static void takeover_part1(void)
 
 	if (!cf_unix_socket_dir || !*cf_unix_socket_dir)
 		die("cannot reboot if unix dir not configured");
+
+	if (sd_listen_fds(0) > 0)
+		die("cannot reboot under service manager");
 
 	takeover_init();
 	while (cf_reboot)

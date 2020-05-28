@@ -42,6 +42,10 @@
 #ifdef USE_SYSTEMD
 #include <systemd/sd-daemon.h>
 #else
+#define SD_LISTEN_FDS_START 3
+#define sd_is_socket(fd, f, t, l) (0)
+#define sd_listen_fds(ue) (0)
+#define sd_listen_fds_with_names(ue, n) (0)
 #define sd_notify(ue, s)
 #define sd_notifyf(ue, f, ...)
 #endif
@@ -119,6 +123,8 @@ extern int cf_sbuf_len;
 #include "janitor.h"
 #include "hba.h"
 #include "pam.h"
+
+#define DEFAULT_UNIX_SOCKET_DIR "/tmp"
 
 /* to avoid allocations will use static buffers */
 #define MAX_DBNAME	64

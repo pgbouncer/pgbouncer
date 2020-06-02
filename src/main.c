@@ -785,6 +785,7 @@ static void xfree(char **ptr_p)
 	}
 }
 
+_UNUSED
 static void cleanup(void)
 {
 	adns_free_context(adns);
@@ -975,7 +976,9 @@ int main(int argc, char *argv[])
 		main_loop_once();
 
 	/* not useful for production loads */
-	if (0) cleanup();
+#ifdef CASSERT
+	cleanup();
+#endif
 
 	return 0;
 }

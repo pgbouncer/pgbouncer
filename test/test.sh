@@ -899,8 +899,7 @@ test_scram_both() {
 	PGPASSWORD=baz psql -X -U scramuser3 -c "select 1" p61 || return 1
 
 	# SCRAM password in userlist.txt
-	# (cannot currently log in to server with that)
-	PGPASSWORD=foo psql -X -U scramuser1 -c "select 1" p62 && return 1
+	PGPASSWORD=foo psql -X -U scramuser1 -c "select 1" p62 || return 1
 
 	return 0
 }

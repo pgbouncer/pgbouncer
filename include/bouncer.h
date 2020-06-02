@@ -312,6 +312,9 @@ struct PgUser {
 	struct AANode tree_node;	/* used to attach user to tree */
 	char name[MAX_USERNAME];
 	char passwd[MAX_PASSWORD];
+	uint8_t scram_ClientKey[32];
+	uint8_t scram_ServerKey[32];
+	bool has_scram_keys;		/* true if the above two are valid */
 	int pool_mode;
 	int max_user_connections;	/* how much server connections are allowed */
 	int connection_count;	/* how much connections are used by user now */
@@ -420,9 +423,11 @@ struct PgSocket {
 		char *server_first_message;
 		uint8_t	*SaltedPassword;
 		char cbind_flag;
+		bool adhoc;	/* SCRAM data made up from plain-text password */
 		int iterations;
 		char *salt;	/* base64-encoded */
-		uint8_t StoredKey[32];	/* SHA256_DIGEST_LENGTH */
+		uint8_t ClientKey[32];	/* SHA256_DIGEST_LENGTH */
+		uint8_t StoredKey[32];
 		uint8_t ServerKey[32];
 	} scram_state;
 

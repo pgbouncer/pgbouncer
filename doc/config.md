@@ -110,10 +110,7 @@ md5
 
 scram-sha-256
 :   Use password check with SCRAM-SHA-256.  `auth_file` has to contain
-    SCRAM secrets or plain-text passwords.  Note that SCRAM secrets
-    can only be used for verifying the password of a client but not
-    for logging into a server.  To be able to use SCRAM on server
-    connections, use plain-text passwords.
+    SCRAM secrets or plain-text passwords.
 
 plain
 :   The clear-text password is sent over the wire.  Deprecated.
@@ -997,8 +994,14 @@ configured.  Second, they are used as the passwords for outgoing
 connections to the backend server, if the backend server requires
 password-based authentication (unless the password is specified
 directly in the database's connection string).  The latter works if
-the password is stored in plain text or MD5-hashed.  SCRAM secrets
-cannot be used for logging into a server.
+the password is stored in plain text or MD5-hashed.  SCRAM secrets can
+only be used for logging into a server if the client authentication
+also uses SCRAM, the PgBouncer database definition does not specify a
+user name, and the SCRAM secrets are identical in PgBouncer and the
+PostgreSQL server (same salt and iterations, not merely the same
+password).  This is due to an inherent security property of SCRAM: The
+stored SCRAM secret cannot by itself be used for deriving login
+credentials.
 
 The authentication file can be written by hand, but it's also useful
 to generate it from some other list of users and passwords.  See

@@ -742,6 +742,17 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 				if (!mbuf_get_bytes(&pkt->data, length, &data))
 					return false;
 				if (scram_client_final(client, length, data)) {
+					/* save SCRAM keys for user */
+					if (!client->scram_state.adhoc) {
+						memcpy(client->pool->user->scram_ClientKey,
+						       client->scram_state.ClientKey,
+						       sizeof(client->scram_state.ClientKey));
+						memcpy(client->pool->user->scram_ServerKey,
+						       client->scram_state.ServerKey,
+						       sizeof(client->scram_state.ServerKey));
+						client->pool->user->has_scram_keys = true;
+					}
+
 					free_scram_state(&client->scram_state);
 					if (!finish_client_login(client))
 						return false;

@@ -28,7 +28,7 @@
 
 
 static bool calculate_client_proof(ScramState *scram_state,
-				   const char *passwd,
+				   const PgUser *user,
 				   const char *salt,
 				   int saltlen,
 				   int iterations,
@@ -325,7 +325,7 @@ failed:
 }
 
 char *build_client_final_message(ScramState *scram_state,
-				 const char *passwd,
+				 const PgUser *user,
 				 const char *server_nonce,
 				 const char *salt,
 				 int saltlen,
@@ -341,7 +341,7 @@ char *build_client_final_message(ScramState *scram_state,
 	if (scram_state->client_final_message_without_proof == NULL)
 		goto failed;
 
-	if (!calculate_client_proof(scram_state, passwd,
+	if (!calculate_client_proof(scram_state, user,
 				    salt, saltlen, iterations, buf,
 				    client_proof))
 		goto failed;
@@ -469,7 +469,7 @@ failed:
 }
 
 static bool calculate_client_proof(ScramState *scram_state,
-				   const char *passwd,
+				   const PgUser *user,
 				   const char *salt,
 				   int saltlen,
 				   int iterations,
@@ -483,26 +483,34 @@ static bool calculate_client_proof(ScramState *scram_state,
 	uint8_t	ClientSignature[SCRAM_KEY_LEN];
 	scram_HMAC_ctx ctx;
 
-	rc = pg_saslprep(passwd, &prep_password);
-	if (rc == SASLPREP_OOM)
-		false;
-	if (rc != SASLPREP_SUCCESS)
+	if (user->has_scram_keys)
 	{
-		prep_password = strdup(passwd);
-		if (!prep_password)
-			return false;
+		memcpy(ClientKey, user->scram_ClientKey, SCRAM_KEY_LEN);
+	}
+	else
+	{
+		rc = pg_saslprep(user->passwd, &prep_password);
+		if (rc == SASLPREP_OOM)
+			false;
+		if (rc != SASLPREP_SUCCESS)
+		{
+			prep_password = strdup(user->passwd);
+			if (!prep_password)
+				return false;
+		}
+
+		scram_state->SaltedPassword = malloc(SCRAM_KEY_LEN);
+		if (scram_state->SaltedPassword == NULL)
+			goto failed;
+		scram_SaltedPassword(prep_password,
+				     salt,
+				     saltlen,
+				     iterations,
+				     scram_state->SaltedPassword);
+
+		scram_ClientKey(scram_state->SaltedPassword, ClientKey);
 	}
 
-	scram_state->SaltedPassword = malloc(SCRAM_KEY_LEN);
-	if (scram_state->SaltedPassword == NULL)
-		goto failed;
-	scram_SaltedPassword(prep_password,
-			     salt,
-			     saltlen,
-			     iterations,
-			     scram_state->SaltedPassword);
-
-	scram_ClientKey(scram_state->SaltedPassword, ClientKey);
 	scram_H(ClientKey, SCRAM_KEY_LEN, StoredKey);
 
 	scram_HMAC_init(&ctx, StoredKey, SCRAM_KEY_LEN);
@@ -529,13 +537,16 @@ failed:
 	return false;
 }
 
-bool verify_server_signature(ScramState *scram_state, const char *ServerSignature)
+bool verify_server_signature(ScramState *scram_state, const PgUser *user, const char *ServerSignature)
 {
 	uint8_t expected_ServerSignature[SCRAM_KEY_LEN];
 	uint8_t ServerKey[SCRAM_KEY_LEN];
 	scram_HMAC_ctx ctx;
 
-	scram_ServerKey(scram_state->SaltedPassword, ServerKey);
+	if (user->has_scram_keys)
+		memcpy(ServerKey, user->scram_ServerKey, SCRAM_KEY_LEN);
+	else
+		scram_ServerKey(scram_state->SaltedPassword, ServerKey);
 
 	scram_HMAC_init(&ctx, ServerKey, SCRAM_KEY_LEN);
 	scram_HMAC_update(&ctx,
@@ -748,6 +759,8 @@ static bool build_adhoc_scram_secret(const char *plain_password, ScramState *scr
 
 	get_random_bytes((uint8_t *) saltbuf, sizeof(saltbuf));
 
+	scram_state->adhoc = true;
+
 	scram_state->iterations = SCRAM_DEFAULT_ITERATIONS;
 
 	scram_state->salt = malloc(pg_b64_enc_len(sizeof(saltbuf)) + 1);
@@ -905,7 +918,6 @@ bool verify_final_nonce(const ScramState *scram_state, const char *client_final_
 bool verify_client_proof(ScramState *state, const char *ClientProof)
 {
     uint8_t ClientSignature[SCRAM_KEY_LEN];
-    uint8_t ClientKey[SCRAM_KEY_LEN];
     uint8_t client_StoredKey[SCRAM_KEY_LEN];
     scram_HMAC_ctx ctx;
     int i;
@@ -927,10 +939,10 @@ bool verify_client_proof(ScramState *state, const char *ClientProof)
 
     /* Extract the ClientKey that the client calculated from the proof */
     for (i = 0; i < SCRAM_KEY_LEN; i++)
-	    ClientKey[i] = ClientProof[i] ^ ClientSignature[i];
+	    state->ClientKey[i] = ClientProof[i] ^ ClientSignature[i];
 
     /* Hash it one more time, and compare with StoredKey */
-    scram_H(ClientKey, SCRAM_KEY_LEN, client_StoredKey);
+    scram_H(state->ClientKey, SCRAM_KEY_LEN, client_StoredKey);
 
     if (memcmp(client_StoredKey, state->StoredKey, SCRAM_KEY_LEN) != 0)
 	    return false;

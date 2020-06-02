@@ -310,8 +310,19 @@ static bool login_scram_sha_256(PgSocket *server)
 	bool res;
 	char *client_first_message = NULL;
 
-	if (get_password_type(user->passwd) != PASSWORD_TYPE_PLAINTEXT) {
-		slog_error(server, "cannot do SCRAM authentication: password is not plain text");
+	switch (get_password_type(user->passwd)) {
+	case PASSWORD_TYPE_PLAINTEXT:
+		/* ok */
+		break;
+	case PASSWORD_TYPE_SCRAM_SHA_256:
+		if (!user->has_scram_keys) {
+			slog_error(server, "cannot do SCRAM authentication: password is SCRAM secret but client authentication did not provide SCRAM keys");
+			kill_pool_logins(server->pool, "server login failed: wrong password type");
+			return false;
+		}
+		break;
+	default:
+		slog_error(server, "cannot do SCRAM authentication: wrong password type");
 		kill_pool_logins(server->pool, "server login failed: wrong password type");
 		return false;
 	}
@@ -371,7 +382,7 @@ static bool login_scram_sha_256_cont(PgSocket *server, unsigned datalen, const u
 		goto failed;
 
 	client_final_message = build_client_final_message(&server->scram_state,
-							  user->passwd, server_nonce,
+							  user, server_nonce,
 							  salt, saltlen, iterations);
 
 	free(salt);
@@ -392,6 +403,7 @@ failed:
 
 static bool login_scram_sha_256_final(PgSocket *server, unsigned datalen, const uint8_t *data)
 {
+	PgUser *user = get_srv_psw(server);
 	char *ibuf = NULL;
 	char *input;
 	char ServerSignature[SHA256_DIGEST_LENGTH];
@@ -413,7 +425,7 @@ static bool login_scram_sha_256_final(PgSocket *server, unsigned datalen, const 
 	if (!read_server_final_message(server, input, ServerSignature))
 		goto failed;
 
-	if (!verify_server_signature(&server->scram_state, ServerSignature))
+	if (!verify_server_signature(&server->scram_state, user, ServerSignature))
 	{
 		slog_error(server, "invalid server signature");
 		kill_pool_logins(server->pool, "server login failed: invalid server signature");

@@ -533,23 +533,29 @@ bool send_sslreq_packet(PgSocket *server)
 	return res;
 }
 
+/*
+ * decode DataRow packet (opposite of pktbuf_write_DataRow)
+ *
+ * tupdesc keys:
+ * 'i' - int4
+ * 'q' - int8
+ * 's' - text to string
+ */
 int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...)
 {
-	const char *val = NULL;
-	uint32_t len;
 	uint16_t ncol;
-	unsigned i, asked;
+	unsigned asked;
 	va_list ap;
-	int *int_p;
-	uint64_t *long_p;
-	const char **str_p;
 
 	asked = strlen(tupdesc);
 	if (!mbuf_get_uint16be(pkt, &ncol))
 		return -1;
 
 	va_start(ap, tupdesc);
-	for (i = 0; i < asked; i++) {
+	for (unsigned i = 0; i < asked; i++) {
+		const char *val = NULL;
+		uint32_t len;
+
 		if (i < ncol) {
 			if (!mbuf_get_uint32be(pkt, &len)) {
 				va_end(ap);
@@ -577,18 +583,27 @@ int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...)
 		}
 
 		switch (tupdesc[i]) {
-		case 'i':
+		case 'i': {
+			int *int_p;
+
 			int_p = va_arg(ap, int *);
 			*int_p = val ? atoi(val) : 0;
 			break;
-		case 'q':
+		}
+		case 'q': {
+			uint64_t *long_p;
+
 			long_p = va_arg(ap, uint64_t *);
 			*long_p = val ? atoll(val) : 0;
 			break;
-		case 's':
+		}
+		case 's': {
+			const char **str_p;
+
 			str_p = va_arg(ap, const char **);
 			*str_p = val;
 			break;
+		}
 		default:
 			fatal("bad tupdesc: %s", tupdesc);
 		}

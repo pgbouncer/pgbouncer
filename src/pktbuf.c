@@ -350,7 +350,7 @@ void pktbuf_write_generic(PktBuf *buf, int type, const char *pktdesc, ...)
  * tupdesc keys:
  * 'i' - int4
  * 'q' - int8
- * 's' - string
+ * 's' - string to text
  * 'N' - uint64_t to numeric
  * 'T' - usec_t to date
  */
@@ -407,22 +407,23 @@ void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...)
  * tupdesc keys:
  * 'i' - int4
  * 'q' - int8
- * 's' - string
+ * 's' - string to text
  * 'N' - uint64_t to numeric
  * 'T' - usec_t to date
  */
 void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 {
-	char tmp[32];
-	const char *val = NULL;
-	int i, len, ncol = strlen(tupdesc);
+	int ncol = strlen(tupdesc);
 	va_list ap;
 
 	pktbuf_start_packet(buf, 'D');
 	pktbuf_put_uint16(buf, ncol);
 
 	va_start(ap, tupdesc);
-	for (i = 0; i < ncol; i++) {
+	for (int i = 0; i < ncol; i++) {
+		char tmp[32];
+		const char *val = NULL;
+
 		if (tupdesc[i] == 'i') {
 			snprintf(tmp, sizeof(tmp), "%d", va_arg(ap, int));
 			val = tmp;
@@ -439,7 +440,7 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 		}
 
 		if (val) {
-			len = strlen(val);
+			int len = strlen(val);
 			pktbuf_put_uint32(buf, len);
 			pktbuf_put_bytes(buf, val, len);
 		} else {

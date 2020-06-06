@@ -237,7 +237,12 @@ void fill_remote_addr(PgSocket *sk, int fd, bool is_unix)
 		pga_set(dst, AF_UNIX, cf_listen_port);
 		if (getpeercreds(fd, &uid, &gid, &pid) >= 0) {
 			log_noise("unix peer uid: %d", (int)uid);
-		} else {
+		} else if (errno != ENOSYS) {
+			/*
+			 * Check for ENOSYS, so we don't write a
+			 * warning every time if the OS doesn't
+			 * support this call.
+			 */
 			log_warning("unix peer uid failed: %s", strerror(errno));
 		}
 		dst->scred.uid = uid;

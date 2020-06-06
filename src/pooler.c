@@ -175,8 +175,10 @@ static bool add_listen(int af, const struct sockaddr *sa, int salen)
 	}
 
 	if (af == AF_UNIX) {
+#ifndef WIN32
 		struct sockaddr_un *un = (struct sockaddr_un *)sa;
 		change_file_mode(un->sun_path, cf_unix_socket_mode, NULL, cf_unix_socket_group);
+#endif
 	} else {
 		tune_accept(sock, cf_tcp_defer_accept);
 	}

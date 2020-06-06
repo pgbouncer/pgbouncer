@@ -124,7 +124,11 @@ extern int cf_sbuf_len;
 #include "hba.h"
 #include "pam.h"
 
+#ifndef WIN32
 #define DEFAULT_UNIX_SOCKET_DIR "/tmp"
+#else
+#define DEFAULT_UNIX_SOCKET_DIR ""
+#endif
 
 /* to avoid allocations will use static buffers */
 #define MAX_DBNAME	64

@@ -45,19 +45,20 @@ Default: 6432
 Specifies location for Unix sockets. Applies to both listening socket and
 server connections. If set to an empty string, Unix sockets are disabled.
 Required for online reboot (-R) to work.
-Not supported on Windows.
 
-Default: /tmp
+Default: /tmp (empty on Windows)
 
 ### unix_socket_mode
 
 File system mode for Unix socket.
+Not supported on Windows.
 
 Default: 0777
 
 ### unix_socket_group
 
 Group name to use for Unix socket.
+Not supported on Windows.
 
 Default: not set
 

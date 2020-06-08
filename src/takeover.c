@@ -116,8 +116,10 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 			       &saddr, &port, &ckey, &linkfd,
 			       &client_enc, &std_string, &datestyle, &timezone,
 			       &password);
-	if (got < 0 || task == NULL || saddr == NULL)
-		fatal("NULL data from old process");
+	if (got < 0)
+		die("invalid data from old process");
+	if (task == NULL || saddr == NULL)
+		die("incomplete data from old process");
 
 	log_debug("FD row: fd=%d(%d) linkfd=%d task=%s user=%s db=%s enc=%s",
 		  oldfd, fd, linkfd, task,

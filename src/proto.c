@@ -552,6 +552,7 @@ bool send_sslreq_packet(PgSocket *server)
  * 'i' - int4
  * 'q' - int8
  * 's' - text to string
+ * 'b' - bytea to bytes (result is malloced)
  */
 int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...)
 {
@@ -592,6 +593,7 @@ int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...)
 		} else {
 			/* tuple was shorter than requested */
 			val = NULL;
+			len = -1;
 		}
 
 		switch (tupdesc[i]) {
@@ -614,6 +616,33 @@ int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...)
 
 			str_p = va_arg(ap, const char **);
 			*str_p = val;
+			break;
+		}
+		case 'b': {
+			int *len_p = va_arg(ap, int *);
+			uint8_t **bytes_p = va_arg(ap, uint8_t **);
+
+			if (val) {
+				int newlen;
+				if (strncmp(val, "\\x", 2) != 0) {
+					log_warning("invalid bytea value");
+					return -1;
+				}
+
+				newlen = (len - 2) / 2;
+				*len_p = newlen;
+				*bytes_p = malloc(newlen);
+				if (!(*bytes_p))
+					return -1;
+				for (int j = 0; j < newlen; j++) {
+					unsigned int b;
+					sscanf(val + 2 + 2 * j, "%2x", &b);
+					(*bytes_p)[j] = b;
+				}
+			} else {
+				*len_p = -1;
+				*bytes_p = NULL;
+			}
 			break;
 		}
 		default:

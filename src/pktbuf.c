@@ -26,6 +26,7 @@
 /*
  * PostgreSQL type OIDs for result sets
  */
+#define BYTEAOID 17
 #define INT8OID 20
 #define INT4OID 23
 #define TEXTOID 25
@@ -351,6 +352,7 @@ void pktbuf_write_generic(PktBuf *buf, int type, const char *pktdesc, ...)
  * 'i' - int4
  * 'q' - int8
  * 's' - string to text
+ * 'b' - bytes to bytea
  * 'N' - uint64_t to numeric
  * 'T' - usec_t to date
  */
@@ -376,6 +378,9 @@ void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...)
 		pktbuf_put_uint16(buf, 0);
 		if (tupdesc[i] == 's') {
 			pktbuf_put_uint32(buf, TEXTOID);
+			pktbuf_put_uint16(buf, -1);
+		} else if (tupdesc[i] == 'b') {
+			pktbuf_put_uint32(buf, BYTEAOID);
 			pktbuf_put_uint16(buf, -1);
 		} else if (tupdesc[i] == 'i') {
 			pktbuf_put_uint32(buf, INT4OID);
@@ -408,6 +413,7 @@ void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...)
  * 'i' - int4
  * 'q' - int8
  * 's' - string to text
+ * 'b' - bytes to bytea
  * 'N' - uint64_t to numeric
  * 'T' - usec_t to date
  */
@@ -421,7 +427,7 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 
 	va_start(ap, tupdesc);
 	for (int i = 0; i < ncol; i++) {
-		char tmp[32];
+		char tmp[100];	/* XXX good enough in practice */
 		const char *val = NULL;
 
 		if (tupdesc[i] == 'i') {
@@ -432,6 +438,23 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 			val = tmp;
 		} else if (tupdesc[i] == 's') {
 			val = va_arg(ap, char *);
+		} else if (tupdesc[i] == 'b') {
+			int blen = va_arg(ap, int);
+			if (blen >= 0) {
+				uint8_t *bval = va_arg(ap, uint8_t *);
+				size_t required = 2 + blen * 2 + 1;
+
+				if (required > sizeof(tmp))
+					fatal("byte array too long (%" PRIuZ " > %" PRIuZ ")", required, sizeof(tmp));
+				strcpy(tmp, "\\x");
+				for (int j = 0; j < blen; j++)
+					sprintf(tmp + (2 + j * 2), "%02x", bval[j]);
+				val = tmp;
+			}
+			else {
+				(void) va_arg(ap, uint8_t *);
+				val = NULL;
+			}
 		} else if (tupdesc[i] == 'T') {
 			usec_t time = va_arg(ap, usec_t);
 			val = format_time_s(time, tmp, sizeof(tmp));

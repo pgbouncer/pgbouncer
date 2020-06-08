@@ -59,11 +59,15 @@ void launch_new_connection(PgPool *pool);
 
 bool use_client_socket(int fd, PgAddr *addr, const char *dbname, const char *username, uint64_t ckey, int oldfd, int linkfd,
 		       const char *client_end, const char *std_string, const char *datestyle, const char *timezone,
-		       const char *password)
+		       const char *password,
+		       const char *scram_client_key, int scram_client_key_len,
+		       const char *scram_server_key, int scram_server_key_len)
 			_MUSTCHECK;
 bool use_server_socket(int fd, PgAddr *addr, const char *dbname, const char *username, uint64_t ckey, int oldfd, int linkfd,
 		       const char *client_end, const char *std_string, const char *datestyle, const char *timezone,
-		       const char *password)
+		       const char *password,
+		       const char *scram_client_key, int scram_client_key_len,
+		       const char *scram_server_key, int scram_server_key_len)
 			_MUSTCHECK;
 
 void activate_client(PgSocket *client);

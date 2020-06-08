@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Notes:
 # - uses iptables and -F with some tests, probably not very friendly to your firewall
@@ -904,6 +904,33 @@ test_scram_both() {
 	return 0
 }
 
+# test that SCRAM authentication pass-through is preserved by online
+# restart
+#
+# Note: coproc requires bash >=4
+test_scram_takeover() {
+	$pg_supports_scram || return 77
+
+	admin "set auth_type='scram-sha-256'"
+	admin "set pool_mode=transaction"
+	admin "set server_lifetime=3"
+
+	{ coproc { PGPASSWORD=foo psql -X -U scramuser1 -f - -d p62; } >&3; } 3>&1
+
+	echo "select 1;" >&"${COPROC[1]}"
+	sleep 4  # wait for server_lifetime
+
+	$BOUNCER_EXE -d -R $BOUNCER_INI
+	sleep 1
+
+	echo "select 2;" >&"${COPROC[1]}"
+	echo "\q" >&"${COPROC[1]}"
+
+	wait $COPROC_PID
+
+	test $? -eq 0
+}
+
 testlist="
 test_show_version
 test_show
@@ -938,6 +965,7 @@ test_md5_client
 test_scram_server
 test_scram_client
 test_scram_both
+test_scram_takeover
 "
 
 if [ $# -gt 0 ]; then

@@ -253,7 +253,11 @@ static bool send_one_fd(PgSocket *admin,
 			const char *std_strings,
 			const char *datestyle,
 			const char *timezone,
-			const char *password)
+			const char *password,
+			const uint8_t *scram_client_key,
+			int scram_client_key_len,
+			const uint8_t *scram_server_key,
+			int scram_server_key_len)
 {
 	struct msghdr msg;
 	struct cmsghdr *cmsg;
@@ -263,10 +267,12 @@ static bool send_one_fd(PgSocket *admin,
 
 	struct PktBuf *pkt = pktbuf_temp();
 
-	pktbuf_write_DataRow(pkt, "issssiqisssss",
+	pktbuf_write_DataRow(pkt, "issssiqisssssbb",
 		      fd, task, user, db, addr, port, ckey, link,
 		      client_enc, std_strings, datestyle, timezone,
-		      password);
+		      password,
+		      scram_client_key_len, scram_client_key,
+		      scram_server_key_len, scram_server_key);
 	if (pkt->failed)
 		return false;
 	iovec.iov_base = pkt->buf;
@@ -321,6 +327,7 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	const struct PStr *timezone = v->var_list[VTimeZone];
 	char addrbuf[PGADDR_BUF];
 	const char *password = NULL;
+	bool send_scram_keys = false;
 
 	/* Skip TLS sockets */
 	if (sk->sbuf.tls || (sk->link && sk->link->sbuf.tls))
@@ -337,6 +344,9 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	if (cf_auth_type == AUTH_PAM && !find_user(sk->auth_user->name))
 		password = sk->auth_user->passwd;
 
+	if (sk->pool && sk->pool->user && sk->pool->user->has_scram_keys)
+		send_scram_keys = true;
+
 	return send_one_fd(admin, sbuf_socket(&sk->sbuf),
 			   is_server_socket(sk) ? "server" : "client",
 			   sk->auth_user ? sk->auth_user->name : NULL,
@@ -349,7 +359,11 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 			   std_strings ? std_strings->str : NULL,
 			   datestyle ? datestyle->str : NULL,
 			   timezone ? timezone->str : NULL,
-			   password);
+			   password,
+			   send_scram_keys ? sk->pool->user->scram_ClientKey : NULL,
+			   send_scram_keys ? (int) sizeof(sk->pool->user->scram_ClientKey) : -1,
+			   send_scram_keys ? sk->pool->user->scram_ServerKey : NULL,
+			   send_scram_keys ? (int) sizeof(sk->pool->user->scram_ServerKey) : -1);
 }
 
 static bool show_pooler_cb(void *arg, int fd, const PgAddr *a)
@@ -358,7 +372,7 @@ static bool show_pooler_cb(void *arg, int fd, const PgAddr *a)
 
 	return send_one_fd(arg, fd, "pooler", NULL, NULL,
 			   pga_ntop(a, buf, sizeof(buf)), pga_port(a), 0, 0,
-			   NULL, NULL, NULL, NULL, NULL);
+			   NULL, NULL, NULL, NULL, NULL, NULL, -1, NULL, -1);
 }
 
 /* send a row with sendmsg, optionally attaching a fd */
@@ -424,13 +438,14 @@ static bool admin_show_fds(PgSocket *admin, const char *arg)
 	/*
 	 * send resultset
 	 */
-	SEND_RowDescription(res, admin, "issssiqisssss",
+	SEND_RowDescription(res, admin, "issssiqisssssbb",
 				 "fd", "task",
 				 "user", "database",
 				 "addr", "port",
 				 "cancel", "link",
 				 "client_encoding", "std_strings",
-				 "datestyle", "timezone", "password");
+				 "datestyle", "timezone", "password",
+				 "scram_client_key", "scram_server_key");
 	if (res)
 		res = show_pooler_fds(admin);
 

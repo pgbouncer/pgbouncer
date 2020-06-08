@@ -91,7 +91,9 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 {
 	int fd;
 	char *task, *saddr, *user, *db;
-	char *client_enc, *std_string, *datestyle, *timezone, *password;
+	char *client_enc, *std_string, *datestyle, *timezone, *password,
+		*scram_client_key, *scram_server_key;
+	int scram_client_key_len, scram_server_key_len;
 	int oldfd, port, linkfd;
 	int got;
 	uint64_t ckey;
@@ -112,10 +114,14 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	}
 
 	/* parse row contents */
-	got = scan_text_result(pkt, "issssiqisssss", &oldfd, &task, &user, &db,
+	got = scan_text_result(pkt, "issssiqisssssbb", &oldfd, &task, &user, &db,
 			       &saddr, &port, &ckey, &linkfd,
 			       &client_enc, &std_string, &datestyle, &timezone,
-			       &password);
+			       &password,
+			       &scram_client_key_len,
+			       &scram_client_key,
+			       &scram_server_key_len,
+			       &scram_server_key);
 	if (got < 0)
 		die("invalid data from old process");
 	if (task == NULL || saddr == NULL)
@@ -141,19 +147,26 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	if (strcmp(task, "client") == 0) {
 		res = use_client_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
 				  client_enc, std_string, datestyle, timezone,
-				  password);
+				  password,
+				  scram_client_key, scram_client_key_len,
+				  scram_server_key, scram_server_key_len);
 	} else if (strcmp(task, "server") == 0) {
 		res = use_server_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
 				  client_enc, std_string, datestyle, timezone,
-				  password);
+				  password,
+				  scram_client_key, scram_client_key_len,
+				  scram_server_key, scram_server_key_len);
 	} else if (strcmp(task, "pooler") == 0) {
 		res = use_pooler_socket(fd, pga_is_unix(&addr));
 	} else {
 		fatal("unknown task: %s", task);
 	}
 
+	free(scram_client_key);
+	free(scram_server_key);
+
 	if (!res)
-		fatal("socket takeover failed - no mem?");
+		fatal("socket takeover failed");
 }
 
 static void takeover_create_link(PgPool *pool, PgSocket *client)

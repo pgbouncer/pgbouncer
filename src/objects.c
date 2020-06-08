@@ -1369,10 +1369,49 @@ bool use_client_socket(int fd, PgAddr *addr,
 		       uint64_t ckey, int oldfd, int linkfd,
 		       const char *client_enc, const char *std_string,
 		       const char *datestyle, const char *timezone,
-		       const char *password)
+		       const char *password,
+		       const char *scram_client_key, int scram_client_key_len,
+		       const char *scram_server_key, int scram_server_key_len)
 {
+	PgDatabase *db = find_database(dbname);
 	PgSocket *client;
 	PktBuf tmp;
+
+	/* if the database not found, it's an auto database -> registering... */
+	if (!db) {
+		db = register_auto_database(dbname);
+		if (!db)
+			return true;
+	}
+
+	if (scram_client_key || scram_server_key) {
+		PgUser *user;
+
+		if (!scram_client_key || !scram_server_key) {
+			log_error("incomplete SCRAM key data");
+			return false;
+		}
+		if (sizeof(user->scram_ClientKey) != scram_client_key_len
+		    || sizeof(user->scram_ServerKey) != scram_server_key_len) {
+			log_error("incompatible SCRAM key data");
+			return false;
+		}
+		if (db->forced_user) {
+			log_error("SCRAM key data received for forced user");
+			return false;
+		}
+		if (cf_auth_type == AUTH_PAM) {
+			log_error("SCRAM key data received for PAM user");
+			return false;
+		}
+		user = find_user(username);
+		if (!user && db->auth_user)
+			user = add_db_user(db, username, password);
+
+		memcpy(user->scram_ClientKey, scram_client_key, sizeof(user->scram_ClientKey));
+		memcpy(user->scram_ServerKey, scram_server_key, sizeof(user->scram_ServerKey));
+		user->has_scram_keys = true;
+	}
 
 	client = accept_client(fd, pga_is_unix(addr));
 	if (client == NULL)
@@ -1405,7 +1444,9 @@ bool use_server_socket(int fd, PgAddr *addr,
 		       uint64_t ckey, int oldfd, int linkfd,
 		       const char *client_enc, const char *std_string,
 		       const char *datestyle, const char *timezone,
-		       const char *password)
+		       const char *password,
+		       const char *scram_client_key, int scram_client_key_len,
+		       const char *scram_server_key, int scram_server_key_len)
 {
 	PgDatabase *db = find_database(dbname);
 	PgUser *user;

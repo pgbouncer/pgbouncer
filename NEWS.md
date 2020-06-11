@@ -1,6 +1,25 @@
 PgBouncer changelog
 ===================
 
+PgBouncer 1.14.x
+----------------
+
+**2020-06-11  -  PgBouncer 1.14.0  -  "La ritrovata magia"**
+
+- Features
+  * Add SCRAM authentication pass-through.  This allows using
+    encrypted SCRAM secrets in PgBouncer (either in `userlist.txt` or
+    from `auth_query`) for logging into servers.
+  * Add support for systemd socket activation.  This is especially
+    useful to let systemd handle the creation of the Unix-domain
+    sockets on systems where access to `/var/run/postgresql` is
+    restricted.
+  * Add support for Unix-domain sockets on Windows.
+
+- Cleanups
+  * Add an alternative smaller sample configuration file
+    `pgbouncer-minimal.ini` for testing or deployment.
+
 PgBouncer 1.13.x
 ----------------
 

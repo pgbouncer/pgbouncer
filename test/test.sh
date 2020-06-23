@@ -473,6 +473,10 @@ test_max_client_conn() {
 
 # - max pool size
 test_pool_size() {
+	# make existing connections go away
+	psql -X -p $PG_PORT -d postgres -c "select pg_terminate_backend(pid) from pg_stat_activity where usename='bouncer'"
+	until test $(psql -X -p $PG_PORT -d postgres -tAq -c "select count(1) from pg_stat_activity where usename='bouncer'") -eq 0; do sleep 0.1; done
+
 	docount() {
 		for i in {1..10}; do
 			psql -X -c "select pg_sleep(0.5)" $1 >/dev/null &

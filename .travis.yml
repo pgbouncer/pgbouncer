@@ -16,6 +16,7 @@ jobs:
   - compiler: clang
   - dist: trusty
   - dist: xenial
+  - dist: focal
   - env: use_valgrind=yes
   - env: use_valgrind=yes PGVERSION=9.5
   - env: use_efence=yes configure_args='--with-pam'

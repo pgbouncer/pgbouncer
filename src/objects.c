@@ -230,7 +230,7 @@ void change_server_state(PgSocket *server, SocketState newstate)
 		statlist_remove(&pool->active_server_list, &server->head);
 		break;
 	default:
-		fatal("change_server_state: bad old server state: %d", server->state);
+		fatal("bad old server state: %d", server->state);
 	}
 
 	server->state = newstate;
@@ -267,7 +267,7 @@ void change_server_state(PgSocket *server, SocketState newstate)
 		statlist_append(&pool->active_server_list, &server->head);
 		break;
 	default:
-		fatal("bad server state");
+		fatal("bad server state: %d", server->state);
 	}
 }
 
@@ -778,7 +778,7 @@ bool release_server(PgSocket *server)
 		pool->last_connect_failed = 0;
 		break;
 	default:
-		fatal("bad server state in release_server (%d)", server->state);
+		fatal("bad server state: %d", server->state);
 	}
 
 	/* enforce lifetime immediately on release */
@@ -863,7 +863,7 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 		}
 		break;
 	default:
-		fatal("disconnect_server: bad server state (%d)", server->state);
+		fatal("bad server state: %d", server->state);
 	}
 
 	Assert(server->link == NULL);
@@ -925,7 +925,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 	case CL_CANCEL:
 		break;
 	default:
-		fatal("bad client state in disconnect_client: %d", client->state);
+		fatal("bad client state: %d", client->state);
 	}
 
 	/* send reason to client */
@@ -1259,7 +1259,7 @@ bool finish_client_login(PgSocket *client)
 	case CL_ACTIVE:
 		break;
 	default:
-		fatal("bad client state");
+		fatal("bad client state: %d", client->state);
 	}
 
 	client->wait_for_auth = 0;

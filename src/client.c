@@ -91,7 +91,7 @@ static bool send_client_authreq(PgSocket *client)
 	return res;
 }
 
-static void start_auth_request(PgSocket *client, const char *username)
+static void start_auth_query(PgSocket *client, const char *username)
 {
 	int res;
 	PktBuf *buf;
@@ -318,7 +318,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 				client->auth_user = add_db_user(client->db, username, password);
 				return finish_set_pool(client, takeover);
 			}
-			start_auth_request(client, username);
+			start_auth_query(client, username);
 			return false;
 		}
 		if (!client->auth_user) {
@@ -331,7 +331,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 	return finish_set_pool(client, takeover);
 }
 
-bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
+bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
 	uint16_t columns;
 	uint32_t length;
 	const char *username, *password;

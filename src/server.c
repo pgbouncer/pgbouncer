@@ -349,7 +349,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		sbuf_prepare_skip(sbuf, pkt->len);
 	} else if (client) {
 		if (client->state == CL_LOGIN) {
-			return handle_auth_response(client, pkt);
+			return handle_auth_query_response(client, pkt);
 		} else {
 			sbuf_prepare_send(sbuf, &client->sbuf, pkt->len);
 

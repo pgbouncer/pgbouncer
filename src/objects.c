@@ -21,6 +21,7 @@
  */
 
 #include "bouncer.h"
+#include <usual/endian.h>
 #include "scram.h"
 
 /* those items will be allocated as needed, never freed */
@@ -889,6 +890,34 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 		log_noise("sbuf_close failed, retry later");
 }
 
+/*
+ * function for canceling postgresql backend
+ * if client goes away abnormally.
+ */
+static void cancel_orphan_backend(PgSocket *server, PgSocket *client)
+{
+	PgSocket *new_socket = client;
+	char remote_addr_txt[PGADDR_BUF];
+	char client_addr_txt[PGADDR_BUF];
+	int  remote_pid;
+	int  remote_port;
+
+	/* get some info for logging */
+	pga_ntop(&client->remote_addr, client_addr_txt, sizeof(client_addr_txt));
+	pga_ntop(&server->remote_addr, remote_addr_txt, sizeof(remote_addr_txt));
+	remote_port = pga_port(&server->remote_addr);
+	remote_pid = be32dec(server->cancel_key);
+
+	slog_info(server, "sending cancel request to server %s:%d, pid %d",
+		 remote_addr_txt, remote_port, remote_pid);
+	slog_info(server, "client %s goes away abnormally", client_addr_txt);
+
+	memcpy(new_socket->cancel_key, server->cancel_key, 8);
+
+	/* send cancel request from new socket */
+	accept_cancel_request(new_socket);
+}
+
 /* drop client connection */
 void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 {
@@ -915,6 +944,9 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 				/* retval does not matter here */
 				release_server(server);
 			} else {
+				if (client->state == CL_ACTIVE)
+					cancel_orphan_backend(server, client);
+
 				server->link = NULL;
 				client->link = NULL;
 				disconnect_server(server, true, "unclean server");

@@ -935,6 +935,45 @@ test_scram_takeover() {
 	test $? -eq 0
 }
 
+# several tests that check the behavior when connecting with a
+# nonexistent user under various authentication types
+
+test_no_user_trust() {
+	admin "set auth_type='trust'"
+
+	psql -X -U nosuchuser1 -c "select 1" p1 && return 1
+	grep -F "closing because: no such user: nosuchuser1" $BOUNCER_LOG || return 1
+
+	return 0
+}
+
+test_no_user_password() {
+	admin "set auth_type='plain'"
+
+	PGPASSWORD=whatever psql -X -U nosuchuser1 -c "select 1" p1 && return 1
+	grep -F "closing because: no such user: nosuchuser1" $BOUNCER_LOG || return 1
+
+	return 0
+}
+
+test_no_user_md5() {
+	admin "set auth_type='md5'"
+
+	PGPASSWORD=whatever psql -X -U nosuchuser1 -c "select 1" p1 && return 1
+	grep -F "closing because: no such user: nosuchuser1" $BOUNCER_LOG || return 1
+
+	return 0
+}
+
+test_no_user_scram() {
+	admin "set auth_type='scram-sha-256'"
+
+	PGPASSWORD=whatever psql -X -U nosuchuser1 -c "select 1" p1 && return 1
+	grep -F "closing because: no such user: nosuchuser1" $BOUNCER_LOG || return 1
+
+	return 0
+}
+
 testlist="
 test_show_version
 test_show
@@ -970,6 +1009,10 @@ test_scram_server
 test_scram_client
 test_scram_both
 test_scram_takeover
+test_no_user_trust
+test_no_user_password
+test_no_user_md5
+test_no_user_scram
 "
 
 if [ $# -gt 0 ]; then

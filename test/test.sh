@@ -6,7 +6,7 @@
 cd $(dirname $0)
 
 export PGDATA=$PWD/pgdata
-export PGHOST=localhost
+export PGHOST=127.0.0.1
 export PGPORT=6667
 export EF_ALLOW_MALLOC_0=1
 export LANG=C

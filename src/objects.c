@@ -179,6 +179,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	case CL_FREE:
 		varcache_clean(&client->vars);
 		slab_free(client_cache, client);
+		ps_free(client);
 		break;
 	case CL_JUSTFREE:
 		statlist_append(&justfree_client_list, &client->head);

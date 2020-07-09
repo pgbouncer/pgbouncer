@@ -4,7 +4,8 @@ enum VarCacheIdx {
 	VTimeZone,
 	VStdStr,
 	VAppName,
-	NumVars
+	VExtraFloatDigits,
+	NumVars,
 };
 
 typedef struct VarCache VarCache;

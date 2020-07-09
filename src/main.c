@@ -108,6 +108,7 @@ int cf_res_pool_size;
 usec_t cf_res_pool_timeout;
 int cf_max_db_connections;
 int cf_max_user_connections;
+int cf_prepared_statement_lock;
 
 char *cf_server_reset_query;
 int cf_server_reset_query_always;
@@ -152,6 +153,8 @@ int cf_log_stats;
 int cf_log_connections;
 int cf_log_disconnections;
 int cf_log_pooler_errors;
+int cf_log_event_stream;
+int cf_log_prepared_statements;
 int cf_application_name_add_host;
 
 int cf_client_tls_sslmode;
@@ -238,6 +241,7 @@ CF_ABS("reserve_pool_size", CF_INT, cf_res_pool_size, 0, "0"),
 CF_ABS("reserve_pool_timeout", CF_TIME_USEC, cf_res_pool_timeout, 0, "5"),
 CF_ABS("max_db_connections", CF_INT, cf_max_db_connections, 0, "0"),
 CF_ABS("max_user_connections", CF_INT, cf_max_user_connections, 0, "0"),
+CF_ABS("prepared_statement_lock", CF_INT, cf_prepared_statement_lock, 0, "0"),
 CF_ABS("syslog", CF_INT, cf_syslog, 0, "0"),
 CF_ABS("syslog_facility", CF_STR, cf_syslog_facility, 0, "daemon"),
 CF_ABS("syslog_ident", CF_STR, cf_syslog_ident, 0, "pgbouncer"),
@@ -288,6 +292,8 @@ CF_ABS("log_stats", CF_INT, cf_log_stats, 0, "1"),
 CF_ABS("log_connections", CF_INT, cf_log_connections, 0, "1"),
 CF_ABS("log_disconnections", CF_INT, cf_log_disconnections, 0, "1"),
 CF_ABS("log_pooler_errors", CF_INT, cf_log_pooler_errors, 0, "1"),
+CF_ABS("log_event_stream", CF_INT, cf_log_event_stream, 0, "0"),
+CF_ABS("log_prepared_statements", CF_INT, cf_log_prepared_statements, 0, "0"),
 CF_ABS("application_name_add_host", CF_INT, cf_application_name_add_host, 0, "0"),
 
 CF_ABS("client_tls_sslmode", CF_LOOKUP(sslmode_map), cf_client_tls_sslmode, CF_NO_RELOAD, "disable"),

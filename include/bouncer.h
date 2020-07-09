@@ -123,6 +123,7 @@ extern int cf_sbuf_len;
 #include "janitor.h"
 #include "hba.h"
 #include "pam.h"
+#include "ps.h"
 
 #ifndef WIN32
 #define DEFAULT_UNIX_SOCKET_DIR "/tmp"
@@ -397,6 +398,8 @@ struct PgSocket {
 	bool wait_for_response:1;/* console client: waits for completion of PAUSE/SUSPEND cmd */
 
 	bool wait_sslchar:1;	/* server: waiting for ssl response: S/N */
+	
+	int ps_anon_active:1;	/* client: state of anonymous prepared statement */
 
 	int expect_rfq_count;	/* client: count of ReadyForQuery packets client should see */
 
@@ -434,6 +437,9 @@ struct PgSocket {
 	VarCache vars;		/* state of interesting server parameters */
 
 	SBuf sbuf;		/* stream buffer, must be last */
+
+	/* struct HashTab *prepared_statements; */ /* named prepared statements (maintained on client connection) */
+	struct PSList prepared_statements; /* named prepared statements (maintained on client connection) */
 };
 
 #define RAW_IOBUF_SIZE	offsetof(IOBuf, buf)
@@ -468,6 +474,7 @@ extern int cf_res_pool_size;
 extern usec_t cf_res_pool_timeout;
 extern int cf_max_db_connections;
 extern int cf_max_user_connections;
+extern int cf_prepared_statement_lock;
 
 extern char * cf_autodb_connstr;
 extern usec_t cf_autodb_idle_timeout;
@@ -528,6 +535,8 @@ extern int cf_tcp_user_timeout;
 extern int cf_log_connections;
 extern int cf_log_disconnections;
 extern int cf_log_pooler_errors;
+extern int cf_log_event_stream;
+extern int cf_log_prepared_statements;
 extern int cf_application_name_add_host;
 
 extern int cf_client_tls_sslmode;

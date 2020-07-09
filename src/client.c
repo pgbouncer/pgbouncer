@@ -805,11 +805,151 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 	return true;
 }
 
+static char *parse_deallocate(const char* query) {
+	const char* deallocate = "deallocate"; /* len=10 */
+	char* name;
+	unsigned i;
+	unsigned start;
+	unsigned len;
+
+	for (i = 0; query[i] && i != 10; i++) {
+		if (tolower(query[i]) != deallocate[i])
+			return NULL;
+	}
+	if (i != 10)
+		return NULL;
+
+	for (; query[i]; i++) {
+		if (query[i] == '"') {
+			start = i + 1;
+			for (i = start; query[i] != '"' && query[i]; i++) {}
+			if (query[i] != '"' || i == start)
+				return NULL;
+			name = malloc(1 + i - start);
+			if (!name)
+				return NULL; /* TODO: handle failure */
+			/* We could unescape characters here, if necessary, but hard to see a scenario where
+			* somebody would code up prepared statements names that need escaping.
+			*/
+			for (i = start; query[i] != '"'; i++)
+				name[i - start] = query[i];
+			name[i - start] = 0;
+			return name;
+		} else if (query[i] == ' ' || query[i] == '\t') {
+			/* ignore whitespace */
+		} else {
+			start = i;
+			for (i = start; query[i] && query[i] != ';'; i++) {}
+			len = start - i;
+			if (len == 0)
+				return NULL;
+			name = malloc(1 + len); /* TODO: handle failure */
+			if (!name)
+				return NULL;
+			for (i = 0; i != len; i++)
+				name[i] = query[start + i];
+			name[i] = 0;
+			return name;
+		}
+	}
+
+	return NULL;
+}
+
+/* Returns the name of a prepared statement, regardless of whether it's being created or destroyed. */
+static char* inspect_parse_packet(PgSocket *client, PktHdr* pkt, bool* isDeallocate) {
+	unsigned psStart;
+	unsigned psEnd;
+	unsigned psLen;
+	char *name;
+
+	*isDeallocate = false;
+
+	/* Start at 5, because we skip the 'P' and the 4 bytes which are the length of the message */
+	psStart = 5;
+	for (psEnd = psStart; psEnd < pkt->len && pkt->data.data[psEnd] != 0; psEnd++) {}
+	psLen = psEnd - psStart;
+	if (psLen != 0) {
+		/* Assume you're not PREPARE-ing a named statement for the sake
+		 * of running a "DEALLOCATE <some other prepared statement>".
+		 * I don't even know if this is legal, but it seems strange. */
+		name = malloc(1 + psLen); /* TODO: handle failure */
+		if (!name)
+			return NULL;
+		memcpy(name, &pkt->data.data[psStart], psLen);
+		name[psLen] = 0;
+		return name;
+	}
+
+	/* Expect a DEALLOCATE to come through in an anonymous statement,
+	 * subsequent to the use of the named statement. */
+	name = parse_deallocate((const char*) &pkt->data.data[psEnd + 1]);
+	if (name)
+		*isDeallocate = true;
+	return name;
+}
+
+static char *inspect_close_packet(PgSocket *client, PktHdr* pkt) {
+	unsigned i;
+	unsigned len;
+	char *name;
+	/* We start parsing at byte 5.
+	 * See 'Close' at https://www.postgresql.org/docs/12/protocol-message-formats.html
+	 * From the docs: 'S' to close a prepared statement; or 'P' to close a portal. */
+	if (pkt->data.data[5] == 'S') {
+		for (i = 6; i < pkt->len && pkt->data.data[i]; i++) {}
+		len = i - 6;
+		name = malloc(1 + len); /* TODO: handle failure */
+		if (!name)
+			return NULL;
+		memcpy(name, &pkt->data.data[6], len);
+		name[len] = 0;
+		return name;
+	}
+	return NULL;
+}
+
+static void log_client_event_stream(PgSocket *client, PktHdr *pkt) {
+	char content[50];
+	unsigned i;
+	const char* name = "<unrecognized>";
+	switch (pkt->type) {
+	case 'Q': name = "Query"; break;
+	case 'F': name = "FunctionCall"; break;
+	case 'S': name = "Sync"; break;
+	case 'H': name = "Flush"; break;
+	case 'c': name = "CopyDone(F/B)"; break;
+	case 'f': name = "CopyFail(F/B)"; break;
+	case 'P': name = "Parse"; break;
+	case 'E': name = "Execute"; break;
+	case 'C': name = "Close"; break;
+	case 'B': name = "Bind"; break;
+	case 'D': name = "Describe"; break;
+	case 'd': name = "CopyData(F/B)"; break;
+	case 'X': name = "Terminate"; break;
+	}
+
+	for (i = 0; i < pkt->len && i < sizeof(content) - 1; i++) {
+		if (pkt->data.data[i] == 0)
+			content[i] = '.';
+		else
+			content[i] = pkt->data.data[i];
+	}
+	content[i] = 0;
+
+	slog_debug(client, "Event Stream - Client - %c (%s) [%s]", (char) pkt->type, name, content);
+}
+
 /* decide on packets of logged-in client */
 static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 {
 	SBuf *sbuf = &client->sbuf;
 	int rfq_delta = 0;
+	char* ps_name = NULL;
+	bool is_deallocate = false;
+
+	if (cf_log_event_stream)
+		log_client_event_stream(client, pkt);
 
 	switch (pkt->type) {
 
@@ -831,6 +971,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		rfq_delta++;
 		break;
 	case 'H':		/* Flush */
+		slog_debug(client, "Flush");
 		break;
 
 	/* copy end markers */
@@ -843,10 +984,18 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	 * to buffer packets until sync or flush is sent by client
 	 */
 	case 'P':		/* Parse */
+		ps_name = inspect_parse_packet(client, pkt, &is_deallocate);
+		break;
 	case 'E':		/* Execute */
+		break;
 	case 'C':		/* Close */
+		ps_name = inspect_close_packet(client, pkt);
+		is_deallocate = true;
+		break;
 	case 'B':		/* Bind */
+		break;
 	case 'D':		/* Describe */
+		break;
 	case 'd':		/* CopyData(F/B) */
 		break;
 
@@ -889,6 +1038,28 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	/* tag the server as dirty */
 	client->link->ready = false;
 	client->link->idle_tx = false;
+
+	/* handle prepared statements */
+	if (cf_prepared_statement_lock) {
+		if (ps_name) {
+			/* named prepared statement */
+			if (is_deallocate)
+				ps_unregister(client, ps_name);
+			else
+				ps_register(client, ps_name);
+		} else if (pkt->type == 'P') {
+			/* anonymous prepared statement */
+			client->ps_anon_active = 1;
+			if (cf_log_prepared_statements)
+				slog_debug(client, "Anonymous prepared statement start");
+		} else if (pkt->type == 'C') {
+			/* no clients that we're aware of do this, so issue a warning. not necessarily wrong */
+			client->ps_anon_active = 0;
+			slog_debug(client, "Close packet received on anonymous prepared statement");
+		}
+	}
+
+	free(ps_name);
 
 	/* forward the packet */
 	sbuf_prepare_send(sbuf, &client->link->sbuf, pkt->len);

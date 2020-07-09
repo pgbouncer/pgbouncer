@@ -86,6 +86,36 @@ static void kill_pool_logins_server_error(PgPool *pool, PktHdr *errpkt)
 	kill_pool_logins(pool, msg);
 }
 
+static void log_server_event_stream(PgSocket *server, PktHdr *pkt) {
+	const char* name = "<unrecognized>";
+	switch (pkt->type) {
+	case 'E': name = "ErrorResponse"; break;
+	case 'R': name = "AuthenticationXXX"; break;
+	case 'S': name = "ParameterStatus"; break;
+	case 'Z': name = "ReadyForQuery"; break;
+	case 'K': name = "BackendKeyData"; break;
+	case 'N': name = "NoticeResponse"; break;
+	case 'C': name = "CommandComplete"; break;
+	case 'A': name = "NotificationResponse"; break;
+	case 'G': name = "CopyInResponse"; break;
+	case 'H': name = "CopyOutResponse"; break;
+	case '2': name = "BindComplete"; break;
+	case '3': name = "CloseComplete"; break;
+	case 'c': name = "CopyDone(F/B)"; break;
+	case 'f': name = "CopyFail(F/B)"; break;
+	case 'I': name = "EmptyQueryResponse == CommandComplete"; break;
+	case 'V': name = "FunctionCallResponse"; break;
+	case 'n': name = "NoData"; break;
+	case '1': name = "ParseComplete"; break;
+	case 's': name = "PortalSuspended"; break;
+	case 'd': name = "CopyData(F/B)"; break;
+	case 'D': name = "DataRow"; break;
+	case 't': name = "ParameterDescription"; break;
+	case 'T': name = "RowDescription"; break;
+	}
+	slog_debug(server, "Event Stream - Server - %c (%s)", (char) pkt->type, name);
+}
+
 /* process packets on server auth phase */
 static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 {
@@ -97,6 +127,9 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 		disconnect_server(server, true, "partial pkt in login phase");
 		return false;
 	}
+
+	if (cf_log_event_stream)
+		log_server_event_stream(server, pkt);
 
 	/* ignore most that happens during connect_query */
 	if (server->exec_on_connect) {
@@ -231,6 +264,9 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 
 	Assert(!server->pool->db->admin);
 
+	if (cf_log_event_stream)
+		log_server_event_stream(server, pkt);
+
 	switch (pkt->type) {
 	default:
 		slog_error(server, "unknown pkt: '%c'", pkt_desc(pkt));
@@ -245,9 +281,17 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			return false;
 
 		/* set ready only if no tx */
-		if (state == 'I')
-			ready = true;
-		else if (pool_pool_mode(server->pool) == POOL_STMT) {
+		if (state == 'I') {
+			if (cf_prepared_statement_lock == 1 && client && ps_size(client) > 0) {
+				slog_debug(server, "Named prepared statements still active on client (count: %d) - holding server connection", ps_size(client));
+			} else if (cf_prepared_statement_lock == 1 && client && client->ps_anon_active) {
+				slog_debug(server, "Anonymous prepared statement active on client - holding server connection");
+			} else {
+				if (cf_prepared_statement_lock)
+					slog_debug(server, "Releasing server connection");
+				ready = true;
+			}
+		} else if (pool_pool_mode(server->pool) == POOL_STMT) {
 			disconnect_server(server, true, "transaction blocks not allowed in statement pooling mode");
 			return false;
 		} else if (state == 'T' || state == 'E') {
@@ -296,6 +340,16 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		}
 		/* fallthrough */
 	case 'C':		/* CommandComplete */
+
+		if (client && client->ps_anon_active) {
+			/*
+			 * anonymouse prepared statement is finished, which applies
+			 * regardless of whether the command failed ('E'), or succeeded ('C').
+			 */
+			if (cf_log_prepared_statements)
+				slog_debug(client, "Anonymous prepared statement end");
+			client->ps_anon_active = 0;
+		}
 
 		/* ErrorResponse and CommandComplete show end of copy mode */
 		if (server->copy_mode) {

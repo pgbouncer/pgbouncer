@@ -17,6 +17,8 @@ jobs:
   - dist: trusty
   - dist: xenial
   - dist: focal
+  - arch: arm64
+  - arch: ppc64le
   - env: use_valgrind=yes
   - env: use_valgrind=yes PGVERSION=9.5
   - env: use_efence=yes configure_args='--with-pam'

@@ -69,5 +69,4 @@ DLLTOOL = @DLLTOOL@
 WINDRES = @WINDRES@
 
 enable_debug = @enable_debug@
-have_libevent = @have_libevent@
 tls_support = @tls_support@

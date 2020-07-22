@@ -469,9 +469,8 @@ static bool parse_addr(void *arg, const char *addr)
 void pooler_setup(void)
 {
 	int n;
-	char **names = NULL;
 
-	n = sd_listen_fds_with_names(0, &names);
+	n = sd_listen_fds(0);
 	if (n > 0) {
 		if (cf_listen_addr && *cf_listen_addr)
 			log_warning("sockets passed from service manager, cf_listen_addr ignored");
@@ -504,8 +503,8 @@ void pooler_setup(void)
 				tune_accept(fd, cf_tcp_defer_accept);
 			}
 			if (!ok)
-				die("failed to set up socket passed from service manager (%s, fd %d)", names[i], fd);
-			log_info("socket passed from service manager (%s, fd %d)", names[i], fd);
+				die("failed to set up socket passed from service manager (fd %d)", fd);
+			log_info("socket passed from service manager (fd %d)", fd);
 			statlist_append(&sock_list, &ls->node);
 		}
 	} else {

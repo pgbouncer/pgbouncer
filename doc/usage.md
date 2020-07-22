@@ -60,11 +60,11 @@ Basic setup and usage is as follows.
 1. Create a pgbouncer.ini file.  Details in **pgbouncer(5)**.  Simple example:
 
         [databases]
-        template1 = host=127.0.0.1 port=5432 dbname=template1
+        template1 = host=localhost port=5432 dbname=template1
 
         [pgbouncer]
         listen_port = 6432
-        listen_addr = 127.0.0.1
+        listen_addr = localhost
         auth_type = md5
         auth_file = userlist.txt
         logfile = pgbouncer.log

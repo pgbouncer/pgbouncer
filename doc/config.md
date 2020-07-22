@@ -1030,12 +1030,12 @@ It follows the format of the PostgreSQL `pg_hba.conf` file
 Minimal config:
 
     [databases]
-    template1 = host=127.0.0.1 dbname=template1 auth_user=someuser
+    template1 = host=localhost dbname=template1 auth_user=someuser
 
     [pgbouncer]
     pool_mode = session
     listen_port = 6432
-    listen_addr = 127.0.0.1
+    listen_addr = localhost
     auth_type = md5
     auth_file = users.txt
     logfile = pgbouncer.log
@@ -1051,10 +1051,10 @@ Database defaults:
     foodb =
 
     ; redirect bardb to bazdb on localhost
-    bardb = host=127.0.0.1 dbname=bazdb
+    bardb = host=localhost dbname=bazdb
 
     ; access to destination database will go with single user
-    forcedb = host=127.0.0.1 port=300 user=baz password=foo client_encoding=UNICODE datestyle=ISO
+    forcedb = host=localhost port=300 user=baz password=foo client_encoding=UNICODE datestyle=ISO
 
 Example of a secure function for `auth_query`:
 

@@ -82,7 +82,7 @@ AC_ARG_WITH(pam,
 dnl Check for systemd support
 AC_MSG_CHECKING([whether to build with systemd support])
 AC_ARG_WITH(systemd,
-            [AC_HELP_STRING([--with-systemd], [Build with systemd support])],
+            [AC_HELP_STRING([--with-systemd], [build with systemd support])],
             [if test "$withval" != no; then with_systemd=yes; else with_systemd=no; fi],
             [with_systemd=no])
 AC_MSG_RESULT([$with_systemd])

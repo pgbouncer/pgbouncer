@@ -5,7 +5,7 @@ AC_INIT([PgBouncer],
         [https://github.com/pgbouncer/pgbouncer/issues], [],
         [https://www.pgbouncer.org/])
 AC_CONFIG_SRCDIR(src/janitor.c)
-AC_CONFIG_HEADER(lib/usual/config.h)
+AC_CONFIG_HEADERS([lib/usual/config.h])
 AC_PREREQ([2.59])
 
 dnl basic init
@@ -204,7 +204,8 @@ AC_USUAL_CASSERT
 AC_USUAL_WERROR
 
 dnl Output findings
-AC_OUTPUT([config.mak])
+AC_CONFIG_FILES([config.mak])
+AC_OUTPUT
 
 dnl If separate build dir, link Makefile over
 test -f Makefile || {

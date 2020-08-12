@@ -60,7 +60,7 @@ PKG_CHECK_MODULES(LIBEVENT, libevent)
 dnl Check for PAM authentication support
 pam_support=no
 AC_ARG_WITH(pam,
-  AC_HELP_STRING([--with-pam], [build with PAM support]),
+  AS_HELP_STRING([--with-pam], [build with PAM support]),
   [ PAM=
     if test "$withval" != no; then
         have_pthreads=no
@@ -82,7 +82,7 @@ AC_ARG_WITH(pam,
 dnl Check for systemd support
 AC_MSG_CHECKING([whether to build with systemd support])
 AC_ARG_WITH(systemd,
-            [AC_HELP_STRING([--with-systemd], [build with systemd support])],
+            [AS_HELP_STRING([--with-systemd], [build with systemd support])],
             [if test "$withval" != no; then with_systemd=yes; else with_systemd=no; fi],
             [with_systemd=no])
 AC_MSG_RESULT([$with_systemd])
@@ -105,7 +105,7 @@ use_evdns=no
 dnl Find c-ares
 AC_MSG_CHECKING([whether to use c-ares for DNS lookups])
 AC_ARG_WITH(cares,
-  AC_HELP_STRING([--with-cares@<:@=PREFIX@:>@], [build with c-ares support]),
+  AS_HELP_STRING([--with-cares@<:@=PREFIX@:>@], [build with c-ares support]),
   [ if test "$withval" = "no"; then
       use_cares=no
     elif test "$withval" = "yes"; then
@@ -143,7 +143,7 @@ else # !cares
 dnl Find libudns
 AC_MSG_CHECKING([whether to use libudns])
 AC_ARG_WITH(udns,
-  AC_HELP_STRING([--with-udns@<:@=PREFIX@:>@], [build with udns support]),
+  AS_HELP_STRING([--with-udns@<:@=PREFIX@:>@], [build with udns support]),
   [ if test "$withval" = "no"; then
       use_udns=no
     elif test "$withval" = "yes"; then
@@ -176,7 +176,7 @@ if test "$use_udns" = "yes"; then
 else # !udns
 
 dnl Allow user to override the decision
-AC_ARG_ENABLE(evdns, AC_HELP_STRING([--disable-evdns], [do not use libevent for DNS lookups]),
+AC_ARG_ENABLE(evdns, AS_HELP_STRING([--disable-evdns], [do not use libevent for DNS lookups]),
               [use_evdns=$enableval], [use_evdns=yes])
 AC_MSG_CHECKING([whether to use libevent for DNS lookups])
 if test "$use_evdns" = "yes"; then

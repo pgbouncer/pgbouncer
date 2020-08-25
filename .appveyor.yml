@@ -13,6 +13,10 @@ build_script:
   - set HOME=.
   - set PATH=C:/msys64/usr/bin;%PATH%
   - sh -l -c "./autogen.sh"
-  - sh -l -c "./configure --enable-werror || { cat config.log; exit 1; }"
+  - sh -l -c "./configure --enable-werror"
   - sh -l -c "make"
   - sh -l -c "make install"
+
+on_failure:
+  - set HOME=.
+  - sh -l -c "test -f config.status || cat config.log"

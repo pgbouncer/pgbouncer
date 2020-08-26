@@ -284,7 +284,7 @@ static void pam_auth_finish(struct pam_auth_request *request)
 		safe_strcpy(client->auth_user->passwd, request->password, sizeof(client->auth_user->passwd));
 		sbuf_continue(&client->sbuf);
 	} else {
-		disconnect_client(client, true, "auth failed");
+		disconnect_client(client, true, "PAM authentication failed");
 	}
 }
 

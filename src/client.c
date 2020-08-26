@@ -133,22 +133,25 @@ static bool login_via_cert(PgSocket *client)
 	struct tls *tls = client->sbuf.tls;
 
 	if (!tls) {
-		disconnect_client(client, true, "TLS connection required");
-		return false;
+		slog_error(client, "TLS connection required");
+		goto fail;
 	}
 	if (!tls_peer_cert_provided(client->sbuf.tls)) {
-		disconnect_client(client, true, "TLS client certificate required");
-		return false;
+		slog_error(client, "TLS client certificate required");
+		goto fail;
 	}
 
 	log_debug("TLS cert login: %s", tls_peer_cert_subject(client->sbuf.tls));
 	if (!tls_peer_cert_contains_name(client->sbuf.tls, client->auth_user->name)) {
-		disconnect_client(client, true, "TLS certificate name mismatch");
-		return false;
+		slog_error(client, "TLS certificate name mismatch");
+		goto fail;
 	}
 
 	/* login successful */
 	return finish_client_login(client);
+fail:
+	disconnect_client(client, true, "certificate authentication failed");
+	return false;
 }
 
 static bool login_as_unix_peer(PgSocket *client)

@@ -394,7 +394,7 @@ test_tcp_user_timeout() {
 # server_connect_timeout
 test_server_connect_timeout_establish() {
 	psql -X -p $PG_PORT -c "alter system set pre_auth_delay to '60s'" p0
-	kill -HUP `head -n1 pgdata/postmaster.pid`
+	pgctl reload
 	sleep 1
 
 	admin "set query_timeout=3"
@@ -405,7 +405,7 @@ test_server_connect_timeout_establish() {
 	rc=$?
 
 	rm -f pgdata/postgresql.auto.conf
-	kill -HUP `head -n1 pgdata/postmaster.pid`
+	pgctl reload
 	sleep 1
 
 	return $rc

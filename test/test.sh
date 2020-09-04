@@ -32,6 +32,19 @@ which initdb > /dev/null || {
 	exit 1
 }
 
+# The tests require that psql can connect to the PgBouncer admin
+# console.  On platforms that have getpeereid(), this works by
+# connecting as user pgbouncer over the Unix socket.  On other
+# platforms, we have to rely on "trust" authentication, but then we
+# have to skip any tests that use authentication methods other than
+# "trust".
+case `uname` in
+	MINGW*)
+		have_getpeereid=false;;
+	*)
+		have_getpeereid=true;;
+esac
+
 # System configuration checks
 SED_ERE_OP='-E'
 case `uname` in
@@ -724,6 +737,8 @@ test_wait_close() {
 
 # test auth_user
 test_auth_user() {
+	$have_getpeereid || return 77
+
 	admin "set auth_type='md5'"
 	curuser=`psql -X -d "dbname=authdb user=someuser password=anypasswd" -tAq -c "select current_user;"`
 	echo "curuser=$curuser"
@@ -766,6 +781,8 @@ test_password_server() {
 
 # test plain-text password authentication from client to PgBouncer
 test_password_client() {
+	$have_getpeereid || return 77
+
 	admin "set auth_type='plain'"
 
 	# test with users that have a plain-text password stored
@@ -813,6 +830,8 @@ test_md5_server() {
 
 # test md5 authentication from client to PgBouncer
 test_md5_client() {
+	$have_getpeereid || return 77
+
 	admin "set auth_type='md5'"
 
 	# test with users that have a plain-text password stored
@@ -855,6 +874,7 @@ test_scram_server() {
 
 # test SCRAM authentication from client to PgBouncer
 test_scram_client() {
+	$have_getpeereid || return 77
 	$pg_supports_scram || return 77
 
 	admin "set auth_type='scram-sha-256'"
@@ -895,6 +915,7 @@ test_scram_client() {
 
 # test SCRAM authentication from client to PgBouncer and on to server
 test_scram_both() {
+	$have_getpeereid || return 77
 	$pg_supports_scram || return 77
 
 	admin "set auth_type='scram-sha-256'"
@@ -913,6 +934,7 @@ test_scram_both() {
 #
 # Note: coproc requires bash >=4
 test_scram_takeover() {
+	$have_getpeereid || return 77
 	$pg_supports_scram || return 77
 
 	admin "set auth_type='scram-sha-256'"
@@ -948,6 +970,8 @@ test_no_user_trust() {
 }
 
 test_no_user_password() {
+	$have_getpeereid || return 77
+
 	admin "set auth_type='plain'"
 
 	PGPASSWORD=whatever psql -X -U nosuchuser1 -c "select 1" p1 && return 1
@@ -957,6 +981,8 @@ test_no_user_password() {
 }
 
 test_no_user_md5() {
+	$have_getpeereid || return 77
+
 	admin "set auth_type='md5'"
 
 	PGPASSWORD=whatever psql -X -U nosuchuser1 -c "select 1" p1 && return 1
@@ -966,6 +992,8 @@ test_no_user_md5() {
 }
 
 test_no_user_scram() {
+	$have_getpeereid || return 77
+
 	admin "set auth_type='scram-sha-256'"
 
 	PGPASSWORD=whatever psql -X -U nosuchuser1 -c "select 1" p1 && return 1

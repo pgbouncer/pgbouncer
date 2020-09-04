@@ -920,7 +920,14 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 	case SBUF_EV_CONNECT_FAILED:
 		/* ^ those should not happen */
 	case SBUF_EV_RECV_FAILED:
-		disconnect_client(client, false, "client unexpected eof");
+		/*
+		 * Don't log error if client disconnects right away,
+		 * could be monitoring probe.
+		 */
+		if (client->state == CL_LOGIN && mbuf_avail_for_read(data) == 0)
+			disconnect_client(client, false, NULL);
+		else
+			disconnect_client(client, false, "client unexpected eof");
 		break;
 	case SBUF_EV_SEND_FAILED:
 		disconnect_server(client->link, false, "server connection closed");

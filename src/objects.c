@@ -892,16 +892,19 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 /* drop client connection */
 void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 {
-	char buf[128];
-	va_list ap;
 	usec_t now = get_cached_time();
 
-	va_start(ap, reason);
-	vsnprintf(buf, sizeof(buf), reason, ap);
-	va_end(ap);
-	reason = buf;
+	if (reason) {
+		char buf[128];
+		va_list ap;
 
-	if (cf_log_disconnections)
+		va_start(ap, reason);
+		vsnprintf(buf, sizeof(buf), reason, ap);
+		va_end(ap);
+		reason = buf;
+	}
+
+	if (cf_log_disconnections && reason)
 		slog_info(client, "closing because: %s (age=%" PRIu64 "s)", reason,
 			  (now - client->connect_time) / USEC);
 

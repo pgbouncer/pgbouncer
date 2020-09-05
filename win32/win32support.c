@@ -280,20 +280,20 @@ int main(int argc, char *argv[])
 
 	/* service cmdline */
 	if (argc >= 3) {
-		if (!strcmp(argv[1], "--service") || !strcmp(argv[1], "-service")) {
+		if (strcmp(argv[1], "--service") == 0 || strcmp(argv[1], "-service") == 0) {
 			cf_quiet = 1;
 			cf_config_file = argv[2];
 			win32_servicestart();
 			return 0;
 		}
 
-		if (!strcmp(argv[1], "--regservice") || !strcmp(argv[1], "-regservice")) {
+		if (strcmp(argv[1], "--regservice") == 0 || strcmp(argv[1], "-regservice") == 0) {
 			int i;
 			win32_load_config(argv[2]);
 			for (i = 3; i < argc; i++) {
-				if (!strcmp(argv[i], "-U") && i + 1 < argc) {
+				if (strcmp(argv[i], "-U") == 0 && i + 1 < argc) {
 					service_username = argv[++i];
-				} else if (!strcmp(argv[i], "-P") && i + 1 < argc) {
+				} else if (strcmp(argv[i], "-P") == 0 && i + 1 < argc) {
 					service_password = argv[++i];
 				} else {
 					printf("unknown arg: %s\n", argv[i]);
@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
 			return 0;
 		}
 
-		if (!strcmp(argv[1], "--unregservice") || !strcmp(argv[1], "-unregservice")) {
+		if (strcmp(argv[1], "--unregservice") == 0 || strcmp(argv[1], "-unregservice") == 0) {
 			win32_load_config(argv[2]);
 			UnRegisterService();
 			return 0;

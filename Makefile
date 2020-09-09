@@ -135,21 +135,17 @@ check: all
 	etc/optscan.sh
 	$(MAKE) -C test check
 
-w32arch = i686-w64-mingw32
-w32zip = $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)-win32.zip
-zip: configure clean
-	rm -rf buildexe
-	mkdir buildexe
-	cd buildexe \
-		&& ../configure --host=$(w32arch) --disable-debug \
-			--without-openssl \
-			--without-cares \
-			--enable-evdns \
-		&& $(MAKE) \
-		&& $(w32arch)-strip pgbouncer.exe pgbevent.dll \
-		&& zip pgbouncer.zip pgbouncer.exe pgbevent.dll doc/*.html
-	zip -l buildexe/pgbouncer.zip etc/pgbouncer.ini etc/userlist.txt
-	mv buildexe/pgbouncer.zip $(w32zip)
+w32zip = $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)-windows-$(host_cpu).zip
+zip: $(w32zip)
+
+$(w32zip): pgbouncer.exe pgbevent.dll etc/pgbouncer.ini etc/userlist.txt README.md COPYRIGHT
+	rm -rf $(basename $@)
+	mkdir $(basename $@)
+	cp $^ $(basename $@)
+	$(STRIP) $(addprefix $(basename $@)/,$(filter %.exe %.dll,$(^F)))
+	zip -MM $@ $(addprefix $(basename $@)/,$(filter %.exe %.dll,$(^F)))
+# NB: zip -l for text files for end-of-line conversion
+	zip -MM -l $@ $(addprefix $(basename $@)/,$(filter-out %.exe %.dll,$(^F)))
 
 .PHONY: tags
 tags:

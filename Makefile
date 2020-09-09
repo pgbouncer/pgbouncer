@@ -151,13 +151,6 @@ zip: configure clean
 	zip -l buildexe/pgbouncer.zip etc/pgbouncer.ini etc/userlist.txt
 	mv buildexe/pgbouncer.zip $(w32zip)
 
-zip-up: $(w32zip)
-	rsync $(w32zip) pgf:web/pgbouncer/htdocs/win32/
-
-tgz = $(PACKAGE_TARNAME)-$(PACKAGE_VERSION).tar.gz
-tgz-up: $(tgz)
-	rsync $(tgz) pgf:web/pgbouncer/htdocs/testing/
-
 .PHONY: tags
 tags:
 	ctags src/*.c include/*.h lib/usual/*.[ch] lib/usual/*/*.[ch]

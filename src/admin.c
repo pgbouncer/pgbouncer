@@ -262,7 +262,7 @@ static bool send_one_fd(PgSocket *admin,
 	struct msghdr msg;
 	struct cmsghdr *cmsg;
 	struct iovec iovec;
-	int res;
+	ssize_t res;
 	uint8_t cntbuf[CMSG_SPACE(sizeof(int))];
 
 	struct PktBuf *pkt = pktbuf_temp();

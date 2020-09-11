@@ -106,7 +106,7 @@ bool pktbuf_send_immediate(PktBuf *buf, PgSocket *sk)
 {
 	uint8_t *pos = buf->buf + buf->send_pos;
 	int amount = buf->write_pos - buf->send_pos;
-	int res;
+	ssize_t res;
 
 	if (buf->failed)
 		return false;

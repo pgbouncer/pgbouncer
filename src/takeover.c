@@ -39,7 +39,7 @@ void takeover_finish(void)
 	uint8_t buf[512];
 	int fd = sbuf_socket(&old_bouncer->sbuf);
 	bool res;
-	int got;
+	ssize_t got;
 
 	log_info("sending SHUTDOWN;");
 	socket_set_nonblocking(fd, 0);
@@ -308,7 +308,7 @@ static void takeover_recv_cb(evutil_socket_t sock, short flags, void *arg)
 	uint8_t cnt_buf[128];
 	struct msghdr msg;
 	struct iovec io;
-	int res;
+	ssize_t res;
 	struct MBuf data;
 
 	memset(&msg, 0, sizeof(msg));

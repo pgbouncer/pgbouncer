@@ -21,3 +21,18 @@ struct HBA;
 struct HBA *hba_load_rules(const char *fn);
 void hba_free(struct HBA *hba);
 int hba_eval(struct HBA *hba, PgAddr *addr, bool is_tls, const char *dbname, const char *username);
+struct StrSetNode {
+	unsigned int s_len;
+	char s_val[FLEX_ARRAY];
+};
+struct StrSet {
+	CxMem *pool;
+	unsigned count;
+	unsigned alloc;
+	struct StrSetNode **nodes;
+	struct CBTree *cbtree;
+};
+struct StrSet *strset_new(CxMem *cx);
+void strset_free(struct StrSet *set);
+bool strset_add(struct StrSet *set, const char *str, unsigned int len);
+bool strset_contains(struct StrSet *set, const char *str, unsigned int len);

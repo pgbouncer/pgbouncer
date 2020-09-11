@@ -385,13 +385,15 @@ PgUser *add_user(const char *name, const char *passwd)
 
 		list_init(&user->head);
 		list_init(&user->pool_list);
+		user->passwords = strset_new(NULL);
 		safe_strcpy(user->name, name, sizeof(user->name));
 		put_in_order(&user->head, &user_list, cmp_user);
+		safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
 
 		aatree_insert(&user_tree, (uintptr_t)user->name, &user->tree_node);
 		user->pool_mode = POOL_INHERIT;
 	}
-	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
+	strset_add(user->passwords, passwd, strlen(passwd));
 	return user;
 }
 

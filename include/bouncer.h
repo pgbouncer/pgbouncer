@@ -309,6 +309,7 @@ struct PgUser {
 	struct List head;		/* used to attach user to list */
 	struct List pool_list;		/* list of pools where pool->user == this user */
 	struct AANode tree_node;	/* used to attach user to tree */
+	struct StrSet *passwords;
 	char name[MAX_USERNAME];
 	char passwd[MAX_PASSWORD];
 	uint8_t scram_ClientKey[32];

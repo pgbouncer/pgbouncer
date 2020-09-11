@@ -35,6 +35,22 @@ static const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
 	return bin2hex(bin, dlen, buf, buflen);
 }
 
+static bool md5_compare(struct StrSet *set, const char *salt, const char *str, unsigned int len)
+{
+	char md5[MD5_PASSWD_LEN + 1];
+	unsigned int i;
+	struct StrSetNode *node;
+	for (i = 0; i < set->count; i++) {
+		node = set->nodes[i];
+		if (node->s_len != len)
+			continue;
+		pg_md5_encrypt(node->s_val + 3, salt, 4, md5);
+		if (strcmp(md5, str) == 0)
+			return true;
+	}
+	return false;
+}
+
 static bool check_client_passwd(PgSocket *client, const char *passwd)
 {
 	char md5[MD5_PASSWD_LEN + 1];
@@ -63,8 +79,8 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 			return false;
 		if (get_password_type(user->passwd) == PASSWORD_TYPE_PLAINTEXT)
 			pg_md5_encrypt(user->passwd, user->name, strlen(user->name), user->passwd);
-		pg_md5_encrypt(user->passwd + 3, (char *)client->tmp_login_salt, 4, md5);
-		return strcmp(md5, passwd) == 0;
+
+		return md5_compare(user->passwords, (char *)client->tmp_login_salt, passwd, strlen(passwd));
 	}
 	return false;
 }

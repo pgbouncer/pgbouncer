@@ -17,6 +17,8 @@ BOUNCER_PID=test.pid
 BOUNCER_PORT=`sed -n '/^listen_port/s/listen_port.*=[^0-9]*//p' $BOUNCER_INI`
 BOUNCER_EXE="$BOUNCER_EXE_PREFIX ../pgbouncer"
 
+BOUNCER_ADMIN_HOST=/tmp
+
 LOGDIR=log
 PG_PORT=6666
 PG_LOG=$LOGDIR/pg.log
@@ -40,9 +42,13 @@ which initdb > /dev/null || {
 # "trust".
 case `uname` in
 	MINGW*)
-		have_getpeereid=false;;
+		have_getpeereid=false
+		use_unix_sockets=false
+		;;
 	*)
-		have_getpeereid=true;;
+		have_getpeereid=true
+		use_unix_sockets=true
+		;;
 esac
 
 # System configuration checks
@@ -53,11 +59,27 @@ Linux)
 	;;
 esac
 
+case `uname` in
+MINGW*)
+	createdb() { createdb.exe "$@"; }
+	initdb() { initdb.exe "$@"; }
+	psql() { psql.exe "$@"; }
+	;;
+esac
+
 pg_majorversion=$(initdb --version | sed -n $SED_ERE_OP 's/.* ([0-9]+).*/\1/p')
 if test $pg_majorversion -ge 10; then
 	pg_supports_scram=true
 else
 	pg_supports_scram=false
+fi
+
+if ! $use_unix_sockets; then
+	BOUNCER_ADMIN_HOST=127.0.0.1
+
+	cp test.ini test.ini.bak
+	sed -i 's/^unix_socket_dir =/#&/' test.ini
+	echo 'admin_users = pgbouncer' >> test.ini
 fi
 
 # System configuration checks
@@ -126,6 +148,9 @@ if [ ! -d $PGDATA ]; then
 	host   all  all  127.0.0.1/32  trust
 	host   all  all  ::1/128       trust
 	EOF
+	if ! $use_unix_sockets; then
+		sed -i 's/^local/#local/' pgdata/pg_hba.conf
+	fi
 fi
 
 pgctl start
@@ -230,6 +255,7 @@ complete() {
 	test -f $BOUNCER_PID && kill `cat $BOUNCER_PID` >/dev/null 2>&1
 	pgctl -m fast stop
 	rm -f $BOUNCER_PID
+	test -e test.ini.bak && mv test.ini.bak test.ini
 	test -e userlist.txt.bak && mv userlist.txt.bak userlist.txt
 }
 
@@ -240,14 +266,21 @@ die() {
 }
 
 admin() {
-	psql -X -h /tmp -U pgbouncer -d pgbouncer -c "$@;" || die "Cannot contact bouncer!"
+	psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "$@;" || die "Cannot contact bouncer!"
 }
 
 runtest() {
 	local status
 
-	$BOUNCER_EXE -d $BOUNCER_INI
-	until psql -X -h /tmp -U pgbouncer -d pgbouncer -c "show version" 2>/dev/null 1>&2; do sleep 0.1; done
+	case `uname` in
+	MINGW*)
+		(nohup $BOUNCER_EXE $BOUNCER_INI </dev/null >/dev/null 2>&1 &)
+		;;
+	*)
+		$BOUNCER_EXE -d $BOUNCER_INI
+		;;
+	esac
+	until psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "show version" 2>/dev/null 1>&2; do sleep 0.1; done
 
 	printf "`date` running $1 ... "
 	eval $1 >$LOGDIR/$1.out 2>&1
@@ -266,7 +299,15 @@ runtest() {
 	# allow background processing to complete
 	wait
 
-	stopit test.pid
+	case `uname` in
+	MINGW*)
+		psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "shutdown;" 2>/dev/null
+		sleep 1
+		;;
+	*)
+		stopit test.pid
+		;;
+	esac
 	mv $BOUNCER_LOG $LOGDIR/$1.log
 
 	return $status
@@ -275,7 +316,7 @@ runtest() {
 # show version and --version
 test_show_version() {
 	v1=$($BOUNCER_EXE --version | head -n 1) || return 1
-	v2=$(psql -X -tAq -h /tmp -U pgbouncer -d pgbouncer -c "show version;") || return 1
+	v2=$(psql -X -tAq -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "show version;") || return 1
 
 	echo "v1=$v1"
 	echo "v2=$v2"
@@ -292,10 +333,10 @@ test_show_version() {
 test_show() {
 	for what in clients config databases fds help lists pools servers sockets active_sockets stats stats_totals stats_averages users totals mem dns_hosts dns_zones; do
 		    echo "=> show $what;"
-		    psql -X -h /tmp -U pgbouncer -d pgbouncer -c "show $what;" || return 1
+		    psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "show $what;" || return 1
 	done
 
-	psql -X -h /tmp -U pgbouncer -d pgbouncer -c "show bogus;" && return 1
+	psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "show bogus;" && return 1
 
 	return 0
 }
@@ -548,6 +589,8 @@ test_max_user_connections() {
 test_online_restart() {
 # max_client_conn=10
 # default_pool_size=5
+	$have_getpeereid || return 77
+
 	for i in {1..5}; do
 		echo "`date` attempt $i"
 
@@ -592,7 +635,7 @@ test_suspend_resume() {
 	done &
 
 	for i in {1..5}; do
-		psql -X -h /tmp -p $BOUNCER_PORT -d pgbouncer -U pgbouncer <<-PSQL_EOF
+		psql -X -h $BOUNCER_ADMIN_HOST -p $BOUNCER_PORT -d pgbouncer -U pgbouncer <<-PSQL_EOF
 		suspend;
 		\! sleep 1
 		resume;
@@ -659,7 +702,7 @@ test_database_change() {
 	sed '/^p1 =/s/dbname=p1/dbname=p0/g' test.ini >test2.ini
 	mv test2.ini test.ini
 
-	kill -HUP `cat $BOUNCER_PID`
+	admin "reload"
 
 	sleep 3
 	db2=`psql -X -tAq -c "select current_database()" p1`
@@ -709,6 +752,8 @@ test_fast_close() {
 
 # test wait_close
 test_wait_close() {
+	case `uname` in MINGW*) return 77;; esac # TODO
+
 	(
 		echo "select pg_backend_pid();"
 		sleep 3

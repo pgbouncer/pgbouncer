@@ -6,7 +6,7 @@ environment:
 install:
   - git submodule update --init --recursive
   - set PATH=C:/msys64/usr/bin;%PATH%
-  - sh -l -c "pacman --noconfirm -S --needed base-devel ${MINGW_PACKAGE_PREFIX}-toolchain ${MINGW_PACKAGE_PREFIX}-libevent ${MINGW_PACKAGE_PREFIX}-openssl python zip"
+  - sh -l -c "pacman --noconfirm -S --needed base-devel ${MINGW_PACKAGE_PREFIX}-toolchain ${MINGW_PACKAGE_PREFIX}-libevent ${MINGW_PACKAGE_PREFIX}-openssl ${MINGW_PACKAGE_PREFIX}-postgresql python zip"
   - choco install pandoc
 
 build_script:
@@ -21,6 +21,12 @@ build_script:
 artifacts:
   - path: '*.zip'
 
+test_script:
+  - set HOME=.
+  - set PATH=C:/msys64/usr/bin;%PATH%
+  - sh -l -c "cd test/ && ./test.sh"
+
 on_failure:
   - set HOME=.
   - sh -l -c "test -f config.status || cat config.log"
+  - sh -l -c "find test/ -name '*.log' | xargs tail -n40 -v"

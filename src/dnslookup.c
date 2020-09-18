@@ -1386,6 +1386,49 @@ static void check_req_result_changes(struct DNSRequest *req)
 	}
 }
 
+/* shuffle the order of the addrinfo linked list */
+static struct addrinfo * shuffle_addrinfo(struct addrinfo *ai)
+{
+	int i, j, n;
+	struct addrinfo *aisave;
+	struct addrinfo **ais;
+
+	if (ai->ai_next == NULL)
+		return ai;
+
+	n = 0;
+	aisave = ai;
+	while (ai) {
+		n++;
+		ai = ai->ai_next;
+	}
+
+	ais = calloc(n, sizeof(ai));
+	if (!ais) {
+		log_warning("dns shuffle addrinfo failed, no mem");
+		return aisave;
+	}
+	ai = aisave;
+	for (i = 0; i < n; i++) {
+		ais[i] = ai;
+		ai = ai->ai_next;
+	}
+	/* Fisher-Yates shuffle */
+	for (i = n-1; i > 0; i--) {
+		j = random() % (i+1);
+		ai = ais[i];
+		ais[i] = ais[j];
+		ais[j] = ai;
+	}
+	for (i = 0; i < n-1; i++) {
+		ais[i]->ai_next = ais[i+1];
+	}
+	ais[n-1]->ai_next = NULL;
+	ai = ais[0];
+	free(ais);
+	return ai;
+}
+
 /* struct addrinfo -> deliver_info() */
 static void got_result_gai(int result, struct addrinfo *res, void *arg)
 {
@@ -1394,6 +1437,10 @@ static void got_result_gai(int result, struct addrinfo *res, void *arg)
 	req_reset(req);
 
 	if (result == 0 && res) {
+		if (cf_server_shuffle_hosts) {
+			log_noise("DNS: shuffled addrinfo: %s", req->name);
+			res = shuffle_addrinfo(res);
+		}
 		req->result = res;
 		req->current = res;
 

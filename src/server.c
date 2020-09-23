@@ -62,15 +62,10 @@ failed_store:
 }
 
 /* we cannot log in at all, notify clients */
-static void kill_pool_logins(PgPool *pool, PktHdr *errpkt)
+void kill_pool_logins(PgPool *pool, const char *msg)
 {
 	struct List *item, *tmp;
 	PgSocket *client;
-	const char *level, *msg;
-
-	parse_server_error(errpkt, &level, &msg);
-
-	log_warning("server login failed: %s %s", level, msg);
 
 	statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
 		client = container_of(item, PgSocket, head);
@@ -79,6 +74,16 @@ static void kill_pool_logins(PgPool *pool, PktHdr *errpkt)
 
 		disconnect_client(client, true, "%s", msg);
 	}
+}
+
+/* we cannot log in at all, notify clients with server error */
+static void kill_pool_logins_server_error(PgPool *pool, PktHdr *errpkt)
+{
+	const char *level, *msg;
+
+	parse_server_error(errpkt, &level, &msg);
+	log_warning("server login failed: %s %s", level, msg);
+	kill_pool_logins(pool, msg);
 }
 
 /* process packets on server auth phase */
@@ -117,7 +122,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 
 	case 'E':		/* ErrorResponse */
 		if (!server->pool->welcome_msg_ready)
-			kill_pool_logins(server->pool, pkt);
+			kill_pool_logins_server_error(server->pool, pkt);
 		else
 			log_server_error("S: login failed", pkt);
 
@@ -243,7 +248,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		if (state == 'I')
 			ready = true;
 		else if (pool_pool_mode(server->pool) == POOL_STMT) {
-			disconnect_server(server, true, "long transactions not allowed");
+			disconnect_server(server, true, "transaction blocks not allowed in statement pooling mode");
 			return false;
 		} else if (state == 'T' || state == 'E') {
 			idle_tx = true;
@@ -344,7 +349,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		sbuf_prepare_skip(sbuf, pkt->len);
 	} else if (client) {
 		if (client->state == CL_LOGIN) {
-			return handle_auth_response(client, pkt);
+			return handle_auth_query_response(client, pkt);
 		} else {
 			sbuf_prepare_send(sbuf, &client->sbuf, pkt->len);
 
@@ -493,7 +498,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			disconnect_server(server, true, "bad pkt header");
 			break;
 		}
-		slog_noise(server, "S: pkt '%c', len=%d", pkt_desc(&pkt), pkt.len);
+		slog_noise(server, "read pkt='%c', len=%d", pkt_desc(&pkt), pkt.len);
 
 		server->request_time = get_cached_time();
 		switch (server->state) {

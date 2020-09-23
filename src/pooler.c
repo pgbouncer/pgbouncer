@@ -120,6 +120,30 @@ static bool add_listen(int af, const struct sockaddr *sa, int salen)
 	}
 #endif
 
+	/*
+	 * If configured, set SO_REUSEPORT or equivalent.  If it's not
+	 * enabled, just leave the socket alone.  (We could also unset
+	 * the socket option in that case, but this area is fairly
+	 * unportable, so perhaps better to avoid it.)
+	 */
+	if (af != AF_UNIX && cf_so_reuseport) {
+#if defined(SO_REUSEPORT)
+		int val = 1;
+		errpos = "setsockopt/SO_REUSEPORT";
+		res = setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &val, sizeof(val));
+		if (res < 0)
+			goto failed;
+#elif defined(SO_REUSEPORT_LB)
+		int val = 1;
+		errpos = "setsockopt/SO_REUSEPORT_LB";
+		res = setsockopt(sock, SOL_SOCKET, SO_REUSEPORT_LB, &val, sizeof(val));
+		if (res < 0)
+			goto failed;
+#else
+		die("so_reuseport not supported on this platform");
+#endif
+	}
+
 	/* bind it */
 	errpos = "bind";
 	res = bind(sock, sa, salen);
@@ -151,8 +175,10 @@ static bool add_listen(int af, const struct sockaddr *sa, int salen)
 	}
 
 	if (af == AF_UNIX) {
+#ifndef WIN32
 		struct sockaddr_un *un = (struct sockaddr_un *)sa;
 		change_file_mode(un->sun_path, cf_unix_socket_mode, NULL, cf_unix_socket_group);
+#endif
 	} else {
 		tune_accept(sock, cf_tcp_defer_accept);
 	}
@@ -187,7 +213,7 @@ static void create_unix_socket(const char *socket_dir, int listen_port)
 	snprintf(lockfile, sizeof(lockfile), "%s.lock", un.sun_path);
 	res = lstat(lockfile, &st);
 	if (res == 0)
-		fatal("unix port %d is in use", listen_port);
+		die("unix port %d is in use", listen_port);
 
 	/* expect old bouncer gone */
 	unlink(un.sun_path);
@@ -244,7 +270,7 @@ void pooler_tune_accept(bool on)
 	}
 }
 
-static void err_wait_func(int sock, short flags, void *arg)
+static void err_wait_func(evutil_socket_t sock, short flags, void *arg)
 {
 	if (cf_pause_mode != P_SUSPEND)
 		resume_pooler();
@@ -275,7 +301,7 @@ static const char *conninfo(const PgSocket *sk)
 }
 
 /* got new connection, associate it with client struct */
-static void pool_accept(int sock, short flags, void *arg)
+static void pool_accept(evutil_socket_t sock, short flags, void *arg)
 {
 	struct ListenSocket *ls = arg;
 	int fd;
@@ -307,7 +333,7 @@ loop:
 		 * wait a bit, hope that admin resolves somehow
 		 */
 		log_error("accept() failed: %s", strerror(errno));
-		evtimer_set(&ev_err, err_wait_func, NULL);
+		evtimer_assign(&ev_err, pgb_event_base, err_wait_func, NULL);
 		safe_evtimer_add(&ev_err, &err_timeout);
 		suspend_pooler();
 		return;
@@ -390,7 +416,7 @@ void resume_pooler(void)
 		ls = container_of(el, struct ListenSocket, node);
 		if (ls->active)
 			continue;
-		event_set(&ls->ev, ls->fd, EV_READ | EV_PERSIST, pool_accept, ls);
+		event_assign(&ls->ev, pgb_event_base, ls->fd, EV_READ | EV_PERSIST, pool_accept, ls);
 		if (event_add(&ls->ev, NULL) < 0) {
 			log_warning("event_add failed: %s", strerror(errno));
 			return;
@@ -424,7 +450,7 @@ static bool parse_addr(void *arg, const char *addr)
 
 	res = getaddrinfo(addr, service, &hints, &gaires);
 	if (res != 0) {
-		fatal("getaddrinfo('%s', '%d') = %s [%d]", addr ? addr : "*",
+		die("getaddrinfo('%s', '%d') = %s [%d]", addr ? addr : "*",
 		      cf_listen_port, gai_strerror(res), res);
 	}
 
@@ -442,24 +468,65 @@ static bool parse_addr(void *arg, const char *addr)
 /* listen on socket - should happen after all other initializations */
 void pooler_setup(void)
 {
-	bool ok;
-	static int init_done = 0;
+	int n;
 
-	if (!init_done) {
-		/* remove socket on shutdown */
-		atexit(cleanup_sockets);
-		init_done = 1;
+	n = sd_listen_fds(0);
+	if (n > 0) {
+		if (cf_listen_addr && *cf_listen_addr)
+			log_warning("sockets passed from service manager, cf_listen_addr ignored");
+		if (cf_unix_socket_dir && *cf_unix_socket_dir && strcmp(cf_unix_socket_dir, DEFAULT_UNIX_SOCKET_DIR) != 0)
+			log_warning("sockets passed from service manager, cf_unix_socket_dir ignored");
+
+		for (int i = 0; i < n; i++) {
+			int fd = SD_LISTEN_FDS_START + i;
+			struct ListenSocket *ls;
+			bool ok = true;
+
+			ls = calloc(1, sizeof(*ls));
+			if (!ls)
+				die("out of memory");
+			list_init(&ls->node);
+			ls->fd = fd;
+			if (sd_is_socket(fd, AF_UNIX, 0, -1)) {
+				pga_set(&ls->addr, AF_UNIX, 0);
+				if (!tune_socket(fd, true))
+					ok = false;
+			} else if (sd_is_socket(fd, AF_INET, 0, -1)) {
+				pga_set(&ls->addr, AF_INET, 0);
+				if (!tune_socket(fd, false))
+					ok = false;
+				tune_accept(fd, cf_tcp_defer_accept);
+			} else if (sd_is_socket(fd, AF_INET6, 0, -1)) {
+				pga_set(&ls->addr, AF_INET6, 0);
+				if (!tune_socket(fd, false))
+					ok = false;
+				tune_accept(fd, cf_tcp_defer_accept);
+			}
+			if (!ok)
+				die("failed to set up socket passed from service manager (fd %d)", fd);
+			log_info("socket passed from service manager (fd %d)", fd);
+			statlist_append(&sock_list, &ls->node);
+		}
+	} else {
+		bool ok;
+		static int init_done = 0;
+
+		if (!init_done) {
+			/* remove socket on shutdown */
+			atexit(cleanup_sockets);
+			init_done = 1;
+		}
+
+		ok = parse_word_list(cf_listen_addr, parse_addr, NULL);
+		if (!ok)
+			die("failed to parse listen_addr list: %s", cf_listen_addr);
+
+		if (cf_unix_socket_dir && *cf_unix_socket_dir)
+			create_unix_socket(cf_unix_socket_dir, cf_listen_port);
 	}
 
-	ok = parse_word_list(cf_listen_addr, parse_addr, NULL);
-	if (!ok)
-		fatal("failed to parse listen_addr list: %s", cf_listen_addr);
-
-	if (cf_unix_socket_dir && *cf_unix_socket_dir)
-		create_unix_socket(cf_unix_socket_dir, cf_listen_port);
-
 	if (!statlist_count(&sock_list))
-		fatal("nowhere to listen on");
+		die("nowhere to listen on");
 
 	resume_pooler();
 }

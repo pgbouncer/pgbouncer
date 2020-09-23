@@ -1,8 +1,11 @@
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT(pgbouncer, 1.9.0)
+AC_INIT([PgBouncer],
+        [1.14.0],
+        [https://github.com/pgbouncer/pgbouncer/issues], [],
+        [https://www.pgbouncer.org/])
 AC_CONFIG_SRCDIR(src/janitor.c)
-AC_CONFIG_HEADER(lib/usual/config.h)
+AC_CONFIG_HEADERS([lib/usual/config.h])
 AC_PREREQ([2.59])
 
 dnl basic init
@@ -14,6 +17,7 @@ AC_USUAL_PROGRAM_CHECK
 PKG_PROG_PKG_CONFIG
 
 AC_CHECK_PROGS(PANDOC, pandoc, pandoc)
+AC_CHECK_PROGS(PYTHON, [python python3 python2], python)
 
 dnl check for windows tools
 if test "$PORTNAME" = "win32"; then
@@ -51,12 +55,12 @@ AC_SEARCH_LIBS(hstrerror, resolv)
 AC_CHECK_FUNCS(lstat)
 
 dnl Find libevent
-AC_USUAL_LIBEVENT
+PKG_CHECK_MODULES(LIBEVENT, libevent)
 
-dnl Check for PAM authorization support
+dnl Check for PAM authentication support
 pam_support=no
 AC_ARG_WITH(pam,
-  AC_HELP_STRING([--with-pam],[Enable PAM support]),
+  AS_HELP_STRING([--with-pam], [build with PAM support]),
   [ PAM=
     if test "$withval" != no; then
         have_pthreads=no
@@ -75,19 +79,33 @@ AC_ARG_WITH(pam,
     fi
   ], [])
 
+dnl Check for systemd support
+AC_MSG_CHECKING([whether to build with systemd support])
+AC_ARG_WITH(systemd,
+            [AS_HELP_STRING([--with-systemd], [build with systemd support])],
+            [if test "$withval" != no; then with_systemd=yes; else with_systemd=no; fi],
+            [with_systemd=no])
+AC_MSG_RESULT([$with_systemd])
+AC_SUBST(with_systemd)[]dnl
+if test "$with_systemd" = yes; then
+  AC_DEFINE([USE_SYSTEMD], 1, [Define to build with systemd support. (--with-systemd)])
+  AC_CHECK_HEADER(systemd/sd-daemon.h, [], [AC_MSG_ERROR([header file <systemd/sd-daemon.h> is required for systemd support])])
+  AC_SEARCH_LIBS(sd_notify, systemd)
+fi
+
 ##
 ## DNS backend
 ##
 
 # make sure all vars are set
-use_cares=auto
+use_cares=no
 use_udns=no
 use_evdns=no
 
 dnl Find c-ares
 AC_MSG_CHECKING([whether to use c-ares for DNS lookups])
 AC_ARG_WITH(cares,
-  AC_HELP_STRING([--with-cares=prefix],[Specify where c-ares is installed]),
+  AS_HELP_STRING([--with-cares@<:@=PREFIX@:>@], [build with c-ares support]),
   [ if test "$withval" = "no"; then
       use_cares=no
     elif test "$withval" = "yes"; then
@@ -101,7 +119,7 @@ AC_ARG_WITH(cares,
       CARES_CFLAGS="-I$withval/include"
       CARES_LIBS="-L$withval/lib -lcares"
     fi
-  ], [])
+  ], [use_cares=auto])
 AC_MSG_RESULT([$use_cares])
 
 if test "$use_cares" = "auto"; then
@@ -119,12 +137,13 @@ if test "$use_cares" = "yes"; then
   AC_CHECK_FUNCS(ares_parse_soa_reply)
   LIBS="$tmp_LIBS"
   CFLAGS="$tmp_CFLAGS"
-else
+
+else # !cares
 
 dnl Find libudns
 AC_MSG_CHECKING([whether to use libudns])
 AC_ARG_WITH(udns,
-  AC_HELP_STRING([--with-udns=prefix],[Specify where udns is installed]),
+  AS_HELP_STRING([--with-udns@<:@=PREFIX@:>@], [build with udns support]),
   [ if test "$withval" = "no"; then
       use_udns=no
     elif test "$withval" = "yes"; then
@@ -156,14 +175,9 @@ if test "$use_udns" = "yes"; then
 
 else # !udns
 
-dnl On libevent 2.x use evdns by default
-if test "$ac_cv_func_evdns_base_new" = "yes"; then
-  use_evdns=yes
-fi
-
 dnl Allow user to override the decision
-AC_ARG_ENABLE(evdns, AC_HELP_STRING([--enable-evdns],[Use libevent for DNS lookups (default on libevent 2.x)]),
-              [use_evdns=$enableval])
+AC_ARG_ENABLE(evdns, AS_HELP_STRING([--disable-evdns], [do not use libevent for DNS lookups]),
+              [use_evdns=$enableval], [use_evdns=yes])
 AC_MSG_CHECKING([whether to use libevent for DNS lookups])
 if test "$use_evdns" = "yes"; then
   AC_DEFINE(USE_EVDNS, 1, [Use libevent for DNS lookups.])
@@ -190,7 +204,8 @@ AC_USUAL_CASSERT
 AC_USUAL_WERROR
 
 dnl Output findings
-AC_OUTPUT([config.mak])
+AC_CONFIG_FILES([config.mak])
+AC_OUTPUT
 
 dnl If separate build dir, link Makefile over
 test -f Makefile || {
@@ -199,10 +214,20 @@ test -f Makefile || {
 }
 
 echo ""
-echo "Results"
-echo "  c-ares = $use_cares"
-echo "  evdns = $use_evdns"
-echo "  udns = $use_udns"
-echo "  tls = $tls_support"
-echo "  PAM = $pam_support"
+echo "Results:"
+dnl Note: Report here should match selection in src/dnslookup.c
+if test "$use_cares" = "yes"; then
+  echo "  adns    = c-ares"
+elif test "$use_udns" = "yes"; then
+  echo "  adns    = udns"
+elif test "$use_evdns" = "yes"; then
+  echo "  adns    = evdns2"
+elif test "$ac_cv_usual_glibc_gaia" = "yes"; then
+  echo "  adns    = libc"
+else
+  echo "  adns    = compat"
+fi
+echo "  pam     = $pam_support"
+echo "  systemd = $with_systemd"
+echo "  tls     = $tls_support"
 echo ""

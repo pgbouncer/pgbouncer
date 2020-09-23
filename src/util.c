@@ -115,11 +115,13 @@ bool tune_socket(int sock, bool is_unix)
 {
 	int res;
 	int val;
+	const char *errpos;
 	bool ok;
 
 	/*
 	 * Generic stuff + nonblock.
 	 */
+	errpos = "socket_setup";
 	ok = socket_setup(sock, true);
 	if (!ok)
 		goto fail;
@@ -133,20 +135,39 @@ bool tune_socket(int sock, bool is_unix)
 	/*
 	 * TCP Keepalive
 	 */
+	errpos = "socket_set_keepalive";
 	ok = socket_set_keepalive(sock, cf_tcp_keepalive, cf_tcp_keepidle,
 				  cf_tcp_keepintvl, cf_tcp_keepcnt);
 	if (!ok)
 		goto fail;
 
 	/*
+	 * TCP user timeout
+	 */
+	if (cf_tcp_user_timeout) {
+		errpos = "setsockopt/TCP_USER_TIMEOUT";
+#ifdef TCP_USER_TIMEOUT
+		val = cf_tcp_user_timeout;
+		res = setsockopt(sock, IPPROTO_TCP, TCP_USER_TIMEOUT, &val, sizeof(val));
+		if (res < 0)
+			goto fail;
+#else
+		errno = EINVAL;
+		goto fail;
+#endif
+	}
+
+	/*
 	 * set in-kernel socket buffer size
 	 */
 	if (cf_tcp_socket_buffer) {
 		val = cf_tcp_socket_buffer;
+		errpos = "setsockopt/SO_SNDBUF";
 		res = setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &val, sizeof(val));
 		if (res < 0)
 			goto fail;
 		val = cf_tcp_socket_buffer;
+		errpos = "setsockopt/SO_RCVBUF";
 		res = setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &val, sizeof(val));
 		if (res < 0)
 			goto fail;
@@ -156,12 +177,13 @@ bool tune_socket(int sock, bool is_unix)
 	 * Turn off kernel buffering, each send() will be one packet.
 	 */
 	val = 1;
+	errpos = "setsockopt/TCP_NODELAY";
 	res = setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));
 	if (res < 0)
 		goto fail;
 	return true;
 fail:
-	log_warning("tune_socket(%d) failed: %s", sock, strerror(errno));
+	log_warning("%s(%d) failed: %s", errpos, sock, strerror(errno));
 	return false;
 }
 
@@ -215,7 +237,12 @@ void fill_remote_addr(PgSocket *sk, int fd, bool is_unix)
 		pga_set(dst, AF_UNIX, cf_listen_port);
 		if (getpeercreds(fd, &uid, &gid, &pid) >= 0) {
 			log_noise("unix peer uid: %d", (int)uid);
-		} else {
+		} else if (errno != ENOSYS) {
+			/*
+			 * Check for ENOSYS, so we don't write a
+			 * warning every time if the OS doesn't
+			 * support this call.
+			 */
 			log_warning("unix peer uid failed: %s", strerror(errno));
 		}
 		dst->scred.uid = uid;
@@ -273,7 +300,7 @@ void safe_evtimer_add(struct event *ev, struct timeval *tv)
 		return;
 
 	if (timer_backup_used >= TIMER_BACKUP_SLOTS)
-		fatal_perror("TIMER_BACKUP_SLOTS full");
+		fatal("TIMER_BACKUP_SLOTS full");
 
 	ts = &timer_backup_list[timer_backup_used++];
 	ts->ev = ev;

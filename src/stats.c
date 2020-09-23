@@ -77,7 +77,7 @@ static void write_stats(PktBuf *buf, PgStats *stat, PgStats *old, char *dbname)
 {
 	PgStats avg;
 	calc_average(&avg, stat, old);
-	pktbuf_write_DataRow(buf, "sqqqqqqqqqqqqqq", dbname,
+	pktbuf_write_DataRow(buf, "sNNNNNNNNNNNNNN", dbname,
 			     stat->xact_count, stat->query_count,
 			     stat->client_bytes, stat->server_bytes,
 			     stat->xact_time, stat->query_time,
@@ -108,7 +108,7 @@ bool admin_database_stats(PgSocket *client, struct StatList *pool_list)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "sqqqqqqqqqqqqqq", "database",
+	pktbuf_write_RowDescription(buf, "sNNNNNNNNNNNNNN", "database",
 				    "total_xact_count", "total_query_count",
 				    "total_received", "total_sent",
 				    "total_xact_time", "total_query_time",
@@ -152,7 +152,7 @@ static void write_stats_totals(PktBuf *buf, PgStats *stat, PgStats *old, char *d
 {
 	PgStats avg;
 	calc_average(&avg, stat, old);
-	pktbuf_write_DataRow(buf, "sqqqqqqq", dbname,
+	pktbuf_write_DataRow(buf, "sNNNNNNN", dbname,
 			     stat->xact_count, stat->query_count,
 			     stat->client_bytes, stat->server_bytes,
 			     stat->xact_time, stat->query_time,
@@ -179,7 +179,7 @@ bool admin_database_stats_totals(PgSocket *client, struct StatList *pool_list)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "sqqqqqqq", "database",
+	pktbuf_write_RowDescription(buf, "sNNNNNNN", "database",
 				    "xact_count", "query_count",
 				    "bytes_received", "bytes_sent",
 				    "xact_time", "query_time",
@@ -219,7 +219,7 @@ static void write_stats_averages(PktBuf *buf, PgStats *stat, PgStats *old, char 
 {
 	PgStats avg;
 	calc_average(&avg, stat, old);
-	pktbuf_write_DataRow(buf, "sqqqqqqq", dbname,
+	pktbuf_write_DataRow(buf, "sNNNNNNN", dbname,
 			     avg.xact_count, avg.query_count,
 			     avg.client_bytes, avg.server_bytes,
 			     avg.xact_time, avg.query_time,
@@ -246,7 +246,7 @@ bool admin_database_stats_averages(PgSocket *client, struct StatList *pool_list)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "sqqqqqqq", "database",
+	pktbuf_write_RowDescription(buf, "sNNNNNNN", "database",
 				    "xact_count", "query_count",
 				    "bytes_received", "bytes_sent",
 				    "xact_time", "query_time",
@@ -307,10 +307,10 @@ bool show_stat_totals(PgSocket *client, struct StatList *pool_list)
 
 	calc_average(&avg, &st_total, &old_total);
 
-	pktbuf_write_RowDescription(buf, "sq", "name", "value");
+	pktbuf_write_RowDescription(buf, "sN", "name", "value");
 
-#define WTOTAL(name) pktbuf_write_DataRow(buf, "sq", "total_" #name, st_total.name)
-#define WAVG(name) pktbuf_write_DataRow(buf, "sq", "avg_" #name, avg.name)
+#define WTOTAL(name) pktbuf_write_DataRow(buf, "sN", "total_" #name, st_total.name)
+#define WAVG(name) pktbuf_write_DataRow(buf, "sN", "avg_" #name, avg.name)
 
 	WTOTAL(xact_count);
 	WTOTAL(query_count);
@@ -331,12 +331,12 @@ bool show_stat_totals(PgSocket *client, struct StatList *pool_list)
 	return true;
 }
 
-static void refresh_stats(int s, short flags, void *arg)
+static void refresh_stats(evutil_socket_t s, short flags, void *arg)
 {
 	struct List *item;
 	PgPool *pool;
-	struct timeval period = { cf_stats_period, 0 };
-	PgStats old_total, cur_total, avg;
+	PgStats old_total, cur_total;
+	PgStats avg;
 
 	reset_stats(&old_total);
 	reset_stats(&cur_total);
@@ -349,24 +349,40 @@ static void refresh_stats(int s, short flags, void *arg)
 		pool->older_stats = pool->newer_stats;
 		pool->newer_stats = pool->stats;
 
-		stat_add(&cur_total, &pool->stats);
-		stat_add(&old_total, &pool->older_stats);
+		if (cf_log_stats) {
+			stat_add(&cur_total, &pool->stats);
+			stat_add(&old_total, &pool->older_stats);
+		}
 	}
-	calc_average(&avg, &cur_total, &old_total);
-	/* send totals to logfile */
-	log_info("stats: %" PRIu64 " xacts/s,"
-		 " %" PRIu64 " queries/s,"
-		 " in %" PRIu64 " B/s,"
-		 " out %" PRIu64 " B/s,"
-		 " xact %" PRIu64 " us,"
-		 " query %" PRIu64 " us,"
-		 " wait %" PRIu64 " us",
-		 avg.xact_count, avg.query_count,
-		 avg.client_bytes, avg.server_bytes,
-		 avg.xact_time, avg.query_time,
-		 avg.wait_time);
 
-	safe_evtimer_add(&ev_stats, &period);
+	calc_average(&avg, &cur_total, &old_total);
+
+	if (cf_log_stats) {
+		log_info("stats: %" PRIu64 " xacts/s,"
+			 " %" PRIu64 " queries/s,"
+			 " in %" PRIu64 " B/s,"
+			 " out %" PRIu64 " B/s,"
+			 " xact %" PRIu64 " us,"
+			 " query %" PRIu64 " us,"
+			 " wait %" PRIu64 " us",
+			 avg.xact_count, avg.query_count,
+			 avg.client_bytes, avg.server_bytes,
+			 avg.xact_time, avg.query_time,
+			 avg.wait_time);
+	}
+
+	sd_notifyf(0,
+		   "STATUS=stats: %" PRIu64 " xacts/s,"
+		   " %" PRIu64 " queries/s,"
+		   " in %" PRIu64 " B/s,"
+		   " out %" PRIu64 " B/s,"
+		   " xact %" PRIu64 " μs,"
+		   " query %" PRIu64 " μs,"
+		   " wait %" PRIu64 " μs",
+		   avg.xact_count, avg.query_count,
+		   avg.client_bytes, avg.server_bytes,
+		   avg.xact_time, avg.query_time,
+		   avg.wait_time);
 }
 
 void stats_setup(void)
@@ -377,6 +393,6 @@ void stats_setup(void)
 	old_stamp = new_stamp - USEC;
 
 	/* launch stats */
-	evtimer_set(&ev_stats, refresh_stats, NULL);
-	safe_evtimer_add(&ev_stats, &period);
+	event_assign(&ev_stats, pgb_event_base, -1, EV_PERSIST, refresh_stats, NULL);
+	event_add(&ev_stats, &period);
 }

@@ -1,28 +1,34 @@
 #! /usr/bin/env python
 
-import sys, os, re, time, psycopg
-import threading, thread, random
+import sys
+import os
+import re
+import time
+import psycopg2
+import threading
+import random
 
 n_thread = 100
-longtx = 0
-tx_sleep = 0
+longtx = False
 tx_sleep = 8
 
 conn_data = {
     'dbname': 'marko',
     #'host': '127.0.0.1',
     'host': '/tmp',
-    'port': '6000',
+    'port': '6432',
     'user': 'marko',
     #'password': '',
     'connect_timeout': '5',
 }
+
 
 def get_connstr():
     tmp = []
     for k, v in conn_data.items():
         tmp.append(k+'='+v)
     return " ".join(tmp)
+
 
 class WorkThread(threading.Thread):
     def __init__(self):
@@ -46,7 +52,8 @@ class WorkThread(threading.Thread):
     def run(self):
         try:
             time.sleep(random.random() * 10.0)
-        except: pass
+        except Exception:
+            pass
         while 1:
             try:
                 self.main_loop()
@@ -54,16 +61,17 @@ class WorkThread(threading.Thread):
                 break
             except SystemExit:
                 break
-            except Exception, d:
-                print d
+            except Exception as d:
+                print(d)
                 try:
                     time.sleep(5)
-                except: pass
+                except Exception:
+                    pass
 
     def main_loop(self):
-        db = psycopg.connect(get_connstr())
+        db = psycopg2.connect(get_connstr())
         if not longtx:
-            db.autocommit(1)
+            db.autocommit = True
         n = 0
         while n < 10:
             self.do_work(db)
@@ -78,8 +86,9 @@ class WorkThread(threading.Thread):
         if longtx:
             db.commit()
 
+
 def main():
-    print "connstr", get_connstr()
+    print("connstr %s" % get_connstr())
 
     thread_list = []
     while len(thread_list) < n_thread:
@@ -87,7 +96,7 @@ def main():
         t.start()
         thread_list.append(t)
 
-    print "started %d threads" % len(thread_list)
+    print("started %d threads" % len(thread_list))
 
     last = time.time()
     while 1:
@@ -100,7 +109,8 @@ def main():
             for t in thread_list:
                 cnt += t.fetch_cnt()
             avg = cnt / dur
-            print "avg", avg
+            print("avg %s" % avg)
+
 
 if __name__ == '__main__':
     try:
@@ -109,5 +119,5 @@ if __name__ == '__main__':
         pass
     except KeyboardInterrupt:
         pass
-    #except Exception, d:
+    #except Exception as d:
     #    print d

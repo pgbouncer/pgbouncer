@@ -8,28 +8,42 @@
 #include <usual/mbuf.h>
 #include <usual/socket.h>
 #include <usual/err.h>
-#include <usual/event.h>
 
 int cf_tcp_keepcnt;
 int cf_tcp_keepintvl;
 int cf_tcp_keepidle;
 int cf_tcp_keepalive;
+int cf_tcp_user_timeout;
 int cf_tcp_socket_buffer;
 int cf_listen_port;
 
-static const char *method2string[] = {
-	"trust",
-	"x1",
-	"x2",
-	"password",
-	"crypt",
-	"md5",
-	"creds",
-	"cert",
-	"peer",
-	"hba",
-	"reject",
-};
+static const char *method2string(int method)
+{
+	switch (method) {
+	case AUTH_TRUST:
+		return "trust";
+	case AUTH_PLAIN:
+		return "password";
+	case AUTH_CRYPT:
+		return "crypt";
+	case AUTH_MD5:
+		return "md5";
+	case AUTH_CERT:
+		return "cert";
+	case AUTH_PEER:
+		return "peer";
+	case AUTH_HBA:
+		return "hba";
+	case AUTH_REJECT:
+		return "reject";
+	case AUTH_PAM:
+		return "pam";
+	case AUTH_SCRAM_SHA_256:
+		return "scram-sha-256";
+	default:
+		return "???";
+	}
+}
 
 static char *get_token(char **ln_p)
 {
@@ -70,11 +84,11 @@ static int hba_test_eval(struct HBA *hba, char *ln, int linenr)
 		die("hbatest: invalid addr on line #%d", linenr);
 
 	res = hba_eval(hba, &pgaddr, !!tls, db, user);
-	if (strcmp(method2string[res], exp) == 0) {
+	if (strcmp(method2string(res), exp) == 0) {
 		res = 0;
 	} else {
 		log_warning("FAIL on line %d: expected '%s' got '%s' - user=%s db=%s addr=%s",
-			    linenr, exp, method2string[res], user, db, addr);
+			    linenr, exp, method2string(res), user, db, addr);
 		res = 1;
 	}
 	return res;

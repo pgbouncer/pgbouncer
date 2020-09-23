@@ -411,7 +411,7 @@ static bool parse_names(struct HBAName *hname, struct TokParser *tp, bool is_db,
 
 			if (tok[0] == '@') {
 				bool ok;
-				const char *fn;
+				char *fn;
 				fn = path_join_dirname(parent_filename, tok + 1);
 				if (!fn)
 					return false;
@@ -588,6 +588,8 @@ static bool parse_line(struct HBA *hba, struct TokParser *tp, int linenr, const 
 		rule->rule_method = AUTH_PEER;
 	} else if (eat_kw(tp, "cert")) {
 		rule->rule_method = AUTH_CERT;
+	} else if (eat_kw(tp, "scram-sha-256")) {
+		rule->rule_method = AUTH_SCRAM_SHA_256;
 	} else {
 		log_warning("hba line %d: unsupported method: buf=%s", linenr, tp->buf);
 		goto failed;
@@ -624,8 +626,10 @@ struct HBA *hba_load_rules(const char *fn)
 	list_init(&hba->rules);
 
 	f = fopen(fn, "r");
-	if (!f)
+	if (!f) {
+		log_error("could not open hba config file %s: %s", fn, strerror(errno));
 		goto out;
+	}
 
 	for (linenr = 1; ; linenr++) {
 		len = getline(&ln, &lnbuf, f);

@@ -3,6 +3,7 @@ md5		db	user		unix
 peer		dbp	user		unix
 password	db	userp		unix
 trust		dbz	userz		unix
+scram-sha-256	dbs	users		unix
 
 # hostssl
 cert		db	user		10.1.1.1	tls

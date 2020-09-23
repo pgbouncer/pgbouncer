@@ -22,6 +22,7 @@
 
 #include "bouncer.h"
 #include "pam.h"
+#include "scram.h"
 
 #include <usual/pgutil.h>
 
@@ -46,11 +47,21 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 
 	switch (auth_type) {
 	case AUTH_PLAIN:
-		return strcmp(user->passwd, passwd) == 0;
+		switch (get_password_type(user->passwd)) {
+		case PASSWORD_TYPE_PLAINTEXT:
+			return strcmp(user->passwd, passwd) == 0;
+		case PASSWORD_TYPE_MD5:
+			pg_md5_encrypt(passwd, user->name, strlen(user->name), md5);
+			return strcmp(user->passwd, md5) == 0;
+		case PASSWORD_TYPE_SCRAM_SHA_256:
+			return scram_verify_plain_password(client, user->name, passwd, user->passwd);
+		default:
+			return false;
+		}
 	case AUTH_MD5:
 		if (strlen(passwd) != MD5_PASSWD_LEN)
 			return false;
-		if (!isMD5(user->passwd))
+		if (get_password_type(user->passwd) == PASSWORD_TYPE_PLAINTEXT)
 			pg_md5_encrypt(user->passwd, user->name, strlen(user->name), user->passwd);
 		pg_md5_encrypt(user->passwd + 3, (char *)client->tmp_login_salt, 4, md5);
 		return strcmp(md5, passwd) == 0;
@@ -60,31 +71,27 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 
 static bool send_client_authreq(PgSocket *client)
 {
-	uint8_t saltlen = 0;
 	int res;
 	int auth_type = client->client_auth_type;
 
-	/* Always use plain text to communicate with clients during PAM authorization */
-	if (auth_type == AUTH_PAM) {
-		auth_type = AUTH_PLAIN;
-	}
-
 	if (auth_type == AUTH_MD5) {
-		saltlen = 4;
+		uint8_t saltlen = 4;
 		get_random_bytes((void*)client->tmp_login_salt, saltlen);
-	} else if (auth_type == AUTH_PLAIN) {
-		/* nothing to do */
+		SEND_generic(res, client, 'R', "ib", AUTH_MD5, client->tmp_login_salt, saltlen);
+	} else if (auth_type == AUTH_PLAIN || auth_type == AUTH_PAM) {
+		SEND_generic(res, client, 'R', "i", AUTH_PLAIN);
+	} else if (auth_type == AUTH_SCRAM_SHA_256) {
+		SEND_generic(res, client, 'R', "iss", AUTH_SASL, "SCRAM-SHA-256", "");
 	} else {
 		return false;
 	}
 
-	SEND_generic(res, client, 'R', "ib", auth_type, client->tmp_login_salt, saltlen);
 	if (!res)
 		disconnect_client(client, false, "failed to send auth req");
 	return res;
 }
 
-static void start_auth_request(PgSocket *client, const char *username)
+static void start_auth_query(PgSocket *client, const char *username)
 {
 	int res;
 	PktBuf *buf;
@@ -126,22 +133,25 @@ static bool login_via_cert(PgSocket *client)
 	struct tls *tls = client->sbuf.tls;
 
 	if (!tls) {
-		disconnect_client(client, true, "TLS connection required");
-		return false;
+		slog_error(client, "TLS connection required");
+		goto fail;
 	}
 	if (!tls_peer_cert_provided(client->sbuf.tls)) {
-		disconnect_client(client, true, "TLS client certificate required");
-		return false;
+		slog_error(client, "TLS client certificate required");
+		goto fail;
 	}
 
 	log_debug("TLS cert login: %s", tls_peer_cert_subject(client->sbuf.tls));
 	if (!tls_peer_cert_contains_name(client->sbuf.tls, client->auth_user->name)) {
-		disconnect_client(client, true, "TLS certificate name mismatch");
-		return false;
+		slog_error(client, "TLS certificate name mismatch");
+		goto fail;
 	}
 
 	/* login successful */
 	return finish_client_login(client);
+fail:
+	disconnect_client(client, true, "certificate authentication failed");
+	return false;
 }
 
 static bool login_as_unix_peer(PgSocket *client)
@@ -204,6 +214,12 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 				client->db->name, client->auth_user->name);
 	}
 
+	if (auth == AUTH_MD5)
+	{
+		if (get_password_type(client->auth_user->passwd) == PASSWORD_TYPE_SCRAM_SHA_256)
+			auth = AUTH_SCRAM_SHA_256;
+	}
+
 	/* remember method */
 	client->client_auth_type = auth;
 
@@ -215,6 +231,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	case AUTH_PLAIN:
 	case AUTH_MD5:
 	case AUTH_PAM:
+	case AUTH_SCRAM_SHA_256:
 		ok = send_client_authreq(client);
 		break;
 	case AUTH_CERT:
@@ -232,6 +249,8 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 
 bool set_pool(PgSocket *client, const char *dbname, const char *username, const char *password, bool takeover)
 {
+	Assert((password && takeover) || (!password && !takeover));
+
 	/* find database */
 	client->db = find_database(dbname);
 	if (!client->db) {
@@ -265,7 +284,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			slog_info(client, "login failed: db=%s user=%s", dbname, username);
 		return false;
 	}
-	if (strlen(password) >= MAX_PASSWORD) {
+	if (password && strlen(password) >= MAX_PASSWORD) {
 		disconnect_client(client, true, "password too long");
 		if (cf_log_connections)
 			slog_info(client, "login failed: db=%s user=%s", dbname, username);
@@ -283,11 +302,11 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 		client->auth_user = client->db->forced_user;
 	} else if (cf_auth_type == AUTH_PAM) {
 		if (client->db->auth_user) {
-			slog_error(client, "PAM can't be used together with database authorization");
+			slog_error(client, "PAM can't be used together with database authentication");
 			disconnect_client(client, true, "bouncer config error");
 			return false;
 		}
-		/* Password will be set after successful authorization when not in takeover mode */
+		/* Password will be set after successful authentication when not in takeover mode */
 		client->auth_user = add_pam_user(username, password);
 		if (!client->auth_user) {
 			slog_error(client, "set_pool(): failed to allocate new PAM user");
@@ -302,7 +321,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 				client->auth_user = add_db_user(client->db, username, password);
 				return finish_set_pool(client, takeover);
 			}
-			start_auth_request(client, username);
+			start_auth_query(client, username);
 			return false;
 		}
 		if (!client->auth_user) {
@@ -315,7 +334,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 	return finish_set_pool(client, takeover);
 }
 
-bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
+bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
 	uint16_t columns;
 	uint32_t length;
 	const char *username, *password;
@@ -345,6 +364,10 @@ bool handle_auth_response(PgSocket *client, PktHdr *pkt) {
 		}
 		if (!mbuf_get_uint32be(&pkt->data, &length)) {
 			disconnect_server(server, false, "bad packet");
+			return false;
+		}
+		if (length == (uint32_t)-1) {
+			disconnect_server(server, false, "login query response contained null user name");
 			return false;
 		}
 		if (!mbuf_get_chars(&pkt->data, length, &username)) {
@@ -497,7 +520,108 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 	}
 
 	/* find pool */
-	return set_pool(client, dbname, username, "", false);
+	return set_pool(client, dbname, username, NULL, false);
+}
+
+static bool scram_client_first(PgSocket *client, uint32_t datalen, const uint8_t *data)
+{
+	char *ibuf;
+	char *input;
+	int res;
+	PgUser *user = client->auth_user;
+
+	ibuf = malloc(datalen + 1);
+	if (ibuf == NULL)
+		return false;
+	memcpy(ibuf, data, datalen);
+	ibuf[datalen] = '\0';
+
+	input = ibuf;
+	slog_debug(client, "SCRAM client-first-message = \"%s\"", input);
+	if (!read_client_first_message(client, input,
+				       &client->scram_state.cbind_flag,
+				       &client->scram_state.client_first_message_bare,
+				       &client->scram_state.client_nonce))
+		goto failed;
+
+	slog_debug(client, "stored secret = \"%s\"", user->passwd);
+	switch (get_password_type(user->passwd)) {
+	case PASSWORD_TYPE_MD5:
+		slog_error(client, "SCRAM authentication failed: user has MD5 secret");
+		goto failed;
+	case PASSWORD_TYPE_PLAINTEXT:
+	case PASSWORD_TYPE_SCRAM_SHA_256:
+		break;
+	}
+
+	if (!build_server_first_message(&client->scram_state, user->passwd))
+		goto failed;
+	slog_debug(client, "SCRAM server-first-message = \"%s\"", client->scram_state.server_first_message);
+
+	SEND_generic(res, client, 'R', "ib",
+		     AUTH_SASL_CONT,
+		     client->scram_state.server_first_message,
+		     strlen(client->scram_state.server_first_message));
+
+	free(ibuf);
+	return res;
+failed:
+	free(ibuf);
+	return false;
+}
+
+static bool scram_client_final(PgSocket *client, uint32_t datalen, const uint8_t *data)
+{
+	char *ibuf;
+	char *input;
+	const char *client_final_nonce = NULL;
+	char *proof = NULL;
+	char *server_final_message;
+	int res;
+
+	ibuf = malloc(datalen + 1);
+	if (ibuf == NULL)
+		return false;
+	memcpy(ibuf, data, datalen);
+	ibuf[datalen] = '\0';
+
+	input = ibuf;
+	slog_debug(client, "SCRAM client-final-message = \"%s\"", input);
+	if (!read_client_final_message(client, data, input,
+				       &client_final_nonce,
+				       &proof))
+		goto failed;
+	slog_debug(client, "SCRAM client-final-message-without-proof = \"%s\"",
+		   client->scram_state.client_final_message_without_proof);
+
+	if (!verify_final_nonce(&client->scram_state, client_final_nonce)) {
+		slog_error(client, "invalid SCRAM response (nonce does not match)");
+		goto failed;
+	}
+
+	if (!verify_client_proof(&client->scram_state, proof)) {
+		slog_error(client, "password authentication failed");
+		goto failed;
+	}
+
+	server_final_message = build_server_final_message(&client->scram_state);
+	if (!server_final_message)
+		goto failed;
+	slog_debug(client, "SCRAM server-final-message = \"%s\"", server_final_message);
+
+	SEND_generic(res, client, 'R', "ib",
+		     AUTH_SASL_FIN,
+		     server_final_message,
+		     strlen(server_final_message));
+
+	free(server_final_message);
+	free(proof);
+	free(ibuf);
+	return res;
+failed:
+	free(proof);
+	free(ibuf);
+	return false;
 }
 
 /* decide on packets of client in login phase */
@@ -554,6 +678,14 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 			return false;
 		}
 		break;
+	case PKT_GSSENCREQ:
+		/* reject GSS encryption attempt */
+		slog_noise(client, "C: req GCC enc");
+		if (!sbuf_answer(&client->sbuf, "N", 1)) {
+			disconnect_client(client, false, "failed to nak GSS enc");
+			return false;
+		}
+		break;
 	case PKT_STARTUP_V2:
 		disconnect_client(client, true, "old V2 protocol not supported");
 		return false;
@@ -578,31 +710,82 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		}
 
 		break;
-	case 'p':		/* PasswordMessage */
+	case 'p':		/* PasswordMessage, SASLInitialResponse, or SASLResponse */
 		/* too early */
 		if (!client->auth_user) {
 			disconnect_client(client, true, "client password pkt before startup packet");
 			return false;
 		}
 
-		ok = mbuf_get_string(&pkt->data, &passwd);
+		if (client->client_auth_type == AUTH_SCRAM_SHA_256) {
+			const char *mech;
+			uint32_t length;
+			const uint8_t *data;
 
-		if (ok) {
-			if (client->client_auth_type == AUTH_PAM) {
-				if (!sbuf_pause(&client->sbuf)) {
-					disconnect_client(client, true, "pause failed");
+			if (!client->scram_state.server_nonce) {
+				/* process as SASLInitialResponse */
+				if (!mbuf_get_string(&pkt->data, &mech))
+					return false;
+				slog_debug(client, "C: selected SASL mechanism: %s", mech);
+				if (strcmp(mech, "SCRAM-SHA-256") != 0) {
+					disconnect_client(client, true, "client selected an invalid SASL authentication mechanism");
 					return false;
 				}
-				pam_auth_begin(client, passwd);
-				return false;
-			}
-
-			if (check_client_passwd(client, passwd)) {
-				if (!finish_client_login(client))
+				if (!mbuf_get_uint32be(&pkt->data, &length))
 					return false;
+				if (!mbuf_get_bytes(&pkt->data, length, &data))
+					return false;
+				if (!scram_client_first(client, length, data)) {
+					disconnect_client(client, true, "SASL authentication failed");
+					return false;
+				}
 			} else {
-				disconnect_client(client, true, "auth failed");
-				return false;
+				/* process as SASLResponse */
+				length = mbuf_avail_for_read(&pkt->data);
+				if (!mbuf_get_bytes(&pkt->data, length, &data))
+					return false;
+				if (scram_client_final(client, length, data)) {
+					/* save SCRAM keys for user */
+					if (!client->scram_state.adhoc) {
+						memcpy(client->pool->user->scram_ClientKey,
+						       client->scram_state.ClientKey,
+						       sizeof(client->scram_state.ClientKey));
+						memcpy(client->pool->user->scram_ServerKey,
+						       client->scram_state.ServerKey,
+						       sizeof(client->scram_state.ServerKey));
+						client->pool->user->has_scram_keys = true;
+					}
+
+					free_scram_state(&client->scram_state);
+					if (!finish_client_login(client))
+						return false;
+				}
+				else {
+					disconnect_client(client, true, "SASL authentication failed");
+					return false;
+				}
+			}
+		} else {
+			/* process as PasswordMessage */
+			ok = mbuf_get_string(&pkt->data, &passwd);
+
+			if (ok) {
+				if (client->client_auth_type == AUTH_PAM) {
+					if (!sbuf_pause(&client->sbuf)) {
+						disconnect_client(client, true, "pause failed");
+						return false;
+					}
+					pam_auth_begin(client, passwd);
+					return false;
+				}
+
+				if (check_client_passwd(client, passwd)) {
+					if (!finish_client_login(client))
+						return false;
+				} else {
+					disconnect_client(client, true, "password authentication failed");
+					return false;
+				}
 			}
 		}
 		break;
@@ -737,7 +920,14 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 	case SBUF_EV_CONNECT_FAILED:
 		/* ^ those should not happen */
 	case SBUF_EV_RECV_FAILED:
-		disconnect_client(client, false, "client unexpected eof");
+		/*
+		 * Don't log error if client disconnects right away,
+		 * could be monitoring probe.
+		 */
+		if (client->state == CL_LOGIN && mbuf_avail_for_read(data) == 0)
+			disconnect_client(client, false, NULL);
+		else
+			disconnect_client(client, false, "client unexpected eof");
 		break;
 	case SBUF_EV_SEND_FAILED:
 		disconnect_server(client->link, false, "server connection closed");
@@ -754,7 +944,7 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 					  hdr2hex(data, hex, sizeof(hex)));
 			return false;
 		}
-		slog_noise(client, "pkt='%c' len=%d", pkt_desc(&pkt), pkt.len);
+		slog_noise(client, "read pkt='%c' len=%d", pkt_desc(&pkt), pkt.len);
 
 		client->request_time = get_cached_time();
 		switch (client->state) {

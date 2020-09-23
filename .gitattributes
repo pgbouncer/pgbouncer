@@ -1,5 +1,3 @@
 test/hba_test.rules		-whitespace
-test/ssl/TestCA1/certs/*.pem	whitespace=-blank-at-eol
-test/ssl/TestCA1/sites/*.crt	whitespace=-blank-at-eol
 test/test.sh			whitespace=-blank-at-eol
 win32/eventmsg.rc		whitespace=-blank-at-eol

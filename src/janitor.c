@@ -509,7 +509,7 @@ static void check_pool_size(PgPool *pool)
 static void pool_server_maint(PgPool *pool)
 {
 	struct List *item, *tmp;
-	usec_t age, now = get_cached_time();
+	usec_t now = get_cached_time();
 	PgSocket *server;
 
 	/* find and disconnect idle servers */
@@ -527,19 +527,32 @@ static void pool_server_maint(PgPool *pool)
 		}
 	}
 
-	/* where query got did not get answer in query_timeout */
+	/* handle query_timeout and idle_transaction_timeout */
 	if (cf_query_timeout > 0 || cf_idle_transaction_timeout > 0) {
 		statlist_for_each_safe(item, &pool->active_server_list, tmp) {
+			usec_t age_client, age_server;
+
 			server = container_of(item, PgSocket, head);
 			Assert(server->state == SV_ACTIVE);
 			if (server->ready)
 				continue;
-			age = now - server->link->request_time;
-			if (cf_query_timeout > 0 && age > cf_query_timeout) {
+
+			/*
+			 * Note the different age calculations:
+			 * query_timeout counts from the last request
+			 * of the client (the client started the
+			 * query), idle_transaction_timeout counts
+			 * from the last request of the server (the
+			 * server sent the idle information).
+			 */
+			age_client = now - server->link->request_time;
+			age_server = now - server->request_time;
+
+			if (cf_query_timeout > 0 && age_client > cf_query_timeout) {
 				disconnect_server(server, true, "query timeout");
 			} else if (cf_idle_transaction_timeout > 0 &&
 				   server->idle_tx &&
-				   age > cf_idle_transaction_timeout)
+				   age_server > cf_idle_transaction_timeout)
 			{
 				disconnect_server(server, true, "idle transaction timeout");
 			}
@@ -549,6 +562,8 @@ static void pool_server_maint(PgPool *pool)
 	/* find connections that got connect, but could not log in */
 	if (cf_server_connect_timeout > 0) {
 		statlist_for_each_safe(item, &pool->new_server_list, tmp) {
+			usec_t age;
+
 			server = container_of(item, PgSocket, head);
 			Assert(server->state == SV_LOGIN);
 
@@ -604,7 +619,7 @@ static void cleanup_inactive_autodatabases(void)
 }
 
 /* full-scale maintenance, done only occasionally */
-static void do_full_maint(int sock, short flags, void *arg)
+static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 {
 	struct List *item, *tmp;
 	PgPool *pool;
@@ -617,7 +632,7 @@ static void do_full_maint(int sock, short flags, void *arg)
 	 * Avoid doing anything that may surprise other pgbouncer.
 	 */
 	if (cf_pause_mode == P_SUSPEND)
-		goto skip_maint;
+		return;
 
 	statlist_for_each_safe(item, &pool_list, tmp) {
 		pool = container_of(item, PgPool, head);
@@ -652,7 +667,7 @@ static void do_full_maint(int sock, short flags, void *arg)
 	if (cf_shutdown == 1 && get_active_server_count() == 0) {
 		log_info("server connections dropped, exiting");
 		cf_shutdown = 2;
-		event_loopbreak();
+		event_base_loopbreak(pgb_event_base);
 		return;
 	}
 
@@ -660,17 +675,14 @@ static void do_full_maint(int sock, short flags, void *arg)
 		loader_users_check();
 
 	adns_zone_cache_maint(adns);
-
-skip_maint:
-	safe_evtimer_add(&full_maint_ev, &full_maint_period);
 }
 
 /* first-time initialization */
 void janitor_setup(void)
 {
 	/* launch maintenance */
-	evtimer_set(&full_maint_ev, do_full_maint, NULL);
-	safe_evtimer_add(&full_maint_ev, &full_maint_period);
+	event_assign(&full_maint_ev, pgb_event_base, -1, EV_PERSIST, do_full_maint, NULL);
+	event_add(&full_maint_ev, &full_maint_period);
 }
 
 void kill_pool(PgPool *pool)
@@ -714,7 +726,7 @@ void kill_database(PgDatabase *db)
 	if (db->forced_user)
 		slab_free(user_cache, db->forced_user);
 	if (db->connect_query)
-		free((void *)db->connect_query);
+		free(db->connect_query);
 	if (db->inactive_time) {
 		statlist_remove(&autodatabase_idle_list, &db->head);
 	} else {

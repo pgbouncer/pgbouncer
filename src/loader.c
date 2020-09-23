@@ -22,10 +22,6 @@
 
 #include "bouncer.h"
 
-#ifdef HAVE_NETDB_H
-#include <netdb.h>
-#endif
-
 #include <usual/fileutil.h>
 
 /*
@@ -341,7 +337,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	} else {
 		msg = pktbuf_dynamic(128);
 		if (!msg)
-			fatal("cannot allocate startup buf");
+			die("out of memory");
 		db->startup_params = msg;
 	}
 
@@ -589,7 +585,7 @@ bool load_auth_file(const char *fn)
 			break;
 		}
 		if (p - user >= MAX_USERNAME) {
-			log_error("username too long");
+			log_error("username too long in auth file");
 			break;
 		}
 		*p++ = 0; /* tag username end */
@@ -607,7 +603,7 @@ bool load_auth_file(const char *fn)
 			break;
 		}
 		if (p - password >= MAX_PASSWORD) {
-			log_error("too long password");
+			log_error("password too long in auth file");
 			break;
 		}
 		*p++ = 0; /* tag password end */

@@ -253,20 +253,26 @@ static bool send_one_fd(PgSocket *admin,
 			const char *std_strings,
 			const char *datestyle,
 			const char *timezone,
-			const char *password)
+			const char *password,
+			const uint8_t *scram_client_key,
+			int scram_client_key_len,
+			const uint8_t *scram_server_key,
+			int scram_server_key_len)
 {
 	struct msghdr msg;
 	struct cmsghdr *cmsg;
 	struct iovec iovec;
-	int res;
+	ssize_t res;
 	uint8_t cntbuf[CMSG_SPACE(sizeof(int))];
 
 	struct PktBuf *pkt = pktbuf_temp();
 
-	pktbuf_write_DataRow(pkt, "issssiqisssss",
+	pktbuf_write_DataRow(pkt, "issssiqisssssbb",
 		      fd, task, user, db, addr, port, ckey, link,
 		      client_enc, std_strings, datestyle, timezone,
-		      password);
+		      password,
+		      scram_client_key_len, scram_client_key,
+		      scram_server_key_len, scram_server_key);
 	if (pkt->failed)
 		return false;
 	iovec.iov_base = pkt->buf;
@@ -321,6 +327,7 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	const struct PStr *timezone = v->var_list[VTimeZone];
 	char addrbuf[PGADDR_BUF];
 	const char *password = NULL;
+	bool send_scram_keys = false;
 
 	/* Skip TLS sockets */
 	if (sk->sbuf.tls || (sk->link && sk->link->sbuf.tls))
@@ -337,6 +344,9 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	if (cf_auth_type == AUTH_PAM && !find_user(sk->auth_user->name))
 		password = sk->auth_user->passwd;
 
+	if (sk->pool && sk->pool->user && sk->pool->user->has_scram_keys)
+		send_scram_keys = true;
+
 	return send_one_fd(admin, sbuf_socket(&sk->sbuf),
 			   is_server_socket(sk) ? "server" : "client",
 			   sk->auth_user ? sk->auth_user->name : NULL,
@@ -349,7 +359,11 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 			   std_strings ? std_strings->str : NULL,
 			   datestyle ? datestyle->str : NULL,
 			   timezone ? timezone->str : NULL,
-			   password);
+			   password,
+			   send_scram_keys ? sk->pool->user->scram_ClientKey : NULL,
+			   send_scram_keys ? (int) sizeof(sk->pool->user->scram_ClientKey) : -1,
+			   send_scram_keys ? sk->pool->user->scram_ServerKey : NULL,
+			   send_scram_keys ? (int) sizeof(sk->pool->user->scram_ServerKey) : -1);
 }
 
 static bool show_pooler_cb(void *arg, int fd, const PgAddr *a)
@@ -358,7 +372,7 @@ static bool show_pooler_cb(void *arg, int fd, const PgAddr *a)
 
 	return send_one_fd(arg, fd, "pooler", NULL, NULL,
 			   pga_ntop(a, buf, sizeof(buf)), pga_port(a), 0, 0,
-			   NULL, NULL, NULL, NULL, NULL);
+			   NULL, NULL, NULL, NULL, NULL, NULL, -1, NULL, -1);
 }
 
 /* send a row with sendmsg, optionally attaching a fd */
@@ -424,13 +438,14 @@ static bool admin_show_fds(PgSocket *admin, const char *arg)
 	/*
 	 * send resultset
 	 */
-	SEND_RowDescription(res, admin, "issssiqisssss",
+	SEND_RowDescription(res, admin, "issssiqisssssbb",
 				 "fd", "task",
 				 "user", "database",
 				 "addr", "port",
 				 "cancel", "link",
 				 "client_encoding", "std_strings",
-				 "datestyle", "timezone", "password");
+				 "datestyle", "timezone", "password",
+				 "scram_client_key", "scram_server_key");
 	if (res)
 		res = show_pooler_fds(admin);
 
@@ -975,7 +990,7 @@ static bool admin_cmd_shutdown(PgSocket *admin, const char *arg)
 	 */
 	log_info("SHUTDOWN command issued");
 	cf_shutdown = 2;
-	event_loopbreak();
+	event_base_loopbreak(pgb_event_base);
 
 	return true;
 }
@@ -1307,10 +1322,10 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		"sssss",
 		"SNOTICE", "C00000", "MConsole usage",
 		"D\n\tSHOW HELP|CONFIG|DATABASES"
-		"|POOLS|CLIENTS|SERVERS|VERSION\n"
+		"|POOLS|CLIENTS|SERVERS|USERS|VERSION\n"
 		"\tSHOW FDS|SOCKETS|ACTIVE_SOCKETS|LISTS|MEM\n"
 		"\tSHOW DNS_HOSTS|DNS_ZONES\n"
-		"\tSHOW STATS|STATS_TOTALS|STATS_AVERAGES\n"
+		"\tSHOW STATS|STATS_TOTALS|STATS_AVERAGES|TOTALS\n"
 		"\tSET key = arg\n"
 		"\tRELOAD\n"
 		"\tPAUSE [<db>]\n"
@@ -1330,13 +1345,20 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 
 static bool admin_show_version(PgSocket *admin, const char *arg)
 {
-	bool res;
-	SEND_generic(res, admin, 'N',
-		"ssss", "SNOTICE", "C00000",
-		"M" FULLVER, "");
-	if (res)
-		res = admin_ready(admin, "SHOW");
-	return res;
+	PktBuf *buf;
+
+	buf = pktbuf_dynamic(128);
+	if (!buf) {
+		admin_error(admin, "no mem");
+		return true;
+	}
+
+	pktbuf_write_RowDescription(buf, "s", "version");
+	pktbuf_write_DataRow(buf, "s", PACKAGE_STRING);
+
+	admin_flush(admin, buf, "SHOW");
+
+	return true;
 }
 
 static bool admin_show_stats(PgSocket *admin, const char *arg)
@@ -1495,15 +1517,15 @@ bool admin_handle_client(PgSocket *admin, PktHdr *pkt)
  */
 bool admin_pre_login(PgSocket *client, const char *username)
 {
-	uid_t peer_uid = -1;
-	gid_t peer_gid = -1;
-	int res;
-
 	client->admin_user = 0;
 	client->own_user = 0;
 
 	/* tag same uid as special */
 	if (pga_is_unix(&client->remote_addr)) {
+		uid_t peer_uid;
+		gid_t peer_gid;
+		int res;
+
 		res = getpeereid(sbuf_socket(&client->sbuf), &peer_uid, &peer_gid);
 		if (res >= 0 && peer_uid == getuid()
 			&& strcmp("pgbouncer", username) == 0)
@@ -1563,19 +1585,19 @@ void admin_setup(void)
 	/* fake database */
 	db = add_database("pgbouncer");
 	if (!db)
-		fatal("no memory for admin database");
+		die("no memory for admin database");
 
 	db->port = cf_listen_port;
 	db->pool_size = 2;
 	db->admin = 1;
 	db->pool_mode = POOL_STMT;
 	if (!force_user(db, "pgbouncer", ""))
-		fatal("no mem on startup - cannot alloc pgbouncer user");
+		die("no mem on startup - cannot alloc pgbouncer user");
 
 	/* fake pool */
 	pool = get_pool(db, db->forced_user);
 	if (!pool)
-		fatal("cannot create admin pool?");
+		die("cannot create admin pool?");
 	admin_pool = pool;
 
 	/* user */
@@ -1584,13 +1606,13 @@ void admin_setup(void)
 		/* fake user with disabled psw */
 		user = add_user("pgbouncer", "");
 		if (!user)
-			fatal("cannot create admin user?");
+			die("cannot create admin user?");
 	}
 
 	/* prepare welcome */
 	msg = pktbuf_dynamic(128);
 	if (!msg)
-		fatal("cannot create admin welcome");
+		die("out of memory");
 	pktbuf_write_AuthenticationOk(msg);
 	pktbuf_write_ParameterStatus(msg, "server_version", PACKAGE_VERSION "/bouncer");
 	pktbuf_write_ParameterStatus(msg, "client_encoding", "UTF8");
@@ -1601,14 +1623,14 @@ void admin_setup(void)
 	pktbuf_write_ParameterStatus(msg, "is_superuser", "on");
 
 	if (msg->failed)
-		fatal("admin welcome failed");
+		die("admin welcome failed");
 
 	pool->welcome_msg = msg;
 	pool->welcome_msg_ready = 1;
 
 	msg = pktbuf_dynamic(128);
 	if (!msg)
-		fatal("cannot create admin startup pkt");
+		die("cannot create admin startup pkt");
 	db->startup_params = msg;
 	pktbuf_put_string(msg, "database");
 	db->dbname = "pgbouncer";
@@ -1637,7 +1659,6 @@ void admin_pause_done(void)
 		if (!admin->wait_for_response)
 			continue;
 
-		res = false;
 		switch (cf_pause_mode) {
 		case P_PAUSE:
 			res = admin_ready(admin, "PAUSE");
@@ -1648,9 +1669,11 @@ void admin_pause_done(void)
 		default:
 			if (count_paused_databases() > 0)
 				res = admin_ready(admin, "PAUSE");
-			else
+			else {
 				/* FIXME */
 				fatal("admin_pause_done: bad state");
+				res = false;
+			}
 		}
 
 		if (!res)

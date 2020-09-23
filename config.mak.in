@@ -55,14 +55,20 @@ nosub_top_builddir ?= @top_builddir@
 CARES_CFLAGS = @CARES_CFLAGS@
 CARES_LIBS = @CARES_LIBS@
 
+LIBEVENT_CFLAGS = @LIBEVENT_CFLAGS@
+LIBEVENT_LIBS = @LIBEVENT_LIBS@
+
 TLS_CPPFLAGS = @TLS_CPPFLAGS@
 TLS_LDFLAGS = @TLS_LDFLAGS@
 TLS_LIBS = @TLS_LIBS@
 
 PANDOC = @PANDOC@
+PYTHON = @PYTHON@
 DLLWRAP = @DLLWRAP@
 DLLTOOL = @DLLTOOL@
 WINDRES = @WINDRES@
 
 enable_debug = @enable_debug@
-have_libevent = @have_libevent@
+tls_support = @tls_support@
+
+host_cpu = @host_cpu@

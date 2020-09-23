@@ -1,44 +1,76 @@
+dist: bionic
 language: c
-addons:
-  apt:
-    packages:
-      - debhelper
-      - devscripts
-      - fakeroot
-      - libc-ares-dev
-      - libevent-dev
-      - libudns-dev
-      - lintian
-before_install:
-  - wget https://github.com/jgm/pandoc/releases/download/2.4/pandoc-2.4-1-amd64.deb
-  - sudo dpkg -i pandoc-2.4-1-amd64.deb
-compiler:
-  - clang
-  - gcc
 env:
-  matrix:
-    - configure_args=''
-    - configure_args='--disable-evdns --without-cares --without-udns'
-    - configure_args='--enable-evdns  --without-cares --without-udns'
-    - configure_args='--disable-evdns --with-cares    --without-udns --disable-werror'
-    - configure_args='--disable-evdns --without-cares --with-udns    --disable-werror'
-    - configure_args='--with-pam'
-    - configure_args='--with-openssl'
-    - configure_args='--without-openssl'
+  global:
+    - PGVERSION=11
+jobs:
+  include:
+  - env: configure_args=''
+  - env: configure_args='' PGVERSION=9.5
+  - env: configure_args='--with-cares'
+  - env: configure_args='--with-udns'
+  - env: configure_args='--disable-evdns'
+  - env: configure_args='--with-pam'
+  - env: configure_args='--without-openssl'
+  - env: configure_args='--with-systemd'
+  - compiler: clang
+  - dist: trusty
+  - dist: xenial
+  - dist: focal
+  - arch: arm64
+  - arch: ppc64le
+  - env: use_valgrind=yes
+  - env: use_valgrind=yes PGVERSION=9.5
+  - env: use_efence=yes configure_args='--with-pam'
+    dist: xenial
+  - env: use_efence=yes PGVERSION=9.5 configure_args='--with-pam'
+    dist: xenial
+before_install: |
+  set -e
+  curl https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+  echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+  sudo apt-get update
+  # workaround for https://github.com/travis-ci/travis-cookbooks/pull/221
+  if [ "$TRAVIS_DIST" = 'trusty' ]; then
+    sudo service postgresql stop
+    echo 'exit 0' | sudo tee /etc/init.d/postgresql
+    sudo chmod a+x /etc/init.d/postgresql
+  fi
+install: |
+  set -e
+  pkgs="libc-ares-dev libevent-dev libudns-dev pandoc python"
+  pkgs="$pkgs postgresql-${PGVERSION}"
+  case $configure_args in *with-systemd*) pkgs="$pkgs libsystemd-dev";; esac
+  if [ x"$use_efence" = x"yes" ]; then pkgs="$pkgs electric-fence"; fi
+  if [ x"$use_valgrind" = x"yes" ]; then pkgs="$pkgs valgrind"; fi
+  sudo apt-get -y install $pkgs
 script: |
   set -e
-  etc/optscan.sh
+  PATH=/usr/lib/postgresql/${PGVERSION}/bin:$PATH
   ./autogen.sh
   ./configure --prefix=$HOME/install --enable-cassert --enable-werror --without-cares $configure_args
+  PACKAGE_VERSION=$(sed -n 's/PACKAGE_VERSION = //p' config.mak)
   make
+  (
+    if [ x"$use_efence" = x"yes" ]; then
+      export LD_PRELOAD=/usr/lib/libefence.so
+      export EF_ALLOW_MALLOC_0=1
+    fi
+    if [ x"$use_valgrind" = x"yes" ]; then
+      export BOUNCER_EXE_PREFIX="valgrind --quiet --leak-check=full --show-reachable=no --track-origins=yes --error-markers=VALGRIND-ERROR-BEGIN,VALGRIND-ERROR-END --log-file=$HOME/valgrind.%p.log"
+    fi
+    make check USE_SUDO=1
+    if [ x"$use_valgrind" = x"yes" ]; then
+      if grep -q VALGRIND-ERROR $HOME/valgrind.*.log; then
+        cat $HOME/valgrind.*.log
+        exit 1
+      fi
+    fi
+  )
   make install
   make dist
-  tar -x -f pgbouncer-*.tar.gz
-  cd pgbouncer-*
+  tar -x -f pgbouncer-${PACKAGE_VERSION}.tar.gz
+  cd pgbouncer-${PACKAGE_VERSION}/
   ./configure --prefix=$HOME/install2 --enable-werror --without-cares $configure_args
   make
   make install
-  cd ..
-  make distclean
-  ./configure
-  make deb

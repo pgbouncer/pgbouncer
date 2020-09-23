@@ -67,20 +67,20 @@ enum WaitType {
 static bool sbuf_queue_send(SBuf *sbuf) _MUSTCHECK;
 static bool sbuf_send_pending(SBuf *sbuf) _MUSTCHECK;
 static bool sbuf_process_pending(SBuf *sbuf) _MUSTCHECK;
-static void sbuf_connect_cb(int sock, short flags, void *arg);
-static void sbuf_recv_cb(int sock, short flags, void *arg);
-static void sbuf_send_cb(int sock, short flags, void *arg);
+static void sbuf_connect_cb(evutil_socket_t sock, short flags, void *arg);
+static void sbuf_recv_cb(evutil_socket_t sock, short flags, void *arg);
+static void sbuf_send_cb(evutil_socket_t sock, short flags, void *arg);
 static void sbuf_try_resync(SBuf *sbuf, bool release);
 static bool sbuf_wait_for_data(SBuf *sbuf) _MUSTCHECK;
 static void sbuf_main_loop(SBuf *sbuf, bool skip_recv);
 static bool sbuf_call_proto(SBuf *sbuf, int event) /* _MUSTCHECK */;
-static bool sbuf_actual_recv(SBuf *sbuf, unsigned len)  _MUSTCHECK;
+static bool sbuf_actual_recv(SBuf *sbuf, size_t len)  _MUSTCHECK;
 static bool sbuf_after_connect_check(SBuf *sbuf)  _MUSTCHECK;
 static bool handle_tls_handshake(SBuf *sbuf) /* _MUSTCHECK */;
 
 /* regular I/O */
-static int raw_sbufio_recv(struct SBuf *sbuf, void *dst, unsigned int len);
-static int raw_sbufio_send(struct SBuf *sbuf, const void *data, unsigned int len);
+static ssize_t raw_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len);
+static ssize_t raw_sbufio_send(struct SBuf *sbuf, const void *data, size_t len);
 static int raw_sbufio_close(struct SBuf *sbuf);
 static const SBufIO raw_sbufio_ops = {
 	raw_sbufio_recv,
@@ -90,15 +90,15 @@ static const SBufIO raw_sbufio_ops = {
 
 /* I/O over TLS */
 #ifdef USE_TLS
-static int tls_sbufio_recv(struct SBuf *sbuf, void *dst, unsigned int len);
-static int tls_sbufio_send(struct SBuf *sbuf, const void *data, unsigned int len);
+static ssize_t tls_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len);
+static ssize_t tls_sbufio_send(struct SBuf *sbuf, const void *data, size_t len);
 static int tls_sbufio_close(struct SBuf *sbuf);
 static const SBufIO tls_sbufio_ops = {
 	tls_sbufio_recv,
 	tls_sbufio_send,
 	tls_sbufio_close
 };
-static void sbuf_tls_handshake_cb(int fd, short flags, void *_sbuf);
+static void sbuf_tls_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
 #endif
 
 /*********************************
@@ -143,7 +143,7 @@ failed:
 }
 
 /* need to connect() to get a socket */
-bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, int sa_len, int timeout_sec)
+bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, socklen_t sa_len, time_t timeout_sec)
 {
 	int res, sock;
 	struct timeval timeout;
@@ -177,7 +177,7 @@ bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, int sa_len, int timeout
 		return true;
 	} else if (errno == EINPROGRESS || errno == EAGAIN) {
 		/* tcp socket needs waiting */
-		event_set(&sbuf->ev, sock, EV_WRITE, sbuf_connect_cb, sbuf);
+		event_assign(&sbuf->ev, pgb_event_base, sock, EV_WRITE, sbuf_connect_cb, sbuf);
 		res = event_add(&sbuf->ev, &timeout);
 		if (res >= 0) {
 			sbuf->wait_type = W_CONNECT;
@@ -243,13 +243,13 @@ void sbuf_continue(SBuf *sbuf)
  *
  * The callback will be called with arg given to sbuf_init.
  */
-bool sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb user_cb)
+bool sbuf_continue_with_callback(SBuf *sbuf, event_callback_fn user_cb)
 {
 	int err;
 
 	AssertActive(sbuf);
 
-	event_set(&sbuf->ev, sbuf->sock, EV_READ | EV_PERSIST,
+	event_assign(&sbuf->ev, pgb_event_base, sbuf->sock, EV_READ | EV_PERSIST,
 		  user_cb, sbuf);
 
 	err = event_add(&sbuf->ev, NULL);
@@ -261,7 +261,7 @@ bool sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb user_cb)
 	return true;
 }
 
-bool sbuf_use_callback_once(SBuf *sbuf, short ev, sbuf_libevent_cb user_cb)
+bool sbuf_use_callback_once(SBuf *sbuf, short ev, event_callback_fn user_cb)
 {
 	int err;
 	AssertActive(sbuf);
@@ -276,7 +276,7 @@ bool sbuf_use_callback_once(SBuf *sbuf, short ev, sbuf_libevent_cb user_cb)
 	}
 
 	/* setup one one-off event handler */
-	event_set(&sbuf->ev, sbuf->sock, ev, user_cb, sbuf);
+	event_assign(&sbuf->ev, pgb_event_base, sbuf->sock, ev, user_cb, sbuf);
 	err = event_add(&sbuf->ev, NULL);
 	if (err < 0) {
 		log_warning("sbuf_queue_once: event_add failed: %s", strerror(errno));
@@ -397,7 +397,7 @@ static bool sbuf_wait_for_data(SBuf *sbuf)
 {
 	int err;
 
-	event_set(&sbuf->ev, sbuf->sock, EV_READ | EV_PERSIST, sbuf_recv_cb, sbuf);
+	event_assign(&sbuf->ev, pgb_event_base, sbuf->sock, EV_READ | EV_PERSIST, sbuf_recv_cb, sbuf);
 	err = event_add(&sbuf->ev, NULL);
 	if (err < 0) {
 		log_warning("sbuf_wait_for_data: event_add failed: %s", strerror(errno));
@@ -407,7 +407,7 @@ static bool sbuf_wait_for_data(SBuf *sbuf)
 	return true;
 }
 
-static void sbuf_recv_forced_cb(int sock, short flags, void *arg)
+static void sbuf_recv_forced_cb(evutil_socket_t sock, short flags, void *arg)
 {
 	SBuf *sbuf = arg;
 
@@ -433,7 +433,7 @@ static bool sbuf_wait_for_data_forced(SBuf *sbuf)
 		sbuf->wait_type = W_NONE;
 	}
 
-	event_set(&sbuf->ev, sbuf->sock, EV_READ, sbuf_recv_forced_cb, sbuf);
+	event_assign(&sbuf->ev, pgb_event_base, sbuf->sock, EV_READ, sbuf_recv_forced_cb, sbuf);
 	err = event_add(&sbuf->ev, &tv_min);
 	if (err < 0) {
 		log_warning("sbuf_wait_for_data: event_add failed: %s", strerror(errno));
@@ -444,7 +444,7 @@ static bool sbuf_wait_for_data_forced(SBuf *sbuf)
 }
 
 /* libevent EV_WRITE: called when dest socket is writable again */
-static void sbuf_send_cb(int sock, short flags, void *arg)
+static void sbuf_send_cb(evutil_socket_t sock, short flags, void *arg)
 {
 	SBuf *sbuf = arg;
 	bool res;
@@ -487,7 +487,7 @@ static bool sbuf_queue_send(SBuf *sbuf)
 	}
 
 	/* instead wait for EV_WRITE on destination socket */
-	event_set(&sbuf->ev, sbuf->dst->sock, EV_WRITE, sbuf_send_cb, sbuf);
+	event_assign(&sbuf->ev, pgb_event_base, sbuf->dst->sock, EV_WRITE, sbuf_send_cb, sbuf);
 	err = event_add(&sbuf->ev, NULL);
 	if (err < 0) {
 		log_warning("sbuf_queue_send: event_add failed: %s", strerror(errno));
@@ -505,7 +505,8 @@ static bool sbuf_queue_send(SBuf *sbuf)
  */
 static bool sbuf_send_pending(SBuf *sbuf)
 {
-	int res, avail;
+	int avail;
+	ssize_t res;
 	IOBuf *io = sbuf->io;
 
 	AssertActive(sbuf);
@@ -619,7 +620,8 @@ static void sbuf_try_resync(SBuf *sbuf, bool release)
 	IOBuf *io = sbuf->io;
 
 	if (io) {
-		log_noise("resync: done=%d, parse=%d, recv=%d",
+		log_noise("resync(%d): done=%d, parse=%d, recv=%d",
+			  sbuf->sock,
 			  io->done_pos, io->parse_pos, io->recv_pos);
 	}
 	AssertActive(sbuf);
@@ -636,9 +638,9 @@ static void sbuf_try_resync(SBuf *sbuf, bool release)
 }
 
 /* actually ask kernel for more data */
-static bool sbuf_actual_recv(SBuf *sbuf, unsigned len)
+static bool sbuf_actual_recv(SBuf *sbuf, size_t len)
 {
-	int got;
+	ssize_t got;
 	IOBuf *io = sbuf->io;
 	uint8_t *dst = io->buf + io->recv_pos;
 	unsigned avail = iobuf_amount_recv(io);
@@ -660,7 +662,7 @@ static bool sbuf_actual_recv(SBuf *sbuf, unsigned len)
 }
 
 /* callback for libevent EV_READ */
-static void sbuf_recv_cb(int sock, short flags, void *arg)
+static void sbuf_recv_cb(evutil_socket_t sock, short flags, void *arg)
 {
 	SBuf *sbuf = arg;
 	sbuf_main_loop(sbuf, DO_RECV);
@@ -714,13 +716,16 @@ try_more:
 
 	/* avoid spending too much time on single socket */
 	if (cf_sbuf_loopcnt > 0 && loopcnt >= cf_sbuf_loopcnt) {
+		bool _ignore;
+
 		log_debug("loopcnt full");
 		/*
 		 * sbuf_process_pending() avoids some data if buffer is full,
 		 * but as we exit processing loop here, we need to retry
 		 * after resync to process all data. (result is ignored)
 		 */
-		ok = sbuf_process_pending(sbuf);
+		_ignore = sbuf_process_pending(sbuf);
+		(void) _ignore;
 
 		sbuf_wait_for_data_forced(sbuf);
 		return;
@@ -793,7 +798,7 @@ static bool sbuf_after_connect_check(SBuf *sbuf)
 }
 
 /* callback for libevent EV_WRITE when connecting */
-static void sbuf_connect_cb(int sock, short flags, void *arg)
+static void sbuf_connect_cb(evutil_socket_t sock, short flags, void *arg)
 {
 	SBuf *sbuf = arg;
 
@@ -814,16 +819,16 @@ failed:
 }
 
 /* send some data to listening socket */
-bool sbuf_answer(SBuf *sbuf, const void *buf, unsigned len)
+bool sbuf_answer(SBuf *sbuf, const void *buf, size_t len)
 {
-	int res;
+	ssize_t res;
 	if (sbuf->sock <= 0)
 		return false;
 	res = sbuf_op_send(sbuf, buf, len);
 	if (res < 0) {
 		log_debug("sbuf_answer: error sending: %s", strerror(errno));
 	} else if ((unsigned)res != len) {
-		log_debug("sbuf_answer: partial send: len=%d sent=%d", len, res);
+		log_debug("sbuf_answer: partial send: len=%" PRIuZ " sent=%" PRIdZ, len, res);
 	}
 	return (unsigned)res == len;
 }
@@ -832,12 +837,12 @@ bool sbuf_answer(SBuf *sbuf, const void *buf, unsigned len)
  * Standard IO ops.
  */
 
-static int raw_sbufio_recv(struct SBuf *sbuf, void *dst, unsigned int len)
+static ssize_t raw_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len)
 {
 	return safe_recv(sbuf->sock, dst, len, 0);
 }
 
-static int raw_sbufio_send(struct SBuf *sbuf, const void *data, unsigned int len)
+static ssize_t raw_sbufio_send(struct SBuf *sbuf, const void *data, size_t len)
 {
 	return safe_send(sbuf->sock, data, len, 0);
 }
@@ -1009,7 +1014,7 @@ static bool handle_tls_handshake(SBuf *sbuf)
 	}
 }
 
-static void sbuf_tls_handshake_cb(int fd, short flags, void *_sbuf)
+static void sbuf_tls_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf)
 {
 	SBuf *sbuf = _sbuf;
 	sbuf->wait_type = W_NONE;
@@ -1084,7 +1089,7 @@ bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
  * TLS IO ops.
  */
 
-static int tls_sbufio_recv(struct SBuf *sbuf, void *dst, unsigned int len)
+static ssize_t tls_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len)
 {
 	ssize_t out = 0;
 
@@ -1094,7 +1099,7 @@ static int tls_sbufio_recv(struct SBuf *sbuf, void *dst, unsigned int len)
 	}
 
 	out = tls_read(sbuf->tls, dst, len);
-	log_noise("tls_read: req=%u out=%d", len, (int)out);
+	log_noise("tls_read: req=%" PRIuZ " out=%" PRIdZ, len, out);
 	if (out >= 0) {
 		return out;
 	} else if (out == TLS_WANT_POLLIN) {
@@ -1109,7 +1114,7 @@ static int tls_sbufio_recv(struct SBuf *sbuf, void *dst, unsigned int len)
 	return -1;
 }
 
-static int tls_sbufio_send(struct SBuf *sbuf, const void *data, unsigned int len)
+static ssize_t tls_sbufio_send(struct SBuf *sbuf, const void *data, size_t len)
 {
 	ssize_t out;
 
@@ -1119,7 +1124,7 @@ static int tls_sbufio_send(struct SBuf *sbuf, const void *data, unsigned int len
 	}
 
 	out = tls_write(sbuf->tls, data, len);
-	log_noise("tls_write: req=%u out=%d", len, (int)out);
+	log_noise("tls_write: req=%" PRIuZ " out=%" PRIdZ, len, out);
 	if (out >= 0) {
 		return out;
 	} else if (out == TLS_WANT_POLLOUT) {

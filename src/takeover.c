@@ -39,20 +39,20 @@ void takeover_finish(void)
 	uint8_t buf[512];
 	int fd = sbuf_socket(&old_bouncer->sbuf);
 	bool res;
-	int got;
+	ssize_t got;
 
 	log_info("sending SHUTDOWN;");
 	socket_set_nonblocking(fd, 0);
 	SEND_generic(res, old_bouncer, 'Q', "s", "SHUTDOWN;");
 	if (!res)
-		fatal("failed to send SHUTDOWN;");
+		die("failed to send SHUTDOWN;");
 
 	while (1) {
 		got = safe_recv(fd, buf, sizeof(buf), 0);
 		if (got == 0)
 			break;
 		if (got < 0)
-			fatal_perror("sky is falling - error while waiting result from SHUTDOWN");
+			die("sky is falling - error while waiting result from SHUTDOWN: %s", strerror(errno));
 	}
 
 	disconnect_server(old_bouncer, false, "disko over");
@@ -91,7 +91,9 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 {
 	int fd;
 	char *task, *saddr, *user, *db;
-	char *client_enc, *std_string, *datestyle, *timezone, *password;
+	char *client_enc, *std_string, *datestyle, *timezone, *password,
+		*scram_client_key, *scram_server_key;
+	int scram_client_key_len, scram_server_key_len;
 	int oldfd, port, linkfd;
 	int got;
 	uint64_t ckey;
@@ -112,12 +114,18 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	}
 
 	/* parse row contents */
-	got = scan_text_result(pkt, "issssiqisssss", &oldfd, &task, &user, &db,
+	got = scan_text_result(pkt, "issssiqisssssbb", &oldfd, &task, &user, &db,
 			       &saddr, &port, &ckey, &linkfd,
 			       &client_enc, &std_string, &datestyle, &timezone,
-			       &password);
-	if (got < 0 || task == NULL || saddr == NULL)
-		fatal("NULL data from old process");
+			       &password,
+			       &scram_client_key_len,
+			       &scram_client_key,
+			       &scram_server_key_len,
+			       &scram_server_key);
+	if (got < 0)
+		die("invalid data from old process");
+	if (task == NULL || saddr == NULL)
+		die("incomplete data from old process");
 
 	log_debug("FD row: fd=%d(%d) linkfd=%d task=%s user=%s db=%s enc=%s",
 		  oldfd, fd, linkfd, task,
@@ -139,19 +147,26 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	if (strcmp(task, "client") == 0) {
 		res = use_client_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
 				  client_enc, std_string, datestyle, timezone,
-				  password);
+				  password,
+				  scram_client_key, scram_client_key_len,
+				  scram_server_key, scram_server_key_len);
 	} else if (strcmp(task, "server") == 0) {
 		res = use_server_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
 				  client_enc, std_string, datestyle, timezone,
-				  password);
+				  password,
+				  scram_client_key, scram_client_key_len,
+				  scram_server_key, scram_server_key_len);
 	} else if (strcmp(task, "pooler") == 0) {
 		res = use_pooler_socket(fd, pga_is_unix(&addr));
 	} else {
 		fatal("unknown task: %s", task);
 	}
 
+	free(scram_client_key);
+	free(scram_server_key);
+
 	if (!res)
-		fatal("socket takeover failed - no mem?");
+		fatal("socket takeover failed");
 }
 
 static void takeover_create_link(PgPool *pool, PgSocket *client)
@@ -286,14 +301,14 @@ static void takeover_parse_data(PgSocket *bouncer,
  *
  * use always recvmsg, to keep code simpler
  */
-static void takeover_recv_cb(int sock, short flags, void *arg)
+static void takeover_recv_cb(evutil_socket_t sock, short flags, void *arg)
 {
 	PgSocket *bouncer = container_of(arg, PgSocket, sbuf);
 	uint8_t data_buf[STARTUP_BUF * 2];
 	uint8_t cnt_buf[128];
 	struct msghdr msg;
 	struct iovec io;
-	int res;
+	ssize_t res;
 	struct MBuf data;
 
 	memset(&msg, 0, sizeof(msg));

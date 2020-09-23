@@ -1,6 +1,168 @@
 PgBouncer changelog
 ===================
 
+PgBouncer 1.14.x
+----------------
+
+**2020-06-11  -  PgBouncer 1.14.0  -  "La ritrovata magia"**
+
+- Features
+  * Add SCRAM authentication pass-through.  This allows using
+    encrypted SCRAM secrets in PgBouncer (either in `userlist.txt` or
+    from `auth_query`) for logging into servers.
+  * Add support for systemd socket activation.  This is especially
+    useful to let systemd handle the creation of the Unix-domain
+    sockets on systems where access to `/var/run/postgresql` is
+    restricted.
+  * Add support for Unix-domain sockets on Windows.
+
+- Cleanups
+  * Add an alternative smaller sample configuration file
+    `pgbouncer-minimal.ini` for testing or deployment.
+
+PgBouncer 1.13.x
+----------------
+
+**2020-04-27  -  PgBouncer 1.13.0  -  "My favourite game"**
+
+- Features
+  * Add configuration setting `tcp_user_timeout`, to set the
+    corresponding socket option.
+  * `client_tls_protocols` and `server_tls_protocols` now default to
+    `secure`, which means only TLS 1.2 and TLS 1.3 are enabled.  Older
+    versions are still supported, they are just not turned on by
+    default.
+  * Add support for systemd service notifications.  Right now, this
+    allows using `Type=notify` service units.  More integration is
+    planned for future versions.
+
+- Fixes
+  * Fix multiline log messages
+    ([libusual #24](https://github.com/libusual/libusual/pull/24))
+  * Handle null user names returned from `auth_query` properly
+    ([#340](https://github.com/pgbouncer/pgbouncer/pull/340))
+
+- Cleanups
+  * The Debian packaging files under `debian` have been removed.  It
+    is recommended to use the packages from https://apt.postgresql.org/.
+  * Numerous fixes and improvements in the test suite
+  * The tests no longer try to use sudo by default.  This can now be
+    activated explicitly by setting the environment variable
+    `USE_SUDO`.
+  * The libevent API use was updated to use version 2 style interfaces
+    and to no longer use deprecated interfaces from version 1.
+
+PgBouncer 1.12.x
+----------------
+
+**2019-10-17  -  PgBouncer 1.12.0  -  "It's about learning and getting better"**
+
+This release contains a variety of minor enhancements and fixes.
+
+- Features
+  * Add a setting to turn on the `SO_REUSEPORT` socket option.  On
+    some operating systems, this allows running multiple PgBouncer
+    instances on the same host listening on the same port and having
+    the kernel distribute the connections automatically.
+  * Add a setting to use a `resolv.conf` file separate from the
+    operating system.  This allows setting custom DNS servers and
+    perhaps other DNS options.
+  * Send the output of `SHOW VERSION` as a normal result row instead
+    of a NOTICE message.  This makes it easier to consume and is
+    consistent with other `SHOW` commands.
+
+- Fixes
+  * Send statistics columns as `numeric` instead of `bigint`.  This
+    avoids some client libraries failing on values that overflow the
+    `bigint`
+    range. ([#360](https://github.com/pgbouncer/pgbouncer/pull/360),
+    [#401](https://github.com/pgbouncer/pgbouncer/pull/401))
+  * Fix issue with PAM users losing their
+    password. ([#285](https://github.com/pgbouncer/pgbouncer/issues/285))
+  * Accept SCRAM channel binding enabled clients.  Previously, a
+    client supporting channel binding (that is, PostgreSQL 11+) would
+    get a connection failure when connecting to PgBouncer in certain
+    situations.  (PgBouncer does not support channel binding.  This
+    change just fixes support for clients that offer it.)
+  * Fix compilation with newer versions of musl-libc (used by Alpine
+    Linux).
+
+- Cleanups
+  * Add `make check` target.  This allows running all the tests from a
+    single command.
+  * Remove references to the PostgreSQL wiki.  All information is now
+    either in the PgBouncer documentation or on the web site.
+  * Remove support for Libevent version 1.x.  Libevent 2.x is now
+    required.  Libevent is now detected using pkg-config.
+  * Fix compiler warnings on macOS and Windows.  The build on these
+    platforms should now be free of warnings.
+  * Fix some warnings from LLVM scan-build.
+
+PgBouncer 1.11.x
+----------------
+
+**2019-08-27  -  PgBouncer 1.11.0  -  "Instinct for Greatness"**
+
+- Features
+  * Add support for SCRAM authentication for clients and servers.  A
+    new authentication type `scram-sha-256` is added.
+  * Handle `auth_type=password` when the stored password is md5, like
+    a PostgreSQL server
+    would. ([#129](https://github.com/pgbouncer/pgbouncer/pull/129))
+  * Add option `log_stats` to disable printing stats to
+    log. ([#287](https://github.com/pgbouncer/pgbouncer/pull/287))
+  * Add time zone to log timestamps.
+  * Put PID into [brackets] in log prefix.
+- Fixes
+  * Fix OpenSSL configure test when running against newer OpenSSL with
+    `-Werror`.
+  * Fix wait time computation with `auth_user`.  This would either
+    crash or report garbage values for wait
+    time. ([#393](https://github.com/pgbouncer/pgbouncer/pull/393))
+  * Handle GSSENCRequest packet, added in PostgreSQL 12.  It doesn't
+    do anything right now, but it avoids confusing error messages
+    about "bad packet header".
+- Cleanups
+  * Many improvements in the test suite and several new tests
+  * Fix several compiler warnings on Windows.
+  * Expand documentation of the `[users]` section and add to example
+    config
+    file. ([#330](https://github.com/pgbouncer/pgbouncer/pull/330))
+
+PgBouncer 1.10.x
+----------------
+
+**2019-07-01  -  PgBouncer 1.10.0  -  "Afraid of the World"**
+
+- Features
+  * Add support for enabling and disabling TLS 1.3.  (TLS 1.3 was
+    already supported, depending on the OpenSSL library, but now the
+    configuration settings to pick the TLS protocol versions also
+    support it.)
+- Fixes
+  * Fix TLS 1.3 support.  This was broken with OpenSSL 1.1.1 and
+    1.1.1a (but not before or after).
+  * Fix a rare crash in `SHOW FDS`
+    ([#311](https://github.com/pgbouncer/pgbouncer/issues/311)).
+  * Fix an issue that could lead to prolonged downtime if many cancel
+    requests arrive
+    ([#329](https://github.com/pgbouncer/pgbouncer/issues/329)).
+  * Avoid "unexpected response from login query" after a postgres
+    reload
+    ([#220](https://github.com/pgbouncer/pgbouncer/issues/220)).
+  * Fix `idle_transaction_timeout` calculation
+    ([#125](https://github.com/pgbouncer/pgbouncer/issues/125)).  The
+    bug would lead to premature timeouts in specific situations.
+- Cleanups
+  * Make various log and error messages more precise.
+  * Fix issues found by Coverity (none had a significant impact in
+    practice).
+  * Improve and document all test scripts.
+  * Add additional SHOW commands to the documentation.
+  * Convert the documentation from rst to Markdown.
+  * Python scripts in the source tree are all compatible with Python 3
+    now.
+
 PgBouncer 1.9.x
 ---------------
 

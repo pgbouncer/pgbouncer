@@ -20,30 +20,14 @@
 
 #include <usual/netdb.h>
 
-/*
- * Available backends:
- *
- * c-ares - libcares
- * udns - libudns
- * getaddrinfo_a - glibc only
- * libevent1 - returns TTL, ignores hosts file.
- * libevent2 - does not return TTL, uses hosts file.
- */
-
 #if !defined(USE_EVDNS) && !defined(USE_UDNS) && !defined(USE_CARES)
 #define USE_GETADDRINFO_A
 #endif
 
 #ifdef USE_EVDNS
-#ifdef EV_ET
-#define USE_LIBEVENT2
 #include <event2/dns.h>
 #define addrinfo evutil_addrinfo
 #define freeaddrinfo evutil_freeaddrinfo
-#else /* !EV_ET */
-#define USE_LIBEVENT1
-#include <evdns.h>
-#endif /* !EV_ET */
 #endif /* USE_EVDNS */
 
 #ifdef USE_CARES
@@ -90,7 +74,7 @@ struct DNSRequest {
 
 	struct List ucb_list;	/* DNSToken->node */
 
-	const char *name;
+	char *name;
 	int namelen;
 
 	bool done;
@@ -109,7 +93,7 @@ struct DNSZone {
 
 	struct StatList host_list;	/* DNSRequest->znode */
 
-	const char *zonename;
+	char *zonename;
 	uint32_t serial;
 };
 
@@ -143,7 +127,7 @@ static void got_zone_serial(struct DNSContext *ctx, uint32_t *serial);
  * Custom addrinfo generation
  */
 
-#if defined(USE_LIBEVENT1) || defined(USE_UDNS) || defined(USE_CARES)
+#if defined(USE_UDNS) || defined(USE_CARES)
 
 static struct addrinfo *mk_addrinfo(const void *adr, int af)
 {
@@ -194,6 +178,8 @@ static void freeaddrinfo(struct addrinfo *ai)
 	}
 }
 
+#if defined(USE_UDNS)
+
 static inline struct addrinfo *convert_ipv4_result(const struct in_addr *adrs, int count)
 {
 	struct addrinfo *ai, *first = NULL, *last = NULL;
@@ -216,6 +202,10 @@ failed:
 	return NULL;
 }
 
+#endif /* USE_UDNS */
+
+#ifdef USE_CARES
+
 static inline struct addrinfo *convert_hostent(const struct hostent *h)
 {
 	struct addrinfo *ai, *first = NULL, *last = NULL;
@@ -237,6 +227,8 @@ failed:
 	freeaddrinfo(first);
 	return NULL;
 }
+
+#endif /* USE_CARES */
 
 #endif /* custom addrinfo */
 
@@ -294,7 +286,14 @@ static void dns_signal(int f, short ev, void *arg)
 
 static bool impl_init(struct DNSContext *ctx)
 {
-	struct GaiContext *gctx = calloc(1, sizeof(*gctx));
+	struct GaiContext *gctx;
+
+	if (cf_resolv_conf && cf_resolv_conf[0]) {
+		log_error("resolv_conf setting is not supported by libc adns");
+		return false;
+	}
+
+	gctx = calloc(1, sizeof(*gctx));
 	if (!gctx)
 		return false;
 	list_init(&gctx->gairq_list);
@@ -303,8 +302,8 @@ static bool impl_init(struct DNSContext *ctx)
 	gctx->sev.sigev_notify = SIGEV_SIGNAL;
 	gctx->sev.sigev_signo = SIGALRM;
 
-	signal_set(&gctx->ev, SIGALRM, dns_signal, gctx);
-	if (signal_add(&gctx->ev, NULL) < 0) {
+	evsignal_assign(&gctx->ev, pgb_event_base, SIGALRM, dns_signal, gctx);
+	if (evsignal_add(&gctx->ev, NULL) < 0) {
 		free(gctx);
 		return false;
 	}
@@ -355,7 +354,7 @@ static void impl_release(struct DNSContext *ctx)
 {
 	struct GaiContext *gctx = ctx->edns;
 	if (gctx) {
-		signal_del(&gctx->ev);
+		evsignal_del(&gctx->ev);
 		free(gctx);
 		ctx->edns = NULL;
 	}
@@ -368,19 +367,54 @@ static void impl_release(struct DNSContext *ctx)
  * ADNS with libevent2 <event2/dns.h>
  */
 
-#ifdef USE_LIBEVENT2
+#ifdef USE_EVDNS
 
 const char *adns_get_backend(void)
 {
 	return "evdns2";
 }
 
+/*
+ * Confusingly, this is not the same as evdns_err_to_string().
+ */
+static const char *_evdns_base_resolv_conf_parse_err_to_string(int err)
+{
+	switch (err) {
+	case 0: return "no error";
+	case 1: return "failed to open file";
+	case 2: return "failed to stat file";
+	case 3: return "file too large";
+	case 4: return "out of memory";
+	case 5: return "short read from file";
+	case 6: return "no nameservers listed in the file";
+	default: return "[Unknown error code]";
+	}
+}
+
 static bool impl_init(struct DNSContext *ctx)
 {
-	ctx->edns = evdns_base_new(NULL, 1);
-	if (!ctx->edns) {
-		log_warning("evdns_base_new failed");
-		return false;
+	if (cf_resolv_conf && cf_resolv_conf[0]) {
+		int err;
+
+		ctx->edns = evdns_base_new(pgb_event_base, 0);
+		if (!ctx->edns) {
+			log_error("evdns_base_new failed");
+			return false;
+		}
+		err = evdns_base_resolv_conf_parse(ctx->edns, DNS_OPTIONS_ALL,
+						   cf_resolv_conf);
+		if (err) {
+			log_error("evdns parsing of \"%s\" failed: %s",
+				  cf_resolv_conf,
+				  _evdns_base_resolv_conf_parse_err_to_string(err));
+			return false;
+		}
+	} else {
+		ctx->edns = evdns_base_new(pgb_event_base, 1);
+		if (!ctx->edns) {
+			log_error("evdns_base_new failed");
+			return false;
+		}
 	}
 	return true;
 }
@@ -402,60 +436,7 @@ static void impl_release(struct DNSContext *ctx)
 	evdns_base_free(dns, 0);
 }
 
-#endif /* USE_LIBEVENT2 */
-
-
-/*
- * ADNS with libevent 1.x <evdns.h>
- */
-
-#ifdef USE_LIBEVENT1
-
-const char *adns_get_backend(void)
-{
-	return "evdns1";
-}
-
-static void got_result_evdns(int result, char type, int count, int ttl, void *addresses, void *arg)
-{
-	struct DNSRequest *req = arg;
-	struct addrinfo *ai;
-
-	log_noise("dns: got_result_evdns: type=%d cnt=%d ttl=%d", type, count, ttl);
-	if (result == DNS_IPv4_A) {
-		ai = convert_ipv4_result(addresses, count);
-		if (ai) {
-			got_result_gai(0, ai, req);
-			return;
-		}
-	}
-	/* lookup failed */
-	got_result_gai(1, NULL, req);
-}
-
-static bool impl_init(struct DNSContext *ctx)
-{
-	return evdns_init() == 0;
-}
-
-static void impl_launch_query(struct DNSRequest *req)
-{
-	int err;
-
-	err = evdns_resolve_ipv4(req->name, 0, got_result_evdns, req);
-	log_noise("dns(%s): evdns_resolve_ipv4 = %d", req->name, err);
-	if (err != 0 && !req->done) {
-		/* if callback was not yet called, do it now */
-		got_result_gai(1, NULL, req);
-	}
-}
-
-static void impl_release(struct DNSContext *ctx)
-{
-	evdns_shutdown(0);
-}
-
-#endif /* USE_LIBEVENT1 */
+#endif /* USE_EVDNS */
 
 
 /*
@@ -557,6 +538,11 @@ static bool impl_init(struct DNSContext *ctx)
 	struct UdnsMeta *udns;
 	int err;
 
+	if (cf_resolv_conf && cf_resolv_conf[0]) {
+		log_error("resolv_conf setting is not supported by udns");
+		return false;
+	}
+
 	dns_init(NULL, 0);
 
 	dctx = dns_new(NULL);
@@ -572,16 +558,16 @@ static bool impl_init(struct DNSContext *ctx)
 	/* i/o callback setup */
 	fd = dns_open(dctx);
 	if (fd <= 0) {
-		log_warning("dns_open failed: fd=%d", fd);
+		log_error("dns_open failed: fd=%d", fd);
 		return false;
 	}
-	event_set(&udns->ev_io, fd, EV_READ | EV_PERSIST, udns_io_cb, ctx);
+	event_assign(&udns->ev_io, pgb_event_base, fd, EV_READ | EV_PERSIST, udns_io_cb, ctx);
 	err = event_add(&udns->ev_io, NULL);
 	if (err < 0)
 		log_warning("impl_init: event_add failed: %s", strerror(errno));
 
 	/* timer setup */
-	evtimer_set(&udns->ev_timer, udns_timer_cb, ctx);
+	evtimer_assign(&udns->ev_timer, pgb_event_base, udns_timer_cb, ctx);
 	dns_set_tmcbck(udns->ctx, udns_timer_setter, ctx);
 
 	return true;
@@ -871,7 +857,7 @@ re_set:
 		event_del(&xfd->ev);
 	xfd->wait = new_wait;
 	if (new_wait) {
-		event_set(&xfd->ev, sock, new_wait | EV_PERSIST, xares_fd_cb, xfd);
+		event_assign(&xfd->ev, pgb_event_base, sock, new_wait | EV_PERSIST, xares_fd_cb, xfd);
 		if (event_add(&xfd->ev, NULL) < 0)
 			log_warning("adns: event_add failed: %s", strerror(errno));
 	} else {
@@ -911,7 +897,7 @@ static void impl_launch_query(struct DNSRequest *req)
  * in c-ares repo.
  */
 #if ARES_VERSION <= 0x10A00
-#warning Forcing c-ares to be IPv4-only.
+#warning c-ares <=1.10 has buggy IPv6 support; this PgBouncer build will use IPv4 only.
 	af = AF_INET;
 #else
 	af = AF_UNSPEC;
@@ -968,6 +954,17 @@ static bool impl_init(struct DNSContext *ctx)
 	opts.sock_state_cb = xares_state_cb;
 	opts.sock_state_cb_data = ctx;
 	mask = ARES_OPT_SOCK_STATE_CB;
+	if (cf_resolv_conf && cf_resolv_conf[0]) {
+#ifdef ARES_OPT_RESOLVCONF
+		opts.resolvconf_path = strdup(cf_resolv_conf);
+		if (!opts.resolvconf_path)
+			return false;
+		mask |= ARES_OPT_RESOLVCONF;
+#else
+		log_error("resolv_conf setting is not supported by this version of c-ares");
+		return false;
+#endif
+	}
 
 	err = ares_init_options(&meta->chan, &opts, mask);
 	if (err) {
@@ -978,7 +975,7 @@ static bool impl_init(struct DNSContext *ctx)
 
 	ares_set_socket_callback(meta->chan, xares_new_socket_cb, ctx);
 
-	evtimer_set(&meta->ev_timer, xares_timer_cb, ctx);
+	evtimer_assign(&meta->ev_timer, pgb_event_base, xares_timer_cb, ctx);
 
 	ctx->edns = meta;
 	return true;
@@ -1418,7 +1415,7 @@ static void got_result_gai(int result, struct addrinfo *res, void *arg)
 		req->res_ttl = get_cached_time() + cf_dns_max_ttl;
 	} else {
 		/* lookup failed */
-		log_warning("lookup failed: %s: result=%d", req->name, result);
+		log_warning("DNS lookup failed: %s: result=%d", req->name, result);
 		req->res_ttl = get_cached_time() + cf_dns_nxdomain_ttl;
 	}
 
@@ -1515,7 +1512,7 @@ static void zone_register(struct DNSContext *ctx, struct DNSRequest *req)
 	req->zone = z;
 }
 
-static void zone_timer(int fd, short flg, void *arg)
+static void zone_timer(evutil_socket_t fd, short flg, void *arg)
 {
 	struct DNSContext *ctx = arg;
 	struct List *el;
@@ -1541,7 +1538,7 @@ static void launch_zone_timer(struct DNSContext *ctx)
 	tv.tv_sec = cf_dns_zone_check_period / USEC;
 	tv.tv_usec = cf_dns_zone_check_period % USEC;
 
-	evtimer_set(&ctx->ev_zone_timer, zone_timer, ctx);
+	evtimer_assign(&ctx->ev_zone_timer, pgb_event_base, zone_timer, ctx);
 	safe_evtimer_add(&ctx->ev_zone_timer, &tv);
 
 	ctx->zone_state = 2;

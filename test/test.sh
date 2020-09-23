@@ -727,19 +727,19 @@ test_reconnect_clients() {
 		echo "select 1;"
 		echo "commit;"
 		echo "\q"
-	) | psql -X -tAq -f- -d p4 >$LOGDIR/testout.tmp 2>$LOGDIR/testerr.tmp &
+	) | psql -X -tAq -f- -d p8 >$LOGDIR/testout.tmp 2>$LOGDIR/testerr.tmp &
 
 	sleep 1
-	admin "reconnect_clients p4"
+	admin "reconnect_clients p8"
 	clients_before=$(admin "show clients")
 	wait
 	clients_after=$(admin "show clients")
 
-	# The first "show clients" should have one connected client to p4. The
-	# second should have no connected clients to p4 since the client reconnect
+	# The first "show clients" should have one connected client to p8. The
+	# second should have no connected clients to p8 since the client reconnect
 	# will close the connection after the transaction completes.
 	echo "clients_before=$clients_before clients_after=$clients_after"
-	test `echo $clients_before | grep p4 | wc -l` -eq 1 && test `echo $clients_after | grep p4 | wc -l` -eq 0 &&
+	test `echo $clients_before | grep p8 | wc -l` -eq 1 && test `echo $clients_after | grep p8 | wc -l` -eq 0 &&
 
 	# Make sure stdout has 3 successful responses and stderr is empty.
 	test `wc -l <$LOGDIR/testout.tmp` -eq 3 && test `wc -l <$LOGDIR/testerr.tmp` -eq 0

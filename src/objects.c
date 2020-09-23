@@ -755,6 +755,8 @@ bool release_server(PgSocket *server)
 	switch (server->state) {
 	case SV_ACTIVE:
 		server->link->link = NULL;
+		/* Now that the server is releasing, check to see if the client needs to close. */
+		disconnect_client_if_close_needed(server->link);
 		server->link = NULL;
 
 		if (*cf_server_reset_query && (cf_server_reset_query_always ||
@@ -945,6 +947,16 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 	change_client_state(client, CL_JUSTFREE);
 	if (!sbuf_close(&client->sbuf))
 		log_noise("sbuf_close failed, retry later");
+}
+
+void disconnect_client_if_close_needed(PgSocket *client)
+{
+	/* Ignore if the client is not diry or the client is in the middle
+	   of a transaction */
+	if (!client->close_needed || client->link)
+		return;
+
+	disconnect_client(client, false, "close_needed (reconnect client)");
 }
 
 /*

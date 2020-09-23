@@ -721,11 +721,10 @@ test_database_change() {
 test_reconnect_clients() {
 	(
 		echo "begin;"
-		echo "select pg_sleep(1);"
-		sleep 1
-		echo "select pg_sleep(1);"
+		sleep 3
 		echo "select 1;"
 		echo "commit;"
+		echo "select 1;"
 		echo "\q"
 	) | psql -X -tAq -f- -d p8 >$LOGDIR/testout.tmp 2>$LOGDIR/testerr.tmp &
 
@@ -735,14 +734,16 @@ test_reconnect_clients() {
 	wait
 	clients_after=$(admin "show clients")
 
-	# The first "show clients" should have one connected client to p8. The
-	# second should have no connected clients to p8 since the client reconnect
-	# will close the connection after the transaction completes.
+	# The first "show clients" should have one connected client to p8. The second
+	# call will have no connections to p8. This is showing the close_needed check
+	# will be ignored until the transaction finishes.
 	echo "clients_before=$clients_before clients_after=$clients_after"
 	test `echo $clients_before | grep p8 | wc -l` -eq 1 && test `echo $clients_after | grep p8 | wc -l` -eq 0 &&
 
-	# Make sure stdout has 3 successful responses and stderr is empty.
-	test `wc -l <$LOGDIR/testout.tmp` -eq 3 && test `wc -l <$LOGDIR/testerr.tmp` -eq 0
+	# Make sure stdout has 1 successful responses and stderr has an from psql.
+	# The client connection will be closed after the transaction finishes due
+	# to the reconnect command. The second 'select 1' is then expected to fail.
+	test `wc -l <$LOGDIR/testout.tmp` -eq 1 && test `wc -l <$LOGDIR/testerr.tmp` -ge 1
 }
 
 # test reconnect

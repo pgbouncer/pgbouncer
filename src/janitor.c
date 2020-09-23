@@ -358,16 +358,6 @@ void per_loop_maint(void)
 		admin_wait_close_done();
 }
 
-static void check_client_for_close_needed(PgSocket *client)
-{
-	/* Ignore if the client is not diry or the client is in the middle
-	   of a transaction */
-	if (!client->close_needed || client->link)
-		return;
-
-	disconnect_client(client, false, "close_needed (reconnect client)");
-}
-
 /* maintaining clients in pool */
 static void pool_client_maint(PgPool *pool)
 {
@@ -376,8 +366,8 @@ static void pool_client_maint(PgPool *pool)
 	PgSocket *client;
 	usec_t age;
 
-	/* find and disconnect idle servers */
-	for_each_client(pool, check_client_for_close_needed);
+	/* find and disconnect clients if the need to be closed */
+	for_each_client(pool, disconnect_client_if_close_needed);
 
 	/* force client_idle_timeout */
 	if (cf_client_idle_timeout > 0) {

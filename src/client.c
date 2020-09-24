@@ -41,6 +41,9 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 	PgUser *user = client->auth_user;
 	int auth_type = client->client_auth_type;
 
+	if (user->mock_auth)
+		return false;
+
 	/* disallow empty passwords */
 	if (!*passwd || !*user->passwd)
 		return false;
@@ -140,6 +143,8 @@ static bool login_via_cert(PgSocket *client)
 		slog_error(client, "TLS client certificate required");
 		goto fail;
 	}
+	if (client->auth_user->mock_auth)
+		goto fail;
 
 	log_debug("TLS cert login: %s", tls_peer_cert_subject(client->sbuf.tls));
 	if (!tls_peer_cert_contains_name(client->sbuf.tls, client->auth_user->name)) {
@@ -157,6 +162,8 @@ fail:
 static bool login_as_unix_peer(PgSocket *client)
 {
 	if (!pga_is_unix(&client->remote_addr))
+		goto fail;
+	if (client->auth_user->mock_auth)
 		goto fail;
 	if (!check_unix_peer_name(sbuf_socket(&client->sbuf), client->auth_user->name))
 		goto fail;
@@ -176,10 +183,13 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	if (client->db->forced_user) {
 		user = client->db->forced_user;
 	}
-	client->pool = get_pool(client->db, user);
-	if (!client->pool) {
-		disconnect_client(client, true, "no memory for pool");
-		return false;
+
+	if (!user->mock_auth) {
+		client->pool = get_pool(client->db, user);
+		if (!client->pool) {
+			disconnect_client(client, true, "no memory for pool");
+			return false;
+		}
 	}
 
 	if (cf_log_connections) {
@@ -200,7 +210,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	if (takeover)
 		return true;
 
-	if (client->pool->db->admin) {
+	if (client->pool && client->pool->db->admin) {
 		if (!admin_post_login(client))
 			return false;
 	}
@@ -225,7 +235,11 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 
 	switch (auth) {
 	case AUTH_ANY:
+		ok = finish_client_login(client);
+		break;
 	case AUTH_TRUST:
+		if (client->auth_user->mock_auth)
+			disconnect_client(client, true, "\"trust\" authentication failed");
 		ok = finish_client_login(client);
 		break;
 	case AUTH_PLAIN:
@@ -249,6 +263,8 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 
 bool set_pool(PgSocket *client, const char *dbname, const char *username, const char *password, bool takeover)
 {
+	bool ret;
+
 	Assert((password && takeover) || (!password && !takeover));
 
 	/* find database */
@@ -325,13 +341,21 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			return false;
 		}
 		if (!client->auth_user) {
-			disconnect_client(client, true, "no such user: %s", username);
-			if (cf_log_connections)
-				slog_info(client, "login failed: db=%s user=%s", dbname, username);
-			return false;
+			slog_info(client, "no such user: %s", username);
+			client->auth_user = calloc(1, sizeof(*client->auth_user));
+			client->auth_user->mock_auth = true;
+			safe_strcpy(client->auth_user->name, username, sizeof(client->auth_user->name));
 		}
 	}
-	return finish_set_pool(client, takeover);
+
+	ret = finish_set_pool(client, takeover);
+
+	if (client->auth_user->mock_auth) {
+		if (cf_log_connections)
+			slog_info(client, "login failed: db=%s user=%s", dbname, username);
+	}
+
+	return ret;
 }
 
 bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
@@ -419,6 +443,17 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
 		if (!client->auth_user) {
 			if (cf_log_connections)
 				slog_info(client, "login failed: db=%s", client->db->name);
+			/*
+			 * TODO: Currently no mock authentication when
+			 * using auth_query/auth_user; we just abort
+			 * with a revealing message to the client.
+			 * The main problem is that at this point we
+			 * don't know the original user name anymore
+			 * to do that.  As a workaround, the
+			 * auth_query could be written in a way that
+			 * it returns a fake user and password if the
+			 * requested user doesn't exist.
+			 */
 			disconnect_client(client, true, "no such user");
 		} else {
 			slog_noise(client, "auth query complete");
@@ -544,17 +579,19 @@ static bool scram_client_first(PgSocket *client, uint32_t datalen, const uint8_t
 				       &client->scram_state.client_nonce))
 		goto failed;
 
-	slog_debug(client, "stored secret = \"%s\"", user->passwd);
-	switch (get_password_type(user->passwd)) {
-	case PASSWORD_TYPE_MD5:
-		slog_error(client, "SCRAM authentication failed: user has MD5 secret");
-		goto failed;
-	case PASSWORD_TYPE_PLAINTEXT:
-	case PASSWORD_TYPE_SCRAM_SHA_256:
-		break;
+	if (!user->mock_auth) {
+		slog_debug(client, "stored secret = \"%s\"", user->passwd);
+		switch (get_password_type(user->passwd)) {
+		case PASSWORD_TYPE_MD5:
+			slog_error(client, "SCRAM authentication failed: user has MD5 secret");
+			goto failed;
+		case PASSWORD_TYPE_PLAINTEXT:
+		case PASSWORD_TYPE_SCRAM_SHA_256:
+			break;
+		}
 	}
 
-	if (!build_server_first_message(&client->scram_state, user->passwd))
+	if (!build_server_first_message(&client->scram_state, user->name, user->mock_auth ? NULL : user->passwd))
 		goto failed;
 	slog_debug(client, "SCRAM server-first-message = \"%s\"", client->scram_state.server_first_message);
 
@@ -599,7 +636,8 @@ static bool scram_client_final(PgSocket *client, uint32_t datalen, const uint8_t
 		goto failed;
 	}
 
-	if (!verify_client_proof(&client->scram_state, proof)) {
+	if (!verify_client_proof(&client->scram_state, proof)
+	    || !client->auth_user) {
 		slog_error(client, "password authentication failed");
 		goto failed;
 	}

@@ -65,7 +65,8 @@ bool read_client_final_message(PgSocket *client, const uint8_t *raw_input, char 
 			       const char **client_final_nonce_p,
 			       char **proof_p);
 
-char *build_server_first_message(ScramState *scram_state, const char *stored_secret);
+char *build_server_first_message(ScramState *scram_state,
+				 const char *username, const char *stored_secret);
 
 char *build_server_final_message(ScramState *scram_state);
 

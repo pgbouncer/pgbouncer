@@ -786,29 +786,86 @@ failed:
 	return false;
 }
 
-char *build_server_first_message(ScramState *scram_state, const char *stored_secret)
+/*
+ * Deterministically generate salt for mock authentication, using a
+ * SHA256 hash based on the username and an instance-level secret key.
+ * Target buffer needs to be of size SCRAM_DEFAULT_SALT_LEN.
+ */
+static void scram_mock_salt(const char *username, uint8_t *saltbuf)
+{
+	static uint8_t mock_auth_nonce[32];
+	static bool mock_auth_nonce_initialized = false;
+	struct sha256_ctx ctx;
+	uint8_t sha_digest[PG_SHA256_DIGEST_LENGTH];
+
+	/*
+	 * Generating salt using a SHA256 hash works as long as the
+	 * required salt length is not larger than the SHA256 digest
+	 * length.
+	 */
+	static_assert(PG_SHA256_DIGEST_LENGTH >= SCRAM_DEFAULT_SALT_LEN,
+		      "salt length greater than SHA256 digest length");
+
+	if (!mock_auth_nonce_initialized) {
+		get_random_bytes(mock_auth_nonce, sizeof(mock_auth_nonce));
+		mock_auth_nonce_initialized = true;
+	}
+
+	sha256_reset(&ctx);
+	sha256_update(&ctx, (uint8_t *) username, strlen(username));
+	sha256_update(&ctx, mock_auth_nonce, sizeof(mock_auth_nonce));
+	sha256_final(&ctx, sha_digest);
+
+	memcpy(saltbuf, sha_digest, SCRAM_DEFAULT_SALT_LEN);
+}
+
+static bool build_mock_scram_secret(const char *username, ScramState *scram_state)
+{
+	uint8_t saltbuf[SCRAM_DEFAULT_SALT_LEN];
+	int encoded_len;
+
+	scram_state->iterations = SCRAM_DEFAULT_ITERATIONS;
+
+	scram_mock_salt(username, saltbuf);
+	scram_state->salt = malloc(pg_b64_enc_len(sizeof(saltbuf)) + 1);
+	if (!scram_state->salt)
+		goto failed;
+	encoded_len = pg_b64_encode((char *) saltbuf, sizeof(saltbuf), scram_state->salt);
+	scram_state->salt[encoded_len] = '\0';
+
+	return true;
+failed:
+	return false;
+}
+
+char *build_server_first_message(ScramState *scram_state, const char *username, const char *stored_secret)
 {
 	uint8_t raw_nonce[SCRAM_RAW_NONCE_LEN + 1];
 	int encoded_len;
 	size_t len;
 	char *result;
 
-	switch (get_password_type(stored_secret)) {
-	case PASSWORD_TYPE_SCRAM_SHA_256:
-		if (!parse_scram_verifier(stored_secret,
-					  &scram_state->iterations,
-					  &scram_state->salt,
-					  scram_state->StoredKey,
-					  scram_state->ServerKey))
+	if (!stored_secret) {
+		if (!build_mock_scram_secret(username, scram_state))
 			goto failed;
-		break;
-	case PASSWORD_TYPE_PLAINTEXT:
-		if (!build_adhoc_scram_secret(stored_secret, scram_state))
+	} else {
+		switch (get_password_type(stored_secret)) {
+		case PASSWORD_TYPE_SCRAM_SHA_256:
+			if (!parse_scram_verifier(stored_secret,
+						  &scram_state->iterations,
+						  &scram_state->salt,
+						  scram_state->StoredKey,
+						  scram_state->ServerKey))
+				goto failed;
+			break;
+		case PASSWORD_TYPE_PLAINTEXT:
+			if (!build_adhoc_scram_secret(stored_secret, scram_state))
+				goto failed;
+			break;
+		default:
+			/* shouldn't get here */
 			goto failed;
-		break;
-	default:
-		/* shouldn't get here */
-		goto failed;
+		}
 	}
 
 	get_random_bytes(raw_nonce, SCRAM_RAW_NONCE_LEN);

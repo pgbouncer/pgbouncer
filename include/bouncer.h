@@ -314,6 +314,7 @@ struct PgUser {
 	uint8_t scram_ClientKey[32];
 	uint8_t scram_ServerKey[32];
 	bool has_scram_keys;		/* true if the above two are valid */
+	bool mock_auth;			/* not a real user, only for mock auth */
 	int pool_mode;
 	int max_user_connections;	/* how much server connections are allowed */
 	int connection_count;	/* how much connections are used by user now */

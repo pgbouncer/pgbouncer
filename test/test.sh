@@ -1009,7 +1009,7 @@ test_no_user_trust() {
 	admin "set auth_type='trust'"
 
 	psql -X -U nosuchuser1 -c "select 1" p1 && return 1
-	grep -F "closing because: no such user: nosuchuser1" $BOUNCER_LOG || return 1
+	grep -F "closing because: \"trust\" authentication failed" $BOUNCER_LOG || return 1
 
 	return 0
 }
@@ -1020,7 +1020,8 @@ test_no_user_password() {
 	admin "set auth_type='plain'"
 
 	PGPASSWORD=whatever psql -X -U nosuchuser1 -c "select 1" p1 && return 1
-	grep -F "closing because: no such user: nosuchuser1" $BOUNCER_LOG || return 1
+	grep -F "no such user: nosuchuser1" $BOUNCER_LOG || return 1
+	grep -F "closing because: password authentication failed" $BOUNCER_LOG || return 1
 
 	return 0
 }
@@ -1031,7 +1032,8 @@ test_no_user_md5() {
 	admin "set auth_type='md5'"
 
 	PGPASSWORD=whatever psql -X -U nosuchuser1 -c "select 1" p1 && return 1
-	grep -F "closing because: no such user: nosuchuser1" $BOUNCER_LOG || return 1
+	grep -F "no such user: nosuchuser1" $BOUNCER_LOG || return 1
+	grep -F "closing because: password authentication failed" $BOUNCER_LOG || return 1
 
 	return 0
 }
@@ -1042,7 +1044,22 @@ test_no_user_scram() {
 	admin "set auth_type='scram-sha-256'"
 
 	PGPASSWORD=whatever psql -X -U nosuchuser1 -c "select 1" p1 && return 1
-	grep -F "closing because: no such user: nosuchuser1" $BOUNCER_LOG || return 1
+	grep -F "no such user: nosuchuser1" $BOUNCER_LOG || return 1
+	grep -F "closing because: SASL authentication failed" $BOUNCER_LOG || return 1
+
+	return 0
+}
+
+test_no_user_auth_user() {
+	$have_getpeereid || return 77
+
+	admin "set auth_type='md5'"
+
+	PGPASSWORD=whatever psql -X -U nosuchuser1 -c "select 1" authdb && return 1
+	# Currently no mock authentication when using
+	# auth_query/auth_user.  See TODO in
+	# handle_auth_query_response().
+	grep -F "closing because: no such user (age" $BOUNCER_LOG || return 1
 
 	return 0
 }
@@ -1086,6 +1103,7 @@ test_no_user_trust
 test_no_user_password
 test_no_user_md5
 test_no_user_scram
+test_no_user_auth_user
 "
 
 if [ $# -gt 0 ]; then

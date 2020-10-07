@@ -879,6 +879,9 @@ int main(int argc, char *argv[])
 			       event_get_version(),
 			       adns_get_backend(),
 			       tls_backend_version());
+#ifdef USE_SYSTEMD
+			printf("systemd: yes\n");
+#endif
 			return 0;
 		case 'd':
 			cf_daemon = 1;
@@ -947,6 +950,11 @@ int main(int argc, char *argv[])
 
 	if (cf_daemon)
 		go_daemon();
+
+#ifndef USE_SYSTEMD
+	if (getenv("NOTIFY_SOCKET"))
+		log_warning("apparently running under systemd with notify socket, but systemd support was not built");
+#endif
 
 	/* need to do that after loading config; also do after
 	 * go_daemon() so that output goes to log file */

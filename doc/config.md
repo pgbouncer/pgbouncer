@@ -603,6 +603,14 @@ Default: `secure`
 
 ### client_tls_ciphers
 
+Allowed TLS ciphers, in OpenSSL syntax.  Shortcuts:
+`default`/`secure`, `compat`/`legacy`, `insecure`/`all`, `normal`,
+`fast`.
+
+Only connections using TLS version 1.2 and lower are affected.  There
+is currently no setting that controls the cipher choices used by TLS
+version 1.3 connections.
+
 Default: `fast`
 
 ### client_tls_ecdhcurve
@@ -677,6 +685,14 @@ Shortcuts: `all` (tlsv1.0,tlsv1.1,tlsv1.2,tlsv1.3), `secure` (tlsv1.2,tlsv1.3), 
 Default: `secure`
 
 ### server_tls_ciphers
+
+Allowed TLS ciphers, in OpenSSL syntax.  Shortcuts:
+`default`/`secure`, `compat`/`legacy`, `insecure`/`all`, `normal`,
+`fast`.
+
+Only connections using TLS version 1.2 and lower are affected.  There
+is currently no setting that controls the cipher choices used by TLS
+version 1.3 connections.
 
 Default: `fast`
 

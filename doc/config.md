@@ -12,15 +12,21 @@ and "#" are not recognized as special when they appear later in the line.
 
 ### logfile
 
-Specifies the log file. The log file is kept open, so after rotation `kill -HUP`
+Specifies the log file.  For daemonization (`-d`), either this or
+`syslog` need to be set.
+
+The log file is kept open, so after rotation `kill -HUP`
 or on console `RELOAD;` should be done.
 On Windows, the service must be stopped and started.
+
+Note that setting `logfile` does not by itself turn off logging to
+stderr.  Use the command-line option `-q` or `-d` for that.
 
 Default: not set
 
 ### pidfile
 
-Specifies the PID file. Without `pidfile` set, daemonization is not allowed.
+Specifies the PID file. Without `pidfile` set, daemonization (`-d`) is not allowed.
 
 Default: not set
 

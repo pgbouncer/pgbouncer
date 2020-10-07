@@ -108,6 +108,11 @@ Basic setup and usage is as follows.
 
 `-d`, `--daemon`
 :   Run in the background. Without it, the process will run in the foreground.
+
+    In daemon mode, setting `pidfile` as well as `logfile` or `syslog`
+    is required.  No log messages will be written to stderr after
+    going into the background.
+
     Note: Does not work on Windows; **pgbouncer** need to run as service there.
 
 `-R`, `--reboot`
@@ -125,8 +130,8 @@ Basic setup and usage is as follows.
 :   Increase verbosity.  Can be used multiple times.
 
 `-q`, `--quiet`
-:   Be quiet: do not log to stdout.  This does not affect
-    logging verbosity, only that stdout is not to be used.
+:   Be quiet: do not log to stderr.  This does not affect
+    logging verbosity, only that stderr is not to be used.
     For use in init.d scripts.
 
 `-V`, `--version`

@@ -45,7 +45,7 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 		return false;
 
 	/* disallow empty passwords */
-	if (!*passwd || !*user->passwd)
+	if (!*user->passwd)
 		return false;
 
 	switch (auth_type) {
@@ -808,6 +808,15 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 			ok = mbuf_get_string(&pkt->data, &passwd);
 
 			if (ok) {
+				/*
+				 * Don't allow an empty password; see
+				 * PostgreSQL recv_password_packet().
+				 */
+				if (!*passwd) {
+					disconnect_client(client, true, "empty password returned by client");
+					return false;
+				}
+
 				if (client->client_auth_type == AUTH_PAM) {
 					if (!sbuf_pause(&client->sbuf)) {
 						disconnect_client(client, true, "pause failed");

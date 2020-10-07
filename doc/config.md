@@ -989,6 +989,7 @@ file in the following format:
 There should be at least 2 fields, surrounded by double quotes. The first
 field is the user name and the second is either a plain-text, a MD5-hashed
 password, or a SCRAM secret.  PgBouncer ignores the rest of the line.
+Double quotes in a field value can be escaped by writing two double quotes.
 
 PostgreSQL MD5-hashed password format:
 

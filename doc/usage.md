@@ -312,7 +312,7 @@ addr
 :   IP address of client.
 
 port
-:   Port client is connected to.
+:   Source port of client.
 
 local_addr
 :   Connection end address on local machine.

@@ -330,17 +330,30 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			return false;
 		}
 	} else {
-		/* the user clients wants to log in as */
 		client->login_user = find_user(username);
-		if (!client->login_user && client->db->auth_user) {
-			if (takeover) {
-				client->login_user = add_db_user(client->db, username, password);
-				return finish_set_pool(client, takeover);
-			}
-			start_auth_query(client, username);
-			return false;
-		}
 		if (!client->login_user) {
+			/*
+			 * If the login user specified by the client
+			 * does not exist, check if an auth_user is
+			 * set and if so send off an auth_query.  If
+			 * no auth_user is set for the db, see if the
+			 * global auth_user is set and use that.
+			 */
+			if (!client->db->auth_user && cf_auth_user) {
+				client->db->auth_user = find_user(cf_auth_user);
+				/* global auth_user should have been defined in auth_file */
+				if (!client->db->auth_user)
+					log_error("auth_user \"%s\" does not exist", cf_auth_user);
+			}
+			if (client->db->auth_user) {
+				if (takeover) {
+					client->login_user = add_db_user(client->db, username, password);
+					return finish_set_pool(client, takeover);
+				}
+				start_auth_query(client, username);
+				return false;
+			}
+
 			slog_info(client, "no such user: %s", username);
 			client->login_user = calloc(1, sizeof(*client->login_user));
 			client->login_user->mock_auth = true;

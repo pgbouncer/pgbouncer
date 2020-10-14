@@ -371,7 +371,7 @@ struct PgSocket {
 	PgSocket *link;		/* the dest of packets */
 	PgPool *pool;		/* parent pool, if NULL not yet assigned */
 
-	PgUser *auth_user;	/* presented login, for client it may differ from pool->user */
+	PgUser *login_user;	/* presented login, for client it may differ from pool->user */
 
 	int client_auth_type;	/* auth method decided by hba */
 

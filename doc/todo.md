@@ -17,7 +17,6 @@ Problems / cleanups
 
 * Bad naming in data strctures:
 
-  * PgSocket->auth_user [vs. PgDatabase->auth_user]
   * PgSocket->db [vs. PgPool->db]
 
 * other per-user settings

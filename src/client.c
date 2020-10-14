@@ -38,7 +38,7 @@ static const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
 static bool check_client_passwd(PgSocket *client, const char *passwd)
 {
 	char md5[MD5_PASSWD_LEN + 1];
-	PgUser *user = client->auth_user;
+	PgUser *user = client->login_user;
 	int auth_type = client->client_auth_type;
 
 	if (user->mock_auth)
@@ -143,11 +143,11 @@ static bool login_via_cert(PgSocket *client)
 		slog_error(client, "TLS client certificate required");
 		goto fail;
 	}
-	if (client->auth_user->mock_auth)
+	if (client->login_user->mock_auth)
 		goto fail;
 
 	log_debug("TLS cert login: %s", tls_peer_cert_subject(client->sbuf.tls));
-	if (!tls_peer_cert_contains_name(client->sbuf.tls, client->auth_user->name)) {
+	if (!tls_peer_cert_contains_name(client->sbuf.tls, client->login_user->name)) {
 		slog_error(client, "TLS certificate name mismatch");
 		goto fail;
 	}
@@ -163,9 +163,9 @@ static bool login_as_unix_peer(PgSocket *client)
 {
 	if (!pga_is_unix(&client->remote_addr))
 		goto fail;
-	if (client->auth_user->mock_auth)
+	if (client->login_user->mock_auth)
 		goto fail;
-	if (!check_unix_peer_name(sbuf_socket(&client->sbuf), client->auth_user->name))
+	if (!check_unix_peer_name(sbuf_socket(&client->sbuf), client->login_user->name))
 		goto fail;
 	return finish_client_login(client);
 fail:
@@ -175,7 +175,7 @@ fail:
 
 static bool finish_set_pool(PgSocket *client, bool takeover)
 {
-	PgUser *user = client->auth_user;
+	PgUser *user = client->login_user;
 	bool ok = false;
 	int auth;
 
@@ -197,10 +197,10 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 			char infobuf[96] = "";
 			tls_get_connection_info(client->sbuf.tls, infobuf, sizeof infobuf);
 			slog_info(client, "login attempt: db=%s user=%s tls=%s",
-				  client->db->name, client->auth_user->name, infobuf);
+				  client->db->name, client->login_user->name, infobuf);
 		} else {
 			slog_info(client, "login attempt: db=%s user=%s tls=no",
-				  client->db->name, client->auth_user->name);
+				  client->db->name, client->login_user->name);
 		}
 	}
 
@@ -221,12 +221,12 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	auth = cf_auth_type;
 	if (auth == AUTH_HBA) {
 		auth = hba_eval(parsed_hba, &client->remote_addr, !!client->sbuf.tls,
-				client->db->name, client->auth_user->name);
+				client->db->name, client->login_user->name);
 	}
 
 	if (auth == AUTH_MD5)
 	{
-		if (get_password_type(client->auth_user->passwd) == PASSWORD_TYPE_SCRAM_SHA_256)
+		if (get_password_type(client->login_user->passwd) == PASSWORD_TYPE_SCRAM_SHA_256)
 			auth = AUTH_SCRAM_SHA_256;
 	}
 
@@ -238,7 +238,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		ok = finish_client_login(client);
 		break;
 	case AUTH_TRUST:
-		if (client->auth_user->mock_auth)
+		if (client->login_user->mock_auth)
 			disconnect_client(client, true, "\"trust\" authentication failed");
 		ok = finish_client_login(client);
 		break;
@@ -315,7 +315,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			disconnect_client(client, true, "bouncer config error");
 			return false;
 		}
-		client->auth_user = client->db->forced_user;
+		client->login_user = client->db->forced_user;
 	} else if (cf_auth_type == AUTH_PAM) {
 		if (client->db->auth_user) {
 			slog_error(client, "PAM can't be used together with database authentication");
@@ -323,34 +323,34 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			return false;
 		}
 		/* Password will be set after successful authentication when not in takeover mode */
-		client->auth_user = add_pam_user(username, password);
-		if (!client->auth_user) {
+		client->login_user = add_pam_user(username, password);
+		if (!client->login_user) {
 			slog_error(client, "set_pool(): failed to allocate new PAM user");
 			disconnect_client(client, true, "bouncer resources exhaustion");
 			return false;
 		}
 	} else {
 		/* the user clients wants to log in as */
-		client->auth_user = find_user(username);
-		if (!client->auth_user && client->db->auth_user) {
+		client->login_user = find_user(username);
+		if (!client->login_user && client->db->auth_user) {
 			if (takeover) {
-				client->auth_user = add_db_user(client->db, username, password);
+				client->login_user = add_db_user(client->db, username, password);
 				return finish_set_pool(client, takeover);
 			}
 			start_auth_query(client, username);
 			return false;
 		}
-		if (!client->auth_user) {
+		if (!client->login_user) {
 			slog_info(client, "no such user: %s", username);
-			client->auth_user = calloc(1, sizeof(*client->auth_user));
-			client->auth_user->mock_auth = true;
-			safe_strcpy(client->auth_user->name, username, sizeof(client->auth_user->name));
+			client->login_user = calloc(1, sizeof(*client->login_user));
+			client->login_user->mock_auth = true;
+			safe_strcpy(client->login_user->name, username, sizeof(client->login_user->name));
 		}
 	}
 
 	ret = finish_set_pool(client, takeover);
 
-	if (client->auth_user->mock_auth) {
+	if (client->login_user->mock_auth) {
 		if (cf_log_connections)
 			slog_info(client, "login failed: db=%s user=%s", dbname, username);
 	}
@@ -422,8 +422,8 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
 			length = sizeof(user.passwd) - 1;
 		memcpy(user.passwd, password, length);
 
-		client->auth_user = add_db_user(client->db, user.name, user.passwd);
-		if (!client->auth_user) {
+		client->login_user = add_db_user(client->db, user.name, user.passwd);
+		if (!client->login_user) {
 			disconnect_server(server, false, "unable to allocate new user for auth");
 			return false;
 		}
@@ -440,7 +440,7 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
 		break;
 	case 'Z':	/* ReadyForQuery */
 		sbuf_prepare_skip(&client->link->sbuf, pkt->len);
-		if (!client->auth_user) {
+		if (!client->login_user) {
 			if (cf_log_connections)
 				slog_info(client, "login failed: db=%s", client->db->name);
 			/*
@@ -563,7 +563,7 @@ static bool scram_client_first(PgSocket *client, uint32_t datalen, const uint8_t
 	char *ibuf;
 	char *input;
 	int res;
-	PgUser *user = client->auth_user;
+	PgUser *user = client->login_user;
 
 	ibuf = malloc(datalen + 1);
 	if (ibuf == NULL)
@@ -637,7 +637,7 @@ static bool scram_client_final(PgSocket *client, uint32_t datalen, const uint8_t
 	}
 
 	if (!verify_client_proof(&client->scram_state, proof)
-	    || !client->auth_user) {
+	    || !client->login_user) {
 		slog_error(client, "password authentication failed");
 		goto failed;
 	}
@@ -750,7 +750,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		break;
 	case 'p':		/* PasswordMessage, SASLInitialResponse, or SASLResponse */
 		/* too early */
-		if (!client->auth_user) {
+		if (!client->login_user) {
 			disconnect_client(client, true, "client password pkt before startup packet");
 			return false;
 		}

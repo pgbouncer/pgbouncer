@@ -941,8 +941,8 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 	}
 
 	free_scram_state(&client->scram_state);
-	if (client->auth_user && client->auth_user->mock_auth)
-		free(client->auth_user);
+	if (client->login_user && client->login_user->mock_auth)
+		free(client->login_user);
 
 	change_client_state(client, CL_JUSTFREE);
 	if (!sbuf_close(&client->sbuf))
@@ -1211,7 +1211,7 @@ allow_new:
 
 	/* initialize it */
 	server->pool = pool;
-	server->auth_user = server->pool->user;
+	server->login_user = server->pool->user;
 	server->connect_time = get_cached_time();
 	pool->last_connect_time = get_cached_time();
 	change_server_state(server, SV_LOGIN);
@@ -1493,7 +1493,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 
 	server->suspended = 1;
 	server->pool = pool;
-	server->auth_user = user;
+	server->login_user = user;
 	server->connect_time = server->request_time = get_cached_time();
 	server->query_start = 0;
 

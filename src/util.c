@@ -41,7 +41,7 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
 	stype = is_server_socket(sock) ? 'S' : 'C';
 	port = pga_port(&sock->remote_addr);
 	db = sock->pool ? sock->pool->db->name : "(nodb)";
-	user = sock->auth_user ? sock->auth_user->name : "(nouser)";
+	user = sock->login_user ? sock->login_user->name : "(nouser)";
 	if (pga_is_unix(&sock->remote_addr)) {
 		unsigned long pid = sock->remote_addr.scred.pid;
 		if (pid) {

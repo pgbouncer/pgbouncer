@@ -61,7 +61,7 @@ struct pam_auth_request {
 	/* The request status, one of the PAM_STATUS_* constants */
 	int status;
 
-	/* The username (same as in client->auth_user->name).
+	/* The username (same as in client->login_user->name).
 	 * See the comment for remote_addr.
 	 */
 	char username[MAX_USERNAME];
@@ -171,7 +171,7 @@ void pam_auth_begin(PgSocket *client, const char *passwd)
 	request->connect_time = client->connect_time;
 	request->status = PAM_STATUS_IN_PROGRESS;
 	memcpy(&request->remote_addr, &client->remote_addr, sizeof(client->remote_addr));
-	safe_strcpy(request->username, client->auth_user->name, MAX_USERNAME);
+	safe_strcpy(request->username, client->login_user->name, MAX_USERNAME);
 	safe_strcpy(request->password, passwd, MAX_PASSWORD);
 
 	pam_first_free_slot = next_free_slot;
@@ -281,7 +281,7 @@ static void pam_auth_finish(struct pam_auth_request *request)
 	bool authenticated = (request->status == PAM_STATUS_SUCCESS);
 
 	if (authenticated) {
-		safe_strcpy(client->auth_user->passwd, request->password, sizeof(client->auth_user->passwd));
+		safe_strcpy(client->login_user->passwd, request->password, sizeof(client->login_user->passwd));
 		sbuf_continue(&client->sbuf);
 	} else {
 		disconnect_client(client, true, "PAM authentication failed");

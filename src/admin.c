@@ -337,19 +337,19 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	if (!mbuf_get_uint64be(&tmp, &ckey))
 		return false;
 
-	if (sk->pool && sk->pool->db->auth_user && sk->auth_user && !find_user(sk->auth_user->name))
-		password = sk->auth_user->passwd;
+	if (sk->pool && sk->pool->db->auth_user && sk->login_user && !find_user(sk->login_user->name))
+		password = sk->login_user->passwd;
 
 	/* PAM requires passwords as well since they are not stored externally */
-	if (cf_auth_type == AUTH_PAM && !find_user(sk->auth_user->name))
-		password = sk->auth_user->passwd;
+	if (cf_auth_type == AUTH_PAM && !find_user(sk->login_user->name))
+		password = sk->login_user->passwd;
 
 	if (sk->pool && sk->pool->user && sk->pool->user->has_scram_keys)
 		send_scram_keys = true;
 
 	return send_one_fd(admin, sbuf_socket(&sk->sbuf),
 			   is_server_socket(sk) ? "server" : "client",
-			   sk->auth_user ? sk->auth_user->name : NULL,
+			   sk->login_user ? sk->login_user->name : NULL,
 			   sk->pool ? sk->pool->db->name : NULL,
 			   pga_ntop(addr, addrbuf, sizeof(addrbuf)),
 			   pga_port(addr),
@@ -640,7 +640,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 
 	pktbuf_write_DataRow(buf, debug ? SKF_DBG : SKF_STD,
 			     is_server_socket(sk) ? "S" :"C",
-			     sk->auth_user ? sk->auth_user->name : "(nouser)",
+			     sk->login_user ? sk->login_user->name : "(nouser)",
 			     sk->pool ? sk->pool->db->name : "(nodb)",
 			     state, r_addr, pga_port(&sk->remote_addr),
 			     l_addr, pga_port(&sk->local_addr),
@@ -1496,7 +1496,7 @@ bool admin_pre_login(PgSocket *client, const char *username)
 		if (res >= 0 && peer_uid == getuid()
 			&& strcmp("pgbouncer", username) == 0)
 		{
-			client->auth_user = admin_pool->db->forced_user;
+			client->login_user = admin_pool->db->forced_user;
 			client->own_user = 1;
 			client->admin_user = 1;
 			slog_info(client, "pgbouncer access from unix socket");
@@ -1510,11 +1510,11 @@ bool admin_pre_login(PgSocket *client, const char *username)
 	 */
 	if (cf_auth_type == AUTH_ANY) {
 		if (strlist_contains(cf_admin_users, username)) {
-			client->auth_user = admin_pool->db->forced_user;
+			client->login_user = admin_pool->db->forced_user;
 			client->admin_user = 1;
 			return true;
 		} else if (strlist_contains(cf_stats_users, username)) {
-			client->auth_user = admin_pool->db->forced_user;
+			client->login_user = admin_pool->db->forced_user;
 			return true;
 		}
 	}
@@ -1523,7 +1523,7 @@ bool admin_pre_login(PgSocket *client, const char *username)
 
 bool admin_post_login(PgSocket *client)
 {
-	const char *username = client->auth_user->name;
+	const char *username = client->login_user->name;
 
 	if (cf_auth_type == AUTH_ANY)
 		return true;

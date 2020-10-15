@@ -1064,6 +1064,34 @@ test_no_user_auth_user() {
 	return 0
 }
 
+test_no_authfile_conf()
+{
+	# With this configuration param commented out, the server used to crash
+	sed 's/^auth_file/; auth_file/' < $BOUNCER_INI > $BOUNCER_INI.no_auth.ini
+
+	# Reload configuration
+	$BOUNCER_EXE -d -R  $BOUNCER_INI.no_auth.ini
+
+	# Test that connection failed
+	PGPASSWORD=meh psql "connect_timeout=2" -X -U meh -c "select 1" p62
+	res_conn=$?
+
+	# Yet the process should remain
+	kill `cat $BOUNCER_PID` >/dev/null 2>&1
+	res_proc=$?
+
+	# Clean up
+	$BOUNCER_EXE -d -R  $BOUNCER_INI
+	rm $BOUNCER_INI.no_auth.ini
+
+	if [[ $res_conn -ne 0 && $res_proc -eq 0 ]]; then
+		return 0
+	fi
+
+	return 1
+}
+
+
 testlist="
 test_show_version
 test_show

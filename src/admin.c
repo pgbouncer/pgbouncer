@@ -934,10 +934,10 @@ static bool admin_show_dns_zones(PgSocket *admin, const char *arg)
 
 /* Command: SHOW CONFIG */
 
-static void show_one_param(void *arg, const char *name, const char *val, bool reloadable)
+static void show_one_param(void *arg, const char *name, const char *val, const char *defval, bool reloadable)
 {
 	PktBuf *buf = arg;
-	pktbuf_write_DataRow(buf, "sss", name, val,
+	pktbuf_write_DataRow(buf, "ssss", name, val, defval,
 			     reloadable ? "yes" : "no");
 }
 
@@ -951,7 +951,7 @@ static bool admin_show_config(PgSocket *admin, const char *arg)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "sss", "key", "value", "changeable");
+	pktbuf_write_RowDescription(buf, "ssss", "key", "value", "default", "changeable");
 
 	config_for_each(show_one_param, buf);
 

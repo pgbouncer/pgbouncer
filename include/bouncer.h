@@ -466,6 +466,7 @@ extern int cf_default_pool_size;
 extern int cf_min_pool_size;
 extern int cf_res_pool_size;
 extern usec_t cf_res_pool_timeout;
+extern int cf_cancel_bypass_pool_size;
 extern int cf_max_db_connections;
 extern int cf_max_user_connections;
 

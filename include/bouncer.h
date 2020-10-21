@@ -407,6 +407,7 @@ struct PgSocket {
 	usec_t wait_start;	/* waiting start moment */
 
 	uint8_t cancel_key[BACKENDKEY_LEN]; /* client: generated, server: remote */
+	uint64_t generation;	/* server: number of commands sent, client: number of commands sent to the server on cancelation request */
 	PgAddr remote_addr;	/* ip:port for remote endpoint */
 	PgAddr local_addr;	/* ip:port for local endpoint */
 

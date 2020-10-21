@@ -1342,9 +1342,11 @@ found:
 	if (!sbuf_close(&req->sbuf))
 		log_noise("sbuf_close failed, retry later");
 
-	/* remember server key */
+	/* remember server, server key and generation */
 	server = main_client->link;
+	req->link = server;
 	memcpy(req->cancel_key, server->cancel_key, 8);
+	req->generation = server->generation;
 
 	/* attach to target pool */
 	req->pool = pool;
@@ -1362,9 +1364,18 @@ void forward_cancel_request(PgSocket *server)
 	Assert(req != NULL && req->state == CL_CANCEL);
 	Assert(server->state == SV_LOGIN);
 
-	SEND_CancelRequest(res, server, req->cancel_key);
-	if (!res)
-		log_warning("sending cancel request failed: %s", strerror(errno));
+	/*
+	 * only forward the cancel request if the generation didn't change since receiving the
+	 * cancelation. If the generation has changed in between we have already sent a new
+	 * command to the server which we don't want to cancel.
+	 */
+	if (req->link->generation == req->generation) {
+		SEND_CancelRequest(res, server, req->cancel_key);
+		if (!res)
+			log_warning("sending cancel request failed: %s", strerror(errno));
+	} else {
+		log_warning("abort cancel request, generation mismatch: %llu != %llu", req->link->generation, req->generation);
+	}
 
 	change_client_state(req, CL_JUSTFREE);
 }

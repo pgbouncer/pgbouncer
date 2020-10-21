@@ -952,6 +952,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	/* tag the server as dirty */
 	client->link->ready = false;
 	client->link->idle_tx = false;
+	client->link->generation++; /* TODO figure out what happens on overflow */
 
 	/* forward the packet */
 	sbuf_prepare_send(sbuf, &client->link->sbuf, pkt->len);

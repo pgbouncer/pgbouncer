@@ -537,6 +537,9 @@ key
 value
 :   Configuration value
 
+default
+:   Configuration default value
+
 changeable
 :   Either **yes** or **no**, shows if the variable can be changed while running.
     If **no**, the variable can be changed only at boot time.  Use

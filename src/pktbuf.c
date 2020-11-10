@@ -445,7 +445,7 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 				size_t required = 2 + blen * 2 + 1;
 
 				if (required > sizeof(tmp))
-					fatal("byte array too long (%" PRIuZ " > %" PRIuZ ")", required, sizeof(tmp));
+					fatal("byte array too long (%zu > %zu)", required, sizeof(tmp));
 				strcpy(tmp, "\\x");
 				for (int j = 0; j < blen; j++)
 					sprintf(tmp + (2 + j * 2), "%02x", bval[j]);

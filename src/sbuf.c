@@ -828,7 +828,7 @@ bool sbuf_answer(SBuf *sbuf, const void *buf, size_t len)
 	if (res < 0) {
 		log_debug("sbuf_answer: error sending: %s", strerror(errno));
 	} else if ((unsigned)res != len) {
-		log_debug("sbuf_answer: partial send: len=%" PRIuZ " sent=%" PRIdZ, len, res);
+		log_debug("sbuf_answer: partial send: len=%zu sent=%zd", len, res);
 	}
 	return (unsigned)res == len;
 }
@@ -1099,7 +1099,7 @@ static ssize_t tls_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len)
 	}
 
 	out = tls_read(sbuf->tls, dst, len);
-	log_noise("tls_read: req=%" PRIuZ " out=%" PRIdZ, len, out);
+	log_noise("tls_read: req=%zu out=%zd", len, out);
 	if (out >= 0) {
 		return out;
 	} else if (out == TLS_WANT_POLLIN) {
@@ -1124,7 +1124,7 @@ static ssize_t tls_sbufio_send(struct SBuf *sbuf, const void *data, size_t len)
 	}
 
 	out = tls_write(sbuf->tls, data, len);
-	log_noise("tls_write: req=%" PRIuZ " out=%" PRIdZ, len, out);
+	log_noise("tls_write: req=%zu out=%zd", len, out);
 	if (out >= 0) {
 		return out;
 	} else if (out == TLS_WANT_POLLOUT) {

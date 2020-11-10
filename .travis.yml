@@ -6,7 +6,7 @@ env:
 jobs:
   include:
   - env: configure_args=''
-  - env: configure_args='' PGVERSION=9.5
+  - env: configure_args='' PGVERSION=9.6
   - env: configure_args='--with-cares'
   - env: configure_args='--with-udns'
   - env: configure_args='--disable-evdns'
@@ -20,10 +20,10 @@ jobs:
   - arch: arm64
   - arch: ppc64le
   - env: use_valgrind=yes
-  - env: use_valgrind=yes PGVERSION=9.5
+  - env: use_valgrind=yes PGVERSION=9.6
   - env: use_efence=yes configure_args='--with-pam'
     dist: xenial
-  - env: use_efence=yes PGVERSION=9.5 configure_args='--with-pam'
+  - env: use_efence=yes PGVERSION=9.6 configure_args='--with-pam'
     dist: xenial
 before_install: |
   set -e

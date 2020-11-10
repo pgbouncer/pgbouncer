@@ -596,6 +596,10 @@ bool check_fast_fail(PgSocket *client)
 	int cnt;
 	PgPool *pool = client->pool;
 
+	/* Could be mock authentication, proceed normally */
+	if (!pool)
+		return true;
+
 	/* If last login succeeded, client can go ahead. */
 	if (!pool->last_login_failed)
 		return true;

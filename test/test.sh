@@ -1002,10 +1002,21 @@ test_scram_takeover() {
 	test $? -eq 0
 }
 
-# several tests that check the behavior when connecting with a
-# nonexistent user under various authentication types
+# Several tests that check the behavior when connecting with a
+# nonexistent user under various authentication types.  Database p1
+# has a forced user, p2 does not; these exercise slightly different
+# code paths.
 
 test_no_user_trust() {
+	admin "set auth_type='trust'"
+
+	psql -X -U nosuchuser1 -c "select 1" p2 && return 1
+	grep -F "closing because: \"trust\" authentication failed" $BOUNCER_LOG || return 1
+
+	return 0
+}
+
+test_no_user_trust_forced_user() {
 	admin "set auth_type='trust'"
 
 	psql -X -U nosuchuser1 -c "select 1" p1 && return 1
@@ -1015,6 +1026,18 @@ test_no_user_trust() {
 }
 
 test_no_user_password() {
+	$have_getpeereid || return 77
+
+	admin "set auth_type='plain'"
+
+	PGPASSWORD=whatever psql -X -U nosuchuser1 -c "select 1" p2 && return 1
+	grep -F "no such user: nosuchuser1" $BOUNCER_LOG || return 1
+	grep -F "closing because: password authentication failed" $BOUNCER_LOG || return 1
+
+	return 0
+}
+
+test_no_user_password_forced_user() {
 	$have_getpeereid || return 77
 
 	admin "set auth_type='plain'"
@@ -1031,6 +1054,18 @@ test_no_user_md5() {
 
 	admin "set auth_type='md5'"
 
+	PGPASSWORD=whatever psql -X -U nosuchuser1 -c "select 1" p2 && return 1
+	grep -F "no such user: nosuchuser1" $BOUNCER_LOG || return 1
+	grep -F "closing because: password authentication failed" $BOUNCER_LOG || return 1
+
+	return 0
+}
+
+test_no_user_md5_forced_user() {
+	$have_getpeereid || return 77
+
+	admin "set auth_type='md5'"
+
 	PGPASSWORD=whatever psql -X -U nosuchuser1 -c "select 1" p1 && return 1
 	grep -F "no such user: nosuchuser1" $BOUNCER_LOG || return 1
 	grep -F "closing because: password authentication failed" $BOUNCER_LOG || return 1
@@ -1039,6 +1074,18 @@ test_no_user_md5() {
 }
 
 test_no_user_scram() {
+	$have_getpeereid || return 77
+
+	admin "set auth_type='scram-sha-256'"
+
+	PGPASSWORD=whatever psql -X -U nosuchuser1 -c "select 1" p2 && return 1
+	grep -F "no such user: nosuchuser1" $BOUNCER_LOG || return 1
+	grep -F "closing because: SASL authentication failed" $BOUNCER_LOG || return 1
+
+	return 0
+}
+
+test_no_user_scram_forced_user() {
 	$have_getpeereid || return 77
 
 	admin "set auth_type='scram-sha-256'"
@@ -1100,9 +1147,13 @@ test_scram_client
 test_scram_both
 test_scram_takeover
 test_no_user_trust
+test_no_user_trust_forced_user
 test_no_user_password
+test_no_user_password_forced_user
 test_no_user_md5
+test_no_user_md5_forced_user
 test_no_user_scram
+test_no_user_scram_forced_user
 test_no_user_auth_user
 "
 

@@ -175,17 +175,18 @@ fail:
 
 static bool finish_set_pool(PgSocket *client, bool takeover)
 {
-	PgUser *user = client->login_user;
 	bool ok = false;
 	int auth;
 
-	/* pool user may be forced */
-	if (client->db->forced_user) {
-		user = client->db->forced_user;
-	}
+	if (!client->login_user->mock_auth) {
+		PgUser *pool_user;
 
-	if (!user->mock_auth) {
-		client->pool = get_pool(client->db, user);
+		if (client->db->forced_user)
+			pool_user = client->db->forced_user;
+		else
+			pool_user = client->login_user;
+
+		client->pool = get_pool(client->db, pool_user);
 		if (!client->pool) {
 			disconnect_client(client, true, "no memory for pool");
 			return false;

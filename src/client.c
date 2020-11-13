@@ -342,9 +342,8 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			 */
 			if (!client->db->auth_user && cf_auth_user) {
 				client->db->auth_user = find_user(cf_auth_user);
-				/* global auth_user should have been defined in auth_file */
 				if (!client->db->auth_user)
-					log_error("auth_user \"%s\" does not exist", cf_auth_user);
+					client->db->auth_user = add_user(cf_auth_user, "");
 			}
 			if (client->db->auth_user) {
 				if (takeover) {

@@ -146,6 +146,8 @@ Default: `SELECT usename, passwd FROM pg_shadow WHERE usename=$1`
 If `auth_user` is set, then any user not specified in `auth_file` will be
 queried through the `auth_query` query from pg_shadow in the database,
 using `auth_user`. The password of `auth_user` will be taken from `auth_file`.
+(If the `auth_user` does not require a password then it does not need
+to be defined in `auth_file`.)
 
 Direct access to pg_shadow requires admin rights.  It's preferable to
 use a non-superuser that calls a SECURITY DEFINER function instead.

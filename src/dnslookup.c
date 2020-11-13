@@ -957,11 +957,14 @@ static bool impl_init(struct DNSContext *ctx)
 	if (cf_resolv_conf && cf_resolv_conf[0]) {
 #ifdef ARES_OPT_RESOLVCONF
 		opts.resolvconf_path = strdup(cf_resolv_conf);
-		if (!opts.resolvconf_path)
+		if (!opts.resolvconf_path) {
+			free(meta);
 			return false;
+		}
 		mask |= ARES_OPT_RESOLVCONF;
 #else
 		log_error("resolv_conf setting is not supported by this version of c-ares");
+		free(meta);
 		return false;
 #endif
 	}

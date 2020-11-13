@@ -549,12 +549,12 @@ bool load_auth_file(const char *fn)
 
 	/* No file to load? */
 	if (fn == NULL)
-		return NULL;
+		return false;
 
 	buf = load_file(fn, NULL);
 	if (buf == NULL) {
 		log_error("could not open auth_file %s: %s", fn, strerror(errno));
-		return NULL;
+		return false;
 	}
 
 	log_debug("loading auth_file: \"%s\"", fn);

@@ -289,7 +289,7 @@ runtest() {
 	# Detect fatal errors from PgBouncer (which are internal
 	# errors), but not those from PostgreSQL (which could be
 	# normal, such as authentication failures)
-	if grep 'FATAL @' $LOGDIR/$1.log >> $LOGDIR/$1.out; then
+	if grep 'FATAL @' $BOUNCER_LOG >> $LOGDIR/$1.out; then
 		status=1
 	fi
 

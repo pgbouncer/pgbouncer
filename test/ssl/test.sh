@@ -151,6 +151,14 @@ runtest() {
 	printf "`date` running $1 ... "
 	eval $1 >$LOGDIR/$1.out 2>&1
 	status=$?
+
+	# Detect fatal errors from PgBouncer (which are internal
+	# errors), but not those from PostgreSQL (which could be
+	# normal, such as authentication failures)
+	if grep 'FATAL @' $LOGDIR/$1.log >> $LOGDIR/$1.out; then
+		status=1
+	fi
+
 	if [ $status -eq 0 ]; then
 		echo "ok"
 	elif [ $status -eq 77 ]; then

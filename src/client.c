@@ -240,7 +240,8 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	case AUTH_TRUST:
 		if (client->login_user->mock_auth)
 			disconnect_client(client, true, "\"trust\" authentication failed");
-		ok = finish_client_login(client);
+		else
+			ok = finish_client_login(client);
 		break;
 	case AUTH_PLAIN:
 	case AUTH_MD5:

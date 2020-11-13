@@ -265,8 +265,6 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 
 bool set_pool(PgSocket *client, const char *dbname, const char *username, const char *password, bool takeover)
 {
-	bool ret;
-
 	Assert((password && takeover) || (!password && !takeover));
 
 	/* find database */
@@ -362,14 +360,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 		}
 	}
 
-	ret = finish_set_pool(client, takeover);
-
-	if (client->login_user->mock_auth) {
-		if (cf_log_connections)
-			slog_info(client, "login failed: db=%s user=%s", dbname, username);
-	}
-
-	return ret;
+	return finish_set_pool(client, takeover);
 }
 
 bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {

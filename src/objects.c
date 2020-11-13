@@ -945,8 +945,10 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 	}
 
 	free_scram_state(&client->scram_state);
-	if (client->login_user && client->login_user->mock_auth)
+	if (client->login_user && client->login_user->mock_auth) {
 		free(client->login_user);
+		client->login_user = NULL;
+	}
 
 	change_client_state(client, CL_JUSTFREE);
 	if (!sbuf_close(&client->sbuf))

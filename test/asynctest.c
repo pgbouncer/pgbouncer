@@ -104,6 +104,7 @@ static void wait_event(DbConn *db, short ev, event_callback_fn fn)
 		fatal_perror("event_add");
 }
 
+_PRINTF(3, 4)
 static void disconnect(DbConn *db, bool is_err, const char *reason, ...)
 {
 	char buf[1024];

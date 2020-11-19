@@ -1,6 +1,55 @@
 PgBouncer changelog
 ===================
 
+PgBouncer 1.15.x
+----------------
+
+**2020-11-19  -  PgBouncer 1.15.0  -  "Ich hab noch einen Koffer in Berlin"**
+
+- Features
+  * Improve authentication failure reporting.  The authentication
+    failure messages sent to the client now only state that
+    authentication failed but give no further details.  Details are
+    available in the PgBouncer log.  Also, if the requested user does
+    not exist, the authentication is still processed to the end and
+    will result in the same generic failure message.  All this
+    prevents clients from probing the PgBouncer instance for user
+    names and other authentication-related insights.  This is similar
+    to how PostgreSQL behaves.
+  * Don't log anything if client disconnects immediately.  This avoids
+    log spam when monitoring systems just open a TCP/IP connection but
+    don't send anything before disconnecting.
+  * Use systemd journal for logging when in use.  When we detect that
+    stderr is going to the systemd journal, we use systemd native
+    functions for log output.  This avoids printing duplicate
+    timestamp and pid, thus making the log a bit cleaner.  Also, this
+    adds metadata such as the severity to the logs, so that if the
+    journal gets sent on to syslog, the messages have useful metadata
+    attached.
+  * A subset of the test suite can now be run under Windows.
+  * `SHOW CONFIG` now also shows the default values of the settings.
+
+- Fixes
+  * Fix the `so_reuseport` option on FreeBSD.  The original code in
+    PgBouncer 1.12.0 didn't actually work on FreeBSD.
+    ([#504](https://github.com/pgbouncer/pgbouncer/pull/504))
+  * Repair compilation on systems with older systemd versions.  This
+    was broken in 1.14.0.
+    ([#505](https://github.com/pgbouncer/pgbouncer/issues/505))
+  * The makefile target to build Windows binary zip packages has been
+    repaired.
+  * Long command-line options now also work on Windows.
+  * Fix the behavior of the global `auth_user` setting.  The old
+    behavior was confusing and fragile as it depended on the order in
+    the configuration file.  This is no longer the
+    case. ([#391](https://github.com/pgbouncer/pgbouncer/issues/391),
+    [#393](https://github.com/pgbouncer/pgbouncer/issues/393))
+
+- Cleanups
+  * Improve test stability and portability.
+  * Modernize Autoconf-related code.
+  * Disable deprecation compiler warnings from OpenSSL 3.0.0.
+
 PgBouncer 1.14.x
 ----------------
 

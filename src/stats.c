@@ -70,7 +70,7 @@ static void calc_average(PgStats *avg, PgStats *cur, PgStats *old)
 	if (xact_count > 0)
 		avg->xact_time = (cur->xact_time - old->xact_time) / xact_count;
 
-	avg->wait_time = USEC * (cur->wait_time - old->wait_time) / dur;
+	avg->wait_time = (cur->wait_time - old->wait_time) / dur;
 }
 
 static void write_stats(PktBuf *buf, PgStats *stat, PgStats *old, char *dbname)

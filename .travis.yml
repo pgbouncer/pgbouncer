@@ -1,4 +1,4 @@
-dist: bionic
+dist: focal
 language: c
 env:
   global:
@@ -9,6 +9,7 @@ jobs:
   - env: configure_args='' PGVERSION=9.6
   - env: configure_args='--with-cares'
   - env: configure_args='--with-udns'
+    dist: bionic
   - env: configure_args='--disable-evdns'
   - env: configure_args='--with-pam'
   - env: configure_args='--without-openssl'
@@ -16,7 +17,7 @@ jobs:
   - compiler: clang
   - dist: trusty
   - dist: xenial
-  - dist: focal
+  - dist: bionic
   - arch: arm64
   - arch: ppc64le
   - env: use_valgrind=yes

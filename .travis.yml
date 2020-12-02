@@ -26,6 +26,7 @@ jobs:
     dist: xenial
   - env: use_efence=yes PGVERSION=9.6 configure_args='--with-pam'
     dist: xenial
+  - env: CFLAGS='-fno-sanitize-recover=all -fsanitize=leak -fsanitize=undefined -fsanitize-address-use-after-scope'
 before_install: |
   set -e
   curl https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -

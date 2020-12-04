@@ -954,21 +954,32 @@ static bool setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
 	return true;
 }
 
-void sbuf_tls_setup(void)
+bool sbuf_tls_setup(void)
 {
 	int err;
+	bool ok;
+	struct tls_config *new_client_accept_conf = NULL;
+	struct tls_config *new_server_connect_conf = NULL;
+	struct tls *new_client_accept_base = NULL;
 
 	if (cf_client_tls_sslmode != SSLMODE_DISABLED) {
-		if (!*cf_client_tls_key_file || !*cf_client_tls_cert_file)
-			die("To allow TLS connections from clients, client_tls_key_file and client_tls_cert_file must be set.");
+		if (!*cf_client_tls_key_file || !*cf_client_tls_cert_file) {
+			log_error("To allow TLS connections from clients, client_tls_key_file and client_tls_cert_file must be set.");
+			return false;
+		}
 	}
 	if (cf_auth_type == AUTH_CERT) {
-		if (cf_client_tls_sslmode != SSLMODE_VERIFY_FULL)
-			die("auth_type=cert requires client_tls_sslmode=SSLMODE_VERIFY_FULL");
-		if (*cf_client_tls_ca_file == '\0')
-			die("auth_type=cert requires client_tls_ca_file");
+		if (cf_client_tls_sslmode != SSLMODE_VERIFY_FULL) {
+			log_error("auth_type=cert requires client_tls_sslmode=SSLMODE_VERIFY_FULL");
+			return false;
+		}
+		if (*cf_client_tls_ca_file == '\0') {
+			log_error("auth_type=cert requires client_tls_ca_file");
+			return false;
+		}
 	} else if (cf_client_tls_sslmode > SSLMODE_VERIFY_CA && *cf_client_tls_ca_file == '\0') {
-		die("client_tls_sslmode requires client_tls_ca_file");
+		log_error("client_tls_sslmode requires client_tls_ca_file");
+		return false;
 	}
 
 	err = tls_init();
@@ -976,34 +987,63 @@ void sbuf_tls_setup(void)
 		fatal("tls_init failed");
 
 	if (cf_server_tls_sslmode != SSLMODE_DISABLED) {
-		server_connect_conf = tls_config_new();
-		if (!server_connect_conf)
-			die("tls_config_new failed 1");
-		if (!setup_tls(server_connect_conf, "server_tls", cf_server_tls_sslmode,
-			       cf_server_tls_protocols, cf_server_tls_ciphers,
-			       cf_server_tls_key_file, cf_server_tls_cert_file,
-			       cf_server_tls_ca_file, "", "", true))
-			die("server TLS setup failed");
+		new_server_connect_conf = tls_config_new();
+		if (!new_server_connect_conf) {
+			log_error("tls_config_new failed 1");
+			return false;
+		}
+		ok = setup_tls(new_server_connect_conf, "server_tls", cf_server_tls_sslmode,
+			  cf_server_tls_protocols, cf_server_tls_ciphers,
+			  cf_server_tls_key_file, cf_server_tls_cert_file,
+			  cf_server_tls_ca_file, "", "", true);
+		if (!ok) {
+			tls_config_free(new_server_connect_conf);
+			return false;
+		}
 	}
 
 	if (cf_client_tls_sslmode != SSLMODE_DISABLED) {
-		client_accept_conf = tls_config_new();
-		if (!client_accept_conf)
-			die("tls_config_new failed 2");
-		if (!setup_tls(client_accept_conf, "client_tls", cf_client_tls_sslmode,
-			       cf_client_tls_protocols, cf_client_tls_ciphers,
-			       cf_client_tls_key_file, cf_client_tls_cert_file,
-			       cf_client_tls_ca_file, cf_client_tls_dheparams,
-			       cf_client_tls_ecdhecurve, false))
-			die("client TLS setup failed");
+		new_client_accept_conf = tls_config_new();
+		if (!new_client_accept_conf) {
+			log_error("tls_config_new failed 2");
+			tls_config_free(new_client_accept_conf);
+			tls_config_free(new_server_connect_conf);
+			return false;
+		}
+		ok = setup_tls(new_client_accept_conf, "client_tls", cf_client_tls_sslmode,
+			  cf_client_tls_protocols, cf_client_tls_ciphers,
+			  cf_client_tls_key_file, cf_client_tls_cert_file,
+			  cf_client_tls_ca_file, cf_client_tls_dheparams,
+			  cf_client_tls_ecdhecurve, false);
+		if (!ok) {
+			tls_free(new_client_accept_base);
+			tls_config_free(new_client_accept_conf);
+			tls_config_free(new_server_connect_conf);
+			return false;
+		}
 
-		client_accept_base = tls_server();
-		if (!client_accept_base)
-			die("server_base failed");
-		err = tls_configure(client_accept_base, client_accept_conf);
-		if (err)
-			die("TLS setup failed: %s", tls_error(client_accept_base));
+		new_client_accept_base = tls_server();
+		if (!new_client_accept_base) {
+			log_error("server_base failed");
+			tls_free(new_client_accept_base);
+			tls_config_free(new_client_accept_conf);
+			tls_config_free(new_server_connect_conf);
+			return false;
+		}
+		err = tls_configure(new_client_accept_base, new_client_accept_conf);
+		if (err) {
+			log_error("TLS setup failed: %s", tls_error(new_client_accept_base));
+			tls_free(new_client_accept_base);
+			tls_config_free(new_client_accept_conf);
+			tls_config_free(new_server_connect_conf);
+			return false;
+		}
 	}
+
+	client_accept_conf = new_client_accept_conf;
+	server_connect_conf = new_server_connect_conf;
+	client_accept_base = new_client_accept_base;
+	return true;
 }
 
 /*
@@ -1182,7 +1222,7 @@ void sbuf_cleanup(void)
 
 #else
 
-void sbuf_tls_setup(void) { }
+bool sbuf_tls_setup(void) { return true; }
 bool sbuf_tls_accept(SBuf *sbuf) { return false; }
 bool sbuf_tls_connect(SBuf *sbuf, const char *hostname) { return false; }
 

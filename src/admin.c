@@ -234,8 +234,13 @@ static bool admin_set(PgSocket *admin, const char *key, const char *val)
 	if (admin->admin_user) {
 		ok = set_config_param(key, val);
 		if (ok) {
+			PktBuf *buf = pktbuf_dynamic(256);
+			if (strstr(key, "_tls_") != NULL) {
+				if (!sbuf_tls_setup())
+					pktbuf_write_Notice(buf, "TLS settings could not be applied, still using old configuration");
+			}
 			snprintf(tmp, sizeof(tmp), "SET %s=%s", key, val);
-			return admin_ready(admin, tmp);
+			return admin_flush(admin, buf, tmp);
 		} else {
 			return admin_error(admin, "SET failed");
 		}
@@ -974,6 +979,8 @@ static bool admin_cmd_reload(PgSocket *admin, const char *arg)
 
 	log_info("RELOAD command issued");
 	load_config();
+	if (!sbuf_tls_setup())
+		log_error("TLS configuration could not be reloaded, keeping old configuration");
 	return admin_ready(admin, "RELOAD");
 }
 

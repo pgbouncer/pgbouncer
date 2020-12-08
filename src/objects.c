@@ -677,6 +677,8 @@ bool find_server(PgSocket *client)
 		client->link = server;
 		server->link = client;
 		change_server_state(server, SV_ACTIVE);
+		slog_info(client, "linked client and server S-%p db=%s user=%s",
+                                   client->link, client->db->name, client->login_user->name);
 		if (varchange) {
 			server->setting_vars = 1;
 			server->ready = 0;

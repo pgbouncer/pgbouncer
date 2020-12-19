@@ -1119,6 +1119,13 @@ test_no_user_auth_user() {
 	return 0
 }
 
+test_auto_database() {
+	psql -X -d p7 -c "select current_database()" || return 1
+	grep -F "registered new auto-database" $BOUNCER_LOG || return 1
+
+	return 0
+}
+
 testlist="
 test_show_version
 test_show
@@ -1163,6 +1170,7 @@ test_no_user_md5_forced_user
 test_no_user_scram
 test_no_user_scram_forced_user
 test_no_user_auth_user
+test_auto_database
 "
 
 if [ $# -gt 0 ]; then

@@ -346,19 +346,11 @@ PgDatabase *add_database(const char *name)
 PgDatabase *register_auto_database(const char *name)
 {
 	PgDatabase *db;
-	int len;
-	char *cs;
 
 	if (!cf_autodb_connstr)
 		return NULL;
 
-	len = strlen(cf_autodb_connstr);
-	cs = malloc(len + 1);
-	if (!cs)
-		return NULL;
-	memcpy(cs, cf_autodb_connstr, len + 1);
-	parse_database(NULL, (char*)name, cs);
-	free(cs);
+	parse_database(NULL, name, cf_autodb_connstr);
 
 	db = find_database(name);
 	if (db) {

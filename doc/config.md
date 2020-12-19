@@ -867,8 +867,20 @@ The database name can contain characters `_0-9A-Za-z` without quoting.
 Names that contain other characters need to be quoted with standard SQL
 identifier quoting: double quotes, with "" for a single instance of a double quote.
 
-"*" acts as a fallback database: if the exact name does not exist,
-its value is taken as connection string for requested database.
+"*" acts as a fallback database: If the exact name does not exist, its
+value is taken as connection string for the requested database.  For
+example, if there is an entry (and no other overriding entries)
+
+    * = host=foo
+
+then a connection to PgBouncer specifying a database "bar" will
+effectively behave as if an entry
+
+    bar = host=foo dbname=bar
+
+exists (taking advantage of the default for `dbname` being the
+client-side database name; see below).
+
 Such automatically created database entries are cleaned up
 if they stay idle longer than the time specified by the `autodb_idle_timeout`
 parameter.

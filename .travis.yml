@@ -1,8 +1,11 @@
 dist: focal
 language: c
+cache:
+  ccache: true
 env:
   global:
     - PGVERSION=11
+    - PATH="/usr/lib/ccache/:$PATH"
 jobs:
   include:
   - env: configure_args=''

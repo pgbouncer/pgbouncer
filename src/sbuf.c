@@ -1048,6 +1048,7 @@ bool sbuf_tls_setup(void)
 	client_accept_conf = new_client_accept_conf;
 	server_connect_conf = new_server_connect_conf;
 	client_accept_base = new_client_accept_base;
+	client_accept_sslmode = cf_client_tls_sslmode;
 	return true;
 failed:
 	tls_free(new_client_accept_base);

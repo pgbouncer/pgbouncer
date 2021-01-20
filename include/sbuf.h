@@ -42,6 +42,8 @@ typedef enum {
 
 struct tls;
 
+int client_accept_sslmode;
+
 /* fwd def */
 typedef struct SBuf SBuf;
 typedef struct SBufIO SBufIO;

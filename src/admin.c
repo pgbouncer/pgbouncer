@@ -976,6 +976,8 @@ static bool admin_cmd_reload(PgSocket *admin, const char *arg)
 
 	log_info("RELOAD command issued");
 	load_config();
+	if (!sbuf_tls_setup())
+		log_error("TLS configuration could not be reloaded, keeping old configuration");
 	return admin_ready(admin, "RELOAD");
 }
 

@@ -1038,7 +1038,11 @@ bool sbuf_tls_setup(void)
 		PgPool *pool;
 		statlist_for_each(item, &pool_list) {
 			pool = container_of(item, PgPool, head);
-			tag_pool_dirty(pool);
+			// Don't tag the pgbouncer pool as dirty, since this is not an
+			// actual postgres server. Marking it as dirty breaks connecting to
+			// the pgbouncer admin database on future connections.
+			if (strcmp(pool->db->name, "pgbouncer") != 0)
+				tag_pool_dirty(pool);
 		}
 	}
 

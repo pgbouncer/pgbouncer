@@ -9,6 +9,8 @@ rm -rf TestCA1
 ./newsite.sh TestCA1 localhost C=QQ O=Org1 L=computer OU=db
 ./newsite.sh TestCA1 bouncer C=QQ O=Org1 L=computer OU=Dev
 ./newsite.sh TestCA1 random C=QQ O=Org1 L=computer OU=Dev
+./newca.sh TestCA2 C=QQ O=Org2 CN="TestCA2"
+./newsite.sh TestCA2 localhost C=QQ O=Org1 L=computer OU=db
 ) > /dev/null
 
 export PGDATA=$PWD/pgdata
@@ -293,6 +295,25 @@ test_client_ssl_set_enable() {
 	return $rc
 }
 
+test_client_ssl_set_change_ca() {
+	reconf_bouncer "auth_type = trust" "server_tls_sslmode = prefer" \
+		"client_tls_sslmode = require" \
+		"client_tls_key_file = TestCA1/sites/01-localhost.key" \
+		"client_tls_cert_file = TestCA1/sites/01-localhost.crt"
+	echo "host all all 127.0.0.1/32 trust" > pgdata/pg_hba.conf
+	echo "host all all ::1/128 trust" >> pgdata/pg_hba.conf
+	reconf_pgsql "ssl=on" "ssl_ca_file='root.crt'"
+	psql_bouncer -q "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
+	grep -q "client-ssl-connect"  tmp/test.tmp || return 1
+	admin "set client_tls_key_file='TestCA2/sites/01-localhost.key'"
+	admin "set client_tls_cert_file='TestCA2/sites/01-localhost.crt'"
+	psql_bouncer -q "dbname=p0 sslmode=verify-full sslrootcert=TestCA2/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
+	grep -q "client-ssl-connect"  tmp/test.tmp
+	rc=$?
+	return $rc
+}
+
+
 test_client_ssl_reload_disable() {
 	reconf_bouncer "auth_type = trust" "server_tls_sslmode = prefer" \
 		"client_tls_key_file = TestCA1/sites/01-localhost.key" \
@@ -326,6 +347,25 @@ test_client_ssl_reload_enable() {
 	mv tmp/test2.ini tmp/test.ini
 	admin "reload"
 	psql_bouncer -q "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
+	grep -q "client-ssl-connect"  tmp/test.tmp
+	rc=$?
+	return $rc
+}
+
+test_client_ssl_reload_change_ca() {
+	reconf_bouncer "auth_type = trust" "server_tls_sslmode = prefer" \
+		"client_tls_sslmode = require" \
+		"client_tls_key_file = TestCA1/sites/01-localhost.key" \
+		"client_tls_cert_file = TestCA1/sites/01-localhost.crt"
+	echo "host all all 127.0.0.1/32 trust" > pgdata/pg_hba.conf
+	echo "host all all ::1/128 trust" >> pgdata/pg_hba.conf
+	reconf_pgsql "ssl=on" "ssl_ca_file='root.crt'"
+	psql_bouncer -q "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
+	grep -q "client-ssl-connect"  tmp/test.tmp || return 1
+	sed 's/TestCA1/TestCA2/g' tmp/test.ini > tmp/test2.ini
+	mv tmp/test2.ini tmp/test.ini
+	admin "reload"
+	psql_bouncer -q "dbname=p0 sslmode=verify-full sslrootcert=TestCA2/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-connect"  tmp/test.tmp
 	rc=$?
 	return $rc
@@ -371,6 +411,26 @@ test_client_ssl_sighup_enable() {
 	return $rc
 }
 
+test_client_ssl_sighup_change_ca() {
+	reconf_bouncer "auth_type = trust" "server_tls_sslmode = prefer" \
+		"client_tls_sslmode = require" \
+		"client_tls_key_file = TestCA1/sites/01-localhost.key" \
+		"client_tls_cert_file = TestCA1/sites/01-localhost.crt"
+	echo "host all all 127.0.0.1/32 trust" > pgdata/pg_hba.conf
+	echo "host all all ::1/128 trust" >> pgdata/pg_hba.conf
+	reconf_pgsql "ssl=on" "ssl_ca_file='root.crt'"
+	psql_bouncer -q "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
+	grep -q "client-ssl-connect"  tmp/test.tmp || return 1
+	sed 's/TestCA1/TestCA2/g' tmp/test.ini > tmp/test2.ini
+	mv tmp/test2.ini tmp/test.ini
+	kill -HUP `cat test.pid`
+	sleep 1
+	psql_bouncer -q "dbname=p0 sslmode=verify-full sslrootcert=TestCA2/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
+	grep -q "client-ssl-connect"  tmp/test.tmp
+	rc=$?
+	return $rc
+}
+
 test_client_ssl_auth() {
 	reconf_bouncer "auth_type = cert" "server_tls_sslmode = prefer" \
 		"client_tls_sslmode = verify-full" \
@@ -409,10 +469,13 @@ test_client_ssl
 test_client_ssl_verify
 test_client_ssl_set_disable
 test_client_ssl_set_enable
+test_client_ssl_set_change_ca
 test_client_ssl_reload_disable
 test_client_ssl_reload_enable
+test_client_ssl_reload_change_ca
 test_client_ssl_sighup_disable
 test_client_ssl_sighup_enable
+test_client_ssl_sighup_change_ca
 test_client_ssl_auth
 test_client_ssl_scram
 "

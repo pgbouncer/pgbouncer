@@ -54,6 +54,8 @@ enum WaitType {
 	W_ONCE
 };
 
+int client_accept_sslmode;
+
 #define AssertSanity(sbuf) do { \
 	Assert(iobuf_sane((sbuf)->io)); \
 } while (0)

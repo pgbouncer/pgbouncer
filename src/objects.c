@@ -1619,7 +1619,7 @@ static void tag_dirty(PgSocket *sk)
 	sk->close_needed = true;
 }
 
-static void tag_pool_dirty(PgPool *pool)
+void tag_pool_dirty(PgPool *pool)
 {
 	struct List *item, *tmp;
 	struct PgSocket *server;

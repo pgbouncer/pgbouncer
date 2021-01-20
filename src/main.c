@@ -277,12 +277,12 @@ CF_ABS("server_login_retry", CF_TIME_USEC, cf_server_login_retry, 0, "15"),
 CF_ABS("server_reset_query", CF_STR, cf_server_reset_query, 0, "DISCARD ALL"),
 CF_ABS("server_reset_query_always", CF_INT, cf_server_reset_query_always, 0, "0"),
 CF_ABS("server_round_robin", CF_INT, cf_server_round_robin, 0, "0"),
-CF_ABS("server_tls_ca_file", CF_STR, cf_server_tls_ca_file, CF_NO_RELOAD, ""),
-CF_ABS("server_tls_cert_file", CF_STR, cf_server_tls_cert_file, CF_NO_RELOAD, ""),
-CF_ABS("server_tls_ciphers", CF_STR, cf_server_tls_ciphers, CF_NO_RELOAD, "fast"),
-CF_ABS("server_tls_key_file", CF_STR, cf_server_tls_key_file, CF_NO_RELOAD, ""),
-CF_ABS("server_tls_protocols", CF_STR, cf_server_tls_protocols, CF_NO_RELOAD, "secure"),
-CF_ABS("server_tls_sslmode", CF_LOOKUP(sslmode_map), cf_server_tls_sslmode, CF_NO_RELOAD, "disable"),
+CF_ABS("server_tls_ca_file", CF_STR, cf_server_tls_ca_file, 0, ""),
+CF_ABS("server_tls_cert_file", CF_STR, cf_server_tls_cert_file, 0, ""),
+CF_ABS("server_tls_ciphers", CF_STR, cf_server_tls_ciphers, 0, "fast"),
+CF_ABS("server_tls_key_file", CF_STR, cf_server_tls_key_file, 0, ""),
+CF_ABS("server_tls_protocols", CF_STR, cf_server_tls_protocols, 0, "secure"),
+CF_ABS("server_tls_sslmode", CF_LOOKUP(sslmode_map), cf_server_tls_sslmode, 0, "disable"),
 #ifdef WIN32
 CF_ABS("service_name", CF_STR, cf_jobname, CF_NO_RELOAD, NULL), /* alias for job_name */
 #endif
@@ -498,7 +498,8 @@ static void handle_sighup(int sock, short flags, void *arg)
 	log_info("got SIGHUP, re-reading config");
 	sd_notify(0, "RELOADING=1");
 	load_config();
-	sbuf_tls_setup();
+	if (!sbuf_tls_setup())
+		log_error("TLS configuration could not be reloaded, keeping old configuration");
 	sd_notify(0, "READY=1");
 }
 #endif
@@ -921,9 +922,8 @@ int main(int argc, char *argv[])
 	init_caches();
 	logging_prefix_cb = log_socket_prefix;
 
-	if (!sbuf_tls_setup()) {
+	if (!sbuf_tls_setup())
 		die("TLS setup failed");
-	}
 
 	/* prefer cmdline over config for username */
 	if (arg_username) {

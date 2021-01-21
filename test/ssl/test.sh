@@ -108,7 +108,7 @@ reconf_bouncer() {
 	done
 	test -f test.pid && kill `cat test.pid`
 	sleep 1
-	$BOUNCER_EXE -v -v -v -d tmp/test.ini
+	$BOUNCER_EXE -v -v -d tmp/test.ini
 }
 
 reconf_pgsql() {

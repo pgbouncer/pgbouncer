@@ -174,7 +174,7 @@ static void per_loop_activate(PgPool *pool)
 	PgSocket *client;
 	int sv_tested, sv_used;
 
-	/* if there is a cancelation request waiting, open a new socket */
+	/* if there is a cancel request waiting, open a new connection */
 	if (!statlist_empty(&pool->cancel_req_list)) {
 		launch_new_connection(pool);
 		return;

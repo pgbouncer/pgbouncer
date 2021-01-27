@@ -1126,6 +1126,20 @@ test_auto_database() {
 	return 0
 }
 
+test_cancel() {
+	case `uname` in MINGW*) return 77;; esac
+
+	psql -X -d p3 -c "select pg_sleep(20)" &
+	psql_pid=$!
+	sleep 1
+	kill -INT $psql_pid
+	wait $psql_pid
+	test $? -ne 0 || return 1
+	grep -F "canceling statement due to user request" $PG_LOG || return 1
+
+	return 0
+}
+
 testlist="
 test_show_version
 test_show
@@ -1171,6 +1185,7 @@ test_no_user_scram
 test_no_user_scram_forced_user
 test_no_user_auth_user
 test_auto_database
+test_cancel
 "
 
 if [ $# -gt 0 ]; then

@@ -40,6 +40,7 @@ struct PktHdr {
 bool get_header(struct MBuf *data, PktHdr *pkt) _MUSTCHECK;
 
 bool send_pooler_error(PgSocket *client, bool send_ready, const char *msg)  /*_MUSTCHECK*/;
+bool send_pooler_fatal(PgSocket *client, bool send_ready, const char *msg)  /*_MUSTCHECK*/;
 void log_server_error(const char *note, PktHdr *pkt);
 void parse_server_error(PktHdr *pkt, const char **level_p, const char **msg_p);
 

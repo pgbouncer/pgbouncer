@@ -112,7 +112,7 @@ bool get_header(struct MBuf *data, PktHdr *pkt)
 
 
 /*
- * Send error message packet to client.
+ * Send ERROR message packet to client.
  */
 
 bool send_pooler_error(PgSocket *client, bool send_ready, const char *msg)
@@ -126,6 +126,26 @@ bool send_pooler_error(PgSocket *client, bool send_ready, const char *msg)
 	pktbuf_static(&buf, tmpbuf, sizeof(tmpbuf));
 	pktbuf_write_generic(&buf, 'E', "cscscsc",
 			     'S', "ERROR", 'C', "08P01", 'M', msg, 0);
+	if (send_ready)
+		pktbuf_write_ReadyForQuery(&buf);
+	return pktbuf_send_immediate(&buf, client);
+}
+
+/*
+ * Send FATAL message packet to client.
+ */
+
+bool send_pooler_fatal(PgSocket *client, bool send_ready, const char *msg)
+{
+	uint8_t tmpbuf[512];
+	PktBuf buf;
+
+	if (cf_log_pooler_errors)
+		slog_warning(client, "pooler error: %s", msg);
+
+	pktbuf_static(&buf, tmpbuf, sizeof(tmpbuf));
+	pktbuf_write_generic(&buf, 'E', "cscscsc",
+			     'S', "FATAL", 'C', "08P01", 'M', msg, 0);
 	if (send_ready)
 		pktbuf_write_ReadyForQuery(&buf);
 	return pktbuf_send_immediate(&buf, client);

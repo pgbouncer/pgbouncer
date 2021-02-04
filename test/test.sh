@@ -1140,6 +1140,40 @@ test_cancel() {
 	return 0
 }
 
+# Test for waiting connections handling for cancel requests.
+#
+# The bug fixed by GH PR #542 was: When the connection pool is full,
+# cancel requests cannot get through (that is normal), but then when
+# unused connections close and pool slots are available, those are not
+# used for waiting cancel requests.
+test_cancel_wait() {
+	case `uname` in MINGW*) return 77;; esac
+
+	# default_pool_size=5
+	admin "set server_idle_timeout=2"
+
+	psql -X -d p3 -c "select pg_sleep(20)" &
+	psql_pid=$!
+	psql -X -d p3 -c "select pg_sleep(2)" &
+	psql -X -d p3 -c "select pg_sleep(2)" &
+	psql -X -d p3 -c "select pg_sleep(2)" &
+	psql -X -d p3 -c "select pg_sleep(2)" &
+	sleep 1
+
+	# This cancel must wait for a pool slot to become free.
+	kill -INT $psql_pid
+
+	wait $psql_pid
+
+	# Prior to the bug fix, the cancel would never get through and
+	# the first psql would simply run the full sleep and exit
+	# successfully.
+	test $? -ne 0 || return 1
+	grep -F "canceling statement due to user request" $PG_LOG || return 1
+
+	return 0
+}
+
 testlist="
 test_show_version
 test_show
@@ -1186,6 +1220,7 @@ test_no_user_scram_forced_user
 test_no_user_auth_user
 test_auto_database
 test_cancel
+test_cancel_wait
 "
 
 if [ $# -gt 0 ]; then

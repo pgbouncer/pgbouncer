@@ -723,7 +723,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		break;
 	case PKT_GSSENCREQ:
 		/* reject GSS encryption attempt */
-		slog_noise(client, "C: req GCC enc");
+		slog_noise(client, "C: req GSS enc");
 		if (!sbuf_answer(&client->sbuf, "N", 1)) {
 			disconnect_client(client, false, "failed to nak GSS enc");
 			return false;

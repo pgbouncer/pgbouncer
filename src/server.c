@@ -354,24 +354,24 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			sbuf_prepare_send(sbuf, &client->sbuf, pkt->len);
 
 			/* every statement (independent or in a transaction) counts as a query */
-			if ((ready || idle_tx) && client->query_start) {
+			if ((ready || idle_tx) && client->query_start && client->expect_rfq_count == 0) {
 				usec_t total;
 				total = get_cached_time() - client->query_start;
 				client->query_start = 0;
 				server->pool->stats.query_time += total;
 				slog_debug(client, "query time: %d us", (int)total);
-			} else if ((ready || idle_tx) && !async_response) {
+			} else if ((ready || idle_tx) && !async_response && client->expect_rfq_count == 0) {
 				slog_warning(client, "FIXME: query end, but query_start == 0");
 			}
 
 			/* statement ending in "idle" ends a transaction */
-			if (ready && client->xact_start) {
+			if (ready && client->xact_start && client->expect_rfq_count == 0) {
 				usec_t total;
 				total = get_cached_time() - client->xact_start;
 				client->xact_start = 0;
 				server->pool->stats.xact_time += total;
 				slog_debug(client, "transaction time: %d us", (int)total);
-			} else if (ready && !async_response) {
+			} else if (ready && !async_response && client->expect_rfq_count == 0) {
 				slog_warning(client, "FIXME: transaction end, but xact_start == 0");
 			}
 		}

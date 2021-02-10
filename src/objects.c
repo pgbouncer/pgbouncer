@@ -934,7 +934,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 		 * don't send Ready pkt here, or client won't notice
 		 * closed connection
 		 */
-		send_pooler_error(client, false, reason);
+		send_pooler_fatal(client, false, reason);
 	}
 
 	free_scram_state(&client->scram_state);

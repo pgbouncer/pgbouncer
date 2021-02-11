@@ -339,7 +339,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			 * no auth_user is set for the db, see if the
 			 * global auth_user is set and use that.
 			 */
-			if (!client->db->auth_user && cf_auth_user) {
+			if (!client->db->auth_user && cf_auth_user && !client->db->admin) {
 				client->db->auth_user = find_user(cf_auth_user);
 				if (!client->db->auth_user)
 					client->db->auth_user = add_user(cf_auth_user, "");

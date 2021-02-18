@@ -917,6 +917,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 				server->link = NULL;
 				client->link = NULL;
 				disconnect_server(server, true, "unclean server");
+				launch_new_connection(server->pool);
 			}
 		}
 	case CL_WAITING:

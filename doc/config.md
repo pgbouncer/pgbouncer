@@ -141,6 +141,14 @@ is used, it needs to be installed into each database.
 
 Default: `SELECT usename, passwd FROM pg_shadow WHERE usename=$1`
 
+### default_auth_db
+
+Default database to connect to for authentication purposes. Used for
+authentication of `stats_users` connecting to admin database.
+
+Default: `postgres`
+
+
 ### auth_user
 
 If `auth_user` is set, then any user not specified in `auth_file` will be

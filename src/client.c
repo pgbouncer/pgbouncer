@@ -99,8 +99,25 @@ static void start_auth_query(PgSocket *client, const char *username)
 	int res;
 	PktBuf *buf;
 
-	/* have to fetch user info from db */
-	client->pool = get_pool(client->db, client->db->auth_user);
+	/*
+	 * Have to fetch user info from db. In case if it's the admin db, connect
+	 * to the default auth db for authentication.
+	 */
+	if (client->db->admin)
+	{
+	   PgDatabase *database = find_database(cf_default_auth_db);
+	   if (!database)
+		   database = register_auto_database(cf_default_auth_db);
+
+	   client->pool = get_pool(database, database->auth_user);
+
+	   /* If not initialized yet, launch a new connection */
+	   if (!client->pool->welcome_msg_ready)
+		   launch_new_connection(client->pool);
+	}
+	else
+	   client->pool = get_pool(client->db, client->db->auth_user);
+
 	if (!find_server(client)) {
 		client->wait_for_user_conn = true;
 		return;

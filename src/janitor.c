@@ -664,9 +664,6 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 		return;
 	}
 
-	if (requires_auth_file(cf_auth_type))
-		loader_users_check();
-
 	adns_zone_cache_maint(adns);
 }
 

@@ -112,7 +112,6 @@ int cf_default_pool_size;
 int cf_min_pool_size;
 int cf_res_pool_size;
 usec_t cf_res_pool_timeout;
-int cf_cancel_bypass_pool_size;
 int cf_max_db_connections;
 int cf_max_user_connections;
 
@@ -227,7 +226,6 @@ CF_ABS("auth_query", CF_STR, cf_auth_query, 0, "SELECT usename, passwd FROM pg_s
 CF_ABS("auth_type", CF_LOOKUP(auth_type_map), cf_auth_type, 0, "md5"),
 CF_ABS("auth_user", CF_STR, cf_auth_user, 0, NULL),
 CF_ABS("autodb_idle_timeout", CF_TIME_USEC, cf_autodb_idle_timeout, 0, "3600"),
-CF_ABS("cancel_bypass_pool_size", CF_INT, cf_cancel_bypass_pool_size, 0, "0"),
 CF_ABS("client_idle_timeout", CF_TIME_USEC, cf_client_idle_timeout, 0, "0"),
 CF_ABS("client_login_timeout", CF_TIME_USEC, cf_client_login_timeout, 0, "60"),
 CF_ABS("client_tls_ca_file", CF_STR, cf_client_tls_ca_file, CF_NO_RELOAD, ""),

@@ -372,6 +372,9 @@ static void pool_client_maint(PgPool *pool)
 	PgSocket *client;
 	usec_t age;
 
+	/* find and disconnect clients if the need to be closed */
+	for_each_client(pool, disconnect_client_if_close_needed);
+
 	/* force client_idle_timeout */
 	if (cf_client_idle_timeout > 0) {
 		statlist_for_each_safe(item, &pool->active_client_list, tmp) {

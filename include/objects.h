@@ -43,6 +43,7 @@ bool check_fast_fail(PgSocket *client)		_MUSTCHECK;
 PgSocket *accept_client(int sock, bool is_unix) _MUSTCHECK;
 void disconnect_server(PgSocket *server, bool notify, const char *reason, ...) _PRINTF(3, 4);
 void disconnect_client(PgSocket *client, bool notify, const char *reason, ...) _PRINTF(3, 4);
+void disconnect_client_if_close_needed(PgSocket *client);
 
 PgDatabase * add_database(const char *name) _MUSTCHECK;
 PgDatabase *register_auto_database(const char *name);
@@ -78,9 +79,11 @@ void change_server_state(PgSocket *server, SocketState newstate);
 int get_active_client_count(void);
 int get_active_server_count(void);
 
+void tag_database_clients_dirty(PgDatabase *db);
 void tag_database_dirty(PgDatabase *db);
 void tag_autodb_dirty(void);
 void tag_host_addr_dirty(const char *host, const struct sockaddr *sa);
+void for_each_client(PgPool *pool, void (*func)(PgSocket *sk));
 void for_each_server(PgPool *pool, void (*func)(PgSocket *sk));
 
 void reuse_just_freed_objects(void);

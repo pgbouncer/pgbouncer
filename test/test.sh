@@ -94,9 +94,9 @@ if test -n "$USE_SUDO"; then
 		sudo pfctl -a pgbouncer -F all -q 2>&1 | grep -q "pfctl:" && {
 			cat <<-EOF
 			Please enable PF and add the following rule to /etc/pf.conf
-			
+
 			  anchor "pgbouncer/*"
-			
+
 			EOF
 			exit 1
 		}
@@ -725,6 +725,35 @@ test_database_change() {
 	test "$db1" = "p1" -a "$db2" = "p0"
 }
 
+# test reconnect clients
+test_reconnect_clients() {
+	(
+		echo "begin;"
+		sleep 3
+		echo "select 1;"
+		echo "commit;"
+		echo "select 1;"
+		echo "\q"
+	) | psql -X -tAq -f- -d p8 >$LOGDIR/testout.tmp 2>$LOGDIR/testerr.tmp &
+
+	sleep 1
+	admin "reconnect_clients p8"
+	clients_before=$(admin "show clients")
+	wait
+	clients_after=$(admin "show clients")
+
+	# The first "show clients" should have one connected client to p8. The second
+	# call will have no connections to p8. This is showing the close_needed check
+	# will be ignored until the transaction finishes.
+	echo "clients_before=$clients_before clients_after=$clients_after"
+	test `echo $clients_before | grep p8 | wc -l` -eq 1 && test `echo $clients_after | grep p8 | wc -l` -eq 0 &&
+
+	# Make sure stdout has 1 successful responses and stderr has an from psql.
+	# The client connection will be closed after the transaction finishes due
+	# to the reconnect command. The second 'select 1' is then expected to fail.
+	test `wc -l <$LOGDIR/testout.tmp` -eq 1 && test `wc -l <$LOGDIR/testerr.tmp` -ge 1
+}
+
 # test reconnect
 test_reconnect() {
 	bp1=`psql -X -tAq -c "select pg_backend_pid()" p1`
@@ -1198,6 +1227,7 @@ test_suspend_resume
 test_enable_disable
 test_database_restart
 test_database_change
+test_reconnect_clients
 test_reconnect
 test_fast_close
 test_wait_close

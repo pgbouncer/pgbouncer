@@ -333,7 +333,8 @@ wait_us
 :   Microsecond part of the current waiting time.
 
 close_needed
-:   not used for clients
+:   1 if the connection will be closed as soon as possible,
+    because a **RECONNECT_CLIENTS** was issued.
 
 ptr
 :   Address of internal object for this connection.
@@ -629,6 +630,26 @@ connections need to be switched at the same time, **PAUSE** is
 recommended instead.  To close server connections without waiting (for
 example, in emergency failover rather than gradual switchover
 scenarios), also consider **KILL**.
+
+To reconect client connections (between an application and pgbouncer,
+for example), you must use **RECONNECT_CLIENTS**.
+
+#### RECONNECT_CLIENTS [db]
+
+Close each open client connection for the given database, or all
+databases, after it is released (according to the pooling mode), even
+if its lifetime is not up yet.  New client connections can be made
+immediately and will connect as necessary according to the pool size
+settings.
+
+This command is useful when the pgbouncer server needs to force all
+clients to disconnect from a database without stopping the server.
+Instead of using **KILL**, you can use this command to wait for the
+statement or transaction to finish before closing the connection.
+
+To reconect server connections (between pgbouncer and postgres, for
+example), or to reconnect clients pooled in session mode, you must
+use **RECONNECT**.
 
 #### KILL db
 

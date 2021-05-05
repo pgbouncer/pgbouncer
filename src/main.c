@@ -477,10 +477,12 @@ static void handle_sigusr2(int sock, short flags, void *arg)
 		log_info("got SIGUSR2, continuing from SUSPEND");
 		resume_all();
 		cf_pause_mode = P_NONE;
+		admin_cancel_all_pauses(NULL);
 		break;
 	case P_PAUSE:
 		log_info("got SIGUSR2, continuing from PAUSE");
 		cf_pause_mode = P_NONE;
+		admin_cancel_all_pauses(NULL);
 		break;
 	case P_NONE:
 		log_info("got SIGUSR2, but not paused/suspended");

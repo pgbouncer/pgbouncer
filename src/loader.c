@@ -180,6 +180,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	PgDatabase *db;
 	struct CfValue cv;
 	int pool_size = -1;
+	int min_pool_size = -1;
 	int res_pool_size = -1;
 	int max_db_connections = -1;
 	int dbname_ofs;
@@ -248,6 +249,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			timezone = val;
 		} else if (strcmp("pool_size", key) == 0) {
 			pool_size = atoi(val);
+		} else if (strcmp("min_pool_size", key) == 0) {
+			min_pool_size = atoi(val);
 		} else if (strcmp("reserve_pool", key) == 0) {
 			res_pool_size = atoi(val);
 		} else if (strcmp("max_db_connections", key) == 0) {
@@ -324,6 +327,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 
 	/* if pool_size < 0 it will be set later */
 	db->pool_size = pool_size;
+	db->min_pool_size = min_pool_size;
 	db->res_pool_size = res_pool_size;
 	db->pool_mode = pool_mode;
 	db->max_db_connections = max_db_connections;

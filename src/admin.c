@@ -492,9 +492,9 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "ssissiisiiii",
+	pktbuf_write_RowDescription(buf, "ssissiiisiiii",
 				    "name", "host", "port",
-				    "database", "force_user", "pool_size", "reserve_pool",
+				    "database", "force_user", "pool_size", "min_pool_size", "reserve_pool",
 				    "pool_mode", "max_connections", "current_connections", "paused", "disabled");
 	statlist_for_each(item, &database_list) {
 		db = container_of(item, PgDatabase, head);
@@ -504,10 +504,11 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 		cv.value_p = &db->pool_mode;
 		if (db->pool_mode != POOL_INHERIT)
 			pool_mode_str = cf_get_lookup(&cv);
-		pktbuf_write_DataRow(buf, "ssissiisiiii",
+		pktbuf_write_DataRow(buf, "ssissiiisiiii",
 				     db->name, db->host, db->port,
 				     db->dbname, f_user,
 				     db->pool_size,
+					 db->min_pool_size,
 				     db->res_pool_size,
 				     pool_mode_str,
 				     database_max_connections(db),

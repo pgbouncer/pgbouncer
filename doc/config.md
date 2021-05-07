@@ -932,6 +932,11 @@ Override of the global `auth_user` setting, if specified.
 Set the maximum size of pools for this database.  If not set,
 the `default_pool_size` is used.
 
+### min_pool_size
+
+Set the minimum pool size for this database. If not set, the `min_pool_size` is
+used.
+
 ### reserve_pool
 
 Set additional connections for this database. If not set, `reserve_pool_size` is

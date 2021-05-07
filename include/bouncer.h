@@ -343,6 +343,7 @@ struct PgDatabase {
 	int port;
 
 	int pool_size;		/* max server connections in one pool */
+	int min_pool_size;	/* min server connections in one pool */
 	int res_pool_size;	/* additional server connections in case of trouble */
 	int pool_mode;		/* pool mode for this database */
 	int max_db_connections;	/* max server connections between all pools */

@@ -358,6 +358,8 @@ PgDatabase *register_auto_database(const char *name)
 		/* do not forget to check pool_size like in config_postprocess */
 		if (db->pool_size < 0)
 			db->pool_size = cf_default_pool_size;
+		if (db->min_pool_size < 0)
+			db->min_pool_size = cf_min_pool_size;
 		if (db->res_pool_size < 0)
 			db->res_pool_size = cf_res_pool_size;
 	}

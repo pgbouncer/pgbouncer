@@ -447,7 +447,7 @@ static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle
 		} else if (server->state == SV_USED && !server->ready) {
 			disconnect_server(server, true, "SV_USED server got dirty");
 		} else if (cf_server_idle_timeout > 0 && idle > cf_server_idle_timeout
-			   && (cf_min_pool_size == 0 || pool_connected_server_count(pool) > cf_min_pool_size)) {
+			   && (pool->db->min_pool_size == 0 || pool_connected_server_count(pool) > pool->db->min_pool_size)) {
 			disconnect_server(server, true, "server idle timeout");
 		} else if (age >= cf_server_lifetime) {
 			if (pool->last_lifetime_disconnect + lifetime_kill_gap <= now) {
@@ -487,7 +487,7 @@ static void check_pool_size(PgPool *pool)
 	}
 
 	/* launch extra connections to satisfy min_pool_size */
-	if (cur < cf_min_pool_size &&
+	if (cur < pool->db->min_pool_size &&
 	    cur < pool->db->pool_size &&
 	    cf_pause_mode == P_NONE &&
 	    cf_reboot == 0 &&
@@ -744,6 +744,8 @@ void config_postprocess(void)
 		}
 		if (db->pool_size < 0)
 			db->pool_size = cf_default_pool_size;
+		if (db->min_pool_size < 0)
+			db->min_pool_size = cf_min_pool_size;
 		if (db->res_pool_size < 0)
 			db->res_pool_size = cf_res_pool_size;
 	}

@@ -464,6 +464,9 @@ force_user
 pool_size
 :   Maximum number of server connections.
 
+min_pool_size
+:   Minimum number of server connections.
+
 reserve_pool
 :   Maximum number of additional connections for this database.
 

@@ -402,7 +402,7 @@ void load_config(void)
 			loader_users_check();
 		loaded = true;
 	} else if (!loaded) {
-		die("cannot load config file");
+		die("cannot load config file %s", cf_config_file);
 	} else {
 		log_warning("config file loading failed");
 		/* if ini file missing, don't kill anybody */
@@ -495,7 +495,7 @@ static void handle_sigusr2(int sock, short flags, void *arg)
 
 static void handle_sighup(int sock, short flags, void *arg)
 {
-	log_info("got SIGHUP, re-reading config");
+	log_info("got SIGHUP, re-reading config file %s", cf_config_file);
 	sd_notify(0, "RELOADING=1");
 	load_config();
 	sd_notify(0, "READY=1");

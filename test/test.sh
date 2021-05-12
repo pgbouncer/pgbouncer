@@ -124,7 +124,9 @@ rm -rf $PGDATA
 if [ ! -d $PGDATA ]; then
 	mkdir $PGDATA
 	initdb --nosync >> $PG_LOG 2>&1
-	sed $SED_ERE_OP -i "/unix_socket_director/s:.*(unix_socket_director.*=).*:\\1 '/tmp':" pgdata/postgresql.conf
+	if $use_unix_sockets; then
+		sed $SED_ERE_OP -i "/unix_socket_director/s:.*(unix_socket_director.*=).*:\\1 '/tmp':" pgdata/postgresql.conf
+	fi
 	cat >>pgdata/postgresql.conf <<-EOF
 	log_connections = on
 	EOF

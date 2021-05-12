@@ -1,0 +1,110 @@
+env:
+  DEBIAN_FRONTEND: noninteractive
+  LANG: C
+  PGVERSION: 11
+
+task:
+  name: Linux (Debian/Ubuntu)
+  matrix:
+    - container:
+        image: ubuntu:20.04
+    - container:
+        image: ubuntu:20.04
+      env:
+        PGVERSION: 9.6
+    - container:
+        image: ubuntu:20.04
+      env:
+        configure_args: '--with-cares'
+    - container:
+        image: ubuntu:20.04
+      env:
+        configure_args: '--with-udns --without-openssl'
+    - container:
+        image: ubuntu:20.04
+      env:
+        configure_args: '--disable-evdns'
+    - container:
+        image: ubuntu:20.04
+      env:
+        configure_args: '--with-pam'
+    - container:
+        image: ubuntu:20.04
+      env:
+        configure_args: '--without-openssl'
+    - container:
+        image: ubuntu:20.04
+      env:
+        configure_args: '--with-systemd'
+    - container:
+        image: ubuntu:20.04
+      env:
+        CC: clang
+    - container:
+        image: ubuntu:20.04
+      env:
+        CFLAGS: -fno-sanitize-recover=all -fsanitize=undefined -fsanitize-address-use-after-scope -fno-sanitize=shift
+    - container:
+        image: ubuntu:20.04
+      env:
+        use_valgrind: yes
+    - container:
+        image: ubuntu:20.04
+      env:
+        use_valgrind: yes
+        PGVERSION: 9.6
+    - container:
+        image: ubuntu:18.04
+    - container:
+        image: ubuntu:16.04
+    - container:
+        image: debian:stable
+    - container:
+        image: debian:oldstable
+  submodules_script:
+    - apt-get update
+    - apt-get -y install git
+    - git submodule update --init
+  setup_script:
+    - apt-get -y install curl gnupg lsb-release
+    - curl https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
+    - echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | tee /etc/apt/sources.list.d/pgdg.list
+    - apt-get update
+    - pkgs="autoconf automake cpio libc-ares-dev libevent-dev libssl-dev libtool libudns-dev make pandoc postgresql-$PGVERSION pkg-config python"
+    - case $CC in clang) pkgs="$pkgs clang";; esac
+    - case $configure_args in *with-systemd*) pkgs="$pkgs libsystemd-dev";; esac
+    - if [ x"$use_valgrind" = x"yes" ]; then pkgs="$pkgs valgrind"; fi
+    - apt-get -y install $pkgs
+    - useradd user
+    - chown -R user .
+  build_script:
+    - su user -c "./autogen.sh"
+    - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror --without-cares $configure_args"
+    - su user -c "make"
+  test_script:
+    - |
+      if [ x"$use_valgrind" = x"yes" ]; then
+        export BOUNCER_EXE_PREFIX="valgrind --quiet --leak-check=full --show-reachable=no --track-origins=yes --error-markers=VALGRIND-ERROR-BEGIN,VALGRIND-ERROR-END --log-file=/tmp/valgrind.%p.log"
+      fi
+    - su user -c "PATH=/usr/lib/postgresql/${PGVERSION}/bin:$PATH make check"
+    - |
+      if [ x"$use_valgrind" = x"yes" ]; then
+        if grep -q VALGRIND-ERROR /tmp/valgrind.*.log; then
+          cat /tmp/valgrind.*.log
+          exit 1
+        fi
+      fi
+  install_script:
+    - make install
+  dist_script:
+    - make dist
+    - PACKAGE_VERSION=$(sed -n 's/PACKAGE_VERSION = //p' config.mak)
+    - tar -x -v -f pgbouncer-${PACKAGE_VERSION}.tar.gz
+    - cd pgbouncer-${PACKAGE_VERSION}/
+    - ./configure --prefix=$HOME/install2 --enable-werror --without-cares $configure_args
+    - make
+    - make install
+  always:
+    configure_artifacts:
+      path: "config.log"
+      type: text/plain

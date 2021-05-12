@@ -15,7 +15,6 @@ jobs:
   - env: configure_args='--without-openssl'
   - env: configure_args='--with-systemd'
   - compiler: clang
-  - dist: trusty
   - dist: xenial
   - dist: bionic
   - arch: arm64
@@ -32,12 +31,6 @@ before_install: |
   curl https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
   echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
   sudo apt-get update
-  # workaround for https://github.com/travis-ci/travis-cookbooks/pull/221
-  if [ "$TRAVIS_DIST" = 'trusty' ]; then
-    sudo service postgresql stop
-    echo 'exit 0' | sudo tee /etc/init.d/postgresql
-    sudo chmod a+x /etc/init.d/postgresql
-  fi
 install: |
   set -e
   pkgs="libc-ares-dev libevent-dev libudns-dev pandoc python"

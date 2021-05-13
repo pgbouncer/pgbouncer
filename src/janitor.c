@@ -400,6 +400,8 @@ static void pool_client_maint(PgPool *pool)
 				disconnect_client(client, true, "query_timeout");
 			} else if (cf_query_wait_timeout > 0 && age > cf_query_wait_timeout) {
 				disconnect_client(client, true, "query_wait_timeout");
+			} else if (cf_query_db_wait_timeout && age > cf_query_db_wait_timeout && is_pool_failing(client->pool)) {
+				disconnect_client(client, true, "query_db_availability_timeout");
 			}
 		}
 	}

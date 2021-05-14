@@ -385,7 +385,7 @@ static void pool_client_maint(PgPool *pool)
 	}
 
 	/* force timeouts for waiting queries */
-	if (cf_query_timeout > 0 || cf_query_wait_timeout > 0) {
+	if (cf_query_timeout > 0 || cf_query_wait_timeout > 0 || cf_query_db_wait_timeout > 0) {
 		statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
 			client = container_of(item, PgSocket, head);
 			Assert(client->state == CL_WAITING || client->state == CL_WAITING_LOGIN);

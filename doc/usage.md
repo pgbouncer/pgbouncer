@@ -616,6 +616,9 @@ count
 
 Show the PgBouncer version string.
 
+#### SHOW STATE
+
+Show the PgBouncer state settings. Current states are active, paused and suspended.
 
 ### Process controlling commands
 

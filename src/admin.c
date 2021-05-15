@@ -893,6 +893,28 @@ static bool admin_show_mem(PgSocket *admin, const char *arg)
 	return true;
 }
 
+/* Command: SHOW STATE */
+static bool admin_show_state(PgSocket *admin, const char *arg)
+{
+	PktBuf *buf;
+
+	buf = pktbuf_dynamic(64);
+	if (!buf) {
+		admin_error(admin, "no mem");
+		return true;
+	}
+
+	pktbuf_write_RowDescription(buf, "ss", "key", "value");
+
+	pktbuf_write_DataRow(buf, "ss", "active", (cf_pause_mode == P_NONE) ? "yes" : "no");
+	pktbuf_write_DataRow(buf, "ss", "paused", (cf_pause_mode == P_PAUSE) ? "yes" : "no");
+	pktbuf_write_DataRow(buf, "ss", "suspended", (cf_pause_mode == P_SUSPEND) ? "yes" : "no");
+
+	admin_flush(admin, buf, "SHOW");
+
+	return true;
+}
+
 /* Command: SHOW DNS_HOSTS */
 
 static void dns_name_cb(void *arg, const char *name, const struct addrinfo *ai, usec_t ttl)
@@ -1319,7 +1341,7 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		"SNOTICE", "C00000", "MConsole usage",
 		"D\n\tSHOW HELP|CONFIG|DATABASES"
 		"|POOLS|CLIENTS|SERVERS|USERS|VERSION\n"
-		"\tSHOW FDS|SOCKETS|ACTIVE_SOCKETS|LISTS|MEM\n"
+		"\tSHOW FDS|SOCKETS|ACTIVE_SOCKETS|LISTS|MEM|STATE\n"
 		"\tSHOW DNS_HOSTS|DNS_ZONES\n"
 		"\tSHOW STATS|STATS_TOTALS|STATS_AVERAGES|TOTALS\n"
 		"\tSET key = arg\n"
@@ -1397,6 +1419,7 @@ static struct cmd_lookup show_map [] = {
 	{"mem", admin_show_mem},
 	{"dns_hosts", admin_show_dns_hosts},
 	{"dns_zones", admin_show_dns_zones},
+	{"state", admin_show_state},
 	{NULL, NULL}
 };
 

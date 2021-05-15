@@ -362,7 +362,7 @@ test_help() {
 # commands don't completely die.  The output can be manually eyeballed
 # in the test log file.
 test_show() {
-	for what in clients config databases fds help lists pools servers sockets active_sockets stats stats_totals stats_averages users totals mem dns_hosts dns_zones; do
+	for what in clients config databases fds help lists pools servers sockets active_sockets stats stats_totals stats_averages users totals mem dns_hosts dns_zones state; do
 		    echo "=> show $what;"
 		    psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "show $what;" || return 1
 	done

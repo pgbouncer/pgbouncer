@@ -885,6 +885,9 @@ Such automatically created database entries are cleaned up
 if they stay idle longer than the time specified by the `autodb_idle_timeout`
 parameter.
 
+The special database **pgbouncer** is reserved. An error will be reported if
+you include it here.
+
 ### dbname
 
 Destination database name.

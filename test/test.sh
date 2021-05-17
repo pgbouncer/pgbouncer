@@ -1176,6 +1176,49 @@ test_cancel_wait() {
 	return 0
 }
 
+test_wait_timeout() {
+	admin "set query_wait_timeout=2"
+
+	# Exhaust the pool
+	for i in {1..5}; do
+		psql -X -c "select now() as sleeping_$i from pg_sleep(5);" p1 &
+	done
+
+	# Sleep to ensure the following query is actually the last one in
+	sleep 1
+
+	# Should time out waiting for connection acquisition
+	psql -X -c "select now() as timed_out" p1 && return 1
+	grep "pooler error: query_wait_timeout" $BOUNCER_LOG || return 1
+
+	echo 'waiting for clients to complete ...'
+	wait
+
+	psql -X -c "select now() as ok" p1 || return 1
+}
+
+test_db_wait_timeout() {
+	admin "set query_wait_timeout=0"
+	admin "set query_db_wait_timeout=1"
+
+	# Exhaust the pool and send one extra query to put it in the queue.
+	for i in {1..3}; do
+		psql -X -c "select now() as sleeping_$i from pg_sleep(5);" p0 &
+	done
+
+	sleep 1
+	pgctl -m fast stop
+	sleep 1
+
+	# 2 of the queries should have failed due to the server connection crashing,
+	# the other should have failed due to query_db_wait_timeout.
+	grep "pooler error: query_db_wait_timeout" $BOUNCER_LOG || return 1
+
+	pgctl start
+	wait
+	return 0
+}
+
 testlist="
 test_show_version
 test_show
@@ -1223,6 +1266,8 @@ test_no_user_auth_user
 test_auto_database
 test_cancel
 test_cancel_wait
+test_wait_timeout
+test_db_wait_timeout
 "
 
 if [ $# -gt 0 ]; then

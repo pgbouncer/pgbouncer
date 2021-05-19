@@ -909,14 +909,29 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 	case CL_LOGIN:
 		if (client->link) {
 			PgSocket *server = client->link;
-			/* ->ready may be set before all is sent */
-			if (server->ready && sbuf_is_empty(&server->sbuf)) {
-				/* retval does not matter here */
-				release_server(server);
-			} else {
+			if (!server->ready) {
 				server->link = NULL;
 				client->link = NULL;
-				disconnect_server(server, true, "unclean server");
+				/*
+				 * This can happen if the client
+				 * connection is normally closed while
+				 * the server has a transaction block
+				 * open.  Then there is no way for us
+				 * to reset the server other than by
+				 * closing it.  Perhaps it would be
+				 * worth tracking this separately to
+				 * make the error message more
+				 * precise and less scary.
+				 */
+				disconnect_server(server, true, "client disconnect while server was not ready");
+			} else if (!sbuf_is_empty(&server->sbuf)) {
+				/* ->ready may be set before all is sent */
+				server->link = NULL;
+				client->link = NULL;
+				disconnect_server(server, true, "client disconnect before everything was sent to the server");
+			} else {
+				/* retval does not matter here */
+				release_server(server);
 			}
 		}
 	case CL_WAITING:

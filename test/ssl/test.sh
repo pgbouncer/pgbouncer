@@ -287,6 +287,34 @@ test_client_ssl_scram() {
 	return $rc
 }
 
+test_client_tls_protocols() {
+	cat  <<EOF >>tmp/openssl.cnf
+openssl_conf = default_conf
+[default_conf]
+ssl_conf = ssl_sect
+
+[ssl_sect]
+
+system_default = system_default_sect
+
+[system_default_sect]
+MinProtocol = TLSv1.2
+EOF
+	export OPENSSL_CONF=tmp/openssl.cnf
+	reconf_bouncer "auth_type = trust" "server_tls_sslmode = prefer" \
+		"client_tls_sslmode = require" \
+		"client_tls_key_file = TestCA1/sites/01-localhost.key" \
+		"client_tls_cert_file = TestCA1/sites/01-localhost.crt"
+		"client_tls_protocols = tlsv1.0,tlsv1.1"
+	echo "host all all 127.0.0.1/32 trust" > pgdata/pg_hba.conf
+	echo "host all all ::1/128 trust" >> pgdata/pg_hba.conf
+	reconf_pgsql "ssl=on" "ssl_ca_file='root.crt'"
+	psql_bouncer -q -d "dbname=p0 sslmode=require ssl_min_protocol_version=TLSv1 ssl_max_protocol_version=TLSv1.1" -c "select 'client-ssl-connect'" | tee tmp/test.tmp
+	grep -q "client-ssl-connect"  tmp/test.tmp
+	rc=$?
+	return $rc
+}
+
 testlist="
 test_server_ssl
 test_server_ssl_verify
@@ -295,7 +323,9 @@ test_client_ssl
 test_client_ssl_verify
 test_client_ssl_auth
 test_client_ssl_scram
+test_client_tls_protocols
 "
+
 if [ $# -gt 0 ]; then
 	testlist="$*"
 fi

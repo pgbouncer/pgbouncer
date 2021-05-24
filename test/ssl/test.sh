@@ -288,7 +288,7 @@ test_client_ssl_scram() {
 }
 
 test_client_tls_protocols() {
-	cat  <<EOF >>tmp/openssl.cnf
+	cat  <<EOF >tmp/openssl.cnf
 openssl_conf = default_conf
 [default_conf]
 ssl_conf = ssl_sect
@@ -304,7 +304,7 @@ EOF
 	reconf_bouncer "auth_type = trust" "server_tls_sslmode = prefer" \
 		"client_tls_sslmode = require" \
 		"client_tls_key_file = TestCA1/sites/01-localhost.key" \
-		"client_tls_cert_file = TestCA1/sites/01-localhost.crt"
+		"client_tls_cert_file = TestCA1/sites/01-localhost.crt" \
 		"client_tls_protocols = tlsv1.0,tlsv1.1"
 	echo "host all all 127.0.0.1/32 trust" > pgdata/pg_hba.conf
 	echo "host all all ::1/128 trust" >> pgdata/pg_hba.conf

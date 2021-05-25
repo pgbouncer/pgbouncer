@@ -56,7 +56,7 @@ bool suspend_socket(PgSocket *sk, bool force_suspend)
 
 	if (sbuf_is_empty(&sk->sbuf)) {
 		if (sbuf_pause(&sk->sbuf))
-			sk->suspended = 1;
+			sk->suspended = true;
 	}
 
 	if (sk->suspended || !force_suspend)
@@ -93,7 +93,7 @@ static void resume_socket_list(struct StatList *list)
 	statlist_for_each_safe(item, list, tmp) {
 		sk = container_of(item, PgSocket, head);
 		if (sk->suspended) {
-			sk->suspended = 0;
+			sk->suspended = false;
 			sbuf_continue(&sk->sbuf);
 		}
 	}
@@ -303,10 +303,10 @@ void per_loop_maint(void)
 {
 	struct List *item;
 	PgPool *pool;
-	int active = 0;
+	int active_count = 0;
 	int waiting_count = 0;
-	int partial_pause = 0;
-	int partial_wait = 0;
+	bool partial_pause = false;
+	bool partial_wait = false;
 	bool force_suspend = false;
 
 	if (cf_pause_mode == P_SUSPEND && cf_suspend_timeout > 0) {
@@ -322,22 +322,22 @@ void per_loop_maint(void)
 		switch (cf_pause_mode) {
 		case P_NONE:
 			if (pool->db->db_paused) {
-				partial_pause = 1;
-				active += per_loop_pause(pool);
+				partial_pause = true;
+				active_count += per_loop_pause(pool);
 			} else {
 				per_loop_activate(pool);
 			}
 			break;
 		case P_PAUSE:
-			active += per_loop_pause(pool);
+			active_count += per_loop_pause(pool);
 			break;
 		case P_SUSPEND:
-			active += per_loop_suspend(pool, force_suspend);
+			active_count += per_loop_suspend(pool, force_suspend);
 			break;
 		}
 
 		if (pool->db->db_wait_close) {
-			partial_wait = 1;
+			partial_wait = true;
 			waiting_count += per_loop_wait_close(pool);
 		}
 	}
@@ -347,15 +347,15 @@ void per_loop_maint(void)
 		if (force_suspend) {
 			close_client_list(&login_client_list, "suspend_timeout");
 		} else {
-			active += statlist_count(&login_client_list);
+			active_count += statlist_count(&login_client_list);
 		}
 		/* fallthrough */
 	case P_PAUSE:
-		if (!active)
+		if (!active_count)
 			admin_pause_done();
 		break;
 	case P_NONE:
-		if (partial_pause && !active)
+		if (partial_pause && !active_count)
 			admin_pause_done();
 		break;
 	}

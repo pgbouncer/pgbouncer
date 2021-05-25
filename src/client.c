@@ -113,7 +113,7 @@ static void start_auth_query(PgSocket *client, const char *username)
 		disconnect_client(client, true, "pause failed");
 		return;
 	}
-	client->link->ready = 0;
+	client->link->ready = false;
 
 	res = 0;
 	buf = pktbuf_dynamic(512);

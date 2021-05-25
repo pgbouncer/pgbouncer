@@ -148,7 +148,7 @@ void pam_auth_begin(PgSocket *client, const char *passwd)
 		"pam_auth_begin(): pam_first_taken_slot=%d, pam_first_free_slot=%d",
 		pam_first_taken_slot, pam_first_free_slot);
 
-	client->wait_for_auth = 1;
+	client->wait_for_auth = true;
 
 	/* Check that we have free slots in the queue, and if no
 	 * then block until one is available.

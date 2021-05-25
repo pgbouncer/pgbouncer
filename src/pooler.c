@@ -509,12 +509,12 @@ void pooler_setup(void)
 		}
 	} else {
 		bool ok;
-		static int init_done = 0;
+		static bool init_done = false;
 
 		if (!init_done) {
 			/* remove socket on shutdown */
 			atexit(cleanup_sockets);
-			init_done = 1;
+			init_done = true;
 		}
 
 		ok = parse_word_list(cf_listen_addr, parse_addr, NULL);

@@ -274,10 +274,10 @@ struct PgPool {
 
 	/* if last connect to server failed, there should be delay before next */
 	usec_t last_connect_time;
-	unsigned last_connect_failed:1;
-	unsigned last_login_failed:1;
+	bool last_connect_failed:1;
+	bool last_login_failed:1;
 
-	unsigned welcome_msg_ready:1;
+	bool welcome_msg_ready:1;
 };
 
 #define pool_connected_server_count(pool) ( \

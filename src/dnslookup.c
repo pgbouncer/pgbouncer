@@ -754,7 +754,7 @@ struct XaresMeta {
 
 	/* If dns events happened during event loop,
 	   timer may need recalibration. */
-	int got_events;
+	bool got_events;
 
 };
 
@@ -772,8 +772,8 @@ static void xares_timer_cb(int sock, short flags, void *arg)
 
 	ares_process_fd(meta->chan, ARES_SOCKET_BAD, ARES_SOCKET_BAD);
 
-	meta->timer_active = 0;
-	meta->got_events = 1;
+	meta->timer_active = false;
+	meta->got_events = true;
 }
 
 /* called by libevent on fd event */
@@ -787,7 +787,7 @@ static void xares_fd_cb(int sock, short flags, void *arg)
 	w = (flags & EV_WRITE) ? xfd->sock : ARES_SOCKET_BAD;
 	ares_process_fd(meta->chan, r, w);
 
-	meta->got_events = 1;
+	meta->got_events = true;
 }
 
 /* called by c-ares on new socket creation */
@@ -815,7 +815,7 @@ static int xares_new_socket_cb(ares_socket_t sock, int sock_type, void *arg)
 	xfd->meta = meta;
 	xfd->sock = sock;
 	xfd->wait = 0;
-	xfd->in_use = 1;
+	xfd->in_use = true;
 	return ARES_SUCCESS;
 }
 
@@ -861,7 +861,7 @@ re_set:
 		if (event_add(&xfd->ev, NULL) < 0)
 			log_warning("adns: event_add failed: %s", strerror(errno));
 	} else {
-		xfd->in_use = 0;
+		xfd->in_use = false;
 	}
 	return;
 }
@@ -905,7 +905,7 @@ static void impl_launch_query(struct DNSRequest *req)
 	log_noise("dns: ares_gethostbyname(%s)", req->name);
 	ares_gethostbyname(meta->chan, req->name, af, xares_host_cb, req);
 
-	meta->got_events = 1;
+	meta->got_events = true;
 }
 
 /* re-set timer if any dns event happened */
@@ -929,7 +929,7 @@ static void impl_per_loop(struct DNSContext *ctx)
 		meta->timer_active = true;
 	}
 
-	meta->got_events = 0;
+	meta->got_events = false;
 }
 
 /* c-ares setup */
@@ -1155,7 +1155,7 @@ static void xares_soa_cb(void *arg, int status, int timeouts,
 	struct XaresMeta *meta = ctx->edns;
 	struct ares_soa_reply *soa = NULL;
 
-	meta->got_events = 1;
+	meta->got_events = true;
 
 	log_noise("ares SOA result: %s", ares_strerror(status));
 	if (status != ARES_SUCCESS) {
@@ -1183,7 +1183,7 @@ static int impl_query_soa_serial(struct DNSContext *ctx, const char *zonename)
 	ares_search(meta->chan, zonename, ns_c_in, ns_t_soa,
 		    xares_soa_cb, ctx);
 
-	meta->got_events = 1;
+	meta->got_events = true;
 	return 0;
 }
 

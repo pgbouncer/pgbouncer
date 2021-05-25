@@ -205,7 +205,7 @@ void finish_welcome_msg(PgSocket *server)
 	PgPool *pool = server->pool;
 	if (pool->welcome_msg_ready)
 		return;
-	pool->welcome_msg_ready = 1;
+	pool->welcome_msg_ready = true;
 }
 
 bool welcome_client(PgSocket *client)

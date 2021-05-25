@@ -31,9 +31,9 @@ struct PktBuf {
 	struct event *ev;
 	PgSocket *queued_dst;
 
-	unsigned failed:1;
-	unsigned sending:1;
-	unsigned fixed_buf:1;
+	bool failed:1;
+	bool sending:1;
+	bool fixed_buf:1;
 };
 
 /*

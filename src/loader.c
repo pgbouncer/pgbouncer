@@ -285,9 +285,9 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	}
 
 	/* tag the db as alive */
-	db->db_dead = 0;
+	db->db_dead = false;
 	/* assuming not an autodb */
-	db->db_auto = 0;
+	db->db_auto = false;
 	db->inactive_time = 0;
 
 	/* if updating old db, check if anything changed */

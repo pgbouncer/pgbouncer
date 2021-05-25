@@ -143,10 +143,10 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 
 	case 'Z':		/* ReadyForQuery */
 		if (server->exec_on_connect) {
-			server->exec_on_connect = 0;
+			server->exec_on_connect = false;
 			/* deliberately ignore transaction status */
 		} else if (server->pool->db->connect_query) {
-			server->exec_on_connect = 1;
+			server->exec_on_connect = true;
 			slog_debug(server, "server connect ok, send exec_on_connect");
 			SEND_generic(res, server, 'Q', "s", server->pool->db->connect_query);
 			if (!res)
@@ -156,7 +156,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 
 		/* login ok */
 		slog_debug(server, "server login ok, start accepting queries");
-		server->ready = 1;
+		server->ready = true;
 
 		/* got all params */
 		finish_welcome_msg(server);
@@ -269,7 +269,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		break;
 
 	/*
-	 * 'E' and 'N' packets currently set ->ready to 0.  Correct would
+	 * 'E' and 'N' packets currently set ->ready to false.  Correct would
 	 * be to leave ->ready as-is, because overall TX state stays same.
 	 * It matters for connections in IDLE or USED state which get dirty
 	 * suddenly but should not as they are still usable.
@@ -409,7 +409,7 @@ static bool handle_connect(PgSocket *server)
 		/* if pending cancel req, send it */
 		forward_cancel_request(server);
 		/* notify disconnect_server() that connect did not fail */
-		server->ready = 1;
+		server->ready = true;
 		disconnect_server(server, false, "sent cancel req");
 	} else {
 		/* proceed with login */
@@ -534,7 +534,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			PgSocket *client = server->link;
 			Assert(client);
 
-			server->setting_vars = 0;
+			server->setting_vars = false;
 			sbuf_continue(&client->sbuf);
 			break;
 		}

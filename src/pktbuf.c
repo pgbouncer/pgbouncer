@@ -69,11 +69,11 @@ PktBuf *pktbuf_dynamic(int start_len)
 
 void pktbuf_reset(struct PktBuf *pkt)
 {
-	pkt->failed = 0;
+	pkt->failed = false;
 	pkt->write_pos = 0;
 	pkt->pktlen_pos = 0;
 	pkt->send_pos = 0;
-	pkt->sending = 0;
+	pkt->sending = false;
 }
 
 void pktbuf_static(PktBuf *buf, uint8_t *data, int len)
@@ -81,7 +81,7 @@ void pktbuf_static(PktBuf *buf, uint8_t *data, int len)
 	memset(buf, 0, sizeof(*buf));
 	buf->buf = data;
 	buf->buf_len = len;
-	buf->fixed_buf = 1;
+	buf->fixed_buf = true;
 }
 
 static PktBuf *temp_pktbuf;
@@ -162,7 +162,7 @@ bool pktbuf_send_queued(PktBuf *buf, PgSocket *sk)
 		pktbuf_free(buf);
 		return send_pooler_error(sk, true, "result prepare failed");
 	} else {
-		buf->sending = 1;
+		buf->sending = true;
 		buf->queued_dst = sk;
 		pktbuf_send_func(sk->sbuf.sock, EV_WRITE, buf);
 		return true;
@@ -182,7 +182,7 @@ static void make_room(PktBuf *buf, int len)
 		return;
 
 	if (buf->fixed_buf) {
-		buf->failed = 1;
+		buf->failed = true;
 		return;
 	}
 
@@ -193,7 +193,7 @@ static void make_room(PktBuf *buf, int len)
 		  buf, len, newlen);
 	ptr = realloc(buf->buf, newlen);
 	if (!ptr) {
-		buf->failed = 1;
+		buf->failed = true;
 	} else {
 		buf->buf = ptr;
 		buf->buf_len = newlen;

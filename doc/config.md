@@ -728,6 +728,20 @@ If this is disabled, clients will be queued indefinitely.
 
 Default: 120
 
+### query_db_wait_timeout
+
+Maximum time queries are allowed to spend waiting for execution while the underlying
+database is inaccessible. If the query is not assigned to a server during this time
+and pgbouncer is unable to connect to the underlying database, the client is disconnected.
+This is used to prevent unresponsive servers from grabbing up connections. This is effectively
+a relaxed form of `query_wait_timeout`, i.e. if `query_wait_timeout < query_db_wait_timeout`,
+this parameter will have no effect.[seconds]
+
+This is intended to be used in situations where fast-failure is desired when the database is
+down, but some degree of regular connection queueing is expected.
+
+Default: 0 (disabled)
+
 ### client_idle_timeout
 
 Client connections idling longer than this many seconds are closed. This should

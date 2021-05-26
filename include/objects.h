@@ -38,6 +38,7 @@ bool evict_user_connection(PgUser *user)	_MUSTCHECK;
 bool find_server(PgSocket *client)		_MUSTCHECK;
 bool release_server(PgSocket *server)		/* _MUSTCHECK */;
 bool finish_client_login(PgSocket *client)	_MUSTCHECK;
+bool is_pool_failing(PgPool *pool)	_MUSTCHECK;
 bool check_fast_fail(PgSocket *client)		_MUSTCHECK;
 
 PgSocket *accept_client(int sock, bool is_unix) _MUSTCHECK;

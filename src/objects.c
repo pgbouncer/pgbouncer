@@ -567,11 +567,37 @@ void activate_client(PgSocket *client)
 }
 
 /*
- * Don't let clients queue at all if there is no working server connection.
+ * Check if we are failing to connect to a given pool.
  *
- * It must still allow following cases:
+ * It must handle the following cases:
  * - empty pool on startup
  * - idle pool where all servers are removed
+ *
+ * Return true if the last pool login failed, and there are zero working
+ * connections to a given pool. False otherwise.
+ */
+bool is_pool_failing(PgPool *pool)
+{
+	int cnt;
+
+	/* Could be mock authentication, proceed normally */
+	if (!pool)
+		return false;
+
+	/* If last login succeeded, client can go ahead. */
+	if (!pool->last_login_failed)
+		return false;
+
+	/* If there are servers available, client can go ahead. */
+	cnt = pool_server_count(pool) - statlist_count(&pool->new_server_list);
+	if (cnt)
+		return false;
+
+	return true;
+}
+
+/*
+ * Don't let clients queue at all if there is no working server connection.
  *
  * Current assumptions:
  * - old server connections will be dropped by query_timeout
@@ -585,21 +611,12 @@ void activate_client(PgSocket *client)
  */
 bool check_fast_fail(PgSocket *client)
 {
-	int cnt;
 	PgPool *pool = client->pool;
+	bool poolFailing = is_pool_failing(pool);
 
-	/* Could be mock authentication, proceed normally */
-	if (!pool)
+	if (!poolFailing) {
 		return true;
-
-	/* If last login succeeded, client can go ahead. */
-	if (!pool->last_login_failed)
-		return true;
-
-	/* If there are servers available, client can go ahead. */
-	cnt = pool_server_count(pool) - statlist_count(&pool->new_server_list);
-	if (cnt)
-		return true;
+	}
 
 	/* Else we fail the client. */
 	disconnect_client(client, true, "pgbouncer cannot connect to server");

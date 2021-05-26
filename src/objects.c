@@ -1154,7 +1154,7 @@ void launch_new_connection(PgPool *pool)
 
 	max = pool_server_count(pool);
 
-	/* when a cancel request is queued allow connections upto twice the pool size */
+	/* when a cancel request is queued allow connections up to twice the pool size */
 	if (!statlist_empty(&pool->cancel_req_list) && max < (2 * pool->db->pool_size)) {
 		log_debug("launch_new_connection: bypass pool limitations for cancel request");
 		goto force_new;

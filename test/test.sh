@@ -1176,6 +1176,43 @@ test_cancel_wait() {
 	return 0
 }
 
+# Test that cancel requests can exceed the pool size
+#
+# Cancel request connections can use twice the pool size.  See also GH
+# PR #543.
+test_cancel_pool_size() {
+	case `uname` in MINGW*) return 77;; esac
+
+	# default_pool_size=5
+	admin "set server_idle_timeout=2"
+
+	psql -X -d p3 -c "select pg_sleep(20)" &
+	psql1_pid=$!
+	psql -X -d p3 -c "select pg_sleep(20)" &
+	psql2_pid=$!
+	psql -X -d p3 -c "select pg_sleep(20)" &
+	psql3_pid=$!
+	psql -X -d p3 -c "select pg_sleep(20)" &
+	psql4_pid=$!
+	psql -X -d p3 -c "select pg_sleep(20)" &
+	psql5_pid=$!
+	sleep 1
+
+	# These cancels requires more connections than the
+	# default_pool_size=5.
+	kill -INT $psql1_pid $psql2_pid $psql3_pid $psql4_pid $psql5_pid
+
+	wait $psql1_pid
+
+	# Prior to the change fix, the cancels would never get through
+	# and the psql processes would simply run the full sleep and
+	# exit successfully.
+	test $? -ne 0 || return 1
+	grep -F "canceling statement due to user request" $PG_LOG || return 1
+
+	return 0
+}
+
 testlist="
 test_show_version
 test_show
@@ -1223,6 +1260,7 @@ test_no_user_auth_user
 test_auto_database
 test_cancel
 test_cancel_wait
+test_cancel_pool_size
 "
 
 if [ $# -gt 0 ]; then

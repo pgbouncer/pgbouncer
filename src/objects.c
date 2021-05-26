@@ -1165,8 +1165,15 @@ void launch_new_connection(PgPool *pool)
 		}
 	}
 
-	/* is it allowed to add servers? */
 	max = pool_server_count(pool);
+
+	/* when a cancel request is queued allow connections up to twice the pool size */
+	if (!statlist_empty(&pool->cancel_req_list) && max < (2 * pool->db->pool_size)) {
+		log_debug("launch_new_connection: bypass pool limitations for cancel request");
+		goto force_new;
+	}
+
+	/* is it allowed to add servers? */
 	if (max >= pool->db->pool_size && pool->welcome_msg_ready) {
 		/* should we use reserve pool? */
 		if (cf_res_pool_timeout && pool->db->res_pool_size) {
@@ -1215,6 +1222,7 @@ allow_new:
 		}
 	}
 
+force_new:
 	/* get free conn object */
 	server = slab_alloc(server_cache);
 	if (!server) {

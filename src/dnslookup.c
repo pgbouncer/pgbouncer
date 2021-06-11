@@ -765,7 +765,7 @@ const char *adns_get_backend(void)
 
 
 /* called by libevent on timer timeout */
-static void xares_timer_cb(int sock, short flags, void *arg)
+static void xares_timer_cb(evutil_socket_t sock, short flags, void *arg)
 {
 	struct DNSContext *ctx = arg;
 	struct XaresMeta *meta = ctx->edns;
@@ -777,7 +777,7 @@ static void xares_timer_cb(int sock, short flags, void *arg)
 }
 
 /* called by libevent on fd event */
-static void xares_fd_cb(int sock, short flags, void *arg)
+static void xares_fd_cb(evutil_socket_t sock, short flags, void *arg)
 {
 	struct XaresFD *xfd = arg;
 	struct XaresMeta *meta = xfd->meta;

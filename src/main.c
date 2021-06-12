@@ -761,6 +761,14 @@ static void takeover_part1(void)
 	if (!cf_unix_socket_dir || !*cf_unix_socket_dir)
 		die("cannot reboot if unix dir not configured");
 
+	/*
+	 * Takeover with abstract Unix socket doesn't work because the
+	 * new process can't unlink the socket used by the old process
+	 * and put its own in place (see create_unix_socket()).
+	 */
+	if (cf_unix_socket_dir[0] == '@')
+		die("cannot reboot with abstract Unix socket");
+
 	if (sd_listen_fds(0) > 0)
 		die("cannot reboot under service manager");
 

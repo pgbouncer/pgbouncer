@@ -50,13 +50,19 @@ Default: 6432
 
 Specifies location for Unix sockets. Applies to both listening socket and
 server connections. If set to an empty string, Unix sockets are disabled.
-Required for online reboot (-R) to work.
+A value that starts with `@` specifies that a Unix socket in the
+abstract namespace should be created (currently supported on Linux and
+Windows).
+
+For online reboot (`-R`) to work, a Unix socket needs to be
+configured, and it needs to be in the file-system namespace.
 
 Default: /tmp (empty on Windows)
 
 ### unix_socket_mode
 
 File system mode for Unix socket.
+Ignored for sockets in the abstract namespace.
 Not supported on Windows.
 
 Default: 0777
@@ -64,6 +70,7 @@ Default: 0777
 ### unix_socket_group
 
 Group name to use for Unix socket.
+Ignored for sockets in the abstract namespace.
 Not supported on Windows.
 
 Default: not set
@@ -900,6 +907,10 @@ automatically closed when they are released (according to the pooling
 mode), and new server connections immediately use the new resolution.
 If DNS returns several results, they are used in round-robin
 manner.
+
+If the value begins with `/`, then a Unix socket in the file-system
+namespace is used.  If the value begins with `@`, then a Unix socket
+in the abstract namespace is used.
 
 Default: not set, meaning to use a Unix socket
 

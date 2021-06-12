@@ -1035,7 +1035,7 @@ static void dns_connect(struct PgSocket *server)
 	int sa_len;
 	int res;
 
-	if (!host || host[0] == '/') {
+	if (!host || host[0] == '/' || host[0] == '@') {
 		memset(&sa_un, 0, sizeof(sa_un));
 		sa_un.sun_family = AF_UNIX;
 		unix_dir = host ? host : cf_unix_socket_dir;
@@ -1047,8 +1047,19 @@ static void dns_connect(struct PgSocket *server)
 		snprintf(sa_un.sun_path, sizeof(sa_un.sun_path),
 			 "%s/.s.PGSQL.%d", unix_dir, db->port);
 		slog_noise(server, "unix socket: %s", sa_un.sun_path);
+		if (unix_dir[0] == '@') {
+			/*
+			 * By convention, for abstract Unix sockets,
+			 * only the length of the string is the
+			 * sockaddr length.
+			 */
+			sa_len = offsetof(struct sockaddr_un, sun_path) + strlen(sa_un.sun_path);
+			sa_un.sun_path[0] = '\0';
+		}
+		else {
+			sa_len = sizeof(sa_un);
+		}
 		sa = (struct sockaddr *)&sa_un;
-		sa_len = sizeof(sa_un);
 		res = 1;
 	} else if (strchr(host, ':')) {  /* assume IPv6 address on any : in addr */
 		slog_noise(server, "inet6 socket: %s", db->host);

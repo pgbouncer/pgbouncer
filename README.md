@@ -122,16 +122,16 @@ Running from the command line goes as usual, except that the `-d` (daemonize),
 `-R` (reboot), and `-u` (switch user) switches will not work.
 
 To run PgBouncer as a Windows service, you need to configure the
-`service_name` parameter to set name for service.  Then:
+`service_name` parameter to set a name for the service.  Then:
 
 	$ pgbouncer -regservice config.ini
 
-To uninstall service:
+To uninstall the service:
 
 	$ pgbouncer -unregservice config.ini
 
 To use the Windows event log, set `syslog = 1` in the configuration file.
-But before that you need to register `pgbevent.dll`:
+But before that, you need to register `pgbevent.dll`:
 
 	$ regsvr32 pgbevent.dll
 

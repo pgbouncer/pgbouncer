@@ -1085,6 +1085,7 @@ test_no_user_md5_forced_user() {
 
 test_no_user_scram() {
 	$have_getpeereid || return 77
+	$pg_supports_scram || return 77
 
 	admin "set auth_type='scram-sha-256'"
 
@@ -1097,6 +1098,7 @@ test_no_user_scram() {
 
 test_no_user_scram_forced_user() {
 	$have_getpeereid || return 77
+	$pg_supports_scram || return 77
 
 	admin "set auth_type='scram-sha-256'"
 

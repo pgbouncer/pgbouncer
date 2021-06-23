@@ -133,7 +133,8 @@ extern int cf_sbuf_len;
 #define MAX_DBNAME	64
 #define MAX_USERNAME	64
 /* typical SCRAM-SHA-256 verifier takes at least 133 bytes */
-#define MAX_PASSWORD	160
+/* AWS RDS IAM auth requires up to 476 bytes */
+#define MAX_PASSWORD	512
 
 /*
  * AUTH_* symbols are used for both protocol handling and

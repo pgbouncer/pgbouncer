@@ -563,6 +563,10 @@ static void go_daemon(void)
 {
 	int pid, fd;
 
+#ifdef WIN32
+	die("option --daemon (-d) is not supported on this platform");
+#endif
+
 	if (!cf_pidfile || !cf_pidfile[0])
 		die("daemon needs pidfile configured");
 

@@ -45,6 +45,10 @@ void change_user(const char *user)
 	const struct passwd *pw;
 	gid_t gset[1];
 
+#ifdef WIN32
+	die("option --user (-u) is not supported on this platform");
+#endif
+
 	/* check for a valid username */
 	pw = getpwnam(user);
 	if (pw == NULL)

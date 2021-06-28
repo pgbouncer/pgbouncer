@@ -125,6 +125,7 @@ AC_MSG_RESULT([$use_cares])
 if test "$use_cares" = "auto"; then
   PKG_CHECK_MODULES(CARES, [libcares >= 1.6.0], [use_cares=yes], [use_cares=no])
 fi
+AC_SUBST(use_cares)
 
 if test "$use_cares" = "yes"; then
   AC_DEFINE(USE_CARES, 1, [Use c-ares for name resolution.])

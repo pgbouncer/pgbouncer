@@ -70,5 +70,6 @@ WINDRES = @WINDRES@
 
 enable_debug = @enable_debug@
 tls_support = @tls_support@
+cares_support = @use_cares@
 
 host_cpu = @host_cpu@

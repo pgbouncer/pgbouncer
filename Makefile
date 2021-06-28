@@ -118,6 +118,21 @@ AM_LANG_RC_SRCEXTS = .rc
 AM_LANG_RC_COMPILE = $(WINDRES) $< -o $@ --include-dir=$(srcdir)/win32
 AM_LANG_RC_LINK = false
 
+# Windows: install required libraries into bin/
+ifeq ($(PORTNAME),win32)
+dep_win_dir = $(shell dirname $(shell which $(CC)))
+dep_win_libs_abs = \
+	$(wildcard \
+	$(dep_win_dir)/libcrypto*.dll \
+	$(dep_win_dir)/libevent*.dll \
+	$(dep_win_dir)/libssl*.dll \
+	$(dep_win_dir)/libwinpthread*.dll )
+ifeq ($(cares_support),yes)
+dep_win_libs_abs += $(wildcard $(dep_win_dir)/libcares*.dll)
+endif
+dist_bin_DATA = $(dep_win_libs_abs)
+endif
+
 #
 # now load antimake
 #

@@ -131,6 +131,7 @@ ifeq ($(cares_support),yes)
 dep_win_libs_abs += $(wildcard $(dep_win_dir)/libcares*.dll)
 endif
 dist_bin_DATA = $(dep_win_libs_abs)
+dep_win_libs_rel = $(subst $(dep_win_dir)/,,$(dep_win_libs_abs))
 endif
 
 #
@@ -156,9 +157,9 @@ zip: $(w32zip)
 $(w32zip): pgbouncer.exe pgbevent.dll etc/pgbouncer.ini etc/userlist.txt README.md COPYRIGHT
 	rm -rf $(basename $@)
 	mkdir $(basename $@)
-	cp $^ $(basename $@)
-	$(STRIP) $(addprefix $(basename $@)/,$(filter %.exe %.dll,$(^F)))
-	zip -MM $@ $(addprefix $(basename $@)/,$(filter %.exe %.dll,$(^F)))
+	cp $^ $(dep_win_libs_abs) $(basename $@)
+	$(STRIP) $(addprefix $(basename $@)/,$(filter %.exe,$(^F))) $(addprefix $(basename $@)/,$(filter %.dll,$(dep_win_libs_rel)))
+	zip -MM $@ $(addprefix $(basename $@)/,$(filter %.exe,$(^F))) $(addprefix $(basename $@)/,$(filter %.dll,$(dep_win_libs_rel)))
 # NB: zip -l for text files for end-of-line conversion
 	zip -MM -l $@ $(addprefix $(basename $@)/,$(filter-out %.exe %.dll,$(^F)))
 

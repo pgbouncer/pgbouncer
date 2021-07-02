@@ -152,14 +152,14 @@ static void set_connect_query(PgDatabase *db, const char *new)
 		log_error("no memory, cannot assign connect_query for %s", db->name);
 }
 
-static void set_autodb(const char *connstr)
+static bool set_autodb(const char *connstr)
 {
 	char *tmp = strdup(connstr);
 	char *old = cf_autodb_connstr;
 
 	if (!tmp) {
-		log_warning("no mem to change autodb_connstr");
-		return;
+		log_error("no mem to change autodb_connstr");
+		return false;
 	}
 
 	cf_autodb_connstr = tmp;
@@ -168,6 +168,8 @@ static void set_autodb(const char *connstr)
 			tag_autodb_dirty();
 		free(old);
 	}
+
+	return true;
 }
 
 /* fill PgDatabase from connstr */
@@ -202,19 +204,20 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	cv.extra = (const void *)pool_mode_map;
 
 	if (strcmp(name, "*") == 0) {
-		set_autodb(connstr);
-		return true;
+		return set_autodb(connstr);
 	}
 
 	tmp_connstr = strdup(connstr);
-	if (!tmp_connstr)
+	if (!tmp_connstr) {
+		log_error("out of memory");
 		return false;
+	}
 
 	p = tmp_connstr;
 	while (*p) {
 		p = cstr_get_pair(p, &key, &val);
 		if (p == NULL) {
-			log_error("%s: syntax error in connstring", name);
+			log_error("syntax error in connection string");
 			goto fail;
 		} else if (!key[0]) {
 			break;
@@ -246,8 +249,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			max_db_connections = atoi(val);
 		} else if (strcmp("pool_mode", key) == 0) {
 			if (!cf_set_lookup(&cv, val)) {
-				log_error("skipping database %s because"
-					  " of invalid pool mode: %s", name, val);
+				log_error("invalid pool mode: %s", val);
 				goto fail;
 			}
 		} else if (strcmp("connect_query", key) == 0) {
@@ -255,8 +257,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		} else if (strcmp("application_name", key) == 0) {
 			appname = val;
 		} else {
-			log_error("skipping database %s because"
-				  " of unknown parameter in connstring: %s", name, key);
+			log_error("unrecognized connection parameter: %s", key);
 			goto fail;
 		}
 	}
@@ -264,8 +265,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	/* port= */
 	v_port = atoi(port);
 	if (v_port == 0) {
-		log_error("skipping database %s because"
-			  " of bad port: %s", name, port);
+		log_error("invalid port: %s", port);
 		goto fail;
 	}
 
@@ -389,7 +389,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	return true;
 fail:
 	free(tmp_connstr);
-	return true;
+	return false;
 }
 
 bool parse_user(void *base, const char *name, const char *connstr)
@@ -405,14 +405,16 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	cv.extra = (const void *)pool_mode_map;
 
 	tmp_connstr = strdup(connstr);
-	if (!tmp_connstr)
+	if (!tmp_connstr) {
+		log_error("out of memory");
 		return false;
+	}
 
 	p = tmp_connstr;
 	while (*p) {
 		p = cstr_get_pair(p, &key, &val);
 		if (p == NULL) {
-			log_error("%s: syntax error in user settings", name);
+			log_error("syntax error in user settings");
 			goto fail;
 		} else if (!key[0]) {
 			break;
@@ -420,15 +422,13 @@ bool parse_user(void *base, const char *name, const char *connstr)
 
 		if (strcmp("pool_mode", key) == 0) {
 			if (!cf_set_lookup(&cv, val)) {
-				log_error("skipping user %s because"
-					  " of invalid pool mode: %s", name, val);
+				log_error("invalid pool mode: %s", val);
 				goto fail;
 			}
 		} else if (strcmp("max_user_connections", key) == 0) {
 			max_user_connections = atoi(val);
 		} else {
-			log_error("skipping user %s because"
-				  " of unknown parameter in settings: %s", name, key);
+			log_error("unrecognized user parameter: %s", key);
 			goto fail;
 		}
 	}
@@ -445,9 +445,12 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	user->pool_mode = pool_mode;
 	user->max_user_connections = max_user_connections;
 
-fail:
 	free(tmp_connstr);
 	return true;
+
+fail:
+	free(tmp_connstr);
+	return false;
 }
 
 /*

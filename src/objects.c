@@ -350,7 +350,8 @@ PgDatabase *register_auto_database(const char *name)
 	if (!cf_autodb_connstr)
 		return NULL;
 
-	parse_database(NULL, name, cf_autodb_connstr);
+	if (!parse_database(NULL, name, cf_autodb_connstr))
+		return NULL;
 
 	db = find_database(name);
 	if (db) {

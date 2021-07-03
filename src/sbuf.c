@@ -870,7 +870,7 @@ static struct tls *client_accept_base;
  * TLS setup
  */
 
-static void setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
+static bool setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
 		      const char *protocols, const char *ciphers,
 		      const char *keyfile, const char *certfile, const char *cafile,
 		      const char *dheparams, const char *ecdhecurve,
@@ -882,39 +882,51 @@ static void setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
 		err = tls_config_parse_protocols(&protos, protocols);
 		if (err) {
 			log_error("invalid %s_protocols: %s", pfx, protocols);
-		} else {
-			tls_config_set_protocols(conf, protos);
+			return false;
 		}
+		tls_config_set_protocols(conf, protos);
 	}
 	if (*ciphers) {
 		err = tls_config_set_ciphers(conf, ciphers);
-		if (err)
+		if (err) {
 			log_error("invalid %s_ciphers: %s", pfx, ciphers);
+			return false;
+		}
 	}
 	if (*dheparams) {
 		err = tls_config_set_dheparams(conf, dheparams);
-		if (err)
+		if (err) {
 			log_error("invalid %s_dheparams: %s", pfx, dheparams);
+			return false;
+		}
 	}
 	if (*ecdhecurve) {
 		err = tls_config_set_ecdhecurve(conf, ecdhecurve);
-		if (err)
+		if (err) {
 			log_error("invalid %s_ecdhecurve: %s", pfx, ecdhecurve);
+			false;
+		}
 	}
 	if (*cafile) {
 		err = tls_config_set_ca_file(conf, cafile);
-		if (err)
+		if (err) {
 			log_error("invalid %s_ca_file: %s", pfx, cafile);
+			return false;
+		}
 	}
 	if (*keyfile) {
 		err = tls_config_set_key_file(conf, keyfile);
-		if (err)
+		if (err) {
 			log_error("invalid %s_key_file: %s", pfx, keyfile);
+			return false;
+		}
 	}
 	if (*certfile) {
 		err = tls_config_set_cert_file(conf, certfile);
-		if (err)
+		if (err) {
 			log_error("invalid %s_cert_file: %s", pfx, certfile);
+			return false;
+		}
 	}
 
 	if (does_connect) {
@@ -938,6 +950,8 @@ static void setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
 			tls_config_verify_client_optional(conf);
 		}
 	}
+
+	return true;
 }
 
 void sbuf_tls_setup(void)
@@ -965,21 +979,23 @@ void sbuf_tls_setup(void)
 		server_connect_conf = tls_config_new();
 		if (!server_connect_conf)
 			die("tls_config_new failed 1");
-		setup_tls(server_connect_conf, "server_tls", cf_server_tls_sslmode,
-			  cf_server_tls_protocols, cf_server_tls_ciphers,
-			  cf_server_tls_key_file, cf_server_tls_cert_file,
-			  cf_server_tls_ca_file, "", "", true);
+		if (!setup_tls(server_connect_conf, "server_tls", cf_server_tls_sslmode,
+			       cf_server_tls_protocols, cf_server_tls_ciphers,
+			       cf_server_tls_key_file, cf_server_tls_cert_file,
+			       cf_server_tls_ca_file, "", "", true))
+			die("server TLS setup failed");
 	}
 
 	if (cf_client_tls_sslmode != SSLMODE_DISABLED) {
 		client_accept_conf = tls_config_new();
 		if (!client_accept_conf)
 			die("tls_config_new failed 2");
-		setup_tls(client_accept_conf, "client_tls", cf_client_tls_sslmode,
-			  cf_client_tls_protocols, cf_client_tls_ciphers,
-			  cf_client_tls_key_file, cf_client_tls_cert_file,
-			  cf_client_tls_ca_file, cf_client_tls_dheparams,
-			  cf_client_tls_ecdhecurve, false);
+		if (!setup_tls(client_accept_conf, "client_tls", cf_client_tls_sslmode,
+			       cf_client_tls_protocols, cf_client_tls_ciphers,
+			       cf_client_tls_key_file, cf_client_tls_cert_file,
+			       cf_client_tls_ca_file, cf_client_tls_dheparams,
+			       cf_client_tls_ecdhecurve, false))
+			die("client TLS setup failed");
 
 		client_accept_base = tls_server();
 		if (!client_accept_base)

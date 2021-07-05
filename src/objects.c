@@ -1624,6 +1624,14 @@ void tag_pool_dirty(PgPool *pool)
 	struct List *item, *tmp;
 	struct PgSocket *server;
 
+	/*
+	 * Don't tag the admin pool as dirty, since this is not an actual postgres
+	 * server. Marking it as dirty breaks connecting to the pgbouncer admin
+	 * database on future connections.
+	 */
+	if (pool->db->admin)
+		return;
+
 	/* reset welcome msg */
 	if (pool->welcome_msg) {
 		pktbuf_free(pool->welcome_msg);

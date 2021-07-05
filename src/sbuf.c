@@ -1036,24 +1036,22 @@ bool sbuf_tls_setup(void)
 		}
 	}
 
-	// To change server TLS settings all connections are marked as dirty. This
-	// way they are recycled and the new TLS settings will be used. Otherwise
-	// old TLS settings, possibly less secure, could be used for old
-	// connections indefinitly. If TLS is disabled, and it was disabled before
-	// as well then recycling connections is not necessary, since we know none
-	// of the settings have changed. In all other cases we recycle the
-	// connections to be on the safe side, even though it's possible nothing
-	// has changed.
+	/*
+	 * To change server TLS settings all connections are marked as dirty. This
+	 * way they are recycled and the new TLS settings will be used. Otherwise
+	 * old TLS settings, possibly less secure, could be used for old
+	 * connections indefinitly. If TLS is disabled, and it was disabled before
+	 * as well then recycling connections is not necessary, since we know none
+	 * of the settings have changed. In all other cases we recycle the
+	 * connections to be on the safe side, even though it's possible nothing
+	 * has changed.
+	 */
 	if (server_connect_conf || new_server_connect_conf) {
 		struct List *item;
 		PgPool *pool;
 		statlist_for_each(item, &pool_list) {
 			pool = container_of(item, PgPool, head);
-			// Don't tag the pgbouncer pool as dirty, since this is not an
-			// actual postgres server. Marking it as dirty breaks connecting to
-			// the pgbouncer admin database on future connections.
-			if (strcmp(pool->db->name, "pgbouncer") != 0)
-				tag_pool_dirty(pool);
+			tag_pool_dirty(pool);
 		}
 	}
 

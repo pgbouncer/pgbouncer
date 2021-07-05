@@ -2,7 +2,7 @@
 
 cd $(dirname $0)
 
-rm -rf TestCA1
+rm -rf TestCA1 TestCA2
 
 (
 ./newca.sh TestCA1 C=QQ O=Org1 CN="TestCA1"

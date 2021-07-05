@@ -46,6 +46,6 @@ run_ca() {
     shift
   done
   if test "$1" = '-out'; then
-    cp "${CaName}/certs/$ser.pem" "$2" 2>/dev/null
+    cp "${CaName}/certs/$ser.pem" "$2"
   fi
 }

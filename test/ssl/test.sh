@@ -277,7 +277,7 @@ test_client_ssl() {
 	echo "host all all 127.0.0.1/32 trust" > pgdata/pg_hba.conf
 	echo "host all all ::1/128 trust" >> pgdata/pg_hba.conf
 	reconf_pgsql "ssl=on" "ssl_ca_file='root.crt'"
-	psql_bouncer -q "dbname=p0 sslmode=require" -c "select 'client-ssl-connect'" | tee tmp/test.tmp
+	psql_bouncer -q -d "dbname=p0 sslmode=require" -c "select 'client-ssl-connect'" | tee tmp/test.tmp
 	grep -q "client-ssl-connect"  tmp/test.tmp
 	rc=$?
 	return $rc
@@ -291,7 +291,7 @@ test_client_ssl_verify() {
 	echo "host all all 127.0.0.1/32 trust" > pgdata/pg_hba.conf
 	echo "host all all ::1/128 trust" >> pgdata/pg_hba.conf
 	reconf_pgsql "ssl=on" "ssl_ca_file='root.crt'"
-	psql_bouncer -q "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
+	psql_bouncer -q -d "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-connect"  tmp/test.tmp
 	rc=$?
 	return $rc
@@ -305,10 +305,10 @@ test_client_ssl_set_disable() {
 	echo "host all all 127.0.0.1/32 trust" > pgdata/pg_hba.conf
 	echo "host all all ::1/128 trust" >> pgdata/pg_hba.conf
 	reconf_pgsql "ssl=on" "ssl_ca_file='root.crt'"
-	psql_bouncer -q "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
+	psql_bouncer -q -d "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-connect"  tmp/test.tmp || return 1
 	admin "set client_tls_sslmode=disable"
-	psql_bouncer -q "dbname=p0 sslmode=disable" -c "select 'client-ssl-disable'" | tee tmp/test.tmp 2>&1
+	psql_bouncer -q -d "dbname=p0 sslmode=disable" -c "select 'client-ssl-disable'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-disable"  tmp/test.tmp
 	rc=$?
 	return $rc
@@ -320,12 +320,12 @@ test_client_ssl_set_enable() {
 	echo "host all all 127.0.0.1/32 trust" > pgdata/pg_hba.conf
 	echo "host all all ::1/128 trust" >> pgdata/pg_hba.conf
 	reconf_pgsql "ssl=on" "ssl_ca_file='root.crt'"
-	psql_bouncer -q "dbname=p0 sslmode=disable" -c "select 'client-ssl-disable'" | tee tmp/test.tmp 2>&1
+	psql_bouncer -q -d "dbname=p0 sslmode=disable" -c "select 'client-ssl-disable'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-disable"  tmp/test.tmp || return 1
 	admin "set client_tls_key_file='TestCA1/sites/01-localhost.key'"
 	admin "set client_tls_cert_file='TestCA1/sites/01-localhost.crt'"
 	admin "set client_tls_sslmode=require"
-	psql_bouncer -q "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
+	psql_bouncer -q -d "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-connect"  tmp/test.tmp
 	rc=$?
 	return $rc
@@ -339,16 +339,15 @@ test_client_ssl_set_change_ca() {
 	echo "host all all 127.0.0.1/32 trust" > pgdata/pg_hba.conf
 	echo "host all all ::1/128 trust" >> pgdata/pg_hba.conf
 	reconf_pgsql "ssl=on" "ssl_ca_file='root.crt'"
-	psql_bouncer -q "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
+	psql_bouncer -q -d "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-connect"  tmp/test.tmp || return 1
 	admin "set client_tls_key_file='TestCA2/sites/01-localhost.key'"
 	admin "set client_tls_cert_file='TestCA2/sites/01-localhost.crt'"
-	psql_bouncer -q "dbname=p0 sslmode=verify-full sslrootcert=TestCA2/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
+	psql_bouncer -q -d "dbname=p0 sslmode=verify-full sslrootcert=TestCA2/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-connect"  tmp/test.tmp
 	rc=$?
 	return $rc
 }
-
 
 test_client_ssl_reload_disable() {
 	reconf_bouncer "auth_type = trust" "server_tls_sslmode = prefer" \
@@ -358,12 +357,12 @@ test_client_ssl_reload_disable() {
 	echo "host all all 127.0.0.1/32 trust" > pgdata/pg_hba.conf
 	echo "host all all ::1/128 trust" >> pgdata/pg_hba.conf
 	reconf_pgsql "ssl=on" "ssl_ca_file='root.crt'"
-	psql_bouncer -q "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
+	psql_bouncer -q -d "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-connect"  tmp/test.tmp || return 1
 	sed 's/client_tls_sslmode=require/client_tls_sslmode=disable/g' tmp/test.ini > tmp/test2.ini
 	mv tmp/test2.ini tmp/test.ini
 	admin "reload"
-	psql_bouncer -q "dbname=p0 sslmode=disable" -c "select 'client-ssl-disable'" | tee tmp/test.tmp 2>&1
+	psql_bouncer -q -d "dbname=p0 sslmode=disable" -c "select 'client-ssl-disable'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-disable"  tmp/test.tmp
 	rc=$?
 	return $rc
@@ -377,12 +376,12 @@ test_client_ssl_reload_enable() {
 	echo "host all all 127.0.0.1/32 trust" > pgdata/pg_hba.conf
 	echo "host all all ::1/128 trust" >> pgdata/pg_hba.conf
 	reconf_pgsql "ssl=on" "ssl_ca_file='root.crt'"
-	psql_bouncer -q "dbname=p0 sslmode=disable" -c "select 'client-ssl-disable'" | tee tmp/test.tmp 2>&1
+	psql_bouncer -q -d "dbname=p0 sslmode=disable" -c "select 'client-ssl-disable'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-disable"  tmp/test.tmp || return 1
 	sed 's/client_tls_sslmode=disable/client_tls_sslmode=require/g' tmp/test.ini > tmp/test2.ini
 	mv tmp/test2.ini tmp/test.ini
 	admin "reload"
-	psql_bouncer -q "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
+	psql_bouncer -q -d "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-connect"  tmp/test.tmp
 	rc=$?
 	return $rc
@@ -396,12 +395,12 @@ test_client_ssl_reload_change_ca() {
 	echo "host all all 127.0.0.1/32 trust" > pgdata/pg_hba.conf
 	echo "host all all ::1/128 trust" >> pgdata/pg_hba.conf
 	reconf_pgsql "ssl=on" "ssl_ca_file='root.crt'"
-	psql_bouncer -q "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
+	psql_bouncer -q -d "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-connect"  tmp/test.tmp || return 1
 	sed 's/TestCA1/TestCA2/g' tmp/test.ini > tmp/test2.ini
 	mv tmp/test2.ini tmp/test.ini
 	admin "reload"
-	psql_bouncer -q "dbname=p0 sslmode=verify-full sslrootcert=TestCA2/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
+	psql_bouncer -q -d "dbname=p0 sslmode=verify-full sslrootcert=TestCA2/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-connect"  tmp/test.tmp
 	rc=$?
 	return $rc
@@ -415,13 +414,13 @@ test_client_ssl_sighup_disable() {
 	echo "host all all 127.0.0.1/32 trust" > pgdata/pg_hba.conf
 	echo "host all all ::1/128 trust" >> pgdata/pg_hba.conf
 	reconf_pgsql "ssl=on" "ssl_ca_file='root.crt'"
-	psql_bouncer -q "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
+	psql_bouncer -q -d "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-connect"  tmp/test.tmp || return 1
 	sed 's/client_tls_sslmode=require/client_tls_sslmode=disable/g' tmp/test.ini > tmp/test2.ini
 	mv tmp/test2.ini tmp/test.ini
 	kill -HUP `cat test.pid`
 	sleep 1
-	psql_bouncer -q "dbname=p0 sslmode=disable" -c "select 'client-ssl-disable'" | tee tmp/test.tmp 2>&1
+	psql_bouncer -q -d "dbname=p0 sslmode=disable" -c "select 'client-ssl-disable'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-disable"  tmp/test.tmp
 	rc=$?
 	return $rc
@@ -435,13 +434,13 @@ test_client_ssl_sighup_enable() {
 	echo "host all all 127.0.0.1/32 trust" > pgdata/pg_hba.conf
 	echo "host all all ::1/128 trust" >> pgdata/pg_hba.conf
 	reconf_pgsql "ssl=on" "ssl_ca_file='root.crt'"
-	psql_bouncer -q "dbname=p0 sslmode=disable" -c "select 'client-ssl-disable'" | tee tmp/test.tmp 2>&1
+	psql_bouncer -q -d "dbname=p0 sslmode=disable" -c "select 'client-ssl-disable'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-disable"  tmp/test.tmp || return 1
 	sed 's/client_tls_sslmode=disable/client_tls_sslmode=require/g' tmp/test.ini > tmp/test2.ini
 	mv tmp/test2.ini tmp/test.ini
 	kill -HUP `cat test.pid`
 	sleep 1
-	psql_bouncer -q "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
+	psql_bouncer -q -d "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-connect"  tmp/test.tmp
 	rc=$?
 	return $rc
@@ -455,13 +454,13 @@ test_client_ssl_sighup_change_ca() {
 	echo "host all all 127.0.0.1/32 trust" > pgdata/pg_hba.conf
 	echo "host all all ::1/128 trust" >> pgdata/pg_hba.conf
 	reconf_pgsql "ssl=on" "ssl_ca_file='root.crt'"
-	psql_bouncer -q "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
+	psql_bouncer -q -d "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-connect"  tmp/test.tmp || return 1
 	sed 's/TestCA1/TestCA2/g' tmp/test.ini > tmp/test2.ini
 	mv tmp/test2.ini tmp/test.ini
 	kill -HUP `cat test.pid`
 	sleep 1
-	psql_bouncer -q "dbname=p0 sslmode=verify-full sslrootcert=TestCA2/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
+	psql_bouncer -q -d "dbname=p0 sslmode=verify-full sslrootcert=TestCA2/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-connect"  tmp/test.tmp
 	rc=$?
 	return $rc
@@ -476,7 +475,7 @@ test_client_ssl_auth() {
 	echo "host all all 127.0.0.1/32 trust" > pgdata/pg_hba.conf
 	echo "host all all ::1/128 trust" >> pgdata/pg_hba.conf
 	reconf_pgsql "ssl=on" "ssl_ca_file='root.crt'"
-	psql_bouncer -q "dbname=p0 sslmode=require sslkey=TestCA1/sites/02-bouncer.key sslcert=TestCA1/sites/02-bouncer.crt" \
+	psql_bouncer -q -d "dbname=p0 sslmode=require sslkey=TestCA1/sites/02-bouncer.key sslcert=TestCA1/sites/02-bouncer.crt" \
 		-c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-connect"  tmp/test.tmp
 	rc=$?
@@ -491,7 +490,7 @@ test_client_ssl_scram() {
 		"client_tls_key_file = TestCA1/sites/01-localhost.key" \
 		"client_tls_cert_file = TestCA1/sites/01-localhost.crt"
 	reconf_pgsql "ssl=on" "ssl_ca_file='root.crt'"
-	psql_bouncer -q "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
+	psql_bouncer -q -d "dbname=p0 sslmode=verify-full sslrootcert=TestCA1/ca.crt" -c "select 'client-ssl-connect'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-connect"  tmp/test.tmp
 	rc=$?
 	return $rc

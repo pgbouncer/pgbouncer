@@ -42,6 +42,15 @@ typedef enum {
 
 struct tls;
 
+/*
+ * client_accept_sslmode is the currently applied sslmode that is used to
+ * accept client connections. This is usually the same as
+ * cf_client_tls_sslmode, except when changing the TLS configuration failed for
+ * some reason (e.g. cert file not found). In this exceptional case,
+ * cf_client_tls_sslmode will be the new sslmode, which is not actually
+ * applied. And client_accept_sslmode is the still applied previous version. So
+ * usually you should use this variable over cf_client_tls_sslmode.
+ */
 extern int client_accept_sslmode;
 
 /* fwd def */

@@ -865,9 +865,9 @@ static int raw_sbufio_close(struct SBuf *sbuf)
 #ifdef USE_TLS
 
 /*
- * Thes are the currently applied TLS configurations. They might differ from
- * the current configuration if there was an error applying the configured
- * parameters (e.g. cert file not found).
+ * These global variables contain the currently applied TLS configurations.
+ * They might differ from the current configuration if there was an error
+ * applying the configured parameters (e.g. cert file not found).
  */
 static struct tls_config *client_accept_conf;
 static struct tls_config *server_connect_conf;
@@ -965,10 +965,11 @@ bool sbuf_tls_setup(void)
 {
 	int err;
 	/*
-	 * These are the new TLS configurations, based on the latest settings
-	 * provided by the user. Once they have been configured completely without
-	 * errors they are assigned to the globals at the end of this function.
-	 * This way the globals never have partially configured TLS configurations.
+	 * These variables store the new TLS configurations, based on the latest
+	 * settings provided by the user. Once they have been configured completely
+	 * without errors they are assigned to the globals at the end of this
+	 * function. This way the globals never contain partially configured TLS
+	 * configurations.
 	 */
 	struct tls_config *new_client_accept_conf = NULL;
 	struct tls_config *new_server_connect_conf = NULL;

@@ -491,7 +491,7 @@ static bool calculate_client_proof(ScramState *scram_state,
 	{
 		rc = pg_saslprep(user->passwd, &prep_password);
 		if (rc == SASLPREP_OOM)
-			false;
+			return false;
 		if (rc != SASLPREP_SUCCESS)
 		{
 			prep_password = strdup(user->passwd);

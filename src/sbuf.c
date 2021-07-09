@@ -904,7 +904,7 @@ static bool setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
 		err = tls_config_set_ecdhecurve(conf, ecdhecurve);
 		if (err) {
 			log_error("invalid %s_ecdhecurve: %s", pfx, ecdhecurve);
-			false;
+			return false;
 		}
 	}
 	if (*cafile) {

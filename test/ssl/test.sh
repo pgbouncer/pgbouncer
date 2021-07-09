@@ -141,7 +141,7 @@ die() {
 }
 
 admin() {
-	psql -X -h /tmp -U pgbouncer pgbouncer -c "$@;" || die "Cannot contact bouncer!"
+	psql -X -h /tmp -U pgbouncer -d pgbouncer -c "$@;" || die "Cannot contact bouncer!"
 }
 
 runtest() {

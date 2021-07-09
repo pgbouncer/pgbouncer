@@ -878,7 +878,7 @@ static void xares_host_cb(void *arg, int status, int timeouts, struct hostent *h
 		got_result_gai(0, res, req);
 	} else {
 		log_debug("DNS lookup failed: %s - %s", req->name, ares_strerror(status));
-		got_result_gai(0, res, req);
+		got_result_gai(1, res, req);
 	}
 }
 

@@ -83,10 +83,14 @@ if ! $use_unix_sockets; then
 	echo 'admin_users = pgbouncer' >> test.ini
 fi
 
+MAX_PASSWORD=$(sed -n $SED_ERE_OP 's/#define MAX_PASSWORD[[:space:]]+([0-9]+)/\1/p' ../include/bouncer.h)
+long_password=$(printf '%*s' $(($MAX_PASSWORD - 1)) | tr ' ' 'a')
+
 # System configuration checks
 if ! grep -q "^\"${USER:=$(id -un)}\"" userlist.txt; then
 	cp userlist.txt userlist.txt.bak
 	echo "\"${USER}\" \"01234\"" >> userlist.txt
+	echo "\"longpass\" \"${long_password}\"" >> userlist.txt
 fi
 
 if test -n "$USE_SUDO"; then
@@ -171,6 +175,7 @@ psql -X -p $PG_PORT -d p0 -c "select * from pg_user" | grep pswcheck > /dev/null
 	psql -X -o /dev/null -p $PG_PORT -c "create user pswcheck with superuser createdb password 'pgbouncer-check';" p0 || exit 1
 	psql -X -o /dev/null -p $PG_PORT -c "create user someuser with password 'anypasswd';" p0 || exit 1
 	psql -X -o /dev/null -p $PG_PORT -c "create user maxedout;" p0 || exit 1
+	psql -X -o /dev/null -p $PG_PORT -c "create user longpass with password '$long_password';" p0 || exit 1
 	if $pg_supports_scram; then
 		psql -X -o /dev/null -p $PG_PORT -c "set password_encryption = 'md5'; create user muser1 password 'foo';" p0 || exit 1
 		psql -X -o /dev/null -p $PG_PORT -c "set password_encryption = 'md5'; create user muser2 password 'wrong';" p0 || exit 1
@@ -832,6 +837,9 @@ test_password_server() {
 	# bad password from auth_file
 	psql -X -c "select 1" p4z && return 1
 
+	# long password from auth_file
+	psql -X -c "select 1" p4l || return 1
+
 	return 0
 }
 
@@ -847,6 +855,10 @@ test_password_client() {
 	PGPASSWORD=foo psql -X -U puser1 -c "select 1" p1 || return 1
 	# bad password
 	PGPASSWORD=wrong psql -X -U puser2 -c "select 2" p1 && return 1
+	# long password
+	PGPASSWORD=$long_password psql -X -U longpass -c "select 3" p1 || return 1
+	# too long password
+	PGPASSWORD=X$long_password psql -X -U longpass -c "select 4" p1 && return 1
 
 	# test with users that have an md5 password stored
 

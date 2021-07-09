@@ -203,6 +203,11 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	cv.value_p = &pool_mode;
 	cv.extra = (const void *)pool_mode_map;
 
+	if (strcmp(name, "pgbouncer") == 0) {
+		log_error("database name \"%s\" is reserved", name);
+		return false;
+	}
+
 	if (strcmp(name, "*") == 0) {
 		return set_autodb(connstr);
 	}

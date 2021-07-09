@@ -874,6 +874,9 @@ The database name can contain characters `_0-9A-Za-z` without quoting.
 Names that contain other characters need to be quoted with standard SQL
 identifier quoting: double quotes, with "" for a single instance of a double quote.
 
+The database name "pgbouncer" is reserved for the admin console and
+cannot be used as a key here.
+
 "*" acts as a fallback database: If the exact name does not exist, its
 value is taken as connection string for the requested database.  For
 example, if there is an entry (and no other overriding entries)

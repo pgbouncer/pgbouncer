@@ -719,7 +719,7 @@ static bool reset_on_release(PgSocket *server)
 	return res;
 }
 
-static bool life_over(PgSocket *server)
+bool life_over(PgSocket *server)
 {
 	PgPool *pool = server->pool;
 	usec_t lifetime_kill_gap = 0;

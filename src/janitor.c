@@ -423,15 +423,6 @@ static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle
 	struct List *item, *tmp;
 	usec_t idle, age;
 	PgSocket *server;
-	usec_t lifetime_kill_gap = 0;
-
-	/*
-	 * Calculate the time that disconnects because of server_lifetime
-	 * must be separated.  This avoids the need to re-launch lot
-	 * of connections together.
-	 */
-	if (pool->db->pool_size > 0)
-		lifetime_kill_gap = cf_server_lifetime / pool->db->pool_size;
 
 	/* disconnect idle servers if needed */
 	statlist_for_each_safe(item, slist, tmp) {
@@ -450,7 +441,7 @@ static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle
 			   && (cf_min_pool_size == 0 || pool_connected_server_count(pool) > cf_min_pool_size)) {
 			disconnect_server(server, true, "server idle timeout");
 		} else if (age >= cf_server_lifetime) {
-			if (pool->last_lifetime_disconnect + lifetime_kill_gap <= now) {
+			if (life_over(server)) {
 				disconnect_server(server, true, "server lifetime over");
 				pool->last_lifetime_disconnect = now;
 			}

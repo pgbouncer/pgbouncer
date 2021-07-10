@@ -105,7 +105,7 @@ bool admin_error(PgSocket *admin, const char *fmt, ...)
 
 	log_error("%s", str);
 	if (admin)
-		res = send_pooler_error(admin, true, str);
+		res = send_pooler_error(admin, true, false, str);
 	return res;
 }
 

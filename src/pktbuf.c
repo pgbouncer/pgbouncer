@@ -160,7 +160,7 @@ bool pktbuf_send_queued(PktBuf *buf, PgSocket *sk)
 
 	if (buf->failed) {
 		pktbuf_free(buf);
-		return send_pooler_error(sk, true, "result prepare failed");
+		return send_pooler_error(sk, true, false, "result prepare failed");
 	} else {
 		buf->sending = true;
 		buf->queued_dst = sk;

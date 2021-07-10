@@ -113,9 +113,15 @@ bool get_header(struct MBuf *data, PktHdr *pkt)
 
 /*
  * Send error message packet to client.
+ *
+ * If level_fatal is true, use severity "FATAL", else "ERROR".  Although it is
+ * not technically part of the protocol specification, some clients expect the
+ * connection to be closed after receiving a FATAL error, and don't expect it
+ * to be closed after an ERROR-level error.  So to be nice, level_fatal should
+ * be true if the caller plans to close the connection after sending this
+ * error.
  */
-
-bool send_pooler_error(PgSocket *client, bool send_ready, const char *msg)
+bool send_pooler_error(PgSocket *client, bool send_ready, bool level_fatal, const char *msg)
 {
 	uint8_t tmpbuf[512];
 	PktBuf buf;
@@ -125,7 +131,8 @@ bool send_pooler_error(PgSocket *client, bool send_ready, const char *msg)
 
 	pktbuf_static(&buf, tmpbuf, sizeof(tmpbuf));
 	pktbuf_write_generic(&buf, 'E', "cscscsc",
-			     'S', "ERROR", 'C', "08P01", 'M', msg, 0);
+			     'S', level_fatal ? "FATAL" : "ERROR",
+			     'C', "08P01", 'M', msg, 0);
 	if (send_ready)
 		pktbuf_write_ReadyForQuery(&buf);
 	return pktbuf_send_immediate(&buf, client);

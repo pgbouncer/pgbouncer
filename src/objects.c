@@ -1374,7 +1374,7 @@ void forward_cancel_request(PgSocket *server)
 		if (!res)
 			log_warning("sending cancel request failed: %s", strerror(errno));
 	} else {
-		log_warning("abort cancel request, generation mismatch: %llu != %llu", req->link->generation, req->generation);
+		log_warning("abort cancel request, generation mismatch: %" PRIu64 " != %" PRIu64, req->link->generation, req->generation);
 	}
 
 	change_client_state(req, CL_JUSTFREE);

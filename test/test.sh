@@ -557,6 +557,35 @@ test_pool_size() {
 	return 0
 }
 
+test_min_pool_size() {
+	# make existing connections go away
+	psql -X -p $PG_PORT -d postgres -c "select pg_terminate_backend(pid) from pg_stat_activity where usename='bouncer'"
+	until test $(psql -X -p $PG_PORT -d postgres -tAq -c "select count(1) from pg_stat_activity where usename='bouncer'") -eq 0; do sleep 0.1; done
+
+	# default_pool_size=5
+	admin "set min_pool_size = 3"
+
+	cnt=`psql -X -p $PG_PORT -tAq -c "select count(1) from pg_stat_activity where usename='bouncer' and datname='p1'" postgres`
+	echo $cnt
+	test "$cnt" -eq 0 || return 1
+
+	# It's a bit tricky to get the timing of this test to work
+	# robustly: Full maintenance runs three times a second, so we
+	# need to wait at least 1/3 seconds for it to notice for sure
+	# that the pool is in use.  When it does, it will launch one
+	# connection per round, so we need to wait at least 3 * 1/3
+	# second before all the min pool connections are launched.
+	# Also, we need to keep the query running while this is
+	# happening so that the pool doesn't become momentarily
+	# unused.
+	psql -X -c "select pg_sleep(2)" p1 &
+	sleep 2
+
+	cnt=`psql -X -p $PG_PORT -tAq -c "select count(1) from pg_stat_activity where usename='bouncer' and datname='p1'" postgres`
+	echo $cnt
+	test "$cnt" -eq 3 || return 1
+}
+
 test_max_db_connections() {
 	local users
 
@@ -1232,6 +1261,7 @@ test_server_check_delay
 test_tcp_user_timeout
 test_max_client_conn
 test_pool_size
+test_min_pool_size
 test_max_db_connections
 test_max_user_connections
 test_online_restart

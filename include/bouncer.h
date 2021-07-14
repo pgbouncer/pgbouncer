@@ -129,11 +129,29 @@ extern int cf_sbuf_len;
 #define DEFAULT_UNIX_SOCKET_DIR ""
 #endif
 
-/* to avoid allocations will use static buffers */
+/*
+ * To avoid allocations, we use static buffers.
+ *
+ * Note that a trailing zero byte is used in each case, so the actual
+ * usable length is one less.
+ */
+
+/* matching NAMEDATALEN */
 #define MAX_DBNAME	64
-#define MAX_USERNAME	64
-/* typical SCRAM-SHA-256 verifier takes at least 133 bytes */
-#define MAX_PASSWORD	160
+
+/*
+ * Ought to match NAMEDATALEN.  Some cloud services use longer user
+ * names, so give it some extra room.
+ */
+#define MAX_USERNAME	128
+
+/*
+ * Some cloud services use very long generated passwords, so give it
+ * plenty of room.  Up to PostgreSQL 13, the server can handle
+ * passwords up to 996 bytes, after that it's longer.  Also, libpq
+ * maxes out around 1024, so going much higher is not straightforward.
+ */
+#define MAX_PASSWORD	996
 
 /*
  * AUTH_* symbols are used for both protocol handling and

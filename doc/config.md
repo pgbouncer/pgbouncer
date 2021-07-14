@@ -929,8 +929,6 @@ user name, meaning that there will be one pool per user.
 
 ### password
 
-The length for `password` is limited to 160 characters maximum.
-
 If no password is specified here, the password from the `auth_file` or
 `auth_query` will be used.
 

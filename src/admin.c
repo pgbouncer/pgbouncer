@@ -813,7 +813,7 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 	pktbuf_write_RowDescription(buf, "ssiiiiiiiiiis",
 				    "database", "user",
 				    "cl_active", "cl_waiting",
-					"cl_cancel_req",
+				    "cl_cancel_req",
 				    "sv_active", "sv_idle",
 				    "sv_used", "sv_tested",
 				    "sv_login", "maxwait",

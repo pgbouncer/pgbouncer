@@ -508,7 +508,7 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 				     db->name, db->host, db->port,
 				     db->dbname, f_user,
 				     db->pool_size,
-					 db->min_pool_size,
+				     db->min_pool_size,
 				     db->res_pool_size,
 				     pool_mode_str,
 				     database_max_connections(db),

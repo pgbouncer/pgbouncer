@@ -946,7 +946,7 @@ the `default_pool_size` is used.
 
 ### min_pool_size
 
-Set the minimum pool size for this database. If not set, the `min_pool_size` is
+Set the minimum pool size for this database. If not set, the global `min_pool_size` is
 used.
 
 ### reserve_pool

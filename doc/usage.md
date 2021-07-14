@@ -365,6 +365,9 @@ cl_active
 cl_waiting
 :   Client connections that have sent queries but have not yet got a server connection.
 
+cl_cancel_req
+:   Client connections that have not forwarded query cancellations to the server yet.
+
 sv_active
 :   Server connections that are linked to a client.
 

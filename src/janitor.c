@@ -186,7 +186,6 @@ static void per_loop_activate(PgPool *pool)
 	statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
 		client = container_of(item, PgSocket, head);
 		if (!statlist_empty(&pool->idle_server_list)) {
-
 			/* db not fully initialized after reboot */
 			if (client->wait_for_welcome && !pool->welcome_msg_ready) {
 				launch_new_connection(pool);
@@ -204,8 +203,20 @@ static void per_loop_activate(PgPool *pool)
 			--sv_used;
 		} else {
 			/* not enough connections */
-			launch_new_connection(pool);
-			break;
+			enum LaunchResult launch_result = launch_new_connection(pool);
+			if (launch_result == LAUNCH_USER_FULL) {
+				/* to avoid endless logging, only log when entering and leaving
+				   the CL_WAITING_SLOT state (waiting for a slot). */
+				if(client->state != CL_WAITING_SLOT)
+				{
+					client->state = CL_WAITING_SLOT;
+					slog_info(client, "per_loop_activate: reached per-user "
+						"connection limit, waiting for one to become free");
+				}
+			}
+			// activate_client will eventually be called after a connection is
+			// successfully made (and logged in) or reused, allowing us to log when
+			// we exit this state.
 		}
 	}
 }
@@ -388,7 +399,9 @@ static void pool_client_maint(PgPool *pool)
 	if (cf_query_timeout > 0 || cf_query_wait_timeout > 0) {
 		statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
 			client = container_of(item, PgSocket, head);
-			Assert(client->state == CL_WAITING || client->state == CL_WAITING_LOGIN);
+			Assert(client->state == CL_WAITING ||
+				client->state == CL_WAITING_LOGIN ||
+				client->state == CL_WAITING_SLOT);
 			if (client->query_start == 0) {
 				age = now - client->request_time;
 				/* log_warning("query_start==0"); */

@@ -430,8 +430,8 @@ static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle
 	 * must be separated.  This avoids the need to re-launch lot
 	 * of connections together.
 	 */
-	if (pool->db->pool_size > 0)
-		lifetime_kill_gap = cf_server_lifetime / pool->db->pool_size;
+	if (pool_pool_size(pool) > 0)
+		lifetime_kill_gap = cf_server_lifetime / pool_pool_size(pool);
 
 	/* disconnect idle servers if needed */
 	statlist_for_each_safe(item, slist, tmp) {
@@ -447,7 +447,7 @@ static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle
 		} else if (server->state == SV_USED && !server->ready) {
 			disconnect_server(server, true, "SV_USED server got dirty");
 		} else if (cf_server_idle_timeout > 0 && idle > cf_server_idle_timeout
-			   && (pool->db->min_pool_size == 0 || pool_connected_server_count(pool) > pool->db->min_pool_size)) {
+			   && (pool_min_pool_size(pool) == 0 || pool_connected_server_count(pool) > pool_min_pool_size(pool))) {
 			disconnect_server(server, true, "server idle timeout");
 		} else if (age >= cf_server_lifetime) {
 			if (pool->last_lifetime_disconnect + lifetime_kill_gap <= now) {
@@ -471,9 +471,9 @@ static void check_pool_size(PgPool *pool)
 {
 	PgSocket *server;
 	int cur = pool_connected_server_count(pool);
-	int many = cur - (pool->db->pool_size + pool->db->res_pool_size);
+	int many = cur - (pool_pool_size(pool) + pool_res_pool_size(pool));
 
-	Assert(pool->db->pool_size >= 0);
+	Assert(pool_pool_size(pool) >= 0);
 
 	while (many > 0) {
 		server = first_socket(&pool->used_server_list);
@@ -487,8 +487,8 @@ static void check_pool_size(PgPool *pool)
 	}
 
 	/* launch extra connections to satisfy min_pool_size */
-	if (cur < pool->db->min_pool_size &&
-	    cur < pool->db->pool_size &&
+	if (cur < pool_min_pool_size(pool) &&
+	    cur < pool_pool_size(pool) &&
 	    cf_pause_mode == P_NONE &&
 	    cf_reboot == 0 &&
 	    pool_client_count(pool) > 0)
@@ -742,11 +742,5 @@ void config_postprocess(void)
 			kill_database(db);
 			continue;
 		}
-		if (db->pool_size < 0)
-			db->pool_size = cf_default_pool_size;
-		if (db->min_pool_size < 0)
-			db->min_pool_size = cf_min_pool_size;
-		if (db->res_pool_size < 0)
-			db->res_pool_size = cf_res_pool_size;
 	}
 }

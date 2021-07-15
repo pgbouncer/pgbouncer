@@ -356,13 +356,6 @@ PgDatabase *register_auto_database(const char *name)
 	db = find_database(name);
 	if (db) {
 		db->db_auto = true;
-		/* do not forget to check pool_size like in config_postprocess */
-		if (db->pool_size < 0)
-			db->pool_size = cf_default_pool_size;
-		if (db->min_pool_size < 0)
-			db->min_pool_size = cf_min_pool_size;
-		if (db->res_pool_size < 0)
-			db->res_pool_size = cf_res_pool_size;
 	}
 
 	return db;
@@ -733,8 +726,8 @@ static bool life_over(PgSocket *server)
 	if (age < cf_server_lifetime)
 		return false;
 
-	if (pool->db->pool_size > 0)
-		lifetime_kill_gap = cf_server_lifetime / pool->db->pool_size;
+	if (pool_pool_size(pool) > 0)
+		lifetime_kill_gap = cf_server_lifetime / pool_pool_size(pool);
 
 	if (last_kill >= lifetime_kill_gap)
 		return true;
@@ -1182,26 +1175,26 @@ void launch_new_connection(PgPool *pool)
 	max = pool_server_count(pool);
 
 	/* when a cancel request is queued allow connections up to twice the pool size */
-	if (!statlist_empty(&pool->cancel_req_list) && max < (2 * pool->db->pool_size)) {
+	if (!statlist_empty(&pool->cancel_req_list) && max < (2 * pool_pool_size(pool))) {
 		log_debug("launch_new_connection: bypass pool limitations for cancel request");
 		goto force_new;
 	}
 
 	/* is it allowed to add servers? */
-	if (max >= pool->db->pool_size && pool->welcome_msg_ready) {
+	if (max >= pool_pool_size(pool) && pool->welcome_msg_ready) {
 		/* should we use reserve pool? */
-		if (cf_res_pool_timeout && pool->db->res_pool_size) {
+		if (cf_res_pool_timeout && pool_res_pool_size(pool)) {
 			usec_t now = get_cached_time();
 			PgSocket *c = first_socket(&pool->waiting_client_list);
 			if (c && (now - c->request_time) >= cf_res_pool_timeout) {
-				if (max < pool->db->pool_size + pool->db->res_pool_size) {
+				if (max < pool_pool_size(pool) + pool_res_pool_size(pool)) {
 					slog_warning(c, "taking connection from reserve_pool");
 					goto allow_new;
 				}
 			}
 		}
 		log_debug("launch_new_connection: pool full (%d >= %d)",
-				max, pool->db->pool_size);
+				max, pool_pool_size(pool));
 		return;
 	}
 

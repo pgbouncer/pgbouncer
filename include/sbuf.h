@@ -42,17 +42,6 @@ typedef enum {
 
 struct tls;
 
-/*
- * client_accept_sslmode is the currently applied sslmode that is used to
- * accept client connections. This is usually the same as
- * cf_client_tls_sslmode, except when changing the TLS configuration failed for
- * some reason (e.g. cert file not found). In this exceptional case,
- * cf_client_tls_sslmode will be the new sslmode, which is not actually
- * applied. And client_accept_sslmode is the still applied previous version. So
- * usually you should use this variable over cf_client_tls_sslmode.
- */
-extern int client_accept_sslmode;
-
 /* fwd def */
 typedef struct SBuf SBuf;
 typedef struct SBufIO SBufIO;
@@ -103,6 +92,22 @@ struct SBuf {
 void sbuf_init(SBuf *sbuf, sbuf_cb_t proto_fn);
 bool sbuf_accept(SBuf *sbuf, int read_sock, bool is_unix)  _MUSTCHECK;
 bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, socklen_t sa_len, time_t timeout_sec)  _MUSTCHECK;
+
+/*
+ * client_accept_sslmode is the currently applied sslmode that is used to
+ * accept client connections. This is usually the same as
+ * cf_client_tls_sslmode, except when changing the TLS configuration failed for
+ * some reason (e.g. cert file not found). In this exceptional case,
+ * cf_client_tls_sslmode will be the new sslmode, which is not actually
+ * applied. And client_accept_sslmode is the still applied previous version. So
+ * usually you should use this variable over cf_client_tls_sslmode.
+ */
+extern int client_accept_sslmode;
+/*
+ * Same as client_accept_sslmode, but for server connections.
+ */
+extern int server_connect_sslmode;
+
 
 bool sbuf_tls_setup(void);
 bool sbuf_tls_accept(SBuf *sbuf)  _MUSTCHECK;

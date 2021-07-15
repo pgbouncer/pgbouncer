@@ -413,7 +413,7 @@ static bool handle_connect(PgSocket *server)
 		disconnect_server(server, false, "sent cancel req");
 	} else {
 		/* proceed with login */
-		if (cf_server_tls_sslmode > SSLMODE_DISABLED && !is_unix) {
+		if (server_connect_sslmode > SSLMODE_DISABLED && !is_unix) {
 			slog_noise(server, "P: SSL request");
 			res = send_sslreq_packet(server);
 			if (res)
@@ -444,7 +444,7 @@ static bool handle_sslchar(PgSocket *server, struct MBuf *data)
 	if (schar == 'S') {
 		slog_noise(server, "launching tls");
 		ok = sbuf_tls_connect(&server->sbuf, server->pool->db->host);
-	} else if (cf_server_tls_sslmode >= SSLMODE_REQUIRE) {
+	} else if (server_connect_sslmode >= SSLMODE_REQUIRE) {
 		disconnect_server(server, false, "server refused SSL");
 		return false;
 	} else {

@@ -54,8 +54,6 @@ enum WaitType {
 	W_ONCE
 };
 
-int client_accept_sslmode;
-
 #define AssertSanity(sbuf) do { \
 	Assert(iobuf_sane((sbuf)->io)); \
 } while (0)
@@ -869,9 +867,12 @@ static int raw_sbufio_close(struct SBuf *sbuf)
  * They might differ from the current configuration if there was an error
  * applying the configured parameters (e.g. cert file not found).
  */
-static struct tls_config *client_accept_conf;
-static struct tls_config *server_connect_conf;
 static struct tls *client_accept_base;
+static struct tls_config *client_accept_conf;
+int client_accept_sslmode;
+static struct tls_config *server_connect_conf;
+int server_connect_sslmode;
+
 
 /*
  * TLS setup
@@ -1061,10 +1062,11 @@ bool sbuf_tls_setup(void)
 	tls_free(client_accept_base);
 	tls_config_free(client_accept_conf);
 	tls_config_free(server_connect_conf);
-	client_accept_conf = new_client_accept_conf;
-	server_connect_conf = new_server_connect_conf;
 	client_accept_base = new_client_accept_base;
+	client_accept_conf = new_client_accept_conf;
 	client_accept_sslmode = cf_client_tls_sslmode;
+	server_connect_conf = new_server_connect_conf;
+	server_connect_sslmode = cf_server_tls_sslmode;
 	return true;
 failed:
 	tls_free(new_client_accept_base);

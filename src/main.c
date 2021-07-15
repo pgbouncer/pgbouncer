@@ -418,7 +418,7 @@ void load_config(void)
 		}
 	}
 
-	/* reset pool_size, kill dbs */
+	/* kill dbs */
 	config_postprocess();
 
 	/* reopen logfile */
@@ -695,9 +695,9 @@ static void check_limits(void)
 	statlist_for_each(item, &database_list) {
 		db = container_of(item, PgDatabase, head);
 		if (db->forced_user)
-			fd_count += db->pool_size;
+			fd_count += (db->pool_size >= 0 ? db->pool_size : cf_default_pool_size);
 		else
-			fd_count += db->pool_size * total_users;
+			fd_count += (db->pool_size >= 0 ? db->pool_size : cf_default_pool_size) * total_users;
 	}
 
 	log_info("kernel file descriptor limit: %d (hard: %d); max_client_conn: %d, max expected fd use: %d",

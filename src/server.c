@@ -201,6 +201,30 @@ int pool_pool_mode(PgPool *pool)
 	return pool_mode;
 }
 
+int pool_pool_size(PgPool *pool)
+{
+	if (pool->db->pool_size < 0)
+		return cf_default_pool_size;
+	else
+		return pool->db->pool_size;
+}
+
+int pool_min_pool_size(PgPool *pool)
+{
+	if (pool->db->min_pool_size < 0)
+		return cf_min_pool_size;
+	else
+		return pool->db->min_pool_size;
+}
+
+int pool_res_pool_size(PgPool *pool)
+{
+	if (pool->db->res_pool_size < 0)
+		return cf_res_pool_size;
+	else
+		return pool->db->res_pool_size;
+}
+
 int database_max_connections(PgDatabase *db)
 {
 	if (db->max_db_connections <= 0) {

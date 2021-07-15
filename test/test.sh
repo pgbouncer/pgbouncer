@@ -559,6 +559,10 @@ test_pool_size() {
 	test `docount p0` -eq 2 || return 1
 	test `docount p1` -eq 5 || return 1
 
+	# test reload (GH issue #248)
+	admin "set default_pool_size = 7"
+	test `docount p1` -eq 7 || return 1
+
 	return 0
 }
 
@@ -589,6 +593,31 @@ test_min_pool_size() {
 	cnt=`psql -X -p $PG_PORT -tAq -c "select count(1) from pg_stat_activity where usename='bouncer' and datname='p1'" postgres`
 	echo $cnt
 	test "$cnt" -eq 3 || return 1
+}
+
+test_reserve_pool_size() {
+	# make existing connections go away
+	psql -X -p $PG_PORT -d postgres -c "select pg_terminate_backend(pid) from pg_stat_activity where usename='bouncer'"
+	until test $(psql -X -p $PG_PORT -d postgres -tAq -c "select count(1) from pg_stat_activity where usename='bouncer'") -eq 0; do sleep 0.1; done
+
+	# default_pool_size=5
+	admin "set reserve_pool_size = 3"
+
+	for i in {1..8}; do
+		psql -X -c "select pg_sleep(8)" p1 >/dev/null &
+	done
+	sleep 1
+	cnt=`psql -X -p $PG_PORT -tAq -c "select count(1) from pg_stat_activity where usename='bouncer' and datname='p1'" postgres`
+	echo $cnt
+	test "$cnt" -eq 5 || return 1
+
+	sleep 7  # reserve_pool_timeout + wiggle room
+
+	cnt=`psql -X -p $PG_PORT -tAq -c "select count(1) from pg_stat_activity where usename='bouncer' and datname='p1'" postgres`
+	echo $cnt
+	test "$cnt" -eq 8 || return 1
+
+	grep "taking connection from reserve_pool" $BOUNCER_LOG || return 1
 }
 
 test_max_db_connections() {
@@ -1274,6 +1303,7 @@ test_tcp_user_timeout
 test_max_client_conn
 test_pool_size
 test_min_pool_size
+test_reserve_pool_size
 test_max_db_connections
 test_max_user_connections
 test_online_restart

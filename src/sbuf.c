@@ -1251,6 +1251,9 @@ void sbuf_cleanup(void)
 
 #else
 
+int client_accept_sslmode = SSLMODE_DISABLED;
+int server_connect_sslmode = SSLMODE_DISABLED;
+
 bool sbuf_tls_setup(void) { return true; }
 bool sbuf_tls_accept(SBuf *sbuf) { return false; }
 bool sbuf_tls_connect(SBuf *sbuf, const char *hostname) { return false; }

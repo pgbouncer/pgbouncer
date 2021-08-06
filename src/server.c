@@ -143,10 +143,10 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 
 	case 'Z':		/* ReadyForQuery */
 		if (server->exec_on_connect) {
-			server->exec_on_connect = 0;
+			server->exec_on_connect = false;
 			/* deliberately ignore transaction status */
 		} else if (server->pool->db->connect_query) {
-			server->exec_on_connect = 1;
+			server->exec_on_connect = true;
 			slog_debug(server, "server connect ok, send exec_on_connect");
 			SEND_generic(res, server, 'Q', "s", server->pool->db->connect_query);
 			if (!res)
@@ -156,7 +156,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 
 		/* login ok */
 		slog_debug(server, "server login ok, start accepting queries");
-		server->ready = 1;
+		server->ready = true;
 
 		/* got all params */
 		finish_welcome_msg(server);
@@ -199,6 +199,30 @@ int pool_pool_mode(PgPool *pool)
 	if (pool_mode == POOL_INHERIT)
 		pool_mode = cf_pool_mode;
 	return pool_mode;
+}
+
+int pool_pool_size(PgPool *pool)
+{
+	if (pool->db->pool_size < 0)
+		return cf_default_pool_size;
+	else
+		return pool->db->pool_size;
+}
+
+int pool_min_pool_size(PgPool *pool)
+{
+	if (pool->db->min_pool_size < 0)
+		return cf_min_pool_size;
+	else
+		return pool->db->min_pool_size;
+}
+
+int pool_res_pool_size(PgPool *pool)
+{
+	if (pool->db->res_pool_size < 0)
+		return cf_res_pool_size;
+	else
+		return pool->db->res_pool_size;
 }
 
 int database_max_connections(PgDatabase *db)
@@ -269,7 +293,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		break;
 
 	/*
-	 * 'E' and 'N' packets currently set ->ready to 0.  Correct would
+	 * 'E' and 'N' packets currently set ->ready to false.  Correct would
 	 * be to leave ->ready as-is, because overall TX state stays same.
 	 * It matters for connections in IDLE or USED state which get dirty
 	 * suddenly but should not as they are still usable.
@@ -353,26 +377,46 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		} else {
 			sbuf_prepare_send(sbuf, &client->sbuf, pkt->len);
 
-			/* every statement (independent or in a transaction) counts as a query */
-			if ((ready || idle_tx) && client->query_start) {
-				usec_t total;
-				total = get_cached_time() - client->query_start;
-				client->query_start = 0;
-				server->pool->stats.query_time += total;
-				slog_debug(client, "query time: %d us", (int)total);
-			} else if ((ready || idle_tx) && !async_response) {
-				slog_warning(client, "FIXME: query end, but query_start == 0");
-			}
+			/*
+			 * Compute query and transaction times
+			 *
+			 * For pipelined overlapping commands, we wait until
+			 * the last command is done (expect_rfq_count==0).
+			 * That means, we count the time that PgBouncer is
+			 * occupied in a query or transaction, not the total
+			 * time that all queries/transactions take
+			 * individually.  For that, we would have to track the
+			 * start time of each query separately in a queue or
+			 * similar, not only per client.
+			 */
+			if (client->expect_rfq_count == 0) {
+				/* every statement (independent or in a transaction) counts as a query */
+				if (ready || idle_tx) {
+					if (client->query_start) {
+						usec_t total;
+						total = get_cached_time() - client->query_start;
+						client->query_start = 0;
+						server->pool->stats.query_time += total;
+						slog_debug(client, "query time: %d us", (int)total);
+					} else if (!async_response) {
+						slog_warning(client, "FIXME: query end, but query_start == 0");
+					}
+				}
 
-			/* statement ending in "idle" ends a transaction */
-			if (ready && client->xact_start) {
-				usec_t total;
-				total = get_cached_time() - client->xact_start;
-				client->xact_start = 0;
-				server->pool->stats.xact_time += total;
-				slog_debug(client, "transaction time: %d us", (int)total);
-			} else if (ready && !async_response) {
-				slog_warning(client, "FIXME: transaction end, but xact_start == 0");
+				/* statement ending in "idle" ends a transaction */
+				if (ready) {
+					if (client->xact_start) {
+						usec_t total;
+						total = get_cached_time() - client->xact_start;
+						client->xact_start = 0;
+						server->pool->stats.xact_time += total;
+						slog_debug(client, "transaction time: %d us", (int)total);
+					} else if (!async_response) {
+						/* XXX This happens during takeover if the new process
+						 * continues a transaction. */
+						slog_warning(client, "FIXME: transaction end, but xact_start == 0");
+					}
+				}
 			}
 		}
 	} else {
@@ -409,11 +453,11 @@ static bool handle_connect(PgSocket *server)
 		/* if pending cancel req, send it */
 		forward_cancel_request(server);
 		/* notify disconnect_server() that connect did not fail */
-		server->ready = 1;
+		server->ready = true;
 		disconnect_server(server, false, "sent cancel req");
 	} else {
 		/* proceed with login */
-		if (cf_server_tls_sslmode > SSLMODE_DISABLED && !is_unix) {
+		if (server_connect_sslmode > SSLMODE_DISABLED && !is_unix) {
 			slog_noise(server, "P: SSL request");
 			res = send_sslreq_packet(server);
 			if (res)
@@ -444,7 +488,7 @@ static bool handle_sslchar(PgSocket *server, struct MBuf *data)
 	if (schar == 'S') {
 		slog_noise(server, "launching tls");
 		ok = sbuf_tls_connect(&server->sbuf, server->pool->db->host);
-	} else if (cf_server_tls_sslmode >= SSLMODE_REQUIRE) {
+	} else if (server_connect_sslmode >= SSLMODE_REQUIRE) {
 		disconnect_server(server, false, "server refused SSL");
 		return false;
 	} else {
@@ -534,7 +578,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			PgSocket *client = server->link;
 			Assert(client);
 
-			server->setting_vars = 0;
+			server->setting_vars = false;
 			sbuf_continue(&client->sbuf);
 			break;
 		}

@@ -20,7 +20,7 @@
 /test/ssl/pgdata/
 /test/ssl/test.log
 /test/ssl/test.pid
-/test/ssl/TestCA1/
+/test/ssl/TestCA[1-9]/
 
 *.html
 *.xml

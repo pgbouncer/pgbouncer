@@ -122,7 +122,7 @@ static void disconnect(DbConn *db, bool is_err, const char *reason, ...)
 		log_debug("disconnect because: %s", buf);
 		PQfinish(db->con);
 		db->con = NULL;
-		db->logged_in = 0;
+		db->logged_in = false;
 		set_idle(db);
 	}
 }
@@ -304,7 +304,7 @@ static void connect_cb(int sock, short flags, void *arg)
 	case PGRES_POLLING_OK:
 		log_debug("login ok: fd=%d", PQsocket(db->con));
 		LoginOkCount++;
-		db->logged_in = 1;
+		db->logged_in = true;
 		send_query(db);
 		break;
 	default:
@@ -315,7 +315,7 @@ static void connect_cb(int sock, short flags, void *arg)
 static void launch_connect(DbConn *db)
 {
 	/* launch new connection */
-	db->logged_in = 0;
+	db->logged_in = false;
 	db->query_count = 0;
 	db->con = PQconnectStart(db->connstr);
 	if (db->con == NULL) {

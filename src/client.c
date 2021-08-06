@@ -37,7 +37,6 @@ static const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
 
 static bool check_client_passwd(PgSocket *client, const char *passwd)
 {
-	char md5[MD5_PASSWD_LEN + 1];
 	PgUser *user = client->login_user;
 	int auth_type = client->client_auth_type;
 
@@ -53,21 +52,39 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 		switch (get_password_type(user->passwd)) {
 		case PASSWORD_TYPE_PLAINTEXT:
 			return strcmp(user->passwd, passwd) == 0;
-		case PASSWORD_TYPE_MD5:
+		case PASSWORD_TYPE_MD5: {
+			char md5[MD5_PASSWD_LEN + 1];
 			pg_md5_encrypt(passwd, user->name, strlen(user->name), md5);
 			return strcmp(user->passwd, md5) == 0;
+		}
 		case PASSWORD_TYPE_SCRAM_SHA_256:
 			return scram_verify_plain_password(client, user->name, passwd, user->passwd);
 		default:
 			return false;
 		}
-	case AUTH_MD5:
+	case AUTH_MD5: {
+		char *stored_passwd;
+		char md5[MD5_PASSWD_LEN + 1];
+
 		if (strlen(passwd) != MD5_PASSWD_LEN)
 			return false;
-		if (get_password_type(user->passwd) == PASSWORD_TYPE_PLAINTEXT)
-			pg_md5_encrypt(user->passwd, user->name, strlen(user->name), user->passwd);
-		pg_md5_encrypt(user->passwd + 3, (char *)client->tmp_login_salt, 4, md5);
+
+		/*
+		 * The client sends
+		 * 'md5'+md5(md5(password+username)+salt).  The stored
+		 * password is either 'md5'+md5(password+username) or
+		 * plain text.  If the latter, we compute the inner
+		 * md5() call first.
+		 */
+		if (get_password_type(user->passwd) == PASSWORD_TYPE_PLAINTEXT) {
+			pg_md5_encrypt(user->passwd, user->name, strlen(user->name), md5);
+			stored_passwd = md5;
+		} else {
+			stored_passwd = user->passwd;
+		}
+		pg_md5_encrypt(stored_passwd + 3, (char *)client->tmp_login_salt, 4, md5);
 		return strcmp(md5, passwd) == 0;
+	}
 	}
 	return false;
 }
@@ -113,7 +130,7 @@ static void start_auth_query(PgSocket *client, const char *username)
 		disconnect_client(client, true, "pause failed");
 		return;
 	}
-	client->link->ready = 0;
+	client->link->ready = false;
 
 	res = 0;
 	buf = pktbuf_dynamic(512);
@@ -701,7 +718,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 			disconnect_client(client, false, "SSL req inside SSL");
 			return false;
 		}
-		if (cf_client_tls_sslmode != SSLMODE_DISABLED && !is_unix) {
+		if (client_accept_sslmode != SSLMODE_DISABLED && !is_unix) {
 			slog_noise(client, "P: SSL ack");
 			if (!sbuf_answer(&client->sbuf, "S", 1)) {
 				disconnect_client(client, false, "failed to ack SSL");
@@ -734,7 +751,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		return false;
 	case PKT_STARTUP:
 		/* require SSL except on unix socket */
-		if (cf_client_tls_sslmode >= SSLMODE_REQUIRE && !client->sbuf.tls && !is_unix) {
+		if (client_accept_sslmode >= SSLMODE_REQUIRE && !client->sbuf.tls && !is_unix) {
 			disconnect_client(client, true, "SSL required");
 			return false;
 		}

@@ -50,13 +50,19 @@ Default: 6432
 
 Specifies location for Unix sockets. Applies to both listening socket and
 server connections. If set to an empty string, Unix sockets are disabled.
-Required for online reboot (-R) to work.
+A value that starts with `@` specifies that a Unix socket in the
+abstract namespace should be created (currently supported on Linux and
+Windows).
+
+For online reboot (`-R`) to work, a Unix socket needs to be
+configured, and it needs to be in the file-system namespace.
 
 Default: /tmp (empty on Windows)
 
 ### unix_socket_mode
 
 File system mode for Unix socket.
+Ignored for sockets in the abstract namespace.
 Not supported on Windows.
 
 Default: 0777
@@ -64,6 +70,7 @@ Default: 0777
 ### unix_socket_group
 
 Group name to use for Unix socket.
+Ignored for sockets in the abstract namespace.
 Not supported on Windows.
 
 Default: not set
@@ -867,6 +874,9 @@ The database name can contain characters `_0-9A-Za-z` without quoting.
 Names that contain other characters need to be quoted with standard SQL
 identifier quoting: double quotes, with "" for a single instance of a double quote.
 
+The database name "pgbouncer" is reserved for the admin console and
+cannot be used as a key here.
+
 "*" acts as a fallback database: If the exact name does not exist, its
 value is taken as connection string for the requested database.  For
 example, if there is an entry (and no other overriding entries)
@@ -901,6 +911,10 @@ mode), and new server connections immediately use the new resolution.
 If DNS returns several results, they are used in round-robin
 manner.
 
+If the value begins with `/`, then a Unix socket in the file-system
+namespace is used.  If the value begins with `@`, then a Unix socket
+in the abstract namespace is used.
+
 Default: not set, meaning to use a Unix socket
 
 ### port
@@ -918,8 +932,6 @@ user name, meaning that there will be one pool per user.
 
 ### password
 
-The length for `password` is limited to 160 characters maximum.
-
 If no password is specified here, the password from the `auth_file` or
 `auth_query` will be used.
 
@@ -931,6 +943,11 @@ Override of the global `auth_user` setting, if specified.
 
 Set the maximum size of pools for this database.  If not set,
 the `default_pool_size` is used.
+
+### min_pool_size
+
+Set the minimum pool size for this database. If not set, the global `min_pool_size` is
+used.
 
 ### reserve_pool
 

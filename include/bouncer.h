@@ -129,11 +129,29 @@ extern int cf_sbuf_len;
 #define DEFAULT_UNIX_SOCKET_DIR ""
 #endif
 
-/* to avoid allocations will use static buffers */
+/*
+ * To avoid allocations, we use static buffers.
+ *
+ * Note that a trailing zero byte is used in each case, so the actual
+ * usable length is one less.
+ */
+
+/* matching NAMEDATALEN */
 #define MAX_DBNAME	64
-#define MAX_USERNAME	64
-/* typical SCRAM-SHA-256 verifier takes at least 133 bytes */
-#define MAX_PASSWORD	160
+
+/*
+ * Ought to match NAMEDATALEN.  Some cloud services use longer user
+ * names, so give it some extra room.
+ */
+#define MAX_USERNAME	128
+
+/*
+ * Some cloud services use very long generated passwords, so give it
+ * plenty of room.  Up to PostgreSQL 13, the server can handle
+ * passwords up to 996 bytes, after that it's longer.  Also, libpq
+ * maxes out around 1024, so going much higher is not straightforward.
+ */
+#define MAX_PASSWORD	996
 
 /*
  * AUTH_* symbols are used for both protocol handling and
@@ -274,10 +292,10 @@ struct PgPool {
 
 	/* if last connect to server failed, there should be delay before next */
 	usec_t last_connect_time;
-	unsigned last_connect_failed:1;
-	unsigned last_login_failed:1;
+	bool last_connect_failed:1;
+	bool last_login_failed:1;
 
-	unsigned welcome_msg_ready:1;
+	bool welcome_msg_ready:1;
 };
 
 #define pool_connected_server_count(pool) ( \
@@ -343,6 +361,7 @@ struct PgDatabase {
 	int port;
 
 	int pool_size;		/* max server connections in one pool */
+	int min_pool_size;	/* min server connections in one pool */
 	int res_pool_size;	/* additional server connections in case of trouble */
 	int pool_mode;		/* pool mode for this database */
 	int max_db_connections;	/* max server connections between all pools */

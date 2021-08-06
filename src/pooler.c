@@ -69,7 +69,7 @@ static void cleanup_sockets(void)
 			safe_close(ls->fd);
 			ls->fd = 0;
 		}
-		if (pga_is_unix(&ls->addr)) {
+		if (pga_is_unix(&ls->addr) && cf_unix_socket_dir[0] != '@') {
 			char buf[sizeof(struct sockaddr_un) + 20];
 			snprintf(buf, sizeof(buf), "%s/.s.PGSQL.%d", cf_unix_socket_dir, cf_listen_port);
 			unlink(buf);
@@ -176,8 +176,10 @@ static bool add_listen(int af, const struct sockaddr *sa, int salen)
 
 	if (af == AF_UNIX) {
 #ifndef WIN32
-		struct sockaddr_un *un = (struct sockaddr_un *)sa;
-		change_file_mode(un->sun_path, cf_unix_socket_mode, NULL, cf_unix_socket_group);
+		if (cf_unix_socket_dir[0] != '@') {
+			struct sockaddr_un *un = (struct sockaddr_un *)sa;
+			change_file_mode(un->sun_path, cf_unix_socket_mode, NULL, cf_unix_socket_group);
+		}
 #endif
 	} else {
 		tune_accept(sock, cf_tcp_defer_accept);
@@ -199,6 +201,7 @@ failed:
 static void create_unix_socket(const char *socket_dir, int listen_port)
 {
 	struct sockaddr_un un;
+	int addrlen;
 	int res;
 	char lockfile[sizeof(struct sockaddr_un) + 10];
 	struct stat st;
@@ -208,17 +211,30 @@ static void create_unix_socket(const char *socket_dir, int listen_port)
 	un.sun_family = AF_UNIX;
 	snprintf(un.sun_path, sizeof(un.sun_path),
 		"%s/.s.PGSQL.%d", socket_dir, listen_port);
+	if (socket_dir[0] == '@') {
+		/*
+		 * By convention, for abstract Unix sockets, only the
+		 * length of the string is the sockaddr length.
+		 */
+		addrlen = offsetof(struct sockaddr_un, sun_path) + strlen(un.sun_path);
+		un.sun_path[0] = '\0';
+	}
+	else {
+		addrlen = sizeof(un);
+	}
 
-	/* check for lockfile */
-	snprintf(lockfile, sizeof(lockfile), "%s.lock", un.sun_path);
-	res = lstat(lockfile, &st);
-	if (res == 0)
-		die("unix port %d is in use", listen_port);
+	if (socket_dir[0] != '@') {
+		/* check for lockfile */
+		snprintf(lockfile, sizeof(lockfile), "%s.lock", un.sun_path);
+		res = lstat(lockfile, &st);
+		if (res == 0)
+			die("unix port %d is in use", listen_port);
 
-	/* expect old bouncer gone */
-	unlink(un.sun_path);
+		/* expect old bouncer gone */
+		unlink(un.sun_path);
+	}
 
-	add_listen(AF_UNIX, (const struct sockaddr *)&un, sizeof(un));
+	add_listen(AF_UNIX, (const struct sockaddr *)&un, addrlen);
 }
 
 /*
@@ -509,12 +525,12 @@ void pooler_setup(void)
 		}
 	} else {
 		bool ok;
-		static int init_done = 0;
+		static bool init_done = false;
 
 		if (!init_done) {
 			/* remove socket on shutdown */
 			atexit(cleanup_sockets);
-			init_done = 1;
+			init_done = true;
 		}
 
 		ok = parse_word_list(cf_listen_addr, parse_addr, NULL);

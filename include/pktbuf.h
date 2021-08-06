@@ -31,9 +31,9 @@ struct PktBuf {
 	struct event *ev;
 	PgSocket *queued_dst;
 
-	unsigned failed:1;
-	unsigned sending:1;
-	unsigned fixed_buf:1;
+	bool failed:1;
+	bool sending:1;
+	bool fixed_buf:1;
 };
 
 /*
@@ -150,7 +150,7 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
 	SEND_wrap(16, pktbuf_write_CancelRequest, res, sk, key)
 
 #define SEND_PasswordMessage(res, sk, psw) \
-	SEND_wrap(512, pktbuf_write_PasswordMessage, res, sk, psw)
+	SEND_wrap(MAX_PASSWORD + 8, pktbuf_write_PasswordMessage, res, sk, psw)
 
 #define SEND_SASLInitialResponseMessage(res, sk, mech, cir) \
 	SEND_wrap(512, pkgbuf_write_SASLInitialResponseMessage, res, sk, mech, cir)

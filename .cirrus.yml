@@ -104,6 +104,8 @@ task:
     - ./configure --prefix=$HOME/install2 --enable-werror --without-cares $configure_args
     - make
     - make install
+  tarball_artifacts:
+    path: "pgbouncer-*.tar.gz"
   always:
     configure_artifacts:
       path: "config.log"

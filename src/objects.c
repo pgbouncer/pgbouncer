@@ -1441,6 +1441,9 @@ bool use_client_socket(int fd, PgAddr *addr,
 		if (!user && db->auth_user)
 			user = add_db_user(db, username, password);
 
+		if (!user)
+			return false;
+
 		memcpy(user->scram_ClientKey, scram_client_key, sizeof(user->scram_ClientKey));
 		memcpy(user->scram_ServerKey, scram_server_key, sizeof(user->scram_ServerKey));
 		user->has_scram_keys = true;

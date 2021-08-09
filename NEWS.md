@@ -1,6 +1,69 @@
 PgBouncer changelog
 ===================
 
+PgBouncer 1.16.x
+----------------
+
+**2021-08-09  -  PgBouncer 1.16.0  -  "Fended off a jaguar"**
+
+- Features
+  * Support hot reloading of TLS settings.  When the configuration
+    file is reloaded, changed TLS settings automatically take effect.
+  * Add support for abstract Unix-domain sockets.  Prefix a
+    Unix-domain socket path with `@` to use a socket in the abstract
+    namespace.  This matches the corresponding PostgreSQL 14 feature.
+  * The maximum lengths of passwords and user names have been
+    increased to 996 and 128, respectively.  Various cloud services
+    require this.
+  * The minimum pool size can now be set per database, similar to the
+    regular pool size and the reserve pool size.
+  * The number of pending query cancellations is shown in `SHOW
+    POOLS`.
+
+- Fixes
+  * Configuration parsing now has tighter error handling in many
+    places.  Where previously it might have logged an error and
+    proceeded, those configuration errors would now result in startup
+    failures.  This is what always should have happened, but some code
+    didn't do this right.  Some users might discover that their
+    configurations have been faulty all along and will not work
+    anymore.
+  * Query cancel handling has been fixed.  Under some circumstances,
+    cancel requests would seemingly get stuck for a long time.  This
+    should no longer happen.  In fact, cancel requests can now exceed
+    the pool size by a factor of two, so they really shouldn't get
+    stuck
+    anymore. ([#542](https://github.com/pgbouncer/pgbouncer/pull/542),
+    [#543](https://github.com/pgbouncer/pgbouncer/pull/543))
+  * Mixed use of md5 and scram via hba has been fixed.
+  * The build with c-ares on Windows has been fixed.
+  * The dreaded "FIXME: query end, but query_start == 0" messages have
+    been fixed.  We now know why they happen, and you shouldn't see
+    them anymore. ([#565](https://github.com/pgbouncer/pgbouncer/pull/565))
+  * Fix reloading of `default_pool_size`, `min_pool_size`, and
+    `res_pool_size`.  Reloading these settings previously didn't work.
+
+- Cleanups
+  * Cirrus CI is now
+    [used](https://cirrus-ci.com/github/pgbouncer/pgbouncer) instead
+    of Travis CI.
+  * As usual, many tests have been added.
+  * The "unclean server" log message has been clarified a bit.  It now
+    says "client disconnect while server was not ready" or "client
+    disconnect before everything was sent to the server".  The former
+    can happen if the client connection is closed when the server has
+    a transaction block open, which confused some users.
+  * You can no longer use "pgbouncer" as a database name.  This name
+    is reserved for the admin console, and using it as a normal
+    database name never really worked right.  This is now explicitly
+    prohibited.
+  * Errors sent to clients before the connection is closed are now
+    labeled as FATAL instead of just ERROR.  Some clients were
+    confused
+    otherwise. ([#564](https://github.com/pgbouncer/pgbouncer/pull/564))
+  * Fix compiler warnings with GCC 11.
+    ([#623](https://github.com/pgbouncer/pgbouncer/issues/623))
+
 PgBouncer 1.15.x
 ----------------
 

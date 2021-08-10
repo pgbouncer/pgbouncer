@@ -32,3 +32,4 @@ on_failure:
   - set HOME=.
   - sh -l -c "test -f config.status || cat config.log"
   - sh -l -c "find test/ -name '*.log' | xargs tail -n40 -v"
+  - ls -l / && ls -l /tmp

@@ -152,6 +152,37 @@ static void set_connect_query(PgDatabase *db, const char *new)
 		log_error("no memory, cannot assign connect_query for %s", db->name);
 }
 
+static void set_auth_dbname(PgDatabase *db, const char *new)
+{
+	const char *old = db->auth_dbname;
+	char *val = NULL;
+
+	/* Bail out if pgbouncer is set as auth database */
+	if (new && strcmp(new, "pgbouncer") == 0) {
+		log_error("cannot use reserved name %s as auth_dbname", new);
+		return;
+	}
+
+	if (old && new) {
+		if (strcmp(old, new) == 0)
+			return;
+		val = strdup(new);
+		if (val) {
+			free((void *)old);
+			db->auth_dbname = val;
+		}
+	} else if (new) {
+		val = strdup(new);
+		db->auth_dbname = val;
+	} else {
+		free((void *)db->auth_dbname);
+		db->auth_dbname = NULL;
+	}
+
+	if (new && !val)
+		log_error("no memory, cannot assign auth_dbname for %s", db->name);
+}
+
 static bool set_autodb(const char *connstr)
 {
 	char *tmp = strdup(connstr);
@@ -193,6 +224,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	char *username = NULL;
 	char *password = "";
 	char *auth_username = NULL;
+	char *auth_dbname = NULL;
 	char *client_encoding = NULL;
 	char *datestyle = NULL;
 	char *timezone = NULL;
@@ -241,6 +273,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			password = val;
 		} else if (strcmp("auth_user", key) == 0) {
 			auth_username = val;
+		} else if (strcmp("auth_dbname", key) == 0) {
+			auth_dbname = val;
 		} else if (strcmp("client_encoding", key) == 0) {
 			client_encoding = val;
 		} else if (strcmp("datestyle", key) == 0) {
@@ -320,6 +354,11 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			 || (connect_query && strcmp(connect_query, db->connect_query) != 0))
 		{
 			changed = true;
+		} else if ((db->auth_dbname && !auth_dbname)
+			 || (!db->auth_dbname && auth_dbname)
+			 || (auth_dbname && strcmp(auth_dbname, db->auth_dbname) != 0))
+		{
+			changed = true;
 		}
 		if (changed)
 			tag_database_dirty(db);
@@ -339,6 +378,9 @@ bool parse_database(void *base, const char *name, const char *connstr)
 
 	/* assign connect_query */
 	set_connect_query(db, connect_query);
+
+	/* assign auth_dbname */
+	set_auth_dbname(db, auth_dbname);
 
 	if (db->startup_params) {
 		msg = db->startup_params;

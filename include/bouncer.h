@@ -367,6 +367,7 @@ struct PgDatabase {
 	int max_db_connections;	/* max server connections between all pools */
 
 	const char *dbname;	/* server-side name, pointer to inside startup_msg */
+	const char *auth_dbname; /* name of the authentication database (if any) */
 
 	/* startup commands to send to server after connect. malloc-ed */
 	char *connect_query;
@@ -516,6 +517,7 @@ extern char *cf_resolv_conf;
 extern int cf_auth_type;
 extern char *cf_auth_file;
 extern char *cf_auth_query;
+extern char *cf_auth_dbname;
 extern char *cf_auth_user;
 extern char *cf_auth_hba_file;
 

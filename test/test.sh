@@ -854,6 +854,17 @@ test_wait_close() {
 	test $psql_running -ne 0
 }
 
+# test auth_db
+test_auth_db() {
+	$have_getpeereid || return 77
+	admin "set auth_type='md5'"
+	curuser=`psql -X -d "dbname=pauthz user=someuser password=anypasswd" -tAq -c "select current_user;"`
+	echo "curuser=$curuser"
+	test "$curuser" = "someuser" || return 1
+
+	return 0
+}
+
 # test auth_user
 test_auth_user() {
 	$have_getpeereid || return 77
@@ -1291,6 +1302,7 @@ test_show_version
 test_show
 test_server_login_retry
 test_auth_user
+test_auth_db
 test_client_idle_timeout
 test_server_lifetime
 test_server_idle_timeout

@@ -116,8 +116,44 @@ static void start_auth_query(PgSocket *client, const char *username)
 	int res;
 	PktBuf *buf;
 
-	/* have to fetch user info from db */
-	client->pool = get_pool(client->db, client->db->auth_user);
+	/* Database where to execute the authentication query
+         * (default: same as the one requested by the client) */
+	PgDatabase *auth_db = client->db;
+
+	/* Requested name of database for authentication purposes
+         * via the `auth_dbname` option (per database or global) */
+	const char *auth_dbname = client->db->auth_dbname;
+
+	/* Check if the global `auth_dbname` option has been specified
+         * and adopt convention over configuration */
+	if (!auth_dbname && cf_auth_dbname) {
+		auth_dbname = cf_auth_dbname;
+	}
+
+	/* In case an `auth_dbname` is specified, let's get that
+         * database from the pool, then run the authentication
+         * query against it */
+	if (auth_dbname) {
+		auth_db = find_database(auth_dbname);
+		if (auth_db) {
+			if (auth_db->db_disabled) {
+				/* Revert to the target database */
+				auth_db = client->db;
+				slog_info(client, "auth_dbname failed: %s not accepting connections, use %s instead",
+					auth_dbname, auth_db->dbname);
+			} else {
+				slog_noise(client, "auth_dbname successfully set: %s", auth_dbname);
+			}
+		}
+		else {
+			/* Revert to the target database */
+			auth_db = client->db;
+			slog_info(client, "auth_dbname failed: cannot set %s, use %s instead",
+				auth_dbname, auth_db->dbname);
+		}
+	}
+
+	client->pool = get_pool(auth_db, client->db->auth_user);
 	if (!find_server(client)) {
 		client->wait_for_user_conn = true;
 		return;

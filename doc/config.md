@@ -148,6 +148,18 @@ is used, it needs to be installed into each database.
 
 Default: `SELECT usename, passwd FROM pg_shadow WHERE usename=$1`
 
+### auth_dbname
+
+Name of the database in the `[databases]` section to be used for
+authentication purposes. This option can be either global or overridden
+in the connection parameters string of a given database (including the
+automated fallback database `*`).
+
+When defined, the authentication query will be run on this database
+via the specified `auth_user` option.
+
+Default: not set
+
 ### auth_user
 
 If `auth_user` is set, then any user not specified in `auth_file` will be

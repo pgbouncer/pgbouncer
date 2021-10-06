@@ -17,7 +17,7 @@ AC_USUAL_PROGRAM_CHECK
 PKG_PROG_PKG_CONFIG
 
 AC_CHECK_PROGS(PANDOC, pandoc, pandoc)
-AC_CHECK_PROGS(PYTHON, [python python3 python2], python)
+AC_CHECK_PROGS(PYTHON, [python3 python], python3)
 
 dnl check for windows tools
 if test "$PORTNAME" = "win32"; then

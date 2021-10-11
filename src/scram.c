@@ -777,12 +777,10 @@ static bool build_adhoc_scram_secret(const char *plain_password, ScramState *scr
 	scram_H(scram_state->StoredKey, SCRAM_KEY_LEN, scram_state->StoredKey);
 	scram_ServerKey(salted_password, scram_state->ServerKey);
 
-	if (prep_password)
-		free(prep_password);
+	free(prep_password);
 	return true;
 failed:
-	if (prep_password)
-		free(prep_password);
+	free(prep_password);
 	return false;
 }
 

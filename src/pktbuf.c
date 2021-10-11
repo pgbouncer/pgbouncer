@@ -39,10 +39,8 @@ void pktbuf_free(PktBuf *buf)
 		return;
 
 	log_debug("pktbuf_free(%p)", buf);
-	if (buf->buf)
-		free(buf->buf);
-	if (buf->ev)
-		free(buf->ev);
+	free(buf->buf);
+	free(buf->ev);
 	free(buf);
 }
 

@@ -927,8 +927,7 @@ int main(int argc, char *argv[])
 
 	/* prefer cmdline over config for username */
 	if (arg_username) {
-		if (cf_username)
-			free(cf_username);
+		free(cf_username);
 		cf_username = xstrdup(arg_username);
 	}
 

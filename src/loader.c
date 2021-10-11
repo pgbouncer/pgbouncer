@@ -332,8 +332,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	db->pool_mode = pool_mode;
 	db->max_db_connections = max_db_connections;
 
-	if (db->host)
-		free(db->host);
+	free(db->host);
 	db->host = host;
 	db->port = v_port;
 

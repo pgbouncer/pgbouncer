@@ -659,6 +659,22 @@ test_max_user_connections() {
 	return 0
 }
 
+test_connect_query() {
+	# The p8 database definition in test.ini has some GUC settings
+	# in connect_query.  Check that they get set.  (The particular
+	# settings don't matter; just use some that are easy to set
+	# and read.)
+
+	result=`psql -X -tAq -c "show enable_seqscan" p8`
+	echo "enable_seqscan=$result"
+	test "$result" = "off" || return 1
+	result=`psql -X -tAq -c "show enable_nestloop" p8`
+	echo "enable_nestloop=$result"
+	test "$result" = "off" || return 1
+
+	return 0
+}
+
 # test online restart while clients running
 test_online_restart() {
 # max_client_conn=10
@@ -1306,6 +1322,7 @@ test_min_pool_size
 test_reserve_pool_size
 test_max_db_connections
 test_max_user_connections
+test_connect_query
 test_online_restart
 test_pause_resume
 test_suspend_resume

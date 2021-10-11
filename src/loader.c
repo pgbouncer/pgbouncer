@@ -127,31 +127,6 @@ static char * cstr_get_pair(char *p,
 	return cstr_skip_ws(p);
 }
 
-static void set_connect_query(PgDatabase *db, const char *new)
-{
-	const char *old = db->connect_query;
-	char *val = NULL;
-
-	if (old && new) {
-		if (strcmp(old, new) == 0)
-			return;
-		val = strdup(new);
-		if (val) {
-			free((void *)old);
-			db->connect_query = val;
-		}
-	} else if (new) {
-		val = strdup(new);
-		db->connect_query = val;
-	} else {
-		free((void *)db->connect_query);
-		db->connect_query = NULL;
-	}
-
-	if (new && !val)
-		log_error("no memory, cannot assign connect_query for %s", db->name);
-}
-
 static bool set_autodb(const char *connstr)
 {
 	char *tmp = strdup(connstr);
@@ -189,7 +164,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	char *tmp_connstr;
 	const char *dbname = name;
 	char *host = NULL;
-	char *port = "5432";
+	int port = 5432;
 	char *username = NULL;
 	char *password = "";
 	char *auth_username = NULL;
@@ -198,8 +173,6 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	char *timezone = NULL;
 	char *connect_query = NULL;
 	char *appname = NULL;
-
-	int v_port;
 
 	cv.value_p = &pool_mode;
 	cv.extra = (const void *)pool_mode_map;
@@ -232,9 +205,17 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		if (strcmp("dbname", key) == 0) {
 			dbname = val;
 		} else if (strcmp("host", key) == 0) {
-			host = val;
+			host = strdup(val);
+			if (!host) {
+				log_error("out of memory");
+				goto fail;
+			}
 		} else if (strcmp("port", key) == 0) {
-			port = val;
+			port = atoi(val);
+			if (port == 0) {
+				log_error("invalid port: %s", val);
+				goto fail;
+			}
 		} else if (strcmp("user", key) == 0) {
 			username = val;
 		} else if (strcmp("password", key) == 0) {
@@ -261,7 +242,11 @@ bool parse_database(void *base, const char *name, const char *connstr)
 				goto fail;
 			}
 		} else if (strcmp("connect_query", key) == 0) {
-			connect_query = val;
+			connect_query = strdup(val);
+			if (!connect_query) {
+				log_error("out of memory");
+				goto fail;
+			}
 		} else if (strcmp("application_name", key) == 0) {
 			appname = val;
 		} else {
@@ -270,26 +255,10 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		}
 	}
 
-	/* port= */
-	v_port = atoi(port);
-	if (v_port == 0) {
-		log_error("invalid port: %s", port);
-		goto fail;
-	}
-
 	db = add_database(name);
 	if (!db) {
 		log_error("cannot create database, no memory?");
 		goto fail;
-	}
-
-	/* host= */
-	if (host) {
-		host = strdup(host);
-		if (!host) {
-			log_error("failed to allocate host=");
-			goto fail;
-		}
 	}
 
 	/* tag the db as alive */
@@ -303,11 +272,10 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		bool changed = false;
 		if (strcmp(db->dbname, dbname) != 0) {
 			changed = true;
-		} else if (!!host != !!db->host) {
+		} else if (!!host != !!db->host
+			   || (host && strcmp(host, db->host) != 0)) {
 			changed = true;
-		} else if (host && strcmp(host, db->host) != 0) {
-			changed = true;
-		} else if (v_port != db->port) {
+		} else if (port != db->port) {
 			changed = true;
 		} else if (username && !db->forced_user) {
 			changed = true;
@@ -315,29 +283,24 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			changed = true;
 		} else if (!username && db->forced_user) {
 			changed = true;
-		} else if ((db->connect_query && !connect_query)
-			 || (!db->connect_query && connect_query)
-			 || (connect_query && strcmp(connect_query, db->connect_query) != 0))
-		{
+		} else if (!!connect_query != !!db->connect_query
+			   || (connect_query && strcmp(connect_query, db->connect_query) != 0))	{
 			changed = true;
 		}
 		if (changed)
 			tag_database_dirty(db);
 	}
 
-	/* if pool_size < 0 it will be set later */
+	free(db->host);
+	db->host = host;
+	db->port = port;
 	db->pool_size = pool_size;
 	db->min_pool_size = min_pool_size;
 	db->res_pool_size = res_pool_size;
 	db->pool_mode = pool_mode;
 	db->max_db_connections = max_db_connections;
-
-	free(db->host);
-	db->host = host;
-	db->port = v_port;
-
-	/* assign connect_query */
-	set_connect_query(db, connect_query);
+	free(db->connect_query);
+	db->connect_query = connect_query;
 
 	if (db->startup_params) {
 		msg = db->startup_params;
@@ -393,6 +356,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 
 	/* remember dbname */
 	db->dbname = (char *)msg->buf + dbname_ofs;
+
 	free(tmp_connstr);
 	return true;
 fail:

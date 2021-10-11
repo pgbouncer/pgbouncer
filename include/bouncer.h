@@ -345,35 +345,34 @@ struct PgDatabase {
 	struct List head;
 	char name[MAX_DBNAME];	/* db name for clients */
 
+	/*
+	 * configuration
+	 */
+	char *host;		/* host or unix socket name */
+	int port;
+	int pool_size;		/* max server connections in one pool */
+	int min_pool_size;	/* min server connections in one pool */
+	int res_pool_size;	/* additional server connections in case of trouble */
+	int pool_mode;		/* pool mode for this database */
+	int max_db_connections;	/* max server connections between all pools */
+	char *connect_query;	/* startup commands to send to server after connect */
+
+	struct PktBuf *startup_params; /* partial StartupMessage (without user) be sent to server */
+	const char *dbname;	/* server-side name, pointer to inside startup_msg */
+	PgUser *forced_user;	/* if not NULL, the user/psw is forced */
+	PgUser *auth_user;	/* if not NULL, users not in userlist.txt will be looked up on the server */
+
+	/*
+	 * run-time state
+	 */
 	bool db_paused;		/* PAUSE <db>; was issued */
 	bool db_wait_close;	/* WAIT_CLOSE was issued for this database */
 	bool db_dead;		/* used on RELOAD/SIGHUP to later detect removed dbs */
 	bool db_auto;		/* is the database auto-created by autodb_connstr */
 	bool db_disabled;	/* is the database accepting new connections? */
 	bool admin;		/* internal console db */
-
-	struct PktBuf *startup_params; /* partial StartupMessage (without user) be sent to server */
-
-	PgUser *forced_user;	/* if not NULL, the user/psw is forced */
-	PgUser *auth_user;	/* if not NULL, users not in userlist.txt will be looked up on the server */
-
-	char *host;		/* host or unix socket name */
-	int port;
-
-	int pool_size;		/* max server connections in one pool */
-	int min_pool_size;	/* min server connections in one pool */
-	int res_pool_size;	/* additional server connections in case of trouble */
-	int pool_mode;		/* pool mode for this database */
-	int max_db_connections;	/* max server connections between all pools */
-
-	const char *dbname;	/* server-side name, pointer to inside startup_msg */
-
-	/* startup commands to send to server after connect. malloc-ed */
-	char *connect_query;
-
 	usec_t inactive_time;	/* when auto-database became inactive (to kill it after timeout) */
 	unsigned active_stamp;	/* set if autodb has connections */
-
 	int connection_count;	/* total connections for this database in all pools */
 
 	struct AATree user_tree;	/* users that have been queried on this database */

@@ -83,84 +83,6 @@ Not supported on Windows.
 
 Default: not set
 
-### auth_file
-
-The name of the file to load user names and passwords from.  See
-section [Authentication file format](#authentication-file-format) below about details.
-
-Default: not set
-
-### auth_hba_file
-
-HBA configuration file to use when `auth_type` is `hba`.
-
-Default: not set
-
-### auth_type
-
-How to authenticate users.
-
-pam
-:   PAM is used to authenticate users, `auth_file` is ignored. This method is not
-    compatible with databases using the `auth_user` option. The service name reported to
-    PAM is "pgbouncer". `pam` is not supported in the HBA configuration file.
-
-hba
-:   The actual authentication type is loaded from `auth_hba_file`.  This allows different
-    authentication methods for different access paths, for example: connections
-    over Unix socket use the `peer` auth method, connections over TCP
-    must use TLS.
-
-cert
-:   Client must connect over TLS connection with a valid client certificate.
-    The user name is then taken from the CommonName field from the certificate.
-
-md5
-:   Use MD5-based password check.  This is the default authentication
-    method.  `auth_file` may contain both MD5-encrypted and plain-text
-    passwords.  If `md5` is configured and a user has a SCRAM secret,
-    then SCRAM authentication is used automatically instead.
-
-scram-sha-256
-:   Use password check with SCRAM-SHA-256.  `auth_file` has to contain
-    SCRAM secrets or plain-text passwords.
-
-plain
-:   The clear-text password is sent over the wire.  Deprecated.
-
-trust
-:   No authentication is done. The user name must still exist in `auth_file`.
-
-any
-:   Like the `trust` method, but the user name given is ignored. Requires that all
-    databases are configured to log in as a specific user.  Additionally, the console
-    database allows any user to log in as admin.
-
-### auth_query
-
-Query to load user's password from database.
-
-Direct access to pg_shadow requires admin rights.  It's preferable to
-use a non-superuser that calls a SECURITY DEFINER function instead.
-
-Note that the query is run inside the target database.  So if a function
-is used, it needs to be installed into each database.
-
-Default: `SELECT usename, passwd FROM pg_shadow WHERE usename=$1`
-
-### auth_user
-
-If `auth_user` is set, then any user not specified in `auth_file` will be
-queried through the `auth_query` query from pg_shadow in the database,
-using `auth_user`. The password of `auth_user` will be taken from `auth_file`.
-(If the `auth_user` does not require a password then it does not need
-to be defined in `auth_file`.)
-
-Direct access to pg_shadow requires admin rights.  It's preferable to
-use a non-superuser that calls a SECURITY DEFINER function instead.
-
-Default: not set
-
 ### pool_mode
 
 Specifies when a server connection can be reused by other clients.
@@ -324,6 +246,93 @@ updated and how often aggregated statistics are written to the log
 (but see `log_stats`). [seconds]
 
 Default: 60
+
+
+## Authentication settings
+
+PgBouncer handles its own client authentication and has its own
+database of users.  These settings control this.
+
+### auth_type
+
+How to authenticate users.
+
+cert
+:   Client must connect over TLS connection with a valid client certificate.
+    The user name is then taken from the CommonName field from the certificate.
+
+md5
+:   Use MD5-based password check.  This is the default authentication
+    method.  `auth_file` may contain both MD5-encrypted and plain-text
+    passwords.  If `md5` is configured and a user has a SCRAM secret,
+    then SCRAM authentication is used automatically instead.
+
+scram-sha-256
+:   Use password check with SCRAM-SHA-256.  `auth_file` has to contain
+    SCRAM secrets or plain-text passwords.
+
+plain
+:   The clear-text password is sent over the wire.  Deprecated.
+
+trust
+:   No authentication is done. The user name must still exist in `auth_file`.
+
+any
+:   Like the `trust` method, but the user name given is ignored. Requires that all
+    databases are configured to log in as a specific user.  Additionally, the console
+    database allows any user to log in as admin.
+
+hba
+:   The actual authentication type is loaded from `auth_hba_file`.  This allows different
+    authentication methods for different access paths, for example: connections
+    over Unix socket use the `peer` auth method, connections over TCP
+    must use TLS.
+
+pam
+:   PAM is used to authenticate users, `auth_file` is ignored. This method is not
+    compatible with databases using the `auth_user` option. The service name reported to
+    PAM is "pgbouncer". `pam` is not supported in the HBA configuration file.
+
+### auth_hba_file
+
+HBA configuration file to use when `auth_type` is `hba`.
+
+Default: not set
+
+### auth_file
+
+The name of the file to load user names and passwords from.  See
+section [Authentication file format](#authentication-file-format) below about details.
+
+Most authentication types (see above) require that either `auth_file`
+or `auth_user` be set; otherwise there would be no users defined.
+
+Default: not set
+
+### auth_user
+
+If `auth_user` is set, then any user not specified in `auth_file` will be
+queried through the `auth_query` query from pg_shadow in the database,
+using `auth_user`. The password of `auth_user` will be taken from `auth_file`.
+(If the `auth_user` does not require a password then it does not need
+to be defined in `auth_file`.)
+
+Direct access to pg_shadow requires admin rights.  It's preferable to
+use a non-superuser that calls a SECURITY DEFINER function instead.
+
+Default: not set
+
+### auth_query
+
+Query to load user's password from database.
+
+Direct access to pg_shadow requires admin rights.  It's preferable to
+use a non-superuser that calls a SECURITY DEFINER function instead.
+
+Note that the query is run inside the target database.  So if a function
+is used, it needs to be installed into each database.
+
+Default: `SELECT usename, passwd FROM pg_shadow WHERE usename=$1`
 
 
 ## Log settings
@@ -1016,8 +1025,8 @@ working directory.
 
 ## Authentication file format
 
-PgBouncer needs its own user database. The users are loaded from a text
-file in the following format:
+This section describes the format of the file specified by the
+`auth_file` setting.  It is a text file in the following format:
 
     "username1" "password" ...
     "username2" "md5abcdef012342345" ...
@@ -1067,7 +1076,10 @@ separate authentication file.
 
 ## HBA file format
 
-It follows the format of the PostgreSQL `pg_hba.conf` file
+The location of the HBA file is specified by the setting
+`auth_hba_file`.  It is only used if `auth_type` is set to `hba`.
+
+The file follows the format of the PostgreSQL `pg_hba.conf` file
 (see <https://www.postgresql.org/docs/current/auth-pg-hba-conf.html>).
 
 * Supported record types: `local`, `host`, `hostssl`, `hostnossl`.
@@ -1075,7 +1087,7 @@ It follows the format of the PostgreSQL `pg_hba.conf` file
 * User name field: Supports `all`, `@file`, multiple names.  Not supported: `+groupname`.
 * Address field: Supports IPv4, IPv6.  Not supported: DNS names, domain prefixes.
 * Auth-method field: Only methods supported by PgBouncer's `auth_type`
-  are supported, except `any` and `pam`, which only work globally.
+  are supported, plus `peer` and `reject`, but except `any` and `pam`, which only work globally.
   User name map (`map=`) parameter is not supported.
 
 

@@ -595,6 +595,46 @@ test_min_pool_size() {
 	test "$cnt" -eq 3 || return 1
 }
 
+test_min_pool_size_with_lower_max_user_connections() {
+	# The p0x in test.init has min_pool_size set to 5. This should make
+	# the bouncer try to create a pool for maxedout user of size 5 after a client
+	# connects to the bouncer. However maxedout user has max_user_connections set
+	# to 3, so the final pool size should be only 3.
+
+	# Running a query for sufficient time for us to reach the final
+	# connection count in the pool and detect any evictions.
+	psql -X -U maxedout -c "select pg_sleep(7)" p0x >/dev/null
+
+	new_connection_cnt=`grep "new connection to server" $BOUNCER_LOG | wc -l`
+	echo "new_connection_cnt: expected=3 actual=$new_connection_cnt"
+	test $new_connection_cnt -eq 3 || return 1
+	evicted_cnt=`grep "closing because: evicted" $BOUNCER_LOG | wc -l`
+	echo "new_connection_cnt: expected=0 actual=$evicted_cnt"
+	test $evicted_cnt -eq 0 || return 1
+
+	return 0
+}
+
+test_min_pool_size_with_lower_max_db_connections() {
+	# The p0x in test.init has min_pool_size set to 5. This should make
+	# the bouncer try to create a pool for maxedout user of size 5 after a client
+	# connects to the bouncer. However the db also has max_db_connections set
+	# to 3, so the final pool size should be only 3.
+
+	# Running a query for sufficient time for us to reach the final
+	# connection count in the pool and detect any evictions.
+	PGPASSWORD=foo psql -X -U puser1 -c "select pg_sleep(7)" p0y >/dev/null
+
+	new_connection_cnt=`grep "new connection to server" $BOUNCER_LOG | wc -l`
+	echo "new_connection_cnt: expected=3 actual=$new_connection_cnt"
+	test $new_connection_cnt -eq 3 || return 1
+	evicted_cnt=`grep "closing because: evicted" $BOUNCER_LOG | wc -l`
+	echo "new_connection_cnt: expected=0 actual=$evicted_cnt"
+	test $evicted_cnt -eq 0 || return 1
+
+	return 0
+}
+
 test_reserve_pool_size() {
 	# make existing connections go away
 	psql -X -p $PG_PORT -d postgres -c "select pg_terminate_backend(pid) from pg_stat_activity where usename='bouncer'"
@@ -1319,6 +1359,8 @@ test_tcp_user_timeout
 test_max_client_conn
 test_pool_size
 test_min_pool_size
+test_min_pool_size_with_lower_max_user_connections
+test_min_pool_size_with_lower_max_db_connections
 test_reserve_pool_size
 test_max_db_connections
 test_max_user_connections

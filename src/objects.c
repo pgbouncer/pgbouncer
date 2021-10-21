@@ -612,6 +612,25 @@ bool check_fast_fail(PgSocket *client)
 	return false;
 }
 
+/* Check if the pool's db or user has hit their max connection limits. */
+bool check_max_connection_limits(PgPool *pool) {
+	int max;
+	
+	/* Has the db hit its max connection limit? */
+	max = database_max_connections(pool->db);
+	if (max > 0 && pool->db->connection_count >= max) {
+		return true;
+	}
+
+	/* Has the user hit its max connection limit? */
+	max = user_max_connections(pool->user);
+	if (max > 0 && pool->user->connection_count >= max) {
+		return true;
+	}
+
+	return false;
+}
+
 /* link if found, otherwise put into wait queue */
 bool find_server(PgSocket *client)
 {

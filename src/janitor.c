@@ -491,7 +491,8 @@ static void check_pool_size(PgPool *pool)
 	    cur < pool_pool_size(pool) &&
 	    cf_pause_mode == P_NONE &&
 	    cf_reboot == 0 &&
-	    pool_client_count(pool) > 0)
+	    pool_client_count(pool) > 0 &&
+			!check_max_connection_limits(pool))
 	{
 		log_debug("launching new connection to satisfy min_pool_size");
 		launch_new_connection(pool);

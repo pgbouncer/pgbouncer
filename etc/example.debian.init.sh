@@ -11,7 +11,7 @@ PIDFILE=/var/run/$NAME.pid
 CONF=/etc/$NAME.ini
 OPTS="-d $CONF"
 # note: SSD is required only at startup of the daemon.
-SSD=`which start-stop-daemon`
+SSD=`command -v start-stop-daemon`
 ENV="env -i LANG=C PATH=/bin:/usr/bin:/usr/local/bin"
 
 trap "" 1

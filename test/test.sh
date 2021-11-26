@@ -30,7 +30,7 @@ pgctl() {
 
 ulimit -c unlimited
 
-which initdb > /dev/null || {
+command -v initdb > /dev/null || {
 	echo "initdb not found, need postgres tools in PATH"
 	exit 1
 }

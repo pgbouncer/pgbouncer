@@ -480,8 +480,18 @@ static bool handle_sslchar(PgSocket *server, struct MBuf *data)
 	server->wait_sslchar = false;
 
 	ok = mbuf_get_byte(data, &schar);
-	if (!ok || (schar != 'S' && schar != 'N') || mbuf_avail_for_read(data) != 0) {
+	if (!ok || (schar != 'S' && schar != 'N')) {
 		disconnect_server(server, false, "bad sslreq answer");
+		return false;
+	}
+	/*
+	 * At this point we should have no data already buffered.  If
+	 * we do, it was received before we performed the SSL
+	 * handshake, so it wasn't encrypted and indeed may have been
+	 * injected by a man-in-the-middle.
+	 */
+	if (mbuf_avail_for_read(data) != 0) {
+		disconnect_server(server, false, "received unencrypted data after SSL response");
 		return false;
 	}
 

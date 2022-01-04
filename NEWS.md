@@ -4,6 +4,21 @@ PgBouncer changelog
 PgBouncer 1.16.x
 ----------------
 
+**2021-11-11  -  PgBouncer 1.16.1  -  "Test of depth against quiet efficiency"**
+
+This is a minor release with a security fix.
+
+* Make PgBouncer acting as a server reject extraneous data after an
+  SSL or GSS encryption handshake.
+
+  A man-in-the-middle with the ability to inject data into the TCP
+  connection could stuff some cleartext data into the start of a
+  supposedly encryption-protected database session.  This could be
+  abused to send faked SQL commands to the server, although that would
+  only work if PgBouncer did not demand any authentication data.
+  (However, a PgBouncer setup relying on SSL certificate
+  authentication might well not do so.)
+
 **2021-08-09  -  PgBouncer 1.16.0  -  "Fended off a jaguar"**
 
 - Features

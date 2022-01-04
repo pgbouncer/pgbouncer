@@ -212,6 +212,12 @@ If you need to specify multiple values, use a comma-separated list (e.g.
 
 Default: empty
 
+## peer_id
+The peer id used to identify this pgbouncer process in a group of pgbouncer
+processes that are peered together. When set to 0 pgbouncer peering is disabled
+
+Default: 0
+
 ### disable_pqexec
 
 Disable the Simple Query protocol (PQexec).  Unlike the Extended Query protocol, Simple Query
@@ -402,7 +408,6 @@ Increase verbosity.  Mirrors the "-v" switch on the command line.
 For example, using "-v -v" on the command line is the same as `verbose=2`.
 
 Default: 0
-
 
 ## Console access control
 
@@ -852,6 +857,10 @@ at least `unix_socket_dir` and `pidfile`, as well as `logfile` if that
 is used.  Also note that if you make use of this option, you can no
 longer connect to a specific PgBouncer instance via TCP/IP, which
 might have implications for monitoring and metrics collection.
+
+To make sure query cancellations keep working, you should set up PgBouncer
+peering between the different PgBouncer processes. For details look at docs
+for the `peer_id` configuration option and the `peers` configuration section.
 
 Default: 0
 

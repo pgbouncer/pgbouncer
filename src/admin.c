@@ -528,6 +528,32 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 	return true;
 }
 
+/* Command: SHOW PEERS */
+static bool admin_show_peers(PgSocket *admin, const char *arg)
+{
+	PgDatabase *peer;
+	struct List *item;
+	PktBuf *buf;
+
+	buf = pktbuf_dynamic(256);
+	if (!buf) {
+		admin_error(admin, "no mem");
+		return true;
+	}
+
+	pktbuf_write_RowDescription(buf, "isii",
+				    "peer_id", "host", "port", "pool_size");
+	statlist_for_each(item, &peer_list) {
+		peer = container_of(item, PgDatabase, head);
+
+		pktbuf_write_DataRow(buf, "isii",
+				     peer->peer_id, peer->host, peer->port,
+				     peer->pool_size >= 0 ? peer->pool_size : cf_default_pool_size);
+	}
+	admin_flush(admin, buf, "SHOW");
+	return true;
+}
+
 
 /* Command: SHOW LISTS */
 static bool admin_show_lists(PgSocket *admin, const char *arg)
@@ -541,7 +567,9 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 #define SENDLIST(name, size) pktbuf_write_DataRow(buf, "si", (name), (size))
 	SENDLIST("databases", statlist_count(&database_list));
 	SENDLIST("users", statlist_count(&user_list));
+	SENDLIST("peers", statlist_count(&peer_list));
 	SENDLIST("pools", statlist_count(&pool_list));
+	SENDLIST("peer_pools", statlist_count(&peer_pool_list));
 	SENDLIST("free_clients", slab_free_count(client_cache));
 	SENDLIST("used_clients", slab_active_count(client_cache));
 	SENDLIST("login_clients", statlist_count(&login_client_list));
@@ -653,7 +681,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 	pktbuf_write_DataRow(buf, debug ? SKF_DBG : SKF_STD,
 			     is_server_socket(sk) ? "S" :"C",
 			     sk->login_user ? sk->login_user->name : "(nouser)",
-			     sk->pool ? sk->pool->db->name : "(nodb)",
+			     sk->pool && !sk->pool->db->peer_id ? sk->pool->db->name : "(nodb)",
 			     state, r_addr, pga_port(&sk->remote_addr),
 			     l_addr, pga_port(&sk->local_addr),
 			     sk->connect_time,
@@ -706,6 +734,13 @@ static bool admin_show_clients(PgSocket *admin, const char *arg)
 		show_socket_list(buf, &pool->waiting_cancel_req_list, "waiting_cancel_req", false);
 	}
 
+	statlist_for_each(item, &peer_pool_list) {
+		pool = container_of(item, PgPool, head);
+
+		show_socket_list(buf, &pool->active_cancel_req_list, "active_cancel_req", false);
+		show_socket_list(buf, &pool->waiting_cancel_req_list, "waiting_cancel_req", false);
+	}
+
 	admin_flush(admin, buf, "SHOW");
 	return true;
 }
@@ -733,6 +768,11 @@ static bool admin_show_servers(PgSocket *admin, const char *arg)
 		show_socket_list(buf, &pool->new_server_list, "new", false);
 		show_socket_list(buf, &pool->active_cancel_server_list, "active_cancel", false);
 		show_socket_list(buf, &pool->being_canceled_server_list, "being_canceled", false);
+	}
+	statlist_for_each(item, &peer_pool_list) {
+		pool = container_of(item, PgPool, head);
+		show_socket_list(buf, &pool->new_server_list, "new", false);
+		show_socket_list(buf, &pool->active_cancel_server_list, "active_cancel", false);
 	}
 	admin_flush(admin, buf, "SHOW");
 	return true;
@@ -865,6 +905,38 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 	admin_flush(admin, buf, "SHOW");
 	return true;
 }
+
+/* Command: SHOW PEER_POOLS */
+static bool admin_show_peer_pools(PgSocket *admin, const char *arg)
+{
+	struct List *item;
+	PgPool *pool;
+	PktBuf *buf;
+
+	buf = pktbuf_dynamic(256);
+	if (!buf) {
+		admin_error(admin, "no mem");
+		return true;
+	}
+	pktbuf_write_RowDescription(buf, "iiiii",
+				    "peer_id",
+				    "cl_active_cancel_req",
+				    "cl_waiting_cancel_req",
+				    "sv_active_cancel",
+				    "sv_login");
+	statlist_for_each(item, &peer_pool_list) {
+		pool = container_of(item, PgPool, head);
+		pktbuf_write_DataRow(buf, "iiiii",
+				     pool->db->peer_id,
+				     statlist_count(&pool->active_cancel_req_list),
+				     statlist_count(&pool->waiting_cancel_req_list),
+				     statlist_count(&pool->active_cancel_server_list),
+				     statlist_count(&pool->new_server_list));
+	}
+	admin_flush(admin, buf, "SHOW");
+	return true;
+}
+
 
 static void slab_stat_cb(void *arg, const char *slab_name,
 			 unsigned size, unsigned free,
@@ -1341,6 +1413,7 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		"SNOTICE", "C00000", "MConsole usage",
 		"D\n\tSHOW HELP|CONFIG|DATABASES"
 		"|POOLS|CLIENTS|SERVERS|USERS|VERSION\n"
+		"\tSHOW PEERS|PEER_POOLS\n"
 		"\tSHOW FDS|SOCKETS|ACTIVE_SOCKETS|LISTS|MEM|STATE\n"
 		"\tSHOW DNS_HOSTS|DNS_ZONES\n"
 		"\tSHOW STATS|STATS_TOTALS|STATS_AVERAGES|TOTALS\n"
@@ -1406,6 +1479,8 @@ static struct cmd_lookup show_map [] = {
 	{"fds", admin_show_fds},
 	{"help", admin_show_help},
 	{"lists", admin_show_lists},
+	{"peers", admin_show_peers},
+	{"peer_pools", admin_show_peer_pools},
 	{"pools", admin_show_pools},
 	{"servers", admin_show_servers},
 	{"sockets", admin_show_sockets},

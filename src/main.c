@@ -89,6 +89,7 @@ int cf_listen_backlog;
 char *cf_unix_socket_dir;
 int cf_unix_socket_mode;
 char *cf_unix_socket_group;
+int cf_peer_id;
 
 int cf_pool_mode = POOL_SESSION;
 
@@ -268,6 +269,7 @@ CF_ABS("max_db_connections", CF_INT, cf_max_db_connections, 0, "0"),
 CF_ABS("max_packet_size", CF_UINT, cf_max_packet_size, 0, "2147483647"),
 CF_ABS("max_user_connections", CF_INT, cf_max_user_connections, 0, "0"),
 CF_ABS("min_pool_size", CF_INT, cf_min_pool_size, 0, "0"),
+CF_ABS("peer_id", CF_INT, cf_peer_id, 0, "0"),
 CF_ABS("pidfile", CF_STR, cf_pidfile, CF_NO_RELOAD, ""),
 CF_ABS("pkt_buf", CF_INT, cf_sbuf_len, CF_NO_RELOAD, "4096"),
 CF_ABS("pool_mode", CF_LOOKUP(pool_mode_map), cf_pool_mode, 0, "session"),
@@ -334,6 +336,9 @@ static const struct CfSect config_sects [] = {
 		.sect_name = "users",
 		.set_key = parse_user,
 	}, {
+		.sect_name = "peers",
+		.set_key = parse_peer,
+	}, {
 		.sect_name = NULL,
 	}
 };
@@ -387,6 +392,17 @@ static void set_dbs_dead(bool flag)
 	}
 }
 
+static void set_peers_dead(bool flag)
+{
+	struct List *item;
+	PgDatabase *db;
+
+	statlist_for_each(item, &peer_list) {
+		db = container_of(item, PgDatabase, head);
+		db->db_dead = flag;
+	}
+}
+
 /* Tells if the specified auth type requires data from the auth file. */
 static bool requires_auth_file(int auth_type)
 {
@@ -403,6 +419,7 @@ void load_config(void)
 	bool ok;
 
 	set_dbs_dead(true);
+	set_peers_dead(true);
 
 	/* actual loading */
 	ok = cf_load_file(&main_config, cf_config_file);

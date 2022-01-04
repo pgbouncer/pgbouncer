@@ -602,9 +602,15 @@ class Bouncer(QueryRunner):
         config_dir: Path,
         base_ini_path=BOUNCER_INI,
         base_auth_path=BOUNCER_AUTH,
+        port=None,
     ):
-        self.port_lock = PortLock()
-        super().__init__("127.0.0.1", self.port_lock.port)
+        if port:
+            self.port_lock = None
+            super().__init__("127.0.0.1", port)
+        else:
+            self.port_lock = PortLock()
+            super().__init__("127.0.0.1", self.port_lock.port)
+
         self.process: typing.Optional[subprocess.Popen] = None
         self.aprocess: typing.Optional[asyncio.subprocess.Process] = None
         config_dir.mkdir()
@@ -616,7 +622,19 @@ class Bouncer(QueryRunner):
         self.pg = pg
 
         if USE_UNIX_SOCKETS:
-            self.admin_host = "/tmp"
+            if LINUX:
+                # On Linux we do so_reuseport tests with multiple pgbouncer
+                # processes listening on the same port. This requires that each
+                # of the pgbouncer processes should have a unique
+                # unix_socket_dir. We use the known-unique config_dir for this.
+                # You would expect we could do the same for other platforms
+                # too. But UNIX sockets cannot have paths longer than 103
+                # characters on and the config_dir chosen by pytest on MacOS
+                # exceeds this limit. So we use /tmp everywhere except for
+                # Linux.
+                self.admin_host = str(self.config_dir)
+            else:
+                self.admin_host = '/tmp'
         else:
             self.admin_host = "127.0.0.1"
 
@@ -762,7 +780,7 @@ class Bouncer(QueryRunner):
         time.sleep(1)
 
     def print_logs(self):
-        print("\n\nBOUNCER_LOG\n")
+        print(f"\n\nBOUNCER_LOG {self.config_dir}\n")
         try:
             with self.log_path.open() as f:
                 print(f.read())
@@ -784,7 +802,8 @@ class Bouncer(QueryRunner):
         await self.stop()
         self.print_logs()
 
-        self.port_lock.release()
+        if self.port_lock:
+            self.port_lock.release()
 
     def write_ini(self, config):
         """Writes a config to the ini file of this PgBouncer

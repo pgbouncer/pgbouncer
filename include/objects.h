@@ -19,19 +19,25 @@
 extern struct StatList user_list;
 extern struct AATree user_tree;
 extern struct StatList pool_list;
+extern struct StatList peer_pool_list;
 extern struct StatList database_list;
+extern struct StatList peer_list;
 extern struct StatList autodatabase_idle_list;
 extern struct StatList login_client_list;
 extern struct Slab *client_cache;
 extern struct Slab *server_cache;
 extern struct Slab *db_cache;
+extern struct Slab *peer_cache;
+extern struct Slab *peer_pool_cache;
 extern struct Slab *pool_cache;
 extern struct Slab *user_cache;
 extern struct Slab *iobuf_cache;
 
+PgDatabase *find_peer(int peer_id);
 PgDatabase *find_database(const char *name);
 PgUser *find_user(const char *name);
 PgPool *get_pool(PgDatabase *, PgUser *);
+PgPool *get_peer_pool(PgDatabase *);
 PgSocket *compare_connections_by_time(PgSocket *lhs, PgSocket *rhs);
 bool evict_connection(PgDatabase *db)		_MUSTCHECK;
 bool evict_user_connection(PgUser *user)	_MUSTCHECK;
@@ -45,6 +51,7 @@ PgSocket *accept_client(int sock, bool is_unix) _MUSTCHECK;
 void disconnect_server(PgSocket *server, bool notify, const char *reason, ...) _PRINTF(3, 4);
 void disconnect_client(PgSocket *client, bool notify, const char *reason, ...) _PRINTF(3, 4);
 
+PgDatabase * add_peer(const char *name, int peer_id) _MUSTCHECK;
 PgDatabase * add_database(const char *name) _MUSTCHECK;
 PgDatabase *register_auto_database(const char *name);
 PgUser * add_user(const char *name, const char *passwd) _MUSTCHECK;

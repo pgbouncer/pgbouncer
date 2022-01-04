@@ -14,6 +14,8 @@ def test_show(bouncer):
         # "fds",
         "help",
         "lists",
+        "peers",
+        "peer_pools",
         "pools",
         "servers",
         "sockets",

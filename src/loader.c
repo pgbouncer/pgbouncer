@@ -23,6 +23,7 @@
 #include "bouncer.h"
 
 #include <usual/fileutil.h>
+#include <usual/string.h>
 
 /*
  * ConnString parsing
@@ -182,6 +183,78 @@ static bool set_autodb(const char *connstr)
 	return true;
 }
 
+/* fill PgDatabase from connstr */
+bool parse_peer(void *base, const char *name, const char *connstr)
+{
+	char *p, *key, *val;
+	PgDatabase *peer;
+
+	char *tmp_connstr;
+	char *host = NULL;
+	int port = 6432;
+	int pool_size = -1;
+	int peer_id = strtonum(name, 1, 0xFFFF, NULL);
+	if (peer_id == 0) {
+		log_error("ids of peers must be a number larger than 0 and at most 65536");
+		return false;
+	}
+
+	tmp_connstr = strdup(connstr);
+	if (!tmp_connstr) {
+		log_error("out of memory");
+		return false;
+	}
+
+	p = tmp_connstr;
+	while (*p) {
+		p = cstr_get_pair(p, &key, &val);
+		if (p == NULL) {
+			log_error("syntax error in connection string");
+			goto fail;
+		} else if (!key[0]) {
+			break;
+		}
+
+		if (strcmp("host", key) == 0) {
+			host = strdup(val);
+			if (!host) {
+				log_error("out of memory");
+				goto fail;
+			}
+		} else if (strcmp("port", key) == 0) {
+			port = atoi(val);
+			if (port == 0) {
+				log_error("invalid port: %s", val);
+				goto fail;
+			}
+		} else if (strcmp("pool_size", key) == 0) {
+			pool_size = atoi(val);
+		} else {
+			log_error("unrecognized connection parameter: %s", key);
+			goto fail;
+		}
+	}
+
+	peer = add_peer(name, peer_id);
+	if (!peer) {
+		log_error("cannot create peer, no memory?");
+		goto fail;
+	}
+
+	/* tag the peer as alive */
+	peer->db_dead = false;
+
+	free(peer->host);
+	peer->host = host;
+	peer->port = port;
+	peer->pool_size = pool_size;
+
+	free(tmp_connstr);
+	return true;
+fail:
+	free(tmp_connstr);
+	return false;
+}
 /* fill PgDatabase from connstr */
 bool parse_database(void *base, const char *name, const char *connstr)
 {

@@ -1015,6 +1015,24 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		}
 		slog_noise(client, "read pkt='%c' len=%d", pkt_desc(&pkt), pkt.len);
 
+		/*
+		 * If we are reading an SSL request or GSSAPI
+		 * encryption request, we should have no data already
+		 * buffered at this point.  If we do, it was received
+		 * before we performed the SSL or GSSAPI handshake, so
+		 * it wasn't encrypted and indeed may have been
+		 * injected by a man-in-the-middle.  We report this
+		 * case to the client.
+		 */
+		if (pkt.type == PKT_SSLREQ && mbuf_avail_for_read(data) > 0) {
+			disconnect_client(client, true, "received unencrypted data after SSL request");
+			return false;
+		}
+		if (pkt.type == PKT_GSSENCREQ && mbuf_avail_for_read(data) > 0) {
+			disconnect_client(client, true, "received unencrypted data after GSSAPI encryption request");
+			return false;
+		}
+
 		client->request_time = get_cached_time();
 		switch (client->state) {
 		case CL_LOGIN:

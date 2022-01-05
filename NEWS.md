@@ -17,7 +17,7 @@ This is a minor release with a security fix.
   abused to send faked SQL commands to the server, although that would
   only work if PgBouncer did not demand any authentication data.
   (However, a PgBouncer setup relying on SSL certificate
-  authentication might well not do so.)
+  authentication might well not do so.)  (CVE-2021-3935)
 
 **2021-08-09  -  PgBouncer 1.16.0  -  "Fended off a jaguar"**
 

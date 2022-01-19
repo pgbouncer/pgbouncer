@@ -55,6 +55,7 @@ pgbouncer_SOURCES = \
 	include/common/postgres_compat.h \
 	include/common/saslprep.h \
 	include/common/scram-common.h \
+	include/common/unicode_combining_table.h \
 	include/common/unicode_norm.h \
 	include/common/unicode_norm_table.h
 

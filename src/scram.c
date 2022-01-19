@@ -217,10 +217,11 @@ static bool parse_scram_verifier(const char *verifier, int *iterations, char **s
 	 * Verify that the salt is in Base64-encoded format, by decoding it,
 	 * although we return the encoded version to the caller.
 	 */
-	decoded_salt_buf = malloc(pg_b64_dec_len(strlen(salt_str)));
+	decoded_len = pg_b64_dec_len(strlen(salt_str));
+	decoded_salt_buf = malloc(decoded_len);
 	if (!decoded_salt_buf)
 		goto invalid_verifier;
-	decoded_len = pg_b64_decode(salt_str, strlen(salt_str), decoded_salt_buf);
+	decoded_len = pg_b64_decode(salt_str, strlen(salt_str), decoded_salt_buf, decoded_len);
 	free(decoded_salt_buf);
 	if (decoded_len < 0)
 		goto invalid_verifier;
@@ -231,17 +232,19 @@ static bool parse_scram_verifier(const char *verifier, int *iterations, char **s
 	/*
 	 * Decode StoredKey and ServerKey.
 	 */
-	decoded_stored_buf = malloc(pg_b64_dec_len(strlen(storedkey_str)));
+	decoded_len = pg_b64_dec_len(strlen(storedkey_str));
+	decoded_stored_buf = malloc(decoded_len);
 	if (!decoded_stored_buf)
 		goto invalid_verifier;
-	decoded_len = pg_b64_decode(storedkey_str, strlen(storedkey_str), decoded_stored_buf);
+	decoded_len = pg_b64_decode(storedkey_str, strlen(storedkey_str), decoded_stored_buf, decoded_len);
 	if (decoded_len != SCRAM_KEY_LEN)
 		goto invalid_verifier;
 	memcpy(stored_key, decoded_stored_buf, SCRAM_KEY_LEN);
 
-	decoded_server_buf = malloc(pg_b64_dec_len(strlen(serverkey_str)));
+	decoded_len = pg_b64_dec_len(strlen(serverkey_str));
+	decoded_server_buf = malloc(decoded_len);
 	decoded_len = pg_b64_decode(serverkey_str, strlen(serverkey_str),
-				    decoded_server_buf);
+				    decoded_server_buf, decoded_len);
 	if (decoded_len != SCRAM_KEY_LEN)
 		goto invalid_verifier;
 	memcpy(server_key, decoded_server_buf, SCRAM_KEY_LEN);
@@ -299,10 +302,13 @@ char *build_client_first_message(ScramState *scram_state)
 
 	get_random_bytes(raw_nonce, SCRAM_RAW_NONCE_LEN);
 
-	scram_state->client_nonce = malloc(pg_b64_enc_len(SCRAM_RAW_NONCE_LEN) + 1);
+	encoded_len = pg_b64_enc_len(SCRAM_RAW_NONCE_LEN);
+	scram_state->client_nonce = malloc(encoded_len + 1);
 	if (scram_state->client_nonce == NULL)
 		goto failed;
-	encoded_len = pg_b64_encode((char *) raw_nonce, SCRAM_RAW_NONCE_LEN, scram_state->client_nonce);
+	encoded_len = pg_b64_encode((char *) raw_nonce, SCRAM_RAW_NONCE_LEN, scram_state->client_nonce, encoded_len);
+	if (encoded_len < 0)
+		goto failed;
 	scram_state->client_nonce[encoded_len] = '\0';
 
 	len = 8 + strlen(scram_state->client_nonce) + 1;
@@ -334,6 +340,7 @@ char *build_client_final_message(ScramState *scram_state,
 	char buf[512];
 	size_t len;
 	uint8_t	client_proof[SCRAM_KEY_LEN];
+	int enclen;
 
 	snprintf(buf, sizeof(buf), "c=biws,r=%s", server_nonce);
 
@@ -347,9 +354,13 @@ char *build_client_final_message(ScramState *scram_state,
 		goto failed;
 
 	len = strlcat(buf, ",p=", sizeof(buf));
-	len += pg_b64_encode((char *) client_proof,
+	enclen = pg_b64_enc_len(sizeof(client_proof));
+	enclen = pg_b64_encode((char *) client_proof,
 			     SCRAM_KEY_LEN,
-			     buf + len);
+			     buf + len, enclen);
+	if (enclen < 0)
+		goto failed;
+	len += enclen;
 	buf[len] = '\0';
 
 	return strdup(buf);
@@ -386,12 +397,13 @@ bool read_server_first_message(PgSocket *server, char *input,
 	encoded_salt = read_attr_value(server, &input, 's');
 	if (encoded_salt == NULL)
 		goto failed;
-	salt = malloc(pg_b64_dec_len(strlen(encoded_salt)));
+	saltlen = pg_b64_dec_len(strlen(encoded_salt));
+	salt = malloc(saltlen);
 	if (salt == NULL)
 		goto failed;
 	saltlen = pg_b64_decode(encoded_salt,
 				strlen(encoded_salt),
-				salt);
+				salt, saltlen);
 	if (saltlen < 0)
 	{
 		slog_error(server, "malformed SCRAM message (invalid salt)");
@@ -453,7 +465,8 @@ bool read_server_final_message(PgSocket *server, char *input, char *ServerSignat
 
 	server_signature_len = pg_b64_decode(encoded_server_signature,
 					     strlen(encoded_server_signature),
-					     decoded_server_signature);
+					     decoded_server_signature,
+					     server_signature_len);
 	if (server_signature_len != SCRAM_KEY_LEN)
 	{
 		slog_error(server, "malformed SCRAM message (malformed server signature)");
@@ -707,15 +720,19 @@ bool read_client_final_message(PgSocket *client, const uint8_t *raw_input, char 
 
 	encoded_proof = value;
 
-	proof = malloc(pg_b64_dec_len(strlen(encoded_proof)));
+	prooflen = pg_b64_dec_len(strlen(encoded_proof));
+	proof = malloc(prooflen);
 	if (proof == NULL) {
 		slog_error(client, "could not decode proof");
 		goto failed;
 	}
 	prooflen = pg_b64_decode(encoded_proof,
 				 strlen(encoded_proof),
-				 proof);
-	(void) prooflen;
+				 proof, prooflen);
+	if (prooflen != SCRAM_KEY_LEN) {
+		slog_error(client, "malformed SCRAM message (malformed proof in client-final-message)");
+		goto failed;
+	}
 
 	if (*input != '\0') {
 		slog_error(client, "malformed SCRAM message (garbage at the end of client-final-message)");
@@ -763,10 +780,13 @@ static bool build_adhoc_scram_secret(const char *plain_password, ScramState *scr
 
 	scram_state->iterations = SCRAM_DEFAULT_ITERATIONS;
 
-	scram_state->salt = malloc(pg_b64_enc_len(sizeof(saltbuf)) + 1);
+	encoded_len = pg_b64_enc_len(sizeof(saltbuf));
+	scram_state->salt = malloc(encoded_len + 1);
 	if (!scram_state->salt)
 		goto failed;
-	encoded_len = pg_b64_encode(saltbuf, sizeof(saltbuf), scram_state->salt);
+	encoded_len = pg_b64_encode(saltbuf, sizeof(saltbuf), scram_state->salt, encoded_len);
+	if (encoded_len < 0)
+		goto failed;
 	scram_state->salt[encoded_len] = '\0';
 
 	/* Calculate StoredKey and ServerKey */
@@ -825,10 +845,13 @@ static bool build_mock_scram_secret(const char *username, ScramState *scram_stat
 	scram_state->iterations = SCRAM_DEFAULT_ITERATIONS;
 
 	scram_mock_salt(username, saltbuf);
-	scram_state->salt = malloc(pg_b64_enc_len(sizeof(saltbuf)) + 1);
+	encoded_len = pg_b64_enc_len(sizeof(saltbuf));
+	scram_state->salt = malloc(encoded_len + 1);
 	if (!scram_state->salt)
 		goto failed;
-	encoded_len = pg_b64_encode((char *) saltbuf, sizeof(saltbuf), scram_state->salt);
+	encoded_len = pg_b64_encode((char *) saltbuf, sizeof(saltbuf), scram_state->salt, encoded_len);
+	if (encoded_len < 0)
+		goto failed;
 	scram_state->salt[encoded_len] = '\0';
 
 	return true;
@@ -867,10 +890,13 @@ char *build_server_first_message(ScramState *scram_state, const char *username, 
 	}
 
 	get_random_bytes(raw_nonce, SCRAM_RAW_NONCE_LEN);
-	scram_state->server_nonce = malloc(pg_b64_enc_len(SCRAM_RAW_NONCE_LEN) + 1);
+	encoded_len = pg_b64_enc_len(SCRAM_RAW_NONCE_LEN);
+	scram_state->server_nonce = malloc(encoded_len + 1);
 	if (scram_state->server_nonce == NULL)
 		goto failed;
-	encoded_len = pg_b64_encode((char *) raw_nonce, SCRAM_RAW_NONCE_LEN, scram_state->server_nonce);
+	encoded_len = pg_b64_encode((char *) raw_nonce, SCRAM_RAW_NONCE_LEN, scram_state->server_nonce, encoded_len);
+	if (encoded_len < 0)
+		goto failed;
 	scram_state->server_nonce[encoded_len] = '\0';
 
 	len = (2
@@ -921,11 +947,14 @@ compute_server_signature(ScramState *state)
 			  strlen(state->client_final_message_without_proof));
 	scram_HMAC_final(ServerSignature, &ctx);
 
-	server_signature_base64 = malloc(pg_b64_enc_len(SCRAM_KEY_LEN) + 1);
+	siglen = pg_b64_enc_len(SCRAM_KEY_LEN);
+	server_signature_base64 = malloc(siglen + 1);
 	if (!server_signature_base64)
 		return NULL;
 	siglen = pg_b64_encode((const char *) ServerSignature,
-						   SCRAM_KEY_LEN, server_signature_base64);
+			       SCRAM_KEY_LEN, server_signature_base64, siglen);
+	if (siglen < 0)
+		return NULL;
 	server_signature_base64[siglen] = '\0';
 
 	return server_signature_base64;
@@ -1035,11 +1064,12 @@ scram_verify_plain_password(PgSocket *client,
 		goto failed;
 	}
 
-	salt = malloc(pg_b64_dec_len(strlen(encoded_salt)));
+	saltlen = pg_b64_dec_len(strlen(encoded_salt));
+	salt = malloc(saltlen);
 	if (!salt)
 		goto failed;
-	saltlen = pg_b64_decode(encoded_salt, strlen(encoded_salt), salt);
-	if (saltlen == -1)
+	saltlen = pg_b64_decode(encoded_salt, strlen(encoded_salt), salt, saltlen);
+	if (saltlen < 0)
 	{
 		slog_warning(client, "invalid SCRAM verifier for user \"%s\"", username);
 		goto failed;

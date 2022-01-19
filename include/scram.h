@@ -76,4 +76,4 @@ bool verify_client_proof(ScramState *state, const char *ClientProof);
 
 bool scram_verify_plain_password(PgSocket *client,
 				 const char *username, const char *password,
-				 const char *verifier);
+				 const char *secret);

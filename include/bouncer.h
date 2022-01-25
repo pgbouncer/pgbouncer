@@ -147,11 +147,11 @@ extern int cf_sbuf_len;
 
 /*
  * Some cloud services use very long generated passwords, so give it
- * plenty of room.  Up to PostgreSQL 13, the server can handle
+ * plenty of room.  Note that, up to PostgreSQL 13, the server can handle
  * passwords up to 996 bytes, after that it's longer.  Also, libpq
  * maxes out around 1024, so going much higher is not straightforward.
  */
-#define MAX_PASSWORD	996
+#define MAX_PASSWORD	2048
 
 /*
  * AUTH_* symbols are used for both protocol handling and

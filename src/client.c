@@ -222,9 +222,6 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		}
 	}
 
-	if (!check_fast_fail(client))
-		return false;
-
 	if (takeover)
 		return true;
 

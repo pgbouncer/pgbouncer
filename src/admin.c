@@ -25,6 +25,9 @@
 #include <usual/regex.h>
 #include <usual/netdb.h>
 #include <usual/endian.h>
+#include <usual/safeio.h>
+#include <usual/slab.h>
+#include <usual/strpool.h>
 
 /* regex elements */
 #define WS0	"[ \t\n\r]*"

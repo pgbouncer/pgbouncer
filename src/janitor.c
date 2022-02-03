@@ -22,6 +22,8 @@
 
 #include "bouncer.h"
 
+#include <usual/slab.h>
+
 /* do full maintenance 3x per second */
 static struct timeval full_maint_period = {0, USEC / 3};
 static struct event full_maint_ev;

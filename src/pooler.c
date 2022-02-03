@@ -23,6 +23,8 @@
 #include "bouncer.h"
 
 #include <usual/netdb.h>
+#include <usual/safeio.h>
+#include <usual/string.h>
 
 struct ListenSocket {
 	struct List node;

@@ -26,7 +26,10 @@
 #include <usual/err.h>
 #include <usual/cfparser.h>
 #include <usual/getopt.h>
+#include <usual/safeio.h>
 #include <usual/slab.h>
+#include <usual/socket.h>
+#include <usual/string.h>
 
 #ifdef HAVE_SYS_RESOURCE_H
 #include <sys/resource.h>

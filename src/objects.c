@@ -23,6 +23,9 @@
 #include "bouncer.h"
 #include "scram.h"
 
+#include <usual/safeio.h>
+#include <usual/slab.h>
+
 /* those items will be allocated as needed, never freed */
 STATLIST(user_list);
 STATLIST(database_list);

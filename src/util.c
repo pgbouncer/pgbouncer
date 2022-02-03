@@ -24,6 +24,7 @@
 
 #include <usual/crypto/md5.h>
 #include <usual/crypto/csrandom.h>
+#include <usual/socket.h>
 
 int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstlen)
 {

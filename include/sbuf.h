@@ -16,6 +16,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <usual/mbuf.h>
+
 /*
  * event types for protocol handler
  */

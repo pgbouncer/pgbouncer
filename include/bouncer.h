@@ -26,14 +26,7 @@
 #include <usual/time.h>
 #include <usual/list.h>
 #include <usual/statlist.h>
-#include <usual/string.h>
-#include <usual/logging.h>
 #include <usual/aatree.h>
-#include <usual/slab.h>
-#include <usual/socket.h>
-#include <usual/safeio.h>
-#include <usual/mbuf.h>
-#include <usual/strpool.h>
 
 #include <event2/event.h>
 #include <event2/event_struct.h>

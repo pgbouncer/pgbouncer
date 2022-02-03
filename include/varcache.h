@@ -1,3 +1,5 @@
+#include <usual/strpool.h>
+
 enum VarCacheIdx {
 	VDateStyle = 0,
 	VClientEncoding,

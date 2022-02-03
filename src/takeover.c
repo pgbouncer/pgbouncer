@@ -27,6 +27,8 @@
 
 #include "bouncer.h"
 
+#include <usual/safeio.h>
+
 /*
  * Takeover done, old process shut down,
  * kick this one running.

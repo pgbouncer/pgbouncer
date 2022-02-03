@@ -19,6 +19,7 @@
 #include "bouncer.h"
 
 #include <usual/netdb.h>
+#include <usual/socket.h>
 
 #if !defined(USE_EVDNS) && !defined(USE_UDNS) && !defined(USE_CARES)
 #define USE_GETADDRINFO_A

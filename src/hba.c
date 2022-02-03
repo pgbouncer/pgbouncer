@@ -21,6 +21,8 @@
 #include <usual/cxextra.h>
 #include <usual/cbtree.h>
 #include <usual/fileutil.h>
+#include <usual/socket.h>
+#include <usual/string.h>
 
 enum RuleType {
 	RULE_LOCAL,

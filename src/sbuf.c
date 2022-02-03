@@ -26,6 +26,9 @@
 
 #include "bouncer.h"
 
+#include <usual/safeio.h>
+#include <usual/slab.h>
+
 #ifdef USUAL_LIBSSL_FOR_TLS
 #define USE_TLS
 #endif

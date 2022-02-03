@@ -297,7 +297,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 
 	/* are new connections allowed? */
 	if (client->db->db_disabled) {
-		disconnect_client(client, true, "database does not allow connections: %s", dbname);
+		disconnect_client(client, true, "database \"%s\" is disabled", dbname);
 		return false;
 	}
 

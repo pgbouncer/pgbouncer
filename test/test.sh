@@ -750,7 +750,7 @@ test_enable_disable() {
 	grep -q "enabled 1" $LOGDIR/test.tmp || return 1
 	grep -q "enabled 2" $LOGDIR/test.tmp || return 1
 	grep -q "disabled 1" $LOGDIR/test.tmp && return 1
-	grep -q "does not allow" $LOGDIR/test.tmp || return 1
+	grep -q "is disabled" $LOGDIR/test.tmp || return 1
 	return 0
 }
 

@@ -458,7 +458,6 @@ static bool parse_addr(void *arg, const char *addr)
 	int res;
 	char service[64];
 	struct addrinfo *ai, *gaires = NULL;
-	bool ok;
 
 	if (!*addr)
 		return true;
@@ -473,10 +472,15 @@ static bool parse_addr(void *arg, const char *addr)
 	}
 
 	for (ai = gaires; ai; ai = ai->ai_next) {
-		ok = add_listen(ai->ai_family, ai->ai_addr, ai->ai_addrlen);
-		/* it's unclear whether all or only first result should be used */
-		if (0 && ok)
-			break;
+		/*
+		 * add_listen() will log a warning if there is a
+		 * problem.  We don't use the return value to fail the
+		 * whole thing, because that might lead to problems in
+		 * practice with overlapping host names or address
+		 * families and other weird stuff.  Users will know
+		 * soon enough if they can't connect.
+		 */
+		add_listen(ai->ai_family, ai->ai_addr, ai->ai_addrlen);
 	}
 
 	freeaddrinfo(gaires);

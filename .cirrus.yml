@@ -54,6 +54,10 @@ task:
         use_valgrind: yes
         PGVERSION: 9.6
     - container:
+        image: ubuntu:20.04
+      env:
+        use_scan_build: yes
+    - container:
         image: ubuntu:18.04
     - container:
         image: ubuntu:16.04
@@ -74,13 +78,14 @@ task:
     - case $CC in clang) pkgs="$pkgs clang";; esac
     - case $configure_args in *with-systemd*) pkgs="$pkgs libsystemd-dev";; esac
     - if [ x"$use_valgrind" = x"yes" ]; then pkgs="$pkgs valgrind"; fi
+    - if [ x"$use_scan_build" = x"yes" ]; then pkgs="$pkgs clang-tools"; fi
     - apt-get -y install $pkgs
     - useradd user
     - chown -R user .
   build_script:
     - su user -c "./autogen.sh"
-    - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror --without-cares $configure_args"
-    - su user -c "make"
+    - su user -c "${use_scan_build:+scan-build} ./configure --prefix=$HOME/install --enable-cassert --enable-werror --without-cares $configure_args"
+    - su user -c "${use_scan_build:+scan-build} make"
   test_script:
     - |
       if [ x"$use_valgrind" = x"yes" ]; then

@@ -255,8 +255,8 @@ static void tune_accept(int sock, bool on)
 #ifdef TCP_DEFER_ACCEPT
 	int val = 45; /* FIXME: proper value */
 	socklen_t vlen = sizeof(val);
-	res = getsockopt(sock, IPPROTO_TCP, TCP_DEFER_ACCEPT, &val, &vlen);
-	log_noise("old TCP_DEFER_ACCEPT on %d = %d", sock, val);
+	if (getsockopt(sock, IPPROTO_TCP, TCP_DEFER_ACCEPT, &val, &vlen) == 0)
+		log_noise("old TCP_DEFER_ACCEPT on %d = %d", sock, val);
 	val = on ? 1 : 0;
 	log_noise("%s TCP_DEFER_ACCEPT on %d", act, sock);
 	res = setsockopt(sock, IPPROTO_TCP, TCP_DEFER_ACCEPT, &val, sizeof(val));

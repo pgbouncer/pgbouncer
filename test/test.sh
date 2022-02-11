@@ -1228,6 +1228,38 @@ test_auto_database() {
 	test $status1 -eq 0 -a $status2 -eq 0
 }
 
+test_no_database() {
+	psql -X -d nosuchdb1 -c "select 1" && return 1
+	grep -F "no such database: nosuchdb1" $BOUNCER_LOG || return 1
+
+	return 0
+}
+
+test_no_database_authfail() {
+	$have_getpeereid || return 77
+
+	admin "set auth_type='md5'"
+
+	PGPASSWORD=wrong psql -X -d nosuchdb1 -c "select 1" && return 1
+	# TODO: reports missing database without authentication
+	grep -F "no such database: nosuchdb1" $BOUNCER_LOG || return 1
+
+	return 0
+}
+
+test_no_database_auth_user() {
+	$have_getpeereid || return 77
+
+	admin "set auth_type='md5'"
+	admin "set auth_user='pswcheck'"
+
+	PGPASSWORD=wrong psql -X -d nosuchdb1 -U someuser -c "select 1" && return 1
+	# TODO: reports missing database without authentication
+	grep -F "no such database: nosuchdb1" $BOUNCER_LOG || return 1
+
+	return 0
+}
+
 test_cancel() {
 	case `uname` in MINGW*) return 77;; esac
 
@@ -1361,6 +1393,9 @@ test_no_user_scram
 test_no_user_scram_forced_user
 test_no_user_auth_user
 test_auto_database
+test_no_database
+test_no_database_authfail
+test_no_database_auth_user
 test_cancel
 test_cancel_wait
 test_cancel_pool_size

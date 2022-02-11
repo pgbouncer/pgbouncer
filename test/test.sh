@@ -1211,10 +1211,21 @@ test_no_user_auth_user() {
 }
 
 test_auto_database() {
-	psql -X -d p7 -c "select current_database()" || return 1
-	grep -F "registered new auto-database" $BOUNCER_LOG || return 1
+	cp test.ini test.ini.bak
+	sed 's/^;\*/*/g' test.ini >test2.ini
+	mv test2.ini test.ini
 
-	return 0
+	admin "reload"
+
+	psql -X -d p7 -c "select current_database()"
+	status1=$?
+	grep -F "registered new auto-database" $BOUNCER_LOG
+	status2=$?
+
+	cp test.ini.bak test.ini
+	rm test.ini.bak
+
+	test $status1 -eq 0 -a $status2 -eq 0
 }
 
 test_cancel() {

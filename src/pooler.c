@@ -71,7 +71,7 @@ static void cleanup_sockets(void)
 			safe_close(ls->fd);
 			ls->fd = 0;
 		}
-		if (pga_is_unix(&ls->addr) && cf_unix_socket_dir[0] != '@') {
+		if (pga_is_unix(&ls->addr) && cf_unix_socket_dir && cf_unix_socket_dir[0] != '@') {
 			char buf[sizeof(struct sockaddr_un) + 20];
 			snprintf(buf, sizeof(buf), "%s/.s.PGSQL.%d", cf_unix_socket_dir, cf_listen_port);
 			unlink(buf);

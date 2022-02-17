@@ -145,7 +145,7 @@ static void start_auth_query(PgSocket *client, const char *username)
 		 */
 	}
 	if (!res)
-		disconnect_server(client->link, false, "unable to send login query");
+		disconnect_server(client->link, false, "unable to send auth_query");
 }
 
 static bool login_via_cert(PgSocket *client)
@@ -391,7 +391,7 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
 			return false;
 		}
 		if (columns != 2u) {
-			disconnect_server(server, false, "expected 2 columns from login query, not %hu", columns);
+			disconnect_server(server, false, "expected 2 columns from auth_query, not %hu", columns);
 			return false;
 		}
 		break;
@@ -402,7 +402,7 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
 			return false;
 		}
 		if (columns != 2u) {
-			disconnect_server(server, false, "expected 2 columns from login query, not %hu", columns);
+			disconnect_server(server, false, "expected 2 columns from auth_query, not %hu", columns);
 			return false;
 		}
 		if (!mbuf_get_uint32be(&pkt->data, &length)) {
@@ -410,7 +410,7 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
 			return false;
 		}
 		if (length == (uint32_t)-1) {
-			disconnect_server(server, false, "login query response contained null user name");
+			disconnect_server(server, false, "auth_query response contained null user name");
 			return false;
 		}
 		if (!mbuf_get_chars(&pkt->data, length, &username)) {
@@ -487,8 +487,11 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
 		if (server->state == SV_FREE || server->state == SV_JUSTFREE)
 			return false;
 		return true;
+	case 'E':	/* ErrorResponse */
+		disconnect_server(server, false, "error response from auth_query");
+		return false;
 	default:
-		disconnect_server(server, false, "unexpected response from login query");
+		disconnect_server(server, false, "unexpected response from auth_query");
 		return false;
 	}
 	sbuf_prepare_skip(&server->sbuf, pkt->len);

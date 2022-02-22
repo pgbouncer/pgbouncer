@@ -79,7 +79,7 @@ if ! $use_unix_sockets; then
 	BOUNCER_ADMIN_HOST=127.0.0.1
 
 	cp test.ini test.ini.bak
-	sed -i 's/^unix_socket_dir =/#&/' test.ini
+	echo "unix_socket_dir = ''" >> test.ini
 	echo 'admin_users = pgbouncer' >> test.ini
 fi
 
@@ -130,14 +130,19 @@ if [ ! -d $PGDATA ]; then
 	mkdir $PGDATA
 	initdb --nosync >> $PG_LOG 2>&1
 	if $use_unix_sockets; then
-		sed $SED_ERE_OP -i "/unix_socket_director/s:.*(unix_socket_director.*=).*:\\1 '/tmp':" pgdata/postgresql.conf
+		echo "unix_socket_directories = '/tmp'" >> pgdata/postgresql.conf
 	fi
 	cat >>pgdata/postgresql.conf <<-EOF
 	log_connections = on
 	EOF
+	if $use_unix_sockets; then
+		local='local'
+	else
+		local='#local'
+	fi
 	if $pg_supports_scram; then
 		cat >pgdata/pg_hba.conf <<-EOF
-		local  p6   all                scram-sha-256
+		$local  p6   all                scram-sha-256
 		host   p6   all  127.0.0.1/32  scram-sha-256
 		host   p6   all  ::1/128       scram-sha-256
 		EOF
@@ -145,19 +150,16 @@ if [ ! -d $PGDATA ]; then
 		cat >pgdata/pg_hba.conf </dev/null
 	fi
 	cat >>pgdata/pg_hba.conf <<-EOF
-	local  p4   all                password
+	$local  p4   all                password
 	host   p4   all  127.0.0.1/32  password
 	host   p4   all  ::1/128       password
-	local  p5   all                md5
+	$local  p5   all                md5
 	host   p5   all  127.0.0.1/32  md5
 	host   p5   all  ::1/128       md5
-	local  all  all                trust
+	$local  all  all                trust
 	host   all  all  127.0.0.1/32  trust
 	host   all  all  ::1/128       trust
 	EOF
-	if ! $use_unix_sockets; then
-		sed -i 's/^local/#local/' pgdata/pg_hba.conf
-	fi
 fi
 
 pgctl start

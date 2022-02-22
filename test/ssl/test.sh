@@ -74,7 +74,7 @@ if [ ! -d $PGDATA ]; then
 	echo "initdb"
 	mkdir $PGDATA
 	initdb --nosync >> $PG_LOG 2>&1
-	sed -r -i "/unix_socket_director/s:.*(unix_socket_director.*=).*:\\1 '/tmp':" pgdata/postgresql.conf
+	echo "unix_socket_directories = '/tmp'" >> pgdata/postgresql.conf
 	echo "port = $PG_PORT" >> pgdata/postgresql.conf
 	echo "log_connections = on" >> pgdata/postgresql.conf
 	echo "log_disconnections = on" >> pgdata/postgresql.conf

@@ -9,6 +9,7 @@
  */
 
 #include "bouncer.h"
+#include "win32support.h"
 
 #if defined(UNICODE) || defined(_UNICODE)
 #error This code does not support wide characters.

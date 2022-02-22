@@ -1,6 +1,7 @@
 
 #include "bouncer.h"
 
+#include <usual/fileutil.h>
 #include <usual/logging.h>
 #include <usual/string.h>
 #include <usual/time.h>

@@ -31,6 +31,10 @@
 #include <usual/socket.h>
 #include <usual/string.h>
 
+#ifdef WIN32
+#include "win32support.h"
+#endif
+
 #ifdef HAVE_SYS_RESOURCE_H
 #include <sys/resource.h>
 #endif

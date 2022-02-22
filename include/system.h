@@ -23,10 +23,6 @@
 #include <usual/base.h>
 #include <usual/ctype.h>
 
-#ifdef WIN32
-#include "win32support.h"
-#endif
-
 #include <sys/stat.h>
 
 #include <stdarg.h>

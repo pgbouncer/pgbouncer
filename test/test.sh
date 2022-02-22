@@ -52,7 +52,6 @@ case `uname` in
 		;;
 esac
 
-# System configuration checks
 SED_ERE_OP='-E'
 case `uname` in
 Linux)
@@ -86,7 +85,6 @@ fi
 MAX_PASSWORD=$(sed -n $SED_ERE_OP 's/#define MAX_PASSWORD[[:space:]]+([0-9]+)/\1/p' ../include/bouncer.h)
 long_password=$(printf '%*s' $(($MAX_PASSWORD - 1)) | tr ' ' 'a')
 
-# System configuration checks
 if ! grep -q "^\"${USER:=$(id -un)}\"" userlist.txt; then
 	cp userlist.txt userlist.txt.bak
 	echo "\"${USER}\" \"01234\"" >> userlist.txt

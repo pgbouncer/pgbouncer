@@ -38,7 +38,6 @@ pgctl() {
 
 ulimit -c unlimited
 
-# System configuration checks
 SED_ERE_OP='-E'
 case `uname` in
 Linux)

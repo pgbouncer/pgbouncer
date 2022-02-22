@@ -1,4 +1,5 @@
 env:
+  CIRRUS_CLONE_SUBMODULES: true
   DEBIAN_FRONTEND: noninteractive
   LANG: C
   PGVERSION: 11
@@ -69,11 +70,8 @@ task:
         image: debian:stable
     - container:
         image: debian:oldstable
-  submodules_script:
-    - apt-get update
-    - apt-get -y install git
-    - git submodule update --init
   setup_script:
+    - apt-get update
     - apt-get -y install curl gnupg lsb-release
     - curl https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
     - echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | tee /etc/apt/sources.list.d/pgdg.list

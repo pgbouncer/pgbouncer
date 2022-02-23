@@ -364,6 +364,7 @@ struct PgDatabase {
 	bool db_auto;		/* is the database auto-created by autodb_connstr */
 	bool db_disabled;	/* is the database accepting new connections? */
 	bool admin;		/* internal console db */
+	bool fake;		/* not a real database, only for mock auth */
 	usec_t inactive_time;	/* when auto-database became inactive (to kill it after timeout) */
 	unsigned active_stamp;	/* set if autodb has connections */
 	int connection_count;	/* total connections for this database in all pools */

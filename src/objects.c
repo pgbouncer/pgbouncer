@@ -1028,6 +1028,7 @@ static void dns_connect(struct PgSocket *server)
 	struct sockaddr_in sa_in;
 	struct sockaddr_in6 sa_in6;
 	struct sockaddr *sa;
+	struct addrinfo ai,*ai_ret;
 	struct PgDatabase *db = server->pool->db;
 	const char *host = db->host;
 	const char *unix_dir;
@@ -1060,22 +1061,42 @@ static void dns_connect(struct PgSocket *server)
 		}
 		sa = (struct sockaddr *)&sa_un;
 		res = 1;
-	} else if (strchr(host, ':')) {  /* assume IPv6 address on any : in addr */
-		slog_noise(server, "inet6 socket: %s", db->host);
-		memset(&sa_in6, 0, sizeof(sa_in6));
-		sa_in6.sin6_family = AF_INET6;
-		res = inet_pton(AF_INET6, db->host, &sa_in6.sin6_addr);
-		sa_in6.sin6_port = htons(db->port);
-		sa = (struct sockaddr *)&sa_in6;
-		sa_len = sizeof(sa_in6);
-	} else { /* else try IPv4 */
-		slog_noise(server, "inet socket: %s", db->host);
-		memset(&sa_in, 0, sizeof(sa_in));
-		sa_in.sin_family = AF_INET;
-		res = inet_pton(AF_INET, db->host, &sa_in.sin_addr);
-		sa_in.sin_port = htons(db->port);
-		sa = (struct sockaddr *)&sa_in;
-		sa_len = sizeof(sa_in);
+	} else {
+		memset(&ai,0,sizeof(ai));
+		ai.ai_family = AF_UNSPEC;
+		ai.ai_socktype = SOCK_STREAM;
+		ai.ai_flags = AI_NUMERICHOST; /* IP address only */
+
+		if (getaddrinfo(host,NULL,&ai,&ai_ret) == 0) {
+			/* we just need a binary IP address, don't have to traverse it */
+			if (ai_ret->ai_family == AF_INET) { /* IPv4 */
+				slog_noise(server, "inet socket: %s", host);
+				memset(&sa_in, 0, sizeof(sa_in));
+				sa_in.sin_family = AF_INET;
+				sa_in.sin_addr = ((struct sockaddr_in *)ai_ret->ai_addr)->sin_addr;
+				sa_in.sin_port = htons(db->port);
+				sa = (struct sockaddr *)&sa_in;
+				sa_len = sizeof(sa_in);
+			} else if (ai_ret->ai_family == AF_INET6) { /* IPv6 */
+				slog_noise(server, "inet6 socket: %s", host);
+				memset(&sa_in6, 0, sizeof(sa_in6));
+				sa_in6.sin6_family = AF_INET6;
+				sa_in6.sin6_addr = ((struct sockaddr_in6 *)ai_ret->ai_addr)->sin6_addr;
+				sa_in6.sin6_scope_id = ((struct sockaddr_in6 *)ai_ret->ai_addr)->sin6_scope_id;
+				sa_in6.sin6_port = htons(db->port);
+				sa = (struct sockaddr *)&sa_in6;
+				sa_len = sizeof(sa_in6);
+			} else {
+				log_error("unknown address family: %d", ai_ret->ai_family);
+				freeaddrinfo(ai_ret);
+				disconnect_server(server, false, "cannot connect");
+				return;
+			}
+			freeaddrinfo(ai_ret);
+			res = 1;
+		} else {
+			res = 0;
+		}
 	}
 
 	/* if simple parse failed, use DNS */

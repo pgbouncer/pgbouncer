@@ -49,10 +49,12 @@ task:
         image: ubuntu:20.04
       env:
         use_valgrind: yes
+        CFLAGS: -O0 -g
     - container:
         image: ubuntu:20.04
       env:
         use_valgrind: yes
+        CFLAGS: -O0 -g
         PGVERSION: 9.6
     - container:
         image: ubuntu:20.04

@@ -923,6 +923,16 @@ int main(int argc, char *argv[])
 	}
 	cf_config_file = xstrdup(argv[optind]);
 
+#ifdef CASSERT
+	/*
+	 * Clean up all objects at the end, only for testing the
+	 * cleanup code, not useful for production.  This must be the
+	 * first atexit() call, since other atexit() handlers still
+	 * make use of things that will be cleaned up.
+	 */
+	atexit(cleanup);
+#endif
+
 	init_objects();
 	load_config();
 	main_config.loaded = true;
@@ -1003,11 +1013,6 @@ int main(int argc, char *argv[])
 	/* main loop */
 	while (cf_shutdown < 2)
 		main_loop_once();
-
-	/* not useful for production loads */
-#ifdef CASSERT
-	cleanup();
-#endif
 
 	return 0;
 }

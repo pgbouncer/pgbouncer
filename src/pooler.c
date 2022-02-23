@@ -67,6 +67,9 @@ static void cleanup_sockets(void)
 
 	while ((el = statlist_pop(&sock_list)) != NULL) {
 		ls = container_of(el, struct ListenSocket, node);
+		if (event_del(&ls->ev) < 0) {
+			log_warning("cleanup_sockets, event_del: %s", strerror(errno));
+		}
 		if (ls->fd > 0) {
 			safe_close(ls->fd);
 			ls->fd = 0;

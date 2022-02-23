@@ -1241,8 +1241,7 @@ test_no_database_authfail() {
 	admin "set auth_type='md5'"
 
 	PGPASSWORD=wrong psql -X -d nosuchdb1 -c "select 1" && return 1
-	# TODO: reports missing database without authentication
-	grep -F "no such database: nosuchdb1" $BOUNCER_LOG || return 1
+	grep -F "closing because: password authentication failed" $BOUNCER_LOG || return 1
 
 	return 0
 }
@@ -1254,8 +1253,7 @@ test_no_database_auth_user() {
 	admin "set auth_user='pswcheck'"
 
 	PGPASSWORD=wrong psql -X -d nosuchdb1 -U someuser -c "select 1" && return 1
-	# TODO: reports missing database without authentication
-	grep -F "no such database: nosuchdb1" $BOUNCER_LOG || return 1
+	grep "closing because: password authentication failed" $BOUNCER_LOG || return 1
 
 	return 0
 }

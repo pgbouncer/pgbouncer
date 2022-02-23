@@ -195,7 +195,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	bool ok = false;
 	int auth;
 
-	if (!client->login_user->mock_auth) {
+	if (!client->login_user->mock_auth && !client->db->fake) {
 		PgUser *pool_user;
 
 		if (client->db->forced_user)
@@ -285,20 +285,13 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 	client->db = find_database(dbname);
 	if (!client->db) {
 		client->db = register_auto_database(dbname);
-		if (!client->db) {
-			disconnect_client(client, true, "no such database: %s", dbname);
-			if (cf_log_connections)
-				slog_info(client, "login failed: db=%s user=%s", dbname, username);
-			return false;
-		} else {
+		if (client->db)
 			slog_info(client, "registered new auto-database: db=%s", dbname);
-		}
 	}
-
-	/* are new connections allowed? */
-	if (client->db->db_disabled) {
-		disconnect_client(client, true, "database \"%s\" is disabled", dbname);
-		return false;
+	if (!client->db) {
+		client->db = calloc(1, sizeof(*client->db));
+		client->db->fake = true;
+		strlcpy(client->db->name, dbname, sizeof(client->db->name));
 	}
 
 	if (client->db->admin) {
@@ -359,12 +352,16 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 					client->db->auth_user = add_user(cf_auth_user, "");
 			}
 			if (client->db->auth_user) {
-				if (takeover) {
-					client->login_user = add_db_user(client->db, username, password);
-					return finish_set_pool(client, takeover);
+				if (client->db->fake)
+					slog_debug(client, "not running auth_query because database is fake");
+				else {
+					if (takeover) {
+						client->login_user = add_db_user(client->db, username, password);
+						return finish_set_pool(client, takeover);
+					}
+					start_auth_query(client, username);
+					return false;
 				}
-				start_auth_query(client, username);
-				return false;
 			}
 
 			slog_info(client, "no such user: %s", username);

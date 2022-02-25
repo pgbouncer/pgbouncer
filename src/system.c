@@ -111,7 +111,7 @@ void change_file_mode(const char *fn, mode_t mode,
 	if (uid != (uid_t)-1 || gid != (gid_t)-1) {
 		res = chown(fn, uid, gid);
 		if (res != 0) {
-			die("chown(%s, %d, %d) failed: %s",
+			die("chown(%s, %u, %u) failed: %s",
 			      fn, uid, gid, strerror(errno));
 		}
 	}

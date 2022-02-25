@@ -549,7 +549,7 @@ bool answer_authreq(PgSocket *server, PktHdr *pkt)
 		break;
 	}
 	default:
-		slog_error(server, "unknown/unsupported auth method: %d", cmd);
+		slog_error(server, "unknown/unsupported auth method: %u", cmd);
 		res = false;
 		break;
 	}

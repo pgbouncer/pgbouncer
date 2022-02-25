@@ -552,7 +552,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			disconnect_server(server, true, "bad pkt header");
 			break;
 		}
-		slog_noise(server, "read pkt='%c', len=%d", pkt_desc(&pkt), pkt.len);
+		slog_noise(server, "read pkt='%c', len=%u", pkt_desc(&pkt), pkt.len);
 
 		server->request_time = get_cached_time();
 		switch (server->state) {

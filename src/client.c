@@ -921,7 +921,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 
 	/* client wants to go away */
 	default:
-		slog_error(client, "unknown pkt from client: %d/0x%x", pkt->type, pkt->type);
+		slog_error(client, "unknown pkt from client: %u/0x%x", pkt->type, pkt->type);
 		disconnect_client(client, true, "unknown pkt");
 		return false;
 	case 'X': /* Terminate */
@@ -1010,7 +1010,7 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 					  hdr2hex(data, hex, sizeof(hex)));
 			return false;
 		}
-		slog_noise(client, "read pkt='%c' len=%d", pkt_desc(&pkt), pkt.len);
+		slog_noise(client, "read pkt='%c' len=%u", pkt_desc(&pkt), pkt.len);
 
 		/*
 		 * If we are reading an SSL request or GSSAPI

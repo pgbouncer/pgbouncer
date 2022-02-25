@@ -623,7 +623,7 @@ static void sbuf_try_resync(SBuf *sbuf, bool release)
 	IOBuf *io = sbuf->io;
 
 	if (io) {
-		log_noise("resync(%d): done=%d, parse=%d, recv=%d",
+		log_noise("resync(%d): done=%u, parse=%u, recv=%u",
 			  sbuf->sock,
 			  io->done_pos, io->parse_pos, io->recv_pos);
 	}

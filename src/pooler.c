@@ -248,8 +248,6 @@ static void create_unix_socket(const char *socket_dir, int listen_port)
  * optval specifies how long after connection attempt to wait for data.
  *
  * Related to tcp_synack_retries sysctl, default 5 (corresponds 180 secs).
- *
- * SO_ACCEPTFILTER needs to be set after listen(), maybe TCP_DEFER_ACCEPT too.
  */
 static void tune_accept(int sock, bool on)
 {
@@ -264,19 +262,13 @@ static void tune_accept(int sock, bool on)
 	log_noise("%s TCP_DEFER_ACCEPT on %d", act, sock);
 	res = setsockopt(sock, IPPROTO_TCP, TCP_DEFER_ACCEPT, &val, sizeof(val));
 #else
-#if 0
-#ifdef SO_ACCEPTFILTER
-	struct accept_filter_arg af, *afp = on ? &af : NULL;
-	socklen_t af_len = on ? sizeof(af) : 0;
-	memset(&af, 0, sizeof(af));
-	strcpy(af.af_name, "dataready");
-	log_noise("%s SO_ACCEPTFILTER on %d", act, sock);
-	res = setsockopt(sock, SOL_SOCKET, SO_ACCEPTFILTER, afp, af_len);
-#endif
-#endif
+	if (on) {
+		errno = EINVAL;
+		res = -1;
+	}
 #endif
 	if (res < 0)
-		log_warning("tune_accept: %s TCP_DEFER_ACCEPT/SO_ACCEPTFILTER: %s",
+		log_warning("tune_accept: %s TCP_DEFER_ACCEPT: %s",
 			    act, strerror(errno));
 }
 

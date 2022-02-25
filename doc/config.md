@@ -837,9 +837,13 @@ Default: 0
 
 ### tcp_defer_accept
 
-For details on this and other TCP options, please see `man 7 tcp`.
+Sets the `TCP_DEFER_ACCEPT` socket option; see `man 7 tcp` for
+details.  (This is a Boolean option: 1 means enabled.  The actual
+value set if enabled is currently hardcoded to 45 seconds.)
 
-Default: 45 on Linux, otherwise 0
+This is currently only supported on Linux.
+
+Default: 1 on Linux, otherwise 0
 
 ### tcp_socket_buffer
 

@@ -36,6 +36,7 @@ PgSocket *compare_connections_by_time(PgSocket *lhs, PgSocket *rhs);
 bool evict_connection(PgDatabase *db)		_MUSTCHECK;
 bool evict_user_connection(PgUser *user)	_MUSTCHECK;
 bool find_server(PgSocket *client)		_MUSTCHECK;
+bool life_over(PgSocket *server);
 bool release_server(PgSocket *server)		/* _MUSTCHECK */;
 bool finish_client_login(PgSocket *client)	_MUSTCHECK;
 bool check_fast_fail(PgSocket *client)		_MUSTCHECK;

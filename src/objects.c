@@ -718,7 +718,7 @@ static bool reset_on_release(PgSocket *server)
 	return res;
 }
 
-static bool life_over(PgSocket *server)
+bool life_over(PgSocket *server)
 {
 	PgPool *pool = server->pool;
 	usec_t lifetime_kill_gap = 0;
@@ -729,6 +729,11 @@ static bool life_over(PgSocket *server)
 	if (age < cf_server_lifetime)
 		return false;
 
+	/*
+	 * Calculate the time that disconnects because of server_lifetime
+	 * must be separated.  This avoids the need to re-launch lot
+	 * of connections together.
+	 */
 	if (pool_pool_size(pool) > 0)
 		lifetime_kill_gap = cf_server_lifetime / pool_pool_size(pool);
 

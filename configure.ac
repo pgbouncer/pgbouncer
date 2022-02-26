@@ -129,12 +129,14 @@ fi
 if test "$use_cares" = "yes"; then
   AC_DEFINE(USE_CARES, 1, [Use c-ares for name resolution.])
 
-  # does it support SOA parse
   tmp_CFLAGS="$CFLAGS"
   tmp_LIBS="$LIBS"
   CFLAGS="$CARES_CFLAGS $CFLAGS"
   LIBS="$CARES_LIBS $LIBS"
+  # does it support SOA parse
   AC_CHECK_FUNCS(ares_parse_soa_reply)
+  # portability substitute for arpa/nameser.h, needed mainly for Windows
+  AC_CHECK_HEADERS([ares_nameser.h])
   LIBS="$tmp_LIBS"
   CFLAGS="$tmp_CFLAGS"
 

@@ -34,10 +34,10 @@
 #ifdef USE_CARES
 #include <ares.h>
 #include <ares_dns.h>
-#ifndef WIN32
-#include <arpa/nameser.h>
+#ifdef HAVE_ARES_NAMESER_H
+#include <ares_nameser.h>
 #else
-#include <nameser.h>
+#include <arpa/nameser.h>
 #endif
 #define ZONE_RECHECK 1
 #else

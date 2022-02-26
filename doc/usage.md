@@ -162,6 +162,10 @@ Additionally, the user name **pgbouncer** is allowed to log in without password,
 if the login comes via the Unix socket and the client has same Unix user UID
 as the running process.
 
+The admin console currently only supports the simple query protocol.
+Some drivers use the extended query protocol for all commands; these
+drivers will not work for this.
+
 ### Show commands
 
 The **SHOW** commands output information. Each command is described below.

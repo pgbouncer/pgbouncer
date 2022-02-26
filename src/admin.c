@@ -1482,9 +1482,19 @@ bool admin_handle_client(PgSocket *admin, PktHdr *pkt)
 	case 'X':
 		disconnect_client(admin, false, "close req");
 		break;
+	case 'P':
+	case 'B':
+	case 'E':
+		/*
+		 * Effectively the same as the default case, but give
+		 * a more helpful error message in these cases.
+		 */
+		admin_error(admin, "extended query protocol not supported by admin console");
+		disconnect_client(admin, true, "bad packet");
+		break;
 	default:
-		admin_error(admin, "unsupported pkt type: %d", pkt_desc(pkt));
-		disconnect_client(admin, true, "bad pkt");
+		admin_error(admin, "unsupported packet type for admin console: %d", pkt_desc(pkt));
+		disconnect_client(admin, true, "bad packet");
 		break;
 	}
 	return false;

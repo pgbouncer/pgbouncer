@@ -2,7 +2,7 @@ env:
   CIRRUS_CLONE_SUBMODULES: true
   DEBIAN_FRONTEND: noninteractive
   LANG: C
-  PGVERSION: 11
+  PGVERSION: 14
 
 task:
   name: Linux (Debian/Ubuntu)
@@ -12,11 +12,7 @@ task:
     - container:
         image: ubuntu:20.04
       env:
-        PGVERSION: 9.6
-    - container:
-        image: ubuntu:20.04
-      env:
-        configure_args: '--with-cares'
+        configure_args: '--with-cares --with-pam'
     - container:
         image: ubuntu:20.04
       env:
@@ -25,18 +21,6 @@ task:
         image: ubuntu:20.04
       env:
         configure_args: '--disable-evdns'
-    - container:
-        image: ubuntu:20.04
-      env:
-        configure_args: '--with-pam'
-    - container:
-        image: ubuntu:20.04
-      env:
-        configure_args: '--without-openssl'
-    - container:
-        image: ubuntu:20.04
-      env:
-        configure_args: '--with-systemd'
     - container:
         image: ubuntu:20.04
       env:
@@ -66,21 +50,28 @@ task:
         image: ubuntu:22.04
     - container:
         image: ubuntu:18.04
+      env:
+        PGVERSION: 10
     - container:
         image: ubuntu:16.04
+      env:
+        PGVERSION: 9.6
     - container:
         image: debian:stable
+      env:
+        PGVERSION: 13
     - container:
         image: debian:oldstable
+      env:
+        PGVERSION: 11
   setup_script:
     - apt-get update
     - apt-get -y install curl gnupg lsb-release
     - curl https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
     - echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | tee /etc/apt/sources.list.d/pgdg.list
     - apt-get update
-    - pkgs="autoconf automake cpio libc-ares-dev libevent-dev libssl-dev libtool libudns-dev make pandoc postgresql-$PGVERSION pkg-config python3"
+    - pkgs="autoconf automake cpio libc-ares-dev libevent-dev libssl-dev libsystemd-dev libtool libudns-dev make pandoc postgresql-$PGVERSION pkg-config python3"
     - case $CC in clang) pkgs="$pkgs clang";; esac
-    - case $configure_args in *with-systemd*) pkgs="$pkgs libsystemd-dev";; esac
     - if [ x"$use_valgrind" = x"yes" ]; then pkgs="$pkgs valgrind"; fi
     - if [ x"$use_scan_build" = x"yes" ]; then pkgs="$pkgs clang-tools"; fi
     - apt-get -y install $pkgs
@@ -88,7 +79,7 @@ task:
     - chown -R user .
   build_script:
     - su user -c "./autogen.sh"
-    - su user -c "${use_scan_build:+scan-build} ./configure --prefix=$HOME/install --enable-cassert --enable-werror --without-cares $configure_args"
+    - su user -c "${use_scan_build:+scan-build} ./configure --prefix=$HOME/install --enable-cassert --enable-werror --without-cares --with-systemd $configure_args"
     - su user -c "${use_scan_build:+scan-build} make"
   test_script:
     - |

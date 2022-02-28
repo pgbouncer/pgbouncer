@@ -83,6 +83,11 @@ if ! $use_unix_sockets; then
 fi
 
 MAX_PASSWORD=$(sed -n $SED_ERE_OP 's/#define MAX_PASSWORD[[:space:]]+([0-9]+)/\1/p' ../include/bouncer.h)
+# Up to PostgreSQL 13, the server can handle passwords up to 996 bytes
+# (including zero byte), after that it's longer.
+if test $pg_majorversion -lt 14 -a $MAX_PASSWORD -gt 996; then
+	MAX_PASSWORD=996
+fi
 long_password=$(printf '%*s' $(($MAX_PASSWORD - 1)) | tr ' ' 'a')
 
 if ! grep -q "^\"${USER:=$(id -un)}\"" userlist.txt; then

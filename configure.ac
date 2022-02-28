@@ -205,6 +205,10 @@ AC_USUAL_DEBUG
 AC_USUAL_CASSERT
 AC_USUAL_WERROR
 
+PACKAGE_VERSION_4B=`echo "${PACKAGE_VERSION}.0" | sed -e 's/\./,/g'`
+AC_DEFINE_UNQUOTED(PACKAGE_VERSION_4B, [$PACKAGE_VERSION_4B],
+                   [Define to the version of this package for Windows resource file (1,2,3,4).])dnl
+
 dnl Output findings
 AC_CONFIG_FILES([config.mak])
 AC_OUTPUT

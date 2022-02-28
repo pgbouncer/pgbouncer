@@ -27,6 +27,7 @@ test_script:
   - set HOME=.
   - set PATH=C:/msys64/usr/bin;%PATH%
   - sh -l -c "make check tls_support=no"
+  - sh -l -c "windres pgbouncer.exe"
 
 on_failure:
   - set HOME=.

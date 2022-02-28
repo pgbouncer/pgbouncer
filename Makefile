@@ -100,7 +100,7 @@ LIBS :=
 # win32
 #
 
-EXTRA_pgbouncer_SOURCES = win32/win32support.c win32/win32support.h
+EXTRA_pgbouncer_SOURCES = win32/win32support.c win32/win32support.h win32/win32ver.rc
 EXTRA_PROGRAMS = pgbevent
 ifeq ($(PORTNAME),win32)
 pgbouncer_CPPFLAGS += -Iwin32
@@ -116,7 +116,7 @@ pgbevent_LINK = $(CC) -shared -Wl,--export-all-symbols -Wl,--add-stdcall-alias -
 # .rc->.o
 AM_LANGUAGES = RC
 AM_LANG_RC_SRCEXTS = .rc
-AM_LANG_RC_COMPILE = $(WINDRES) $< -o $@ --include-dir=$(srcdir)/win32
+AM_LANG_RC_COMPILE = $(WINDRES) $< -o $@ --include-dir=$(srcdir)/win32 --include-dir=lib
 AM_LANG_RC_LINK = false
 
 #

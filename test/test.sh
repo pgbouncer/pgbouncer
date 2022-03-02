@@ -135,7 +135,12 @@ if [ ! -d $PGDATA ]; then
 	if $use_unix_sockets; then
 		echo "unix_socket_directories = '/tmp'" >> pgdata/postgresql.conf
 	fi
+	# We need to make the log go to stderr so that the tests can
+	# check what is being logged.  This should be the default, but
+	# some packagings change the default configuration.
 	cat >>pgdata/postgresql.conf <<-EOF
+	logging_collector = off
+	log_destination = stderr
 	log_connections = on
 	EOF
 	if $use_unix_sockets; then

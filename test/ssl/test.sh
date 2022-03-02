@@ -75,6 +75,11 @@ if [ ! -d $PGDATA ]; then
 	initdb -A trust --nosync >> $PG_LOG
 	echo "unix_socket_directories = '/tmp'" >> pgdata/postgresql.conf
 	echo "port = $PG_PORT" >> pgdata/postgresql.conf
+	# We need to make the log go to stderr so that the tests can
+	# check what is being logged.  This should be the default, but
+	# some packagings change the default configuration.
+	echo "logging_collector = off" >> pgdata/postgresql.conf
+	echo "log_destination = stderr" >> pgdata/postgresql.conf
 	echo "log_connections = on" >> pgdata/postgresql.conf
 	echo "log_disconnections = on" >> pgdata/postgresql.conf
 	cp pgdata/postgresql.conf pgdata/postgresql.conf.orig

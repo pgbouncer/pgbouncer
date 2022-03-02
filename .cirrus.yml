@@ -110,3 +110,137 @@ task:
     configure_artifacts:
       path: "config.log"
       type: text/plain
+
+task:
+  name: Linux (Red Hat)
+  container:
+    matrix:
+      - image: rockylinux:8
+      - image: centos:centos7
+  setup_script:
+    - yum -y install autoconf automake diffutils file libevent-devel libtool make openssl-devel pkg-config postgresql-server systemd-devel wget
+    - if cat /etc/centos-release | grep -q ' 7'; then yum -y install python; else yum -y install python3; fi
+    - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
+    - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
+    - useradd user
+    - chown -R user .
+  build_script:
+    - su user -c "./autogen.sh"
+    - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror --with-systemd"
+    - su user -c "make"
+  test_script:
+# XXX: postgresql too old on centos7
+    - if cat /etc/centos-release | grep -q ' 7'; then true; else su user -c "make check"; fi
+  install_script:
+    - make install
+  always:
+    configure_artifacts:
+      path: "config.log"
+      type: text/plain
+
+task:
+  name: Linux (Alpine)
+  container:
+    matrix:
+      - image: alpine:latest
+  setup_script:
+    - apk update
+    - apk add autoconf automake build-base libevent-dev libtool openssl openssl-dev pkgconf postgresql python3 wget
+    - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
+    - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
+    - adduser --disabled-password user
+    - chown -R user .
+  build_script:
+    - su user -c "./autogen.sh"
+    - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror"
+    - su user -c "make"
+  test_script:
+    - su user -c "make check"
+  install_script:
+    - make install
+  always:
+    configure_artifacts:
+      path: "config.log"
+      type: text/plain
+
+task:
+  name: FreeBSD
+  freebsd_instance:
+    image_family: freebsd-13-0
+  setup_script:
+    - pkg install -y autoconf automake bash gmake hs-pandoc libevent libtool pkgconf postgresql12-server python
+    - pw useradd user
+    - chown -R user .
+  env:
+    CPPFLAGS: -I/usr/local/include
+    LDFLAGS: -L/usr/local/lib
+    M4: /usr/local/bin/gm4
+  build_script:
+    - su user -c "./autogen.sh"
+    - su user -c "./configure --prefix=$HOME/install --enable-werror"
+    - su user -c "gmake"
+  test_script:
+    - su user -c "gmake check"
+  install_script:
+    - gmake install
+  always:
+    configure_artifacts:
+      path: "config.log"
+      type: text/plain
+
+task:
+  name: macOS
+  osx_instance:
+    matrix:
+      - image: monterey-base
+  setup_script:
+    - brew install autoconf automake bash libevent libtool openssl pandoc pkg-config postgresql
+  env:
+    CPPFLAGS: -I/usr/local/opt/openssl/include
+    LDFLAGS: -L/usr/local/opt/openssl/lib
+  build_script:
+    - ./autogen.sh
+    - ./configure --prefix=$HOME/install --enable-werror
+    - make
+  test_script:
+    - make check
+  install_script:
+    - make install
+  always:
+    configure_artifacts:
+      path: "config.log"
+      type: text/plain
+
+task:
+  name: Windows
+  windows_container:
+    image: cirrusci/windowsservercore:cmake
+  env:
+    PATH: C:/tools/msys64/usr/bin;%PATH%
+    HOME: .
+  matrix:
+    - env:
+        MSYSTEM: MINGW64
+    - env:
+        MSYSTEM: MINGW32
+  setup_script:
+    - choco install -y --no-progress msys2
+    - sh -l -c "pacman --noconfirm -S --needed base-devel ${MINGW_PACKAGE_PREFIX}-gcc ${MINGW_PACKAGE_PREFIX}-libevent ${MINGW_PACKAGE_PREFIX}-openssl ${MINGW_PACKAGE_PREFIX}-postgresql autoconf automake libtool python zip"
+    - choco install -y --no-progress pandoc
+  build_script:
+    - sh -l -c "./autogen.sh"
+    - sh -l -c "./configure --prefix=$HOME/install --enable-werror PANDOC=/c/programdata/chocolatey/bin/pandoc"
+    - sh -l -c "make"
+  test_script:
+    - sh -l -c "make check tls_support=no"
+    - sh -l -c "windres pgbouncer.exe"
+  install_script:
+    - sh -l -c "make install"
+  dist_script:
+    - sh -l -c "make zip"
+  zip_artifacts:
+    path: "pgbouncer-*.zip"
+  always:
+    configure_artifacts:
+      path: "config.log"
+      type: text/plain

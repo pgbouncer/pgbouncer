@@ -72,7 +72,7 @@ rm -rf $PGDATA
 if [ ! -d $PGDATA ]; then
 	echo "initdb"
 	mkdir $PGDATA
-	initdb --nosync >> $PG_LOG 2>&1
+	initdb -A trust --nosync >> $PG_LOG
 	echo "unix_socket_directories = '/tmp'" >> pgdata/postgresql.conf
 	echo "port = $PG_PORT" >> pgdata/postgresql.conf
 	echo "log_connections = on" >> pgdata/postgresql.conf

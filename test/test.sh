@@ -131,7 +131,7 @@ rm -rf $PGDATA
 
 if [ ! -d $PGDATA ]; then
 	mkdir $PGDATA
-	initdb --nosync >> $PG_LOG 2>&1
+	initdb -A trust --nosync >> $PG_LOG
 	if $use_unix_sockets; then
 		echo "unix_socket_directories = '/tmp'" >> pgdata/postgresql.conf
 	fi

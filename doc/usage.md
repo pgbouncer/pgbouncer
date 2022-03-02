@@ -666,8 +666,10 @@ The PgBouncer process will exit.
 
 #### RELOAD
 
-The PgBouncer process will reload its configuration file and update
-changeable settings.
+The PgBouncer process will reload its configuration files and update
+changeable settings.  This includes the main configuration file as
+well as the files specified by the settings `auth_file` and
+`auth_hba_file`.
 
 PgBouncer notices when a configuration file reload changes the
 connection parameters of a database definition.  An existing server

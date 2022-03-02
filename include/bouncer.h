@@ -588,7 +588,6 @@ last_socket(struct StatList *slist)
 	return container_of(slist->head.prev, PgSocket, head);
 }
 
-bool requires_auth_file(int);
 void load_config(void);
 
 

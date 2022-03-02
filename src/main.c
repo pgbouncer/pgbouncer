@@ -386,7 +386,7 @@ static void set_dbs_dead(bool flag)
 }
 
 /* Tells if the specified auth type requires data from the auth file. */
-bool requires_auth_file(int auth_type)
+static bool requires_auth_file(int auth_type)
 {
 	/* For PAM authentication auth file is not used */
 	if (auth_type == AUTH_PAM)

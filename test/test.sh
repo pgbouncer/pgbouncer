@@ -350,6 +350,10 @@ test_show_version() {
 	test x"$v1" = x"$v2"
 }
 
+test_help() {
+	$BOUNCER_EXE --help || return 1
+}
+
 # test all the show commands
 #
 # This test right now just runs all the commands without checking the
@@ -1355,6 +1359,7 @@ test_cancel_pool_size() {
 
 testlist="
 test_show_version
+test_help
 test_show
 test_server_login_retry
 test_auth_user

@@ -535,9 +535,8 @@ Default: 3600.0
 
 ### dns_max_ttl
 
-How long DNS lookups can be cached.  If a DNS lookup returns
-several answers, PgBouncer will robin-between them.
-The actual DNS TTL is ignored.  [seconds]
+How long DNS lookups can be cached.  The actual DNS TTL is ignored.
+[seconds]
 
 Default: 15.0
 
@@ -927,7 +926,7 @@ at connection time, the result is cached per `dns_max_ttl` parameter.
 When a host name's resolution changes, existing server connections are
 automatically closed when they are released (according to the pooling
 mode), and new server connections immediately use the new resolution.
-If DNS returns several results, they are used in round-robin
+If DNS returns several results, they are used in a round-robin
 manner.
 
 If the value begins with `/`, then a Unix socket in the file-system

@@ -146,6 +146,7 @@ static void start_auth_query(PgSocket *client, const char *username)
 	}
 	if (!res)
 		disconnect_server(client->link, false, "unable to send auth_query");
+	client->expect_rfq_count++;
 }
 
 static bool login_via_cert(PgSocket *client)

@@ -883,10 +883,19 @@ Default: 0
 
 ## Section [databases]
 
-This contains key=value pairs where the key will be taken as a database name and the
-value as a libpq connection string style list of key=value pairs.
-Not all features known from libpq can be used (service=, .pgpass), since the actual
-libpq is not used.
+The section `[databases]` defines the names of the databases that
+clients of PgBouncer can connect to and specifies where those
+connections will be routed.  The section contains key=value lines like
+
+    dbname = connection string
+
+where the key will be taken as a database name and the value as a
+connection string, consisting of key=value pairs of connection
+parameters, described below (similar to libpq, but the actual libpq is
+not used and the set of available features is different).  Example:
+
+    foodb = host=host1.example.com port=5432
+    bardb = host=localhost dbname=bazdb
 
 The database name can contain characters `_0-9A-Za-z` without quoting.
 Names that contain other characters need to be quoted with standard SQL
@@ -1003,10 +1012,17 @@ Ask specific `timezone` from server.
 
 ## Section [users]
 
-This contains key=value pairs where the key will be taken as a user name and
-the value as a libpq connection string style list of key=value pairs of
-configuration settings specific for this user.  Only a few settings
-are available here.
+This section contains key=value lines like
+
+    user1 = settings
+
+where the key will be taken as a user name and the value as a list of
+key=value pairs of configuration settings specific for this user.
+Example:
+
+    user1 = pool_mode=session
+
+Only a few settings are available here.
 
 ### pool_mode
 
@@ -1100,9 +1116,9 @@ The file follows the format of the PostgreSQL `pg_hba.conf` file
   User name map (`map=`) parameter is not supported.
 
 
-## Example
+## Examples
 
-Minimal config:
+Small example configuration:
 
     [databases]
     template1 = host=localhost dbname=template1 auth_user=someuser
@@ -1118,7 +1134,7 @@ Minimal config:
     admin_users = someuser
     stats_users = stat_collector
 
-Database defaults:
+Database examples:
 
     [databases]
 

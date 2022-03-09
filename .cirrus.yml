@@ -229,7 +229,7 @@ task:
     - choco install -y --no-progress pandoc
   build_script:
     - sh -l -c "./autogen.sh"
-    - sh -l -c "./configure --prefix=$HOME/install --enable-werror PANDOC=/c/programdata/chocolatey/bin/pandoc"
+    - sh -l -c "./configure --prefix=$HOME/install --enable-werror PANDOC=/c/programdata/chocolatey/bin/pandoc LDFLAGS=-static LIBS=-liphlpapi PKG_CONFIG='pkg-config --static'"
     - sh -l -c "make"
   test_script:
     - sh -l -c "make check tls_support=no"

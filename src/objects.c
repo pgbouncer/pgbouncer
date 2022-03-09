@@ -808,13 +808,16 @@ bool release_server(PgSocket *server)
 	return true;
 }
 
-/* drop server connection */
-void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
+/*
+ * close server connection
+ *
+ * send_term=true means to send a Terminate message to the server
+ * before disconnecting, send_term=false means to disconnect without.
+ * The latter is for protocol and communication errors where a normal
+ * protocol termination is not possible.
+ */
+void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...)
 {
-	PgPool *pool = server->pool;
-	PgSocket *client;
-	static const uint8_t pkt_term[] = {'X', 0,0,0,4};
-	bool send_term = true;
 	usec_t now = get_cached_time();
 	char buf[128];
 	va_list ap;
@@ -829,14 +832,16 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 			  (now - server->connect_time) / USEC);
 
 	switch (server->state) {
-	case SV_ACTIVE:
-		client = server->link;
+	case SV_ACTIVE:	{
+		PgSocket *client = server->link;
+
 		if (client) {
 			client->link = NULL;
 			server->link = NULL;
 			disconnect_client(client, true, "%s", reason);
 		}
 		break;
+	}
 	case SV_TESTED:
 	case SV_USED:
 	case SV_IDLE:
@@ -848,8 +853,8 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 		 */
 		if (!server->ready)
 		{
-			pool->last_login_failed = true;
-			pool->last_connect_failed = true;
+			server->pool->last_login_failed = true;
+			server->pool->last_connect_failed = true;
 		}
 		else
 		{
@@ -858,7 +863,7 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 			 * cancellation, so to the best of our knowledge we can connect to
 			 * the server, reset last_connect_failed accordingly.
 			 */
-			pool->last_connect_failed = false;
+			server->pool->last_connect_failed = false;
 			send_term = false;
 		}
 		break;
@@ -869,7 +874,8 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 	Assert(server->link == NULL);
 
 	/* notify server and close connection */
-	if (send_term && notify) {
+	if (send_term) {
+		static const uint8_t pkt_term[] = {'X', 0,0,0,4};
 		bool _ignore = sbuf_answer(&server->sbuf, pkt_term, sizeof(pkt_term));
 		(void) _ignore;
 	}
@@ -889,7 +895,14 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...)
 		log_noise("sbuf_close failed, retry later");
 }
 
-/* drop client connection */
+/*
+ * close client connection
+ *
+ * notify=true means to send the reason message as an error to the
+ * client, notify=false means no message is sent.  The latter is for
+ * protocol and communication errors where sending a regular error
+ * message is not possible.
+ */
 void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 {
 	usec_t now = get_cached_time();

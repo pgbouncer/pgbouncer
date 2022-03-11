@@ -601,7 +601,7 @@ bool check_fast_fail(PgSocket *client)
 		return true;
 
 	/* Else we fail the client. */
-	disconnect_client(client, true, "pgbouncer cannot connect to server");
+	disconnect_client(client, true, "server login has been failing, try again later (server_login_retry)");
 
 	/*
 	 * Try to launch a new connection.  (launch_new_connection()

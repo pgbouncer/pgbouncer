@@ -512,8 +512,20 @@ Default: 15.0
 
 ### server_login_retry
 
-If login failed, because of failure from connect() or authentication, the
-pooler waits this much before retrying to connect. [seconds]
+If login to the server failed, because of failure to connect or from
+authentication, the pooler waits this much before retrying to connect.
+During the waiting interval, new clients trying to connect to the
+failing server will get an error immediately without another
+connection attempt. [seconds]
+
+The purpose of this behavior is that clients don't unnecessarily queue
+up waiting for a server connection to become available if the server
+is not working.  However, it also means that if a server is
+momentarily failing, for example during a restart or if the
+configuration was erroneous, then it will take at least this long
+until the pooler will consider connecting to it again.  Planned events
+such as restarts should normally be managed using the `PAUSE` command
+to avoid this.
 
 Default: 15.0
 

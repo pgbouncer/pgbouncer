@@ -838,7 +838,14 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 		if (client) {
 			client->link = NULL;
 			server->link = NULL;
-			disconnect_client(client, true, "%s", reason);
+			/*
+			 * Send reason to client if it is already
+			 * logged in, otherwise send generic message.
+			 */
+			if (client->state == CL_ACTIVE || client->state == CL_WAITING)
+				disconnect_client(client, true, "%s", reason);
+			else
+				disconnect_client(client, true, "bouncer config error");
 		}
 		break;
 	}

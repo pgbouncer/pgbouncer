@@ -39,7 +39,6 @@ bool find_server(PgSocket *client)		_MUSTCHECK;
 bool release_server(PgSocket *server)		/* _MUSTCHECK */;
 bool finish_client_login(PgSocket *client)	_MUSTCHECK;
 bool check_fast_fail(PgSocket *client)		_MUSTCHECK;
-bool check_max_connection_limits(PgPool *pool) _MUSTCHECK;
 
 PgSocket *accept_client(int sock, bool is_unix) _MUSTCHECK;
 void disconnect_server(PgSocket *server, bool notify, const char *reason, ...) _PRINTF(3, 4);
@@ -56,7 +55,7 @@ PgUser * add_pam_user(const char *name, const char *passwd) _MUSTCHECK;
 void accept_cancel_request(PgSocket *req);
 void forward_cancel_request(PgSocket *server);
 
-void launch_new_connection(PgPool *pool);
+void launch_new_connection(PgPool *pool, bool evict_if_needed);
 
 bool use_client_socket(int fd, PgAddr *addr, const char *dbname, const char *username, uint64_t ckey, int oldfd, int linkfd,
 		       const char *client_end, const char *std_string, const char *datestyle, const char *timezone,

@@ -4,6 +4,7 @@
 "pgbouncer" "fake"
 "pswcheck" "pgbouncer-check"
 "maxedout" ""
+"maxedout2" ""
 
 ;the following pairs of passwords are "foo" and "bar"
 

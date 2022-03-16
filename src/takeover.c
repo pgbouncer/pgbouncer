@@ -365,7 +365,7 @@ void takeover_init(void)
 		fatal("no admin pool?");
 
 	log_info("takeover_init: launching connection");
-	launch_new_connection(pool);
+	launch_new_connection(pool, /* evict_if_needed= */ true);
 }
 
 void takeover_login_failed(void)

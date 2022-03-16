@@ -607,26 +607,7 @@ bool check_fast_fail(PgSocket *client)
 	 * clients, so we need to do it here to get any new servers
 	 * eventually.
 	 */
-	launch_new_connection(pool);
-
-	return false;
-}
-
-/* Check if the pool's db or user has hit their max connection limits. */
-bool check_max_connection_limits(PgPool *pool) {
-	int max;
-	
-	/* Has the db hit its max connection limit? */
-	max = database_max_connections(pool->db);
-	if (max > 0 && pool->db->connection_count >= max) {
-		return true;
-	}
-
-	/* Has the user hit its max connection limit? */
-	max = user_max_connections(pool->user);
-	if (max > 0 && pool->user->connection_count >= max) {
-		return true;
-	}
+	launch_new_connection(pool, /* evict_if_needed= */ true);
 
 	return false;
 }
@@ -1169,8 +1150,16 @@ bool evict_user_connection(PgUser *user)
 	return false;
 }
 
-/* the pool needs new connection, if possible */
-void launch_new_connection(PgPool *pool)
+/*
+ * Launches a new connection if possible.
+ *
+ * Called when the pool needs new connection.
+ *
+ * If `evict_if_needed` is true and the db or user has reached their
+ * connection limits, this method will attempt to evict existing connections
+ * from other users/dbs to make room for the new connection.
+ */
+void launch_new_connection(PgPool *pool, bool evict_if_needed)
 {
 	PgSocket *server;
 	int max;
@@ -1221,7 +1210,7 @@ allow_new:
 	max = database_max_connections(pool->db);
 	if (max > 0) {
 		/* try to evict unused connections first */
-		while (pool->db->connection_count >= max) {
+		while (evict_if_needed && pool->db->connection_count >= max) {
 			if (!evict_connection(pool->db)) {
 				break;
 			}
@@ -1236,7 +1225,7 @@ allow_new:
 	max = user_max_connections(pool->user);
 	if (max > 0) {
 		/* try to evict unused connection first */
-		while (pool->user->connection_count >= max) {
+		while (evict_if_needed && pool->user->connection_count >= max) {
 			if (!evict_user_connection(pool->user)) {
 				break;
 			}
@@ -1322,7 +1311,7 @@ bool finish_client_login(PgSocket *client)
 		client->wait_for_welcome = true;
 		pause_client(client);
 		if (cf_pause_mode == P_NONE)
-			launch_new_connection(client->pool);
+			launch_new_connection(client->pool, /* evict_if_needed= */ true);
 		return false;
 	}
 	client->wait_for_welcome = false;
@@ -1398,7 +1387,7 @@ found:
 	change_client_state(req, CL_CANCEL);
 
 	/* need fresh connection */
-	launch_new_connection(pool);
+	launch_new_connection(pool, /* evict_if_needed= */ true);
 }
 
 void forward_cancel_request(PgSocket *server)

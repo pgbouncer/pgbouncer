@@ -167,6 +167,8 @@ task:
   name: FreeBSD
   freebsd_instance:
     image_family: freebsd-13-0
+  env:
+    HAVE_IPV6_LOCALHOST: yes
   setup_script:
     - pkg install -y autoconf automake bash gmake hs-pandoc libevent libtool pkgconf postgresql12-server python
     - pw useradd user
@@ -193,6 +195,8 @@ task:
   osx_instance:
     matrix:
       - image: monterey-base
+  env:
+    HAVE_IPV6_LOCALHOST: yes
   setup_script:
     - brew install autoconf automake bash libevent libtool openssl pandoc pkg-config postgresql
   env:
@@ -218,6 +222,7 @@ task:
   env:
     PATH: C:/tools/msys64/usr/bin;%PATH%
     HOME: .
+    HAVE_IPV6_LOCALHOST: yes
   matrix:
     - env:
         MSYSTEM: MINGW64

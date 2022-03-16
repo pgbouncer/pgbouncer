@@ -23,6 +23,7 @@
 #include "bouncer.h"
 #include "scram.h"
 
+#include <usual/err.h>
 #include <usual/safeio.h>
 #include <usual/slab.h>
 
@@ -1058,9 +1059,30 @@ static void dns_connect(struct PgSocket *server)
 	struct sockaddr_in6 sa_in6;
 	struct sockaddr *sa;
 	struct PgDatabase *db = server->pool->db;
-	const char *host = db->host;
+	const char *host;
 	int sa_len;
 	int res;
+	char *host_copy = NULL;
+
+	/* host list? */
+	if (db->host && strchr(db->host, ',')) {
+		int count = 1;
+		int n;
+
+		for (const char *p = db->host; *p; p++)
+			if (*p == ',')
+				count++;
+
+		host_copy = xstrdup(db->host);
+		for (host = strtok(host_copy, ","), n = 0; host; host = strtok(NULL, ","), n++)
+			if (server->pool->rrcounter % count == n)
+				break;
+		Assert(host);
+
+		server->pool->rrcounter++;
+	} else {
+		host = db->host;
+	}
 
 	if (!host || host[0] == '/' || host[0] == '@') {
 		const char *unix_dir;
@@ -1071,7 +1093,7 @@ static void dns_connect(struct PgSocket *server)
 		if (!unix_dir || !*unix_dir) {
 			log_error("unix socket dir not configured: %s", db->name);
 			disconnect_server(server, false, "cannot connect");
-			return;
+			goto cleanup;
 		}
 		snprintf(sa_un.sun_path, sizeof(sa_un.sun_path),
 			 "%s/.s.PGSQL.%d", unix_dir, db->port);
@@ -1116,10 +1138,12 @@ static void dns_connect(struct PgSocket *server)
 		tk = adns_resolve(adns, host, dns_callback, server);
 		if (tk)
 			server->dns_token = tk;
-		return;
+		goto cleanup;
 	}
 
 	connect_server(server, sa, sa_len);
+cleanup:
+	free(host_copy);
 }
 
 PgSocket *compare_connections_by_time(PgSocket *lhs, PgSocket *rhs)

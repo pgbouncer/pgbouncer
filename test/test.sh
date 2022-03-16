@@ -1357,6 +1357,39 @@ test_cancel_pool_size() {
 	return 0
 }
 
+# This test checks database specifications with host lists.  The way
+# we test this here is to have a host list containing an IPv4 and an
+# IPv6 representation of localhost, and then we check the log that
+# both connections were made.  Some CI environments don't have IPv6
+# localhost configured.  Therefore, this test is skipped by default
+# and needs to be enabled explicitly by setting HAVE_IPV6_LOCALHOST to
+# non-empty.
+test_host_list() {
+	test -z "$HAVE_IPV6_LOCALHOST" && return 77
+
+	psql -X -d hostlist1 -c 'select pg_sleep(1)' >/dev/null &
+	psql -X -d hostlist1 -c 'select 1'
+	psql -X -d hostlist1 -c 'select 2'
+
+	grep -F 'hostlist1/bouncer@127.0.0.1:6666 new connection to server' $BOUNCER_LOG || return 1
+	grep -F 'hostlist1/bouncer@[::1]:6666 new connection to server' $BOUNCER_LOG || return 1
+	return 0
+}
+
+# This is the same test as above, except it doesn't use any IPv6
+# addresses.  So we can't actually tell apart that two separate
+# connections are made.  But the test is useful to get some test
+# coverage (valgrind etc.) of the host list code on systems without
+# IPv6 enabled.
+test_host_list_dummy() {
+	psql -X -d hostlist2 -c 'select pg_sleep(1)' >/dev/null &
+	psql -X -d hostlist2 -c 'select 1'
+	psql -X -d hostlist2 -c 'select 2'
+
+	grep -F 'hostlist2/bouncer@127.0.0.1:6666 new connection to server' $BOUNCER_LOG || return 1
+	return 0
+}
+
 testlist="
 test_show_version
 test_help
@@ -1412,6 +1445,8 @@ test_no_database_auth_user
 test_cancel
 test_cancel_wait
 test_cancel_pool_size
+test_host_list
+test_host_list_dummy
 "
 
 if [ $# -gt 0 ]; then

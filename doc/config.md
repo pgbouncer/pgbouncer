@@ -193,8 +193,9 @@ Default: 0 (unlimited)
 
 By default, PgBouncer reuses server connections in LIFO (last-in, first-out) manner,
 so that few connections get the most load.  This gives best performance if you have
-a single server serving a database.  But if there is TCP round-robin behind a database
-IP address, then it is better if PgBouncer also uses connections in that manner, thus
+a single server serving a database.  But if there is a round-robin
+system behind a database address (TCP, DNS, or host list), then it is
+better if PgBouncer also uses connections in that manner, thus
 achieving uniform load.
 
 Default: 0
@@ -953,6 +954,27 @@ manner.
 If the value begins with `/`, then a Unix socket in the file-system
 namespace is used.  If the value begins with `@`, then a Unix socket
 in the abstract namespace is used.
+
+A comma-separated list of host names or addresses can be specified.
+In that case, connections are made in a round-robin manner.  (If a
+host list contains host names that in turn resolve via DNS to multiple
+addresses, the round-robin systems operate independently.  This is an
+implementation dependency that is subject to change.)  Note that in a
+list, all hosts must be available at all times: There are no
+mechanisms to skip unreachable hosts or to select only available hosts
+from a list or similar.  (This is different from what a host list in
+libpq means.)  Also note that this only affects how the destinations
+of new connections are chosen.  See also the setting
+`server_round_robin` for how clients are assigned to already
+established server connections.
+
+Examples:
+
+	host=localhost
+	host=127.0.0.1
+	host=2001:0db8:85a3:0000:0000:8a2e:0370:7334
+	host=/var/run/postgresql
+	host=192.168.0.1,192.168.0.2,192.168.0.3
 
 Default: not set, meaning to use a Unix socket
 

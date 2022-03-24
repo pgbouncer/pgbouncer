@@ -823,6 +823,10 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 	char buf[128];
 	va_list ap;
 
+	if (server == NULL) {
+		return;
+	}
+
 	va_start(ap, reason);
 	vsnprintf(buf, sizeof(buf), reason, ap);
 	va_end(ap);

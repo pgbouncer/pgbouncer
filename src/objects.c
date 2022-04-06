@@ -83,7 +83,10 @@ static void construct_client(void *obj)
 	memset(client, 0, sizeof(PgSocket));
 	list_init(&client->head);
 	sbuf_init(&client->sbuf, client_proto);
+  client->packet_cb_state.complete_pkt = malloc(sizeof(struct MBuf));
+  client->packet_cb_state.pkt_header = malloc(sizeof(struct PktHdr));
 	client->state = CL_FREE;
+  client->prepared_statements = NULL;
 }
 
 static void construct_server(void *obj)
@@ -94,6 +97,9 @@ static void construct_server(void *obj)
 	list_init(&server->head);
 	sbuf_init(&server->sbuf, server_proto);
 	server->state = SV_FREE;
+  server->nextUniquePreparedStatementID = 1;
+  server->server_prepared_statements = NULL;
+  list_init(&server->server_outstanding_parse_packets);
 }
 
 /* compare string with PgUser->name, for usage with btree */
@@ -179,6 +185,9 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	case CL_FREE:
 		varcache_clean(&client->vars);
 		slab_free(client_cache, client);
+    free(client->packet_cb_state.complete_pkt);
+    free(client->packet_cb_state.pkt_header);
+    ps_client_free(client);
 		break;
 	case CL_JUSTFREE:
 		statlist_append(&justfree_client_list, &client->head);
@@ -240,6 +249,7 @@ void change_server_state(PgSocket *server, SocketState newstate)
 	case SV_FREE:
 		varcache_clean(&server->vars);
 		slab_free(server_cache, server);
+    ps_server_free(server);
 		break;
 	case SV_JUSTFREE:
 		statlist_append(&justfree_server_list, &server->head);

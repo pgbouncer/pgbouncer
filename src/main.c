@@ -170,6 +170,9 @@ char *cf_server_tls_cert_file;
 char *cf_server_tls_key_file;
 char *cf_server_tls_ciphers;
 
+int cf_disable_prepared_statement_support;
+int cf_prepared_statement_cache_queries;
+
 /*
  * config file description
  */
@@ -305,6 +308,9 @@ CF_ABS("server_tls_cert_file", CF_STR, cf_server_tls_cert_file, CF_NO_RELOAD, ""
 CF_ABS("server_tls_key_file", CF_STR, cf_server_tls_key_file, CF_NO_RELOAD, ""),
 CF_ABS("server_tls_protocols", CF_STR, cf_server_tls_protocols, CF_NO_RELOAD, "secure"),
 CF_ABS("server_tls_ciphers", CF_STR, cf_server_tls_ciphers, CF_NO_RELOAD, "fast"),
+
+CF_ABS("disable_prepared_statement_support", CF_INT, cf_disable_prepared_statement_support, 0, "1"),
+CF_ABS("prepared_statement_cache_queries", CF_INT, cf_prepared_statement_cache_queries, 0, "100"),
 
 {NULL}
 };

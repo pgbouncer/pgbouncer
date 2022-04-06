@@ -101,6 +101,8 @@ bool sbuf_pause(SBuf *sbuf) _MUSTCHECK;
 void sbuf_continue(SBuf *sbuf);
 bool sbuf_close(SBuf *sbuf) _MUSTCHECK;
 
+bool sbuf_flush(SBuf *sbuf);
+
 /* proto_fn can use those functions to order behaviour */
 void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, unsigned amount);
 void sbuf_prepare_skip(SBuf *sbuf, unsigned amount);

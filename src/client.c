@@ -810,6 +810,8 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 {
 	SBuf *sbuf = &client->sbuf;
 	int rfq_delta = 0;
+  uint8_t ps_action = PS_IGNORE;
+  PgClosePacket *close_packet;
 
 	switch (pkt->type) {
 
@@ -843,10 +845,60 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	 * to buffer packets until sync or flush is sent by client
 	 */
 	case 'P':		/* Parse */
+    if (!cf_disable_prepared_statement_support) {
+      if (!inspect_parse_packet(client, pkt, &ps_action))
+        return false;
+      
+      if (ps_action == PS_HANDLE && incomplete_pkt(pkt)) {
+        client->packet_cb_state.flag = CB_WANT_COMPLETE_PACKET;
+        sbuf_prepare_fetch(sbuf, pkt->len);
+        return true;
+      }
+    }
+    break;
+
 	case 'E':		/* Execute */
+    break;
+
 	case 'C':		/* Close */
+    if (!cf_disable_prepared_statement_support) {
+      if (!unmarshall_close_packet(client, pkt, &close_packet))
+        return false;
+
+      if (close_packet && is_close_statement_packet(close_packet)) {
+        if (!handle_close_statement_command(client, pkt, close_packet))
+          return false;
+
+        client->pool->stats.client_bytes += pkt->len;
+
+        free(close_packet->name);
+        free(close_packet);
+
+        /* No further processing required */
+        return true;
+      }
+
+      if (close_packet) {
+        free(close_packet->name);
+        free(close_packet);
+      }
+    }
+    break;
+
 	case 'B':		/* Bind */
+    if (!cf_disable_prepared_statement_support) {
+      if (!inspect_bind_packet(client, pkt, &ps_action))
+        return false;
+    }
+    break;
+
 	case 'D':		/* Describe */
+    if (!cf_disable_prepared_statement_support) {
+      if (!inspect_describe_packet(client, pkt, &ps_action))
+        return false;
+    }
+    break;
+
 	case 'd':		/* CopyData(F/B) */
 		break;
 
@@ -860,7 +912,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		return false;
 	}
 
-	/* update stats */
+  /* update stats */
 	if (!client->query_start) {
 		client->pool->stats.query_count++;
 		client->query_start = get_cached_time();
@@ -890,10 +942,58 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	client->link->ready = false;
 	client->link->idle_tx = false;
 
+  if (ps_action == PS_HANDLE) {
+    switch (pkt->type)
+    {
+      case 'P':
+        if (!handle_parse_command(client, pkt))
+          return false;
+
+        if (client->packet_cb_state.flag == CB_HANDLE_COMPLETE_PACKET) {
+          /* pkt already read from sbuf with cb */
+          client->packet_cb_state.flag = CB_NONE;
+        } else {
+          sbuf_prepare_skip(sbuf, pkt->len);
+        }
+        return true;
+
+      case 'B':
+        client->packet_cb_state.flag = CB_REWRITE_PACKET;
+        sbuf_prepare_fetch(sbuf, pkt->len);
+        return true;
+
+      case 'D':
+        if (!handle_describe_command(client, pkt))
+          return false;
+
+        return true;
+    }
+  }
+
 	/* forward the packet */
 	sbuf_prepare_send(sbuf, &client->link->sbuf, pkt->len);
 
 	return true;
+}
+
+static bool handle_partial_client_work(PgSocket *client, PktHdr *pkt_hdr, unsigned offset, struct MBuf *data)
+{
+	struct PktBuf *pkt = pktbuf_temp();
+
+  switch (pkt_hdr->type) {
+    case 'B':
+      if (offset == 0) {
+        if (!handle_bind_command(client, pkt_hdr, offset, data, pkt))
+          return false;
+      }
+      pktbuf_put_bytes(pkt, data->data + mbuf_consumed(data) , mbuf_avail_for_read(data));
+      break;
+  }
+
+  if (!pktbuf_send_immediate(pkt, client->link))
+    return false;
+
+  return true;
 }
 
 /* callback from SBuf */
@@ -957,8 +1057,67 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		/* client is not interested in it */
 		break;
 	case SBUF_EV_PKT_CALLBACK:
-		/* unused ATM */
-		break;
+  {
+    bool first = false;
+    if (client->packet_cb_state.pkt_header->type == 0) {
+      first = true;
+      if (!get_header(data, client->packet_cb_state.pkt_header)) {
+        char hex[8*2 + 1];
+		  	disconnect_client(client, true, "bad packet header: '%s'",
+              hdr2hex(data, hex, sizeof(hex)));
+		  	return false;
+		  }
+      mbuf_rewind_reader(data);
+    }
+
+    switch (client->packet_cb_state.flag) {
+      case CB_WANT_COMPLETE_PACKET:
+        if (first) {
+          slog_debug(client, "buffering complete packet, pkt='%c' len=%d incomplete=%s available=%d", pkt_desc(client->packet_cb_state.pkt_header), client->packet_cb_state.pkt_header->len, incomplete_pkt(client->packet_cb_state.pkt_header) ? "true" : "false", mbuf_avail_for_read(data));
+          mbuf_init_dynamic(client->packet_cb_state.complete_pkt);
+          if (!mbuf_make_room(client->packet_cb_state.complete_pkt, client->packet_cb_state.pkt_header->len))
+            return false;
+        }
+
+        res = mbuf_write_raw_mbuf(client->packet_cb_state.complete_pkt, data);
+
+        if (res && sbuf->pkt_remain == mbuf_avail_for_read(data)) {
+          if (!get_header(client->packet_cb_state.complete_pkt, &pkt)) {
+            char hex[8*2 + 1];
+            disconnect_client(client, true, "bad packet header: '%s'",
+                  hdr2hex(data, hex, sizeof(hex)));
+            return false;
+          }          
+          slog_debug(client, "complete packet buffered, pkt='%c' len=%d incomplete=%s", pkt_desc(&pkt), pkt.len, incomplete_pkt(&pkt) ? "true" : "false");
+
+          client->packet_cb_state.flag = CB_HANDLE_COMPLETE_PACKET;
+          res = handle_client_work(client, &pkt);
+   
+          mbuf_free(client->packet_cb_state.complete_pkt);
+          free_header(client->packet_cb_state.pkt_header);
+        }
+        break;
+      case CB_REWRITE_PACKET:
+      {
+        unsigned avail = mbuf_avail_for_read(data);
+        if (first) {
+          client->packet_cb_state.pkt_offset = 0;
+        }
+      
+        res = handle_partial_client_work(client, client->packet_cb_state.pkt_header, client->packet_cb_state.pkt_offset, data);
+        client->packet_cb_state.pkt_offset += avail;
+
+        if (client->packet_cb_state.pkt_header->len == client->packet_cb_state.pkt_offset) {
+          client->packet_cb_state.flag = CB_NONE;
+          free_header(client->packet_cb_state.pkt_header);
+        }
+        break;
+      }
+      default:
+        break;
+    }
+    break;
+  }
 	case SBUF_EV_TLS_READY:
 		sbuf_continue(&client->sbuf);
 		res = true;

@@ -89,6 +89,14 @@ enum SSLMode {
 	SSLMODE_VERIFY_FULL
 };
 
+enum PacketCallbackFlag {
+  CB_NONE,
+  CB_WANT_COMPLETE_PACKET,
+  CB_HANDLE_COMPLETE_PACKET,
+  CB_REWRITE_PACKET
+};
+
+
 #define is_server_socket(sk) ((sk)->state >= SV_FREE)
 
 
@@ -99,8 +107,10 @@ typedef struct PgPool PgPool;
 typedef struct PgStats PgStats;
 typedef union PgAddr PgAddr;
 typedef enum SocketState SocketState;
+typedef enum PacketCallbackFlag PacketCallbackFlag;
 typedef struct PktHdr PktHdr;
 typedef struct ScramState ScramState;
+typedef struct PgPreparedStatement PgPreparedStatement;
 
 extern int cf_sbuf_len;
 
@@ -123,6 +133,8 @@ extern int cf_sbuf_len;
 #include "janitor.h"
 #include "hba.h"
 #include "pam.h"
+#include "messages.h"
+#include "ps.h"
 
 #ifndef WIN32
 #define DEFAULT_UNIX_SOCKET_DIR "/tmp"
@@ -234,6 +246,10 @@ struct PgStats {
 	usec_t xact_time;	/* total transaction time in us */
 	usec_t query_time;	/* total query time in us */
 	usec_t wait_time;	/* total time clients had to wait */
+
+  uint64_t ps_server_parse_count;
+  uint64_t ps_client_parse_count;
+  uint64_t ps_bind_count;
 };
 
 /*
@@ -360,6 +376,10 @@ struct PgDatabase {
 	struct AATree user_tree;	/* users that have been queried on this database */
 };
 
+struct OutstandingParsePacket {
+	struct List node;
+	bool ignore:1;
+};
 
 /*
  * A client or server connection.
@@ -432,6 +452,22 @@ struct PgSocket {
 	} scram_state;
 
 	VarCache vars;		/* state of interesting server parameters */
+
+  PgParsedPreparedStatement *prepared_statements;
+
+  uint64_t nextUniquePreparedStatementID;
+  PgServerPreparedStatement *server_prepared_statements;
+
+  struct List server_outstanding_parse_packets;
+
+  /* cb state during SBUF_EV_PKT_CALLBACK processing */
+  struct CallbackState {
+    PacketCallbackFlag flag:8; 
+    struct MBuf *complete_pkt;
+    PktHdr *pkt_header;
+    unsigned pkt_offset;
+  } packet_cb_state;
+
 
 	SBuf sbuf;		/* stream buffer, must be last */
 };
@@ -545,6 +581,9 @@ extern char *cf_server_tls_ca_file;
 extern char *cf_server_tls_cert_file;
 extern char *cf_server_tls_key_file;
 extern char *cf_server_tls_ciphers;
+
+extern int cf_disable_prepared_statement_support;
+extern int cf_prepared_statement_cache_queries;
 
 extern const struct CfLookup pool_mode_map[];
 

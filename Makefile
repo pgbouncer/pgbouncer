@@ -10,12 +10,14 @@ pgbouncer_SOURCES = \
 	src/hba.c \
 	src/janitor.c \
 	src/loader.c \
+	src/messages.c \
 	src/main.c \
 	src/objects.c \
 	src/pam.c \
 	src/pktbuf.c \
 	src/pooler.c \
 	src/proto.c \
+	src/ps.c \
 	src/sbuf.c \
 	src/scram.c \
 	src/server.c \
@@ -37,11 +39,13 @@ pgbouncer_SOURCES = \
 	include/iobuf.h \
 	include/janitor.h \
 	include/loader.h \
+	include/messages.h \
 	include/objects.h \
 	include/pam.h \
 	include/pktbuf.h \
 	include/pooler.h \
 	include/proto.h \
+	include/ps.h \
 	include/sbuf.h \
 	include/scram.h \
 	include/server.h \

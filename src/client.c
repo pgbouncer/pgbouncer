@@ -202,7 +202,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		if (client->db->forced_user)
 			pool_user = client->db->forced_user;
 		else
-			pool_user = client->login_user;
+			pool_user = find_original_user(client->login_user);
 
 		client->pool = get_pool(client->db, pool_user);
 		if (!client->pool) {

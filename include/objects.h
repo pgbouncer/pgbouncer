@@ -47,6 +47,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...) _
 
 PgDatabase * add_database(const char *name) _MUSTCHECK;
 PgDatabase *register_auto_database(const char *name);
+PgUser * find_original_user(PgUser *login_user) _MUSTCHECK;
 PgUser * add_user(const char *name, const char *passwd) _MUSTCHECK;
 PgUser * add_db_user(PgDatabase *db, const char *name, const char *passwd) _MUSTCHECK;
 PgUser * force_user(PgDatabase *db, const char *username, const char *passwd) _MUSTCHECK;

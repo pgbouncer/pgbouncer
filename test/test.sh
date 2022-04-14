@@ -185,6 +185,8 @@ psql -X -p $PG_PORT -d p0 -c "select * from pg_user" | grep pswcheck > /dev/null
 	psql -X -o /dev/null -p $PG_PORT -c "create user pswcheck with superuser createdb password 'pgbouncer-check';" p0 || exit 1
 	psql -X -o /dev/null -p $PG_PORT -c "create user someuser with password 'anypasswd';" p0 || exit 1
 	psql -X -o /dev/null -p $PG_PORT -c "create user maxedout;" p0 || exit 1
+	psql -X -o /dev/null -p $PG_PORT -c "create user shadowuser1 with password 'bar';" p0 || exit 1
+	psql -X -o /dev/null -p $PG_PORT -c "create user shadowuser2 with password 'foo';" p0 || exit 1
 	psql -X -o /dev/null -p $PG_PORT -c "create user longpass with password '$long_password';" p0 || exit 1
 	if $pg_supports_scram; then
 		psql -X -o /dev/null -p $PG_PORT -c "set password_encryption = 'md5'; create user muser1 password 'foo';" p0 || exit 1
@@ -931,6 +933,48 @@ test_password_server() {
 	return 0
 }
 
+# test password authentication from PgBouncer to PostgreSQL server using
+# auth_query to retrieve user's shadow password from pg_shadow
+test_shadow_password_server_login() {
+	$have_getpeereid || return 77
+
+	admin "set auth_type='md5'"
+	admin "set auth_user='pswcheck'"
+
+	# plain-text password of auth_user in userlist.txt
+	curuser=`psql -X -d "dbname=authdb user=pswcheck password=pgbouncer-check" -tAq -c "select current_user;"`
+	echo "curuser=$curuser"
+	test "$curuser" = "pswcheck" || return 1
+
+	# user with good password from PostgreSQL server
+	curuser=`psql -X -d "dbname=authdb user=shadowuser1 password=bar" -tAq -c "select current_user;"`
+	echo "curuser=$curuser"
+	test "$curuser" = "shadowuser1" || return 1
+	# user with bad password from PostgreSQL server
+	curuser=`psql -X -d "dbname=authdb user=shadowuser1 password=badpasswd" -tAq -c "select current_user;"`
+	echo "curuser=$curuser"
+	test "$curuser" = "" || return 1
+
+	# user defined in ini [users] section with good password from PostgreSQL server
+	curuser=`psql -X -d "dbname=authdb user=shadowuser2 password=foo" -tAq -c "select current_user;"`
+	echo "curuser=$curuser"
+	test "$curuser" = "shadowuser2" || return 1
+	# user defined in ini [users] section with bad password from PostgreSQL server
+	curuser2=`psql -X -d "dbname=authdb user=shadowuser2 password=badpasswd" -tAq -c "select current_user;"`
+	echo "curuser2=$curuser2"
+	test "$curuser2" = "" || return 1
+
+	# auth_user defined in ini [users] section with good password from PostgreSQL server
+	admin "set auth_user='shadowuser2'"
+	curuser=`psql -X -d "dbname=authdb user=shadowuser2 password=foo" -tAq -c "select current_user;"`
+	echo "curuser=$curuser"
+	test "$curuser" = "shadowuser2" || return 1
+
+	admin "set auth_type='trust'"
+
+	return 0
+}
+
 # test plain-text password authentication from client to PgBouncer
 test_password_client() {
 	$have_getpeereid || return 77
@@ -1401,6 +1445,7 @@ test_server_lifetime
 test_server_idle_timeout
 test_query_timeout
 test_idle_transaction_timeout
+test_shadow_password_server_login
 test_server_connect_timeout_establish
 test_server_connect_timeout_reject
 test_server_check_delay

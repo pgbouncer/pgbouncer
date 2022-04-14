@@ -339,13 +339,12 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 		}
 	} else {
 		client->login_user = find_user(username);
-		if (!client->login_user) {
+		if (!client->login_user || !user_is_authenticated(client->login_user)) {
 			/*
-			 * If the login user specified by the client
-			 * does not exist, check if an auth_user is
-			 * set and if so send off an auth_query.  If
-			 * no auth_user is set for the db, see if the
-			 * global auth_user is set and use that.
+			 * If the login user specified by the client does not exist or only exists as
+			 * a pre-configuration, check if an auth_user is set and if so send off an
+			 * auth_query. If no auth_user is set for the db, see if the global auth_user
+			 * is set and use that.
 			 */
 			if (!client->db->auth_user && cf_auth_user) {
 				client->db->auth_user = find_user(cf_auth_user);

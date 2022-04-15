@@ -62,10 +62,15 @@ static const char cmd_set_word_rx[] =
 static const char cmd_set_str_rx[] =
 "^" WS0 "set" WS1 WORD WS0 "(=|to)" WS0 STRING WS0 "(;" WS0 ")?$";
 
+/* SET with user value */
+static const char cmd_set_user_rx[] =
+"^" WS0 "set" WS1 "user" WS1 WORD WS0 "(=|to)" WS0 STRING WS0 "(;" WS0 ")?$";
+
 /* compiled regexes */
 static regex_t rc_cmd;
 static regex_t rc_set_word;
 static regex_t rc_set_str;
+static regex_t rc_set_user;
 
 static PgPool *admin_pool;
 
@@ -77,6 +82,7 @@ void admin_cleanup(void)
 	regfree(&rc_cmd);
 	regfree(&rc_set_str);
 	regfree(&rc_set_word);
+	regfree(&rc_set_user);
 	admin_pool = NULL;
 }
 
@@ -1308,6 +1314,7 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		"\tSHOW DNS_HOSTS|DNS_ZONES\n"
 		"\tSHOW STATS|STATS_TOTALS|STATS_AVERAGES|TOTALS\n"
 		"\tSET key = arg\n"
+		"\tSET USER <user> = 'args'\n"
 		"\tRELOAD\n"
 		"\tPAUSE [<db>]\n"
 		"\tRESUME [<db>]\n"
@@ -1441,6 +1448,14 @@ static bool admin_parse_query(PgSocket *admin, const char *q)
 		if (!ok || !arg[0])
 			goto failed;
 		ok = copy_arg(q, grp, SET_VAL, val, sizeof(val), '"');
+		if (!ok)
+			goto failed;
+		res = admin_set(admin, arg, val);
+	} else if (regexec(&rc_set_user, q, MAX_GROUPS, grp, 0) == 0) {
+		ok = copy_arg(q, grp, SET_KEY, arg, sizeof(arg), '"');
+		if (!ok || !arg[0])
+			goto failed;
+		ok = copy_arg(q, grp, SET_VAL, val, sizeof(val), '\'');
 		if (!ok)
 			goto failed;
 		res = admin_set(admin, arg, val);
@@ -1635,6 +1650,9 @@ void admin_setup(void)
 	res = regcomp(&rc_set_str, cmd_set_str_rx, REG_EXTENDED | REG_ICASE);
 	if (res != 0)
 		fatal("set/str regex compilation error");
+	res = regcomp(&rc_set_user, cmd_set_user_rx, REG_EXTENDED | REG_ICASE);
+	if (res != 0)
+		fatal("set/user regex compilation error");
 }
 
 void admin_pause_done(void)

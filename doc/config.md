@@ -178,7 +178,8 @@ associated with a pool, which is either the user specified for the
 server connection or in absence of that the user the client has
 connected as.
 
-This can also be set per user in the `[users]` section.
+This can also be set per user in the `[users]` section, or by using
+the command `SET USER [user] = 'max_user_connections=[new limit]`.
 
 Note that when you hit the limit, closing a client connection to one
 pool will not immediately allow a server connection to be established

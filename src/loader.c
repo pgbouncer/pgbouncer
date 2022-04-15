@@ -418,6 +418,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 
 	user->pool_mode = pool_mode;
 	user->max_user_connections = max_user_connections;
+	notify_user_event(user, handle_user_cf_update);
 
 	free(tmp_connstr);
 	return true;

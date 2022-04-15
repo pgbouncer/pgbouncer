@@ -1212,7 +1212,7 @@ bool evict_connection(PgDatabase *db)
 }
 
 /* evict the single most idle connection from among all pools to make room in the user */
-bool evict_user_connection(PgUser *user)
+bool evict_idle_user_connection(PgUser *user)
 {
 	struct List *item;
 	PgPool *pool;
@@ -1305,7 +1305,7 @@ allow_new:
 	if (max > 0) {
 		/* try to evict unused connection first */
 		while (pool->user->connection_count >= max) {
-			if (!evict_user_connection(pool->user)) {
+			if (!evict_idle_user_connection(pool->user)) {
 				break;
 			}
 		}

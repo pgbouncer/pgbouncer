@@ -44,6 +44,10 @@
 #define SET_KEY 1
 #define SET_VAL 4
 
+/* configuration sections */
+#define PGBOUNCER_SECT "pgbouncer"
+#define USERS_SECT "users"
+
 typedef bool (*cmd_func_t)(PgSocket *admin, const char *arg);
 struct cmd_lookup {
 	const char *word;
@@ -231,8 +235,8 @@ static bool fake_set(PgSocket *admin, const char *key, const char *val)
 	return got;
 }
 
-/* Command: SET key = val; */
-static bool admin_set(PgSocket *admin, const char *key, const char *val)
+/* Command: SET [USER] key = val; */
+static bool admin_set(PgSocket *admin, const char *sect, const char *key, const char *val)
 {
 	char tmp[512];
 	bool ok;
@@ -241,7 +245,7 @@ static bool admin_set(PgSocket *admin, const char *key, const char *val)
 		return true;
 
 	if (admin->admin_user) {
-		ok = set_config_param(key, val);
+		ok = set_config_param(sect, key, val);
 		if (ok) {
 			PktBuf *buf = pktbuf_dynamic(256);
 			if (strstr(key, "_tls_") != NULL) {
@@ -1442,7 +1446,7 @@ static bool admin_parse_query(PgSocket *admin, const char *q)
 		ok = copy_arg(q, grp, SET_VAL, val, sizeof(val), '\'');
 		if (!ok)
 			goto failed;
-		res = admin_set(admin, arg, val);
+		res = admin_set(admin, PGBOUNCER_SECT, arg, val);
 	} else if (regexec(&rc_set_word, q, MAX_GROUPS, grp, 0) == 0) {
 		ok = copy_arg(q, grp, SET_KEY, arg, sizeof(arg), '"');
 		if (!ok || !arg[0])
@@ -1450,7 +1454,7 @@ static bool admin_parse_query(PgSocket *admin, const char *q)
 		ok = copy_arg(q, grp, SET_VAL, val, sizeof(val), '"');
 		if (!ok)
 			goto failed;
-		res = admin_set(admin, arg, val);
+		res = admin_set(admin, PGBOUNCER_SECT, arg, val);
 	} else if (regexec(&rc_set_user, q, MAX_GROUPS, grp, 0) == 0) {
 		ok = copy_arg(q, grp, SET_KEY, arg, sizeof(arg), '"');
 		if (!ok || !arg[0])
@@ -1458,7 +1462,7 @@ static bool admin_parse_query(PgSocket *admin, const char *q)
 		ok = copy_arg(q, grp, SET_VAL, val, sizeof(val), '\'');
 		if (!ok)
 			goto failed;
-		res = admin_set(admin, arg, val);
+		res = admin_set(admin, USERS_SECT, arg, val);
 	} else
 		res = syntax_error(admin);
 done:

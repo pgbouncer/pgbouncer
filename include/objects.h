@@ -34,7 +34,7 @@ PgUser *find_user(const char *name);
 PgPool *get_pool(PgDatabase *, PgUser *);
 PgSocket *compare_connections_by_time(PgSocket *lhs, PgSocket *rhs);
 bool evict_connection(PgDatabase *db)		_MUSTCHECK;
-bool evict_user_connection(PgUser *user)	_MUSTCHECK;
+bool evict_idle_user_connection(PgUser *user)	_MUSTCHECK;
 bool find_server(PgSocket *client)		_MUSTCHECK;
 bool life_over(PgSocket *server);
 bool release_server(PgSocket *server)		/* _MUSTCHECK */;

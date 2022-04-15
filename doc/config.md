@@ -1069,6 +1069,10 @@ database or default `pool_mode` is used.
 Configure a maximum for the user (i.e. all pools with the user will
 not have more than this many server connections).
 
+If a user is configured with `max_user_connections` in the `[users]`
+section, any of their connections that exceed the new limit will
+automatically be closed in priority of idle, used, tested, then active
+connections.
 
 ## Include directive
 

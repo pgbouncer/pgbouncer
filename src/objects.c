@@ -1237,6 +1237,68 @@ bool evict_idle_user_connection(PgUser *user)
 	return false;
 }
 
+/* evict the single oldest active connection from among all pools to make room in the user */
+static bool evict_active_user_connection(PgUser *user)
+{
+	struct List *item;
+	PgPool *pool;
+	PgSocket *oldest_connection = NULL;
+
+	statlist_for_each(item, &pool_list) {
+		pool = container_of(item, PgPool, head);
+		if (pool->user != user)
+			continue;
+		oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->active_server_list));
+	}
+
+	if (oldest_connection) {
+		disconnect_server(oldest_connection, true, "evicted");
+		return true;
+	}
+	return false;
+}
+
+static void enforce_user_connection_limit(PgUser *user)
+{
+	int max = user_max_connections(user);
+	/* no limit to enforce if user is allocated unlimited connections */
+	if (max <= 0)
+		return;
+
+	while (user->connection_count > max) {
+		if (evict_idle_user_connection(user))
+			continue;
+		if (evict_active_user_connection(user))
+			continue;
+		/* user has no idle, unused or active connections to evict */
+		return;
+	}
+}
+
+void handle_user_cf_update(evutil_socket_t sock, short flags, void *arg)
+{
+	PgUserEvent *user_event = (PgUserEvent*)arg;
+	enforce_user_connection_limit(user_event->user);
+	event_free(user_event->ev);
+	free(user_event);
+}
+
+void notify_user_event(PgUser *user, event_callback_fn cb) {
+	struct PgUserEvent *user_event;
+	if (pgb_event_base == NULL)
+		return;
+
+	user_event = malloc(sizeof(PgUserEvent));
+	if (user_event == NULL) {
+		log_error("could not allocate user event: %s", strerror(errno));
+		return;
+	}
+
+	user_event->user = user;
+	user_event->ev = event_new(pgb_event_base, -1, 0, cb, user_event);
+	event_active(user_event->ev, EV_TIMEOUT, 0);
+}
+
 /* the pool needs new connection, if possible */
 void launch_new_connection(PgPool *pool)
 {

@@ -661,16 +661,67 @@ test_max_user_connections() {
 
 	databases=(p7a p7b p7c)
 
-	docount() {
+	spawn_connections() {
+	  	local user=${1}
 		for i in {1..10}; do
-			psql -X -U maxedout -c "select pg_sleep(0.5)" ${databases[$(($i % 3))]} >/dev/null &
+			psql -X -U "$user" -c "select pg_sleep(2)" "${databases[$(($i % 3))]}" >/dev/null &
 		done
 		wait
-		cnt=`psql -X -p $PG_PORT -tAq -c "select count(1) from pg_stat_activity where datname = 'p7'" postgres`
-		echo $cnt
 	}
 
-	test `docount` -eq 3 || return 1
+	count_connections() {
+	  	local user=${1}
+	  	cnt=`psql -X -p $PG_PORT -tAq -c "select count(1) from pg_stat_activity where usename =  '$user' and datname = 'p7'" postgres`
+    	echo $cnt
+	}
+
+  	spawn_connections maxedout
+	test `count_connections maxedout` -eq 3 || return 1
+
+	# new larger limit should be respected when creating new connections
+	admin "set user maxedout = 'max_user_connections=8'"
+	spawn_connections maxedout
+	test `count_connections maxedout` -eq 8 || return 1
+	# new smaller limit should be respected when creating new connections
+	admin "set user maxedout = 'max_user_connections=2'"
+	spawn_connections maxedout
+	test `count_connections maxedout` -eq 2 || return 1
+
+	# any existing connections above new limit should be evicted
+	admin "set user maxedout = 'max_user_connections=10'"
+	spawn_connections maxedout
+	admin "set user maxedout = 'max_user_connections=1'"
+	wait
+	test `count_connections maxedout` -eq 1 || return 1
+
+	# user connection limit should be reset to original value in ini file
+	admin "reload"
+	spawn_connections maxedout
+	test `count_connections maxedout` -eq 3 || return 1
+
+	# no connections should be evicted because current limit is set to unlimited
+	admin "set user maxedout = 'max_user_connections=0'"
+	spawn_connections maxedout
+	test `count_connections maxedout` -eq 10 || return 1
+	# no connections should be evicted because current limit is set to unlimited
+	admin "set user maxedout = 'max_user_connections=-1'"
+	spawn_connections maxedout
+	test `count_connections maxedout` -eq 10 || return 1
+	# no connections should be evicted because current limit is not exceeded
+	spawn_connections maxedout
+	admin "set user maxedout = 'max_user_connections=10'"
+	wait
+	test `count_connections maxedout` -eq 10 || return 1
+
+	# any existing connections above new limit should be evicted for user not defined in [users]
+	spawn_connections longpass
+	admin "set user longpass = 'max_user_connections=4'"
+	wait
+	test `count_connections longpass` -eq 4 || return 1
+
+  # reset users with default max user connections
+  admin "set user longpass = 'max_user_connections=0'"
+  admin "set user maxedout = 'max_user_connections=3'"
 
 	return 0
 }

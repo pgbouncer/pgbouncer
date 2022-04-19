@@ -368,18 +368,22 @@ bool parse_user(void *base, const char *name, const char *connstr)
 {
 	char *p, *key, *val, *tmp_connstr;
 	PgUser *user;
-	struct CfValue cv;
+	struct CfValue pool_mode_cv;
 	int pool_mode = POOL_INHERIT;
+	struct CfValue max_user_connections_cv;
 	int max_user_connections = -1;
 
-
-	cv.value_p = &pool_mode;
-	cv.extra = (const void *)pool_mode_map;
+	pool_mode_cv.value_p = &pool_mode;
+	pool_mode_cv.extra = (const void *)pool_mode_map;
+	max_user_connections_cv.value_p = &max_user_connections;
 
 	tmp_connstr = strdup(connstr);
 	if (!tmp_connstr) {
 		log_error("out of memory");
 		return false;
+	} else if (*tmp_connstr == '\0') {
+		log_error("empty user parameters");
+		goto fail;
 	}
 
 	p = tmp_connstr;
@@ -393,12 +397,15 @@ bool parse_user(void *base, const char *name, const char *connstr)
 		}
 
 		if (strcmp("pool_mode", key) == 0) {
-			if (!cf_set_lookup(&cv, val)) {
+			if (!cf_set_lookup(&pool_mode_cv, val)) {
 				log_error("invalid pool mode: %s", val);
 				goto fail;
 			}
 		} else if (strcmp("max_user_connections", key) == 0) {
-			max_user_connections = atoi(val);
+			if (!cf_set_int(&max_user_connections_cv, val)) {
+				log_error("invalid max user connections: %s", val);
+				goto fail;
+			}
 		} else {
 			log_error("unrecognized user parameter: %s", key);
 			goto fail;

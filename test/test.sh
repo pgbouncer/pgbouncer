@@ -657,8 +657,8 @@ test_max_db_connections() {
 }
 
 test_max_user_connections() {
+  	rm -f $LOGDIR/test.tmp
 	local databases
-
 	databases=(p7a p7b p7c)
 
 	spawn_connections() {
@@ -719,9 +719,21 @@ test_max_user_connections() {
 	wait
 	test `count_connections longpass` -eq 4 || return 1
 
-  # reset users with default max user connections
-  admin "set user longpass = 'max_user_connections=0'"
-  admin "set user maxedout = 'max_user_connections=3'"
+	# set user command with malformed max_user_connections value should be rejected
+	spawn_connections longpass
+	psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "set user longpass = 'max_user_connections=0d'" >>$LOGDIR/test.tmp 2>&1
+	grep -q "ERROR:  SET failed" $LOGDIR/test.tmp || return 1
+	test `count_connections longpass` -eq 4 || return 1
+	# set user command with empty max_user_connections value should be rejected
+	psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "set user longpass = 'max_user_connections='" >>$LOGDIR/test.tmp 2>&1
+	grep -q "ERROR:  SET failed" $LOGDIR/test.tmp || return 1
+	# set user command with empty parameters should be rejected
+	psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "set user longpass = ''" >>$LOGDIR/test.tmp 2>&1
+	grep -q "ERROR:  SET failed" $LOGDIR/test.tmp || return 1
+
+	# reset users to default max user connections
+	admin "set user longpass = 'max_user_connections=0'"
+	admin "set user maxedout = 'max_user_connections=3'"
 
 	return 0
 }

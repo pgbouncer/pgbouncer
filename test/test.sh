@@ -565,7 +565,7 @@ test_pool_size() {
 
 	docount() {
 		for i in {1..10}; do
-			psql -X -c "select pg_sleep(0.5)" $1 >/dev/null &
+			psql -X -c "select pg_sleep(1)" $1 >/dev/null &
 		done
 		wait
 		cnt=`psql -X -p $PG_PORT -tAq -c "select count(1) from pg_stat_activity where usename='bouncer' and datname='$1'" postgres`

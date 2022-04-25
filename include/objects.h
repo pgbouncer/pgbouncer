@@ -83,6 +83,9 @@ int get_active_server_count(void);
 void handle_user_cf_update(evutil_socket_t sock, short flags, void *arg);
 void notify_user_event(PgUser *user, event_callback_fn cb);
 
+void handle_pool_cf_update(evutil_socket_t sock, short flags, void *arg);
+void notify_pool_event(PgPool *pool, event_callback_fn cb);
+
 void tag_pool_dirty(PgPool *pool);
 void tag_database_dirty(PgDatabase *db);
 void tag_autodb_dirty(void);

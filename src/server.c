@@ -203,10 +203,17 @@ int pool_pool_mode(PgPool *pool)
 
 int pool_pool_size(PgPool *pool)
 {
-	if (pool->db->pool_size < 0)
-		return cf_default_pool_size;
-	else
+	/* both database and user max pool limits are not configured */
+	if (pool->db->pool_size < 0 && pool->pool_size < 0)
+		return max(cf_default_pool_size, 0);
+	/* max pool limit is only configured for database */
+	if (pool->pool_size < 0)
 		return pool->db->pool_size;
+	/* max pool limit is only configured for pool */
+	if (pool->db->pool_size < 0)
+		return pool->pool_size;
+	/* max pool limit is configured for both, apply most restrictive */
+	return min(pool->db->pool_size, pool->pool_size);
 }
 
 int pool_min_pool_size(PgPool *pool)

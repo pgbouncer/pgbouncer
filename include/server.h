@@ -16,6 +16,20 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+static inline int min(int a, int b)
+{
+    if (a < b)
+        return a;
+    return b;
+}
+
+static inline int max(int a, int b)
+{
+     if (a > b)
+        return a;
+    return b;
+}
+
 bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *pkt)  _MUSTCHECK;
 void kill_pool_logins(PgPool *pool, const char *msg);
 int pool_pool_mode(PgPool *pool) _MUSTCHECK;

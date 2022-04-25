@@ -566,6 +566,7 @@ bool parse_pool(void *base, const char *name, const char *params)
 		goto fail;
 	}
 	pool->pool_size = pool_size;
+	notify_pool_event(pool, handle_pool_cf_update);
 
 	free(tmp_pool_name);
 	free(tmp_pool_params);

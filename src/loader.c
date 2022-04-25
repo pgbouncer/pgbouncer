@@ -364,6 +364,30 @@ fail:
 	return false;
 }
 
+static PgUser *get_preconfigured_user(const char *name)
+{
+	PgUser *user;
+
+	if (name == NULL) {
+		log_error("empty user name");
+		return NULL;
+	}
+
+	user = find_user(name);
+	if (user != NULL)
+		return user;
+
+	/* represents a user pre-configuration, not a connected logged-in user */
+	user = add_user(name, "");
+	if (user == NULL) {
+		log_error("cannot create user, no memory?");
+		return NULL;
+	}
+
+	user->is_preconfigured = true;
+	return user;
+}
+
 bool parse_user(void *base, const char *name, const char *connstr)
 {
 	char *p, *key, *val, *tmp_connstr;
@@ -412,16 +436,9 @@ bool parse_user(void *base, const char *name, const char *connstr)
 		}
 	}
 
-	user = find_user(name);
-	if (!user) {
-		/* represents a user pre-configuration, not a connected logged-in user */
-		user = add_user(name, "");
-		if (!user) {
-			log_error("cannot create user, no memory?");
-			goto fail;
-		}
-		user->is_preconfigured = true;
-	}
+	user = get_preconfigured_user(name);
+	if (user == NULL)
+		goto fail;
 
 	user->pool_mode = pool_mode;
 	user->max_user_connections = max_user_connections;
@@ -535,16 +552,9 @@ bool parse_pool(void *base, const char *name, const char *params)
 	if (!parse_pool_name(tmp_pool_name, &username, &dbname))
 		goto fail;
 
-	user = find_user(username);
-	if (!user) {
-		/* represents a user pre-configuration, not a connected logged-in user */
-		user = add_user(username, "");
-		if (!user) {
-			log_error("cannot create user, no memory?");
-			goto fail;
-		}
-		user->is_preconfigured = true;
-	}
+	user = get_preconfigured_user(username);
+	if (user == NULL)
+		goto fail;
 
 	db = get_preconfigured_database(dbname);
 	if (db == NULL)

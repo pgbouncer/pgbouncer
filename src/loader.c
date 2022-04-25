@@ -435,6 +435,121 @@ fail:
 	return false;
 }
 
+static bool parse_pool_name(char *pool_name, const char **username_p, const char **dbname_p)
+{
+	if (pool_name[0] == '.' || pool_name[strlen(pool_name) - 1] == '.') {
+		log_error("invalid pool name '%s' contains misplaced delimiters", pool_name);
+		return false;
+	}
+	if ((*username_p = strtok(pool_name, ".")) == NULL) {
+		log_error("invalid pool name '%s' missing user name", pool_name);
+		return false;
+	}
+	if ((*dbname_p = strtok(NULL, ".")) == NULL) {
+		log_error("invalid pool name '%s' missing database name", pool_name);
+		return false;
+	}
+	if (strtok(NULL, ".") != NULL) {
+		log_error("invalid pool name '%s' contains multiple delimiters", pool_name);
+		return false;
+	}
+	return true;
+}
+
+bool parse_pool(void *base, const char *name, const char *params)
+{
+	char *p = NULL, *key = NULL, *val = NULL;
+	char *tmp_pool_name = NULL, *tmp_pool_params = NULL;
+
+	struct CfValue pool_size_cv;
+	int pool_size = -1;
+
+	const char *username, *dbname;
+	PgUser *user = NULL;
+	PgDatabase *db = NULL;
+	PgDatabase *auto_db = NULL;
+	PgPool *pool = NULL;
+
+	pool_size_cv.value_p = &pool_size;
+
+	tmp_pool_name = strdup(name);
+	if (tmp_pool_name == NULL) {
+		log_error("out of memory");
+		goto fail;
+	}
+
+	tmp_pool_params = strdup(params);
+	if (tmp_pool_params == NULL) {
+		log_error("out of memory");
+		return false;
+	} else if (*tmp_pool_params == '\0') {
+		log_error("empty pool parameters");
+		goto fail;
+	}
+
+	p = tmp_pool_params;
+	while (*p) {
+		p = cstr_get_pair(p, &key, &val);
+		if (p == NULL) {
+			log_error("syntax error in pool settings");
+			goto fail;
+		} else if (!key[0]) {
+			break;
+		}
+
+		if (strcmp("pool_size", key) == 0) {
+			if (!cf_set_int(&pool_size_cv, val)) {
+				log_error("invalid max pool size: %s", val);
+				goto fail;
+			}
+		} else {
+			log_error("unrecognized user parameter: %s", key);
+			goto fail;
+		}
+	}
+
+	if (!parse_pool_name(tmp_pool_name, &username, &dbname))
+		goto fail;
+
+	user = find_user(username);
+	if (!user) {
+		/* represents a user pre-configuration, not a connected logged-in user */
+		user = add_user(username, "");
+		if (!user) {
+			log_error("cannot create user, no memory?");
+			goto fail;
+		}
+		user->is_preconfigured = true;
+	}
+
+	if ((db = find_database(dbname)) == NULL) {
+		if ((db = add_database(dbname)) == NULL) {
+			log_error("cannot create database, no memory?");
+			goto fail;
+		}
+		/* new databases are assumed to be an autodb */
+		if ((auto_db = register_auto_database(dbname)) != NULL) {
+			log_info("registered new auto-database: db=%s", dbname);
+			db = auto_db;
+		}
+	}
+
+	if ((pool = get_pool(db, user)) == NULL) {
+		log_error("cannot create user, no memory?");
+		goto fail;
+	}
+	pool->pool_size = pool_size;
+
+	free(tmp_pool_name);
+	free(tmp_pool_params);
+	return true;
+
+fail:
+	free(tmp_pool_name);
+	free(tmp_pool_params);
+	return false;
+}
+
 /*
  * User file parsing
  */

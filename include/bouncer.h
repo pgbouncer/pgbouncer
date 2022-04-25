@@ -289,6 +289,7 @@ struct PgPool {
 
 	bool welcome_msg_ready:1;
 
+	int pool_size;		/* max server connections in one pool */
 	int16_t rrcounter;		/* round-robin counter */
 };
 

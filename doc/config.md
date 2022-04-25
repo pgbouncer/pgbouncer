@@ -1006,6 +1006,9 @@ Override of the global `auth_user` setting, if specified.
 Set the maximum size of pools for this database.  If not set,
 the `default_pool_size` is used.
 
+This can also be set per database in the `[databases]` section and per pool
+in the `[pools]`.
+
 ### min_pool_size
 
 Set the minimum pool size for this database. If not set, the global `min_pool_size` is
@@ -1073,6 +1076,24 @@ If a user is configured with `max_user_connections` in the `[users]`
 section, any of their connections that exceed the new limit will
 automatically be closed in priority of idle, used, tested, then active
 connections.
+
+## Section [pools]
+
+This section contains key=value lines like
+
+    user1.database1 = settings
+
+where the key is will be taken as a pool name (user name to database name pair)
+and the value as a list of key=value pairs of configuration settings specific
+for this pool.
+Example:
+
+    user1.database1 = pool_size=size
+
+Only one setting is available here.
+
+### pool_size
+
 
 ## Include directive
 

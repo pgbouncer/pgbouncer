@@ -1007,7 +1007,7 @@ Set the maximum size of pools for this database.  If not set,
 the `default_pool_size` is used.
 
 This can also be set per database in the `[databases]` section and per pool
-in the `[pools]`.
+in the `[pools]` or by using the command `SET POOL [user.database] = 'pool_size=[size]'`.
 
 ### min_pool_size
 

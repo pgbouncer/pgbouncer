@@ -47,6 +47,7 @@
 /* configuration sections */
 #define PGBOUNCER_SECT "pgbouncer"
 #define USERS_SECT "users"
+#define POOLS_SECT "pools"
 
 typedef bool (*cmd_func_t)(PgSocket *admin, const char *arg);
 struct cmd_lookup {
@@ -70,11 +71,16 @@ static const char cmd_set_str_rx[] =
 static const char cmd_set_user_rx[] =
 "^" WS0 "set" WS1 "user" WS1 WORD WS0 "(=|to)" WS0 STRING WS0 "(;" WS0 ")?$";
 
+/* SET with pool value */
+static const char cmd_set_pool_rx[] =
+"^" WS0 "set" WS1 "pool" WS1 WORD WS0 "(=|to)" WS0 STRING WS0 "(;" WS0 ")?$";
+
 /* compiled regexes */
 static regex_t rc_cmd;
 static regex_t rc_set_word;
 static regex_t rc_set_str;
 static regex_t rc_set_user;
+static regex_t rc_set_pool;
 
 static PgPool *admin_pool;
 
@@ -87,6 +93,7 @@ void admin_cleanup(void)
 	regfree(&rc_set_str);
 	regfree(&rc_set_word);
 	regfree(&rc_set_user);
+	regfree(&rc_set_pool);
 	admin_pool = NULL;
 }
 
@@ -235,7 +242,7 @@ static bool fake_set(PgSocket *admin, const char *key, const char *val)
 	return got;
 }
 
-/* Command: SET [USER] key = val; */
+/* Command: SET [USER|POOL] key = val; */
 static bool admin_set(PgSocket *admin, const char *sect, const char *key, const char *val)
 {
 	char tmp[512];
@@ -1319,6 +1326,7 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		"\tSHOW STATS|STATS_TOTALS|STATS_AVERAGES|TOTALS\n"
 		"\tSET key = arg\n"
 		"\tSET USER <user> = 'args'\n"
+		"\tSET POOL <user>.<db> = 'args'\n"
 		"\tRELOAD\n"
 		"\tPAUSE [<db>]\n"
 		"\tRESUME [<db>]\n"
@@ -1424,7 +1432,7 @@ static bool admin_parse_query(PgSocket *admin, const char *q)
 {
 	regmatch_t grp[MAX_GROUPS];
 	char cmd[16];
-	char arg[64];
+	char arg[128];
 	char val[256];
 	bool res;
 	bool ok;
@@ -1463,6 +1471,14 @@ static bool admin_parse_query(PgSocket *admin, const char *q)
 		if (!ok)
 			goto failed;
 		res = admin_set(admin, USERS_SECT, arg, val);
+	} else if (regexec(&rc_set_pool, q, MAX_GROUPS, grp, 0) == 0) {
+		ok = copy_arg(q, grp, SET_KEY, arg, sizeof(arg), '"');
+		if (!ok || !arg[0])
+			goto failed;
+		ok = copy_arg(q, grp, SET_VAL, val, sizeof(val), '\'');
+		if (!ok)
+			goto failed;
+		res = admin_set(admin, POOLS_SECT, arg, val);
 	} else
 		res = syntax_error(admin);
 done:
@@ -1657,6 +1673,9 @@ void admin_setup(void)
 	res = regcomp(&rc_set_user, cmd_set_user_rx, REG_EXTENDED | REG_ICASE);
 	if (res != 0)
 		fatal("set/user regex compilation error");
+	res = regcomp(&rc_set_pool, cmd_set_pool_rx, REG_EXTENDED | REG_ICASE);
+	if (res != 0)
+		fatal("set/pool regex compilation error");
 }
 
 void admin_pause_done(void)

@@ -1094,6 +1094,11 @@ Only one setting is available here.
 
 ### pool_size
 
+Set the maximum number of connections for this pool.  If not set, the
+`default_pool_size` is used.  If `pool_size` is configured for both
+a pool under `[pools]` and the pool's database under `[databases]`,
+the minimum `pool_size` between both is used.
+
 If a pool is configured with `pool_size` in the `[pools]` section,
 any of its connections that exceed the new size will automatically
 be closed in priority of used, idle, then active connections.

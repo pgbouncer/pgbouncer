@@ -1420,6 +1420,21 @@ allow_new:
 		}
 	}
 
+	max = pool_pool_size(pool) + pool_res_pool_size(pool);
+	if (max > 0) {
+		/* try to evict unused connections first */
+		while (pool_connected_server_count(pool) >= max) {
+			if (!evict_idle_pool_connection(pool)) {
+				break;
+			}
+		}
+		if (pool_connected_server_count(pool) >= max) {
+			log_debug("launch_new_connection: pool '%s.%s' full (%d >= %d)",
+					  pool->user->name, pool->db->name, pool_connected_server_count(pool), max);
+			return;
+		}
+	}
+
 	max = user_max_connections(pool->user);
 	if (max > 0) {
 		/* try to evict unused connection first */

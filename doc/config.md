@@ -97,6 +97,9 @@ statement
 :   Server is released back to pool after query finishes. Transactions
     spanning multiple statements are disallowed in this mode.
 
+This can also be set per database in the `[databases]` section and per user
+in the `[users]` section or by using the command `SET USER [user] = 'pool_mode=[mode]'`.
+
 ### max_client_conn
 
 Maximum number of client connections allowed.

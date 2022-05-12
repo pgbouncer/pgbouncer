@@ -177,7 +177,7 @@ static void per_loop_activate(PgPool *pool)
 	int sv_tested, sv_used;
 
 	/* if there is a cancel request waiting, open a new connection */
-	if (!statlist_empty(&pool->cancel_req_list)) {
+	if (!statlist_empty(&pool->waiting_cancel_req_list)) {
 		launch_new_connection(pool, /* evict_if_needed= */ true);
 		return;
 	}
@@ -674,9 +674,13 @@ void kill_pool(PgPool *pool)
 
 	close_client_list(&pool->active_client_list, reason);
 	close_client_list(&pool->waiting_client_list, reason);
-	close_client_list(&pool->cancel_req_list, reason);
+
+	close_client_list(&pool->active_cancel_req_list, reason);
+	close_client_list(&pool->waiting_cancel_req_list, reason);
 
 	close_server_list(&pool->active_server_list, reason);
+	close_server_list(&pool->active_cancel_server_list, reason);
+	close_server_list(&pool->wait_cancels_server_list, reason);
 	close_server_list(&pool->idle_server_list, reason);
 	close_server_list(&pool->used_server_list, reason);
 	close_server_list(&pool->tested_server_list, reason);

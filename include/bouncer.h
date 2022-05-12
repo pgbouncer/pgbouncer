@@ -49,21 +49,24 @@ extern struct event_base *pgb_event_base;
 
 /* each state corresponds to a list */
 enum SocketState {
-	CL_FREE,		/* free_client_list */
+	CL_FREE,			/* free_client_list */
 	CL_JUSTFREE,		/* justfree_client_list */
-	CL_LOGIN,		/* login_client_list */
-	CL_WAITING,		/* pool->waiting_client_list */
+	CL_LOGIN,			/* login_client_list */
+	CL_WAITING,			/* pool->waiting_client_list */
 	CL_WAITING_LOGIN,	/*   - but return to CL_LOGIN instead of CL_ACTIVE */
-	CL_ACTIVE,		/* pool->active_client_list */
-	CL_CANCEL,		/* pool->cancel_req_list */
+	CL_ACTIVE,			/* pool->active_client_list */
+	CL_WAITING_CANCEL,	/* pool->waiting_cancel_req_list */
+	CL_ACTIVE_CANCEL,	/* pool->active_cancel_req_list */
 
-	SV_FREE,		/* free_server_list */
+	SV_FREE,			/* free_server_list */
 	SV_JUSTFREE,		/* justfree_server_list */
-	SV_LOGIN,		/* pool->new_server_list */
-	SV_IDLE,		/* pool->idle_server_list */
-	SV_ACTIVE,		/* pool->active_server_list */
-	SV_USED,		/* pool->used_server_list */
-	SV_TESTED		/* pool->tested_server_list */
+	SV_LOGIN,			/* pool->new_server_list */
+	SV_WAIT_CANCELS,	/* pool->wait_cancels_server_list */
+	SV_IDLE,			/* pool->idle_server_list */
+	SV_ACTIVE,			/* pool->active_server_list */
+	SV_ACTIVE_CANCEL,	/* pool->active_cancel_server_list */
+	SV_USED,			/* pool->used_server_list */
+	SV_TESTED			/* pool->tested_server_list */
 };
 
 enum PauseMode {
@@ -260,15 +263,94 @@ struct PgPool {
 	PgDatabase *db;			/* corresponding database */
 	PgUser *user;			/* user logged in as */
 
-	struct StatList active_client_list;	/* waiting events logged in clients */
-	struct StatList waiting_client_list;	/* client waits for a server to be available */
-	struct StatList cancel_req_list;	/* closed client connections with server key */
+	/*
+	 * Clients that are both logged in and where pgbouncer is actively
+	 * listening for messages on the client socket.
+	 */
+	struct StatList active_client_list;
 
-	struct StatList active_server_list;	/* servers linked with clients */
-	struct StatList idle_server_list;	/* servers ready to be linked with clients */
-	struct StatList used_server_list;	/* server just unlinked from clients */
-	struct StatList tested_server_list;	/* server in testing process */
-	struct StatList new_server_list;	/* servers in login phase */
+	/*
+	 * Clients that are waiting for a server to be available to which their
+	 * query/queries can be sent. These clients were originally in the
+	 * active_client_list. But were placed in this list when a query was
+	 * received on the client socket when no server connection was available to
+	 * handle it.
+	 */
+	struct StatList waiting_client_list;
+
+	/*
+	 * Clients that sent cancel request, to cancel another client its query.
+	 * These requests are waiting for a new server connection to be opened,
+	 * before the request can be forwarded.
+	 */
+	struct StatList waiting_cancel_req_list;
+
+	/*
+	 * Clients that sent a cancel request, to cancel another client its query.
+	 * This request was already forwarded to a server. They are waiting for a
+	 * response from the server.
+	 */
+	struct StatList active_cancel_req_list;
+
+	/*
+	 * Server connections that are linked with a client. These clients cannot
+	 * be used for other clients until they are back in the idle_server_list,
+	 * which is done by calling release_server.
+	 */
+	struct StatList active_server_list;
+
+	/*
+	 * Server connections that are only used to forward a cancel request. These
+	 * servers have a cancel request in-flight
+	 */
+	struct StatList active_cancel_server_list;
+
+	/*
+	 * Servers that normally could become idle, to be linked with with a new
+	 * server. But active_cancel_server_list still contains servers that have a
+	 * cancel request in flight which cancels queries on this server. To avoid
+	 * race conditions this server will not be placed in the idle list (and
+	 * thus not be reused) until all in-flight cancel requests for it have
+	 * completed.
+	 */
+	struct StatList wait_cancels_server_list;
+
+	/*
+	 * Servers connections that are ready to be linked with clients. These will
+	 * be automatically used whenever a client needs a new connection to the
+	 * server.
+	 */
+	struct StatList idle_server_list;
+
+	/*
+	 * Server connections that were just unlinked from their previous client.
+	 * Some work is needed to make sure these server connections can be reused
+	 * for another client. After all that that work is done the server is
+	 * placed into idle_server_list.
+	 */
+	struct StatList used_server_list;
+
+	/*
+	 * Server connections in testing process. This is only applicable when the
+	 * server_reset_query option is set in the pgbouncer.ini config. The server
+	 * connection is in this state when it needs to run this reset query.
+	 */
+	struct StatList tested_server_list;
+
+	/*
+	 * Servers connections that are in the login phase. This is the initial
+	 * state that every server connection is in. Once the whole login process
+	 * has completed the server is moved to the idle list.
+	 *
+	 * A special case is when there are cancel requests waiting to be forwarded
+	 * to servers in waiting_cancel_req_list. In that case the server bails out
+	 * of the login flow, because a cancel reuest needs to be sent before
+	 * logging in.
+	 *
+	 * NOTE: This list can at most contain a single server due to the way
+	 * launch_new_connection spawns them.
+	 */
+	struct StatList new_server_list;
 
 	PgStats stats;
 	PgStats newer_stats;
@@ -291,16 +373,36 @@ struct PgPool {
 	uint16_t rrcounter;		/* round-robin counter */
 };
 
+/*
+ * pool_connected_server_count returns the number of servers that are fully
+ * connected. This is used by the janitor to make the number of connected
+ * servers satisfy the pool_size and min_pool_size config values. This
+ * explicitly doesn't contain server connections used to send cancellation
+ * requests, since those connections are untracked by Postgres and they cannot
+ * be reused for purposes other than sending a single cancellation.
+ */
 #define pool_connected_server_count(pool) ( \
 		statlist_count(&(pool)->active_server_list) + \
+		statlist_count(&(pool)->wait_cancels_server_list) + \
 		statlist_count(&(pool)->idle_server_list) + \
 		statlist_count(&(pool)->tested_server_list) + \
 		statlist_count(&(pool)->used_server_list))
 
+/*
+ * pool_server_count returns how many connections to the server are open. This
+ * includes connections for cancellations, because we also want to limit those
+ * to some extent.
+ */
 #define pool_server_count(pool) ( \
 		pool_connected_server_count(pool) + \
-		statlist_count(&(pool)->new_server_list))
+		statlist_count(&(pool)->new_server_list) + \
+		statlist_count(&(pool)->active_cancel_server_list))
 
+/*
+ * pool_client_count returns the number of clients that have completed the
+ * login phase. This doesn't include clients that are sending a cancellation
+ * request.
+ */
 #define pool_client_count(pool) ( \
 		statlist_count(&(pool)->active_client_list) + \
 		statlist_count(&(pool)->waiting_client_list))
@@ -379,7 +481,8 @@ struct PgDatabase {
  * ->state corresponds to various lists the struct can be at.
  */
 struct PgSocket {
-	struct List head;		/* list header */
+	struct List head;		/* list header for pool list */
+	struct List cancel_head;	/* list header for server->canceling_clients */
 	PgSocket *link;		/* the dest of packets */
 	PgPool *pool;		/* parent pool, if NULL not yet assigned */
 
@@ -419,6 +522,9 @@ struct PgSocket {
 	usec_t wait_start;	/* client: waiting start moment */
 
 	uint8_t cancel_key[BACKENDKEY_LEN]; /* client: generated, server: remote */
+	struct StatList canceling_clients;	/* clients trying to cancel the query on this connection */
+	PgSocket *canceled_server; /* server that is being canceled by this request */
+
 	PgAddr remote_addr;	/* ip:port for remote endpoint */
 	PgAddr local_addr;	/* ip:port for local endpoint */
 

@@ -823,11 +823,15 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 		admin_error(admin, "no mem");
 		return true;
 	}
-	pktbuf_write_RowDescription(buf, "ssiiiiiiiiiis",
+	pktbuf_write_RowDescription(buf, "ssiiiiiiiiiiiiis",
 				    "database", "user",
 				    "cl_active", "cl_waiting",
-				    "cl_cancel_req",
-				    "sv_active", "sv_idle",
+				    "cl_waiting_cancel_req",
+				    "cl_active_cancel_req",
+				    "sv_active",
+				    "sv_active_cancel",
+				    "sv_wait_cancels",
+					"sv_idle",
 				    "sv_used", "sv_tested",
 				    "sv_login", "maxwait",
 				    "maxwait_us", "pool_mode");
@@ -836,12 +840,15 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 		waiter = first_socket(&pool->waiting_client_list);
 		max_wait = (waiter && waiter->query_start) ? now - waiter->query_start : 0;
 		pool_mode = pool_pool_mode(pool);
-		pktbuf_write_DataRow(buf, "ssiiiiiiiiiis",
+		pktbuf_write_DataRow(buf, "ssiiiiiiiiiiiiis",
 				     pool->db->name, pool->user->name,
 				     statlist_count(&pool->active_client_list),
 				     statlist_count(&pool->waiting_client_list),
-				     statlist_count(&pool->cancel_req_list),
+				     statlist_count(&pool->active_cancel_req_list),
+				     statlist_count(&pool->waiting_cancel_req_list),
 				     statlist_count(&pool->active_server_list),
+				     statlist_count(&pool->active_cancel_server_list),
+				     statlist_count(&pool->wait_cancels_server_list),
 				     statlist_count(&pool->idle_server_list),
 				     statlist_count(&pool->used_server_list),
 				     statlist_count(&pool->tested_server_list),

@@ -54,7 +54,7 @@ PgUser * force_user(PgDatabase *db, const char *username, const char *passwd) _M
 PgUser * add_pam_user(const char *name, const char *passwd) _MUSTCHECK;
 
 void accept_cancel_request(PgSocket *req);
-void forward_cancel_request(PgSocket *server);
+bool forward_cancel_request(PgSocket *server);
 
 void launch_new_connection(PgPool *pool, bool evict_if_needed);
 

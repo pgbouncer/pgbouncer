@@ -1442,6 +1442,39 @@ test_cancel_pool_size() {
 	return 0
 }
 
+# Test that cancel requests connections don't trigger cancellation of a query
+# from a different client.
+#
+# See also GH PR #717. Prior to this change it was possible to that a query was
+# cancelled on client A by a cancellation for client B, if the server was
+# released by client B and then reused by client A while the cancellation was
+# already in flight.
+test_cancel_race() {
+	case `uname` in MINGW*) return 77;; esac
+
+	# Make sure only one query can run at the same time so that its ensured
+	# that both clients will use the same server connection.
+	admin "set default_pool_size=1"
+	admin "set server_idle_timeout=2"
+
+	echo 'select pg_sleep(5);' | psql -X -d p3 &
+	psql1_pid=$!
+	sleep 1
+	psql -X -d p3 -c "select pg_sleep(1)" &
+	psql2_pid=$!
+	sleep 1
+	echo psql1_pid $psql1_pid
+
+	# Spam many concurrent cancel requests to try and trigger race conditions
+	for i in $(seq 100); do
+		kill -INT $psql1_pid &
+	done
+
+	wait $psql1_pid && return 1
+	wait $psql2_pid || return 1
+}
+
+
 # This test checks database specifications with host lists.  The way
 # we test this here is to have a host list containing an IPv4 and an
 # IPv6 representation of localhost, and then we check the log that

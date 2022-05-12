@@ -448,13 +448,26 @@ static bool handle_connect(PgSocket *server)
 				  pga_str(&server->local_addr, buf, sizeof(buf)));
 	}
 
-	if (!statlist_empty(&pool->cancel_req_list)) {
+	/*
+	 * If there are cancel requests waiting we first handle those. By handling
+	 * these first we reduce the load on the server and we a server connection
+	 * might actually become free to use for queries, because its query got
+	 * canceled.
+	 *
+	 * Only if there are no cancel requests we proceed with the login procedure
+	 * that's necessary to handle queries. Cancel requests need to be sent
+	 * before the login procedure starts.
+	 */
+	if (!statlist_empty(&pool->waiting_cancel_req_list)) {
 		slog_debug(server, "use it for pending cancel req");
-		/* if pending cancel req, send it */
-		forward_cancel_request(server);
-		/* notify disconnect_server() that connect did not fail */
-		server->ready = true;
-		disconnect_server(server, false, "sent cancel req");
+		if (forward_cancel_request(server)) {
+			change_server_state(server, SV_ACTIVE_CANCEL);
+			sbuf_continue(&server->sbuf);
+		} else {
+			/* notify disconnect_server() that connect did not fail */
+			server->ready = true;
+			disconnect_server(server, false, "failed to send cancel req");
+		}
 	} else {
 		/* proceed with login */
 		if (server_connect_sslmode > SSLMODE_DISABLED && !is_unix) {
@@ -532,7 +545,10 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 
 	switch (evtype) {
 	case SBUF_EV_RECV_FAILED:
-		disconnect_server(server, false, "server conn crashed?");
+		if (server->state == SV_ACTIVE_CANCEL)
+			disconnect_server(server, false, "successfully sent cancel request");
+		else
+			disconnect_server(server, false, "server conn crashed?");
 		break;
 	case SBUF_EV_SEND_FAILED:
 		disconnect_client(server->link, false, "unexpected eof");

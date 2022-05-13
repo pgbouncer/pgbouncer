@@ -1,0 +1,41 @@
+everything: &everything
+
+  build:
+    builddeps:
+      - build-essential
+      - git
+      - libtool
+      - m4
+      - automake
+      - libglib2.0-dev
+      - libbssl-fips-dev
+      - libevent-dev
+      - pandoc
+      - postgresql
+      - libpq-dev
+      - rubygem-fpm
+    post-cache:
+      - .teamcity/build.sh
+      - .teamcity/test.sh
+
+  debian-package:
+    builddeps:
+      - build-essential
+      - git
+      - libtool
+      - m4
+      - automake
+      - libglib2.0-dev
+      - libbssl-fips-dev
+      - libevent-dev
+      - pandoc
+      - postgresql
+      - libpq-dev
+      - rubygem-fpm
+    post-cache:
+      - .teamcity/debian-package.sh
+
+stretch: *everything
+buster: *everything
+bullseye: *everything
+default-flavor: buster

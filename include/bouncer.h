@@ -89,6 +89,7 @@ typedef struct PgUser PgUser;
 typedef struct PgUserEvent PgUserEvent;
 typedef struct PgDatabase PgDatabase;
 typedef struct PgPool PgPool;
+typedef struct PgPoolEvent PgPoolEvent;
 typedef struct PgStats PgStats;
 typedef union PgAddr PgAddr;
 typedef enum SocketState SocketState;
@@ -289,7 +290,16 @@ struct PgPool {
 
 	bool welcome_msg_ready:1;
 
+	int pool_size;		/* max server connections in one pool */
 	int16_t rrcounter;		/* round-robin counter */
+};
+
+/*
+ * An association of an event occurring for a pool, such as the pool's config being reloaded.
+ */
+struct PgPoolEvent {
+	struct PgPool *pool;
+	struct event *ev;
 };
 
 #define pool_connected_server_count(pool) ( \

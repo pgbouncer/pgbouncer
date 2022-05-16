@@ -534,6 +534,8 @@ static PgPool *new_pool(PgDatabase *db, PgUser *user)
 
 	pool->user = user;
 	pool->db = db;
+	/* pool will use default_pool_size until overridden */
+	pool->pool_size = -1;
 
 	statlist_init(&pool->active_client_list, "active_client_list");
 	statlist_init(&pool->waiting_client_list, "waiting_client_list");
@@ -1211,6 +1213,22 @@ bool evict_connection(PgDatabase *db)
 	return false;
 }
 
+/* evict the single most idle connection from pool */
+static bool evict_idle_pool_connection(PgPool *pool)
+{
+	PgSocket *oldest_connection = NULL;
+
+	oldest_connection = last_socket(&pool->used_server_list);
+	if (!oldest_connection)
+		oldest_connection = last_socket(&pool->idle_server_list);
+
+	if (oldest_connection) {
+		disconnect_server(oldest_connection, true, "evicted");
+		return true;
+	}
+	return false;
+}
+
 /* evict the single most idle connection from among all pools to make room in the user */
 bool evict_idle_user_connection(PgUser *user)
 {
@@ -1299,6 +1317,45 @@ void notify_user_event(PgUser *user, event_callback_fn cb) {
 	event_active(user_event->ev, EV_TIMEOUT, 0);
 }
 
+static void enforce_pool_connection_limit(PgPool *pool)
+{
+	PgSocket *oldest_connection = NULL;
+	int max = pool_pool_size(pool);
+
+	while (pool_connected_server_count(pool) > max) {
+		if (evict_idle_pool_connection(pool))
+			continue;
+		if ((oldest_connection = last_socket(&pool->active_server_list)) == NULL)
+			return;
+
+		disconnect_server(oldest_connection, true, "evicted");
+	}
+}
+
+void handle_pool_cf_update(evutil_socket_t sock, short flags, void *arg)
+{
+	PgPoolEvent *pool_event = (PgPoolEvent*)arg;
+	enforce_pool_connection_limit(pool_event->pool);
+	event_free(pool_event->ev);
+	free(pool_event);
+}
+
+void notify_pool_event(PgPool *pool, event_callback_fn cb) {
+	struct PgPoolEvent *pool_event;
+	if (pgb_event_base == NULL)
+		return;
+
+	pool_event = malloc(sizeof(PgUserEvent));
+	if (pool_event == NULL) {
+		log_error("could not allocate user event: %s", strerror(errno));
+		return;
+	}
+
+	pool_event->pool = pool;
+	pool_event->ev = event_new(pgb_event_base, -1, 0, cb, pool_event);
+	event_active(pool_event->ev, EV_TIMEOUT, 0);
+}
+
 /* the pool needs new connection, if possible */
 void launch_new_connection(PgPool *pool)
 {
@@ -1359,6 +1416,21 @@ allow_new:
 		if (pool->db->connection_count >= max) {
 			log_debug("launch_new_connection: database '%s' full (%d >= %d)",
 				  pool->db->name, pool->db->connection_count, max);
+			return;
+		}
+	}
+
+	max = pool_pool_size(pool) + pool_res_pool_size(pool);
+	if (max > 0) {
+		/* try to evict unused connections first */
+		while (pool_connected_server_count(pool) >= max) {
+			if (!evict_idle_pool_connection(pool)) {
+				break;
+			}
+		}
+		if (pool_connected_server_count(pool) >= max) {
+			log_debug("launch_new_connection: pool '%s.%s' full (%d >= %d)",
+					  pool->user->name, pool->db->name, pool_connected_server_count(pool), max);
 			return;
 		}
 	}

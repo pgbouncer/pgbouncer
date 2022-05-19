@@ -423,7 +423,7 @@ test_client_ssl_sighup_disable() {
 	sed 's/client_tls_sslmode=require/client_tls_sslmode=disable/g' tmp/test.ini > tmp/test2.ini
 	mv tmp/test2.ini tmp/test.ini
 	kill -HUP `cat test.pid`
-	sleep 1
+	sleep 5
 	psql_bouncer -q -d "dbname=p0 sslmode=disable" -c "select 'client-ssl-disable'" | tee tmp/test.tmp 2>&1
 	grep -q "client-ssl-disable"  tmp/test.tmp
 	rc=$?

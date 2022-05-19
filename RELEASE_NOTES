@@ -1,0 +1,1338 @@
+2022.5.0
+- 2022-05-11 Add documentation for configuring pool_mode per user
+- 2022-05-16 Serialize statistic values of uint8 type to pg protocol int8 type
+- 2022-05-13 DB-1926: Introduce cfsetup file to trigger TeamCity build scripts
+- 2022-04-24 Increase psql connection TTL to fix flaky pool size test on Windows
+- 2022-04-25 Parse new pools section in ini config file
+- 2022-04-25 Extract common method to create proconfigured user
+- 2022-04-25 Add allowable characters in admin command regex to match ini parsing
+- 2022-04-25 Introduce SET POOL command to configure pool with ini args at runtime
+- 2022-04-25 Trigger callback on SET POOL to evict pool connections if exceeding max
+- 2022-04-25 Display max configured connections per pool on SHOW POOLS command
+- 2022-04-26 Prevent pool from obtaining connections when pool_size limit reached
+- 2022-04-26 Test enforcing per pool connection limit when exceeding
+- 2022-04-14 Record if user has custom configurations while parsing ini file
+- 2022-04-14 Replace login user with preconfigured user to preserve user ini values
+- 2022-04-14 Force shadow auth on existing users added from configuration parsing
+- 2022-04-14 Test shadow auth against users defined in ini users section
+- 2022-04-15 Introduce SET USER command to configure user with ini args at runtime
+- 2022-04-15 Configure ini user section independently of pgbouncer section
+- 2022-04-15 Specify evicted connection state in existing method name
+- 2022-04-15 Trigger callback on SET USER to evict user connections if exceeding max
+- 2022-04-15 Display max configured connections per user on SHOW USERS command
+- 2022-04-18 Test enforcing user connection limit when exceeding
+- 2022-04-19 Reject empty or invalid user configuration parameters
+- 2022-03-23 v1.17.0
+- 2022-03-10 Code simplification
+- 2022-03-11 Improve server_login_retry documentation and error
+- 2022-03-15 Don't send server disconnect errors to client before login
+- 2022-03-16 Allow comma-separated host list
+- 2022-03-02 Cirrus CI: Install CA certificates so configure can find them
+- 2022-03-02 test: Don't hide initdb error output
+- 2022-03-02 Bump libusual
+- 2022-03-02 Cirrus CI: Additional operating systems
+- 2022-03-02 test: Add test for --help
+- 2022-03-02 Remove automatic auth_file reload
+- 2022-03-04 auth_query should increase expect_rfq_count
+- 2022-03-04 doc: Remove a redundancy
+- 2022-03-06 doc: Improve documentation on [databases] section
+- 2022-03-09 CI: Build static binary on Windows
+- 2022-03-09 Code cleanup
+- 2022-02-21 Bump libusual
+- 2022-02-21 Cirrus CI: Add Ubuntu 22.04
+- 2022-02-22 Cirrus CI: Use CIRRUS_CLONE_SUBMODULES
+- 2022-02-22 Put back needed include
+- 2022-02-22 Clean up unportable sed use
+- 2022-02-22 Remove outdated/misplaced comments
+- 2022-02-22 Enable hba_test on Windows
+- 2022-02-22 Change auth_type in sample pgbouncer.ini
+- 2022-02-23 Cirrus CI: Run valgrind tasks without optimizations
+- 2022-02-23 Call cleanup() via atexit()
+- 2022-02-23 Call event_del() in cleanup_sockets()
+- 2022-02-23 Mock authentication for missing databases
+- 2022-02-25 Use life_over function instead of reimplementing logic
+- 2022-02-25 Fix incorrect format placeholders
+- 2022-02-25 Make messages consistent
+- 2022-02-25 Improve tcp_defer_accept documentation and behavior
+- 2022-02-26 Fix c-ares header file handling
+- 2022-02-26 Document that admin console only supports simple query protocol
+- 2022-02-28 Add version info resource file for Windows
+- 2022-02-27 Cirrus CI: Organize Ubuntu/Debian tasks better
+- 2022-02-28 Increase MAX_PASSWORD
+- 2022-02-11 Rearrange auto-database test
+- 2022-02-11 Add tests for non-existent databases
+- 2022-02-17 Improve auth_query response error messages
+- 2022-02-19 Cirrus CI: Add arm task
+- 2022-02-19 Travis CI: Remove
+- 2022-02-16 Clarify 'server_lifetime' description
+- 2022-02-02 Remove unnecessary include
+- 2022-02-03 Clean up includes
+- 2022-02-03 Reword message for disabled database
+- 2022-02-04 Run scan-build on CI
+- 2022-02-04 Remove unused variable
+- 2022-02-05 Fix dead assignment
+- 2022-01-26 AppVeyor: Install autoconf automake libtool
+- 2022-01-26 Don't apply fast-fail at connect time
+- 2022-01-19 Import updated SCRAM support files
+- 2022-01-19 Rename SCRAM verifier to SCRAM secret
+- 2022-01-05 Add CVE number to release notes
+- 2022-01-05 Documentation proof reading and copy editing
+- 2022-01-05 Update AUTHORS
+- 2022-01-05 Improve some code comments
+- 2021-11-26 which is deprecated, use POSIX command -v instead
+- 2021-11-11 v1.16.1
+- 2021-11-04 Reject extraneous data after SSL or GSS encryption handshakes
+- 2021-10-11 Remove null-pointer checks before free()
+- 2021-10-11 Add test case for connect_query
+- 2021-10-11 parse_database() and PgDatabase code cleanup
+- 2021-10-14 doc: Make separate section for authentication options
+- 2021-10-06 Change shebang lines to python3
+- 2021-08-06 Fix compiler warnings with GCC 11
+- 2021-08-06 Cirrus CI: Save tarball as artifact
+- 2021-08-09 v1.16.0
+- 2021-07-10 Send FATAL errors when client is to be disconnected
+- 2021-07-14 Increase MAX_PASSWORD and MAX_USERNAME
+- 2021-07-14 Add test case for min_pool_size
+- 2021-07-14 Minor cosmetic cleanup
+- 2021-07-14 Include number of query cancellations into SHOW POOLS
+- 2021-07-15 Fix reload of default_pool_size, min_pool_size, and res_pool_size
+- 2021-07-19 Bump libusual
+- 2021-07-02 Tighten error handling of database and user parameters
+- 2021-07-03 Tighten error handling of TLS parameters
+- 2021-07-03 Set LC_ALL in test scripts
+- 2021-07-03 Set POSIXLY_CORRECT in test scripts
+- 2021-07-09 Fix missing "return"
+- 2021-07-09 Fix one case of not POSIXLY_CORRECT command-line option use
+- 2021-07-09 Prohibit using "pgbouncer" as a database name
+- 2021-07-09 Fixed multiple sequential queries logging
+- 2021-07-09 Add tests using passwords of maximum length
+- 2021-06-11 Fix c-ares portability warning
+- 2021-06-11 c-ares includes file into wrong directory
+- 2021-06-16 Ignore SCRAM-using tests with older PostgreSQL versions
+- 2021-06-12 Add support for abstract Unix-domain sockets
+- 2021-06-16 README: Some copy-editing
+- 2021-06-09 Fix md5 authentication overwriting user name in memory
+- 2021-05-25 Use true and false for bool constants consistently
+- 2021-05-26 Allow cancel requests to bypass pool size
+- 2021-05-26 Add test case for cancel pool size check
+- 2021-05-12 Travis CI: Remove trusty
+- 2021-05-12 Cirrus CI support
+- 2021-05-12 Do not set up unix_socket_directories on Windows
+- 2021-05-19 Make "unclean server" message clearer
+- 2021-05-07 Set minimum pool size per database
+- 2021-02-04 Fix for waiting connections handling for cancel requests
+- 2021-02-04 Add test case for cancel wait fix
+- 2021-02-04 Fix typo (GCC -> GSS)
+- 2021-01-27 A test case for query cancel forwarding
+- 2020-12-19 Simplify code
+- 2020-12-19 Enhance documentation for auto-database feature a bit
+- 2020-12-19 A test case for auto-database feature
+- 2020-12-02 Travis CI: Add sanitize run
+- 2020-12-04 Support hot reloading of TLS settings
+- 2020-11-26 Travis CI: Update to focal instead of bionic
+- 2020-11-10 Drop macros for size_t printf formats
+- 2020-11-10 AppVeyor: Use newer image
+- 2020-11-10 Bump libusual
+- 2020-11-10 Fix crash during mock authentication
+- 2020-11-10 Travis CI: Change tests from PostgreSQL 9.5 to 9.6
+- 2020-11-13 Fix mock authentication with "trust" method
+- 2020-11-13 Detect fatal errors in tests
+- 2020-11-13 Create global auth_user on the fly if not existing
+- 2020-11-13 Fix minor logic bug
+- 2020-11-13 Fix typos
+- 2020-11-13 Fix rare memory leak in error path
+- 2020-11-13 Fix thinko in "Detect fatal errors in tests"
+- 2020-11-13 Fix use after free
+- 2020-11-16 Fix -Wmissing-format-attribute warning in test code
+- 2020-11-19 v1.15.0
+- 2020-10-14 Rename PgSocket.auth_user
+- 2020-10-14 doc: Fix description of SHOW CLIENTS port field
+- 2020-10-15 Add default value to SHOW CONFIG
+- 2020-10-15 Sort the parameters in alphabetical order
+- 2020-10-14 Fix behavior of global auth_user
+- 2020-10-07 Reject empty client password also for PAM
+- 2020-10-07 doc: Document that *_tls_ciphers does not affect TLS 1.3
+- 2020-10-07 doc: Document double quotes escaping in auth_file
+- 2020-10-07 doc: Improve documentation of various logging parameters
+- 2020-10-07 Add warning message about systemd misconfiguration
+- 2020-09-24 Mock authentication
+- 2020-09-11 Use more specific integer types for socket API
+- 2020-09-17 Allow running some of the test suite on Windows
+- 2020-09-04 Allow tests to run on platforms without getpeereid()
+- 2020-09-05 Get rid of !strcmp(...) call style
+- 2020-09-05 Remove special argument filtering on Windows
+- 2020-09-09 Remove obsolete rsync invocations
+- 2020-09-04 Don't log anything if client disconnects immediately
+- 2020-09-09 Bump libusual
+- 2020-09-09 Build Windows binary zip file as AppVeyor artifact
+- 2020-08-25 README: MinGW supports pthreads
+- 2020-08-25 AppVeyor: Use on_failure section
+- 2020-08-26 Use pg_ctl reload in tests
+- 2020-08-26 Remove another appearance of sd_listen_fds_with_names()
+- 2020-08-26 Improve some authentication failure error messages
+- 2020-08-12 Replace AC_HELP_STRING by AS_HELP_STRING
+- 2020-08-12 Modernize configure.ac
+- 2020-07-22 Replace 127.0.0.1 by localhost in documentation and examples
+- 2020-07-22 Support old versions of systemd without sd_listen_fds_with_names()
+- 2020-07-26 Fix inconsistent capitalization
+- 2020-07-14 Fixed SO_REUSEPORT_LB on FreeBSD
+- 2020-07-15 Travis CI: Add arm64 and ppc64le
+- 2020-07-19 Remove unused variable
+- 2020-07-01 Rename some functions for clarity and accuracy
+- 2020-07-01 Improve some internal error messages
+- 2020-07-09 Test adjustment
+- 2020-07-09 Add no such user tests
+- 2020-06-23 Improve test_pool_size test stability
+- 2020-06-23 Travis CI: Add focal
+- 2020-06-11 v1.14.0
+- 2020-06-02 Run cleanup() under CASSERT
+- 2020-06-03 Some code cleanup
+- 2020-06-06 AppVeyor: Install Pandoc
+- 2020-06-06 Support Unix-domain sockets on Windows
+- 2020-06-08 Move test_show to earlier
+- 2020-06-08 Make an internal error message more precise
+- 2020-06-02 SCRAM authentication pass-through
+- 2020-06-08 Add support for bytea values in admin commands
+- 2020-06-08 Preserve SCRAM keys during takeover
+- 2020-05-27 Clean up sample and test ini files
+- 2020-05-28 Add support for systemd socket activation
+- 2020-05-15 Import updated SCRAM support files
+- 2020-05-15 Add test for SCRAM authentication on both sides
+- 2020-04-20 Bump libusual
+- 2020-04-27 v1.13.0
+- 2020-04-17 doc: Improve formatting of command-line options
+- 2020-04-17 doc: Add long options
+- 2020-04-03 Fix help
+- 2020-03-03 Tweak help output style to match Autoconf and PostgreSQL styles
+- 2020-02-25 Add support for systemd service notifications
+- 2020-02-27 Add some more documentation about the authentication file
+- 2020-02-14 Add event base to evdns_base_new() calls
+- 2020-02-14 Add tcp_user_timeout option
+- 2020-02-14 Use libevent persistent timers where appropriate
+- 2020-02-18 Reject null user name from login query
+- 2020-02-07 Move some variables to a smaller scope
+- 2020-02-07 Minor wording changes
+- 2020-02-07 Reorganize test log output
+- 2020-02-07 Try to fix the packet filter stuff on macOS
+- 2020-02-08 Disable tests requiring sudo by default
+- 2020-01-20 Remove unnecessary include
+- 2020-01-23 Log when fails loading the hba file
+- 2020-01-10 Use $(MAKE) instead of make in makefiles
+- 2020-01-10 doc: Fix possible server and client states
+- 2020-01-10 Travis CI: Reorganize build matrix
+- 2020-01-17 Remove unnecessary include
+- 2020-01-03 Fix test
+- 2020-01-04 Add tests for max_db_connections and max_user_connections
+- 2020-01-06 Fix typo in handle_sigusr2()
+- 2019-12-30 Use event_callback_fn type instead of defining our own
+- 2019-12-30 Update libevent API use
+- 2019-12-22 Rename appveyor.yml to .appveyor.yml
+- 2019-12-10 Add version of some libraries to --version output
+- 2019-12-10 Fix test for --version output change
+- 2019-12-11 Update --help output
+- 2019-12-12 Clean up die() vs. fatal()
+- 2019-12-17 Remove Debian packaging
+- 2019-12-05 Update default TLS versions
+- 2019-12-06 Set USER if unset
+- 2019-12-09 Add configure check for python
+- 2019-12-09 Fix duplicate test function name
+- 2019-12-09 Add etc/optscan.sh to distribution tarball
+- 2019-11-21 Add IPv6 pg_hba.conf configuration to SSL tests
+- 2019-11-26 test: shorten lifetime of certificates to avoid overflowing 32bit time_t
+- 2019-10-16 Update website URL
+- 2019-10-16 Fix some scan-build warnings
+- 2019-10-17 Bump libusual
+- 2019-10-17 v1.12.0
+- 2019-10-02 Accept SCRAM channel binding enabled clients
+- 2019-10-07 Fix test_server_login_retry stability
+- 2019-10-09 Documentation proof reading and copy editing
+- 2019-09-23 Add so_reuseport option
+- 2019-09-23 Give more detailed error messages in tune_socket()
+- 2019-09-23 Fix small markup issue
+- 2019-09-26 Clean up configure help strings
+- 2019-09-26 Remove slightly outdated comment
+- 2019-09-26 Fix terminology
+- 2019-09-27 Fix inappropriate uses of fatal_perror()
+- 2019-09-27 dnslookup: Consistently use log_error during impl_init()
+- 2019-09-27 Add resolv_conf option to set custom resolv.conf file
+- 2019-09-29 Improve fast-fail code comments and debug logging
+- 2019-09-10 Fix issue with PAM users losing their password
+- 2019-09-11 Remove broken assertions
+- 2019-09-11 Remove support for libevent version 1.x
+- 2019-09-11 Remove dubious const qualifiers
+- 2019-09-11 Remove use of libusual event module
+- 2019-09-12 Fix some compiler warnings on Windows 64-bit
+- 2019-09-12 Travis CI: Use correct apt repository
+- 2019-09-13 Bump libusual
+- 2019-09-13 AppVeyor: Build on Windows with -Werror
+- 2019-09-14 Automatically generate debian/changelog
+- 2019-09-18 Fix reporting of adns implementation in configure
+- 2019-09-19 Travis CI: Remove redundant configuration
+- 2019-09-19 Fix test exit status
+- 2019-09-19 Send SHOW VERSION as row instead of NOTICE
+- 2019-09-19 Tweak version string
+- 2019-09-15 Reorder suspend_timeout in documentation
+- 2019-09-09 Send stats columns as numeric instead of bigint
+- 2019-09-09 Remove no longer used macro
+- 2019-08-23 Add simple test for all SHOW commands
+- 2019-08-27 v1.11.0
+- 2019-08-28 dnslookup: Fix compiler warnings from unused functions
+- 2019-08-28 dnslookup: Improve warning message phrasing
+- 2019-08-27 Travis CI: Shell fix
+- 2019-08-28 Travis CI: Update to bionic instead of xenial
+- 2019-08-29 Add make check target
+- 2019-08-29 Remove references to PostgreSQL wiki
+- 2019-08-11 Add test for md5 authentication with plain-text password stored
+- 2019-08-11 Add tests for taking password from auth_file
+- 2019-08-13 More useful Valgrind options
+- 2019-08-13 Disable PAM for Valgrind build
+- 2019-08-13 Test against multiple PostgreSQL versions
+- 2019-08-15 test: Restart pgbouncer for every test
+- 2019-08-17 Bump libusual
+- 2019-08-16 Recognize GSSENCRequest packet
+- 2019-08-18 Add SASL and SCRAM support
+- 2019-08-01 Rewrite test_server_connect_timeout_establish using pre_auth_delay
+- 2019-08-01 Tweak some test timing to make the tests more stable
+- 2019-08-01 Add some debugging for failed tests
+- 2019-08-01 Fix shell syntax in test suite
+- 2019-08-01 Add tests for md5 authentication
+- 2019-08-01 Remove ssl test data from git
+- 2019-08-01 Sync ssl/test.sh with test.sh
+- 2019-08-01 Travis CI: Also run ssl tests
+- 2019-08-02 Fix debug messag
+- 2019-08-02 Improve debug message
+- 2019-08-02 configure.ac: Update AC_INIT invocation
+- 2019-08-02 Tweak test timing to make it more stable
+- 2019-08-02 Travis CI: Add test run with ElectricFence
+- 2019-08-02 Reorganize AUTH_* symbols
+- 2019-08-02 test: Add -w option to pg_ctl invocation
+- 2019-08-02 Substitute version into man pages automatically
+- 2019-08-03 Fix typo
+- 2019-08-03 Add [users] section to example config file
+- 2019-08-03 Add tests for plain-text password authentication
+- 2019-08-03 Handle auth_type=password when the stored password is md5
+- 2019-08-03 Add option to disable printing stats to log
+- 2019-08-04 Update sample pgbouncer.ini for log_stats addition
+- 2019-08-05 Travis CI: Add test run with Valgrind
+- 2019-08-05 Add AppVeyor configuration for Windows
+- 2019-08-06 README: Wording improvements
+- 2019-08-09 doc: Update link to pg_hba.conf documentation
+- 2019-08-09 Clean up example and test configuration files
+- 2019-07-31 Fix wait time computation with auth_user
+- 2019-07-31 Travis CI: Run tests as part of build
+- 2019-07-01 v1.10.0
+- 2019-06-20 doc: Various cosmetic improvements
+- 2019-06-24 doc: Document remaining SHOW commands
+- 2019-06-24 Tweak some debug messages for clarity
+- 2019-06-24 Make error messages more precise
+- 2019-06-24 Fix idle_transaction_timeout calculation
+- 2019-06-24 Improve error message
+- 2019-06-24 Add missing options TOTALS and USERS
+- 2019-06-24 Add support for TLSv1.3 enabling and disabling
+- 2019-06-24 Improve pid file processing
+- 2019-06-26 Do not depend on Pandoc 2.0
+- 2019-06-26 Make stress.py compatible with Python 3
+- 2019-06-29 Rewrite man page filter to work independent of Pandoc
+- 2019-06-28 Bump libusual
+- 2019-06-19 stress.py: Update port number in test script
+- 2019-06-19 stress.py: Convert to psycopg2
+- 2019-06-19 pycodestyle (PEP8) pass over Python scripts
+- 2019-06-19 Add documentation for available test suites
+- 2019-02-05 Prevent too long user name or password from client
+- 2019-02-06 Remove outdated auth_file documentation
+- 2019-02-07 Convert documentation from rst to Markdown
+- 2019-02-08 Fix usage typo
+- 2018-12-28 Avoid 'unexpected response from login query' after a postgres reload
+- 2018-12-03 Move comment to the right place
+- 2018-11-23 Put units on log message
+- 2018-09-21 Add exit status to test scripts
+- 2018-09-25 Do not wait server_login_retry for next connect if cancellation succeeds
+- 2018-09-10 Clarify file descriptor use log message
+- 2018-09-10 Fix typos
+- 2018-09-10 doc: Update SHOW DATABASES documentation
+- 2018-09-11 Fix rare crash
+- 2018-08-20 Fix rst syntax
+- 2018-08-21 Make sure file descriptor info goes to the log
+- 2018-08-13 Fix typo
+- 2018-08-13 Update v1.9.0 release date
+- 2018-08-14 optscan.sh: exit 1 on error
+- 2018-08-14 Travis CI: Run optscan.sh
+- 2018-08-15 Make log message more consistent
+- 2018-08-15 Fix typo in test script
+- 2018-08-16 Improve test script robustness
+- 2018-08-17 Fix up conntest test programs
+- 2018-08-18 Fix psql invocation in tests
+- 2018-08-18 Improve shell script portability
+- 2018-08-01 Improve whitespace
+- 2018-08-03 v1.9
+- 2018-08-03 Bump libusual
+- 2018-07-30 Minor whitespace fix in log message
+- 2018-07-30 Fix -Wimplicit-fallthrough warnings
+- 2018-07-23 .gitignore: Add test/pgdata/
+- 2018-07-23 test.sh: Wrap all sudo calls in CAN_SUDO check
+- 2018-07-23 test: Restore userlist.txt after test run
+- 2018-07-24 Fix -Wimplicit-fallthrough warnings
+- 2018-07-24 doc: Add missing documentation for various SHOW fields
+- 2018-07-25 doc: Document reconnect behavior on reload and DNS change
+- 2018-07-25 Update code comment
+- 2018-07-25 Improve punctuation in stats message
+- 2018-07-25 Fix comments
+- 2018-07-26 test.sh: Sort out netcat zoo
+- 2018-07-26 doc: Document that KILL requires RESUME afterwards
+- 2018-07-26 doc: Clarify documentation of server_lifetime
+- 2018-07-26 NEWS: Fix typos
+- 2018-07-27 Make capitalization of log messages consistent
+- 2018-07-27 doc: Clarify file descriptor formula
+- 2018-07-29 test: Update MacOS firewall commands
+- 2018-07-25 Add close_needed column to SHOW SERVERS
+- 2018-07-25 RECONNECT command
+- 2018-07-25 Fast close
+- 2018-07-26 WAIT_CLOSE command
+- 2018-07-19 doc: Small improvement in quick start
+- 2018-07-19 doc: Document SET command
+- 2018-07-19 Normalize spelling of Git
+- 2018-07-19 Correct list of required software
+- 2018-06-07 Avoid double-free in parse_filename
+- 2018-06-07 Avoid NULL pointer deref in parse_line
+- 2018-03-15 Fix whitespace errors reported by Git
+- 2018-03-08 doc: Improve signals documentation
+- 2017-12-20 v1.8.1
+- 2017-12-26 Fix psql invocation in tests
+- 2017-12-26 Fix mistake in test setup
+- 2017-12-26 Travis CI: Test make deb target
+- 2017-12-27 Port mkauth.py to Python 3
+- 2017-12-13 Update libusual
+- 2017-12-14 Fix handling of absent rst2man
+- 2017-12-14 Travis CI: Add python-docutils as dependency
+- 2017-12-14 doc: Catch warnings and errors from rst2man
+- 2017-12-14 doc: Fix duplicate target name
+- 2017-12-16 Minor spelling and grammar improvements
+- 2017-12-18 Use strerror() instead of %m for portability
+- 2017-12-18 Travis CI: Add dist target to script
+- 2017-12-18 Display 0 ttl for stale DNS entries in SHOW DNS_HOSTS
+- 2017-12-19 doc: Fix rst syntax
+- 2017-12-19 v1.8
+- 2017-12-19 Add include/pam.h to distribution tarball
+- 2017-12-19 Travis CI: Add test for building from dist tarball
+- 2017-12-19 Travis CI: Convert script to single YAML block
+- 2017-12-19 Travis CI: Add configure arguments matrix
+- 2017-12-05 Receiving NotificationResponse asynchronously should not raise warning
+- 2017-12-08 Fix reserve_pool parameter
+- 2017-12-08 Use default values in config file
+- 2017-12-06 Add Travis CI
+- 2017-11-04 Add STATS_TOTALS/STATS_AVERAGES into HELP
+- 2017-11-04 Improve the hba.conf parsing issue warning
+- 2017-11-04 Improve handling of auth_file cache and errors
+- 2017-10-23 add clues for sysadmin concerning HBA issues
+- 2017-09-20 Track separate stats for queries and transactions
+- 2017-09-20 Track total time spent waiting for server
+- 2017-09-24 Add SHOW STATS_TOTALS / STATS_AVERAGES as admin commands
+- 2017-09-19 pgbouncer.ini: Add missing auth_type's to comment
+- 2017-08-24 Fix crash from memory overrun
+- 2017-08-11 Corrects bits vs bytes
+- 2017-07-07 Add missing space
+- 2017-07-09 Dont set flags when doing with-cares=auto
+- 2017-07-09 Upgrade libusual
+- 2017-06-28 hba: parse_namefile did unnecessary free
+- 2017-06-28 hba: call next_token after parsing filename (#209)
+- 2017-06-28 sbuf: check for EAGAIN in connect
+- 2017-06-29 dns_zone_check_period is available also with c-ares backend
+- 2017-06-29 Fix --with-cares=auto
+- 2017-06-10 Free user_name and db_name in hba rule_free to avoid memory leak on hba file reload
+- 2017-06-09 Add a maxwait microseconds column to SHOW POOLS.
+- 2017-06-09 Add per-socket wait times to show commands.
+- 2017-04-14 Global management of `auth_user`
+- 2017-04-16 Fix a couple of typos
+- 2017-03-30 Fix incorrect references to auth_mode
+- 2017-02-07 Increased maximum length for postgres password
+- 2017-02-07 Added warning for max password length
+- 2017-02-07 Improved comment on max password length
+- 2017-01-24 Add paused and disabled field on the show databases command
+- 2016-12-20 doc: auth_query - mention that function is run in target db
+- 2016-12-16 Improve build instructions
+- 2016-12-17 Upgrade libusual
+- 2016-12-06 console: use UTF8 instead UNICODE as client_encoding
+- 2016-12-06 console: change server_encoding to UTF8 from SQL_ASCII
+- 2016-11-15 Fix typo
+- 2016-10-25 Make pam_init happen in the child process when forking
+- 2016-10-27 Mention auth_user in pgbouncer.ini example
+- 2016-09-14 Don't send ReadyForQuery on main_connection as it may cause clients to get out of sync.
+- 2016-07-01 add license title
+- 2016-03-21 Add PAM authentication support
+- 2016-03-12 tls: do not ask TLS on unix socket
+- 2016-03-12 tls: reject client TLS request on unix socket
+- 2016-03-14 hba: Skip unparseable lines, keep parsing to the end.
+- 2016-02-21 Make build reproducible by dropping DBGVER handling
+- 2016-02-22 Always check for NULL cf_pidfile
+- 2016-02-23 Proper stale pidfile handling in check_pidfile.
+- 2016-02-23 Sync libusual
+- 2016-02-24 Missing var declaration.
+- 2016-02-24 takeover: wait for pidfile to go away
+- 2016-02-24 Sync libusual
+- 2016-02-24 Show TLS backend version
+- 2016-02-24 Skip cleanup if there is takeover
+- 2016-02-25 Revert "Skip cleanup if there is takeover"
+- 2016-02-26 Disable cleanup.
+- 2016-02-26 Sort tarball files too, just in case.
+- 2016-02-26 deb: turn on full hardening, needs v9 dh
+- 2016-02-26 v1.7.2
+- 2016-02-10 doc: Improve server_reset_query description
+- 2016-02-12 tags: look deeper under libusual
+- 2016-02-12 Fix some format warnings under win64
+- 2016-02-12 Sync libusual
+- 2016-02-14 sbuf: remove unused function
+- 2016-02-14 Rename sslmode "disabled" to "disable" as in libpq
+- 2016-02-14 optscan: fix doc path
+- 2016-02-14 Add TLS options to sample config file.
+- 2016-02-15 Sync libusual
+- 2016-02-17 libusual: sync, change url
+- 2016-02-18 todo cleanup
+- 2016-02-18 doc: fix manpage section
+- 2016-02-18 doc: improve auth_user docs
+- 2016-02-18 v1.7.1
+- 2016-02-03 Update libusual
+- 2016-02-03 sbuf: in varify-ca/full checking should not be optional
+- 2016-01-25 test: make asynctest.c compile again
+- 2016-01-25 Freeing db may leak host.
+- 2016-01-25 hba_test: include usual/event.h
+- 2016-01-25 Upgrade libevent
+- 2016-01-25 Clean allocated memory on exit.
+- 2016-01-26 Upgrade libusual
+- 2016-01-26 sbuf: define handle_tls_handshake for non-tls build
+- 2016-01-26 cleanup: proparly free autodbs
+- 2015-12-18 v1.7
+- 2015-12-03 configure: make plain --with-cares work
+- 2015-12-03 tls: avoid recursive socket loop
+- 2015-12-04 sbuf: improved sbuf_loopcnt logic
+- 2015-12-04 hba: initialize struct before opening file
+- 2015-12-04 Add no-dep rule to create manpages if missing.
+- 2015-11-10 Update authors
+- 2015-11-10 Update news
+- 2015-11-10 Build on win32
+- 2015-11-02 Update libusual
+- 2015-11-02 Add missing files to 'make dist'
+- 2015-11-02 v1.7rc1
+- 2015-11-03 Import ssl test data into git
+- 2015-11-06 Postpone change of expect_rfq_count
+- 2015-11-08 Increase pkt_buf to 4k
+- 2015-11-09 readme: add links to CVE-s
+- 2015-10-26 .gitignore various test files/dirs
+- 2015-10-12 Document version requirement for hba auth_type
+- 2015-10-07 Fix typo in pgbouncer.ini
+- 2015-09-16 Sync with TLS API changes
+- 2015-09-02 Sync libusual
+- 2015-09-03 Fix server_reset_query_always declaration
+- 2015-09-03 Remove too early set of auth_user
+- 2015-09-03 test.sh: add tests for auth_user
+- 2015-09-03 Update todo
+- 2015-09-03 Set query_wait_timeout to 120s by default.
+- 2015-09-03 Update news
+- 2015-08-31 Sync again
+- 2015-08-31 console: Fill auth_user when auth_type=any.
+- 2015-08-31 server_reset_query_always
+- 2015-08-20 Import tls changes
+- 2015-08-20 Fix password/md5 auth.
+- 2015-08-20 Remove pointless cf_auth_type check
+- 2015-08-23 Sync tls changes
+- 2015-08-23 Fix typo in comment in loader.c
+- 2015-08-01 Document the include directive
+- 2015-08-01 Update AUTHORS - remove myself from contributors.
+- 2015-08-01 v1.6
+- 2015-08-03 sbuf: Move i/o operations to callbacks.
+- 2015-08-03 Support TLS connections.
+- 2015-08-03 tls: Auth based on client certs, some login code cleanups
+- 2015-08-03 tls: Test scripts
+- 2015-08-03 Support pg_hba.conf-style syntax
+- 2015-08-04 Bump version to 1.7dev
+- 2015-08-04 Docs for TLS & HBA features.
+- 2015-08-04 tls: Use "fast" as default cipher shortcut.
+- 2015-08-05 doc: use rst2man for manpages
+- 2015-08-05 doc: consistent ws spacing for deflists
+- 2015-08-05 doc: remove `` tags around deflists keys, not needed anymore
+- 2015-08-05 doc: markup cleanups
+- 2015-08-05 doc: more fixes
+- 2015-08-05 doc: remove faq & overview - they are on web now
+- 2015-08-06 Import TLS fixes.
+- 2015-08-06 Skip NoticeResponce in handle_auth_response.
+- 2015-08-06 Adapt system tests to work with modern BSD and MacOS
+- 2015-08-06 Convert NEWS to rst, then it's usable in web too.
+- 2015-08-06 news: fix makefile, mention 1.5.5
+- 2015-08-06 test.sh: dont re-exec, use bash directly
+- 2015-08-06 doc: convert readme & todo also to rst
+- 2015-08-06 Fix makefile, add 'htmls' target to see rst as html
+- 2015-08-07 doc: remove converted files
+- 2015-08-07 Remove crypt auth.
+- 2015-08-07 auth code cleanup
+- 2015-08-08 handle_client_work - move logic out of switch
+- 2015-08-08 Support pipelining - count expected ReadyForQuery packets.
+- 2015-08-08 test.sh: simpler sed expression
+- 2015-08-08 todo: pool_mode=tx vs. server_reset_query
+- 2015-08-08 todo: fix syntax
+- 2015-07-31 doc: add missing options to sample config
+- 2015-07-31 Wait for client header during login (#53)
+- 2015-07-31 test.sh; sync with 9.4, make more robust
+- 2015-07-31 Upgrade libusual
+- 2015-07-31 Update NEWS
+- 2015-07-31 Update AUTHORS, new maintainer: Petr Jelinek
+- 2015-07-31 News update again
+- 2015-07-31 Change application_name_add_host default to 'off'
+- 2015-07-31 Disable server_idle_timeout when server count gets below min_pool (#60)
+- 2015-07-31 Update NEWS again
+- 2015-07-27 etc/optscan.sh - show undocumented options
+- 2015-07-27 doc: missing vars
+- 2015-07-27 c-style: More consistent brace usage
+- 2015-04-30 Missing varargs cleanup.
+- 2015-04-30 Fix some unchecked return values.
+- 2015-04-30 There is a typo while checking for error.
+- 2015-04-22 fix spelling mistakes, part 2
+- 2015-04-11 Update links in README
+- 2015-04-19 fix spelling mistake
+- 2015-04-08 Check if auth_user is set.
+- 2015-04-08 Remove use of HOST_NAME_MAX, not portable (#40)
+- 2015-04-08 Slightly better auth_user fix.
+- 2015-03-09 Update libusual
+- 2015-01-28 Don't allow newserver connections when PAUSE <db> was issued.
+- 2014-12-30 c-ares: force IPv4 on c-ares <= v1.10
+- 2014-12-30 Use csrandom for secure randomness
+- 2014-12-30 Upgrade libusual
+- 2014-12-30 Update docs
+- 2014-12-30 v1.6rc1
+- 2014-11-23 Skip adns_per_loop if adns is not initialized.
+- 2014-08-07 Upgrade libusual
+- 2014-06-12 Update libusual
+- 2014-06-12 Edit news.
+- 2014-05-17 Upgrade libusual
+- 2014-05-17 Make application_name_add_host work also with unix sockets.
+- 2014-05-15 Skip commented out lines in auth file.
+- 2014-05-15 Test that commented out lines are ignored.
+- 2014-05-05 Updated readme with "look below for git compile instructions", as well as missing dependancy.
+- 2014-04-08 Add the client host IP address and port to application_name.
+- 2014-03-04 max_user_connections implementation - a limit of connected users.
+- 2013-12-18 Replace C++ comments.
+- 2013-12-18 Use uppercase in TODO/FIXME.
+- 2013-12-18 Fix a bunch of typos.
+- 2013-11-15 Proper invalidation for autodbs
+- 2013-11-15 Small bug fix, must check calloc result
+- 2013-11-15 config.txt: update auth_file about 9.0+ situation.
+- 2013-11-16 gitignore: add more stuff
+- 2013-11-16 auth_query: make password loading query configurable
+- 2013-11-16 Allow numbers in hostname, always try to parse with inet_pton
+- 2013-11-18 Draft news, unedited
+- 2013-10-08 Move comment to make it less wrong.
+- 2013-10-08 doc: Expand server_reset_query a bit.
+- 2013-10-08 Bump version to 1.6dev
+- 2013-09-19 add a separate config for controlling negative dns caching
+- 2013-09-05 detect server close due to synchronous callbacks
+- 2013-08-20 Fix incorrect keyword in example config file
+- 2013-08-28 don't overwrite pgbouncer user on startup if it already exists
+- 2013-08-28 don't load auth file twice at boot
+- 2013-08-26 fix launching new connections during maintenance
+- 2013-08-27 fix takeover of auth_user when dynamic user is connected to server
+- 2013-08-27 fix reconnects of auth_user dbs after online restart
+- 2013-08-29 fix crash when using auth_conn and something times out during login
+- 2013-08-27 evict old connections when needed (if possible) for max_db_connections
+- 2013-08-27 simplify oldest connection logic
+- 2013-08-27 keep track of connection count during online restart
+- 2013-08-01 Fix deallocate_all() in FAQ
+- 2013-06-14 Add newline at the end of the PID file
+- 2013-04-17 console: rename backend_pid to remote_pid
+- 2013-04-02 Refresh libusual
+- 2013-04-02 Show remote pid of unix socket
+- 2013-04-03 On connect to server, show local ip and port
+- 2013-04-08 tune_socket: use libusual for socket flags
+- 2013-04-08 log: wrap ipv6 address with []
+- 2013-03-18 ipv6: Set IPV6_V6ONLY on listen socket.
+- 2013-03-18 win32: Don't set SO_REUSEADDR on listen socket.
+- 2013-03-19 Refresh libusual
+- 2013-02-28 fix auth_user with session pooling
+- 2013-02-04 implement database-wide connection limit
+- 2013-01-09 configure: mention dns config in the end
+- 2013-01-09 configurable arch for mingw build
+- 2013-01-09 Add missing error checks
+- 2012-12-25 win32: use gnu-style for long args: --foo
+- 2012-12-03 Show backend_pid in SHOW CLIENTS/SERVERS.
+- 2012-12-03 Minor cleanups for ENABLE/DISABLE, add tests
+- 2012-12-06 Fix cancellation of of waiting clients
+- 2012-12-08 Fix IPv6 address memcpy
+- 2012-11-28 Refresh libusual
+- 2012-11-28 v1.5.4
+- 2012-10-31 dns: need to use statlist_remove() instead list_del()
+- 2012-10-31 dnslookup: missing active count inc
+- 2012-10-28 Improve description of pooling states
+- 2012-10-29 udns: don't leak results
+- 2012-10-29 Refresh libusual
+- 2012-10-29 getaddrinfo_a: drop double-alloc
+- 2012-10-08 config.txt: remove \ before *
+- 2012-10-08 dnslookup: more informative error from getaddrinfo_a()
+- 2012-09-10 add_database: fail gracefully if too long db name
+- 2012-09-12 Add DISABLE/ENABLE commands to prevent new connections.
+- 2012-09-12 Factor out the find-or-register DB logic.
+- 2012-09-12 v1.5.3
+- 2012-09-12 Add DISABLE/ENABLE to SHOW HELP.
+- 2012-09-12 Document the new DISABLE/ENABLE commands.
+- 2012-09-13 Include new antimake files.
+- 2012-07-18 Refresh libusual
+- 2012-07-18 max_packet_size - new variable.
+- 2012-07-18 Refactor bin2hex function
+- 2012-07-18 Show invalid header in hex
+- 2012-07-18 Update NEWS
+- 2012-07-07 Refresh libusual to pick up Antimake fixes
+- 2012-07-08 console: allow empty string arguments, unify copy_arg
+- 2012-06-15 config.txt: server_idle_timeout does not care how full pool is.
+- 2012-06-05 Refresh libusual
+- 2012-06-07 Makefile: correct is _LDADD instead _LIBS
+- 2012-05-31 config.txt: hint that all timeouts can be specified as floats
+- 2012-05-24 reserve_pool_timeout should be in seconds, not microseconds
+- 2012-05-24 faq: add DNS RR to load-balancing question
+- 2012-05-28 config.txt: fix invalid formattinc
+- 2012-05-28 faq: how to map client connection to server connections
+- 2012-05-28 Proper fix for reserve_pool_timeout.
+- 2012-05-29 faq: where should pgbouncer be installed?
+- 2012-05-29 test.sh: force /tmp as unix socket dir
+- 2012-05-29 v1.5.2
+- 2012-05-29 New DNS backend: c-ares
+- 2012-04-17 Improve sample ini file
+- 2012-04-17 Refresh libusual
+- 2012-04-17 v1.5.1
+- 2012-03-28 config.txt: Postgres does not use auth files anymore.
+- 2012-03-28 doc/makefile: fix doc pushing to web
+- 2012-03-28 config.txt: Describe MD5 "encryption"
+- 2012-03-13 autodb: drop old connections on config change
+- 2012-03-14 Add 'tags' target to makefile
+- 2012-03-14 If connect string changes, refresh welcome parameters.
+- 2012-03-14 Refresh libusual
+- 2012-03-14 v1.5.1rc1
+- 2012-03-14 Fix find_modules filename
+- 2012-03-14 Stop including html in source tarball, seems wrong.
+- 2012-02-27 Document stats_period
+- 2012-02-10 Non-git-based dist files for libusual.
+- 2012-01-19 configure: bump asciidoc req to >= 8.4
+- 2012-01-19 varcache: allow empty string for server-side variable.
+- 2012-01-19 refresh libusual
+- 2012-01-19 doc: make manpages and html 'dist'
+- 2012-01-19 unix_socket_mode / _name
+- 2012-01-18 implement per-database pool_mode
+- 2012-01-19 add per-user pool_mode
+- 2012-01-18 auth_user support
+- 2012-01-05 refresh libusual
+- 2012-01-05 makefile: add config.log to DISTCLEANFILES
+- 2012-01-05 v1.5
+- 2011-12-20 Few build fixes
+- 2011-12-20 make zip: shortcut to build -win32.zip
+- 2011-12-20 deb: export options to make nostrip work
+- 2011-12-20 refresh libusual
+- 2011-12-20 system.h: use <usual/ctype.h> instead ctype directly.
+- 2011-12-20 Mention required gnu-make version
+- 2011-12-20 doc: dont try to build manpages if no asciidoc
+- 2011-12-20 Refresh libusual
+- 2011-12-20 refresh libusual
+- 2011-12-21 refresh libusual
+- 2011-12-21 Update news for 1.5rc1
+- 2011-12-21 makefile: shortcuts for uploading
+- 2011-12-12 dnslookup: use safe_evtimer_add
+- 2011-12-12 adns_create_context: do zone_init before impl_init
+- 2011-12-12 refresh libusual
+- 2011-12-13 refresh libusual
+- 2011-12-13 pgbevent: hide switches from compiler
+- 2011-12-13 refresh libusual
+- 2011-12-13 v1.5rc1
+- 2011-12-13 Include lib/ in .tgz
+- 2011-12-13 authors: add Petr
+- 2011-12-13 debian/: drop yada, use simple cdbs packaging
+- 2011-12-13 Makefile cleanup
+- 2011-12-13 refresh libusual
+- 2011-12-13 deb: override DEB_CONFIGURE_EXTRA_FLAGS for old cdbs
+- 2011-12-13 Makefile: recurse into 'doc'
+- 2011-12-07 pga_pton: parse '*' as INADDR_ANY
+- 2011-12-06 move to antimake
+- 2011-11-22 New commands:  SHOW DNS_HOSTS|DNS_ZONES
+- 2011-11-22 Improve error msg when connections to server fail.
+- 2011-11-22 faq: how to connect to pgbouncer.
+- 2011-11-22 RESUME <db>: fix copy-pasted log message
+- 2011-11-23 Prepare for 1.5
+- 2011-11-15 autogen: work with older libtool and autoconf
+- 2011-11-17 Few udns fixes:
+- 2011-11-17 docs for 'dns_zone_check_period'
+- 2011-11-19 dns cleanups
+- 2011-11-02 dns_callback: restore ipv6 branch
+- 2011-10-21 log_socket_prefix: avoid corrupt hosts in log
+- 2011-10-21 dns stats, support wraparound serials
+- 2011-10-21 min_pool_size: add Filip Rembiałkowski to AUTHORS
+- 2011-10-25 Make pga_ntop/pga_str non-failing and zero-terminating
+- 2011-10-26 Document KILL cmd, mention per-db pause.
+- 2011-10-14 todo: add some items
+- 2011-10-14 console: relax word regex to allow numbers
+- 2011-10-14 dns: create cache of zone names
+- 2011-10-17 configure: include stddef.h in udns check to get NULL
+- 2011-10-17 dns: query zone SOA, recheck hosts if changes
+- 2011-10-03 udns support (draft)
+- 2011-10-03 min_pool_size (draft)
+- 2011-10-06 refresh libusual
+- 2011-10-09 min-pool-size doc fix
+- 2011-10-09 A packet wont change state
+- 2011-10-09 idle_transaction_timeout: new config option
+- 2011-09-12 console: allow identifier quoting with ""
+- 2011-09-12 When user= is used without password=, use userlist password.
+- 2011-09-01 Fix too compact syntax.
+- 2011-09-01 Mention max_client_conn in "no more" error message
+- 2011-09-01 Describe EDNS0, use getaddrinfo_a() on debian
+- 2011-09-01 v1.4.3dev1
+- 2011-08-23 Detect DNS reply changes and invalidate connections to IPs no longer present in latest reply
+- 2011-06-21 Fix typos in default config file
+- 2011-06-21 Fix documentation typos
+- 2011-06-21 Add and populate .gitignore files
+- 2011-06-21 Correct spelling of 'immediate'
+- 2011-06-24 faq: disabling prepared statements in PHP
+- 2011-06-24 faq: use nicer code-blocks
+- 2011-06-16 v1.4.2
+- 2011-06-02 Refresh libusual
+- 2011-06-02 v1.4.2rc1
+- 2011-04-29 Makefile: add pgbouncer.ini and userlist.txt to zip
+- 2011-04-29 Makefile: give CFLAGS to linker
+- 2011-04-29 refresh libusual
+- 2011-04-01 v1.4.1
+- 2011-04-02 todo update
+- 2011-03-30 Fix copy-paste error in last autodb fix.
+- 2011-03-30 Fix some clang analyzer warnings.
+- 2011-03-20 When first config load fails, exit.
+- 2011-03-21 config.txt: mention that host= takes hostnames too.
+- 2011-03-21 v1.4.1rc2
+- 2011-03-22 configure: Make --disable-evdns work.
+- 2011-03-22 README update - CVS->GIT and more.
+- 2011-03-23 Don't expire auto DBs that are paused -- that would un-pause them.
+- 2011-03-23 adns: log active backend
+- 2011-03-23 v1.4.1rc3
+- 2011-03-25 configure.ac: evdns logic change
+- 2011-03-25 Update README with DNS usage info
+- 2011-03-25 Mention that -R requires unix_socket_dir in various places.
+- 2011-03-25 Turn on tcp_keepalive by default.
+- 2011-03-26 Update NEWS
+- 2011-03-26 refresh libusual
+- 2011-03-26 autoconf update
+- 2011-03-26 v1.4.1rc4
+- 2011-03-28 faq.txt: describe server_reset_query
+- 2011-03-28 Improve defaults: Set server_reset_query to DISCARD ALL
+- 2011-03-29 Fix autodb cleanup
+- 2011-03-29 refresh libusual
+- 2011-03-29 v1.4.1-rc5
+- 2011-03-29 config.txt: mention new default for server_reset_query
+- 2011-03-17 listen_addr: take first working address from getaddrinfo
+- 2011-03-18 test.sh: reset only OUTPUT chain
+- 2011-03-18 listen_addr vs. getaddrinfo: sometimes all addressed need to be used...
+- 2011-03-18 Create auto databases as needed when doing PAUSE.
+- 2011-03-18 Add KILL command to pause a db and terminate all connections.
+- 2011-03-19 dnslookup: Fix crash when log_noise() is turned on
+- 2011-03-01 make zip: move zip naming to separate target
+- 2011-03-01 v1.4.1rc1
+- 2011-03-04 asm: pass .s through cleanasm
+- 2011-03-03 Fix uninitialized variable problems
+- 2011-03-04 refresh libusual
+- 2011-02-21 Fix bad hint.ai_family left from testing
+- 2011-02-24 Sync with libusual portability changes
+- 2011-02-28 refresh libusual
+- 2011-02-11 release_server(): set ->last_lifetime_disconnect on lifetime disconnect
+- 2011-02-16 win32: allow cf_unix_socket_dir == NULL
+- 2011-02-16 refresh libusual
+- 2011-02-16 IPv6 support
+- 2011-02-16 support multiple listen addrs
+- 2011-02-18 console: send pgbouncer version as 'server_version'
+- 2011-02-18 update news
+- 2011-02-03 update todo
+- 2011-02-03 doc: update links
+- 2011-01-11 test.sh: more portable nc usage
+- 2011-01-11 Add faq.txt to tgz
+- 2011-01-11 DateStyle and TimeZone server params need to use exact case.
+- 2011-01-11 News update for 1.4-final
+- 2010-12-08 debug log user/database also on startup
+- 2010-12-08 refresh libusual
+- 2010-12-08 When 'database' is missing or empty in startup packet, fallback to 'user'
+- 2010-12-08 v1.4
+- 2010-11-30 Update win32support.c for new load_config()
+- 2010-11-30 loader: cannot check unix_socket here anymore
+- 2010-11-30 load_config: always call config_postprocess()
+- 2010-11-30 refresh libusual
+- 2010-11-30 missing ;
+- 2010-11-30 v1.4rc4
+- 2010-11-23 Use <usual/cfparser.h> for config parsing.
+- 2010-11-29 configure.ac: libusual is not optional
+- 2010-11-29 refresh libusual
+- 2010-11-29 dnslookup: --enable-evdns arg to configure
+- 2010-11-29 v1.4rc3
+- 2010-11-29 refresh libusual
+- 2010-11-10 Fix JDBC vs transaction pooling FAQ
+- 2010-11-10 Fix web upload, remove old wiki refs
+- 2010-11-17 Sync syslog handling with libusual
+- 2010-11-17 v1.4-0rc1.1
+- 2010-11-17 bump autoconf ver too
+- 2010-11-17 Support canceling ongoing DNS requests.
+- 2010-11-17 v1.4rc2
+- 2010-11-17 dns: avoid returning token for queries already reported
+- 2010-11-18 v1.4rc2.1
+- 2010-11-18 doc: mention syslog_ident
+- 2010-11-02 dnslookup: minor cleanups
+- 2010-11-02 Display warning when activating reserve_pool
+- 2010-11-03 v1.4rc0
+- 2010-11-08 dns: fix failed lookup reporting.
+- 2010-11-08 v1.4rc1
+- 2010-10-12 dnslookup - forgot to strdup host name
+- 2010-10-13 doc: seems like recent asciidoc/docbook does not need manual fixing
+- 2010-10-13 quickly list of connect string params
+- 2010-10-13 dns reorg: use struct addrinfo as main storage unit
+- 2010-10-07 Move 'new connection' message to connect_server()
+- 2010-10-07 client_login_timeout: check wait_for_welcome
+- 2010-10-09 More compact libusual distro
+- 2010-09-20 Packaging update
+- 2010-09-21 Fix broken check for emtpy param value.
+- 2010-09-21 Better param comparision in case of missing params
+- 2010-09-21 Add Guillaume to contributors
+- 2010-09-21 deb: create -dbg exe with less optimizations
+- 2010-09-24 Mantion pgbouncer and libevent version on startup
+- 2010-09-28 Another try at async DNS - getaddrinfo_a()
+- 2010-09-28 refresh libusual
+- 2010-09-29 connect_server: store port in host order
+- 2010-09-29 Use PRIu64 instead of llu as it seems not portable enough
+- 2010-09-29 Avoid fatal() in tune_socket()
+- 2010-09-29 zip generation for win32
+- 2010-09-29 Don't disable getaddrinfo_a()...
+- 2010-09-10 refresh libusual
+- 2010-09-10 draft notes for 1.4
+- 2010-09-10 Draft tgz generation.
+- 2010-09-10 Async DNS lookup support via libevent DNS module.
+- 2010-09-11 Downgrade dns log messages.
+- 2010-09-11 Some doc updates.
+- 2010-09-15 dns_connect: remove double salen
+- 2010-09-15 Refresh libusual
+- 2010-09-06 new config var: disable_pqexec
+- 2010-09-06 refresh libusual
+- 2010-09-06 Lost <sys/resource.h> include.
+- 2010-09-06 win32: remove code that is moved to libusual
+- 2010-09-08 Use pg_quote_literal from libusual.
+- 2010-09-09 Fix the quoting fix.
+- 2010-09-09 doc/config.txt: Fix minor typo.
+- 2010-08-03 Don't tag automatically generated dbs as killable on reload.
+- 2010-08-03 console: central syntax error handling
+- 2010-07-19 Apply fast-fail at connect time.
+- 2010-06-10 Support for application_name parameter.
+- 2010-06-11 Warning flags are now in WFLAGS
+- 2010-06-11 Sample script for generating users file from database
+- 2010-06-16 Move some portability goo over to libusual.
+- 2010-05-20 Allow a user to use long options, instead of short ones.
+- 2010-05-20 Fix pg_auth quoting.
+- 2010-05-23 convert few static buffers into pktbuf
+- 2010-05-23 convert few remaining sprintf() uses to snprintf()
+- 2010-05-04 Forgot to change second listen() call also to cf_listen_backlog.
+- 2010-05-04 <usual/regex.h>
+- 2010-05-04 <usual/strpool.h>
+- 2010-04-21 Make listen(2) backlog argument configurable.
+- 2010-04-23 Increase size of various startup-related buffers.
+- 2010-04-23 gcc braindamage: -Wformat-security is not turned on by -Wall -Wextra -Wformat
+- 2010-04-23 Let disconnect_server/client() take printf style args.
+- 2010-04-23 Now actually improve few disconnect messages.
+- 2010-04-23 v1.3.3rc1
+- 2010-04-14 Move fast-fail relaunch logic around.
+- 2010-04-14 Explicitly detect V2 protocol request and close it with proper msg.
+- 2010-04-19 Increase room for DateStyle storage.
+- 2010-04-19 Dont let logging change errno.
+- 2010-03-15 Log pooler-sent errors as warnings not plain info, as they signify problems.
+- 2010-03-15 v1.3.2
+- 2010-02-12 Introduce a new configuration setting: query_wait_timeout
+- 2010-02-12 Don't let clients queue in case no servers and connections fail.
+- 2010-02-12 log message: statement timeout -> query timeout, to match config var
+- 2010-01-12 test/test.ini: turn off query_timeout by default
+- 2010-01-12 In case of invalid state, show value in error msg
+- 2010-01-12 sbuf: track exact wait state to avoid double event_del()
+- 2010-01-12 Add new patches to NEWS
+- 2010-01-13 Check error from event_init() to eliminate warning on strict build
+- 2010-01-15 doc/confix.txt: uncoonfuse newer asciidoc
+- 2010-01-11 libusual: include into build system
+- 2010-01-11 <usual/time.h>
+- 2010-01-11 <usual/list.h>, <usual/statlist.h>
+- 2010-01-11 <usual/string.h>
+- 2010-01-11 <usual/logging.h>
+- 2010-01-11 <usual/string.h>
+- 2010-01-11 <usual/aatree.h>
+- 2010-01-11 <usual/lookup3.h>
+- 2010-01-11 <usual/slab.h>
+- 2010-01-11 <usual/socket.h>
+- 2010-01-11 <usual/safeio.h>
+- 2010-01-11 <usual/fileutil.h>
+- 2010-01-11 <usual/mbuf.h>
+- 2010-01-11 <usual/event.h>
+- 2010-01-11 <usual/signal.h>
+- 2009-12-04 Apply client_login_timeout to clients waiting for welcome pkt
+- 2009-12-04 todo update
+- 2009-12-04 prepare for 1.3.2rc1
+- 2009-11-13 Disable maintenance during SUSPEND
+- 2009-11-13 Clarify few login-related log messages
+- 2009-11-13 win32: allow user to override service account
+- 2009-09-28 console: fix string format in datarow packet
+- 2009-07-21 doc/config.txt improvements
+- 2009-07-17 doc/usage.txt improvements
+- 2009-07-06 When auth_mode=any, allow anybody in as admin.
+- 2009-07-06 docs: mention console behavious when auth_mode=any
+- 2009-07-06 v1.3.1
+- 2009-06-25 admin.c: mention SHOW STATS in help msg
+- 2009-06-25 usage.txt: Time units are microseconds, not milliseconds
+- 2009-06-25 sbuf.c: Fix connection hang if sbuf_loopcnt is set.
+- 2009-06-26 todo update
+- 2009-06-26 v1.3.1rc1
+- 2009-06-26 faq/ssl: pgsql protocol patch was applied to stunnel 4.27
+- 2009-06-26 todo: clarify
+- 2009-05-22 Fix potential use of old connections after config change
+- 2009-05-06 Fixed the Service parameter path name problem. Per report from Sachin Srivastava.
+- 2009-05-06 Fixed adjustment of a WSAStartup position problem. It happen the hostname problem in the service start. Per report Sachin Srivastava. and, thanks suggestions of Marko.
+- 2009-04-07 Fix broken alignment in src/slab.c
+- 2009-03-12 SHOW DATABASES had wrong column count.
+- 2009-02-18 release 1.3
+- 2009-02-18 update docs and default config
+- 2009-01-30 win32: improve service description
+- 2009-01-28 duh, seems we did not include COPYRIGHT file in tgz
+- 2009-01-28 Apply ISC license clarification, bump copyright years.
+- 2009-01-10 some more cleanups:
+- 2009-01-10 win32: simpler service handling, cleanups
+- 2009-01-16 sbuf_close: dont retry event_del() if it fails, just proceed with cleanup.
+- 2009-01-16 add few overlooked contributors
+- 2009-01-16 NEWS: mention event_del problem
+- 2009-01-16 win32 todo
+- 2009-01-16 win32: make service_name alias for job_name
+- 2009-01-16 NEWS: expand autodb and win32 items
+- 2009-01-16 doc/Makefile: build also html for README
+- 2009-01-16 README: win32 info
+- 2009-01-16 tag 1.3rc1
+- 2009-01-16 event_loopbreak compat for libevent 1.3
+- 2009-01-16 add missing win32 files to tgz
+- 2009-01-16 README: mention reserve_pool feature
+- 2009-01-02 check if connection was accepted before logging
+- 2009-01-02 Reserve pool implementation.
+- 2009-01-02 draft news for 1.3
+- 2009-01-02 minor cleanups
+- 2008-12-29 win32: add -A to def generation
+- 2008-12-29 win32: make asynctest compile again
+- 2008-12-18 pgbevent: make g_module static var
+- 2008-12-18 dlltool seems to need --export-all-symbols to make .def file
+- 2008-12-19 win32: no need for -subservice switch, instead use -q
+- 2008-12-03 win32: change name of eventmsg
+- 2008-12-03 win32: more fixes
+- 2008-12-03 win32: errno fixes
+- 2008-12-03 win32: fix locatime
+- 2008-12-04 win32: implement sendmsg, move cmdline handling away from main.c
+- 2008-12-04 win32: implement kill()
+- 2008-12-04 win32: more cleanups
+- 2008-12-04 win32: rename support files
+- 2008-12-04 win32: tm_mon fix for localtime() (Hiroshi Saito)
+- 2008-12-06 locatime weirdness wasnt windows specific...
+- 2008-12-07 win32: more fixes
+- 2008-11-22 Make crypt authentication optional.
+- 2008-11-24 win32 support (wip)
+- 2008-11-24 remove unnecessary CVS ids, update AUTHORS
+- 2008-11-26 Quick win32 fixes.
+- 2008-11-28 remove the mc.exe detection, it not available anyway
+- 2008-11-19 Change default port number from 6000 to 6432.
+- 2008-11-19 debug: log connection endpoints
+- 2008-11-19 New tunable 'sbuf_loopcnt' to limit time spent on one socket.
+- 2008-11-19 add milliseconds to log timestamps
+- 2008-11-19 asynctest improvements
+- 2008-11-19 Dynamic database creation for non-defined databases.
+- 2008-09-30 quiet compiler warning about ptr->int conversion
+- 2008-09-25 stop playing with -fomit-frame-pointer
+- 2008-09-04 Put own includes at the startt of CPPFLAGS
+- 2008-09-05 Default to --enable-debug
+- 2008-08-22 tag head as 1.3
+- 2008-08-22 full quoting for database names
+- 2008-08-22 compact md5 implementation
+- 2008-08-01 new drop_on_error param
+- 2008-08-01 change ver to 1.2.1
+- 2008-08-01 admin.c: dont crash if socket has no buffer
+- 2008-08-01 log if drop_on_error triggers
+- 2008-08-01 sys/uio.h is required for struct iover on some systems
+- 2008-08-04 cleaner socket_row()
+- 2008-08-04 proper log message for console client cancel
+- 2008-08-04 suspend_socket_list can drop sockets, so needs _safe
+- 2008-08-04 exit immediately on SIGINT if suspend was in progress
+- 2008-08-04 cancel shutdown on resume
+- 2008-08-04 wording cleanup for drop_on_error
+- 2008-08-04 v1.2.1
+- 2008-08-04 mention log msg cleanup
+- 2008-08-06 asynctest: check if result comes back ok
+- 2008-08-06 Remove drop_on_error, it was a bad idea.
+- 2008-08-06 tag 1.2.2
+- 2008-08-06 asynctest: remove note about splice() experiments
+- 2008-08-08 Change the makefile to use "$(MAKE)" instead of "make".
+- 2008-08-08 glibc requires use of _GNU_SOURCE
+- 2008-08-08 allow first libevent test pass on 1.1
+- 2008-08-08 add Jørgen
+- 2008-08-08 detect stale pidfile
+- 2008-08-08 v1.2.3
+- 2008-08-08 disable untested SO_ACCEPTFILTER code
+- 2008-08-08 include userlist.txt in tgz
+- 2008-07-21 test/Makefile: add DEFS to cflags
+- 2008-07-29 release 1.2
+- 2008-07-16 Further memory conservation by making state bitfield :8.
+- 2008-07-16 few doc cleanups
+- 2008-07-16 test: increase allowed conns, decrease buffer len
+- 2008-07-16 tag 1.2rc2
+- 2008-07-03 decrease noise from bad connections
+- 2008-07-03 dont waste room for storing login-time salt.
+- 2008-07-08 remove extra argument for SBuf callback
+- 2008-07-09 log proper reason for disconnect
+- 2008-06-25 Build fixes for Solaris
+- 2008-06-25 include both pwd.h and grp.h in system.c and autoconf them
+- 2008-06-25 drop too clever optimizations from system.h
+- 2008-06-25 basename may be non-const on some systems, make cf_username static
+- 2008-06-25 update contributors list
+- 2008-06-25 New database setting: connect_query
+- 2008-06-25 New config parameter: ignore_startup_parameters
+- 2008-06-25 sync some doc fixes from -stable
+- 2008-06-25 News for 1.2
+- 2008-06-25 require libevent 1.2+
+- 2008-06-25 tag 1.2rc1
+- 2008-06-26 make failed tests more visible
+- 2008-06-26 require libevent >= 1.3b
+- 2008-06-27 duplicate tagline
+- 2008-06-27 keep mtime in tgz
+- 2008-06-04 support docdir on 2.59
+- 2008-06-04 fix < vs <= difference between iobuf.h and sbuf.c
+- 2008-03-04 detect basename() function, include small compat func if missing
+- 2008-03-04 More descriptive usage screen.
+- 2008-03-04 admin.c: add file comment
+- 2008-03-04 Cmdline option and config param to support user switching.
+- 2008-03-04 move admin-setup after setuid, srandom() after fork()
+- 2008-03-04 document new -u/user= option
+- 2008-03-04 sbuf.c: fix typo, lower priority
+- 2008-03-04 Add instructions on how to build from CVS.
+- 2008-03-05 asynctest: print first startup errors
+- 2008-03-05 admin.c: allow missing iobuf
+- 2008-02-14 fix getsockopt argument
+- 2008-02-14 system.h + types cleanup
+- 2008-02-14 make IOBuf use unsigned ints
+- 2008-02-14 add Wstrict-overflow to warn options
+- 2008-02-14 convert SBuf api also to unsigned int
+- 2008-02-14 disable attribute hacks on older gccs
+- 2008-01-22 fix inconsistent indenting
+- 2008-01-22 tcp_defer_accept improvements.
+- 2008-01-22 abstract i/o-buffer out from SBuf
+- 2008-01-22 missing include file from last commit and Makefile update
+- 2008-01-22 server_lifetime=0 drop connection immidiately
+- 2008-01-23 force list header on free
+- 2008-01-23 defer_accept: get_int needs reference too
+- 2008-01-23 draft lazy iobuf handling
+- 2008-01-23 simpler slab cache, with explicit init func
+- 2008-01-23 test.sh: sleep after launching nc, fix syntax
+- 2008-01-23 do memset in pgsocket init due to slab changes
+- 2008-01-24 log string truncation by strlcpy
+- 2008-01-24 Mark hash.c as public domain because Jenkins original code is
+- 2008-01-11 make failure from event_del() non-fatal
+- 2008-01-11 more gcc warnings
+- 2008-01-11 if cannot login to target db at all, notify clients (by killing them)
+- 2008-01-11 SHOW TOTALS command to give stats summary
+- 2008-01-11 disconnect_client: ignore notify=true if state=CL_CANCEL
+- 2008-01-11 iniparser: return whether file was found
+- 2008-01-11 actively kill databases removed from config
+- 2008-01-11 additional log server login failure
+- 2008-01-11 slab: if constructor is not given, memset on alloc
+- 2008-01-11 move db/user/pool alloc also to slabs
+- 2008-01-11 show active_sockets;
+- 2008-01-11 todo update
+- 2008-01-11 SHOW MEM cmd to describe slab usage
+- 2008-01-12 skip manpage build if tools not availalbe
+- 2008-01-12 fscking type problems
+- 2008-01-18 remove unnecessary warning
+- 2008-01-18 tag few functions with const
+- 2008-01-18 better comments on structs
+- 2008-01-18 move ->admin flag from pool to db
+- 2008-01-02 explicit strcmp result check
+- 2008-01-02 use gcc attributes to uncover few correctness bugs
+- 2008-01-02 error checks for all libevent calls
+- 2008-01-02 let make clean work even if config.mak does not exist
+- 2008-01-03 allow autoconf 2.59
+- 2008-01-03 pkt_action conversion broke assert
+- 2008-01-03 suspend in finish_client_login wont work as current packet is still in sbuf
+- 2008-01-03 looping accept() to drain backlog fully
+- 2008-01-04 proper usage of flexible array
+- 2008-01-04 handle more errors from accept()
+- 2008-01-04 handle EINTR from connect()
+- 2008-01-04 with as-needed the lib order is important
+- 2008-01-04 dont avoid maint if event loop is interrupted
+- 2008-01-07 more universal asynctest
+- 2008-01-07 fix some printf casts
+- 2008-01-07 safe_accept, safe_connect, safe_evtimer_add
+- 2008-01-07 todo update
+- 2008-01-07 use autoconfed settings for test code
+- 2008-01-07 more debugging for asynctest
+- 2008-01-07 draft throttling implementation
+- 2008-01-08 return correct value
+- 2008-01-08 move usec_t to system.h
+- 2008-01-08 asynctest: more features
+- 2008-01-08 less scary -R: move takever before fork
+- 2008-01-08 asynctest: small cleanup
+- 2008-01-08 update scary-R todo
+- 2008-01-08 remove unnecessary label
+- 2008-01-09 move shutdown after fork(), detect old bouncer
+- 2008-01-09 todo update
+- 2008-01-09 suspend_timeout, to force suspend
+- 2007-12-20 todo update: new states
+- 2007-12-10 update todo list
+- 2007-12-11 check if linker supports --as-needed
+- 2007-12-11 helper macro for notice pkt
+- 2007-12-11 avoid duplicate error msg packet from console
+- 2007-12-11 fake some SHOW/SET parameters to let psycopg connect to console
+- 2007-12-12 remove generated manpages from cvs, they are annoying
+- 2007-12-12 verbose asm hack
+- 2007-12-19 remove direct sparse usage, rather use cgcc
+- 2007-12-19 partial support for builddir != srcdir
+- 2007-12-04 log connection age on disconnect
+- 2007-12-05 seems Wextra does not turn on all warnings
+- 2007-12-06 log more details about fd usage
+- 2007-12-06 support sending log to syslog
+- 2007-12-06 debug noise to show struct sizes
+- 2007-12-06 new features to SBuf
+- 2007-12-06 int/ptr hash function
+- 2007-11-20 param value can be NULL during restart from 1.0.8
+- 2007-11-21 separate disconnects from each other to avoid reconnect flood
+- 2007-11-21 add faq, some cleanups
+- 2007-11-21 hash: remove the silly optimization, its better to keep code clean
+- 2007-11-23 add !=0 to strcmp()
+- 2007-11-23 system.h improvements
+- 2007-11-23 hash.c: use system.h
+- 2007-11-23 avoid use of strncpy()
+- 2007-11-24 fix from -stable: if client has params but server not, re-SET
+- 2007-11-26 allow strcmp() and memcpy() be macros
+- 2007-11-19 remove unnecessary fill_*_addr logging
+- 2007-11-01 simple version of jenkins hash
+- 2007-11-01 move include files to separate dir
+- 2007-11-01 use standard int types
+- 2007-11-02 md5.c: sync with endianess changes made in pgsql tree
+- 2007-11-05 comment cleanup, use original macro names
+- 2007-11-08 jenkins hash: optimize last memcpy
+- 2007-10-31 use unlikely() in debug macros
+- 2007-10-20 tag cvs tree as 1.2.cvs
+- 2007-10-20 common object allocator
+- 2007-10-20 fix some typos
+- 2007-10-26 fix signedness warnings in code
+- 2007-10-26 slab allocator improvements
+- 2007-10-26 simpler warning args
+- 2007-10-15 forgot to put fixman.py into tgz
+- 2007-10-15 bump ver to 1.1.1
+- 2007-10-18 Make sure server->vars is always initialized.
+- 2007-10-18 sanity check before trying to set parameters
+- 2007-10-19 New tools: AA-tree and Jenkins hash.
+- 2007-10-19 Replace the array hack for user lookup with tree
+- 2007-10-03 more todo
+- 2007-10-03 pool_size doc
+- 2007-10-03 more testing
+- 2007-10-08 test for endianess in configure
+- 2007-10-08 doc updates
+- 2007-10-08 switch to toggle between LIFO and round-robin
+- 2007-10-08 expand a comment
+- 2007-10-08 Show local address in SHOW CLIENTS/SERVERS/SOCKETS;
+- 2007-10-08 revert back to old doc names
+- 2007-10-08 rename docs in dist target also
+- 2007-10-09 more doc update
+- 2007-10-09 update NEWS for 1.1
+- 2007-10-09 include tests in final tgz
+- 2007-10-09 Add init.d script to debian package.
+- 2007-10-09 Disable init.d script, add as example.
+- 2007-09-11 dont load users if auth_type=any
+- 2007-09-11 tag server dirty if changing vars
+- 2007-09-11 log disconnections on INFO level if requested
+- 2007-09-12 fix check for authfile changes
+- 2007-09-12 larger SMALL_PKT
+- 2007-09-12 proper login log
+- 2007-09-12 remove too paranoid fd cleanup
+- 2007-09-06 doc updates
+- 2007-09-06 rename disable_varcache to track_parameters
+- 2007-09-06 long-lived logfile fd
+- 2007-09-07 older asciidoc prints ver into stderr
+- 2007-09-07 remove track_parameters knob, no good usage scenario
+- 2007-09-07 mention loglived logfd
+- 2007-09-07 new libevent wants clock_gettime() in -lrt
+- 2007-09-07 code still tried to close fd, fix and clean up
+- 2007-09-07 dont close logfile on first load
+- 2007-09-07 hack to use [,] in regex
+- 2007-09-07 todo update
+- 2007-08-31 small cleanups
+- 2007-08-27 asciidoc manpages from Dimitri Fontaine.
+- 2007-08-27 add timezone to db parms
+- 2007-08-28 doc update
+- 2007-08-28 more doc updates
+- 2007-08-28 Change some defaults:
+- 2007-08-11 comment out the recv() avoidance logic
+- 2007-08-11 more robust quote_literal()
+- 2007-08-12 add server vars to SHOW FDS, relax result parsing
+- 2007-08-12 list.h: remove max_count as it was unused, disable list name tracking
+- 2007-08-12 varcache: remove overwrite arg, some logging cleanup
+- 2007-08-12 wrap check order in quote_literal
+- 2007-08-12 disable users before loading.
+- 2007-08-13 tabify functions, remove unnecessary and buggy memset
+- 2007-08-13 Magic number and error message cleanup.
+- 2007-08-13 More magic cleanup, found even couple potential bugs.
+- 2007-08-15 big pkt code reorg.
+- 2007-08-15 target HEAD as 1.1, update NEWS
+- 2007-08-15 hack targets: asm, pg
+- 2007-08-15 todo for 1.1
+- 2007-08-15 todo for 1.0.9
+- 2007-08-16 correct check in incomplete_pkt()
+- 2007-08-16 make fatal_perror() really fatal
+- 2007-08-16 no need to use disconnect_client() as disconnect_server also notifies client
+- 2007-08-16 fix comments
+- 2007-08-16 server->setting_vars should be checked in SBUF_EV_FLUSH instead
+- 2007-08-17 dont Assert() on query_start=0
+- 2007-08-17 -q switch to turn off stdout usage
+- 2007-08-01 use memchr() in mbuf_get_string
+- 2007-08-01 replace remaining log_* calls with slog_* where appropriate
+- 2007-08-01 log fd limits on startup
+- 2007-08-01 remove if() before Assert(), some comment tuning
+- 2007-08-01 dont force --enable-debug to be -O1
+- 2007-08-01 When suspending, try to hit packet boundary ASAP
+- 2007-08-01 update docs with current status
+- 2007-08-01 server_reset_query
+- 2007-08-01 small stuff
+- 2007-08-01 cancel of pause/resume, dont drop idle clients
+- 2007-08-02 avoid recv() if buffer has data
+- 2007-08-02 Server parameter tracking.
+- 2007-08-03 add varcache.c to makefile also
+- 2007-08-03 correct quoting for SET values
+- 2007-08-04 kick client if startup pkt contains unknown params
+- 2007-08-04 use goto instead break because of 2 loops
+- 2007-07-23 Fix sloppy english in the comments.
+- 2007-06-29 comment typo
+- 2007-06-29 connstr enhanchements
+- 2007-06-13 simplify console command parsing
+- 2007-06-13 pause/resume specific database
+- 2007-06-18 update todo list
+- 2007-06-18 version 1.0.8
+- 2007-06-18 forgot to update configure
+- 2007-06-18 remove internal hacks from debian/packages
+- 2007-05-23 cancel pkt handler forgot to set pool, thus crashed later
+- 2007-05-07 disable expensive in-list assert check
+- 2007-04-25 update todo list
+- 2007-04-11 more brutal testing
+- 2007-04-11 version 1.0.3
+- 2007-04-11 Version 1.0.4
+- 2007-04-11 version 1.0.5  -  "enough for today"
+- 2007-04-11 on FreeBSD (some others too) the ucred.h has sys/param.h as prereq
+- 2007-04-12 maintenance func needs always evtimer_add
+- 2007-04-12 version 1.0.6
+- 2007-04-13 strlist_contains should loop on failed compare, not exit
+- 2007-04-13 remote bloat from strlcat
+- 2007-04-13 Standardise UNIX socket UID lookup to getpeeruid()
+- 2007-04-18 Move OS compat functions to src/system.c to keep the ifdef mess separately.
+- 2007-04-18 dont flush error and notice packets, as there may be several of them
+- 2007-04-18 dont call proto if must-flush packet is pending
+- 2007-04-18 src/sbuf.c
+- 2007-04-19 Remove concept of 'flushing' from code as bouncer does not actively buffer anything.
+- 2007-04-19 ver 1.0.7
+- 2007-03-28 ver 1.0.2 - fix 2 corner-case bugs
+- 2007-03-28 let DBGVER depend on --enable-debug
+- 2007-03-28 Rename sbuf_has_no_state() to sbuf_is_empty()
+- 2007-03-28 remove old todo item
+- 2007-03-13 Initial revision
+- 2007-03-14 Couple hotfixes.
+- 2007-03-14 SHOW POOLS displays how long clients have waited
+- 2007-03-14 fix bug where socket could stall
+- 2007-03-14 version 1.0.1
+- 2007-03-15 couple more bugs survived
+- 2007-03-15 allow SELECT in place of SHOW
+- 2007-03-15 immidiate suspend of logged in clients should be done bit differently
+- 2007-03-15 update relnotes
+

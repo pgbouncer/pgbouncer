@@ -1,3 +1,6 @@
+2022.5.3
+- 2022-05-20 DB-1926: Do not build in package script
+
 2022.5.0
 - 2022-05-11 Add documentation for configuring pool_mode per user
 - 2022-05-16 Serialize statistic values of uint8 type to pg protocol int8 type

@@ -10,8 +10,6 @@ VERSION=$(git describe --tags --always --dirty="-dev")
 
 mkdir -p ./root/usr/bin
 
-make build
-
 fpm -t deb \
   --deb-user root \
   --deb-group root \

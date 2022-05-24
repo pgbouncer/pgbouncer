@@ -9,8 +9,9 @@ NAME="cf-pgbouncer"
 VERSION=$(git describe --tags --always --dirty="-dev")
 
 # Put compiled binary in target folder that will be packaged up.
-mkdir -p ./root/usr/bin
-cp ./pgbouncer ./root/usr/bin
+mkdir -p ./root/usr/local/bin
+mv ./pgbouncer ./cf-pgbouncer
+cp ./cf-pgbouncer ./root/usr/local/bin
 
 # This folder will contain the packaged .deb file
 mkdir artifacts
@@ -26,7 +27,7 @@ fpm -t deb \
   -n "$NAME" \
   -v "$VERSION" \
   -C ./root \
-  --package ./artifacts/pgbouncer.deb \
+  --package ./artifacts/cf-pgbouncer.deb \
   .
 
 rm -rf ./root

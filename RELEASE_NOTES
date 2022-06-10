@@ -1,3 +1,8 @@
+2022.6.0
+- 2022-06-09 DB-1785: Prevent creating cyclic user list upon user insertion
+- 2022-05-24 DB-1926: Match package binary path with package name
+- 2022-05-24 Release 2022.5.5
+
 2022.5.5
 - 2022-05-24 DB-1926: Match package binary path with package name
 

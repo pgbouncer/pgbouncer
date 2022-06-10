@@ -401,6 +401,10 @@ PgUser *find_original_user(PgUser *login_user)
 
 	/* add new login user to reload their configurations at runtime */
 	if (original_user == NULL) {
+		/* remove any existing links to other users to prevent creating list cycles */
+		list_init(&login_user->head);
+		list_init(&login_user->pool_list);
+
 		put_in_order(&login_user->head, &user_list, cmp_user);
 		aatree_insert(&user_tree, (uintptr_t)login_user->name, &login_user->tree_node);
 		return login_user;

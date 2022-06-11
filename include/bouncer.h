@@ -319,8 +319,6 @@ struct PgPoolEvent {
 /*
  * A user in login db.
  *
- * FIXME: remove ->head as ->tree_node should be enough.
- *
  * For databases where remote user is forced, the pool is:
  * first(db->forced_user->pool_list), where pool_list has only one entry.
  *
@@ -328,7 +326,6 @@ struct PgPoolEvent {
  * which user has logged in.
  */
 struct PgUser {
-	struct List head;		/* used to attach user to list */
 	struct List pool_list;		/* list of pools where pool->user == this user */
 	struct AANode tree_node;	/* used to attach user to tree */
 	char name[MAX_USERNAME];

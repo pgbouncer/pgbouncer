@@ -659,15 +659,14 @@ bool loader_users_check(void)
 	return load_auth_file(cf_auth_file);
 }
 
+static void disable_user_cb(void *arg, PgUser *user)
+{
+	user->passwd[0] = 0;
+}
+
 static void disable_users(void)
 {
-	PgUser *user;
-	struct List *item;
-
-	statlist_for_each(item, &user_list) {
-		user = container_of(item, PgUser, head);
-		user->passwd[0] = 0;
-	}
+	walk_users(disable_user_cb, NULL);
 }
 
 /* load list of users from auth_file */

@@ -16,7 +16,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-extern struct StatList user_list;
 extern struct AATree user_tree;
 extern struct StatList pool_list;
 extern struct StatList database_list;
@@ -53,6 +52,15 @@ PgUser * add_db_user(PgDatabase *db, const char *name, const char *passwd) _MUST
 PgUser * force_user(PgDatabase *db, const char *username, const char *passwd) _MUSTCHECK;
 
 PgUser * add_pam_user(const char *name, const char *passwd) _MUSTCHECK;
+
+typedef void (*walk_user_f)(void *arg, PgUser *user);
+void walk_users(walk_user_f cb, void *arg);
+
+struct UserWalkInfo {
+	walk_user_f user_cb;
+
+	void *arg;
+};
 
 void accept_cancel_request(PgSocket *req);
 void forward_cancel_request(PgSocket *server);

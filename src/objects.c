@@ -28,7 +28,6 @@
 #include <usual/slab.h>
 
 /* those items will be allocated as needed, never freed */
-STATLIST(user_list);
 STATLIST(database_list);
 STATLIST(pool_list);
 
@@ -287,14 +286,6 @@ static int cmp_pool(struct List *i1, struct List *i2)
 	return 0;
 }
 
-/* compare user names, for use with put_in_order */
-static int cmp_user(struct List *i1, struct List *i2)
-{
-	PgUser *u1 = container_of(i1, PgUser, head);
-	PgUser *u2 = container_of(i2, PgUser, head);
-	return strcmp(u1->name, u2->name);
-}
-
 /* compare db names, for use with put_in_order */
 static int cmp_database(struct List *i1, struct List *i2)
 {
@@ -375,10 +366,8 @@ PgUser *add_user(const char *name, const char *passwd)
 		if (!user)
 			return NULL;
 
-		list_init(&user->head);
 		list_init(&user->pool_list);
 		safe_strcpy(user->name, name, sizeof(user->name));
-		put_in_order(&user->head, &user_list, cmp_user);
 
 		aatree_insert(&user_tree, (uintptr_t)user->name, &user->tree_node);
 		user->pool_mode = POOL_INHERIT;
@@ -401,11 +390,15 @@ PgUser *find_original_user(PgUser *login_user)
 
 	/* add new login user to reload their configurations at runtime */
 	if (original_user == NULL) {
-		/* remove any existing links to other users to prevent creating list cycles */
-		list_init(&login_user->head);
-		list_init(&login_user->pool_list);
+		log_info("find_original_user");
+		log_info("find_original_user: >>>>>>>> INSERTED NEW USER INTO user_tree '%s'", login_user->name);
+		log_info(
+				"::::: user->name: %s\n::::: user->passwd: %s\n::::: user->is_preconfigured: %d\n::::: user->address: %p\n",
+				login_user->name,
+				login_user->passwd,
+				login_user->is_preconfigured,
+				((void *)login_user) != NULL ? (void *)login_user : "null");
 
-		put_in_order(&login_user->head, &user_list, cmp_user);
 		aatree_insert(&user_tree, (uintptr_t)login_user->name, &login_user->tree_node);
 		return login_user;
 	}
@@ -434,8 +427,6 @@ PgUser *add_db_user(PgDatabase *db, const char *name, const char *passwd)
 		user = slab_alloc(user_cache);
 		if (!user)
 			return NULL;
-
-		list_init(&user->head);
 		list_init(&user->pool_list);
 		safe_strcpy(user->name, name, sizeof(user->name));
 
@@ -459,8 +450,6 @@ PgUser *add_pam_user(const char *name, const char *passwd)
 		user = slab_alloc(user_cache);
 		if (!user)
 			return NULL;
-
-		list_init(&user->head);
 		list_init(&user->pool_list);
 		safe_strcpy(user->name, name, sizeof(user->name));
 
@@ -480,7 +469,6 @@ PgUser *force_user(PgDatabase *db, const char *name, const char *passwd)
 		user = slab_alloc(user_cache);
 		if (!user)
 			return NULL;
-		list_init(&user->head);
 		list_init(&user->pool_list);
 		user->pool_mode = POOL_INHERIT;
 	}
@@ -522,6 +510,22 @@ PgUser *find_user(const char *name)
 	node = aatree_search(&user_tree, (uintptr_t)name);
 	user = node ? container_of(node, PgUser, tree_node) : NULL;
 	return user;
+}
+
+static void walk_user(struct AANode *n, void *arg)
+{
+	struct UserWalkInfo *w = arg;
+	struct PgUser *user = container_of(n, struct PgUser, tree_node);
+
+	w->user_cb(w->arg, user);
+}
+
+void walk_users(walk_user_f cb, void *arg)
+{
+	struct UserWalkInfo w;
+	w.user_cb = cb;
+	w.arg = arg;
+	aatree_walk(&user_tree, AA_WALK_IN_ORDER, walk_user, &w);
 }
 
 /* create new pool object */
@@ -2000,7 +2004,6 @@ void objects_cleanup(void)
 	}
 
 	memset(&login_client_list, 0, sizeof login_client_list);
-	memset(&user_list, 0, sizeof user_list);
 	memset(&database_list, 0, sizeof database_list);
 	memset(&pool_list, 0, sizeof pool_list);
 	memset(&user_tree, 0, sizeof user_tree);

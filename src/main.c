@@ -686,7 +686,7 @@ static void write_pidfile(void)
 static void check_limits(void)
 {
 	struct rlimit lim;
-	int total_users = statlist_count(&user_list);
+	int total_users = user_tree.count;
 	int fd_count;
 	int err;
 	struct List *item;

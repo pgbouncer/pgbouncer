@@ -557,7 +557,7 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 	pktbuf_write_RowDescription(buf, "si", "list", "items");
 #define SENDLIST(name, size) pktbuf_write_DataRow(buf, "si", (name), (size))
 	SENDLIST("databases", statlist_count(&database_list));
-	SENDLIST("users", statlist_count(&user_list));
+	SENDLIST("users", user_tree.count);
 	SENDLIST("pools", statlist_count(&pool_list));
 	SENDLIST("free_clients", slab_free_count(client_cache));
 	SENDLIST("used_clients", slab_active_count(client_cache));
@@ -576,31 +576,31 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 	return true;
 }
 
+static void show_user_cb(void *arg, PgUser *user) {
+	PktBuf *buf = (PktBuf *) arg;
+	struct CfValue cv;
+	const char *pool_mode_str = NULL;
+
+	cv.extra = pool_mode_map;
+	cv.value_p = &user->pool_mode;
+	if (user->pool_mode != POOL_INHERIT)
+		pool_mode_str = cf_get_lookup(&cv);
+
+	pktbuf_write_DataRow(buf, "ssi", user->name, pool_mode_str, user_max_connections(user));
+}
+
 /* Command: SHOW USERS */
 static bool admin_show_users(PgSocket *admin, const char *arg)
 {
-	PgUser *user;
-	struct List *item;
 	PktBuf *buf = pktbuf_dynamic(256);
-	struct CfValue cv;
-	const char *pool_mode_str;
-
 	if (!buf) {
 		admin_error(admin, "no mem");
 		return true;
 	}
-	cv.extra = pool_mode_map;
 
 	pktbuf_write_RowDescription(buf, "ssi", "name", "pool_mode", "max_user_connections");
-	statlist_for_each(item, &user_list) {
-		user = container_of(item, PgUser, head);
-		pool_mode_str = NULL;
-		cv.value_p = &user->pool_mode;
-		if (user->pool_mode != POOL_INHERIT)
-			pool_mode_str = cf_get_lookup(&cv);
+	walk_users(show_user_cb, buf);
 
-		pktbuf_write_DataRow(buf, "ssi", user->name, pool_mode_str, user_max_connections(user));
-	}
 	admin_flush(admin, buf, "SHOW");
 	return true;
 }

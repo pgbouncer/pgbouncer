@@ -1031,7 +1031,9 @@ static void dns_callback(void *arg, const struct sockaddr *sa, int salen)
 	} else if (sa->sa_family == AF_INET) {
 		char buf[64];
 		memcpy(&sa_in, sa, sizeof(sa_in));
-		sa_in.sin_port = htons(db->port);
+		if (sa_in.sin_port == 0) {
+			sa_in.sin_port = htons(db->port);
+		}
 		sa = (struct sockaddr *)&sa_in;
 		salen = sizeof(sa_in);
 		slog_debug(server, "dns_callback: inet4: %s",
@@ -1039,7 +1041,9 @@ static void dns_callback(void *arg, const struct sockaddr *sa, int salen)
 	} else if (sa->sa_family == AF_INET6) {
 		char buf[64];
 		memcpy(&sa_in6, sa, sizeof(sa_in6));
-		sa_in6.sin6_port = htons(db->port);
+		if (sa_in6.sin6_port == 0) {
+			sa_in6.sin6_port = htons(db->port);
+		}
 		sa = (struct sockaddr *)&sa_in6;
 		salen = sizeof(sa_in6);
 		slog_debug(server, "dns_callback: inet6: %s",

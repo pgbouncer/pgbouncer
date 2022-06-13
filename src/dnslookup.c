@@ -761,6 +761,8 @@ struct XaresMeta {
 	   timer may need recalibration. */
 	bool got_events;
 
+	/* If an SRV record was succesfully retrieved, store its port here. */
+	int srv_port;
 };
 
 const char *adns_get_backend(void)
@@ -871,15 +873,35 @@ re_set:
 	return;
 }
 
+static void addrinfo_set_port_from_srv(struct addrinfo *ai, int port)
+{
+	struct addrinfo *cur = ai;
+	while (cur) {
+		if (cur->ai_family == AF_INET) {
+			struct sockaddr_in *sin = (struct sockaddr_in *)(cur->ai_addr);
+			sin->sin_port = htons(port);
+		} else if (cur->ai_family == AF_INET6) {
+			struct sockaddr_in6 *sin = (struct sockaddr_in6 *)(cur->ai_addr);
+			sin->sin6_port = htons(port);
+		}
+		cur = cur->ai_next;
+	}
+}
+
 /* called by c-ares on dns reply */
 static void xares_host_cb(void *arg, int status, int timeouts, struct hostent *h)
 {
 	struct DNSRequest *req = arg;
+	struct XaresMeta *meta = req->ctx->edns;
 	struct addrinfo *res = NULL;
 
 	log_noise("dns: xares_host_cb(%s)=%s", req->name, ares_strerror(status));
 	if (status == ARES_SUCCESS) {
 		res = convert_hostent(h);
+		if (meta->srv_port) {
+			addrinfo_set_port_from_srv(res, meta->srv_port);
+		}
+
 		got_result_gai(0, res, req);
 	} else {
 		log_debug("DNS lookup failed: %s - %s", req->name, ares_strerror(status));
@@ -887,8 +909,7 @@ static void xares_host_cb(void *arg, int status, int timeouts, struct hostent *h
 	}
 }
 
-/* send hostname query */
-static void impl_launch_query(struct DNSRequest *req)
+static void xares_launch_host_query(struct DNSRequest *req)
 {
 	struct XaresMeta *meta = req->ctx->edns;
 	int af;
@@ -907,10 +928,56 @@ static void impl_launch_query(struct DNSRequest *req)
 #else
 	af = AF_UNSPEC;
 #endif
+
 	log_noise("dns: ares_gethostbyname(%s)", req->name);
 	ares_gethostbyname(meta->chan, req->name, af, xares_host_cb, req);
-
 	meta->got_events = true;
+}
+
+static void xares_srv_cb(void *arg, int status, int timeouts,
+			  unsigned char *abuf, int alen)
+{
+	struct DNSRequest *req = arg;
+	struct XaresMeta *meta = req->ctx->edns;
+	struct ares_srv_reply *srv = NULL;
+
+	log_noise("ares SRV result: %s", ares_strerror(status));
+	if (status == ARES_SUCCESS) {
+		status = ares_parse_srv_reply(abuf, alen, &srv);
+	}
+	if (status == ARES_SUCCESS && srv) {
+		log_noise("ares SRV result using port %d", srv->port);
+		/* Maybe in the future go though the list and pick the highest
+		 * priority. Currently, use the first record. */
+		meta->srv_port = srv->port;
+		free(req->name);
+		req->name = strdup(srv->host);
+		ares_free_data(srv);
+	}
+
+	xares_launch_host_query(req);
+}
+
+/* send hostname query */
+static void impl_launch_query(struct DNSRequest *req)
+{
+	struct XaresMeta *meta = req->ctx->edns;
+	char full_hostname[256] = {0};
+	size_t host_len;
+
+	host_len = snprintf(full_hostname, sizeof(full_hostname),
+			    "_postgres._tcp.%s", req->name);
+	if (host_len >= sizeof(full_hostname))
+		goto too_long;
+	log_debug("dns: ares query SRV(%s)", full_hostname);
+	ares_search(meta->chan, full_hostname, ns_c_in, ns_t_srv,
+		    xares_srv_cb, req);
+	meta->got_events = true;
+	return;
+
+too_long:
+	log_warning("dns: SRV address too long, skipping");
+	xares_launch_host_query(req);
 }
 
 /* re-set timer if any dns event happened */

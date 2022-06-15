@@ -364,7 +364,7 @@ user
 :   User name.
 
 cl_active
-:   Client connections that are linked to server connection and can process queries.
+:   Client connections that are either linked to server connections or are idle with no queries waiting to be processed.
 
 cl_waiting
 :   Client connections that have sent queries but have not yet got a server connection.

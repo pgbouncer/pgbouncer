@@ -200,7 +200,8 @@ total_query_time
     connected to PostgreSQL, executing queries.
 
 total_wait_time
-:   Time spent by clients waiting for a server, in microseconds.
+:   Time spent by clients waiting for a server, in microseconds. Updated
+    when a client connection is assigned a backend connection.
 
 avg_xact_count
 :   Average transactions per second in last stat period.
@@ -221,8 +222,9 @@ avg_query_time
 :   Average query duration, in microseconds.
 
 avg_wait_time
-:   Time spent by clients waiting for a server, in microseconds (average
-    per second).
+:   Average time spent by clients waiting for a server that were assigned a
+    backend connection within the current `stats_period`, in microseconds
+    (averaged per second within that period).
 
 #### SHOW STATS_TOTALS
 

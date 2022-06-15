@@ -271,10 +271,10 @@ request_time
 :   When last request was issued.
 
 wait
-:   Current waiting time in seconds.
+:   Not used for server connections.
 
 wait_us
-:   Microsecond part of the current waiting time.
+:   Not used for server connections.
 
 close_needed
 :   1 if the connection will be closed as soon as possible,

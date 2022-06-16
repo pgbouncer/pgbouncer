@@ -384,7 +384,7 @@ static PgUser *get_preconfigured_user(const char *name)
 		return NULL;
 	}
 
-	user->is_preconfigured = true;
+	user->is_dead = true;
 	return user;
 }
 

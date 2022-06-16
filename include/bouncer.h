@@ -334,7 +334,7 @@ struct PgUser {
 	uint8_t scram_ServerKey[32];
 	bool has_scram_keys;		/* true if the above two are valid */
 	bool mock_auth;			/* not a real user, only for mock auth */
-	bool is_preconfigured;		/* true if user is created from pre-configuration parsing */
+	bool is_dead;			/* true if user is created from pre-configuration parsing */
 	int pool_mode;
 	int max_user_connections;	/* how much server connections are allowed */
 	int connection_count;	/* how much connections are used by user now */
@@ -385,8 +385,6 @@ struct PgDatabase {
 	usec_t inactive_time;	/* when auto-database became inactive (to kill it after timeout) */
 	unsigned active_stamp;	/* set if autodb has connections */
 	int connection_count;	/* total connections for this database in all pools */
-
-	struct AATree user_tree;	/* users that have been queried on this database */
 };
 
 

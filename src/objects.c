@@ -107,13 +107,6 @@ static int user_node_cmp(uintptr_t userptr, struct AANode *node)
 	return strcmp(name, user->name);
 }
 
-/* destroy PgUser, for usage with btree */
-static void user_node_release(struct AANode *node, void *arg)
-{
-	PgUser *user = container_of(node, PgUser, tree_node);
-	slab_free(user_cache, user);
-}
-
 /* initialization before config loading */
 void init_objects(void)
 {
@@ -330,7 +323,6 @@ PgDatabase *add_database(const char *name)
 			slab_free(db_cache, db);
 			return NULL;
 		}
-		aatree_init(&db->user_tree, user_node_cmp, user_node_release);
 		put_in_order(&db->head, &database_list, cmp_database);
 	}
 
@@ -370,67 +362,6 @@ PgUser *add_user(const char *name, const char *passwd)
 		safe_strcpy(user->name, name, sizeof(user->name));
 
 		aatree_insert(&user_tree, (uintptr_t)user->name, &user->tree_node);
-		user->pool_mode = POOL_INHERIT;
-	}
-	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
-	return user;
-}
-
-/* find original or preconfigured user given the login user */
-PgUser *find_original_user(PgUser *login_user)
-{
-	/*
-	 * The original user will either be the current login user, a preconfigured user via
-	 * ini file [users] section, a preconfigured user via global auth_file, a PAM user,
-	 * a user attached to a database via auth_query, a forced user with user= entry via
-	 * ini file [databases] section, or not exist yet if the user has never connected.
-	 */
-	PgUser *original_user = find_user(login_user->name);
-	char *tmp_passwd;
-
-	/* add new login user to reload their configurations at runtime */
-	if (original_user == NULL) {
-		log_info("find_original_user");
-		log_info("find_original_user: >>>>>>>> INSERTED NEW USER INTO user_tree '%s'", login_user->name);
-		log_info(
-				"::::: user->name: %s\n::::: user->passwd: %s\n::::: user->is_preconfigured: %d\n::::: user->address: %p\n",
-				login_user->name,
-				login_user->passwd,
-				login_user->is_preconfigured,
-				((void *)login_user) != NULL ? (void *)login_user : "null");
-
-		aatree_insert(&user_tree, (uintptr_t)login_user->name, &login_user->tree_node);
-		return login_user;
-	}
-
-	/* original user is no longer preconfigured and won't send auth queries on future login */
-	if (original_user->is_preconfigured)
-		original_user->is_preconfigured = false;
-
-	tmp_passwd = strdup(login_user->passwd);
-	safe_strcpy(original_user->passwd, tmp_passwd, sizeof(original_user->passwd));
-	free(tmp_passwd);
-
-	return original_user;
-}
-
-/* add or update db users */
-PgUser *add_db_user(PgDatabase *db, const char *name, const char *passwd)
-{
-	PgUser *user = NULL;
-	struct AANode *node;
-
-	node = aatree_search(&db->user_tree, (uintptr_t)name);
-	user = node ? container_of(node, PgUser, tree_node) : NULL;
-
-	if (user == NULL) {
-		user = slab_alloc(user_cache);
-		if (!user)
-			return NULL;
-		list_init(&user->pool_list);
-		safe_strcpy(user->name, name, sizeof(user->name));
-
-		aatree_insert(&db->user_tree, (uintptr_t)user->name, &user->tree_node);
 		user->pool_mode = POOL_INHERIT;
 	}
 	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
@@ -1680,7 +1611,7 @@ bool use_client_socket(int fd, PgAddr *addr,
 		}
 		user = find_user(username);
 		if (!user && db->auth_user)
-			user = add_db_user(db, username, password);
+			user = add_user(username, password);
 
 		if (!user)
 			return false;
@@ -1747,7 +1678,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 		user = find_user(username);
 	}
 	if (!user && db->auth_user)
-		user = add_db_user(db, username, password);
+		user = add_user(username, password);
 
 	pool = get_pool(db, user);
 	if (!pool)

@@ -714,7 +714,6 @@ void kill_database(PgDatabase *db)
 	} else {
 		statlist_remove(&database_list, &db->head);
 	}
-	aatree_destroy(&db->user_tree);
 	slab_free(db_cache, db);
 }
 

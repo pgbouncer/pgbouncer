@@ -255,7 +255,7 @@ bool user_is_authenticated(PgUser *user)
 	/* authenticated users cannot be in a non-logged in or preconfigured state */
 	return cf_auth_type == AUTH_TRUST ||
 		   (cf_auth_user != NULL && strcmp(cf_auth_user, user->name) == 0) ||
-		   !user->is_preconfigured;
+		   !user->is_dead;
 }
 
 /* process packets on logged in connection */

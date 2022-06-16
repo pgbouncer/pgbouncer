@@ -1045,6 +1045,22 @@ test_enable_disable() {
 	return 0
 }
 
+test_database_kill() {
+	# login with user to any database
+	curuser=`psql -X -d "dbname=authdb user=shadowuser1 password=bar" -tAq -c "select current_user;"`
+	echo "curuser=$curuser"
+	test "$curuser" = "shadowuser1" || return 1
+
+	# datbase should be freed after 1 second of no use
+	admin "set autodb_idle_timeout=1"
+	sleep 2
+	# user should not be freed when its database is
+	admin "show users" | grep -F "shadowuser2" || return 1
+
+	admin "set autodb_idle_timeout=3600"
+	return 0
+}
+
 # test pool database restart
 test_database_restart() {
 	admin "set server_login_retry=1"
@@ -1736,6 +1752,7 @@ test_online_restart
 test_pause_resume
 test_suspend_resume
 test_enable_disable
+test_database_kill
 test_database_restart
 test_database_change
 test_reconnect

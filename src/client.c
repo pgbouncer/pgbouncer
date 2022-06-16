@@ -202,7 +202,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		if (client->db->forced_user)
 			pool_user = client->db->forced_user;
 		else
-			pool_user = find_original_user(client->login_user);
+			pool_user = client->login_user;
 
 		client->pool = get_pool(client->db, pool_user);
 		if (!client->pool) {
@@ -356,7 +356,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 					slog_debug(client, "not running auth_query because database is fake");
 				else {
 					if (takeover) {
-						client->login_user = add_db_user(client->db, username, password);
+						client->login_user = add_user(username, password);
 						return finish_set_pool(client, takeover);
 					}
 					start_auth_query(client, username);
@@ -438,11 +438,12 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
 			length = sizeof(user.passwd) - 1;
 		memcpy(user.passwd, password, length);
 
-		client->login_user = add_db_user(client->db, user.name, user.passwd);
+		client->login_user = add_user(user.name, user.passwd);
 		if (!client->login_user) {
 			disconnect_server(server, false, "unable to allocate new user for auth");
 			return false;
 		}
+		client->login_user->is_dead = false;
 		break;
 	case 'N':	/* NoticeResponse */
 		break;

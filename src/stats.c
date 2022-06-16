@@ -25,6 +25,7 @@ static void reset_stats(PgStats *stat)
 {
 	stat->server_bytes = 0;
 	stat->client_bytes = 0;
+	stat->backend_assignment_count = 0;
 	stat->query_count = 0;
 	stat->query_time = 0;
 	stat->xact_count = 0;
@@ -36,6 +37,7 @@ static void stat_add(PgStats *total, PgStats *stat)
 {
 	total->server_bytes += stat->server_bytes;
 	total->client_bytes += stat->client_bytes;
+	total->backend_assignment_count += stat->backend_assignment_count;
 	total->query_count += stat->query_count;
 	total->query_time += stat->query_time;
 	total->xact_count += stat->xact_count;
@@ -45,6 +47,7 @@ static void stat_add(PgStats *total, PgStats *stat)
 
 static void calc_average(PgStats *avg, PgStats *cur, PgStats *old)
 {
+	uint64_t backend_assignment_count;
 	uint64_t query_count;
 	uint64_t xact_count;
 
@@ -57,6 +60,7 @@ static void calc_average(PgStats *avg, PgStats *cur, PgStats *old)
 
 	query_count = cur->query_count - old->query_count;
 	xact_count = cur->xact_count - old->xact_count;
+	backend_assignment_count = cur->backend_assignment_count - old->backend_assignment_count;
 
 	avg->query_count = USEC * query_count / dur;
 	avg->xact_count = USEC * xact_count / dur;
@@ -70,7 +74,8 @@ static void calc_average(PgStats *avg, PgStats *cur, PgStats *old)
 	if (xact_count > 0)
 		avg->xact_time = (cur->xact_time - old->xact_time) / xact_count;
 
-	avg->wait_time = USEC * (cur->wait_time - old->wait_time) / dur;
+	if (backend_assignment_count > 0)
+		avg->wait_time = (cur->wait_time - old->wait_time) / backend_assignment_count;
 }
 
 static void write_stats(PktBuf *buf, PgStats *stat, PgStats *old, char *dbname)

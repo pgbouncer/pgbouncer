@@ -106,8 +106,10 @@ static bool send_client_authreq(PgSocket *client)
 		return false;
 	}
 
-	if (!res)
+	if (!res) {
+	    slog_debug(client, "No authentication response received");
 		disconnect_client(client, false, "failed to send auth req");
+	}
 	return res;
 }
 

@@ -110,7 +110,7 @@ static bool send_client_authreq(PgSocket *client)
 	    slog_noise(client, "No authentication response received");
 		disconnect_client(client, false, "failed to send auth req");
 	} else {
-		slog_noise(client, "Auth request sent successfully")
+		slog_noise(client, "Auth request sent successfully");
 	}
 	return res;
 }
@@ -808,7 +808,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 					return false;
 				if (scram_client_final(client, length, data)) {
 					/* save SCRAM keys for user */
-					if (!client->scram_state.adhoc) {
+					if (!client->scram_state.adhoc && !client->db->fake) {
 						memcpy(client->pool->user->scram_ClientKey,
 						       client->scram_state.ClientKey,
 						       sizeof(client->scram_state.ClientKey));

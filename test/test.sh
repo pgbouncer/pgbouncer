@@ -1272,6 +1272,17 @@ test_no_database_auth_user() {
 	return 0
 }
 
+test_no_database_md5_auth_success() {
+	# Testing what happens on successful md5 auth connection to non-existent DB
+	# Segfaults have been seen after mock authentication was put in place
+
+	admin "set auth_type='md5'"
+	PGPASSWORD=foo psql -X -U scramuser1 -d nosuchdb1 -c "select 1" && return 1
+	grep -F "no such database: nosuchdb1" $BOUNCER_LOG || return 1
+
+	return 0
+}
+
 test_cancel() {
 	case `uname` in MINGW*) return 77;; esac
 
@@ -1442,6 +1453,7 @@ test_auto_database
 test_no_database
 test_no_database_authfail
 test_no_database_auth_user
+test_no_database_md5_auth_success
 test_cancel
 test_cancel_wait
 test_cancel_pool_size

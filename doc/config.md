@@ -207,6 +207,9 @@ packets: `client_encoding`, `datestyle`, `timezone` and `standard_conforming_str
 All others parameters will raise an error.  To allow others parameters, they can be
 specified here, so that PgBouncer knows that they are handled by the admin and it can ignore them.
 
+If you need to specify multiple values, use a comma-separated list (e.g.
+`options,extra_float_digits`)
+
 Default: empty
 
 ### disable_pqexec

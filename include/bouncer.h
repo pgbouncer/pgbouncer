@@ -81,6 +81,12 @@ enum SSLMode {
 	SSLMODE_VERIFY_FULL
 };
 
+//enum ServerGSSEncMode {
+//        SERVER_GSSENCMODE_DISABLED,
+//        SERVER_GSSENCMODE_ENABLED,
+//        SERVER_GSSENCMODE_REQUIRE
+//};
+
 #define is_server_socket(sk) ((sk)->state >= SV_FREE)
 
 
@@ -409,6 +415,7 @@ struct PgSocket {
 	bool wait_for_response:1;/* console client: waits for completion of PAUSE/SUSPEND cmd */
 
 	bool wait_sslchar:1;	/* server: waiting for ssl response: S/N */
+	bool wait_gssencchar:1;	/* server: waiting for gss enc response: G/N */
 
 	int expect_rfq_count;	/* client: count of ReadyForQuery packets client should see */
 

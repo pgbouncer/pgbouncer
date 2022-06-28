@@ -104,6 +104,19 @@ static const SBufIO tls_sbufio_ops = {
 static void sbuf_tls_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
 #endif
 
+/* I/O over GSS Enc */
+//#ifdef USE_TLS
+static ssize_t gssenc_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len);
+static ssize_t gssenc_sbufio_send(struct SBuf *sbuf, const void *data, size_t len);
+static int gssenc_sbufio_close(struct SBuf *sbuf);
+static const SBufIO gssenc_sbufio_ops = {
+	gssenc_sbufio_recv,
+	gssenc_sbufio_send,
+	gssenc_sbufio_close
+};
+static void sbuf_gssenc_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
+//#endif
+
 /*********************************
  * Public functions
  *********************************/

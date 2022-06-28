@@ -462,6 +462,11 @@ static bool handle_connect(PgSocket *server)
 			res = send_sslreq_packet(server);
 			if (res)
 				server->wait_sslchar = true;
+                } else if (!is_unix) { // TODO: make it work like SSLMODE_ENABLED above
+			slog_noise(server, "P: GSSEnc request");
+			res = send_gssencreq_packet(server);
+			if (res)
+				server->wait_gssencchar = true;
 		} else {
 			slog_noise(server, "P: startup");
 			res = send_startup_packet(server);
@@ -497,7 +502,7 @@ static bool handle_sslchar(PgSocket *server, struct MBuf *data)
 
 	if (schar == 'S') {
 		slog_noise(server, "launching tls");
-		ok = sbuf_tls_connect(&server->sbuf, server->pool->db->host);
+		ok = sbuf_gssenc_connect(&server->sbuf, server->pool->db->host);
 	} else if (server_connect_sslmode >= SSLMODE_REQUIRE) {
 		disconnect_server(server, false, "server refused SSL");
 		return false;
@@ -510,6 +515,49 @@ static bool handle_sslchar(PgSocket *server, struct MBuf *data)
 		sbuf_prepare_skip(&server->sbuf, 1);
 	} else {
 		disconnect_server(server, false, "sslreq processing failed");
+	}
+	return ok;
+}
+
+static bool handle_gssencchar(PgSocket *server, struct MBuf *data)
+{
+	uint8_t gchar = '?';
+	bool ok;
+
+	server->wait_gssencchar = false;
+
+	ok = mbuf_get_byte(data, &gchar);
+	if (!ok || (gchar != 'G' && gchar != 'N')) {
+		disconnect_server(server, false, "bad gssencreq answer");
+		return false;
+	}
+	/*
+	 * At this point we should have no data already buffered.  If
+	 * we do, it was received before we performed the SSL
+	 * handshake, so it wasn't encrypted and indeed may have been
+	 * injected by a man-in-the-middle.
+	 */
+	if (mbuf_avail_for_read(data) != 0) {
+		disconnect_server(server, false, "received unencrypted data after GSSEnc response");
+		return false;
+	}
+
+	if (gchar == 'G') {
+		slog_noise(server, "launching gssenc");
+		ok = sbuf_tls_connect(&server->sbuf, server->pool->db->host);
+// TODO: allow refusal
+//	} else if (server_connect_sslmode >= GSSENCMODE_REQUIRE) {
+//		disconnect_server(server, false, "server refused GSSEnc");
+//		return false;
+	} else {
+		/* proceed with non-TLS connection */
+		ok = send_startup_packet(server);
+	}
+
+	if (ok) {
+		sbuf_prepare_skip(&server->sbuf, 1);
+	} else {
+		disconnect_server(server, false, "gssencreq processing failed");
 	}
 	return ok;
 }
@@ -540,6 +588,10 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 	case SBUF_EV_READ:
 		if (server->wait_sslchar) {
 			res = handle_sslchar(server, data);
+			break;
+		}
+		if (server->wait_gssencchar) {
+			res = handle_gssencchar(server, data);
 			break;
 		}
 		if (incomplete_header(data)) {

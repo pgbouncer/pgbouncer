@@ -166,6 +166,9 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	case CL_WAITING:
 		statlist_remove(&pool->waiting_client_list, &client->head);
 		break;
+	case CL_AUTH:
+		statlist_remove(&pool->auth_client_list, &client->head);
+		break;
 	case CL_ACTIVE:
 		statlist_remove(&pool->active_client_list, &client->head);
 		break;
@@ -194,6 +197,9 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	case CL_WAITING_LOGIN:
 		client->wait_start = get_cached_time();
 		statlist_append(&pool->waiting_client_list, &client->head);
+		break;
+	case CL_AUTH:
+		statlist_append(&pool->auth_client_list, &client->head);
 		break;
 	case CL_ACTIVE:
 		statlist_append(&pool->active_client_list, &client->head);
@@ -505,6 +511,7 @@ static PgPool *new_pool(PgDatabase *db, PgUser *user)
 	pool->user = user;
 	pool->db = db;
 
+	statlist_init(&pool->auth_client_list, "auth_client_list");
 	statlist_init(&pool->active_client_list, "active_client_list");
 	statlist_init(&pool->waiting_client_list, "waiting_client_list");
 	statlist_init(&pool->active_server_list, "active_server_list");
@@ -931,6 +938,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 
 	switch (client->state) {
 	case CL_ACTIVE:
+	case CL_AUTH:
 	case CL_LOGIN:
 		if (client->link) {
 			PgSocket *server = client->link;
@@ -1357,6 +1365,7 @@ bool finish_client_login(PgSocket *client)
 
 	switch (client->state) {
 	case CL_LOGIN:
+	case CL_AUTH:
 		change_client_state(client, CL_ACTIVE);
 	case CL_ACTIVE:
 		break;

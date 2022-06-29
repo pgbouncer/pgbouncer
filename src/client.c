@@ -264,6 +264,8 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	case AUTH_PAM:
 	case AUTH_SCRAM_SHA_256:
 		ok = send_client_authreq(client);
+		/* we are waiting for password packet - add to connection list, so pool is not removed */
+		change_client_state(client, CL_AUTH);
 		break;
 	case AUTH_CERT:
 		ok = login_via_cert(client);
@@ -1034,6 +1036,7 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		client->request_time = get_cached_time();
 		switch (client->state) {
 		case CL_LOGIN:
+		case CL_AUTH:
 			res = handle_client_startup(client, &pkt);
 			break;
 		case CL_ACTIVE:

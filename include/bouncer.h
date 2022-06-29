@@ -52,6 +52,7 @@ enum SocketState {
 	CL_FREE,		/* free_client_list */
 	CL_JUSTFREE,		/* justfree_client_list */
 	CL_LOGIN,		/* login_client_list */
+	CL_AUTH,		/* pool->auth_client_list */
 	CL_WAITING,		/* pool->waiting_client_list */
 	CL_WAITING_LOGIN,	/*   - but return to CL_LOGIN instead of CL_ACTIVE */
 	CL_ACTIVE,		/* pool->active_client_list */
@@ -260,6 +261,7 @@ struct PgPool {
 	PgDatabase *db;			/* corresponding database */
 	PgUser *user;			/* user logged in as */
 
+	struct StatList auth_client_list;	/* waiting events logged but not yet authenticated in clients */
 	struct StatList active_client_list;	/* waiting events logged in clients */
 	struct StatList waiting_client_list;	/* client waits for a server to be available */
 	struct StatList cancel_req_list;	/* closed client connections with server key */
@@ -302,6 +304,7 @@ struct PgPool {
 		statlist_count(&(pool)->new_server_list))
 
 #define pool_client_count(pool) ( \
+		statlist_count(&(pool)->auth_client_list) + \
 		statlist_count(&(pool)->active_client_list) + \
 		statlist_count(&(pool)->waiting_client_list))
 

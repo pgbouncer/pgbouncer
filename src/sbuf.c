@@ -49,6 +49,15 @@ enum TLSState {
 	SBUF_TLS_OK,
 };
 
+#ifdef HAVE_SERVER_GSSENC
+enum GSSEncState {
+        SBUF_GSSENC_NONE,
+        SBUF_GSSENC_INITIAL,
+        SBUF_GSSENC_CONTINUE,
+        SBUF_GSSENC_OK,
+};
+#endif
+
 enum WaitType {
 	W_NONE = 0,
 	W_CONNECT,
@@ -105,7 +114,7 @@ static void sbuf_tls_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
 #endif
 
 /* I/O over GSS Enc */
-//#ifdef USE_TLS
+#ifdef HAVE_SERVER_GSSENC
 static ssize_t gssenc_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len);
 static ssize_t gssenc_sbufio_send(struct SBuf *sbuf, const void *data, size_t len);
 static int gssenc_sbufio_close(struct SBuf *sbuf);
@@ -114,8 +123,8 @@ static const SBufIO gssenc_sbufio_ops = {
 	gssenc_sbufio_send,
 	gssenc_sbufio_close
 };
-static void sbuf_gssenc_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
-//#endif
+//static void sbuf_gssenc_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
+#endif
 
 /*********************************
  * Public functions
@@ -1283,4 +1292,221 @@ static bool handle_tls_handshake(SBuf *sbuf)
 	return false;
 }
 
+#endif
+
+/*
+ * Server GSS Encryption support.
+ */
+
+#ifdef HAVE_SERVER_GSSENC
+static int gssenc_sbufio_close(struct SBuf *sbuf)
+{
+	log_noise("gss_close");
+	if (sbuf->gss) {
+// TODO: free gss memory
+//		tls_close(sbuf->tls);
+//		tls_free(sbuf->tls);
+		sbuf->gss = NULL;
+	}
+	if (sbuf->sock > 0) {
+		safe_close(sbuf->sock);
+		sbuf->sock = 0;
+	}
+	return 0;
+}
+
+static ssize_t gssenc_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len)
+{
+	return 1;
+}
+static ssize_t gssenc_sbufio_send(struct SBuf *sbuf, const void *data, size_t len)
+{
+	return 1;
+}
+
+static void
+release_buffer(gss_buffer_t buf)
+{
+    free(buf->value);
+    buf->value = NULL;
+    buf->length = 0;
+}
+
+/*
+ * Helper to send a token on the specified file descriptor.
+ *
+ * If errors are encountered, this routine must not directly cause
+ * termination of the process because compliant GSS applications
+ * must release resources allocated by the GSS library before
+ * exiting.
+ *
+ * Returns 0 on success, nonzero on failure.
+ */
+static int
+send_token(int fd, gss_buffer_t token)
+{
+    /*
+     * Supply token framing and transmission code here.
+     *
+     * It is advisable for the application protocol to specify the
+     * length of the token being transmitted unless the underlying
+     * transit does so implicitly.
+     *
+     * In addition to checking for error returns from whichever
+     * syscall(s) are used to send data, applications should have
+     * a loop to handle EINTR returns.
+     */
+    return 1;
+}
+
+/*
+ * Helper to receive a token on the specified file descriptor.
+ *
+ * If errors are encountered, this routine must not directly cause
+ * termination of the process because compliant GSS applications
+ * must release resources allocated by the GSS library before
+ * exiting.
+ *
+ * Returns 0 on success, nonzero on failure.
+ */
+static int
+receive_token(int fd, gss_buffer_t token)
+{
+    /*
+     * Supply token framing and transmission code here.
+     *
+     * In addition to checking for error returns from whichever
+     * syscall(s) are used to receive data, applications should have
+     * a loop to handle EINTR returns.
+     *
+     * This routine is assumed to allocate memory for the local copy
+     * of the received token, which must be freed with release_buffer().
+     */
+    return 1;
+}
+
+/*
+ * Connect to remote GSS Enc host.
+ */
+
+bool sbuf_gssenc_connect(SBuf *sbuf, const char *hostname)
+{
+//    int err;
+    int initiator_established = 0, ret;
+    gss_ctx_id_t ctx = GSS_C_NO_CONTEXT;
+    OM_uint32 major, minor, req_flags, ret_flags;
+    gss_buffer_desc input_token = GSS_C_EMPTY_BUFFER;
+    gss_buffer_desc output_token = GSS_C_EMPTY_BUFFER;
+    gss_buffer_desc name_buf = GSS_C_EMPTY_BUFFER;
+    gss_name_t target_name = GSS_C_NO_NAME;
+
+    /* Applications should set target_name to a real value. */
+    name_buf.value = "postgres/kerberized-postgres@EXAMPLE.COM";
+    name_buf.length = strlen(name_buf.value);
+    major = gss_import_name(&minor, &name_buf,
+                            GSS_KRB5_NT_PRINCIPAL_NAME, &target_name);
+    if (GSS_ERROR(major)) {
+        log_noise("Could not import name\n");
+        return false;
+    }
+
+	if (!sbuf_pause(sbuf))
+		return false;
+
+//	if (cf_server_tls_sslmode != SSLMODE_VERIFY_FULL)
+//		hostname = NULL;
+
+//	ctls = tls_client();
+//	if (!ctls)
+//		return false;
+//	err = tls_configure(ctls, server_connect_conf);
+//	if (err < 0) {
+//		log_error("tls client config failed: %s", tls_error(ctls));
+//		tls_free(ctls);
+//		return false;
+//	}
+
+    /* Mutual authentication will require a token from acceptor to
+     * initiator and thus a second call to gss_init_sec_context(). */
+    req_flags = GSS_C_MUTUAL_FLAG | GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG;
+
+    while (!initiator_established) {
+        /* The initiator_cred_handle, mech_type, time_req,
+         * input_chan_bindings, actual_mech_type, and time_rec
+         * parameters are not needed in many cases.  We pass
+         * GSS_C_NO_CREDENTIAL, GSS_C_NO_OID, 0, NULL, NULL, and NULL
+         * for them, respectively. */
+        major = gss_init_sec_context(&minor, GSS_C_NO_CREDENTIAL, &ctx,
+                                     target_name, GSS_C_NO_OID,
+                                     req_flags, 0, NULL, &input_token,
+                                     NULL, &output_token, &ret_flags,
+                                     NULL);
+        /* This was allocated by receive_token() and is no longer
+         * needed.  Free it now to avoid leaks if the loop continues. */
+        release_buffer(&input_token);
+
+        /* Always send a token if we are expecting another input token
+         * (GSS_S_CONTINUE_NEEDED is set) or if it is nonempty. */
+        if ((major & GSS_S_CONTINUE_NEEDED) ||
+            output_token.length > 0) {
+            ret = send_token(sbuf->sock, &output_token);
+            if (ret != 0)
+                goto cleanup;
+        }
+        /* Check for errors after sending the token so that we will send
+         * error tokens. */
+        if (GSS_ERROR(major)) {
+            log_warning("gss_init_sec_context() error major 0x%x\n", major);
+            goto cleanup;
+        }
+        /* Free the output token's storage; we don't need it anymore.
+         * gss_release_buffer() is safe to call on the output buffer
+         * from gss_int_sec_context(), even if there is no storage
+         * associated with that buffer. */
+        (void)gss_release_buffer(&minor, &output_token);
+
+        if (major & GSS_S_CONTINUE_NEEDED) {
+            ret = receive_token(sbuf->sock, &input_token);
+            if (ret != 0)
+                goto cleanup;
+        } else if (major == GSS_S_COMPLETE) {
+            initiator_established = 1;
+        } else {
+            /* This situation is forbidden by RFC 2743.  Bail out. */
+            log_warning("major not complete or continue but not error\n");
+            goto cleanup;
+        }
+    }   /* while (!initiator_established) */
+    if ((ret_flags & req_flags) != req_flags) {
+        log_warning("Negotiated context does not support requested flags\n");
+        goto cleanup;
+    }
+    log_noise("Initiator's context negotiation successful\n");
+
+	sbuf->gss = ctx;
+//	sbuf->tls = ctls;
+//	sbuf->tls_host = hostname;
+	sbuf->ops = &gssenc_sbufio_ops;
+//	sbuf->ops = &tls_sbufio_ops;
+
+//	err = tls_connect_fds(sbuf->tls, sbuf->sock, sbuf->sock, sbuf->tls_host);
+//	if (err < 0) {
+//		log_warning("GSS connect error: %s", tls_error(sbuf->tls));
+//		return false;
+//	}
+
+	sbuf->gss_state = SBUF_GSSENC_INITIAL;
+	return true;
+
+cleanup:
+    /* We are required to release storage for nonzero-length output
+     * tokens.  gss_release_buffer() zeros the length, so we
+     * will not attempt to release the same buffer twice. */
+    if (output_token.length > 0)
+        (void)gss_release_buffer(&minor, &output_token);
+    /* Do not request a context deletion token; pass NULL. */
+    (void)gss_delete_sec_context(&minor, &ctx, NULL);
+    (void)gss_release_name(&minor, &target_name);
+    return true;
+}
 #endif

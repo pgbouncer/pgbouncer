@@ -93,6 +93,22 @@ if test "$with_systemd" = yes; then
   AC_SEARCH_LIBS(sd_notify, systemd)
 fi
 
+dnl Check for server GSSAPI Encryption support
+server_gssenc_support=no
+AC_ARG_WITH(server-gssenc,
+  AC_HELP_STRING([--with-server-gssenc], [build with server GSSAPI Encryption support]),
+  [ GSS=
+    if test "$withval" != no; then
+      # Look for GSSAPI header and lib
+      AC_CHECK_HEADERS(gssapi.h, [have_gss_header=y])
+      AC_SEARCH_LIBS(gss_accept_sec_context, [gssapi_krb5 gssapi], [have_libgss=t])
+      if test x"${have_gss_header}" != x -a x"${have_libgss}" != x; then
+        server_gssenc_support=yes
+        AC_DEFINE(HAVE_SERVER_GSSENC, 1, [Server GSSAPI Encryption support])
+      fi
+    fi
+  ], [])
+
 ##
 ## DNS backend
 ##
@@ -236,4 +252,5 @@ fi
 echo "  pam     = $pam_support"
 echo "  systemd = $with_systemd"
 echo "  tls     = $tls_support"
+echo "  servergssenc     = $server_gssenc_support"
 echo ""

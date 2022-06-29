@@ -73,6 +73,7 @@ struct SBuf {
 	uint8_t wait_type;	/* track wait state */
 	uint8_t pkt_action;	/* method for handling current pkt */
 	uint8_t tls_state;	/* progress of tls */
+	uint8_t gss_state;	/* progress of gss */
 
 	int sock;		/* fd for this socket */
 
@@ -84,8 +85,9 @@ struct SBuf {
 
 	IOBuf *io;		/* data buffer, lazily allocated */
 
-	const SBufIO *ops;	/* normal vs. TLS */
+	const SBufIO *ops;	/* normal vs. TLS vs. GSS */
 	struct tls *tls;	/* TLS context */
+	struct gss_ctx_id_struct *gss;
 	const char *tls_host;	/* target hostname */
 };
 
@@ -110,6 +112,7 @@ extern int client_accept_sslmode;
  */
 extern int server_connect_sslmode;
 
+bool sbuf_gssenc_connect(SBuf *sbuf, const char *hostname)  _MUSTCHECK;
 bool sbuf_tls_setup(void);
 bool sbuf_tls_accept(SBuf *sbuf)  _MUSTCHECK;
 bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)  _MUSTCHECK;

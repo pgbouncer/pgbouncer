@@ -544,7 +544,7 @@ static bool handle_gssencchar(PgSocket *server, struct MBuf *data)
 
 	if (gchar == 'G') {
 		slog_noise(server, "launching gssenc");
-		ok = sbuf_tls_connect(&server->sbuf, server->pool->db->host);
+		ok = sbuf_gssenc_connect(&server->sbuf, server->pool->db->host);
 // TODO: allow refusal
 //	} else if (server_connect_sslmode >= GSSENCMODE_REQUIRE) {
 //		disconnect_server(server, false, "server refused GSSEnc");

@@ -177,6 +177,8 @@ char *cf_client_tls_ciphers;
 char *cf_client_tls_dheparams;
 char *cf_client_tls_ecdhecurve;
 
+int cf_server_gssencmode;
+
 int cf_server_tls_sslmode;
 char *cf_server_tls_protocols;
 char *cf_server_tls_ca_file;
@@ -219,6 +221,14 @@ const struct CfLookup sslmode_map[] = {
 	{ "require", SSLMODE_REQUIRE },
 	{ "verify-ca", SSLMODE_VERIFY_CA },
 	{ "verify-full", SSLMODE_VERIFY_FULL },
+	{ NULL }
+};
+
+const struct CfLookup gssencmode_map[] = {
+	{ "disable", SERVER_GSSENCMODE_DISABLED },
+	{ "allow", SERVER_GSSENCMODE_ALLOW },
+	{ "prefer", SERVER_GSSENCMODE_PREFER },
+	{ "require", SERVER_GSSENCMODE_REQUIRE },
 	{ NULL }
 };
 
@@ -280,6 +290,7 @@ CF_ABS("server_check_query", CF_STR, cf_server_check_query, 0, "select 1"),
 CF_ABS("server_connect_timeout", CF_TIME_USEC, cf_server_connect_timeout, 0, "15"),
 CF_ABS("server_fast_close", CF_INT, cf_server_fast_close, 0, "0"),
 CF_ABS("server_idle_timeout", CF_TIME_USEC, cf_server_idle_timeout, 0, "600"),
+CF_ABS("server_gssencmode", CF_LOOKUP(gssencmode_map), cf_server_gssencmode, 0, "disable"),
 CF_ABS("server_lifetime", CF_TIME_USEC, cf_server_lifetime, 0, "3600"),
 CF_ABS("server_login_retry", CF_TIME_USEC, cf_server_login_retry, 0, "15"),
 CF_ABS("server_reset_query", CF_STR, cf_server_reset_query, 0, "DISCARD ALL"),

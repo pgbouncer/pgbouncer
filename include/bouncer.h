@@ -42,6 +42,13 @@
 #define sd_notifyf(ue, f, ...)
 #endif
 
+#ifdef HAVE_GSSAPI_H
+#include <gssapi/gssapi.h>
+#include <gssapi/gssapi_ext.h>
+#include <gssapi/gssapi_krb5.h>
+#endif
+
+
 
 /* global libevent handle */
 extern struct event_base *pgb_event_base;
@@ -81,11 +88,12 @@ enum SSLMode {
 	SSLMODE_VERIFY_FULL
 };
 
-//enum ServerGSSEncMode {
-//        SERVER_GSSENCMODE_DISABLED,
-//        SERVER_GSSENCMODE_ENABLED,
-//        SERVER_GSSENCMODE_REQUIRE
-//};
+enum ServerGSSEncMode {
+        SERVER_GSSENCMODE_DISABLED,
+        SERVER_GSSENCMODE_ALLOW,
+        SERVER_GSSENCMODE_PREFER,
+        SERVER_GSSENCMODE_REQUIRE
+};
 
 #define is_server_socket(sk) ((sk)->state >= SV_FREE)
 

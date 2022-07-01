@@ -259,6 +259,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	int dbname_ofs;
 	int pool_mode = POOL_INHERIT;
 	enum LoadBalanceHosts load_balance_hosts = LOAD_BALANCE_HOSTS_ROUND_ROBIN;
+	struct CfValue target_session_attrs_lookup;
+	enum TargetSessionAttrs target_session_attrs = TARGET_SESSION_ANY;
 
 	char *tmp_connstr;
 	const char *dbname = name;
@@ -277,6 +279,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 
 	cv.value_p = &pool_mode;
 	cv.extra = (const void *)pool_mode_map;
+	target_session_attrs_lookup.value_p = &target_session_attrs;
+	target_session_attrs_lookup.extra = (const void *)target_session_attrs_map;
 
 	load_balance_hosts_lookup.value_p = &load_balance_hosts;
 	load_balance_hosts_lookup.extra = (const void *)load_balance_hosts_map;
@@ -353,6 +357,11 @@ bool parse_database(void *base, const char *name, const char *connstr)
 				log_error("invalid pool mode: %s", val);
 				goto fail;
 			}
+		} else if (strcmp("target_session_attrs", key) == 0) {
+			if (!cf_set_lookup(&target_session_attrs_lookup, val)) {
+				log_error("invalid target_session_attrs: %s", val);
+				goto fail;
+			}
 		} else if (strcmp("connect_query", key) == 0) {
 			if (!set_param_value(&connect_query, val))
 				goto fail;
@@ -401,6 +410,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			changed = true;
 		} else if (load_balance_hosts != db->load_balance_hosts) {
 			changed = true;
+		} else if (target_session_attrs != db->target_session_attrs) {
+			changed = true;
 		}
 		if (changed)
 			tag_database_dirty(db);
@@ -421,6 +432,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	free(db->connect_query);
 	db->connect_query = connect_query;
 	connect_query = NULL;
+	db->target_session_attrs = target_session_attrs;
 
 	if (!set_param_value(&db->auth_dbname, auth_dbname))
 		goto fail;

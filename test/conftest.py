@@ -170,6 +170,20 @@ def pg(tmp_path_factory, cert_dir):
     pg.cleanup()
 
 
+@pytest.fixture(scope="session")
+def replica(pg, tmp_path_factory):
+    """Starts a new Postgres replica db that is shared for tests in this process"""
+    replica = Postgres(tmp_path_factory.getbasetemp() / "pgdata_replica")
+    replica.host = "127.0.0.2"
+    replica.port = pg.port
+    replica.init_from(pg)
+    replica.start()
+
+    yield replica
+
+    replica.cleanup()
+
+
 @pytest.mark.asyncio
 @pytest.fixture
 async def bouncer(pg, tmp_path):

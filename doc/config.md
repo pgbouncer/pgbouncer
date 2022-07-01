@@ -1313,6 +1313,32 @@ fast retries when multiple hosts are available.
 
 Default: `round-robin`
 
+### target_session_attrs
+
+Note: This configuration only applies to backend servers that report `hot_standby`
+or `default_transaction_read_only` in startup parameters (i.e. Postgres 14+).
+
+Only allow connections with certain properties, similar to libpq's `target_session_attrs`
+connection parameter. For example: given a comma-separated list of hosts where only is
+writable, `target_session_attrs=primary` will disconnect from any hosts that are not writable.
+
+any
+:   any connection is allowed
+
+read-write
+:   session must accept read-write transactions by default
+
+read-only
+:   session must not accept read-write transactions by default
+
+primary
+:   server must not be in hot standby
+
+standby
+:   server must be in hot standby
+
+Default: `any`
+
 ### max_db_connections
 
 Configure a database-wide maximum of server connections (i.e. all pools within the database will

@@ -123,6 +123,8 @@ static const SBufIO gssenc_sbufio_ops = {
 	gssenc_sbufio_send,
 	gssenc_sbufio_close
 };
+static int receive_token(int fd, gss_buffer_t token);
+static int send_token(int fd, gss_buffer_t token);
 //static void sbuf_gssenc_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
 #endif
 
@@ -1317,11 +1319,23 @@ static int gssenc_sbufio_close(struct SBuf *sbuf)
 
 static ssize_t gssenc_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len)
 {
-	return 1;
+        char tmp[16388];
+        receive_token(sbuf->sock, &tmp);
+        int maj = 0;
+        int min = 0;
+        maj = gss_unwrap(&min, sbuf->gss, &tmp, &dst, NULL, NULL);
+        log_warning("gssenc_sbufio_recv");
+	return 0;
 }
 static ssize_t gssenc_sbufio_send(struct SBuf *sbuf, const void *data, size_t len)
 {
-	return 1;
+        char tmp[16388];
+        int maj = 0;
+        int min = 0;
+        maj = gss_wrap(&min, sbuf->gss, 1, 0, &data, NULL, &tmp);
+        send_token(sbuf->sock, tmp);
+        log_warning("gssenc_sbufio_send");
+	return 0;
 }
 
 static void
@@ -1356,7 +1370,12 @@ send_token(int fd, gss_buffer_t token)
      * syscall(s) are used to send data, applications should have
      * a loop to handle EINTR returns.
      */
-    return 1;
+    uint32_t tmp;
+    tmp = token->length;
+    send(fd, &tmp, sizeof(uint32_t), MSG_MORE);
+    send(fd, &token, tmp, 0);
+    fprintf(stderr, "send_token");
+    return 0;
 }
 
 /*
@@ -1382,7 +1401,21 @@ receive_token(int fd, gss_buffer_t token)
      * This routine is assumed to allocate memory for the local copy
      * of the received token, which must be freed with release_buffer().
      */
-    return 1;
+    char tmp[4];
+    int len;
+    uint32_t total;
+
+    len = recv(fd, &tmp, sizeof(uint32_t), MSG_WAITALL);
+    total = ntohl(tmp);
+
+    if (total > 16384) {
+        return EMSGSIZE;
+    }
+
+    len = recv(fd, &tmp, total, MSG_WAITALL);
+
+    fprintf(stderr, "receive_token");
+    return 0;
 }
 
 /*

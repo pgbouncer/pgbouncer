@@ -230,6 +230,12 @@ const struct CfLookup sslmode_map[] = {
 	{ NULL }
 };
 
+const struct CfLookup host_strategy_map[] = {
+	{ "last_successful", LAST_SUCCESSFUL },
+	{ "round_robin", ROUND_ROBIN },
+	{ NULL }
+};
+
 /*
  * Add new parameters in alphabetical order. This order is used by SHOW CONFIG.
  */

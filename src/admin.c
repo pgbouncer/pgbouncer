@@ -485,24 +485,27 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 	PktBuf *buf;
 	struct CfValue cv;
 	struct CfValue load_balance_hosts_lookup;
+	struct CfValue target_session_attrs_lookup;
 	const char *pool_mode_str;
 	usec_t server_lifetime_secs;
 	const char *load_balance_hosts_str;
+	const char *target_session_attrs_str;
 
 	cv.extra = pool_mode_map;
 	load_balance_hosts_lookup.extra = load_balance_hosts_map;
+	target_session_attrs_lookup.extra = target_session_attrs_map;
 	buf = pktbuf_dynamic(256);
 	if (!buf) {
 		admin_error(admin, "no mem");
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "ssissiiiissiiiiii",
+	pktbuf_write_RowDescription(buf, "ssissiiiisssiiiiii",
 				    "name", "host", "port",
 				    "database", "force_user", "pool_size", "min_pool_size", "reserve_pool",
-				    "server_lifetime", "pool_mode", "load_balance_hosts", "max_connections",
-				    "current_connections", "max_client_connections", "current_client_connections",
-				    "paused", "disabled");
+				    "server_lifetime", "pool_mode", "load_balance_hosts", "target_session_attrs",
+            "max_connections", "current_connections", "max_client_connections",
+            "current_client_connections", "paused", "disabled");
 	statlist_for_each(item, &database_list) {
 		db = container_of(item, PgDatabase, head);
 
@@ -510,6 +513,7 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 		f_user = db->forced_user_credentials ? db->forced_user_credentials->name : NULL;
 		pool_mode_str = NULL;
 		load_balance_hosts_str = NULL;
+		target_session_attrs_str = NULL;
 		cv.value_p = &db->pool_mode;
 		load_balance_hosts_lookup.value_p = &db->load_balance_hosts;
 		if (db->pool_mode != POOL_INHERIT)
@@ -518,7 +522,11 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 		if (db->host && strchr(db->host, ','))
 			load_balance_hosts_str = cf_get_lookup(&load_balance_hosts_lookup);
 
-		pktbuf_write_DataRow(buf, "ssissiiiissiiiiii",
+		target_session_attrs_lookup.value_p = &db->target_session_attrs;
+		if (db->target_session_attrs != TARGET_SESSION_ANY)
+			target_session_attrs_str = cf_get_lookup(&target_session_attrs_lookup);
+
+		pktbuf_write_DataRow(buf, "ssissiiiisssiiiiii",
 				     db->name, db->host, db->port,
 				     db->dbname, f_user,
 				     db->pool_size >= 0 ? db->pool_size : cf_default_pool_size,
@@ -527,6 +535,7 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 				     server_lifetime_secs,
 				     pool_mode_str,
 				     load_balance_hosts_str,
+				     target_session_attrs_str,
 				     database_max_connections(db),
 				     db->connection_count,
 				     database_max_client_connections(db),
@@ -897,9 +906,11 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 	usec_t now = get_cached_time();
 	usec_t max_wait;
 	struct CfValue cv;
-	struct CfValue load_balance_hosts_lookup;
 	int pool_mode;
+	struct CfValue load_balance_hosts_lookup;
+	struct CfValue target_session_attrs_lookup;
 	const char *load_balance_hosts_str;
+	const char *target_session_attrs_str;
 
 	cv.extra = pool_mode_map;
 	cv.value_p = &pool_mode;
@@ -909,7 +920,7 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 		admin_error(admin, "no mem");
 		return true;
 	}
-	pktbuf_write_RowDescription(buf, "ssiiiiiiiiiiiiiss",
+	pktbuf_write_RowDescription(buf, "ssiiiiiiiiiiiiisss",
 				    "database", "user",
 				    "cl_active", "cl_waiting",
 				    "cl_active_cancel_req",
@@ -921,19 +932,25 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 				    "sv_used", "sv_tested",
 				    "sv_login", "maxwait",
 				    "maxwait_us", "pool_mode",
-				    "load_balance_hosts");
+				    "load_balance_hosts",
+				    "target_session_attrs");
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
 		waiter = first_socket(&pool->waiting_client_list);
 		max_wait = (waiter && waiter->query_start) ? now - waiter->query_start : 0;
-		pool_mode = probably_wrong_pool_pool_mode(pool);
+		pool_mode = probably_wrong_poolepool_mode(pool);
 
 		load_balance_hosts_str = NULL;
 		load_balance_hosts_lookup.value_p = &pool->db->load_balance_hosts;
 		if (pool->db->host && strchr(pool->db->host, ','))
 			load_balance_hosts_str = cf_get_lookup(&load_balance_hosts_lookup);
 
-		pktbuf_write_DataRow(buf, "ssiiiiiiiiiiiiiss",
+		target_session_attrs_str = NULL;
+		target_session_attrs_lookup.value_p = &pool->db->target_session_attrs;
+		if (pool->db->target_session_attrs != TARGET_SESSION_ANY)
+			target_session_attrs_str = cf_get_lookup(&target_session_attrs_lookup);
+
+		pktbuf_write_DataRow(buf, "ssiiiiiiiiiiiiisss",
 				     pool->db->name, pool->user_credentials->name,
 				     statlist_count(&pool->active_client_list),
 				     statlist_count(&pool->waiting_client_list),
@@ -950,7 +967,8 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 				     (int)(max_wait / USEC),
 				     (int)(max_wait % USEC),
 				     cf_get_lookup(&cv),
-				     load_balance_hosts_str);
+				     load_balance_hosts_str,
+				     target_session_attrs_str);
 	}
 	admin_flush(admin, buf, "SHOW");
 	return true;

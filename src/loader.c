@@ -267,12 +267,14 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	PktBuf *msg;
 	PgDatabase *db;
 	struct CfValue cv;
+	struct CfValue host_strategy_lookup;
 	int pool_size = -1;
 	int min_pool_size = -1;
 	int res_pool_size = -1;
 	int max_db_connections = -1;
 	int dbname_ofs;
 	int pool_mode = POOL_INHERIT;
+	int host_strategy = ROUND_ROBIN;
 
 	char *tmp_connstr;
 	const char *dbname = name;
@@ -290,6 +292,9 @@ bool parse_database(void *base, const char *name, const char *connstr)
 
 	cv.value_p = &pool_mode;
 	cv.extra = (const void *)pool_mode_map;
+
+	host_strategy_lookup.value_p = &host_strategy;
+	host_strategy_lookup.extra = (const void *)host_strategy_map;
 
 	if (!check_reserved_database(name)) {
 		log_error("database name \"%s\" is reserved", name);
@@ -352,6 +357,11 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			res_pool_size = atoi(val);
 		} else if (strcmp("max_db_connections", key) == 0) {
 			max_db_connections = atoi(val);
+		} else if (strcmp("host_strategy", key) == 0) {
+			if (!cf_set_lookup(&host_strategy_lookup, val)) {
+				log_error("invalid host_strategy: %s", val);
+				goto fail;
+			}
 		} else if (strcmp("pool_mode", key) == 0) {
 			if (!cf_set_lookup(&cv, val)) {
 				log_error("invalid pool mode: %s", val);
@@ -415,6 +425,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	db->res_pool_size = res_pool_size;
 	db->pool_mode = pool_mode;
 	db->max_db_connections = max_db_connections;
+	db->host_strategy = host_strategy;
 	free(db->connect_query);
 	db->connect_query = connect_query;
 

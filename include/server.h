@@ -27,3 +27,4 @@ int database_min_pool_size(PgDatabase *db) _MUSTCHECK;
 int pool_res_pool_size(PgPool *pool) _MUSTCHECK;
 int database_max_connections(PgDatabase *db) _MUSTCHECK;
 int user_max_connections(PgGlobalUser *user) _MUSTCHECK;
+bool valid_target_session_attrs(PgSocket *server) _MUSTCHECK;

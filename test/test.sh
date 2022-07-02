@@ -1272,9 +1272,13 @@ test_no_database_auth_user() {
 	return 0
 }
 
-test_no_database_scram_auth_success() {
+test_no_database_md5_auth_scram_pw_success() {
 	# Testing what happens on successful SCRAM auth connection to non-existent DB
 	# Segfaults have been seen after mock authentication was put in place
+	# with md5 auth and a scram PW when saving SCRAM credentials. Including this test to check for the
+	# condition repeating.
+	
+	$have_getpeereid || return 77
 
 	admin "set auth_type='md5'"
 	PGPASSWORD=foo psql -X -U scramuser1 -d nosuchdb1 -c "select 1" && return 1
@@ -1283,9 +1287,26 @@ test_no_database_scram_auth_success() {
     return 0
 }
 
-test_no_database_md5_auth_success() {
-	# Testing what happens on successful SCRAM auth connection to non-existent DB
+test_no_database_scram_auth_scram_pw_success() {
+	# Testing what happens on successful SCRAM auth with a SCRAM PW connection to non-existent DB
 	# Segfaults have been seen after mock authentication was put in place
+	# with md5 auth and a scram PW. Including this test for completeness
+
+	$have_getpeereid || return 77
+
+	admin "set auth_type='scram-sha-256'"
+	PGPASSWORD=foo psql -X -U scramuser1 -d nosuchdb1 -c "select 1" && return 1
+	grep -F "no such database: nosuchdb1" $BOUNCER_LOG || return 1
+
+    return 0
+}
+
+test_no_database_md5_auth_md5_pw_success() {
+	# Testing what happens on successful MD5 auth with a MD5 pw connection to non-existent DB
+	# Segfaults have been seen after mock authentication was put in place
+	# with md5 auth and a scram PW. Including this test for completeness
+
+	$have_getpeereid || return 77
 
 	admin "set auth_type='md5'"
 	PGPASSWORD=foo psql -X -U muser1 -d nosuchdb1 -c "select 1" && return 1
@@ -1293,7 +1314,6 @@ test_no_database_md5_auth_success() {
 
     return 0
 }
-
 
 
 test_cancel() {
@@ -1466,8 +1486,9 @@ test_auto_database
 test_no_database
 test_no_database_authfail
 test_no_database_auth_user
-test_no_database_scram_auth_success
-test_no_database_md5_auth_success
+test_no_database_md5_auth_scram_pw_success
+test_no_database_scram_auth_scram_pw_success
+test_no_database_md5_auth_md5_pw_success
 test_cancel
 test_cancel_wait
 test_cancel_pool_size

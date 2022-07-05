@@ -1,3 +1,7 @@
+2022.7.0
+- 2022-06-10 DB-1785: Remove redundant user storage in linked list
+- 2022-06-16 DB-1785: Fix user tree corruption by removing shared ownership of PgUser
+
 2022.6.0
 - 2022-06-09 DB-1785: Prevent creating cyclic user list upon user insertion
 - 2022-05-24 DB-1926: Match package binary path with package name

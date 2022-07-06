@@ -1261,6 +1261,28 @@ test_shadow_password_server_login() {
 	echo "curuser=$curuser"
 	test "$curuser" = "shadowuser2" || return 1
 
+	# user defined in ini [users] section with good recently changed password from PostgreSQL server
+	psql -X -d "dbname=authdb user=shadowuser1 password=bar" -tAq -c "alter user shadowuser1 with password 'newbar';"
+	curuser=`psql -X -d "dbname=authdb user=shadowuser1 password=newbar" -tAq -c "select current_user;"`
+	echo "curuser=$curuser"
+	test "$curuser" = "shadowuser1" || return 1
+	# user defined in ini [users] section with bad old password from PostgreSQL server
+	curuser=`psql -X -d "dbname=authdb user=shadowuser1 password=bar" -tAq -c "select current_user;"`
+	echo "curuser=$curuser"
+	test "$curuser" = "" || return 1
+
+	psql -X -d "dbname=authdb user=shadowuser2 password=foo" -tAq -c "alter user shadowuser2 with password 'newfoo';"
+	# auth_user defined in ini [users] section with good recently changed password from PostgreSQL server
+	curuser=`psql -X -d "dbname=authdb user=shadowuser2 password=newfoo" -tAq -c "select current_user;"`
+	echo "curuser=$curuser"
+	test "$curuser" = "shadowuser2" || return 1
+	# auth_user defined in ini [users] section with bad old password from PostgreSQL server
+	curuser=`psql -X -d "dbname=authdb user=shadowuser2 password=foo" -tAq -c "select current_user;"`
+	echo "curuser=$curuser"
+	test "$curuser" = "" || return 1
+
+	psql -X -d "dbname=authdb user=shadowuser1 password=newbar" -tAq -c "alter user shadowuser1 with password 'bar';"
+	psql -X -d "dbname=authdb user=shadowuser2 password=newfoo" -tAq -c "alter user shadowuser2 with password 'foo';"
 	admin "set auth_type='trust'"
 
 	return 0

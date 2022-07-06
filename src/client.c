@@ -985,6 +985,7 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 	switch (evtype) {
 	case SBUF_EV_CONNECT_OK:
 	case SBUF_EV_CONNECT_FAILED:
+	case SBUF_EV_GSSENC_READY:
 		/* ^ those should not happen */
 	case SBUF_EV_RECV_FAILED:
 		/*

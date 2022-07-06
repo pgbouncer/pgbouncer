@@ -29,6 +29,7 @@ typedef enum {
 	SBUF_EV_CONNECT_OK,	/* got connection */
 	SBUF_EV_FLUSH,		/* data is sent, buffer empty */
 	SBUF_EV_PKT_CALLBACK,	/* next part of pkt data */
+	SBUF_EV_GSSENC_READY,	/* GSSENC was established */
 	SBUF_EV_TLS_READY	/* TLS was established */
 } SBufEvent;
 
@@ -73,7 +74,7 @@ struct SBuf {
 	uint8_t wait_type;	/* track wait state */
 	uint8_t pkt_action;	/* method for handling current pkt */
 	uint8_t tls_state;	/* progress of tls */
-	uint8_t gss_state;	/* progress of gss */
+	uint8_t gssenc_state;	/* progress of gssenc */
 
 	int sock;		/* fd for this socket */
 

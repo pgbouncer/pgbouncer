@@ -686,6 +686,23 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		else
 			disconnect_server(server, false, "TLS startup failed");
 		break;
+	case SBUF_EV_GSSENC_READY:
+		Assert(server->state == SV_LOGIN);
+
+//		tls_get_connection_info(server->sbuf.tls, infobuf, sizeof infobuf);
+//		if (cf_log_connections) {
+//			slog_info(server, "SSL established: %s", infobuf);
+//		} else {
+//			slog_noise(server, "SSL established: %s", infobuf);
+//		}
+
+		server->request_time = get_cached_time();
+		res = send_startup_packet(server);
+		if (res)
+			sbuf_continue(&server->sbuf);
+		else
+			disconnect_server(server, false, "GSSENC startup failed");
+		break;
 	}
 	if (!res && pool->db->admin)
 		takeover_login_failed();

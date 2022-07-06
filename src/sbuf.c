@@ -123,8 +123,8 @@ static const SBufIO gssenc_sbufio_ops = {
 	gssenc_sbufio_send,
 	gssenc_sbufio_close
 };
-static int receive_token(int fd, gss_buffer_t token);
-static int send_token(int fd, gss_buffer_t token);
+static int recv_token(int s, int *flags, gss_buffer_t tok);
+static int send_token(int s, int flags, gss_buffer_t tok);
 //static void sbuf_gssenc_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
 #endif
 
@@ -1320,22 +1320,37 @@ static int gssenc_sbufio_close(struct SBuf *sbuf)
 static ssize_t gssenc_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len)
 {
         char tmp[16388];
-        receive_token(sbuf->sock, &tmp);
+        int token_flags;
+        log_warning("gssenc_sbufio_recv start");
+        recv_token(sbuf->sock, &token_flags, &tmp);
+        log_warning("gssenc_sbufio_recv token received");
         int maj = 0;
         int min = 0;
         maj = gss_unwrap(&min, sbuf->gss, &tmp, &dst, NULL, NULL);
-        log_warning("gssenc_sbufio_recv");
+        log_warning("gssenc_sbufio_recv end");
 	return 0;
 }
 static ssize_t gssenc_sbufio_send(struct SBuf *sbuf, const void *data, size_t len)
 {
-        char tmp[16388];
-        int maj = 0;
-        int min = 0;
-        maj = gss_wrap(&min, sbuf->gss, 1, 0, &data, NULL, &tmp);
-        send_token(sbuf->sock, tmp);
-        log_warning("gssenc_sbufio_send");
-	return 0;
+        log_warning("gssenc_sbufio_send start");
+        char tmp[16384];
+        gss_buffer_desc in_buf, out_buf = GSS_C_EMPTY_BUFFER;
+        in_buf.length = len;
+        in_buf.value = (char *) data;
+        out_buf.value = NULL;
+        out_buf.length = 0;
+        OM_uint32 maj = 0;
+        OM_uint32 min = 0;
+        int state;
+        ssize_t out;
+        maj = gss_wrap(&min, sbuf->gss, 1, GSS_C_QOP_DEFAULT, &in_buf, &state, &out_buf);
+        if (GSS_ERROR(maj)) {
+            log_warning("gssenc_sbufio_send - gss_wrap() error major 0x%x minor 0x%x\n", maj, min);
+            return -1;
+        }
+        out = send_token(sbuf->sock, NULL, &out_buf);
+        log_warning("gssenc_sbufio_send end");
+	return len;
 }
 
 static void
@@ -1346,75 +1361,204 @@ release_buffer(gss_buffer_t buf)
     buf->length = 0;
 }
 
-/*
- * Helper to send a token on the specified file descriptor.
- *
- * If errors are encountered, this routine must not directly cause
- * termination of the process because compliant GSS applications
- * must release resources allocated by the GSS library before
- * exiting.
- *
- * Returns 0 on success, nonzero on failure.
- */
 static int
-send_token(int fd, gss_buffer_t token)
+write_all(int fildes, const void *data, unsigned int nbyte)
 {
-    /*
-     * Supply token framing and transmission code here.
-     *
-     * It is advisable for the application protocol to specify the
-     * length of the token being transmitted unless the underlying
-     * transit does so implicitly.
-     *
-     * In addition to checking for error returns from whichever
-     * syscall(s) are used to send data, applications should have
-     * a loop to handle EINTR returns.
-     */
-    uint32_t tmp;
-    tmp = token->length;
-    send(fd, &tmp, sizeof(uint32_t), MSG_MORE);
-    send(fd, &token, tmp, 0);
-    fprintf(stderr, "send_token");
-    return 0;
+    int ret;
+    const char *ptr, *buf = data;
+
+    for (ptr = buf; nbyte; ptr += ret, nbyte -= ret) {
+        ret = send(fildes, ptr, nbyte, 0);
+        if (ret < 0) {
+            if (errno == EINTR)
+                continue;
+            return (ret);
+        } else if (ret == 0) {
+            return (ptr - buf);
+        }
+    }
+
+    return (ptr - buf);
 }
 
 /*
- * Helper to receive a token on the specified file descriptor.
+ * Function: send_token
  *
- * If errors are encountered, this routine must not directly cause
- * termination of the process because compliant GSS applications
- * must release resources allocated by the GSS library before
- * exiting.
+ * Purpose: Writes a token to a file descriptor.
  *
- * Returns 0 on success, nonzero on failure.
+ * Arguments:
+ *
+ *      s               (r) an open file descriptor
+ *      flags           (r) the flags to write
+ *      tok             (r) the token to write
+ *
+ * Returns: 0 on success, -1 on failure
+ *
+ * Effects:
+ *
+ * If the flags are non-null, send_token writes the token flags (a
+ * single byte, even though they're passed in in an integer). Next,
+ * the token length (as a network long) and then the token data are
+ * written to the file descriptor s.  It returns 0 on success, and -1
+ * if an error occurs or if it could not write all the data.
  */
+
 static int
-receive_token(int fd, gss_buffer_t token)
+send_token(s, flags, tok)
+    int     s;
+    int     flags;
+    gss_buffer_t tok;
 {
-    /*
-     * Supply token framing and transmission code here.
-     *
-     * In addition to checking for error returns from whichever
-     * syscall(s) are used to receive data, applications should have
-     * a loop to handle EINTR returns.
-     *
-     * This routine is assumed to allocate memory for the local copy
-     * of the received token, which must be freed with release_buffer().
-     */
-    char tmp[4];
-    int len;
-    uint32_t total;
+    int     ret;
+    unsigned char char_flags = (unsigned char) flags;
+    unsigned char lenbuf[4];
 
-    len = recv(fd, &tmp, sizeof(uint32_t), MSG_WAITALL);
-    total = ntohl(tmp);
+    if (char_flags) {
+        ret = write_all(s, (char *) &char_flags, 1);
+        if (ret != 1) {
+            perror("sending token flags");
+            return -1;
+        }
+    }
+    if (tok->length > 0xffffffffUL)
+        abort();
+    lenbuf[0] = (tok->length >> 24) & 0xff;
+    lenbuf[1] = (tok->length >> 16) & 0xff;
+    lenbuf[2] = (tok->length >> 8) & 0xff;
+    lenbuf[3] = tok->length & 0xff;
 
-    if (total > 16384) {
-        return EMSGSIZE;
+    ret = write_all(s, lenbuf, 4);
+    if (ret < 0) {
+        perror("sending token length");
+        return -1;
+    } else if (ret != 4) {
+        return -1;
     }
 
-    len = recv(fd, &tmp, total, MSG_WAITALL);
+    ret = write_all(s, tok->value, tok->length);
+    if (ret < 0) {
+        perror("sending token data");
+        return -1;
+    } else if ((size_t)ret != tok->length) {
+        return -1;
+    }
 
-    fprintf(stderr, "receive_token");
+    return 0;
+}
+
+static int
+read_all(int fildes, void *data, unsigned int nbyte)
+{
+    int     ret;
+    char   *ptr, *buf = data;
+    fd_set  rfds;
+    struct timeval tv;
+
+    FD_ZERO(&rfds);
+    FD_SET(fildes, &rfds);
+    tv.tv_sec = 300;
+    tv.tv_usec = 0;
+
+    for (ptr = buf; nbyte; ptr += ret, nbyte -= ret) {
+        if (select(FD_SETSIZE, &rfds, NULL, NULL, &tv) <= 0
+            || !FD_ISSET(fildes, &rfds))
+            return (ptr - buf);
+        ret = recv(fildes, ptr, nbyte, 0);
+        if (ret < 0) {
+            if (errno == EINTR)
+                continue;
+            return (ret);
+        } else if (ret == 0) {
+            return (ptr - buf);
+        }
+    }
+
+    return (ptr - buf);
+}
+
+/*
+ * Function: recv_token
+ *
+ * Purpose: Reads a token from a file descriptor.
+ *
+ * Arguments:
+ *
+ *      s               (r) an open file descriptor
+ *      flags           (w) the read flags
+ *      tok             (w) the read token
+ *
+ * Returns: 0 on success, -1 on failure
+ *
+ * Effects:
+ *
+ * recv_token reads the token flags (a single byte, even though
+ * they're stored into an integer, then reads the token length (as a
+ * network long), allocates memory to hold the data, and then reads
+ * the token data from the file descriptor s.  It blocks to read the
+ * length and data, if necessary.  On a successful return, the token
+ * should be freed with gss_release_buffer.  It returns 0 on success,
+ * and -1 if an error occurs or if it could not read all the data.
+ */
+static int
+recv_token(s, flags, tok)
+    int     s;
+    int    *flags;
+    gss_buffer_t tok;
+{
+    int     ret;
+    unsigned char char_flags;
+    unsigned char lenbuf[4];
+
+    ret = read_all(s, (char *) &char_flags, 1);
+    if (ret < 0) {
+        perror("reading token flags");
+        return -1;
+    } else if (!ret) {
+        return -1;
+    } else {
+        *flags = (int) char_flags;
+    }
+
+    if (char_flags == 0) {
+        lenbuf[0] = 0;
+        ret = read_all(s, &lenbuf[1], 3);
+        if (ret < 0) {
+            perror("reading token length");
+            return -1;
+        } else if (ret != 3) {
+            return -1;
+        }
+    } else {
+        ret = read_all(s, lenbuf, 4);
+        if (ret < 0) {
+            perror("reading token length");
+            return -1;
+        } else if (ret != 4) {
+            return -1;
+        }
+    }
+
+    tok->length = ((lenbuf[0] << 24)
+                   | (lenbuf[1] << 16)
+                   | (lenbuf[2] << 8)
+                   | lenbuf[3]);
+    tok->value = (char *) malloc(tok->length ? tok->length : 1);
+    if (tok->length && tok->value == NULL) {
+        return -1;
+    }
+
+    ret = read_all(s, (char *) tok->value, tok->length);
+    if (ret < 0) {
+        perror("reading token data");
+        free(tok->value);
+        return -1;
+    } else if ((size_t)ret != tok->length) {
+        fprintf(stderr, "sending token data: %d of %d bytes written\n",
+                ret, (int) tok->length);
+        free(tok->value);
+        return -1;
+    }
+
     return 0;
 }
 
@@ -1432,6 +1576,7 @@ bool sbuf_gssenc_connect(SBuf *sbuf, const char *hostname)
     gss_buffer_desc output_token = GSS_C_EMPTY_BUFFER;
     gss_buffer_desc name_buf = GSS_C_EMPTY_BUFFER;
     gss_name_t target_name = GSS_C_NO_NAME;
+    int token_flags;
 
     /* Applications should set target_name to a real value. */
     name_buf.value = "postgres/kerberized-postgres@EXAMPLE.COM";
@@ -1474,7 +1619,7 @@ bool sbuf_gssenc_connect(SBuf *sbuf, const char *hostname)
                                      req_flags, 0, NULL, &input_token,
                                      NULL, &output_token, &ret_flags,
                                      NULL);
-        /* This was allocated by receive_token() and is no longer
+        /* This was allocated by recv_token() and is no longer
          * needed.  Free it now to avoid leaks if the loop continues. */
         release_buffer(&input_token);
 
@@ -1482,7 +1627,7 @@ bool sbuf_gssenc_connect(SBuf *sbuf, const char *hostname)
          * (GSS_S_CONTINUE_NEEDED is set) or if it is nonempty. */
         if ((major & GSS_S_CONTINUE_NEEDED) ||
             output_token.length > 0) {
-            ret = send_token(sbuf->sock, &output_token);
+            ret = send_token(sbuf->sock, NULL, &output_token);
             if (ret != 0)
                 goto cleanup;
         }
@@ -1499,7 +1644,7 @@ bool sbuf_gssenc_connect(SBuf *sbuf, const char *hostname)
         (void)gss_release_buffer(&minor, &output_token);
 
         if (major & GSS_S_CONTINUE_NEEDED) {
-            ret = receive_token(sbuf->sock, &input_token);
+            ret = recv_token(sbuf->sock, &token_flags, &input_token);
             if (ret != 0)
                 goto cleanup;
         } else if (major == GSS_S_COMPLETE) {

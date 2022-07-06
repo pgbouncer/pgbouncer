@@ -339,7 +339,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 		}
 	} else {
 		client->login_user = find_user(username);
-		if (!client->login_user || !user_is_authenticated(client->login_user)) {
+		if (!client->login_user || user_requires_auth_query(client->login_user)) {
 			/*
 			 * If the login user specified by the client does not exist or only exists as
 			 * a pre-configuration, check if an auth_user is set and if so send off an
@@ -443,7 +443,6 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
 			disconnect_server(server, false, "unable to allocate new user for auth");
 			return false;
 		}
-		client->login_user->is_dead = false;
 		break;
 	case 'N':	/* NoticeResponse */
 		break;

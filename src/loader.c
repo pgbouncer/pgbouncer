@@ -384,7 +384,6 @@ static PgUser *get_preconfigured_user(const char *name)
 		return NULL;
 	}
 
-	user->is_dead = true;
 	return user;
 }
 
@@ -608,7 +607,7 @@ static void copy_quoted(char *dst, const char *src, int len)
 	*dst = 0;
 }
 
-static void unquote_add_user(const char *username, const char *password)
+static PgUser *unquote_add_user(const char *username, const char *password)
 {
 	char real_user[MAX_USERNAME];
 	char real_passwd[MAX_PASSWORD];
@@ -620,6 +619,8 @@ static void unquote_add_user(const char *username, const char *password)
 	user = add_user(real_user, real_passwd);
 	if (!user)
 		log_warning("cannot create user, no memory");
+
+	return user;
 }
 
 static bool auth_loaded(const char *fn)
@@ -662,6 +663,7 @@ bool loader_users_check(void)
 static void disable_user_cb(void *arg, PgUser *user)
 {
 	user->passwd[0] = 0;
+	user->from_auth_file = false;
 }
 
 static void disable_users(void)
@@ -672,7 +674,8 @@ static void disable_users(void)
 /* load list of users from auth_file */
 bool load_auth_file(const char *fn)
 {
-	char *user, *password, *buf, *p;
+	char *username, *password, *buf, *p;
+	PgUser *user;
 
 	/* No file to load? */
 	if (fn == NULL)
@@ -705,13 +708,13 @@ bool load_auth_file(const char *fn)
 			log_error("broken auth file");
 			break;
 		}
-		user = ++p;
+		username = ++p;
 		p = find_quote(p, false);
 		if (*p != '"') {
 			log_error("broken auth file");
 			break;
 		}
-		if (p - user >= MAX_USERNAME) {
+		if (p - username >= MAX_USERNAME) {
 			log_error("username too long in auth file");
 			break;
 		}
@@ -736,7 +739,8 @@ bool load_auth_file(const char *fn)
 		*p++ = 0; /* tag password end */
 
 		/* send them away */
-		unquote_add_user(user, password);
+		user = unquote_add_user(username, password);
+		user->from_auth_file = true;
 
 		/* skip rest of the line */
 		while (*p && *p != '\n') p++;

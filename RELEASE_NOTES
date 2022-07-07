@@ -1,3 +1,7 @@
+2022.7.2
+- 2022-07-06 DB-1785: Prevent stale password by not caching previous user auth_query
+- 2022-07-06 DB-1785: Test user password is not stale when changed at Postgres
+
 2022.7.0
 - 2022-06-10 DB-1785: Remove redundant user storage in linked list
 - 2022-06-16 DB-1785: Fix user tree corruption by removing shared ownership of PgUser

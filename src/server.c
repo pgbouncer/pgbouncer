@@ -690,11 +690,13 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		Assert(server->state == SV_LOGIN);
 
 //		tls_get_connection_info(server->sbuf.tls, infobuf, sizeof infobuf);
-//		if (cf_log_connections) {
+		if (cf_log_connections) {
 //			slog_info(server, "SSL established: %s", infobuf);
-//		} else {
+			slog_info(server, "GSSENC established");
+		} else {
 //			slog_noise(server, "SSL established: %s", infobuf);
-//		}
+			slog_noise(server, "GSSENC established");
+		}
 
 		server->request_time = get_cached_time();
 		res = send_startup_packet(server);

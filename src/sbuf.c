@@ -1324,50 +1324,56 @@ static int gssenc_sbufio_close(struct SBuf *sbuf)
 
 static ssize_t gssenc_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len)
 {
-        char tmp[16388];
-        int token_flags;
+        gss_buffer_desc recv_buf, unwrap_buf, *msg_buf;
+        int conf_state, ret, token_flags;
+        OM_uint32 maj, min;
+		maj = 0;
+		min = 0;
         log_warning("gssenc_sbufio_recv start");
-        recv_token(sbuf->sock, &token_flags, &tmp);
+        ret = recv_token(sbuf->sock, &token_flags, &recv_buf);
+        if (ret < 0)
+            return -1;
         log_warning("gssenc_sbufio_recv token received");
-        int maj = 0;
-        int min = 0;
-        maj = gss_unwrap(&min, sbuf->gss, &tmp, &dst, NULL, NULL);
+        maj = gss_unwrap(&min, sbuf->gss, &recv_buf, &unwrap_buf, &conf_state, (gss_qop_t *) NULL);
+        if (GSS_ERROR(maj)) {
+            log_warning("gssenc_sbufio_recv - gss_wrap() error major 0x%x minor 0x%x\n", maj, min);
+            return -1;
+        }
+        msg_buf = &unwrap_buf;
+        dst = msg_buf->value;
         log_warning("gssenc_sbufio_recv end");
-	return 0;
+	    return ret;
 }
 static ssize_t gssenc_sbufio_send(struct SBuf *sbuf, const void *data, size_t len)
 {
-        log_warning("gssenc_sbufio_send start");
-        char tmp[16384];
         gss_buffer_desc in_buf, out_buf = GSS_C_EMPTY_BUFFER;
+        OM_uint32 maj, min;
+        int state;
+        log_warning("gssenc_sbufio_send start");
         in_buf.length = len;
         in_buf.value = (char *) data;
         out_buf.value = NULL;
         out_buf.length = 0;
-        OM_uint32 maj = 0;
-        OM_uint32 min = 0;
-        int state;
-        ssize_t out;
+//        ssize_t out;
         maj = gss_wrap(&min, sbuf->gss, 1, GSS_C_QOP_DEFAULT, &in_buf, &state, &out_buf);
         if (GSS_ERROR(maj)) {
             log_warning("gssenc_sbufio_send - gss_wrap() error major 0x%x minor 0x%x\n", maj, min);
             return -1;
         }
-        out = send_token(sbuf->sock, NULL, &out_buf);
+//        out = send_token(sbuf->sock, NULL, &out_buf);
+        send_token(sbuf->sock, NULL, &out_buf);
         log_warning("gssenc_sbufio_send end");
 	return len;
 }
 
-static void
-release_buffer(gss_buffer_t buf)
+static void release_buffer(gss_buffer_t buf)
 {
     free(buf->value);
     buf->value = NULL;
     buf->length = 0;
 }
 
-static int
-write_all(int fildes, const void *data, unsigned int nbyte)
+static int write_all(int fildes, const void *data, unsigned int nbyte)
 {
     int ret;
     const char *ptr, *buf = data;
@@ -1408,11 +1414,7 @@ write_all(int fildes, const void *data, unsigned int nbyte)
  * if an error occurs or if it could not write all the data.
  */
 
-static int
-send_token(s, flags, tok)
-    int     s;
-    int     flags;
-    gss_buffer_t tok;
+static int send_token(int s, int flags, gss_buffer_t tok)
 {
     int     ret;
     unsigned char char_flags = (unsigned char) flags;
@@ -1421,7 +1423,7 @@ send_token(s, flags, tok)
     if (char_flags) {
         ret = write_all(s, (char *) &char_flags, 1);
         if (ret != 1) {
-            perror("sending token flags");
+            log_error("sending token flags");
             return -1;
         }
     }
@@ -1434,7 +1436,7 @@ send_token(s, flags, tok)
 
     ret = write_all(s, lenbuf, 4);
     if (ret < 0) {
-        perror("sending token length");
+        log_error("sending token length");
         return -1;
     } else if (ret != 4) {
         return -1;
@@ -1442,7 +1444,7 @@ send_token(s, flags, tok)
 
     ret = write_all(s, tok->value, tok->length);
     if (ret < 0) {
-        perror("sending token data");
+        log_error("sending token data");
         return -1;
     } else if ((size_t)ret != tok->length) {
         return -1;
@@ -1451,8 +1453,7 @@ send_token(s, flags, tok)
     return 0;
 }
 
-static int
-read_all(int fildes, void *data, unsigned int nbyte)
+static int read_all(int fildes, void *data, unsigned int nbyte)
 {
     int     ret;
     char   *ptr, *buf = data;
@@ -1505,10 +1506,7 @@ read_all(int fildes, void *data, unsigned int nbyte)
  * and -1 if an error occurs or if it could not read all the data.
  */
 static int
-recv_token(s, flags, tok)
-    int     s;
-    int    *flags;
-    gss_buffer_t tok;
+recv_token(int s, int * flags, gss_buffer_t tok)
 {
     int     ret;
     unsigned char char_flags;
@@ -1516,7 +1514,7 @@ recv_token(s, flags, tok)
 
     ret = read_all(s, (char *) &char_flags, 1);
     if (ret < 0) {
-        perror("reading token flags");
+        log_error("reading token flags");
         return -1;
     } else if (!ret) {
         return -1;
@@ -1528,7 +1526,7 @@ recv_token(s, flags, tok)
         lenbuf[0] = 0;
         ret = read_all(s, &lenbuf[1], 3);
         if (ret < 0) {
-            perror("reading token length");
+            log_error("reading token length");
             return -1;
         } else if (ret != 3) {
             return -1;
@@ -1536,7 +1534,7 @@ recv_token(s, flags, tok)
     } else {
         ret = read_all(s, lenbuf, 4);
         if (ret < 0) {
-            perror("reading token length");
+            log_error("reading token length");
             return -1;
         } else if (ret != 4) {
             return -1;
@@ -1554,7 +1552,7 @@ recv_token(s, flags, tok)
 
     ret = read_all(s, (char *) tok->value, tok->length);
     if (ret < 0) {
-        perror("reading token data");
+        log_error("reading token data");
         free(tok->value);
         return -1;
     } else if ((size_t)ret != tok->length) {
@@ -1564,7 +1562,7 @@ recv_token(s, flags, tok)
         return -1;
     }
 
-    return 0;
+    return tok->length+4;
 }
 
 /*
@@ -1650,7 +1648,7 @@ bool sbuf_gssenc_connect(SBuf *sbuf, const char *hostname)
 
         if (major & GSS_S_CONTINUE_NEEDED) {
             ret = recv_token(sbuf->sock, &token_flags, &input_token);
-            if (ret != 0)
+            if (ret < 0)
                 goto cleanup;
         } else if (major == GSS_S_COMPLETE) {
             initiator_established = 1;
@@ -1697,7 +1695,7 @@ static bool handle_gssenc_handshake(SBuf *sbuf)
 {
 	sbuf->gssenc_state = SBUF_GSSENC_OK;
 	sbuf_call_proto(sbuf, SBUF_EV_GSSENC_READY);
-	return true;
+	return true;	
 }
 
 static void sbuf_gssenc_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf)
@@ -1713,7 +1711,7 @@ static void sbuf_gssenc_handshake_cb(evutil_socket_t fd, short flags, void *_sbu
 
 //bool sbuf_tls_setup(void) { return true; }
 //bool sbuf_tls_accept(SBuf *sbuf) { return false; }
-bool sbuf_gssenc__connect(SBuf *sbuf, const char *hostname) { return false; }
+bool sbuf_gssenc_connect(SBuf *sbuf, const char *hostname) { return false; }
 
 void sbuf_cleanup(void)
 {

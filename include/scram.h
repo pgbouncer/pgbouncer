@@ -40,6 +40,7 @@ PasswordType get_password_type(const char *shadow_pass);
 char *build_client_first_message(ScramState *scram_state);
 char *build_client_final_message(ScramState *scram_state,
 				 const PgUser *user,
+				 const PgDatabase *db,
 				 const char *server_nonce,
 				 const char *salt,
 				 int saltlen,

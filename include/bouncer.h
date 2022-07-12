@@ -88,6 +88,7 @@ typedef struct PgSocket PgSocket;
 typedef struct PgUser PgUser;
 typedef struct PgUserEvent PgUserEvent;
 typedef struct PgDatabase PgDatabase;
+typedef struct PgUserPassword PgUserPassword;
 typedef struct PgPool PgPool;
 typedef struct PgPoolEvent PgPoolEvent;
 typedef struct PgStats PgStats;
@@ -329,7 +330,7 @@ struct PgUser {
 	struct List pool_list;		/* list of pools where pool->user == this user */
 	struct AANode tree_node;	/* used to attach user to tree */
 	char name[MAX_USERNAME];
-	char passwd[MAX_PASSWORD];
+	char passwd[MAX_PASSWORD];	/* password stored in auth_file, empty if user not in auth_file */
 	uint8_t scram_ClientKey[32];
 	uint8_t scram_ServerKey[32];
 	bool has_scram_keys;		/* true if the above two are valid */
@@ -354,6 +355,7 @@ struct PgUserEvent {
 struct PgDatabase {
 	struct List head;
 	char name[MAX_DBNAME];	/* db name for clients */
+	struct AATree user_passwds;	/* user passwords for this database from auth_query */
 
 	/*
 	 * configuration
@@ -387,6 +389,11 @@ struct PgDatabase {
 	int connection_count;	/* total connections for this database in all pools */
 };
 
+struct PgUserPassword {
+	struct AANode tree_node;	/* used to attach user password to tree */
+	char username[MAX_USERNAME];
+	char passwd[MAX_PASSWORD];
+};
 
 /*
  * A client or server connection.

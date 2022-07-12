@@ -318,6 +318,7 @@ PgDatabase *add_database(const char *name)
 			return NULL;
 
 		list_init(&db->head);
+		aatree_init(&db->user_passwds, user_passwd_node_cmp, user_passwd_free);
 		if (strlcpy(db->name, name, sizeof(db->name)) >= sizeof(db->name)) {
 			log_warning("too long db name: %s", name);
 			slab_free(db_cache, db);
@@ -953,6 +954,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 		client->login_user = NULL;
 	}
 	if (client->db && client->db->fake) {
+		aatree_destroy(&client->db->user_passwds);
 		free(client->db);
 		client->db = NULL;
 	}

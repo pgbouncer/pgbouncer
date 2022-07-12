@@ -29,6 +29,7 @@
 
 static bool calculate_client_proof(ScramState *scram_state,
 				   const PgUser *user,
+				   const PgDatabase *db,
 				   const char *salt,
 				   int saltlen,
 				   int iterations,
@@ -332,6 +333,7 @@ failed:
 
 char *build_client_final_message(ScramState *scram_state,
 				 const PgUser *user,
+				 const PgDatabase *db,
 				 const char *server_nonce,
 				 const char *salt,
 				 int saltlen,
@@ -348,7 +350,7 @@ char *build_client_final_message(ScramState *scram_state,
 	if (scram_state->client_final_message_without_proof == NULL)
 		goto failed;
 
-	if (!calculate_client_proof(scram_state, user,
+	if (!calculate_client_proof(scram_state, user, db,
 				    salt, saltlen, iterations, buf,
 				    client_proof))
 		goto failed;
@@ -483,6 +485,7 @@ failed:
 
 static bool calculate_client_proof(ScramState *scram_state,
 				   const PgUser *user,
+				   const PgDatabase *db,
 				   const char *salt,
 				   int saltlen,
 				   int iterations,
@@ -490,6 +493,7 @@ static bool calculate_client_proof(ScramState *scram_state,
 				   uint8_t *result)
 {
 	pg_saslprep_rc rc;
+	char *real_password = NULL;
 	char *prep_password = NULL;
 	uint8_t	StoredKey[SCRAM_KEY_LEN];
 	uint8_t	ClientKey[SCRAM_KEY_LEN];
@@ -502,12 +506,13 @@ static bool calculate_client_proof(ScramState *scram_state,
 	}
 	else
 	{
-		rc = pg_saslprep(user->passwd, &prep_password);
+		real_password = user_password(user, db);
+		rc = pg_saslprep(real_password, &prep_password);
 		if (rc == SASLPREP_OOM)
 			return false;
 		if (rc != SASLPREP_SUCCESS)
 		{
-			prep_password = strdup(user->passwd);
+			prep_password = strdup(real_password);
 			if (!prep_password)
 				return false;
 		}

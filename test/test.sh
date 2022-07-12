@@ -1328,10 +1328,10 @@ test_password_client() {
 test_md5_server() {
 	admin "set auth_type='trust'"
 
-	# good password from ini
-	psql -X -c "select 1" p5 || return 1
-	# bad password from ini
-	psql -X -c "select 2" p5x && return 1
+#	# good password from ini
+#	psql -X -c "select 1" p5 || return 1
+#	# bad password from ini
+#	psql -X -c "select 2" p5x && return 1
 
 	# good password from auth_file
 	psql -X -c "select 1" p5y || return 1

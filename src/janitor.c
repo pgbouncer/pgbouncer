@@ -703,6 +703,7 @@ void kill_database(PgDatabase *db)
 			kill_pool(pool);
 	}
 
+	aatree_destroy(&db->user_passwds);
 	pktbuf_free(db->startup_params);
 	free(db->host);
 

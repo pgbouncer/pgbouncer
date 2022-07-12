@@ -353,6 +353,8 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	char addrbuf[PGADDR_BUF];
 	const char *password = NULL;
 	bool send_scram_keys = false;
+	bool is_auth_user_present;
+	bool is_pam_auth_used;
 
 	/* Skip TLS sockets */
 	if (sk->sbuf.tls || (sk->link && sk->link->sbuf.tls))
@@ -362,12 +364,12 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	if (!mbuf_get_uint64be(&tmp, &ckey))
 		return false;
 
-	if (sk->pool && sk->pool->db->auth_user && sk->login_user && !find_user(sk->login_user->name))
-		password = sk->login_user->passwd;
+	is_auth_user_present = sk->pool && sk->pool->db->auth_user && sk->login_user && !find_user(sk->login_user->name);
+	is_pam_auth_used = cf_auth_type == AUTH_PAM && !find_user(sk->login_user->name);
 
 	/* PAM requires passwords as well since they are not stored externally */
-	if (cf_auth_type == AUTH_PAM && !find_user(sk->login_user->name))
-		password = sk->login_user->passwd;
+	if (is_auth_user_present || is_pam_auth_used)
+		password = user_password(sk->login_user, client_database(sk));
 
 	if (sk->pool && sk->pool->user && sk->pool->user->has_scram_keys)
 		send_scram_keys = true;

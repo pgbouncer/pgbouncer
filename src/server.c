@@ -256,6 +256,63 @@ bool user_requires_auth_query(PgUser *user)
 	return cf_auth_type != AUTH_TRUST && !user->from_auth_file;
 }
 
+void user_passwd_free(struct AANode *node, void *arg)
+{
+	PgUserPassword *user_passwd = container_of(node, PgUserPassword, tree_node);
+	free(user_passwd);
+	user_passwd = NULL;
+}
+
+/* compare string with PgUserPassword->username, for usage with btree */
+int user_passwd_node_cmp(uintptr_t user_passwd_ptr, struct AANode *node)
+{
+	const char *name = (const char *)user_passwd_ptr;
+	PgUserPassword *user_passwd = container_of(node, PgUserPassword, tree_node);
+	return strcmp(name, user_passwd->username);
+}
+
+char *user_password(PgUser *user, PgDatabase *db)
+{
+	PgUserPassword *user_passwd = NULL;
+	struct AANode *node;
+
+	if (db == NULL || user == db->forced_user || user->from_auth_file)
+		return user->passwd;
+
+	node = aatree_search(&db->user_passwds, (uintptr_t)user->name);
+	if (node == NULL)
+		return "";
+
+	user_passwd = container_of(node, PgUserPassword, tree_node);
+	return user_passwd->passwd;
+}
+
+void database_add_user_password(PgDatabase *db, const char *username, const char *passwd)
+{
+	PgUserPassword *user_passwd = NULL;
+	struct AANode *node;
+
+	if (db == NULL || username == NULL)
+		return;
+
+	node = aatree_search(&db->user_passwds, (uintptr_t)username);
+	if (node != NULL) {
+		/* already exists */
+		user_passwd = container_of(node, PgUserPassword, tree_node);
+		safe_strcpy(user_passwd->passwd, passwd, sizeof(user_passwd->passwd));
+		return;
+	}
+
+	/* create struct */
+	user_passwd = calloc(1, sizeof(*user_passwd));
+	if (user_passwd == NULL)
+		return;
+	safe_strcpy(user_passwd->username, username, sizeof(user_passwd->username));
+	safe_strcpy(user_passwd->passwd, passwd, sizeof(user_passwd->passwd));
+
+	aatree_insert(&db->user_passwds, (uintptr_t)user_passwd->username, &user_passwd->tree_node);
+}
+
 /* process packets on logged in connection */
 static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 {

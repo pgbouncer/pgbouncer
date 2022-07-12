@@ -35,30 +35,31 @@ static const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
 	return bin2hex(bin, dlen, buf, buflen);
 }
 
-static bool check_client_passwd(PgSocket *client, const char *passwd)
+static bool check_client_passwd(PgSocket *client, const char *provided_passwd)
 {
 	PgUser *user = client->login_user;
+	char *real_passwd = user_password(user, client_database(client));
 	int auth_type = client->client_auth_type;
 
 	if (user->mock_auth)
 		return false;
 
 	/* disallow empty passwords */
-	if (!*user->passwd)
+	if (!*real_passwd)
 		return false;
 
 	switch (auth_type) {
 	case AUTH_PLAIN:
-		switch (get_password_type(user->passwd)) {
+		switch (get_password_type(real_passwd)) {
 		case PASSWORD_TYPE_PLAINTEXT:
-			return strcmp(user->passwd, passwd) == 0;
+			return strcmp(real_passwd, provided_passwd) == 0;
 		case PASSWORD_TYPE_MD5: {
 			char md5[MD5_PASSWD_LEN + 1];
-			pg_md5_encrypt(passwd, user->name, strlen(user->name), md5);
-			return strcmp(user->passwd, md5) == 0;
+			pg_md5_encrypt(provided_passwd, user->name, strlen(user->name), md5);
+			return strcmp(real_passwd, md5) == 0;
 		}
 		case PASSWORD_TYPE_SCRAM_SHA_256:
-			return scram_verify_plain_password(client, user->name, passwd, user->passwd);
+			return scram_verify_plain_password(client, user->name, provided_passwd, real_passwd);
 		default:
 			return false;
 		}
@@ -66,7 +67,7 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 		char *stored_passwd;
 		char md5[MD5_PASSWD_LEN + 1];
 
-		if (strlen(passwd) != MD5_PASSWD_LEN)
+		if (strlen(provided_passwd) != MD5_PASSWD_LEN)
 			return false;
 
 		/*
@@ -76,14 +77,14 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 		 * plain text.  If the latter, we compute the inner
 		 * md5() call first.
 		 */
-		if (get_password_type(user->passwd) == PASSWORD_TYPE_PLAINTEXT) {
-			pg_md5_encrypt(user->passwd, user->name, strlen(user->name), md5);
+		if (get_password_type(real_passwd) == PASSWORD_TYPE_PLAINTEXT) {
+			pg_md5_encrypt(real_passwd, user->name, strlen(user->name), md5);
 			stored_passwd = md5;
 		} else {
-			stored_passwd = user->passwd;
+			stored_passwd = real_passwd;
 		}
 		pg_md5_encrypt(stored_passwd + 3, (char *)client->tmp_login_salt, 4, md5);
-		return strcmp(md5, passwd) == 0;
+		return strcmp(md5, provided_passwd) == 0;
 	}
 	}
 	return false;
@@ -193,6 +194,7 @@ fail:
 
 static bool finish_set_pool(PgSocket *client, bool takeover)
 {
+	const char *real_passwd;
 	bool ok = false;
 	int auth;
 
@@ -242,7 +244,8 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 
 	if (auth == AUTH_MD5)
 	{
-		if (get_password_type(client->login_user->passwd) == PASSWORD_TYPE_SCRAM_SHA_256)
+		real_passwd = user_password(client->login_user, client_database(client));
+		if (get_password_type(real_passwd) == PASSWORD_TYPE_SCRAM_SHA_256)
 			auth = AUTH_SCRAM_SHA_256;
 	}
 
@@ -293,6 +296,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 		client->db = calloc(1, sizeof(*client->db));
 		client->db->fake = true;
 		strlcpy(client->db->name, dbname, sizeof(client->db->name));
+		aatree_init(&client->db->user_passwds, user_passwd_node_cmp, user_passwd_free);
 	}
 
 	if (client->db->admin) {
@@ -374,11 +378,12 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 	return finish_set_pool(client, takeover);
 }
 
-bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
+bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
+{
 	uint16_t columns;
 	uint32_t length;
-	const char *username, *password;
-	PgUser user;
+	const char *username, *passwd;
+	char real_user[MAX_USERNAME], real_passwd[MAX_PASSWORD];
 	PgSocket *server = client->link;
 
 	switch(pkt->type) {
@@ -393,7 +398,9 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
 		}
 		break;
 	case 'D':	/* DataRow */
-		memset(&user, 0, sizeof(user));
+		memset(&real_user, 0, sizeof(real_user));
+		memset(&real_passwd, 0, sizeof(real_passwd));
+
 		if (!mbuf_get_uint16be(&pkt->data, &columns)) {
 			disconnect_server(server, false, "bad packet");
 			return false;
@@ -414,9 +421,9 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
 			disconnect_server(server, false, "bad packet");
 			return false;
 		}
-		if (sizeof(user.name) - 1 < length)
-			length = sizeof(user.name) - 1;
-		memcpy(user.name, username, length);
+		if (sizeof(real_user) - 1 < length)
+			length = sizeof(real_user) - 1;
+		memcpy(real_user, username, length);
 		if (!mbuf_get_uint32be(&pkt->data, &length)) {
 			disconnect_server(server, false, "bad packet");
 			return false;
@@ -426,23 +433,29 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
 			 * NULL - set an md5 password with an impossible value,
 			 * so that nothing will ever match
 			 */
-			password = "md5";
+			passwd = "md5";
 			length = 3;
 		} else {
-			if (!mbuf_get_chars(&pkt->data, length, &password)) {
+			if (!mbuf_get_chars(&pkt->data, length, &passwd)) {
 				disconnect_server(server, false, "bad packet");
 				return false;
 			}
 		}
-		if (sizeof(user.passwd)  - 1 < length)
-			length = sizeof(user.passwd) - 1;
-		memcpy(user.passwd, password, length);
+		if (sizeof(real_passwd) - 1 < length)
+			length = sizeof(real_passwd) - 1;
+		memcpy(real_passwd, passwd, length);
 
-		client->login_user = add_user(user.name, user.passwd);
+		client->login_user = add_user(real_user, "");
 		if (!client->login_user) {
 			disconnect_server(server, false, "unable to allocate new user for auth");
 			return false;
 		}
+
+		/*
+		 * User password is database specific and only stored in
+		 * PgDatabase.
+		 */
+		database_add_user_password(client_database(client), real_user, real_passwd);
 		break;
 	case 'N':	/* NoticeResponse */
 		break;
@@ -583,6 +596,7 @@ static bool scram_client_first(PgSocket *client, uint32_t datalen, const uint8_t
 	char *input;
 	int res;
 	PgUser *user = client->login_user;
+	const char *real_passwd = user_password(user, client_database(client));
 
 	ibuf = malloc(datalen + 1);
 	if (ibuf == NULL)
@@ -599,8 +613,8 @@ static bool scram_client_first(PgSocket *client, uint32_t datalen, const uint8_t
 		goto failed;
 
 	if (!user->mock_auth) {
-		slog_debug(client, "stored secret = \"%s\"", user->passwd);
-		switch (get_password_type(user->passwd)) {
+		slog_debug(client, "stored secret = \"%s\"", real_passwd);
+		switch (get_password_type(real_passwd)) {
 		case PASSWORD_TYPE_MD5:
 			slog_error(client, "SCRAM authentication failed: user has MD5 secret");
 			goto failed;
@@ -610,7 +624,7 @@ static bool scram_client_first(PgSocket *client, uint32_t datalen, const uint8_t
 		}
 	}
 
-	if (!build_server_first_message(&client->scram_state, user->name, user->mock_auth ? NULL : user->passwd))
+	if (!build_server_first_message(&client->scram_state, user->name, user->mock_auth ? NULL : real_passwd))
 		goto failed;
 	slog_debug(client, "SCRAM server-first-message = \"%s\"", client->scram_state.server_first_message);
 
@@ -684,7 +698,7 @@ failed:
 /* decide on packets of client in login phase */
 static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 {
-	const char *passwd;
+	const char *provided_passwd;
 	const uint8_t *key;
 	bool ok;
 	bool is_unix = pga_is_unix(&client->remote_addr);
@@ -824,14 +838,14 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 			}
 		} else {
 			/* process as PasswordMessage */
-			ok = mbuf_get_string(&pkt->data, &passwd);
+			ok = mbuf_get_string(&pkt->data, &provided_passwd);
 
 			if (ok) {
 				/*
 				 * Don't allow an empty password; see
 				 * PostgreSQL recv_password_packet().
 				 */
-				if (!*passwd) {
+				if (!*provided_passwd) {
 					disconnect_client(client, true, "empty password returned by client");
 					return false;
 				}
@@ -841,11 +855,11 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 						disconnect_client(client, true, "pause failed");
 						return false;
 					}
-					pam_auth_begin(client, passwd);
+					pam_auth_begin(client, provided_passwd);
 					return false;
 				}
 
-				if (check_client_passwd(client, passwd)) {
+				if (check_client_passwd(client, provided_passwd)) {
 					if (!finish_client_login(client))
 						return false;
 				} else {
@@ -1059,4 +1073,12 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		break;
 	}
 	return res;
+}
+
+PgDatabase *client_database(PgSocket *client)
+{
+	// TODO: is there a way to get the name of the database in question and lookup as last resort?
+	if (client->pool && client->pool->db)
+		return client->pool->db;
+	return client->db;
 }

@@ -462,7 +462,7 @@ static bool handle_connect(PgSocket *server)
 			res = send_sslreq_packet(server);
 			if (res)
 				server->wait_sslchar = true;
-                } else if (!is_unix) { // TODO: make it work like SSLMODE_ENABLED above
+        } else if (!is_unix) { // TODO: make it work like SSLMODE_ENABLED above
 			slog_noise(server, "P: GSSEnc request");
 			res = send_gssencreq_packet(server);
 			if (res)

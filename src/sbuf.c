@@ -1327,6 +1327,7 @@ static ssize_t gssenc_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len)
         gss_buffer_desc recv_buf, unwrap_buf, *msg_buf;
         int conf_state, ret, token_flags;
         OM_uint32 maj, min;
+		socket_set_nonblocking(sbuf_socket(sbuf), 0);
 		maj = 0;
 		min = 0;
         log_warning("gssenc_sbufio_recv start");
@@ -1339,16 +1340,18 @@ static ssize_t gssenc_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len)
             log_warning("gssenc_sbufio_recv - gss_wrap() error major 0x%x minor 0x%x\n", maj, min);
             return -1;
         }
-        msg_buf = &unwrap_buf;
-        dst = msg_buf->value;
-        log_warning("gssenc_sbufio_recv end");
-	    return ret;
+//        msg_buf = &unwrap_buf;
+//        dst = &(msg_buf->value);
+		memcpy(dst, unwrap_buf.value, unwrap_buf.length);
+        log_warning("gssenc_sbufio_recv end %d", unwrap_buf.length);
+	    return unwrap_buf.length;
 }
 static ssize_t gssenc_sbufio_send(struct SBuf *sbuf, const void *data, size_t len)
 {
         gss_buffer_desc in_buf, out_buf = GSS_C_EMPTY_BUFFER;
         OM_uint32 maj, min;
-        int state;
+        int ret, state;
+		socket_set_nonblocking(sbuf_socket(sbuf), 0);
         log_warning("gssenc_sbufio_send start");
         in_buf.length = len;
         in_buf.value = (char *) data;
@@ -1361,8 +1364,8 @@ static ssize_t gssenc_sbufio_send(struct SBuf *sbuf, const void *data, size_t le
             return -1;
         }
 //        out = send_token(sbuf->sock, NULL, &out_buf);
-        send_token(sbuf->sock, NULL, &out_buf);
-        log_warning("gssenc_sbufio_send end");
+        ret = send_token(sbuf->sock, NULL, &out_buf);
+        log_warning("gssenc_sbufio_send end %d\n", len);
 	return len;
 }
 
@@ -1450,7 +1453,7 @@ static int send_token(int s, int flags, gss_buffer_t tok)
         return -1;
     }
 
-    return 0;
+    return tok->length;
 }
 
 static int read_all(int fildes, void *data, unsigned int nbyte)
@@ -1581,6 +1584,8 @@ bool sbuf_gssenc_connect(SBuf *sbuf, const char *hostname)
     gss_name_t target_name = GSS_C_NO_NAME;
     int token_flags;
 
+    socket_set_nonblocking(sbuf_socket(sbuf), 0);
+
     /* Applications should set target_name to a real value. */
     name_buf.value = "postgres/kerberized-postgres@EXAMPLE.COM";
     name_buf.length = strlen(name_buf.value);
@@ -1631,7 +1636,7 @@ bool sbuf_gssenc_connect(SBuf *sbuf, const char *hostname)
         if ((major & GSS_S_CONTINUE_NEEDED) ||
             output_token.length > 0) {
             ret = send_token(sbuf->sock, NULL, &output_token);
-            if (ret != 0)
+            if (ret < 0)
                 goto cleanup;
         }
         /* Check for errors after sending the token so that we will send
@@ -1694,6 +1699,8 @@ cleanup:
 static bool handle_gssenc_handshake(SBuf *sbuf)
 {
 	sbuf->gssenc_state = SBUF_GSSENC_OK;
+//	sbuf_use_callback_once(sbuf, EV_READ, sbuf_gssenc_handshake_cb);
+//	sbuf_use_callback_once(sbuf, EV_WRITE, sbuf_gssenc_handshake_cb);
 	sbuf_call_proto(sbuf, SBUF_EV_GSSENC_READY);
 	return true;	
 }

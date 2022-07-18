@@ -1,3 +1,6 @@
+2022.7.3
+- 2022-07-15 DB-1785: Refactor to support multiple database hosts per user
+
 2022.7.2
 - 2022-07-06 DB-1785: Prevent stale password by not caching previous user auth_query
 - 2022-07-06 DB-1785: Test user password is not stale when changed at Postgres

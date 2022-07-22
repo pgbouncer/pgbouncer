@@ -21,6 +21,6 @@ git submodule update
 ./autogen.sh
 LIBS=-lpthread ./configure --prefix=/usr/local --enable-evdns=no --with-openssl=/opt/boringssl-fips
 
-make
+make clean all
 sudo make install
 make pgbouncer

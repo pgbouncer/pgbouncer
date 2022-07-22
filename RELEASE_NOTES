@@ -1,3 +1,6 @@
+2022.7.4
+- 2022-07-21 DB-1926: Freshly compile PgBouncer to use boringssl in build pipeline
+
 2022.7.3
 - 2022-07-15 DB-1785: Refactor to support multiple database hosts per user
 

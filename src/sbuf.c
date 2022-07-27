@@ -89,7 +89,9 @@ static bool sbuf_call_proto(SBuf *sbuf, int event) /* _MUSTCHECK */;
 static bool sbuf_actual_recv(SBuf *sbuf, size_t len)  _MUSTCHECK;
 static bool sbuf_after_connect_check(SBuf *sbuf)  _MUSTCHECK;
 static bool handle_tls_handshake(SBuf *sbuf) /* _MUSTCHECK */;
+#ifdef HAVE_SERVER_GSSENC
 static bool handle_gssenc_handshake(SBuf *sbuf) /* _MUSTCHECK */;
+#endif
 
 /* regular I/O */
 static ssize_t raw_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len);
@@ -126,7 +128,7 @@ static const SBufIO gssenc_sbufio_ops = {
 };
 static int recv_token(int s, int *flags, gss_buffer_t tok);
 static int send_token(int s, int flags, gss_buffer_t tok);
-static void sbuf_gssenc_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
+//static void sbuf_gssenc_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
 #endif
 
 /*********************************
@@ -803,10 +805,12 @@ skip_recv:
 		sbuf->pkt_action = SBUF_TLS_IN_HANDSHAKE;
 		handle_tls_handshake(sbuf);
 	}
+#ifdef HAVE_SERVER_GSSENC
 	if (sbuf->gssenc_state == SBUF_GSSENC_DO_HANDSHAKE) {
 		sbuf->pkt_action = SBUF_GSSENC_IN_HANDSHAKE;
 		handle_gssenc_handshake(sbuf);
 	}
+#endif
 }
 
 /* check if there is any error pending on socket */
@@ -1271,6 +1275,7 @@ static int tls_sbufio_close(struct SBuf *sbuf)
 	return 0;
 }
 
+// TODO: handle gssapi somehow, respecting macros etc
 void sbuf_cleanup(void)
 {
 	tls_free(client_accept_base);
@@ -1324,49 +1329,49 @@ static int gssenc_sbufio_close(struct SBuf *sbuf)
 
 static ssize_t gssenc_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len)
 {
-        gss_buffer_desc recv_buf, unwrap_buf, *msg_buf;
+		gss_buffer_desc recv_buf = GSS_C_EMPTY_BUFFER;
+        gss_buffer_desc unwrap_buf = GSS_C_EMPTY_BUFFER;
         int conf_state, ret, token_flags;
         OM_uint32 maj, min;
 		socket_set_nonblocking(sbuf_socket(sbuf), 0);
 		maj = 0;
 		min = 0;
-        log_warning("gssenc_sbufio_recv start");
+        log_noise("gssenc_sbufio_recv start");
         ret = recv_token(sbuf->sock, &token_flags, &recv_buf);
         if (ret < 0)
             return -1;
-        log_warning("gssenc_sbufio_recv token received");
+        log_noise("gssenc_sbufio_recv token received");
         maj = gss_unwrap(&min, sbuf->gss, &recv_buf, &unwrap_buf, &conf_state, (gss_qop_t *) NULL);
         if (GSS_ERROR(maj)) {
             log_warning("gssenc_sbufio_recv - gss_wrap() error major 0x%x minor 0x%x\n", maj, min);
             return -1;
         }
-//        msg_buf = &unwrap_buf;
-//        dst = &(msg_buf->value);
 		memcpy(dst, unwrap_buf.value, unwrap_buf.length);
-        log_warning("gssenc_sbufio_recv end %d", unwrap_buf.length);
+        log_noise("gssenc_sbufio_recv end %d", (int) unwrap_buf.length);
 	    return unwrap_buf.length;
 }
+
 static ssize_t gssenc_sbufio_send(struct SBuf *sbuf, const void *data, size_t len)
 {
-        gss_buffer_desc in_buf, out_buf = GSS_C_EMPTY_BUFFER;
-        OM_uint32 maj, min;
-        int ret, state;
-		socket_set_nonblocking(sbuf_socket(sbuf), 0);
-        log_warning("gssenc_sbufio_send start");
-        in_buf.length = len;
-        in_buf.value = (char *) data;
-        out_buf.value = NULL;
-        out_buf.length = 0;
-//        ssize_t out;
-        maj = gss_wrap(&min, sbuf->gss, 1, GSS_C_QOP_DEFAULT, &in_buf, &state, &out_buf);
-        if (GSS_ERROR(maj)) {
-            log_warning("gssenc_sbufio_send - gss_wrap() error major 0x%x minor 0x%x\n", maj, min);
-            return -1;
-        }
-//        out = send_token(sbuf->sock, NULL, &out_buf);
-        ret = send_token(sbuf->sock, NULL, &out_buf);
-        log_warning("gssenc_sbufio_send end %d\n", len);
-	return len;
+	gss_buffer_desc in_buf, out_buf = GSS_C_EMPTY_BUFFER;
+	OM_uint32 maj, min;
+	int ret, state;
+	socket_set_nonblocking(sbuf_socket(sbuf), 0);
+	log_noise("gssenc_sbufio_send start");
+	in_buf.length = len;
+	in_buf.value = (char *) data;
+	out_buf.value = NULL;
+	out_buf.length = 0;
+	maj = gss_wrap(&min, sbuf->gss, 1, GSS_C_QOP_DEFAULT, &in_buf, &state, &out_buf);
+	if (GSS_ERROR(maj)) {
+		log_noise("gssenc_sbufio_send - gss_wrap() error major 0x%x minor 0x%x\n", maj, min);
+		return -1;
+	}
+	ret = send_token(sbuf->sock, 0, &out_buf);
+	if (ret < 0)
+	    log_error("gssenc_sbufio_send ret %d\n", ret);
+        log_noise("gssenc_sbufio_send end %d\n", (int) len);
+	return (ssize_t) len;
 }
 
 static void release_buffer(gss_buffer_t buf)
@@ -1574,7 +1579,6 @@ recv_token(int s, int * flags, gss_buffer_t tok)
 
 bool sbuf_gssenc_connect(SBuf *sbuf, const char *hostname)
 {
-//    int err;
     int initiator_established = 0, ret;
     gss_ctx_id_t ctx = GSS_C_NO_CONTEXT;
     OM_uint32 major, minor, req_flags, ret_flags;
@@ -1599,19 +1603,6 @@ bool sbuf_gssenc_connect(SBuf *sbuf, const char *hostname)
 	if (!sbuf_pause(sbuf))
 		return false;
 
-//	if (cf_server_tls_sslmode != SSLMODE_VERIFY_FULL)
-//		hostname = NULL;
-
-//	ctls = tls_client();
-//	if (!ctls)
-//		return false;
-//	err = tls_configure(ctls, server_connect_conf);
-//	if (err < 0) {
-//		log_error("tls client config failed: %s", tls_error(ctls));
-//		tls_free(ctls);
-//		return false;
-//	}
-
     /* Mutual authentication will require a token from acceptor to
      * initiator and thus a second call to gss_init_sec_context(). */
     req_flags = GSS_C_MUTUAL_FLAG | GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG;
@@ -1635,7 +1626,8 @@ bool sbuf_gssenc_connect(SBuf *sbuf, const char *hostname)
          * (GSS_S_CONTINUE_NEEDED is set) or if it is nonempty. */
         if ((major & GSS_S_CONTINUE_NEEDED) ||
             output_token.length > 0) {
-            ret = send_token(sbuf->sock, NULL, &output_token);
+//            ret = send_token(sbuf->sock, NULL, &output_token);
+            ret = send_token(sbuf->sock, 0, &output_token);
             if (ret < 0)
                 goto cleanup;
         }
@@ -1670,16 +1662,7 @@ bool sbuf_gssenc_connect(SBuf *sbuf, const char *hostname)
     log_noise("Initiator's context negotiation successful\n");
 
 	sbuf->gss = ctx;
-//	sbuf->tls = ctls;
-//	sbuf->tls_host = hostname;
 	sbuf->ops = &gssenc_sbufio_ops;
-//	sbuf->ops = &tls_sbufio_ops;
-
-//	err = tls_connect_fds(sbuf->tls, sbuf->sock, sbuf->sock, sbuf->tls_host);
-//	if (err < 0) {
-//		log_warning("GSS connect error: %s", tls_error(sbuf->tls));
-//		return false;
-//	}
 
 	sbuf->gssenc_state = SBUF_GSSENC_DO_HANDSHAKE;
 	return true;
@@ -1705,13 +1688,13 @@ static bool handle_gssenc_handshake(SBuf *sbuf)
 	return true;	
 }
 
-static void sbuf_gssenc_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf)
-{
-	SBuf *sbuf = _sbuf;
-	sbuf->wait_type = W_NONE;
-	if (!handle_gssenc_handshake(sbuf))
-		sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
-}
+//static void sbuf_gssenc_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf)
+//{
+//	SBuf *sbuf = _sbuf;
+//	sbuf->wait_type = W_NONE;
+//	if (!handle_gssenc_handshake(sbuf))
+//		sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
+//}
 #else
 //int client_accept_sslmode = SSLMODE_DISABLED;
 //int server_connect_sslmode = SSLMODE_DISABLED;
@@ -1719,13 +1702,4 @@ static void sbuf_gssenc_handshake_cb(evutil_socket_t fd, short flags, void *_sbu
 //bool sbuf_tls_setup(void) { return true; }
 //bool sbuf_tls_accept(SBuf *sbuf) { return false; }
 bool sbuf_gssenc_connect(SBuf *sbuf, const char *hostname) { return false; }
-
-void sbuf_cleanup(void)
-{
-}
-
-static bool handle_gssenc_handshake(SBuf *sbuf)
-{
-	return false;
-}
 #endif

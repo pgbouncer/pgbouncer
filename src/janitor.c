@@ -709,6 +709,7 @@ void kill_database(PgDatabase *db)
 	if (db->forced_user)
 		slab_free(user_cache, db->forced_user);
 	free(db->connect_query);
+	free(db->gssapi_spn);
 	if (db->inactive_time) {
 		statlist_remove(&autodatabase_idle_list, &db->head);
 	} else {

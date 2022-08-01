@@ -172,6 +172,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	char *datestyle = NULL;
 	char *timezone = NULL;
 	char *connect_query = NULL;
+	char *gssapi_spn = NULL;
 	char *appname = NULL;
 
 	cv.value_p = &pool_mode;
@@ -247,6 +248,12 @@ bool parse_database(void *base, const char *name, const char *connstr)
 				log_error("out of memory");
 				goto fail;
 			}
+		} else if (strcmp("gssapi_spn", key) == 0) {
+			gssapi_spn = strdup(val);
+			if (!gssapi_spn) {
+				log_error("out of memory");
+				goto fail;
+			}
 		} else if (strcmp("application_name", key) == 0) {
 			appname = val;
 		} else {
@@ -286,6 +293,9 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		} else if (!!connect_query != !!db->connect_query
 			   || (connect_query && strcmp(connect_query, db->connect_query) != 0))	{
 			changed = true;
+		} else if (!!gssapi_spn != !!db->gssapi_spn
+			   || (gssapi_spn && strcmp(gssapi_spn, db->gssapi_spn) != 0))	{
+			changed = true;
 		}
 		if (changed)
 			tag_database_dirty(db);
@@ -301,6 +311,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	db->max_db_connections = max_db_connections;
 	free(db->connect_query);
 	db->connect_query = connect_query;
+	free(db->gssapi_spn);
+	db->gssapi_spn = gssapi_spn;
 
 	if (db->startup_params) {
 		msg = db->startup_params;

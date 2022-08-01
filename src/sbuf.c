@@ -1334,32 +1334,6 @@ static int gssenc_sbufio_close(struct SBuf *sbuf)
 	return 0;
 }
 
-/*
-static ssize_t gssenc_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len)
-{
-		gss_buffer_desc recv_buf = GSS_C_EMPTY_BUFFER;
-        gss_buffer_desc unwrap_buf = GSS_C_EMPTY_BUFFER;
-        int conf_state, ret, token_flags;
-        OM_uint32 maj, min;
-		socket_set_nonblocking(sbuf_socket(sbuf), 0);
-		maj = 0;
-		min = 0;
-        log_noise("gssenc_sbufio_recv start");
-        ret = recv_token(sbuf->sock, &token_flags, &recv_buf);
-        if (ret < 0)
-            return -1;
-        log_noise("gssenc_sbufio_recv token received");
-        maj = gss_unwrap(&min, sbuf->gss, &recv_buf, &unwrap_buf, &conf_state, (gss_qop_t *) NULL);
-        if (GSS_ERROR(maj)) {
-            log_warning("gssenc_sbufio_recv - gss_wrap() error major 0x%x minor 0x%x\n", maj, min);
-            return -1;
-        }
-		memcpy(dst, unwrap_buf.value, unwrap_buf.length);
-        log_noise("gssenc_sbufio_recv end %d", (int) unwrap_buf.length);
-	    return unwrap_buf.length;
-}
-*/
-
 static ssize_t gssenc_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len)
 {
 	ssize_t out = 0;
@@ -1384,29 +1358,6 @@ static ssize_t gssenc_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len)
 	}
 	return -1;
 }
-
-/*static ssize_t gssenc_sbufio_send(struct SBuf *sbuf, const void *data, size_t len)
-{
-	gss_buffer_desc in_buf, out_buf = GSS_C_EMPTY_BUFFER;
-	OM_uint32 maj, min;
-	int ret, state;
-	socket_set_nonblocking(sbuf_socket(sbuf), 0);
-	log_noise("gssenc_sbufio_send start");
-	in_buf.length = len;
-	in_buf.value = (char *) data;
-	out_buf.value = NULL;
-	out_buf.length = 0;
-	maj = gss_wrap(&min, sbuf->gss, 1, GSS_C_QOP_DEFAULT, &in_buf, &state, &out_buf);
-	if (GSS_ERROR(maj)) {
-		log_noise("gssenc_sbufio_send - gss_wrap() error major 0x%x minor 0x%x\n", maj, min);
-		return -1;
-	}
-	ret = send_token(sbuf->sock, 0, &out_buf);
-	if (ret < 0)
-	    log_error("gssenc_sbufio_send ret %d\n", ret);
-        log_noise("gssenc_sbufio_send end %d\n", (int) len);
-	return (ssize_t) len;
-}*/
 
 static ssize_t gssenc_sbufio_send(struct SBuf *sbuf, const void *data, size_t len)
 {
@@ -2187,7 +2138,7 @@ recv_token(int s, int * flags, gss_buffer_t tok)
  * Connect to remote GSS Enc host.
  */
 
-bool sbuf_gssenc_connect(SBuf *conn, const char *hostname)
+bool sbuf_gssenc_connect(SBuf *conn, char *gssapi_spn)
 {
     int initiator_established = 0, ret;
     gss_ctx_id_t ctx = GSS_C_NO_CONTEXT;
@@ -2215,7 +2166,7 @@ bool sbuf_gssenc_connect(SBuf *conn, const char *hostname)
 	}
 
     /* Applications should set target_name to a real value. */
-    name_buf.value = "postgres/kerberized-postgres@EXAMPLE.COM";
+	name_buf.value = gssapi_spn;
     name_buf.length = strlen(name_buf.value);
     major = gss_import_name(&minor, &name_buf,
                             GSS_KRB5_NT_PRINCIPAL_NAME, &target_name);
@@ -2335,5 +2286,5 @@ static bool handle_gssenc_handshake(SBuf *sbuf)
 
 //bool sbuf_tls_setup(void) { return true; }
 //bool sbuf_tls_accept(SBuf *sbuf) { return false; }
-bool sbuf_gssenc_connect(SBuf *sbuf, const char *hostname) { return false; }
+bool sbuf_gssenc_connect(SBuf *sbuf, char *gssapi_spn) { return false; }
 #endif

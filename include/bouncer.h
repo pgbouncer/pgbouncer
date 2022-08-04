@@ -288,7 +288,7 @@ struct PgPool {
 
 	bool welcome_msg_ready:1;
 
-	int16_t rrcounter;		/* round-robin counter */
+	uint16_t rrcounter;		/* round-robin counter */
 };
 
 #define pool_connected_server_count(pool) ( \

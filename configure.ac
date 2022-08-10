@@ -94,7 +94,7 @@ if test "$with_systemd" = yes; then
 fi
 
 dnl Check for server GSSAPI Encryption support
-server_gssenc_support=no
+server_gssenc_support=yes
 AC_ARG_WITH(server-gssenc,
   AC_HELP_STRING([--with-server-gssenc], [build with server GSSAPI Encryption support]),
   [ GSS=
@@ -105,6 +105,9 @@ AC_ARG_WITH(server-gssenc,
       if test x"${have_gss_header}" != x -a x"${have_libgss}" != x; then
         server_gssenc_support=yes
         AC_DEFINE(HAVE_SERVER_GSSENC, 1, [Server GSSAPI Encryption support])
+      else
+        server_gssenc_support=no
+        AC_DEFINE(HAVE_SERVER_GSSENC, 0, [Server GSSAPI Encryption support])
       fi
     fi
   ], [])

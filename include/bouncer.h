@@ -88,11 +88,10 @@ enum SSLMode {
 	SSLMODE_VERIFY_FULL
 };
 
-enum ServerGSSEncMode {
-        SERVER_GSSENCMODE_DISABLED,
-        SERVER_GSSENCMODE_ALLOW,
-        SERVER_GSSENCMODE_PREFER,
-        SERVER_GSSENCMODE_REQUIRE
+enum GSSEncMode {
+    GSSENCMODE_DISABLE,
+    GSSENCMODE_PREFER,
+    GSSENCMODE_REQUIRE
 };
 
 #define is_server_socket(sk) ((sk)->state >= SV_FREE)
@@ -573,6 +572,9 @@ extern char *cf_server_tls_ca_file;
 extern char *cf_server_tls_cert_file;
 extern char *cf_server_tls_key_file;
 extern char *cf_server_tls_ciphers;
+
+extern int cf_server_gssencmode;
+
 
 extern const struct CfLookup pool_mode_map[];
 

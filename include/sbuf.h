@@ -43,7 +43,7 @@ typedef enum {
  */
 #define SBUF_SMALL_PKT	64
 
-#ifdef HAVE_SERVER_GSSENC
+#ifdef HAVE_GSSAPI_H
 
 #define GSSENC_WANT_POLLOUT -3
 #define GSSENC_WANT_POLLIN -2
@@ -98,7 +98,7 @@ struct SBuf {
 	const SBufIO *ops;	/* normal vs. TLS vs. GSS */
 	struct tls *tls;	/* TLS context */
 	struct gss_ctx_id_struct *gss;
-#ifdef HAVE_SERVER_GSSENC
+#ifdef HAVE_GSSAPI_H
 	char	   *gss_SendBuffer; /* Encrypted data waiting to be sent */
 	int			gss_SendLength; /* End of data available in gss_SendBuffer */
 	int			gss_SendNext;	/* Next index to send a byte from
@@ -135,15 +135,20 @@ bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, socklen_t sa_len, time_
  * usually you should use this variable over cf_client_tls_sslmode.
  */
 extern int client_accept_sslmode;
+
 /*
  * Same as client_accept_sslmode, but for server connections.
  */
 extern int server_connect_sslmode;
 
+extern int server_connect_gssencmode;
+
 bool sbuf_gssenc_connect(SBuf *sbuf, char *gssapi_spn)  _MUSTCHECK;
 bool sbuf_tls_setup(void);
 bool sbuf_tls_accept(SBuf *sbuf)  _MUSTCHECK;
 bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)  _MUSTCHECK;
+
+bool sbuf_gssenc_setup(void);
 
 bool sbuf_pause(SBuf *sbuf) _MUSTCHECK;
 void sbuf_continue(SBuf *sbuf);

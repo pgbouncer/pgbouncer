@@ -462,7 +462,7 @@ static bool handle_connect(PgSocket *server)
 			res = send_sslreq_packet(server);
 			if (res)
 				server->wait_sslchar = true;
-        } else if (!is_unix) { // TODO: make it work like SSLMODE_ENABLED above
+        } else if (server_connect_gssencmode > GSSENCMODE_DISABLE && !is_unix) { // TODO: make it work like SSLMODE_ENABLED above
 			slog_noise(server, "P: GSSEnc request");
 			res = send_gssencreq_packet(server);
 			if (res)
@@ -545,10 +545,9 @@ static bool handle_gssencchar(PgSocket *server, struct MBuf *data)
 	if (gchar == 'G') {
 		slog_noise(server, "launching gssenc");
 		ok = sbuf_gssenc_connect(&server->sbuf, server->pool->db->gssapi_spn);
-// TODO: allow refusal
-//	} else if (server_connect_sslmode >= GSSENCMODE_REQUIRE) {
-//		disconnect_server(server, false, "server refused GSSEnc");
-//		return false;
+	} else if (server_connect_gssencmode == GSSENCMODE_REQUIRE) {
+		disconnect_server(server, false, "server refused GSSEnc");
+		return false;
 	} else {
 		/* proceed with non-TLS connection */
 		ok = send_startup_packet(server);

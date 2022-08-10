@@ -51,7 +51,7 @@ enum TLSState {
 	SBUF_TLS_OK,
 };
 
-#ifdef HAVE_SERVER_GSSENC
+#ifdef HAVE_GSSAPI_H
 enum GSSEncState {
         SBUF_GSSENC_NONE,
         SBUF_GSSENC_DO_HANDSHAKE,
@@ -91,7 +91,7 @@ static bool sbuf_call_proto(SBuf *sbuf, int event) /* _MUSTCHECK */;
 static bool sbuf_actual_recv(SBuf *sbuf, size_t len)  _MUSTCHECK;
 static bool sbuf_after_connect_check(SBuf *sbuf)  _MUSTCHECK;
 static bool handle_tls_handshake(SBuf *sbuf) /* _MUSTCHECK */;
-#ifdef HAVE_SERVER_GSSENC
+#ifdef HAVE_GSSAPI_H
 static bool handle_gssenc_handshake(SBuf *sbuf) /* _MUSTCHECK */;
 #endif
 
@@ -119,7 +119,7 @@ static void sbuf_tls_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
 #endif
 
 /* I/O over GSS Enc */
-#ifdef HAVE_SERVER_GSSENC
+#ifdef HAVE_GSSAPI_H
 #define Min(x, y)		((x) < (y) ? (x) : (y))
 static ssize_t pg_GSS_write(SBuf *conn, const void *ptr, size_t len);
 static ssize_t pqsecure_raw_write(SBuf *conn, const void *ptr, size_t len);
@@ -812,7 +812,7 @@ skip_recv:
 		sbuf->pkt_action = SBUF_TLS_IN_HANDSHAKE;
 		handle_tls_handshake(sbuf);
 	}
-#ifdef HAVE_SERVER_GSSENC
+#ifdef HAVE_GSSAPI_H
 	if (sbuf->gssenc_state == SBUF_GSSENC_DO_HANDSHAKE) {
 		sbuf->pkt_action = SBUF_GSSENC_IN_HANDSHAKE;
 		handle_gssenc_handshake(sbuf);
@@ -1317,7 +1317,16 @@ static bool handle_tls_handshake(SBuf *sbuf)
  * Server GSS Encryption support.
  */
 
-#ifdef HAVE_SERVER_GSSENC
+#ifdef HAVE_GSSAPI_H
+
+int server_connect_gssencmode;
+
+bool sbuf_gssenc_setup(void)
+{
+	server_connect_gssencmode = cf_server_gssencmode;
+	return true;
+}
+
 static int gssenc_sbufio_close(struct SBuf *sbuf)
 {
 	log_noise("gss_close");
@@ -2200,7 +2209,6 @@ bool sbuf_gssenc_connect(SBuf *conn, char *gssapi_spn)
          * (GSS_S_CONTINUE_NEEDED is set) or if it is nonempty. */
         if ((major & GSS_S_CONTINUE_NEEDED) ||
             output_token.length > 0) {
-//            ret = send_token(conn->sock, NULL, &output_token);
             ret = send_token(conn->sock, 0, &output_token);
             if (ret < 0)
                 goto cleanup;
@@ -2267,6 +2275,7 @@ cleanup:
 static bool handle_gssenc_handshake(SBuf *sbuf)
 {
 	sbuf->gssenc_state = SBUF_GSSENC_OK;
+/* TODO: async for connection */
 //	sbuf_use_callback_once(sbuf, EV_READ, sbuf_gssenc_handshake_cb);
 //	sbuf_use_callback_once(sbuf, EV_WRITE, sbuf_gssenc_handshake_cb);
 	sbuf_call_proto(sbuf, SBUF_EV_GSSENC_READY);
@@ -2281,10 +2290,9 @@ static bool handle_gssenc_handshake(SBuf *sbuf)
 //		sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
 //}
 #else
-//int client_accept_sslmode = SSLMODE_DISABLED;
-//int server_connect_sslmode = SSLMODE_DISABLED;
+int server_connect_gssencmode = GSSENCMODE_DISABLE;
 
-//bool sbuf_tls_setup(void) { return true; }
+bool sbuf_gssenc_setup(void) { return true; }
 //bool sbuf_tls_accept(SBuf *sbuf) { return false; }
 bool sbuf_gssenc_connect(SBuf *sbuf, char *gssapi_spn) { return false; }
 #endif

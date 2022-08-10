@@ -737,6 +737,8 @@ version 1.3 connections.
 
 Default: `fast`
 
+### server_gssencmode
+
 
 ## Dangerous timeouts
 

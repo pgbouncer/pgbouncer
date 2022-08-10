@@ -242,6 +242,10 @@ static bool admin_set(PgSocket *admin, const char *key, const char *val)
 				if (!sbuf_tls_setup())
 					pktbuf_write_Notice(buf, "TLS settings could not be applied, still using old configuration");
 			}
+			if (strstr(key, "_gss") != NULL) {
+				if (!sbuf_gssenc_setup())
+					pktbuf_write_Notice(buf, "GSSENC settings could not be applied, still using old configuration")
+			}
 			snprintf(tmp, sizeof(tmp), "SET %s=%s", key, val);
 			return admin_flush(admin, buf, tmp);
 		} else {
@@ -988,6 +992,8 @@ static bool admin_cmd_reload(PgSocket *admin, const char *arg)
 	load_config();
 	if (!sbuf_tls_setup())
 		log_error("TLS configuration could not be reloaded, keeping old configuration");
+	if (!sbuf_gssenc_setup())
+		log_error("GSSENC configuration could not be reloaded, keeping old configuration");
 	return admin_ready(admin, "RELOAD");
 }
 

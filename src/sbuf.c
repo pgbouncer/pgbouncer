@@ -523,6 +523,7 @@ try_more:
 
 	if (sbuf->dst->sock == 0) {
 		log_error("sbuf_send_pending: no dst sock?");
+		sbuf_call_proto(sbuf, SBUF_EV_SEND_FAILED);
 		return false;
 	}
 

@@ -185,6 +185,8 @@ psql -X -p $PG_PORT -d p0 -c "select * from pg_user" | grep pswcheck > /dev/null
 	psql -X -o /dev/null -p $PG_PORT -c "create user pswcheck with superuser createdb password 'pgbouncer-check';" p0 || exit 1
 	psql -X -o /dev/null -p $PG_PORT -c "create user someuser with password 'anypasswd';" p0 || exit 1
 	psql -X -o /dev/null -p $PG_PORT -c "create user maxedout;" p0 || exit 1
+	psql -X -o /dev/null -p $PG_PORT -c "create user shadowuser1 with password 'bar';" p0 || exit 1
+	psql -X -o /dev/null -p $PG_PORT -c "create user shadowuser2 with password 'foo';" p0 || exit 1
 	psql -X -o /dev/null -p $PG_PORT -c "create user longpass with password '$long_password';" p0 || exit 1
 	if $pg_supports_scram; then
 		psql -X -o /dev/null -p $PG_PORT -c "set password_encryption = 'md5'; create user muser1 password 'foo';" p0 || exit 1
@@ -557,27 +559,223 @@ test_max_client_conn() {
 
 # - max pool size
 test_pool_size() {
+	rm -f $LOGDIR/test.tmp
+
 	# make existing connections go away
 	psql -X -p $PG_PORT -d postgres -c "select pg_terminate_backend(pid) from pg_stat_activity where usename='bouncer'"
 	until test $(psql -X -p $PG_PORT -d postgres -tAq -c "select count(1) from pg_stat_activity where usename='bouncer'") -eq 0; do sleep 0.1; done
 
-	docount() {
+	spawn_connections() {
+		local user=${1}
+		local database=${2}
 		for i in {1..10}; do
-			psql -X -c "select pg_sleep(0.5)" $1 >/dev/null &
+			if [[ "$user" == "bouncer" ]]; then
+				psql -X -c "select pg_sleep(2)" "$database" >/dev/null &
+			else
+				psql -X -U "$user" -c "select pg_sleep(2)" "$database" >/dev/null &
+			fi
 		done
 		wait
-		cnt=`psql -X -p $PG_PORT -tAq -c "select count(1) from pg_stat_activity where usename='bouncer' and datname='$1'" postgres`
+	}
+
+	count_connections() {
+		local user=${1}
+		local database=${2}
+		cnt=`psql -X -p $PG_PORT -tAq -c "select count(1) from pg_stat_activity where usename = '$user' and datname = '$database'" postgres`
 		echo $cnt
 	}
 
-	test `docount p0` -eq 2 || return 1
-	test `docount p1` -eq 5 || return 1
-
+  	# database specific limit should be respected when creating new connections
+  	spawn_connections bouncer p0
+	test `count_connections bouncer p0` -eq 2 || return 1
+  	# global default limit should be respected when creating new connections
+  	spawn_connections bouncer p1
+	test `count_connections bouncer p1` -eq 5 || return 1
+	# global default limit should still be respected even with contradictory min_pool_size
+	admin "set min_pool_size = 8"
+  	spawn_connections bouncer p1
+  	test `count_connections bouncer p1` -eq 5 || return 1
 	# test reload (GH issue #248)
 	admin "set default_pool_size = 7"
-	test `docount p1` -eq 7 || return 1
+	spawn_connections bouncer p1
+	test `count_connections bouncer p1` -eq 7 || return 1
+  	# new larger limit should be respected when creating new connections
+  	admin "set user maxedout = 'max_user_connections=10'"
+  	admin "set pool maxedout.p7b = 'pool_size=8'"
+  	spawn_connections maxedout p7b
+	test `count_connections maxedout p7` -eq 8 || return 1
+	# new smaller limit should be respected when creating new connections
+	admin "set pool maxedout.p7b = 'pool_size=1'"
+	spawn_connections maxedout p7b
+	test `count_connections maxedout p7` -eq 1 || return 1
+	# new smaller limit should be respected when creating new connections
+	spawn_connections maxedout p7b
+	admin "set pool maxedout.p7b = 'pool_size=0'"
+	wait
+	test `count_connections maxedout p7` -eq 0 || return 1
+	# any existing connections above new limit should be evicted
+	admin "set pool maxedout.p7a = 'pool_size=10'"
+	spawn_connections maxedout p7a
+	admin "set pool maxedout.p7a = 'pool_size=2'"
+	wait
+	test `count_connections maxedout p7` -eq 2 || return 1
+	# pool connection limit should be reset to original maxedout.p7b pool_size in ini file
+	admin "reload"
+	spawn_connections maxedout p7a
+	test `count_connections maxedout p7` -eq 3 || return 1
+	# pool connection limit should be set to default_pool_size in ini file
+	admin "set user maxedout = 'max_user_connections=10'"
+	admin "set pool maxedout.p7a = 'pool_size=-1'"
+	spawn_connections maxedout p7a
+	wait
+	test `count_connections maxedout p7` -eq 5 || return 1
+	# no connections should be evicted because current limit is not exceeded
+	spawn_connections maxedout p7a
+	admin "set pool maxedout.p7a = 'pool_size=5'"
+	wait
+	test `count_connections maxedout p7` -eq 5 || return 1
+	# any existing connections above new limit should be not evicted for another user
+	spawn_connections longpass p7c
+	spawn_connections maxedout p7c
+	admin "set pool longpass.p7c = 'pool_size=4'"
+	wait
+	test `count_connections longpass p7` -eq 4 || return 1
+	test `count_connections maxedout p7` -eq 10 || return 1
+	# any existing connections above new limit should be not evicted for user's other pool
+	admin "set pool longpass.p7a = 'pool_size=10'"
+	admin "set pool longpass.p7c = 'pool_size=10'"
+	spawn_connections longpass p7a
+	spawn_connections longpass p7c
+	admin "set pool longpass.p7a = 'pool_size=0'"
+	wait
+	test `count_connections longpass p7` -eq 10 || return 1
+	# any existing connections above new limit should be evicted for database auth_user
+	spawn_connections pswcheck authdb
+	admin "set pool pswcheck.authdb = 'pool_size=2'"
+	wait
+	test `count_connections pswcheck p1` -eq 2 || return 1
+	# any existing connections above new limit should be evicted for global auth_user
+	admin "set auth_user = pswcheck"
+	spawn_connections pswcheck authdb
+	admin "set pool pswcheck.authdb = 'pool_size=1'"
+	wait
+	test `count_connections pswcheck p1` -eq 1 || return 1
+	# any existing connections above new limits should be evicted
+	admin "set min_pool_size = 4"
+	spawn_connections longpass p7c
+	admin "set pool longpass.p7c = 'pool_size=4'"
+	wait
+	test `count_connections longpass p7` -eq 4 || return 1
+	# pool specific limit should still be respected even with contradictory min_pool_size
+	admin "set min_pool_size = 4"
+	spawn_connections longpass p7c
+	admin "set pool longpass.p7c = 'pool_size=3'"
+	wait
+	test `count_connections longpass p7` -eq 3 || return 1
+	# database max_db_connections is smaller than pool specific limit and should be respected
+	admin "reload"
+	spawn_connections longpass p2
+	admin "set pool longpass.p2 = 'pool_size=5'"
+	wait
+	test `count_connections longpass p0` -eq 4 || return 1
+	# pool specific limit is smaller than database max_db_connections and should be respected
+	admin "reload"
+	spawn_connections longpass p2
+	admin "set pool longpass.p2 = 'pool_size=3'"
+	wait
+	test `count_connections longpass p0` -eq 3 || return 1
+	# global max_db_connections is smaller than pool specific limit and should be respected
+	admin "set user maxedout = 'max_user_connections=10'"
+	admin "set max_db_connections = 2"
+	admin "set pool maxedout.p8 = 'pool_size=5'"
+	spawn_connections maxedout p8
+	test `count_connections maxedout p0` -eq 2 || return 1
+	# pool specific limit is smaller than global max_db_connections and should be respected
+	admin "set pool maxedout.p7c = 'pool_size=10'"
+	admin "set max_db_connections = 7"
+	spawn_connections maxedout p7c
+	admin "set pool maxedout.p7c = 'pool_size=4'"
+	wait
+	test `count_connections maxedout p7` -eq 4 || return 1
+	# global max_user_connections is smaller than pool specific limit and should be respected
+	admin "set max_user_connections = 4"
+	admin "set pool longpass.p7a = 'pool_size=5'"
+	spawn_connections longpass p7a
+	test `count_connections longpass p7` -eq 4 || return 1
+	# pool specific limit is smaller than global max_user_connections and should be respected
+	admin "set max_user_connections = 3"
+	spawn_connections longpass p7a
+	admin "set pool longpass.p7a = 'pool_size=2'"
+	wait
+	test `count_connections longpass p7` -eq 2 || return 1
+	# pool specific limit is smaller than global max_user_connections and should be respected
+	admin "set max_user_connections = 7"
+	admin "set pool longpass.p7a = 'pool_size=6'"
+	spawn_connections longpass p7a
+	test `count_connections longpass p7` -eq 6 || return 1
+	# user max_user_connections is smaller than pool specific limit and should be respected
+	admin "set user longpass = 'max_user_connections=5'"
+	admin "set pool longpass.p7a = 'pool_size=6'"
+	spawn_connections longpass p7a
+	test `count_connections longpass p7` -eq 5 || return 1
+	# pool specific limit is smaller than user max_user_connections and should be respected
+	admin "set user longpass = 'max_user_connections=4'"
+	spawn_connections longpass p7a
+	admin "set pool longpass.p7a = 'pool_size=3'"
+	wait
+	test `count_connections longpass p7` -eq 3 || return 1
+	# pool specific limit is smaller than user max_user_connections and should be respected
+	admin "set user longpass = 'max_user_connections=8'"
+	admin "set pool longpass.p7a = 'pool_size=7'"
+	spawn_connections longpass p7a
+	test `count_connections longpass p7` -eq 7 || return 1
+	# only database specific limit is configured and should be respected
+	admin "set pool longpass.p8a = 'pool_size=-1'"
+	spawn_connections longpass p8a
+	test `count_connections longpass p0` -eq 4 || return 1
+	# database specific limit is smaller than pool specific limit and should be respected
+	admin "set pool longpass.p8a = 'pool_size=5'"
+	spawn_connections longpass p8a
+	test `count_connections longpass p0` -eq 4 || return 1
+	# pool specific limit is smaller than database specific limit and should be respected
+	admin "set pool longpass.p8a = 'pool_size=3'"
+	spawn_connections longpass p8a
+	test `count_connections longpass p0` -eq 3 || return 1
+	# set pool command with malformed pool_size value should be rejected
+	spawn_connections longpass
+	psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "set pool longpass.p0 = 'pool_size=0d';" >>$LOGDIR/test.tmp 2>&1
+	grep -q "ERROR:  SET failed" $LOGDIR/test.tmp || return 1
+	# set pool command with empty pool_size value should be rejected
+	psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "set pool longpass.p0 = 'pool_size=';" >>$LOGDIR/test.tmp 2>&1
+	grep -q "ERROR:  SET failed" $LOGDIR/test.tmp || return 1
+	# set pool command with empty parameters should be rejected
+	psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "set pool longpass.p0 = '';" >>$LOGDIR/test.tmp 2>&1
+	grep -q "ERROR:  SET failed" $LOGDIR/test.tmp || return 1
+	# set pool command with multiple delimiters should be rejected
+	psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "set pool lo.ngpass.p0 = 'pool_size=1';" >>$LOGDIR/test.tmp 2>&1
+	grep -q "ERROR:  SET failed" $LOGDIR/test.tmp || return 1
+	psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "set pool .longpass.p0 = 'pool_size=1';" >>$LOGDIR/test.tmp 2>&1
+	grep -q "ERROR:  SET failed" $LOGDIR/test.tmp || return 1
+	psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "set pool longpass.p0. = 'pool_size=1';" >>$LOGDIR/test.tmp 2>&1
+	grep -q "ERROR:  SET failed" $LOGDIR/test.tmp || return 1
+	# set pool command with missing user should be rejected
+	psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "set pool .p0 = 'pool_size=1';" >>$LOGDIR/test.tmp 2>&1
+	grep -q "ERROR:  SET failed" $LOGDIR/test.tmp || return 1
+	psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "set pool p0 = 'pool_size=1';" >>$LOGDIR/test.tmp 2>&1
+	grep -q "ERROR:  SET failed" $LOGDIR/test.tmp || return 1
+	# set pool command with missing database should be rejected
+	psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "set pool longpass. = 'pool_size=1';" >>$LOGDIR/test.tmp 2>&1
+	grep -q "ERROR:  SET failed" $LOGDIR/test.tmp || return 1
+	psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "set pool longpass = 'pool_size=1';" >>$LOGDIR/test.tmp 2>&1
+	grep -q "ERROR:  SET failed" $LOGDIR/test.tmp || return 1
 
-	return 0
+  	# reset users to default max user connections
+  	admin "set user longpass = 'max_user_connections=0'"
+  	admin "set user maxedout = 'max_user_connections=3'"
+  	# reset to use default configurations
+  	admin "reload"
+
+  	return 0
 }
 
 test_min_pool_size() {
@@ -655,20 +853,77 @@ test_max_db_connections() {
 }
 
 test_max_user_connections() {
+  rm -f $LOGDIR/test.tmp
 	local databases
-
 	databases=(p7a p7b p7c)
 
-	docount() {
+	spawn_connections() {
+	  local user=${1}
 		for i in {1..10}; do
-			psql -X -U maxedout -c "select pg_sleep(0.5)" ${databases[$(($i % 3))]} >/dev/null &
+		  psql -X -U "$user" -c "select pg_sleep(2)" "${databases[$(($i % 3))]}" >/dev/null &
 		done
 		wait
-		cnt=`psql -X -p $PG_PORT -tAq -c "select count(1) from pg_stat_activity where datname = 'p7'" postgres`
-		echo $cnt
 	}
 
-	test `docount` -eq 3 || return 1
+	count_connections() {
+	  local user=${1}
+	  cnt=`psql -X -p $PG_PORT -tAq -c "select count(1) from pg_stat_activity where usename =  '$user' and datname = 'p7'" postgres`
+    echo $cnt
+	}
+
+  spawn_connections maxedout
+	test `count_connections maxedout` -eq 3 || return 1
+  # new larger limit should be respected when creating new connections
+  admin "set user maxedout = 'max_user_connections=8'"
+  spawn_connections maxedout
+	test `count_connections maxedout` -eq 8 || return 1
+	# new smaller limit should be respected when creating new connections
+  admin "set user maxedout = 'max_user_connections=2'"
+  spawn_connections maxedout
+  test `count_connections maxedout` -eq 2 || return 1
+  # any existing connections above new limit should be evicted
+  admin "set user maxedout = 'max_user_connections=10'"
+  spawn_connections maxedout
+	admin "set user maxedout = 'max_user_connections=1'"
+	wait
+  test `count_connections maxedout` -eq 1 || return 1
+  # user connection limit should be reset to original value in ini file
+  admin "reload"
+  spawn_connections maxedout
+  test `count_connections maxedout` -eq 3 || return 1
+  # no connections should be evicted because current limit is set to unlimited
+  admin "set user maxedout = 'max_user_connections=0'"
+  spawn_connections maxedout
+  test `count_connections maxedout` -eq 10 || return 1
+  # no connections should be evicted because current limit is set to unlimited
+  admin "set user maxedout = 'max_user_connections=-1'"
+  spawn_connections maxedout
+  test `count_connections maxedout` -eq 10 || return 1
+  # no connections should be evicted because current limit is not exceeded
+  spawn_connections maxedout
+  admin "set user maxedout = 'max_user_connections=10'"
+  wait
+  test `count_connections maxedout` -eq 10 || return 1
+  # any existing connections above new limit should be evicted for user not defined in [users]
+  spawn_connections longpass
+  admin "set user longpass = 'max_user_connections=4'"
+  wait
+  test `count_connections longpass` -eq 4 || return 1
+  # set user command with malformed max_user_connections value should be rejected
+  spawn_connections longpass
+  psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "set user longpass = 'max_user_connections=0d';" >>$LOGDIR/test.tmp 2>&1
+  grep -q "ERROR:  SET failed" $LOGDIR/test.tmp || return 1
+  test `count_connections longpass` -eq 4 || return 1
+  # set user command with empty max_user_connections value should be rejected
+  psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "set user longpass = 'max_user_connections=';" >>$LOGDIR/test.tmp 2>&1
+  grep -q "ERROR:  SET failed" $LOGDIR/test.tmp || return 1
+  # set user command with empty parameters should be rejected
+  psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "set user longpass = '';" >>$LOGDIR/test.tmp 2>&1
+  grep -q "ERROR:  SET failed" $LOGDIR/test.tmp || return 1
+
+  # reset users to default max user connections
+  admin "set user longpass = 'max_user_connections=0'"
+  admin "set user maxedout = 'max_user_connections=3'"
 
 	return 0
 }
@@ -929,6 +1184,48 @@ test_password_server() {
 	psql -X -c "select 1" p4l || return 1
 
 	return 0
+}
+
+# test password authentication from PgBouncer to PostgreSQL server using
+# auth_query to retrieve user's shadow password from pg_shadow
+test_shadow_password_server_login() {
+  $have_getpeereid || return 77
+
+  admin "set auth_type='md5'"
+  admin "set auth_user='pswcheck'"
+
+  # plain-text password of auth_user in userlist.txt
+  curuser=`psql -X -d "dbname=authdb user=pswcheck password=pgbouncer-check" -tAq -c "select current_user;"`
+  echo "curuser=$curuser"
+  test "$curuser" = "pswcheck" || return 1
+
+  # user with good password from PostgreSQL server
+  curuser=`psql -X -d "dbname=authdb user=shadowuser1 password=bar" -tAq -c "select current_user;"`
+  echo "curuser=$curuser"
+  test "$curuser" = "shadowuser1" || return 1
+  # user with bad password from PostgreSQL server
+  curuser=`psql -X -d "dbname=authdb user=shadowuser1 password=badpasswd" -tAq -c "select current_user;"`
+  echo "curuser=$curuser"
+  test "$curuser" = "" || return 1
+
+  # user defined in ini [users] section with good password from PostgreSQL server
+  curuser=`psql -X -d "dbname=authdb user=shadowuser2 password=foo" -tAq -c "select current_user;"`
+  echo "curuser=$curuser"
+  test "$curuser" = "shadowuser2" || return 1
+  # user defined in ini [users] section with bad password from PostgreSQL server
+  curuser2=`psql -X -d "dbname=authdb user=shadowuser2 password=badpasswd" -tAq -c "select current_user;"`
+  echo "curuser2=$curuser2"
+  test "$curuser2" = "" || return 1
+
+  # auth_user defined in ini [users] section with good password from PostgreSQL server
+  admin "set auth_user='shadowuser2'"
+  curuser=`psql -X -d "dbname=authdb user=shadowuser2 password=foo" -tAq -c "select current_user;"`
+  echo "curuser=$curuser"
+  test "$curuser" = "shadowuser2" || return 1
+
+  admin "set auth_type='trust'"
+
+  return 0
 }
 
 # test plain-text password authentication from client to PgBouncer
@@ -1401,6 +1698,7 @@ test_server_lifetime
 test_server_idle_timeout
 test_query_timeout
 test_idle_transaction_timeout
+test_shadow_password_server_login
 test_server_connect_timeout_establish
 test_server_connect_timeout_reject
 test_server_check_delay

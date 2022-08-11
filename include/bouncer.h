@@ -86,8 +86,10 @@ enum SSLMode {
 
 typedef struct PgSocket PgSocket;
 typedef struct PgUser PgUser;
+typedef struct PgUserEvent PgUserEvent;
 typedef struct PgDatabase PgDatabase;
 typedef struct PgPool PgPool;
+typedef struct PgPoolEvent PgPoolEvent;
 typedef struct PgStats PgStats;
 typedef union PgAddr PgAddr;
 typedef enum SocketState SocketState;
@@ -288,7 +290,16 @@ struct PgPool {
 
 	bool welcome_msg_ready:1;
 
+	int pool_size;		/* max server connections in one pool */
 	int16_t rrcounter;		/* round-robin counter */
+};
+
+/*
+ * An association of an event occurring for a pool, such as the pool's config being reloaded.
+ */
+struct PgPoolEvent {
+	struct PgPool *pool;
+	struct event *ev;
 };
 
 #define pool_connected_server_count(pool) ( \
@@ -326,9 +337,18 @@ struct PgUser {
 	uint8_t scram_ServerKey[32];
 	bool has_scram_keys;		/* true if the above two are valid */
 	bool mock_auth;			/* not a real user, only for mock auth */
+	bool is_preconfigured;		/* true if user is created from pre-configuration parsing */
 	int pool_mode;
 	int max_user_connections;	/* how much server connections are allowed */
 	int connection_count;	/* how much connections are used by user now */
+};
+
+/*
+ * An association of an event occurring for a user, such as the user's config being reloaded.
+ */
+struct PgUserEvent {
+	struct PgUser *user;
+	struct event *ev;
 };
 
 /*
@@ -593,6 +613,6 @@ last_socket(struct StatList *slist)
 void load_config(void);
 
 
-bool set_config_param(const char *key, const char *val);
+bool set_config_param(const char *sect, const char *key, const char *val);
 void config_for_each(void (*param_cb)(void *arg, const char *name, const char *val, const char *defval, bool reloadable),
 		     void *arg);

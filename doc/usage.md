@@ -298,6 +298,10 @@ remote_pid
 tls
 :   A string with TLS connection information, or empty if not using TLS.
 
+application_name
+:   A string containing the `application_name` set on the linked client connection,
+    or empty if this is not set, or if there is no linked connection.
+    
 #### SHOW CLIENTS
 
 type
@@ -352,6 +356,10 @@ remote_pid
 
 tls
 :   A string with TLS connection information, or empty if not using TLS.
+
+application_name
+:   A string containing the `application_name` set by the client
+    for this connection, or empty if this was not set.
 
 #### SHOW POOLS
 

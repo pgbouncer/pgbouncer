@@ -588,8 +588,8 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	return true;
 }
 
-#define SKF_STD "sssssisiTTiiissis"
-#define SKF_DBG "sssssisiTTiiissisiiiiiii"
+#define SKF_STD "sssssisiTTiiississ"
+#define SKF_DBG "sssssisiTTiiississiiiiiii"
 
 static void socket_header(PktBuf *buf, bool debug)
 {
@@ -599,6 +599,7 @@ static void socket_header(PktBuf *buf, bool debug)
 				    "connect_time", "request_time",
 				    "wait", "wait_us", "close_needed",
 				    "ptr", "link", "remote_pid", "tls",
+				    "application_name",
 				    /* debug follows */
 				    "recv_pos", "pkt_pos", "pkt_remain",
 				    "send_pos", "send_remain",
@@ -618,6 +619,8 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 	char l_addr[PGADDR_BUF], r_addr[PGADDR_BUF];
 	IOBuf *io = sk->sbuf.io;
 	char infobuf[96] = "";
+	VarCache *v = &sk->vars;
+	const struct PStr *application_name = v->var_list[VAppName];
 	usec_t now = get_cached_time();
 	usec_t wait_time = sk->query_start ? now - sk->query_start : 0;
 
@@ -659,6 +662,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 			     (int)(wait_time % USEC),
 			     sk->close_needed,
 			     ptrbuf, linkbuf, remote_pid, infobuf,
+			     application_name ? application_name->str : "",
 			     /* debug */
 			     io ? io->recv_pos : 0,
 			     io ? io->parse_pos : 0,

@@ -407,11 +407,13 @@ bool parse_user(void *base, const char *name, const char *connstr)
 
 	user = find_user(name);
 	if (!user) {
+		/* represents a user pre-configuration, not a connected logged-in user */
 		user = add_user(name, "");
 		if (!user) {
 			log_error("cannot create user, no memory?");
 			goto fail;
 		}
+		user->is_preconfigured = true;
 	}
 
 	user->pool_mode = pool_mode;

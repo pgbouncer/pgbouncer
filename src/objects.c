@@ -387,6 +387,36 @@ PgUser *add_user(const char *name, const char *passwd)
 	return user;
 }
 
+/* find original or preconfigured user given the login user */
+PgUser *find_original_user(PgUser *login_user)
+{
+	/*
+	 * The original user will either be the current login user, a preconfigured user via
+	 * ini file [users] section, a preconfigured user via global auth_file, a PAM user,
+	 * a user attached to a database via auth_query, a forced user with user= entry via
+	 * ini file [databases] section, or not exist yet if the user has never connected.
+	 */
+	PgUser *original_user = find_user(login_user->name);
+	char *tmp_passwd;
+
+	/* add new login user to reload their configurations at runtime */
+	if (original_user == NULL) {
+		put_in_order(&login_user->head, &user_list, cmp_user);
+		aatree_insert(&user_tree, (uintptr_t)login_user->name, &login_user->tree_node);
+		return login_user;
+	}
+
+	/* original user is no longer preconfigured and won't send auth queries on future login */
+	if (original_user->is_preconfigured)
+		original_user->is_preconfigured = false;
+
+	tmp_passwd = strdup(login_user->passwd);
+	safe_strcpy(original_user->passwd, tmp_passwd, sizeof(original_user->passwd));
+	free(tmp_passwd);
+
+	return original_user;
+}
+
 /* add or update db users */
 PgUser *add_db_user(PgDatabase *db, const char *name, const char *passwd)
 {

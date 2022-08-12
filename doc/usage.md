@@ -222,7 +222,8 @@ avg_query_time
 
 avg_wait_time
 :   Time spent by clients waiting for a server, in microseconds (average
-    per second).
+    of the wait times for clients assigned a backend during the current
+    `stats_period`).
 
 #### SHOW STATS_TOTALS
 

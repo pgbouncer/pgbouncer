@@ -185,6 +185,8 @@ psql -X -p $PG_PORT -d p0 -c "select * from pg_user" | grep pswcheck > /dev/null
 	psql -X -o /dev/null -p $PG_PORT -c "create user pswcheck with superuser createdb password 'pgbouncer-check';" p0 || exit 1
 	psql -X -o /dev/null -p $PG_PORT -c "create user someuser with password 'anypasswd';" p0 || exit 1
 	psql -X -o /dev/null -p $PG_PORT -c "create user maxedout;" p0 || exit 1
+	psql -X -o /dev/null -p $PG_PORT -c "create user shadowuser1 with password 'bar';" p0 || exit 1
+	psql -X -o /dev/null -p $PG_PORT -c "create user shadowuser2 with password 'foo';" p0 || exit 1
 	psql -X -o /dev/null -p $PG_PORT -c "create user longpass with password '$long_password';" p0 || exit 1
 	if $pg_supports_scram; then
 		psql -X -o /dev/null -p $PG_PORT -c "set password_encryption = 'md5'; create user muser1 password 'foo';" p0 || exit 1
@@ -563,7 +565,7 @@ test_pool_size() {
 
 	docount() {
 		for i in {1..10}; do
-			psql -X -c "select pg_sleep(0.5)" $1 >/dev/null &
+			psql -X -c "select pg_sleep(1)" $1 >/dev/null &
 		done
 		wait
 		cnt=`psql -X -p $PG_PORT -tAq -c "select count(1) from pg_stat_activity where usename='bouncer' and datname='$1'" postgres`
@@ -655,20 +657,83 @@ test_max_db_connections() {
 }
 
 test_max_user_connections() {
+  	rm -f $LOGDIR/test.tmp
 	local databases
-
 	databases=(p7a p7b p7c)
 
-	docount() {
+	spawn_connections() {
+	  	local user=${1}
 		for i in {1..10}; do
-			psql -X -U maxedout -c "select pg_sleep(0.5)" ${databases[$(($i % 3))]} >/dev/null &
+			psql -X -U "$user" -c "select pg_sleep(2)" "${databases[$(($i % 3))]}" >/dev/null &
 		done
 		wait
-		cnt=`psql -X -p $PG_PORT -tAq -c "select count(1) from pg_stat_activity where datname = 'p7'" postgres`
-		echo $cnt
 	}
 
-	test `docount` -eq 3 || return 1
+	count_connections() {
+	  	local user=${1}
+	  	cnt=`psql -X -p $PG_PORT -tAq -c "select count(1) from pg_stat_activity where usename =  '$user' and datname = 'p7'" postgres`
+    	echo $cnt
+	}
+
+  	spawn_connections maxedout
+	test `count_connections maxedout` -eq 3 || return 1
+
+	# new larger limit should be respected when creating new connections
+	admin "set user maxedout = 'max_user_connections=8'"
+	spawn_connections maxedout
+	test `count_connections maxedout` -eq 8 || return 1
+	# new smaller limit should be respected when creating new connections
+	admin "set user maxedout = 'max_user_connections=2'"
+	spawn_connections maxedout
+	test `count_connections maxedout` -eq 2 || return 1
+
+	# any existing connections above new limit should be evicted
+	admin "set user maxedout = 'max_user_connections=10'"
+	spawn_connections maxedout
+	admin "set user maxedout = 'max_user_connections=1'"
+	wait
+	test `count_connections maxedout` -eq 1 || return 1
+
+	# user connection limit should be reset to original value in ini file
+	admin "reload"
+	spawn_connections maxedout
+	test `count_connections maxedout` -eq 3 || return 1
+
+	# no connections should be evicted because current limit is set to unlimited
+	admin "set user maxedout = 'max_user_connections=0'"
+	spawn_connections maxedout
+	test `count_connections maxedout` -eq 10 || return 1
+	# no connections should be evicted because current limit is set to unlimited
+	admin "set user maxedout = 'max_user_connections=-1'"
+	spawn_connections maxedout
+	test `count_connections maxedout` -eq 10 || return 1
+	# no connections should be evicted because current limit is not exceeded
+	spawn_connections maxedout
+	admin "set user maxedout = 'max_user_connections=10'"
+	wait
+	test `count_connections maxedout` -eq 10 || return 1
+
+	# any existing connections above new limit should be evicted for user not defined in [users]
+	spawn_connections longpass
+	admin "set user longpass = 'max_user_connections=4'"
+	wait
+	test `count_connections longpass` -eq 4 || return 1
+
+	# set user command with malformed max_user_connections value should be rejected
+	spawn_connections longpass
+	psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "set user longpass = 'max_user_connections=0d'" >>$LOGDIR/test.tmp 2>&1
+	grep -q "ERROR:  SET failed" $LOGDIR/test.tmp || return 1
+	test `count_connections longpass` -eq 4 || return 1
+	# set user command with empty max_user_connections value should be rejected
+	psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "set user longpass = 'max_user_connections='" >>$LOGDIR/test.tmp 2>&1
+	grep -q "ERROR:  SET failed" $LOGDIR/test.tmp || return 1
+	# set user command with empty parameters should be rejected
+	psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "set user longpass = ''" >>$LOGDIR/test.tmp 2>&1
+	grep -q "ERROR:  SET failed" $LOGDIR/test.tmp || return 1
+
+	# reset users to default max user connections
+	admin "set user longpass = 'max_user_connections=0'"
+	admin "set user maxedout = 'max_user_connections=3'"
 
 	return 0
 }
@@ -927,6 +992,48 @@ test_password_server() {
 
 	# long password from auth_file
 	psql -X -c "select 1" p4l || return 1
+
+	return 0
+}
+
+# test password authentication from PgBouncer to PostgreSQL server using
+# auth_query to retrieve user's shadow password from pg_shadow
+test_shadow_password_server_login() {
+	$have_getpeereid || return 77
+
+	admin "set auth_type='md5'"
+	admin "set auth_user='pswcheck'"
+
+	# plain-text password of auth_user in userlist.txt
+	curuser=`psql -X -d "dbname=authdb user=pswcheck password=pgbouncer-check" -tAq -c "select current_user;"`
+	echo "curuser=$curuser"
+	test "$curuser" = "pswcheck" || return 1
+
+	# user with correct password from PostgreSQL server
+	curuser=`psql -X -d "dbname=authdb user=shadowuser1 password=bar" -tAq -c "select current_user;"`
+	echo "curuser=$curuser"
+	test "$curuser" = "shadowuser1" || return 1
+	# user with wrong password from PostgreSQL server
+	curuser=`psql -X -d "dbname=authdb user=shadowuser1 password=badpasswd" -tAq -c "select current_user;"`
+	echo "curuser=$curuser"
+	test "$curuser" = "" || return 1
+
+	# user defined in ini [users] section with correct password from PostgreSQL server
+	curuser=`psql -X -d "dbname=authdb user=shadowuser2 password=foo" -tAq -c "select current_user;"`
+	echo "curuser=$curuser"
+	test "$curuser" = "shadowuser2" || return 1
+	# user defined in ini [users] section with wrong password from PostgreSQL server
+	curuser2=`psql -X -d "dbname=authdb user=shadowuser2 password=badpasswd" -tAq -c "select current_user;"`
+	echo "curuser2=$curuser2"
+	test "$curuser2" = "" || return 1
+
+	# auth_user defined in ini [users] section with correct password from PostgreSQL server
+	admin "set auth_user='shadowuser2'"
+	curuser=`psql -X -d "dbname=authdb user=shadowuser2 password=foo" -tAq -c "select current_user;"`
+	echo "curuser=$curuser"
+	test "$curuser" = "shadowuser2" || return 1
+
+	admin "set auth_type='trust'"
 
 	return 0
 }
@@ -1445,6 +1552,7 @@ test_server_lifetime
 test_server_idle_timeout
 test_query_timeout
 test_idle_transaction_timeout
+test_shadow_password_server_login
 test_server_connect_timeout_establish
 test_server_connect_timeout_reject
 test_server_check_delay

@@ -34,7 +34,7 @@ PgUser *find_user(const char *name);
 PgPool *get_pool(PgDatabase *, PgUser *);
 PgSocket *compare_connections_by_time(PgSocket *lhs, PgSocket *rhs);
 bool evict_connection(PgDatabase *db)		_MUSTCHECK;
-bool evict_user_connection(PgUser *user)	_MUSTCHECK;
+bool evict_idle_user_connection(PgUser *user)	_MUSTCHECK;
 bool find_server(PgSocket *client)		_MUSTCHECK;
 bool life_over(PgSocket *server);
 bool release_server(PgSocket *server)		/* _MUSTCHECK */;
@@ -47,6 +47,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...) _
 
 PgDatabase * add_database(const char *name) _MUSTCHECK;
 PgDatabase *register_auto_database(const char *name);
+PgUser * find_original_user(PgUser *login_user) _MUSTCHECK;
 PgUser * add_user(const char *name, const char *passwd) _MUSTCHECK;
 PgUser * add_db_user(PgDatabase *db, const char *name, const char *passwd) _MUSTCHECK;
 PgUser * force_user(PgDatabase *db, const char *username, const char *passwd) _MUSTCHECK;
@@ -78,6 +79,9 @@ void change_server_state(PgSocket *server, SocketState newstate);
 
 int get_active_client_count(void);
 int get_active_server_count(void);
+
+void handle_user_cf_update(evutil_socket_t sock, short flags, void *arg);
+void notify_user_event(PgUser *user, event_callback_fn cb);
 
 void tag_pool_dirty(PgPool *pool);
 void tag_database_dirty(PgDatabase *db);

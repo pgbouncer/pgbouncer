@@ -387,6 +387,36 @@ PgUser *add_user(const char *name, const char *passwd)
 	return user;
 }
 
+/* find original or preconfigured user given the login user */
+PgUser *find_original_user(PgUser *login_user)
+{
+	/*
+	 * The original user will either be the current login user, a preconfigured user via
+	 * ini file [users] section, a preconfigured user via global auth_file, a PAM user,
+	 * a user attached to a database via auth_query, a forced user with user= entry via
+	 * ini file [databases] section, or not exist yet if the user has never connected.
+	 */
+	PgUser *original_user = find_user(login_user->name);
+	char *tmp_passwd;
+
+	/* add new login user to reload their configurations at runtime */
+	if (original_user == NULL) {
+		put_in_order(&login_user->head, &user_list, cmp_user);
+		aatree_insert(&user_tree, (uintptr_t)login_user->name, &login_user->tree_node);
+		return login_user;
+	}
+
+	/* original user is no longer preconfigured and won't send auth queries on future login */
+	if (original_user->is_preconfigured)
+		original_user->is_preconfigured = false;
+
+	tmp_passwd = strdup(login_user->passwd);
+	safe_strcpy(original_user->passwd, tmp_passwd, sizeof(original_user->passwd));
+	free(tmp_passwd);
+
+	return original_user;
+}
+
 /* add or update db users */
 PgUser *add_db_user(PgDatabase *db, const char *name, const char *passwd)
 {
@@ -1186,7 +1216,7 @@ bool evict_connection(PgDatabase *db)
 }
 
 /* evict the single most idle connection from among all pools to make room in the user */
-bool evict_user_connection(PgUser *user)
+bool evict_idle_user_connection(PgUser *user)
 {
 	struct List *item;
 	PgPool *pool;
@@ -1209,6 +1239,68 @@ bool evict_user_connection(PgUser *user)
 		return true;
 	}
 	return false;
+}
+
+/* evict the single oldest active connection from among all pools to make room in the user */
+static bool evict_active_user_connection(PgUser *user)
+{
+	struct List *item;
+	PgPool *pool;
+	PgSocket *oldest_connection = NULL;
+
+	statlist_for_each(item, &pool_list) {
+		pool = container_of(item, PgPool, head);
+		if (pool->user != user)
+			continue;
+		oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->active_server_list));
+	}
+
+	if (oldest_connection) {
+		disconnect_server(oldest_connection, true, "evicted");
+		return true;
+	}
+	return false;
+}
+
+static void enforce_user_connection_limit(PgUser *user)
+{
+	int max = user_max_connections(user);
+	/* no limit to enforce if user is allocated unlimited connections */
+	if (max <= 0)
+		return;
+
+	while (user->connection_count > max) {
+		if (evict_idle_user_connection(user))
+			continue;
+		if (evict_active_user_connection(user))
+			continue;
+		/* user has no idle, unused or active connections to evict */
+		return;
+	}
+}
+
+void handle_user_cf_update(evutil_socket_t sock, short flags, void *arg)
+{
+	PgUserEvent *user_event = (PgUserEvent*)arg;
+	enforce_user_connection_limit(user_event->user);
+	event_free(user_event->ev);
+	free(user_event);
+}
+
+void notify_user_event(PgUser *user, event_callback_fn cb) {
+	struct PgUserEvent *user_event;
+	if (pgb_event_base == NULL)
+		return;
+
+	user_event = malloc(sizeof(PgUserEvent));
+	if (user_event == NULL) {
+		log_error("could not allocate user event: %s", strerror(errno));
+		return;
+	}
+
+	user_event->user = user;
+	user_event->ev = event_new(pgb_event_base, -1, 0, cb, user_event);
+	event_active(user_event->ev, EV_TIMEOUT, 0);
 }
 
 /* the pool needs new connection, if possible */
@@ -1279,7 +1371,7 @@ allow_new:
 	if (max > 0) {
 		/* try to evict unused connection first */
 		while (pool->user->connection_count >= max) {
-			if (!evict_user_connection(pool->user)) {
+			if (!evict_idle_user_connection(pool->user)) {
 				break;
 			}
 		}

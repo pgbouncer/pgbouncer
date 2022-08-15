@@ -178,7 +178,7 @@ static void per_loop_activate(PgPool *pool)
 
 	/* if there is a cancel request waiting, open a new connection */
 	if (!statlist_empty(&pool->cancel_req_list)) {
-		launch_new_connection(pool);
+		launch_new_connection(pool, /* evict_if_needed= */ true);
 		return;
 	}
 
@@ -191,7 +191,7 @@ static void per_loop_activate(PgPool *pool)
 
 			/* db not fully initialized after reboot */
 			if (client->wait_for_welcome && !pool->welcome_msg_ready) {
-				launch_new_connection(pool);
+				launch_new_connection(pool, /* evict_if_needed= */ true);
 				continue;
 			}
 
@@ -206,7 +206,7 @@ static void per_loop_activate(PgPool *pool)
 			--sv_used;
 		} else {
 			/* not enough connections */
-			launch_new_connection(pool);
+			launch_new_connection(pool, /* evict_if_needed= */ true);
 			break;
 		}
 	}
@@ -487,7 +487,7 @@ static void check_pool_size(PgPool *pool)
 	    pool_client_count(pool) > 0)
 	{
 		log_debug("launching new connection to satisfy min_pool_size");
-		launch_new_connection(pool);
+		launch_new_connection(pool, /* evict_if_needed= */ false);
 	}
 }
 

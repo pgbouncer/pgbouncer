@@ -185,6 +185,7 @@ psql -X -p $PG_PORT -d p0 -c "select * from pg_user" | grep pswcheck > /dev/null
 	psql -X -o /dev/null -p $PG_PORT -c "create user pswcheck with superuser createdb password 'pgbouncer-check';" p0 || exit 1
 	psql -X -o /dev/null -p $PG_PORT -c "create user someuser with password 'anypasswd';" p0 || exit 1
 	psql -X -o /dev/null -p $PG_PORT -c "create user maxedout;" p0 || exit 1
+	psql -X -o /dev/null -p $PG_PORT -c "create user maxedout2;" p0 || exit 1
 	psql -X -o /dev/null -p $PG_PORT -c "create user longpass with password '$long_password';" p0 || exit 1
 	if $pg_supports_scram; then
 		psql -X -o /dev/null -p $PG_PORT -c "set password_encryption = 'md5'; create user muser1 password 'foo';" p0 || exit 1
@@ -607,6 +608,46 @@ test_min_pool_size() {
 	cnt=`psql -X -p $PG_PORT -tAq -c "select count(1) from pg_stat_activity where usename='bouncer' and datname='p1'" postgres`
 	echo $cnt
 	test "$cnt" -eq 3 || return 1
+}
+
+test_min_pool_size_with_lower_max_user_connections() {
+	# The p0x in test.init has min_pool_size set to 5. This should make
+	# the bouncer try to create a pool for maxedout2 user of size 5 after a
+	# client connects to the bouncer. However maxedout2 user has
+	# max_user_connections set to 2, so the final pool size should be only 2.
+
+	# Running a query for sufficient time for us to reach the final
+	# connection count in the pool and detect any evictions.
+	psql -X -U maxedout2 -c "select pg_sleep(1)" p0x >/dev/null
+
+	new_connection_cnt=`grep "new connection to server" $BOUNCER_LOG | wc -l`
+	echo "new_connection_cnt: expected=2 actual=$new_connection_cnt"
+	test $new_connection_cnt -eq 2 || return 1
+	evicted_cnt=`grep "closing because: evicted" $BOUNCER_LOG | wc -l`
+	echo "new_connection_cnt: expected=0 actual=$evicted_cnt"
+	test $evicted_cnt -eq 0 || return 1
+
+	return 0
+}
+
+test_min_pool_size_with_lower_max_db_connections() {
+	# The p0x in test.init has min_pool_size set to 5. This should make
+	# the bouncer try to create a pool for puser1 user of size 5 after a client
+	# connects to the bouncer. However the db also has max_db_connections set
+	# to 2, so the final pool size should be only 2.
+
+	# Running a query for sufficient time for us to reach the final
+	# connection count in the pool and detect any evictions.
+	PGPASSWORD=foo psql -X -U puser1 -c "select pg_sleep(1)" p0y >/dev/null
+
+	new_connection_cnt=`grep "new connection to server" $BOUNCER_LOG | wc -l`
+	echo "new_connection_cnt: expected=2 actual=$new_connection_cnt"
+	test $new_connection_cnt -eq 2 || return 1
+	evicted_cnt=`grep "closing because: evicted" $BOUNCER_LOG | wc -l`
+	echo "new_connection_cnt: expected=0 actual=$evicted_cnt"
+	test $evicted_cnt -eq 0 || return 1
+
+	return 0
 }
 
 test_reserve_pool_size() {
@@ -1452,6 +1493,8 @@ test_tcp_user_timeout
 test_max_client_conn
 test_pool_size
 test_min_pool_size
+test_min_pool_size_with_lower_max_user_connections
+test_min_pool_size_with_lower_max_db_connections
 test_reserve_pool_size
 test_max_db_connections
 test_max_user_connections

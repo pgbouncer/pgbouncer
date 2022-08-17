@@ -200,7 +200,6 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 		/* login ok */
 		slog_debug(server, "server login ok, start accepting queries");
 		server->ready = true;
-		server->pool->last_successful_rrcounter = server->rrcounter;
 
 		/* got all params */
 		finish_welcome_msg(server);

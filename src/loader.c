@@ -255,7 +255,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	usec_t server_lifetime = 0;
 	int dbname_ofs;
 	int pool_mode = POOL_INHERIT;
-	int host_strategy = ROUND_ROBIN;
+	enum HostStrategy host_strategy = ROUND_ROBIN;
 
 	char *tmp_connstr;
 	const char *dbname = name;

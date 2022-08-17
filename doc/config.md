@@ -1237,6 +1237,20 @@ they are logged but ignored otherwise.
 Set the pool mode specific to this database. If not set,
 the default `pool_mode` is used.
 
+### host_strategy
+
+When a comma-separated list is specified in `host`, `host_strategy` controls
+which entry is chosen for a new connection.
+
+round_robin
+:   A new connection attempt chooses the next host entry in the list.
+
+last_successful
+:   A new connection continues using the same host entry until a connection
+    fails, after which the next host entry is chosen.
+
+Default: `round_robin`
+
 ### max_db_connections
 
 Configure a database-wide maximum (i.e. all pools within the database will

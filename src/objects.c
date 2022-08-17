@@ -457,7 +457,7 @@ PgUser *add_pam_user(const char *name, const char *passwd)
 		safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
 	return user;
 }
-/* Add PAM user. The logic is same as in add_db_user */
+/* Add LDAP user. The logic is same as in add_db_user */
 PgUser *add_ldap_user(const char *name, const char *passwd)
 {
 	PgUser *user = NULL;

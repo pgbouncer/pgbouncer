@@ -12,15 +12,15 @@ task:
     - container:
         image: ubuntu:20.04
       env:
-        configure_args: '--with-cares --with-pam'
+        configure_args: '--with-cares --with-pam --with-ldap'
     - container:
         image: ubuntu:20.04
       env:
-        configure_args: '--with-udns --without-openssl'
+        configure_args: '--with-udns --without-openssl --with-ldap'
     - container:
         image: ubuntu:20.04
       env:
-        configure_args: '--disable-evdns'
+        configure_args: '--disable-evdns --with-ldap'
     - container:
         image: ubuntu:20.04
       env:
@@ -71,6 +71,7 @@ task:
     - if [ x"$use_valgrind" = x"yes" ]; then pkgs="$pkgs valgrind"; fi
     - if [ x"$use_scan_build" = x"yes" ]; then pkgs="$pkgs clang-tools"; fi
     - apt-get -y install $pkgs
+    - apt-get -y install libldap-dev slapd ldap-utils
     - useradd user
     - chown -R user .
   build_script:
@@ -115,7 +116,7 @@ task:
       - image: rockylinux:8
       - image: centos:centos7
   setup_script:
-    - yum -y install autoconf automake diffutils file libevent-devel libtool make openssl-devel pkg-config postgresql-server systemd-devel wget
+    - yum -y install autoconf automake diffutils file libevent-devel libtool make openssl-devel pkg-config postgresql-server systemd-devel wget openldap-devel.x86_64
     - if cat /etc/centos-release | grep -q ' 7'; then yum -y install python; else yum -y install python3; fi
     - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
     - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
@@ -123,7 +124,7 @@ task:
     - chown -R user .
   build_script:
     - su user -c "./autogen.sh"
-    - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror --with-systemd"
+    - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror --with-systemd --with-ldap"
     - su user -c "make -j4"
   test_script:
 # XXX: postgresql too old on centos7

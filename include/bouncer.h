@@ -385,7 +385,6 @@ struct PgPool {
 	bool welcome_msg_ready:1;
 
 	uint16_t rrcounter;		/* round-robin counter */
-	uint16_t last_successful_rrcounter;		/* last round-robin counter with a successful connection */
 };
 
 /*
@@ -575,8 +574,6 @@ struct PgSocket {
 	VarCache vars;		/* state of interesting server parameters */
 
 	SBuf sbuf;		/* stream buffer, must be last */
-
-	int16_t rrcounter; /* round-robin counter stored on pgsocket */
 };
 
 #define RAW_IOBUF_SIZE	offsetof(IOBuf, buf)

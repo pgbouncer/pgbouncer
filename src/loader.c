@@ -274,7 +274,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	int max_db_connections = -1;
 	int dbname_ofs;
 	int pool_mode = POOL_INHERIT;
-	int host_strategy = ROUND_ROBIN;
+	enum HostStrategy host_strategy = ROUND_ROBIN;
 
 	char *tmp_connstr;
 	const char *dbname = name;

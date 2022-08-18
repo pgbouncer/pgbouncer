@@ -54,6 +54,13 @@ bool send_sslreq_packet(PgSocket *server) _MUSTCHECK;
 
 int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...) _MUSTCHECK;
 
+static inline void free_header(PktHdr *pkt)
+{
+  mbuf_free(&pkt->data);
+  pkt->type = 0;
+  pkt->len = 0;
+}
+
 /* is packet completely in our buffer */
 static inline bool incomplete_pkt(const PktHdr *pkt)
 {

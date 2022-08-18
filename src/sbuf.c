@@ -501,6 +501,13 @@ static bool sbuf_queue_send(SBuf *sbuf)
 	return true;
 }
 
+bool sbuf_flush(SBuf *sbuf) {
+  if (sbuf->io) {
+    return sbuf_send_pending(sbuf);
+  }
+  return true;
+}
+
 /*
  * There's data in buffer to be sent. Returns bool if processing can continue.
  *

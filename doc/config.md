@@ -252,6 +252,27 @@ updated and how often aggregated statistics are written to the log
 
 Default: 60
 
+### disable_prepared_statement_support
+
+Enables/disables server side prepared statement support. Disabled by
+default. To enable the server-side prepared statement support change
+it to 0 (zero).
+
+Default: 1 (disabled)
+
+### prepared_statement_cache_queries
+
+Sets the number of prepared statements kept active on a single backend
+connection. Keep in mind that this will increase the memory footprint
+of each client connection on your PostgreSQL server.
+
+Tracking prepared statements does not only come with a memory cost, but
+also with increased cpu usage. Multiple PgBouncer instances can be run
+to use more than one core for processing, see `so_reuseport` socket
+option.
+
+Default: 100
+
 
 ## Authentication settings
 

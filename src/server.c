@@ -252,6 +252,9 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	SBuf *sbuf = &server->sbuf;
 	PgSocket *client = server->link;
 	bool async_response = false;
+	struct List *oppl;
+	struct OutstandingParsePacket *opp = NULL;
+	bool ignore_packet = false;
 
 	Assert(!server->pool->db->admin);
 
@@ -348,13 +351,25 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		break;
 	/* chat packets */
 	case '2':		/* BindComplete */
+		break;
 	case '3':		/* CloseComplete */
+		ignore_packet = true;
+		// FIXME: only skip our S close statements, portal closes???
+		break;
 	case 'c':		/* CopyDone(F/B) */
 	case 'f':		/* CopyFail(F/B) */
 	case 'I':		/* EmptyQueryResponse == CommandComplete */
 	case 'V':		/* FunctionCallResponse */
 	case 'n':		/* NoData */
+		break;
 	case '1':		/* ParseComplete */
+		oppl = list_pop(&server->server_outstanding_parse_packets);
+		if (oppl) {
+			opp = container_of(oppl, struct OutstandingParsePacket, node);
+			ignore_packet = opp->ignore;
+			free(opp);
+		}
+		break;
 	case 's':		/* PortalSuspended */
 
 	/* data packets, there will be more coming */
@@ -374,6 +389,9 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	} else if (client) {
 		if (client->state == CL_LOGIN) {
 			return handle_auth_query_response(client, pkt);
+		} else if (ignore_packet) {
+			slog_noise(server, "not forwarding packet with type '%c' from server", pkt->type);
+			sbuf_prepare_skip(sbuf, pkt->len);
 		} else {
 			sbuf_prepare_send(sbuf, &client->sbuf, pkt->len);
 

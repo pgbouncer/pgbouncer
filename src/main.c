@@ -184,6 +184,9 @@ char *cf_server_tls_cert_file;
 char *cf_server_tls_key_file;
 char *cf_server_tls_ciphers;
 
+int cf_disable_prepared_statement_support;
+int cf_prepared_statement_cache_queries;
+
 /*
  * config file description
  */
@@ -317,6 +320,9 @@ CF_ABS("unix_socket_mode", CF_INT, cf_unix_socket_mode, CF_NO_RELOAD, "0777"),
 CF_ABS("user", CF_STR, cf_username, CF_NO_RELOAD, NULL),
 #endif
 CF_ABS("verbose", CF_INT, cf_verbose, 0, NULL),
+
+CF_ABS("disable_prepared_statement_support", CF_INT, cf_disable_prepared_statement_support, 0, "1"),
+CF_ABS("prepared_statement_cache_queries", CF_INT, cf_prepared_statement_cache_queries, 0, "100"),
 
 {NULL}
 };

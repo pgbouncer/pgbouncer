@@ -28,6 +28,12 @@ Various ways to test PgBouncer:
 
     This test is run by `make check` if TLS support is enabled.
 
+- `gss/test.sh`
+
+    Tests GSS functionality.  Otherwise very similar to `test.sh`.
+
+    This test is run by `make check` if GSS support is enabled.
+
 - `hba_test`
 
     Tests hba parsing.  Run `make all` to build and `./hba_test` to execute.

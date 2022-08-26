@@ -382,6 +382,7 @@ PgUser *add_user(const char *name, const char *passwd)
 
 		aatree_insert(&user_tree, (uintptr_t)user->name, &user->tree_node);
 		user->pool_mode = POOL_INHERIT;
+		user->max_user_connections = MAXCONN_FALLBACK;
 	}
 	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
 	return user;
@@ -407,6 +408,7 @@ PgUser *add_db_user(PgDatabase *db, const char *name, const char *passwd)
 
 		aatree_insert(&db->user_tree, (uintptr_t)user->name, &user->tree_node);
 		user->pool_mode = POOL_INHERIT;
+		user->max_user_connections = MAXCONN_FALLBACK;
 	}
 	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
 	return user;
@@ -415,7 +417,7 @@ PgUser *add_db_user(PgDatabase *db, const char *name, const char *passwd)
 /* Add PAM user. The logic is same as in add_db_user */
 PgUser *add_pam_user(const char *name, const char *passwd)
 {
-	PgUser *user = NULL;
+	PgUser *user = NULL, *cf_user = NULL;
 	struct AANode *node;
 
 	node = aatree_search(&pam_user_tree, (uintptr_t)name);
@@ -432,9 +434,19 @@ PgUser *add_pam_user(const char *name, const char *passwd)
 
 		aatree_insert(&pam_user_tree, (uintptr_t)user->name, &user->tree_node);
 		user->pool_mode = POOL_INHERIT;
+		user->max_user_connections = MAXCONN_FALLBACK;
 	}
+
+	/* Copy any settings from the configuration file */
+	cf_user = find_user(name);
+	if (cf_user != NULL) {
+		user->pool_mode = cf_user->pool_mode;
+		user->max_user_connections = cf_user->max_user_connections;
+	}
+
 	if (passwd)
 		safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
+
 	return user;
 }
 
@@ -449,6 +461,7 @@ PgUser *force_user(PgDatabase *db, const char *name, const char *passwd)
 		list_init(&user->head);
 		list_init(&user->pool_list);
 		user->pool_mode = POOL_INHERIT;
+		user->max_user_connections = MAXCONN_FALLBACK;
 	}
 	safe_strcpy(user->name, name, sizeof(user->name));
 	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));

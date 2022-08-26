@@ -430,6 +430,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	return true;
 }
 
+#ifdef HAVE_GSSAPI_H
 /*
  * Check if we can acquire credentials at all (and yield them if so).
  */
@@ -449,6 +450,7 @@ static bool pg_GSS_have_cred_cache(gss_cred_id_t *cred_out)
 	*cred_out = cred;
 	return true;
 }
+#endif
 
 /* got connection, decide what to do */
 static bool handle_connect(PgSocket *server)
@@ -483,11 +485,13 @@ static bool handle_connect(PgSocket *server)
 			res = send_sslreq_packet(server);
 			if (res)
 				server->wait_sslchar = true;
+#ifdef HAVE_GSSAPI_H
         } else if (server_connect_gssencmode > GSSENCMODE_DISABLE && !is_unix && pg_GSS_have_cred_cache(&cred)) {
 			slog_noise(server, "P: GSSEnc request");
 			res = send_gssencreq_packet(server);
 			if (res)
 				server->wait_gssencchar = true;
+#endif
 		} else {
 			slog_noise(server, "P: startup");
 			res = send_startup_packet(server);

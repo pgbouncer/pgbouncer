@@ -459,7 +459,9 @@ static bool handle_connect(PgSocket *server)
 	PgPool *pool = server->pool;
 	char buf[PGADDR_BUF + 32];
 	bool is_unix = pga_is_unix(&server->remote_addr);
+#ifdef HAVE_GSSAPI_H
 	gss_cred_id_t cred = GSS_C_NO_CREDENTIAL;
+#endif
 
 	fill_local_addr(server, sbuf_socket(&server->sbuf), is_unix);
 

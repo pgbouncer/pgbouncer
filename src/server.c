@@ -430,6 +430,26 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	return true;
 }
 
+/*
+ * Check if we can acquire credentials at all (and yield them if so).
+ */
+static bool pg_GSS_have_cred_cache(gss_cred_id_t *cred_out)
+{
+	OM_uint32	major,
+				minor;
+	gss_cred_id_t cred = GSS_C_NO_CREDENTIAL;
+
+	major = gss_acquire_cred(&minor, GSS_C_NO_NAME, 0, GSS_C_NO_OID_SET,
+							 GSS_C_INITIATE, &cred, NULL, NULL);
+	if (major != GSS_S_COMPLETE)
+	{
+		*cred_out = NULL;
+		return false;
+	}
+	*cred_out = cred;
+	return true;
+}
+
 /* got connection, decide what to do */
 static bool handle_connect(PgSocket *server)
 {
@@ -437,6 +457,7 @@ static bool handle_connect(PgSocket *server)
 	PgPool *pool = server->pool;
 	char buf[PGADDR_BUF + 32];
 	bool is_unix = pga_is_unix(&server->remote_addr);
+	gss_cred_id_t cred = GSS_C_NO_CREDENTIAL;
 
 	fill_local_addr(server, sbuf_socket(&server->sbuf), is_unix);
 
@@ -462,7 +483,7 @@ static bool handle_connect(PgSocket *server)
 			res = send_sslreq_packet(server);
 			if (res)
 				server->wait_sslchar = true;
-        } else if (server_connect_gssencmode > GSSENCMODE_DISABLE && !is_unix) { // TODO: make it work like SSLMODE_ENABLED above
+        } else if (server_connect_gssencmode > GSSENCMODE_DISABLE && !is_unix && pg_GSS_have_cred_cache(&cred)) {
 			slog_noise(server, "P: GSSEnc request");
 			res = send_gssencreq_packet(server);
 			if (res)

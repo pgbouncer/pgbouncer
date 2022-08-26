@@ -739,6 +739,18 @@ Default: `fast`
 
 ### server_gssencmode
 
+This option determines whether or with what priority a secure GSS TCP/IP connection will be negotiated with the server. There are three modes:
+
+disable
+:   only try a non-GSSAPI-encrypted connection
+
+prefer (default)
+:   if there are GSSAPI credentials present (i.e., in a credentials cache), first try a GSSAPI-encrypted connection; if that fails or there are no credentials, try a non-GSSAPI-encrypted connection. This is the default when pgbouncer has been compiled with GSSAPI support.
+
+require
+:only try a GSSAPI-encrypted connection
+
+server_gssencmode is ignored for Unix domain socket communication. If pgbouncer is compiled without GSSAPI support, using the require option will cause an error, while prefer will be accepted but pgbouncer will not actually attempt a GSSAPI-encrypted connection.
 
 ## Dangerous timeouts
 

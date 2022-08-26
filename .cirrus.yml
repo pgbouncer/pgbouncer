@@ -150,7 +150,7 @@ task:
       - image: alpine:latest
   setup_script:
     - apk update
-    - apk add autoconf automake build-base libevent-dev libtool openssl openssl-dev pkgconf postgresql python3 wget
+    - apk add autoconf automake bash build-base libevent-dev libtool openssl openssl-dev pkgconf postgresql python3 wget
     - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
     - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
     - adduser --disabled-password user

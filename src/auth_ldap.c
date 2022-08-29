@@ -208,8 +208,7 @@ static bool is_valid_parameter(struct ldap_auth_request *request)
 	 * (defaulting to "uid") or a fully custom search filter.  You can't
 	 * do both.
 	 */
-	if (request->ldapsearchattribute && request->ldapsearchfilter)
-	{
+	if (request->ldapsearchattribute && request->ldapsearchfilter) {
 		log_warning("cannot use ldapsearchattribute together with ldapsearchfilter");
 		return false;
 	}
@@ -556,14 +555,11 @@ static void
 formatsearchfilter(char *filter, int length, const char *pattern, const char *user_name)
 {
 	int cur_len = 0;
-	while ((*pattern != '\0') && (cur_len < length))
-	{
-		if (strncmp(pattern, LPH_USERNAME, LPH_USERNAME_LEN) == 0)
-		{
+	while ((*pattern != '\0') && (cur_len < length)) {
+		if (strncmp(pattern, LPH_USERNAME, LPH_USERNAME_LEN) == 0) {
 			cur_len += snprintf(filter + cur_len, length - cur_len, "%s", user_name);
 			pattern += LPH_USERNAME_LEN;
-		}
-		else {
+		} else {
 			filter[cur_len++] = *pattern++;
 		}
 	}
@@ -590,8 +586,7 @@ checkldapauth(struct ldap_auth_request *request)
 		return false;
 	}
 
-	if (request->ldapport == 0)
-	{
+	if (request->ldapport == 0) {
 		if (request->ldapscheme != NULL &&
 			strcmp(request->ldapscheme, "ldaps") == 0)
 			request->ldapport = LDAPS_PORT;

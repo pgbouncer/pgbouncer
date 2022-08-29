@@ -303,10 +303,15 @@ pam
 
 ldap
 :   LDAP is used to authenticate users with ldap server(OPENLDAP on linux or AD on windows).
-    In order to use ldap, `auth_type` needs to be set to `hba`. User's name needs to be
-    set in `auth_file` which name to be set under pgbouncer section. The value of
+    In order to use ldap, `auth_type` needs to be set to `hba`. The value of
     `auth_hba_file` has also to be set. And the content of the `auth_hba_file` could be
     the same format like `pg_hba.conf` in postgres.
+    AD server sends LDAP referrals and Linux chases those LDAP referrals by default.
+    On the one hand, chasing LDAP referrals may spend more time.
+    On the other hand, it will hang if the referrals broken.
+    Disable chasing LDAP referrals can solve this issue:
+
+    echo "REFERRALS off" >> $HOME/.ldaprc
 
 ### auth_hba_file
 

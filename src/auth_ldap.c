@@ -610,7 +610,7 @@ checkldapauth(struct ldap_auth_request *request)
 		char filter[LDAP_LONG_LENGTH];
 		LDAPMessage *search_message;
 		LDAPMessage *entry;
-		char *attributes[2];
+		char *attributes[2] = {LDAP_NO_ATTRS, NULL};
 		char *dn;
 		char *c;
 		int count;

@@ -127,6 +127,32 @@ static char * cstr_get_pair(char *p,
 	return cstr_skip_ws(p);
 }
 
+static bool set_auth_dbname(PgDatabase *db, const char *new_auth_dbname)
+{
+	const char *old_auth_dbname = db->auth_dbname;
+
+	if (old_auth_dbname && new_auth_dbname) {
+		if (strcmp(old_auth_dbname, new_auth_dbname) == 0) {
+			return true;
+		}
+
+		free((void *)old_auth_dbname);
+		db->auth_dbname = strdup(new_auth_dbname);
+	} else if (new_auth_dbname) {
+		db->auth_dbname = strdup(new_auth_dbname);
+	} else {
+		free((void *)old_auth_dbname);
+		db->auth_dbname = NULL;
+	}
+
+	if (new_auth_dbname && !db->auth_dbname) {
+		log_error("auth_dbname %s could not be set for database %s", new_auth_dbname, db->name);
+		return false;
+	}
+
+	return true;
+}
+
 static bool set_autodb(const char *connstr)
 {
 	char *tmp = strdup(connstr);
@@ -168,6 +194,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	char *username = NULL;
 	char *password = "";
 	char *auth_username = NULL;
+	char *auth_dbname = NULL;
 	char *client_encoding = NULL;
 	char *datestyle = NULL;
 	char *timezone = NULL;
@@ -222,7 +249,9 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			password = val;
 		} else if (strcmp("auth_user", key) == 0) {
 			auth_username = val;
-		} else if (strcmp("client_encoding", key) == 0) {
+		} else if (strcmp("auth_dbname", key) == 0) {
+			auth_dbname = val;
+		}else if (strcmp("client_encoding", key) == 0) {
 			client_encoding = val;
 		} else if (strcmp("datestyle", key) == 0) {
 			datestyle = val;
@@ -286,6 +315,10 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		} else if (!!connect_query != !!db->connect_query
 			   || (connect_query && strcmp(connect_query, db->connect_query) != 0))	{
 			changed = true;
+		} else if ((db->auth_dbname && !auth_dbname)
+			   || (!db->auth_dbname && auth_dbname)
+			   || (auth_dbname && strcmp(auth_dbname, db->auth_dbname) != 0)) {
+			changed = true;
 		}
 		if (changed)
 			tag_database_dirty(db);
@@ -301,6 +334,10 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	db->max_db_connections = max_db_connections;
 	free(db->connect_query);
 	db->connect_query = connect_query;
+
+	if (!set_auth_dbname(db, auth_dbname)) {
+		goto fail;
+	} 
 
 	if (db->startup_params) {
 		msg = db->startup_params;

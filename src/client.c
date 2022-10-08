@@ -35,6 +35,51 @@ static const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
 	return bin2hex(bin, dlen, buf, buflen);
 }
 
+/*
+ * An helper function to select authentication database for the current
+ * client. The order of preference will be as follows:
+ *   1) client->db->auth_dbname: Client's target database may alraedy have
+ * 		an auth_database defined. Prefer this when available.
+ *   2) cf_auth_dbname: Global authentication database name.
+ *   3) client->db: Client's target database. 
+ * NOTE: If authentication database is found but it is disabled, then
+ * 		 client will get disconnected. 
+ * Returns:
+ *   auth_database, based on the above preference.
+ */
+PgDatabase *prepare_auth_database(PgSocket *client)
+{
+	PgDatabase *auth_db = client->db;
+	const char *target_auth_dbname = auth_db->auth_dbname;
+
+	if (!target_auth_dbname && cf_auth_dbname) {
+		target_auth_dbname = cf_auth_dbname;
+	}
+
+	if (target_auth_dbname) {
+		auth_db = find_database(target_auth_dbname);
+		if (auth_db) {
+			if (auth_db->db_disabled) {
+				/* check feature switch and decide the outcome */
+				disconnect_client(
+					client,
+					true,
+					"Authentication database %s is disabled or does not accept connections. Please update pgbouncer configurations.",
+					target_auth_dbname);
+				return NULL;
+			}
+		
+			slog_info(client, "Authentication database %s is successfully set.", target_auth_dbname);
+		}
+		else {
+			auth_db = client->db;
+			slog_info(client, "Authentication database %s could not be found. Reverting to target database.", target_auth_dbname);
+		}
+	}
+
+	return auth_db;
+}
+
 static bool check_client_passwd(PgSocket *client, const char *passwd)
 {
 	PgUser *user = client->login_user;
@@ -121,7 +166,12 @@ static void start_auth_query(PgSocket *client, const char *username)
 	PktBuf *buf;
 
 	/* have to fetch user info from db */
-	client->pool = get_pool(client->db, client->db->auth_user);
+	PgDatabase *auth_db = prepare_auth_database(client);
+	if (!auth_db) {
+		return;
+	}
+
+	client->pool = get_pool(auth_db, client->db->auth_user);
 	if (!find_server(client)) {
 		client->wait_for_user_conn = true;
 		return;

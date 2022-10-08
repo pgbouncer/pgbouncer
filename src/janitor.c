@@ -729,6 +729,11 @@ void kill_database(PgDatabase *db)
 	} else {
 		statlist_remove(&database_list, &db->head);
 	}
+	
+	if (db->auth_dbname) {
+		free((void *)db->auth_dbname);
+	}
+
 	aatree_destroy(&db->user_tree);
 	slab_free(db_cache, db);
 }

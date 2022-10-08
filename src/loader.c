@@ -141,7 +141,6 @@ static bool set_auth_dbname(PgDatabase *db, const char *new_auth_dbname)
 	} else if (new_auth_dbname) {
 		db->auth_dbname = strdup(new_auth_dbname);
 	} else {
-		free((void *)old_auth_dbname);
 		db->auth_dbname = NULL;
 	}
 

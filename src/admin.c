@@ -1320,7 +1320,7 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		"\tRECONNECT [<db>]\n"
 		"\tKILL <db>\n"
 		"\tSUSPEND\n"
-		"\tSHUTDOWN\n",
+		"\tSHUTDOWN\n"
 		"\tWAIT_CLOSE [<db>]", "");
 	if (res)
 		res = admin_ready(admin, "SHOW");

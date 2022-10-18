@@ -111,6 +111,7 @@ task:
   name: Linux (Red Hat)
   container:
     matrix:
+      - image: rockylinux:9
       - image: rockylinux:8
       - image: centos:centos7
   setup_script:

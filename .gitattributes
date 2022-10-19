@@ -1,2 +1,3 @@
+*.[ch]				whitespace=indent-with-non-tab
 test/hba_test.rules		-whitespace
 win32/eventmsg.rc		whitespace=cr-at-eol

@@ -495,11 +495,9 @@ int main(int argc, char *argv[])
 	}
 
 #ifdef WIN32
-        wsresult = WSAStartup(MAKEWORD(2,0),&wsaData);
-        if (wsresult != 0)
-        {
-                fatal("cannot start the network subsystem: -%d", wsresult);
-        }
+	wsresult = WSAStartup(MAKEWORD(2,0),&wsaData);
+	if (wsresult != 0)
+		fatal("cannot start the network subsystem: -%d", wsresult);
 #endif
 	if (throttle_connects < 0 || throttle_queries < 0 || numcon < 0)
 		fatal("invalid parameter");

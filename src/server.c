@@ -227,20 +227,18 @@ int pool_res_pool_size(PgPool *pool)
 
 int database_max_connections(PgDatabase *db)
 {
-	if (db->max_db_connections <= 0) {
+	if (db->max_db_connections <= 0)
 		return cf_max_db_connections;
-        } else {
+	else
 		return db->max_db_connections;
-	}
 }
 
 int user_max_connections(PgUser *user)
 {
-	if (user->max_user_connections <= 0) {
+	if (user->max_user_connections <= 0)
 		return cf_max_user_connections;
-	} else {
+	else
 		return user->max_user_connections;
-	}
 }
 
 /* process packets on logged in connection */

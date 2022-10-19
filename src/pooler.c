@@ -292,7 +292,7 @@ static void err_wait_func(evutil_socket_t sock, short flags, void *arg)
 static const char *addrpair(const PgAddr *src, const PgAddr *dst)
 {
 	static char ip1buf[PGADDR_BUF], ip2buf[PGADDR_BUF],
-	            buf[2*PGADDR_BUF + 16];
+		buf[2*PGADDR_BUF + 16];
 	const char *ip1, *ip2;
 	if (pga_is_unix(src))
 		return "unix->unix";

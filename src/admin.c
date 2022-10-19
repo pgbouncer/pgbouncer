@@ -411,7 +411,7 @@ static PgDatabase *find_or_register_database(PgSocket *admin, const char *name)
 		db = register_auto_database(name);
 		if (db != NULL) {
 			slog_info(admin,
-			          "registered new auto-database: %s", name);
+				  "registered new auto-database: %s", name);
 		}
 	}
 	return db;

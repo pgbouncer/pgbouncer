@@ -1318,7 +1318,7 @@ test_no_database_md5_auth_scram_pw_success() {
 	# Segfaults have been seen after mock authentication was put in place
 	# with md5 auth and a scram PW when saving SCRAM credentials. Including this test to check for the
 	# condition repeating.
-	
+
 	$have_getpeereid || return 77
 
 	admin "set auth_type='md5'"

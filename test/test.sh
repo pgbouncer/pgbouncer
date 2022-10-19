@@ -102,9 +102,9 @@ if test -n "$USE_SUDO"; then
 		sudo pfctl -a pgbouncer -F all -q 2>&1 | grep -q "pfctl:" && {
 			cat <<-EOF
 			Please enable PF and add the following rule to /etc/pf.conf
-			
+
 			  anchor "pgbouncer/*"
-			
+
 			EOF
 			exit 1
 		}

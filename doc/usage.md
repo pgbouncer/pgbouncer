@@ -303,7 +303,7 @@ tls
 application_name
 :   A string containing the `application_name` set on the linked client connection,
     or empty if this is not set, or if there is no linked connection.
-    
+
 #### SHOW CLIENTS
 
 type

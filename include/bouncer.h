@@ -471,7 +471,7 @@ struct PgDatabase {
 	int pool_mode;		/* pool mode for this database */
 	int max_db_connections;	/* max server connections between all pools */
 	char *connect_query;	/* startup commands to send to server after connect */
-	int host_strategy; /* strategy for host selection in a comma-separated host list */
+	enum HostStrategy host_strategy; /* strategy for host selection in a comma-separated host list */
 
 	struct PktBuf *startup_params; /* partial StartupMessage (without user) be sent to server */
 	const char *dbname;	/* server-side name, pointer to inside startup_msg */

@@ -171,6 +171,7 @@ static const struct FakeParam fake_param_list[] = {
 	{ "default_transaction_isolation", "read committed" },
 	{ "standard_conforming_strings", "on" },
 	{ "datestyle", "ISO" },
+	{ "intervalstyle", "postgres" },
 	{ "timezone", "GMT" },
 	{ NULL },
 };
@@ -260,6 +261,7 @@ static bool send_one_fd(PgSocket *admin,
 			const char *client_enc,
 			const char *std_strings,
 			const char *datestyle,
+			const char *intervalstyle,
 			const char *timezone,
 			const char *password,
 			const uint8_t *scram_client_key,
@@ -275,9 +277,9 @@ static bool send_one_fd(PgSocket *admin,
 
 	struct PktBuf *pkt = pktbuf_temp();
 
-	pktbuf_write_DataRow(pkt, "issssiqisssssbb",
+	pktbuf_write_DataRow(pkt, "issssiqissssssbb",
 		      fd, task, user, db, addr, port, ckey, link,
-		      client_enc, std_strings, datestyle, timezone,
+		      client_enc, std_strings, datestyle, intervalstyle, timezone,
 		      password,
 		      scram_client_key_len, scram_client_key,
 		      scram_server_key_len, scram_server_key);
@@ -332,6 +334,7 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	const struct PStr *client_encoding = v->var_list[VClientEncoding];
 	const struct PStr *std_strings = v->var_list[VStdStr];
 	const struct PStr *datestyle = v->var_list[VDateStyle];
+	const struct PStr *intervalstyle = v->var_list[VIntervalStyle];
 	const struct PStr *timezone = v->var_list[VTimeZone];
 	char addrbuf[PGADDR_BUF];
 	const char *password = NULL;
@@ -366,6 +369,7 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 			   client_encoding ? client_encoding->str : NULL,
 			   std_strings ? std_strings->str : NULL,
 			   datestyle ? datestyle->str : NULL,
+			   intervalstyle ? intervalstyle->str : NULL,
 			   timezone ? timezone->str : NULL,
 			   password,
 			   send_scram_keys ? sk->pool->user->scram_ClientKey : NULL,
@@ -380,7 +384,7 @@ static bool show_pooler_cb(void *arg, int fd, const PgAddr *a)
 
 	return send_one_fd(arg, fd, "pooler", NULL, NULL,
 			   pga_ntop(a, buf, sizeof(buf)), pga_port(a), 0, 0,
-			   NULL, NULL, NULL, NULL, NULL, NULL, -1, NULL, -1);
+			   NULL, NULL, NULL, NULL, NULL, NULL, NULL, -1, NULL, -1);
 }
 
 /* send a row with sendmsg, optionally attaching a fd */
@@ -446,13 +450,13 @@ static bool admin_show_fds(PgSocket *admin, const char *arg)
 	/*
 	 * send resultset
 	 */
-	SEND_RowDescription(res, admin, "issssiqisssssbb",
+	SEND_RowDescription(res, admin, "issssiqissssssbb",
 				 "fd", "task",
 				 "user", "database",
 				 "addr", "port",
 				 "cancel", "link",
 				 "client_encoding", "std_strings",
-				 "datestyle", "timezone", "password",
+				 "datestyle", "intervalstyle", "timezone", "password",
 				 "scram_client_key", "scram_server_key");
 	if (res)
 		res = show_pooler_fds(admin);
@@ -1611,6 +1615,7 @@ void admin_setup(void)
 	pktbuf_write_ParameterStatus(msg, "client_encoding", "UTF8");
 	pktbuf_write_ParameterStatus(msg, "server_encoding", "UTF8");
 	pktbuf_write_ParameterStatus(msg, "DateStyle", "ISO");
+	pktbuf_write_ParameterStatus(msg, "IntervalStyle", "postgres");
 	pktbuf_write_ParameterStatus(msg, "TimeZone", "GMT");
 	pktbuf_write_ParameterStatus(msg, "standard_conforming_strings", "on");
 	pktbuf_write_ParameterStatus(msg, "is_superuser", "on");

@@ -170,6 +170,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	char *auth_username = NULL;
 	char *client_encoding = NULL;
 	char *datestyle = NULL;
+	char *intervalstyle = NULL;
 	char *timezone = NULL;
 	char *connect_query = NULL;
 	char *appname = NULL;
@@ -226,6 +227,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			client_encoding = val;
 		} else if (strcmp("datestyle", key) == 0) {
 			datestyle = val;
+		} else if (strcmp("intervalstyle", key) == 0) {
+			intervalstyle = val;
 		} else if (strcmp("timezone", key) == 0) {
 			timezone = val;
 		} else if (strcmp("pool_size", key) == 0) {
@@ -324,6 +327,11 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	if (datestyle) {
 		pktbuf_put_string(msg, "datestyle");
 		pktbuf_put_string(msg, datestyle);
+	}
+
+	if (intervalstyle) {
+		pktbuf_put_string(msg, "intervalstyle");
+		pktbuf_put_string(msg, intervalstyle);
 	}
 
 	if (timezone) {

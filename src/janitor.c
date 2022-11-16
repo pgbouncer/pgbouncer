@@ -111,6 +111,7 @@ static void resume_sockets(void)
 		pool = container_of(item, PgPool, head);
 		if (pool->db->admin)
 			continue;
+		resume_socket_list(&pool->auth_client_list);
 		resume_socket_list(&pool->active_client_list);
 		resume_socket_list(&pool->active_server_list);
 		resume_socket_list(&pool->idle_server_list);
@@ -242,6 +243,7 @@ static int per_loop_suspend(PgPool *pool, bool force_suspend)
 	if (pool->db->admin)
 		return 0;
 
+	active += suspend_socket_list(&pool->auth_client_list, force_suspend);
 	active += suspend_socket_list(&pool->active_client_list, force_suspend);
 
 	/* this list is not suspendable, but still need force_suspend and counting */
@@ -376,6 +378,15 @@ static void pool_client_maint(PgPool *pool)
 
 	/* force client_idle_timeout */
 	if (cf_client_idle_timeout > 0) {
+		statlist_for_each_safe(item, &pool->auth_client_list, tmp) {
+			client = container_of(item, PgSocket, head);
+			Assert(client->state == CL_AUTH);
+			if (client->link)
+				continue;
+			if (now - client->request_time > cf_client_idle_timeout)
+				disconnect_client(client, true, "client_idle_timeout");
+		}
+
 		statlist_for_each_safe(item, &pool->active_client_list, tmp) {
 			client = container_of(item, PgSocket, head);
 			Assert(client->state == CL_ACTIVE);
@@ -672,6 +683,7 @@ void kill_pool(PgPool *pool)
 {
 	const char *reason = "database removed";
 
+	close_client_list(&pool->auth_client_list, reason);
 	close_client_list(&pool->active_client_list, reason);
 	close_client_list(&pool->waiting_client_list, reason);
 	close_client_list(&pool->cancel_req_list, reason);

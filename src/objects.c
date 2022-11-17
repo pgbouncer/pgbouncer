@@ -169,8 +169,11 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	case CL_ACTIVE:
 		statlist_remove(&pool->active_client_list, &client->head);
 		break;
-	case CL_CANCEL:
-		statlist_remove(&pool->cancel_req_list, &client->head);
+	case CL_ACTIVE_CANCEL:
+		statlist_remove(&pool->active_cancel_req_list, &client->head);
+		break;
+	case CL_WAITING_CANCEL:
+		statlist_remove(&pool->waiting_cancel_req_list, &client->head);
 		break;
 	default:
 		fatal("bad cur client state: %d", client->state);
@@ -198,8 +201,11 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	case CL_ACTIVE:
 		statlist_append(&pool->active_client_list, &client->head);
 		break;
-	case CL_CANCEL:
-		statlist_append(&pool->cancel_req_list, &client->head);
+	case CL_ACTIVE_CANCEL:
+		statlist_append(&pool->active_cancel_req_list, &client->head);
+		break;
+	case CL_WAITING_CANCEL:
+		statlist_append(&pool->waiting_cancel_req_list, &client->head);
 		break;
 	default:
 		fatal("bad new client state: %d", client->state);
@@ -227,11 +233,17 @@ void change_server_state(PgSocket *server, SocketState newstate)
 	case SV_TESTED:
 		statlist_remove(&pool->tested_server_list, &server->head);
 		break;
+	case SV_WAIT_CANCELS:
+		statlist_remove(&pool->wait_cancels_server_list, &server->head);
+		break;
 	case SV_IDLE:
 		statlist_remove(&pool->idle_server_list, &server->head);
 		break;
 	case SV_ACTIVE:
 		statlist_remove(&pool->active_server_list, &server->head);
+		break;
+	case SV_ACTIVE_CANCEL:
+		statlist_remove(&pool->active_cancel_server_list, &server->head);
 		break;
 	default:
 		fatal("bad old server state: %d", server->state);
@@ -258,6 +270,9 @@ void change_server_state(PgSocket *server, SocketState newstate)
 	case SV_TESTED:
 		statlist_append(&pool->tested_server_list, &server->head);
 		break;
+	case SV_WAIT_CANCELS:
+		statlist_append(&pool->wait_cancels_server_list, &server->head);
+		break;
 	case SV_IDLE:
 		if (server->close_needed || cf_server_round_robin) {
 			/* try to avoid immediate usage then */
@@ -269,6 +284,9 @@ void change_server_state(PgSocket *server, SocketState newstate)
 		break;
 	case SV_ACTIVE:
 		statlist_append(&pool->active_server_list, &server->head);
+		break;
+	case SV_ACTIVE_CANCEL:
+		statlist_append(&pool->active_cancel_server_list, &server->head);
 		break;
 	default:
 		fatal("bad server state: %d", server->state);
@@ -512,7 +530,10 @@ static PgPool *new_pool(PgDatabase *db, PgUser *user)
 	statlist_init(&pool->tested_server_list, "tested_server_list");
 	statlist_init(&pool->used_server_list, "used_server_list");
 	statlist_init(&pool->new_server_list, "new_server_list");
-	statlist_init(&pool->cancel_req_list, "cancel_req_list");
+	statlist_init(&pool->waiting_cancel_req_list, "waiting_cancel_req_list");
+	statlist_init(&pool->active_cancel_req_list, "active_cancel_req_list");
+	statlist_init(&pool->active_cancel_server_list, "active_cancel_server_list");
+	statlist_init(&pool->wait_cancels_server_list, "wait_cancels_server_list");
 
 	list_append(&user->pool_list, &pool->map_head);
 
@@ -749,14 +770,18 @@ bool release_server(PgSocket *server)
 {
 	PgPool *pool = server->pool;
 	SocketState newstate = SV_IDLE;
+	struct List *cancel_item, *tmp;
 
 	Assert(server->ready);
 
 	/* remove from old list */
 	switch (server->state) {
+	case SV_WAIT_CANCELS:
 	case SV_ACTIVE:
-		server->link->link = NULL;
-		server->link = NULL;
+		if (server->link) {
+			server->link->link = NULL;
+			server->link = NULL;
+		}
 
 		if (*cf_server_reset_query && (cf_server_reset_query_always ||
 					       pool_pool_mode(pool) == POOL_SESSION))
@@ -782,6 +807,20 @@ bool release_server(PgSocket *server)
 		fatal("bad server state: %d", server->state);
 	}
 
+	statlist_for_each_safe(cancel_item, &server->canceling_clients, tmp) {
+		PgSocket *cancel_client = container_of(cancel_item, PgSocket, cancel_head);
+		/*
+		 * If the cancel request is not in flight yet we can simply unlink
+		 * the cancel_client. When a cancel request doesn't have a
+		 * canceled_server linked to it forward_cancel_request will simply drop
+		 * the cancel request without forwarding it anywhere.
+		 */
+		if (cancel_client->state == CL_WAITING_CANCEL) {
+			cancel_client->canceled_server = NULL;
+			statlist_remove(&server->canceling_clients, cancel_item);
+		}
+	}
+
 	/* enforce lifetime immediately on release */
 	if (server->state != SV_LOGIN && life_over(server)) {
 		disconnect_server(server, true, "server lifetime over");
@@ -793,6 +832,11 @@ bool release_server(PgSocket *server)
 	if (server->close_needed) {
 		disconnect_server(server, true, "close_needed");
 		return false;
+	}
+
+	if (statlist_count(&server->canceling_clients) > 0) {
+		change_server_state(server, SV_WAIT_CANCELS);
+		return true;
 	}
 
 	Assert(server->link == NULL);
@@ -822,6 +866,7 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 	usec_t now = get_cached_time();
 	char buf[128];
 	va_list ap;
+	struct List *cancel_item, *tmp;
 
 	if (server == NULL) {
 		return;
@@ -837,6 +882,7 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 			  (now - server->connect_time) / USEC);
 
 	switch (server->state) {
+	case SV_ACTIVE_CANCEL:
 	case SV_ACTIVE:	{
 		PgSocket *client = server->link;
 
@@ -849,9 +895,12 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 			 */
 			if (client->state == CL_ACTIVE || client->state == CL_WAITING)
 				disconnect_client(client, true, "%s", reason);
+			else if (client->state == CL_ACTIVE_CANCEL)
+				disconnect_client(client, false, "successfully sent cancel request");
 			else
 				disconnect_client(client, true, "bouncer config error");
 		}
+
 		break;
 	}
 	case SV_TESTED:
@@ -884,6 +933,12 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 	}
 
 	Assert(server->link == NULL);
+
+	statlist_for_each_safe(cancel_item, &server->canceling_clients, tmp) {
+		PgSocket *cancel_client = container_of(cancel_item, PgSocket, cancel_head);
+		cancel_client->canceled_server = NULL;
+		statlist_remove(&server->canceling_clients, cancel_item);
+	}
 
 	/* notify server and close connection */
 	if (send_term) {
@@ -963,16 +1018,42 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 				release_server(server);
 			}
 		}
+		break;
+	case CL_ACTIVE_CANCEL:
+	case CL_WAITING_CANCEL:
+		/*
+		 * If the cancel request is still linked to the server that it
+		 * cancelled (or wanted to cancel) a query from, this is the time to
+		 * unlink them. The cancel request has finished at this point and we're
+		 * going to free its memory soon, so we don't want references to it
+		 * left behind.
+		 */
+		if (client->canceled_server) {
+			PgSocket *canceled_server = client->canceled_server;
+			statlist_remove(&canceled_server->canceling_clients, &client->cancel_head);
+			client->canceled_server = NULL;
+
+			/*
+			 * If the linked server was waiting until all cancel requests
+			 * targeting it were finished, and we were the last cancel request,
+			 * then we can now safely move the server to the idle state. We
+			 * trigger this by calling release_server again.
+			 */
+			if (canceled_server->state == SV_WAIT_CANCELS
+					&& statlist_count(&canceled_server->canceling_clients) == 0 ) {
+				release_server(canceled_server);
+			}
+		}
+		break;
 	case CL_WAITING:
 	case CL_WAITING_LOGIN:
-	case CL_CANCEL:
 		break;
 	default:
 		fatal("bad client state: %d", client->state);
 	}
 
 	/* send reason to client */
-	if (notify && reason && client->state != CL_CANCEL) {
+	if (notify && reason && client->state != CL_WAITING_CANCEL) {
 		/*
 		 * don't send Ready pkt here, or client won't notice
 		 * closed connection
@@ -1225,7 +1306,15 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed)
 	PgSocket *server;
 	int max;
 
-	/* allow only small number of connection attempts at a time */
+	/*
+	 * Allow only a single connection attempt at a time.
+	 *
+	 * NOTE: If this is ever changed to allow more than a single connection
+	 * attempt at once (which would probably be a good thing), some code needs
+	 * to change that depends on the fact that there's only ever one connection
+	 * attempt at once. At least a little bit below in this function, where
+	 * connections are opened for cancel requests.
+	 */
 	if (!statlist_empty(&pool->new_server_list)) {
 		log_debug("launch_new_connection: already progress");
 		return;
@@ -1243,8 +1332,16 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed)
 
 	max = pool_server_count(pool);
 
-	/* when a cancel request is queued allow connections up to twice the pool size */
-	if (!statlist_empty(&pool->cancel_req_list) && max < (2 * pool_pool_size(pool))) {
+	/*
+	 * When a cancel request is queued allow connections up to twice the pool
+	 * size.
+	 *
+	 * NOTE: This logic might seem a bit confusing, because it seems like we'll
+	 * open many connections even if there's only a single cancel request. But
+	 * this works just fine, because we only ever open a single connection at
+	 * once (see top of this function).
+	 */
+	if (!statlist_empty(&pool->waiting_cancel_req_list) && max < (2 * pool_pool_size(pool))) {
 		log_debug("launch_new_connection: bypass pool limitations for cancel request");
 		goto force_new;
 	}
@@ -1310,6 +1407,7 @@ force_new:
 	server->pool = pool;
 	server->login_user = server->pool->user;
 	server->connect_time = get_cached_time();
+	statlist_init(&server->canceling_clients, "canceling_clients");
 	pool->last_connect_time = get_cached_time();
 	change_server_state(server, SV_LOGIN);
 	pool->db->connection_count++;
@@ -1398,7 +1496,10 @@ bool finish_client_login(PgSocket *client)
 	return true;
 }
 
-/* client->cancel_key has requested client key */
+/*
+ * Accepts a cancellation request, which will eventual cancel the query running
+ * on the client that matches req->client_key
+ */
 void accept_cancel_request(PgSocket *req)
 {
 	struct List *pitem, *citem;
@@ -1407,7 +1508,7 @@ void accept_cancel_request(PgSocket *req)
 
 	Assert(req->state == CL_LOGIN);
 
-	/* find real client this is for */
+	/* find the client that has the same cancel_key as this request */
 	statlist_for_each(pitem, &pool_list) {
 		pool = container_of(pitem, PgPool, head);
 		statlist_for_each(citem, &pool->active_client_list) {
@@ -1433,49 +1534,84 @@ found:
 		return;
 	}
 
-	/* not linked client, just drop it then */
-	if (!main_client->link) {
-		/* let administrative cancel be handled elsewhere */
-		if (main_client->pool->db->admin) {
-			disconnect_client(req, false, "cancel request for console client");
-			admin_handle_cancel(main_client);
-			return;
-		}
+	/*
+	 * cancel requests for administrative databases should be handled
+	 * differently from cancel request for normal servers. We should handle
+	 * these directly instead of forwarding them.
+	 */
+	if (main_client->pool->db->admin) {
+		disconnect_client(req, false, "cancel request for console client");
+		admin_handle_cancel(main_client);
+		return;
+	}
 
+	/*
+	 * The client is not linked to a server, which means that no query is
+	 * running that can be cancelled. This likely means the query finished by
+	 * itself before the cancel request arived to pgbouncer.
+	 */
+	if (!main_client->link) {
 		disconnect_client(req, false, "cancel request for idle client");
 
 		return;
 	}
 
-	/* drop the connection, if fails, retry later in justfree list */
-	if (!sbuf_close(&req->sbuf))
-		log_noise("sbuf_close failed, retry later");
-
-	/* remember server key */
+	/*
+	 * Link the cancel request and the server on which the query is being
+	 * cancelled in a many-to-one way.
+	 */
 	server = main_client->link;
-	memcpy(req->cancel_key, server->cancel_key, 8);
+	req->canceled_server = server;
+	statlist_append(&server->canceling_clients, &req->cancel_head);
 
-	/* attach to target pool */
+	/*
+	 * Attach to the target pool and change state to waiting_cancel. This way
+	 * once a new connection is opened, it's used to forward the cancel
+	 * request.
+	 */
 	req->pool = pool;
-	change_client_state(req, CL_CANCEL);
+	change_client_state(req, CL_WAITING_CANCEL);
 
-	/* need fresh connection */
+	/*
+	 * Open a new connection over which the cancel request is forwarded to the
+	 * server.
+	 */
 	launch_new_connection(pool, /* evict_if_needed= */ true);
 }
 
-void forward_cancel_request(PgSocket *server)
+bool forward_cancel_request(PgSocket *server)
 {
 	bool res;
-	PgSocket *req = first_socket(&server->pool->cancel_req_list);
+	PgSocket *req = first_socket(&server->pool->waiting_cancel_req_list);
 
-	Assert(req != NULL && req->state == CL_CANCEL);
+	Assert(req != NULL && req->state == CL_WAITING_CANCEL);
 	Assert(server->state == SV_LOGIN);
 
-	SEND_CancelRequest(res, server, req->cancel_key);
-	if (!res)
-		log_warning("sending cancel request failed: %s", strerror(errno));
+	/*
+	 * In between accepting the cancel request and receiving an open connection
+	 * the query that was supposed to be cancelled has now completed. This
+	 * becomes a problem when the server is then reused for some other client.
+	 * Because this will mean that the cancel that is forwarded will cancel a
+	 * query from a completely different client than the client it was intended
+	 * for.
+	 */
+	if (!req->canceled_server) {
+		disconnect_client(req, false, "not sending cancel request for client that is now idle");
+		return false;
+	}
 
-	change_client_state(req, CL_JUSTFREE);
+	server->link = req;
+	req->link = server;
+
+	SEND_CancelRequest(res, server, req->canceled_server->cancel_key);
+	if (!res) {
+		log_warning("sending cancel request failed: %s", strerror(errno));
+		disconnect_client(req, false, "failed to send cancel request");
+		return false;
+	}
+	log_info("started sending cancel request");
+	change_client_state(req, CL_ACTIVE_CANCEL);
+	return true;
 }
 
 bool use_client_socket(int fd, PgAddr *addr,
@@ -1608,6 +1744,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 	server->login_user = user;
 	server->connect_time = server->request_time = get_cached_time();
 	server->query_start = 0;
+	statlist_init(&server->canceling_clients, "canceling_clients");
 
 	fill_remote_addr(server, fd, pga_is_unix(addr));
 	fill_local_addr(server, fd, pga_is_unix(addr));

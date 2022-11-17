@@ -404,6 +404,17 @@ static void pool_client_maint(PgPool *pool)
 				disconnect_client(client, true, "query_wait_timeout");
 			}
 		}
+		statlist_for_each_safe(item, &pool->waiting_cancel_req_list, tmp) {
+			client = container_of(item, PgSocket, head);
+			Assert(client->state == CL_WAITING_CANCEL);
+			age = now - client->request_time;
+
+			if (cf_query_timeout > 0 && age > cf_query_timeout) {
+				disconnect_client(client, false, "cancel request query_timeout");
+			} else if (cf_query_wait_timeout > 0 && age > cf_query_wait_timeout) {
+				disconnect_client(client, false, "cancel request query_wait_timeout");
+			}
+		}
 	}
 
 	/* apply client_login_timeout to clients waiting for welcome pkt */

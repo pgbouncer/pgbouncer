@@ -252,7 +252,8 @@ database
 
 state
 :   State of the pgbouncer server connection, one of **active**,
-    **idle**, **used**, **tested**, **new**.
+    **idle**, **used**, **tested**, **new**, **active_cancel**,
+    **wait_cancels**.
 
 addr
 :   IP address of PostgreSQL server.
@@ -316,7 +317,8 @@ database
 :   Database name.
 
 state
-:   State of the client connection, one of **active** or **waiting**.
+:   State of the client connection, one of **active**, **waiting**,
+    **active_cancel_req** or **waiting_cancel_req**.
 
 addr
 :   IP address of client.
@@ -379,12 +381,12 @@ cl_active
 cl_waiting
 :   Client connections that have sent queries but have not yet got a server connection.
 
-cl_waiting_cancel_req
-:   Client connections that have not forwarded query cancellations to the server yet.
-
 cl_active_cancel_req
 :   Client connections that have forwarded query cancellations to the server and
     are waiting for the server response.
+
+cl_waiting_cancel_req
+:   Client connections that have not forwarded query cancellations to the server yet.
 
 sv_active
 :   Server connections that are linked to a client.

@@ -49,24 +49,24 @@ extern struct event_base *pgb_event_base;
 
 /* each state corresponds to a list */
 enum SocketState {
-	CL_FREE,			/* free_client_list */
+	CL_FREE,		/* free_client_list */
 	CL_JUSTFREE,		/* justfree_client_list */
-	CL_LOGIN,			/* login_client_list */
-	CL_WAITING,			/* pool->waiting_client_list */
+	CL_LOGIN,		/* login_client_list */
+	CL_WAITING,		/* pool->waiting_client_list */
 	CL_WAITING_LOGIN,	/*   - but return to CL_LOGIN instead of CL_ACTIVE */
-	CL_ACTIVE,			/* pool->active_client_list */
+	CL_ACTIVE,		/* pool->active_client_list */
 	CL_WAITING_CANCEL,	/* pool->waiting_cancel_req_list */
 	CL_ACTIVE_CANCEL,	/* pool->active_cancel_req_list */
 
-	SV_FREE,			/* free_server_list */
+	SV_FREE,		/* free_server_list */
 	SV_JUSTFREE,		/* justfree_server_list */
-	SV_LOGIN,			/* pool->new_server_list */
+	SV_LOGIN,		/* pool->new_server_list */
 	SV_WAIT_CANCELS,	/* pool->wait_cancels_server_list */
-	SV_IDLE,			/* pool->idle_server_list */
-	SV_ACTIVE,			/* pool->active_server_list */
+	SV_IDLE,		/* pool->idle_server_list */
+	SV_ACTIVE,		/* pool->active_server_list */
 	SV_ACTIVE_CANCEL,	/* pool->active_cancel_server_list */
-	SV_USED,			/* pool->used_server_list */
-	SV_TESTED			/* pool->tested_server_list */
+	SV_USED,		/* pool->used_server_list */
+	SV_TESTED		/* pool->tested_server_list */
 };
 
 enum PauseMode {

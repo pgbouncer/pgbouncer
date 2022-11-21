@@ -835,7 +835,7 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 				    "sv_active",
 				    "sv_active_cancel",
 				    "sv_wait_cancels",
-					"sv_idle",
+				    "sv_idle",
 				    "sv_used", "sv_tested",
 				    "sv_login", "maxwait",
 				    "maxwait_us", "pool_mode");

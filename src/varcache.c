@@ -45,6 +45,25 @@ static inline struct PStr *get_value(VarCache *cache, const struct var_lookup *l
 	return cache->var_list[lk->idx];
 }
 
+const char *varcache_get(VarCache *cache, const char *key)
+{
+	const struct var_lookup *lk;
+	if (!vpool) {
+		return NULL;
+	}
+
+	for (lk = lookup; lk->name; lk++) {
+		if (strcasecmp(lk->name, key) == 0) {
+			struct PStr *pstr = get_value(cache, lk);
+			if (pstr)
+				return pstr->str;
+			else
+				return NULL;
+		}
+	}
+	return NULL;
+}
+
 bool varcache_set(VarCache *cache, const char *key, const char *value)
 {
 	const struct var_lookup *lk;

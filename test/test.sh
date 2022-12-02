@@ -1474,7 +1474,6 @@ test_cancel_race() {
 	wait $psql2_pid || return 1
 }
 
-
 # This test checks database specifications with host lists.  The way
 # we test this here is to have a host list containing an IPv4 and an
 # IPv6 representation of localhost, and then we check the log that

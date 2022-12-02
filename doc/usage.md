@@ -318,7 +318,7 @@ database
 
 state
 :   State of the client connection, one of **active**, **waiting**,
-    **active_cancel_req** or **waiting_cancel_req**.
+    **active_cancel_req**, or **waiting_cancel_req**.
 
 addr
 :   IP address of client.
@@ -392,10 +392,10 @@ sv_active
 :   Server connections that are linked to a client.
 
 sv_active_cancel
-:   Server connections that are currently forwarding a cancel request
+:   Server connections that are currently forwarding a cancel request.
 
 sv_wait_cancels
-:   Servers that normally could become idle, but are waiting to do so until
+:   Servers that normally could become idle but are waiting to do so until
     all in-flight cancel requests have completed that were sent to cancel
     a query on this server.
 

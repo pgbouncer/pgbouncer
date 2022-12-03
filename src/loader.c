@@ -145,7 +145,7 @@ static bool set_auth_dbname(PgDatabase *db, const char *new_auth_dbname)
 	}
 
 	if (new_auth_dbname && !db->auth_dbname) {
-		log_error("auth_dbname %s could not be set for database %s", new_auth_dbname, db->name);
+		log_error("auth_dbname %s could not be set for database %s, out of memory", new_auth_dbname, db->name);
 		return false;
 	}
 

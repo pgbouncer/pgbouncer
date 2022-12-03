@@ -45,38 +45,43 @@ static const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
  * NOTE: If authentication database is found but it is disabled, then
  * 		 client will get disconnected. 
  * Returns:
- *   auth_database, based on the above preference.
+ *   auth_database, based on the above preference. May return NULL when
+ *   				auth_db is disabled.
  */
 PgDatabase *prepare_auth_database(PgSocket *client)
 {
 	PgDatabase *auth_db = client->db;
-	const char *target_auth_dbname = auth_db->auth_dbname;
+	const char *auth_dbname = client->db->auth_dbname ? client->db->auth_dbname : cf_auth_dbname;
 
-	if (!target_auth_dbname && cf_auth_dbname) {
-		target_auth_dbname = cf_auth_dbname;
+	/* use the client's target database if auth_dbname is not configured. */
+	if (!auth_dbname) {
+		return auth_db;
 	}
 
-	if (target_auth_dbname) {
-		auth_db = find_database(target_auth_dbname);
-		if (auth_db) {
-			if (auth_db->db_disabled) {
-				/* check feature switch and decide the outcome */
-				disconnect_client(
-					client,
-					true,
-					"Authentication database %s is disabled or does not accept connections. Please update pgbouncer configurations.",
-					target_auth_dbname);
-				return NULL;
-			}
-		
-			slog_info(client, "Authentication database %s is successfully set.", target_auth_dbname);
-		}
-		else {
-			auth_db = client->db;
-			slog_info(client, "Authentication database %s could not be found. Reverting to target database.", target_auth_dbname);
-		}
+	/* if auth_dbname is configured, attemp to find it.
+	 * when database is found but it is disabled, it
+	 * will result in client disconnection.
+	 */
+	auth_db = find_database(auth_dbname);
+	if (!auth_db) {
+		slog_info(client, "Authentication database %s could not be found. Reverting to client database.", auth_dbname);
+		return client->db;
 	}
 
+	if (auth_db->db_disabled) {
+		disconnect_client(
+			client,
+			true,
+			"Authentication database %s is disabled or does not accept connections. Please update pgbouncer configurations.",
+			auth_dbname);
+		return NULL;
+	}
+
+	slog_info(
+		client,
+		"Authentication database %s will be used instead of client's database %s for authentication.",
+		auth_dbname,
+		client->db->name);
 	return auth_db;
 }
 

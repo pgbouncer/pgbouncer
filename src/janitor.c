@@ -691,7 +691,7 @@ void kill_pool(PgPool *pool)
 
 	close_server_list(&pool->active_server_list, reason);
 	close_server_list(&pool->active_cancel_server_list, reason);
-	close_server_list(&pool->wait_cancels_server_list, reason);
+	close_server_list(&pool->being_canceled_server_list, reason);
 	close_server_list(&pool->idle_server_list, reason);
 	close_server_list(&pool->used_server_list, reason);
 	close_server_list(&pool->tested_server_list, reason);

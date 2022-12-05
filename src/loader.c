@@ -136,7 +136,8 @@ static bool set_auth_dbname(PgDatabase *db, const char *new_auth_dbname)
 			return true;
 		}
 
-		free((void *)old_auth_dbname);
+		/* The cast here is required to strip const qualifier to avoid build warnings. */
+		free((char *)old_auth_dbname);
 		db->auth_dbname = strdup(new_auth_dbname);
 	} else if (new_auth_dbname) {
 		db->auth_dbname = strdup(new_auth_dbname);

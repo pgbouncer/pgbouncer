@@ -355,100 +355,6 @@ test_help() {
 	$BOUNCER_EXE --help || return 1
 }
 
-# test all the show commands
-#
-# This test right now just runs all the commands without checking the
-# output, which would be difficult.  This at least ensures the
-# commands don't completely die.  The output can be manually eyeballed
-# in the test log file.
-test_show() {
-	for what in clients config databases fds help lists pools servers sockets active_sockets stats stats_totals stats_averages users totals mem dns_hosts dns_zones; do
-		    echo "=> show $what;"
-		    psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "show $what;" || return 1
-	done
-
-	psql -X -h $BOUNCER_ADMIN_HOST -U pgbouncer -d pgbouncer -c "show bogus;" && return 1
-
-	return 0
-}
-
-# server_lifetime
-test_server_lifetime() {
-	admin "set server_lifetime=2"
-	psql -X -c "select now()" p0
-	sleep 3
-
-	rc=`psql -X -p $PG_PORT -tAqc "select count(1) from pg_stat_activity where usename='bouncer' and datname='p0'" p0`
-	psql -X -c "select now()" p0
-	return $rc
-}
-
-# server_idle_timeout
-test_server_idle_timeout() {
-	admin "set server_idle_timeout=2"
-	psql -X -c "select now()" p0
-	sleep 3
-	rc=`psql -X -p $PG_PORT -tAq -c "select count(1) from pg_stat_activity where usename='bouncer' and datname='p0'" p0`
-	psql -X -c "select now()" p0
-	return $rc
-}
-
-# query_timeout
-test_query_timeout() {
-	admin "set query_timeout=3"
-	psql -X -c "select pg_sleep(5)" p0 && return 1
-	return 0
-}
-
-# idle_transaction_timeout
-test_idle_transaction_timeout() {
-	admin "set pool_mode=transaction"
-	admin "set idle_transaction_timeout=2"
-
-	psql -X --set ON_ERROR_STOP=1 p0 <<-PSQL_EOF
-	begin;
-	\! sleep 3
-	select now();
-	PSQL_EOF
-	test $? -eq 0 && return 1
-
-	# test for GH issue #125
-	psql -X --set ON_ERROR_STOP=1 p0 <<-PSQL_EOF
-	begin;
-	select pg_sleep(2);
-	\! sleep 1
-	select now();
-	PSQL_EOF
-	test $? -ne 0 && return 1
-
-	return 0
-}
-
-# client_idle_timeout
-test_client_idle_timeout() {
-	admin "set client_idle_timeout=2"
-	psql -X --set ON_ERROR_STOP=1 p0 <<-PSQL_EOF
-	select now();
-	\! sleep 3
-	select now();
-	PSQL_EOF
-	test $? -eq 0 && return 1
-	return 0
-}
-
-# server_login_retry
-test_server_login_retry() {
-	admin "set query_timeout=10"
-	admin "set server_login_retry=3"
-
-	pgctl -m fast stop
-	(sleep 1; pgctl start) &
-	psql -X -c "select now()" p0
-	rc=$?
-	wait
-	return $rc
-}
-
 # tcp_user_timeout
 test_tcp_user_timeout() {
 	test -z "$USE_SUDO" && return 77
@@ -1510,14 +1416,7 @@ test_host_list_dummy() {
 testlist="
 test_show_version
 test_help
-test_show
-test_server_login_retry
 test_auth_user
-test_client_idle_timeout
-test_server_lifetime
-test_server_idle_timeout
-test_query_timeout
-test_idle_transaction_timeout
 test_server_connect_timeout_establish
 test_server_connect_timeout_reject
 test_server_check_delay

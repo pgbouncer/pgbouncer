@@ -732,7 +732,7 @@ static bool admin_show_servers(PgSocket *admin, const char *arg)
 		show_socket_list(buf, &pool->tested_server_list, "tested", false);
 		show_socket_list(buf, &pool->new_server_list, "new", false);
 		show_socket_list(buf, &pool->active_cancel_server_list, "active_cancel", false);
-		show_socket_list(buf, &pool->wait_cancels_server_list, "wait_cancels", false);
+		show_socket_list(buf, &pool->being_canceled_server_list, "being_canceled", false);
 	}
 	admin_flush(admin, buf, "SHOW");
 	return true;
@@ -834,7 +834,7 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 				    "cl_waiting_cancel_req",
 				    "sv_active",
 				    "sv_active_cancel",
-				    "sv_wait_cancels",
+				    "sv_being_canceled",
 				    "sv_idle",
 				    "sv_used", "sv_tested",
 				    "sv_login", "maxwait",
@@ -852,7 +852,7 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 				     statlist_count(&pool->waiting_cancel_req_list),
 				     statlist_count(&pool->active_server_list),
 				     statlist_count(&pool->active_cancel_server_list),
-				     statlist_count(&pool->wait_cancels_server_list),
+				     statlist_count(&pool->being_canceled_server_list),
 				     statlist_count(&pool->idle_server_list),
 				     statlist_count(&pool->used_server_list),
 				     statlist_count(&pool->tested_server_list),

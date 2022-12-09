@@ -233,8 +233,8 @@ void change_server_state(PgSocket *server, SocketState newstate)
 	case SV_TESTED:
 		statlist_remove(&pool->tested_server_list, &server->head);
 		break;
-	case SV_WAIT_CANCELS:
-		statlist_remove(&pool->wait_cancels_server_list, &server->head);
+	case SV_BEING_CANCELED:
+		statlist_remove(&pool->being_canceled_server_list, &server->head);
 		break;
 	case SV_IDLE:
 		statlist_remove(&pool->idle_server_list, &server->head);
@@ -270,8 +270,8 @@ void change_server_state(PgSocket *server, SocketState newstate)
 	case SV_TESTED:
 		statlist_append(&pool->tested_server_list, &server->head);
 		break;
-	case SV_WAIT_CANCELS:
-		statlist_append(&pool->wait_cancels_server_list, &server->head);
+	case SV_BEING_CANCELED:
+		statlist_append(&pool->being_canceled_server_list, &server->head);
 		break;
 	case SV_IDLE:
 		if (server->close_needed || cf_server_round_robin) {
@@ -533,7 +533,7 @@ static PgPool *new_pool(PgDatabase *db, PgUser *user)
 	statlist_init(&pool->waiting_cancel_req_list, "waiting_cancel_req_list");
 	statlist_init(&pool->active_cancel_req_list, "active_cancel_req_list");
 	statlist_init(&pool->active_cancel_server_list, "active_cancel_server_list");
-	statlist_init(&pool->wait_cancels_server_list, "wait_cancels_server_list");
+	statlist_init(&pool->being_canceled_server_list, "being_canceled_server_list");
 
 	list_append(&user->pool_list, &pool->map_head);
 
@@ -776,7 +776,7 @@ bool release_server(PgSocket *server)
 
 	/* remove from old list */
 	switch (server->state) {
-	case SV_WAIT_CANCELS:
+	case SV_BEING_CANCELED:
 	case SV_ACTIVE:
 		if (server->link) {
 			server->link->link = NULL;
@@ -835,7 +835,7 @@ bool release_server(PgSocket *server)
 	}
 
 	if (statlist_count(&server->canceling_clients) > 0) {
-		change_server_state(server, SV_WAIT_CANCELS);
+		change_server_state(server, SV_BEING_CANCELED);
 		return true;
 	}
 
@@ -1039,7 +1039,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 			 * then we can now safely move the server to the idle state. We
 			 * trigger this by calling release_server again.
 			 */
-			if (canceled_server->state == SV_WAIT_CANCELS
+			if (canceled_server->state == SV_BEING_CANCELED
 					&& statlist_count(&canceled_server->canceling_clients) == 0 ) {
 				release_server(canceled_server);
 			}

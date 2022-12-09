@@ -61,7 +61,7 @@ enum SocketState {
 	SV_FREE,		/* free_server_list */
 	SV_JUSTFREE,		/* justfree_server_list */
 	SV_LOGIN,		/* pool->new_server_list */
-	SV_WAIT_CANCELS,	/* pool->wait_cancels_server_list */
+	SV_BEING_CANCELED,	/* pool->being_canceled_server_list */
 	SV_IDLE,		/* pool->idle_server_list */
 	SV_ACTIVE,		/* pool->active_server_list */
 	SV_ACTIVE_CANCEL,	/* pool->active_cancel_server_list */
@@ -313,7 +313,7 @@ struct PgPool {
 	 * thus not be reused) until all in-flight cancel requests for it have
 	 * completed.
 	 */
-	struct StatList wait_cancels_server_list;
+	struct StatList being_canceled_server_list;
 
 	/*
 	 * Servers connections that are ready to be linked with clients. These will
@@ -383,7 +383,7 @@ struct PgPool {
  */
 #define pool_connected_server_count(pool) ( \
 		statlist_count(&(pool)->active_server_list) + \
-		statlist_count(&(pool)->wait_cancels_server_list) + \
+		statlist_count(&(pool)->being_canceled_server_list) + \
 		statlist_count(&(pool)->idle_server_list) + \
 		statlist_count(&(pool)->tested_server_list) + \
 		statlist_count(&(pool)->used_server_list))

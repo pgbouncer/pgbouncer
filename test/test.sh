@@ -954,35 +954,39 @@ test_auth_dbname() {
 	local result
 
 	admin "set auth_type='md5'"
+	
+	# tests the case when auth_dbname is not configured globally or for the target database.
+	curuser=`psql -X -d "dbname=authdb user=someuser password=anypasswd" -tAq -c "select current_user;"`
+	echo "empty auth_dbname test, curuser=$curuser"
+	test "$curuser" = "someuser" || return 1
 
-	# test if invalid globally set auth_dbname results in fallback to
-	# user's target database. 
-	admin "set auth_dbname='pinvalid'"
+	# test if invalid globally set auth_dbname results in 
+	# client disconnection.
+	admin "set auth_dbname='p_unconfigured_auth_dbname'"
 
 	curuser=`psql -X -d "dbname=authdb user=someuser password=anypasswd" -tAq -c "select current_user;"`
-	echo "revert test curuser=$curuser"
-	test "$curuser" = "someuser" || return 1
-	grep -q "Reverting to client database" $BOUNCER_LOG  || return 1
+	echo "unconfigured database test, curuser=$curuser"
+	test "$curuser" = "" || return 1
+	grep -q "bouncer config error" $BOUNCER_LOG  || return 1
 
 	# test if auth_dbname specified in connection string takes precedence over global setting
 	curuser=`psql -X -d "dbname=pauthz user=someuser password=anypasswd" -tAq -c "select current_user;"`
-	echo "conn string test curuser=$curuser"
+	echo "conn string test, curuser=$curuser"
 	test "$curuser" = "someuser" || return 1
-	grep -q "Authentication database authdb will be used instead of client's database pauthz for authentication." $BOUNCER_LOG  || return 1
 
 	# test if we reject on disabled database.
 	admin "disable authdb"
 	curuser=`psql -X -d "dbname=pauthz user=someuser password=anypasswd" -tAq -c "select current_user;"`
 	echo "disable test curuser=$curuser"
 	test "$curuser" = "" || return 1
-	grep -q "is disabled or does not accept connections. Please update pgbouncer configurations" $BOUNCER_LOG || return 1
+	grep -q "authentication database \"authdb\" is disabled" $BOUNCER_LOG || return 1
 	admin "enable authdb"
 
 	# prepare for the scenario where fallback (*) database can also have auth_dbname set.
 	# additionally, a global "auth_user" is set in this scenario to access authdb.
 	cp test.ini test.ini.back
-	sed 's/^;\*/*/g' test.ini >test2.ini
-	sed '/^\*/s/$/ auth_dbname = authdb/g' test2.ini >test3.ini
+	sed 's/^;\*/*/g' test.ini > test2.ini
+	sed '/^\*/s/$/ auth_dbname = authdb/g' test2.ini > test3.ini
 	echo "auth_user = pswcheck" >> test3.ini
 	mv test3.ini test.ini
 	rm test2.ini
@@ -991,21 +995,12 @@ test_auth_dbname() {
 	admin "set auth_type='md5'"
 
 	curuser=`psql -X -d "dbname=postgres user=someuser password=anypasswd" -tAq -c "select current_user;"`
-	echo "default db test curuser=$curuser"
+	echo "default db test, curuser=$curuser"
 	test "$curuser" = "someuser" || return 1
 
-	echo "Grep result of default authentication test: $result"
-	grep -q "Authentication database authdb will be used instead of client's database postgres for authentication." $BOUNCER_LOG  || return 1
-
+	# revert the changes
 	mv test.ini.back test.ini
 	admin "reload"
-	admin "set auth_type='md5'"
-
-	# test default execution flow.
-	admin "set auth_dbname=''"
-	curuser=`psql -X -d "dbname=p4 user=someuser password=anypasswd" -tAq -c "select current_user;"`
-	echo "curuser=$curuser"
-	test "$curuser" = "puser1" || return 1
 
 	return 0
 }

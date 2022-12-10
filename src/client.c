@@ -36,52 +36,37 @@ static const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
 }
 
 /*
- * An helper function to select authentication database for the current
- * client. The order of preference will be as follows:
- *   1) client->db->auth_dbname: Client's target database may alraedy have
- * 		an auth_database defined. Prefer this when available.
- *   2) cf_auth_dbname: Global authentication database name.
- *   3) client->db: Client's target database. 
- * NOTE: If authentication database is found but it is disabled, then
- * 		 client will get disconnected. 
- * Returns:
- *   auth_database, based on the above preference. May return NULL when
- *   				auth_db is disabled.
+ * Get authentication database for the current client. The order of preference is:
+ *   client->db->auth_dbname: per client authentication database
+ *   cf_auth_dbname: global authentication database
+ *   client->db: client database  
+ * Note: if authentication database is not found, or it is disabled, the client will be
+ * 		 disconnected. 
  */
 PgDatabase *prepare_auth_database(PgSocket *client)
 {
-	PgDatabase *auth_db = client->db;
+	PgDatabase *auth_db = NULL;
 	const char *auth_dbname = client->db->auth_dbname ? client->db->auth_dbname : cf_auth_dbname;
 
-	/* use the client's target database if auth_dbname is not configured. */
-	if (!auth_dbname) {
-		return auth_db;
-	}
+	if (!auth_dbname) 
+		return client->db;
 
-	/* if auth_dbname is configured, attemp to find it.
-	 * when database is found but it is disabled, it
-	 * will result in client disconnection.
-	 */
 	auth_db = find_database(auth_dbname);
 	if (!auth_db) {
-		slog_info(client, "Authentication database %s could not be found. Reverting to client database.", auth_dbname);
-		return client->db;
+		slog_error(client, "authentication database \"%s\" is not configured.", auth_dbname);
+		disconnect_client(client, true, "bouncer config error");
+		return NULL;
 	}
 
 	if (auth_db->db_disabled) {
 		disconnect_client(
 			client,
 			true,
-			"Authentication database %s is disabled or does not accept connections. Please update pgbouncer configurations.",
+			"authentication database \"%s\" is disabled",
 			auth_dbname);
 		return NULL;
 	}
 
-	slog_info(
-		client,
-		"Authentication database %s will be used instead of client's database %s for authentication.",
-		auth_dbname,
-		client->db->name);
 	return auth_db;
 }
 

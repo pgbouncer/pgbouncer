@@ -16,7 +16,7 @@ import shutil
 import time
 import asyncio
 import socket
-from tempfile import NamedTemporaryFile
+from tempfile import TemporaryDirectory
 
 
 TEST_DIR = Path(os.path.dirname(os.path.realpath(__file__)))
@@ -31,7 +31,6 @@ BOUNCER_INI = TEST_DIR / "test.ini"
 BOUNCER_PID = TEST_DIR / "test.pid"
 BOUNCER_PORT = 6667
 BOUNCER_EXE = TEST_DIR / "../pgbouncer"
-BOUNCER_ADMIN_HOST = "/tmp"
 
 LOGDIR = TEST_DIR / "log"
 PG_PORT = 6666
@@ -49,11 +48,11 @@ PG_HBA = PGDATA / "pg_hba.conf"
 if os.name == "nt":
     USE_UNIX_SOCKETS = False
     HAVE_GETPEEREID = False
-    BOUNCER_ADMIN_HOST = "127.0.0.1"
+    from asyncio import WindowsSelectorEventLoopPolicy
+    asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
 else:
     USE_UNIX_SOCKETS = True
     HAVE_GETPEEREID = True
-    BOUNCER_ADMIN_HOST = "/tmp"
 
 
 def eprint(*args, **kwargs):
@@ -252,26 +251,38 @@ class Bouncer(QueryRunner):
     def __init__(self, port, base_ini_path=BOUNCER_INI):
         super().__init__("127.0.0.1", port)
         self.process = None
-        self.admin_runner = QueryRunner(BOUNCER_ADMIN_HOST, port)
+        self.temp_dir = TemporaryDirectory(prefix='pgbouncer-test-')
+        self.temp_dir_path = Path(self.temp_dir.name)
+        self.ini_path = self.temp_dir_path / 'test.ini'
+        self.log_path = self.temp_dir_path / 'test.log'
+
+        if USE_UNIX_SOCKETS:
+            self.admin_host = '/tmp'
+        else:
+            self.admin_host = '127.0.0.1'
+
+        self.admin_runner = QueryRunner(self.admin_host, port)
         self.admin_runner.default_db = "pgbouncer"
         self.admin_runner.default_user = "pgbouncer"
-        self.ini_file = NamedTemporaryFile(mode='w+', prefix='pgbouncer-test-', suffix='.ini')
-        self.log_file = NamedTemporaryFile(mode='w+', prefix='pgbouncer-test-', suffix='.log')
-        print(self.ini_file.name)
-        with open(base_ini_path) as f:
-            self.ini_file.write(f.read())
-            self.ini_file.write("\n")
-            self.ini_file.write(f"logfile = {self.log_file.name}\n")
 
-            if not USE_UNIX_SOCKETS:
-                self.ini_file.write(f"unix_socket_dir = ''\n")
-                self.ini_file.write(f"admin_users = pgbouncer\n")
+        with open(base_ini_path) as base_ini:
+            with self.ini_path.open('w') as ini:
+                ini.write(base_ini.read())
+                ini.write("\n")
+                ini.write(f"logfile = {self.log_path}\n")
 
-            self.ini_file.flush()
+                if not USE_UNIX_SOCKETS:
+                    ini.write(f"unix_socket_dir = ''\n")
+                    ini.write(f"admin_users = pgbouncer\n")
+                else:
+                    ini.write(f"unix_socket_dir = {self.admin_host}\n")
+
+
+                ini.flush()
 
 
     def start(self):
-        self.process = subprocess.Popen([BOUNCER_EXE, "--quiet", self.ini_file.name], close_fds=True)
+        self.process = subprocess.Popen([BOUNCER_EXE, "--quiet", self.ini_path], close_fds=True)
         tries = 1
         while True:
             try:
@@ -279,6 +290,7 @@ class Bouncer(QueryRunner):
             except psycopg.Error:
                 if tries > 50:
                     raise
+                self.print_logs()
                 tries += 1
                 time.sleep(0.1)
                 continue
@@ -299,21 +311,26 @@ class Bouncer(QueryRunner):
         self.process.wait()
         self.process = None
 
+    def print_logs(self):
+        print("\n\nBOUNCER_LOG\n")
+        try:
+            with self.log_path.open() as f:
+                print(f.read())
+        except Exception:
+            pass
+
+
     def cleanup(self):
         super().cleanup()
         self.admin_runner.cleanup()
         self.stop()
-        self.ini_file.close()
+        self.print_logs()
 
-        print("\n\nBOUNCER_LOG\n")
-        with open(self.log_file.name) as f:
-            print(f.read())
-
-        self.log_file.close()
+        self.temp_dir.cleanup()
 
     @contextmanager
     def log_contains(self, re_string):
-        with open(self.log_file.name) as f:
+        with self.log_path.open() as f:
             f.seek(0, os.SEEK_END)
             yield
             content = f.read()

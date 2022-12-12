@@ -141,7 +141,7 @@ config.mak:
 
 check: all
 	etc/optscan.sh
-	$(PYTEST) -k test_show
+	$(PYTEST)
 	$(MAKE) -C test check
 
 w32zip = $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)-windows-$(host_cpu).zip

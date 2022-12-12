@@ -1,6 +1,41 @@
 PgBouncer changelog
 ===================
 
+PgBouncer 1.18.x
+----------------
+
+**2022-12-12  -  PgBouncer 1.18.0  -  "No real mystery"**
+
+- Features
+  * Add `application_name` to `SHOW CLIENTS`/`SERVERS`/`SOCKETS`
+    output ([#449](https://github.com/pgbouncer/pgbouncer/pull/449))
+  * Add information about cancel requests to `SHOW
+    CLIENTS`/`SERVERS`/`POOLS` output
+    ([#782](https://github.com/pgbouncer/pgbouncer/pull/782))
+
+- Fixes
+  * Fail `sbuf_send_pending` operation if destination socket is closed
+    ([#652](https://github.com/pgbouncer/pgbouncer/pull/652))
+  * Fix a few possible crashes
+    ([#700](https://github.com/pgbouncer/pgbouncer/pull/700),
+    [#730](https://github.com/pgbouncer/pgbouncer/pull/730))
+  * Fix for overflow bug in comma-separated host list feature, causing
+    connection to get re-routed to Unix socket
+    ([#747](https://github.com/pgbouncer/pgbouncer/pull/747))
+  * Don't evict connections to achieve `min_pool_size`
+    ([#648](https://github.com/pgbouncer/pgbouncer/pull/648))
+  * Fix `SHOW HELP` with PostgreSQL 15
+    ([#769](https://github.com/pgbouncer/pgbouncer/issues/769))
+  * Fix race condition in query cancelation handling.  It was possible
+    that a query cancellation for one client canceled a query for
+    another one.  This could happen when a cancel request was received
+    by PgBouncer when the query it was meant to cancel already
+    completed by itself.
+    ([#717](https://github.com/pgbouncer/pgbouncer/pull/717))
+
+- Cleanups
+  * Various CI updates
+
 PgBouncer 1.17.x
 ----------------
 

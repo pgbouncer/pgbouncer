@@ -812,6 +812,16 @@ static void xfree(char **ptr_p)
 _UNUSED
 static void cleanup(void)
 {
+	/*
+	 * We don't want to cleanup when we're the target of a takeover, because
+	 * that would close the sockets that we hand over. There's no real clean
+	 * way to detect that we were the target, so the below check is rather
+	 * crude. But since this cleanup is only happening in builds with asserts
+	 * enabled anyway it seems fine.
+	 */
+	if (cf_pause_mode == P_SUSPEND && cf_shutdown == 2) {
+		return;
+	}
 	adns_free_context(adns);
 	adns = NULL;
 

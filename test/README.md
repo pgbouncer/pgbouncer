@@ -3,16 +3,22 @@ Tests
 
 Various ways to test PgBouncer:
 
-- `test.sh`
+- `test_xxx.py`
 
     General test of basic functionality and different configuration
     parameters including timeouts, pool size, online restart,
-    pause/resume, etc.  To invoke, just run `./test.sh`.  This needs
-    PostgreSQL server programs (`initdb`, `pg_ctl`) in the path, so if
-    you are on a system that doesn't have those in the normal path
-    (e.g., Debian, Ubuntu), set `PATH` beforehand.
+    pause/resume, etc.
 
-    This test is run by `make check`.
+    To be able to run these tests you need to install a few python test
+    libraries.  To do so, you should run the following from of the root of the
+    repository:
+
+    pip3 install --user -r requirements.txt
+
+    To run the tests after doing that, just run `pytest -n auto` from the root
+    of the repository.  This needs PostgreSQL server programs (`initdb`,
+    `pg_ctl`) in the path, so if you are on a system that doesn't have those in
+    the normal path (e.g., Debian, Ubuntu), set `PATH` beforehand.
 
     Optionally, this test suite can use `iptables`/`pfctl` to simulate
     various network conditions.  To include these tests, set the
@@ -22,11 +28,28 @@ Various ways to test PgBouncer:
     `/etc/sudoers` appropriately at your peril.  Check the source if
     there are any doubts.
 
-- `ssl/test.sh`
+    This test is run by `make check`.
 
-    Tests SSL/TLS functionality.  Otherwise very similar to `test.sh`.
+    You can review the pytest docs on how to run tests with pytest, but the most
+    common commands that you'll want to use are:
 
-    This test is run by `make check` if TLS support is enabled.
+    ```bash
+    # Run all tests in parallel
+    pytest -n auto
+
+    # Run all tests sequentially
+    pytest
+
+    # Run a specific test
+    pytest test/test_limits.py::test_max_user_connections
+
+    # Run a specific test file in parallel
+    pytest -n auto test/test_limits.py
+
+    # Run any test that contains a certain string in the name
+    pytest -k ssl
+    ```
+
 
 - `hba_test`
 

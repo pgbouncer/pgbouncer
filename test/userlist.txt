@@ -5,6 +5,7 @@
 "pswcheck" "pgbouncer-check"
 "maxedout" ""
 "maxedout2" ""
+"bouncer" "zzzz"
 
 ;the following pairs of passwords are "foo" and "bar"
 

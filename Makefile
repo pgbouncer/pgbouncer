@@ -128,6 +128,10 @@ AM_LANG_RC_LINK = false
 # now load antimake
 #
 
+PYTEST = $(shell command -v pytest || echo 'python3 -m pytest')
+
+CONCURRENCY = auto
+
 USUAL_DIR = lib
 
 abs_top_srcdir ?= $(CURDIR)
@@ -139,6 +143,7 @@ config.mak:
 
 check: all
 	etc/optscan.sh
+	PYTHONIOENCODING=utf8 $(PYTEST) -n $(CONCURRENCY)
 	$(MAKE) -C test check
 
 w32zip = $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)-windows-$(host_cpu).zip

@@ -1,0 +1,11 @@
+[tool.pytest.ini_options]
+addopts = [
+    "--import-mode=prepend",
+    "--showlocals",
+    "--tb=short",
+]
+timeout = 30
+# the asyncio_mode setting doesn't work on python 3.6, so @pytest.mark.asyncio
+# is used everywhere too. Once none of our supported OSes uses python 3.6 we
+# can drop those marks.
+asyncio_mode = 'auto'

@@ -189,16 +189,15 @@ task:
 
 task:
   name: macOS
-  osx_instance:
-    matrix:
-      - image: monterey-base
+  macos_instance:
+    image: ghcr.io/cirruslabs/macos-ventura-base:latest
   env:
     HAVE_IPV6_LOCALHOST: yes
   setup_script:
     - brew install autoconf automake bash libevent libtool openssl pandoc pkg-config postgresql
   env:
-    CPPFLAGS: -I/usr/local/opt/openssl/include
-    LDFLAGS: -L/usr/local/opt/openssl/lib
+    CPPFLAGS: -I/opt/homebrew/opt/openssl@3/include
+    LDFLAGS: -L/opt/homebrew/opt/openssl@3/lib
   build_script:
     - ./autogen.sh
     - ./configure --prefix=$HOME/install --enable-werror

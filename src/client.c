@@ -41,7 +41,7 @@ static const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
  *   cf_auth_dbname: global authentication database
  *   client->db: client database  
  * Note: if authentication database is not found, or it is disabled, the client will be
- * 		 disconnected. 
+ *       disconnected.
  */
 PgDatabase *prepare_auth_database(PgSocket *client)
 {

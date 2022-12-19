@@ -157,9 +157,8 @@ static void start_auth_query(PgSocket *client, const char *username)
 
 	/* have to fetch user info from db */
 	PgDatabase *auth_db = prepare_auth_database(client);
-	if (!auth_db) {
+	if (!auth_db)
 		return;
-	}
 
 	client->pool = get_pool(auth_db, client->db->auth_user);
 	if (!find_server(client)) {

@@ -128,7 +128,7 @@ static char * cstr_get_pair(char *p,
 }
 
 /*
- * Same as stcmp, but handles NULLs. If both sides are NULL, returns "true".
+ * Same as strcmp, but handles NULLs. If both sides are NULL, returns "true".
  */
 static bool strings_equal(const char *str_left, const char *str_right)
 {

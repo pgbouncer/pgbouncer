@@ -127,12 +127,18 @@ static char * cstr_get_pair(char *p,
 	return cstr_skip_ws(p);
 }
 
+/*
+ * Same as stcmp, but handles NULLs. If both sides are NULL, returns "true".
+ */
 static bool strings_equal(const char *str_left, const char *str_right)
 {
-	if (!str_left != !str_right)
+	if (str_left == NULL && str_right == NULL)
+		return true;
+
+	if (str_left == NULL || str_right == NULL)
 		return false;
 	
-	return !str_left == !str_right || strcmp(str_left, str_right) == 0;
+	return strcmp(str_left, str_right) == 0;
 }
 
 static bool set_auth_dbname(PgDatabase *db, const char *new_auth_dbname)

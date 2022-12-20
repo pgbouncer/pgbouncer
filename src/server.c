@@ -428,6 +428,28 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	return true;
 }
 
+#ifdef HAVE_GSSAPI_H
+/*
+ * Check if we can acquire credentials at all (and yield them if so).
+ */
+static bool pg_GSS_have_cred_cache(gss_cred_id_t *cred_out)
+{
+	OM_uint32	major,
+				minor;
+	gss_cred_id_t cred = GSS_C_NO_CREDENTIAL;
+
+	major = gss_acquire_cred(&minor, GSS_C_NO_NAME, 0, GSS_C_NO_OID_SET,
+							 GSS_C_INITIATE, &cred, NULL, NULL);
+	if (major != GSS_S_COMPLETE)
+	{
+		*cred_out = NULL;
+		return false;
+	}
+	*cred_out = cred;
+	return true;
+}
+#endif
+
 /* got connection, decide what to do */
 static bool handle_connect(PgSocket *server)
 {
@@ -435,6 +457,9 @@ static bool handle_connect(PgSocket *server)
 	PgPool *pool = server->pool;
 	char buf[PGADDR_BUF + 32];
 	bool is_unix = pga_is_unix(&server->remote_addr);
+#ifdef HAVE_GSSAPI_H
+	gss_cred_id_t cred = GSS_C_NO_CREDENTIAL;
+#endif
 
 	fill_local_addr(server, sbuf_socket(&server->sbuf), is_unix);
 
@@ -473,6 +498,13 @@ static bool handle_connect(PgSocket *server)
 			res = send_sslreq_packet(server);
 			if (res)
 				server->wait_sslchar = true;
+#ifdef HAVE_GSSAPI_H
+        } else if (server_connect_gssencmode > GSSENCMODE_DISABLE && !is_unix && pg_GSS_have_cred_cache(&cred)) {
+			slog_noise(server, "P: GSSEnc request");
+			res = send_gssencreq_packet(server);
+			if (res)
+				server->wait_gssencchar = true;
+#endif
 		} else {
 			slog_noise(server, "P: startup");
 			res = send_startup_packet(server);
@@ -525,6 +557,48 @@ static bool handle_sslchar(PgSocket *server, struct MBuf *data)
 	return ok;
 }
 
+static bool handle_gssencchar(PgSocket *server, struct MBuf *data)
+{
+	uint8_t gchar = '?';
+	bool ok;
+
+	server->wait_gssencchar = false;
+
+	ok = mbuf_get_byte(data, &gchar);
+	if (!ok || (gchar != 'G' && gchar != 'N')) {
+		disconnect_server(server, false, "bad gssencreq answer");
+		return false;
+	}
+	/*
+	 * At this point we should have no data already buffered.  If
+	 * we do, it was received before we performed the SSL
+	 * handshake, so it wasn't encrypted and indeed may have been
+	 * injected by a man-in-the-middle.
+	 */
+	if (mbuf_avail_for_read(data) != 0) {
+		disconnect_server(server, false, "received unencrypted data after GSSEnc response");
+		return false;
+	}
+
+	if (gchar == 'G') {
+		slog_noise(server, "launching gssenc");
+		ok = sbuf_gssenc_connect(&server->sbuf, server->pool->db->gssapi_spn);
+	} else if (server_connect_gssencmode == GSSENCMODE_REQUIRE) {
+		disconnect_server(server, false, "server refused GSSEnc");
+		return false;
+	} else {
+		/* proceed with non-TLS connection */
+		ok = send_startup_packet(server);
+	}
+
+	if (ok) {
+		sbuf_prepare_skip(&server->sbuf, 1);
+	} else {
+		disconnect_server(server, false, "gssencreq processing failed");
+	}
+	return ok;
+}
+
 /* callback from SBuf */
 bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 {
@@ -554,6 +628,10 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 	case SBUF_EV_READ:
 		if (server->wait_sslchar) {
 			res = handle_sslchar(server, data);
+			break;
+		}
+		if (server->wait_gssencchar) {
+			res = handle_gssencchar(server, data);
 			break;
 		}
 		if (incomplete_header(data)) {
@@ -647,6 +725,25 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			sbuf_continue(&server->sbuf);
 		else
 			disconnect_server(server, false, "TLS startup failed");
+		break;
+	case SBUF_EV_GSSENC_READY:
+		Assert(server->state == SV_LOGIN);
+
+//		tls_get_connection_info(server->sbuf.tls, infobuf, sizeof infobuf);
+		if (cf_log_connections) {
+//			slog_info(server, "SSL established: %s", infobuf);
+			slog_info(server, "GSSENC established");
+		} else {
+//			slog_noise(server, "SSL established: %s", infobuf);
+			slog_noise(server, "GSSENC established");
+		}
+
+		server->request_time = get_cached_time();
+		res = send_startup_packet(server);
+		if (res)
+			sbuf_continue(&server->sbuf);
+		else
+			disconnect_server(server, false, "GSSENC startup failed");
 		break;
 	}
 	if (!res && pool->db->admin)

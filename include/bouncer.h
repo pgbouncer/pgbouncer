@@ -42,6 +42,13 @@
 #define sd_notifyf(ue, f, ...)
 #endif
 
+#ifdef HAVE_GSSAPI_H
+#include <gssapi/gssapi.h>
+#include <gssapi/gssapi_ext.h>
+#include <gssapi/gssapi_krb5.h>
+#endif
+
+
 
 /* global libevent handle */
 extern struct event_base *pgb_event_base;
@@ -82,6 +89,12 @@ enum SSLMode {
 	SSLMODE_REQUIRE,
 	SSLMODE_VERIFY_CA,
 	SSLMODE_VERIFY_FULL
+};
+
+enum GSSEncMode {
+    GSSENCMODE_DISABLE,
+    GSSENCMODE_PREFER,
+    GSSENCMODE_REQUIRE
 };
 
 #define is_server_socket(sk) ((sk)->state >= SV_FREE)
@@ -451,6 +464,7 @@ struct PgDatabase {
 	int pool_mode;		/* pool mode for this database */
 	int max_db_connections;	/* max server connections between all pools */
 	char *connect_query;	/* startup commands to send to server after connect */
+	char *gssapi_spn; /* GSSAPI SPN (Service Principal Name) */
 
 	struct PktBuf *startup_params; /* partial StartupMessage (without user) be sent to server */
 	const char *dbname;	/* server-side name, pointer to inside startup_msg */
@@ -512,6 +526,7 @@ struct PgSocket {
 	bool wait_for_response:1;/* console client: waits for completion of PAUSE/SUSPEND cmd */
 
 	bool wait_sslchar:1;	/* server: waiting for ssl response: S/N */
+	bool wait_gssencchar:1;	/* server: waiting for gss enc response: G/N */
 
 	int expect_rfq_count;	/* client: count of ReadyForQuery packets client should see */
 
@@ -663,6 +678,9 @@ extern char *cf_server_tls_ca_file;
 extern char *cf_server_tls_cert_file;
 extern char *cf_server_tls_key_file;
 extern char *cf_server_tls_ciphers;
+
+extern int cf_server_gssencmode;
+
 
 extern const struct CfLookup pool_mode_map[];
 

@@ -29,6 +29,7 @@ typedef enum {
 	SBUF_EV_CONNECT_OK,	/* got connection */
 	SBUF_EV_FLUSH,		/* data is sent, buffer empty */
 	SBUF_EV_PKT_CALLBACK,	/* next part of pkt data */
+	SBUF_EV_GSSENC_READY,	/* GSSENC was established */
 	SBUF_EV_TLS_READY	/* TLS was established */
 } SBufEvent;
 
@@ -41,6 +42,13 @@ typedef enum {
  * but currently also ServerParam pkt.
  */
 #define SBUF_SMALL_PKT	64
+
+#ifdef HAVE_GSSAPI_H
+
+#define GSSENC_WANT_POLLOUT -3
+#define GSSENC_WANT_POLLIN -2
+
+#endif
 
 struct tls;
 
@@ -67,12 +75,15 @@ struct SBufIO {
  * Stream is divided to packets.  On each packet start
  * protocol handler is called that decides what to do.
  */
+typedef unsigned int uint32;	/* == 32 bits */
+
 struct SBuf {
 	struct event ev;	/* libevent handle */
 
 	uint8_t wait_type;	/* track wait state */
 	uint8_t pkt_action;	/* method for handling current pkt */
 	uint8_t tls_state;	/* progress of tls */
+	uint8_t gssenc_state;	/* progress of gssenc */
 
 	int sock;		/* fd for this socket */
 
@@ -84,8 +95,27 @@ struct SBuf {
 
 	IOBuf *io;		/* data buffer, lazily allocated */
 
-	const SBufIO *ops;	/* normal vs. TLS */
+	const SBufIO *ops;	/* normal vs. TLS vs. GSS */
 	struct tls *tls;	/* TLS context */
+	struct gss_ctx_id_struct *gss;
+#ifdef HAVE_GSSAPI_H
+	char	   *gss_SendBuffer; /* Encrypted data waiting to be sent */
+	int			gss_SendLength; /* End of data available in gss_SendBuffer */
+	int			gss_SendNext;	/* Next index to send a byte from
+								 * gss_SendBuffer */
+	int			gss_SendConsumed;	/* Number of *unencrypted* bytes consumed
+									 * for current contents of gss_SendBuffer */
+	char	   *gss_RecvBuffer; /* Received, encrypted data */
+	int			gss_RecvLength; /* End of data available in gss_RecvBuffer */
+	char	   *gss_ResultBuffer;	/* Decryption of data in gss_RecvBuffer */
+	int			gss_ResultLength;	/* End of data available in
+									 * gss_ResultBuffer */
+	int			gss_ResultNext; /* Next index to read a byte from
+								 * gss_ResultBuffer */
+	uint32		gss_MaxPktSize; /* Maximum size we can encrypt and fit the
+								 * results into our output buffer */
+	bool		write_failed;	/* have we had a write failure on sock? */
+#endif
 	const char *tls_host;	/* target hostname */
 };
 
@@ -105,14 +135,20 @@ bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, socklen_t sa_len, time_
  * usually you should use this variable over cf_client_tls_sslmode.
  */
 extern int client_accept_sslmode;
+
 /*
  * Same as client_accept_sslmode, but for server connections.
  */
 extern int server_connect_sslmode;
 
+extern int server_connect_gssencmode;
+
+bool sbuf_gssenc_connect(SBuf *sbuf, char *gssapi_spn)  _MUSTCHECK;
 bool sbuf_tls_setup(void);
 bool sbuf_tls_accept(SBuf *sbuf)  _MUSTCHECK;
 bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)  _MUSTCHECK;
+
+bool sbuf_gssenc_setup(void);
 
 bool sbuf_pause(SBuf *sbuf) _MUSTCHECK;
 void sbuf_continue(SBuf *sbuf);

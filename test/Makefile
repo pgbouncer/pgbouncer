@@ -38,3 +38,7 @@ check: all
 ifeq ($(tls_support),yes)
 	$(MAKE) -C ssl check
 endif
+
+ifeq ($(server_gssenc_support),yes)
+        $(MAKE) -C gss check
+endif

@@ -115,6 +115,9 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
 #define pktbuf_write_SSLRequest(buf) \
 	pktbuf_write_generic(buf, PKT_SSLREQ, "")
 
+#define pktbuf_write_GSSEncRequest(buf) \
+	pktbuf_write_generic(buf, PKT_GSSENCREQ, "")
+
 /*
  * Shortcut for creating DataRow in memory.
  */

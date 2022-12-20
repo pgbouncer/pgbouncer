@@ -576,6 +576,13 @@ bool send_sslreq_packet(PgSocket *server)
 	return res;
 }
 
+bool send_gssencreq_packet(PgSocket *server)
+{
+	int res;
+	SEND_wrap(16, pktbuf_write_GSSEncRequest, res, server);
+	return res;
+}
+
 /*
  * decode DataRow packet (opposite of pktbuf_write_DataRow)
  *

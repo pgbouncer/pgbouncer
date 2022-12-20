@@ -16,9 +16,9 @@ build_script:
   - set PATH=C:/msys64/usr/bin;%PATH%
   - sh -l -c "./autogen.sh"
   - sh -l -c "./configure --enable-werror LDFLAGS=-static LIBS=-liphlpapi PKG_CONFIG='pkg-config --static'"
-  - sh -l -c "make"
-  - sh -l -c "make install"
-  - sh -l -c "make zip"
+  - sh -l -c "make -j4"
+  - sh -l -c "make -j4 install"
+  - sh -l -c "make -j4 zip"
 
 artifacts:
   - path: '*.zip'
@@ -26,7 +26,7 @@ artifacts:
 test_script:
   - set HOME=.
   - set PATH=C:/msys64/usr/bin;%PATH%
-  - sh -l -c "make check tls_support=no"
+  - sh -l -c "make -j4 check tls_support=no"
   - sh -l -c "windres pgbouncer.exe"
 
 on_failure:

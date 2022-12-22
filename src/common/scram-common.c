@@ -13,16 +13,93 @@
  *
  *-------------------------------------------------------------------------
  */
-#ifndef FRONTEND
-#include "postgres.h"
-#else
-#include "postgres_fe.h"
-#endif
+//#ifndef FRONTEND
+//#include "postgres.h"
+//#else
+//#include "postgres_fe.h"
+//#endif
+#include "system.h"
+#include "common/postgres_compat.h"
+
+#include "usual/crypto/sha256.h"
+#include "usual/endian.h"
 
 #include "common/base64.h"
 #include "common/hmac.h"
 #include "common/scram-common.h"
-#include "port/pg_bswap.h"
+//#include "port/pg_bswap.h"
+
+#define HMAC_IPAD 0x36
+#define HMAC_OPAD 0x5C
+
+/*
+ * Calculate HMAC per RFC2104.
+ *
+ * The hash function used is SHA-256.
+ */
+void
+scram_HMAC_init(scram_HMAC_ctx *ctx, const uint8 *key, int keylen)
+{
+	uint8		k_ipad[SHA256_HMAC_B];
+	int			i;
+	uint8		keybuf[SCRAM_KEY_LEN];
+
+	/*
+	 * If the key is longer than the block size (64 bytes for SHA-256), pass
+	 * it through SHA-256 once to shrink it down.
+	 */
+	if (keylen > SHA256_HMAC_B)
+	{
+		pg_sha256_ctx sha256_ctx;
+
+		pg_sha256_init(&sha256_ctx);
+		pg_sha256_update(&sha256_ctx, key, keylen);
+		pg_sha256_final(&sha256_ctx, keybuf);
+		key = keybuf;
+		keylen = SCRAM_KEY_LEN;
+	}
+
+	memset(k_ipad, HMAC_IPAD, SHA256_HMAC_B);
+	memset(ctx->k_opad, HMAC_OPAD, SHA256_HMAC_B);
+
+	for (i = 0; i < keylen; i++)
+	{
+		k_ipad[i] ^= key[i];
+		ctx->k_opad[i] ^= key[i];
+	}
+
+	/* tmp = H(K XOR ipad, text) */
+	pg_sha256_init(&ctx->sha256ctx);
+	pg_sha256_update(&ctx->sha256ctx, k_ipad, SHA256_HMAC_B);
+}
+
+/*
+ * Update HMAC calculation
+ * The hash function used is SHA-256.
+ */
+void
+scram_HMAC_update(scram_HMAC_ctx *ctx, const char *str, int slen)
+{
+	pg_sha256_update(&ctx->sha256ctx, (const uint8 *) str, slen);
+}
+
+/*
+ * Finalize HMAC calculation.
+ * The hash function used is SHA-256.
+ */
+void
+scram_HMAC_final(uint8 *result, scram_HMAC_ctx *ctx)
+{
+	uint8		h[SCRAM_KEY_LEN];
+
+	pg_sha256_final(&ctx->sha256ctx, h);
+
+	/* H(K XOR opad, tmp) */
+	pg_sha256_init(&ctx->sha256ctx);
+	pg_sha256_update(&ctx->sha256ctx, ctx->k_opad, SHA256_HMAC_B);
+	pg_sha256_update(&ctx->sha256ctx, h, SCRAM_KEY_LEN);
+	pg_sha256_final(&ctx->sha256ctx, result);
+}
 
 /*
  * Calculate SaltedPassword.

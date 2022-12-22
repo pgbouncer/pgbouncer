@@ -14,11 +14,13 @@
  *-------------------------------------------------------------------------
  */
 
-#ifndef FRONTEND
-#include "postgres.h"
-#else
-#include "postgres_fe.h"
-#endif
+//#ifndef FRONTEND
+//#include "postgres.h"
+//#else
+//#include "postgres_fe.h"
+//#endif
+#include "system.h"
+#include "common/postgres_compat.h"
 
 #include "common/cryptohash.h"
 #include "common/hmac.h"

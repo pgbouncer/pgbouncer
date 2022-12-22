@@ -19,16 +19,17 @@
  *
  *-------------------------------------------------------------------------
  */
-#ifndef FRONTEND
-#include "postgres.h"
-#else
-#include "postgres_fe.h"
-#endif
+//#ifndef FRONTEND
+//#include "postgres.h"
+//#else
+//#include "postgres_fe.h"
+//#endif
+#include "system.h"
+#include "common/postgres_compat.h"
 
 #include "common/saslprep.h"
-#include "common/string.h"
 #include "common/unicode_norm.h"
-#include "mb/pg_wchar.h"
+#include "common/pg_wchar.h"
 
 /*
  * In backend, we will use palloc/pfree.  In frontend, use malloc, and
@@ -959,6 +960,22 @@ static const pg_wchar LCat_codepoint_ranges[] =
 };
 
 /* End of stringprep tables */
+
+
+/*
+ * pg_is_ascii -- Check if string is made only of ASCII characters
+ */
+static bool
+pg_is_ascii(const char *str)
+{
+	while (*str)
+	{
+		if (IS_HIGHBIT_SET(*str))
+			return false;
+		str++;
+	}
+	return true;
+}
 
 
 /* Is the given Unicode codepoint in the given table of ranges? */

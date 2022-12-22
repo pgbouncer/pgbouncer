@@ -495,6 +495,7 @@ static bool calculate_client_proof(ScramState *scram_state,
 	uint8_t	ClientKey[SCRAM_KEY_LEN];
 	uint8_t	ClientSignature[SCRAM_KEY_LEN];
 	scram_HMAC_ctx ctx;
+	const char *errstr = NULL;
 
 	if (user->has_scram_keys)
 	{
@@ -519,12 +520,13 @@ static bool calculate_client_proof(ScramState *scram_state,
 				     salt,
 				     saltlen,
 				     iterations,
-				     scram_state->SaltedPassword);
+				     scram_state->SaltedPassword,
+					 &errstr);
 
-		scram_ClientKey(scram_state->SaltedPassword, ClientKey);
+		scram_ClientKey(scram_state->SaltedPassword, ClientKey, &errstr);
 	}
 
-	scram_H(ClientKey, SCRAM_KEY_LEN, StoredKey);
+	scram_H(ClientKey, SCRAM_KEY_LEN, StoredKey, &errstr);
 
 	scram_HMAC_init(&ctx, StoredKey, SCRAM_KEY_LEN);
 	scram_HMAC_update(&ctx,
@@ -555,11 +557,12 @@ bool verify_server_signature(ScramState *scram_state, const PgUser *user, const 
 	uint8_t expected_ServerSignature[SCRAM_KEY_LEN];
 	uint8_t ServerKey[SCRAM_KEY_LEN];
 	scram_HMAC_ctx ctx;
+	const char *errstr = NULL;
 
 	if (user->has_scram_keys)
 		memcpy(ServerKey, user->scram_ServerKey, SCRAM_KEY_LEN);
 	else
-		scram_ServerKey(scram_state->SaltedPassword, ServerKey);
+		scram_ServerKey(scram_state->SaltedPassword, ServerKey, &errstr);
 
 	scram_HMAC_init(&ctx, ServerKey, SCRAM_KEY_LEN);
 	scram_HMAC_update(&ctx,
@@ -765,6 +768,7 @@ static bool build_adhoc_scram_secret(const char *plain_password, ScramState *scr
 	char saltbuf[SCRAM_DEFAULT_SALT_LEN];
 	int encoded_len;
 	uint8_t salted_password[SCRAM_KEY_LEN];
+	const char *errstr = NULL;
 
 	rc = pg_saslprep(plain_password, &prep_password);
 	if (rc == SASLPREP_OOM)
@@ -792,10 +796,10 @@ static bool build_adhoc_scram_secret(const char *plain_password, ScramState *scr
 	/* Calculate StoredKey and ServerKey */
 	scram_SaltedPassword(password, saltbuf, sizeof(saltbuf),
 			     scram_state->iterations,
-			     salted_password);
-	scram_ClientKey(salted_password, scram_state->StoredKey);
-	scram_H(scram_state->StoredKey, SCRAM_KEY_LEN, scram_state->StoredKey);
-	scram_ServerKey(salted_password, scram_state->ServerKey);
+			     salted_password, &errstr);
+	scram_ClientKey(salted_password, scram_state->StoredKey, &errstr);
+	scram_H(scram_state->StoredKey, SCRAM_KEY_LEN, scram_state->StoredKey, &errstr);
+	scram_ServerKey(salted_password, scram_state->ServerKey, &errstr);
 
 	free(prep_password);
 	return true;
@@ -1005,6 +1009,7 @@ bool verify_client_proof(ScramState *state, const char *ClientProof)
     uint8_t client_StoredKey[SCRAM_KEY_LEN];
     scram_HMAC_ctx ctx;
     int i;
+	const char *errstr = NULL;
 
     /* calculate ClientSignature */
     scram_HMAC_init(&ctx, state->StoredKey, SCRAM_KEY_LEN);
@@ -1026,7 +1031,7 @@ bool verify_client_proof(ScramState *state, const char *ClientProof)
 	    state->ClientKey[i] = ClientProof[i] ^ ClientSignature[i];
 
     /* Hash it one more time, and compare with StoredKey */
-    scram_H(state->ClientKey, SCRAM_KEY_LEN, client_StoredKey);
+    scram_H(state->ClientKey, SCRAM_KEY_LEN, client_StoredKey, &errstr);
 
     if (memcmp(client_StoredKey, state->StoredKey, SCRAM_KEY_LEN) != 0)
 	    return false;
@@ -1055,6 +1060,7 @@ scram_verify_plain_password(PgSocket *client,
 	char *prep_password = NULL;
 	pg_saslprep_rc rc;
 	bool result = false;
+	const char *errstr = NULL;
 
 	if (!parse_scram_secret(secret, &iterations, &encoded_salt,
 				  stored_key, server_key))
@@ -1081,8 +1087,8 @@ scram_verify_plain_password(PgSocket *client,
 		password = prep_password;
 
 	/* Compute Server Key based on the user-supplied plaintext password */
-	scram_SaltedPassword(password, salt, saltlen, iterations, salted_password);
-	scram_ServerKey(salted_password, computed_key);
+	scram_SaltedPassword(password, salt, saltlen, iterations, salted_password, &errstr);
+	scram_ServerKey(salted_password, computed_key, &errstr);
 
 	/*
 	 * Compare the secret's Server Key with the one computed from the

@@ -14,7 +14,8 @@
 #ifndef UNICODE_NORM_H
 #define UNICODE_NORM_H
 
-#include "mb/pg_wchar.h"
+#include "common/postgres_compat.h"
+#include "common/pg_wchar.h"
 
 typedef enum
 {

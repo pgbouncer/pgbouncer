@@ -13,8 +13,10 @@
 #ifndef SCRAM_COMMON_H
 #define SCRAM_COMMON_H
 
+#include "common/postgres_compat.h"
 #include "common/cryptohash.h"
-#include "common/sha2.h"
+#include "common/sha2_int.h"
+#include "usual/crypto/sha256.h"
 
 /* Name of SCRAM mechanisms per IANA */
 #define SCRAM_SHA_256_NAME "SCRAM-SHA-256"
@@ -45,6 +47,19 @@
  * 4096 per RFC 7677.
  */
 #define SCRAM_DEFAULT_ITERATIONS	4096
+
+/*
+ * Context data for HMAC used in SCRAM authentication.
+ */
+typedef struct
+{
+	pg_sha256_ctx sha256ctx;
+	uint8		k_opad[SHA256_HMAC_B];
+} scram_HMAC_ctx;
+
+extern void scram_HMAC_init(scram_HMAC_ctx *ctx, const uint8 *key, int keylen);
+extern void scram_HMAC_update(scram_HMAC_ctx *ctx, const char *str, int slen);
+extern void scram_HMAC_final(uint8 *result, scram_HMAC_ctx *ctx);
 
 extern int	scram_SaltedPassword(const char *password, const char *salt,
 								 int saltlen, int iterations, uint8 *result,

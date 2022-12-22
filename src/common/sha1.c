@@ -50,15 +50,17 @@
  * implemented by Jun-ichiro itojun Itoh <itojun@itojun.org>
  */
 
-#ifndef FRONTEND
-#include "postgres.h"
-#else
-#include "postgres_fe.h"
-#endif
+//#ifndef FRONTEND
+//#include "postgres.h"
+//#else
+//#include "postgres_fe.h"
+//#endif
+#include "system.h"
+#include "common/postgres_compat.h"
 
 #include <sys/param.h>
 
-#include "sha1_int.h"
+#include "common/sha1_int.h"
 
 /* constant table */
 static uint32 _K[] = {0x5a827999, 0x6ed9eba1, 0x8f1bbcdc, 0xca62c1d6};

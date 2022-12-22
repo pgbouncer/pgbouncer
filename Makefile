@@ -24,7 +24,15 @@ pgbouncer_SOURCES = \
 	src/takeover.c \
 	src/util.c \
 	src/varcache.c \
+	src/common/md5_int.h \
+	src/common/md5.c \
+	src/common/sha1_int.h \
+	src/common/sha1.c \
+	src/common/sha2_int.h \
+	src/common/sha2.c \
 	src/common/base64.c \
+	src/common/cryptohash.c \
+	src/common/hmac.c \
 	src/common/saslprep.c \
 	src/common/scram-common.c \
 	src/common/unicode_norm.c \
@@ -51,11 +59,17 @@ pgbouncer_SOURCES = \
 	include/util.h \
 	include/varcache.h \
 	include/common/base64.h \
+	include/common/cryptohash.h \
+	include/common/hmac.h \
+	include/common/md5.h \
 	include/common/pg_wchar.h \
 	include/common/postgres_compat.h \
 	include/common/saslprep.h \
 	include/common/scram-common.h \
+	include/common/sha1.h \
+	include/common/sha2.h \
 	include/common/unicode_combining_table.h \
+	include/common/unicode_east_asian_fw_table.h \
 	include/common/unicode_norm.h \
 	include/common/unicode_norm_table.h
 

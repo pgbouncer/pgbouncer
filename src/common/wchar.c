@@ -3,27 +3,25 @@
  * wchar.c
  *	  Functions for working with multibyte characters in various encodings.
  *
- * Portions Copyright (c) 1998-2020, PostgreSQL Global Development Group
+ * Portions Copyright (c) 1998-2022, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
  *	  src/common/wchar.c
  *
  *-------------------------------------------------------------------------
  */
-//#include "c.h"
-#include "system.h"
-#include "common/postgres_compat.h"
+#include "c.h"
 
-#include "common/pg_wchar.h"
+#include "mb/pg_wchar.h"
 
 
 /*
  * Operations on multi-byte encodings are driven by a table of helper
  * functions.
  *
- * To add an encoding support, define mblen(), dsplen() and verifier() for
- * the encoding.  For server-encodings, also define mb2wchar() and wchar2mb()
- * conversion functions.
+ * To add an encoding support, define mblen(), dsplen(), verifychar() and
+ * verifystr() for the encoding.  For server-encodings, also define mb2wchar()
+ * and wchar2mb() conversion functions.
  *
  * These functions generally assume that their input is validly formed.
  * The "verifier" functions, further down in the file, have to be more
@@ -585,8 +583,8 @@ pg_utf_mblen(const unsigned char *s)
 
 struct mbinterval
 {
-	unsigned short first;
-	unsigned short last;
+	unsigned int first;
+	unsigned int last;
 };
 
 /* auxiliary function for binary search in interval table */
@@ -625,12 +623,6 @@ mbbisearch(pg_wchar ucs, const struct mbinterval *table, int max)
  *		category code Mn or Me in the Unicode database) have a
  *		column width of 0.
  *
- *	  - Other format characters (general category code Cf in the Unicode
- *		database) and ZERO WIDTH SPACE (U+200B) have a column width of 0.
- *
- *	  - Hangul Jamo medial vowels and final consonants (U+1160-U+11FF)
- *		have a column width of 0.
- *
  *	  - Spacing characters in the East Asian Wide (W) or East Asian
  *		FullWidth (F) category as defined in Unicode Technical
  *		Report #11 have a column width of 2.
@@ -647,6 +639,7 @@ static int
 ucs_wcwidth(pg_wchar ucs)
 {
 #include "common/unicode_combining_table.h"
+#include "common/unicode_east_asian_fw_table.h"
 
 	/* test for 8-bit control characters */
 	if (ucs == 0)
@@ -655,27 +648,25 @@ ucs_wcwidth(pg_wchar ucs)
 	if (ucs < 0x20 || (ucs >= 0x7f && ucs < 0xa0) || ucs > 0x0010ffff)
 		return -1;
 
-	/* binary search in table of non-spacing characters */
+	/*
+	 * binary search in table of non-spacing characters
+	 *
+	 * XXX: In the official Unicode sources, it is possible for a character to
+	 * be described as both non-spacing and wide at the same time. As of
+	 * Unicode 13.0, treating the non-spacing property as the determining
+	 * factor for display width leads to the correct behavior, so do that
+	 * search first.
+	 */
 	if (mbbisearch(ucs, combining,
 				   sizeof(combining) / sizeof(struct mbinterval) - 1))
 		return 0;
 
-	/*
-	 * if we arrive here, ucs is not a combining or C0/C1 control character
-	 */
+	/* binary search in table of wide characters */
+	if (mbbisearch(ucs, east_asian_fw,
+				   sizeof(east_asian_fw) / sizeof(struct mbinterval) - 1))
+		return 2;
 
-	return 1 +
-		(ucs >= 0x1100 &&
-		 (ucs <= 0x115f ||		/* Hangul Jamo init. consonants */
-		  (ucs >= 0x2e80 && ucs <= 0xa4cf && (ucs & ~0x0011) != 0x300a &&
-		   ucs != 0x303f) ||	/* CJK ... Yi */
-		  (ucs >= 0xac00 && ucs <= 0xd7a3) ||	/* Hangul Syllables */
-		  (ucs >= 0xf900 && ucs <= 0xfaff) ||	/* CJK Compatibility
-												 * Ideographs */
-		  (ucs >= 0xfe30 && ucs <= 0xfe6f) ||	/* CJK Compatibility Forms */
-		  (ucs >= 0xff00 && ucs <= 0xff5f) ||	/* Fullwidth Forms */
-		  (ucs >= 0xffe0 && ucs <= 0xffe6) ||
-		  (ucs >= 0x20000 && ucs <= 0x2ffff)));
+	return 1;
 }
 
 /*
@@ -1089,29 +1080,45 @@ pg_gb18030_dsplen(const unsigned char *s)
  *-------------------------------------------------------------------
  * multibyte sequence validators
  *
- * These functions accept "s", a pointer to the first byte of a string,
- * and "len", the remaining length of the string.  If there is a validly
- * encoded character beginning at *s, return its length in bytes; else
- * return -1.
+ * The verifychar functions accept "s", a pointer to the first byte of a
+ * string, and "len", the remaining length of the string.  If there is a
+ * validly encoded character beginning at *s, return its length in bytes;
+ * else return -1.
  *
- * The functions can assume that len > 0 and that *s != '\0', but they must
- * test for and reject zeroes in any additional bytes of a multibyte character.
+ * The verifystr functions also accept "s", a pointer to a string and "len",
+ * the length of the string.  They verify the whole string, and return the
+ * number of input bytes (<= len) that are valid.  In other words, if the
+ * whole string is valid, verifystr returns "len", otherwise it returns the
+ * byte offset of the first invalid character.  The verifystr functions must
+ * test for and reject zeroes in the input.
  *
- * Note that this definition allows the function for a single-byte
- * encoding to be just "return 1".
+ * The verifychar functions can assume that len > 0 and that *s != '\0', but
+ * they must test for and reject zeroes in any additional bytes of a
+ * multibyte character.  Note that this definition allows the function for a
+ * single-byte encoding to be just "return 1".
  *-------------------------------------------------------------------
  */
-
 static int
-pg_ascii_verifier(const unsigned char *s, int len)
+pg_ascii_verifychar(const unsigned char *s, int len)
 {
 	return 1;
+}
+
+static int
+pg_ascii_verifystr(const unsigned char *s, int len)
+{
+	const unsigned char *nullpos = memchr(s, 0, len);
+
+	if (nullpos == NULL)
+		return len;
+	else
+		return nullpos - s;
 }
 
 #define IS_EUC_RANGE_VALID(c)	((c) >= 0xa1 && (c) <= 0xfe)
 
 static int
-pg_eucjp_verifier(const unsigned char *s, int len)
+pg_eucjp_verifychar(const unsigned char *s, int len)
 {
 	int			l;
 	unsigned char c1,
@@ -1166,7 +1173,36 @@ pg_eucjp_verifier(const unsigned char *s, int len)
 }
 
 static int
-pg_euckr_verifier(const unsigned char *s, int len)
+pg_eucjp_verifystr(const unsigned char *s, int len)
+{
+	const unsigned char *start = s;
+
+	while (len > 0)
+	{
+		int			l;
+
+		/* fast path for ASCII-subset characters */
+		if (!IS_HIGHBIT_SET(*s))
+		{
+			if (*s == '\0')
+				break;
+			l = 1;
+		}
+		else
+		{
+			l = pg_eucjp_verifychar(s, len);
+			if (l == -1)
+				break;
+		}
+		s += l;
+		len -= l;
+	}
+
+	return s - start;
+}
+
+static int
+pg_euckr_verifychar(const unsigned char *s, int len)
 {
 	int			l;
 	unsigned char c1,
@@ -1194,11 +1230,41 @@ pg_euckr_verifier(const unsigned char *s, int len)
 	return l;
 }
 
+static int
+pg_euckr_verifystr(const unsigned char *s, int len)
+{
+	const unsigned char *start = s;
+
+	while (len > 0)
+	{
+		int			l;
+
+		/* fast path for ASCII-subset characters */
+		if (!IS_HIGHBIT_SET(*s))
+		{
+			if (*s == '\0')
+				break;
+			l = 1;
+		}
+		else
+		{
+			l = pg_euckr_verifychar(s, len);
+			if (l == -1)
+				break;
+		}
+		s += l;
+		len -= l;
+	}
+
+	return s - start;
+}
+
 /* EUC-CN byte sequences are exactly same as EUC-KR */
-#define pg_euccn_verifier	pg_euckr_verifier
+#define pg_euccn_verifychar	pg_euckr_verifychar
+#define pg_euccn_verifystr	pg_euckr_verifystr
 
 static int
-pg_euctw_verifier(const unsigned char *s, int len)
+pg_euctw_verifychar(const unsigned char *s, int len)
 {
 	int			l;
 	unsigned char c1,
@@ -1248,7 +1314,36 @@ pg_euctw_verifier(const unsigned char *s, int len)
 }
 
 static int
-pg_johab_verifier(const unsigned char *s, int len)
+pg_euctw_verifystr(const unsigned char *s, int len)
+{
+	const unsigned char *start = s;
+
+	while (len > 0)
+	{
+		int			l;
+
+		/* fast path for ASCII-subset characters */
+		if (!IS_HIGHBIT_SET(*s))
+		{
+			if (*s == '\0')
+				break;
+			l = 1;
+		}
+		else
+		{
+			l = pg_euctw_verifychar(s, len);
+			if (l == -1)
+				break;
+		}
+		s += l;
+		len -= l;
+	}
+
+	return s - start;
+}
+
+static int
+pg_johab_verifychar(const unsigned char *s, int len)
 {
 	int			l,
 				mbl;
@@ -1272,7 +1367,36 @@ pg_johab_verifier(const unsigned char *s, int len)
 }
 
 static int
-pg_mule_verifier(const unsigned char *s, int len)
+pg_johab_verifystr(const unsigned char *s, int len)
+{
+	const unsigned char *start = s;
+
+	while (len > 0)
+	{
+		int			l;
+
+		/* fast path for ASCII-subset characters */
+		if (!IS_HIGHBIT_SET(*s))
+		{
+			if (*s == '\0')
+				break;
+			l = 1;
+		}
+		else
+		{
+			l = pg_johab_verifychar(s, len);
+			if (l == -1)
+				break;
+		}
+		s += l;
+		len -= l;
+	}
+
+	return s - start;
+}
+
+static int
+pg_mule_verifychar(const unsigned char *s, int len)
 {
 	int			l,
 				mbl;
@@ -1293,13 +1417,53 @@ pg_mule_verifier(const unsigned char *s, int len)
 }
 
 static int
-pg_latin1_verifier(const unsigned char *s, int len)
+pg_mule_verifystr(const unsigned char *s, int len)
+{
+	const unsigned char *start = s;
+
+	while (len > 0)
+	{
+		int			l;
+
+		/* fast path for ASCII-subset characters */
+		if (!IS_HIGHBIT_SET(*s))
+		{
+			if (*s == '\0')
+				break;
+			l = 1;
+		}
+		else
+		{
+			l = pg_mule_verifychar(s, len);
+			if (l == -1)
+				break;
+		}
+		s += l;
+		len -= l;
+	}
+
+	return s - start;
+}
+
+static int
+pg_latin1_verifychar(const unsigned char *s, int len)
 {
 	return 1;
 }
 
 static int
-pg_sjis_verifier(const unsigned char *s, int len)
+pg_latin1_verifystr(const unsigned char *s, int len)
+{
+	const unsigned char *nullpos = memchr(s, 0, len);
+
+	if (nullpos == NULL)
+		return len;
+	else
+		return nullpos - s;
+}
+
+static int
+pg_sjis_verifychar(const unsigned char *s, int len)
 {
 	int			l,
 				mbl;
@@ -1322,7 +1486,36 @@ pg_sjis_verifier(const unsigned char *s, int len)
 }
 
 static int
-pg_big5_verifier(const unsigned char *s, int len)
+pg_sjis_verifystr(const unsigned char *s, int len)
+{
+	const unsigned char *start = s;
+
+	while (len > 0)
+	{
+		int			l;
+
+		/* fast path for ASCII-subset characters */
+		if (!IS_HIGHBIT_SET(*s))
+		{
+			if (*s == '\0')
+				break;
+			l = 1;
+		}
+		else
+		{
+			l = pg_sjis_verifychar(s, len);
+			if (l == -1)
+				break;
+		}
+		s += l;
+		len -= l;
+	}
+
+	return s - start;
+}
+
+static int
+pg_big5_verifychar(const unsigned char *s, int len)
 {
 	int			l,
 				mbl;
@@ -1342,7 +1535,36 @@ pg_big5_verifier(const unsigned char *s, int len)
 }
 
 static int
-pg_gbk_verifier(const unsigned char *s, int len)
+pg_big5_verifystr(const unsigned char *s, int len)
+{
+	const unsigned char *start = s;
+
+	while (len > 0)
+	{
+		int			l;
+
+		/* fast path for ASCII-subset characters */
+		if (!IS_HIGHBIT_SET(*s))
+		{
+			if (*s == '\0')
+				break;
+			l = 1;
+		}
+		else
+		{
+			l = pg_big5_verifychar(s, len);
+			if (l == -1)
+				break;
+		}
+		s += l;
+		len -= l;
+	}
+
+	return s - start;
+}
+
+static int
+pg_gbk_verifychar(const unsigned char *s, int len)
 {
 	int			l,
 				mbl;
@@ -1362,7 +1584,36 @@ pg_gbk_verifier(const unsigned char *s, int len)
 }
 
 static int
-pg_uhc_verifier(const unsigned char *s, int len)
+pg_gbk_verifystr(const unsigned char *s, int len)
+{
+	const unsigned char *start = s;
+
+	while (len > 0)
+	{
+		int			l;
+
+		/* fast path for ASCII-subset characters */
+		if (!IS_HIGHBIT_SET(*s))
+		{
+			if (*s == '\0')
+				break;
+			l = 1;
+		}
+		else
+		{
+			l = pg_gbk_verifychar(s, len);
+			if (l == -1)
+				break;
+		}
+		s += l;
+		len -= l;
+	}
+
+	return s - start;
+}
+
+static int
+pg_uhc_verifychar(const unsigned char *s, int len)
 {
 	int			l,
 				mbl;
@@ -1382,7 +1633,36 @@ pg_uhc_verifier(const unsigned char *s, int len)
 }
 
 static int
-pg_gb18030_verifier(const unsigned char *s, int len)
+pg_uhc_verifystr(const unsigned char *s, int len)
+{
+	const unsigned char *start = s;
+
+	while (len > 0)
+	{
+		int			l;
+
+		/* fast path for ASCII-subset characters */
+		if (!IS_HIGHBIT_SET(*s))
+		{
+			if (*s == '\0')
+				break;
+			l = 1;
+		}
+		else
+		{
+			l = pg_uhc_verifychar(s, len);
+			if (l == -1)
+				break;
+		}
+		s += l;
+		len -= l;
+	}
+
+	return s - start;
+}
+
+static int
+pg_gb18030_verifychar(const unsigned char *s, int len)
 {
 	int			l;
 
@@ -1413,17 +1693,305 @@ pg_gb18030_verifier(const unsigned char *s, int len)
 }
 
 static int
-pg_utf8_verifier(const unsigned char *s, int len)
+pg_gb18030_verifystr(const unsigned char *s, int len)
 {
-	int			l = pg_utf_mblen(s);
+	const unsigned char *start = s;
 
-	if (len < l)
+	while (len > 0)
+	{
+		int			l;
+
+		/* fast path for ASCII-subset characters */
+		if (!IS_HIGHBIT_SET(*s))
+		{
+			if (*s == '\0')
+				break;
+			l = 1;
+		}
+		else
+		{
+			l = pg_gb18030_verifychar(s, len);
+			if (l == -1)
+				break;
+		}
+		s += l;
+		len -= l;
+	}
+
+	return s - start;
+}
+
+static int
+pg_utf8_verifychar(const unsigned char *s, int len)
+{
+	int			l;
+
+	if ((*s & 0x80) == 0)
+	{
+		if (*s == '\0')
+			return -1;
+		return 1;
+	}
+	else if ((*s & 0xe0) == 0xc0)
+		l = 2;
+	else if ((*s & 0xf0) == 0xe0)
+		l = 3;
+	else if ((*s & 0xf8) == 0xf0)
+		l = 4;
+	else
+		l = 1;
+
+	if (l > len)
 		return -1;
 
 	if (!pg_utf8_islegal(s, l))
 		return -1;
 
 	return l;
+}
+
+/*
+ * The fast path of the UTF-8 verifier uses a deterministic finite automaton
+ * (DFA) for multibyte characters. In a traditional table-driven DFA, the
+ * input byte and current state are used to compute an index into an array of
+ * state transitions. Since the address of the next transition is dependent
+ * on this computation, there is latency in executing the load instruction,
+ * and the CPU is not kept busy.
+ *
+ * Instead, we use a "shift-based" DFA as described by Per Vognsen:
+ *
+ * https://gist.github.com/pervognsen/218ea17743e1442e59bb60d29b1aa725
+ *
+ * In a shift-based DFA, the input byte is an index into array of integers
+ * whose bit pattern encodes the state transitions. To compute the next
+ * state, we simply right-shift the integer by the current state and apply a
+ * mask. In this scheme, the address of the transition only depends on the
+ * input byte, so there is better pipelining.
+ *
+ * The naming convention for states and transitions was adopted from a UTF-8
+ * to UTF-16/32 transcoder, whose table is reproduced below:
+ *
+ * https://github.com/BobSteagall/utf_utils/blob/6b7a465265de2f5fa6133d653df0c9bdd73bbcf8/src/utf_utils.cpp
+ *
+ * ILL  ASC  CR1  CR2  CR3  L2A  L3A  L3B  L3C  L4A  L4B  L4C CLASS / STATE
+ * ==========================================================================
+ * err, END, err, err, err, CS1, P3A, CS2, P3B, P4A, CS3, P4B,      | BGN/END
+ * err, err, err, err, err, err, err, err, err, err, err, err,      | ERR
+ *                                                                  |
+ * err, err, END, END, END, err, err, err, err, err, err, err,      | CS1
+ * err, err, CS1, CS1, CS1, err, err, err, err, err, err, err,      | CS2
+ * err, err, CS2, CS2, CS2, err, err, err, err, err, err, err,      | CS3
+ *                                                                  |
+ * err, err, err, err, CS1, err, err, err, err, err, err, err,      | P3A
+ * err, err, CS1, CS1, err, err, err, err, err, err, err, err,      | P3B
+ *                                                                  |
+ * err, err, err, CS2, CS2, err, err, err, err, err, err, err,      | P4A
+ * err, err, CS2, err, err, err, err, err, err, err, err, err,      | P4B
+ *
+ * In the most straightforward implementation, a shift-based DFA for UTF-8
+ * requires 64-bit integers to encode the transitions, but with an SMT solver
+ * it's possible to find state numbers such that the transitions fit within
+ * 32-bit integers, as Dougall Johnson demonstrated:
+ *
+ * https://gist.github.com/dougallj/166e326de6ad4cf2c94be97a204c025f
+ *
+ * This packed representation is the reason for the seemingly odd choice of
+ * state values below.
+ */
+
+/* Error */
+#define	ERR  0
+/* Begin */
+#define	BGN 11
+/* Continuation states, expect 1/2/3 continuation bytes */
+#define	CS1 16
+#define	CS2  1
+#define	CS3  5
+/* Partial states, where the first continuation byte has a restricted range */
+#define	P3A  6					/* Lead was E0, check for 3-byte overlong */
+#define	P3B 20					/* Lead was ED, check for surrogate */
+#define	P4A 25					/* Lead was F0, check for 4-byte overlong */
+#define	P4B 30					/* Lead was F4, check for too-large */
+/* Begin and End are the same state */
+#define	END BGN
+
+/* the encoded state transitions for the lookup table */
+
+/* ASCII */
+#define ASC (END << BGN)
+/* 2-byte lead */
+#define L2A (CS1 << BGN)
+/* 3-byte lead */
+#define L3A (P3A << BGN)
+#define L3B (CS2 << BGN)
+#define L3C (P3B << BGN)
+/* 4-byte lead */
+#define L4A (P4A << BGN)
+#define L4B (CS3 << BGN)
+#define L4C (P4B << BGN)
+/* continuation byte */
+#define CR1 (END << CS1) | (CS1 << CS2) | (CS2 << CS3) | (CS1 << P3B) | (CS2 << P4B)
+#define CR2 (END << CS1) | (CS1 << CS2) | (CS2 << CS3) | (CS1 << P3B) | (CS2 << P4A)
+#define CR3 (END << CS1) | (CS1 << CS2) | (CS2 << CS3) | (CS1 << P3A) | (CS2 << P4A)
+/* invalid byte */
+#define ILL ERR
+
+static const uint32 Utf8Transition[256] =
+{
+	/* ASCII */
+
+	ILL, ASC, ASC, ASC, ASC, ASC, ASC, ASC,
+	ASC, ASC, ASC, ASC, ASC, ASC, ASC, ASC,
+	ASC, ASC, ASC, ASC, ASC, ASC, ASC, ASC,
+	ASC, ASC, ASC, ASC, ASC, ASC, ASC, ASC,
+
+	ASC, ASC, ASC, ASC, ASC, ASC, ASC, ASC,
+	ASC, ASC, ASC, ASC, ASC, ASC, ASC, ASC,
+	ASC, ASC, ASC, ASC, ASC, ASC, ASC, ASC,
+	ASC, ASC, ASC, ASC, ASC, ASC, ASC, ASC,
+
+	ASC, ASC, ASC, ASC, ASC, ASC, ASC, ASC,
+	ASC, ASC, ASC, ASC, ASC, ASC, ASC, ASC,
+	ASC, ASC, ASC, ASC, ASC, ASC, ASC, ASC,
+	ASC, ASC, ASC, ASC, ASC, ASC, ASC, ASC,
+
+	ASC, ASC, ASC, ASC, ASC, ASC, ASC, ASC,
+	ASC, ASC, ASC, ASC, ASC, ASC, ASC, ASC,
+	ASC, ASC, ASC, ASC, ASC, ASC, ASC, ASC,
+	ASC, ASC, ASC, ASC, ASC, ASC, ASC, ASC,
+
+	/* continuation bytes */
+
+	/* 80..8F */
+	CR1, CR1, CR1, CR1, CR1, CR1, CR1, CR1,
+	CR1, CR1, CR1, CR1, CR1, CR1, CR1, CR1,
+
+	/* 90..9F */
+	CR2, CR2, CR2, CR2, CR2, CR2, CR2, CR2,
+	CR2, CR2, CR2, CR2, CR2, CR2, CR2, CR2,
+
+	/* A0..BF */
+	CR3, CR3, CR3, CR3, CR3, CR3, CR3, CR3,
+	CR3, CR3, CR3, CR3, CR3, CR3, CR3, CR3,
+	CR3, CR3, CR3, CR3, CR3, CR3, CR3, CR3,
+	CR3, CR3, CR3, CR3, CR3, CR3, CR3, CR3,
+
+	/* leading bytes */
+
+	/* C0..DF */
+	ILL, ILL, L2A, L2A, L2A, L2A, L2A, L2A,
+	L2A, L2A, L2A, L2A, L2A, L2A, L2A, L2A,
+	L2A, L2A, L2A, L2A, L2A, L2A, L2A, L2A,
+	L2A, L2A, L2A, L2A, L2A, L2A, L2A, L2A,
+
+	/* E0..EF */
+	L3A, L3B, L3B, L3B, L3B, L3B, L3B, L3B,
+	L3B, L3B, L3B, L3B, L3B, L3C, L3B, L3B,
+
+	/* F0..FF */
+	L4A, L4B, L4B, L4B, L4C, ILL, ILL, ILL,
+	ILL, ILL, ILL, ILL, ILL, ILL, ILL, ILL
+};
+
+static void
+utf8_advance(const unsigned char *s, uint32 *state, int len)
+{
+	/* Note: We deliberately don't check the state's value here. */
+	while (len > 0)
+	{
+		/*
+		 * It's important that the mask value is 31: In most instruction sets,
+		 * a shift by a 32-bit operand is understood to be a shift by its mod
+		 * 32, so the compiler should elide the mask operation.
+		 */
+		*state = Utf8Transition[*s++] >> (*state & 31);
+		len--;
+	}
+
+	*state &= 31;
+}
+
+static int
+pg_utf8_verifystr(const unsigned char *s, int len)
+{
+	const unsigned char *start = s;
+	const int	orig_len = len;
+	uint32		state = BGN;
+
+/*
+ * Sixteen seems to give the best balance of performance across different
+ * byte distributions.
+ */
+#define STRIDE_LENGTH 16
+
+	if (len >= STRIDE_LENGTH)
+	{
+		while (len >= STRIDE_LENGTH)
+		{
+			/*
+			 * If the chunk is all ASCII, we can skip the full UTF-8 check,
+			 * but we must first check for a non-END state, which means the
+			 * previous chunk ended in the middle of a multibyte sequence.
+			 */
+			if (state != END || !is_valid_ascii(s, STRIDE_LENGTH))
+				utf8_advance(s, &state, STRIDE_LENGTH);
+
+			s += STRIDE_LENGTH;
+			len -= STRIDE_LENGTH;
+		}
+
+		/* The error state persists, so we only need to check for it here. */
+		if (state == ERR)
+		{
+			/*
+			 * Start over from the beginning with the slow path so we can
+			 * count the valid bytes.
+			 */
+			len = orig_len;
+			s = start;
+		}
+		else if (state != END)
+		{
+			/*
+			 * The fast path exited in the middle of a multibyte sequence.
+			 * Walk backwards to find the leading byte so that the slow path
+			 * can resume checking from there. We must always backtrack at
+			 * least one byte, since the current byte could be e.g. an ASCII
+			 * byte after a 2-byte lead, which is invalid.
+			 */
+			do
+			{
+				Assert(s > start);
+				s--;
+				len++;
+				Assert(IS_HIGHBIT_SET(*s));
+			} while (pg_utf_mblen(s) <= 1);
+		}
+	}
+
+	/* check remaining bytes */
+	while (len > 0)
+	{
+		int			l;
+
+		/* fast path for ASCII-subset characters */
+		if (!IS_HIGHBIT_SET(*s))
+		{
+			if (*s == '\0')
+				break;
+			l = 1;
+		}
+		else
+		{
+			l = pg_utf8_verifychar(s, len);
+			if (l == -1)
+				break;
+		}
+		s += l;
+		len -= l;
+	}
+
+	return s - start;
 }
 
 /*
@@ -1505,48 +2073,48 @@ pg_utf8_islegal(const unsigned char *source, int length)
  *-------------------------------------------------------------------
  */
 const pg_wchar_tbl pg_wchar_table[] = {
-	{pg_ascii2wchar_with_len, pg_wchar2single_with_len, pg_ascii_mblen, pg_ascii_dsplen, pg_ascii_verifier, 1}, /* PG_SQL_ASCII */
-	{pg_eucjp2wchar_with_len, pg_wchar2euc_with_len, pg_eucjp_mblen, pg_eucjp_dsplen, pg_eucjp_verifier, 3},	/* PG_EUC_JP */
-	{pg_euccn2wchar_with_len, pg_wchar2euc_with_len, pg_euccn_mblen, pg_euccn_dsplen, pg_euccn_verifier, 2},	/* PG_EUC_CN */
-	{pg_euckr2wchar_with_len, pg_wchar2euc_with_len, pg_euckr_mblen, pg_euckr_dsplen, pg_euckr_verifier, 3},	/* PG_EUC_KR */
-	{pg_euctw2wchar_with_len, pg_wchar2euc_with_len, pg_euctw_mblen, pg_euctw_dsplen, pg_euctw_verifier, 4},	/* PG_EUC_TW */
-	{pg_eucjp2wchar_with_len, pg_wchar2euc_with_len, pg_eucjp_mblen, pg_eucjp_dsplen, pg_eucjp_verifier, 3},	/* PG_EUC_JIS_2004 */
-	{pg_utf2wchar_with_len, pg_wchar2utf_with_len, pg_utf_mblen, pg_utf_dsplen, pg_utf8_verifier, 4},	/* PG_UTF8 */
-	{pg_mule2wchar_with_len, pg_wchar2mule_with_len, pg_mule_mblen, pg_mule_dsplen, pg_mule_verifier, 4},	/* PG_MULE_INTERNAL */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_LATIN1 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_LATIN2 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_LATIN3 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_LATIN4 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_LATIN5 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_LATIN6 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_LATIN7 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_LATIN8 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_LATIN9 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_LATIN10 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_WIN1256 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_WIN1258 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_WIN866 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_WIN874 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_KOI8R */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_WIN1251 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_WIN1252 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* ISO-8859-5 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* ISO-8859-6 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* ISO-8859-7 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* ISO-8859-8 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_WIN1250 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_WIN1253 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_WIN1254 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_WIN1255 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_WIN1257 */
-	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifier, 1}, /* PG_KOI8U */
-	{0, 0, pg_sjis_mblen, pg_sjis_dsplen, pg_sjis_verifier, 2}, /* PG_SJIS */
-	{0, 0, pg_big5_mblen, pg_big5_dsplen, pg_big5_verifier, 2}, /* PG_BIG5 */
-	{0, 0, pg_gbk_mblen, pg_gbk_dsplen, pg_gbk_verifier, 2},	/* PG_GBK */
-	{0, 0, pg_uhc_mblen, pg_uhc_dsplen, pg_uhc_verifier, 2},	/* PG_UHC */
-	{0, 0, pg_gb18030_mblen, pg_gb18030_dsplen, pg_gb18030_verifier, 4},	/* PG_GB18030 */
-	{0, 0, pg_johab_mblen, pg_johab_dsplen, pg_johab_verifier, 3},	/* PG_JOHAB */
-	{0, 0, pg_sjis_mblen, pg_sjis_dsplen, pg_sjis_verifier, 2}	/* PG_SHIFT_JIS_2004 */
+	{pg_ascii2wchar_with_len, pg_wchar2single_with_len, pg_ascii_mblen, pg_ascii_dsplen, pg_ascii_verifychar, pg_ascii_verifystr, 1},	/* PG_SQL_ASCII */
+	{pg_eucjp2wchar_with_len, pg_wchar2euc_with_len, pg_eucjp_mblen, pg_eucjp_dsplen, pg_eucjp_verifychar, pg_eucjp_verifystr, 3},	/* PG_EUC_JP */
+	{pg_euccn2wchar_with_len, pg_wchar2euc_with_len, pg_euccn_mblen, pg_euccn_dsplen, pg_euccn_verifychar, pg_euccn_verifystr, 2},	/* PG_EUC_CN */
+	{pg_euckr2wchar_with_len, pg_wchar2euc_with_len, pg_euckr_mblen, pg_euckr_dsplen, pg_euckr_verifychar, pg_euckr_verifystr, 3},	/* PG_EUC_KR */
+	{pg_euctw2wchar_with_len, pg_wchar2euc_with_len, pg_euctw_mblen, pg_euctw_dsplen, pg_euctw_verifychar, pg_euctw_verifystr, 4},	/* PG_EUC_TW */
+	{pg_eucjp2wchar_with_len, pg_wchar2euc_with_len, pg_eucjp_mblen, pg_eucjp_dsplen, pg_eucjp_verifychar, pg_eucjp_verifystr, 3},	/* PG_EUC_JIS_2004 */
+	{pg_utf2wchar_with_len, pg_wchar2utf_with_len, pg_utf_mblen, pg_utf_dsplen, pg_utf8_verifychar, pg_utf8_verifystr, 4},	/* PG_UTF8 */
+	{pg_mule2wchar_with_len, pg_wchar2mule_with_len, pg_mule_mblen, pg_mule_dsplen, pg_mule_verifychar, pg_mule_verifystr, 4},	/* PG_MULE_INTERNAL */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_LATIN1 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_LATIN2 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_LATIN3 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_LATIN4 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_LATIN5 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_LATIN6 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_LATIN7 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_LATIN8 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_LATIN9 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_LATIN10 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_WIN1256 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_WIN1258 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_WIN866 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_WIN874 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_KOI8R */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_WIN1251 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_WIN1252 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* ISO-8859-5 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* ISO-8859-6 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* ISO-8859-7 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* ISO-8859-8 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_WIN1250 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_WIN1253 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_WIN1254 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_WIN1255 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_WIN1257 */
+	{pg_latin12wchar_with_len, pg_wchar2single_with_len, pg_latin1_mblen, pg_latin1_dsplen, pg_latin1_verifychar, pg_latin1_verifystr, 1},	/* PG_KOI8U */
+	{0, 0, pg_sjis_mblen, pg_sjis_dsplen, pg_sjis_verifychar, pg_sjis_verifystr, 2},	/* PG_SJIS */
+	{0, 0, pg_big5_mblen, pg_big5_dsplen, pg_big5_verifychar, pg_big5_verifystr, 2},	/* PG_BIG5 */
+	{0, 0, pg_gbk_mblen, pg_gbk_dsplen, pg_gbk_verifychar, pg_gbk_verifystr, 2},	/* PG_GBK */
+	{0, 0, pg_uhc_mblen, pg_uhc_dsplen, pg_uhc_verifychar, pg_uhc_verifystr, 2},	/* PG_UHC */
+	{0, 0, pg_gb18030_mblen, pg_gb18030_dsplen, pg_gb18030_verifychar, pg_gb18030_verifystr, 4},	/* PG_GB18030 */
+	{0, 0, pg_johab_mblen, pg_johab_dsplen, pg_johab_verifychar, pg_johab_verifystr, 3},	/* PG_JOHAB */
+	{0, 0, pg_sjis_mblen, pg_sjis_dsplen, pg_sjis_verifychar, pg_sjis_verifystr, 2} /* PG_SHIFT_JIS_2004 */
 };
 
 /*
@@ -1589,14 +2157,27 @@ pg_encoding_dsplen(int encoding, const char *mbstr)
 /*
  * Verify the first multibyte character of the given string.
  * Return its byte length if good, -1 if bad.  (See comments above for
- * full details of the mbverify API.)
+ * full details of the mbverifychar API.)
  */
 int
-pg_encoding_verifymb(int encoding, const char *mbstr, int len)
+pg_encoding_verifymbchar(int encoding, const char *mbstr, int len)
 {
 	return (PG_VALID_ENCODING(encoding) ?
-			pg_wchar_table[encoding].mbverify((const unsigned char *) mbstr, len) :
-			pg_wchar_table[PG_SQL_ASCII].mbverify((const unsigned char *) mbstr, len));
+			pg_wchar_table[encoding].mbverifychar((const unsigned char *) mbstr, len) :
+			pg_wchar_table[PG_SQL_ASCII].mbverifychar((const unsigned char *) mbstr, len));
+}
+
+/*
+ * Verify that a string is valid for the given encoding.
+ * Returns the number of input bytes (<= len) that form a valid string.
+ * (See comments above for full details of the mbverifystr API.)
+ */
+int
+pg_encoding_verifymbstr(int encoding, const char *mbstr, int len)
+{
+	return (PG_VALID_ENCODING(encoding) ?
+			pg_wchar_table[encoding].mbverifystr((const unsigned char *) mbstr, len) :
+			pg_wchar_table[PG_SQL_ASCII].mbverifystr((const unsigned char *) mbstr, len));
 }
 
 /*

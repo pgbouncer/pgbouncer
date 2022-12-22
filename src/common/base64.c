@@ -3,7 +3,7 @@
  * base64.c
  *	  Encoding and decoding routines for base64 without whitespace.
  *
- * Copyright (c) 2001-2020, PostgreSQL Global Development Group
+ * Copyright (c) 2001-2022, PostgreSQL Global Development Group
  *
  *
  * IDENTIFICATION
@@ -12,13 +12,11 @@
  *-------------------------------------------------------------------------
  */
 
-//#ifndef FRONTEND
-//#include "postgres.h"
-//#else
-//#include "postgres_fe.h"
-//#endif
-#include "system.h"
-#include "common/postgres_compat.h"
+#ifndef FRONTEND
+#include "postgres.h"
+#else
+#include "postgres_fe.h"
+#endif
 
 #include "common/base64.h"
 

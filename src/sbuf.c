@@ -79,7 +79,7 @@ static void sbuf_main_loop(SBuf *sbuf, bool skip_recv);
 static bool sbuf_call_proto(SBuf *sbuf, int event) /* _MUSTCHECK */;
 static bool sbuf_actual_recv(SBuf *sbuf, size_t len)  _MUSTCHECK;
 static bool sbuf_after_connect_check(SBuf *sbuf)  _MUSTCHECK;
-static bool handle_tls_handshake(SBuf *sbuf) /* _MUSTCHECK */;
+static bool handle_tls_handshake(SBuf *sbuf) _MUSTCHECK;
 
 /* regular I/O */
 static ssize_t raw_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len);
@@ -777,7 +777,8 @@ skip_recv:
 
 	if (sbuf->tls_state == SBUF_TLS_DO_HANDSHAKE) {
 		sbuf->pkt_action = SBUF_TLS_IN_HANDSHAKE;
-		handle_tls_handshake(sbuf);
+		if (!handle_tls_handshake(sbuf))
+			sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
 	}
 }
 

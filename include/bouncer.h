@@ -118,7 +118,7 @@ extern int cf_sbuf_len;
 #include "janitor.h"
 #include "hba.h"
 #include "pam.h"
-#include "auth_ldap.h"
+#include "bouncer_ldap.h"
 
 #ifndef WIN32
 #define DEFAULT_UNIX_SOCKET_DIR "/tmp"
@@ -135,6 +135,7 @@ extern int cf_sbuf_len;
 
 /* matching NAMEDATALEN */
 #define MAX_DBNAME	64
+
 /*
  * Ought to match NAMEDATALEN.  Some cloud services use longer user
  * names, so give it some extra room.

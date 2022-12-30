@@ -118,12 +118,18 @@ pthread_cond_t ldap_data_available;
 
 /* Forward declarations */
 static void *ldap_auth_worker(void *arg);
-
 static bool is_valid_socket(const struct ldap_auth_request *request);
-
 static void ldap_auth_finish(struct ldap_auth_request *request);
-
-static bool checkldapauth(struct ldap_auth_request *request);
+static bool check_ldap_auth(struct ldap_auth_request *request);
+static void
+format_search_filter(char *filter, int length, const char *pattern, const char *user_name);
+static bool
+initialize_ldap_connection(struct ldap_auth_request *request, LDAP **ldap);
+static bool ldap_initialize_parameters(struct ldap_auth_request *request, char *parameter);
+static void free_ldap_parameters(struct ldap_auth_request *request);
+static bool validate_ldap_parameters(struct ldap_auth_request *request);
+static bool parse_ldapurl(struct ldap_auth_request *request, char *val);
+static bool get_key_value(char **p, char **key, char **value);
 
 /*
  * Initialize LDAP subsystem.
@@ -153,11 +159,11 @@ void auth_ldap_init(void)
 
 #define reset_ptr(ptr, name) ptr->name = NULL
 #define ldap_parameter_dup(ptr, name, src_str) \
-do {                                           \
+do { \
     (ptr)->name = (ptr)->ldap_parameters + (ptr)->param_pos; \
     safe_strcpy((ptr)->name, src_str, sizeof((ptr)->ldap_parameters) - (ptr)->param_pos); \
-    (ptr)->param_pos += strlen(src_str) + 1;      \
-    if ((ptr)->param_pos >= MAX_LDAP_CONFIG) {    \
+    (ptr)->param_pos += strlen(src_str) + 1; \
+    if ((ptr)->param_pos >= MAX_LDAP_CONFIG) { \
         log_warning("The parameters are longer than MAX_LDAP_CONFIG:%d", MAX_LDAP_CONFIG); \
         return false; \
     } \
@@ -180,7 +186,7 @@ static void free_ldap_parameters(struct ldap_auth_request *request)
 	request->ldapscope = 0;
 }
 
-static bool is_valid_parameter(struct ldap_auth_request *request)
+static bool validate_ldap_parameters(struct ldap_auth_request *request)
 {
 	/*
 	 * LDAP can operate in two modes: either with a direct bind, using
@@ -250,28 +256,36 @@ static bool parse_ldapurl(struct ldap_auth_request *request, char *val)
 
 static bool get_key_value(char **p, char **key, char **value)
 {
-	char *start, *name, *val;
+	char *start = NULL;
+	char *name = NULL;
+	char *val = NULL;
 
 	start = *p;
-	while (*start && isspace(*start)) ++start; /* skip space */
+	while (*start && isspace(*start)) /* skip space */
+		++start;
 
 	name = start;
-	while (*start && *start != '=') start++;
-	if (!*start) return false; /* Only key, stop scan */
+	while (*start && *start != '=')
+		start++;
+	if (!*start) /* Only key, stop scan */
+		return false;
 	*start++ = 0;
 
 	val = start;
 	if (*start == '"') {
 		val = ++start;
-		while (*start && *start != '"') ++start;
-		if (!*start) return false; /* incomplete value */
+		while (*start && *start != '"')
+			++start;
+		if (!*start) /* incomplete value */
+			return false;
 		*start++ = 0;
 	} else {
-		if (*start == ' ') return false; /* Not key=value format */
-		while (*start && *start != ' ') start++;
-		if (*start == ' ') {
+		if (*start == ' ') /* Not key=value format */
+			return false;
+		while (*start && *start != ' ')
+			start++;
+		if (*start == ' ')
 			*start++ = 0;
-		}
 	}
 
 	*p = start;
@@ -329,7 +343,7 @@ static bool ldap_initialize_parameters(struct ldap_auth_request *request, char *
 		}
 	}
 
-	return is_valid_parameter(request);
+	return validate_ldap_parameters(request);
 }
 
 /*
@@ -450,7 +464,7 @@ static void *ldap_auth_worker(void *arg)
 			continue;
 		}
 
-		if (checkldapauth(request)) {
+		if (check_ldap_auth(request)) {
 			request->status = LDAP_STATUS_SUCCESS;
 		} else {
 			request->status = LDAP_STATUS_FAILED;
@@ -496,7 +510,7 @@ static void ldap_auth_finish(struct ldap_auth_request *request)
  * TLS if requested.
  */
 static bool
-InitializeLDAPConnection(struct ldap_auth_request *request, LDAP **ldap)
+initialize_ldap_connection(struct ldap_auth_request *request, LDAP **ldap)
 {
 	int ldapversion = LDAP_VERSION3;
 	int r;
@@ -544,7 +558,7 @@ InitializeLDAPConnection(struct ldap_auth_request *request, LDAP **ldap)
 
 	return true;
 }
-/* Placeholders recognized by formatsearchfilter.  For now just one. */
+/* Placeholders recognized by format_search_filter.  For now just one. */
 #define LPH_USERNAME "$username"
 #define LPH_USERNAME_LEN strlen(LPH_USERNAME)
 /*
@@ -552,7 +566,7 @@ InitializeLDAPConnection(struct ldap_auth_request *request, LDAP **ldap)
  * occurrences of the placeholder "$username" replaced with "user_name".
  */
 static void
-formatsearchfilter(char *filter, int length, const char *pattern, const char *user_name)
+format_search_filter(char *filter, int length, const char *pattern, const char *user_name)
 {
 	int cur_len = 0;
 	while ((*pattern != '\0') && (cur_len < length)) {
@@ -571,7 +585,7 @@ formatsearchfilter(char *filter, int length, const char *pattern, const char *us
  * Perform LDAP authentication
  */
 static bool
-checkldapauth(struct ldap_auth_request *request)
+check_ldap_auth(struct ldap_auth_request *request)
 {
 	LDAP *ldap;
 	int r;
@@ -598,7 +612,7 @@ checkldapauth(struct ldap_auth_request *request)
 		return false;
 	}
 
-	if (InitializeLDAPConnection(request, &ldap) == false) {
+	if (initialize_ldap_connection(request, &ldap) == false) {
 		return false;
 	}
 
@@ -649,7 +663,7 @@ checkldapauth(struct ldap_auth_request *request)
 
 		/* Fetch just one attribute, else *all* attributes are returned */
 		if (request->ldapsearchfilter)
-			formatsearchfilter(filter, LDAP_LONG_LENGTH, request->ldapsearchfilter, request->username);
+			format_search_filter(filter, LDAP_LONG_LENGTH, request->ldapsearchfilter, request->username);
 		else {
 			attributes[0] = request->ldapsearchattribute ? request->ldapsearchattribute : "uid";
 			attributes[1] = NULL;
@@ -721,7 +735,7 @@ checkldapauth(struct ldap_auth_request *request)
 		 * Need to re-initialize the LDAP connection, so that we can bind to
 		 * it with a different username.
 		 */
-		if (InitializeLDAPConnection(request, &ldap) == false) {
+		if (initialize_ldap_connection(request, &ldap) == false) {
 			/* Error message already sent */
 			return false;
 		}

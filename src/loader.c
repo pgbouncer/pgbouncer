@@ -137,7 +137,7 @@ static bool strings_equal(const char *str_left, const char *str_right)
 
 	if (str_left == NULL || str_right == NULL)
 		return false;
-	
+
 	return strcmp(str_left, str_right) == 0;
 }
 
@@ -145,9 +145,9 @@ static bool set_auth_dbname(PgDatabase *db, const char *new_auth_dbname)
 {
 	if (strings_equal(db->auth_dbname, new_auth_dbname))
 		return true;
-	
+
 	if (db->auth_dbname)
-		free((char *)db->auth_dbname);
+		free(db->auth_dbname);
 
 	if (new_auth_dbname) {
 		db->auth_dbname = strdup(new_auth_dbname);

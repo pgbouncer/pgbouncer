@@ -954,13 +954,13 @@ test_auth_dbname() {
 	local result
 
 	admin "set auth_type='md5'"
-	
+
 	# tests the case when auth_dbname is not configured globally or for the target database.
 	curuser=`psql -X -d "dbname=authdb user=someuser password=anypasswd" -tAq -c "select current_user;"`
 	echo "empty auth_dbname test, curuser=$curuser"
 	test "$curuser" = "someuser" || return 1
 
-	# test if invalid globally set auth_dbname results in 
+	# test if invalid globally set auth_dbname results in
 	# client disconnection.
 	admin "set auth_dbname='p_unconfigured_auth_dbname'"
 
@@ -984,7 +984,7 @@ test_auth_dbname() {
 
 	# prepare for the scenario where fallback (*) database can also have auth_dbname set.
 	# additionally, a global "auth_user" is set in this scenario to access authdb.
-	cp test.ini test.ini.back
+	cp test.ini test.ini.bak
 	sed 's/^;\*/*/g' test.ini > test2.ini
 	sed '/^\*/s/$/ auth_dbname = authdb/g' test2.ini > test3.ini
 	echo "auth_user = pswcheck" >> test3.ini
@@ -999,7 +999,7 @@ test_auth_dbname() {
 	test "$curuser" = "someuser" || return 1
 
 	# revert the changes
-	mv test.ini.back test.ini
+	mv test.ini.bak test.ini
 	admin "reload"
 
 	return 0

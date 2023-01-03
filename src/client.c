@@ -39,16 +39,17 @@ static const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
  * Get authentication database for the current client. The order of preference is:
  *   client->db->auth_dbname: per client authentication database
  *   cf_auth_dbname: global authentication database
- *   client->db: client database  
- * Note: if authentication database is not found, or it is disabled, the client will be
- *       disconnected.
+ *   client->db: client database
+ *
+ * NOTE: if the authentication database is not found or it is disabled, client
+ * will be disconnected.
  */
 PgDatabase *prepare_auth_database(PgSocket *client)
 {
 	PgDatabase *auth_db = NULL;
 	const char *auth_dbname = client->db->auth_dbname ? client->db->auth_dbname : cf_auth_dbname;
 
-	if (!auth_dbname) 
+	if (!auth_dbname)
 		return client->db;
 
 	auth_db = find_database(auth_dbname);

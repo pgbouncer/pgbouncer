@@ -454,6 +454,7 @@ struct PgDatabase {
 
 	struct PktBuf *startup_params; /* partial StartupMessage (without user) be sent to server */
 	const char *dbname;	/* server-side name, pointer to inside startup_msg */
+	char *auth_dbname;	/* if not NULL, auth_query will be run on the specified database */
 	PgUser *forced_user;	/* if not NULL, the user/psw is forced */
 	PgUser *auth_user;	/* if not NULL, users not in userlist.txt will be looked up on the server */
 
@@ -617,6 +618,7 @@ extern char *cf_auth_file;
 extern char *cf_auth_query;
 extern char *cf_auth_user;
 extern char *cf_auth_hba_file;
+extern char *cf_auth_dbname;
 
 extern char *cf_pidfile;
 

@@ -35,6 +35,42 @@ static const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
 	return bin2hex(bin, dlen, buf, buflen);
 }
 
+/*
+ * Get authentication database for the current client. The order of preference is:
+ *   client->db->auth_dbname: per client authentication database
+ *   cf_auth_dbname: global authentication database
+ *   client->db: client database
+ *
+ * NOTE: if the authentication database is not found or it is disabled, client
+ * will be disconnected.
+ */
+PgDatabase *prepare_auth_database(PgSocket *client)
+{
+	PgDatabase *auth_db = NULL;
+	const char *auth_dbname = client->db->auth_dbname ? client->db->auth_dbname : cf_auth_dbname;
+
+	if (!auth_dbname)
+		return client->db;
+
+	auth_db = find_database(auth_dbname);
+	if (!auth_db) {
+		slog_error(client, "authentication database \"%s\" is not configured.", auth_dbname);
+		disconnect_client(client, true, "bouncer config error");
+		return NULL;
+	}
+
+	if (auth_db->db_disabled) {
+		disconnect_client(
+			client,
+			true,
+			"authentication database \"%s\" is disabled",
+			auth_dbname);
+		return NULL;
+	}
+
+	return auth_db;
+}
+
 static bool check_client_passwd(PgSocket *client, const char *passwd)
 {
 	PgUser *user = client->login_user;
@@ -121,7 +157,11 @@ static void start_auth_query(PgSocket *client, const char *username)
 	PktBuf *buf;
 
 	/* have to fetch user info from db */
-	client->pool = get_pool(client->db, client->db->auth_user);
+	PgDatabase *auth_db = prepare_auth_database(client);
+	if (!auth_db)
+		return;
+
+	client->pool = get_pool(auth_db, client->db->auth_user);
 	if (!find_server(client)) {
 		client->wait_for_user_conn = true;
 		return;

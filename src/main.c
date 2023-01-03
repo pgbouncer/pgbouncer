@@ -114,6 +114,7 @@ char *cf_auth_file;
 char *cf_auth_hba_file;
 char *cf_auth_user;
 char *cf_auth_query;
+char *cf_auth_dbname;
 
 int cf_max_client_conn;
 int cf_default_pool_size;
@@ -228,6 +229,7 @@ const struct CfLookup sslmode_map[] = {
 static const struct CfKey bouncer_params [] = {
 CF_ABS("admin_users", CF_STR, cf_admin_users, 0, ""),
 CF_ABS("application_name_add_host", CF_INT, cf_application_name_add_host, 0, "0"),
+CF_ABS("auth_dbname", CF_STR, cf_auth_dbname, 0, NULL),
 CF_ABS("auth_file", CF_STR, cf_auth_file, 0, NULL),
 CF_ABS("auth_hba_file", CF_STR, cf_auth_hba_file, 0, ""),
 CF_ABS("auth_query", CF_STR, cf_auth_query, 0, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1"),
@@ -831,6 +833,7 @@ static void cleanup(void)
 	xfree(&cf_unix_socket_dir);
 	xfree(&cf_unix_socket_group);
 	xfree(&cf_auth_file);
+	xfree(&cf_auth_dbname);
 	xfree(&cf_auth_hba_file);
 	xfree(&cf_auth_query);
 	xfree(&cf_auth_user);

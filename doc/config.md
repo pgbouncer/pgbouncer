@@ -342,6 +342,11 @@ is used, it needs to be installed into each database.
 
 Default: `SELECT usename, passwd FROM pg_shadow WHERE usename=$1`
 
+### auth_dbname
+
+Database name in the `[database]` section to be used for authentication purposes. This
+option can be either global or overriden in the connection string if this parameter is
+specified.
 
 ## Log settings
 

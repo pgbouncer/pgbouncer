@@ -1,7 +1,7 @@
 /*
- * Host-Based-Access-control file support.
+ * PgBouncer - Lightweight connection pooler for PostgreSQL.
  *
- * Copyright (c) 2015 Marko Kreen
+ * Copyright (c) 2007-2009  Marko Kreen, Skype Technologies OÜ
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -16,8 +16,17 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-struct HBA;
+/*
+ * LDAP support.
+ */
 
-struct HBA *hba_load_rules(const char *fn);
-void hba_free(struct HBA *hba);
-int hba_eval(struct HBA *hba, PgAddr *addr, bool is_tls, const char *dbname, const char *username, char **dst);
+/*
+ * Defines how many authentication requests can be placed to the waiting queue.
+ * When the queue is full calls to ldap_auth_begin() will block until there is
+ * free space in the queue.
+ */
+#define LDAP_REQUEST_QUEUE_SIZE 20
+
+void auth_ldap_init(void);
+void ldap_auth_begin(PgSocket *client, const char *passwd);
+int ldap_poll(void);

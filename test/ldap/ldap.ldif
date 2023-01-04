@@ -1,0 +1,20 @@
+dn: dc=example,dc=net
+objectClass: top
+objectClass: dcObject
+objectClass: organization
+dc: example
+o: ExampleCo
+
+dn: uid=ldapuser1,dc=example,dc=net
+objectClass: inetOrgPerson
+objectClass: posixAccount
+uid: ldapuser1
+sn: Lastname
+givenName: Firstname
+cn: First Test User
+displayName: First Test User
+uidNumber: 101
+gidNumber: 100
+homeDirectory: /home/ldapuser1
+mail: ldapuser1@example.net
+

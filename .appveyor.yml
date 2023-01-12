@@ -8,8 +8,12 @@ environment:
 install:
   - git submodule update --init --recursive
   - set PATH=C:/msys64/usr/bin;%PATH%
-  - sh -l -c "pacman --noconfirm -S --needed base-devel ${MINGW_PACKAGE_PREFIX}-toolchain ${MINGW_PACKAGE_PREFIX}-libevent ${MINGW_PACKAGE_PREFIX}-openssl ${MINGW_PACKAGE_PREFIX}-postgresql autoconf automake libtool python zip"
-  - choco install pandoc
+  - choco install -y --no-progress msys2
+  - sh -l -c "pacman --noconfirm -S --needed base-devel ${MINGW_PACKAGE_PREFIX}-gcc ${MINGW_PACKAGE_PREFIX}-libevent ${MINGW_PACKAGE_PREFIX}-openssl ${MINGW_PACKAGE_PREFIX}-postgresql autoconf automake libtool ${MINGW_PACKAGE_PREFIX}-python ${MINGW_PACKAGE_PREFIX}-python-pip zip"
+  - sh -l -c 'pip install -r /c/projects/pgbouncer-pgbouncer/requirements.txt'
+  - echo 127.0.0.1 localhost >> c:\Windows\System32\Drivers\etc\hosts
+  - sh -l -c 'echo "127.0.0.1   localhost" >> /etc/hosts'
+  - choco install -y --no-progress pandoc
 
 build_script:
   - set HOME=.
@@ -26,7 +30,7 @@ artifacts:
 test_script:
   - set HOME=.
   - set PATH=C:/msys64/usr/bin;%PATH%
-  - sh -l -c "make -j4 check tls_support=no"
+  - sh -l -c "make -j4 check CONCURRENCY=4"
   - sh -l -c "windres pgbouncer.exe"
 
 on_failure:

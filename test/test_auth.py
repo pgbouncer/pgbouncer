@@ -87,7 +87,7 @@ def run_server_auth_test(bouncer, dbname):
         bouncer.test(dbname=f"{dbname}z")
 
 
-# test plain-text password authentication from PgBouncer to PostgreSQL server
+# Test plain-text password authentication from PgBouncer to PostgreSQL server
 #
 # The PostgreSQL server no longer supports storing plain-text
 # passwords, so the server-side user actually uses md5 passwords in
@@ -111,7 +111,7 @@ def test_scram_server(bouncer):
         psycopg.OperationalError, match="password authentication failed"
     ):
         bouncer.test(dbname="p6x")
-    # good password from auth_file, but is not supported with SCRAM
+    # good password from auth_file, but it is not supported with SCRAM
     with pytest.raises(psycopg.OperationalError, match="wrong password type"):
         bouncer.test(dbname="p6y")
     # bad password from auth_file
@@ -140,7 +140,7 @@ def connect_with_md5_client_users(bouncer):
 
 
 def connect_with_scram_client_users(bouncer):
-    # users with a stored scram password
+    # users with a stored SCRAM password
     bouncer.test(user="scramuser1", password="foo")
     # bad password
     with pytest.raises(
@@ -149,7 +149,7 @@ def connect_with_scram_client_users(bouncer):
         bouncer.test(user="scramuser1", password="wrong")
 
 
-# test plain-text password authentication from client to PgBouncer
+# Test plain-text password authentication from client to PgBouncer
 def test_password_client(bouncer):
     bouncer.admin(f"set auth_type='plain'")
     connect_with_password_client_users(bouncer)
@@ -158,7 +158,7 @@ def test_password_client(bouncer):
 
     # long password
     bouncer.test(user="longpass", password=LONG_PASSWORD)
-    # Too long password
+    # too long password
     with pytest.raises(
         psycopg.OperationalError, match="password authentication failed"
     ):
@@ -177,7 +177,7 @@ def test_scram_client(bouncer):
     connect_with_password_client_users(bouncer)
     connect_with_scram_client_users(bouncer)
 
-    # cannot authenticate to MD5 stored passwords with scram auth
+    # cannot authenticate to MD5 stored passwords with SCRAM auth
     # good password
     with pytest.raises(
         psycopg.OperationalError, match="(password|SASL) authentication failed"
@@ -197,5 +197,5 @@ def test_scram_both(bouncer):
     # plain-text password in userlist.txt
     bouncer.test(dbname="p61", user="scramuser3", password="baz")
 
-    # scram password in userlist.txt
+    # SCRAM password in userlist.txt
     bouncer.test(dbname="p62", user="scramuser1", password="foo")

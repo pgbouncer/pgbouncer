@@ -122,7 +122,7 @@ def test_server_connect_timeout_drop_traffic(pg, bouncer):
 def test_tcp_user_timeout(pg, bouncer):
     bouncer.admin("set tcp_user_timeout=1000")
     bouncer.admin("set query_timeout=5")
-    # Make pgbouncer cache a connection to postgres
+    # Make PgBouncer cache a connection to Postgres
     bouncer.test()
     # without tcp_user_timeout, you get a different error message
     # about "query timeout" instead

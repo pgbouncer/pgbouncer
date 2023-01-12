@@ -8,7 +8,7 @@ def test_show(bouncer):
         "clients",
         "config",
         "databases",
-        # Calling show fds on MacOS leaks the returned file descriptors to the
+        # Calling SHOW FDS on MacOS leaks the returned file descriptors to the
         # python test runner. So we don't test this one directly. SHOW FDS is
         # still tested indirectly by the takeover tests.
         # "fds",

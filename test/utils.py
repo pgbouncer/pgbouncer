@@ -152,7 +152,7 @@ TLS_SUPPORT = get_tls_support()
 # it is a lower change that it will conflict with "in-use" ports
 PORT_LOWER_BOUND = 10200
 
-# ephemeral port start on many linux systems
+# ephemeral port start on many Linux systems
 PORT_UPPER_BOUND = 32768
 
 next_port = PORT_LOWER_BOUND
@@ -195,7 +195,7 @@ class QueryRunner:
         options.setdefault("dbname", self.default_db)
         options.setdefault("user", self.default_user)
         if ENABLE_VALGRIND:
-            # If valgrind is enabled pgbouncer is a significantly slower to
+            # If valgrind is enabled PgBouncer is a significantly slower to
             # respond to connection requests, so we wait a little longer.
             options.setdefault("connect_timeout", 20)
         else:
@@ -227,7 +227,7 @@ class QueryRunner:
     def cur(self, autocommit=True, **kwargs):
         """Open an psycopg cursor to this server
 
-        The connection an the cursors automatically close once you leave the
+        The connection and the cursors automatically close once you leave the
         "with" block
         """
         with self.conn(
@@ -241,7 +241,7 @@ class QueryRunner:
     async def acur(self, **kwargs):
         """Open an asynchronous psycopg cursor to this server
 
-        The connection an the cursors automatically close once you leave the
+        The connection and the cursors automatically close once you leave the
         "async with" block
         """
         async with await self.aconn(**kwargs) as conn:
@@ -249,7 +249,7 @@ class QueryRunner:
                 yield cur
 
     def sql(self, query, params=None, **kwargs):
-        """Run a sql query
+        """Run an SQL query
 
         This opens a new connection and closes it once the query is done
         """
@@ -257,7 +257,7 @@ class QueryRunner:
             cur.execute(query, params=params)
 
     def sql_value(self, query, params=None, **kwargs):
-        """Run a sql query that returns a single cell and return this value
+        """Run an SQL query that returns a single cell and return this value
 
         This opens a new connection and closes it once the query is done
         """
@@ -270,7 +270,7 @@ class QueryRunner:
             return value
 
     def asql(self, query, **kwargs):
-        """Run a sql query in asynchronous task
+        """Run an SQL query in asynchronous task
 
         This opens a new connection and closes it once the query is done
         """
@@ -289,7 +289,7 @@ class QueryRunner:
                 raise
 
     def psql(self, query, **kwargs):
-        """Run a sql query using psql instead of psycopg
+        """Run an SQL query using psql instead of psycopg
 
         This opens a new connection and closes it once the query is done
         """
@@ -508,7 +508,7 @@ class Postgres(QueryRunner):
 
     def reload(self):
         if WINDOWS:
-            # SIGHUP and thus reload don't exist on windows
+            # SIGHUP and thus reload don't exist on Windows
             self.restart()
         else:
             self.pgctl("reload")
@@ -519,7 +519,7 @@ class Postgres(QueryRunner):
         await process.communicate()
 
     def nossl_access(self, dbname, auth_type):
-        """Prepends a local non-ssl access to the hba file"""
+        """Prepends a local non-SSL access to the HBA file"""
         with self.hba_path.open() as pghba:
             old_contents = pghba.read()
         with self.hba_path.open(mode="w") as pghba:
@@ -530,7 +530,7 @@ class Postgres(QueryRunner):
             pghba.write(old_contents)
 
     def ssl_access(self, dbname, auth_type):
-        """Prepends a local ssl access rule to the hba file"""
+        """Prepends a local SSL access rule to the HBA file"""
         with self.hba_path.open() as pghba:
             old_contents = pghba.read()
         with self.hba_path.open(mode="w") as pghba:
@@ -547,7 +547,7 @@ class Postgres(QueryRunner):
         return self.pgdata / "postgresql.conf"
 
     def commit_hba(self):
-        """Mark the current hba contents as non-resetable by reset_hba"""
+        """Mark the current HBA contents as non-resetable by reset_hba"""
         with self.hba_path.open() as pghba:
             old_contents = pghba.read()
         with self.hba_path.open(mode="w") as pghba:
@@ -555,7 +555,7 @@ class Postgres(QueryRunner):
             pghba.write(old_contents)
 
     def reset_hba(self):
-        """Remove any hba rules that were added after the last call to commit_hba"""
+        """Remove any HBA rules that were added after the last call to commit_hba"""
         with self.hba_path.open() as f:
             hba_contents = f.read()
         committed = hba_contents[hba_contents.find("# committed-rules\n") :]
@@ -577,9 +577,9 @@ class Postgres(QueryRunner):
         )
 
     async def delayed_start(self, delay=1):
-        """Start postgres after a delay
+        """Start Postgres after a delay
 
-        NOTE: The sleep is asynchronous, but while waiting for postgres to
+        NOTE: The sleep is asynchronous, but while waiting for Postgres to
         start the pg_ctl start command will block the event loop. This is
         currently acceptable for our usage of this method in the existing
         tests and this way it was easiest to implement. However, it seems
@@ -589,7 +589,7 @@ class Postgres(QueryRunner):
         self.start()
 
     def configure(self, config):
-        """Configure specific postgres settings using ALTER SYSTEM SET
+        """Configure specific Postgres settings using ALTER SYSTEM SET
 
         NOTE: after configuring a call to reload or restart is needed for the
         settings to become effective.
@@ -650,7 +650,7 @@ class Bouncer(QueryRunner):
                 ini.flush()
 
     def base_command(self):
-        """returns the basecommand that is used to run pgbouncer
+        """returns the basecommand that is used to run PgBouncer
 
         This includes valgrind and all its arguments when ENABLE_VALGRIND is
         set
@@ -698,16 +698,16 @@ class Bouncer(QueryRunner):
             break
 
     def admin(self, query, **kwargs):
-        """Run a sql query on the pgbouncer admin database"""
+        """Run an SQL query on the PgBouncer admin database"""
         return self.admin_runner.sql(query, **kwargs)
 
     def admin_value(self, query, **kwargs):
-        """Run a sql query on the pgbouncer admin database that returns only a
+        """Run an SQL query on the PgBouncer admin database that returns only a
         single cell and return this value"""
         return self.admin_runner.sql_value(query, **kwargs)
 
     def aadmin(self, query, **kwargs):
-        """Run a sql query on the pgbouncer admin database in an asynchronous
+        """Run an SQL query on the PgBouncer admin database in an asynchronous
         task"""
         return self.admin_runner.asql(query, **kwargs)
 
@@ -724,10 +724,10 @@ class Bouncer(QueryRunner):
         self.aprocess = None
 
     async def reboot(self):
-        """Starts a new pgbouncer with the --reboot flag
+        """Starts a new PgBouncer with the --reboot flag
 
-        This new pgbouncer process will replace the current process and take
-        over its non-ssl sockets.
+        This new PgBouncer process will replace the current process and take
+        over its non-SSL sockets.
         """
         assert self.aprocess is not None or self.process is not None
         if self.aprocess:
@@ -789,9 +789,9 @@ class Bouncer(QueryRunner):
         self.port_lock.release()
 
     def write_ini(self, config):
-        """Writes a config to the ini file of this pgbouncer
+        """Writes a config to the ini file of this PgBouncer
 
-        It appends a newline automatically. To apply these changes pgbouncer
+        It appends a newline automatically. To apply these changes PgBouncer
         still needs to be reloaded or restarted. To reload in a cross platform
         way you need can use admin("reload").
         """

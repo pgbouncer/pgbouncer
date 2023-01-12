@@ -56,8 +56,8 @@ async def test_min_pool_size(pg, bouncer):
 
 def test_min_pool_size_with_lower_max_user_connections(bouncer):
     # The p0x in test.init has min_pool_size set to 5. This should make
-    # the bouncer try to create a pool for maxedout2 user of size 5 after a
-    # client connects to the bouncer. However maxedout2 user has
+    # the PgBouncer try to create a pool for maxedout2 user of size 5 after a
+    # client connects to the PgBouncer. However maxedout2 user has
     # max_user_connections set to 2, so the final pool size should be only 2.
 
     # Running a query for sufficient time for us to reach the final
@@ -69,8 +69,8 @@ def test_min_pool_size_with_lower_max_user_connections(bouncer):
 
 def test_min_pool_size_with_lower_max_db_connections(bouncer):
     # The p0x in test.init has min_pool_size set to 5. This should make
-    # the bouncer try to create a pool for puser1 user of size 5 after a client
-    # connects to the bouncer. However the db also has max_db_connections set
+    # the PgBouncer try to create a pool for puser1 user of size 5 after a client
+    # connects to the PgBouncer. However the db also has max_db_connections set
     # to 2, so the final pool size should be only 2.
 
     # Running a query for sufficient time for us to reach the final
@@ -103,7 +103,7 @@ async def test_max_db_connections(pg, bouncer):
         *[bouncer.asleep(0.5, dbname="p2", user=u, times=2) for u in users]
     )
 
-    # p2 in pgbouncer maps to p0 in postgres
+    # p2 in PgBouncer maps to p0 in Postgres
     assert pg.connection_count("p0", users=users) == 4
 
 

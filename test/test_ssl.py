@@ -12,7 +12,7 @@ if not TLS_SUPPORT:
 # silicon when enabling SSL: https://github.com/psycopg/psycopg/discussions/270
 
 
-# override regular bouncer fixture with one that uses the special ssl config
+# override regular bouncer fixture with one that uses the special SSL config
 @pytest.mark.asyncio
 @pytest.fixture
 async def bouncer(pg, tmp_path):
@@ -197,7 +197,7 @@ def test_client_ssl_set_change_ca(bouncer, cert_dir):
     bouncer.psql_test(host="localhost", sslmode="verify-full", sslrootcert=new_root)
 
 
-@pytest.mark.skipif("WINDOWS", reason="windows does not have SIGHUP")
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
 def test_client_ssl_sighup_enable_disable(bouncer, cert_dir):
     root = cert_dir / "TestCA1" / "ca.crt"
     key = cert_dir / "TestCA1" / "sites" / "01-localhost.key"
@@ -215,7 +215,7 @@ def test_client_ssl_sighup_enable_disable(bouncer, cert_dir):
     bouncer.test(sslmode="disable")
 
 
-@pytest.mark.skipif("WINDOWS", reason="windows does not have SIGHUP")
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
 def test_client_ssl_sighup_change_ca(bouncer, cert_dir):
     root = cert_dir / "TestCA1" / "ca.crt"
     key = cert_dir / "TestCA1" / "sites" / "01-localhost.key"

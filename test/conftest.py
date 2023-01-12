@@ -41,7 +41,7 @@ def cert_dir(tmp_path_factory, worker_id):
 
 @pytest.fixture(autouse=True, scope="session")
 def pg(tmp_path_factory, cert_dir):
-    """Starts a new postgres db that is shared for tests in this process"""
+    """Starts a new Postgres db that is shared for tests in this process"""
     pg = Postgres(tmp_path_factory.getbasetemp() / "pgdata")
     pg.initdb()
     os.truncate(pg.hba_path, 0)
@@ -97,7 +97,7 @@ def pg(tmp_path_factory, cert_dir):
 @pytest.mark.asyncio
 @pytest.fixture
 async def bouncer(pg, tmp_path):
-    """Starts a new pgbouncer process"""
+    """Starts a new PgBouncer process"""
     bouncer = Bouncer(pg, tmp_path / "bouncer")
 
     await bouncer.start()
@@ -109,7 +109,7 @@ async def bouncer(pg, tmp_path):
 
 @pytest.fixture(autouse=True)
 def pg_log(pg):
-    """Prints the postgres logs that were created during the test
+    """Prints the Postgres logs that were created during the test
 
     This can be useful for debugging a failure.
     """
@@ -122,7 +122,7 @@ def pg_log(pg):
 
 @pytest.fixture(autouse=True)
 def pg_reset(pg):
-    """Resets any changes to postgres settings from previous tests"""
+    """Resets any changes to Postgres settings from previous tests"""
     pg.reset_hba()
     os.truncate(pg.pgdata / "postgresql.auto.conf", 0)
     pg.reload()

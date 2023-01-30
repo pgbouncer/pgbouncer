@@ -1,5 +1,4 @@
 import time
-import os
 import pytest
 import psycopg
 import platform

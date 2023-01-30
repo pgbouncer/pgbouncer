@@ -257,3 +257,13 @@ task:
     configure_artifacts:
       path: "config.log"
       type: text/plain
+
+task:
+  name: Python check
+  container:
+    image: ubuntu:20.04
+  setup_script:
+    - apt-get update
+    - apt-get -y install flake8
+  test_script:
+    - flake8

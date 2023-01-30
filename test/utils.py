@@ -12,12 +12,10 @@ import psycopg
 import os
 import re
 import sys
-import shutil
 import time
 import asyncio
 import socket
-from tempfile import TemporaryDirectory, gettempdir
-import multiprocessing
+from tempfile import gettempdir
 import filelock
 import typing
 import signal
@@ -365,7 +363,7 @@ class QueryRunner:
                     f"pfctl -E", stderr=subprocess.PIPE, text=True
                 ).stderr
                 match = re.search(r"^Token : (\d+)", command_stderr, flags=re.MULTILINE)
-                assert match != None
+                assert match is not None
                 fw_token = match.group(1)
             sudo(
                 'bash -c "'
@@ -489,7 +487,7 @@ class Postgres(QueryRunner):
     def start(self):
         try:
             self.pgctl(f'-o "-p {self.port}" -l {self.log_path} start')
-        except:
+        except Exception:
             print("\n\nPG_LOG\n")
             with self.log_path.open() as f:
                 print(f.read())
@@ -558,7 +556,7 @@ class Postgres(QueryRunner):
         """Remove any HBA rules that were added after the last call to commit_hba"""
         with self.hba_path.open() as f:
             hba_contents = f.read()
-        committed = hba_contents[hba_contents.find("# committed-rules\n") :]
+        committed = hba_contents[hba_contents.find("# committed-rules\n"):]
         with self.hba_path.open("w") as f:
             f.write(committed)
 

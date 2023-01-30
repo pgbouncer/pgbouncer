@@ -2,7 +2,7 @@ import pytest
 import os
 import filelock
 import shutil
-from .utils import *
+from .utils import run, Bouncer, Postgres, LONG_PASSWORD, PG_SUPPORTS_SCRAM, TEST_DIR, TLS_SUPPORT
 
 
 def create_certs(cert_dir):

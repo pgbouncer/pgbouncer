@@ -1,8 +1,5 @@
 #! /usr/bin/env python3
 
-import sys
-import os
-import re
 import time
 import psycopg2
 import threading

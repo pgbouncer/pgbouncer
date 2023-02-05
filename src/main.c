@@ -138,6 +138,7 @@ char *cf_resolv_conf;
 unsigned int cf_max_packet_size;
 
 char *cf_ignore_startup_params;
+int  cf_ignore_sigterm;
 
 char *cf_autodb_connstr; /* here is "" different from NULL */
 
@@ -254,6 +255,7 @@ CF_ABS("dns_nxdomain_ttl", CF_TIME_USEC, cf_dns_nxdomain_ttl, 0, "15"),
 CF_ABS("dns_zone_check_period", CF_TIME_USEC, cf_dns_zone_check_period, 0, "0"),
 CF_ABS("idle_transaction_timeout", CF_TIME_USEC, cf_idle_transaction_timeout, 0, "0"),
 CF_ABS("ignore_startup_parameters", CF_STR, cf_ignore_startup_params, 0, ""),
+CF_ABS("ignore_sigterm", CF_INT, cf_ignore_sigterm, CF_NO_RELOAD, "0"),
 CF_ABS("job_name", CF_STR, cf_jobname, CF_NO_RELOAD, "pgbouncer"),
 CF_ABS("listen_addr", CF_STR, cf_listen_addr, CF_NO_RELOAD, ""),
 CF_ABS("listen_backlog", CF_INT, cf_listen_backlog, CF_NO_RELOAD, "128"),
@@ -447,6 +449,10 @@ static struct event ev_sigint;
 
 static void handle_sigterm(evutil_socket_t sock, short flags, void *arg)
 {
+	if (cf_ignore_sigterm) {
+		log_info("got SIGTERM, ignoring");
+		return;
+	}
 	log_info("got SIGTERM, fast exit");
 	/* pidfile cleanup happens via atexit() */
 	exit(1);

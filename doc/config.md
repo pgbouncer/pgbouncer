@@ -212,6 +212,15 @@ If you need to specify multiple values, use a comma-separated list (e.g.
 
 Default: empty
 
+### ignore_sigterm
+
+Ignore any received TERM signals, useful for running in cloud environments like Herko & AWS which
+send TERM signals on container shutdown while rerouting new requests.  Ignoring the signal allows
+process to respond to last queries instead of terminating immediately.  AWS provides 30s after sending
+TERM to finish responding to in-flight requests.
+
+Default: 0
+
 ### disable_pqexec
 
 Disable the Simple Query protocol (PQexec).  Unlike the Extended Query protocol, Simple Query

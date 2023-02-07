@@ -264,6 +264,8 @@ task:
     image: ubuntu:20.04
   setup_script:
     - apt-get update
-    - apt-get -y install flake8
+    - apt-get install -y python3 python3-pip
+    - pip install -r dev_requirements.txt
   test_script:
     - flake8
+    - black --check .

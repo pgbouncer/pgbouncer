@@ -18,3 +18,6 @@ timeout = 30
 # otherwise without lots of version checks. So having a warning on outdated
 # versions is a small price to pay to not have to worry about that.
 asyncio_mode = 'auto'
+
+[tool.black]
+extend-exclude = 'lib'

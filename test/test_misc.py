@@ -1,8 +1,9 @@
-import time
-import pytest
-import psycopg
 import asyncio
 import re
+import time
+
+import psycopg
+import pytest
 
 from .utils import HAVE_IPV6_LOCALHOST
 

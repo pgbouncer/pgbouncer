@@ -19,5 +19,9 @@ timeout = 30
 # versions is a small price to pay to not have to worry about that.
 asyncio_mode = 'auto'
 
+[tool.isort]
+profile = 'black'
+skip = 'lib'
+
 [tool.black]
 extend-exclude = 'lib'

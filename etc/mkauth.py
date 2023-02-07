@@ -1,8 +1,9 @@
 #! /usr/bin/env python3
 
-import sys
 import os
+import sys
 import tempfile
+
 import psycopg2
 
 if len(sys.argv) != 3:

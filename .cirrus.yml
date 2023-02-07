@@ -269,3 +269,4 @@ task:
   test_script:
     - flake8
     - black --check .
+    - isort --check .

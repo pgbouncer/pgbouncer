@@ -1,7 +1,9 @@
-import pytest
-import psycopg
 import re
-from .utils import PG_SUPPORTS_SCRAM, LONG_PASSWORD
+
+import psycopg
+import pytest
+
+from .utils import LONG_PASSWORD, PG_SUPPORTS_SCRAM
 
 
 def test_auth_user(bouncer):

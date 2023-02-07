@@ -1,9 +1,10 @@
 #! /usr/bin/env python3
 
-import time
-import psycopg2
-import threading
 import random
+import threading
+import time
+
+import psycopg2
 
 n_thread = 100
 longtx = False

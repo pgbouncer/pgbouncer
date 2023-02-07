@@ -1,9 +1,10 @@
-import time
-import pytest
-import psycopg
 import asyncio
+import time
 
-from .utils import WINDOWS, PG_SUPPORTS_SCRAM
+import psycopg
+import pytest
+
+from .utils import PG_SUPPORTS_SCRAM, WINDOWS
 
 
 @pytest.mark.asyncio

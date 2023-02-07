@@ -1,8 +1,9 @@
-import pytest
-import psycopg
 import subprocess
 
-from .utils import WINDOWS, Bouncer, TEST_DIR, TLS_SUPPORT, PG_MAJOR_VERSION
+import psycopg
+import pytest
+
+from .utils import PG_MAJOR_VERSION, TEST_DIR, TLS_SUPPORT, WINDOWS, Bouncer
 
 if not TLS_SUPPORT:
     pytest.skip(allow_module_level=True)

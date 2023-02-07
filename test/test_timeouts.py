@@ -1,9 +1,9 @@
-import time
-import pytest
-import psycopg
-import platform
-
 import asyncio
+import platform
+import time
+
+import psycopg
+import pytest
 
 from .utils import USE_SUDO
 

@@ -1,6 +1,6 @@
-from pathlib import Path
 import subprocess
-from contextlib import contextmanager, closing
+from contextlib import closing, contextmanager
+from pathlib import Path
 
 try:
     from contextlib import asynccontextmanager
@@ -8,19 +8,19 @@ except ImportError:
     # Fallback for python3.6
     from contextlib2 import asynccontextmanager
 
-import psycopg
+import asyncio
 import os
+import platform
 import re
+import signal
+import socket
 import sys
 import time
-import asyncio
-import socket
-from tempfile import gettempdir
-import filelock
 import typing
-import signal
-import platform
+from tempfile import gettempdir
 
+import filelock
+import psycopg
 
 TEST_DIR = Path(os.path.dirname(os.path.realpath(__file__)))
 os.chdir(TEST_DIR)

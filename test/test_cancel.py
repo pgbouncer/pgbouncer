@@ -1,7 +1,8 @@
-import pytest
 import time
-import psycopg
 from concurrent.futures import ThreadPoolExecutor
+
+import psycopg
+import pytest
 
 
 def test_cancel(bouncer):

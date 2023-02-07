@@ -556,7 +556,7 @@ class Postgres(QueryRunner):
         """Remove any HBA rules that were added after the last call to commit_hba"""
         with self.hba_path.open() as f:
             hba_contents = f.read()
-        committed = hba_contents[hba_contents.find("# committed-rules\n"):]
+        committed = hba_contents[hba_contents.find("# committed-rules\n") :]
         with self.hba_path.open("w") as f:
             f.write(committed)
 

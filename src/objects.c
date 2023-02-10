@@ -1442,6 +1442,18 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed)
 	max = pool_server_count(pool);
 
 	/*
+	 * Peer pools only have a single pool_size.
+	 */
+	if (pool->db->peer_id) {
+		if (max < pool_pool_size(pool))
+			goto force_new;
+
+		log_debug("launch_new_connection: peer pool full (%d >= %d)",
+				max, pool_pool_size(pool));
+		return;
+	}
+
+	/*
 	 * When a cancel request is queued allow connections up to twice the pool
 	 * size.
 	 *

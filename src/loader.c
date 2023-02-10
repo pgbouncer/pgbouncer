@@ -235,6 +235,11 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 		}
 	}
 
+	if (!host) {
+		log_error("host was not provided for peer %d", peer_id);
+		goto fail;
+	}
+
 	peer = add_peer(name, peer_id);
 	if (!peer) {
 		log_error("cannot create peer, no memory?");

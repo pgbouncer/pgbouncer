@@ -212,9 +212,11 @@ If you need to specify multiple values, use a comma-separated list (e.g.
 
 Default: empty
 
-## peer_id
-The peer id used to identify this pgbouncer process in a group of pgbouncer
-processes that are peered together. When set to 0 pgbouncer peering is disabled
+### peer_id
+The peer id used to identify this PgBouncer process in a group of PgBouncer
+processes that are peered together. The `peer_id` value should be unique within
+a group of peered PgBouncer processes. When set to 0 pgbouncer peering is
+disabled. See the docs for the `[peers]` section for more information.
 
 Default: 0
 
@@ -861,6 +863,8 @@ might have implications for monitoring and metrics collection.
 To make sure query cancellations keep working, you should set up PgBouncer
 peering between the different PgBouncer processes. For details look at docs
 for the `peer_id` configuration option and the `peers` configuration section.
+There's also an example that uses peering and so_reuseport in the example
+section of these docs.
 
 Default: 0
 
@@ -1085,6 +1089,79 @@ database or default `pool_mode` is used.
 Configure a maximum for the user (i.e. all pools with the user will
 not have more than this many server connections).
 
+## Section [peers]
+
+The section `[peers]` defines the peers that PgBouncer can forward cancellation
+requests to and where those cancellation requests will be routed.
+
+PgBouncer processes can be peered together in a group by defining a `peer_id`
+value and a `[peers]` section in the configs of all the PgBouncer processes.
+These PgBouncer processes can then forward cancellations requests to the process
+that it originated from.  This is needed to make cancellations work when
+multiple PgBouncer processes (possibly on different servers) are behind the same
+TCP load balancer.  Cancellation requests are sent over different TCP
+connections than the query they are cancelling, so a TCP load balancer might
+send the cancellation request connection to a different process than the one
+that it was meant for.  By peering them these cancellation requests eventually
+end up at the right process. A more in-depth explanation is provided in this
+[recording of a conference talk][cancel-problem-video].
+
+[cancel-problem-video]: https://www.youtube.com/watch?v=M585FfbboNA
+
+The section contains key=value lines like
+
+    peer_id = connection string
+
+Where the key will be taken as a `peer_id` and the value as a connection string,
+consisting of key=value pairs of connection parameters, described below (similar
+to libpq, but the actual libpq is not used and the set of available features is
+different).  Example:
+
+    1 = host=host1.example.com
+    2 = host=/tmp/pgbouncer-2  port=5555
+
+Note: For peering to work, the `peer_id` of each PgBouncer process in the group
+must be unique within the peered group.  And the `[peers]` section should
+contain entries for each of those peer ids.  An example can be found in the
+examples section of these docs.  It **is** allowed, but not necessary, for the
+`[peers]` section to contain the `peer_id` of the PgBouncer that the config is
+for. Such an entry will be ignored, but it is allowed to config management easy.
+Because it allows using the exact same `[peers]` section for multiple
+configs.
+
+### host
+
+Host name or IP address to connect to.  Host names are resolved at connection
+time, the result is cached per `dns_max_ttl` parameter.  If DNS returns several
+results, they are used in a round-robin manner.  But in general it's not
+recommended to use a hostname that resolves to multiple IPs, because then the
+cancel request might still be forwarded to the wrong node and it would need to
+be forwarded again (which is only allowed up to three times).
+
+If the value begins with `/`, then a Unix socket in the file-system namespace is
+used.  If the value begins with `@`, then a Unix socket in the abstract
+namespace is used.
+
+Examples:
+
+	host=localhost
+	host=127.0.0.1
+	host=2001:0db8:85a3:0000:0000:8a2e:0370:7334
+	host=/var/run/pgbouncer-1
+
+### port
+
+Default: 6432
+
+### pool_size
+
+Set the maximum number of cancel requests that can be in flight to the peer at
+the same time.  It's quite normal for cancel requests to arrive in bursts, e.g.
+when the backing Postgres server slow or down.  So it's important for
+`pool_size` to not be so low that it cannot handle these bursts.
+
+If not set, the `default_pool_size` is used.
+
 
 ## Include directive
 
@@ -1211,6 +1288,40 @@ Example of a secure function for `auth_query`:
     REVOKE ALL ON FUNCTION pgbouncer.user_lookup(text) FROM public, pgbouncer;
     GRANT EXECUTE ON FUNCTION pgbouncer.user_lookup(text) TO pgbouncer;
 
+Example configs for 2 peered PgBouncer processes to create a multi-core
+PgBouncer setup using `so_reuseport`. The config for the first process:
+
+    [databases]
+    postgres = host=localhost dbname=postgres
+
+    [peers]
+    1 = host=/tmp/pgbouncer1
+    2 = host=/tmp/pgbouncer2
+
+    [pgbouncer]
+    listen_addr=127.0.0.1
+    auth_file=auth_file.conf
+    so_reuseport=1
+    unix_socket_dir=/tmp/pgbouncer1
+    peer_id=1
+
+
+The config for the second process:
+
+    [databases]
+    postgres = host=localhost dbname=postgres
+
+    [peers]
+    1 = host=/tmp/pgbouncer1
+    2 = host=/tmp/pgbouncer2
+
+    [pgbouncer]
+    listen_addr=127.0.0.1
+    auth_file=auth_file.conf
+    so_reuseport=1
+    ; only unix_socket_dir and peer_id are different
+    unix_socket_dir=/tmp/pgbouncer2
+    peer_id=2
 
 ## See also
 

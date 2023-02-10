@@ -633,7 +633,7 @@ static PgPool *new_peer_pool(PgDatabase *db)
 	statlist_init(&pool->active_cancel_req_list, "active_cancel_req_list");
 	statlist_init(&pool->active_cancel_server_list, "active_cancel_server_list");
 
-	/* keep pools in db/user order to make stats faster */
+	/* keep pools in peer_id order to make stats faster */
 	put_in_order(&pool->head, &peer_pool_list, cmp_peer_pool);
 
 	return pool;
@@ -1489,20 +1489,18 @@ allow_new:
 		}
 	}
 
-	if (pool->user) {
-		max = user_max_connections(pool->user);
-		if (max > 0) {
-			/* try to evict unused connection first */
-			while (evict_if_needed && pool->user->connection_count >= max) {
-				if (!evict_user_connection(pool->user)) {
-					break;
-				}
+	max = user_max_connections(pool->user);
+	if (max > 0) {
+		/* try to evict unused connection first */
+		while (evict_if_needed && pool->user->connection_count >= max) {
+			if (!evict_user_connection(pool->user)) {
+				break;
 			}
-			if (pool->user->connection_count >= max) {
-				log_debug("launch_new_connection: user '%s' full (%d >= %d)",
-					  pool->user->name, pool->user->connection_count, max);
-				return;
-			}
+		}
+		if (pool->user->connection_count >= max) {
+			log_debug("launch_new_connection: user '%s' full (%d >= %d)",
+				  pool->user->name, pool->user->connection_count, max);
+			return;
 		}
 	}
 
@@ -1612,7 +1610,7 @@ bool finish_client_login(PgSocket *client)
 static void accept_cancel_request_for_peer(int peer_id, PgSocket *req) {
 	PgDatabase *peer = NULL;
 	PgPool *pool = NULL;
-	int ttl = req->cancel_key[7] & 0x03;
+	int ttl = req->cancel_key[7] & CANCELLATION_TTL_MASK;
 
 	if (ttl == 0) {
 		disconnect_client(req, false, "failed to forward cancel request because its TTL was exhausted");
@@ -1621,8 +1619,8 @@ static void accept_cancel_request_for_peer(int peer_id, PgSocket *req) {
 
 	/*
 	 * Before forwarding the cancel key, we need to decrement the TTL. Now is
-	 * as a good a time to do so. We simply subtract 1 from the last byte,
-	 * since the TTL is stored in the least significant bits.
+	 * as a good a time as any to do so. We simply subtract 1 from the last
+	 * byte, since the TTL is stored in the least significant bits.
 	 */
 	req->cancel_key[7]--;
 
@@ -1691,9 +1689,9 @@ void accept_cancel_request(PgSocket *req)
 		/*
 		 * Set the last two bits of the cancel key to 1. This is necessary to
 		 * compare the key from the request to our stored cancel keys, because
-		 * those have these TTL bits set to 1.
+		 * the stored cancel keys always have these TTL bits set to 1.
 		 */
-		req->cancel_key[7] |= 0x03;
+		req->cancel_key[7] |= CANCELLATION_TTL_MASK;
 	}
 
 

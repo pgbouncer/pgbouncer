@@ -197,6 +197,15 @@ extern int cf_sbuf_len;
 /* buffer size for startup noise */
 #define STARTUP_BUF	1024
 
+/*
+ * When peering is enabled we always put a 1 in the last two bits of the cancel
+ * key when sending it to the client. These bits indicate the TTL and thus
+ * allow forwarding the the cancel key 3 times before it is dropped. Triple
+ * forwarding seems enough for any reasonable multi layered load balancing
+ * setup.
+ */
+#define CANCELLATION_TTL_MASK 0x03
+
 
 /*
  * Remote/local address

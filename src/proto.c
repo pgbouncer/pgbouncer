@@ -275,16 +275,13 @@ bool welcome_client(PgSocket *client)
 		 * peer id when they receive this cancellation.
 		 */
 		client->cancel_key[0] = cf_peer_id & 0xFF;
-		client->cancel_key[1] = cf_peer_id >> 8;
+		client->cancel_key[1] = (cf_peer_id >> 8) & 0xFF;
 
 		/*
-		 * When sending the key to the client we always store a 1 in the last
-		 * two bits of the cancel key. These bits indicate the TTL and thus
-		 * allow forwarding the the cancel key 3 times before it is dropped.
-		 * Triple forwarding seems enough for any reasonable multi layered load
-		 * balancing setup.
+		 * Initially we set the two TTL mask bits to a 1, so that the cancel
+		 * message can be forwarded to peers up to 3 times.
 		 */
-		client->cancel_key[7] |= 0x03;
+		client->cancel_key[7] |= CANCELLATION_TTL_MASK;
 	}
 
 	pktbuf_write_BackendKeyData(msg, client->cancel_key);

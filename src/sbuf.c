@@ -252,7 +252,7 @@ bool sbuf_continue_with_callback(SBuf *sbuf, event_callback_fn user_cb)
 
 	AssertActive(sbuf);
 
-	event_assign(&sbuf->ev, pgb_event_base, sbuf->sock, EV_READ | EV_PERSIST,
+	event_assign(&sbuf->ev, pgb_event_base, sbuf->sock, EV_READ | EV_PERSIST | EV_CLOSED,
 		  user_cb, sbuf);
 
 	err = event_add(&sbuf->ev, NULL);
@@ -400,7 +400,7 @@ static bool sbuf_wait_for_data(SBuf *sbuf)
 {
 	int err;
 
-	event_assign(&sbuf->ev, pgb_event_base, sbuf->sock, EV_READ | EV_PERSIST, sbuf_recv_cb, sbuf);
+	event_assign(&sbuf->ev, pgb_event_base, sbuf->sock, EV_READ | EV_PERSIST | EV_CLOSED, sbuf_recv_cb, sbuf);
 	err = event_add(&sbuf->ev, NULL);
 	if (err < 0) {
 		log_warning("sbuf_wait_for_data: event_add failed: %s", strerror(errno));
@@ -669,7 +669,12 @@ static bool sbuf_actual_recv(SBuf *sbuf, size_t len)
 static void sbuf_recv_cb(evutil_socket_t sock, short flags, void *arg)
 {
 	SBuf *sbuf = arg;
-	sbuf_main_loop(sbuf, DO_RECV);
+	if (flags & EV_CLOSED) {
+		log_debug("Early close detected");
+		sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
+	} else {
+		sbuf_main_loop(sbuf, DO_RECV);
+	}
 }
 
 static bool allocate_iobuf(SBuf *sbuf)

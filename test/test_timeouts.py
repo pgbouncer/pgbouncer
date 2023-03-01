@@ -1,11 +1,12 @@
 import asyncio
 import platform
+import socket
 import time
 
 import psycopg
 import pytest
 
-from .utils import USE_SUDO
+from .utils import USE_SUDO, HAS_EPOLL
 
 
 def test_server_lifetime(pg, bouncer):
@@ -132,6 +133,39 @@ def test_tcp_user_timeout(pg, bouncer):
                 match=r"server closed the connection unexpectedly|Software caused connection abort",
             ):
                 bouncer.test(connect_timeout=10)
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif("not USE_SUDO")
+@pytest.mark.skipif(
+    "not HAS_EPOLL", reason="Early close detection is only available with epoll"
+)
+async def test_close_detection(bouncer):
+    aconn = await bouncer.aconn()
+    sock = socket.fromfd(aconn.fileno(), socket.AF_INET, socket.SOCK_STREAM)
+    with bouncer.admin_runner.cur() as cur:
+        cur.execute('SHOW STATS_TOTALS')
+        result = cur.fetchall()[0]
+        assert result[0] == 'p0'
+        assert result[1] == 0
+        with bouncer.drop_traffic():
+            query_task = aconn.execute('select 1')
+            done, pending = await asyncio.wait([query_task], timeout=1)
+            assert done == set()
+            assert len(pending) == 1
+            sock.shutdown(socket.SHUT_RDWR)
+
+        cur.execute('SHOW CLIENTS')
+        client_num = len(cur.fetchall())
+        while client_num > 1:
+            time.sleep(1)
+            cur.execute('SHOW CLIENTS')
+            client_num = len(cur.fetchall())
+
+        cur.execute('SHOW STATS_TOTALS')
+        result = cur.fetchall()[0]
+        assert result[0] == 'p0'
+        assert result[1] == 0
 
 
 @pytest.mark.skipif("not USE_SUDO")

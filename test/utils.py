@@ -634,7 +634,7 @@ class Bouncer(QueryRunner):
                 # Linux.
                 self.admin_host = str(self.config_dir)
             else:
-                self.admin_host = '/tmp'
+                self.admin_host = "/tmp"
         else:
             self.admin_host = "127.0.0.1"
 

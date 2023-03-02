@@ -17,7 +17,7 @@
  */
 
 bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *pkt)  _MUSTCHECK;
-void kill_pool_logins(PgPool *pool, const char *msg);
+void kill_pool_logins(PgPool *pool, const char *sqlstate, const char *msg);
 int pool_pool_mode(PgPool *pool) _MUSTCHECK;
 int pool_pool_size(PgPool *pool) _MUSTCHECK;
 int pool_min_pool_size(PgPool *pool) _MUSTCHECK;

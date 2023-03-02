@@ -144,8 +144,10 @@ bool get_header(struct MBuf *data, PktHdr *pkt)
  * to be closed after an ERROR-level error.  So to be nice, level_fatal should
  * be true if the caller plans to close the connection after sending this
  * error.
+ * Error code 08P01 (ERRCODE_PROTOCOL_VIOLATION) is used as default error code
+ * if no SQLSTATE is provided.
  */
-bool send_pooler_error(PgSocket *client, bool send_ready, bool level_fatal, const char *msg)
+bool send_pooler_error(PgSocket *client, bool send_ready, const char *sqlstate, bool level_fatal, const char *msg)
 {
 	uint8_t tmpbuf[512];
 	PktBuf buf;
@@ -156,7 +158,7 @@ bool send_pooler_error(PgSocket *client, bool send_ready, bool level_fatal, cons
 	pktbuf_static(&buf, tmpbuf, sizeof(tmpbuf));
 	pktbuf_write_generic(&buf, 'E', "cscscsc",
 			     'S', level_fatal ? "FATAL" : "ERROR",
-			     'C', "08P01", 'M', msg, 0);
+			     'C', sqlstate ? sqlstate : "08P01", 'M', msg, 0);
 	if (send_ready)
 		pktbuf_write_ReadyForQuery(&buf);
 	return pktbuf_send_immediate(&buf, client);
@@ -165,9 +167,9 @@ bool send_pooler_error(PgSocket *client, bool send_ready, bool level_fatal, cons
 /*
  * Parse server error message and log it.
  */
-void parse_server_error(PktHdr *pkt, const char **level_p, const char **msg_p)
+void parse_server_error(PktHdr *pkt, const char **level_p, const char **msg_p, const char **sqlstate_p)
 {
-	const char *level = NULL, *msg = NULL, *val;
+	const char *level = NULL, *msg = NULL, *sqlstate = NULL, *val;
 	uint8_t type;
 	while (mbuf_avail_for_read(&pkt->data)) {
 		if (!mbuf_get_byte(&pkt->data, &type))
@@ -180,17 +182,20 @@ void parse_server_error(PktHdr *pkt, const char **level_p, const char **msg_p)
 			level = val;
 		} else if (type == 'M') {
 			msg = val;
+		} else if (type == 'C') {
+			sqlstate = val;
 		}
 	}
 	*level_p = level;
 	*msg_p = msg;
+	*sqlstate_p = sqlstate;
 }
 
 void log_server_error(const char *note, PktHdr *pkt)
 {
-	const char *level = NULL, *msg = NULL;
+	const char *level = NULL, *msg = NULL, *sqlstate = NULL;
 
-	parse_server_error(pkt, &level, &msg);
+	parse_server_error(pkt, &level, &msg, &sqlstate);
 
 	if (!msg || !level) {
 		log_error("%s: partial error message, cannot log", note);
@@ -352,7 +357,7 @@ static bool login_md5_psw(PgSocket *server, const uint8_t *salt)
 		break;
 	default:
 		slog_error(server, "cannot do MD5 authentication: wrong password type");
-		kill_pool_logins(server->pool, "server login failed: wrong password type");
+		kill_pool_logins(server->pool, NULL, "server login failed: wrong password type");
 		return false;
 	}
 
@@ -374,13 +379,13 @@ static bool login_scram_sha_256(PgSocket *server)
 	case PASSWORD_TYPE_SCRAM_SHA_256:
 		if (!user->has_scram_keys) {
 			slog_error(server, "cannot do SCRAM authentication: password is SCRAM secret but client authentication did not provide SCRAM keys");
-			kill_pool_logins(server->pool, "server login failed: wrong password type");
+			kill_pool_logins(server->pool, NULL, "server login failed: wrong password type");
 			return false;
 		}
 		break;
 	default:
 		slog_error(server, "cannot do SCRAM authentication: wrong password type");
-		kill_pool_logins(server->pool, "server login failed: wrong password type");
+		kill_pool_logins(server->pool, NULL, "server login failed: wrong password type");
 		return false;
 	}
 
@@ -485,7 +490,7 @@ static bool login_scram_sha_256_final(PgSocket *server, unsigned datalen, const 
 	if (!verify_server_signature(&server->scram_state, user, ServerSignature))
 	{
 		slog_error(server, "invalid server signature");
-		kill_pool_logins(server->pool, "server login failed: invalid server signature");
+		kill_pool_logins(server->pool, NULL, "server login failed: invalid server signature");
 		return false;
 	}
 
@@ -544,7 +549,7 @@ bool answer_authreq(PgSocket *server, PktHdr *pkt)
 
 		if (!selected_mechanism) {
 			slog_error(server, "none of the server's SASL authentication mechanisms are supported");
-			kill_pool_logins(server->pool, "server login failed: none of the server's SASL authentication mechanisms are supported");
+			kill_pool_logins(server->pool, NULL, "server login failed: none of the server's SASL authentication mechanisms are supported");
 		} else
 			res = login_scram_sha_256(server);
 		break;

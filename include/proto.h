@@ -39,9 +39,9 @@ struct PktHdr {
 
 bool get_header(struct MBuf *data, PktHdr *pkt) _MUSTCHECK;
 
-bool send_pooler_error(PgSocket *client, bool send_ready, bool level_fatal, const char *msg)  /*_MUSTCHECK*/;
+bool send_pooler_error(PgSocket *client, bool send_ready, const char *sqlstate, bool level_fatal, const char *msg)  /*_MUSTCHECK*/;
 void log_server_error(const char *note, PktHdr *pkt);
-void parse_server_error(PktHdr *pkt, const char **level_p, const char **msg_p);
+void parse_server_error(PktHdr *pkt, const char **level_p, const char **msg_p, const char **sqlstate_p);
 
 bool add_welcome_parameter(PgPool *pool, const char *key, const char *val) _MUSTCHECK;
 void finish_welcome_msg(PgSocket *server);

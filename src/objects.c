@@ -1072,17 +1072,16 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 }
 
 /*
- * close client connection
+ * A wrapper around disconnect_client_sqlstate()
  *
- * notify=true means to send the reason message as an error to the
- * client, notify=false means no message is sent.  The latter is for
- * protocol and communication errors where sending a regular error
- * message is not possible.
+ * The function disconnect_client_sqlstate() inherits the disconnect_client()
+ * content and add a new option that provides a specific SQLSTATE that is
+ * forwarded to client.  PgBouncer used to report SQLSTATE 08P01
+ * (protocol_violation) for all cases but it diverges from what Postgres
+ * reports in some cases.
  */
 void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 {
-	usec_t now = get_cached_time();
-
 	if (reason) {
 		char buf[128];
 		va_list ap;
@@ -1090,8 +1089,25 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 		va_start(ap, reason);
 		vsnprintf(buf, sizeof(buf), reason, ap);
 		va_end(ap);
-		reason = buf;
+
+		disconnect_client_sqlstate(client, notify, NULL, buf);
+	} else {
+		disconnect_client_sqlstate(client, notify, NULL, reason);
 	}
+
+}
+
+/*
+ * close client connection
+ *
+ * notify=true means to send the reason message as an error to the
+ * client, notify=false means no message is sent.  The latter is for
+ * protocol and communication errors where sending a regular error
+ * message is not possible.
+ */
+void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlstate, const char *reason)
+{
+	usec_t now = get_cached_time();
 
 	if (cf_log_disconnections && reason)
 		slog_info(client, "closing because: %s (age=%" PRIu64 "s)", reason,
@@ -1180,7 +1196,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 		 * don't send Ready pkt here, or client won't notice
 		 * closed connection
 		 */
-		send_pooler_error(client, false, true, reason);
+		send_pooler_error(client, false, sqlstate, true, reason);
 	}
 
 	free_scram_state(&client->scram_state);

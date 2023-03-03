@@ -40,7 +40,7 @@ NEW_SITE_SCRIPT = TEST_DIR / "ssl" / "newsite.sh"
 ENABLE_VALGRIND = bool(os.environ.get("ENABLE_VALGRIND"))
 HAVE_IPV6_LOCALHOST = bool(os.environ.get("HAVE_IPV6_LOCALHOST"))
 USE_SUDO = bool(os.environ.get("USE_SUDO"))
-HAS_EPOLL = hasattr(select, 'epoll')
+HAS_EPOLL = hasattr(select, "epoll")
 
 # The tests require that psql can connect to the PgBouncer admin
 # console.  On platforms that have getpeereid(), this works by

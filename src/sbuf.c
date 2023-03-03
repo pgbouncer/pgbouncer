@@ -33,6 +33,13 @@
 #define USE_TLS
 #endif
 
+/* EV_CLOSED was introduced in libevent 2.1
+ * Centos7 is using libevent 2.0 and won't have it defined
+ */
+#ifndef EV_CLOSED
+#define EV_CLOSED 0
+#endif
+
 /* sbuf_main_loop() skip_recv values */
 #define DO_RECV		false
 #define SKIP_RECV	true
@@ -670,11 +677,14 @@ static void sbuf_recv_cb(evutil_socket_t sock, short flags, void *arg)
 {
 	SBuf *sbuf = arg;
 	if (flags & EV_CLOSED) {
-		log_debug("Early close detected");
-		sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
-	} else {
-		sbuf_main_loop(sbuf, DO_RECV);
+		PgSocket *pg_socket = container_of(sbuf, PgSocket, sbuf);
+		if (pg_socket->link == NULL) {
+			log_debug("Early close detected");
+			sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
+			return;
+		}
 	}
+    sbuf_main_loop(sbuf, DO_RECV);
 }
 
 static bool allocate_iobuf(SBuf *sbuf)

@@ -906,6 +906,7 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 	case SV_TESTED:
 	case SV_USED:
 	case SV_IDLE:
+	case SV_BEING_CANCELED:
 		break;
 	case SV_LOGIN:
 		/*

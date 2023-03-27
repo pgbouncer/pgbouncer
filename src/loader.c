@@ -150,6 +150,11 @@ static bool set_auth_dbname(PgDatabase *db, const char *new_auth_dbname)
 		free(db->auth_dbname);
 
 	if (new_auth_dbname) {
+        if (strcmp(new_auth_dbname, "pgbouncer") == 0) {
+            log_error("cannot use the reserved \"%s\" database as an auth_dbname", new_auth_dbname);
+            return false;
+        }
+
 		db->auth_dbname = strdup(new_auth_dbname);
 		if (!db->auth_dbname) {
 			log_error("auth_dbname %s could not be set for database %s, out of memory", new_auth_dbname, db->name);

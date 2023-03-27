@@ -337,17 +337,17 @@ class QueryRunner:
             for _ in range(times):
                 await self.asql(f"select pg_sleep({duration})", **kwargs)
 
-    def test(self, **kwargs):
+    def test(self, query="select 1", **kwargs):
         """Test if you can connect"""
-        return self.sql("select 1", **kwargs)
+        return self.sql(query, **kwargs)
 
-    def atest(self, **kwargs):
+    def atest(self, query="select 1", **kwargs):
         """Test if you can connect asynchronously"""
-        return self.asql("select 1", **kwargs)
+        return self.asql(query, **kwargs)
 
-    def psql_test(self, **kwargs):
+    def psql_test(self, query="select 1", **kwargs):
         """Test if you can connect with psql instead of psycopg"""
-        return self.psql("select 1", **kwargs)
+        return self.psql(query, **kwargs)
 
     @contextmanager
     def enable_firewall(self):
@@ -816,15 +816,18 @@ class Bouncer(QueryRunner):
                 match_count = len(re.findall(re_string, content))
                 assert match_count == times
 
-    """
-    Run pgbouncer instance with provided config and restore previous config in after execution
-    """
-
     @contextmanager
     def run_with_config(self, config):
-        with self.ini_path.open("w+") as f:
+        """Run the pgbouncer instance with provided config and restore the
+        previous config after execution
+
+        config:
+            A new pgbouncer config in ini format
+        """
+        with self.ini_path.open("r") as f:
             config_old = f.read()
-            f.truncate()
+
+        with self.ini_path.open("w") as f:
             f.write(config)
 
         try:
@@ -832,7 +835,6 @@ class Bouncer(QueryRunner):
             yield self
         finally:
             # Code to release resource, e.g.:
-            with self.ini_path.open("w+") as f:
-                f.truncate()
+            with self.ini_path.open("w") as f:
                 f.write(config_old)
             self.admin("RELOAD")

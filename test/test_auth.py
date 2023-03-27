@@ -1,4 +1,5 @@
 import re
+import time
 
 import psycopg
 import pytest
@@ -204,114 +205,231 @@ def test_scram_both(bouncer):
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
-def test_connection_with_missing_stats_user_and_enabled_auth_query_without_global_auth_dbname(
+def test_auth_dbname_usage_with_target_db(
     bouncer,
 ):
+    """Regression for https://github.com/pgbouncer/pgbouncer/issues/314
+
+    Check that we handle correctly attempts to use pgbouncer DB as an auth_dbname.
+    Conditions:
+        * auth_query is set
+        * stats_users is set and does not exist in the userlist.txt
+        * client connects to pgbouncer (admin DB)
+        * global auth_dbname is not set
+        * target client DB is using as an auth_dbname
     """
-    Regression for https://github.com/pgbouncer/pgbouncer/issues/314
 
-    Check that pgbouncer is not crashing on connection to the virtual pgbouncer virtual db when user is missing in
-    userlists.txt and auth_query enabled.
-
-    It covers case when global auth_dbname does not set and target database used for auth_dbname in auth query
-    """
-
-    config = f"""
-        [databases]
-        * = host={bouncer.pg.host} port={bouncer.pg.port}
+    config = f"""[databases]
         [pgbouncer]
         auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
         auth_user = pswcheck
         stats_users = stats
-        listen_addr = {bouncer.pg.host}
-        verbose = 2
+        listen_addr = {bouncer.host}
         admin_users = pswcheck
-        auth_file = userlist.txt
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
         listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
     """
 
     # good password
     bouncer.test(user="pgbouncer", password="fake")
+    bouncer.reboot()
 
-    with bouncer.run_with_config(config):
-        with pytest.raises(psycopg.OperationalError, match="bouncer config error"):
-            # bad password
-            # We expect that stats user does not exist ether in userlist.txt and in postgresql DB
-            bouncer.test(user="stats", password="stats", dbname="pgbouncer")
+    with bouncer.log_contains(
+        'admin database "pgbouncer" cannot be an authentication database', 1
+    ):
+        with bouncer.run_with_config(config):
+            with pytest.raises(psycopg.OperationalError, match="bouncer config error"):
+                # bad password
+                # We expect that stats user does not exist ether in userlist.txt
+                bouncer.test(user="stats", password="stats", dbname="pgbouncer")
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
-def test_connection_with_missing_stats_user_and_enabled_auth_query_with_global_auth_dbname(
+def test_auth_dbname_usage_using_fallback_db(
     bouncer,
 ):
-    """
-    Regression for https://github.com/pgbouncer/pgbouncer/issues/314
+    """Regression for https://github.com/pgbouncer/pgbouncer/issues/314
 
-    Check that pgbouncer is not crashing on connection to the virtual pgbouncer virtual db when user is missing in
-    userlists.txt and auth_query enabled.
-
-    It covers case when global auth_dbname is set globally
+    Check that we handle correctly attempts to use pgbouncer DB as an auth_dbname.
+    Conditions:
+        * auth_query is set
+        * stats_users is set and does not exist in the userlist.txt
+        * client connects to pgbouncer (admin DB)
+        * fallback DB set with auth_dbname=pgbouncer, and it routes to pgbouncer
     """
 
     config = f"""
         [databases]
-        * = host={bouncer.pg.host} port={bouncer.pg.port}
+        * = host={bouncer.host} port={bouncer.port} auth_dbname=pgbouncer
         [pgbouncer]
         auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
         auth_user = pswcheck
         stats_users = stats
-        listen_addr = {bouncer.pg.host}
-        verbose = 2
+        listen_addr = {bouncer.host}
         admin_users = pswcheck
-        auth_file = userlist.txt
-        auth_dbname = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
         listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
     """
 
     # good password
     bouncer.test(user="pgbouncer", password="fake")
+    bouncer.reboot()
 
-    with bouncer.run_with_config(config):
-        with pytest.raises(psycopg.OperationalError, match="bouncer config error"):
-            # bad password
-            # We expect that stats user does not exist ether in userlist.txt and in postgresql DB
-            bouncer.test(user="stats", password="stats", dbname="pgbouncer")
+    with bouncer.log_contains(
+        'admin database "pgbouncer" cannot be an authentication database', 1
+    ):
+        with bouncer.run_with_config(config):
+            with pytest.raises(psycopg.OperationalError, match="bouncer config error"):
+                # bad password
+                # We expect that stats user does not exist ether in userlist.txt
+                bouncer.test(user="stats", password="stats", dbname="pgbouncer")
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
-def test_connection_with_missing_stats_user_and_enabled_auth_query_with_explicitly_authdb_name_in_db_def(
+def test_auth_dbname_usage_using_global_setting(
     bouncer,
 ):
-    """
-    Regression for https://github.com/pgbouncer/pgbouncer/issues/314
+    """Regression for https://github.com/pgbouncer/pgbouncer/issues/314
 
-    Check that pgbouncer is not crashing on connection to the virtual pgbouncer virtual db when user is missing in
-    userlists.txt and auth_query enabled.
-
-    It covers case when database definition contains explicitly defined authdb_name
+    Check that we handle correctly attempts to use pgbouncer DB as an auth_dbname.
+    Conditions:
+        * auth_query is set
+        * stats_users is set and does not exist in the userlist.txt
+        * client connects to pgbouncer (admin DB)
+        * fallback DB set with auth_dbname=pgbouncer, and it routes to pgbouncer
     """
 
     config = f"""
         [databases]
-        * = host={bouncer.pg.host} port={bouncer.pg.port}
-        pgbouncer_test = host={bouncer.pg.host} port={bouncer.pg.port} auth_dbname="pgbouncer"
+        * = host={bouncer.host} port={bouncer.port} auth_dbname=pgbouncer
         [pgbouncer]
         auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
         auth_user = pswcheck
         stats_users = stats
-        listen_addr = {bouncer.pg.host}
-        verbose = 2
+        listen_addr = {bouncer.host}
         admin_users = pswcheck
-        auth_file = userlist.txt
-        auth_dbname = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
         listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = pgbouncer
     """
 
     # good password
     bouncer.test(user="pgbouncer", password="fake")
 
+    with bouncer.log_contains(
+        'admin database "pgbouncer" cannot be an authentication database', 1
+    ):
+        with bouncer.run_with_config(config):
+            with pytest.raises(psycopg.OperationalError, match="bouncer config error"):
+                # bad password
+                # We expect that stats user does not exist ether in userlist.txt
+                bouncer.test(user="stats", password="stats", dbname="pgbouncer")
+
+
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+def test_explicitly_set_auth_dbname_in_db_definition(
+    bouncer,
+):
+    """Regression for https://github.com/pgbouncer/pgbouncer/issues/314
+
+    Check that the pgbouncer does not apply config which contains
+    explicitly pgbouncer database (admin DB) set in auth_dbname
+    in the database definition section
+    """
+
+    config = f"""
+        [databases]
+        pgbouncer_test = host={bouncer.pg.host} port={bouncer.pg.port} auth_dbname=pgbouncer
+        [pgbouncer]
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
+        auth_user = pswcheck
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pswcheck
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+    """
+
+    # good password
+    bouncer.test(user="pgbouncer", password="fake")
+
+    with bouncer.log_contains(
+        'cannot use the reserved "pgbouncer" database as an auth_dbname', 1
+    ):
+        with bouncer.run_with_config(config):
+            time.sleep(1)
+
+
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+def test_auth_dbname_works_fine(
+    bouncer,
+):
+    """Regression for https://github.com/pgbouncer/pgbouncer/issues/314
+
+    Check that we handle correctly all positive cases of auth_dbname usage
+    """
+
+    config = f"""
+        [databases]
+        postgres_authdb1 = host={bouncer.pg.host} port={bouncer.pg.port} dbname=postgres auth_dbname=postgres
+        postgres_authdb2 = host={bouncer.pg.host} port={bouncer.pg.port} dbname=postgres auth_dbname=postgres
+        pgbouncer2pgbpouncer = host={bouncer.host} port={bouncer.port} dbname=pgbouncer auth_dbname=postgres_authdb2
+        pgbouncer2pgbpouncer_global = host={bouncer.host} port={bouncer.port} dbname=pgbouncer
+        postgres_test = host={bouncer.host} port={bouncer.port}
+        * = host={bouncer.pg.host} port={bouncer.pg.port} auth_dbname=postgres
+        [pgbouncer]
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
+        auth_user = pswcheck
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pswcheck
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = postgres_authdb1
+        ;; verbose = 2
+    """
+
+    bouncer.test(user="pgbouncer", password="fake")
+
     with bouncer.run_with_config(config):
-        with pytest.raises(psycopg.OperationalError, match="bouncer config error"):
-            # bad password
-            # We expect that stats user does not exist ether in userlist.txt and in postgresql DB
-            bouncer.test(user="stats", password="stats", dbname="pgbouncer_test")
+        # The client connects to pgbouncer (admin DB), pgbouncer must
+        # use postgres_authdb1 as an auth DB, that defined in [pgbouncer] section
+        bouncer.test(
+            query="show stats", user="stats", password="stats", dbname="pgbouncer"
+        )
+
+        # The client connects to pgbouncer2pgbpouncer DB which redirects
+        # to pgbouncer (admin DB) itself, pgbouncer must use postgres_authdb2, which
+        # is defined in the database definition
+        bouncer.test(
+            query="show stats",
+            user="stats",
+            password="stats",
+            dbname="pgbouncer2pgbpouncer",
+        )
+
+        # The client connects to pgbouncer2pgbpouncer DB which redirects
+        # to pgbouncer (admin DB) itself, pgbouncer must use postgres_authdb1, which
+        # is defined in [pgbouncer] section
+        bouncer.test(
+            query="show stats",
+            user="stats",
+            password="stats",
+            dbname="pgbouncer2pgbpouncer_global",
+        )
+
+        # The client connects to postgres DB that matches with fallback databases (*),
+        # pgbouncer must use postgres_authdb1, which is defined in [pgbouncer] section
+        bouncer.test(
+            query="select 1;", user="stats", password="stats", dbname="postgres"
+        )

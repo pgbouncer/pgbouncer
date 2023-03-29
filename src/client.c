@@ -71,7 +71,8 @@ PgDatabase *prepare_auth_database(PgSocket *client)
 	}
 
     if (auth_db->admin) {
-        slog_error(client, "admin database \"%s\" cannot be an authentication database", auth_db->dbname);
+        slog_error(client, "cannot use the reserved \"%s\" database as an auth_dbname", auth_db->dbname);
+        slog_warning(client, "set global \"auth_dbname\" parameter and define database in the database section");
         disconnect_client(client, true, "bouncer config error");
         return NULL;
     }

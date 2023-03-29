@@ -25,6 +25,7 @@
 #include <usual/crypto/md5.h>
 #include <usual/crypto/csrandom.h>
 #include <usual/socket.h>
+#include <usual/cfparser.h>
 
 int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstlen)
 {
@@ -467,4 +468,16 @@ const char *pga_details(const PgAddr *a, char *dst, int dstlen)
 		snprintf(dst, dstlen, "%s:%d", buf, pga_port(a));
 	}
 	return dst;
+}
+
+/*
+ * parser setter for parsing auth_dbname parameter using "cfparser"
+ */
+bool cf_set_authdb(struct CfValue *cv, const char *value)
+{
+    if (value && strcmp(value, "pgbouncer") == 0) {
+        log_error("cannot use the reserved \"%s\" database as an auth_dbname", value);
+        return false;
+    }
+    return cf_set_str(cv, value);
 }

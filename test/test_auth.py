@@ -234,30 +234,26 @@ def test_auth_dbname_usage_with_target_db(
 
     # good password
     bouncer.test(user="pgbouncer", password="fake")
-    bouncer.reboot()
 
     with bouncer.log_contains(
-        'admin database "pgbouncer" cannot be an authentication database', 1
+        'cannot use the reserved "pgbouncer" database as an auth_dbname', 1
     ):
         with bouncer.run_with_config(config):
             with pytest.raises(psycopg.OperationalError, match="bouncer config error"):
                 # bad password
-                # We expect that stats user does not exist ether in userlist.txt
+                # We expect that stats user does not exist in userlist.txt
                 bouncer.test(user="stats", password="stats", dbname="pgbouncer")
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
-def test_auth_dbname_usage_using_fallback_db(
+def test_auth_dbname_usage_using_autodb(
     bouncer,
 ):
     """Regression for https://github.com/pgbouncer/pgbouncer/issues/314
 
-    Check that we handle correctly attempts to use pgbouncer DB as an auth_dbname.
-    Conditions:
-        * auth_query is set
-        * stats_users is set and does not exist in the userlist.txt
-        * client connects to pgbouncer (admin DB)
-        * fallback DB set with auth_dbname=pgbouncer, and it routes to pgbouncer
+    Check that the pgbouncer does not apply config which contains
+    explicitly pgbouncer database (admin DB) set in auto-database
+    definition
     """
 
     config = f"""
@@ -275,18 +271,11 @@ def test_auth_dbname_usage_using_fallback_db(
         logfile = {bouncer.log_path}
     """
 
-    # good password
-    bouncer.test(user="pgbouncer", password="fake")
-    bouncer.reboot()
-
     with bouncer.log_contains(
-        'admin database "pgbouncer" cannot be an authentication database', 1
+        'cannot use the reserved "pgbouncer" database as an auth_dbname', 1
     ):
         with bouncer.run_with_config(config):
-            with pytest.raises(psycopg.OperationalError, match="bouncer config error"):
-                # bad password
-                # We expect that stats user does not exist ether in userlist.txt
-                bouncer.test(user="stats", password="stats", dbname="pgbouncer")
+            pass
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
@@ -295,12 +284,8 @@ def test_auth_dbname_usage_using_global_setting(
 ):
     """Regression for https://github.com/pgbouncer/pgbouncer/issues/314
 
-    Check that we handle correctly attempts to use pgbouncer DB as an auth_dbname.
-    Conditions:
-        * auth_query is set
-        * stats_users is set and does not exist in the userlist.txt
-        * client connects to pgbouncer (admin DB)
-        * fallback DB set with auth_dbname=pgbouncer, and it routes to pgbouncer
+    Check that the pgbouncer does not apply config which contains
+    explicitly "pgbouncer" database (admin DB) set in [pgbouncer] section
     """
 
     config = f"""
@@ -323,13 +308,10 @@ def test_auth_dbname_usage_using_global_setting(
     bouncer.test(user="pgbouncer", password="fake")
 
     with bouncer.log_contains(
-        'admin database "pgbouncer" cannot be an authentication database', 1
+        'cannot use the reserved "pgbouncer" database as an auth_dbname', 1
     ):
         with bouncer.run_with_config(config):
-            with pytest.raises(psycopg.OperationalError, match="bouncer config error"):
-                # bad password
-                # We expect that stats user does not exist ether in userlist.txt
-                bouncer.test(user="stats", password="stats", dbname="pgbouncer")
+            pass
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
@@ -340,7 +322,7 @@ def test_explicitly_set_auth_dbname_in_db_definition(
 
     Check that the pgbouncer does not apply config which contains
     explicitly pgbouncer database (admin DB) set in auth_dbname
-    in the database definition section
+    in the databases definition section
     """
 
     config = f"""
@@ -365,7 +347,7 @@ def test_explicitly_set_auth_dbname_in_db_definition(
         'cannot use the reserved "pgbouncer" database as an auth_dbname', 1
     ):
         with bouncer.run_with_config(config):
-            time.sleep(1)
+            pass
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
@@ -428,7 +410,7 @@ def test_auth_dbname_works_fine(
             dbname="pgbouncer2pgbpouncer_global",
         )
 
-        # The client connects to postgres DB that matches with fallback databases (*),
+        # The client connects to postgres DB that matches with auto-databases (*),
         # pgbouncer must use postgres_authdb1, which is defined in [pgbouncer] section
         bouncer.test(
             query="select 1;", user="stats", password="stats", dbname="postgres"

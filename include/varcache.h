@@ -2,6 +2,7 @@
 
 enum VarCacheIdx {
 	VDateStyle = 0,
+	VIntervalStyle,
 	VClientEncoding,
 	VTimeZone,
 	VStdStr,

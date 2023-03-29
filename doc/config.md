@@ -202,10 +202,11 @@ Default: 0
 
 ### ignore_startup_parameters
 
-By default, PgBouncer allows only parameters it can keep track of in startup
-packets: `client_encoding`, `datestyle`, `timezone` and `standard_conforming_strings`.
-All others parameters will raise an error.  To allow others parameters, they can be
-specified here, so that PgBouncer knows that they are handled by the admin and it can ignore them.
+By default, PgBouncer allows only parameters it can keep track of in startup packets:
+`client_encoding`, `datestyle`, `intervalstyle`, `timezone` and
+`standard_conforming_strings`.  All others parameters will raise an error.  To allow
+others parameters, they can be specified here, so that PgBouncer knows that they are
+handled by the admin and it can ignore them.
 
 If you need to specify multiple values, use a comma-separated list (e.g.
 `options,extra_float_digits`)
@@ -1046,6 +1047,10 @@ Ask specific `client_encoding` from server.
 ### datestyle
 
 Ask specific `datestyle` from server.
+
+### intervalstyle
+
+Ask specific `intervalstyle` from server.
 
 ### timezone
 

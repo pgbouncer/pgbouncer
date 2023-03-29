@@ -93,8 +93,8 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 {
 	int fd;
 	char *task, *saddr, *user, *db;
-	char *client_enc, *std_string, *datestyle, *timezone, *password,
-		*scram_client_key, *scram_server_key;
+	char *client_enc, *std_string, *datestyle, *intervalstyle, *timezone,
+		*password, *scram_client_key, *scram_server_key;
 	int scram_client_key_len, scram_server_key_len;
 	int oldfd, port, linkfd;
 	int got;
@@ -116,9 +116,10 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	}
 
 	/* parse row contents */
-	got = scan_text_result(pkt, "issssiqisssssbb", &oldfd, &task, &user, &db,
+	got = scan_text_result(pkt, "issssiqissssssbb", &oldfd, &task, &user, &db,
 			       &saddr, &port, &ckey, &linkfd,
-			       &client_enc, &std_string, &datestyle, &timezone,
+			       &client_enc, &std_string, &datestyle,
+			       &intervalstyle, &timezone,
 			       &password,
 			       &scram_client_key_len,
 			       &scram_client_key,
@@ -148,13 +149,13 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	/* decide what to do with it */
 	if (strcmp(task, "client") == 0) {
 		res = use_client_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
-				  client_enc, std_string, datestyle, timezone,
-				  password,
+				  client_enc, std_string, datestyle,
+				  intervalstyle, timezone, password,
 				  scram_client_key, scram_client_key_len,
 				  scram_server_key, scram_server_key_len);
 	} else if (strcmp(task, "server") == 0) {
 		res = use_server_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
-				  client_enc, std_string, datestyle, timezone,
+				  client_enc, std_string, datestyle, intervalstyle, timezone,
 				  password,
 				  scram_client_key, scram_client_key_len,
 				  scram_server_key, scram_server_key_len);

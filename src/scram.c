@@ -971,6 +971,16 @@ char *build_server_final_message(ScramState *scram_state)
 		goto failed;
 
 	len = 2 + strlen(server_signature) + 1;
+
+	/*
+	 * Avoid compiler warning at snprintf() below because len
+	 * could in theory overflow snprintf() result.  If this
+	 * happened in practice, it would surely be some crazy
+	 * corruption, so treat it as an error.
+	 */
+	if (len >= INT_MAX)
+		goto failed;
+
 	result = malloc(len);
 	if (!result)
 		goto failed;

@@ -353,7 +353,6 @@ static bool parse_namefile(struct HBAName *hname, const char *fn, bool is_db)
 	ssize_t len;
 	char *ln = NULL;
 	size_t buflen = 0;
-	int linenr;
 	bool ok = false;
 	struct TokParser tp;
 
@@ -363,7 +362,7 @@ static bool parse_namefile(struct HBAName *hname, const char *fn, bool is_db)
 	if (!f) {
 		return false;
 	}
-	for (linenr = 1; ; linenr++) {
+	for (;;) {
 		len = getline(&ln, &buflen, f);
 		if (len < 0) {
 			ok = true;

@@ -200,7 +200,7 @@ task:
     HAVE_IPV6_LOCALHOST: yes
     USE_SUDO: true
   setup_script:
-    - brew install autoconf automake bash libevent libtool openssl pandoc pkg-config postgresql
+    - brew install autoconf automake bash libevent libtool openssl pandoc pkg-config postgresql@${PGVERSION}
     - python3 -m pip install -r requirements.txt
     - echo 'anchor "pgbouncer_test/*"' | sudo tee -a /etc/pf.conf
     - sudo pfctl -f /etc/pf.conf

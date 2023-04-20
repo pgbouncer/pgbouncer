@@ -430,6 +430,30 @@ static void pool_client_maint(PgPool *pool)
 	}
 }
 
+/* maintaining clients in peer pool */
+static void peer_pool_client_maint(PgPool *pool)
+{
+	struct List *item, *tmp;
+	usec_t now = get_cached_time();
+	PgSocket *client;
+	usec_t age;
+
+	/* force timeouts for waiting queries */
+	if (cf_query_timeout > 0 || cf_query_wait_timeout > 0) {
+		statlist_for_each_safe(item, &pool->waiting_cancel_req_list, tmp) {
+			client = container_of(item, PgSocket, head);
+			Assert(client->state == CL_WAITING_CANCEL);
+			age = now - client->request_time;
+
+			if (cf_query_timeout > 0 && age > cf_query_timeout) {
+				disconnect_client(client, false, "cancel request query_timeout");
+			} else if (cf_query_wait_timeout > 0 && age > cf_query_wait_timeout) {
+				disconnect_client(client, false, "cancel request query_wait_timeout");
+			}
+		}
+	}
+}
+
 static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle_test)
 {
 	usec_t now = get_cached_time();
@@ -573,6 +597,29 @@ static void pool_server_maint(PgPool *pool)
 	check_pool_size(pool);
 }
 
+/* maintain servers in a peer pool */
+static void peer_pool_server_maint(PgPool *pool)
+{
+	struct List *item, *tmp;
+	usec_t now = get_cached_time();
+	PgSocket *server;
+
+	/* find connections that got connect, but could not log in */
+	if (cf_server_connect_timeout > 0) {
+		statlist_for_each_safe(item, &pool->new_server_list, tmp) {
+			usec_t age;
+
+			server = container_of(item, PgSocket, head);
+			Assert(server->state == SV_LOGIN);
+
+			age = now - server->connect_time;
+			if (age > cf_server_connect_timeout)
+				disconnect_server(server, true, "connect timeout");
+		}
+	}
+}
+
+
 static void cleanup_client_logins(void)
 {
 	struct List *item, *tmp;
@@ -645,6 +692,12 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 		}
 	}
 
+	statlist_for_each_safe(item, &peer_pool_list, tmp) {
+		pool = container_of(item, PgPool, head);
+		peer_pool_server_maint(pool);
+		peer_pool_client_maint(pool);
+	}
+
 	/* find inactive autodbs */
 	statlist_for_each_safe(item, &database_list, tmp) {
 		db = container_of(item, PgDatabase, head);
@@ -705,6 +758,24 @@ void kill_pool(PgPool *pool)
 	slab_free(pool_cache, pool);
 }
 
+void kill_peer_pool(PgPool *pool)
+{
+	const char *reason = "peer removed";
+
+	close_client_list(&pool->active_cancel_req_list, reason);
+	close_client_list(&pool->waiting_cancel_req_list, reason);
+	close_server_list(&pool->active_cancel_server_list, reason);
+	close_server_list(&pool->new_server_list, reason);
+
+	pktbuf_free(pool->welcome_msg);
+
+	list_del(&pool->map_head);
+	statlist_remove(&peer_pool_list, &pool->head);
+	varcache_clean(&pool->orig_vars);
+	slab_free(peer_pool_cache, pool);
+}
+
+
 void kill_database(PgDatabase *db)
 {
 	PgPool *pool;
@@ -737,6 +808,25 @@ void kill_database(PgDatabase *db)
 	slab_free(db_cache, db);
 }
 
+void kill_peer(PgDatabase *db)
+{
+	PgPool *pool;
+	struct List *item, *tmp;
+
+	log_warning("dropping peer %s as it does not exist anymore", db->name);
+
+	statlist_for_each_safe(item, &peer_pool_list, tmp) {
+		pool = container_of(item, PgPool, head);
+		if (pool->db == db)
+			kill_peer_pool(pool);
+	}
+
+	free(db->host);
+
+	statlist_remove(&peer_list, &db->head);
+	slab_free(peer_cache, db);
+}
+
 /* as [pgbouncer] section can be loaded after databases,
    there's need for review */
 void config_postprocess(void)
@@ -748,6 +838,14 @@ void config_postprocess(void)
 		db = container_of(item, PgDatabase, head);
 		if (db->db_dead) {
 			kill_database(db);
+			continue;
+		}
+	}
+
+	statlist_for_each_safe(item, &peer_list, tmp) {
+		db = container_of(item, PgDatabase, head);
+		if (db->db_dead) {
+			kill_peer(db);
 			continue;
 		}
 	}

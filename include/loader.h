@@ -18,6 +18,7 @@
 
 /* connstring parsing */
 bool parse_database(void *base, const char *name, const char *connstr) _MUSTCHECK;
+bool parse_peer(void *base, const char *name, const char *connstr) _MUSTCHECK;
 
 bool parse_user(void *base, const char *name, const char *params) _MUSTCHECK;
 

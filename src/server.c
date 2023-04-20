@@ -455,6 +455,9 @@ static bool handle_connect(PgSocket *server)
 	 * Only if there are no cancel requests we proceed with the login procedure
 	 * that's necessary to handle queries. Cancel requests need to be sent
 	 * before the login procedure starts.
+	 *
+	 * A special case is when this is a peer pool, instead of a regular pool.
+	 * Since only cancellation requests should be sent to peers.
 	 */
 	if (!statlist_empty(&pool->waiting_cancel_req_list)) {
 		slog_debug(server, "use it for pending cancel req");
@@ -466,7 +469,11 @@ static bool handle_connect(PgSocket *server)
 			server->ready = true;
 			disconnect_server(server, false, "failed to send cancel req");
 		}
-	} else {
+	} else if(pool->db->peer_id) {
+		/* notify disconnect_server() that connect did not fail */
+		server->ready = true;
+		disconnect_server(server, false, "peer server was not necessary anymore, because client cancel connection was already closed");
+	}else {
 		/* proceed with login */
 		if (server_connect_sslmode > SSLMODE_DISABLED && !is_unix) {
 			slog_noise(server, "P: SSL request");

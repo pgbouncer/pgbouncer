@@ -31,6 +31,8 @@
 STATLIST(user_list);
 STATLIST(database_list);
 STATLIST(pool_list);
+STATLIST(peer_list);
+STATLIST(peer_pool_list);
 
 /* All locally defined users (in auth_file) are kept here. */
 struct AATree user_tree;
@@ -53,6 +55,8 @@ STATLIST(login_client_list);
 struct Slab *server_cache;
 struct Slab *client_cache;
 struct Slab *db_cache;
+struct Slab *peer_cache;
+struct Slab *peer_pool_cache;
 struct Slab *pool_cache;
 struct Slab *user_cache;
 struct Slab *iobuf_cache;
@@ -122,9 +126,11 @@ void init_objects(void)
 	aatree_init(&pam_user_tree, user_node_cmp, NULL);
 	user_cache = slab_create("user_cache", sizeof(PgUser), 0, NULL, USUAL_ALLOC);
 	db_cache = slab_create("db_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
+	peer_cache = slab_create("db_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
+	peer_pool_cache = slab_create("peer_pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
 	pool_cache = slab_create("pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
 
-	if (!user_cache || !db_cache || !pool_cache)
+	if (!user_cache || !db_cache || !peer_cache || !peer_pool_cache || !pool_cache)
 		fatal("cannot create initial caches");
 }
 
@@ -300,8 +306,25 @@ static int cmp_pool(struct List *i1, struct List *i2)
 	PgPool *p2 = container_of(i2, PgPool, head);
 	if (p1->db != p2->db)
 		return strcmp(p1->db->name, p2->db->name);
-	if (p1->user != p2->user)
+	if (p1->user != p2->user) {
+		if (p1->user == NULL) {
+			return 1;
+		}
+		if (p2->user == NULL) {
+			return -1;
+		}
 		return strcmp(p1->user->name, p2->user->name);
+	}
+	return 0;
+}
+
+/* compare pool names, for use with put_in_order */
+static int cmp_peer_pool(struct List *i1, struct List *i2)
+{
+	PgPool *p1 = container_of(i1, PgPool, head);
+	PgPool *p2 = container_of(i2, PgPool, head);
+	if (p1->db != p2->db)
+		return p1->db->peer_id - p2->db->peer_id;
 	return 0;
 }
 
@@ -312,6 +335,15 @@ static int cmp_user(struct List *i1, struct List *i2)
 	PgUser *u2 = container_of(i2, PgUser, head);
 	return strcmp(u1->name, u2->name);
 }
+
+/* compare db names, for use with put_in_order */
+static int cmp_peer(struct List *i1, struct List *i2)
+{
+	PgDatabase *db1 = container_of(i1, PgDatabase, head);
+	PgDatabase *db2 = container_of(i2, PgDatabase, head);
+	return db1->peer_id - db2->peer_id;
+}
+
 
 /* compare db names, for use with put_in_order */
 static int cmp_database(struct List *i1, struct List *i2)
@@ -338,6 +370,25 @@ static void put_in_order(struct List *newitem, struct StatList *list,
 		}
 	}
 	statlist_append(list, newitem);
+}
+
+/* create new object if new, then return it */
+PgDatabase *add_peer(const char *name, int peer_id)
+{
+	PgDatabase *peer = find_peer(peer_id);
+
+	/* create new object if needed */
+	if (peer == NULL) {
+		peer = slab_alloc(peer_cache);
+		if (!peer)
+			return NULL;
+
+		list_init(&peer->head);
+		peer->peer_id = peer_id;
+		put_in_order(&peer->head, &peer_list, cmp_peer);
+	}
+
+	return peer;
 }
 
 /* create new object if new, then return it */
@@ -475,6 +526,19 @@ PgUser *force_user(PgDatabase *db, const char *name, const char *passwd)
 }
 
 /* find an existing database */
+PgDatabase *find_peer(int peer_id)
+{
+	struct List *item;
+	PgDatabase *peer;
+	statlist_for_each(item, &peer_list) {
+		peer = container_of(item, PgDatabase, head);
+		if (peer->peer_id == peer_id)
+			return peer;
+	}
+	return NULL;
+}
+
+/* find an existing database */
 PgDatabase *find_database(const char *name)
 {
 	struct List *item, *tmp;
@@ -543,6 +607,37 @@ static PgPool *new_pool(PgDatabase *db, PgUser *user)
 	return pool;
 }
 
+
+/*
+ * create new peer pool object
+ *
+ * This pool should only be used to forward cancellations to other pgbouncers
+ * behind the same load balancer. The user field of this pool is NULL, because
+ * cancellations don't need a user.
+ */
+static PgPool *new_peer_pool(PgDatabase *db)
+{
+	PgPool *pool;
+
+	pool = slab_alloc(peer_pool_cache);
+	if (!pool)
+		return NULL;
+
+	list_init(&pool->head);
+	list_init(&pool->map_head);
+
+	pool->db = db;
+
+	statlist_init(&pool->new_server_list, "new_server_list");
+	statlist_init(&pool->waiting_cancel_req_list, "waiting_cancel_req_list");
+	statlist_init(&pool->active_cancel_req_list, "active_cancel_req_list");
+	statlist_init(&pool->active_cancel_server_list, "active_cancel_server_list");
+
+	/* keep pools in peer_id order to make stats faster */
+	put_in_order(&pool->head, &peer_pool_list, cmp_peer_pool);
+
+	return pool;
+}
 /* find pool object, create if needed */
 PgPool *get_pool(PgDatabase *db, PgUser *user)
 {
@@ -559,6 +654,17 @@ PgPool *get_pool(PgDatabase *db, PgUser *user)
 	}
 
 	return new_pool(db, user);
+}
+
+/* find pool object for the peer */
+PgPool *get_peer_pool(PgDatabase *db)
+{
+	if (!db)
+		return NULL;
+	if (!db->pool) {
+		db->pool = new_peer_pool(db);
+	}
+	return db->pool;
 }
 
 /* deactivate socket and put into wait queue */
@@ -956,7 +1062,9 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 	free_scram_state(&server->scram_state);
 
 	server->pool->db->connection_count--;
-	server->pool->user->connection_count--;
+	if (server->pool->user) {
+		server->pool->user->connection_count--;
+	}
 
 	change_server_state(server, SV_JUSTFREE);
 	if (!sbuf_close(&server->sbuf))
@@ -1334,6 +1442,18 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed)
 	max = pool_server_count(pool);
 
 	/*
+	 * Peer pools only have a single pool_size.
+	 */
+	if (pool->db->peer_id) {
+		if (max < pool_pool_size(pool))
+			goto force_new;
+
+		log_debug("launch_new_connection: peer pool full (%d >= %d)",
+				max, pool_pool_size(pool));
+		return;
+	}
+
+	/*
 	 * When a cancel request is queued allow connections up to twice the pool
 	 * size.
 	 *
@@ -1412,7 +1532,9 @@ force_new:
 	pool->last_connect_time = get_cached_time();
 	change_server_state(server, SV_LOGIN);
 	pool->db->connection_count++;
-	pool->user->connection_count++;
+	if (pool->user) {
+		pool->user->connection_count++;
+	}
 
 	dns_connect(server);
 }
@@ -1497,6 +1619,57 @@ bool finish_client_login(PgSocket *client)
 	return true;
 }
 
+static void accept_cancel_request_for_peer(int peer_id, PgSocket *req) {
+	PgDatabase *peer = NULL;
+	PgPool *pool = NULL;
+	int ttl = req->cancel_key[7] & CANCELLATION_TTL_MASK;
+
+	if (ttl == 0) {
+		disconnect_client(req, false, "failed to forward cancel request because its TTL was exhausted");
+		return;
+	}
+
+	/*
+	 * Before forwarding the cancel key, we need to decrement the TTL. Now is
+	 * as a good a time as any to do so. We simply subtract 1 from the last
+	 * byte, since the TTL is stored in the least significant bits.
+	 */
+	req->cancel_key[7]--;
+
+	peer = find_peer(peer_id);
+	if (!peer) {
+		disconnect_client(req, false, "could not find peer to forward request to");
+		return;
+	}
+	log_debug("forwarding cancellation request to peer %d", peer_id);
+
+	/*
+	 * When using peering (multiple pgbouncers behind the same load
+	 * balancer), we may receive cancellation messages that were intended
+	 * for another peer via the load balancer. We propagate the
+	 * cancellation via the peer's pool, instead of the server pool.
+	 */
+	pool = get_peer_pool(peer);
+	if (!pool) {
+		disconnect_client(req, false, "out of memory");
+		return;
+	}
+
+	/*
+	 * Attach to the target pool and change state to waiting_cancel. This way
+	 * once a new connection is opened, it's used to forward the cancel
+	 * request.
+	 */
+	req->pool = pool;
+	change_client_state(req, CL_WAITING_CANCEL);
+
+	/*
+	 * Open a new connection over which the cancel request is forwarded to the
+	 * server.
+	 */
+	launch_new_connection(pool, /* evict_if_needed= */ true);
+}
+
 /*
  * Accepts a cancellation request, which will eventual cancel the query running
  * on the client that matches req->client_key
@@ -1506,8 +1679,33 @@ void accept_cancel_request(PgSocket *req)
 	struct List *pitem, *citem;
 	PgPool *pool = NULL;
 	PgSocket *server = NULL, *client, *main_client = NULL;
+	bool peering_enabled = false;
 
 	Assert(req->state == CL_LOGIN);
+
+	/*
+	 * PgBouncer peering
+	 */
+	peering_enabled = cf_peer_id > 0;
+	if (peering_enabled) {
+		/*
+		 * Extract the peer id from the cancel key
+		 */
+		int peer_id = req->cancel_key[0] + (req->cancel_key[1] << 8);
+		bool needs_forwarding_to_peer = cf_peer_id != peer_id;
+		if (needs_forwarding_to_peer) {
+			accept_cancel_request_for_peer(peer_id, req);
+			return;
+		}
+
+		/*
+		 * Set the last two bits of the cancel key to 1. This is necessary to
+		 * compare the key from the request to our stored cancel keys, because
+		 * the stored cancel keys always have these TTL bits set to 1.
+		 */
+		req->cancel_key[7] |= CANCELLATION_TTL_MASK;
+	}
+
 
 	/* find the client that has the same cancel_key as this request */
 	statlist_for_each(pitem, &pool_list) {
@@ -1584,27 +1782,34 @@ bool forward_cancel_request(PgSocket *server)
 {
 	bool res;
 	PgSocket *req = first_socket(&server->pool->waiting_cancel_req_list);
+	bool forwarding_to_peer = server->pool->db->peer_id != 0;
 
 	Assert(req != NULL && req->state == CL_WAITING_CANCEL);
 	Assert(server->state == SV_LOGIN);
 
-	/*
-	 * In between accepting the cancel request and receiving an open connection
-	 * the query that was supposed to be cancelled has now completed. This
-	 * becomes a problem when the server is then reused for some other client.
-	 * Because this will mean that the cancel that is forwarded will cancel a
-	 * query from a completely different client than the client it was intended
-	 * for.
-	 */
-	if (!req->canceled_server) {
-		disconnect_client(req, false, "not sending cancel request for client that is now idle");
-		return false;
+	if (!forwarding_to_peer) {
+		/*
+		 * In between accepting the cancel request and receiving an open connection
+		 * the query that was supposed to be cancelled has now completed. This
+		 * becomes a problem when the server is then reused for some other client.
+		 * Because this will mean that the cancel that is forwarded will cancel a
+		 * query from a completely different client than the client it was intended
+		 * for.
+		 */
+		if (!req->canceled_server) {
+			disconnect_client(req, false, "not sending cancel request for client that is now idle");
+			return false;
+		}
 	}
 
 	server->link = req;
 	req->link = server;
 
-	SEND_CancelRequest(res, server, req->canceled_server->cancel_key);
+	if (forwarding_to_peer) {
+		SEND_CancelRequest(res, server, req->cancel_key);
+	} else {
+		SEND_CancelRequest(res, server, req->canceled_server->cancel_key);
+	}
 	if (!res) {
 		log_warning("sending cancel request failed: %s", strerror(errno));
 		disconnect_client(req, false, "failed to send cancel request");
@@ -1980,6 +2185,10 @@ void objects_cleanup(void)
 		db = container_of(item, PgDatabase, head);
 		kill_database(db);
 	}
+	statlist_for_each_safe(item, &peer_list, tmp) {
+		PgDatabase *peer = container_of(item, PgDatabase, head);
+		kill_peer(peer);
+	}
 
 	memset(&login_client_list, 0, sizeof login_client_list);
 	memset(&user_list, 0, sizeof user_list);
@@ -1994,6 +2203,10 @@ void objects_cleanup(void)
 	client_cache = NULL;
 	slab_destroy(db_cache);
 	db_cache = NULL;
+	slab_destroy(peer_cache);
+	peer_cache = NULL;
+	slab_destroy(peer_pool_cache);
+	peer_pool_cache = NULL;
 	slab_destroy(pool_cache);
 	pool_cache = NULL;
 	slab_destroy(user_cache);

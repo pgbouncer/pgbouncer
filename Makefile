@@ -168,4 +168,4 @@ htmls:
 	done
 
 doc/pgbouncer.1 doc/pgbouncer.5:
-	$(MAKE) -C doc
+	$(MAKE) -C doc $(@F)

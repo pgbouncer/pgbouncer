@@ -1,0 +1,24 @@
+# top-most EditorConfig file
+root = true
+
+# basic rules for all files
+[*]
+end_of_line = lf
+insert_final_newline = true
+charset = utf-8
+trim_trailing_whitespace = true
+
+[*.c]
+indent_style = tab
+# We specifically don't set indent_size and tab_with here so people can choose
+# what they prefer themselves
+
+[*.py]
+indent_style = space
+indent_size = 4
+tab_width = 4
+
+[*.{yml,sh}]
+indent_style = space
+indent_size = 2
+tab_width = 2

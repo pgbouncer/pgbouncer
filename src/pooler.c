@@ -239,7 +239,19 @@ static void create_unix_socket(const char *socket_dir, int listen_port)
 		unlink(un.sun_path);
 	}
 
-	add_listen(AF_UNIX, (const struct sockaddr *)&un, addrlen);
+	/*
+	 * The user expects a socket to be created in this directory and a simple
+	 * typo might cause this to fail. So we fail hard to notify the user that
+	 * we were unable to create the socket. Not creating the socket is
+	 * especially bad when so_reuseport is used in combination with peering,
+	 * because the peer list would then contain sockets that don't exist and
+	 * forwarding cancels would wait for timeout and then fail silently.
+	 *
+	 * The exact directory is already listed in a warning created by
+	 * add_listen, so we don't show it here again.
+	 */
+	if (!add_listen(AF_UNIX, (const struct sockaddr *)&un, addrlen))
+		die("failed to create unix socket");
 }
 
 /*

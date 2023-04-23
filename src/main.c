@@ -466,7 +466,7 @@ static void handle_sigterm(evutil_socket_t sock, short flags, void *arg)
 {
 	log_info("got SIGTERM, fast exit");
 	/* pidfile cleanup happens via atexit() */
-	exit(1);
+	exit(0);
 }
 
 static void handle_sigint(evutil_socket_t sock, short flags, void *arg)

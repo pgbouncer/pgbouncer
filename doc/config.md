@@ -216,7 +216,8 @@ Default: empty
 The peer id used to identify this PgBouncer process in a group of PgBouncer
 processes that are peered together. The `peer_id` value should be unique within
 a group of peered PgBouncer processes. When set to 0 pgbouncer peering is
-disabled. See the docs for the `[peers]` section for more information.
+disabled. See the docs for the `[peers]` section for more information. The
+maximum value that can be used for the `peer_id` is 16383.
 
 Default: 0
 

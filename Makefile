@@ -137,7 +137,7 @@ config.mak:
 	@echo "Please run ./configure"
 	@exit 1
 
-PYTEST = $(shell command -v pytest || echo 'python3 -m pytest')
+PYTEST = $(shell command -v pytest || echo '$(PYTHON) -m pytest')
 
 CONCURRENCY = auto
 

@@ -128,10 +128,6 @@ AM_LANG_RC_LINK = false
 # now load antimake
 #
 
-PYTEST = $(shell command -v pytest || echo 'python3 -m pytest')
-
-CONCURRENCY = auto
-
 USUAL_DIR = lib
 
 abs_top_srcdir ?= $(CURDIR)
@@ -140,6 +136,10 @@ include $(abs_top_srcdir)/lib/mk/antimake.mk
 config.mak:
 	@echo "Please run ./configure"
 	@exit 1
+
+PYTEST = $(shell command -v pytest || echo 'python3 -m pytest')
+
+CONCURRENCY = auto
 
 check: all
 	etc/optscan.sh

@@ -150,6 +150,7 @@ bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, socklen_t sa_len, time_
 {
 	int res, sock;
 	struct timeval timeout;
+	char buf[128];
 	bool is_unix = sa->sa_family == AF_UNIX;
 
 	Assert(iobuf_empty(sbuf->io) && sbuf->sock == 0);
@@ -189,7 +190,8 @@ bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, socklen_t sa_len, time_
 	}
 
 failed:
-	log_warning("sbuf_connect failed: %s", strerror(errno));
+	log_warning("sbuf_connect failed to connect to %s: %s",
+			sa2str(sa, buf, sizeof(buf)), strerror(errno));
 
 	if (sock >= 0)
 		safe_close(sock);

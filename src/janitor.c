@@ -404,16 +404,17 @@ static void pool_client_maint(PgPool *pool)
 				disconnect_client(client, true, "query_wait_timeout");
 			}
 		}
+	}
+
+	/* apply cancel_wait_timeout for cancel connections */
+	if (cf_cancel_wait_timeout > 0) {
 		statlist_for_each_safe(item, &pool->waiting_cancel_req_list, tmp) {
 			client = container_of(item, PgSocket, head);
 			Assert(client->state == CL_WAITING_CANCEL);
 			age = now - client->request_time;
 
-			if (cf_query_timeout > 0 && age > cf_query_timeout) {
-				disconnect_client(client, false, "cancel request query_timeout");
-			} else if (cf_query_wait_timeout > 0 && age > cf_query_wait_timeout) {
-				disconnect_client(client, false, "cancel request query_wait_timeout");
-			}
+			if (age > cf_cancel_wait_timeout)
+				disconnect_client(client, false, "cancel_wait_timeout");
 		}
 	}
 
@@ -438,18 +439,14 @@ static void peer_pool_client_maint(PgPool *pool)
 	PgSocket *client;
 	usec_t age;
 
-	/* force timeouts for waiting queries */
-	if (cf_query_timeout > 0 || cf_query_wait_timeout > 0) {
+	if (cf_cancel_wait_timeout > 0) {
 		statlist_for_each_safe(item, &pool->waiting_cancel_req_list, tmp) {
 			client = container_of(item, PgSocket, head);
 			Assert(client->state == CL_WAITING_CANCEL);
 			age = now - client->request_time;
 
-			if (cf_query_timeout > 0 && age > cf_query_timeout) {
-				disconnect_client(client, false, "cancel request query_timeout");
-			} else if (cf_query_wait_timeout > 0 && age > cf_query_wait_timeout) {
-				disconnect_client(client, false, "cancel request query_wait_timeout");
-			}
+			if (age > cf_cancel_wait_timeout)
+				disconnect_client(client, false, "cancel_wait_timeout");
 		}
 	}
 }
@@ -604,8 +601,13 @@ static void peer_pool_server_maint(PgPool *pool)
 	usec_t now = get_cached_time();
 	PgSocket *server;
 
-	/* find connections that got connect, but could not log in */
-	if (cf_server_connect_timeout > 0) {
+	/*
+	 * find connections that got connected, but could not log in. For normal
+	 * pools we only compare against server_connect_timeout for these servers,
+	 * but since peer pools are only for sending cancellations we also compare
+	 * against cancel_wait_timeout here.
+	 */
+	if (cf_server_connect_timeout > 0 || cf_cancel_wait_timeout > 0) {
 		statlist_for_each_safe(item, &pool->new_server_list, tmp) {
 			usec_t age;
 
@@ -613,8 +615,12 @@ static void peer_pool_server_maint(PgPool *pool)
 			Assert(server->state == SV_LOGIN);
 
 			age = now - server->connect_time;
-			if (age > cf_server_connect_timeout)
+			if (cf_server_connect_timeout > 0 && age > cf_server_connect_timeout) {
 				disconnect_server(server, true, "connect timeout");
+			}
+			else if (cf_cancel_wait_timeout > 0 && age > cf_cancel_wait_timeout) {
+				disconnect_server(server, true, "cancel_wait_timeout");
+			}
 		}
 	}
 }

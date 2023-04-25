@@ -776,7 +776,19 @@ This setting is used to prevent unresponsive servers from grabbing up
 connections.  It also helps when the server is down or rejects
 connections for any reason.
 
-Default: 120
+Default: 120.0
+
+### cancel_wait_timeout
+
+Maximum time cancellation requests are allowed to spend waiting for execution.
+If the cancel request is not assigned to a server during that time, the client is
+disconnected.
+0 disables.  If this is disabled, cancel requests will be queued indefinitely. [seconds]
+
+This setting is used to prevent a client locking up when a cancel cannot be
+forwarded due to the server being down.
+
+Default: 10.0
 
 ### client_idle_timeout
 

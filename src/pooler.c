@@ -48,6 +48,8 @@ static const struct addrinfo hints = {
 static bool need_active = false;
 /* is it actually active or suspended? */
 static bool pooler_active = false;
+/* is listen_addr set, we can only know this by parsing it */
+static bool listen_addr_empty = true;
 
 /* on accept() failure sleep 5 seconds */
 static struct event ev_err;
@@ -468,6 +470,9 @@ static bool parse_addr(void *arg, const char *addr)
 
 	if (!*addr)
 		return true;
+
+	listen_addr_empty = false;
+
 	if (strcmp(addr, "*") == 0)
 		addr = NULL;
 	snprintf(service, sizeof(service), "%d", cf_listen_port);
@@ -484,8 +489,8 @@ static bool parse_addr(void *arg, const char *addr)
 		 * problem.  We don't use the return value to fail the
 		 * whole thing, because that might lead to problems in
 		 * practice with overlapping host names or address
-		 * families and other weird stuff.  Users will know
-		 * soon enough if they can't connect.
+		 * families and other weird stuff. If no address at all
+		 * can be listened on though, we do fail hard later.
 		 */
 		add_listen(ai->ai_family, ai->ai_addr, ai->ai_addrlen);
 	}
@@ -549,6 +554,9 @@ void pooler_setup(void)
 		ok = parse_word_list(cf_listen_addr, parse_addr, NULL);
 		if (!ok)
 			die("failed to parse listen_addr list: %s", cf_listen_addr);
+
+		if (!listen_addr_empty && !statlist_count(&sock_list))
+			die("failed to listen on any address in listen_addr list: %s", cf_listen_addr);
 
 		if (cf_unix_socket_dir && *cf_unix_socket_dir)
 			create_unix_socket(cf_unix_socket_dir, cf_listen_port);

@@ -1,6 +1,58 @@
 PgBouncer changelog
 ===================
 
+PgBouncer 1.19.x
+----------------
+
+**2023-05-04  -  PgBouncer 1.19.0  -  "The old-fashioned, human-generated kind"**
+
+- Features
+  * Add `auth_dbname` option, which specifies against which database
+    to run the `auth_query`. ([#764])
+  * Add the `SHOW STATE` command, which shows if PgBouncer is active,
+    paused or suspended. ([#528])
+  * Add support for peering between PgBouncer processes.  This allows
+    configuring PgBouncer such that cancellation requests continue to
+    work when multiple different PgBouncer processes are behind a
+    single load balancer. ([#666])
+  * Add a dedicated `cancel_wait_timeout` setting, which determines
+    after how long to give up on forwarding a cancel request.  Default
+    is 10 seconds. ([#833])
+  * New testing framework ([#792])
+
+- Fixes
+  * Fix possible memory leak on TLS handshake failure. ([#796])
+  * Give more accurate error messages for unsupported command-line
+    options on Windows. ([#620])
+  * Fix calling `disconnect_server` on a server in `BEING_CANCELED`
+    state. ([#815]) (introduced in 1.18.0)
+  * Don't exit with a non-zero status when a `SIGTERM` is
+    received. ([#834])
+  * Fail hard during startup when a socket could not be created in
+    `unix_socket_dir`. ([#830])
+  * Fail hard during startup when none of the addresses in
+    `listen_addr` could be listened on. ([#838])
+  * Give more warning messages with more information when
+    `sbuf_connect` fails.  This is especially useful when failing to
+    create Unix sockets. ([#837])
+
+- Cleanups
+  * Various CI updates for better performance
+  * Removed AppVeyor
+
+[#528]: https://github.com/pgbouncer/pgbouncer/issues/528
+[#620]: https://github.com/pgbouncer/pgbouncer/pull/620
+[#666]: https://github.com/pgbouncer/pgbouncer/pull/666
+[#764]: https://github.com/pgbouncer/pgbouncer/pull/764
+[#792]: https://github.com/pgbouncer/pgbouncer/pull/792
+[#796]: https://github.com/pgbouncer/pgbouncer/pull/796
+[#815]: https://github.com/pgbouncer/pgbouncer/pull/815
+[#830]: https://github.com/pgbouncer/pgbouncer/pull/830
+[#833]: https://github.com/pgbouncer/pgbouncer/pull/833
+[#834]: https://github.com/pgbouncer/pgbouncer/pull/834
+[#837]: https://github.com/pgbouncer/pgbouncer/pull/837
+[#838]: https://github.com/pgbouncer/pgbouncer/pull/838
+
 PgBouncer 1.18.x
 ----------------
 

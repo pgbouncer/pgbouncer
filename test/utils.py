@@ -337,17 +337,17 @@ class QueryRunner:
             for _ in range(times):
                 await self.asql(f"select pg_sleep({duration})", **kwargs)
 
-    def test(self, query="select 1", **kwargs):
+    def test(self, **kwargs):
         """Test if you can connect"""
-        return self.sql(query, **kwargs)
+        return self.sql("select 1", **kwargs)
 
-    def atest(self, query="select 1", **kwargs):
+    def atest(self, **kwargs):
         """Test if you can connect asynchronously"""
-        return self.asql(query, **kwargs)
+        return self.asql("select 1", **kwargs)
 
-    def psql_test(self, query="select 1", **kwargs):
+    def psql_test(self, **kwargs):
         """Test if you can connect with psql instead of psycopg"""
-        return self.psql(query, **kwargs)
+        return self.psql("select 1", **kwargs)
 
     @contextmanager
     def enable_firewall(self):

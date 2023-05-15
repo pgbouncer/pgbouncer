@@ -258,6 +258,32 @@ bool welcome_client(PgSocket *client)
 
 	/* give each client its own cancel key */
 	get_random_bytes(client->cancel_key, 8);
+
+	/*
+	 * If pgbouncer peering is enabled we change some of the random bits of the
+	 * cancel key to non random values, otherwise the peering feature cannot be
+	 * implemented in an efficient way. This reduces the randomness of the key
+	 * somewhat, but it still leaves us with 46 bits of randomness. This should
+	 * be enough for all practical attacks to be mitigated (there are still
+	 * ~70 trillion random combinations of these bits).
+	 */
+	if (cf_peer_id > 0)
+	{
+		/*
+		 * The first two bytes represent the peer id. Pgbouncers that are
+		 * peered with this one can forward the request to us by reading this
+		 * peer id when they receive this cancellation.
+		 */
+		client->cancel_key[0] = cf_peer_id & 0xFF;
+		client->cancel_key[1] = (cf_peer_id >> 8) & 0xFF;
+
+		/*
+		 * Initially we set the two TTL mask bits to a 1, so that the cancel
+		 * message can be forwarded to peers up to 3 times.
+		 */
+		client->cancel_key[7] |= CANCELLATION_TTL_MASK;
+	}
+
 	pktbuf_write_BackendKeyData(msg, client->cancel_key);
 
 	/* finish */

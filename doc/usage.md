@@ -425,6 +425,26 @@ maxwait_us
 pool_mode
 :   The pooling mode in use.
 
+#### SHOW PEER_POOLS
+
+A new peer_pool entry is made for each configured peer.
+
+database
+:   ID of the configured peer entry.
+
+cl_active_cancel_req
+:   Client connections that have forwarded query cancellations to the server and
+    are waiting for the server response.
+
+cl_waiting_cancel_req
+:   Client connections that have not forwarded query cancellations to the server yet.
+
+sv_active_cancel
+:   Server connections that are currently forwarding a cancel request.
+
+sv_login
+:   Server connections currently in the process of logging in.
+
 #### SHOW LISTS
 
 Show following internal information, in columns (not rows):
@@ -516,6 +536,20 @@ paused
 
 disabled
 :   1 if this database is currently disabled, else 0.
+
+#### SHOW PEERS
+
+peer_id
+:   ID of the configured peer entry.
+
+host
+:   Host pgbouncer connects to.
+
+port
+:   Port pgbouncer connects to.
+
+pool_size
+:   Maximum number of server connections that can be made to this peer
 
 #### SHOW FDS
 

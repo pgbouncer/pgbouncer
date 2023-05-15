@@ -48,6 +48,8 @@ static const struct addrinfo hints = {
 static bool need_active = false;
 /* is it actually active or suspended? */
 static bool pooler_active = false;
+/* is listen_addr set, we can only know this by parsing it */
+static bool listen_addr_empty = true;
 
 /* on accept() failure sleep 5 seconds */
 static struct event ev_err;
@@ -239,7 +241,19 @@ static void create_unix_socket(const char *socket_dir, int listen_port)
 		unlink(un.sun_path);
 	}
 
-	add_listen(AF_UNIX, (const struct sockaddr *)&un, addrlen);
+	/*
+	 * The user expects a socket to be created in this directory and a simple
+	 * typo might cause this to fail. So we fail hard to notify the user that
+	 * we were unable to create the socket. Not creating the socket is
+	 * especially bad when so_reuseport is used in combination with peering,
+	 * because the peer list would then contain sockets that don't exist and
+	 * forwarding cancels would wait for timeout and then fail silently.
+	 *
+	 * The exact directory is already listed in a warning created by
+	 * add_listen, so we don't show it here again.
+	 */
+	if (!add_listen(AF_UNIX, (const struct sockaddr *)&un, addrlen))
+		die("failed to create unix socket");
 }
 
 /*
@@ -456,6 +470,9 @@ static bool parse_addr(void *arg, const char *addr)
 
 	if (!*addr)
 		return true;
+
+	listen_addr_empty = false;
+
 	if (strcmp(addr, "*") == 0)
 		addr = NULL;
 	snprintf(service, sizeof(service), "%d", cf_listen_port);
@@ -472,8 +489,8 @@ static bool parse_addr(void *arg, const char *addr)
 		 * problem.  We don't use the return value to fail the
 		 * whole thing, because that might lead to problems in
 		 * practice with overlapping host names or address
-		 * families and other weird stuff.  Users will know
-		 * soon enough if they can't connect.
+		 * families and other weird stuff. If no address at all
+		 * can be listened on though, we do fail hard later.
 		 */
 		add_listen(ai->ai_family, ai->ai_addr, ai->ai_addrlen);
 	}
@@ -537,6 +554,9 @@ void pooler_setup(void)
 		ok = parse_word_list(cf_listen_addr, parse_addr, NULL);
 		if (!ok)
 			die("failed to parse listen_addr list: %s", cf_listen_addr);
+
+		if (!listen_addr_empty && !statlist_count(&sock_list))
+			die("failed to listen on any address in listen_addr list: %s", cf_listen_addr);
 
 		if (cf_unix_socket_dir && *cf_unix_socket_dir)
 			create_unix_socket(cf_unix_socket_dir, cf_listen_port);

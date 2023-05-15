@@ -94,7 +94,6 @@ bool admin_database_stats(PgSocket *client, struct StatList *pool_list)
 	struct List *item;
 	PgDatabase *cur_db = NULL;
 	PgStats st_total, st_db, old_db, old_total;
-	int rows = 0;
 	PktBuf *buf;
 
 	reset_stats(&st_total);
@@ -126,7 +125,6 @@ bool admin_database_stats(PgSocket *client, struct StatList *pool_list)
 		if (pool->db != cur_db) {
 			write_stats(buf, &st_db, &old_db, cur_db->name);
 
-			rows ++;
 			cur_db = pool->db;
 			stat_add(&st_total, &st_db);
 			stat_add(&old_total, &old_db);
@@ -141,7 +139,6 @@ bool admin_database_stats(PgSocket *client, struct StatList *pool_list)
 		write_stats(buf, &st_db, &old_db, cur_db->name);
 		stat_add(&st_total, &st_db);
 		stat_add(&old_total, &old_db);
-		rows ++;
 	}
 	admin_flush(client, buf, "SHOW");
 
@@ -165,7 +162,6 @@ bool admin_database_stats_totals(PgSocket *client, struct StatList *pool_list)
 	struct List *item;
 	PgDatabase *cur_db = NULL;
 	PgStats st_total, st_db, old_db, old_total;
-	int rows = 0;
 	PktBuf *buf;
 
 	reset_stats(&st_total);
@@ -193,7 +189,6 @@ bool admin_database_stats_totals(PgSocket *client, struct StatList *pool_list)
 		if (pool->db != cur_db) {
 			write_stats_totals(buf, &st_db, &old_db, cur_db->name);
 
-			rows ++;
 			cur_db = pool->db;
 			stat_add(&st_total, &st_db);
 			stat_add(&old_total, &old_db);
@@ -208,7 +203,6 @@ bool admin_database_stats_totals(PgSocket *client, struct StatList *pool_list)
 		write_stats_totals(buf, &st_db, &old_db, cur_db->name);
 		stat_add(&st_total, &st_db);
 		stat_add(&old_total, &old_db);
-		rows ++;
 	}
 	admin_flush(client, buf, "SHOW");
 
@@ -232,7 +226,6 @@ bool admin_database_stats_averages(PgSocket *client, struct StatList *pool_list)
 	struct List *item;
 	PgDatabase *cur_db = NULL;
 	PgStats st_total, st_db, old_db, old_total;
-	int rows = 0;
 	PktBuf *buf;
 
 	reset_stats(&st_total);
@@ -260,7 +253,6 @@ bool admin_database_stats_averages(PgSocket *client, struct StatList *pool_list)
 		if (pool->db != cur_db) {
 			write_stats_averages(buf, &st_db, &old_db, cur_db->name);
 
-			rows ++;
 			cur_db = pool->db;
 			stat_add(&st_total, &st_db);
 			stat_add(&old_total, &old_db);
@@ -275,7 +267,6 @@ bool admin_database_stats_averages(PgSocket *client, struct StatList *pool_list)
 		write_stats_averages(buf, &st_db, &old_db, cur_db->name);
 		stat_add(&st_total, &st_db);
 		stat_add(&old_total, &old_db);
-		rows ++;
 	}
 	admin_flush(client, buf, "SHOW");
 

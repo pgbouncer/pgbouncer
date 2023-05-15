@@ -197,6 +197,15 @@ extern int cf_sbuf_len;
 /* buffer size for startup noise */
 #define STARTUP_BUF	1024
 
+/*
+ * When peering is enabled we always put a 1 in the last two bits of the cancel
+ * key when sending it to the client. These bits indicate the TTL and thus
+ * allow forwarding the the cancel key 3 times before it is dropped. Triple
+ * forwarding seems enough for any reasonable multi layered load balancing
+ * setup.
+ */
+#define CANCELLATION_TTL_MASK 0x03
+
 
 /*
  * Remote/local address
@@ -261,7 +270,7 @@ struct PgPool {
 	struct List map_head;			/* entry in user->pool_list */
 
 	PgDatabase *db;			/* corresponding database */
-	PgUser *user;			/* user logged in as */
+	PgUser *user;			/* user logged in as, this field is NULL for peer pools */
 
 	/*
 	 * Clients that are both logged in and where pgbouncer is actively
@@ -441,6 +450,12 @@ struct PgDatabase {
 	char name[MAX_DBNAME];	/* db name for clients */
 
 	/*
+	 * Pgbouncer peer database related settings
+	 */
+	int peer_id;	/* the peer_id of this peer */
+	struct PgPool *pool;		/* the pool of this peer database */
+
+	/*
 	 * configuration
 	 */
 	char *host;		/* host or unix socket name */
@@ -578,6 +593,7 @@ extern char *cf_unix_socket_group;
 extern char *cf_listen_addr;
 extern int cf_listen_port;
 extern int cf_listen_backlog;
+extern int cf_peer_id;
 
 extern int cf_pool_mode;
 extern int cf_max_client_conn;
@@ -603,6 +619,7 @@ extern usec_t cf_server_connect_timeout;
 extern usec_t cf_server_login_retry;
 extern usec_t cf_query_timeout;
 extern usec_t cf_query_wait_timeout;
+extern usec_t cf_cancel_wait_timeout;
 extern usec_t cf_client_idle_timeout;
 extern usec_t cf_client_login_timeout;
 extern usec_t cf_idle_transaction_timeout;

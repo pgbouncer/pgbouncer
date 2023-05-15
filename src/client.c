@@ -49,11 +49,11 @@ PgDatabase *prepare_auth_database(PgSocket *client)
 	PgDatabase *auth_db = NULL;
 	const char *auth_dbname = client->db->auth_dbname ? client->db->auth_dbname : cf_auth_dbname;
 
-    if (!auth_dbname) {
-        auth_db = client->db;
-    } else {
-        auth_db = find_database(auth_dbname);
-    }
+	if (!auth_dbname) {
+		auth_db = client->db;
+	} else {
+		auth_db = find_database(auth_dbname);
+	}
 
 	if (!auth_db) {
 		slog_error(client, "authentication database \"%s\" is not configured.", auth_dbname);
@@ -70,12 +70,11 @@ PgDatabase *prepare_auth_database(PgSocket *client)
 		return NULL;
 	}
 
-    if (auth_db->admin) {
-        slog_error(client, "cannot use the reserved \"%s\" database as an auth_dbname", auth_db->dbname);
-        slog_warning(client, "set global \"auth_dbname\" parameter and define database in the database section");
-        disconnect_client(client, true, "bouncer config error");
-        return NULL;
-    }
+	if (auth_db->admin) {
+		slog_error(client, "cannot use the reserved \"%s\" database as an auth_dbname", auth_db->dbname);
+		disconnect_client(client, true, "bouncer config error");
+		return NULL;
+	}
 
 	return auth_db;
 }

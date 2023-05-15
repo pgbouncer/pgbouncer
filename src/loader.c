@@ -150,11 +150,6 @@ static bool set_auth_dbname(PgDatabase *db, const char *new_auth_dbname)
 		free(db->auth_dbname);
 
 	if (new_auth_dbname) {
-        if (strcmp(new_auth_dbname, "pgbouncer") == 0) {
-            log_error("cannot use the reserved \"%s\" database as an auth_dbname", new_auth_dbname);
-            return false;
-        }
-
 		db->auth_dbname = strdup(new_auth_dbname);
 		if (!db->auth_dbname) {
 			log_error("auth_dbname %s could not be set for database %s, out of memory", new_auth_dbname, db->name);
@@ -169,42 +164,13 @@ static bool set_auth_dbname(PgDatabase *db, const char *new_auth_dbname)
 
 static bool set_autodb(const char *connstr)
 {
-    char *p, *key, *val;
-    char *tmp_connstr = NULL;
-	char *tmp = NULL;
+	char *tmp = strdup(connstr);
 	char *old = cf_autodb_connstr;
 
-    /* Validating constraints for database connection string */
-    tmp_connstr = strdup(connstr);
-    if (!tmp_connstr) {
-        log_error("no mem to change autodb_connstr");
-        return false;
-    }
-
-    p = tmp_connstr;
-    while (*p) {
-        p = cstr_get_pair(p, &key, &val);
-        if (p == NULL) {
-            log_error("syntax error in connection string");
-            goto fail;
-        } else if (!key[0]) {
-            break;
-        }
-
-        if (strcmp("auth_dbname", key) == 0){
-            if (strcmp(val, "pgbouncer") == 0) {
-                log_error("cannot use the reserved \"%s\" database as an auth_dbname", val);
-                goto fail;
-            }
-            break;
-        }
-    }
-
-    tmp = strdup(connstr);
-    if (!tmp) {
-        log_error("no mem to change autodb_connstr");
-        goto fail;
-    }
+	if (!tmp) {
+		log_error("no mem to change autodb_connstr");
+		return false;
+	}
 
 	cf_autodb_connstr = tmp;
 	if (old) {
@@ -213,12 +179,7 @@ static bool set_autodb(const char *connstr)
 		free(old);
 	}
 
-    free(tmp_connstr);
 	return true;
-
-fail:
-    free(tmp_connstr);
-    return false;
 }
 
 /* fill PgDatabase from connstr */
@@ -252,7 +213,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	cv.value_p = &pool_mode;
 	cv.extra = (const void *)pool_mode_map;
 
-	if (strcmp(name, "pgbouncer") == 0) {
+	if (!check_reserved_database(name)) {
 		log_error("database name \"%s\" is reserved", name);
 		return false;
 	}

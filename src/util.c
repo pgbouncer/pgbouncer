@@ -470,14 +470,17 @@ const char *pga_details(const PgAddr *a, char *dst, int dstlen)
 	return dst;
 }
 
-/*
- * parser setter for parsing auth_dbname parameter using "cfparser"
- */
-bool cf_set_authdb(struct CfValue *cv, const char *value)
-{
-    if (value && strcmp(value, "pgbouncer") == 0) {
-        log_error("cannot use the reserved \"%s\" database as an auth_dbname", value);
-        return false;
-    }
-    return cf_set_str(cv, value);
+bool cf_set_authdb(struct CfValue *cv, const char *value) {
+	if (!check_reserved_database(value)) {
+		log_error("cannot use the reserved \"%s\" database as an auth_dbname", value);
+		return false;
+	}
+	return cf_set_str(cv, value);
+}
+
+bool check_reserved_database(const char *value) {
+	if (value && strcmp(value, "pgbouncer") == 0) {
+		return false;
+	}
+	return true;
 }

@@ -834,3 +834,26 @@ class Bouncer(QueryRunner):
             else:
                 match_count = len(re.findall(re_string, content))
                 assert match_count == times
+
+    @contextmanager
+    def run_with_config(self, config):
+        """Run the pgbouncer instance with provided config and restore the
+        previous config after execution
+
+        config:
+            A new pgbouncer config in ini format
+        """
+        with self.ini_path.open("r") as f:
+            config_old = f.read()
+
+        with self.ini_path.open("w") as f:
+            f.write(config)
+
+        try:
+            self.admin("RELOAD")
+            yield self
+        finally:
+            # Code to release resource, e.g.:
+            with self.ini_path.open("w") as f:
+                f.write(config_old)
+            self.admin("RELOAD")

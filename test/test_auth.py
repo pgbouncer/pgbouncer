@@ -1,9 +1,10 @@
 import re
+import time
 
 import psycopg
 import pytest
 
-from .utils import LONG_PASSWORD, PG_SUPPORTS_SCRAM
+from .utils import LONG_PASSWORD, PG_SUPPORTS_SCRAM, WINDOWS
 
 
 def test_auth_user(bouncer):
@@ -201,3 +202,164 @@ def test_scram_both(bouncer):
 
     # SCRAM password in userlist.txt
     bouncer.test(dbname="p62", user="scramuser1", password="foo")
+
+
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+def test_auth_dbname_usage(
+    bouncer,
+):
+    """
+    Check that the pgbouncer handles correctly the reserved pgbouncer
+    database usage as an authentication database
+    """
+
+    config = f"""
+        [databases]
+        pgbouncer_test = host={bouncer.pg.host} port={bouncer.pg.port} auth_dbname=pgbouncer
+        * = host={bouncer.host} port={bouncer.port} auth_dbname=pgbouncer
+        [pgbouncer]
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
+        auth_user = pswcheck
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pswcheck
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+    """
+
+    # We expect that stats user does not exist in userlist.txt
+    with bouncer.log_contains(
+        'cannot use the reserved "pgbouncer" database as an auth_dbname', 3
+    ):
+        with bouncer.run_with_config(config):
+            #     Check the pgbouncer does not crash when we connect to pgbouncer admin db
+            with pytest.raises(psycopg.OperationalError, match="bouncer config error"):
+                bouncer.sql(
+                    query="show stats",
+                    user="stats",
+                    password="stats",
+                    dbname="pgbouncer",
+                )
+
+            #     Check the pgbouncer does not crash when explicitly pgbouncer database
+            #     (admin DB) was set in auth_dbname in the databases definition section
+            with pytest.raises(psycopg.OperationalError, match="bouncer config error"):
+                bouncer.sql(
+                    query="show stats",
+                    user="stats",
+                    password="stats",
+                    dbname="pgbouncer_test",
+                )
+
+            #     Check the pgbouncer does not crash when explicitly pgbouncer database
+            #     (admin DB) was set in auth_dbname in the autodb definition
+            with pytest.raises(psycopg.OperationalError, match="bouncer config error"):
+                bouncer.sql(
+                    query="show stats", user="stats", password="stats", dbname="p4"
+                )
+
+
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+def test_auth_dbname_usage_global_setting(
+    bouncer,
+):
+    """
+    Check that the pgbouncer does not apply config which contains
+    explicitly "pgbouncer" database (admin DB) set in [pgbouncer] section
+    """
+
+    config = f"""
+        [databases]
+        * = host={bouncer.host} port={bouncer.port}
+        [pgbouncer]
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
+        auth_user = pswcheck
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pswcheck
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = pgbouncer
+    """
+
+    with bouncer.log_contains(
+        'cannot use the reserved "pgbouncer" database as an auth_dbname', 1
+    ):
+        with bouncer.run_with_config(config):
+            pass
+
+
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+def test_auth_dbname_works_fine(
+    bouncer,
+):
+    """
+    Check that we handle correctly all positive cases of auth_dbname usage
+    """
+
+    config = f"""
+        [databases]
+        postgres_authdb1 = host={bouncer.pg.host} port={bouncer.pg.port} dbname=postgres auth_dbname=postgres
+        postgres_authdb2 = host={bouncer.pg.host} port={bouncer.pg.port} dbname=postgres auth_dbname=postgres
+        pgbouncer2pgbpouncer = host={bouncer.host} port={bouncer.port} dbname=pgbouncer auth_dbname=postgres_authdb2
+        pgbouncer2pgbpouncer_global = host={bouncer.host} port={bouncer.port} dbname=pgbouncer
+        postgres_test = host={bouncer.host} port={bouncer.port}
+        * = host={bouncer.pg.host} port={bouncer.pg.port} auth_dbname=postgres
+        [pgbouncer]
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
+        auth_user = pswcheck
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = postgres_authdb1
+    """
+
+    with bouncer.run_with_config(config):
+        # The client connects to pgbouncer (admin DB) using userlist.txt file match
+        bouncer.sql(
+            query="show stats", user="pgbouncer", password="fake", dbname="pgbouncer"
+        )
+
+        # The client connects to pgbouncer (admin DB) using auth_query, pgbouncer must
+        # use postgres_authdb1 as an auth DB, that defined in [pgbouncer] section
+        bouncer.sql(
+            query="show stats", user="stats", password="stats", dbname="pgbouncer"
+        )
+
+        # The client connects to pgbouncer2pgbpouncer DB which redirects
+        # to pgbouncer (admin DB) itself, pgbouncer must use postgres_authdb2, which
+        # is defined in the database definition
+        bouncer.sql(
+            query="show stats",
+            user="stats",
+            password="stats",
+            dbname="pgbouncer2pgbpouncer",
+        )
+
+        # The client connects to pgbouncer2pgbpouncer_global DB which redirects
+        # to pgbouncer (admin DB) itself, pgbouncer must use postgres_authdb1, which
+        # is defined in [pgbouncer] section
+        bouncer.sql(
+            query="show stats",
+            user="stats",
+            password="stats",
+            dbname="pgbouncer2pgbpouncer_global",
+        )
+
+        # The client connects to admin DB directly
+        # pgbouncer must use postgres_authdb1, which is defined in [pgbouncer] section
+        bouncer.sql(
+            query="show stats", user="stats", password="stats", dbname="pgbouncer"
+        )
+
+        # The client connects to postgres DB that matches with autodb
+        # pgbouncer must use postgres_authdb1, which is defined in [pgbouncer] section
+        bouncer.test(user="stats", password="stats", dbname="postgres")

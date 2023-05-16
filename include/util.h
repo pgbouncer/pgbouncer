@@ -18,6 +18,7 @@
 
 #include <usual/logging.h>
 #include <usual/string.h>
+#include <usual/cfparser.h>
 
 /*
  * logging about specific socket
@@ -62,3 +63,10 @@ void safe_evtimer_add(struct event *ev, struct timeval *tv);
 	if (unlikely(needed >= (dstlen))) \
 		log_warning("bug in %s:%d - string truncated", __FILE__, __LINE__); \
 } while (0)
+
+/* parser setter and getter for parsing auth_dbname parameters using "cfparser" */
+#define CF_AUTHDB	{ cf_set_authdb, cf_get_str }
+bool cf_set_authdb(struct CfValue *cv, const char *value);
+
+/* reserved database name checking */
+bool check_reserved_database(const char *value);

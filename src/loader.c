@@ -291,7 +291,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	cv.value_p = &pool_mode;
 	cv.extra = (const void *)pool_mode_map;
 
-	if (strcmp(name, "pgbouncer") == 0) {
+	if (!check_reserved_database(name)) {
 		log_error("database name \"%s\" is reserved", name);
 		return false;
 	}

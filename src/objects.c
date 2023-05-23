@@ -1131,6 +1131,19 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 	case CL_ACTIVE_CANCEL:
 	case CL_WAITING_CANCEL:
 		/*
+		 * During normal operation, cancel clients get closed because their
+		 * linked server finished sending the cancel request. But this is not
+		 * always the case. It's possible for the client to disconnect
+		 * itself. To avoid a reference to freed client object from the linked
+		 * server in such cases, we now unlink any still linked server.
+		 */
+		if (client->link) {
+			PgSocket *server = client->link;
+			server->link = NULL;
+			client->link = NULL;
+			disconnect_server(server, false, "client gave up on cancel request, so we also give up forwarding to server");
+		}
+		/*
 		 * If the cancel request is still linked to the server that it
 		 * cancelled (or wanted to cancel) a query from, this is the time to
 		 * unlink them. The cancel request has finished at this point and we're

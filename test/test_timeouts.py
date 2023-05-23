@@ -1,6 +1,7 @@
 import asyncio
 import platform
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import psycopg
 import pytest
@@ -150,3 +151,20 @@ async def test_server_check_delay(pg, bouncer):
         assert done == set()
         assert pending == {query_task}
     await query_task
+
+
+@pytest.mark.skipif("not USE_SUDO")
+def test_cancel_wait_timeout(pg, bouncer):
+    bouncer.admin("set cancel_wait_timeout=1")
+    with bouncer.cur() as cur:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            query = pool.submit(cur.execute, "select pg_sleep(3)")
+
+            time.sleep(1)
+
+            with pg.drop_traffic():
+                with bouncer.log_contains(r"closing because: cancel_wait_timeout"):
+                    cancel = pool.submit(cur.connection.cancel)
+                    cancel.result()
+
+            query.result()

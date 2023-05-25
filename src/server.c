@@ -583,6 +583,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		case SV_TESTED:
 		case SV_USED:
 		case SV_ACTIVE:
+		case SV_ACTIVE_CANCEL:
 		case SV_IDLE:
 			res = handle_server_work(server, &pkt);
 			break;
@@ -618,6 +619,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			server->resetting = false;
 			switch (server->state) {
 			case SV_ACTIVE:
+			case SV_ACTIVE_CANCEL:
 			case SV_TESTED:
 				/* keep link if client expects more Syncs */
 				if (server->link) {

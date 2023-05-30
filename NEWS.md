@@ -4,6 +4,22 @@ PgBouncer changelog
 PgBouncer 1.19.x
 ----------------
 
+**2023-05-31  -  PgBouncer 1.19.1  -  "Sunny Spring"**
+
+This is a minor release that fixes a few recently introduced bugs:
+
+- Fixes
+  * Fix: FATAL in function disconnect_client(): bad client state: 0 ([#846])
+    (bug introduced in 1.18.0)
+  * Fix: FATAL in function server_proto(): server in bad state: 14 ([#849])
+    (bug introduced in 1.18.0)
+  * Add files required to run python based tests to release tarball ([#852])
+    (new tests introduced in 1.19.0)
+
+[#846]: https://github.com/pgbouncer/pgbouncer/pull/846
+[#849]: https://github.com/pgbouncer/pgbouncer/pull/849
+[#852]: https://github.com/pgbouncer/pgbouncer/pull/852
+
 **2023-05-04  -  PgBouncer 1.19.0  -  "The old-fashioned, human-generated kind"**
 
 - Features

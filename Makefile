@@ -80,6 +80,7 @@ dist_man_MANS = doc/pgbouncer.1 doc/pgbouncer.5
 
 # files in tgz
 EXTRA_DIST = AUTHORS COPYRIGHT Makefile config.mak.in config.sub config.guess \
+	     pyproject.toml requirements.txt \
 	     install-sh autogen.sh configure configure.ac \
 	     etc/mkauth.py etc/optscan.sh etc/example.debian.init.sh \
 	     win32/Makefile \

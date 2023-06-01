@@ -658,9 +658,12 @@ Show the PgBouncer state settings. Current states are active, paused and suspend
 
 #### PAUSE [db]
 
-PgBouncer tries to disconnect from all servers, first waiting for all queries
-to complete. The command will not return before all queries are finished.  To be used
-at the time of database restart.
+PgBouncer tries to disconnect from all servers. Disconnecting each server connection
+waits for that server connection to be released according to the server pool's pooling
+mode (in transaction pooling mode, the transaction must complete, in statement mode,
+the statement most complete, and in session pooling mode the client must disconnect).
+The command will not return before all server connections have been disconnected.
+To be used at the time of database restart.
 
 If database name is given, only that database will be paused.
 

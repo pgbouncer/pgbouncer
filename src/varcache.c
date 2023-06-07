@@ -35,6 +35,7 @@ static const struct var_lookup lookup [] = {
  {"TimeZone",                    VTimeZone },
  {"standard_conforming_strings", VStdStr },
  {"application_name",            VAppName },
+ {"search_path",                VSearchPath},
  {NULL},
 };
 

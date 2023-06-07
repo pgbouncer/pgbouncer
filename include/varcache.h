@@ -6,6 +6,7 @@ enum VarCacheIdx {
 	VTimeZone,
 	VStdStr,
 	VAppName,
+	VSearchPath,
 	NumVars
 };
 

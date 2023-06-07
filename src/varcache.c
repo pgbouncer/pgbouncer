@@ -29,21 +29,42 @@ struct var_lookup {
 	enum VarCacheIdx idx;
 };
 
-static const struct var_lookup lookup [] = {
- {"client_encoding",             VClientEncoding },
- {"DateStyle",                   VDateStyle },
- {"TimeZone",                    VTimeZone },
- {"standard_conforming_strings", VStdStr },
- {"application_name",            VAppName },
- {"search_path",                VSearchPath},
- {NULL},
-};
+static struct var_lookup* lookup;
 
 static struct StrPool *vpool;
 
 static inline struct PStr *get_value(VarCache *cache, const struct var_lookup *lk)
 {
 	return cache->var_list[lk->idx];
+}
+
+void init_lookup(void)
+{
+	lookup = (struct var_lookup*) malloc(sizeof(struct var_lookup)*7);
+
+	if (!lookup)
+	return;
+
+	lookup[6].name = NULL;
+
+	lookup[0].name = "client_encoding";
+	lookup[0].idx = VClientEncoding;
+
+	lookup[1].name = "DateStyle";
+	lookup[1].idx = VDateStyle;
+
+	lookup[2].name = "TimeZone";
+	lookup[2].idx = VTimeZone;
+
+	lookup[3].name = "standard_conforming_strings";
+	lookup[3].idx = VStdStr;
+
+	lookup[4].name = "application_name";
+	lookup[4].idx = VAppName;
+
+	lookup[5].name = "search_path";
+	lookup[5].idx = VSearchPath;
+
 }
 
 bool varcache_set(VarCache *cache, const char *key, const char *value)

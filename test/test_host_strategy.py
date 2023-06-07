@@ -7,6 +7,7 @@ def test_host_strategy_last_successful_good_first(bouncer):
         bouncer.test(dbname="hostlist_good_first")
         bouncer.test(dbname="hostlist_good_first")
 
+
 def test_host_strategy_last_successful_bad_first(bouncer):
     # The first connection to a bogus host will fail
     bouncer.admin(f"set server_login_retry=1")

@@ -1237,19 +1237,19 @@ they are logged but ignored otherwise.
 Set the pool mode specific to this database. If not set,
 the default `pool_mode` is used.
 
-### host_strategy
+### load_balance_hosts
 
-When a comma-separated list is specified in `host`, `host_strategy` controls
+When a comma-separated list is specified in `host`, `load_balance_hosts` controls
 which entry is chosen for a new connection.
 
-round_robin
+round-robin
 :   A new connection attempt chooses the next host entry in the list.
 
-last_successful
+disable
 :   A new connection continues using the same host entry until a connection
     fails, after which the next host entry is chosen.
 
-Default: `round_robin`
+Default: `round-robin`
 
 ### max_db_connections
 

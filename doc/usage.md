@@ -447,8 +447,8 @@ maxwait_us
 pool_mode
 :   The pooling mode in use.
 
-host_strategy
-:   The host_strategy in use if the pool's host contains a comma-separated list.
+load_balance_hosts
+:   The load_balance_hosts in use if the pool's host contains a comma-separated list.
 
 #### SHOW PEER_POOLS
 
@@ -567,7 +567,7 @@ pool_mode
 :   The database's override pool_mode, or NULL if the default will be used instead.
 
 host_strategy
-:   The database's host_strategy if the host contains a comma-separated list.
+:   The database's load_balance_hosts if the host contains a comma-separated list.
 
 max_connections
 :   Maximum number of allowed connections for this database, as set by

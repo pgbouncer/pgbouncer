@@ -1636,7 +1636,7 @@ static void dns_connect(struct PgSocket *server)
 		int count = 1;
 		int n;
 
-		if (server->pool->db->host_strategy == LAST_SUCCESSFUL && server->pool->last_connect_failed)
+		if (server->pool->db->load_balance_hosts == LOAD_BALANCE_HOSTS_DISABLE && server->pool->last_connect_failed)
 			server->pool->rrcounter++;
 
 		for (const char *p = db->host; *p; p++)
@@ -1649,7 +1649,7 @@ static void dns_connect(struct PgSocket *server)
 				break;
 		Assert(host);
 
-		if (server->pool->db->host_strategy == ROUND_ROBIN)
+		if (server->pool->db->load_balance_hosts == LOAD_BALANCE_HOSTS_ROUND_ROBIN)
 			server->pool->rrcounter++;
 	} else {
 		host = db->host;

@@ -139,10 +139,9 @@ enum PacketCallbackFlag {
 	CB_HANDLE_COMPLETE_PACKET,
 };
 
-
-enum HostStrategy {
-	LAST_SUCCESSFUL,
-	ROUND_ROBIN
+enum LoadBalanceHosts {
+	LOAD_BALANCE_HOSTS_DISABLE,
+	LOAD_BALANCE_HOSTS_ROUND_ROBIN
 };
 
 #define is_server_socket(sk) ((sk)->state >= SV_FREE)
@@ -573,7 +572,7 @@ struct PgDatabase {
 	int max_db_connections;	/* max server connections between all pools */
 	usec_t server_lifetime;	/* max lifetime of server connection */
 	char *connect_query;	/* startup commands to send to server after connect */
-	enum HostStrategy host_strategy; /* strategy for host selection in a comma-separated host list */
+	enum LoadBalanceHosts load_balance_hosts; /* strategy for host selection in a comma-separated host list */
 
 	struct PktBuf *startup_params;	/* partial StartupMessage (without user) be sent to server */
 	const char *dbname;	/* server-side name, pointer to inside startup_msg */
@@ -859,7 +858,7 @@ extern char *cf_server_tls_ciphers;
 extern int cf_max_prepared_statements;
 
 extern const struct CfLookup pool_mode_map[];
-extern const struct CfLookup host_strategy_map[];
+extern const struct CfLookup load_balance_hosts_map[];
 
 extern usec_t g_suspend_start;
 

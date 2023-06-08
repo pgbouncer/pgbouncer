@@ -230,9 +230,9 @@ const struct CfLookup sslmode_map[] = {
 	{ NULL }
 };
 
-const struct CfLookup host_strategy_map[] = {
-	{ "last_successful", LAST_SUCCESSFUL },
-	{ "round_robin", ROUND_ROBIN },
+const struct CfLookup load_balance_hosts_map[] = {
+	{ "disable", LOAD_BALANCE_HOSTS_DISABLE },
+	{ "round-robin", LOAD_BALANCE_HOSTS_ROUND_ROBIN },
 	{ NULL }
 };
 

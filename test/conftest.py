@@ -136,6 +136,15 @@ def pg_reset(pg):
     """Resets any changes to Postgres settings from previous tests"""
     pg.reset_hba()
     os.truncate(pg.pgdata / "postgresql.auto.conf", 0)
-    pg.reload()
+
+    # If a previous test restarted postgres, it was probably because of some
+    # config that could only be changed across restarts. To reset those, we'll
+    # have to restart it again. In other cases a reload should be enough to
+    # reset the configuration.
+    if pg.restarted:
+        pg.restart()
+        pg.restarted = False
+    else:
+        pg.reload()
 
     yield

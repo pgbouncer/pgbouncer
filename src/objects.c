@@ -126,7 +126,7 @@ void init_objects(void)
 	aatree_init(&pam_user_tree, user_node_cmp, NULL);
 	user_cache = slab_create("user_cache", sizeof(PgUser), 0, NULL, USUAL_ALLOC);
 	db_cache = slab_create("db_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
-	peer_cache = slab_create("db_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
+	peer_cache = slab_create("peer_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
 	peer_pool_cache = slab_create("peer_pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
 	pool_cache = slab_create("pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
 

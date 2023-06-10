@@ -1,5 +1,7 @@
 #include <usual/strpool.h>
 
+#define MAX_NUM_CACHE_VARS 100
+
 enum VarCacheIdx {
 	VDateStyle = 0,
 	VClientEncoding,
@@ -13,10 +15,10 @@ enum VarCacheIdx {
 typedef struct VarCache VarCache;
 
 struct VarCache {
-	struct PStr *var_list[NumVars];
+	struct PStr *var_list[MAX_NUM_CACHE_VARS];
 };
 
-void init_lookup(void);
+void init_var_lookup(void);
 bool varcache_set(VarCache *cache, const char *key, const char *value) /* _MUSTCHECK */;
 bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p) _MUSTCHECK;
 void varcache_fill_unset(VarCache *src, PgSocket *dst);

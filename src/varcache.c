@@ -23,13 +23,15 @@
 #include "bouncer.h"
 
 #include <usual/pgutil.h>
+#include "uthash.h"
 
 struct var_lookup {
-	const char *name;
+	const char *name;             /* key (string is WITHIN the structure) */
 	enum VarCacheIdx idx;
+	UT_hash_handle hh;         /* makes this structure hashable */
 };
 
-static struct var_lookup* lookup;
+static struct var_lookup* lookup_map;
 
 static struct StrPool *vpool;
 
@@ -38,38 +40,31 @@ static inline struct PStr *get_value(VarCache *cache, const struct var_lookup *l
 	return cache->var_list[lk->idx];
 }
 
-void init_lookup(void)
+void init_var_lookup(void)
 {
-	lookup = (struct var_lookup*) malloc(sizeof(struct var_lookup)*7);
+	/* TODO: read the parameter names from ini file */
+	const char *names[] = { "client_encoding", "DateStyle",  "TimeZone", "standard_conforming_strings", "application_name", 
+					"search_path", NULL };
 
-	if (!lookup)
-	return;
+	struct var_lookup *lookup = NULL;
 
-	lookup[6].name = NULL;
+	int num_cache_vars_in_config = sizeof(names)/sizeof(names[0]);
 
-	lookup[0].name = "client_encoding";
-	lookup[0].idx = VClientEncoding;
+	if  (num_cache_vars_in_config > MAX_NUM_CACHE_VARS)
+		die("Recompile PgBouncer and increasing MAX_NUM_CACHE_VARS");
 
-	lookup[1].name = "DateStyle";
-	lookup[1].idx = VDateStyle;
-
-	lookup[2].name = "TimeZone";
-	lookup[2].idx = VTimeZone;
-
-	lookup[3].name = "standard_conforming_strings";
-	lookup[3].idx = VStdStr;
-
-	lookup[4].name = "application_name";
-	lookup[4].idx = VAppName;
-
-	lookup[5].name = "search_path";
-	lookup[5].idx = VSearchPath;
+	for (int i = 0; names[i]; ++i) {
+		lookup = (struct var_lookup *)malloc(sizeof *lookup);
+		lookup->name = names[i];
+		lookup->idx = i;
+		HASH_ADD_KEYPTR(hh, lookup_map, lookup->name, strlen(lookup->name), lookup);
+	}
 
 }
 
 bool varcache_set(VarCache *cache, const char *key, const char *value)
 {
-	const struct var_lookup *lk;
+	const struct var_lookup *lk = NULL;
 	struct PStr *pstr = NULL;
 
 	if (!vpool) {
@@ -78,13 +73,11 @@ bool varcache_set(VarCache *cache, const char *key, const char *value)
 			return false;
 	}
 
-	for (lk = lookup; lk->name; lk++) {
-		if (strcasecmp(lk->name, key) == 0)
-			goto set_value;
-	}
-	return false;
+	HASH_FIND_STR(lookup_map, key, lk);
 
-set_value:
+	if (lk == NULL)
+		return false;
+
 	/* drop old value */
 	strpool_decref(cache->var_list[lk->idx]);
 	cache->var_list[lk->idx] = NULL;
@@ -140,7 +133,7 @@ bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
 {
 	int changes = 0;
 	struct PStr *cval, *sval;
-	const struct var_lookup *lk;
+	const struct var_lookup *lk, *tmp;
 	int sql_ofs;
 	struct PktBuf *pkt = pktbuf_temp();
 
@@ -149,11 +142,13 @@ bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
 	/* grab query position inside pkt */
 	sql_ofs = pktbuf_written(pkt);
 
-	for (lk = lookup; lk->name; lk++) {
+	HASH_ITER(hh, lookup_map, lk, tmp) {
+
 		sval = get_value(&server->vars, lk);
 		cval = get_value(&client->vars, lk);
 		changes += apply_var(pkt, lk->name, cval, sval);
 	}
+
 	*changes_p = changes > 0;
 	if (!changes)
 		return true;
@@ -168,8 +163,9 @@ bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
 void varcache_fill_unset(VarCache *src, PgSocket *dst)
 {
 	struct PStr *srcval, *dstval;
-	const struct var_lookup *lk;
-	for (lk = lookup; lk->name; lk++) {
+	const struct var_lookup *lk, *tmp;
+
+	HASH_ITER(hh, lookup_map, lk, tmp) {
 		srcval = src->var_list[lk->idx];
 		dstval = dst->vars.var_list[lk->idx];
 		if (!dstval) {
@@ -191,8 +187,9 @@ void varcache_clean(VarCache *cache)
 void varcache_add_params(PktBuf *pkt, VarCache *vars)
 {
 	struct PStr *val;
-	const struct var_lookup *lk;
-	for (lk = lookup; lk->name; lk++) {
+	const struct var_lookup *lk, *tmp;
+
+	HASH_ITER(hh, lookup_map, lk, tmp) {
 		val = vars->var_list[lk->idx];
 		if (val)
 			pktbuf_write_ParameterStatus(pkt, lk->name, val->str);

@@ -976,7 +976,7 @@ int main(int argc, char *argv[])
 	init_caches();
 	logging_prefix_cb = log_socket_prefix;
 
-	init_lookup();
+	init_var_lookup();
 
 	if (!sbuf_tls_setup())
 		die("TLS setup failed");

@@ -99,7 +99,6 @@ static int apply_var(PktBuf *pkt, const char *key,
 		     const struct PStr *sval)
 {
 	char buf[128];
-	char qbuf[128];
 	unsigned len;
 
 	/* if unset, skip */
@@ -114,12 +113,8 @@ static int apply_var(PktBuf *pkt, const char *key,
 	if (strcasecmp(cval->str, sval->str) == 0)
 		return 0;
 
-	/* the string may have been taken from startup pkt */
-	if (!pg_quote_literal(qbuf, cval->str, sizeof(qbuf)))
-		return 0;
-
 	/* add SET statement to packet */
-	len = snprintf(buf, sizeof(buf), "SET %s=%s;", key, qbuf);
+	len = snprintf(buf, sizeof(buf), "SET %s=%s;", key, cval->str);
 	if (len < sizeof(buf)) {
 		pktbuf_put_bytes(pkt, buf, len);
 		return 1;

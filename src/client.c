@@ -575,6 +575,7 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 	const char *key, *val;
 	bool ok;
 	bool appname_found = false;
+	char qbuf[128];
 
 	while (1) {
 		ok = mbuf_get_string(&pkt->data, &key);
@@ -584,6 +585,9 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 		if (!ok)
 			break;
 
+		if (!pg_quote_literal(qbuf, val, sizeof(qbuf)))
+			return 0;
+
 		if (strcmp(key, "database") == 0) {
 			slog_debug(client, "got var: %s=%s", key, val);
 			dbname = val;
@@ -591,10 +595,10 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 			slog_debug(client, "got var: %s=%s", key, val);
 			username = val;
 		} else if (strcmp(key, "application_name") == 0) {
-			set_appname(client, val);
+			set_appname(client, qbuf);
 			appname_found = true;
-		} else if (varcache_set(&client->vars, key, val)) {
-			slog_debug(client, "got var: %s=%s", key, val);
+		} else if (varcache_set(&client->vars, key, qbuf)) {
+			slog_debug(client, "got var: %s=%s", key, qbuf);
 		} else if (strlist_contains(cf_ignore_startup_params, key)) {
 			slog_debug(client, "ignoring startup parameter: %s=%s", key, val);
 		} else {

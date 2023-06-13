@@ -66,13 +66,14 @@ task:
     - curl https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
     - echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | tee /etc/apt/sources.list.d/pgdg.list
     - apt-get update
-    - pkgs="autoconf automake ca-certificates cpio libc-ares-dev libevent-dev libssl-dev libsystemd-dev libtool libudns-dev make pandoc postgresql-$PGVERSION pkg-config python3 python3-pip sudo iptables"
+    - pkgs="autoconf automake ca-certificates cpio libc-ares-dev libevent-dev libssl-dev libsystemd-dev libtool libudns-dev make pandoc postgresql-$PGVERSION pkg-config python3 python3-pip python3-venv sudo iptables"
     - case $CC in clang) pkgs="$pkgs clang";; esac
     - if [ x"$ENABLE_VALGRIND" = x"yes" ]; then pkgs="$pkgs valgrind"; fi
     - if [ x"$use_scan_build" = x"yes" ]; then pkgs="$pkgs clang-tools"; fi
     - apt-get -y install $pkgs
-    - python3 -m pip install -r requirements.txt
-    - if [ "$(lsb_release -cs)" = "bionic" ]; then python3 -m pip install contextlib2; fi
+    - python3 -m venv /venv
+    - /venv/bin/pip install -r requirements.txt
+    - if [ "$(lsb_release -cs)" = "bionic" ]; then /venv/bin/pip install contextlib2; fi
     - useradd user
     - chown -R user .
     - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
@@ -81,7 +82,7 @@ task:
     - su user -c "${use_scan_build:+scan-build} ./configure --prefix=$HOME/install --enable-cassert --enable-werror --without-cares --with-systemd $configure_args"
     - su user -c "${use_scan_build:+scan-build} make -j4"
   test_script:
-    - su user -c "PATH=/usr/lib/postgresql/${PGVERSION}/bin:$PATH make -j4 check CONCURRENCY=4"
+    - source /venv/bin/activate && su user -c "PATH=/usr/lib/postgresql/${PGVERSION}/bin:$PATH make -j4 check CONCURRENCY=4"
   install_script:
     - make -j4 install
   dist_script:

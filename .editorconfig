@@ -8,7 +8,7 @@ insert_final_newline = true
 charset = utf-8
 trim_trailing_whitespace = true
 
-[*.c]
+[*.{c,h}]
 indent_style = tab
 # We specifically don't set indent_size and tab_with here so people can choose
 # what they prefer themselves

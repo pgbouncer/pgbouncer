@@ -40,25 +40,54 @@ static inline struct PStr *get_value(VarCache *cache, const struct var_lookup *l
 	return cache->var_list[lk->idx];
 }
 
-void init_var_lookup(void)
+static void init_var_lookup_from_config(const char *cf_cache_vars, int idx)
 {
-	/* TODO: read the parameter names from ini file */
-	const char *names[] = { "client_encoding", "DateStyle",  "TimeZone", "standard_conforming_strings", "application_name", 
-					"search_path", NULL };
+	char *s, *p, *q;
+	struct var_lookup *lookup = NULL;
+
+	if ((s = strdup(cf_cache_vars)) == NULL)
+		return;
+
+	q = s;
+	while ((p = strsep(&q, ",")) != NULL) {
+		while (*p == ' ' || *p == '\t')
+			p++;
+
+		HASH_FIND_STR(lookup_map, p, lookup);
+
+		/* If the var name is already on the hash map, do not update its idx */
+		if (lookup != NULL)
+			continue;
+
+		lookup = (struct var_lookup *)malloc(sizeof *lookup);
+		lookup->name = strdup(p);
+
+		lookup->idx = idx++;
+		HASH_ADD_KEYPTR(hh, lookup_map, lookup->name, strlen(lookup->name), lookup);
+	}
+
+	free(s);
+
+	if (idx > MAX_NUM_CACHE_VARS)
+		die("Recompile PgBouncer increasing MAX_NUM_CACHE_VARS value to %d", idx);
+}
+
+void init_var_lookup(const char *cf_cache_vars)
+{
+	const char *names[] = { "client_encoding", "DateStyle",  "TimeZone", "standard_conforming_strings", "application_name", NULL };
+	int idx = 0;
 
 	struct var_lookup *lookup = NULL;
 
-	int num_cache_vars_in_config = sizeof(names)/sizeof(names[0]);
-
-	if  (num_cache_vars_in_config > MAX_NUM_CACHE_VARS)
-		die("Recompile PgBouncer and increasing MAX_NUM_CACHE_VARS");
-
-	for (int i = 0; names[i]; ++i) {
+	/* Always add the static list of names for compatibility */
+	for (; names[idx]; idx++) {
 		lookup = (struct var_lookup *)malloc(sizeof *lookup);
-		lookup->name = names[i];
-		lookup->idx = i;
+		lookup->name = names[idx];
+		lookup->idx = idx;
 		HASH_ADD_KEYPTR(hh, lookup_map, lookup->name, strlen(lookup->name), lookup);
 	}
+
+	init_var_lookup_from_config(cf_cache_vars, idx);
 
 }
 

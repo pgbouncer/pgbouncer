@@ -208,7 +208,7 @@ specified here, so that PgBouncer knows that they should be maintained in the cl
 and restored in the server whenever the client becomes active.
 
 If you need to specify multiple values, use a comma-separated list (e.g.
-`search_path, intervalstyle`)
+`search_path, IntervalStyle`)
 
 Default: empty
 

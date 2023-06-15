@@ -19,6 +19,7 @@ struct VarCache {
 
 void init_var_lookup(const char *cf_track_startup_parameters);
 bool varcache_set(VarCache *cache, const char *key, const char *value) /* _MUSTCHECK */;
+bool varcache_set_quoted(PgSocket *client, const char *key, const char *value);
 bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p) _MUSTCHECK;
 void varcache_fill_unset(VarCache *src, PgSocket *dst);
 void varcache_clean(VarCache *cache);

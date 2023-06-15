@@ -569,23 +569,6 @@ static void set_appname(PgSocket *client, const char *app_name)
 	}
 }
 
-static bool varcache_set_quoted(PgSocket *client, const char *key, const char *value)
-{
-	char qbuf[400];
-
-	if (!pg_quote_literal(qbuf, value, sizeof(qbuf))) {
-		slog_warning(client, "could not quote parameter: %s=%s", key, value);
-		return false;
-	}
-
-	if (varcache_set(&client->vars, key, qbuf)) {
-		slog_debug(client, "got var: %s=%s", key, qbuf);
-		return true;
-	}
-
-	return false;
-}
-
 static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 {
 	const char *username = NULL, *dbname = NULL;

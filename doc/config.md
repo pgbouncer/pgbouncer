@@ -203,7 +203,7 @@ Default: 0
 ### track_startup_parameters
 
 By default, PgBouncer tracks `client_encoding`, `datestyle`, `timezone`, `standard_conforming_strings`
-and 'application_name' parameters per client. To allow other parameters to be tracked, they can be
+and `application_name` parameters per client. To allow other parameters to be tracked, they can be
 specified here, so that PgBouncer knows that they should be maintained in the client variable cache
 and restored in the server whenever the client becomes active.
 

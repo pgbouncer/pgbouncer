@@ -29,4 +29,6 @@
 *.exe
 *.gz
 *.swp
+env
+venv
 .venv

@@ -8,7 +8,6 @@ enum VarCacheIdx {
 	VTimeZone,
 	VStdStr,
 	VAppName,
-	VSearchPath,
 	NumVars
 };
 
@@ -18,7 +17,7 @@ struct VarCache {
 	struct PStr *var_list[MAX_NUM_CACHE_VARS];
 };
 
-void init_var_lookup(const char *cf_cache_vars);
+void init_var_lookup(const char *cf_track_startup_parameters);
 bool varcache_set(VarCache *cache, const char *key, const char *value) /* _MUSTCHECK */;
 bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p) _MUSTCHECK;
 void varcache_fill_unset(VarCache *src, PgSocket *dst);

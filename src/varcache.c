@@ -23,11 +23,12 @@
 #include "bouncer.h"
 
 #include <usual/pgutil.h>
+#include <usual/string.h>
 #include "uthash.h"
 
 struct var_lookup {
 	const char *name;             /* key (string is WITHIN the structure) */
-	enum VarCacheIdx idx;
+	int idx;
 	UT_hash_handle hh;         /* makes this structure hashable */
 };
 
@@ -40,39 +41,47 @@ static inline struct PStr *get_value(VarCache *cache, const struct var_lookup *l
 	return cache->var_list[lk->idx];
 }
 
-static void init_var_lookup_from_config(const char *cf_cache_vars, int idx)
+static bool sl_add(void *arg, const char *s)
 {
-	char *s, *p, *q;
+	return strlist_append(arg, s);
+}
+
+static void init_var_lookup_from_config(const char *cf_track_startup_parameters, int idx)
+{
+
+	char *var_name = NULL;
 	struct var_lookup *lookup = NULL;
+	struct StrList *sl = strlist_new(NULL);
 
-	if ((s = strdup(cf_cache_vars)) == NULL)
-		return;
+	if (!parse_word_list(cf_track_startup_parameters, sl_add, sl))
+		die("failed to parse track_startup_parameters in config %s", cf_track_startup_parameters);
 
-	q = s;
-	while ((p = strsep(&q, ",")) != NULL) {
-		while (*p == ' ' || *p == '\t')
-			p++;
+	while (!strlist_empty(sl)) {
+		var_name = strlist_pop(sl);
 
-		HASH_FIND_STR(lookup_map, p, lookup);
+		if (!var_name)
+			continue;
+
+		HASH_FIND_STR(lookup_map, var_name, lookup);
 
 		/* If the var name is already on the hash map, do not update its idx */
 		if (lookup != NULL)
 			continue;
 
 		lookup = (struct var_lookup *)malloc(sizeof *lookup);
-		lookup->name = strdup(p);
+		lookup->name = strdup(var_name);
 
 		lookup->idx = idx++;
 		HASH_ADD_KEYPTR(hh, lookup_map, lookup->name, strlen(lookup->name), lookup);
 	}
 
-	free(s);
+	strlist_free(sl);
 
 	if (idx > MAX_NUM_CACHE_VARS)
 		die("Recompile PgBouncer increasing MAX_NUM_CACHE_VARS value to %d", idx);
 }
 
-void init_var_lookup(const char *cf_cache_vars)
+void init_var_lookup(const char *cf_track_startup_parameters)
 {
 	const char *names[] = { "client_encoding", "DateStyle",  "TimeZone", "standard_conforming_strings", "application_name", NULL };
 	int idx = 0;
@@ -87,7 +96,7 @@ void init_var_lookup(const char *cf_cache_vars)
 		HASH_ADD_KEYPTR(hh, lookup_map, lookup->name, strlen(lookup->name), lookup);
 	}
 
-	init_var_lookup_from_config(cf_cache_vars, idx);
+	init_var_lookup_from_config(cf_track_startup_parameters, idx);
 
 }
 

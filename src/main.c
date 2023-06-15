@@ -116,7 +116,7 @@ char *cf_auth_hba_file;
 char *cf_auth_user;
 char *cf_auth_query;
 char *cf_auth_dbname;
-char *cf_cache_vars;
+char *cf_track_startup_parameters;
 
 int cf_max_client_conn;
 int cf_default_pool_size;
@@ -239,7 +239,7 @@ CF_ABS("auth_query", CF_STR, cf_auth_query, 0, "SELECT usename, passwd FROM pg_s
 CF_ABS("auth_type", CF_LOOKUP(auth_type_map), cf_auth_type, 0, "md5"),
 CF_ABS("auth_user", CF_STR, cf_auth_user, 0, NULL),
 CF_ABS("autodb_idle_timeout", CF_TIME_USEC, cf_autodb_idle_timeout, 0, "3600"),
-CF_ABS("cache_vars", CF_STR, cf_cache_vars, 0, NULL),
+CF_ABS("track_startup_parameters", CF_STR, cf_track_startup_parameters, 0, NULL),
 CF_ABS("client_idle_timeout", CF_TIME_USEC, cf_client_idle_timeout, 0, "0"),
 CF_ABS("client_login_timeout", CF_TIME_USEC, cf_client_login_timeout, 0, "60"),
 CF_ABS("client_tls_ca_file", CF_STR, cf_client_tls_ca_file, 0, ""),
@@ -896,7 +896,7 @@ static void cleanup(void)
 	xfree((char **)&cf_syslog_ident);
 	xfree((char **)&cf_syslog_facility);
 
-	xfree(&cf_cache_vars);
+	xfree(&cf_track_startup_parameters);
 }
 
 /* boot everything */
@@ -976,12 +976,11 @@ int main(int argc, char *argv[])
 
 	init_objects();
 	load_config();
-	log_info("cache_vars read from config: %s", cf_cache_vars);
 	main_config.loaded = true;
 	init_caches();
 	logging_prefix_cb = log_socket_prefix;
 
-	init_var_lookup(cf_cache_vars);
+	init_var_lookup(cf_track_startup_parameters);
 
 	if (!sbuf_tls_setup())
 		die("TLS setup failed");

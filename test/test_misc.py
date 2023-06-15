@@ -32,6 +32,30 @@ def test_fast_close(bouncer):
             ):
                 cur.execute("select 1")
 
+def test_track_startup_parameters(bouncer):
+    bouncer.admin(f"set pool_mode=transaction")
+    bouncer.admin(f"set track_startup_parameters = search_path, IntervalStyle")
+
+    conn1 = bouncer.conn(dbname="p1")
+    cur1 = conn1.cursor()
+    conn2 = bouncer.conn(dbname="p1")
+    cur2 = conn2.cursor()
+    
+    cur1.execute("SET intervalstyle = sql_standard");
+    cur2.execute("SET intervalstyle = postgres");
+
+    cur1.execute("SHOW intervalstyle")
+    cur2.execute("SHOW intervalstyle")
+
+    result1 = cur1.fetchone();
+    assert result1[0] == "sql_standard"
+
+    result2 = cur2.fetchone();
+    assert result2[0] == "postgres"
+
+   finally:
+        conn1.close()
+        conn2.close()
 
 @pytest.mark.asyncio
 async def test_wait_close(bouncer):

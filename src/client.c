@@ -593,10 +593,10 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 		} else if (strcmp(key, "application_name") == 0) {
 			set_appname(client, val);
 			appname_found = true;
+		} else if (varcache_set(&client->vars, key, val)) {
+			slog_debug(client, "got var: %s=%s", key, val);
 		} else if (strlist_contains(cf_ignore_startup_params, key)) {
 			slog_debug(client, "ignoring startup parameter: %s=%s", key, val);
-		} else if (varcache_set_quoted(client, key, val)) {
-			continue;
 		} else {
 			slog_warning(client, "unsupported startup parameter: %s=%s", key, val);
 			disconnect_client(client, true, "unsupported startup parameter: %s", key);

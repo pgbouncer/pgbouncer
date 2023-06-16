@@ -163,7 +163,9 @@ static int apply_var(PktBuf *pkt, const char *key,
 		     const struct PStr *sval)
 {
 	char buf[128];
+	char qbuf[128];
 	unsigned len;
+	const char *tmp;
 
 	/* if unset, skip */
 	if (!cval || !sval || !*cval->str)
@@ -177,8 +179,17 @@ static int apply_var(PktBuf *pkt, const char *key,
 	if (strcasecmp(cval->str, sval->str) == 0)
 		return 0;
 
+	if (strcasecmp("search_path", key) == 0) {
+		tmp = cval->str;
+	}
+	else if (pg_quote_literal(qbuf, cval->str, sizeof(qbuf))){
+		tmp = qbuf;
+	}
+	else
+		return 0;
+
 	/* add SET statement to packet */
-	len = snprintf(buf, sizeof(buf), "SET %s=%s;", key, cval->str);
+	len = snprintf(buf, sizeof(buf), "SET %s=%s;", key, tmp);
 	if (len < sizeof(buf)) {
 		pktbuf_put_bytes(pkt, buf, len);
 		return 1;

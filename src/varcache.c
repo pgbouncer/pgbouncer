@@ -135,14 +135,23 @@ bool varcache_set(VarCache *cache, const char *key, const char *value)
 bool varcache_set_quoted(PgSocket *client, const char *key, const char *value)
 {
 	char qbuf[400];
+	const char *tmp;
 
-	if (!pg_quote_literal(qbuf, value, sizeof(qbuf))) {
-		slog_warning(client, "could not quote parameter: %s=%s", key, value);
-		return false;
+	tmp = value;
+	/* Only quote search_path. Quoting other parameters such as client_encoding
+	 * does not work well some clients like psycopg.*/
+	if (strcmp("search_path", key) == 0) {
+
+		if (!pg_quote_literal(qbuf, value, sizeof(qbuf))) {
+			slog_warning(client, "could not quote parameter: %s=%s", key, value);
+			return false;
+		}
+
+		tmp = qbuf;
 	}
 
-	if (varcache_set(&client->vars, key, qbuf)) {
-		slog_debug(client, "got var: %s=%s", key, qbuf);
+	if (varcache_set(&client->vars, key, tmp)) {
+		slog_debug(client, "got var: %s=%s", key, tmp);
 		return true;
 	}
 

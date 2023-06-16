@@ -1,6 +1,6 @@
 #include <usual/strpool.h>
 
-#define MAX_NUM_CACHE_VARS 100
+#define MAX_NUM_CACHE_VARS 30
 
 enum VarCacheIdx {
 	VDateStyle = 0,

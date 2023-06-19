@@ -26,6 +26,8 @@
 #include <usual/string.h>
 #include "uthash.h"
 
+static int num_var_cached = 0;
+
 struct var_lookup {
 	const char *name;             /* key (string is WITHIN the structure) */
 	int idx;
@@ -46,7 +48,7 @@ static bool sl_add(void *arg, const char *s)
 	return strlist_append(arg, s);
 }
 
-static void init_var_lookup_from_config(const char *cf_track_startup_parameters, int idx)
+static void init_var_lookup_from_config(const char *cf_track_startup_parameters, int *num_vars)
 {
 
 	char *var_name = NULL;
@@ -57,10 +59,14 @@ static void init_var_lookup_from_config(const char *cf_track_startup_parameters,
 		die("failed to parse track_startup_parameters in config %s", cf_track_startup_parameters);
 
 	while (!strlist_empty(sl)) {
+
 		var_name = strlist_pop(sl);
 
 		if (!var_name)
 			continue;
+
+		if ( *num_vars > MAX_NUM_CACHE_VARS)
+			die("Recompile PgBouncer increasing MAX_NUM_CACHE_VARS value");
 
 		HASH_FIND_STR(lookup_map, var_name, lookup);
 
@@ -71,14 +77,11 @@ static void init_var_lookup_from_config(const char *cf_track_startup_parameters,
 		lookup = (struct var_lookup *)malloc(sizeof *lookup);
 		lookup->name = strdup(var_name);
 
-		lookup->idx = idx++;
+		lookup->idx = (*num_vars)++;
 		HASH_ADD_KEYPTR(hh, lookup_map, lookup->name, strlen(lookup->name), lookup);
 	}
 
 	strlist_free(sl);
-
-	if (idx > MAX_NUM_CACHE_VARS)
-		die("Recompile PgBouncer increasing MAX_NUM_CACHE_VARS value to %d", idx);
 }
 
 void init_var_lookup(const char *cf_track_startup_parameters)
@@ -96,7 +99,9 @@ void init_var_lookup(const char *cf_track_startup_parameters)
 		HASH_ADD_KEYPTR(hh, lookup_map, lookup->name, strlen(lookup->name), lookup);
 	}
 
-	init_var_lookup_from_config(cf_track_startup_parameters, idx);
+	init_var_lookup_from_config(cf_track_startup_parameters, &idx);
+
+	num_var_cached = idx;
 
 }
 
@@ -248,7 +253,7 @@ void varcache_fill_unset(VarCache *src, PgSocket *dst)
 void varcache_clean(VarCache *cache)
 {
 	int i;
-	for (i = 0; i < NumVars; i++) {
+	for (i = 0; i < num_var_cached; i++) {
 		strpool_decref(cache->var_list[i]);
 		cache->var_list[i] = NULL;
 	}

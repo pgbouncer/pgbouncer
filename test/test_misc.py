@@ -35,88 +35,42 @@ def test_fast_close(bouncer):
 def test_track_startup_parameters(bouncer):
     bouncer.admin(f"set pool_mode=transaction")
 
+    test_set = {
+        "intervalstyle" : ["sql_standard", "postgres"],
+        "standard_conforming_strings" : ["ON", "OFF"],
+        "timezone" : ["'Europe/Amsterdam'", "'Europe/Rome'"],
+        "client_encoding" : ["ISO_8859_7", "LATIN5"],
+        "datestyle" : ["PostgreSQL,European", "ISO,US"],
+        "application_name" : ["client1","client2"],
+    }
+
+    test_expected = {
+        "intervalstyle" : ["sql_standard", "postgres"],
+        "standard_conforming_strings" : ["on", "off"],
+        "timezone" : ["Europe/Amsterdam", "Europe/Rome"],
+        "client_encoding" : ["ISO_8859_7", "LATIN5"],
+        "datestyle" : ["Postgres, DMY",  "ISO, MDY"],
+        "application_name" : ["client1","client2"],
+    }
+
     with bouncer.cur(dbname="p1") as cur1:
         with bouncer.cur(dbname="p1") as cur2:
 
-            # intervalstyle is tracked if it is configured to be tracked
-            cur1.execute("SET intervalstyle TO sql_standard")
-            cur2.execute("SET intervalstyle TO postgres")
+            for key in test_set:
+                stmt1 = "SET " + key + " TO " + test_set[key][0]
+                stmt2 = "SET " + key + " TO " + test_set[key][1]
+                cur1.execute(stmt1)
+                cur2.execute(stmt2)
 
-            cur1.execute("SHOW intervalstyle")
-            cur2.execute("SHOW intervalstyle")
+                stmt = "SHOW " + key
+                cur1.execute(stmt)
+                cur2.execute(stmt)
 
-            result1 = cur1.fetchone();
-            assert result1[0] == "sql_standard"
+                result1 = cur1.fetchone()
+                assert result1[0] == test_expected[key][0]
 
-            result2 = cur2.fetchone();
-            assert result2[0] == "postgres"
-
-            # timezone is tracked by default
-            cur1.execute("SET timezone TO 'Europe/Amsterdam'")
-            cur2.execute("SET timezone TO 'Europe/Rome'")
-
-            cur1.execute("SHOW timezone")
-            cur2.execute("SHOW timezone")
-
-            result1 = cur1.fetchone();
-            assert result1[0] == "Europe/Amsterdam"
-
-            result2 = cur2.fetchone();
-            assert result2[0] == "Europe/Rome"
-
-            # standard_conforming_strings is tracked by default
-            cur1.execute("SET standard_conforming_strings TO OFF")
-            cur2.execute("SET standard_conforming_strings to ON")
-
-            cur1.execute("SHOW standard_conforming_strings")
-            cur2.execute("SHOW standard_conforming_strings")
-
-            result1 = cur1.fetchone();
-            assert result1[0] == "off"
-
-            result2 = cur2.fetchone();
-            assert result2[0] == "on"
-
-            #  client_encoding is tracked by default
-            cur1.execute("SET client_encoding TO ISO_8859_7")
-            cur2.execute("SET client_encoding TO LATIN5")
-
-            cur1.execute("SHOW client_encoding")
-            cur2.execute("SHOW client_encoding")
-
-            result1 = cur1.fetchone();
-            assert result1[0] == "ISO_8859_7"
-
-            result2 = cur2.fetchone();
-            assert result2[0] == "LATIN5"
-
-
-            #  datestyle is tracked by default
-            cur1.execute("SET datestyle TO PostgreSQL,European")
-            cur2.execute("SET datestyle TO ISO,US")
-
-            cur1.execute("SHOW datestyle")
-            cur2.execute("SHOW datestyle")
-
-            result1 = cur1.fetchone();
-            assert result1[0] == "Postgres, DMY"
-
-            result2 = cur2.fetchone();
-            assert result2[0] == "ISO, MDY"
-
-            #  application_name is tracked by default
-            cur1.execute("SET application_name TO client1")
-            cur2.execute("SET application_name TO client2")
-
-            cur1.execute("SHOW application_name")
-            cur2.execute("SHOW application_name")
-
-            result1 = cur1.fetchone();
-            assert result1[0] == "client1"
-
-            result2 = cur2.fetchone();
-            assert result2[0] == "client2"
-
+                result2 = cur2.fetchone();
+                assert result2[0] == test_expected[key][1]
 
 @pytest.mark.asyncio
 async def test_wait_close(bouncer):

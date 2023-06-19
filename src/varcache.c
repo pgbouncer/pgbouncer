@@ -252,8 +252,7 @@ void varcache_fill_unset(VarCache *src, PgSocket *dst)
 
 void varcache_clean(VarCache *cache)
 {
-	int i;
-	for (i = 0; i < num_var_cached; i++) {
+	for (int i = 0; i < num_var_cached; i++) {
 		strpool_decref(cache->var_list[i]);
 		cache->var_list[i] = NULL;
 	}

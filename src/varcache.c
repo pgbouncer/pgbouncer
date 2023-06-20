@@ -50,7 +50,6 @@ static bool sl_add(void *arg, const char *s)
 
 static void init_var_lookup_from_config(const char *cf_track_startup_parameters, int *num_vars)
 {
-
 	char *var_name = NULL;
 	struct var_lookup *lookup = NULL;
 	struct StrList *sl = strlist_new(NULL);
@@ -64,9 +63,6 @@ static void init_var_lookup_from_config(const char *cf_track_startup_parameters,
 
 		if (!var_name)
 			continue;
-
-		if ( *num_vars > MAX_NUM_CACHE_VARS)
-			die("Recompile PgBouncer increasing MAX_NUM_CACHE_VARS value");
 
 		HASH_FIND_STR(lookup_map, var_name, lookup);
 
@@ -256,6 +252,17 @@ void varcache_clean(VarCache *cache)
 		strpool_decref(cache->var_list[i]);
 		cache->var_list[i] = NULL;
 	}
+}
+
+void varcache_alloc(VarCache *cache)
+{
+	cache->var_list = malloc(sizeof(struct PStr*) * num_var_cached);
+	memset(cache->var_list, 0, sizeof(struct PStr*) * num_var_cached);
+}
+
+void varcache_free(VarCache *cache)
+{
+	free(cache->var_list);
 }
 
 void varcache_add_params(PktBuf *pkt, VarCache *vars)

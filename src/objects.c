@@ -91,6 +91,7 @@ static void construct_client(void *obj)
 	memset(client, 0, sizeof(PgSocket));
 	list_init(&client->head);
 	sbuf_init(&client->sbuf, client_proto);
+	varcache_alloc(&client->vars);
 	client->state = CL_FREE;
 }
 
@@ -101,6 +102,7 @@ static void construct_server(void *obj)
 	memset(server, 0, sizeof(PgSocket));
 	list_init(&server->head);
 	sbuf_init(&server->sbuf, server_proto);
+	varcache_alloc(&server->vars);
 	server->state = SV_FREE;
 }
 
@@ -191,6 +193,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	switch (client->state) {
 	case CL_FREE:
 		varcache_clean(&client->vars);
+		varcache_free(&client->vars);
 		slab_free(client_cache, client);
 		break;
 	case CL_JUSTFREE:
@@ -261,6 +264,7 @@ void change_server_state(PgSocket *server, SocketState newstate)
 	switch (server->state) {
 	case SV_FREE:
 		varcache_clean(&server->vars);
+		varcache_free(&server->vars);
 		slab_free(server_cache, server);
 		break;
 	case SV_JUSTFREE:
@@ -583,6 +587,7 @@ static PgPool *new_pool(PgDatabase *db, PgUser *user)
 
 	list_init(&pool->head);
 	list_init(&pool->map_head);
+	varcache_alloc(&pool->orig_vars);
 
 	pool->user = user;
 	pool->db = db;
@@ -625,6 +630,7 @@ static PgPool *new_peer_pool(PgDatabase *db)
 
 	list_init(&pool->head);
 	list_init(&pool->map_head);
+	varcache_alloc(&pool->orig_vars);
 
 	pool->db = db;
 

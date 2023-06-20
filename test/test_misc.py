@@ -32,7 +32,11 @@ def test_fast_close(bouncer):
             ):
                 cur.execute("select 1")
 
+
 def test_track_startup_parameters(bouncer):
+    # test.ini has track_startup_parameters set to a list of Postgres
+    # parameters. Test that the parameters in the list in addition to the
+    # default hardcoded list of parameters are cached per client.
     bouncer.admin(f"set pool_mode=transaction")
 
     test_set = {
@@ -41,7 +45,7 @@ def test_track_startup_parameters(bouncer):
         "timezone" : ["'Europe/Amsterdam'", "'Europe/Rome'"],
         "client_encoding" : ["ISO_8859_7", "LATIN5"],
         "datestyle" : ["PostgreSQL,European", "ISO,US"],
-        "application_name" : ["client1","client2"],
+        "application_name" : ["client1", "client2"],
     }
 
     test_expected = {
@@ -50,7 +54,7 @@ def test_track_startup_parameters(bouncer):
         "timezone" : ["Europe/Amsterdam", "Europe/Rome"],
         "client_encoding" : ["ISO_8859_7", "LATIN5"],
         "datestyle" : ["Postgres, DMY",  "ISO, MDY"],
-        "application_name" : ["client1","client2"],
+        "application_name" : ["client1", "client2"],
     }
 
     with bouncer.cur(dbname="p1") as cur1:
@@ -69,8 +73,9 @@ def test_track_startup_parameters(bouncer):
                 result1 = cur1.fetchone()
                 assert result1[0] == test_expected[key][0]
 
-                result2 = cur2.fetchone();
+                result2 = cur2.fetchone()
                 assert result2[0] == test_expected[key][1]
+
 
 @pytest.mark.asyncio
 async def test_wait_close(bouncer):

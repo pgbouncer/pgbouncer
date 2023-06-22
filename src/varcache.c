@@ -48,14 +48,19 @@ static bool sl_add(void *arg, const char *s)
 	return strlist_append(arg, s);
 }
 
-static void init_var_lookup_from_config(const char *cf_track_startup_parameters, int *num_vars)
+int get_num_var_cached(void)
+{
+	return num_var_cached;
+}
+
+static void init_var_lookup_from_config(const char *cf_track_extra_parameters, int *num_vars)
 {
 	char *var_name = NULL;
 	struct var_lookup *lookup = NULL;
 	struct StrList *sl = strlist_new(NULL);
 
-	if (!parse_word_list(cf_track_startup_parameters, sl_add, sl))
-		die("failed to parse track_startup_parameters in config %s", cf_track_startup_parameters);
+	if (!parse_word_list(cf_track_extra_parameters, sl_add, sl))
+		die("failed to parse track_extra_parameters in config %s", cf_track_extra_parameters);
 
 	while (!strlist_empty(sl)) {
 
@@ -80,7 +85,7 @@ static void init_var_lookup_from_config(const char *cf_track_startup_parameters,
 	strlist_free(sl);
 }
 
-void init_var_lookup(const char *cf_track_startup_parameters)
+void init_var_lookup(const char *cf_track_extra_parameters)
 {
 	const char *names[] = { "DateStyle", "client_encoding", "TimeZone", "standard_conforming_strings", "application_name", NULL };
 	int idx = 0;
@@ -95,7 +100,7 @@ void init_var_lookup(const char *cf_track_startup_parameters)
 		HASH_ADD_KEYPTR(hh, lookup_map, lookup->name, strlen(lookup->name), lookup);
 	}
 
-	init_var_lookup_from_config(cf_track_startup_parameters, &idx);
+	init_var_lookup_from_config(cf_track_extra_parameters, &idx);
 
 	num_var_cached = idx;
 
@@ -133,28 +138,10 @@ bool varcache_set(VarCache *cache, const char *key, const char *value)
 	return true;
 }
 
-bool varcache_set_quoted(PgSocket *client, const char *key, const char *value)
+static bool variable_is_guc_list_quote(const char *key)
 {
-	char qbuf[400];
-	const char *tmp;
-
-	tmp = value;
-	/* Only quote search_path. Quoting other parameters such as client_encoding
-	 * does not work well some clients like psycopg.*/
-	if (strcmp("search_path", key) == 0) {
-
-		if (!pg_quote_literal(qbuf, value, sizeof(qbuf))) {
-			slog_warning(client, "could not quote parameter: %s=%s", key, value);
-			return false;
-		}
-
-		tmp = qbuf;
-	}
-
-	if (varcache_set(&client->vars, key, tmp)) {
-		slog_debug(client, "got var: %s=%s", key, tmp);
+	if (strcasecmp("search_path", key) == 0)
 		return true;
-	}
 
 	return false;
 }
@@ -163,7 +150,7 @@ static int apply_var(PktBuf *pkt, const char *key,
 		     const struct PStr *cval,
 		     const struct PStr *sval)
 {
-	char buf[128];
+	char buf[300];
 	char qbuf[128];
 	unsigned len;
 	const char *tmp;
@@ -180,8 +167,15 @@ static int apply_var(PktBuf *pkt, const char *key,
 	if (strcasecmp(cval->str, sval->str) == 0)
 		return 0;
 
-	if (strcasecmp("search_path", key) == 0) {
-		tmp = cval->str;
+	/* parameters that are marked GUC_LIST_QUOTE are returned already fully quoted
+	 * re-quoting them using pg_quote_literal will result in malformed values. */
+	if (variable_is_guc_list_quote(key)) {
+		/* zero length elements of the form "" should be specially handled.*/
+		if (strlen(cval->str) == 2 && strcmp(cval->str,"\"\"") == 0) {
+			tmp = "''";
+		}
+		else
+			tmp = cval->str;
 	}
 	else if (pg_quote_literal(qbuf, cval->str, sizeof(qbuf))){
 		tmp = qbuf;
@@ -191,13 +185,23 @@ static int apply_var(PktBuf *pkt, const char *key,
 
 	/* add SET statement to packet */
 	len = snprintf(buf, sizeof(buf), "SET %s=%s;", key, tmp);
+
 	if (len < sizeof(buf)) {
 		pktbuf_put_bytes(pkt, buf, len);
-		return 1;
-	} else {
-		log_warning("got too long value, skipping");
-		return 0;
 	}
+	else {
+		char *buf2 = malloc(sizeof(char)*len);
+
+		if (!buf2)
+			die("failed to allocate memory in apply_var");
+
+		snprintf(buf2, len, "SET %s=%s;", key, tmp);
+		pktbuf_put_bytes(pkt, buf2, len);
+
+		free(buf2);
+	}
+
+	return 1;
 }
 
 bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
@@ -252,17 +256,6 @@ void varcache_clean(VarCache *cache)
 		strpool_decref(cache->var_list[i]);
 		cache->var_list[i] = NULL;
 	}
-}
-
-void varcache_alloc(VarCache *cache)
-{
-	cache->var_list = malloc(sizeof(struct PStr*) * num_var_cached);
-	memset(cache->var_list, 0, sizeof(struct PStr*) * num_var_cached);
-}
-
-void varcache_free(VarCache *cache)
-{
-	free(cache->var_list);
 }
 
 void varcache_add_params(PktBuf *pkt, VarCache *vars)

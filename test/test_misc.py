@@ -33,8 +33,8 @@ def test_fast_close(bouncer):
                 cur.execute("select 1")
 
 
-def test_track_startup_parameters(bouncer):
-    # test.ini has track_startup_parameters set to a list of Postgres
+def test_track_extra_parameters(bouncer):
+    # test.ini has track_extra_parameters set to a list of Postgres
     # parameters. Test that the parameters in the list in addition to the
     # default hardcoded list of parameters are cached per client.
     bouncer.admin(f"set pool_mode=transaction")

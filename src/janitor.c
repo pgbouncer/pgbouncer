@@ -761,7 +761,7 @@ void kill_pool(PgPool *pool)
 	list_del(&pool->map_head);
 	statlist_remove(&pool_list, &pool->head);
 	varcache_clean(&pool->orig_vars);
-	varcache_free(&pool->orig_vars);
+	slab_free(var_list_cache, pool->orig_vars.var_list);
 	slab_free(pool_cache, pool);
 }
 
@@ -779,7 +779,7 @@ void kill_peer_pool(PgPool *pool)
 	list_del(&pool->map_head);
 	statlist_remove(&peer_pool_list, &pool->head);
 	varcache_clean(&pool->orig_vars);
-	varcache_free(&pool->orig_vars);
+	slab_free(var_list_cache, pool->orig_vars.var_list);
 	slab_free(peer_pool_cache, pool);
 }
 

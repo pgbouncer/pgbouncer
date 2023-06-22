@@ -200,7 +200,7 @@ achieving uniform load.
 
 Default: 0
 
-### track_startup_parameters
+### track_extra_parameters
 
 By default, PgBouncer tracks `client_encoding`, `datestyle`, `timezone`, `standard_conforming_strings`
 and `application_name` parameters per client. To allow other parameters to be tracked, they can be
@@ -208,7 +208,14 @@ specified here, so that PgBouncer knows that they should be maintained in the cl
 and restored in the server whenever the client becomes active.
 
 If you need to specify multiple values, use a comma-separated list (e.g.
-`search_path, IntervalStyle`)
+`default_transaction_readonly, IntervalStyle`)
+
+Note: Most parameters cannot be tracked this way. The only parameters that can be tracked are ones that
+Postgres reports to the client. Postgres has
+[an official list of parameters that it reports to the client](https://www.postgresql.org/docs/15/protocol-flow.html#PROTOCOL-ASYNC).
+Postgres extensions can change this list though, they can add parameters themselves that they also report,
+and they can start reporting already existing paremeters that Postgres does not report.
+Notably Citus 12.0+ causes Postgres to also report `search_path`.
 
 Default: empty
 

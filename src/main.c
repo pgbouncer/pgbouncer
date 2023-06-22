@@ -116,7 +116,7 @@ char *cf_auth_hba_file;
 char *cf_auth_user;
 char *cf_auth_query;
 char *cf_auth_dbname;
-char *cf_track_startup_parameters;
+char *cf_track_extra_parameters;
 
 int cf_max_client_conn;
 int cf_default_pool_size;
@@ -315,7 +315,7 @@ CF_ABS("tcp_keepidle", CF_INT, cf_tcp_keepidle, 0, "0"),
 CF_ABS("tcp_keepintvl", CF_INT, cf_tcp_keepintvl, 0, "0"),
 CF_ABS("tcp_socket_buffer", CF_INT, cf_tcp_socket_buffer, 0, "0"),
 CF_ABS("tcp_user_timeout", CF_INT, cf_tcp_user_timeout, 0, "0"),
-CF_ABS("track_startup_parameters", CF_STR, cf_track_startup_parameters, 0, ""),
+CF_ABS("track_extra_parameters", CF_STR, cf_track_extra_parameters, CF_NO_RELOAD, ""),
 CF_ABS("unix_socket_dir", CF_STR, cf_unix_socket_dir, CF_NO_RELOAD, DEFAULT_UNIX_SOCKET_DIR),
 #ifndef WIN32
 CF_ABS("unix_socket_group", CF_STR, cf_unix_socket_group, CF_NO_RELOAD, ""),
@@ -896,7 +896,7 @@ static void cleanup(void)
 	xfree((char **)&cf_syslog_ident);
 	xfree((char **)&cf_syslog_facility);
 
-	xfree(&cf_track_startup_parameters);
+	xfree(&cf_track_extra_parameters);
 }
 
 /* boot everything */
@@ -977,10 +977,9 @@ int main(int argc, char *argv[])
 	init_objects();
 	load_config();
 	main_config.loaded = true;
+	init_var_lookup(cf_track_extra_parameters);
 	init_caches();
 	logging_prefix_cb = log_socket_prefix;
-
-	init_var_lookup(cf_track_startup_parameters);
 
 	if (!sbuf_tls_setup())
 		die("TLS setup failed");

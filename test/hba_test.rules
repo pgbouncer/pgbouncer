@@ -5,6 +5,7 @@
 # hostssl    DATABASE  USER  ADDRESS  METHOD  [OPTIONS]
 # hostnossl  DATABASE  USER  ADDRESS  METHOD  [OPTIONS]
 
+# The following lines test that weird whitespace does not break parsing
 # ws
  	 	 	
 			# z
@@ -52,3 +53,7 @@ host		mdb2	muser		128.0.0.0/1		cert
 host		mdb	muser		ff11::0/16		md5
 host		mdb	muser		ff20::/12		md5
 host		mdb	muser		::1/128			trust
+
+# replication
+host		replication	admin	::1/128			trust
+host		db2,replication	admin2	::1/128			trust

@@ -70,3 +70,5 @@ bool cf_set_authdb(struct CfValue *cv, const char *value);
 
 /* reserved database name checking */
 bool check_reserved_database(const char *value);
+
+bool strings_equal(const char *str_left, const char *str_right) _MUSTCHECK;

@@ -884,7 +884,7 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 		pool = container_of(item, PgPool, head);
 		waiter = first_socket(&pool->waiting_client_list);
 		max_wait = (waiter && waiter->query_start) ? now - waiter->query_start : 0;
-		pool_mode = pool_pool_mode(pool);
+		pool_mode = probably_wrong_pool_pool_mode(pool);
 		pktbuf_write_DataRow(buf, "ssiiiiiiiiiiiiis",
 				     pool->db->name, pool->user->name,
 				     statlist_count(&pool->active_client_list),

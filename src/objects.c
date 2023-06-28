@@ -83,6 +83,12 @@ static STATLIST(justfree_server_list);
 /* init autodb idle list */
 STATLIST(autodatabase_idle_list);
 
+const char *replication_type_parameters[] = {
+	[REPLICATION_NONE] = "no",
+	[REPLICATION_LOGICAL] = "database",
+	[REPLICATION_PHYSICAL] = "yes",
+};
+
 /* fast way to get number of active clients */
 int get_active_client_count(void)
 {
@@ -777,10 +783,12 @@ PgPool *get_peer_pool(PgDatabase *db)
 /* deactivate socket and put into wait queue */
 static void pause_client(PgSocket *client)
 {
+	SocketState newstate;
 	Assert(client->state == CL_ACTIVE || client->state == CL_LOGIN);
-
 	slog_debug(client, "pause_client");
-	change_client_state(client, CL_WAITING);
+	newstate = CL_WAITING;
+
+	change_client_state(client, newstate);
 	if (!sbuf_pause(&client->sbuf))
 		disconnect_client(client, true, "pause failed");
 }
@@ -888,6 +896,17 @@ bool find_server(PgSocket *client)
 	/* try to get idle server, if allowed */
 	if (cf_pause_mode == P_PAUSE || pool->db->db_paused) {
 		server = NULL;
+	} else if (client->replication) {
+		/*
+		 * For replication clients we open dedicated server connections. These
+		 * connections are linked to a client as soon as the server is ready,
+		 * instead of lazily being assigned to a client only when the client
+		 * sends a query. So if we reach this point we know that that has not
+		 * happened yet, and we need to create a new replication connection for
+		 * this client.
+		 */
+		launch_new_connection(pool, /*evict_if_needed= */ true);
+		server = NULL;
 	} else {
 		while (1) {
 			server = first_socket(&pool->idle_server_list);
@@ -944,8 +963,11 @@ static bool reuse_on_release(PgSocket *server)
 {
 	bool res = true;
 	PgPool *pool = server->pool;
-	PgSocket *client = first_socket(&pool->waiting_client_list);
-	if (client) {
+	PgSocket *client;
+	Assert(!server->replication);
+	slog_debug(server, "reuse_on_release: replication %d", server->replication);
+	client = first_socket(&pool->waiting_client_list);
+	if (client && !client->replication) {
 		activate_client(client);
 
 		/*
@@ -1151,7 +1173,7 @@ bool release_server(PgSocket *server)
 		}
 
 		if (*cf_server_reset_query && (cf_server_reset_query_always ||
-					       pool_pool_mode(pool) == POOL_SESSION)) {
+					       connection_pool_mode(server) == POOL_SESSION)) {
 			/* notify reset is required */
 			newstate = SV_TESTED;
 		} else if (cf_server_check_delay == 0 && *cf_server_check_query) {
@@ -1217,6 +1239,18 @@ bool release_server(PgSocket *server)
 		return true;
 	}
 
+	if (server->replication) {
+		if (server->link) {
+			slog_debug(server, "release_server: new replication connection ready");
+			change_server_state(server, SV_ACTIVE);
+			activate_client(server->link);
+			return true;
+		} else {
+			disconnect_server(server, true, "replication client was closed");
+			return false;
+		}
+	}
+
 	Assert(server->link == NULL);
 	slog_noise(server, "release_server: new state=%d", newstate);
 	change_server_state(server, newstate);
@@ -1229,6 +1263,28 @@ bool release_server(PgSocket *server)
 	}
 
 	return true;
+}
+
+static void unlink_server(PgSocket *server, const char *reason)
+{
+	PgSocket *client;
+	if (!server->link)
+		return;
+
+	client = server->link;
+
+	client->link = NULL;
+	server->link = NULL;
+	/*
+	 * Send reason to client if it is already
+	 * logged in, otherwise send generic message.
+	 */
+	if (client->state == CL_ACTIVE || client->state == CL_WAITING)
+		disconnect_client(client, true, "%s", reason);
+	else if (client->state == CL_ACTIVE_CANCEL)
+		disconnect_client(client, false, "successfully sent cancel request");
+	else
+		disconnect_client(client, true, "bouncer config error");
 }
 
 /*
@@ -1262,26 +1318,9 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 
 	switch (server->state) {
 	case SV_ACTIVE_CANCEL:
-	case SV_ACTIVE: {
-		PgSocket *client = server->link;
-
-		if (client) {
-			client->link = NULL;
-			server->link = NULL;
-			/*
-			 * Send reason to client if it is already
-			 * logged in, otherwise send generic message.
-			 */
-			if (client->state == CL_ACTIVE || client->state == CL_WAITING)
-				disconnect_client(client, true, "%s", reason);
-			else if (client->state == CL_ACTIVE_CANCEL)
-				disconnect_client(client, false, "successfully sent cancel request");
-			else
-				disconnect_client(client, true, "bouncer config error");
-		}
-
+	case SV_ACTIVE:
+		unlink_server(server, reason);
 		break;
-	}
 	case SV_TESTED:
 	case SV_USED:
 	case SV_IDLE:
@@ -1305,6 +1344,8 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 			server->pool->last_connect_failed = false;
 			send_term = false;
 		}
+		if (server->replication)
+			unlink_server(server, reason);
 		break;
 	default:
 		fatal("bad server state: %d", server->state);
@@ -1466,6 +1507,16 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 		break;
 	case CL_WAITING:
 	case CL_WAITING_LOGIN:
+		/*
+		 * replication connections might already be linked to a server
+		 * while they are still in a waiting state.
+		 */
+		if (client->replication && client->link) {
+			PgSocket *server = client->link;
+			server->link = NULL;
+			client->link = NULL;
+			disconnect_server(server, false, "replication client disconnected");
+		}
 		break;
 	default:
 		fatal("bad client state: %d", client->state);
@@ -1490,6 +1541,9 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 		free(client->db);
 		client->db = NULL;
 	}
+
+	free(client->startup_options);
+	client->startup_options = NULL;
 
 	change_client_state(client, CL_JUSTFREE);
 	if (!sbuf_close(&client->sbuf))
@@ -1685,6 +1739,21 @@ bool evict_connection(PgDatabase *db)
 	return false;
 }
 
+/* evict the oldest idle connection from the pool */
+bool evict_pool_connection(PgPool *pool)
+{
+	PgSocket *oldest_connection = NULL;
+
+	oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->idle_server_list));
+
+	if (oldest_connection) {
+		disconnect_server(oldest_connection, true, "evicted");
+		return true;
+	}
+	return false;
+}
+
+
 /* evict the single most idle connection from among all pools to make room in the user */
 bool evict_user_connection(PgCredentials *user_credentials)
 {
@@ -1725,6 +1794,7 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed)
 	PgSocket *server;
 	int max;
 
+	log_debug("launch_new_connection: start");
 	/*
 	 * Allow only a single connection attempt at a time.
 	 *
@@ -1780,15 +1850,24 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed)
 	/* is it allowed to add servers? */
 	if (max >= pool_pool_size(pool) && pool->welcome_msg_ready) {
 		/* should we use reserve pool? */
+		PgSocket *c = first_socket(&pool->waiting_client_list);
 		if (cf_res_pool_timeout && pool_res_pool_size(pool)) {
 			usec_t now = get_cached_time();
-			PgSocket *c = first_socket(&pool->waiting_client_list);
 			if (c && (now - c->request_time) >= cf_res_pool_timeout) {
 				if (max < pool_pool_size(pool) + pool_res_pool_size(pool)) {
 					slog_warning(c, "taking connection from reserve_pool");
 					goto allow_new;
 				}
 			}
+		}
+
+		if (c && c->replication) {
+			while (evict_if_needed && pool_pool_size(pool) >= max) {
+				if (!evict_pool_connection(pool))
+					break;
+			}
+			if (pool_pool_size(pool) < max)
+				goto allow_new;
 		}
 		log_debug("launch_new_connection: pool full (%d >= %d)",
 			  max, pool_pool_size(pool));

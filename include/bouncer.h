@@ -140,6 +140,7 @@ typedef struct PktBuf PktBuf;
 typedef struct ScramState ScramState;
 typedef struct PgPreparedStatement PgPreparedStatement;
 typedef enum ResponseAction ResponseAction;
+typedef enum ReplicationType ReplicationType;
 
 extern int cf_sbuf_len;
 
@@ -610,6 +611,14 @@ typedef struct OutstandingRequest {
 	uint64_t server_ps_query_id;
 } OutstandingRequest;
 
+enum ReplicationType {
+	REPLICATION_NONE = 0,
+	REPLICATION_LOGICAL,
+	REPLICATION_PHYSICAL,
+};
+
+extern const char *replication_type_parameters[3];
+
 /*
  * A client or server connection.
  *
@@ -653,6 +662,9 @@ struct PgSocket {
 	/* server: received an ErrorResponse, waiting for ReadyForQuery to clear
 	 * the outstanding requests until the next Sync */
 	bool query_failed : 1;
+
+	ReplicationType replication;	/* If this is a replication connection */
+	char *startup_options;	/* only tracked for replication connections */
 
 	usec_t connect_time;	/* when connection was made */
 	usec_t request_time;	/* last activity time */

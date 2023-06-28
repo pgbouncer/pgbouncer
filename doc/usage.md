@@ -252,6 +252,9 @@ user
 database
 :   Database name.
 
+replication
+:   If server connection uses replication. Can be **none**, **logical** or **physical**.
+
 state
 :   State of the pgbouncer server connection, one of **active**,
     **idle**, **used**, **tested**, **new**, **active_cancel**,
@@ -321,6 +324,9 @@ user
 
 database
 :   Database name.
+
+replication
+:   If client connection uses replication. Can be **none**, **logical** or **physical**.
 
 state
 :   State of the client connection, one of **active**, **waiting**,

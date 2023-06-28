@@ -65,10 +65,12 @@ static char *get_token(char **ln_p)
 
 static int hba_test_eval(struct HBA *hba, char *ln, int linenr)
 {
-	const char *addr=NULL, *user=NULL, *db=NULL, *tls=NULL, *exp=NULL;
+	const char *addr=NULL, *user=NULL, *db=NULL, *modifier=NULL, *exp=NULL;
 	PgAddr pgaddr;
 	struct HBARule *rule;
 	int res = 0;
+	bool tls;
+	ReplicationType replication;
 
 	if (ln[0] == '#')
 		return 0;
@@ -76,7 +78,9 @@ static int hba_test_eval(struct HBA *hba, char *ln, int linenr)
 	db = get_token(&ln);
 	user = get_token(&ln);
 	addr = get_token(&ln);
-	tls = get_token(&ln);
+	modifier = get_token(&ln);
+	tls = strings_equal(modifier, "tls");
+	replication = strings_equal(modifier, "replication") ?  REPLICATION_PHYSICAL : REPLICATION_NONE;
 	if (!exp)
 		return 0;
 	if (!db || !user)
@@ -85,7 +89,7 @@ static int hba_test_eval(struct HBA *hba, char *ln, int linenr)
 	if (!pga_pton(&pgaddr, addr, 9999))
 		die("hbatest: invalid addr on line #%d", linenr);
 
-	rule = hba_eval(hba, &pgaddr, !!tls, db, user);
+	rule = hba_eval(hba, &pgaddr, !!tls, replication, db, user);
 
 	if (!rule) {
 	       if (strcmp("reject", exp) == 0) {

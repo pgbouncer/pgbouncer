@@ -599,15 +599,69 @@ bool answer_authreq(PgSocket *server, PktHdr *pkt)
 
 bool send_startup_packet(PgSocket *server)
 {
-	PgDatabase *db = server->pool->db;
+	PgPool *pool = server->pool;
+	PgDatabase *db = pool->db;
 	const char *username = server->pool->user_credentials->name;
-	PktBuf *pkt;
+	PktBuf *pkt = pktbuf_temp();
+	PgSocket *client = NULL;
 
-	pkt = pktbuf_temp();
-	pktbuf_write_StartupMessage(pkt, username,
-				    db->startup_params->buf,
-				    db->startup_params->write_pos);
-	return pktbuf_send_immediate(pkt, server);
+	pktbuf_start_packet(pkt, PKT_STARTUP_V3);
+	pktbuf_put_bytes(pkt, db->startup_params->buf, db->startup_params->write_pos);
+
+	/*
+	 * If the next client in the list is a replication connection, we need
+	 * to do some special stuff for it.
+	 */
+	client = first_socket(&pool->waiting_client_list);
+	if (client && client->replication) {
+		server->replication = client->replication;
+		pktbuf_put_string(pkt, "replication");
+		slog_debug(server, "send_startup_packet: creating replication connection");
+		pktbuf_put_string(pkt, replication_type_parameters[server->replication]);
+
+		/*
+		 * For a replication connection we apply the varcache in the
+		 * startup instead of through SET commands after connecting.
+		 * The main reason to do so is because physical replication
+		 * connections don't allow SET commands. A second reason is
+		 * because it allows us to skip running the SET logic
+		 * completely, which normally requires waiting on multiple
+		 * server responses. This SET logic is normally executed in the
+		 * codepath where we link the client to the server
+		 * (find_server), but because we link the client here already
+		 * we don't run that code for replication connections. Adding
+		 * the varcache parameters to the startup message allows us to
+		 * skip the dance that involves sending Query packets and
+		 * waiting for responses.
+		 */
+		varcache_apply_startup(pkt, client);
+		if (client->startup_options) {
+			pktbuf_put_string(pkt, "options");
+			pktbuf_put_string(pkt, client->startup_options);
+		}
+	}
+
+	pktbuf_put_string(pkt, "user");
+	pktbuf_put_string(pkt, username);
+	pktbuf_put_string(pkt, "");	/* terminator required in StartupMessage */
+	pktbuf_finish_packet(pkt);
+
+	if (!pktbuf_send_immediate(pkt, server)) {
+		return false;
+	}
+
+	if (server->replication) {
+		/*
+		 * We link replication connections to a client directly when they are
+		 * created. One reason for is because the startup parameters need to be
+		 * forwarded, because physical replication connections don't allow SET
+		 * commands. Another reason is so that we don't need a separate state.
+		 */
+		client->link = server;
+		server->link = client;
+	}
+
+	return true;
 }
 
 bool send_sslreq_packet(PgSocket *server)

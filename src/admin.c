@@ -623,13 +623,13 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	return true;
 }
 
-#define SKF_STD "sssssisiTTiiississi"
-#define SKF_DBG "sssssisiTTiiississiiiiiiii"
+#define SKF_STD "ssssssisiTTiiississi"
+#define SKF_DBG "ssssssisiTTiiississiiiiiiii"
 
 static void socket_header(PktBuf *buf, bool debug)
 {
 	pktbuf_write_RowDescription(buf, debug ? SKF_DBG : SKF_STD,
-				    "type", "user", "database", "state",
+				    "type", "user", "database", "replication", "state",
 				    "addr", "port", "local_addr", "local_port",
 				    "connect_time", "request_time",
 				    "wait", "wait_us", "close_needed",
@@ -660,6 +660,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 	const struct PStr *application_name = v->var_list[VAppName];
 	usec_t now = get_cached_time();
 	usec_t wait_time = sk->query_start ? now - sk->query_start : 0;
+	char *replication;
 
 	if (io) {
 		pkt_avail = iobuf_amount_parse(sk->sbuf.io);
@@ -692,10 +693,18 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 	else
 		prepared_statement_count = HASH_COUNT(sk->client_prepared_statements);
 
+	if (sk->replication == REPLICATION_NONE)
+		replication = "none";
+	else if (sk->replication == REPLICATION_LOGICAL)
+		replication = "logical";
+	else
+		replication = "physical";
+
 	pktbuf_write_DataRow(buf, debug ? SKF_DBG : SKF_STD,
 			     is_server_socket(sk) ? "S" : "C",
 			     sk->login_user_credentials ? sk->login_user_credentials->name : "(nouser)",
 			     sk->pool && !sk->pool->db->peer_id ? sk->pool->db->name : "(nodb)",
+			     replication,
 			     state, r_addr, pga_port(&sk->remote_addr),
 			     l_addr, pga_port(&sk->local_addr),
 			     sk->connect_time,
@@ -898,7 +907,7 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 		pool = container_of(item, PgPool, head);
 		waiter = first_socket(&pool->waiting_client_list);
 		max_wait = (waiter && waiter->query_start) ? now - waiter->query_start : 0;
-		pool_mode = pool_pool_mode(pool);
+		pool_mode = probably_wrong_pool_pool_mode(pool);
 		pktbuf_write_DataRow(buf, "ssiiiiiiiiiiiiis",
 				     pool->db->name, pool->user_credentials->name,
 				     statlist_count(&pool->active_client_list),

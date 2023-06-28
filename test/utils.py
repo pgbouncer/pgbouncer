@@ -21,6 +21,8 @@ from tempfile import gettempdir
 
 import filelock
 import psycopg
+import psycopg.sql
+from psycopg import sql
 
 TEST_DIR = Path(os.path.dirname(os.path.realpath(__file__)))
 os.chdir(TEST_DIR)
@@ -163,6 +165,30 @@ PORT_UPPER_BOUND = 32768
 next_port = PORT_LOWER_BOUND
 
 
+def cleanup_test_leftovers(*nodes):
+    """
+    Cleaning up test leftovers needs to be done in a specific order, because
+    some of these leftovers depend on others having been removed. They might
+    even depend on leftovers on other nodes being removed. So this takes a list
+    of nodes, so that we can clean up all test leftovers globally in the
+    correct order.
+    """
+    for node in nodes:
+        node.cleanup_subscriptions()
+
+    for node in nodes:
+        node.cleanup_publications()
+
+    for node in nodes:
+        node.cleanup_replication_slots()
+
+    for node in nodes:
+        node.cleanup_schemas()
+
+    for node in nodes:
+        node.cleanup_users()
+
+
 class PortLock:
     def __init__(self):
         global next_port
@@ -206,9 +232,19 @@ class QueryRunner:
         self.default_db = "postgres"
         self.default_user = "postgres"
 
+        # Used to track objects that we want to clean up at the end of a test
+        self.subscriptions = set()
+        self.publications = set()
+        self.replication_slots = set()
+        self.schemas = set()
+        self.users = set()
+
     def set_default_connection_options(self, options):
+        """Sets the default connection options on the given options dictionary"""
         options.setdefault("dbname", self.default_db)
         options.setdefault("user", self.default_user)
+        options.setdefault("host", self.host)
+        options.setdefault("port", self.port)
         if ENABLE_VALGRIND:
             # If valgrind is enabled PgBouncer is a significantly slower to
             # respond to connection requests, so we wait a little longer.
@@ -220,14 +256,17 @@ class QueryRunner:
         # client_encoding specified in the config and client_encoding by the
         # client will force a varcache change when a connection is given.
         options.setdefault("client_encoding", "UTF8")
+        return options
+
+    def make_conninfo(self, **kwargs) -> str:
+        self.set_default_connection_options(kwargs)
+        return psycopg.conninfo.make_conninfo(**kwargs)
 
     def conn(self, *, autocommit=True, **kwargs):
         """Open a psycopg connection to this server"""
         self.set_default_connection_options(kwargs)
         conn = psycopg.connect(
             autocommit=autocommit,
-            host=self.host,
-            port=self.port,
             **kwargs,
         )
         conn.add_notice_handler(notice_handler)
@@ -238,8 +277,6 @@ class QueryRunner:
         self.set_default_connection_options(kwargs)
         return psycopg.AsyncConnection.connect(
             autocommit=autocommit,
-            host=self.host,
-            port=self.port,
             **kwargs,
         )
 
@@ -482,6 +519,117 @@ class QueryRunner:
             sudo(f"tc filter del dev lo parent 1: prio {self.port}")
             pass
 
+    def create_user(self, name, args: typing.Optional[psycopg.sql.Composable] = None):
+        self.users.add(name)
+        if args is None:
+            args = sql.SQL("")
+        self.sql(sql.SQL("CREATE USER {} {}").format(sql.Identifier(name), args))
+
+    def create_schema(self, name, dbname=None):
+        dbname = dbname or self.default_db
+        self.schemas.add((dbname, name))
+        self.sql(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(name)))
+
+    def create_publication(self, name: str, args: psycopg.sql.Composable, dbname=None):
+        dbname = dbname or self.default_db
+        self.publications.add((dbname, name))
+        self.sql(sql.SQL("CREATE PUBLICATION {} {}").format(sql.Identifier(name), args))
+
+    def create_logical_replication_slot(self, name, plugin):
+        self.replication_slots.add(name)
+        self.sql(
+            "SELECT pg_catalog.pg_create_logical_replication_slot(%s,%s)",
+            (name, plugin),
+        )
+
+    def create_physical_replication_slot(self, name):
+        self.replication_slots.add(name)
+        self.sql(
+            "SELECT pg_catalog.pg_create_physical_replication_slot(%s)",
+            (name,),
+        )
+
+    def create_subscription(self, name: str, args: psycopg.sql.Composable, dbname=None):
+        dbname = dbname or self.default_db
+        self.subscriptions.add((dbname, name))
+        self.sql(
+            sql.SQL("CREATE SUBSCRIPTION {} {}").format(sql.Identifier(name), args)
+        )
+
+    def cleanup_users(self):
+        for user in self.users:
+            self.sql(sql.SQL("DROP USER IF EXISTS {}").format(sql.Identifier(user)))
+
+    def cleanup_schemas(self):
+        for dbname, schema in self.schemas:
+            self.sql(
+                sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(
+                    sql.Identifier(schema)
+                ),
+                dbname=dbname,
+            )
+
+    def cleanup_publications(self):
+        for dbname, publication in self.publications:
+            self.sql(
+                sql.SQL("DROP PUBLICATION IF EXISTS {}").format(
+                    sql.Identifier(publication)
+                ),
+                dbname=dbname,
+            )
+
+    def cleanup_replication_slots(self):
+        for slot in self.replication_slots:
+            start = time.time()
+            while True:
+                try:
+                    self.sql(
+                        "SELECT pg_drop_replication_slot(slot_name) FROM pg_replication_slots WHERE slot_name = %s",
+                        (slot,),
+                    )
+                except psycopg.errors.ObjectInUse:
+                    if time.time() < start + 10:
+                        time.sleep(0.5)
+                        continue
+                    raise
+                break
+
+    def cleanup_subscriptions(self):
+        for dbname, subscription in self.subscriptions:
+            try:
+                self.sql(
+                    sql.SQL("ALTER SUBSCRIPTION {} DISABLE").format(
+                        sql.Identifier(subscription)
+                    ),
+                    dbname=dbname,
+                )
+            except psycopg.errors.UndefinedObject:
+                # Subscription didn't exist already
+                continue
+            self.sql(
+                sql.SQL("ALTER SUBSCRIPTION {} SET (slot_name = NONE)").format(
+                    sql.Identifier(subscription)
+                ),
+                dbname=dbname,
+            )
+            self.sql(
+                sql.SQL("DROP SUBSCRIPTION {}").format(sql.Identifier(subscription)),
+                dbname=dbname,
+            )
+
+    def debug(self):
+        print("Connect manually to:\n   ", repr(self.make_conninfo()))
+        print("Press Enter to continue running the test...")
+        input()
+
+    def psql_debug(self, **kwargs):
+        conninfo = self.make_conninfo(**kwargs)
+        run(
+            ["psql", f"{conninfo}"],
+            shell=False,
+            silent=True,
+        )
+
 
 class Postgres(QueryRunner):
     def __init__(self, pgdata):
@@ -505,6 +653,26 @@ class Postgres(QueryRunner):
             pgconf.write("log_connections = on\n")
             pgconf.write("log_disconnections = on\n")
             pgconf.write("logging_collector = off\n")
+
+            # Allow CREATE SUBSCRIPTION to work
+            pgconf.write("wal_level = 'logical'\n")
+            # Faster logical replication status update so tests with logical replication
+            # run faster
+            pgconf.write("wal_receiver_status_interval = 1\n")
+
+            # Faster logical replication apply worker launch so tests with logical
+            # replication run faster. This is used in ApplyLauncherMain in
+            # src/backend/replication/logical/launcher.c.
+            pgconf.write("wal_retrieve_retry_interval = '250ms'\n")
+
+            # Make sure there's enough logical replication resources for our
+            # tests
+            if PG_MAJOR_VERSION >= 10:
+                pgconf.write("max_logical_replication_workers = 5\n")
+            pgconf.write("max_wal_senders = 5\n")
+            pgconf.write("max_replication_slots = 10\n")
+            pgconf.write("max_worker_processes = 20\n")
+
             # We need to make the log go to stderr so that the tests can
             # check what is being logged.  This should be the default, but
             # some packagings change the default configuration.
@@ -561,24 +729,24 @@ class Postgres(QueryRunner):
         process = await self.apgctl("-m fast restart")
         await process.communicate()
 
-    def nossl_access(self, dbname, auth_type):
+    def nossl_access(self, dbname, auth_type, user="all"):
         """Prepends a local non-SSL access to the HBA file"""
         with self.hba_path.open() as pghba:
             old_contents = pghba.read()
         with self.hba_path.open(mode="w") as pghba:
             if USE_UNIX_SOCKETS:
-                pghba.write(f"local {dbname}   all                {auth_type}\n")
-            pghba.write(f"hostnossl  {dbname}   all  127.0.0.1/32  {auth_type}\n")
-            pghba.write(f"hostnossl  {dbname}   all  ::1/128       {auth_type}\n")
+                pghba.write(f"local {dbname}   {user}                {auth_type}\n")
+            pghba.write(f"hostnossl  {dbname}   {user}  127.0.0.1/32  {auth_type}\n")
+            pghba.write(f"hostnossl  {dbname}   {user}  ::1/128       {auth_type}\n")
             pghba.write(old_contents)
 
-    def ssl_access(self, dbname, auth_type):
+    def ssl_access(self, dbname, auth_type, user="all"):
         """Prepends a local SSL access rule to the HBA file"""
         with self.hba_path.open() as pghba:
             old_contents = pghba.read()
         with self.hba_path.open(mode="w") as pghba:
-            pghba.write(f"hostssl  {dbname}   all  127.0.0.1/32  {auth_type}\n")
-            pghba.write(f"hostssl  {dbname}   all  ::1/128       {auth_type}\n")
+            pghba.write(f"hostssl  {dbname}   {user}  127.0.0.1/32  {auth_type}\n")
+            pghba.write(f"hostssl  {dbname}   {user}  ::1/128       {auth_type}\n")
             pghba.write(old_contents)
 
     @property
@@ -877,8 +1045,11 @@ class Bouncer(QueryRunner):
             assert not failed_valgrind
 
     async def cleanup(self):
-        await self.stop()
-        self.print_logs()
+        try:
+            cleanup_test_leftovers(self)
+            await self.stop()
+        finally:
+            self.print_logs()
 
         if self.port_lock:
             self.port_lock.release()

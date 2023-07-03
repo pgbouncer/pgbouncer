@@ -43,7 +43,7 @@ def test_track_extra_parameters(bouncer):
         "intervalstyle": ["sql_standard", "postgres"],
         "standard_conforming_strings": ["ON", "OFF"],
         "timezone": ["'Europe/Amsterdam'", "'Europe/Rome'"],
-        "client_encoding": ["ISO_8859_7", "LATIN5"],
+        "client_encoding": ["LATIN1", "LATIN5"],
         "datestyle": ["PostgreSQL,European", "ISO,US"],
         "application_name": ["client1", "client2"],
     }
@@ -52,7 +52,7 @@ def test_track_extra_parameters(bouncer):
         "intervalstyle": ["sql_standard", "postgres"],
         "standard_conforming_strings": ["on", "off"],
         "timezone": ["Europe/Amsterdam", "Europe/Rome"],
-        "client_encoding": ["ISO_8859_7", "LATIN5"],
+        "client_encoding": ["LATIN1", "LATIN5"],
         "datestyle": ["Postgres, DMY", "ISO, MDY"],
         "application_name": ["client1", "client2"],
     }

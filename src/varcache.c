@@ -80,6 +80,8 @@ static void init_var_lookup_from_config(const char *cf_track_extra_parameters, i
 
 		lookup->idx = (*num_vars)++;
 		HASH_ADD_KEYPTR(hh, lookup_map, lookup->name, strlen(lookup->name), lookup);
+
+		free(var_name);
 	}
 
 	strlist_free(sl);

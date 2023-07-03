@@ -5,7 +5,7 @@ import time
 import psycopg
 import pytest
 
-from .utils import HAVE_IPV6_LOCALHOST
+from .utils import HAVE_IPV6_LOCALHOST, WINDOWS
 
 
 def test_connect_query(bouncer):
@@ -43,19 +43,23 @@ def test_track_extra_parameters(bouncer):
         "intervalstyle": ["sql_standard", "postgres"],
         "standard_conforming_strings": ["ON", "OFF"],
         "timezone": ["'Europe/Amsterdam'", "'Europe/Rome'"],
-        "client_encoding": ["LATIN1", "LATIN5"],
         "datestyle": ["PostgreSQL,European", "ISO,US"],
         "application_name": ["client1", "client2"],
     }
+
+    if not WINDOWS:
+        test_set["client_encoding"] = ["LATIN1", "LATIN5"]
 
     test_expected = {
         "intervalstyle": ["sql_standard", "postgres"],
         "standard_conforming_strings": ["on", "off"],
         "timezone": ["Europe/Amsterdam", "Europe/Rome"],
-        "client_encoding": ["LATIN1", "LATIN5"],
         "datestyle": ["Postgres, DMY", "ISO, MDY"],
         "application_name": ["client1", "client2"],
     }
+
+    if not WINDOWS:
+        test_expected["client_encoding"] = ["LATIN1", "LATIN5"]
 
     with bouncer.cur(dbname="p1") as cur1:
         with bouncer.cur(dbname="p1") as cur2:

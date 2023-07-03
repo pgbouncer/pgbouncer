@@ -3,4 +3,4 @@
 	url = https://github.com/libusual/libusual.git
 [submodule "uthash"]
 	path = uthash
-	url = git@github.com:troydhanson/uthash.git
+	url = https://github.com/troydhanson/uthash.git

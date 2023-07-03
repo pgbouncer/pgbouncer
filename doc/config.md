@@ -217,7 +217,7 @@ Postgres extensions can change this list though, they can add parameters themsel
 and they can start reporting already existing paremeters that Postgres does not report.
 Notably Citus 12.0+ causes Postgres to also report `search_path`.
 
-Default: empty
+Default: IntervalStyle
 
 ### ignore_startup_parameters
 

@@ -171,7 +171,7 @@ static int apply_var(PktBuf *pkt, const char *key,
 	 * re-quoting them using pg_quote_literal will result in malformed values. */
 	if (variable_is_guc_list_quote(key)) {
 		/* zero length elements of the form "" should be specially handled.*/
-		if (strlen(cval->str) == 2 && strcmp(cval->str,"\"\"") == 0) {
+		if (strcmp(cval->str,"\"\"") == 0) {
 			tmp = "''";
 		}
 		else

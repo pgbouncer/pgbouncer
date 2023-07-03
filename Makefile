@@ -59,7 +59,9 @@ pgbouncer_SOURCES = \
 	include/common/unicode_norm.h \
 	include/common/unicode_norm_table.h
 
+UTHASH_HEADER = uthash/src
 pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(LIBEVENT_CFLAGS) $(TLS_CPPFLAGS)
+pgbouncer_CPPFLAGS += -I$(UTHASH_HEADER)
 
 # include libusual sources directly
 AM_FEATURES = libusual

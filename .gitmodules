@@ -1,3 +1,6 @@
 [submodule "lib"]
 	path = lib
 	url = https://github.com/libusual/libusual.git
+[submodule "uthash"]
+	path = uthash
+	url = git@github.com:troydhanson/uthash.git

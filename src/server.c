@@ -62,7 +62,7 @@ failed_store:
 }
 
 /* we cannot log in at all, notify clients */
-void kill_pool_logins(PgPool *pool, const char *msg)
+void kill_pool_logins(PgPool *pool, const char *sqlstate, const char *msg)
 {
 	struct List *item, *tmp;
 	PgSocket *client;
@@ -72,18 +72,19 @@ void kill_pool_logins(PgPool *pool, const char *msg)
 		if (!client->wait_for_welcome)
 			continue;
 
-		disconnect_client(client, true, "%s", msg);
+		disconnect_client_sqlstate(client, true, sqlstate, msg);
 	}
 }
 
 /* we cannot log in at all, notify clients with server error */
 static void kill_pool_logins_server_error(PgPool *pool, PktHdr *errpkt)
 {
-	const char *level, *msg;
+	const char *level, *msg, *sqlstate;
 
-	parse_server_error(errpkt, &level, &msg);
+	parse_server_error(errpkt, &level, &msg, &sqlstate);
 	log_warning("server login failed: %s %s", level, msg);
-	kill_pool_logins(pool, msg);
+	log_noise("kill_pool_logins_server_error: sqlstate: %s", sqlstate);
+	kill_pool_logins(pool, sqlstate, msg);
 }
 
 /* process packets on server auth phase */

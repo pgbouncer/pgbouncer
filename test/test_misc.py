@@ -132,3 +132,61 @@ async def test_host_list(bouncer):
 async def test_host_list_dummy(bouncer):
     with bouncer.log_contains(r"new connection to server \(from 127.0.0.1", times=2):
         await bouncer.asleep(1, dbname="hostlist2", times=2)
+
+
+def test_options_startup_param(bouncer):
+    assert (
+        bouncer.sql_value("SHOW datestyle", options="  -c    datestyle=German,\\ YMD")
+        == "German, YMD"
+    )
+
+    assert (
+        bouncer.sql_value(
+            "SHOW datestyle",
+            options="-c timezone=Portugal  -c    datestyle=German,\\ YMD",
+        )
+        == "German, YMD"
+    )
+
+    assert (
+        bouncer.sql_value(
+            "SHOW timezone",
+            options="-c timezone=Portugal  -c    datestyle=German,\\ YMD",
+        )
+        == "Portugal"
+    )
+
+    assert (
+        bouncer.sql_value(
+            "SHOW timezone", options="-ctimezone=Portugal  -cdatestyle=German,\\ YMD"
+        )
+        == "Portugal"
+    )
+
+    assert (
+        bouncer.sql_value(
+            "SHOW timezone",
+            options="-c t\\imezone=\\P\\o\\r\\t\\ugal  -c    dat\\estyle\\=\\Ge\\rman,\\ YMD",
+        )
+        == "Portugal"
+    )
+
+    with pytest.raises(
+        psycopg.OperationalError,
+        match="unsupported options startup parameter: only '-c config=val' is allowed",
+    ):
+        bouncer.test(options="-d")
+
+    with pytest.raises(
+        psycopg.OperationalError,
+        match="unsupported options startup parameter: only '-c config=val' is allowed",
+    ):
+        bouncer.test(options="-c timezone")
+
+    too_long_param = "a" * 1000
+
+    with pytest.raises(
+        psycopg.OperationalError,
+        match="unsupported options startup parameter: parameter too long",
+    ):
+        bouncer.test(options="-c timezone=" + too_long_param)

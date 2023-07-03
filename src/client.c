@@ -548,6 +548,84 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
 	return true;
 }
 
+static inline const char *skip_ws(const char *position)
+{
+	while (*position && isspace(*position))
+		position++;
+	return position;
+}
+
+_MUSTCHECK
+static bool get_escaped_string(struct MBuf *buf, const char **position_ptr)
+{
+	const char *position = *position_ptr;
+	const char *unwritten_start = position;
+	while (*position)
+	{
+		if (*position == '\\') {
+			if (!mbuf_write(buf, unwritten_start, position-unwritten_start))
+				return false;
+			position++;
+			unwritten_start = position;
+			if (!*position)
+				break;
+		} else if (isspace(*position)) {
+			break;
+		}
+		position++;
+	}
+	if (!mbuf_write(buf, unwritten_start, position-unwritten_start))
+		return false;
+	if (!mbuf_write_byte(buf, '\0'))
+		return false;
+	*position_ptr = position;
+	return true;
+}
+
+static bool set_startup_options(PgSocket *client, const char *options)
+{
+	char arg_buf[400];
+	struct MBuf arg;
+	const char *position = options;
+	mbuf_init_fixed_writer(&arg, arg_buf, sizeof(arg_buf));
+	slog_error(client, "received options: %s", options);
+	while (*position) {
+		const char *key_string, *value_string;
+		char *equals;
+		mbuf_rewind_writer(&arg);
+		position = skip_ws(position);
+		if (strncmp("-c", position, 2) != 0)
+			goto fail;
+		position += 2;
+		position = skip_ws(position);
+
+		if (!get_escaped_string(&arg, &position)) {
+			disconnect_client(client, true, "unsupported options startup parameter: parameter too long");
+			return false;
+		}
+
+		equals = strchr((char *) arg.data, '=');
+		if (!equals)
+			goto fail;
+		*equals = '\0';
+
+		key_string = (const char *) arg.data;
+		value_string = (const char *) equals + 1;
+		if (varcache_set(&client->vars, key_string, value_string)) {
+			slog_debug(client, "got var from options: %s=%s", key_string, value_string);
+		} else if (strlist_contains(cf_ignore_startup_params, key_string)) {
+			slog_debug(client, "ignoring startup parameter from options: %s=%s", key_string, value_string);
+		} else {
+			slog_warning(client, "unsupported startup parameter in options: %s=%s", key_string, value_string);
+			disconnect_client(client, true, "unsupported startup parameter: %s", key_string);
+		}
+	}
+	return true;
+fail:
+	disconnect_client(client, true, "unsupported options startup parameter: only '-c config=val' is allowed");
+	return false;
+}
+
 static void set_appname(PgSocket *client, const char *app_name)
 {
 	char buf[400], abuf[300];
@@ -590,6 +668,9 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 		} else if (strcmp(key, "user") == 0) {
 			slog_debug(client, "got var: %s=%s", key, val);
 			username = val;
+		} else if (strcmp(key, "options") == 0) {
+			if (!set_startup_options(client, val))
+				return false;
 		} else if (strcmp(key, "application_name") == 0) {
 			set_appname(client, val);
 			appname_found = true;

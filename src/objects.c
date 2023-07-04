@@ -60,6 +60,7 @@ struct Slab *peer_pool_cache;
 struct Slab *pool_cache;
 struct Slab *user_cache;
 struct Slab *iobuf_cache;
+struct Slab *var_list_cache;
 
 /*
  * libevent may still report events when event_del()
@@ -91,6 +92,7 @@ static void construct_client(void *obj)
 	memset(client, 0, sizeof(PgSocket));
 	list_init(&client->head);
 	sbuf_init(&client->sbuf, client_proto);
+	client->vars.var_list = slab_alloc(var_list_cache);
 	client->state = CL_FREE;
 }
 
@@ -101,6 +103,7 @@ static void construct_server(void *obj)
 	memset(server, 0, sizeof(PgSocket));
 	list_init(&server->head);
 	sbuf_init(&server->sbuf, server_proto);
+	server->vars.var_list = slab_alloc(var_list_cache);
 	server->state = SV_FREE;
 }
 
@@ -146,6 +149,7 @@ void init_caches(void)
 	server_cache = slab_create("server_cache", sizeof(PgSocket), 0, construct_server, USUAL_ALLOC);
 	client_cache = slab_create("client_cache", sizeof(PgSocket), 0, construct_client, USUAL_ALLOC);
 	iobuf_cache = slab_create("iobuf_cache", IOBUF_SIZE, 0, do_iobuf_reset, USUAL_ALLOC);
+	var_list_cache = slab_create("var_list_cache", sizeof(struct PStr*) * get_num_var_cached(), 0, NULL, USUAL_ALLOC);
 }
 
 /* state change means moving between lists */
@@ -191,6 +195,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	switch (client->state) {
 	case CL_FREE:
 		varcache_clean(&client->vars);
+		slab_free(var_list_cache, client->vars.var_list);
 		slab_free(client_cache, client);
 		break;
 	case CL_JUSTFREE:
@@ -261,6 +266,7 @@ void change_server_state(PgSocket *server, SocketState newstate)
 	switch (server->state) {
 	case SV_FREE:
 		varcache_clean(&server->vars);
+		slab_free(var_list_cache, server->vars.var_list);
 		slab_free(server_cache, server);
 		break;
 	case SV_JUSTFREE:
@@ -583,6 +589,7 @@ static PgPool *new_pool(PgDatabase *db, PgUser *user)
 
 	list_init(&pool->head);
 	list_init(&pool->map_head);
+	pool->orig_vars.var_list = slab_alloc(var_list_cache);
 
 	pool->user = user;
 	pool->db = db;
@@ -625,6 +632,7 @@ static PgPool *new_peer_pool(PgDatabase *db)
 
 	list_init(&pool->head);
 	list_init(&pool->map_head);
+	pool->orig_vars.var_list = slab_alloc(var_list_cache);
 
 	pool->db = db;
 
@@ -2242,4 +2250,6 @@ void objects_cleanup(void)
 	user_cache = NULL;
 	slab_destroy(iobuf_cache);
 	iobuf_cache = NULL;
+	slab_destroy(var_list_cache);
+	var_list_cache = NULL;
 }

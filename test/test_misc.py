@@ -5,7 +5,7 @@ import time
 import psycopg
 import pytest
 
-from .utils import HAVE_IPV6_LOCALHOST
+from .utils import HAVE_IPV6_LOCALHOST, WINDOWS
 
 
 def test_connect_query(bouncer):
@@ -31,6 +31,53 @@ def test_fast_close(bouncer):
                 match=r"server closed the connection unexpectedly|Software caused connection abort",
             ):
                 cur.execute("select 1")
+
+
+def test_track_extra_parameters(bouncer):
+    # test.ini has track_extra_parameters set to a list of Postgres
+    # parameters. Test that the parameters in the list in addition to the
+    # default hardcoded list of parameters are cached per client.
+    bouncer.admin(f"set pool_mode=transaction")
+
+    test_set = {
+        "intervalstyle": ["sql_standard", "postgres"],
+        "standard_conforming_strings": ["ON", "OFF"],
+        "timezone": ["'Europe/Amsterdam'", "'Europe/Rome'"],
+        "datestyle": ["PostgreSQL,European", "ISO,US"],
+        "application_name": ["client1", "client2"],
+    }
+
+    if not WINDOWS:
+        test_set["client_encoding"] = ["LATIN1", "LATIN5"]
+
+    test_expected = {
+        "intervalstyle": ["sql_standard", "postgres"],
+        "standard_conforming_strings": ["on", "off"],
+        "timezone": ["Europe/Amsterdam", "Europe/Rome"],
+        "datestyle": ["Postgres, DMY", "ISO, MDY"],
+        "application_name": ["client1", "client2"],
+    }
+
+    if not WINDOWS:
+        test_expected["client_encoding"] = ["LATIN1", "LATIN5"]
+
+    with bouncer.cur(dbname="p1") as cur1:
+        with bouncer.cur(dbname="p1") as cur2:
+            for key in test_set:
+                stmt1 = "SET " + key + " TO " + test_set[key][0]
+                stmt2 = "SET " + key + " TO " + test_set[key][1]
+                cur1.execute(stmt1)
+                cur2.execute(stmt2)
+
+                stmt = "SHOW " + key
+                cur1.execute(stmt)
+                cur2.execute(stmt)
+
+                result1 = cur1.fetchone()
+                assert result1[0] == test_expected[key][0]
+
+                result2 = cur2.fetchone()
+                assert result2[0] == test_expected[key][1]
 
 
 @pytest.mark.asyncio

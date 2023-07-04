@@ -12,9 +12,11 @@ enum VarCacheIdx {
 typedef struct VarCache VarCache;
 
 struct VarCache {
-	struct PStr *var_list[NumVars];
+	struct PStr **var_list;
 };
 
+void init_var_lookup(const char *cf_track_extra_parameters);
+int get_num_var_cached(void);
 bool varcache_set(VarCache *cache, const char *key, const char *value) /* _MUSTCHECK */;
 bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p) _MUSTCHECK;
 void varcache_fill_unset(VarCache *src, PgSocket *dst);

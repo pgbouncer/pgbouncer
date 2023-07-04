@@ -59,7 +59,9 @@ pgbouncer_SOURCES = \
 	include/common/unicode_norm.h \
 	include/common/unicode_norm_table.h
 
+UTHASH = uthash
 pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(LIBEVENT_CFLAGS) $(TLS_CPPFLAGS)
+pgbouncer_CPPFLAGS += -I$(UTHASH)/src
 
 # include libusual sources directly
 AM_FEATURES = libusual
@@ -84,7 +86,8 @@ EXTRA_DIST = AUTHORS COPYRIGHT Makefile config.mak.in config.sub config.guess \
 	     install-sh autogen.sh configure configure.ac \
 	     etc/mkauth.py etc/optscan.sh etc/example.debian.init.sh \
 	     win32/Makefile \
-	     $(LIBUSUAL_DIST)
+	     $(LIBUSUAL_DIST) \
+	     $(UTHASH_DIST) \
 
 # libusual files (FIXME: list should be provided by libusual...)
 LIBUSUAL_DIST = $(filter-out %/config.h, $(sort $(wildcard \
@@ -97,6 +100,9 @@ LIBUSUAL_DIST = $(filter-out %/config.h, $(sort $(wildcard \
 		lib/mk/install-sh lib/mk/std-autogen.sh \
 		lib/README lib/COPYRIGHT \
 		lib/find_modules.sh )))
+
+UTHASH_DIST = $(UTHASH)/src/uthash.h \
+              $(UTHASH)/LICENSE
 
 pgbouncer_LDFLAGS := $(TLS_LDFLAGS)
 pgbouncer_LDADD := $(CARES_LIBS) $(LIBEVENT_LIBS) $(TLS_LIBS) $(LIBS)

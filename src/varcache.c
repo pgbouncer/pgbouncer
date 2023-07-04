@@ -23,20 +23,18 @@
 #include "bouncer.h"
 
 #include <usual/pgutil.h>
+#include <usual/string.h>
+#include "uthash.h"
+
+static int num_var_cached = 0;
 
 struct var_lookup {
-	const char *name;
-	enum VarCacheIdx idx;
+	const char *name;             /* key (string is WITHIN the structure) */
+	int idx;
+	UT_hash_handle hh;         /* makes this structure hashable */
 };
 
-static const struct var_lookup lookup [] = {
- {"client_encoding",             VClientEncoding },
- {"DateStyle",                   VDateStyle },
- {"TimeZone",                    VTimeZone },
- {"standard_conforming_strings", VStdStr },
- {"application_name",            VAppName },
- {NULL},
-};
+static struct var_lookup* lookup_map;
 
 static struct StrPool *vpool;
 
@@ -45,9 +43,74 @@ static inline struct PStr *get_value(VarCache *cache, const struct var_lookup *l
 	return cache->var_list[lk->idx];
 }
 
+static bool sl_add(void *arg, const char *s)
+{
+	return strlist_append(arg, s);
+}
+
+int get_num_var_cached(void)
+{
+	return num_var_cached;
+}
+
+static void init_var_lookup_from_config(const char *cf_track_extra_parameters, int *num_vars)
+{
+	char *var_name = NULL;
+	struct var_lookup *lookup = NULL;
+	struct StrList *sl = strlist_new(NULL);
+
+	if (!parse_word_list(cf_track_extra_parameters, sl_add, sl))
+		die("failed to parse track_extra_parameters in config %s", cf_track_extra_parameters);
+
+	while (!strlist_empty(sl)) {
+
+		var_name = strlist_pop(sl);
+
+		if (!var_name)
+			continue;
+
+		HASH_FIND_STR(lookup_map, var_name, lookup);
+
+		/* If the var name is already on the hash map, do not update its idx */
+		if (lookup != NULL)
+			continue;
+
+		lookup = (struct var_lookup *)malloc(sizeof *lookup);
+		lookup->name = strdup(var_name);
+
+		lookup->idx = (*num_vars)++;
+		HASH_ADD_KEYPTR(hh, lookup_map, lookup->name, strlen(lookup->name), lookup);
+
+		free(var_name);
+	}
+
+	strlist_free(sl);
+}
+
+void init_var_lookup(const char *cf_track_extra_parameters)
+{
+	const char *names[] = { "DateStyle", "client_encoding", "TimeZone", "standard_conforming_strings", "application_name", NULL };
+	int idx = 0;
+
+	struct var_lookup *lookup = NULL;
+
+	/* Always add the static list of names for compatibility */
+	for (; names[idx]; idx++) {
+		lookup = (struct var_lookup *)malloc(sizeof *lookup);
+		lookup->name = names[idx];
+		lookup->idx = idx;
+		HASH_ADD_KEYPTR(hh, lookup_map, lookup->name, strlen(lookup->name), lookup);
+	}
+
+	init_var_lookup_from_config(cf_track_extra_parameters, &idx);
+
+	num_var_cached = idx;
+
+}
+
 bool varcache_set(VarCache *cache, const char *key, const char *value)
 {
-	const struct var_lookup *lk;
+	const struct var_lookup *lk = NULL;
 	struct PStr *pstr = NULL;
 
 	if (!vpool) {
@@ -56,13 +119,11 @@ bool varcache_set(VarCache *cache, const char *key, const char *value)
 			return false;
 	}
 
-	for (lk = lookup; lk->name; lk++) {
-		if (strcasecmp(lk->name, key) == 0)
-			goto set_value;
-	}
-	return false;
+	HASH_FIND_STR(lookup_map, key, lk);
 
-set_value:
+	if (lk == NULL)
+		return false;
+
 	/* drop old value */
 	strpool_decref(cache->var_list[lk->idx]);
 	cache->var_list[lk->idx] = NULL;
@@ -79,13 +140,22 @@ set_value:
 	return true;
 }
 
+static bool variable_is_guc_list_quote(const char *key)
+{
+	if (strcasecmp("search_path", key) == 0)
+		return true;
+
+	return false;
+}
+
 static int apply_var(PktBuf *pkt, const char *key,
 		     const struct PStr *cval,
 		     const struct PStr *sval)
 {
-	char buf[128];
+	char buf[300];
 	char qbuf[128];
 	unsigned len;
+	const char *tmp;
 
 	/* if unset, skip */
 	if (!cval || !sval || !*cval->str)
@@ -99,26 +169,48 @@ static int apply_var(PktBuf *pkt, const char *key,
 	if (strcasecmp(cval->str, sval->str) == 0)
 		return 0;
 
-	/* the string may have been taken from startup pkt */
-	if (!pg_quote_literal(qbuf, cval->str, sizeof(qbuf)))
+	/* parameters that are marked GUC_LIST_QUOTE are returned already fully quoted
+	 * re-quoting them using pg_quote_literal will result in malformed values. */
+	if (variable_is_guc_list_quote(key)) {
+		/* zero length elements of the form "" should be specially handled.*/
+		if (strcmp(cval->str,"\"\"") == 0) {
+			tmp = "''";
+		}
+		else
+			tmp = cval->str;
+	}
+	else if (pg_quote_literal(qbuf, cval->str, sizeof(qbuf))){
+		tmp = qbuf;
+	}
+	else
 		return 0;
 
 	/* add SET statement to packet */
-	len = snprintf(buf, sizeof(buf), "SET %s=%s;", key, qbuf);
+	len = snprintf(buf, sizeof(buf), "SET %s=%s;", key, tmp);
+
 	if (len < sizeof(buf)) {
 		pktbuf_put_bytes(pkt, buf, len);
-		return 1;
-	} else {
-		log_warning("got too long value, skipping");
-		return 0;
 	}
+	else {
+		char *buf2 = malloc(sizeof(char)*len);
+
+		if (!buf2)
+			die("failed to allocate memory in apply_var");
+
+		snprintf(buf2, len, "SET %s=%s;", key, tmp);
+		pktbuf_put_bytes(pkt, buf2, len);
+
+		free(buf2);
+	}
+
+	return 1;
 }
 
 bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
 {
 	int changes = 0;
 	struct PStr *cval, *sval;
-	const struct var_lookup *lk;
+	const struct var_lookup *lk, *tmp;
 	int sql_ofs;
 	struct PktBuf *pkt = pktbuf_temp();
 
@@ -127,11 +219,13 @@ bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
 	/* grab query position inside pkt */
 	sql_ofs = pktbuf_written(pkt);
 
-	for (lk = lookup; lk->name; lk++) {
+	HASH_ITER(hh, lookup_map, lk, tmp) {
+
 		sval = get_value(&server->vars, lk);
 		cval = get_value(&client->vars, lk);
 		changes += apply_var(pkt, lk->name, cval, sval);
 	}
+
 	*changes_p = changes > 0;
 	if (!changes)
 		return true;
@@ -146,8 +240,9 @@ bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
 void varcache_fill_unset(VarCache *src, PgSocket *dst)
 {
 	struct PStr *srcval, *dstval;
-	const struct var_lookup *lk;
-	for (lk = lookup; lk->name; lk++) {
+	const struct var_lookup *lk, *tmp;
+
+	HASH_ITER(hh, lookup_map, lk, tmp) {
 		srcval = src->var_list[lk->idx];
 		dstval = dst->vars.var_list[lk->idx];
 		if (!dstval) {
@@ -159,8 +254,7 @@ void varcache_fill_unset(VarCache *src, PgSocket *dst)
 
 void varcache_clean(VarCache *cache)
 {
-	int i;
-	for (i = 0; i < NumVars; i++) {
+	for (int i = 0; i < num_var_cached; i++) {
 		strpool_decref(cache->var_list[i]);
 		cache->var_list[i] = NULL;
 	}
@@ -169,8 +263,9 @@ void varcache_clean(VarCache *cache)
 void varcache_add_params(PktBuf *pkt, VarCache *vars)
 {
 	struct PStr *val;
-	const struct var_lookup *lk;
-	for (lk = lookup; lk->name; lk++) {
+	const struct var_lookup *lk, *tmp;
+
+	HASH_ITER(hh, lookup_map, lk, tmp) {
 		val = vars->var_list[lk->idx];
 		if (val)
 			pktbuf_write_ParameterStatus(pkt, lk->name, val->str);

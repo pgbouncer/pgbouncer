@@ -63,7 +63,6 @@ def test_track_extra_parameters(bouncer):
 
     with bouncer.cur(dbname="p1") as cur1:
         with bouncer.cur(dbname="p1") as cur2:
-
             for key in test_set:
                 stmt1 = "SET " + key + " TO " + test_set[key][0]
                 stmt2 = "SET " + key + " TO " + test_set[key][1]

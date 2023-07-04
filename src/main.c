@@ -297,7 +297,7 @@ CF_ABS("server_tls_cert_file", CF_STR, cf_server_tls_cert_file, 0, ""),
 CF_ABS("server_tls_ciphers", CF_STR, cf_server_tls_ciphers, 0, "fast"),
 CF_ABS("server_tls_key_file", CF_STR, cf_server_tls_key_file, 0, ""),
 CF_ABS("server_tls_protocols", CF_STR, cf_server_tls_protocols, 0, "secure"),
-CF_ABS("server_tls_sslmode", CF_LOOKUP(sslmode_map), cf_server_tls_sslmode, 0, "disable"),
+CF_ABS("server_tls_sslmode", CF_LOOKUP(sslmode_map), cf_server_tls_sslmode, 0, "prefer"),
 #ifdef WIN32
 CF_ABS("service_name", CF_STR, cf_jobname, CF_NO_RELOAD, NULL), /* alias for job_name */
 #endif

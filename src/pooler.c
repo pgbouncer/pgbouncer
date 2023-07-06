@@ -312,7 +312,7 @@ static const char *addrpair(const PgAddr *src, const PgAddr *dst)
 		return "unix->unix";
 
 	ip1 = pga_ntop(src, ip1buf, sizeof(ip1buf));
-	ip2 = pga_ntop(src, ip2buf, sizeof(ip2buf));
+	ip2 = pga_ntop(dst, ip2buf, sizeof(ip2buf));
 	snprintf(buf, sizeof(buf), "%s:%d -> %s:%d",
 		 ip1, pga_port(src), ip2, pga_port(dst));
 	return buf;

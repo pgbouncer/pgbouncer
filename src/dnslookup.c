@@ -1401,7 +1401,7 @@ static void got_result_gai(int result, struct addrinfo *res, void *arg)
 		req->result = res;
 		req->current = res;
 
-		if (req->oldres)
+		if (req->oldres && cf_dns_close_previous)
 			check_req_result_changes(req);
 
 		/* show all results */

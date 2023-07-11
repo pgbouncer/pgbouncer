@@ -21,8 +21,8 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-/* This header provides the HASH_FUNCTION and HASH_CMP overrides for a case
- * insensitive uthash with a string key type */
+/* This header provides the HASH_FUNCTION and the HASH_CMP overrides for a case
+ * insensitive uthash with key type of string. */
 
 #undef HASH_FUNCTION
 #define HASH_FUNCTION(keyptr,keylen,hashv) HASH_JEN_LOWERCASE(keyptr, keylen, hashv)

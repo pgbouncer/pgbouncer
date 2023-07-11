@@ -24,6 +24,7 @@
 
 #include <usual/pgutil.h>
 #include <usual/string.h>
+#include "common/uthash_lowercase.h"
 #include "uthash.h"
 
 static int num_var_cached = 0;

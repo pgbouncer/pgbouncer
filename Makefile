@@ -57,7 +57,8 @@ pgbouncer_SOURCES = \
 	include/common/scram-common.h \
 	include/common/unicode_combining_table.h \
 	include/common/unicode_norm.h \
-	include/common/unicode_norm_table.h
+	include/common/unicode_norm_table.h \
+	include/common/uthash_lowercase.h
 
 UTHASH = uthash
 pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(LIBEVENT_CFLAGS) $(TLS_CPPFLAGS)

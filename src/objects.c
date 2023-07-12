@@ -916,6 +916,13 @@ bool release_server(PgSocket *server)
 	case SV_LOGIN:
 		pool->last_login_failed = false;
 		pool->last_connect_failed = false;
+
+        /*
+         * Run check on fresh connection if check_delay is zero
+         */
+        if (cf_server_check_delay == 0 && *cf_server_check_query) {
+            newstate = SV_USED;
+        }
 		break;
 	default:
 		fatal("bad server state: %d", server->state);

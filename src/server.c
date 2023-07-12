@@ -302,6 +302,14 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	 * it later.
 	 */
 	case 'E':		/* ErrorResponse */
+        if (server->state == SV_TESTED) {
+            /*
+             * Check query returned with an error, so we need to throw this connection away
+             */
+            disconnect_server(server, false, "test query failed");
+            sbuf_prepare_skip(sbuf, pkt->len);
+            return false;
+        }
 		if (server->setting_vars) {
 			/*
 			 * the SET and user query will be different TX
@@ -423,6 +431,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			slog_warning(server,
 				     "got packet '%c' from server when not linked",
 				     pkt_desc(pkt));
+
 		sbuf_prepare_skip(sbuf, pkt->len);
 	}
 

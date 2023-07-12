@@ -477,6 +477,10 @@ class Postgres(QueryRunner):
             # of our test data.
             pgconf.write("fsync = false\n")
 
+            # Use a consistent value across postgres versions, so test results
+            # are the same.
+            pgconf.write("extra_float_digits = 1\n")
+
     def pgctl(self, command, **kwargs):
         run(f"pg_ctl -w --pgdata {self.pgdata} {command}", **kwargs)
 

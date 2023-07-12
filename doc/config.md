@@ -707,11 +707,11 @@ Default: `auto`
 
 ### server_tls_sslmode
 
-TLS mode to use for connections to PostgreSQL servers.
-TLS connections are disabled by default.
+TLS mode to use for connections to PostgreSQL servers.  The default mode is
+`prefer`.
 
 disable
-:   Plain TCP.  TCP is not even requested from the server.  Default.
+:   Plain TCP.  TCP is not even requested from the server.
 
 allow
 :   FIXME: if server rejects plain, try TLS?
@@ -719,7 +719,7 @@ allow
 prefer
 :   TLS connection is always requested first from PostgreSQL.
     If refused, the connection will be established over plain TCP.
-    Server certificate is not validated.
+    Server certificate is not validated.  Default
 
 require
 :   Connection must go over TLS.  If server rejects it,

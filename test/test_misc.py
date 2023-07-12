@@ -171,6 +171,13 @@ def test_options_startup_param(bouncer):
         == "Portugal"
     )
 
+    # extra_float_digits is in ignore_startup_parameters so setting it has no
+    # effect, and the default of 1 will still be used.
+    assert (
+        bouncer.sql_value("SHOW extra_float_digits", options="-c extra_float_digits=2")
+        == "1"
+    )
+
     with pytest.raises(
         psycopg.OperationalError,
         match="unsupported options startup parameter: only '-c config=val' is allowed",
@@ -190,3 +197,9 @@ def test_options_startup_param(bouncer):
         match="unsupported options startup parameter: parameter too long",
     ):
         bouncer.test(options="-c timezone=" + too_long_param)
+
+    with pytest.raises(
+        psycopg.OperationalError,
+        match="unsupported startup parameter in options: enable_seqscan",
+    ):
+        bouncer.test(options="-c enable_seqscan=true")

@@ -1635,7 +1635,8 @@ bool admin_pre_login(PgSocket *client, const char *username)
 			client->login_user = admin_pool->db->forced_user;
 			client->own_user = true;
 			client->admin_user = true;
-			slog_info(client, "pgbouncer access from unix socket");
+			if (cf_log_connections)
+				slog_info(client, "pgbouncer access from unix socket");
 			return true;
 		}
 	}

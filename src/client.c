@@ -548,6 +548,10 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
 	return true;
 }
 
+/*
+ * skip_ws returns a pointer to the first non whitespace character
+ * in the given string
+ */
 static inline const char *skip_ws(const char *position)
 {
 	while (*position && isspace(*position))
@@ -555,15 +559,21 @@ static inline const char *skip_ws(const char *position)
 	return position;
 }
 
+/*
+ * read_escaped_token reads a token that might be escaped using backslashes
+ * from the escaped_string_ptr. The token is written in unescaped form to the
+ * unescaped_token buffer. escape_string_ptr is set to the character right
+ * after the token.
+ */
 _MUSTCHECK
-static bool get_escaped_string(struct MBuf *buf, const char **position_ptr)
+static bool read_escaped_token(const char **escaped_string_ptr, struct MBuf *unescaped_token)
 {
-	const char *position = *position_ptr;
+	const char *position = *escaped_string_ptr;
 	const char *unwritten_start = position;
 	while (*position)
 	{
 		if (*position == '\\') {
-			if (!mbuf_write(buf, unwritten_start, position-unwritten_start))
+			if (!mbuf_write(unescaped_token, unwritten_start, position-unwritten_start))
 				return false;
 			position++;
 			unwritten_start = position;
@@ -574,14 +584,26 @@ static bool get_escaped_string(struct MBuf *buf, const char **position_ptr)
 		}
 		position++;
 	}
-	if (!mbuf_write(buf, unwritten_start, position-unwritten_start))
+	if (!mbuf_write(unescaped_token, unwritten_start, position-unwritten_start))
 		return false;
-	if (!mbuf_write_byte(buf, '\0'))
+	if (!mbuf_write_byte(unescaped_token, '\0'))
 		return false;
-	*position_ptr = position;
+	*escaped_string_ptr = position;
 	return true;
 }
 
+/*
+ * set_startup_options takes the value of to the "options" startup parameter
+ * and uses it to set the parameters that are embeded in this value.
+ *
+ * It only supports the following type of postgres command line argument:
+ * -c config=value
+ *
+ * The reason that we don't support all arguments is to keep the parsing simple
+ * an this is by far the argument that's most commonly used in practice in the
+ * options startup paramater. Also all other postgres command line arguments
+ * can be rewritten to this form:
+ */
 static bool set_startup_options(PgSocket *client, const char *options)
 {
 	char arg_buf[400];
@@ -599,7 +621,7 @@ static bool set_startup_options(PgSocket *client, const char *options)
 		position += 2;
 		position = skip_ws(position);
 
-		if (!get_escaped_string(&arg, &position)) {
+		if (!read_escaped_token(&position, &arg)) {
 			disconnect_client(client, true, "unsupported options startup parameter: parameter too long");
 			return false;
 		}

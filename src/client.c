@@ -610,7 +610,7 @@ static bool set_startup_options(PgSocket *client, const char *options)
 	struct MBuf arg;
 	const char *position = options;
 	mbuf_init_fixed_writer(&arg, arg_buf, sizeof(arg_buf));
-	slog_error(client, "received options: %s", options);
+	slog_debug(client, "received options: %s", options);
 	while (*position) {
 		const char *key_string, *value_string;
 		char *equals;
@@ -639,7 +639,8 @@ static bool set_startup_options(PgSocket *client, const char *options)
 			slog_debug(client, "ignoring startup parameter from options: %s=%s", key_string, value_string);
 		} else {
 			slog_warning(client, "unsupported startup parameter in options: %s=%s", key_string, value_string);
-			disconnect_client(client, true, "unsupported startup parameter: %s", key_string);
+			disconnect_client(client, true, "unsupported startup parameter in options: %s", key_string);
+			return false;
 		}
 	}
 	return true;

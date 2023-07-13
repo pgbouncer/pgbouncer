@@ -27,7 +27,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #undef HASH_FUNCTION
 #define HASH_FUNCTION(keyptr,keylen,hashv) HASH_JEN_LOWERCASE(keyptr, keylen, hashv)
 
-/* This is a modified version of HASH_JEN provided by uthash. 
+/* This is a modified version of HASH_JEN provided by uthash.
  * It is the same algorithm except that every char is turned to lower case. */
 #define HASH_JEN_LOWERCASE(key,keylen,hashv) \
 do {                                                                             \

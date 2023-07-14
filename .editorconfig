@@ -10,15 +10,12 @@ trim_trailing_whitespace = true
 
 [*.{c,h}]
 indent_style = tab
-# We specifically don't set indent_size and tab_with here so people can choose
-# what they prefer themselves
+indent_size = 8
 
 [*.py]
 indent_style = space
 indent_size = 4
-tab_width = 4
 
 [*.{yml,sh}]
 indent_style = space
 indent_size = 2
-tab_width = 2

@@ -548,6 +548,96 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
 	return true;
 }
 
+/*
+ * read_escaped_token reads a token that might be escaped using backslashes
+ * from the escaped_string_ptr. The token is written in unescaped form to the
+ * unescaped_token buffer. escape_string_ptr is set to the character right
+ * after the token.
+ */
+static bool read_escaped_token(const char **escaped_string_ptr, struct MBuf *unescaped_token)
+{
+	const char *position = *escaped_string_ptr;
+	const char *unwritten_start = position;
+	while (*position) {
+		if (*position == '\\') {
+			if (!mbuf_write(unescaped_token, unwritten_start, position-unwritten_start))
+				return false;
+			position++;
+			unwritten_start = position;
+			if (!*position)
+				break;
+		} else if (isspace(*position)) {
+			break;
+		}
+		position++;
+	}
+	if (!mbuf_write(unescaped_token, unwritten_start, position-unwritten_start))
+		return false;
+	if (!mbuf_write_byte(unescaped_token, '\0'))
+		return false;
+	*escaped_string_ptr = position;
+	return true;
+}
+
+/*
+ * set_startup_options takes the value of the "options" startup parameter
+ * and uses it to set the parameters that are embedded in this value.
+ *
+ * It only supports the following type of PostgreSQL command line argument:
+ * -c config=value
+ *
+ * The reason that we don't support all arguments is to keep the parsing simple
+ * an this is by far the argument that's most commonly used in practice in the
+ * options startup parameter. Also all other postgres command line arguments
+ * can be rewritten to this form:
+ */
+static bool set_startup_options(PgSocket *client, const char *options)
+{
+	char arg_buf[400];
+	struct MBuf arg;
+	const char *position = options;
+	mbuf_init_fixed_writer(&arg, arg_buf, sizeof(arg_buf));
+	slog_debug(client, "received options: %s", options);
+
+	while (*position) {
+		const char *key_string, *value_string;
+		char *equals;
+		mbuf_rewind_writer(&arg);
+		position = cstr_skip_ws((char *) position);
+		if (strncmp("-c", position, 2) != 0)
+			goto fail;
+		position += 2;
+		position = cstr_skip_ws((char *) position);
+
+		if (!read_escaped_token(&position, &arg)) {
+			disconnect_client(client, true, "unsupported options startup parameter: parameter too long");
+			return false;
+		}
+
+		equals = strchr((char *) arg.data, '=');
+		if (!equals)
+			goto fail;
+		*equals = '\0';
+
+		key_string = (const char *) arg.data;
+		value_string = (const char *) equals + 1;
+		if (varcache_set(&client->vars, key_string, value_string)) {
+			slog_debug(client, "got var from options: %s=%s", key_string, value_string);
+		} else if (strlist_contains(cf_ignore_startup_params, key_string)) {
+			slog_debug(client, "ignoring startup parameter from options: %s=%s", key_string, value_string);
+		} else {
+			slog_warning(client, "unsupported startup parameter in options: %s=%s", key_string, value_string);
+			disconnect_client(client, true, "unsupported startup parameter in options: %s", key_string);
+			return false;
+		}
+	}
+
+	return true;
+fail:
+	disconnect_client(client, true, "unsupported options startup parameter: only '-c config=val' is allowed");
+	return false;
+}
+
 static void set_appname(PgSocket *client, const char *app_name)
 {
 	char buf[400], abuf[300];
@@ -590,6 +680,9 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 		} else if (strcmp(key, "user") == 0) {
 			slog_debug(client, "got var: %s=%s", key, val);
 			username = val;
+		} else if (strcmp(key, "options") == 0) {
+			if (!set_startup_options(client, val))
+				return false;
 		} else if (strcmp(key, "application_name") == 0) {
 			set_appname(client, val);
 			appname_found = true;

@@ -132,3 +132,74 @@ async def test_host_list(bouncer):
 async def test_host_list_dummy(bouncer):
     with bouncer.log_contains(r"new connection to server \(from 127.0.0.1", times=2):
         await bouncer.asleep(1, dbname="hostlist2", times=2)
+
+
+def test_options_startup_param(bouncer):
+    assert (
+        bouncer.sql_value("SHOW datestyle", options="  -c    datestyle=German,\\ YMD")
+        == "German, YMD"
+    )
+
+    assert (
+        bouncer.sql_value(
+            "SHOW datestyle",
+            options="-c timezone=Portugal  -c    datestyle=German,\\ YMD",
+        )
+        == "German, YMD"
+    )
+
+    assert (
+        bouncer.sql_value(
+            "SHOW timezone",
+            options="-c timezone=Portugal  -c    datestyle=German,\\ YMD",
+        )
+        == "Portugal"
+    )
+
+    assert (
+        bouncer.sql_value(
+            "SHOW timezone", options="-ctimezone=Portugal  -cdatestyle=German,\\ YMD"
+        )
+        == "Portugal"
+    )
+
+    assert (
+        bouncer.sql_value(
+            "SHOW timezone",
+            options="-c t\\imezone=\\P\\o\\r\\t\\ugal  -c    dat\\estyle\\=\\Ge\\rman,\\ YMD",
+        )
+        == "Portugal"
+    )
+
+    # extra_float_digits is in ignore_startup_parameters so setting it has no
+    # effect, and the default of 1 will still be used.
+    assert (
+        bouncer.sql_value("SHOW extra_float_digits", options="-c extra_float_digits=2")
+        == "1"
+    )
+
+    with pytest.raises(
+        psycopg.OperationalError,
+        match="unsupported options startup parameter: only '-c config=val' is allowed",
+    ):
+        bouncer.test(options="-d")
+
+    with pytest.raises(
+        psycopg.OperationalError,
+        match="unsupported options startup parameter: only '-c config=val' is allowed",
+    ):
+        bouncer.test(options="-c timezone")
+
+    too_long_param = "a" * 1000
+
+    with pytest.raises(
+        psycopg.OperationalError,
+        match="unsupported options startup parameter: parameter too long",
+    ):
+        bouncer.test(options="-c timezone=" + too_long_param)
+
+    with pytest.raises(
+        psycopg.OperationalError,
+        match="unsupported startup parameter in options: enable_seqscan",
+    ):
+        bouncer.test(options="-c enable_seqscan=true")

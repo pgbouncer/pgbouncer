@@ -29,14 +29,6 @@
  * ConnString parsing
  */
 
-/* just skip whitespace */
-static char *cstr_skip_ws(char *p)
-{
-	while (*p && *p == ' ')
-		p++;
-	return p;
-}
-
 /* parse parameter name before '=' */
 static char *cstr_get_key(char *p, char **dst_p)
 {

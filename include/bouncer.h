@@ -715,6 +715,19 @@ last_socket(struct StatList *slist)
 	return container_of(slist->head.prev, PgSocket, head);
 }
 
+
+/*
+ * cstr_skip_ws returns a pointer to the first non whitespace character
+ * in the given string.
+ */
+static inline char *cstr_skip_ws(char *p)
+{
+	while (*p && *p == ' ')
+		p++;
+	return p;
+}
+
+
 void load_config(void);
 
 

@@ -549,29 +549,16 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
 }
 
 /*
- * skip_ws returns a pointer to the first non whitespace character
- * in the given string
- */
-static inline const char *skip_ws(const char *position)
-{
-	while (*position && isspace(*position))
-		position++;
-	return position;
-}
-
-/*
  * read_escaped_token reads a token that might be escaped using backslashes
  * from the escaped_string_ptr. The token is written in unescaped form to the
  * unescaped_token buffer. escape_string_ptr is set to the character right
  * after the token.
  */
-_MUSTCHECK
 static bool read_escaped_token(const char **escaped_string_ptr, struct MBuf *unescaped_token)
 {
 	const char *position = *escaped_string_ptr;
 	const char *unwritten_start = position;
-	while (*position)
-	{
+	while (*position) {
 		if (*position == '\\') {
 			if (!mbuf_write(unescaped_token, unwritten_start, position-unwritten_start))
 				return false;
@@ -593,15 +580,15 @@ static bool read_escaped_token(const char **escaped_string_ptr, struct MBuf *une
 }
 
 /*
- * set_startup_options takes the value of to the "options" startup parameter
- * and uses it to set the parameters that are embeded in this value.
+ * set_startup_options takes the value of the "options" startup parameter
+ * and uses it to set the parameters that are embedded in this value.
  *
- * It only supports the following type of postgres command line argument:
+ * It only supports the following type of PostgreSQL command line argument:
  * -c config=value
  *
  * The reason that we don't support all arguments is to keep the parsing simple
  * an this is by far the argument that's most commonly used in practice in the
- * options startup paramater. Also all other postgres command line arguments
+ * options startup parameter. Also all other postgres command line arguments
  * can be rewritten to this form:
  */
 static bool set_startup_options(PgSocket *client, const char *options)
@@ -611,15 +598,16 @@ static bool set_startup_options(PgSocket *client, const char *options)
 	const char *position = options;
 	mbuf_init_fixed_writer(&arg, arg_buf, sizeof(arg_buf));
 	slog_debug(client, "received options: %s", options);
+
 	while (*position) {
 		const char *key_string, *value_string;
 		char *equals;
 		mbuf_rewind_writer(&arg);
-		position = skip_ws(position);
+		position = cstr_skip_ws((char *) position);
 		if (strncmp("-c", position, 2) != 0)
 			goto fail;
 		position += 2;
-		position = skip_ws(position);
+		position = cstr_skip_ws((char *) position);
 
 		if (!read_escaped_token(&position, &arg)) {
 			disconnect_client(client, true, "unsupported options startup parameter: parameter too long");
@@ -643,6 +631,7 @@ static bool set_startup_options(PgSocket *client, const char *options)
 			return false;
 		}
 	}
+
 	return true;
 fail:
 	disconnect_client(client, true, "unsupported options startup parameter: only '-c config=val' is allowed");

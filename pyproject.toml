@@ -19,9 +19,21 @@ timeout = 30
 # versions is a small price to pay to not have to worry about that.
 asyncio_mode = 'auto'
 
+# Make test discovery quicker
+norecursedirs = [
+    '*.egg',
+    '.*',
+    '__pycache__',
+    'venv',
+    'src',
+    'lib',
+    'uncrustify',
+    'uthash',
+]
+
 [tool.isort]
 profile = 'black'
-skip = 'lib'
+skip = 'lib,uncrustify,uthash'
 
 [tool.black]
-extend-exclude = 'lib'
+extend-exclude = 'lib|uncrustify|uthash'

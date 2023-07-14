@@ -4,3 +4,6 @@
 [submodule "uthash"]
 	path = uthash
 	url = https://github.com/troydhanson/uthash.git
+[submodule "uncrustify"]
+	path = uncrustify
+	url = https://github.com/uncrustify/uncrustify

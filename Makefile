@@ -177,3 +177,29 @@ htmls:
 
 doc/pgbouncer.1 doc/pgbouncer.5:
 	$(MAKE) -C doc $(@F)
+
+lint:
+	flake8
+
+format-check: uncrustify/build/uncrustify
+	black --check .
+	isort --check .
+	uncrustify/build/uncrustify -c uncrustify.cfg --check include/*.h src/*.c -L WARN
+
+format: uncrustify/build/uncrustify
+	$(MAKE) format-c
+	$(MAKE) format-python
+
+format-python: uncrustify/build/uncrustify
+	black .
+	isort .
+
+format-c: uncrustify/build/uncrustify
+	uncrustify/build/uncrustify -c uncrustify.cfg --replace --no-backup include/*.h src/*.c -L WARN
+
+uncrustify/build/uncrustify:
+	cd uncrustify \
+		&& mkdir -p build \
+		&& cd build \
+		&& cmake ..
+	$(MAKE) -C uncrustify/build

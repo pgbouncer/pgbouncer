@@ -116,7 +116,9 @@ Basic setup and usage is as follows.
     Note: Does not work on Windows; **pgbouncer** need to run as service there.
 
 `-R`, `--reboot`
-:   Do an online restart. That means connecting to the running process,
+:   **DEPRECATED: Instead of this option use a rolling restart with multiple
+    pgbouncer processes listening on the same port using so_reuseport instead**
+    Do an online restart. That means connecting to the running process,
     loading the open sockets from it, and then using them.  If there
     is no active process, boot normally.
     Note: Works only if OS supports Unix sockets and the `unix_socket_dir`

@@ -1,6 +1,4 @@
-import subprocess
-
-from .utils import run
+from .utils import capture, run
 
 
 def test_show(bouncer):
@@ -37,13 +35,11 @@ def test_show(bouncer):
 
 def test_show_version(bouncer):
     admin_version = bouncer.admin_value(f"SHOW VERSION")
-    subprocess_result = run(
+    subprocess_result = capture(
         [*bouncer.base_command(), "--version"],
-        stdout=subprocess.PIPE,
         shell=False,
-        encoding="utf8",
     )
-    subprocess_version = subprocess_result.stdout.split("\n")[0]
+    subprocess_version = subprocess_result.split("\n")[0]
     assert admin_version == subprocess_version
 
 

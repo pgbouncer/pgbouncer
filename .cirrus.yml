@@ -162,7 +162,7 @@ task:
 task:
   name: FreeBSD
   freebsd_instance:
-    image_family: freebsd-13-1
+    image_family: freebsd-13-2
   env:
     HAVE_IPV6_LOCALHOST: yes
     USE_SUDO: true

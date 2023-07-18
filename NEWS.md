@@ -4,9 +4,11 @@ PgBouncer changelog
 PgBouncer 1.20.x
 ----------------
 
+**2023-XX-XX  -  PgBouncer 1.20.0  -  "A funny name goes here"**
+
 - Deprecations
-  * Online rebooting of PgBouncer is now considered deprecated. The feature has
-    received very little love in recent years. There's multiple known issues
+  * Online restart option is now considered deprecated. The feature has
+    received very little love in recent years. There are multiple known issues
     with it and newly added features often don't support it. The recommended
     method to do online restarts these days is using the `so_reuseport` and
     `peers` feature. That way you can have multiple different PgBouncer versions
@@ -14,18 +16,18 @@ PgBouncer 1.20.x
 
 - Features
   * Introduce the `track_extra_parameters` which allows tracking of more
-    parameters in transaction pooling mode. Previously PgBouncer only tracked,
+    parameters in transaction pooling mode. Previously, PgBouncer only tracked
     `application_name`, `DateStyle`, `TimeZone` and
-    `standard_conforming_strings. Now PgBouncer also tracks `IntervalStyle` by
+    `standard_conforming_strings`. Now PgBouncer also tracks `IntervalStyle` by
     default. And by changing `track_extra_parameters` you can track even more
     settings, but only [ones that PostgreSQL reports back to the
     client][guc_report]. If you're using Citus 12.0+, then Citus will make sure
     that PostgreSQL also reports `search_path` back to the client. So if you use
     Citus you can add `search_path` to the `track_extra_parameters` setting.
-    ([#867)
+    ([#867])
   * Forward SQLSTATE in authentication phase. This allows the detection of
-    database not existing, which is was done by Npgsql (the C# PostgreSQL client).
-    ([#814])
+    database not existing, which is done by Npgsql (a .NET data provider for
+    PostgreSQL). ([#814])
   * Change default `server_tls_sslmode` to `prefer`. ([#866])
   * Add support for the `options` startup parameter. This allows usage of [the
     `PGOPTIONS` environment variable that `psql` and `libpq` know

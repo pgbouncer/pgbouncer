@@ -11,8 +11,10 @@ PgBouncer 1.20.x
     received very little love in recent years. There are multiple known issues
     with it and newly added features often don't support it. The recommended
     method to do online restarts these days is using the `so_reuseport` and
-    `peers` feature. That way you can have multiple different PgBouncer versions
-    running on the same port. ([#894])
+    `peers` feature. That way you can have multiple different PgBouncer
+    processes running on the same port. Then by restarting those processes
+    one-by-one, you can make sure there's always a PgBouncer process listening
+    on the desired port. ([#894])
 
 - Features
   * Introduce the `track_extra_parameters` which allows tracking of more

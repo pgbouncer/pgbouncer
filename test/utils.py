@@ -107,10 +107,12 @@ def sudo(command, *args, shell=True, **kwargs):
         return run(["sudo", *command])
 
 
+def capture(command, *args, stdout=subprocess.PIPE, encoding="utf-8", **kwargs):
+    return run(command, *args, stdout=stdout, encoding=encoding, **kwargs).stdout
+
+
 def get_pg_major_version():
-    full_version_string = run(
-        "initdb --version", stdout=subprocess.PIPE, encoding="utf-8", silent=True
-    ).stdout
+    full_version_string = capture("initdb --version", silent=True)
     major_version_string = re.search("[0-9]+", full_version_string)
     assert major_version_string is not None
     return int(major_version_string.group(0))

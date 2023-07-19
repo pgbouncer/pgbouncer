@@ -1,6 +1,65 @@
 PgBouncer changelog
 ===================
 
+PgBouncer 1.20.x
+----------------
+
+**2023-XX-XX  -  PgBouncer 1.20.0  -  "A funny name goes here"**
+
+- Deprecations
+  * Online restart option is now considered deprecated. The feature has
+    received very little love in recent years. There are multiple known issues
+    with it and newly added features often don't support it. The recommended
+    method to do online restarts these days is using the `so_reuseport` and
+    `peers` feature. That way you can have multiple different PgBouncer
+    processes running on the same port. Then by restarting those processes
+    one-by-one, you can make sure there's always a PgBouncer process listening
+    on the desired port. ([#894])
+
+- Features
+  * Introduce the `track_extra_parameters` which allows tracking of more
+    parameters in transaction pooling mode. Previously, PgBouncer only tracked
+    `application_name`, `DateStyle`, `TimeZone` and
+    `standard_conforming_strings`. Now PgBouncer also tracks `IntervalStyle` by
+    default. And by changing `track_extra_parameters` you can track even more
+    settings, but only [ones that PostgreSQL reports back to the
+    client][guc_report]. If you're using Citus 12.0+, then Citus will make sure
+    that PostgreSQL also reports `search_path` back to the client. So if you use
+    Citus you can add `search_path` to the `track_extra_parameters` setting.
+    ([#867])
+  * Forward SQLSTATE in authentication phase. This allows the detection of
+    database not existing, which is done by Npgsql (a .NET data provider for
+    PostgreSQL). ([#814])
+  * Change default `server_tls_sslmode` to `prefer`. ([#866])
+  * Add support for the `options` startup parameter. This allows usage of [the
+    `PGOPTIONS` environment variable that `psql` and `libpq` know
+    about][pgoptions]. Using this variable you can set any PostgreSQL parameter at
+    startup. This only works for PostgreSQL parameters that PgBouncer tracks
+    through `track_extra_parameters`. ([#878])
+
+- Fixes
+  * Don't crash when the `pgbouncer` admin database is used as auth_dbname. It's
+    still not supported, but this now gives a clear error instead of crashing.
+    ([#817])
+  * Fix name of `peer_cache` in `SHOW MEM`. It was incorrectly showing up as
+    `db_cache` before. ([#864])
+  * Fix src/dst confusion in log. PgBouncer was logging a source IP when it
+    meant to log the destination IP. ([#880])
+  * Only log admin connections over unix sockets when `log_connections` is set
+    to `1`. ([#883])
+
+[guc_report]: https://www.postgresql.org/docs/15/protocol-flow.html#PROTOCOL-ASYNC
+[pgoptions]: https://www.postgresql.org/docs/current/config-setting.html#id-1.6.7.4.5
+[#867]: https://github.com/pgbouncer/pgbouncer/pull/867
+[#814]: https://github.com/pgbouncer/pgbouncer/pull/814
+[#866]: https://github.com/pgbouncer/pgbouncer/pull/866
+[#878]: https://github.com/pgbouncer/pgbouncer/pull/878
+[#817]: https://github.com/pgbouncer/pgbouncer/pull/817
+[#864]: https://github.com/pgbouncer/pgbouncer/pull/864
+[#880]: https://github.com/pgbouncer/pgbouncer/pull/880
+[#883]: https://github.com/pgbouncer/pgbouncer/pull/883
+[#894]: https://github.com/pgbouncer/pgbouncer/pull/894
+
 PgBouncer 1.19.x
 ----------------
 

@@ -1001,6 +1001,7 @@ int main(int argc, char *argv[])
 	admin_setup();
 
 	if (cf_reboot) {
+		log_warning("Online restart is deprecated, use so_reuseport instead");
 		if (check_old_process_unix()) {
 			takeover_part1();
 			did_takeover = true;

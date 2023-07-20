@@ -4,7 +4,7 @@ PgBouncer changelog
 PgBouncer 1.20.x
 ----------------
 
-**2023-XX-XX  -  PgBouncer 1.20.0  -  "A funny name goes here"**
+**2023-07-20  -  PgBouncer 1.20.0  -  "A funny name goes here"**
 
 - Deprecations
   * Online restart option is now considered deprecated. The feature has

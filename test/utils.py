@@ -790,17 +790,30 @@ class Bouncer(QueryRunner):
         task"""
         return self.admin_runner.asql(query, **kwargs)
 
-    async def stop(self):
+    def running(self):
+        if self.process:
+            return self.process.poll() is None
+        if self.aprocess:
+            return self.aprocess.returncode is None
+        return False
+
+    async def wait_for_exit(self):
         if self.process is not None:
-            self.process.terminate()
             self.process.communicate()
             self.process.wait()
         if self.aprocess is not None:
-            self.aprocess.terminate()
             await self.aprocess.communicate()
             await self.aprocess.wait()
         self.process = None
         self.aprocess = None
+
+    async def stop(self):
+        if self.process is not None:
+            self.process.terminate()
+        if self.aprocess is not None:
+            self.aprocess.terminate()
+
+        await self.wait_for_exit()
 
     async def reboot(self):
         """Starts a new PgBouncer with the --reboot flag
@@ -841,6 +854,12 @@ class Bouncer(QueryRunner):
         if self.process:
             self.process.send_signal(signal.SIGHUP)
         time.sleep(1)
+
+    def sigint(self):
+        if self.aprocess:
+            self.aprocess.send_signal(signal.SIGINT)
+        if self.process:
+            self.process.send_signal(signal.SIGINT)
 
     def print_logs(self):
         print(f"\n\nBOUNCER_LOG {self.config_dir}\n")

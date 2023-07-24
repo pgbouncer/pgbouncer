@@ -486,8 +486,14 @@ static void handle_sigint(evutil_socket_t sock, short flags, void *arg)
 		die("takeover was in progress, going down immediately");
 	if (cf_pause_mode == P_SUSPEND)
 		die("suspend was in progress, going down immediately");
-	cf_pause_mode = P_PAUSE;
-	cf_shutdown = SHUTDOWN_WAIT_FOR_SERVERS;
+	if (cf_so_reuseport) {
+		/* Do the rolling restart logic */
+		cf_shutdown = SHUTDOWN_WAIT_FOR_CLIENTS;
+		cleanup_tcp_sockets();
+	} else {
+		cf_pause_mode = P_PAUSE;
+		cf_shutdown = SHUTDOWN_WAIT_FOR_SERVERS;
+	}
 }
 
 #ifndef WIN32
@@ -522,8 +528,14 @@ static void handle_sigusr2(int sock, short flags, void *arg)
 		log_info("got SIGUSR2, but not paused/suspended");
 	}
 
-	/* avoid surprise later if cf_shutdown stays set */
-	if (cf_shutdown) {
+	/*
+	 * Avoid surprises later if cf_shutdown stays set to
+	 * SHUTDOWN_WAIT_FOR_SERVERS, because it uses P_PAUSE to accomplish its
+	 * goal of waiting for servers.
+	 * SHUTDOWN_WAIT_FOR_CLIENTS and SHUTDOWN_IMMEDIATE cannot be cancelled
+	 * using RESUME.
+	 */
+	if (cf_shutdown == SHUTDOWN_WAIT_FOR_SERVERS) {
 		log_info("canceling shutdown");
 		cf_shutdown = SHUTDOWN_NONE;
 	}

@@ -57,6 +57,47 @@ static struct timeval err_timeout = {5, 0};
 
 static void tune_accept(int sock, bool on);
 
+static void close_socket(struct ListenSocket *ls)
+{
+	if (event_del(&ls->ev) < 0) {
+		log_warning("close_socket, event_del: %s", strerror(errno));
+	}
+	if (ls->fd > 0) {
+		safe_close(ls->fd);
+		ls->fd = 0;
+	}
+	if (pga_is_unix(&ls->addr) && cf_unix_socket_dir[0] != '@') {
+		char buf[sizeof(struct sockaddr_un) + 20];
+		snprintf(buf, sizeof(buf), "%s/.s.PGSQL.%d", cf_unix_socket_dir, cf_listen_port);
+		unlink(buf);
+	}
+	statlist_remove(&sock_list, &ls->node);
+	free(ls);
+}
+
+/*
+ * cleanup_tcp_sockets stops accepting new connections on the configured TCP
+ * sockets. This is used to support zero-downtime restarts with with
+ * so_reuseport=1. By not accepting new connections it's possible to
+ * effectively drain this process of all its connections by making sure the
+ * clients all reconnect (at their leisure). Then once they've all reconnected
+ * to another PgBouncer process, we can stop this one.
+ */
+void cleanup_tcp_sockets(void)
+{
+	struct ListenSocket *ls;
+	struct List *item, *tmp;
+
+	statlist_for_each_safe(item, &sock_list, tmp) {
+		ls = container_of(item, struct ListenSocket, node);
+		if (pga_is_unix(&ls->addr)) {
+			continue;
+		}
+
+		close_socket(ls);
+	}
+}
+
 /* atexit() cleanup func */
 static void cleanup_sockets(void)
 {
@@ -69,20 +110,7 @@ static void cleanup_sockets(void)
 
 	while ((el = statlist_pop(&sock_list)) != NULL) {
 		ls = container_of(el, struct ListenSocket, node);
-		if (event_del(&ls->ev) < 0) {
-			log_warning("cleanup_sockets, event_del: %s", strerror(errno));
-		}
-		if (ls->fd > 0) {
-			safe_close(ls->fd);
-			ls->fd = 0;
-		}
-		if (pga_is_unix(&ls->addr) && cf_unix_socket_dir[0] != '@') {
-			char buf[sizeof(struct sockaddr_un) + 20];
-			snprintf(buf, sizeof(buf), "%s/.s.PGSQL.%d", cf_unix_socket_dir, cf_listen_port);
-			unlink(buf);
-		}
-		statlist_remove(&sock_list, &ls->node);
-		free(ls);
+		close_socket(ls);
 	}
 }
 

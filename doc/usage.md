@@ -741,6 +741,27 @@ Resume work from previous **KILL**, **PAUSE**, or **SUSPEND** command.
 
 The PgBouncer process will exit.
 
+#### SHUTDOWN WAIT_FOR_CLIENTS
+
+This command initiates shutdown logic intended rolling restarts: We stop
+accepting new connections and shutdown the process once all existing clients
+have disconnected. The operational process you can use for a zero-downtime
+rolling restart of two PgBouncer processes is as follows:
+    1. Have two PgBouncer processes running using `so_reuseport` and peering,
+       these processes will be called A and B.
+    2. Send `SIGINT` to process A.
+    3. Cause all clients reconnect. Possibly by waiting some time until the
+       client side pooler causes reconnects due to its `server_idle_timeout`
+       (or similar config). Or if no client side pooler is used, possibly by
+       restarting the clients. Once all clients have reconnected. Process A
+       will exit automatically, because no clients are connected to it anymore.
+    4. Start process A again
+    5. Repeat step 2, 3 and 4 for process B.
+
+If you have more than two processes, repeat the steps 2, 3 and 4 for each of
+them.
+
+
 #### RELOAD
 
 The PgBouncer process will reload its configuration files and update
@@ -782,7 +803,10 @@ SIGHUP
 :   Reload config. Same as issuing the command **RELOAD** on the console.
 
 SIGINT
-:   Safe shutdown. Same as issuing **PAUSE** and **SHUTDOWN** on the console.
+:   Safe shutdown. If `so_reuseport` is set to 0, then this is the same as
+    issuing **PAUSE** and **SHUTDOWN** on the console. If `so_reuseport` is set
+    to 1 then this is the same as issuing **SHUTDOWN WAIT_FOR_CLIENTS** on
+    the console.
 
 SIGTERM
 :   Immediate shutdown. Same as issuing **SHUTDOWN** on the console.

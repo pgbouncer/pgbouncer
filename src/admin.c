@@ -1100,8 +1100,13 @@ static bool admin_cmd_reload(PgSocket *admin, const char *arg)
 /* Command: SHUTDOWN */
 static bool admin_cmd_shutdown(PgSocket *admin, const char *arg)
 {
-	if (arg && *arg)
-		return syntax_error(admin);
+	enum ShutDownMode mode = SHUTDOWN_IMMEDIATE;
+	if (arg && *arg) {
+		if (strcasecmp(arg, "WAIT_FOR_CLIENTS") == 0)
+			mode = SHUTDOWN_WAIT_FOR_CLIENTS;
+		else
+			return syntax_error(admin);
+	}
 
 	if (!admin->admin_user)
 		return admin_error(admin, "admin access needed");
@@ -1111,11 +1116,20 @@ static bool admin_cmd_shutdown(PgSocket *admin, const char *arg)
 	 * event from fd.  Currently atexit() cleanup should be called
 	 * before closing open sockets.
 	 */
-	log_info("SHUTDOWN command issued");
-	cf_shutdown = SHUTDOWN_IMMEDIATE;
-	event_base_loopbreak(pgb_event_base);
-
-	return true;
+	cf_shutdown = mode;
+	if (mode == SHUTDOWN_IMMEDIATE) {
+		log_info("SHUTDOWN command issued");
+		event_base_loopbreak(pgb_event_base);
+		/*
+		 * By not running admin_ready the connection is kept open
+		 * until the process is actually shut down.
+		 */
+		return true;
+	} else {
+		log_info("SHUTDOWN WAIT_FOR_CLIENTS command issued");
+		cleanup_tcp_sockets();
+		return admin_ready(admin, "SHUTDOWN");
+	}
 }
 
 static void full_resume(void)
@@ -1125,8 +1139,14 @@ static void full_resume(void)
 	if (tmp_mode == P_SUSPEND)
 		resume_all();
 
-	/* avoid surprise later if cf_shutdown stays set */
-	if (cf_shutdown) {
+	/*
+	 * Avoid surprises later if cf_shutdown stays set to
+	 * SHUTDOWN_WAIT_FOR_SERVERS, because it uses P_PAUSE to accomplish its
+	 * goal of waiting for servers.
+	 * SHUTDOWN_WAIT_FOR_CLIENTS and SHUTDOWN_IMMEDIATE cannot be cancelled
+	 * using RESUME.
+	 */
+	if (cf_shutdown == SHUTDOWN_WAIT_FOR_SERVERS) {
 		log_info("canceling shutdown");
 		cf_shutdown = SHUTDOWN_NONE;
 	}
@@ -1428,6 +1448,7 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		     "\tKILL <db>\n"
 		     "\tSUSPEND\n"
 		     "\tSHUTDOWN\n"
+		     "\tSHUTDOWN WAIT_FOR_CLIENTS\n"
 		     "\tWAIT_CLOSE [<db>]", "");
 	if (res)
 		res = admin_ready(admin, "SHOW");

@@ -962,17 +962,37 @@ class Bouncer(QueryRunner):
         task"""
         return self.admin_runner.asql(query, **kwargs)
 
-    async def stop(self):
+    def running(self):
+        if self.process:
+            return self.process.poll() is None
+        if self.aprocess:
+            return self.aprocess.returncode is None
+        return False
+
+    async def wait_for_exit(self):
         if self.process is not None:
-            self.process.terminate()
             self.process.communicate()
             self.process.wait()
         if self.aprocess is not None:
-            self.aprocess.terminate()
             await self.aprocess.communicate()
             await self.aprocess.wait()
         self.process = None
         self.aprocess = None
+
+    async def stop(self):
+        if not WINDOWS:
+            self.sigquit()
+        else:
+            # Windows does not have SIGQUIT, so call terminate() twice to
+            # trigger fast exit
+            if self.process is not None:
+                self.process.terminate()
+                self.process.terminate()
+            if self.aprocess is not None:
+                self.aprocess.terminate()
+                self.aprocess.terminate()
+
+        await self.wait_for_exit()
 
     async def reboot(self):
         """Starts a new PgBouncer with the --reboot flag
@@ -1007,12 +1027,27 @@ class Bouncer(QueryRunner):
             await self.wait_until_running()
             assert self.process.pid != old_pid
 
-    def sighup(self):
+    def send_signal(self, sig):
         if self.aprocess:
-            self.aprocess.send_signal(signal.SIGHUP)
+            self.aprocess.send_signal(sig)
         if self.process:
-            self.process.send_signal(signal.SIGHUP)
+            self.process.send_signal(sig)
+
+    def sighup(self):
+        self.send_signal(signal.SIGHUP)
         time.sleep(1)
+
+    def sigterm(self):
+        self.send_signal(signal.SIGTERM)
+
+    def sigint(self):
+        self.send_signal(signal.SIGINT)
+
+    def sigquit(self):
+        self.send_signal(signal.SIGQUIT)
+
+    def sigusr2(self):
+        self.send_signal(signal.SIGUSR2)
 
     def print_logs(self):
         print(f"\n\nBOUNCER_LOG {self.config_dir}\n")

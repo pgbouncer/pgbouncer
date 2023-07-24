@@ -78,7 +78,7 @@ struct HBA *parsed_hba;
 
 int cf_daemon;
 int cf_pause_mode = P_NONE;
-int cf_shutdown;	/* 1 - wait for queries to finish, 2 - shutdown immediately */
+int cf_shutdown = SHUTDOWN_NONE;
 int cf_reboot;
 static char *cf_username;
 char *cf_config_file;
@@ -482,7 +482,7 @@ static void handle_sigint(evutil_socket_t sock, short flags, void *arg)
 	if (cf_pause_mode == P_SUSPEND)
 		die("suspend was in progress, going down immediately");
 	cf_pause_mode = P_PAUSE;
-	cf_shutdown = 1;
+	cf_shutdown = SHUTDOWN_WAIT_FOR_SERVERS;
 }
 
 #ifndef WIN32
@@ -520,7 +520,7 @@ static void handle_sigusr2(int sock, short flags, void *arg)
 	/* avoid surprise later if cf_shutdown stays set */
 	if (cf_shutdown) {
 		log_info("canceling shutdown");
-		cf_shutdown = 0;
+		cf_shutdown = SHUTDOWN_NONE;
 	}
 }
 
@@ -844,7 +844,7 @@ static void cleanup(void)
 	 * crude. But since this cleanup is only happening in builds with asserts
 	 * enabled anyway it seems fine.
 	 */
-	if (cf_pause_mode == P_SUSPEND && cf_shutdown == 2) {
+	if (cf_pause_mode == P_SUSPEND && cf_shutdown == SHUTDOWN_IMMEDIATE) {
 		return;
 	}
 	adns_free_context(adns);
@@ -1054,7 +1054,7 @@ int main(int argc, char *argv[])
 	sd_notify(0, "READY=1");
 
 	/* main loop */
-	while (cf_shutdown < 2)
+	while (cf_shutdown != SHUTDOWN_IMMEDIATE)
 		main_loop_once();
 
 	return 0;

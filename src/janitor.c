@@ -716,9 +716,9 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 
 	cleanup_client_logins();
 
-	if (cf_shutdown == 1 && get_active_server_count() == 0) {
+	if (cf_shutdown == SHUTDOWN_WAIT_FOR_SERVERS && get_active_server_count() == 0) {
 		log_info("server connections dropped, exiting");
-		cf_shutdown = 2;
+		cf_shutdown = SHUTDOWN_IMMEDIATE;
 		event_base_loopbreak(pgb_event_base);
 		return;
 	}

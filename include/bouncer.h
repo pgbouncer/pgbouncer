@@ -75,6 +75,12 @@ enum PauseMode {
 	P_SUSPEND = 2		/* wait for buffers to be empty */
 };
 
+enum ShutDownMode {
+	SHUTDOWN_NONE = 0,
+	SHUTDOWN_WAIT_FOR_SERVERS = 1,
+	SHUTDOWN_IMMEDIATE = 2,
+};
+
 enum SSLMode {
 	SSLMODE_DISABLED,
 	SSLMODE_ALLOW,

@@ -1114,7 +1114,7 @@ static bool admin_cmd_shutdown(PgSocket *admin, const char *arg)
 	 * before closing open sockets.
 	 */
 	log_info("SHUTDOWN command issued");
-	cf_shutdown = 2;
+	cf_shutdown = SHUTDOWN_IMMEDIATE;
 	event_base_loopbreak(pgb_event_base);
 
 	return true;
@@ -1130,7 +1130,7 @@ static void full_resume(void)
 	/* avoid surprise later if cf_shutdown stays set */
 	if (cf_shutdown) {
 		log_info("canceling shutdown");
-		cf_shutdown = 0;
+		cf_shutdown = SHUTDOWN_NONE;
 	}
 }
 

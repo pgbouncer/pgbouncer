@@ -104,9 +104,11 @@ static const SBufIO tls_sbufio_ops = {
 static void sbuf_tls_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
 #endif
 
-/*********************************
-* Public functions
-*********************************/
+/*
+ *********************************
+ * Public functions
+ *********************************
+ */
 
 /* initialize SBuf with proto handler */
 void sbuf_init(SBuf *sbuf, sbuf_cb_t proto_fn)
@@ -358,9 +360,11 @@ void sbuf_prepare_fetch(SBuf *sbuf, unsigned amount)
 	/* sbuf->dst = NULL; // FIXME ?? */
 }
 
-/*************************
-* Internal functions
-*************************/
+/*
+ *************************
+ * Internal functions
+ *************************
+ */
 
 /*
  * Call proto callback with proper struct MBuf.

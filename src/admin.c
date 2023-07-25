@@ -1117,6 +1117,13 @@ static bool admin_cmd_shutdown(PgSocket *admin, const char *arg)
 	return true;
 }
 
+/* Command: RESET_DNS_TTL */
+static bool admin_cmd_reset_dns_ttl(PgSocket *admin, const char *arg)
+{
+	adns_reset_ttl(adns);
+	return admin_ready(admin, "RESET_DNS_TTL");
+}
+
 static void full_resume(void)
 {
 	int tmp_mode = cf_pause_mode;
@@ -1419,6 +1426,7 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		"\tSHOW STATS|STATS_TOTALS|STATS_AVERAGES|TOTALS\n"
 		"\tSET key = arg\n"
 		"\tRELOAD\n"
+		"\tRESET_DNS_TTL\n"
 		"\tPAUSE [<db>]\n"
 		"\tRESUME [<db>]\n"
 		"\tDISABLE <db>\n"
@@ -1512,6 +1520,7 @@ static struct cmd_lookup cmd_list [] = {
 	{"pause", admin_cmd_pause},
 	{"reconnect", admin_cmd_reconnect},
 	{"reload", admin_cmd_reload},
+	{"reset_dns_ttl", admin_cmd_reset_dns_ttl},
 	{"resume", admin_cmd_resume},
 	{"select", admin_cmd_show},
 	{"show", admin_cmd_show},

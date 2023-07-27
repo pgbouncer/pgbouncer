@@ -623,7 +623,7 @@ static bool set_startup_options(PgSocket *client, const char *options)
 		value_string = (const char *) equals + 1;
 		if (varcache_set(&client->vars, key_string, value_string)) {
 			slog_debug(client, "got var from options: %s=%s", key_string, value_string);
-		} else if (strlist_contains(cf_ignore_startup_params, key_string)) {
+		} else if (strlist_contains(cf_ignore_startup_params, key_string) || strlist_contains(cf_ignore_startup_params, "options")) {
 			slog_debug(client, "ignoring startup parameter from options: %s=%s", key_string, value_string);
 		} else {
 			slog_warning(client, "unsupported startup parameter in options: %s=%s", key_string, value_string);

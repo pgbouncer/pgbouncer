@@ -206,6 +206,8 @@ void change_client_state(PgSocket *client, SocketState newstate)
 		break;
 	case CL_WAITING:
 	case CL_WAITING_LOGIN:
+		/*increase number of clients that had to wait*/
+		client->pool->stats.wait_count++;
 		client->wait_start = get_cached_time();
 		statlist_append(&pool->waiting_client_list, &client->head);
 		break;

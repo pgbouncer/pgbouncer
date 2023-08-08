@@ -217,6 +217,13 @@ Postgres extensions can change this list though, they can add parameters themsel
 and they can start reporting already existing paremeters that Postgres does not report.
 Notably Citus 12.0+ causes Postgres to also report `search_path`.
 
+The postgres protocol allows specifying parameters settings, both direcly as a
+parameter in the startup packet, or inside the [`options` startup
+packet][options-startup]. Parameters specified using both of these methods are
+supported by `track_extra_parameters`. However, it's not possible to include
+`options` itself in `track_extra_parameters`, only the parameters contained in
+`options`.
+
 Default: IntervalStyle
 
 ### ignore_startup_parameters
@@ -228,6 +235,16 @@ specified here, so that PgBouncer knows that they are handled by the admin and i
 
 If you need to specify multiple values, use a comma-separated list (e.g.
 `options,extra_float_digits`)
+
+The postgres protocol allows specifying parameters settings, both direcly as a
+parameter in the startup packet, or inside the [`options` startup
+packet][options-startup]. Parameters specified using both of these methods are
+supported by `ignore_startup_parameters`. It's even possible to include
+`options` itself in `track_extra_parameters`, which results in any unkown
+parameters contained inside `options` to be ignored.
+
+
+[options-startup]: https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNECT-OPTIONS
 
 Default: empty
 

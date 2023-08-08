@@ -202,4 +202,24 @@ def test_options_startup_param(bouncer):
         psycopg.OperationalError,
         match="unsupported startup parameter in options: enable_seqscan",
     ):
-        bouncer.test(options="-c enable_seqscan=true")
+        bouncer.test(options="-c enable_seqscan=false")
+
+    bouncer.admin("set ignore_startup_parameters = options")
+    # Unsupported values should be ignored, so it shouldn't error but it should
+    # have its default value instead.
+    assert (
+        bouncer.sql_value(
+            "SHOW enable_seqscan",
+            options="-c enable_seqscan=false",
+        )
+        == "on"
+    )
+
+    # Even though we have options in ignore_startup_parameters, we still parse
+    # and configure any values in it that we support
+    assert (
+        bouncer.sql_value(
+            "SHOW timezone", options="-ctimezone=Portugal  -cdatestyle=German,\\ YMD"
+        )
+        == "Portugal"
+    )

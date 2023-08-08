@@ -589,7 +589,11 @@ static bool read_escaped_token(const char **escaped_string_ptr, struct MBuf *une
  * The reason that we don't support all arguments is to keep the parsing simple
  * an this is by far the argument that's most commonly used in practice in the
  * options startup parameter. Also all other postgres command line arguments
- * can be rewritten to this form:
+ * can be rewritten to this form.
+ *
+ * NOTE: it's possible to supply "options" in ignore_startup_parameters, which
+ * results in all unknown options being ignored. This is for historical reasons,
+ * because it was supported like that in the past.
  */
 static bool set_startup_options(PgSocket *client, const char *options)
 {
@@ -623,7 +627,7 @@ static bool set_startup_options(PgSocket *client, const char *options)
 		value_string = (const char *) equals + 1;
 		if (varcache_set(&client->vars, key_string, value_string)) {
 			slog_debug(client, "got var from options: %s=%s", key_string, value_string);
-		} else if (strlist_contains(cf_ignore_startup_params, key_string)) {
+		} else if (strlist_contains(cf_ignore_startup_params, key_string) || strlist_contains(cf_ignore_startup_params, "options")) {
 			slog_debug(client, "ignoring startup parameter from options: %s=%s", key_string, value_string);
 		} else {
 			slog_warning(client, "unsupported startup parameter in options: %s=%s", key_string, value_string);

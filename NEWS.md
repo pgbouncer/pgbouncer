@@ -4,6 +4,17 @@ PgBouncer changelog
 PgBouncer 1.20.x
 ----------------
 
+**2023-08-09  -  PgBouncer 1.20.1  -  "Optional options"**
+
+- Fixes
+  * Fix regression where putting `options` inside `ignore_startup_parameters`
+    would not ignore unknown parameters inside the `options` startup parameter
+    anymore. ([#908]) (regression was introduced in 1.20.0)
+  * Fix confusing typo in the docs ([#917])
+
+[#908]: https://github.com/pgbouncer/pgbouncer/pull/908
+[#917]: https://github.com/pgbouncer/pgbouncer/pull/917
+
 **2023-07-20  -  PgBouncer 1.20.0  -  "A funny name goes here"**
 
 - Deprecations

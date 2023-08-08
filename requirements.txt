@@ -4,3 +4,4 @@ pytest-timeout
 pytest-xdist
 psycopg
 filelock
+contextlib2; python_version < "3.7"

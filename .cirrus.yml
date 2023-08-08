@@ -73,7 +73,6 @@ task:
     - apt-get -y install $pkgs
     - python3 -m venv /venv
     - /venv/bin/pip install -r requirements.txt
-    - if [ "$(lsb_release -cs)" = "bionic" ]; then /venv/bin/pip install contextlib2; fi
     - useradd user
     - chown -R user .
     - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
@@ -114,7 +113,6 @@ task:
     - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
 # XXX: python too old
     - if cat /etc/centos-release | grep -q ' 7'; then true; else pip3 install -r requirements.txt; fi
-    - if cat /etc/centos-release | grep -q ' 7'; then true; else pip3 install contextlib2; fi
     - useradd user
     - chown -R user .
     - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers

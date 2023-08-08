@@ -728,7 +728,7 @@ TLS mode to use for connections to PostgreSQL servers.  The default mode is
 `prefer`.
 
 disable
-:   Plain TCP.  TCP is not even requested from the server.
+:   Plain TCP.  TLS is not even requested from the server.
 
 allow
 :   FIXME: if server rejects plain, try TLS?

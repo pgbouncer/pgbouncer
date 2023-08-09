@@ -1848,11 +1848,11 @@ bool forward_cancel_request(PgSocket *server)
 		SEND_CancelRequest(res, server, req->canceled_server->cancel_key);
 	}
 	if (!res) {
-		log_warning("sending cancel request failed: %s", strerror(errno));
+		slog_warning(req, "sending cancel request failed: %s", strerror(errno));
 		disconnect_client(req, false, "failed to send cancel request");
 		return false;
 	}
-	log_info("started sending cancel request");
+	slog_debug(req, "started sending cancel request");
 	change_client_state(req, CL_ACTIVE_CANCEL);
 	return true;
 }

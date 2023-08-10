@@ -263,7 +263,7 @@ task:
     image: ubuntu:20.04
   setup_script:
     - apt-get update
-    - apt-get install -y python3 python3-pip cmake
+    - apt-get install -y python3 python3-pip cmake curl
     - pip install -r dev_requirements.txt
   build_script:
     - touch config.mak # Fake that configure has run

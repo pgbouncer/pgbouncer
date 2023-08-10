@@ -181,25 +181,32 @@ doc/pgbouncer.1 doc/pgbouncer.5:
 lint:
 	flake8
 
-format-check: uncrustify/build/uncrustify
+format-check: uncrustify
 	black --check .
 	isort --check .
-	uncrustify/build/uncrustify -c uncrustify.cfg --check include/*.h src/*.c -L WARN
+	./uncrustify -c uncrustify.cfg --check include/*.h src/*.c -L WARN
 
-format: uncrustify/build/uncrustify
+format: uncrustify
 	$(MAKE) format-c
 	$(MAKE) format-python
 
-format-python: uncrustify/build/uncrustify
+format-python: uncrustify
 	black .
 	isort .
 
-format-c: uncrustify/build/uncrustify
-	uncrustify/build/uncrustify -c uncrustify.cfg --replace --no-backup include/*.h src/*.c -L WARN
+format-c: uncrustify
+	./uncrustify -c uncrustify.cfg --replace --no-backup include/*.h src/*.c -L WARN
 
-uncrustify/build/uncrustify:
-	cd uncrustify \
+UNCRUSTIFY_VERSION=0.77.1
+
+uncrustify:
+	temp=$$(mktemp -d) \
+		&& cd $$temp \
+		&& curl -L https://github.com/uncrustify/uncrustify/archive/refs/tags/uncrustify-$(UNCRUSTIFY_VERSION).tar.gz --output uncrustify.tar.gz \
+		&& tar xzf uncrustify.tar.gz \
+		&& cd uncrustify-uncrustify-$(UNCRUSTIFY_VERSION) \
 		&& mkdir -p build \
 		&& cd build \
-		&& cmake ..
-	$(MAKE) -C uncrustify/build
+		&& cmake .. \
+		&& $(MAKE) \
+		&& cp uncrustify $(CURDIR)/uncrustify

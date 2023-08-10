@@ -133,19 +133,19 @@ extern int cf_sbuf_len;
  */
 
 /* matching NAMEDATALEN */
-#define MAX_DBNAME	64
+#define MAX_DBNAME      64
 
 /*
  * Ought to match NAMEDATALEN.  Some cloud services use longer user
  * names, so give it some extra room.
  */
-#define MAX_USERNAME	128
+#define MAX_USERNAME    128
 
 /*
  * Some cloud services use very long generated passwords, so give it
  * plenty of room.
  */
-#define MAX_PASSWORD	2048
+#define MAX_PASSWORD    2048
 
 /*
  * AUTH_* symbols are used for both protocol handling and
@@ -154,31 +154,31 @@ extern int cf_sbuf_len;
  */
 
 /* no-auth modes */
-#define AUTH_ANY	-1 /* same as trust but without username check */
-#define AUTH_TRUST	AUTH_OK
+#define AUTH_ANY        -1	/* same as trust but without username check */
+#define AUTH_TRUST      AUTH_OK
 
 /* protocol codes in Authentication* 'R' messages from server */
-#define AUTH_OK		0
-#define AUTH_KRB4	1	/* not supported */
-#define AUTH_KRB5	2	/* not supported */
-#define AUTH_PLAIN	3
-#define AUTH_CRYPT	4	/* not supported */
-#define AUTH_MD5	5
-#define AUTH_SCM_CREDS	6	/* not supported */
-#define AUTH_GSS	7	/* not supported */
-#define AUTH_GSS_CONT	8	/* not supported */
-#define AUTH_SSPI	9	/* not supported */
-#define AUTH_SASL	10
-#define AUTH_SASL_CONT	11
-#define AUTH_SASL_FIN	12
+#define AUTH_OK         0
+#define AUTH_KRB4       1	/* not supported */
+#define AUTH_KRB5       2	/* not supported */
+#define AUTH_PLAIN      3
+#define AUTH_CRYPT      4	/* not supported */
+#define AUTH_MD5        5
+#define AUTH_SCM_CREDS  6	/* not supported */
+#define AUTH_GSS        7	/* not supported */
+#define AUTH_GSS_CONT   8	/* not supported */
+#define AUTH_SSPI       9	/* not supported */
+#define AUTH_SASL       10
+#define AUTH_SASL_CONT  11
+#define AUTH_SASL_FIN   12
 
 /* internal codes */
-#define AUTH_CERT	107
-#define AUTH_PEER	108
-#define AUTH_HBA	109
-#define AUTH_REJECT	110
-#define AUTH_PAM	111
-#define AUTH_SCRAM_SHA_256	112
+#define AUTH_CERT       107
+#define AUTH_PEER       108
+#define AUTH_HBA        109
+#define AUTH_REJECT     110
+#define AUTH_PAM        111
+#define AUTH_SCRAM_SHA_256      112
 
 /* type codes for weird pkts */
 #define PKT_STARTUP_V2  0x20000
@@ -187,15 +187,15 @@ extern int cf_sbuf_len;
 #define PKT_SSLREQ      80877103
 #define PKT_GSSENCREQ   80877104
 
-#define POOL_SESSION	0
-#define POOL_TX		1
-#define POOL_STMT	2
-#define POOL_INHERIT	3
+#define POOL_SESSION    0
+#define POOL_TX         1
+#define POOL_STMT       2
+#define POOL_INHERIT    3
 
-#define BACKENDKEY_LEN	8
+#define BACKENDKEY_LEN  8
 
 /* buffer size for startup noise */
-#define STARTUP_BUF	1024
+#define STARTUP_BUF     1024
 
 /*
  * When peering is enabled we always put a 1 in the last two bits of the cancel
@@ -231,8 +231,14 @@ union PgAddr {
 	struct sockaddr_ucreds scred;
 };
 
-static inline unsigned int pga_family(const PgAddr *a) { return a->sa.sa_family; }
-static inline bool pga_is_unix(const PgAddr *a) { return a->sa.sa_family == AF_UNIX; }
+static inline unsigned int pga_family(const PgAddr *a)
+{
+	return a->sa.sa_family;
+}
+static inline bool pga_is_unix(const PgAddr *a)
+{
+	return a->sa.sa_family == AF_UNIX;
+}
 
 int pga_port(const PgAddr *a);
 void pga_set(PgAddr *a, int fam, int port);
@@ -366,7 +372,7 @@ struct PgPool {
 	PgStats older_stats;
 
 	/* database info to be sent to client */
-	struct PktBuf *welcome_msg; /* ServerParams without VarCache ones */
+	struct PktBuf *welcome_msg;	/* ServerParams without VarCache ones */
 
 	VarCache orig_vars;		/* default params from server */
 
@@ -374,10 +380,10 @@ struct PgPool {
 
 	/* if last connect to server failed, there should be delay before next */
 	usec_t last_connect_time;
-	bool last_connect_failed:1;
-	bool last_login_failed:1;
+	bool last_connect_failed : 1;
+	bool last_login_failed : 1;
 
-	bool welcome_msg_ready:1;
+	bool welcome_msg_ready : 1;
 
 	uint16_t rrcounter;		/* round-robin counter */
 };
@@ -467,7 +473,7 @@ struct PgDatabase {
 	int max_db_connections;	/* max server connections between all pools */
 	char *connect_query;	/* startup commands to send to server after connect */
 
-	struct PktBuf *startup_params; /* partial StartupMessage (without user) be sent to server */
+	struct PktBuf *startup_params;	/* partial StartupMessage (without user) be sent to server */
 	const char *dbname;	/* server-side name, pointer to inside startup_msg */
 	char *auth_dbname;	/* if not NULL, auth_query will be run on the specified database */
 	PgUser *forced_user;	/* if not NULL, the user/psw is forced */
@@ -506,28 +512,28 @@ struct PgSocket {
 
 	int client_auth_type;	/* auth method decided by hba */
 
-	SocketState state:8;	/* this also specifies socket location */
+	SocketState state : 8;		/* this also specifies socket location */
 
-	bool ready:1;		/* server: accepts new query */
-	bool idle_tx:1;		/* server: idling in tx */
-	bool close_needed:1;	/* server: this socket must be closed ASAP */
-	bool setting_vars:1;	/* server: setting client vars */
-	bool exec_on_connect:1;	/* server: executing connect_query */
-	bool resetting:1;	/* server: executing reset query from auth login; don't release on flush */
-	bool copy_mode:1;	/* server: in copy stream, ignores any Sync packets */
+	bool ready : 1;			/* server: accepts new query */
+	bool idle_tx : 1;		/* server: idling in tx */
+	bool close_needed : 1;		/* server: this socket must be closed ASAP */
+	bool setting_vars : 1;		/* server: setting client vars */
+	bool exec_on_connect : 1;	/* server: executing connect_query */
+	bool resetting : 1;		/* server: executing reset query from auth login; don't release on flush */
+	bool copy_mode : 1;		/* server: in copy stream, ignores any Sync packets */
 
-	bool wait_for_welcome:1;/* client: no server yet in pool, cannot send welcome msg */
-	bool wait_for_user_conn:1;/* client: waiting for auth_conn server connection */
-	bool wait_for_user:1;	/* client: waiting for auth_conn query results */
-	bool wait_for_auth:1;	/* client: waiting for external auth (PAM) to be completed */
+	bool wait_for_welcome : 1;	/* client: no server yet in pool, cannot send welcome msg */
+	bool wait_for_user_conn : 1;	/* client: waiting for auth_conn server connection */
+	bool wait_for_user : 1;		/* client: waiting for auth_conn query results */
+	bool wait_for_auth : 1;		/* client: waiting for external auth (PAM) to be completed */
 
-	bool suspended:1;	/* client/server: if the socket is suspended */
+	bool suspended : 1;		/* client/server: if the socket is suspended */
 
-	bool admin_user:1;	/* console client: has admin rights */
-	bool own_user:1;	/* console client: client with same uid on unix socket */
-	bool wait_for_response:1;/* console client: waits for completion of PAUSE/SUSPEND cmd */
+	bool admin_user : 1;		/* console client: has admin rights */
+	bool own_user : 1;		/* console client: client with same uid on unix socket */
+	bool wait_for_response : 1;	/* console client: waits for completion of PAUSE/SUSPEND cmd */
 
-	bool wait_sslchar:1;	/* server: waiting for ssl response: S/N */
+	bool wait_sslchar : 1;		/* server: waiting for ssl response: S/N */
 
 	int expect_rfq_count;	/* client: count of ReadyForQuery packets client should see */
 
@@ -537,9 +543,9 @@ struct PgSocket {
 	usec_t xact_start;	/* client: xact start moment */
 	usec_t wait_start;	/* client: waiting start moment */
 
-	uint8_t cancel_key[BACKENDKEY_LEN]; /* client: generated, server: remote */
+	uint8_t cancel_key[BACKENDKEY_LEN];	/* client: generated, server: remote */
 	struct StatList canceling_clients;	/* clients trying to cancel the query on this connection */
-	PgSocket *canceled_server; /* server that is being canceled by this request */
+	PgSocket *canceled_server;	/* server that is being canceled by this request */
 
 	PgAddr remote_addr;	/* ip:port for remote endpoint */
 	PgAddr local_addr;	/* ip:port for local endpoint */
@@ -555,7 +561,7 @@ struct PgSocket {
 		char *client_final_message_without_proof;
 		char *server_nonce;
 		char *server_first_message;
-		uint8_t	*SaltedPassword;
+		uint8_t *SaltedPassword;
 		char cbind_flag;
 		bool adhoc;	/* SCRAM data made up from plain-text password */
 		int iterations;
@@ -570,12 +576,12 @@ struct PgSocket {
 	SBuf sbuf;		/* stream buffer, must be last */
 };
 
-#define RAW_IOBUF_SIZE	offsetof(IOBuf, buf)
-#define IOBUF_SIZE	(RAW_IOBUF_SIZE + cf_sbuf_len)
+#define RAW_IOBUF_SIZE  offsetof(IOBuf, buf)
+#define IOBUF_SIZE      (RAW_IOBUF_SIZE + cf_sbuf_len)
 
 /* where to store old fd info during SHOW FDS result processing */
-#define tmp_sk_oldfd	request_time
-#define tmp_sk_linkfd	query_start
+#define tmp_sk_oldfd    request_time
+#define tmp_sk_linkfd   query_start
 /* takeover_clean_socket() needs to clean those up */
 
 /* where the salt is temporarily stored */
@@ -604,15 +610,15 @@ extern usec_t cf_res_pool_timeout;
 extern int cf_max_db_connections;
 extern int cf_max_user_connections;
 
-extern char * cf_autodb_connstr;
+extern char *cf_autodb_connstr;
 extern usec_t cf_autodb_idle_timeout;
 
 extern usec_t cf_suspend_timeout;
 extern usec_t cf_server_lifetime;
 extern usec_t cf_server_idle_timeout;
-extern char * cf_server_reset_query;
+extern char *cf_server_reset_query;
 extern int cf_server_reset_query_always;
-extern char * cf_server_check_query;
+extern char *cf_server_check_query;
 extern usec_t cf_server_check_delay;
 extern int cf_server_fast_close;
 extern usec_t cf_server_connect_timeout;
@@ -690,8 +696,7 @@ extern usec_t g_suspend_start;
 extern struct DNSContext *adns;
 extern struct HBA *parsed_hba;
 
-static inline PgSocket * _MUSTCHECK
-pop_socket(struct StatList *slist)
+static inline PgSocket * _MUSTCHECK pop_socket(struct StatList *slist)
 {
 	struct List *item = statlist_pop(slist);
 	if (item == NULL)
@@ -699,16 +704,14 @@ pop_socket(struct StatList *slist)
 	return container_of(item, PgSocket, head);
 }
 
-static inline PgSocket *
-first_socket(struct StatList *slist)
+static inline PgSocket *first_socket(struct StatList *slist)
 {
 	if (statlist_empty(slist))
 		return NULL;
 	return container_of(slist->head.next, PgSocket, head);
 }
 
-static inline PgSocket *
-last_socket(struct StatList *slist)
+static inline PgSocket *last_socket(struct StatList *slist)
 {
 	if (statlist_empty(slist))
 		return NULL;

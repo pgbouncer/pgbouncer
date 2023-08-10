@@ -249,7 +249,7 @@ const char *adns_get_backend(void)
 #ifdef HAVE_GETADDRINFO_A
 	return "libc"
 #ifdef __GLIBC__
-	"-" STR(__GLIBC__) "." STR(__GLIBC_MINOR__);
+	       "-" STR(__GLIBC__) "." STR(__GLIBC_MINOR__);
 #endif
 	;
 #else
@@ -675,11 +675,10 @@ failed:
 	return DNS_E_PROTOCOL;
 }
 
-static struct dns_query *
-submit_soa(struct dns_ctx *ctx, const char *name, int flags, query_soa_fn *cb, void *data)
+static struct dns_query *submit_soa(struct dns_ctx *ctx, const char *name, int flags, query_soa_fn *cb, void *data)
 {
-	  return dns_submit_p(ctx, name, DNS_C_IN, DNS_T_SOA, flags,
-			      parse_soa, (dns_query_fn *)cb, data);
+	return dns_submit_p(ctx, name, DNS_C_IN, DNS_T_SOA, flags,
+			    parse_soa, (dns_query_fn *)cb, data);
 }
 
 /*
@@ -760,7 +759,6 @@ struct XaresMeta {
 	/* If dns events happened during event loop,
 	   timer may need recalibration. */
 	bool got_events;
-
 };
 
 const char *adns_get_backend(void)
@@ -1010,8 +1008,8 @@ static void impl_release(struct DNSContext *ctx)
 
 #ifndef HAVE_ARES_PARSE_SOA_REPLY
 
-#define ares_soa_reply		xares_soa_reply
-#define ares_parse_soa_reply	xares_parse_soa_reply
+#define ares_soa_reply          xares_soa_reply
+#define ares_parse_soa_reply    xares_parse_soa_reply
 
 struct ares_soa_reply {
 	char *nsname;
@@ -1362,12 +1360,12 @@ nomem:
 
 static int cmp_addrinfo(const struct addrinfo *a1, const struct addrinfo *a2)
 {
-    if (a1->ai_family != a2->ai_family)
+	if (a1->ai_family != a2->ai_family)
 		return a1->ai_family - a2->ai_family;
-    if (a1->ai_addrlen != a2->ai_addrlen)
+	if (a1->ai_addrlen != a2->ai_addrlen)
 		return a1->ai_addrlen - a2->ai_addrlen;
 
-    return memcmp(a1->ai_addr, a2->ai_addr, a1->ai_addrlen);
+	return memcmp(a1->ai_addr, a2->ai_addr, a1->ai_addrlen);
 }
 
 /* check if new dns reply is missing some IP compared to old one */

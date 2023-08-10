@@ -23,5 +23,5 @@ bool parse_peer(void *base, const char *name, const char *connstr) _MUSTCHECK;
 bool parse_user(void *base, const char *name, const char *params) _MUSTCHECK;
 
 /* user file parsing */
-bool load_auth_file(const char *fn)  /* _MUSTCHECK */;
-bool loader_users_check(void)  /* _MUSTCHECK */;
+bool load_auth_file(const char *fn) /* _MUSTCHECK */;
+bool loader_users_check(void) /* _MUSTCHECK */;

@@ -217,7 +217,7 @@ static void create_unix_socket(const char *socket_dir, int listen_port)
 	memset(&un, 0, sizeof(un));
 	un.sun_family = AF_UNIX;
 	snprintf(un.sun_path, sizeof(un.sun_path),
-		"%s/.s.PGSQL.%d", socket_dir, listen_port);
+		 "%s/.s.PGSQL.%d", socket_dir, listen_port);
 	if (socket_dir[0] == '@') {
 		/*
 		 * By convention, for abstract Unix sockets, only the
@@ -225,8 +225,7 @@ static void create_unix_socket(const char *socket_dir, int listen_port)
 		 */
 		addrlen = offsetof(struct sockaddr_un, sun_path) + strlen(un.sun_path);
 		un.sun_path[0] = '\0';
-	}
-	else {
+	} else {
 		addrlen = sizeof(un);
 	}
 
@@ -268,7 +267,7 @@ static void tune_accept(int sock, bool on)
 	const char *act = on ? "install" : "uninstall";
 	int res = 0;
 #ifdef TCP_DEFER_ACCEPT
-	int val = 45; /* FIXME: proper value */
+	int val = 45;	/* FIXME: proper value */
 	socklen_t vlen = sizeof(val);
 	if (getsockopt(sock, IPPROTO_TCP, TCP_DEFER_ACCEPT, &val, &vlen) == 0)
 		log_noise("old TCP_DEFER_ACCEPT on %d = %d", sock, val);
@@ -281,9 +280,10 @@ static void tune_accept(int sock, bool on)
 		res = -1;
 	}
 #endif
-	if (res < 0)
+	if (res < 0) {
 		log_warning("tune_accept: %s TCP_DEFER_ACCEPT: %s",
 			    act, strerror(errno));
+	}
 }
 
 void pooler_tune_accept(bool on)
@@ -306,7 +306,7 @@ static void err_wait_func(evutil_socket_t sock, short flags, void *arg)
 static const char *addrpair(const PgAddr *src, const PgAddr *dst)
 {
 	static char ip1buf[PGADDR_BUF], ip2buf[PGADDR_BUF],
-		buf[2*PGADDR_BUF + 16];
+		    buf[2*PGADDR_BUF + 16];
 	const char *ip1, *ip2;
 	if (pga_is_unix(src))
 		return "unix->unix";
@@ -342,7 +342,7 @@ static void pool_accept(evutil_socket_t sock, short flags, void *arg)
 	socklen_t len = sizeof(raddr);
 	bool is_unix = pga_is_unix(&ls->addr);
 
-	if(!(flags & EV_READ)) {
+	if (!(flags & EV_READ)) {
 		log_warning("no EV_READ in pool_accept");
 		return;
 	}
@@ -480,7 +480,7 @@ static bool parse_addr(void *arg, const char *addr)
 	res = getaddrinfo(addr, service, &hints, &gaires);
 	if (res != 0) {
 		die("getaddrinfo('%s', '%d') = %s [%d]", addr ? addr : "*",
-		      cf_listen_port, gai_strerror(res), res);
+		    cf_listen_port, gai_strerror(res), res);
 	}
 
 	for (ai = gaires; ai; ai = ai->ai_next) {

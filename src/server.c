@@ -108,7 +108,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 
 		case 'E':	/* log & ignore errors */
 			log_server_error("S: error while executing exec_on_query", pkt);
-			/* fallthrough */
+		/* fallthrough */
 		default:	/* ignore rest */
 			sbuf_prepare_skip(sbuf, pkt->len);
 			return true;
@@ -268,9 +268,9 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			return false;
 
 		/* set ready only if no tx */
-		if (state == 'I')
+		if (state == 'I') {
 			ready = true;
-		else if (pool_pool_mode(server->pool) == POOL_STMT) {
+		} else if (pool_pool_mode(server->pool) == POOL_STMT) {
 			disconnect_server(server, true, "transaction blocks not allowed in statement pooling mode");
 			return false;
 		} else if (state == 'T' || state == 'E') {
@@ -317,7 +317,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			disconnect_server(server, true, "invalid server parameter");
 			return false;
 		}
-		/* fallthrough */
+	/* fallthrough */
 	case 'C':		/* CommandComplete */
 
 		/* ErrorResponse and CommandComplete show end of copy mode */
@@ -419,10 +419,11 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			}
 		}
 	} else {
-		if (server->state != SV_TESTED)
+		if (server->state != SV_TESTED) {
 			slog_warning(server,
 				     "got packet '%c' from server when not linked",
 				     pkt_desc(pkt));
+		}
 		sbuf_prepare_skip(sbuf, pkt->len);
 	}
 
@@ -440,11 +441,12 @@ static bool handle_connect(PgSocket *server)
 	fill_local_addr(server, sbuf_socket(&server->sbuf), is_unix);
 
 	if (cf_log_connections) {
-		if (pga_is_unix(&server->remote_addr))
+		if (pga_is_unix(&server->remote_addr)) {
 			slog_info(server, "new connection to server");
-		else
+		} else {
 			slog_info(server, "new connection to server (from %s)",
 				  pga_str(&server->local_addr, buf, sizeof(buf)));
+		}
 	}
 
 	/*
@@ -470,11 +472,11 @@ static bool handle_connect(PgSocket *server)
 			server->ready = true;
 			disconnect_server(server, false, "failed to send cancel req");
 		}
-	} else if(pool->db->peer_id) {
+	} else if (pool->db->peer_id) {
 		/* notify disconnect_server() that connect did not fail */
 		server->ready = true;
 		disconnect_server(server, false, "peer server was not necessary anymore, because client cancel connection was already closed");
-	}else {
+	} else {
 		/* proceed with login */
 		if (server_connect_sslmode > SSLMODE_DISABLED && !is_unix) {
 			slog_noise(server, "P: SSL request");

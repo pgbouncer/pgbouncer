@@ -30,12 +30,12 @@
 static int num_var_cached = 0;
 
 struct var_lookup {
-	const char *name;             /* key (string is WITHIN the structure) */
+	const char *name;		/* key (string is WITHIN the structure) */
 	int idx;
-	UT_hash_handle hh;         /* makes this structure hashable */
+	UT_hash_handle hh;		/* makes this structure hashable */
 };
 
-static struct var_lookup* lookup_map;
+static struct var_lookup *lookup_map;
 
 static struct StrPool *vpool;
 
@@ -64,7 +64,6 @@ static void init_var_lookup_from_config(const char *cf_track_extra_parameters, i
 		die("failed to parse track_extra_parameters in config %s", cf_track_extra_parameters);
 
 	while (!strlist_empty(sl)) {
-
 		var_name = strlist_pop(sl);
 
 		if (!var_name)
@@ -106,7 +105,6 @@ void init_var_lookup(const char *cf_track_extra_parameters)
 	init_var_lookup_from_config(cf_track_extra_parameters, &idx);
 
 	num_var_cached = idx;
-
 }
 
 bool varcache_set(VarCache *cache, const char *key, const char *value)
@@ -174,25 +172,23 @@ static int apply_var(PktBuf *pkt, const char *key,
 	 * re-quoting them using pg_quote_literal will result in malformed values. */
 	if (variable_is_guc_list_quote(key)) {
 		/* zero length elements of the form "" should be specially handled.*/
-		if (strcmp(cval->str,"\"\"") == 0) {
+		if (strcmp(cval->str, "\"\"") == 0) {
 			tmp = "''";
-		}
-		else
+		} else {
 			tmp = cval->str;
-	}
-	else if (pg_quote_literal(qbuf, cval->str, sizeof(qbuf))){
+		}
+	} else if (pg_quote_literal(qbuf, cval->str, sizeof(qbuf))) {
 		tmp = qbuf;
-	}
-	else
+	} else {
 		return 0;
+	}
 
 	/* add SET statement to packet */
 	len = snprintf(buf, sizeof(buf), "SET %s=%s;", key, tmp);
 
 	if (len < sizeof(buf)) {
 		pktbuf_put_bytes(pkt, buf, len);
-	}
-	else {
+	} else {
 		char *buf2 = malloc(sizeof(char)*len);
 
 		if (!buf2)
@@ -221,7 +217,6 @@ bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
 	sql_ofs = pktbuf_written(pkt);
 
 	HASH_ITER(hh, lookup_map, lk, tmp) {
-
 		sval = get_value(&server->vars, lk);
 		cval = get_value(&client->vars, lk);
 		changes += apply_var(pkt, lk->name, cval, sval);

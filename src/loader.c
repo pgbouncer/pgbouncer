@@ -597,12 +597,12 @@ static bool auth_loaded(const char *fn)
 		memset(&cur, 0, sizeof(cur));
 
 	if (cache_set && cache.st_dev == cur.st_dev
-	&& cache.st_ino == cur.st_ino
-	&& cache.st_mode == cur.st_mode
-	&& cache.st_uid == cur.st_uid
-	&& cache.st_gid == cur.st_gid
-	&& cache.st_mtime == cur.st_mtime
-	&& cache.st_size == cur.st_size)
+	    && cache.st_ino == cur.st_ino
+	    && cache.st_mode == cur.st_mode
+	    && cache.st_uid == cur.st_uid
+	    && cache.st_gid == cur.st_gid
+	    && cache.st_mtime == cur.st_mtime
+	    && cache.st_size == cur.st_size)
 		return true;
 	cache = cur;
 	cache_set = true;
@@ -674,7 +674,7 @@ bool load_auth_file(const char *fn)
 			log_error("username too long in auth file");
 			break;
 		}
-		*p++ = 0; /* tag username end */
+		*p++ = 0;	/* tag username end */
 
 		/* get password */
 		p = find_quote(p, true);
@@ -692,7 +692,7 @@ bool load_auth_file(const char *fn)
 			log_error("password too long in auth file");
 			break;
 		}
-		*p++ = 0; /* tag password end */
+		*p++ = 0;	/* tag password end */
 
 		/* send them away */
 		unquote_add_user(user, password);

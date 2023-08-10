@@ -188,7 +188,6 @@ static void per_loop_activate(PgPool *pool)
 	statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
 		client = container_of(item, PgSocket, head);
 		if (!statlist_empty(&pool->idle_server_list)) {
-
 			/* db not fully initialized after reboot */
 			if (client->wait_for_welcome && !pool->welcome_msg_ready) {
 				launch_new_connection(pool, /* evict_if_needed= */ true);
@@ -351,7 +350,7 @@ void per_loop_maint(void)
 		} else {
 			active_count += statlist_count(&login_client_list);
 		}
-		/* fallthrough */
+	/* fallthrough */
 	case P_PAUSE:
 		if (!active_count)
 			admin_pause_done();
@@ -516,8 +515,7 @@ static void check_pool_size(PgPool *pool)
 	    cur < pool_pool_size(pool) &&
 	    cf_pause_mode == P_NONE &&
 	    cf_reboot == 0 &&
-	    pool_client_count(pool) > 0)
-	{
+	    pool_client_count(pool) > 0) {
 		log_debug("launching new connection to satisfy min_pool_size");
 		launch_new_connection(pool, /* evict_if_needed= */ false);
 	}
@@ -570,8 +568,7 @@ static void pool_server_maint(PgPool *pool)
 				disconnect_server(server, true, "query timeout");
 			} else if (cf_idle_transaction_timeout > 0 &&
 				   server->idle_tx &&
-				   age_server > cf_idle_transaction_timeout)
-			{
+				   age_server > cf_idle_transaction_timeout) {
 				disconnect_server(server, true, "idle transaction timeout");
 			}
 		}
@@ -617,8 +614,7 @@ static void peer_pool_server_maint(PgPool *pool)
 			age = now - server->connect_time;
 			if (cf_server_connect_timeout > 0 && age > cf_server_connect_timeout) {
 				disconnect_server(server, true, "connect timeout");
-			}
-			else if (cf_cancel_wait_timeout > 0 && age > cf_cancel_wait_timeout) {
+			} else if (cf_cancel_wait_timeout > 0 && age > cf_cancel_wait_timeout) {
 				disconnect_server(server, true, "cancel_wait_timeout");
 			}
 		}

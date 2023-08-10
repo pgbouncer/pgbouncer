@@ -149,7 +149,7 @@ void init_caches(void)
 	server_cache = slab_create("server_cache", sizeof(PgSocket), 0, construct_server, USUAL_ALLOC);
 	client_cache = slab_create("client_cache", sizeof(PgSocket), 0, construct_client, USUAL_ALLOC);
 	iobuf_cache = slab_create("iobuf_cache", IOBUF_SIZE, 0, do_iobuf_reset, USUAL_ALLOC);
-	var_list_cache = slab_create("var_list_cache", sizeof(struct PStr*) * get_num_var_cached(), 0, NULL, USUAL_ALLOC);
+	var_list_cache = slab_create("var_list_cache", sizeof(struct PStr *) * get_num_var_cached(), 0, NULL, USUAL_ALLOC);
 }
 
 /* state change means moving between lists */
@@ -172,7 +172,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	case CL_WAITING_LOGIN:
 		if (newstate == CL_ACTIVE)
 			newstate = CL_LOGIN;
-		/* fallthrough */
+	/* fallthrough */
 	case CL_WAITING:
 		statlist_remove(&pool->waiting_client_list, &client->head);
 		break;
@@ -786,7 +786,6 @@ bool find_server(PgSocket *client)
 
 		if (!server && !check_fast_fail(client))
 			return false;
-
 	}
 	Assert(!server || server->state == SV_IDLE);
 
@@ -807,7 +806,7 @@ bool find_server(PgSocket *client)
 		if (varchange) {
 			server->setting_vars = true;
 			server->ready = false;
-			res = false; /* don't process client data yet */
+			res = false;	/* don't process client data yet */
 			if (!sbuf_pause(&client->sbuf))
 				disconnect_client(client, true, "pause failed");
 		} else {
@@ -898,8 +897,7 @@ bool release_server(PgSocket *server)
 		}
 
 		if (*cf_server_reset_query && (cf_server_reset_query_always ||
-					       pool_pool_mode(pool) == POOL_SESSION))
-		{
+					       pool_pool_mode(pool) == POOL_SESSION)) {
 			/* notify reset is required */
 			newstate = SV_TESTED;
 		} else if (cf_server_check_delay == 0 && *cf_server_check_query) {
@@ -991,13 +989,14 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 	va_end(ap);
 	reason = buf;
 
-	if (cf_log_disconnections)
+	if (cf_log_disconnections) {
 		slog_info(server, "closing because: %s (age=%" PRIu64 "s)", reason,
 			  (now - server->connect_time) / USEC);
+	}
 
 	switch (server->state) {
 	case SV_ACTIVE_CANCEL:
-	case SV_ACTIVE:	{
+	case SV_ACTIVE: {
 		PgSocket *client = server->link;
 
 		if (client) {
@@ -1027,12 +1026,10 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 		 * usually disconnect means problems in startup phase,
 		 * except when sending cancel packet
 		 */
-		if (!server->ready)
-		{
+		if (!server->ready) {
 			server->pool->last_login_failed = true;
 			server->pool->last_connect_failed = true;
-		}
-		else
+		} else
 		{
 			/*
 			 * We did manage to connect and used the connection for query
@@ -1057,7 +1054,7 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 
 	/* notify server and close connection */
 	if (send_term) {
-		static const uint8_t pkt_term[] = {'X', 0,0,0,4};
+		static const uint8_t pkt_term[] = {'X', 0, 0, 0, 4};
 		bool _ignore = sbuf_answer(&server->sbuf, pkt_term, sizeof(pkt_term));
 		(void) _ignore;
 	}
@@ -1102,7 +1099,6 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 	} else {
 		disconnect_client_sqlstate(client, notify, NULL, reason);
 	}
-
 }
 
 /*
@@ -1117,9 +1113,10 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 {
 	usec_t now = get_cached_time();
 
-	if (cf_log_disconnections && reason)
+	if (cf_log_disconnections && reason) {
 		slog_info(client, "closing because: %s (age=%" PRIu64 "s)", reason,
 			  (now - client->connect_time) / USEC);
+	}
 
 	switch (client->state) {
 	case CL_ACTIVE:
@@ -1186,7 +1183,7 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 			 * trigger this by calling release_server again.
 			 */
 			if (canceled_server->state == SV_BEING_CANCELED
-					&& statlist_count(&canceled_server->canceling_clients) == 0 ) {
+			    && statlist_count(&canceled_server->canceling_clients) == 0) {
 				release_server(canceled_server);
 			}
 		}
@@ -1337,13 +1334,12 @@ static void dns_connect(struct PgSocket *server)
 			 */
 			sa_len = offsetof(struct sockaddr_un, sun_path) + strlen(sa_un.sun_path);
 			sa_un.sun_path[0] = '\0';
-		}
-		else {
+		} else {
 			sa_len = sizeof(sa_un);
 		}
 		sa = (struct sockaddr *)&sa_un;
 		res = 1;
-	} else if (strchr(host, ':')) {  /* assume IPv6 address on any : in addr */
+	} else if (strchr(host, ':')) {	/* assume IPv6 address on any : in addr */
 		slog_noise(server, "inet6 socket: %s", host);
 		memset(&sa_in6, 0, sizeof(sa_in6));
 		sa_in6.sin6_family = AF_INET6;
@@ -1351,7 +1347,7 @@ static void dns_connect(struct PgSocket *server)
 		sa_in6.sin6_port = htons(db->port);
 		sa = (struct sockaddr *)&sa_in6;
 		sa_len = sizeof(sa_in6);
-	} else { /* else try IPv4 */
+	} else {/* else try IPv4 */
 		slog_noise(server, "inet socket: %s", host);
 		memset(&sa_in, 0, sizeof(sa_in));
 		sa_in.sin_family = AF_INET;
@@ -1486,7 +1482,7 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed)
 			goto force_new;
 
 		log_debug("launch_new_connection: peer pool full (%d >= %d)",
-				max, pool_pool_size(pool));
+			  max, pool_pool_size(pool));
 		return;
 	}
 
@@ -1518,7 +1514,7 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed)
 			}
 		}
 		log_debug("launch_new_connection: pool full (%d >= %d)",
-				max, pool_pool_size(pool));
+			  max, pool_pool_size(pool));
 		return;
 	}
 
@@ -1656,7 +1652,8 @@ bool finish_client_login(PgSocket *client)
 	return true;
 }
 
-static void accept_cancel_request_for_peer(int peer_id, PgSocket *req) {
+static void accept_cancel_request_for_peer(int peer_id, PgSocket *req)
+{
 	PgDatabase *peer = NULL;
 	PgPool *pool = NULL;
 	int ttl = req->cancel_key[7] & CANCELLATION_TTL_MASK;
@@ -2021,19 +2018,19 @@ void for_each_server(PgPool *pool, void (*func)(PgSocket *sk))
 	struct List *item;
 
 	statlist_for_each(item, &pool->idle_server_list)
-		func(container_of(item, PgSocket, head));
+	func(container_of(item, PgSocket, head));
 
 	statlist_for_each(item, &pool->used_server_list)
-		func(container_of(item, PgSocket, head));
+	func(container_of(item, PgSocket, head));
 
 	statlist_for_each(item, &pool->tested_server_list)
-		func(container_of(item, PgSocket, head));
+	func(container_of(item, PgSocket, head));
 
 	statlist_for_each(item, &pool->active_server_list)
-		func(container_of(item, PgSocket, head));
+	func(container_of(item, PgSocket, head));
 
 	statlist_for_each(item, &pool->new_server_list)
-		func(container_of(item, PgSocket, head));
+	func(container_of(item, PgSocket, head));
 }
 
 static void for_each_server_filtered(PgPool *pool, void (*func)(PgSocket *sk), bool (*filter)(PgSocket *sk, void *arg), void *filter_arg)
@@ -2149,7 +2146,8 @@ void tag_autodb_dirty(void)
 	}
 }
 
-static bool server_remote_addr_filter(PgSocket *sk, void *arg) {
+static bool server_remote_addr_filter(PgSocket *sk, void *arg)
+{
 	PgAddr *addr = arg;
 
 	return (pga_cmp_addr(&sk->remote_addr, addr) == 0);

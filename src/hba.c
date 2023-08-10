@@ -31,8 +31,8 @@ enum RuleType {
 	RULE_HOSTNOSSL,
 };
 
-#define NAME_ALL	1
-#define NAME_SAMEUSER	2
+#define NAME_ALL        1
+#define NAME_SAMEUSER   2
 
 struct NameSlot {
 	size_t strlen;
@@ -226,7 +226,7 @@ static enum TokType next_token(struct TokParser *p)
 		p->cur_tok = TOK_COMMA;
 		p->pos++;
 	} else if (p->pos[0] == '"') {
-		for (s = p->pos+1; s[0]; s++) {
+		for (s = p->pos + 1; s[0]; s++) {
 			if (s[0] == '"') {
 				if (s[1] == '"')
 					s++;
@@ -237,7 +237,7 @@ static enum TokType next_token(struct TokParser *p)
 		if (s[0] != '"' || !tok_buf_check(p, s - p->pos))
 			return TOK_FAIL;
 		dst = p->buf;
-		for (s2 = p->pos+1; s2 < s; s2++) {
+		for (s2 = p->pos + 1; s2 < s; s2++) {
 			*dst++ = *s2;
 			if (*s2 == '"') s2++;
 		}
@@ -259,7 +259,6 @@ static enum TokType next_token(struct TokParser *p)
 		p->pos = s;
 		p->cur_tok = TOK_IDENT;
 		p->cur_tok_str = p->buf;
-
 	}
 	return p->cur_tok;
 }
@@ -697,7 +696,7 @@ static bool match_inet6(const struct HBARule *rule, PgAddr *addr)
 	base = (uint32_t *)rule->rule_addr;
 	mask = (uint32_t *)rule->rule_mask;
 	return (src[0] & mask[0]) == base[0] && (src[1] & mask[1]) == base[1] &&
-		(src[2] & mask[2]) == base[2] && (src[3] & mask[3]) == base[3];
+	       (src[2] & mask[2]) == base[2] && (src[3] & mask[3]) == base[3];
 }
 
 int hba_eval(struct HBA *hba, PgAddr *addr, bool is_tls, const char *dbname, const char *username)

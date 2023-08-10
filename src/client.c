@@ -140,7 +140,7 @@ static bool send_client_authreq(PgSocket *client)
 
 	if (auth_type == AUTH_MD5) {
 		uint8_t saltlen = 4;
-		get_random_bytes((void*)client->tmp_login_salt, saltlen);
+		get_random_bytes((void *)client->tmp_login_salt, saltlen);
 		SEND_generic(res, client, 'R', "ib", AUTH_MD5, client->tmp_login_salt, saltlen);
 	} else if (auth_type == AUTH_PLAIN || auth_type == AUTH_PAM) {
 		SEND_generic(res, client, 'R', "i", AUTH_PLAIN);
@@ -151,7 +151,7 @@ static bool send_client_authreq(PgSocket *client)
 	}
 
 	if (!res) {
-	    slog_noise(client, "No authentication response received");
+		slog_noise(client, "No authentication response received");
 		disconnect_client(client, false, "failed to send auth req");
 	} else {
 		slog_noise(client, "Auth request sent successfully");
@@ -292,8 +292,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 				client->db->name, client->login_user->name);
 	}
 
-	if (auth == AUTH_MD5)
-	{
+	if (auth == AUTH_MD5) {
 		if (get_password_type(client->login_user->passwd) == PASSWORD_TYPE_SCRAM_SHA_256)
 			auth = AUTH_SCRAM_SHA_256;
 	}
@@ -405,9 +404,9 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 					client->db->auth_user = add_user(cf_auth_user, "");
 			}
 			if (client->db->auth_user) {
-				if (client->db->fake)
+				if (client->db->fake) {
 					slog_debug(client, "not running auth_query because database is fake");
-				else {
+				} else {
 					if (takeover) {
 						client->login_user = add_db_user(client->db, username, password);
 						return finish_set_pool(client, takeover);
@@ -427,14 +426,15 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 	return finish_set_pool(client, takeover);
 }
 
-bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
+bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
+{
 	uint16_t columns;
 	uint32_t length;
 	const char *username, *password;
 	PgUser user;
 	PgSocket *server = client->link;
 
-	switch(pkt->type) {
+	switch (pkt->type) {
 	case 'T':	/* RowDescription */
 		if (!mbuf_get_uint16be(&pkt->data, &columns)) {
 			disconnect_server(server, false, "bad packet");
@@ -487,7 +487,7 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
 				return false;
 			}
 		}
-		if (sizeof(user.passwd)  - 1 < length)
+		if (sizeof(user.passwd) - 1 < length)
 			length = sizeof(user.passwd) - 1;
 		memcpy(user.passwd, password, length);
 
@@ -505,7 +505,7 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt) {
 		break;
 	case '2':	/* BindComplete */
 		break;
-	case 'S': /* ParameterStatus */
+	case 'S':	/* ParameterStatus */
 		break;
 	case 'Z':	/* ReadyForQuery */
 		sbuf_prepare_skip(&client->link->sbuf, pkt->len);
@@ -560,7 +560,7 @@ static bool read_escaped_token(const char **escaped_string_ptr, struct MBuf *une
 	const char *unwritten_start = position;
 	while (*position) {
 		if (*position == '\\') {
-			if (!mbuf_write(unescaped_token, unwritten_start, position-unwritten_start))
+			if (!mbuf_write(unescaped_token, unwritten_start, position - unwritten_start))
 				return false;
 			position++;
 			unwritten_start = position;
@@ -571,7 +571,7 @@ static bool read_escaped_token(const char **escaped_string_ptr, struct MBuf *une
 		}
 		position++;
 	}
-	if (!mbuf_write(unescaped_token, unwritten_start, position-unwritten_start))
+	if (!mbuf_write(unescaped_token, unwritten_start, position - unwritten_start))
 		return false;
 	if (!mbuf_write_byte(unescaped_token, '\0'))
 		return false;
@@ -848,7 +848,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 	}
 
 	if (client->wait_for_welcome || client->wait_for_auth) {
-		if  (finish_client_login(client)) {
+		if (finish_client_login(client)) {
 			/* the packet was already parsed */
 			sbuf_prepare_skip(sbuf, pkt->len);
 			return true;
@@ -966,8 +966,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 					free_scram_state(&client->scram_state);
 					if (!finish_client_login(client))
 						return false;
-				}
-				else {
+				} else {
 					disconnect_client(client, true, "SASL authentication failed");
 					return false;
 				}
@@ -1007,8 +1006,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		break;
 	case PKT_CANCEL:
 		if (mbuf_avail_for_read(&pkt->data) == BACKENDKEY_LEN
-		    && mbuf_get_bytes(&pkt->data, BACKENDKEY_LEN, &key))
-		{
+		    && mbuf_get_bytes(&pkt->data, BACKENDKEY_LEN, &key)) {
 			memcpy(client->cancel_key, key, BACKENDKEY_LEN);
 			accept_cancel_request(client);
 		} else {
@@ -1031,7 +1029,6 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	int rfq_delta = 0;
 
 	switch (pkt->type) {
-
 	/* one-packet queries */
 	case 'Q':		/* Query */
 		if (cf_disable_pqexec) {
@@ -1074,7 +1071,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		slog_error(client, "unknown pkt from client: %u/0x%x", pkt->type, pkt->type);
 		disconnect_client(client, true, "unknown pkt");
 		return false;
-	case 'X': /* Terminate */
+	case 'X':	/* Terminate */
 		disconnect_client(client, false, "client close request");
 		return false;
 	}
@@ -1134,7 +1131,7 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 	switch (evtype) {
 	case SBUF_EV_CONNECT_OK:
 	case SBUF_EV_CONNECT_FAILED:
-		/* ^ those should not happen */
+	/* ^ those should not happen */
 	case SBUF_EV_RECV_FAILED:
 		/*
 		 * Don't log error if client disconnects right away,

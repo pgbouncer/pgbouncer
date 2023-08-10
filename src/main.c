@@ -78,7 +78,7 @@ struct HBA *parsed_hba;
 
 int cf_daemon;
 int cf_pause_mode = P_NONE;
-int cf_shutdown;/* 1 - wait for queries to finish, 2 - shutdown immediately */
+int cf_shutdown;	/* 1 - wait for queries to finish, 2 - shutdown immediately */
 int cf_reboot;
 static char *cf_username;
 char *cf_config_file;
@@ -141,7 +141,7 @@ unsigned int cf_max_packet_size;
 
 char *cf_ignore_startup_params;
 
-char *cf_autodb_connstr;/* here is "" different from NULL */
+char *cf_autodb_connstr;	/* here is "" different from NULL */
 
 usec_t cf_autodb_idle_timeout;
 

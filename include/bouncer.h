@@ -628,6 +628,7 @@ extern int cf_disable_pqexec;
 extern usec_t cf_dns_max_ttl;
 extern usec_t cf_dns_nxdomain_ttl;
 extern usec_t cf_dns_zone_check_period;
+extern int cf_dns_close_previous;
 extern char *cf_resolv_conf;
 
 extern int cf_auth_type;

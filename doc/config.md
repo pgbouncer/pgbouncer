@@ -625,6 +625,12 @@ Works only with UDNS and c-ares backends (`configure` option `--with-udns` or `-
 
 Default: 0.0 (disabled)
 
+### dns_close_previous
+
+Whether to close server connections for IPs not in the host's resolved list anymore.
+
+Default: 1 (enabled)
+
 ### resolv_conf
 
 The location of a custom `resolv.conf` file.  This is to allow

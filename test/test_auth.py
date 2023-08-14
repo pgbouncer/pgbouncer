@@ -74,7 +74,7 @@ def test_auth_dbname_with_auto_database(bouncer):
 
 def test_unregistered_auto_dbname_with_auto_database(bouncer):
     with bouncer.ini_path.open() as f:
-            original = f.read()
+        original = f.read()
     with bouncer.ini_path.open("w") as f:
         # uncomment the auto-database line
         new = re.sub(
@@ -101,6 +101,7 @@ def test_unregistered_auto_dbname_with_auto_database(bouncer):
         psycopg.OperationalError, match="database \"this_database_doesnt_exist\" does not exist"
     ):
         bouncer.test(dbname="this_database_doesnt_exist", user="muser1", password="foo")
+
 
 def run_server_auth_test(bouncer, dbname):
     bouncer.admin(f"set auth_type='trust'")

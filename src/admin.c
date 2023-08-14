@@ -407,19 +407,6 @@ static bool show_fds_from_list(PgSocket *admin, struct StatList *list)
 	return res;
 }
 
-static PgDatabase *find_or_register_database(PgSocket *admin, const char *name)
-{
-	PgDatabase *db = find_database(name);
-	if (db == NULL) {
-		db = register_auto_database(name);
-		if (db != NULL) {
-			slog_info(admin,
-				  "registered new auto-database: %s", name);
-		}
-	}
-	return db;
-}
-
 /*
  * Command: SHOW FDS
  *

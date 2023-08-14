@@ -52,7 +52,7 @@ PgDatabase *prepare_auth_database(PgSocket *client)
 	if (!auth_dbname) {
 		auth_db = client->db;
 	} else {
-		auth_db = find_database(auth_dbname);
+		auth_db = find_or_register_database(client, auth_dbname);
 	}
 
 	if (!auth_db) {
@@ -334,12 +334,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 	Assert((password && takeover) || (!password && !takeover));
 
 	/* find database */
-	client->db = find_database(dbname);
-	if (!client->db) {
-		client->db = register_auto_database(dbname);
-		if (client->db)
-			slog_info(client, "registered new auto-database: db=%s", dbname);
-	}
+	client->db = find_or_register_database(client, dbname);
 	if (!client->db) {
 		client->db = calloc(1, sizeof(*client->db));
 		client->db->fake = true;

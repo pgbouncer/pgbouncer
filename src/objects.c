@@ -567,6 +567,23 @@ PgDatabase *find_database(const char *name)
 	return NULL;
 }
 
+/* 
+ * Similar to find_database. In case databse is not found, it will try to register
+ * it if auto-database ('*') is configured.
+ */
+PgDatabase *find_or_register_database(PgSocket *connection, const char *name)
+{
+	PgDatabase *db = find_database(name);
+	if (db == NULL) {
+		db = register_auto_database(name);
+		if (db != NULL) {
+			slog_info(connection,
+				  "registered new auto-database: %s", name);
+		}
+	}
+	return db;
+}
+
 /* find existing user */
 PgUser *find_user(const char *name)
 {

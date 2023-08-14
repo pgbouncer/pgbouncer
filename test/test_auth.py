@@ -89,7 +89,7 @@ def test_unregistered_auto_dbname_with_auto_database(bouncer):
     bouncer.admin("set auth_user='pswcheck'")
     bouncer.admin(f"set auth_type='md5'")
     # postgres is not defined in test.ini
-    bouncer.test(dbname="postgres", user="someuser", password="anypasswd")
+    bouncer.test(dbname="authdb", user="someuser", password="anypasswd")
     # test already configured database, should still work.
     bouncer.test(user="muser1", password="foo")
 

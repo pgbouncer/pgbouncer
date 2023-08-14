@@ -77,9 +77,7 @@ def test_unregistered_auto_dbname_with_auto_database(bouncer):
         original = f.read()
     with bouncer.ini_path.open("w") as f:
         # uncomment the auto-database line
-        new = re.sub(
-            r"^;\* = ", "* = ", original, flags=re.MULTILINE
-        )
+        new = re.sub(r"^;\* = ", "* = ", original, flags=re.MULTILINE)
         print(new)
         f.write(new)
     # configure the auth_dbname to a database that is not configured
@@ -98,7 +96,8 @@ def test_unregistered_auto_dbname_with_auto_database(bouncer):
     # database. Hence, we can conclude that we were able to look up the password using
     # auth_dbname
     with pytest.raises(
-        psycopg.OperationalError, match="database \"this_database_doesnt_exist\" does not exist"
+        psycopg.OperationalError,
+        match='database "this_database_doesnt_exist" does not exist',
     ):
         bouncer.test(dbname="this_database_doesnt_exist", user="muser1", password="foo")
 

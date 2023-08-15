@@ -12,6 +12,7 @@
 #define uint8 uint8_t
 #define uint16 uint16_t
 #define uint32 uint32_t
+#define uint64 uint64_t
 
 #define lengthof(array) (sizeof (array) / sizeof ((array)[0]))
 #define pg_hton32(x) htobe32(x)
@@ -21,14 +22,12 @@
 #define HIGHBIT					(0x80)
 #define IS_HIGHBIT_SET(ch)		((unsigned char)(ch) & HIGHBIT)
 
+#define UINT64CONST(x) (x##ULL)
 
-/* sha2.h compat */
-#define pg_sha256_ctx struct sha256_ctx
-#define PG_SHA256_BLOCK_LENGTH SHA256_BLOCK_SIZE
-#define PG_SHA256_DIGEST_LENGTH SHA256_DIGEST_LENGTH
-#define pg_sha256_init(ctx) sha256_reset(ctx)
-#define pg_sha256_update(ctx, data, len) sha256_update(ctx, data, len)
-#define pg_sha256_final(ctx, dst) sha256_final(ctx, dst)
+/* ignore gettext */
+#define _(x) (x)
+
+typedef unsigned int Oid;
 
 
 /* define this to use non-server code paths */

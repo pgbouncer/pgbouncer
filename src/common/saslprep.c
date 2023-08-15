@@ -12,7 +12,7 @@
  *	  http://www.ietf.org/rfc/rfc4013.txt
  *
  *
- * Portions Copyright (c) 2017-2020, PostgreSQL Global Development Group
+ * Portions Copyright (c) 2017-2022, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
  *	  src/common/saslprep.c
@@ -32,12 +32,6 @@
 #include "common/pg_wchar.h"
 
 /*
- * Limit on how large password's we will try to process.  A password
- * larger than this will be treated the same as out-of-memory.
- */
-#define MAX_PASSWORD_LENGTH		1024
-
-/*
  * In backend, we will use palloc/pfree.  In frontend, use malloc, and
  * return SASLPREP_OOM on out-of-memory.
  */
@@ -55,7 +49,6 @@
 static int	codepoint_range_cmp(const void *a, const void *b);
 static bool is_code_in_table(pg_wchar code, const pg_wchar *map, int mapsize);
 static int	pg_utf8_string_len(const char *source);
-static bool pg_is_ascii_string(const char *p);
 
 /*
  * Stringprep Mapping Tables.
@@ -969,6 +962,22 @@ static const pg_wchar LCat_codepoint_ranges[] =
 /* End of stringprep tables */
 
 
+/*
+ * pg_is_ascii -- Check if string is made only of ASCII characters
+ */
+static bool
+pg_is_ascii(const char *str)
+{
+	while (*str)
+	{
+		if (IS_HIGHBIT_SET(*str))
+			return false;
+		str++;
+	}
+	return true;
+}
+
+
 /* Is the given Unicode codepoint in the given table of ranges? */
 #define IS_CODE_IN_TABLE(code, map) is_code_in_table(code, map, lengthof(map))
 
@@ -1027,21 +1036,6 @@ pg_utf8_string_len(const char *source)
 	return num_chars;
 }
 
-/*
- * Returns true if the input string is pure ASCII.
- */
-static bool
-pg_is_ascii_string(const char *p)
-{
-	while (*p)
-	{
-		if (IS_HIGHBIT_SET(*p))
-			return false;
-		p++;
-	}
-	return true;
-}
-
 
 /*
  * pg_saslprep - Normalize a password with SASLprep.
@@ -1080,23 +1074,11 @@ pg_saslprep(const char *input, char **output)
 	/* Ensure we return *output as NULL on failure */
 	*output = NULL;
 
-	/* Check that the password isn't stupendously long */
-	if (strlen(input) > MAX_PASSWORD_LENGTH)
-	{
-#ifndef FRONTEND
-		ereport(ERROR,
-				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-				 errmsg("password too long")));
-#else
-		return SASLPREP_OOM;
-#endif
-	}
-
 	/*
 	 * Quick check if the input is pure ASCII.  An ASCII string requires no
 	 * further processing.
 	 */
-	if (pg_is_ascii_string(input))
+	if (pg_is_ascii(input))
 	{
 		*output = STRDUP(input);
 		if (!(*output))

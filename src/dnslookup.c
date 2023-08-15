@@ -1627,6 +1627,12 @@ struct WalkInfo {
 	void *arg;
 };
 
+static void walk_dns_request_reset_ttl(struct AANode *n, void *arg)
+{
+	struct DNSRequest *req = container_of(n, struct DNSRequest, node);
+	req->res_ttl = 0;
+}
+
 static void walk_name(struct AANode *n, void *arg)
 {
 	struct WalkInfo *w = arg;
@@ -1641,6 +1647,11 @@ static void walk_zone(struct AANode *n, void *arg)
 	struct DNSZone *z = container_of(n, struct DNSZone, tnode);
 
 	w->zone_cb(w->arg, z->zonename, z->serial, statlist_count(&z->host_list));
+}
+
+void adns_reset_ttl(struct DNSContext *ctx)
+{
+	aatree_walk(&ctx->req_tree, AA_WALK_IN_ORDER, walk_dns_request_reset_ttl, NULL);
 }
 
 void adns_walk_names(struct DNSContext *ctx, adns_walk_name_f cb, void *arg)

@@ -587,6 +587,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		case SV_USED:
 		case SV_ACTIVE:
 		case SV_ACTIVE_CANCEL:
+		case SV_BEING_CANCELED:
 		case SV_IDLE:
 			res = handle_server_work(server, &pkt);
 			break;
@@ -635,6 +636,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 				break;
 			default:
 				slog_warning(server, "EV_FLUSH with state=%d", server->state);
+			case SV_BEING_CANCELED:
 			case SV_IDLE:
 				break;
 			}

@@ -72,9 +72,19 @@ def test_auth_dbname_with_auto_database(bouncer):
     bouncer.test(dbname="postgres", user="someuser", password="anypasswd")
 
 
-def test_unregistered_auto_dbname_with_auto_database(bouncer):
+def test_unconfigured_auth_database_with_auto_database(bouncer):
+    """
+    Tests the scenario where the authentication database does not
+    have a connection string configured under [databases] section.
+    However, there is an auto-datatabase, '*', configured. The expectation
+    is to use the wild card connection string for the auth_database.
+    """
     with bouncer.ini_path.open() as f:
         original = f.read()
+        assert (
+            re.search(r"^unconfigured_auth_database", original, flags=re.MULTILINE)
+            == None
+        )
     with bouncer.ini_path.open("w") as f:
         # uncomment the auto-database line
         new = re.sub(r"^;\* = ", "* = ", original, flags=re.MULTILINE)
@@ -82,7 +92,7 @@ def test_unregistered_auto_dbname_with_auto_database(bouncer):
         f.write(new)
     # configure the auth_dbname to a database that is not configured
     # expected behavior is to fallback to auto-database and auto-register.
-    bouncer.admin("set auth_dbname=postgres")
+    bouncer.admin("set auth_dbname=unconfigured_auth_database")
     bouncer.admin("reload")
     bouncer.admin("set auth_user='pswcheck'")
     bouncer.admin(f"set auth_type='md5'")

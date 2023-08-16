@@ -74,6 +74,7 @@ def pg(tmp_path_factory, cert_dir):
     for i in range(8):
         pg.sql(f"create database p{i}")
 
+    pg.sql("create database unconfigured_auth_database")
     pg.sql("create user bouncer")
     pg.sql("create user pswcheck with superuser createdb password 'pgbouncer-check';")
     pg.sql("create user someuser with password 'anypasswd';")

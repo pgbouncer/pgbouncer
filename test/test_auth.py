@@ -82,7 +82,8 @@ def test_unconfigured_auth_database_with_auto_database(bouncer):
     with bouncer.ini_path.open() as f:
         original = f.read()
         assert (
-            re.search(r"^unconfigured_auth_database", original, flags=re.MULTILINE) is None
+            re.search(r"^unconfigured_auth_database", original, flags=re.MULTILINE)
+            is None
         )
     with bouncer.ini_path.open("w") as f:
         # uncomment the auto-database line

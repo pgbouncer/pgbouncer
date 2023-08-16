@@ -32,6 +32,7 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
 	const struct PgSocket *sock = ctx;
 	const char *user, *db, *host;
 	char host6[PGADDR_BUF];
+	int peer_id;
 	int port;
 	char stype;
 
@@ -42,6 +43,7 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
 	/* format prefix */
 	stype = is_server_socket(sock) ? 'S' : 'C';
 	port = pga_port(&sock->remote_addr);
+	peer_id = sock->pool ? sock->pool->db->peer_id : 0;
 	db = sock->pool ? sock->pool->db->name : "(nodb)";
 	user = sock->login_user ? sock->login_user->name : "(nouser)";
 	if (pga_is_unix(&sock->remote_addr)) {
@@ -57,9 +59,17 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
 	}
 
 	if (pga_family(&sock->remote_addr) == AF_INET6) {
+		if (peer_id) {
+			return snprintf(dst, dstlen, "%c-%p: peer-%d@[%s]:%d ",
+				stype, sock, peer_id, host, port);
+		}
 		return snprintf(dst, dstlen, "%c-%p: %s/%s@[%s]:%d ",
 			stype, sock, db, user, host, port);
 	} else {
+		if (peer_id) {
+			return snprintf(dst, dstlen, "%c-%p: peer-%d@%s:%d ",
+				stype, sock, peer_id, host, port);
+		}
 		return snprintf(dst, dstlen, "%c-%p: %s/%s@%s:%d ",
 			stype, sock, db, user, host, port);
 	}

@@ -567,7 +567,7 @@ PgDatabase *find_database(const char *name)
 	return NULL;
 }
 
-/* 
+/*
  * Similar to find_database. In case databse is not found, it will try to register
  * it if auto-database ('*') is configured.
  */

@@ -272,8 +272,7 @@ bool welcome_client(PgSocket *client)
 	 * be enough for all practical attacks to be mitigated (there are still
 	 * ~70 trillion random combinations of these bits).
 	 */
-	if (cf_peer_id > 0)
-	{
+	if (cf_peer_id > 0) {
 		/*
 		 * The first two bytes represent the peer id. Pgbouncers that are
 		 * peered with this one can forward the request to us by reading this
@@ -389,8 +388,7 @@ static bool login_scram_sha_256(PgSocket *server)
 		return false;
 	}
 
-	if (server->scram_state.client_nonce)
-	{
+	if (server->scram_state.client_nonce) {
 		slog_error(server, "protocol error: duplicate AuthenticationSASL message from server");
 		return false;
 	}
@@ -419,14 +417,12 @@ static bool login_scram_sha_256_cont(PgSocket *server, unsigned datalen, const u
 	bool res;
 	char *client_final_message = NULL;
 
-	if (!server->scram_state.client_nonce)
-	{
+	if (!server->scram_state.client_nonce) {
 		slog_error(server, "protocol error: AuthenticationSASLContinue without prior AuthenticationSASL");
 		return false;
 	}
 
-	if (server->scram_state.server_first_message)
-	{
+	if (server->scram_state.server_first_message) {
 		slog_error(server, "SCRAM exchange protocol error: received second AuthenticationSASLContinue");
 		return false;
 	}
@@ -470,8 +466,7 @@ static bool login_scram_sha_256_final(PgSocket *server, unsigned datalen, const 
 	char *input;
 	char ServerSignature[SHA256_DIGEST_LENGTH];
 
-	if (!server->scram_state.server_first_message)
-	{
+	if (!server->scram_state.server_first_message) {
 		slog_error(server, "protocol error: AuthenticationSASLFinal without prior AuthenticationSASLContinue");
 		return false;
 	}
@@ -487,8 +482,7 @@ static bool login_scram_sha_256_final(PgSocket *server, unsigned datalen, const 
 	if (!read_server_final_message(server, input, ServerSignature))
 		goto failed;
 
-	if (!verify_server_signature(&server->scram_state, user, ServerSignature))
-	{
+	if (!verify_server_signature(&server->scram_state, user, ServerSignature)) {
 		slog_error(server, "invalid server signature");
 		kill_pool_logins(server->pool, NULL, "server login failed: invalid server signature");
 		return false;
@@ -550,8 +544,9 @@ bool answer_authreq(PgSocket *server, PktHdr *pkt)
 		if (!selected_mechanism) {
 			slog_error(server, "none of the server's SASL authentication mechanisms are supported");
 			kill_pool_logins(server->pool, NULL, "server login failed: none of the server's SASL authentication mechanisms are supported");
-		} else
+		} else {
 			res = login_scram_sha_256(server);
+		}
 		break;
 	}
 	case AUTH_SASL_CONT:

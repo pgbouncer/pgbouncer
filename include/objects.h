@@ -40,13 +40,13 @@ PgUser *find_user(const char *name);
 PgPool *get_pool(PgDatabase *, PgUser *);
 PgPool *get_peer_pool(PgDatabase *);
 PgSocket *compare_connections_by_time(PgSocket *lhs, PgSocket *rhs);
-bool evict_connection(PgDatabase *db)		_MUSTCHECK;
-bool evict_user_connection(PgUser *user)	_MUSTCHECK;
-bool find_server(PgSocket *client)		_MUSTCHECK;
+bool evict_connection(PgDatabase *db)           _MUSTCHECK;
+bool evict_user_connection(PgUser *user)        _MUSTCHECK;
+bool find_server(PgSocket *client)              _MUSTCHECK;
 bool life_over(PgSocket *server);
-bool release_server(PgSocket *server)		/* _MUSTCHECK */;
-bool finish_client_login(PgSocket *client)	_MUSTCHECK;
-bool check_fast_fail(PgSocket *client)		_MUSTCHECK;
+bool release_server(PgSocket *server) /* _MUSTCHECK */;
+bool finish_client_login(PgSocket *client)      _MUSTCHECK;
+bool check_fast_fail(PgSocket *client)          _MUSTCHECK;
 
 PgSocket *accept_client(int sock, bool is_unix) _MUSTCHECK;
 void disconnect_server(PgSocket *server, bool notify, const char *reason, ...) _PRINTF(3, 4);
@@ -71,14 +71,12 @@ bool use_client_socket(int fd, PgAddr *addr, const char *dbname, const char *use
 		       const char *client_end, const char *std_string, const char *datestyle, const char *timezone,
 		       const char *password,
 		       const char *scram_client_key, int scram_client_key_len,
-		       const char *scram_server_key, int scram_server_key_len)
-			_MUSTCHECK;
+		       const char *scram_server_key, int scram_server_key_len) _MUSTCHECK;
 bool use_server_socket(int fd, PgAddr *addr, const char *dbname, const char *username, uint64_t ckey, int oldfd, int linkfd,
 		       const char *client_end, const char *std_string, const char *datestyle, const char *timezone,
 		       const char *password,
 		       const char *scram_client_key, int scram_client_key_len,
-		       const char *scram_server_key, int scram_server_key_len)
-			_MUSTCHECK;
+		       const char *scram_server_key, int scram_server_key_len) _MUSTCHECK;
 
 void activate_client(PgSocket *client);
 

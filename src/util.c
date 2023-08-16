@@ -64,14 +64,14 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
 				stype, sock, peer_id, host, port);
 		}
 		return snprintf(dst, dstlen, "%c-%p: %s/%s@[%s]:%d ",
-			stype, sock, db, user, host, port);
+				stype, sock, db, user, host, port);
 	} else {
 		if (peer_id) {
 			return snprintf(dst, dstlen, "%c-%p: peer-%d@%s:%d ",
 				stype, sock, peer_id, host, port);
 		}
 		return snprintf(dst, dstlen, "%c-%p: %s/%s@%s:%d ",
-			stype, sock, db, user, host, port);
+				stype, sock, db, user, host, port);
 	}
 }
 
@@ -81,7 +81,7 @@ const char *bin2hex(const uint8_t *src, unsigned srclen, char *dst, unsigned dst
 	static const char hextbl [] = "0123456789abcdef";
 	if (!dstlen)
 		return "";
-	if (srclen*2+1 > dstlen)
+	if (srclen*2 + 1 > dstlen)
 		srclen = (dstlen - 1) / 2;
 	for (i = j = 0; i < srclen; i++) {
 		dst[j++] = hextbl[src[i] >> 4];
@@ -97,7 +97,7 @@ const char *bin2hex(const uint8_t *src, unsigned srclen, char *dst, unsigned dst
 
 static void hash2hex(const uint8_t *hash, char *dst)
 {
-	bin2hex(hash, MD5_DIGEST_LENGTH, dst, 16*2+1);
+	bin2hex(hash, MD5_DIGEST_LENGTH, dst, 16*2 + 1);
 }
 
 void pg_md5_encrypt(const char *part1,
@@ -374,7 +374,7 @@ void pga_copy(PgAddr *a, const struct sockaddr *sa)
 
 int pga_cmp_addr(const PgAddr *a, const PgAddr *b)
 {
-    if (pga_family(a) != pga_family(b))
+	if (pga_family(a) != pga_family(b))
 		return pga_family(a) - pga_family(b);
 
 	switch (pga_family(a)) {
@@ -480,7 +480,8 @@ const char *pga_details(const PgAddr *a, char *dst, int dstlen)
 	return dst;
 }
 
-bool cf_set_authdb(struct CfValue *cv, const char *value) {
+bool cf_set_authdb(struct CfValue *cv, const char *value)
+{
 	if (!check_reserved_database(value)) {
 		log_error("cannot use the reserved \"%s\" database as an auth_dbname", value);
 		return false;
@@ -488,7 +489,8 @@ bool cf_set_authdb(struct CfValue *cv, const char *value) {
 	return cf_set_str(cv, value);
 }
 
-bool check_reserved_database(const char *value) {
+bool check_reserved_database(const char *value)
+{
 	if (value && strcmp(value, "pgbouncer") == 0) {
 		return false;
 	}

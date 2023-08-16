@@ -30,10 +30,10 @@
 #include <usual/strpool.h>
 
 /* regex elements */
-#define WS0	"[ \t\n\r]*"
-#define WS1	"[ \t\n\r]+"
-#define WORD	"(\"([^\"]+|\"\")*\"|[0-9a-z_]+)"
-#define STRING	"('([^']|'')*')"
+#define WS0     "[ \t\n\r]*"
+#define WS1     "[ \t\n\r]+"
+#define WORD    "(\"([^\"]+|\"\")*\"|[0-9a-z_]+)"
+#define STRING  "('([^']|'')*')"
 
 /* possible max + 1 */
 #define MAX_GROUPS 10
@@ -52,15 +52,15 @@ struct cmd_lookup {
 
 /* CMD [arg]; */
 static const char cmd_normal_rx[] =
-"^" WS0 WORD "(" WS1 WORD ")?" WS0 "(;" WS0 ")?$";
+	"^" WS0 WORD "(" WS1 WORD ")?" WS0 "(;" WS0 ")?$";
 
 /* SET with simple value */
 static const char cmd_set_word_rx[] =
-"^" WS0 "set" WS1 WORD WS0 "(=|to)" WS0 WORD WS0 "(;" WS0 ")?$";
+	"^" WS0 "set" WS1 WORD WS0 "(=|to)" WS0 WORD WS0 "(;" WS0 ")?$";
 
 /* SET with quoted value */
 static const char cmd_set_str_rx[] =
-"^" WS0 "set" WS1 WORD WS0 "(=|to)" WS0 STRING WS0 "(;" WS0 ")?$";
+	"^" WS0 "set" WS1 WORD WS0 "(=|to)" WS0 STRING WS0 "(;" WS0 ")?$";
 
 /* compiled regexes */
 static regex_t rc_cmd;
@@ -195,8 +195,9 @@ static bool fake_show(PgSocket *admin, const char *name)
 			pktbuf_write_RowDescription(buf, "s", p->name);
 			pktbuf_write_DataRow(buf, "s", p->value);
 			admin_flush(admin, buf, "SHOW");
-		} else
+		} else {
 			admin_error(admin, "no mem");
+		}
 	}
 	return got;
 }
@@ -219,8 +220,9 @@ static bool fake_set(PgSocket *admin, const char *key, const char *val)
 		if (buf) {
 			pktbuf_write_Notice(buf, "SET ignored");
 			admin_flush(admin, buf, "SET");
-		} else
+		} else {
 			admin_error(admin, "no mem");
+		}
 	}
 	return got;
 }
@@ -247,8 +249,9 @@ static bool admin_set(PgSocket *admin, const char *key, const char *val)
 		} else {
 			return admin_error(admin, "SET failed");
 		}
-	} else
+	} else {
 		return admin_error(admin, "admin access needed");
+	}
 }
 
 /* send a row with sendmsg, optionally attaching a fd */
@@ -276,11 +279,11 @@ static bool send_one_fd(PgSocket *admin,
 	struct PktBuf *pkt = pktbuf_temp();
 
 	pktbuf_write_DataRow(pkt, "issssiqisssssbb",
-		      fd, task, user, db, addr, port, ckey, link,
-		      client_enc, std_strings, datestyle, timezone,
-		      password,
-		      scram_client_key_len, scram_client_key,
-		      scram_server_key_len, scram_server_key);
+			     fd, task, user, db, addr, port, ckey, link,
+			     client_enc, std_strings, datestyle, timezone,
+			     password,
+			     scram_client_key_len, scram_client_key,
+			     scram_server_key_len, scram_server_key);
 	if (pkt->failed)
 		return false;
 	iovec.iov_base = pkt->buf;
@@ -447,13 +450,13 @@ static bool admin_show_fds(PgSocket *admin, const char *arg)
 	 * send resultset
 	 */
 	SEND_RowDescription(res, admin, "issssiqisssssbb",
-				 "fd", "task",
-				 "user", "database",
-				 "addr", "port",
-				 "cancel", "link",
-				 "client_encoding", "std_strings",
-				 "datestyle", "timezone", "password",
-				 "scram_client_key", "scram_server_key");
+			    "fd", "task",
+			    "user", "database",
+			    "addr", "port",
+			    "cancel", "link",
+			    "client_encoding", "std_strings",
+			    "datestyle", "timezone", "password",
+			    "scram_client_key", "scram_server_key");
 	if (res)
 		res = show_pooler_fds(admin);
 
@@ -628,7 +631,7 @@ static void socket_header(PktBuf *buf, bool debug)
 				    "wait", "wait_us", "close_needed",
 				    "ptr", "link", "remote_pid", "tls",
 				    "application_name",
-				    /* debug follows */
+					/* debug follows */
 				    "recv_pos", "pkt_pos", "pkt_remain",
 				    "send_pos", "send_remain",
 				    "pkt_avail", "send_avail");
@@ -679,7 +682,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 		tls_get_connection_info(sk->sbuf.tls, infobuf, sizeof infobuf);
 
 	pktbuf_write_DataRow(buf, debug ? SKF_DBG : SKF_STD,
-			     is_server_socket(sk) ? "S" :"C",
+			     is_server_socket(sk) ? "S" : "C",
 			     sk->login_user ? sk->login_user->name : "(nouser)",
 			     sk->pool && !sk->pool->db->peer_id ? sk->pool->db->name : "(nodb)",
 			     state, r_addr, pga_port(&sk->remote_addr),
@@ -691,7 +694,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 			     sk->close_needed,
 			     ptrbuf, linkbuf, remote_pid, infobuf,
 			     application_name ? application_name->str : "",
-			     /* debug */
+				/* debug */
 			     io ? io->recv_pos : 0,
 			     io ? io->parse_pos : 0,
 			     sk->sbuf.pkt_remain,
@@ -897,7 +900,7 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 				     statlist_count(&pool->used_server_list),
 				     statlist_count(&pool->tested_server_list),
 				     statlist_count(&pool->new_server_list),
-				     /* how long is the oldest client waited */
+					/* how long is the oldest client waited */
 				     (int)(max_wait / USEC),
 				     (int)(max_wait % USEC),
 				     cf_get_lookup(&cv));
@@ -1327,41 +1330,41 @@ static bool admin_cmd_wait_close(PgSocket *admin, const char *arg)
 	if (!admin->admin_user)
 		return admin_error(admin, "admin access needed");
 
-       if (!arg[0]) {
-	       struct List *item;
-	       PgPool *pool;
-	       int active = 0;
+	if (!arg[0]) {
+		struct List *item;
+		PgPool *pool;
+		int active = 0;
 
-	       log_info("WAIT_CLOSE command issued");
-	       statlist_for_each(item, &pool_list) {
-		       PgDatabase *db;
+		log_info("WAIT_CLOSE command issued");
+		statlist_for_each(item, &pool_list) {
+			PgDatabase *db;
 
-		       pool = container_of(item, PgPool, head);
-		       db = pool->db;
-		       db->db_wait_close = true;
-		       active += count_db_active(db);
-	       }
-	       if (active > 0)
-		       admin->wait_for_response = true;
-	       else
-		       return admin_ready(admin, "WAIT_CLOSE");
-       } else {
-	       PgDatabase *db;
+			pool = container_of(item, PgPool, head);
+			db = pool->db;
+			db->db_wait_close = true;
+			active += count_db_active(db);
+		}
+		if (active > 0)
+			admin->wait_for_response = true;
+		else
+			return admin_ready(admin, "WAIT_CLOSE");
+	} else {
+		PgDatabase *db;
 
-	       log_info("WAIT_CLOSE '%s' command issued", arg);
-	       db = find_or_register_database(admin, arg);
-	       if (db == NULL)
-		       return admin_error(admin, "no such database: %s", arg);
-	       if (db == admin->pool->db)
-		       return admin_error(admin, "cannot wait in admin db: %s", arg);
-	       db->db_wait_close = true;
-	       if (count_db_active(db) > 0)
-		       admin->wait_for_response = true;
-	       else
-		       return admin_ready(admin, "WAIT_CLOSE");
-       }
+		log_info("WAIT_CLOSE '%s' command issued", arg);
+		db = find_or_register_database(admin, arg);
+		if (db == NULL)
+			return admin_error(admin, "no such database: %s", arg);
+		if (db == admin->pool->db)
+			return admin_error(admin, "cannot wait in admin db: %s", arg);
+		db->db_wait_close = true;
+		if (count_db_active(db) > 0)
+			admin->wait_for_response = true;
+		else
+			return admin_ready(admin, "WAIT_CLOSE");
+	}
 
-       return true;
+	return true;
 }
 
 /* extract substring from regex group */
@@ -1393,7 +1396,7 @@ static bool copy_arg(const char *src, regmatch_t *glist,
 	/* copy and unquote */
 	if (*s == qchar) {
 		for (i = 1; i < len - 1; i++) {
-			if (s[i] == qchar && s[i+1] == qchar)
+			if (s[i] == qchar && s[i + 1] == qchar)
 				i++;
 			*d++ = s[i];
 		}
@@ -1409,25 +1412,25 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 {
 	bool res;
 	SEND_generic(res, admin, 'N',
-		"sssss",
-		"SNOTICE", "C00000", "MConsole usage",
-		"D\n\tSHOW HELP|CONFIG|DATABASES"
-		"|POOLS|CLIENTS|SERVERS|USERS|VERSION\n"
-		"\tSHOW PEERS|PEER_POOLS\n"
-		"\tSHOW FDS|SOCKETS|ACTIVE_SOCKETS|LISTS|MEM|STATE\n"
-		"\tSHOW DNS_HOSTS|DNS_ZONES\n"
-		"\tSHOW STATS|STATS_TOTALS|STATS_AVERAGES|TOTALS\n"
-		"\tSET key = arg\n"
-		"\tRELOAD\n"
-		"\tPAUSE [<db>]\n"
-		"\tRESUME [<db>]\n"
-		"\tDISABLE <db>\n"
-		"\tENABLE <db>\n"
-		"\tRECONNECT [<db>]\n"
-		"\tKILL <db>\n"
-		"\tSUSPEND\n"
-		"\tSHUTDOWN\n"
-		"\tWAIT_CLOSE [<db>]", "");
+		     "sssss",
+		     "SNOTICE", "C00000", "MConsole usage",
+		     "D\n\tSHOW HELP|CONFIG|DATABASES"
+		     "|POOLS|CLIENTS|SERVERS|USERS|VERSION\n"
+		     "\tSHOW PEERS|PEER_POOLS\n"
+		     "\tSHOW FDS|SOCKETS|ACTIVE_SOCKETS|LISTS|MEM|STATE\n"
+		     "\tSHOW DNS_HOSTS|DNS_ZONES\n"
+		     "\tSHOW STATS|STATS_TOTALS|STATS_AVERAGES|TOTALS\n"
+		     "\tSET key = arg\n"
+		     "\tRELOAD\n"
+		     "\tPAUSE [<db>]\n"
+		     "\tRESUME [<db>]\n"
+		     "\tDISABLE <db>\n"
+		     "\tENABLE <db>\n"
+		     "\tRECONNECT [<db>]\n"
+		     "\tKILL <db>\n"
+		     "\tSUSPEND\n"
+		     "\tSHUTDOWN\n"
+		     "\tWAIT_CLOSE [<db>]", "");
 	if (res)
 		res = admin_ready(admin, "SHOW");
 	return res;
@@ -1557,8 +1560,9 @@ static bool admin_parse_query(PgSocket *admin, const char *q)
 		if (!ok)
 			goto failed;
 		res = admin_set(admin, arg, val);
-	} else
+	} else {
 		res = syntax_error(admin);
+	}
 done:
 	current_query = NULL;
 	if (!res)
@@ -1630,8 +1634,7 @@ bool admin_pre_login(PgSocket *client, const char *username)
 
 		res = getpeereid(sbuf_socket(&client->sbuf), &peer_uid, &peer_gid);
 		if (res >= 0 && peer_uid == getuid()
-			&& strcmp("pgbouncer", username) == 0)
-		{
+		    && strcmp("pgbouncer", username) == 0) {
 			client->login_user = admin_pool->db->forced_user;
 			client->own_user = true;
 			client->admin_user = true;
@@ -1770,9 +1773,9 @@ void admin_pause_done(void)
 			res = admin_ready(admin, "SUSPEND");
 			break;
 		default:
-			if (count_paused_databases() > 0)
+			if (count_paused_databases() > 0) {
 				res = admin_ready(admin, "PAUSE");
-			else {
+			} else {
 				/* FIXME */
 				fatal("admin_pause_done: bad state");
 				res = false;
@@ -1786,8 +1789,7 @@ void admin_pause_done(void)
 	}
 
 	if (statlist_empty(&admin_pool->active_client_list)
-	    && cf_pause_mode == P_SUSPEND)
-	{
+	    && cf_pause_mode == P_SUSPEND) {
 		log_info("admin disappeared when suspended, doing RESUME");
 		cf_pause_mode = P_NONE;
 		resume_all();

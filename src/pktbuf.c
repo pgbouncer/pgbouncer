@@ -448,8 +448,7 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 				for (int j = 0; j < blen; j++)
 					sprintf(tmp + (2 + j * 2), "%02x", bval[j]);
 				val = tmp;
-			}
-			else {
+			} else {
 				(void) va_arg(ap, uint8_t *);
 				val = NULL;
 			}

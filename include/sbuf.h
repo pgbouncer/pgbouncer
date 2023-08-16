@@ -40,7 +40,7 @@ typedef enum {
  * to see completely.  Generally just header,
  * but currently also ServerParam pkt.
  */
-#define SBUF_SMALL_PKT	64
+#define SBUF_SMALL_PKT  64
 
 struct tls;
 
@@ -52,8 +52,8 @@ typedef struct SBufIO SBufIO;
    false if it used sbuf_pause(), sbuf_close() or simply wants to wait for
    next event loop (eg. too few data available). */
 typedef bool (*sbuf_cb_t)(SBuf *sbuf,
-			SBufEvent evtype,
-			struct MBuf *mbuf);
+			  SBufEvent evtype,
+			  struct MBuf *mbuf);
 
 struct SBufIO {
 	ssize_t (*sbufio_recv)(SBuf *sbuf, void *buf, size_t len);

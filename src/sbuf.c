@@ -34,8 +34,8 @@
 #endif
 
 /* sbuf_main_loop() skip_recv values */
-#define DO_RECV		false
-#define SKIP_RECV	true
+#define DO_RECV         false
+#define SKIP_RECV       true
 
 #define ACT_UNSET 0
 #define ACT_SEND 1
@@ -58,12 +58,12 @@ enum WaitType {
 };
 
 #define AssertSanity(sbuf) do { \
-	Assert(iobuf_sane((sbuf)->io)); \
+		Assert(iobuf_sane((sbuf)->io)); \
 } while (0)
 
 #define AssertActive(sbuf) do { \
-	Assert((sbuf)->sock > 0); \
-	AssertSanity(sbuf); \
+		Assert((sbuf)->sock > 0); \
+		AssertSanity(sbuf); \
 } while (0)
 
 /* declare static stuff */
@@ -104,9 +104,11 @@ static const SBufIO tls_sbufio_ops = {
 static void sbuf_tls_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
 #endif
 
-/*********************************
+/*
+ *********************************
  * Public functions
- *********************************/
+ *********************************
+ */
 
 /* initialize SBuf with proto handler */
 void sbuf_init(SBuf *sbuf, sbuf_cb_t proto_fn)
@@ -191,7 +193,7 @@ bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, socklen_t sa_len, time_
 
 failed:
 	log_warning("sbuf_connect failed to connect to %s: %s",
-			sa2str(sa, buf, sizeof(buf)), strerror(errno));
+		    sa2str(sa, buf, sizeof(buf)), strerror(errno));
 
 	if (sock >= 0)
 		safe_close(sock);
@@ -255,7 +257,7 @@ bool sbuf_continue_with_callback(SBuf *sbuf, event_callback_fn user_cb)
 	AssertActive(sbuf);
 
 	event_assign(&sbuf->ev, pgb_event_base, sbuf->sock, EV_READ | EV_PERSIST,
-		  user_cb, sbuf);
+		     user_cb, sbuf);
 
 	err = event_add(&sbuf->ev, NULL);
 	if (err < 0) {
@@ -273,7 +275,7 @@ bool sbuf_use_callback_once(SBuf *sbuf, short ev, event_callback_fn user_cb)
 
 	if (sbuf->wait_type != W_NONE) {
 		err = event_del(&sbuf->ev);
-		sbuf->wait_type = W_NONE; /* make sure its called only once */
+		sbuf->wait_type = W_NONE;	/* make sure its called only once */
 		if (err < 0) {
 			log_warning("sbuf_queue_once: event_del failed: %s", strerror(errno));
 			return false;
@@ -358,9 +360,11 @@ void sbuf_prepare_fetch(SBuf *sbuf, unsigned amount)
 	/* sbuf->dst = NULL; // FIXME ?? */
 }
 
-/*************************
+/*
+ *************************
  * Internal functions
- *************************/
+ *************************
+ */
 
 /*
  * Call proto callback with proper struct MBuf.
@@ -485,7 +489,7 @@ static bool sbuf_queue_send(SBuf *sbuf)
 
 	/* stop waiting for read events */
 	err = event_del(&sbuf->ev);
-	sbuf->wait_type = W_NONE; /* make sure its called only once */
+	sbuf->wait_type = W_NONE;	/* make sure its called only once */
 	if (err < 0) {
 		log_warning("sbuf_queue_send: event_del failed: %s", strerror(errno));
 		return false;
@@ -536,9 +540,10 @@ try_more:
 		io->done_pos += res;
 	} else if (res < 0) {
 		if (errno == EAGAIN) {
-			if (!sbuf_queue_send(sbuf))
+			if (!sbuf_queue_send(sbuf)) {
 				/* drop if queue failed */
 				sbuf_call_proto(sbuf, SBUF_EV_SEND_FAILED);
+			}
 		} else {
 			sbuf_call_proto(sbuf, SBUF_EV_SEND_FAILED);
 		}
@@ -608,8 +613,8 @@ static bool sbuf_process_pending(SBuf *sbuf)
 			res = sbuf_call_proto(sbuf, SBUF_EV_PKT_CALLBACK);
 			if (!res)
 				return false;
-			/* fallthrough */
-			/* after callback, skip pkt */
+		/* fallthrough */
+		/* after callback, skip pkt */
 		case ACT_SKIP:
 			iobuf_tag_skip(io, avail);
 			break;
@@ -749,8 +754,7 @@ try_more:
 		 */
 		if (cf_pause_mode == P_SUSPEND
 		    && sbuf->pkt_remain > 0
-		    && sbuf->pkt_remain < free)
-		{
+		    && sbuf->pkt_remain < free) {
 			free = sbuf->pkt_remain;
 		}
 
@@ -790,7 +794,7 @@ static bool sbuf_after_connect_check(SBuf *sbuf)
 	int optval = 0, err;
 	socklen_t optlen = sizeof(optval);
 
-	err = getsockopt(sbuf->sock, SOL_SOCKET, SO_ERROR, (void*)&optval, &optlen);
+	err = getsockopt(sbuf->sock, SOL_SOCKET, SO_ERROR, (void *)&optval, &optlen);
 	if (err < 0) {
 		log_debug("sbuf_after_connect_check: getsockopt: %s",
 			  strerror(errno));
@@ -1261,9 +1265,18 @@ void sbuf_cleanup(void)
 int client_accept_sslmode = SSLMODE_DISABLED;
 int server_connect_sslmode = SSLMODE_DISABLED;
 
-bool sbuf_tls_setup(void) { return true; }
-bool sbuf_tls_accept(SBuf *sbuf) { return false; }
-bool sbuf_tls_connect(SBuf *sbuf, const char *hostname) { return false; }
+bool sbuf_tls_setup(void)
+{
+	return true;
+}
+bool sbuf_tls_accept(SBuf *sbuf)
+{
+	return false;
+}
+bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
+{
+	return false;
+}
 
 void sbuf_cleanup(void)
 {

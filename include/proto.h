@@ -17,9 +17,9 @@
  */
 
 /* old style V2 header: len:4b code:4b */
-#define OLD_HEADER_LEN	8
+#define OLD_HEADER_LEN  8
 /* new style V3 packet header len - type:1b, len:4b */
-#define NEW_HEADER_LEN	5
+#define NEW_HEADER_LEN  5
 
 /*
  * parsed packet header, plus whatever data is
@@ -39,7 +39,7 @@ struct PktHdr {
 
 bool get_header(struct MBuf *data, PktHdr *pkt) _MUSTCHECK;
 
-bool send_pooler_error(PgSocket *client, bool send_ready, const char *sqlstate, bool level_fatal, const char *msg)  /*_MUSTCHECK*/;
+bool send_pooler_error(PgSocket *client, bool send_ready, const char *sqlstate, bool level_fatal, const char *msg) /*_MUSTCHECK*/;
 void log_server_error(const char *note, PktHdr *pkt);
 void parse_server_error(PktHdr *pkt, const char **level_p, const char **msg_p, const char **sqlstate_p);
 
@@ -61,7 +61,8 @@ static inline bool incomplete_pkt(const PktHdr *pkt)
 }
 
 /* is packet header completely in buffer */
-static inline bool incomplete_header(const struct MBuf *data) {
+static inline bool incomplete_header(const struct MBuf *data)
+{
 	uint32_t avail = mbuf_avail_for_read(data);
 	if (avail >= OLD_HEADER_LEN)
 		return false;

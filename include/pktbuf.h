@@ -31,15 +31,15 @@ struct PktBuf {
 	struct event *ev;
 	PgSocket *queued_dst;
 
-	bool failed:1;
-	bool sending:1;
-	bool fixed_buf:1;
+	bool failed : 1;
+	bool sending : 1;
+	bool fixed_buf : 1;
 };
 
 /*
  * pktbuf creation
  */
-PktBuf *pktbuf_dynamic(int start_len)	_MUSTCHECK;
+PktBuf *pktbuf_dynamic(int start_len)   _MUSTCHECK;
 void pktbuf_static(PktBuf *buf, uint8_t *data, int len);
 
 void pktbuf_free(PktBuf *buf);
@@ -51,7 +51,7 @@ struct PktBuf *pktbuf_temp(void);
 /*
  * sending
  */
-bool pktbuf_send_immediate(PktBuf *buf, PgSocket *sk)	_MUSTCHECK;
+bool pktbuf_send_immediate(PktBuf *buf, PgSocket *sk)   _MUSTCHECK;
 bool pktbuf_send_queued(PktBuf *buf, PgSocket *sk)  _MUSTCHECK;
 
 /*
@@ -120,10 +120,10 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
  */
 
 #define BUILD_DataRow(reslen, dst, dstlen, args...) do { \
-	PktBuf _buf; \
-	pktbuf_static(&_buf, dst, dstlen); \
-	pktbuf_write_DataRow(&_buf, ## args); \
-	reslen = _buf.failed ? -1 : _buf.write_pos; \
+		PktBuf _buf; \
+		pktbuf_static(&_buf, dst, dstlen); \
+		pktbuf_write_DataRow(&_buf, ## args); \
+		reslen = _buf.failed ? -1 : _buf.write_pos; \
 } while (0)
 
 /*
@@ -131,10 +131,10 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
  */
 
 #define SEND_wrap(buflen, pktfn, res, sk, args...) do { \
-	uint8_t _data[buflen]; PktBuf _buf; \
-	pktbuf_static(&_buf, _data, sizeof(_data)); \
-	pktfn(&_buf, ## args); \
-	res = pktbuf_send_immediate(&_buf, sk); \
+		uint8_t _data[buflen]; PktBuf _buf; \
+		pktbuf_static(&_buf, _data, sizeof(_data)); \
+		pktfn(&_buf, ## args); \
+		res = pktbuf_send_immediate(&_buf, sk); \
 } while (0)
 
 #define SEND_RowDescription(res, sk, args...) \

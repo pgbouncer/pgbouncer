@@ -77,8 +77,10 @@ enum PauseMode {
 
 enum ShutDownMode {
 	SHUTDOWN_NONE = 0,
-	SHUTDOWN_WAIT_FOR_SERVERS = 1,
-	SHUTDOWN_IMMEDIATE = 2,
+	/* wait for all servers to become idle before stopping the process */
+	SHUTDOWN_WAIT_FOR_SERVERS,
+	/* close all connections immediately and stop the process */
+	SHUTDOWN_IMMEDIATE,
 };
 
 enum SSLMode {

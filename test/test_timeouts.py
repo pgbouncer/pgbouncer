@@ -78,6 +78,9 @@ async def test_server_login_retry(pg, bouncer):
     bouncer.admin(f"set query_timeout=10")
     bouncer.admin(f"set server_login_retry=3")
 
+    # Disable tls to get more consistent timings
+    bouncer.admin("set server_tls_sslmode = disable")
+
     pg.stop()
     if platform.system() == "FreeBSD":
         # XXX: For some reason FreeBSD logs don't contain connect failed

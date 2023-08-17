@@ -85,6 +85,10 @@ def test_min_pool_size_with_lower_max_db_connections(bouncer):
 async def test_reserve_pool_size(pg, bouncer):
     bouncer.admin("set reserve_pool_size = 3")
     bouncer.admin("set reserve_pool_timeout = 2")
+
+    # Disable tls to get more consistent timings
+    bouncer.admin("set server_tls_sslmode = disable")
+
     with bouncer.log_contains("taking connection from reserve_pool", times=3):
         # default_pool_size is 5, so half of the connections will need to wait
         # until the reserve_pool_timeout (2 seconds) is reached. At that point

@@ -90,7 +90,7 @@ async def test_reserve_pool_size(pg, bouncer):
         # until the reserve_pool_timeout (2 seconds) is reached. At that point
         # 3 more connections should be allowed to continue.
         result = bouncer.asleep(10, dbname="p1", times=10)
-        await asyncio.sleep(1)
+        await asyncio.sleep(1.7)
         assert pg.connection_count("p1") == 5
         await asyncio.sleep(8)
         assert pg.connection_count("p1") == 8

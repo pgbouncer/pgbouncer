@@ -1190,6 +1190,9 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			break;
 		case CL_WAITING:
 			fatal("why waiting client in client_proto()");
+		case CL_WAITING_CANCEL:
+		case CL_ACTIVE_CANCEL:
+			fatal("why canceling client in client_proto()");
 		default:
 			fatal("bad client state: %d", client->state);
 		}

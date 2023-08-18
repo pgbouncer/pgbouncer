@@ -686,6 +686,24 @@ static void pause_client(PgSocket *client)
 		disconnect_client(client, true, "pause failed");
 }
 
+/*
+ * Deactivate the client socket and put it into the cancel request wait queue.
+ * We're not expecting any data from the client anymore at this point at all.
+ * But some clients might send some anyway (specifically the Go client). Since
+ * we don't care about any of that extra data we just stop reading from the
+ * socket.
+ */
+static void pause_cancel_request(PgSocket *client)
+{
+	Assert(client->state == CL_LOGIN);
+
+	slog_debug(client, "pause_cancel_request");
+	change_client_state(client, CL_WAITING_CANCEL);
+	if (!sbuf_pause(&client->sbuf))
+		disconnect_client(client, true, "pause cancel request failed");
+}
+
+
 /* wake client from wait */
 void activate_client(PgSocket *client)
 {
@@ -1695,7 +1713,7 @@ static void accept_cancel_request_for_peer(int peer_id, PgSocket *req)
 	 * request.
 	 */
 	req->pool = pool;
-	change_client_state(req, CL_WAITING_CANCEL);
+	pause_cancel_request(req);
 
 	/*
 	 * Open a new connection over which the cancel request is forwarded to the
@@ -1803,7 +1821,7 @@ found:
 	 * request.
 	 */
 	req->pool = pool;
-	change_client_state(req, CL_WAITING_CANCEL);
+	pause_cancel_request(req);
 
 	/*
 	 * Open a new connection over which the cancel request is forwarded to the

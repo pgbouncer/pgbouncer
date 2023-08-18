@@ -134,7 +134,7 @@ Default: 20
 ### min_pool_size
 
 Add more server connections to pool if below this number.
-Improves behavior when the normal load suddently comes back after a period
+Improves behavior when the normal load suddenly comes back after a period
 of total inactivity.  The value is effectively capped at the pool size.
 
 Default: 0 (disabled)
@@ -214,10 +214,10 @@ Note: Most parameters cannot be tracked this way. The only parameters that can b
 Postgres reports to the client. Postgres has
 [an official list of parameters that it reports to the client](https://www.postgresql.org/docs/15/protocol-flow.html#PROTOCOL-ASYNC).
 Postgres extensions can change this list though, they can add parameters themselves that they also report,
-and they can start reporting already existing paremeters that Postgres does not report.
+and they can start reporting already existing parameters that Postgres does not report.
 Notably Citus 12.0+ causes Postgres to also report `search_path`.
 
-The postgres protocol allows specifying parameters settings, both direcly as a
+The Postgres protocol allows specifying parameters settings, both directly as a
 parameter in the startup packet, or inside the [`options` startup
 packet][options-startup]. Parameters specified using both of these methods are
 supported by `track_extra_parameters`. However, it's not possible to include
@@ -236,11 +236,11 @@ specified here, so that PgBouncer knows that they are handled by the admin and i
 If you need to specify multiple values, use a comma-separated list (e.g.
 `options,extra_float_digits`)
 
-The postgres protocol allows specifying parameters settings, both direcly as a
+The Postgres protocol allows specifying parameters settings, both directly as a
 parameter in the startup packet, or inside the [`options` startup
 packet][options-startup]. Parameters specified using both of these methods are
 supported by `ignore_startup_parameters`. It's even possible to include
-`options` itself in `track_extra_parameters`, which results in any unkown
+`options` itself in `track_extra_parameters`, which results in any unknown
 parameters contained inside `options` to be ignored.
 
 
@@ -390,7 +390,7 @@ Default: `SELECT usename, passwd FROM pg_shadow WHERE usename=$1`
 ### auth_dbname
 
 Database name in the `[database]` section to be used for authentication purposes. This
-option can be either global or overriden in the connection string if this parameter is
+option can be either global or overridden in the connection string if this parameter is
 specified.
 
 ## Log settings

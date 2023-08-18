@@ -78,7 +78,7 @@ static void WINAPI win32_servicehandler(DWORD request)
 	case SERVICE_CONTROL_STOP:
 	case SERVICE_CONTROL_SHUTDOWN:
 		win32_setservicestatus(SERVICE_STOP_PENDING);
-		cf_shutdown = 2;
+		cf_shutdown = SHUTDOWN_IMMEDIATE;
 		break;
 	case SERVICE_CONTROL_INTERROGATE:
 		SetServiceStatus(hStatus, &svcStatus);

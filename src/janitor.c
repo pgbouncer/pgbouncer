@@ -372,15 +372,25 @@ static void pool_client_maint(PgPool *pool)
 	usec_t now = get_cached_time();
 	PgSocket *client;
 	usec_t age;
+    int pool_client_idle_timeout = pool->db->client_idle_timeout;
+    /*
+        We check if there is a client_idle_timeout set at db level, if yes that that takes
+        precedence over the global client_idle_timeout
+    */
+    if(pool_client_idle_timeout <= 0){
+        pool_client_idle_timeout = cf_client_idle_timeout;
+    }
 
 	/* force client_idle_timeout */
-	if (cf_client_idle_timeout > 0) {
+	if (pool_client_idle_timeout > 0) {
 		statlist_for_each_safe(item, &pool->active_client_list, tmp) {
 			client = container_of(item, PgSocket, head);
 			Assert(client->state == CL_ACTIVE);
-			if (client->link)
+
+            if (client->link)
 				continue;
-			if (now - client->request_time > cf_client_idle_timeout)
+
+			if (now - client->request_time > pool_client_idle_timeout)
 				disconnect_client(client, true, "client_idle_timeout");
 		}
 	}

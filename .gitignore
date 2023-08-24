@@ -34,3 +34,10 @@ venv
 .venv
 
 /uncrustify
+.DS_Store
+.idea/*
+configure~
+pgbouncer.log
+pgbouncer.pid
+pgbouncer_config.ini
+userlist.txt

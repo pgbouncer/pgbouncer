@@ -479,8 +479,8 @@ struct PgDatabase {
 	int res_pool_size;	/* additional server connections in case of trouble */
 	int pool_mode;		/* pool mode for this database */
 	int max_db_connections;	/* max server connections between all pools */
-    /* Database specific client_idle_timeout, if specified otherwise falls back to the system wide value */
-    usec_t client_idle_timeout;
+	/* Database specific client_idle_timeout, if specified otherwise falls back to the system wide value */
+	usec_t client_idle_timeout;
 	char *connect_query;	/* startup commands to send to server after connect */
 
 	struct PktBuf *startup_params;	/* partial StartupMessage (without user) be sent to server */

@@ -239,7 +239,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("auth_type", CF_LOOKUP(auth_type_map), cf_auth_type, 0, "md5"),
 	CF_ABS("auth_user", CF_STR, cf_auth_user, 0, NULL),
 	CF_ABS("autodb_idle_timeout", CF_TIME_USEC, cf_autodb_idle_timeout, 0, "3600"),
-    CF_ABS("client_idle_timeout", CF_TIME_USEC, cf_client_idle_timeout, 0, "0"),
+	CF_ABS("client_idle_timeout", CF_TIME_USEC, cf_client_idle_timeout, 0, "0"),
 	CF_ABS("client_login_timeout", CF_TIME_USEC, cf_client_login_timeout, 0, "60"),
 	CF_ABS("client_tls_ca_file", CF_STR, cf_client_tls_ca_file, 0, ""),
 	CF_ABS("client_tls_cert_file", CF_STR, cf_client_tls_cert_file, 0, ""),
@@ -934,7 +934,7 @@ int main(int argc, char *argv[])
 			cf_verbose++;
 			break;
 		case 'V':
-            printf("%s\n", PACKAGE_STRING);
+			printf("%s\n", PACKAGE_STRING);
 			printf("libevent %s\nadns: %s\ntls: %s\n",
 			       event_get_version(),
 			       adns_get_backend(),

@@ -255,7 +255,6 @@ fail:
 /* fill PgDatabase from connstr */
 bool parse_database(void *base, const char *name, const char *connstr)
 {
-
 	char *p, *key, *val;
 	PktBuf *msg;
 	PgDatabase *db;
@@ -264,7 +263,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	int min_pool_size = -1;
 	int res_pool_size = -1;
 	int max_db_connections = -1;
-    usec_t client_idle_timeout = 0;
+	usec_t client_idle_timeout = 0;
 
 	int dbname_ofs;
 	int pool_mode = POOL_INHERIT;
@@ -306,7 +305,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	while (*p) {
 		p = cstr_get_pair(p, &key, &val);
 
-    	if (p == NULL) {
+		if (p == NULL) {
 			log_error("syntax error in connection string");
 			goto fail;
 		} else if (!key[0]) {
@@ -363,10 +362,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		} else if (strcmp("application_name", key) == 0) {
 			appname = val;
 		} else if (strcmp("client_idle_timeout", key) == 0) {
-
-            client_idle_timeout = atoi(val) * USEC;
-        }
-        else {
+			client_idle_timeout = atoi(val) * USEC;
+		} else {
 			log_error("unrecognized connection parameter: %s", key);
 			goto fail;
 		}

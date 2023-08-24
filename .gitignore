@@ -41,3 +41,5 @@ pgbouncer.log
 pgbouncer.pid
 pgbouncer_config.ini
 userlist.txt
+
+*__pycache__*

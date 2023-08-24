@@ -60,12 +60,28 @@ def test_idle_transaction_timeout(bouncer):
 
 
 def test_client_idle_timeout(bouncer):
+
     bouncer.admin(f"set client_idle_timeout=2")
 
     with bouncer.cur() as cur:
         cur.execute("select 1")
         with bouncer.log_contains(r"client_idle_timeout"):
             time.sleep(3)
+            with pytest.raises(
+                psycopg.OperationalError,
+                match=r"server closed the connection unexpectedly|Software caused connection abort",
+            ):
+                cur.execute("select 1")
+
+
+def test_client_idle_timeout_override_works_for_database(bouncer):
+    bouncer.admin(f"set client_idle_timeout=2")
+    with bouncer.cur(dbname="p8a") as cur:
+        cur.execute("select 1")
+        time.sleep(3)
+        cur.execute("select 1")
+        with bouncer.log_contains(r"client_idle_timeout"):
+            time.sleep(4)
             with pytest.raises(
                 psycopg.OperationalError,
                 match=r"server closed the connection unexpectedly|Software caused connection abort",

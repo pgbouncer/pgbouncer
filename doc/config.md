@@ -621,7 +621,7 @@ If it notices changes, all host names under that zone
 are looked up again.  If any host IP changes, its connections
 are invalidated.
 
-Works only with UDNS and c-ares backends (`configure` option `--with-udns` or `--with-cares`).
+Works only with UDNS and c-ares backends (`configure` option `--with-cares`).
 
 Default: 0.0 (disabled)
 

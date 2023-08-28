@@ -72,6 +72,44 @@ def test_auth_dbname_with_auto_database(bouncer):
     bouncer.test(dbname="postgres", user="someuser", password="anypasswd")
 
 
+def test_unconfigured_auth_database_with_auto_database(bouncer):
+    """
+    Tests the scenario where the authentication database does not
+    have a connection string configured under [databases] section.
+    However, there is an auto-datatabase, '*', configured. The expectation
+    is to use the wild card connection string for the auth_database.
+    """
+    with bouncer.ini_path.open() as f:
+        original = f.read()
+        assert (
+            re.search(r"^unconfigured_auth_database", original, flags=re.MULTILINE)
+            is None
+        )
+    with bouncer.ini_path.open("w") as f:
+        # uncomment the auto-database line
+        new = re.sub(r"^;\* = ", "* = ", original, flags=re.MULTILINE)
+        print(new)
+        f.write(new)
+    # configure the auth_dbname to a database that is not configured
+    # expected behavior is to fallback to auto-database and auto-register.
+    bouncer.admin("set auth_dbname=unconfigured_auth_database")
+    bouncer.admin("reload")
+    bouncer.admin("set auth_user='pswcheck'")
+    bouncer.admin(f"set auth_type='md5'")
+
+    # test a database that does not exist on the server, it should fail.
+    # but this error will only surface when we attempt to make the connection to client's
+    # database. Hence, we can conclude that we were able to look up the password using
+    # auth_dbname
+    with pytest.raises(
+        psycopg.OperationalError,
+        match='database "this_database_doesnt_exist" does not exist',
+    ):
+        bouncer.test(dbname="this_database_doesnt_exist", user="muser1", password="foo")
+    # do a final sanity check that we can connect.
+    bouncer.test(user="muser1", password="foo")
+
+
 def run_server_auth_test(bouncer, dbname):
     bouncer.admin(f"set auth_type='trust'")
     # good password from ini

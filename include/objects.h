@@ -36,6 +36,7 @@ extern struct Slab *var_list_cache;
 
 PgDatabase *find_peer(int peer_id);
 PgDatabase *find_database(const char *name);
+PgDatabase *find_or_register_database(PgSocket *connection, const char *name);
 PgUser *find_user(const char *name);
 PgPool *get_pool(PgDatabase *, PgUser *);
 PgPool *get_peer_pool(PgDatabase *);

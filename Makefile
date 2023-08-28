@@ -151,7 +151,11 @@ CONCURRENCY = auto
 
 check: all
 	etc/optscan.sh
-	PYTHONIOENCODING=utf8 $(PYTEST) -n $(CONCURRENCY)
+	if [ $(CONCURRENCY) = 1 ]; then \
+		PYTHONIOENCODING=utf8 $(PYTEST); \
+	else \
+		PYTHONIOENCODING=utf8 $(PYTEST) -n $(CONCURRENCY); \
+	fi
 	$(MAKE) -C test check
 
 w32zip = $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)-windows-$(host_cpu).zip

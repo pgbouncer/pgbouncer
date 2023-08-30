@@ -99,7 +99,6 @@ fi
 
 # make sure all vars are set
 use_cares=no
-use_udns=no
 use_evdns=no
 
 dnl Find c-ares
@@ -142,41 +141,6 @@ if test "$use_cares" = "yes"; then
 
 else # !cares
 
-dnl Find libudns
-AC_MSG_CHECKING([whether to use libudns])
-AC_ARG_WITH(udns,
-  AS_HELP_STRING([--with-udns@<:@=PREFIX@:>@], [build with udns support]),
-  [ if test "$withval" = "no"; then
-      use_udns=no
-    elif test "$withval" = "yes"; then
-      use_udns=yes
-    else
-      use_udns=yes
-      CPPFLAGS="$CPPFLAGS -I$withval/include"
-      LDFLAGS="$LDFLAGS -L$withval/lib"
-    fi
-  ], [])
-AC_MSG_RESULT([$use_udns])
-
-if test "$use_udns" = "yes"; then
-  AC_DEFINE(USE_UDNS, 1, [Use UDNS for name resolution.])
-  LIBS="-ludns $LIBS"
-  AC_MSG_CHECKING([whether libudns is available])
-  AC_LINK_IFELSE([AC_LANG_SOURCE([
-    #include <sys/types.h>
-    #include <sys/time.h>
-    #include <stddef.h>
-    #include <udns.h>
-    int main(void) {
-      struct dns_ctx *ctx = NULL;
-      dns_init(ctx, 0);
-      dns_reset(ctx);
-    } ])],
-  [AC_MSG_RESULT([found])],
-  [AC_MSG_ERROR([not found, cannot proceed])])
-
-else # !udns
-
 dnl Allow user to override the decision
 AC_ARG_ENABLE(evdns, AS_HELP_STRING([--disable-evdns], [do not use libevent for DNS lookups]),
               [use_evdns=$enableval], [use_evdns=yes])
@@ -189,11 +153,9 @@ else
 fi
 
 dnl Check if need getaddinfo_a compat
-if test "$use_udns.$use_cares.$use_evdns" = "no.no.no"; then
+if test "$use_cares.$use_evdns" = "no.no"; then
   AC_USUAL_GETADDRINFO_A
 fi
-
-fi # !udns
 
 fi # !cares
 
@@ -224,8 +186,6 @@ echo "Results:"
 dnl Note: Report here should match selection in src/dnslookup.c
 if test "$use_cares" = "yes"; then
   echo "  adns    = c-ares"
-elif test "$use_udns" = "yes"; then
-  echo "  adns    = udns"
 elif test "$use_evdns" = "yes"; then
   echo "  adns    = evdns2"
 elif test "$ac_cv_usual_glibc_gaia" = "yes"; then

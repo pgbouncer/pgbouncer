@@ -49,10 +49,6 @@ task:
     - container:
         image: ubuntu:22.04
     - container:
-        image: ubuntu:18.04
-      env:
-        PGVERSION: 9.6
-    - container:
         image: debian:stable
       env:
         PGVERSION: 13

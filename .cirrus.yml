@@ -10,11 +10,11 @@ task:
     # - container:
     #     image: ubuntu:20.04
     - container:
-        image: ubuntu:20.04
+        image: ubuntu:22.04
       env:
         configure_args: '--with-cares --with-pam'
     - container:
-        image: ubuntu:20.04
+        image: ubuntu:22.04
       env:
         configure_args: '--without-openssl'
     # - container:
@@ -30,7 +30,7 @@ task:
     #   env:
     #     CFLAGS: -fno-sanitize-recover=all -fsanitize=undefined -fsanitize-address-use-after-scope -fno-sanitize=shift
     - container:
-        image: ubuntu:20.04
+        image: ubuntu:22.04
       env:
         ENABLE_VALGRIND: yes
         CFLAGS: -O0 -g
@@ -256,7 +256,7 @@ task:
 task:
   name: Formatting checks & linting
   container:
-    image: ubuntu:20.04
+    image: ubuntu:22.04
   setup_script:
     - apt-get update
     - apt-get install -y python3 python3-pip cmake curl

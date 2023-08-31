@@ -256,7 +256,7 @@ task:
 task:
   name: Formatting checks & linting
   container:
-    image: ubuntu:20.04
+    image: ubuntu:22.04
   setup_script:
     - apt-get update
     - apt-get install -y python3 python3-pip cmake curl

@@ -485,7 +485,7 @@ static bool login_scram_sha_256_final(PgSocket *server, unsigned datalen, const 
 	if (!verify_server_signature(&server->scram_state, user, ServerSignature)) {
 		slog_error(server, "invalid server signature");
 		kill_pool_logins(server->pool, NULL, "server login failed: invalid server signature");
-		return false;
+		goto failed;
 	}
 
 	free(ibuf);
@@ -628,15 +628,13 @@ int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...)
 
 		if (i < ncol) {
 			if (!mbuf_get_uint32be(pkt, &len)) {
-				va_end(ap);
-				return -1;
+				goto failed;
 			}
 			if ((int32_t)len < 0) {
 				val = NULL;
 			} else {
 				if (!mbuf_get_chars(pkt, len, &val)) {
-					va_end(ap);
-					return -1;
+					goto failed;
 				}
 			}
 
@@ -683,14 +681,15 @@ int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...)
 				int newlen;
 				if (strncmp(val, "\\x", 2) != 0) {
 					log_warning("invalid bytea value");
-					return -1;
+					goto failed;
 				}
 
 				newlen = (len - 2) / 2;
 				*len_p = newlen;
 				*bytes_p = malloc(newlen);
-				if (!(*bytes_p))
-					return -1;
+				if (!(*bytes_p)) {
+					goto failed;
+				}
 				for (int j = 0; j < newlen; j++) {
 					unsigned int b;
 					sscanf(val + 2 + 2 * j, "%2x", &b);
@@ -709,4 +708,7 @@ int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...)
 	va_end(ap);
 
 	return ncol;
+failed:
+	va_end(ap);
+	return -1;
 }

@@ -934,8 +934,10 @@ static char *compute_server_signature(ScramState *state)
 		return NULL;
 	siglen = pg_b64_encode((const char *) ServerSignature,
 			       SCRAM_KEY_LEN, server_signature_base64, siglen);
-	if (siglen < 0)
+	if (siglen < 0) {
+		free(server_signature_base64);
 		return NULL;
+	}
 	server_signature_base64[siglen] = '\0';
 
 	return server_signature_base64;

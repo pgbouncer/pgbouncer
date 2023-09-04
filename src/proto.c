@@ -628,15 +628,13 @@ int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...)
 
 		if (i < ncol) {
 			if (!mbuf_get_uint32be(pkt, &len)) {
-				va_end(ap);
-				return -1;
+				goto failed;
 			}
 			if ((int32_t)len < 0) {
 				val = NULL;
 			} else {
 				if (!mbuf_get_chars(pkt, len, &val)) {
-					va_end(ap);
-					return -1;
+					goto failed;
 				}
 			}
 
@@ -683,16 +681,14 @@ int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...)
 				int newlen;
 				if (strncmp(val, "\\x", 2) != 0) {
 					log_warning("invalid bytea value");
-					va_end(ap);
-					return -1;
+					goto failed;
 				}
 
 				newlen = (len - 2) / 2;
 				*len_p = newlen;
 				*bytes_p = malloc(newlen);
 				if (!(*bytes_p)) {
-					va_end(ap);
-					return -1;
+					goto failed;
 				}
 				for (int j = 0; j < newlen; j++) {
 					unsigned int b;
@@ -712,4 +708,7 @@ int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...)
 	va_end(ap);
 
 	return ncol;
+failed:
+	va_end(ap);
+	return -1;
 }

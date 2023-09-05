@@ -268,18 +268,18 @@ bool welcome_client(PgSocket *client)
 	 * If pgbouncer peering is enabled we change some of the random bits of the
 	 * cancel key to non random values, otherwise the peering feature cannot be
 	 * implemented in an efficient way. This reduces the randomness of the key
-	 * somewhat, but it still leaves us with 46 bits of randomness. This should
+	 * somewhat, but it still leaves us with 45 bits of randomness. This should
 	 * be enough for all practical attacks to be mitigated (there are still
-	 * ~70 trillion random combinations of these bits).
+	 * ~35 trillion random combinations of these bits).
 	 */
 	if (cf_peer_id > 0) {
 		/*
-		 * The first two bytes represent the peer id. Pgbouncers that are
+		 * The 2nd and 3rd byte represent the peer id. Pgbouncers that are
 		 * peered with this one can forward the request to us by reading this
 		 * peer id when they receive this cancellation.
 		 */
-		client->cancel_key[0] = cf_peer_id & 0xFF;
-		client->cancel_key[1] = (cf_peer_id >> 8) & 0xFF;
+		client->cancel_key[1] = cf_peer_id & 0xFF;
+		client->cancel_key[2] = (cf_peer_id >> 8) & 0xFF;
 
 		/*
 		 * Initially we set the two TTL mask bits to a 1, so that the cancel
@@ -287,6 +287,17 @@ bool welcome_client(PgSocket *client)
 		 */
 		client->cancel_key[7] |= CANCELLATION_TTL_MASK;
 	}
+
+	/*
+	 * The first 32 bits of the cancel_key are considered a PID. Since
+	 * actual PIDs are always positive we clear the sign bit. Most clients
+	 * work fine when receiving a negative number in this PID part, but it
+	 * turned out that pg_basebackup did not. This is fixed in
+	 * pg_basebackup, but to avoid similar future problems with other
+	 * clients we clear the sign bit. See this thread for more details:
+	 * https://www.postgresql.org/message-id/flat/CAGECzQQOGvYfp8ziF4fWQ_o8s2K7ppaoWBQnTmdakn3s-4Z%3D5g%40mail.gmail.com
+	 */
+	client->cancel_key[0] &= 0x7F;
 
 	pktbuf_write_BackendKeyData(msg, client->cancel_key);
 

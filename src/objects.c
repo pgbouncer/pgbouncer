@@ -1758,9 +1758,10 @@ void accept_cancel_request(PgSocket *req)
 	peering_enabled = cf_peer_id > 0;
 	if (peering_enabled) {
 		/*
-		 * Extract the peer id from the cancel key
+		 * Extract the peer id from the cancel key. The peer id is
+		 * stored in the 2nd and 3rd byte.
 		 */
-		int peer_id = req->cancel_key[0] + (req->cancel_key[1] << 8);
+		int peer_id = req->cancel_key[1] + (req->cancel_key[2] << 8);
 		bool needs_forwarding_to_peer = cf_peer_id != peer_id;
 		if (needs_forwarding_to_peer) {
 			accept_cancel_request_for_peer(peer_id, req);

@@ -54,6 +54,14 @@ bool send_sslreq_packet(PgSocket *server) _MUSTCHECK;
 
 int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...) _MUSTCHECK;
 
+/* reset the packet header and free the backing buffer */
+static inline void free_header(PktHdr *pkt)
+{
+	mbuf_free(&pkt->data);
+	pkt->type = 0;
+	pkt->len = 0;
+}
+
 /* is packet completely in our buffer */
 static inline bool incomplete_pkt(const PktHdr *pkt)
 {
@@ -70,6 +78,12 @@ static inline bool incomplete_header(const struct MBuf *data)
 		return true;
 	/* is it old V2 header? */
 	return data->data[data->read_pos] == 0;
+}
+
+/* rewind the body of a v3 packet. Does not work for v2 packets, e.g. startup packets */
+static inline void pkt_rewind_v3(PktHdr *pkt)
+{
+	pkt->data.read_pos = NEW_HEADER_LEN;
 }
 
 /* one char desc */

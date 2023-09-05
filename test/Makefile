@@ -17,8 +17,9 @@ EXTRA_DIST = conntest.sh ctest6000.ini ctest7000.ini run-conntest.sh \
 	     test_ssl.py test_timeouts.py
 
 
+UTHASH = ../uthash
 noinst_PROGRAMS = hba_test
-hba_test_CPPFLAGS = -I../include $(LIBEVENT_CFLAGS)
+hba_test_CPPFLAGS = -I../include $(LIBEVENT_CFLAGS) -I$(UTHASH)/src
 hba_test_LDADD = $(LIBEVENT_LIBS)
 hba_test_CFLAGS = -O0
 hba_test_SOURCES = hba_test.c ../src/hba.c ../src/util.c

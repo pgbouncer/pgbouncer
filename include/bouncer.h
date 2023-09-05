@@ -32,6 +32,9 @@
 #include <event2/event.h>
 #include <event2/event_struct.h>
 
+#include "uthash.h"
+
+
 #ifdef USE_SYSTEMD
 #include <systemd/sd-daemon.h>
 #else
@@ -92,6 +95,23 @@ enum SSLMode {
 	SSLMODE_VERIFY_FULL
 };
 
+enum PacketCallbackFlag {
+	CB_NONE = 0,	/* no callback */
+	/*
+	 * buffer the full packet into client->packet_cb_state.complete_packet
+	 * and once that is done transfer to CB_HANDLE_COMPLETE_PACKET, which
+	 * calls. This is used to handle prepared statements in transaction
+	 * pooling mode.
+	 */
+	CB_WANT_COMPLETE_PACKET,
+	/*
+	 * The second stage of CB_WANT_COMPLETE_PACKET. The packet is fully
+	 * buffered and can now be processed by client_proto.
+	 */
+	CB_HANDLE_COMPLETE_PACKET,
+};
+
+
 #define is_server_socket(sk) ((sk)->state >= SV_FREE)
 
 
@@ -102,8 +122,12 @@ typedef struct PgPool PgPool;
 typedef struct PgStats PgStats;
 typedef union PgAddr PgAddr;
 typedef enum SocketState SocketState;
+typedef enum PacketCallbackFlag PacketCallbackFlag;
 typedef struct PktHdr PktHdr;
+typedef struct PktBuf PktBuf;
 typedef struct ScramState ScramState;
+typedef struct PgPreparedStatement PgPreparedStatement;
+typedef enum ResponseAction ResponseAction;
 
 extern int cf_sbuf_len;
 
@@ -125,7 +149,9 @@ extern int cf_sbuf_len;
 #include "takeover.h"
 #include "janitor.h"
 #include "hba.h"
+#include "messages.h"
 #include "pam.h"
+#include "prepared_statement.h"
 
 #ifndef WIN32
 #define DEFAULT_UNIX_SOCKET_DIR "/tmp"
@@ -268,6 +294,11 @@ struct PgStats {
 	usec_t xact_time;	/* total transaction time in us */
 	usec_t query_time;	/* total query time in us */
 	usec_t wait_time;	/* total time clients had to wait */
+
+	/* stats for prepared statements */
+	uint64_t ps_server_parse_count;
+	uint64_t ps_client_parse_count;
+	uint64_t ps_bind_count;
 };
 
 /*
@@ -504,6 +535,27 @@ struct PgDatabase {
 	struct AATree user_tree;	/* users that have been queried on this database */
 };
 
+enum ResponseAction {
+	/* Forward the response that is received from the server */
+	RA_FORWARD,
+	/*
+	 * drop the response received from the server (the client did not initiate
+	 * the request)
+	 */
+	RA_SKIP,
+	/*
+	 * Generate a response to this type of request at this spot in the
+	 * pipeline. The request from the client was not actually sent to the
+	 * server, but the client expects a response to it.
+	 */
+	RA_FAKE,
+};
+
+typedef struct OutstandingRequest {
+	struct List node;
+	char type;	/* The single character type of the request */
+	ResponseAction action;	/* What action to take (see comments on ResponseAction) */
+} OutstandingRequest;
 
 /*
  * A client or server connection.
@@ -519,6 +571,9 @@ struct PgSocket {
 	PgUser *login_user;	/* presented login, for client it may differ from pool->user */
 
 	int client_auth_type;	/* auth method decided by hba */
+
+	/* the queue of requests that we still expect a server response for */
+	struct StatList outstanding_requests;
 
 	SocketState state : 8;		/* this also specifies socket location */
 
@@ -542,6 +597,9 @@ struct PgSocket {
 	bool wait_for_response : 1;	/* console client: waits for completion of PAUSE/SUSPEND cmd */
 
 	bool wait_sslchar : 1;		/* server: waiting for ssl response: S/N */
+	/* server: received an ErrorResponse, waiting for ReadyForQuery to clear
+	 * the outstanding requests until the next Sync */
+	bool query_failed : 1;
 
 	int expect_rfq_count;	/* client: count of ReadyForQuery packets client should see */
 
@@ -580,6 +638,26 @@ struct PgSocket {
 	} scram_state;
 
 	VarCache vars;		/* state of interesting server parameters */
+
+	/* client: prepared statements prepared by this client */
+	PgClientPreparedStatement *client_prepared_statements;
+	/* server: prepared statements prepared on this server */
+	PgServerPreparedStatement *server_prepared_statements;
+
+	/* cb state during SBUF_EV_PKT_CALLBACK processing */
+	struct CallbackState {
+		/*
+		 * Which callback should be executed.
+		 * See comments on PacketCallbackFlag for details
+		 */
+		PacketCallbackFlag flag : 8;
+		/*
+		 * A temporary buffer into which we load the complete
+		 * packet (if desired by the callback).
+		 */
+		PktHdr pkt;
+	} packet_cb_state;
+
 
 	SBuf sbuf;		/* stream buffer, must be last */
 };
@@ -696,6 +774,8 @@ extern char *cf_server_tls_ca_file;
 extern char *cf_server_tls_cert_file;
 extern char *cf_server_tls_key_file;
 extern char *cf_server_tls_ciphers;
+
+extern int cf_prepared_statement_cache_size;
 
 extern const struct CfLookup pool_mode_map[];
 

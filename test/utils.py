@@ -137,6 +137,10 @@ LONG_PASSWORD = "a" * MAX_PASSWORD_LENGTH
 
 PG_SUPPORTS_SCRAM = PG_MAJOR_VERSION >= 10
 
+# psycopg.Pipeline.is_supported() does not work on rocky:8 in CI, so we create
+# our own check here that works on all our supported systems
+LIBPQ_SUPPORTS_PIPELINING = psycopg.pq.version() >= 140000
+
 
 def get_tls_support():
     with open("../config.mak", encoding="utf-8") as f:
@@ -200,7 +204,10 @@ class QueryRunner:
             options.setdefault("connect_timeout", 20)
         else:
             options.setdefault("connect_timeout", 3)
-        # needed for Ubuntu 18.04
+        # Always required for Ubuntu 18.04, but also needed for any tests
+        # involving the varcache_change database. The difference between the
+        # client_encoding specified in the config and client_encoding by the
+        # client will force a varcache change when a connectino is given.
         options.setdefault("client_encoding", "UTF8")
 
     def conn(self, *, autocommit=True, **kwargs):
@@ -448,6 +455,19 @@ class QueryRunner:
                 elif BSD:
                     sudo(f"pfctl -a pgbouncer_test/port_{self.port} -F all")
 
+    @contextmanager
+    def add_latency(self):
+        if not LINUX:
+            raise Exception("This OS cannot run this test")
+        sudo(
+            f"tc filter add dev lo parent 1:0 protocol ip prio {self.port} u32 match ip dport {self.port} 0xffff flowid 1:2"
+        )
+        try:
+            yield
+        finally:
+            sudo(f"tc filter del dev lo parent 1: prio {self.port}")
+            pass
+
 
 class Postgres(QueryRunner):
     def __init__(self, pgdata):
@@ -663,6 +683,8 @@ class Bouncer(QueryRunner):
                 ini.write(f"logfile = {self.log_path}\n")
                 ini.write(f"auth_file = {self.auth_path}\n")
                 ini.write("pidfile = \n")
+                # Uncomment for much more noise but, more detailed debugging
+                # ini.write("verbose = 3\n")
 
                 if not USE_UNIX_SOCKETS:
                     ini.write(f"unix_socket_dir = \n")

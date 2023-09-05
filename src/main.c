@@ -188,6 +188,8 @@ char *cf_server_tls_cert_file;
 char *cf_server_tls_key_file;
 char *cf_server_tls_ciphers;
 
+int cf_prepared_statement_cache_size;
+
 /*
  * config file description
  */
@@ -325,6 +327,8 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("user", CF_STR, cf_username, CF_NO_RELOAD, NULL),
 #endif
 	CF_ABS("verbose", CF_INT, cf_verbose, 0, NULL),
+
+	CF_ABS("prepared_statement_cache_size", CF_INT, cf_prepared_statement_cache_size, 0, "0"),
 
 	{NULL}
 };

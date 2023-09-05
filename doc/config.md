@@ -300,6 +300,78 @@ updated and how often aggregated statistics are written to the log
 
 Default: 60
 
+### prepared_statement_cache_size
+
+When this is set to a non-zero value PgBouncer will track protocol-level named
+prepared statements related commands sent by the client in transaction and
+statement pooling mode. PgBouncer will make sure that any statement prepared by
+a client is available on the backing server connection. Even when the statement
+was originally prepared on another server connection.
+
+The way this prepared statement support works is that PgBouncer will internally
+examine all the queries that are sent as a prepared statement by clients and
+will give each unique query string an internal name with the format
+`PGBOUNCER_{unique_id}`. Prepared statements will only be prepared using this
+name on the actual PostgreSQL server. Then for each client PgBouncer keeps
+track of the name that the client gave to each prepared statement. It will then
+rewrite each command that uses a prepared statement to use the matching
+internal name (e.g. `PGBOUNCER_123`) before forwarding that command to the
+server. And importantly, if the prepared statement that the client wants to use
+is not prepared on the server yet, it will automatically prepare that statement
+before forwarding the command that the client sent.
+
+Note: This tracking and rerwriting of prepared statement commands does not work
+for SQL-level prepared statement commands such as `PREPARE`, `EXECUTE`,
+`DEALLOCATE`, `DEALLOCATE ALL` and `DISCARD ALL`. Running `DEALLOCATE ALL`
+and `DISCARD ALL` is especially problematic, since those commands will
+apear to run successfully, but they will also mess with state of the server
+connection significantly, without PgBouncer noticing. Which in turn will
+very likely break the execution of any further prepared statements on that
+server connection.
+
+The actual value of this setting controls the number of prepared statements
+kept active on a single server connection. When the setting is set to 0
+prepared statement support for transaction and statement pooling is disabled.
+Keep in mind that the higher this value, the larger the memory footprint of
+each PgBouncer connection will be on your PostgreSQL server. It also increases
+the memory footprint of PgBouncer itself, because it now needs to keep track of
+query strings.
+
+The impact on PgBouncer its memory usage is not that big though:
+- Each unique query is stored once in a global query cache.
+- Each client connection keeps a buffer that it uses to rewrite packets. This
+  will be at most 4 times the size of `pkt_buf`. This limit will often not be
+  hit though, it only happens when your prepared queries are within the 2
+  that size.
+
+So if you consider the following as an example scenario:
+- You have 1000 active clients
+- Your clients prepare 200 unique queries
+- The average size of a query is is 5kB
+- Your `pkt_buf` config is set to the default of 4096 (4kB)
+
+Then to handle these prepared statements PgBouncer needs at most
+200×5kB + 1000×4×4kB = ~17MB of memory.
+
+Tracking prepared statements does not only come with a memory cost, but also
+with increased cpu usage, because now PgBouncer needs to inspect and rewrite
+queries. Multiple PgBouncer instances can listen on the same port to use more
+than one core for processing, see the documentation for the `so_reuseport`
+option above for details.
+
+But of course there are also performance benefits to prepared statements. Just
+as when connecting to PostgreSQL directly, by preparing a query that will be
+executed many times you reduce the total amount of parsing and planning that
+needs to be done. The way that PgBouncer tracks prepared statements is
+especially beneficial to performance when multiple clients prepare the same
+queries. Because client connections will automatically reuse a prepared
+statement on a server even if it was prepared by another client. As an example
+if you have a `pool_size` of 20 and you have 100 clients that all prepare the
+exact same query, then the query is prepared (and thus parsed) only 20
+times on the server.
+
+Default: 0
+
 
 ## Authentication settings
 

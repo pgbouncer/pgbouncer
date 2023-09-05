@@ -5,14 +5,40 @@ import filelock
 import pytest
 
 from .utils import (
+    LINUX,
     LONG_PASSWORD,
     PG_SUPPORTS_SCRAM,
     TEST_DIR,
     TLS_SUPPORT,
+    USE_SUDO,
     Bouncer,
     Postgres,
     run,
+    sudo,
 )
+
+
+def add_qdisc():
+    if not LINUX or not USE_SUDO:
+        return
+    # Add the all zeros priomap to prio so all regular traffic flows
+    # through a single band. By default prio assigns traffic to different
+    # band according to the DSCP value of the packet. This means that some
+    # traffic that doesn't match your filter might end up in the same class
+    # as the delayed traffic.
+    # Source: https://stackoverflow.com/a/40203517/2570866
+    sudo(
+        "tc qdisc add dev lo root handle 1: prio bands 2 priomap 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"
+    )
+    # Add one band with additional latency
+    sudo("tc qdisc add dev lo parent 1:2 handle 20: netem delay 1000ms")
+
+
+def delete_qdisc():
+    if not LINUX or not USE_SUDO:
+        return
+    sudo("tc qdisc del dev lo parent 1:2 handle 20:")
+    sudo("tc qdisc del dev lo root")
 
 
 def create_certs(cert_dir):
@@ -21,32 +47,59 @@ def create_certs(cert_dir):
         cwd=TEST_DIR / "ssl",
         silent=True,
     )
+    if not TLS_SUPPORT:
+        return
+
     cert_dir.mkdir()
     shutil.move(TEST_DIR / "ssl" / "TestCA1", cert_dir / "TestCA1")
     shutil.move(TEST_DIR / "ssl" / "TestCA2", cert_dir / "TestCA2")
 
 
-@pytest.fixture(autouse=True, scope="session")
-def cert_dir(tmp_path_factory, worker_id):
-    """Creates certificates in a shared temporary directory
+@pytest.fixture(autouse=True, scope="session", name="cert_dir")
+def shared_setup(tmp_path_factory, worker_id):
+    """Does some setup that's shared between workers
 
-    This cert directory is shared by all concurrent test processes
+    This setup should only be done once and should only be cleaned up once, at
+    the end of the last finished worker process.
+
+    It currently sets up 2 things:
+    1. A cert directory, for TLS tests
+    2. A queueing disciplince (qdisc), for tests that require latency
+
+    It yields the certificate directory, which is why the fixture name is
+    cert_dir.
     """
-    if not TLS_SUPPORT:
-        return None
-    # get the temp directory shared by all workers
     if worker_id == "master":
-        # not executing in with multiple workers, just produce the data and let
-        # pytest's fixture caching do its job
+        # not executing in with multiple workers, just do the setup without any
+        # file locking.
         cert_dir = tmp_path_factory.getbasetemp() / "certs"
+        add_qdisc()
         create_certs(cert_dir)
-    else:
-        root_tmp_dir = tmp_path_factory.getbasetemp().parent
-        cert_dir = root_tmp_dir / "certs"
-        with filelock.FileLock(str(cert_dir) + ".lock"):
-            if not cert_dir.is_dir():
-                create_certs(cert_dir)
-    return cert_dir
+        yield cert_dir
+        delete_qdisc()
+        return
+
+    total_workers = int(os.environ.get("PYTEST_XDIST_WORKER_COUNT", ""))
+
+    # get the temp directory shared by all workers
+    root_tmp_dir = tmp_path_factory.getbasetemp().parent
+    cert_dir = root_tmp_dir / "certs"
+    lock_name = root_tmp_dir / "worker.lock"
+    finished_count_file = root_tmp_dir / "finished_workers"
+    with filelock.FileLock(lock_name):
+        if not cert_dir.is_dir():
+            finished_count_file.write_text("0")
+            add_qdisc()
+            create_certs(cert_dir)
+    try:
+        yield cert_dir
+    finally:
+        with filelock.FileLock(lock_name):
+            finished_count = int(finished_count_file.read_text()) + 1
+            if finished_count == total_workers:
+                delete_qdisc()
+            else:
+                finished_count_file.write_text(str(finished_count))
 
 
 @pytest.fixture(autouse=True, scope="session")

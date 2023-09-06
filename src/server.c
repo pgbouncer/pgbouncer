@@ -335,6 +335,8 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			if (client)
 				client->expect_rfq_count = 0;
 		} else {
+			if (server->current_prepared_statement)
+				unregister_prepared_statement(server, server->current_prepared_statement);
 			server->query_failed = true;
 		}
 		break;
@@ -393,6 +395,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	case 'D':		/* DataRow */
 		break;
 	}
+	server->current_prepared_statement = NULL;
 	server->idle_tx = idle_tx;
 	server->ready = ready;
 	server->pool->stats.server_bytes += pkt->len;

@@ -153,6 +153,20 @@ static void skip_possibly_completely_buffered_packet(PgSocket *client, PktHdr *p
 	sbuf_prepare_skip(&client->sbuf, pkt->len);
 }
 
+
+/*
+ * Unregister prepared statement at server
+ */
+void unregister_prepared_statement(PgSocket *server, PgServerPreparedStatement *server_ps)
+{
+	HASH_DEL(server->server_prepared_statements, server_ps);
+	if (--server_ps->ps->use_count == 0) {
+		HASH_DEL(prepared_statements, server_ps->ps);
+		free(server_ps->ps);
+	}
+	slab_free(server_prepared_statement_cache, server_ps);
+}
+
 /*
  * Register prepared statement in the server its cache. If the cache is full, we
  * evict the least recently used query/queries before adding a new one.
@@ -180,21 +194,16 @@ static bool register_prepared_statement(PgSocket *client, PgSocket *server, PgSe
 			}
 
 			slog_noise(server, "prepared statement '%s' deleted from server cache", current->ps->stmt_name);
-			HASH_DEL(server->server_prepared_statements, current);
-			cached_query_count--;
-			if (--current->ps->use_count == 0) {
-				HASH_DEL(prepared_statements, current->ps);
-				free(current->ps);
-			}
-			slab_free(server_prepared_statement_cache, current);
+			unregister_prepared_statement(server, current);
 
-			if (cached_query_count < (unsigned int)cf_prepared_statement_cache_size)
+			if (--cached_query_count < (unsigned int)cf_prepared_statement_cache_size)
 				break;
 		}
 	}
 
 	slog_noise(server, "prepared statement " PREPARED_STMT_NAME_FORMAT " added to server cache, %d cached items", server_ps->ps->query_id, cached_query_count + 1);
 	HASH_ADD_UINT64(server->server_prepared_statements, query_id, server_ps);
+	server->current_prepared_statement = server_ps;
 
 	return true;
 }

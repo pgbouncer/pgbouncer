@@ -248,6 +248,22 @@ bool handle_parse_command(PgSocket *client, PktHdr *pkt)
 	if (!unmarshall_parse_packet(client, pkt, &pp))
 		return false;
 
+	HASH_FIND_STR(client->client_prepared_statements, pp.name, client_ps);
+	if (client_ps) {
+		slog_error(client, "prepared statement '%s' was already prepared", pp.name);
+		/*
+		 * It would be nice if we would not completely close the client
+		 * connection here, but instead only sent an error after which
+		 * the client could continue. This is what Postgres does.
+		 * However, doing that in a way which works with query
+		 * pipelining is not trivial. So for now we take the easy way
+		 * out and simply close the connection. This is no problem for
+		 * most clients anyway, since they will only issue Parse for
+		 * with currently unused names.
+		 */
+		disconnect_client(client, true, "prepared statement name is already in use");
+	}
+
 	/* update stats */
 	client->pool->stats.ps_client_parse_count++;
 

@@ -555,7 +555,12 @@ typedef struct OutstandingRequest {
 	struct List node;
 	char type;	/* The single character type of the request */
 	ResponseAction action;	/* What action to take (see comments on ResponseAction) */
-	PgServerPreparedStatement *server_ps; /* The server-side prepared statement, if any */
+	/*
+	 * The server-side prepared statement that is depends on this request
+	 * succeeding. If the request fails we should remove it from the server
+	 * its cache.
+	 */
+	PgServerPreparedStatement *server_ps;
 } OutstandingRequest;
 
 /*

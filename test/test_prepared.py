@@ -350,6 +350,17 @@ def test_prepared_failed_prepare_pipeline(bouncer):
             cur.execute("DROP TABLE doesnotexistyet")
 
 
+def test_prepared_disallow_name_reuse(bouncer):
+    bouncer.admin(f"set prepared_statement_cache_size=100")
+
+    with bouncer.conn() as conn:
+        result = conn.pgconn.prepare(b"test", b"SELECT 1")
+        assert result.status == pq.ExecStatus.COMMAND_OK
+        with bouncer.log_contains("prepared statement 'test' was already prepared"):
+            result = conn.pgconn.prepare(b"test", b"SELECT 1")
+            assert result.status == pq.ExecStatus.FATAL_ERROR
+
+
 @pytest.mark.skipif("not LINUX", reason="add_latency only supports Linux")
 @pytest.mark.skipif("not USE_SUDO")
 @pytest.mark.skip("currently not doing anything useful")

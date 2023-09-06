@@ -329,6 +329,27 @@ def test_prepared_failed_prepare(bouncer):
         cur.execute("DROP TABLE doesnotexistyet")
 
 
+@pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
+def test_prepared_failed_prepare_pipeline(bouncer):
+    bouncer.admin(f"set prepared_statement_cache_size=100")
+
+    with bouncer.conn() as conn:
+        with conn.pipeline() as p, conn.cursor() as cur:
+            cur.execute("SELECT 1", prepare=True)
+            cur.execute("SELECT * FROM doesnotexistyet", prepare=True)
+            cur.execute("SELECT 2", prepare=True)
+            with pytest.raises(psycopg.errors.UndefinedTable):
+                p.sync()
+            cur.execute("SELECT 1", prepare=True)
+            p.sync()
+            cur.execute("SELECT 2", prepare=True)
+            p.sync()
+            cur.execute("CREATE TABLE doesnotexistyet (a int)")
+            cur.execute("SELECT * FROM doesnotexistyet", prepare=True)
+            p.sync()
+            cur.execute("DROP TABLE doesnotexistyet")
+
+
 @pytest.mark.skipif("not LINUX", reason="add_latency only supports Linux")
 @pytest.mark.skipif("not USE_SUDO")
 @pytest.mark.skip("currently not doing anything useful")

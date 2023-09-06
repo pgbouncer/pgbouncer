@@ -170,11 +170,16 @@ void unregister_prepared_statement(PgSocket *server, PgServerPreparedStatement *
 /*
  * Register prepared statement in the server its cache. If the cache is full, we
  * evict the least recently used query/queries before adding a new one.
+ *
+ * NOTE: Before calling this a matching outstanding request should have been
+ * added to the server its queue.
  */
 static bool register_prepared_statement(PgSocket *client, PgSocket *server, PgServerPreparedStatement *server_ps)
 {
 	struct PgServerPreparedStatement *current, *tmp;
 	unsigned int cached_query_count = HASH_COUNT(server->server_prepared_statements);
+	OutstandingRequest *outstanding_request;
+	struct List *el;
 
 	if (server_ps == NULL)
 		return false;
@@ -203,7 +208,18 @@ static bool register_prepared_statement(PgSocket *client, PgSocket *server, PgSe
 
 	slog_noise(server, "prepared statement " PREPARED_STMT_NAME_FORMAT " added to server cache, %d cached items", server_ps->ps->query_id, cached_query_count + 1);
 	HASH_ADD_UINT64(server->server_prepared_statements, query_id, server_ps);
-	server->current_prepared_statement = server_ps;
+
+	/*
+	 * Now we need to link the outstanding request to the server_ps, so
+	 * that it can be unregistered if the request fails.
+	 */
+	el = statlist_last(&server->outstanding_requests);
+	Assert(el);
+	outstanding_request = container_of(el, OutstandingRequest, node);
+	Assert(outstanding_request->type == 'P');
+	Assert(outstanding_request->server_ps == NULL);
+	outstanding_request->server_ps = server_ps;
+
 
 	return true;
 }

@@ -555,6 +555,7 @@ typedef struct OutstandingRequest {
 	struct List node;
 	char type;	/* The single character type of the request */
 	ResponseAction action;	/* What action to take (see comments on ResponseAction) */
+	PgServerPreparedStatement *server_ps; /* The server-side prepared statement, if any */
 } OutstandingRequest;
 
 /*
@@ -643,8 +644,6 @@ struct PgSocket {
 	PgClientPreparedStatement *client_prepared_statements;
 	/* server: prepared statements prepared on this server */
 	PgServerPreparedStatement *server_prepared_statements;
-	/* statement which is currently prepared at server */
-	PgServerPreparedStatement *current_prepared_statement;
 
 	/* cb state during SBUF_EV_PKT_CALLBACK processing */
 	struct CallbackState {

@@ -1029,7 +1029,11 @@ bool pop_outstanding_request(PgSocket *server, char *types, bool *skip)
 	return true;
 }
 
-/* pop all outstanding requests until we reach a Sync ('S') response */
+/*
+ * clear all outstanding requests until we reach a Sync ('S') response, any
+ * prepared statements requests that were still outstanding will be
+ * unregistered from the server its cache.
+ */
 void clear_outstanding_requests_until_sync(PgSocket *server)
 {
 	struct List *item, *tmp;
@@ -1039,6 +1043,9 @@ void clear_outstanding_requests_until_sync(PgSocket *server)
 		if (request->type == 'S') {
 			slab_free(outstanding_request_cache, request);
 			break;
+		}
+		if (request->type == 'P') {
+			unregister_prepared_statement(server, request->server_ps);
 		}
 		slab_free(outstanding_request_cache, request);
 	}

@@ -318,6 +318,17 @@ def test_prepared_statement_pipeline_error_delayed_sync(bouncer):
             assert cur.fetchall() == [(1,)]
 
 
+def test_prepared_failed_prepare(bouncer):
+    bouncer.admin(f"set prepared_statement_cache_size=100")
+
+    with bouncer.cur() as cur:
+        with pytest.raises(psycopg.errors.UndefinedTable):
+            cur.execute("SELECT * FROM doesnotexistyet", prepare=True)
+        cur.execute("CREATE TABLE doesnotexistyet (a int)")
+        cur.execute("SELECT * FROM doesnotexistyet", prepare=True)
+        cur.execute("DROP TABLE doesnotexistyet")
+
+
 @pytest.mark.skipif("not LINUX", reason="add_latency only supports Linux")
 @pytest.mark.skipif("not USE_SUDO")
 @pytest.mark.skip("currently not doing anything useful")

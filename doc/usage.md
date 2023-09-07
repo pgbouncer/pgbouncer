@@ -307,6 +307,10 @@ application_name
 :   A string containing the `application_name` set on the linked client connection,
     or empty if this is not set, or if there is no linked connection.
 
+prepared_statements
+:  The amount of prepared statements that are prepared on the server. This
+   number is limited by the `prepared_statement_cache_size` setting.
+
 #### SHOW CLIENTS
 
 type
@@ -366,6 +370,9 @@ tls
 application_name
 :   A string containing the `application_name` set by the client
     for this connection, or empty if this was not set.
+
+prepared_statements
+:  The amount of prepared statements that the client has prepared
 
 #### SHOW POOLS
 

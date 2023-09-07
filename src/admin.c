@@ -609,8 +609,8 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	return true;
 }
 
-#define SKF_STD "sssssisiTTiiississ"
-#define SKF_DBG "sssssisiTTiiississiiiiiii"
+#define SKF_STD "sssssisiTTiiississi"
+#define SKF_DBG "sssssisiTTiiississiiiiiiii"
 
 static void socket_header(PktBuf *buf, bool debug)
 {
@@ -621,6 +621,7 @@ static void socket_header(PktBuf *buf, bool debug)
 				    "wait", "wait_us", "close_needed",
 				    "ptr", "link", "remote_pid", "tls",
 				    "application_name",
+				    "prepared_statements",
 					/* debug follows */
 				    "recv_pos", "pkt_pos", "pkt_remain",
 				    "send_pos", "send_remain",
@@ -636,6 +637,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 {
 	int pkt_avail = 0, send_avail = 0;
 	int remote_pid;
+	int prepared_statement_count = 0;
 	char ptrbuf[128], linkbuf[128];
 	char l_addr[PGADDR_BUF], r_addr[PGADDR_BUF];
 	IOBuf *io = sk->sbuf.io;
@@ -671,6 +673,11 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 	if (sk->sbuf.tls)
 		tls_get_connection_info(sk->sbuf.tls, infobuf, sizeof infobuf);
 
+	if (is_server_socket(sk))
+		prepared_statement_count = HASH_COUNT(sk->server_prepared_statements);
+	else
+		prepared_statement_count = HASH_COUNT(sk->client_prepared_statements);
+
 	pktbuf_write_DataRow(buf, debug ? SKF_DBG : SKF_STD,
 			     is_server_socket(sk) ? "S" : "C",
 			     sk->login_user ? sk->login_user->name : "(nouser)",
@@ -684,6 +691,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 			     sk->close_needed,
 			     ptrbuf, linkbuf, remote_pid, infobuf,
 			     application_name ? application_name->str : "",
+			     prepared_statement_count,
 				/* debug */
 			     io ? io->recv_pos : 0,
 			     io ? io->parse_pos : 0,

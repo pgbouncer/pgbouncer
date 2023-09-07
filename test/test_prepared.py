@@ -146,6 +146,26 @@ def test_evict_statement_cache(bouncer):
         ).fetchone()[0]
         assert n_statements == 2
 
+        # Test behaviour when disabling prepared statement handling
+        bouncer.admin(f"set prepared_statement_cache_size=0")
+
+        # Since we disabled prepared statement handling, this should now fail
+        # because we forward the client its prepared statement name to the
+        # server and the server doesn't know about that name.
+        with pytest.raises(psycopg.errors.InvalidSqlStatementName):
+            cur.execute("SELECT '10'", prepare=True)
+
+        # While setting the cache size to 0 disables prepared statement
+        # handling completely, but it doesn't clear any of existing caches.
+        # Preferably we would clear the existing caches, but that's not easy to
+        # implement. Right now we only evict statements from the cache when we
+        # insert into a cache, and since we disabled prepared statement
+        # handling we never insert into a cache.
+        n_statements = cur.execute(
+            "SELECT count(*) FROM pg_prepared_statements"
+        ).fetchone()[0]
+        assert n_statements == 2
+
 
 @pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
 def test_prepared_statement_pipeline(bouncer):

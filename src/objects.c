@@ -1417,6 +1417,7 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 		send_pooler_error(client, false, sqlstate, true, reason);
 	}
 
+	free_header(&client->packet_cb_state.pkt);
 	free_scram_state(&client->scram_state);
 	if (client->login_user && client->login_user->mock_auth) {
 		free(client->login_user);

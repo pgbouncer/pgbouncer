@@ -384,9 +384,12 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		break;
 	case 'c':		/* CopyDone(F/B) */
 	case 'f':		/* CopyFail(F/B) */
-	case 'I':		/* EmptyQueryResponse == CommandComplete */
 	case 'V':		/* FunctionCallResponse */
+		break;
+	case 'I':		/* EmptyQueryResponse == CommandComplete */
 	case 's':		/* PortalSuspended */
+		pop_outstanding_request(server, "E", &ignore_packet);
+		break;
 
 	/* data packets, there will be more coming */
 	case 'd':		/* CopyData(F/B) */

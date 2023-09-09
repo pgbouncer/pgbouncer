@@ -1023,8 +1023,8 @@ bool pop_outstanding_request(PgSocket *server, char *types, bool *skip)
 	statlist_pop(&server->outstanding_requests);
 	if (skip)
 		*skip = request->action == RA_SKIP;
-	slog_noise(server, "pop_outstanding_request: popped %c, still outstanding %d",
-		   request->type, statlist_count(&server->outstanding_requests));
+	slog_noise(server, "pop_outstanding_request: popped %c, still outstanding %d, skip %d",
+		   request->type, statlist_count(&server->outstanding_requests), request->action == RA_SKIP);
 	slab_free(outstanding_request_cache, request);
 	return true;
 }

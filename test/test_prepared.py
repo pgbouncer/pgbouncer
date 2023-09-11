@@ -383,8 +383,26 @@ def test_prepared_disallow_name_reuse(bouncer):
 
 @pytest.mark.skipif("not LINUX", reason="add_latency only supports Linux")
 @pytest.mark.skipif("not USE_SUDO")
-@pytest.mark.skip("currently not doing anything useful")
+@pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
 def test_prepared_statement_pipeline_latency(bouncer, pg):
-    with pg.add_latency():
-        # TODO: Add pipeling test
-        bouncer.test()
+    with bouncer.conn() as conn1:
+        with conn1.pipeline() as p1:
+            with pg.add_latency():
+                start = time.time()
+                num_queries = 7
+                curs = [conn1.cursor() for _ in range(num_queries)]
+                for i in range(num_queries):
+                    curs[i].execute(f"SELECT '{i}'", prepare=True)
+                p1.sync()
+
+                # Each query takes at least 1 second due to the latency
+                # introduced by the add_latency contextmanager. But because of
+                # pipelining the latency the whole series of queries should be
+                # a lot less.
+                end = time.time()
+                duration = end - start
+                assert duration < num_queries
+
+                # The results should be correct too
+                for i in range(num_queries):
+                    assert curs[i].fetchone()[0] == str(i)

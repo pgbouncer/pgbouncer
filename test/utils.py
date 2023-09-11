@@ -457,6 +457,7 @@ class QueryRunner:
 
     @contextmanager
     def add_latency(self):
+        """Adds one second of latency to all packets to this query runner"""
         if not LINUX:
             raise Exception("This OS cannot run this test")
         sudo(

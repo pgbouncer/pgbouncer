@@ -40,3 +40,5 @@ bool handle_describe_command(PgSocket *client, PktHdr *pkt);
 bool handle_close_statement_command(PgSocket *client, PktHdr *pkt, PgClosePacket *close_packet);
 
 void unregister_prepared_statement(PgSocket *server, PgServerPreparedStatement *ps);
+void free_client_prepared_statements(PgSocket *client);
+void free_server_prepared_statements(PgSocket *server);

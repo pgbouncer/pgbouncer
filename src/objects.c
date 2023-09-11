@@ -169,20 +169,7 @@ void init_caches(void)
 /* free all memory related to the given client */
 static void client_free(PgSocket *client)
 {
-	struct PgClientPreparedStatement *current, *tmp;
-
-	HASH_ITER(hh, client->client_prepared_statements, current, tmp) {
-		HASH_DEL(client->client_prepared_statements, current);
-		if (--current->ps->use_count == 0) {
-			HASH_DEL(prepared_statements, current->ps);
-			free(current->ps);
-		}
-		free(current);
-	}
-
-	free(client->client_prepared_statements);
-	client->client_prepared_statements = NULL;
-
+	free_client_prepared_statements(client);
 	varcache_clean(&client->vars);
 	slab_free(var_list_cache, client->vars.var_list);
 	slab_free(client_cache, client);
@@ -191,20 +178,8 @@ static void client_free(PgSocket *client)
 /* free all memory related to the given server */
 static void server_free(PgSocket *server)
 {
-	struct PgServerPreparedStatement *current, *tmp_s;
 	struct List *el, *tmp_l;
 	OutstandingRequest *request;
-
-	HASH_ITER(hh, server->server_prepared_statements, current, tmp_s) {
-		HASH_DEL(server->server_prepared_statements, current);
-		if (--current->ps->use_count == 0) {
-			HASH_DEL(prepared_statements, current->ps);
-			free(current->ps);
-		}
-		slab_free(server_prepared_statement_cache, current);
-	}
-	free(server->server_prepared_statements);
-	server->server_prepared_statements = NULL;
 
 	statlist_for_each_safe(el, &server->outstanding_requests, tmp_l) {
 		request = container_of(el, OutstandingRequest, node);
@@ -212,6 +187,7 @@ static void server_free(PgSocket *server)
 		slab_free(outstanding_request_cache, request);
 	}
 
+	free_server_prepared_statements(server);
 	varcache_clean(&server->vars);
 	slab_free(var_list_cache, server->vars.var_list);
 	slab_free(server_cache, server);

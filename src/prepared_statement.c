@@ -39,6 +39,13 @@ static uint64_t next_unique_query_id;
 	HASH_ADD(hh, head, intfield, sizeof(uint64_t), add)
 
 /*
+ * Benchmarking showed that HASH_BER is one of the fastest hash functions for our
+ * usecases
+ */
+#undef HASH_FUNCTION
+#define HASH_FUNCTION HASH_BER
+
+/*
  * Converts a PgParsePacket to a malloc-ed PgPreparedStatement. The
  * PgPreparedStatement can be stored in the global prepared statement cache.
  */
@@ -603,4 +610,38 @@ bool handle_close_statement_command(PgSocket *client, PktHdr *pkt, PgClosePacket
 		return false;
 	}
 	return true;
+}
+
+void free_client_prepared_statements(PgSocket *client)
+{
+	PgClientPreparedStatement *client_ps, *tmp;
+
+	HASH_ITER(hh, client->client_prepared_statements, client_ps, tmp) {
+		HASH_DEL(client->client_prepared_statements, client_ps);
+		if (--client_ps->ps->use_count == 0) {
+			HASH_DEL(prepared_statements, client_ps->ps);
+			free(client_ps->ps);
+		}
+		free(client_ps);
+	}
+
+	free(client->client_prepared_statements);
+	client->client_prepared_statements = NULL;
+}
+
+void free_server_prepared_statements(PgSocket *server)
+{
+	struct PgServerPreparedStatement *current, *tmp_s;
+
+	HASH_ITER(hh, server->server_prepared_statements, current, tmp_s) {
+		HASH_DEL(server->server_prepared_statements, current);
+		if (--current->ps->use_count == 0) {
+			HASH_DEL(prepared_statements, current->ps);
+			free(current->ps);
+		}
+		slab_free(server_prepared_statement_cache, current);
+	}
+
+	free(server->server_prepared_statements);
+	server->server_prepared_statements = NULL;
 }

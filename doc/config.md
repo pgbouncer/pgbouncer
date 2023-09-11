@@ -341,8 +341,8 @@ The impact on PgBouncer its memory usage is not that big though:
 - Each unique query is stored once in a global query cache.
 - Each client connection keeps a buffer that it uses to rewrite packets. This
   will be at most 4 times the size of `pkt_buf`. This limit will often not be
-  hit though, it only happens when your prepared queries are within the 2
-  that size.
+  hit though, it only happens when the queries in your prepared statements are
+  between 2 and 4 times the size of `ptk_buf`.
 
 So if you consider the following as an example scenario:
 - You have 1000 active clients
@@ -369,6 +369,24 @@ statement on a server even if it was prepared by another client. As an example
 if you have a `pool_size` of 20 and you have 100 clients that all prepare the
 exact same query, then the query is prepared (and thus parsed) only 20
 times on the server.
+
+This reusing prepared statements sadly has a downside too though: If the return
+or argument types of a prepared change across executions, then postgres
+currently throws an error such as:
+```
+ERROR:  cached plan must not change result type
+```
+You can avoid such errors by not having multiple clients that use the exact
+same query string in a prepared statement, but expecting different argument or
+result types. One of the most common ways of running into this issue is during
+a DDL migration where you add a new column or change a column type on an
+existing table. In those cases you can run `RECONNECT` on the PgBouncer admin
+console after doing the migration to force a re-prepare of the query and make
+the error go away. There are [attempts to solve these errors in
+Postgres][ps-invalidation-patch] so hopefully you don't need to worry about
+this in the future anymore.
+
+[ps-invalidation-patch]: https://www.postgresql.org/message-id/flat/CAGECzQQ3nPt5joW50FygoM_7YU9QjKO06say4c-sCceqh8vnsg%40mail.gmail.com
 
 Default: 0
 

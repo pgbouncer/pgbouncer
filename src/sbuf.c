@@ -800,13 +800,7 @@ static bool sbuf_process_pending(SBuf *sbuf)
 		 */
 		if (sbuf->pkt_remain == 0) {
 			if (!sbuf_call_proto(sbuf, SBUF_EV_READ)) {
-				/*
-				 * We'll call this again after receiving more data and then any
-				 * extra packets will be generated again, so clean the ones up
-				 * that were generated this time.
-				 */
-				mbuf_rewind_writer(extra_packets);
-				return false;
+				goto need_more_data;
 			}
 			Assert(sbuf->pkt_remain > 0);
 		}
@@ -828,13 +822,7 @@ static bool sbuf_process_pending(SBuf *sbuf)
 			break;
 		case ACT_CALL:
 			if (!sbuf_call_proto(sbuf, SBUF_EV_PKT_CALLBACK)) {
-				/*
-				 * We'll call this again after receiving more data and then any
-				 * extra packets will be generated again, so clean the ones up
-				 * that were generated this time.
-				 */
-				mbuf_rewind_writer(extra_packets);
-				return false;
+				goto need_more_data;
 			}
 		/* fallthrough */
 		/* after callback, skip pkt */
@@ -861,6 +849,42 @@ static bool sbuf_process_pending(SBuf *sbuf)
 	}
 	log_noise("sbuf_process_pending: end");
 	return true;
+
+need_more_data:
+	/*
+	 * We need to wait for more data before we can handle the current
+	 * packet.
+	 */
+
+	if (sbuf->sock && io) {
+		/*
+		 * There might still be some previous packets that we're able
+		 * to send though. Let's do that now to create some extra space
+		 * in the buffer.
+		 */
+		if (sbuf->wait_type == W_RECV && iobuf_amount_pending(io) > 0) {
+			if (!sbuf_send_pending_iobuf(sbuf))
+				return false;
+		}
+
+		/*
+		 * If we've filled the whole buffer, but the packet handler
+		 * still needs more data, we should force a resync to make some
+		 * space.
+		 */
+		if (io && io->recv_pos == (unsigned) cf_sbuf_len) {
+			iobuf_try_resync(io, cf_sbuf_len);
+		}
+	}
+
+	/*
+	 * We'll call the handler for this packet again after receiving more
+	 * data and then all of th extra packets that were generated this time
+	 * will be regenerated again, so clean the ones up that were generated
+	 * this time.
+	 */
+	mbuf_rewind_writer(extra_packets);
+	return false;
 }
 
 /* reposition at buffer start again */

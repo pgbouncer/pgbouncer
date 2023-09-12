@@ -853,16 +853,20 @@ static bool sbuf_process_pending(SBuf *sbuf)
 need_more_data:
 	/*
 	 * We need to wait for more data before we can handle the current
-	 * packet.
+	 * packet. We'll call the handler for this packet again after receiving
+	 * more data and then all of the extra packets that were generated this
+	 * time will be regenerated again, so clean the ones up that were
+	 * generated this time.
 	 */
+	mbuf_rewind_writer(extra_packets);
 
-	if (sbuf->sock && io) {
+	if (sbuf->sock && io && sbuf->wait_type == W_RECV) {
 		/*
 		 * There might still be some previous packets that we're able
 		 * to send though. Let's do that now to create some extra space
 		 * in the buffer.
 		 */
-		if (sbuf->wait_type == W_RECV && iobuf_amount_pending(io) > 0) {
+		if (iobuf_amount_pending(io) > 0) {
 			if (!sbuf_send_pending_iobuf(sbuf))
 				return false;
 		}
@@ -873,17 +877,13 @@ need_more_data:
 		 * space.
 		 */
 		if (io && io->recv_pos == (unsigned) cf_sbuf_len) {
+			log_noise("resync(%d): done=%u, parse=%u, recv=%u, forced",
+				  sbuf->sock,
+				  io->done_pos, io->parse_pos, io->recv_pos);
 			iobuf_try_resync(io, cf_sbuf_len);
 		}
 	}
 
-	/*
-	 * We'll call the handler for this packet again after receiving more
-	 * data and then all of th extra packets that were generated this time
-	 * will be regenerated again, so clean the ones up that were generated
-	 * this time.
-	 */
-	mbuf_rewind_writer(extra_packets);
 	return false;
 }
 

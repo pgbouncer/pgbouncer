@@ -458,7 +458,6 @@ def test_pipeline_flushes_on_full_pkt_buf(bouncer):
 # See #714 for the initial report
 def test_pause_before_last_sync(bouncer):
     bouncer.admin(f"set pool_mode=transaction")
-    bouncer.admin(f"set prepared_statement_cache_size=100")
     with bouncer.conn() as conn1, bouncer.cur() as cur2:
         conn1.pgconn.enter_pipeline_mode()
         conn1.pgconn.send_prepare(b"", b"SELECT $1::text")

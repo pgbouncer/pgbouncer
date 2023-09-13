@@ -1240,7 +1240,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	}
 
 	/* forward the packet */
-	if (is_prepared_statements_enabled(pool) && track_outstanding) {
+	if (track_outstanding) {
 		if (!add_outstanding_request(client, pkt->type, RA_FORWARD)) {
 			/* TODO disconnect oom */
 			return false;

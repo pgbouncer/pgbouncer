@@ -1110,37 +1110,63 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		return false;
 	}
 
-	if (incomplete_pkt(pkt) && (ps_action == PS_HANDLE_FULL_PACKET || ps_action == PS_INSPECT_FAILED)) {
-		if (pkt->data.write_pos < (unsigned) cf_sbuf_len) {
+	if (ps_action == PS_HANDLE_FULL_PACKET && incomplete_pkt(pkt)) {
+		if (pkt->len > (unsigned) cf_sbuf_len) {
 			/*
-			 * Before using our full packet buffering callback
-			 * logic, we first try to fetch the whole packet into
-			 * our sbuf. This is a performance optimization to
-			 * reduce unnecessary allocations.
+			 * We need to handle the complete packet, but it is too
+			 * large to fit into our sbuf buffer size (determined
+			 * by the pkt_buf config). So now we need to fetch the
+			 * whole packet using our dynamically sized packet
+			 * buffering logic.
+			 */
+			client->packet_cb_state.flag = CB_WANT_COMPLETE_PACKET;
+			sbuf_prepare_fetch(sbuf, pkt->len);
+			return true;
+		} else {
+			/*
+			 * We need to handle the complete packet, but it fits
+			 * in our sbuf buffer, so we can simply return false to
+			 * indicate to sbuf to retry once it has received more
+			 * data
 			 */
 			return false;
 		}
-
-		slog_debug(client, "wanting complete packet '%c'", pkt->type);
-
-		/*
-		 * Appartently the packet did not fit into our sbuf buffer size
-		 * (determined by the pkt_buf config). So now we need to fetch
-		 * the whole packet using our dynamically sized packet
-		 * buffering logic.
-		 */
-		client->packet_cb_state.flag = CB_WANT_COMPLETE_PACKET;
-		sbuf_prepare_fetch(sbuf, pkt->len);
-		return true;
 	}
 
 	if (ps_action == PS_INSPECT_FAILED) {
+		if (!incomplete_pkt(pkt)) {
+			/*
+			 * We have the full packet, but still inspection
+			 * failed. That means the packet is plain wrong.
+			 */
+			slog_error(client, "failed to parse prepared statement packet type '%c'", pkt->type);
+			disconnect_client(client, true, "failed to parse packet");
+			return false;
+		}
+
 		/*
-		 * We now have the full packet, but still inspection failed. That means
-		 * the packet is plain wrong.
+		 * We don't have the full packet yet, so probably inspection
+		 * failed because the required part of the packet was not
+		 * received yet.
 		 */
-		slog_error(client, "failed to parse prepared statement packet type '%c'", pkt->type);
-		disconnect_client(client, true, "failed to parse packet");
+
+		if (pkt->data.write_pos >= (unsigned) cf_sbuf_len) {
+			/*
+			 * We've filled up our complete sbuf buffer with this
+			 * packet, but we still haven't been able to determine
+			 * if we should handle this packet or not. This is
+			 * quite unexpected, and probably means that the
+			 * name of the prepared statement is larger than
+			 * pkt_buf.
+			 */
+			client->packet_cb_state.flag = CB_WANT_COMPLETE_PACKET;
+			sbuf_prepare_fetch(sbuf, pkt->len);
+			return true;
+		}
+		/*
+		 * In all other cases we simply return false to indicate to
+		 * sbuf to retry after receiving more data.
+		 */
 		return false;
 	}
 

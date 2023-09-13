@@ -378,10 +378,10 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		pop_outstanding_request(server, "C", &ignore_packet);
 		break;
 	case 'n':		/* NoData */
-	case 't':		/* ParameterDescription */
 	case 'T':		/* RowDescription */
 		pop_outstanding_request(server, "D", &ignore_packet);
 		break;
+	case 't':		/* ParameterDescription */
 	case 'c':		/* CopyDone(F/B) */
 	case 'f':		/* CopyFail(F/B) */
 	case 'V':		/* FunctionCallResponse */

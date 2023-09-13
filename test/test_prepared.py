@@ -7,6 +7,8 @@ from psycopg import pq, sql
 
 from .utils import LIBPQ_SUPPORTS_PIPELINING, LINUX, USE_SUDO
 
+PKT_BUF_SIZE = 4096
+
 
 def test_prepared_statement(bouncer):
     bouncer.admin(f"set pool_mode=transaction")
@@ -54,7 +56,7 @@ def test_prepared_statement_params(bouncer):
 
 def test_parse_larger_than_pkt_buf(bouncer):
     bouncer.admin(f"set prepared_statement_cache_size=100")
-    long_string = "1" * 4096 * 10
+    long_string = "1" * PKT_BUF_SIZE * 10
     prepared_query = "SELECT '" + long_string + "'"
     with bouncer.cur() as cur1:
         result = cur1.execute(prepared_query, prepare=True).fetchone()[0]
@@ -63,7 +65,7 @@ def test_parse_larger_than_pkt_buf(bouncer):
 
 def test_bind_larger_than_pkt_buf(bouncer):
     bouncer.admin(f"set prepared_statement_cache_size=100")
-    long_string = "1" * 4096 * 10
+    long_string = "1" * PKT_BUF_SIZE * 10
     prepared_query = "SELECT %s::text"
     with bouncer.cur() as cur1:
         result = cur1.execute(
@@ -77,7 +79,7 @@ def test_bind_larger_than_pkt_buf(bouncer):
 # (see sbuf_process_pending in  sbuf.c)
 def test_parse_larger_than_pkt_buf_but_smaller_than_4x(bouncer):
     bouncer.admin(f"set prepared_statement_cache_size=100")
-    long_string = "1" * 4096 * 2
+    long_string = "1" * PKT_BUF_SIZE * 2
     prepared_query = "SELECT '" + long_string + "'"
     with bouncer.cur() as cur1:
         result = cur1.execute(prepared_query, prepare=True).fetchone()[0]
@@ -86,7 +88,7 @@ def test_parse_larger_than_pkt_buf_but_smaller_than_4x(bouncer):
 
 def test_bind_larger_than_pkt_buf_but_smaller_than_4x(bouncer):
     bouncer.admin(f"set prepared_statement_cache_size=100")
-    long_string = "1" * 4096 * 2
+    long_string = "1" * PKT_BUF_SIZE * 2
     prepared_query = "SELECT %s::text"
     with bouncer.cur() as cur1:
         result = cur1.execute(
@@ -100,7 +102,7 @@ def test_bind_larger_than_pkt_buf_but_smaller_than_4x(bouncer):
 # called again correctly later.
 def test_parse_larger_than_pkt_buf_with_varcache_change(bouncer):
     bouncer.admin(f"set prepared_statement_cache_size=100")
-    long_string = "1" * 4096 * 10
+    long_string = "1" * PKT_BUF_SIZE * 10
     prepared_query = "SELECT '" + long_string + "'"
     with bouncer.cur(dbname="varcache_change") as cur1:
         result = cur1.execute(prepared_query, prepare=True).fetchone()[0]
@@ -264,7 +266,7 @@ def test_close_prepared_statement(bouncer):
 def test_statement_name_longer_than_pkt_buf(bouncer):
     bouncer.admin(f"set prepared_statement_cache_size=100")
 
-    name = b"a" * 4096 * 4
+    name = b"a" * PKT_BUF_SIZE * 4
 
     with bouncer.conn() as conn:
         result = conn.pgconn.prepare(name, b"SELECT $1::text")
@@ -379,6 +381,74 @@ def test_prepared_disallow_name_reuse(bouncer):
         with bouncer.log_contains("prepared statement 'test' was already prepared"):
             result = conn.pgconn.prepare(b"test", b"SELECT 1")
             assert result.status == pq.ExecStatus.FATAL_ERROR
+
+
+# This reproduces a bug that was found by running the JDBC test suite. We would
+# only remove old data from the packet buffer when the amount of unparsed data
+# was less than SMALL_PACKET_SIZE bytes left in the buffer. This meant that if
+# we had a prepared statement larger than that it would loop ininitely. Now we
+# remove old data from the buffer whenever the callback reports that it needs
+# more data.
+@pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
+def test_pipeline_with_half_pkt_buf_prepare(bouncer):
+    bouncer.admin(f"set prepared_statement_cache_size=100")
+
+    long_string1 = "1" * (PKT_BUF_SIZE // 2)
+    long_string2 = "2" * (PKT_BUF_SIZE // 2)
+
+    with bouncer.conn() as conn:
+        conn.pgconn.enter_pipeline_mode()
+        conn.pgconn.send_prepare(b"p1", f"SELECT 'a{long_string1}'".encode())
+        conn.pgconn.send_prepare(b"p2", f"SELECT 'b{long_string2}'".encode())
+        conn.pgconn.pipeline_sync()
+
+        assert conn.pgconn.get_result().status == pq.ExecStatus.COMMAND_OK
+        assert conn.pgconn.get_result() is None
+        assert conn.pgconn.get_result().status == pq.ExecStatus.COMMAND_OK
+        assert conn.pgconn.get_result() is None
+        assert conn.pgconn.get_result().status == pq.ExecStatus.PIPELINE_SYNC
+        conn.pgconn.exit_pipeline_mode()
+
+
+# This reproduces a bug that was found by running the JDBC test suite. The
+# problem was that when we could not fit the entire prepare massage in pkt_buf
+# anymore, but there was some data in the buffer that was not yet sent then
+# PgBouncer would loop infinitely. Now we flush already parsed messages from
+# the buffer, when the parsing of the next packet informs that it needs more
+# data to do so.
+@pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
+def test_pipeline_flushes_on_full_pkt_buf(bouncer):
+    bouncer.admin(f"set prepared_statement_cache_size=100")
+
+    query = b"SELECT 1"
+
+    # We want to construct a Parse packet that is exactly the size of pkt_buf,
+    # so we don't trigger the logic to use the callback buffering logic, but do
+    # need the whole sbuf buffer to be availble. So let's calculate the exact
+    # length of the statement name that we need to make this happen.
+    size_type = 1  # 'P'
+    size_length = 4  # int32
+    size_query = len(query) + 1  # +1 for the null terminator
+    size_param_count = 2  # int16
+    size_non_statement_name = size_type + size_length + size_query + size_param_count
+
+    # So now we construct a statement name that makes all this add up pkt_buf
+    # (-1 for null terminator of the statement name)
+    statement_name = b"p" * (PKT_BUF_SIZE - size_non_statement_name - 1)
+
+    with bouncer.conn() as conn:
+        conn.pgconn.enter_pipeline_mode()
+        # First send a tiny packet to use some space in the sbuf, Flush is used
+        # arbitrarily since it only takes 5 bytes
+        conn.pgconn.send_flush_request()
+
+        conn.pgconn.send_prepare(statement_name, query)
+        conn.pgconn.pipeline_sync()
+
+        assert conn.pgconn.get_result().status == pq.ExecStatus.COMMAND_OK
+        assert conn.pgconn.get_result() is None
+        assert conn.pgconn.get_result().status == pq.ExecStatus.PIPELINE_SYNC
+        conn.pgconn.exit_pipeline_mode()
 
 
 @pytest.mark.skipif("not LINUX", reason="add_latency only supports Linux")

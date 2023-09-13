@@ -874,6 +874,7 @@ bool find_server(PgSocket *client)
 
 	/* link or send to waiters list */
 	if (server) {
+		slog_noise(client, "linking client to S-%p", server);
 		client->link = server;
 		server->link = client;
 		change_server_state(server, SV_ACTIVE);

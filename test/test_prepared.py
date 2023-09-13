@@ -450,6 +450,53 @@ def test_pipeline_flushes_on_full_pkt_buf(bouncer):
         assert conn.pgconn.get_result().status == pq.ExecStatus.PIPELINE_SYNC
         conn.pgconn.exit_pipeline_mode()
 
+# This resolves a bug where we would incorrectly release a server connection
+# even though there were still requests in flight. This was causing a weird
+# errors in Npgsql, because halfway through the second transaction its
+# connection could be changed, thus removing any state such as portals.
+# The following test reproduces a minimal version of this bug.
+# See #714 for the initial report
+def test_pause_before_last_sync(bouncer):
+    bouncer.admin(f"set pool_mode=transaction")
+    bouncer.admin(f"set prepared_statement_cache_size=100")
+    with bouncer.conn() as conn1, bouncer.cur() as cur2:
+        conn1.pgconn.enter_pipeline_mode()
+        conn1.pgconn.send_prepare(b"", b"SELECT $1::text")
+        conn1.pgconn.send_query_prepared(b"", [b"a"])
+        # This sync triggers a ready for query, which would release the
+        # connection (before the fix).
+        conn1.pgconn.pipeline_sync()
+        # But not before the next commands were forwarded to the server
+        # After the fix these commands cause the server to stay linked to the
+        # client.
+        conn1.pgconn.send_prepare(b"", b"SELECT $1::text")
+        conn1.pgconn.flush()
+
+
+        with cur2.connection.transaction():
+            # Sleep a little bit to ensure the server would be released
+            # (without the fix).
+            time.sleep(2)
+
+            # Then cur2 would claim the server connection that still had
+            # commands from conn1 on it.
+            cur2.execute("SELECT 1")
+
+            # The execution of the prepared statement command would then open a
+            # new connection without the expected prepared query on it
+            conn1.pgconn.send_query_prepared(b"", [b"b"])
+            conn1.pgconn.pipeline_sync()
+            assert conn1.pgconn.get_result().status == pq.ExecStatus.COMMAND_OK
+            assert conn1.pgconn.get_result() is None
+            assert conn1.pgconn.get_result().status == pq.ExecStatus.TUPLES_OK
+            assert conn1.pgconn.get_result() is None
+            assert conn1.pgconn.get_result().status == pq.ExecStatus.PIPELINE_SYNC
+            assert conn1.pgconn.get_result().status == pq.ExecStatus.COMMAND_OK
+            assert conn1.pgconn.get_result() is None
+            assert conn1.pgconn.get_result().status == pq.ExecStatus.TUPLES_OK
+            assert conn1.pgconn.get_result() is None
+            assert conn1.pgconn.get_result().status == pq.ExecStatus.PIPELINE_SYNC
+
 
 @pytest.mark.skipif("not LINUX", reason="add_latency only supports Linux")
 @pytest.mark.skipif("not USE_SUDO")

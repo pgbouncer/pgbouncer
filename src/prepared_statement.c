@@ -269,6 +269,7 @@ bool handle_parse_command(PgSocket *client, PktHdr *pkt)
 		 * with currently unused names.
 		 */
 		disconnect_client(client, true, "prepared statement name is already in use");
+		return false;
 	}
 
 	/* update stats */

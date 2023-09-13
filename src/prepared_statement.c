@@ -57,6 +57,7 @@ static PgPreparedStatement *create_prepared_statement(PgParsePacket *pkt)
 	if (ps == NULL)
 		return NULL;
 
+	next_unique_query_id += 1;
 	ps->query_id = next_unique_query_id;
 	ps->use_count = 0;
 	ps->query_and_parameters_len = pkt->query_and_parameters_len;
@@ -130,7 +131,6 @@ static PgPreparedStatement *get_prepared_statement(PgParsePacket *pkt, bool *fou
 		sizeof ps->stmt_name,
 		PREPARED_STMT_NAME_FORMAT,
 		ps->query_id);
-	next_unique_query_id += 1;
 	*found = false;
 
 	return ps;
@@ -160,6 +160,15 @@ static void skip_possibly_completely_buffered_packet(PgSocket *client, PktHdr *p
 	sbuf_prepare_skip(&client->sbuf, pkt->len);
 }
 
+
+void unregister_prepared_statement_by_id(PgSocket *server, uint64_t query_id)
+{
+	PgServerPreparedStatement *server_ps;
+	HASH_FIND_UINT64(server->server_prepared_statements, &query_id, server_ps);
+	if (server_ps) {
+		unregister_prepared_statement(server, server_ps);
+	}
+}
 
 /*
  * Unregister prepared statement at server
@@ -224,8 +233,8 @@ static bool register_prepared_statement(PgSocket *client, PgSocket *server, PgSe
 	Assert(el);
 	outstanding_request = container_of(el, OutstandingRequest, node);
 	Assert(outstanding_request->type == 'P');
-	Assert(outstanding_request->server_ps == NULL);
-	outstanding_request->server_ps = server_ps;
+	Assert(outstanding_request->prepared_statement_query_id == 0);
+	outstanding_request->prepared_statement_query_id = server_ps->ps->query_id;
 
 
 	return true;

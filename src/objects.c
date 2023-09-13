@@ -1020,8 +1020,8 @@ void clear_outstanding_requests_until_sync(PgSocket *server)
 			slab_free(outstanding_request_cache, request);
 			break;
 		}
-		if (request->type == 'P' && request->server_ps != NULL) {
-			unregister_prepared_statement(server, request->server_ps);
+		if (request->type == 'P' && request->prepared_statement_query_id > 0) {
+			unregister_prepared_statement_by_id(server, request->prepared_statement_query_id);
 		}
 		slab_free(outstanding_request_cache, request);
 	}

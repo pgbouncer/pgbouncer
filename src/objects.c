@@ -1130,6 +1130,18 @@ bool release_server(PgSocket *server)
 		return false;
 	}
 
+	if (statlist_count(&server->outstanding_requests) > 0) {
+		/*
+		 * We can't release the server if there are outstanding requests
+		 * that haven't been responded to yet, otherwise the server
+		 * might get linked to another client and it will get those
+		 * responses when it does not expect them. To be on the safe
+		 * side we simply close this connection.
+		 */
+		disconnect_server(server, true, "client disconnected with queries in progress");
+		return true;
+	}
+
 	/* enforce close request */
 	if (server->close_needed) {
 		disconnect_server(server, true, "close_needed");

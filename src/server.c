@@ -277,8 +277,8 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		}
 		server->query_failed = false;
 
-		/* set ready only if no tx and no other requests in flight */
-		if (state == 'I' && statlist_count(&server->outstanding_requests) == 0) {
+		/* set ready only if no tx */
+		if (state == 'I') {
 			ready = true;
 		} else if (pool_pool_mode(server->pool) == POOL_STMT) {
 			disconnect_server(server, true, "transaction blocks not allowed in statement pooling mode");
@@ -688,7 +688,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			case SV_TESTED:
 				/* keep link if client expects more Syncs */
 				if (server->link) {
-					if (server->link->expect_rfq_count > 0)
+					if (server->link->expect_rfq_count > 0 || statlist_count(&server->outstanding_requests) > 0)
 						break;
 				}
 

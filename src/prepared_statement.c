@@ -200,6 +200,17 @@ static bool register_prepared_statement(PgSocket *client, PgSocket *server, PgSe
 	if (server_ps == NULL)
 		return false;
 
+	/*
+	 * Now we need to link the outstanding request to the server_ps, so
+	 * that it can be unregistered if the request fails.
+	 */
+	el = statlist_last(&server->outstanding_requests);
+	Assert(el);
+	outstanding_request = container_of(el, OutstandingRequest, node);
+	Assert(outstanding_request->type == 'P');
+	Assert(outstanding_request->prepared_statement_query_id == 0);
+	outstanding_request->prepared_statement_query_id = server_ps->ps->query_id;
+
 	if (cached_query_count >= (unsigned int)cf_prepared_statement_cache_size) {
 		int res;
 		/*
@@ -214,6 +225,10 @@ static bool register_prepared_statement(PgSocket *client, PgSocket *server, PgSe
 				return false;
 			}
 
+			if (!add_outstanding_request(client, 'C', RA_SKIP)) {
+				return false;
+			}
+
 			slog_noise(server, "prepared statement '%s' deleted from server cache", current->ps->stmt_name);
 			unregister_prepared_statement(server, current);
 
@@ -224,17 +239,6 @@ static bool register_prepared_statement(PgSocket *client, PgSocket *server, PgSe
 
 	slog_noise(server, "prepared statement " PREPARED_STMT_NAME_FORMAT " added to server cache, %d cached items", server_ps->ps->query_id, cached_query_count + 1);
 	HASH_ADD_UINT64(server->server_prepared_statements, query_id, server_ps);
-
-	/*
-	 * Now we need to link the outstanding request to the server_ps, so
-	 * that it can be unregistered if the request fails.
-	 */
-	el = statlist_last(&server->outstanding_requests);
-	Assert(el);
-	outstanding_request = container_of(el, OutstandingRequest, node);
-	Assert(outstanding_request->type == 'P');
-	Assert(outstanding_request->prepared_statement_query_id == 0);
-	outstanding_request->prepared_statement_query_id = server_ps->ps->query_id;
 
 
 	return true;
@@ -610,7 +614,7 @@ bool handle_close_statement_command(PgSocket *client, PktHdr *pkt, PgClosePacket
 	/* Do not forward packet to server */
 	skip_possibly_completely_buffered_packet(client, pkt);
 
-	if (!client->link) {
+	if (!client->link || statlist_count(&client->link->outstanding_requests) == 0) {
 		slog_debug(client, "handle_close_statement_command: no outstanding requests so instantly answering client");
 		SEND_CloseComplete(res, client);
 		return res;

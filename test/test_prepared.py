@@ -450,6 +450,7 @@ def test_pipeline_flushes_on_full_pkt_buf(bouncer):
         assert conn.pgconn.get_result().status == pq.ExecStatus.PIPELINE_SYNC
         conn.pgconn.exit_pipeline_mode()
 
+
 # This resolves a bug where we would incorrectly release a server connection
 # even though there were still requests in flight. This was causing a weird
 # errors in Npgsql, because halfway through the second transaction its
@@ -470,7 +471,6 @@ def test_pause_before_last_sync(bouncer):
         # client.
         conn1.pgconn.send_prepare(b"", b"SELECT $1::text")
         conn1.pgconn.flush()
-
 
         with cur2.connection.transaction():
             # Sleep a little bit to ensure the server would be released

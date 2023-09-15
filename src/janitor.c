@@ -515,7 +515,7 @@ static void check_pool_size(PgPool *pool)
 	    cur < pool_pool_size(pool) &&
 	    cf_pause_mode == P_NONE &&
 	    cf_reboot == 0 &&
-	    pool_client_count(pool) > 0) {
+	    (pool_client_count(pool) > 0 || pool_min_pool_size_without_clients(pool))) {
 		log_debug("launching new connection to satisfy min_pool_size");
 		launch_new_connection(pool, /* evict_if_needed= */ false);
 	}
@@ -679,6 +679,25 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	 */
 	if (cf_pause_mode == P_SUSPEND)
 		return;
+
+	/*
+	 * Creating new pools to enable `min_pool_size` enforcement even if there are no active clients
+	 * (min_pool_size_requires_clients=0).
+	 *
+	 * If clients never connect there won't be a pool to maintain the min_pool_size on, which means we have to
+	 * proactively create a pool, so that it can be maintained.
+	 *
+	 * We are doing this only for forced users to reduce the risk of creating connections in unexpected ways, where
+	 * there are many users. Are all database/user combos even known ahead of time?
+	*/
+	statlist_for_each_safe(item, &database_list, tmp) {
+		db = container_of(item, PgDatabase, head);
+		if (database_min_pool_size_without_clients(db) &&
+			database_min_pool_size(db) > 0 &&
+			db->forced_user != NULL) {
+			get_pool(db, db->forced_user);
+		}
+	}
 
 	statlist_for_each_safe(item, &pool_list, tmp) {
 		pool = container_of(item, PgPool, head);

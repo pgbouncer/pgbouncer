@@ -55,6 +55,21 @@ async def test_min_pool_size(pg, bouncer):
     assert pg.connection_count("p1") == 3
 
 
+@pytest.mark.asyncio
+async def test_min_pool_size_without_clients(pg, bouncer):
+    # having to wait a little to give janitor time to create connection to satisfy min_pool_size
+    await asyncio.sleep(2)
+    # ensure db without forced user has no connections
+    # p7x
+    assert pg.connection_count("p7", ("postgres",)) == 0
+    # ensure db with forced but min_pool_size_requires_clients=1 user has no connections
+    # p7y
+    assert pg.connection_count("p7", ("marko",)) == 0
+    # ensure db with forced user and min_pool_size_requires_clients=1 has required connections
+    # p7z
+    assert pg.connection_count("p7", ("pswcheck",)) == 3
+
+
 def test_min_pool_size_with_lower_max_user_connections(bouncer):
     # The p0x in test.init has min_pool_size set to 5. This should make
     # the PgBouncer try to create a pool for maxedout2 user of size 5 after a

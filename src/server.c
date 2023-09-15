@@ -210,12 +210,35 @@ int pool_pool_size(PgPool *pool)
 		return pool->db->pool_size;
 }
 
+/* min_pool_size of the pool's db */
 int pool_min_pool_size(PgPool *pool)
 {
-	if (pool->db->min_pool_size < 0)
+	return database_min_pool_size(pool->db);
+}
+
+/* min_pool_size of the db */
+int database_min_pool_size(PgDatabase *db)
+{
+	if (db->min_pool_size < 0)
 		return cf_min_pool_size;
 	else
-		return pool->db->min_pool_size;
+		return db->min_pool_size;
+	
+}
+
+/* returns true if the pool's db requires clients to maintain min_pool_size or if it's set globally, false otherwise */
+bool pool_min_pool_size_without_clients(PgPool *pool)
+{
+	return database_min_pool_size_without_clients(pool->db);
+}
+
+/* returns true if the db requires clients to maintain min_pool_size or if it's set globally, false otherwise */
+bool database_min_pool_size_without_clients(PgDatabase *db)
+{
+	if (db->min_pool_size_requires_clients == 0)
+		return true;
+	else
+		return cf_min_pool_size_requires_clients == 0;
 }
 
 int pool_res_pool_size(PgPool *pool)

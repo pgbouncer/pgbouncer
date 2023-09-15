@@ -556,11 +556,13 @@ typedef struct OutstandingRequest {
 	char type;	/* The single character type of the request */
 	ResponseAction action;	/* What action to take (see comments on ResponseAction) */
 	/*
-	 * The id of the server-side prepared statement that depends on this
-	 * request succeeding. If the request fails we should remove this query
-	 * from the server its cache.
+	 * A pointer to the server-side prepared statement that is being closed
+	 * by this Close message. If the request fails we should add the
+	 * prepared statement back to the server its cache.
 	 */
-	uint64_t prepared_statement_query_id;
+	PgServerPreparedStatement *server_ps;
+
+	uint64_t server_ps_query_id;
 } OutstandingRequest;
 
 /*

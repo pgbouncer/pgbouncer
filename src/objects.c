@@ -184,6 +184,8 @@ static void server_free(PgSocket *server)
 	statlist_for_each_safe(el, &server->outstanding_requests, tmp_l) {
 		request = container_of(el, OutstandingRequest, node);
 		statlist_remove(&server->canceling_clients, el);
+		if (request->server_ps)
+			free_server_prepared_statement(request->server_ps);
 		slab_free(outstanding_request_cache, request);
 	}
 
@@ -1002,14 +1004,17 @@ bool pop_outstanding_request(PgSocket *server, char *types, bool *skip)
 		*skip = request->action == RA_SKIP;
 	slog_noise(server, "pop_outstanding_request: popped %c, still outstanding %d, skip %d",
 		   request->type, statlist_count(&server->outstanding_requests), request->action == RA_SKIP);
+	if (request->server_ps != NULL) {
+		free_server_prepared_statement(request->server_ps);
+	}
 	slab_free(outstanding_request_cache, request);
 	return true;
 }
 
 /*
  * clear all outstanding requests until we reach a Sync ('S') response, any
- * prepared statements requests that were still outstanding will be
- * unregistered from the server its cache.
+ * Parse or Close statement requests that were still outstanding will be
+ * unregistered or re-registered from the server its cache
  */
 void clear_outstanding_requests_until_sync(PgSocket *server)
 {
@@ -1020,9 +1025,18 @@ void clear_outstanding_requests_until_sync(PgSocket *server)
 		if (request->type == 'S') {
 			slab_free(outstanding_request_cache, request);
 			break;
-		}
-		if (request->type == 'P' && request->prepared_statement_query_id > 0) {
-			unregister_prepared_statement_by_id(server, request->prepared_statement_query_id);
+		} else if (request->type == 'P' && request->server_ps_query_id > 0) {
+			unregister_prepared_statement(server, request->server_ps_query_id);
+			slog_noise(server,
+				   "failed prepared statement '" PREPARED_STMT_NAME_FORMAT "' removed from server cache, %d cached items",
+				   request->server_ps_query_id,
+				   HASH_COUNT(server->server_prepared_statements));
+		} else if (request->type == 'C' && request->server_ps != NULL) {
+			add_prepared_statement(server, request->server_ps);
+			slog_noise(server,
+				   "prepared statement '%s' added back to server cache, %d cached items",
+				   request->server_ps->ps->stmt_name,
+				   HASH_COUNT(server->server_prepared_statements));
 		}
 		slab_free(outstanding_request_cache, request);
 	}

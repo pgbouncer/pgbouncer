@@ -161,27 +161,37 @@ static void skip_possibly_completely_buffered_packet(PgSocket *client, PktHdr *p
 }
 
 
-void unregister_prepared_statement_by_id(PgSocket *server, uint64_t query_id)
-{
-	PgServerPreparedStatement *server_ps;
-	HASH_FIND_UINT64(server->server_prepared_statements, &query_id, server_ps);
-	if (server_ps) {
-		unregister_prepared_statement(server, server_ps);
-	}
-}
-
 /*
  * Unregister prepared statement at server
  */
-void unregister_prepared_statement(PgSocket *server, PgServerPreparedStatement *server_ps)
+void free_server_prepared_statement(PgServerPreparedStatement *server_ps)
 {
-	HASH_DEL(server->server_prepared_statements, server_ps);
 	if (--server_ps->ps->use_count == 0) {
 		HASH_DEL(prepared_statements, server_ps->ps);
 		free(server_ps->ps);
 	}
 	slab_free(server_prepared_statement_cache, server_ps);
 }
+
+/*
+ * Unregister prepared statement from the server its cache.
+ */
+void unregister_prepared_statement(PgSocket *server, uint64_t query_id)
+{
+	PgServerPreparedStatement *server_ps;
+	HASH_FIND_UINT64(server->server_prepared_statements, &query_id, server_ps);
+	if (server_ps) {
+		HASH_DEL(server->server_prepared_statements, server_ps);
+		free_server_prepared_statement(server_ps);
+	}
+}
+
+
+void add_prepared_statement(PgSocket *server, PgServerPreparedStatement *server_ps)
+{
+	HASH_ADD_UINT64(server->server_prepared_statements, query_id, server_ps);
+}
+
 
 /*
  * Register prepared statement in the server its cache. If the cache is full, we
@@ -193,9 +203,9 @@ void unregister_prepared_statement(PgSocket *server, PgServerPreparedStatement *
 static bool register_prepared_statement(PgSocket *client, PgSocket *server, PgServerPreparedStatement *server_ps)
 {
 	struct PgServerPreparedStatement *current, *tmp;
-	unsigned int cached_query_count = HASH_COUNT(server->server_prepared_statements);
 	OutstandingRequest *outstanding_request;
 	struct List *el;
+	int res;
 
 	if (server_ps == NULL)
 		return false;
@@ -208,38 +218,43 @@ static bool register_prepared_statement(PgSocket *client, PgSocket *server, PgSe
 	Assert(el);
 	outstanding_request = container_of(el, OutstandingRequest, node);
 	Assert(outstanding_request->type == 'P');
-	Assert(outstanding_request->prepared_statement_query_id == 0);
-	outstanding_request->prepared_statement_query_id = server_ps->ps->query_id;
+	Assert(outstanding_request->server_ps_query_id == 0);
+	outstanding_request->server_ps_query_id = server_ps->ps->query_id;
 
-	if (cached_query_count >= (unsigned int)cf_prepared_statement_cache_size) {
-		int res;
-		/*
-		 * Remove least recently used statements. To do so we can
-		 * simply return the first N items from the hash table, because
-		 * we maintain its order as an LRU.
-		 * (see ensure_statement_is_prepared_on_server for details)
-		 */
-		HASH_ITER(hh, server->server_prepared_statements, current, tmp) {
-			QUEUE_CloseStmt(res, client, server, current->ps->stmt_name);
-			if (!res) {
-				return false;
-			}
+	add_prepared_statement(server, server_ps);
 
-			if (!add_outstanding_request(client, 'C', RA_SKIP)) {
-				return false;
-			}
-
-			slog_noise(server, "prepared statement '%s' deleted from server cache", current->ps->stmt_name);
-			unregister_prepared_statement(server, current);
-
-			if (--cached_query_count < (unsigned int)cf_prepared_statement_cache_size)
-				break;
+	/*
+	 * Ensure the cache is not larger than the intended size. To do so we
+	 * can simply remove the first N items from the hash table, because we
+	 * maintain its order as an LRU. (see
+	 * ensure_statement_is_prepared_on_server for details)
+	 */
+	HASH_ITER(hh, server->server_prepared_statements, current, tmp) {
+		if (HASH_COUNT(server->server_prepared_statements) <= (unsigned int)cf_prepared_statement_cache_size) {
+			break;
 		}
+
+		QUEUE_CloseStmt(res, client, server, current->ps->stmt_name);
+		if (!res) {
+			return false;
+		}
+
+		if (!add_outstanding_request(client, 'C', RA_SKIP)) {
+			return false;
+		}
+		el = statlist_last(&server->outstanding_requests);
+		Assert(el);
+		outstanding_request = container_of(el, OutstandingRequest, node);
+		outstanding_request->server_ps = current;
+
+		/*
+		 * We remove the statement from the cache, but we don't
+		 * free the memory yet. Because we might still need to
+		 * add it back if the Close fails.
+		 */
+		slog_noise(server, "prepared statement '%s' deleted from server cache", current->ps->stmt_name);
+		HASH_DEL(server->server_prepared_statements, current);
 	}
-
-	slog_noise(server, "prepared statement " PREPARED_STMT_NAME_FORMAT " added to server cache, %d cached items", server_ps->ps->query_id, cached_query_count + 1);
-	HASH_ADD_UINT64(server->server_prepared_statements, query_id, server_ps);
-
 
 	return true;
 }

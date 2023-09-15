@@ -39,7 +39,8 @@ bool handle_bind_command(PgSocket *client, PktHdr *pkt);
 bool handle_describe_command(PgSocket *client, PktHdr *pkt);
 bool handle_close_statement_command(PgSocket *client, PktHdr *pkt, PgClosePacket *close_packet);
 
-void unregister_prepared_statement_by_id(PgSocket *server, uint64_t query_id);
-void unregister_prepared_statement(PgSocket *server, PgServerPreparedStatement *ps);
+void free_server_prepared_statement(PgServerPreparedStatement *server_ps);
+void unregister_prepared_statement(PgSocket *server, uint64_t query_id);
+void add_prepared_statement(PgSocket *server, PgServerPreparedStatement *server_ps);
 void free_client_prepared_statements(PgSocket *client);
 void free_server_prepared_statements(PgSocket *server);

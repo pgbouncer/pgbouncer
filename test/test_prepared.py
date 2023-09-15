@@ -169,6 +169,22 @@ def test_evict_statement_cache(bouncer):
         assert n_statements == 2
 
 
+def test_evict_statement_cache_pipeline_failure(bouncer):
+    bouncer.admin(f"set prepared_statement_cache_size=1")
+
+    with bouncer.conn() as conn:
+        with conn.pipeline() as p:
+            curs = [conn.cursor() for _ in range(4)]
+            curs[0].execute("SELECT 1", prepare=True)
+            curs[1].execute("bad query", prepare=True)
+            with pytest.raises(psycopg.errors.SyntaxError):
+                p.sync()
+            assert curs[0].fetchall() == [(1,)]
+            curs[0].execute("SELECT 1", prepare=True)
+            p.sync()
+            assert curs[0].fetchall() == [(1,)]
+
+
 @pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
 def test_prepared_statement_pipeline(bouncer):
     bouncer.admin(f"set prepared_statement_cache_size=100")

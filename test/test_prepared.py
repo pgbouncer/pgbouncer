@@ -474,6 +474,7 @@ def test_pipeline_flushes_on_full_pkt_buf(bouncer):
 # connection could be changed, thus removing any state such as portals.
 # The following test reproduces a minimal version of this bug.
 # See #714 for the initial report
+@pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
 def test_pause_before_last_sync(bouncer):
     bouncer.admin(f"set pool_mode=transaction")
     with bouncer.conn() as conn1, bouncer.cur() as cur2:

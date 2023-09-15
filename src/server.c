@@ -273,7 +273,8 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 
 		if (!pop_outstanding_request(server, "SQF", &ignore_packet)
 		    && server->query_failed) {
-			clear_outstanding_requests_until_sync(server);
+			if (!clear_outstanding_requests_until_sync(server))
+				return false;
 		}
 		server->query_failed = false;
 

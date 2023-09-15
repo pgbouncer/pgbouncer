@@ -14,6 +14,10 @@
 
 static uint64_t next_unique_query_id;
 
+static bool uthash_alloc_failed;
+#undef uthash_nonfatal_oom
+#define uthash_nonfatal_oom(elt) uthash_alloc_failed = true
+
 /*
  * Like uthash HASH_DELETE, but doesn't remove item from hash table just
  * unlink element from the doubly-linked-list.
@@ -126,6 +130,11 @@ static PgPreparedStatement *get_prepared_statement(PgParsePacket *pkt, bool *fou
 		 query_and_parameters,
 		 ps->query_and_parameters_len,
 		 ps);
+	if (uthash_alloc_failed) {
+		uthash_alloc_failed = false;
+		free(ps);
+		return NULL;
+	}
 	ps->stmt_name_len = (uint8_t)snprintf(
 		ps->stmt_name,
 		sizeof ps->stmt_name,
@@ -166,6 +175,8 @@ static void skip_possibly_completely_buffered_packet(PgSocket *client, PktHdr *p
  */
 void free_server_prepared_statement(PgServerPreparedStatement *server_ps)
 {
+	if (server_ps == NULL)
+		return;
 	if (--server_ps->ps->use_count == 0) {
 		HASH_DEL(prepared_statements, server_ps->ps);
 		free(server_ps->ps);
@@ -187,9 +198,14 @@ void unregister_prepared_statement(PgSocket *server, uint64_t query_id)
 }
 
 
-void add_prepared_statement(PgSocket *server, PgServerPreparedStatement *server_ps)
+bool add_prepared_statement(PgSocket *server, PgServerPreparedStatement *server_ps)
 {
 	HASH_ADD_UINT64(server->server_prepared_statements, query_id, server_ps);
+	if (uthash_alloc_failed) {
+		uthash_alloc_failed = false;
+		return false;
+	}
+	return true;
 }
 
 
@@ -207,8 +223,7 @@ static bool register_prepared_statement(PgSocket *client, PgSocket *server, PgSe
 	struct List *el;
 	int res;
 
-	if (server_ps == NULL)
-		return false;
+	Assert(server_ps);
 
 	/*
 	 * Now we need to link the outstanding request to the server_ps, so
@@ -221,7 +236,11 @@ static bool register_prepared_statement(PgSocket *client, PgSocket *server, PgSe
 	Assert(outstanding_request->server_ps_query_id == 0);
 	outstanding_request->server_ps_query_id = server_ps->ps->query_id;
 
-	add_prepared_statement(server, server_ps);
+	if (!add_prepared_statement(server, server_ps))
+		return false;
+	slog_noise(server, "prepared statement " PREPARED_STMT_NAME_FORMAT " added to server cache, %d cached items",
+		   server_ps->ps->query_id,
+		   HASH_COUNT(server->server_prepared_statements));
 
 	/*
 	 * Ensure the cache is not larger than the intended size. To do so we
@@ -313,6 +332,10 @@ bool handle_parse_command(PgSocket *client, PktHdr *pkt)
 	if (client_ps == NULL)
 		goto oom;
 	HASH_ADD_STR(client->client_prepared_statements, stmt_name, client_ps);
+	if (uthash_alloc_failed) {
+		uthash_alloc_failed = false;
+		goto oom;
+	}
 
 	if (found) {
 		/* Such query was already prepared */
@@ -352,6 +375,8 @@ bool handle_parse_command(PgSocket *client, PktHdr *pkt)
 
 	/* Register statement on server */
 	server_ps = create_server_prepared_statement(ps);
+	if (!server_ps)
+		goto oom;
 	if (!register_prepared_statement(client, server, server_ps))
 		goto oom;
 
@@ -360,6 +385,8 @@ success:
 	return true;
 
 oom:
+	free(client_ps);
+	free_server_prepared_statement(server_ps);
 	disconnect_client(client, true, "out of memory");
 	/*
 	 * We also disconnect the server, because we probably messed with its state
@@ -447,8 +474,12 @@ static bool ensure_statement_is_prepared_on_server(PgSocket *server, PgPreparedS
 
 	/* Register statement on server link */
 	server_ps = create_server_prepared_statement(ps);
-	if (!register_prepared_statement(client, server, server_ps))
+	if (!server_ps)
 		return false;
+	if (!register_prepared_statement(client, server, server_ps)) {
+		free_server_prepared_statement(server_ps);
+		return false;
+	}
 
 	return true;
 }
@@ -664,11 +695,7 @@ void free_server_prepared_statements(PgSocket *server)
 
 	HASH_ITER(hh, server->server_prepared_statements, current, tmp_s) {
 		HASH_DEL(server->server_prepared_statements, current);
-		if (--current->ps->use_count == 0) {
-			HASH_DEL(prepared_statements, current->ps);
-			free(current->ps);
-		}
-		slab_free(server_prepared_statement_cache, current);
+		free_server_prepared_statement(current);
 	}
 
 	free(server->server_prepared_statements);

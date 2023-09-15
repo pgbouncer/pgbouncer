@@ -1016,31 +1016,39 @@ bool pop_outstanding_request(PgSocket *server, char *types, bool *skip)
  * Parse or Close statement requests that were still outstanding will be
  * unregistered or re-registered from the server its cache
  */
-void clear_outstanding_requests_until_sync(PgSocket *server)
+bool clear_outstanding_requests_until_sync(PgSocket *server)
 {
 	struct List *item, *tmp;
 	statlist_for_each_safe(item, &server->outstanding_requests, tmp) {
 		OutstandingRequest *request = container_of(item, OutstandingRequest, node);
-		statlist_remove(&server->outstanding_requests, item);
-		if (request->type == 'S') {
-			slab_free(outstanding_request_cache, request);
-			break;
-		} else if (request->type == 'P' && request->server_ps_query_id > 0) {
+		char type = request->type;
+		if (type == 'P' && request->server_ps_query_id > 0) {
 			unregister_prepared_statement(server, request->server_ps_query_id);
 			slog_noise(server,
 				   "failed prepared statement '" PREPARED_STMT_NAME_FORMAT "' removed from server cache, %d cached items",
 				   request->server_ps_query_id,
 				   HASH_COUNT(server->server_prepared_statements));
-		} else if (request->type == 'C' && request->server_ps != NULL) {
-			add_prepared_statement(server, request->server_ps);
+		} else if (type == 'C' && request->server_ps != NULL) {
+			if (!add_prepared_statement(server, request->server_ps))
+			{
+				if (server->link)
+					disconnect_client(server->link, true, "out of memory");
+				disconnect_server(server, true, "out of memory");
+				return false;
+			}
 			slog_noise(server,
 				   "prepared statement '%s' added back to server cache, %d cached items",
 				   request->server_ps->ps->stmt_name,
 				   HASH_COUNT(server->server_prepared_statements));
 		}
+		statlist_remove(&server->outstanding_requests, item);
 		slab_free(outstanding_request_cache, request);
+
+		if (type == 'S')
+			break;
 	}
 	slog_noise(server, "clear_outstanding_requests_until_sync: still outstanding %d", statlist_count(&server->outstanding_requests));
+	return true;
 }
 
 /* send reset query */

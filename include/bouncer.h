@@ -32,7 +32,14 @@
 #include <event2/event.h>
 #include <event2/event_struct.h>
 
+/*
+ * Allow overriding the uthash OOM handler to be non-fatal, but default to a
+ * fatal handler.
+ */
+#define HASH_NONFATAL_OOM 1
 #include "uthash.h"
+#undef uthash_nonfatal_oom
+#define uthash_nonfatal_oom(elt) fatal("out of memory")
 
 
 #ifdef USE_SYSTEMD

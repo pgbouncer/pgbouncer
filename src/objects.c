@@ -1029,8 +1029,7 @@ bool clear_outstanding_requests_until_sync(PgSocket *server)
 				   request->server_ps_query_id,
 				   HASH_COUNT(server->server_prepared_statements));
 		} else if (type == 'C' && request->server_ps != NULL) {
-			if (!add_prepared_statement(server, request->server_ps))
-			{
+			if (!add_prepared_statement(server, request->server_ps)) {
 				if (server->link)
 					disconnect_client(server->link, true, "out of memory");
 				disconnect_server(server, true, "out of memory");

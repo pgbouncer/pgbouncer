@@ -169,6 +169,7 @@ def test_evict_statement_cache(bouncer):
         assert n_statements == 2
 
 
+@pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
 def test_evict_statement_cache_pipeline_failure(bouncer):
     bouncer.admin(f"set prepared_statement_cache_size=1")
 

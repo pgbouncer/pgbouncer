@@ -137,17 +137,12 @@ Add more server connections to pool if below this number.
 Improves behavior when the normal load suddenly comes back after a period
 of total inactivity.  The value is effectively capped at the pool size.
 
-Only enforced while there are clients connected to a pool (see `min_pool_size_requires_clients`).
+Only enforced for pools where at least one of the following is true:
+
+* the pool has a `user` set in the `[database]` section (aka forced user)
+* there are clients connected to the pool
 
 Default: 0 (disabled)
-
-### min_pool_size_requires_clients
-
-Only maintain `min_pool_size` server connections while there are clients connected to the pool.
-
-If `min_pool_size` is not set, this setting has no effect.
-
-Default: 1 (enabled)
 
 ### reserve_pool_size
 
@@ -1090,15 +1085,10 @@ the `default_pool_size` is used.
 Set the minimum pool size for this database. If not set, the global `min_pool_size` is
 used.
 
-Only enforced while there are clients connected to the pool. (see `min_pool_size_requires_clients`).
+Only enforced if at least one of the following is true:
 
-### min_pool_size_requires_clients
-
-Only maintain `min_pool_size` server connections while there are clients connected to the pool.
-
-If `min_pool_size` is not set, this setting has no effect.
-
-Default: 1 (enabled)
+* the pool has a `user` set (aka forced user)
+* there are clients connected to the pool
 
 ### reserve_pool
 

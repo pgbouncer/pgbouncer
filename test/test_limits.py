@@ -1,4 +1,5 @@
 import asyncio
+import re
 
 import psycopg
 import pytest
@@ -57,17 +58,30 @@ async def test_min_pool_size(pg, bouncer):
 
 @pytest.mark.asyncio
 async def test_min_pool_size_without_clients(pg, bouncer):
+    # uncommenting the db that has "forced" maintenance enabled
+    # by not having this db enabled we avoid polluting other tests
+    # with connections getting autocreated
+    with bouncer.ini_path.open() as f:
+        original = f.read()
+    with bouncer.ini_path.open("w") as f:
+        # uncomment the relevant db
+        new = re.sub(r"^;p0z= (.+)", r"p0z= \g<1>", original, flags=re.MULTILINE)
+        print(new)
+        f.write(new)
+    bouncer.admin("reload")
+
     # having to wait a little to give janitor time to create connection to satisfy min_pool_size
     await asyncio.sleep(2)
-    # ensure db without forced user has no connections
-    # p7x
-    assert pg.connection_count("p7", ("postgres",)) == 0
-    # ensure db with forced but min_pool_size_requires_clients=1 user has no connections
-    # p7y
-    assert pg.connection_count("p7", ("marko",)) == 0
-    # ensure db with forced user and min_pool_size_requires_clients=1 has required connections
-    # p7z
-    assert pg.connection_count("p7", ("pswcheck",)) == 3
+
+    # ensure db without min_pool_size has no connections
+    # p0
+    assert pg.connection_count("p0", ("bouncer",)) == 0
+    # ensure db with min_pool_size but without forced user has no connections
+    # p0x
+    assert pg.connection_count("p0", ("postgres",)) == 0
+    # ensure db with min_pool_size and forced user has required connections (the uncommented one)
+    # p0z
+    assert pg.connection_count("p0", ("pswcheck",)) == 3
 
 
 def test_min_pool_size_with_lower_max_user_connections(bouncer):

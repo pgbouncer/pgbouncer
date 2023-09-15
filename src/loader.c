@@ -261,7 +261,6 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	struct CfValue cv;
 	int pool_size = -1;
 	int min_pool_size = -1;
-	int min_pool_size_requires_clients = -1;
 	int res_pool_size = -1;
 	int max_db_connections = -1;
 	int dbname_ofs;
@@ -341,12 +340,6 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			pool_size = atoi(val);
 		} else if (strcmp("min_pool_size", key) == 0) {
 			min_pool_size = atoi(val);
-		} else if (strcmp("min_pool_size_requires_clients", key) == 0) {
-			min_pool_size_requires_clients = atoi(val);
-			if (min_pool_size_requires_clients < 0 || min_pool_size_requires_clients > 1) {
-				log_error("invalid value for min_pool_size_requires_clients: %s", val);
-				goto fail;
-			}
 		} else if (strcmp("reserve_pool", key) == 0) {
 			res_pool_size = atoi(val);
 		} else if (strcmp("max_db_connections", key) == 0) {
@@ -411,7 +404,6 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	db->port = port;
 	db->pool_size = pool_size;
 	db->min_pool_size = min_pool_size;
-	db->min_pool_size_requires_clients = min_pool_size_requires_clients;
 	db->res_pool_size = res_pool_size;
 	db->pool_mode = pool_mode;
 	db->max_db_connections = max_db_connections;

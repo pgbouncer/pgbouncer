@@ -520,9 +520,6 @@ pool_size
 min_pool_size
 :   Minimum number of server connections.
 
-min_pool_size_requires_clients
-:   Require clients to be connected in order to maintain min_pool_size
-
 reserve_pool
 :   Maximum number of additional connections for this database.
 

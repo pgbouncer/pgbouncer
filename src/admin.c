@@ -1685,7 +1685,6 @@ void admin_setup(void)
 
 	db->port = cf_listen_port;
 	db->pool_size = 2;
-	db->min_pool_size_requires_clients = 1;
 	db->admin = true;
 	db->pool_mode = POOL_STMT;
 	if (!force_user(db, "pgbouncer", ""))

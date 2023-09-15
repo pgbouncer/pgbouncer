@@ -14,6 +14,11 @@
 
 static uint64_t next_unique_query_id;
 
+/*
+ * Track allocation failures in uthash, so that we can fail more gracefully
+ * than a full process crash. Instead we will just disconnect the client and
+ * server.
+ */
 static bool uthash_alloc_failed;
 #undef uthash_nonfatal_oom
 #define uthash_nonfatal_oom(elt) uthash_alloc_failed = true
@@ -108,6 +113,10 @@ static PgServerPreparedStatement *create_server_prepared_statement(PgPreparedSta
 	return server_ps;
 }
 
+/*
+ * Gets a prepared statement from the global cache. If it doesn't exist yet, it
+ * is created and added.
+ */
 static PgPreparedStatement *get_prepared_statement(PgParsePacket *pkt, bool *found)
 {
 	PgPreparedStatement *ps = NULL;
@@ -197,7 +206,9 @@ void unregister_prepared_statement(PgSocket *server, uint64_t query_id)
 	}
 }
 
-
+/*
+ * Add the prepared statement to the server its cache.
+ */
 bool add_prepared_statement(PgSocket *server, PgServerPreparedStatement *server_ps)
 {
 	HASH_ADD_UINT64(server->server_prepared_statements, query_id, server_ps);
@@ -672,6 +683,9 @@ bool handle_close_statement_command(PgSocket *client, PktHdr *pkt, PgClosePacket
 	return true;
 }
 
+/*
+ * Frees all the prepared statements that are cached on the client.
+ */
 void free_client_prepared_statements(PgSocket *client)
 {
 	PgClientPreparedStatement *client_ps, *tmp;
@@ -689,6 +703,9 @@ void free_client_prepared_statements(PgSocket *client)
 	client->client_prepared_statements = NULL;
 }
 
+/*
+ * Frees all the prepared statements that are cached on the server.
+ */
 void free_server_prepared_statements(PgSocket *server)
 {
 	struct PgServerPreparedStatement *current, *tmp_s;

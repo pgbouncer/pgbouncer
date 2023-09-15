@@ -223,7 +223,6 @@ int database_min_pool_size(PgDatabase *db)
 		return cf_min_pool_size;
 	else
 		return db->min_pool_size;
-	
 }
 
 /* returns true if the pool's db requires clients to maintain min_pool_size or if it's set globally, false otherwise */

@@ -689,12 +689,12 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	 *
 	 * We are doing this only for forced users to reduce the risk of creating connections in unexpected ways, where
 	 * there are many users. Are all database/user combos even known ahead of time?
-	*/
+	 */
 	statlist_for_each_safe(item, &database_list, tmp) {
 		db = container_of(item, PgDatabase, head);
 		if (database_min_pool_size_without_clients(db) &&
-			database_min_pool_size(db) > 0 &&
-			db->forced_user != NULL) {
+		    database_min_pool_size(db) > 0 &&
+		    db->forced_user != NULL) {
 			get_pool(db, db->forced_user);
 		}
 	}

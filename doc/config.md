@@ -320,11 +320,11 @@ server. And importantly, if the prepared statement that the client wants to use
 is not prepared on the server yet, it will automatically prepare that statement
 before forwarding the command that the client sent.
 
-Note: This tracking and rerwriting of prepared statement commands does not work
+Note: This tracking and rewriting of prepared statement commands does not work
 for SQL-level prepared statement commands such as `PREPARE`, `EXECUTE`,
 `DEALLOCATE`, `DEALLOCATE ALL` and `DISCARD ALL`. Running `DEALLOCATE ALL`
 and `DISCARD ALL` is especially problematic, since those commands will
-apear to run successfully, but they will also mess with state of the server
+appear to run successfully, but they will also mess with state of the server
 connection significantly, without PgBouncer noticing. Which in turn will
 very likely break the execution of any further prepared statements on that
 server connection.
@@ -337,7 +337,7 @@ each PgBouncer connection will be on your PostgreSQL server. It also increases
 the memory footprint of PgBouncer itself, because it now needs to keep track of
 query strings.
 
-The impact on PgBouncer its memory usage is not that big though:
+The impact on PgBouncer memory usage is not that big though:
 - Each unique query is stored once in a global query cache.
 - Each client connection keeps a buffer that it uses to rewrite packets. This
   will be at most 4 times the size of `pkt_buf`. This limit will often not be
@@ -345,16 +345,17 @@ The impact on PgBouncer its memory usage is not that big though:
   between 2 and 4 times the size of `ptk_buf`.
 
 So if you consider the following as an example scenario:
-- You have 1000 active clients
-- Your clients prepare 200 unique queries
-- The average size of a query is is 5kB
-- Your `pkt_buf` config is set to the default of 4096 (4kB)
+- There are 1000 active clients
+- The clients prepare 200 unique queries
+- The average size of a query is 5kB
+- `pkt_buf` parameter is set to the default of 4096 (4kB)
 
 Then to handle these prepared statements PgBouncer needs at most
-200×5kB + 1000×4×4kB = ~17MB of memory.
+
+200 x 5kB + 1000 x 4 x 4kB = ~17MB of memory.
 
 Tracking prepared statements does not only come with a memory cost, but also
-with increased cpu usage, because now PgBouncer needs to inspect and rewrite
+with increased CPU usage, because now PgBouncer needs to inspect and rewrite
 queries. Multiple PgBouncer instances can listen on the same port to use more
 than one core for processing, see the documentation for the `so_reuseport`
 option above for details.
@@ -371,7 +372,7 @@ exact same query, then the query is prepared (and thus parsed) only 20
 times on the server.
 
 This reusing prepared statements sadly has a downside too though: If the return
-or argument types of a prepared change across executions, then postgres
+or argument types of a prepared change across executions, then PostgreSQL
 currently throws an error such as:
 ```
 ERROR:  cached plan must not change result type
@@ -383,7 +384,7 @@ a DDL migration where you add a new column or change a column type on an
 existing table. In those cases you can run `RECONNECT` on the PgBouncer admin
 console after doing the migration to force a re-prepare of the query and make
 the error go away. There are [attempts to solve these errors in
-Postgres][ps-invalidation-patch] so hopefully you don't need to worry about
+PostgreSQL][ps-invalidation-patch] so hopefully you don't need to worry about
 this in the future anymore.
 
 [ps-invalidation-patch]: https://www.postgresql.org/message-id/flat/CAGECzQQ3nPt5joW50FygoM_7YU9QjKO06say4c-sCceqh8vnsg%40mail.gmail.com

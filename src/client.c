@@ -1405,10 +1405,10 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			}
 
 			/*
-			 * We wrote the full packet to memory. Change the callback
-			 * state to indicate that. If anything fails while handling
-			 * this packet we'll continue from the part of the callback
-			 * state machine.
+			 * We wrote the full packet into memory. Change the callback state
+			 * to indicate that. If anything fails while handling this packet
+			 * we'll continue from the current state in the callback state
+			 * machine.
 			 */
 			client->packet_cb_state.flag = CB_HANDLE_COMPLETE_PACKET;
 		/* fallthrough */

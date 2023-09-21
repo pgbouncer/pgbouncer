@@ -33,8 +33,7 @@
 #include <event2/event_struct.h>
 
 /*
- * Allow overriding the uthash OOM handler to be non-fatal, but default to a
- * fatal handler.
+ * Override the uthash non-fatal OOM handler to exit on failure by default.
  */
 #define HASH_NONFATAL_OOM 1
 #include "uthash.h"
@@ -103,17 +102,17 @@ enum SSLMode {
 };
 
 enum PacketCallbackFlag {
-	CB_NONE = 0,	/* no callback */
+	/* no callback */
+	CB_NONE = 0,
 	/*
-	 * buffer the full packet into client->packet_cb_state.complete_packet
-	 * and once that is done transfer to CB_HANDLE_COMPLETE_PACKET, which
-	 * calls. This is used to handle prepared statements in transaction
-	 * pooling mode.
+	 * Buffer the full packet into client->packet_cb_state.pkt and once it is
+	 * done switch to CB_HANDLE_COMPLETE_PACKET.  This is used to handle
+	 * prepared statements in transaction pooling mode.
 	 */
 	CB_WANT_COMPLETE_PACKET,
 	/*
-	 * The second stage of CB_WANT_COMPLETE_PACKET. The packet is fully
-	 * buffered and can now be processed by client_proto.
+	 * The state after CB_WANT_COMPLETE_PACKET. The packet is fully buffered
+	 * and can now be processed by client_proto().
 	 */
 	CB_HANDLE_COMPLETE_PACKET,
 };

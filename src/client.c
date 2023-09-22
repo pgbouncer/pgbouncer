@@ -98,7 +98,8 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 			return strcmp(user->passwd, passwd) == 0;
 		case PASSWORD_TYPE_MD5: {
 			char md5[MD5_PASSWD_LEN + 1];
-			pg_md5_encrypt(passwd, user->name, strlen(user->name), md5);
+			if (!pg_md5_encrypt(passwd, user->name, strlen(user->name), md5))
+				return false;
 			return strcmp(user->passwd, md5) == 0;
 		}
 		case PASSWORD_TYPE_SCRAM_SHA_256:
@@ -121,12 +122,14 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 		 * md5() call first.
 		 */
 		if (get_password_type(user->passwd) == PASSWORD_TYPE_PLAINTEXT) {
-			pg_md5_encrypt(user->passwd, user->name, strlen(user->name), md5);
+			if (!pg_md5_encrypt(user->passwd, user->name, strlen(user->name), md5))
+				return false;
 			stored_passwd = md5;
 		} else {
 			stored_passwd = user->passwd;
 		}
-		pg_md5_encrypt(stored_passwd + 3, (char *)client->tmp_login_salt, 4, md5);
+		if (!pg_md5_encrypt(stored_passwd + 3, (char *)client->tmp_login_salt, 4, md5))
+			return false;
 		return strcmp(md5, passwd) == 0;
 	}
 	}

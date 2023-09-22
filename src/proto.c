@@ -348,7 +348,8 @@ static bool login_md5_psw(PgSocket *server, const uint8_t *salt)
 
 	switch (get_password_type(user->passwd)) {
 	case PASSWORD_TYPE_PLAINTEXT:
-		pg_md5_encrypt(user->passwd, user->name, strlen(user->name), txt);
+		if (!pg_md5_encrypt(user->passwd, user->name, strlen(user->name), txt))
+			return false;
 		src = txt + 3;
 		break;
 	case PASSWORD_TYPE_MD5:
@@ -360,7 +361,8 @@ static bool login_md5_psw(PgSocket *server, const uint8_t *salt)
 		return false;
 	}
 
-	pg_md5_encrypt(src, (char *)salt, 4, txt);
+	if (!pg_md5_encrypt(src, (char *)salt, 4, txt))
+		return false;
 
 	return send_password(server, txt);
 }

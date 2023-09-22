@@ -27,6 +27,11 @@
 #include <usual/socket.h>
 #include <usual/cfparser.h>
 
+#ifdef USUAL_LIBSSL_FOR_TLS
+#include <openssl/err.h>
+#include <openssl/evp.h>
+#endif
+
 int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstlen)
 {
 	const struct PgSocket *sock = ctx;
@@ -104,6 +109,32 @@ void pg_md5_encrypt(const char *part1,
 		    const char *part2, size_t part2len,
 		    char *dest)
 {
+#ifdef USUAL_LIBSSL_FOR_TLS
+	EVP_MD_CTX mdctx;
+	uint8_t hash[MD5_DIGEST_LENGTH];
+
+	ERR_clear_error();
+
+	if (EVP_DigestInit(&mdctx, EVP_md5()) <= 0)
+	{
+		log_error("MD5 authentication: %s", ERR_reason_error_string(ERR_get_error()));
+	}
+
+	else if (EVP_DigestUpdate(&mdctx, part1, strlen(part1)) <= 0 ||
+			EVP_DigestUpdate(&mdctx, part2, part2len) <= 0 ||
+			EVP_DigestFinal_ex(&mdctx, hash, 0) <= 0 )
+	{
+		log_error("MD5 authentication: %s", ERR_reason_error_string(ERR_get_error()));
+		EVP_MD_CTX_cleanup(&mdctx);
+	}
+
+	else
+	{
+		EVP_MD_CTX_cleanup(&mdctx);
+		memcpy(dest, "md5", 3);
+		hash2hex(hash, dest + 3);
+	}
+#else
 	struct md5_ctx ctx;
 	uint8_t hash[MD5_DIGEST_LENGTH];
 
@@ -114,6 +145,7 @@ void pg_md5_encrypt(const char *part1,
 
 	memcpy(dest, "md5", 3);
 	hash2hex(hash, dest + 3);
+#endif
 }
 
 /* wrapped for getting random bytes */

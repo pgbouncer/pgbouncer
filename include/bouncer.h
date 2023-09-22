@@ -33,7 +33,12 @@
 #include <event2/event_struct.h>
 
 /*
- * Override the uthash non-fatal OOM handler to exit on failure by default.
+ * By default uthash exits the program when an allocation fails. But for some
+ * of our hashmap usecases we don't want that. Luckily you can install your own
+ * OOM handler. But to do so you need to define HASH_NON_FATAL before the
+ * header is loaded. Then later you can actually install your own handler. For
+ * now we simply install a fatal handler, which can be overridden again later
+ * in C files where we want to handle allocation failures differently.
  */
 #define HASH_NONFATAL_OOM 1
 #include "uthash.h"

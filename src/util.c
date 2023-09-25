@@ -117,21 +117,15 @@ bool pg_md5_encrypt(const char *part1,
 	ERR_clear_error();
 	mdctx = EVP_MD_CTX_create();
 
-	if (EVP_DigestInit(mdctx, EVP_md5()) <= 0)
-	{
+	if (EVP_DigestInit(mdctx, EVP_md5()) <= 0) {
 		log_error("MD5 authentication: %s", ERR_reason_error_string(ERR_get_error()));
 		EVP_MD_CTX_free(mdctx);
-	}
-
-	else if (EVP_DigestUpdate(mdctx, part1, strlen(part1)) <= 0 ||
-		EVP_DigestUpdate(mdctx, part2, part2len) <= 0 ||
-		EVP_DigestFinal_ex(mdctx, hash, 0) <= 0 )
-	{
+	} else if (EVP_DigestUpdate(mdctx, part1, strlen(part1)) <= 0 ||
+		   EVP_DigestUpdate(mdctx, part2, part2len) <= 0 ||
+		   EVP_DigestFinal_ex(mdctx, hash, 0) <= 0) {
 		log_error("MD5 authentication: %s", ERR_reason_error_string(ERR_get_error()));
 		EVP_MD_CTX_destroy(mdctx);
-	}
-
-	else
+	} else
 	{
 		EVP_MD_CTX_destroy(mdctx);
 		memcpy(dest, "md5", 3);

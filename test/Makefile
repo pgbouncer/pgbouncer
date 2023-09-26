@@ -19,7 +19,7 @@ EXTRA_DIST = conntest.sh ctest6000.ini ctest7000.ini run-conntest.sh \
 
 noinst_PROGRAMS = hba_test
 hba_test_CPPFLAGS = -I../include $(LIBEVENT_CFLAGS)
-hba_test_LDADD = $(LIBEVENT_LIBS)
+hba_test_LDADD = $(LIBEVENT_LIBS) $(TLS_LIBS)
 hba_test_CFLAGS = -O0
 hba_test_SOURCES = hba_test.c ../src/hba.c ../src/util.c
 hba_test_EMBED_LIBUSUAL = 1

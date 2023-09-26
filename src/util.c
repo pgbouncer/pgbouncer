@@ -148,9 +148,8 @@ failed:
 
 	memcpy(dest, "md5", 3);
 	hash2hex(hash, dest + 3);
-	result = true;
+	return true;
 #endif
-	return result;
 }
 
 /* wrapped for getting random bytes */

@@ -482,6 +482,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	struct CfValue cv;
 	int pool_mode = POOL_INHERIT;
 	int max_user_connections = -1;
+	usec_t query_wait_timeout = 0;
 
 
 	cv.value_p = &pool_mode;
@@ -510,6 +511,8 @@ bool parse_user(void *base, const char *name, const char *connstr)
 			}
 		} else if (strcmp("max_user_connections", key) == 0) {
 			max_user_connections = atoi(val);
+		} else if (strcmp("query_wait_timeout", key) == 0) {
+			query_wait_timeout = ((usec_t)atoi(val)) * USEC; /* Connection age is in usec while setting is in sec. */
 		} else {
 			log_error("unrecognized user parameter: %s", key);
 			goto fail;
@@ -527,6 +530,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 
 	user->pool_mode = pool_mode;
 	user->max_user_connections = max_user_connections;
+	user->query_wait_timeout = query_wait_timeout;
 
 	free(tmp_connstr);
 	return true;

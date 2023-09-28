@@ -17,7 +17,7 @@ pgbouncer_SOURCES = \
 	src/pktbuf.c \
 	src/pooler.c \
 	src/proto.c \
-	src/prepared_statement.c \
+	src/prepare.c \
 	src/sbuf.c \
 	src/scram.c \
 	src/server.c \

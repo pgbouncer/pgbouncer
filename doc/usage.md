@@ -309,7 +309,7 @@ application_name
 
 prepared_statements
 :  The amount of prepared statements that are prepared on the server. This
-   number is limited by the `prepared_statement_cache_size` setting.
+   number is limited by the `max_prepared_statements` setting.
 
 #### SHOW CLIENTS
 

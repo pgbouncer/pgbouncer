@@ -300,7 +300,7 @@ updated and how often aggregated statistics are written to the log
 
 Default: 60
 
-### prepared_statement_cache_size
+### max_prepared_statements
 
 When this is set to a non-zero value PgBouncer will track protocol-level named
 prepared statements related commands sent by the client in transaction and

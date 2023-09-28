@@ -12,7 +12,7 @@ PKT_BUF_SIZE = 4096
 
 def test_prepared_statement(bouncer):
     bouncer.admin(f"set pool_mode=transaction")
-    bouncer.admin(f"set prepared_statement_cache_size=100")
+    bouncer.admin(f"set max_prepared_statements=100")
     prepared_query = "SELECT 1"
     with bouncer.cur() as cur1:
         with bouncer.cur() as cur2:
@@ -34,7 +34,7 @@ def test_prepared_statement(bouncer):
 
 def test_prepared_statement_params(bouncer):
     bouncer.admin(f"set pool_mode=transaction")
-    bouncer.admin(f"set prepared_statement_cache_size=100")
+    bouncer.admin(f"set max_prepared_statements=100")
     prepared_query = "SELECT %s"
     with bouncer.cur() as cur1:
         with bouncer.cur() as cur2:
@@ -55,7 +55,7 @@ def test_prepared_statement_params(bouncer):
 
 
 def test_parse_larger_than_pkt_buf(bouncer):
-    bouncer.admin(f"set prepared_statement_cache_size=100")
+    bouncer.admin(f"set max_prepared_statements=100")
     long_string = "1" * PKT_BUF_SIZE * 10
     prepared_query = "SELECT '" + long_string + "'"
     with bouncer.cur() as cur1:
@@ -64,7 +64,7 @@ def test_parse_larger_than_pkt_buf(bouncer):
 
 
 def test_bind_larger_than_pkt_buf(bouncer):
-    bouncer.admin(f"set prepared_statement_cache_size=100")
+    bouncer.admin(f"set max_prepared_statements=100")
     long_string = "1" * PKT_BUF_SIZE * 10
     prepared_query = "SELECT %s::text"
     with bouncer.cur() as cur1:
@@ -78,7 +78,7 @@ def test_bind_larger_than_pkt_buf(bouncer):
 # buffer becomes larger than that it will be freed.
 # (see sbuf_process_pending in  sbuf.c)
 def test_parse_larger_than_pkt_buf_but_smaller_than_4x(bouncer):
-    bouncer.admin(f"set prepared_statement_cache_size=100")
+    bouncer.admin(f"set max_prepared_statements=100")
     long_string = "1" * PKT_BUF_SIZE * 2
     prepared_query = "SELECT '" + long_string + "'"
     with bouncer.cur() as cur1:
@@ -87,7 +87,7 @@ def test_parse_larger_than_pkt_buf_but_smaller_than_4x(bouncer):
 
 
 def test_bind_larger_than_pkt_buf_but_smaller_than_4x(bouncer):
-    bouncer.admin(f"set prepared_statement_cache_size=100")
+    bouncer.admin(f"set max_prepared_statements=100")
     long_string = "1" * PKT_BUF_SIZE * 2
     prepared_query = "SELECT %s::text"
     with bouncer.cur() as cur1:
@@ -101,7 +101,7 @@ def test_bind_larger_than_pkt_buf_but_smaller_than_4x(bouncer):
 # a bug, that if a varcache change was needed, then the callback would not be
 # called again correctly later.
 def test_parse_larger_than_pkt_buf_with_varcache_change(bouncer):
-    bouncer.admin(f"set prepared_statement_cache_size=100")
+    bouncer.admin(f"set max_prepared_statements=100")
     long_string = "1" * PKT_BUF_SIZE * 10
     prepared_query = "SELECT '" + long_string + "'"
     with bouncer.cur(dbname="varcache_change") as cur1:
@@ -110,7 +110,7 @@ def test_parse_larger_than_pkt_buf_with_varcache_change(bouncer):
 
 
 def test_evict_statement_cache(bouncer):
-    bouncer.admin(f"set prepared_statement_cache_size=1")
+    bouncer.admin(f"set max_prepared_statements=1")
     with bouncer.cur() as cur:
         for i in range(5):
             prepared_query = f"SELECT '{i}'"
@@ -122,7 +122,7 @@ def test_evict_statement_cache(bouncer):
         ).fetchone()[0]
         assert n_statements == 1
 
-        bouncer.admin(f"set prepared_statement_cache_size=5")
+        bouncer.admin(f"set max_prepared_statements=5")
         for i in range(5, 10):
             prepared_query = f"SELECT '{i}'"
             result = cur.execute(prepared_query, prepare=True).fetchone()[0]
@@ -133,7 +133,7 @@ def test_evict_statement_cache(bouncer):
         ).fetchone()[0]
         assert n_statements == 5
 
-        bouncer.admin(f"set prepared_statement_cache_size=2")
+        bouncer.admin(f"set max_prepared_statements=2")
 
         n_statements = cur.execute(
             "SELECT count(*) FROM pg_prepared_statements"
@@ -149,7 +149,7 @@ def test_evict_statement_cache(bouncer):
         assert n_statements == 2
 
         # Test behaviour when disabling prepared statement handling
-        bouncer.admin(f"set prepared_statement_cache_size=0")
+        bouncer.admin(f"set max_prepared_statements=0")
 
         # Since we disabled prepared statement handling, this should now fail
         # because we forward the client its prepared statement name to the
@@ -171,7 +171,7 @@ def test_evict_statement_cache(bouncer):
 
 @pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
 def test_evict_statement_cache_pipeline_failure(bouncer):
-    bouncer.admin(f"set prepared_statement_cache_size=1")
+    bouncer.admin(f"set max_prepared_statements=1")
 
     with bouncer.conn() as conn:
         with conn.pipeline() as p:
@@ -188,7 +188,7 @@ def test_evict_statement_cache_pipeline_failure(bouncer):
 
 @pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
 def test_prepared_statement_pipeline(bouncer):
-    bouncer.admin(f"set prepared_statement_cache_size=100")
+    bouncer.admin(f"set max_prepared_statements=100")
 
     # Prepare query on the server connection and then disconnect again
     prepared_query = "SELECT 1"
@@ -229,9 +229,9 @@ def test_prepared_statement_pipeline_stress(bouncer):
     max_pipeline_length = 10
     max_prepared_stmt = 100
     n_iterations = 100
-    prepared_statement_cache_size = max_prepared_stmt * 2 // 3
+    max_prepared_statements = max_prepared_stmt * 2 // 3
     size_of_param = 512
-    bouncer.admin(f"set prepared_statement_cache_size={prepared_statement_cache_size}")
+    bouncer.admin(f"set max_prepared_statements={max_prepared_statements}")
 
     for pipeline_length in range(max_pipeline_length):
         # Try with a prepared query first and a unprepared query second
@@ -253,7 +253,7 @@ def test_prepared_statement_pipeline_stress(bouncer):
 
 
 def test_describe_non_existant_prepared_statement(bouncer):
-    bouncer.admin(f"set prepared_statement_cache_size=100")
+    bouncer.admin(f"set max_prepared_statements=100")
 
     with bouncer.conn() as conn:
         result = conn.pgconn.describe_prepared(b"doesnotexist")
@@ -264,7 +264,7 @@ def test_describe_non_existant_prepared_statement(bouncer):
 # libpq before PG17 does not support sending Close messages
 @pytest.mark.skipif("psycopg.pq.version() < 170000")
 def test_close_prepared_statement(bouncer):
-    bouncer.admin(f"set prepared_statement_cache_size=100")
+    bouncer.admin(f"set max_prepared_statements=100")
 
     with bouncer.conn() as conn:
         result = conn.pgconn.prepare(b"test", b"SELECT 1")
@@ -281,7 +281,7 @@ def test_close_prepared_statement(bouncer):
 
 
 def test_statement_name_longer_than_pkt_buf(bouncer):
-    bouncer.admin(f"set prepared_statement_cache_size=100")
+    bouncer.admin(f"set max_prepared_statements=100")
 
     name = b"a" * PKT_BUF_SIZE * 4
 
@@ -305,7 +305,7 @@ def test_statement_name_longer_than_pkt_buf(bouncer):
 
 @pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
 def test_prepared_statement_pipeline_error(bouncer):
-    bouncer.admin(f"set prepared_statement_cache_size=100")
+    bouncer.admin(f"set max_prepared_statements=100")
 
     # Prepare query on the server connection and then disconnect again
     prepared_query = "SELECT 1"
@@ -327,7 +327,7 @@ def test_prepared_statement_pipeline_error(bouncer):
 
 @pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
 def test_prepared_statement_pipeline_error_delayed_sync(bouncer):
-    bouncer.admin(f"set prepared_statement_cache_size=100")
+    bouncer.admin(f"set max_prepared_statements=100")
 
     # Prepare query on the server connection and then disconnect again
     prepared_query = "SELECT 1"
@@ -358,7 +358,7 @@ def test_prepared_statement_pipeline_error_delayed_sync(bouncer):
 
 
 def test_prepared_failed_prepare(bouncer):
-    bouncer.admin(f"set prepared_statement_cache_size=100")
+    bouncer.admin(f"set max_prepared_statements=100")
 
     with bouncer.cur() as cur:
         with pytest.raises(psycopg.errors.UndefinedTable):
@@ -370,7 +370,7 @@ def test_prepared_failed_prepare(bouncer):
 
 @pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
 def test_prepared_failed_prepare_pipeline(bouncer):
-    bouncer.admin(f"set prepared_statement_cache_size=100")
+    bouncer.admin(f"set max_prepared_statements=100")
 
     with bouncer.conn() as conn:
         with conn.pipeline() as p, conn.cursor() as cur:
@@ -390,7 +390,7 @@ def test_prepared_failed_prepare_pipeline(bouncer):
 
 
 def test_prepared_disallow_name_reuse(bouncer):
-    bouncer.admin(f"set prepared_statement_cache_size=100")
+    bouncer.admin(f"set max_prepared_statements=100")
 
     with bouncer.conn() as conn:
         result = conn.pgconn.prepare(b"test", b"SELECT 1")
@@ -408,7 +408,7 @@ def test_prepared_disallow_name_reuse(bouncer):
 # more data.
 @pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
 def test_pipeline_with_half_pkt_buf_prepare(bouncer):
-    bouncer.admin(f"set prepared_statement_cache_size=100")
+    bouncer.admin(f"set max_prepared_statements=100")
 
     long_string1 = "1" * (PKT_BUF_SIZE // 2)
     long_string2 = "2" * (PKT_BUF_SIZE // 2)
@@ -435,7 +435,7 @@ def test_pipeline_with_half_pkt_buf_prepare(bouncer):
 # data to do so.
 @pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
 def test_pipeline_flushes_on_full_pkt_buf(bouncer):
-    bouncer.admin(f"set prepared_statement_cache_size=100")
+    bouncer.admin(f"set max_prepared_statements=100")
 
     query = b"SELECT 1"
 

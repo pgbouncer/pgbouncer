@@ -260,7 +260,7 @@ static bool register_prepared_statement(PgSocket *client, PgSocket *server, PgSe
 	 * ensure_statement_is_prepared_on_server for details)
 	 */
 	HASH_ITER(hh, server->server_prepared_statements, current, tmp) {
-		if (HASH_COUNT(server->server_prepared_statements) <= (unsigned int)cf_prepared_statement_cache_size) {
+		if (HASH_COUNT(server->server_prepared_statements) <= (unsigned int)cf_max_prepared_statements) {
 			break;
 		}
 

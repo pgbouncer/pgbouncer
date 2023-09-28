@@ -794,7 +794,7 @@ extern char *cf_server_tls_cert_file;
 extern char *cf_server_tls_key_file;
 extern char *cf_server_tls_ciphers;
 
-extern int cf_prepared_statement_cache_size;
+extern int cf_max_prepared_statements;
 
 extern const struct CfLookup pool_mode_map[];
 

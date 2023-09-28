@@ -32,7 +32,7 @@ typedef struct PgServerPreparedStatement {
 } PgServerPreparedStatement;
 
 #define is_prepared_statements_enabled(pool) \
-	(pool_pool_mode(pool) != POOL_SESSION && cf_prepared_statement_cache_size != 0)
+	(pool_pool_mode(pool) != POOL_SESSION && cf_max_prepared_statements != 0)
 
 bool handle_parse_command(PgSocket *client, PktHdr *pkt);
 bool handle_bind_command(PgSocket *client, PktHdr *pkt);

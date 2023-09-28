@@ -380,7 +380,7 @@ static void refresh_stats(evutil_socket_t s, short flags, void *arg)
 			 avg.xact_time, avg.query_time,
 			 avg.wait_time);
 
-		if (cf_prepared_statement_cache_size) {
+		if (cf_max_prepared_statements) {
 			log_info("prepared statement stats: %" PRIu64 " client parses/s (total %" PRIu64 "),"
 				 " %" PRIu64 " server parses/s (total %" PRIu64 "),"
 				 " %" PRIu64 " binds/s (total %" PRIu64 ")",

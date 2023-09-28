@@ -50,8 +50,8 @@ async def test_min_pool_size(pg, bouncer):
     # Also, we need to keep the query running while this is
     # happening so that the pool doesn't become momentarily
     # unused.
-    result = bouncer.asleep(3, dbname="p1")
-    await asyncio.sleep(3)
+    result = bouncer.asleep(2, dbname="p1")
+    await asyncio.sleep(2)
     await result
     assert pg.connection_count("p1") == 3
 

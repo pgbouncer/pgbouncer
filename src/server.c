@@ -24,6 +24,8 @@
 
 #include <usual/slab.h>
 
+#define ERRCODE_CANNOT_CONNECT_NOW "57P03"
+
 static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 {
 	const char *key, *val;
@@ -85,8 +87,15 @@ static void kill_pool_logins_server_error(PgPool *pool, PktHdr *errpkt)
 
 	parse_server_error(errpkt, &level, &msg, &sqlstate);
 	log_warning("server login failed: %s %s", level, msg);
-	log_noise("kill_pool_logins_server_error: sqlstate: %s", sqlstate);
-	kill_pool_logins(pool, sqlstate, msg);
+
+	/*
+	 * Kill all waiting clients unless it's a temporary error, such as
+	 * "database system is starting up".
+	 */
+	if (strcmp(sqlstate, ERRCODE_CANNOT_CONNECT_NOW) != 0) {
+		log_noise("kill_pool_logins_server_error: sqlstate: %s", sqlstate);
+		kill_pool_logins(pool, sqlstate, msg);
+	}
 }
 
 /* process packets on server auth phase */

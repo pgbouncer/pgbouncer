@@ -45,7 +45,7 @@ pgbouncer_SOURCES = \
 	include/pktbuf.h \
 	include/pooler.h \
 	include/proto.h \
-	include/prepared_statement.h \
+	include/prepare.h \
 	include/sbuf.h \
 	include/scram.h \
 	include/server.h \

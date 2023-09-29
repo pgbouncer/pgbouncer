@@ -162,7 +162,7 @@ extern int cf_sbuf_len;
 #include "hba.h"
 #include "messages.h"
 #include "pam.h"
-#include "prepared_statement.h"
+#include "prepare.h"
 
 #ifndef WIN32
 #define DEFAULT_UNIX_SOCKET_DIR "/tmp"

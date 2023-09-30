@@ -532,54 +532,64 @@ bool handle_bind_command(PgSocket *client, PktHdr *pkt)
 	slog_debug(client, "handle_bind_command: mapped statement '%s' (query '%s') to '%s'",
 		   bp.name, ps->query_and_parameters, ps->stmt_name);
 
+
 	/*
-	 * The Bind packet that we received from the client won't be sent as-is to
-	 * the server. Instead we replace the statement name with our mapped name
-	 * and also change the length if statement name is different length. Those
-	 * are the only changes that we wish to make though, and the rest of the
-	 * packet can be forwarded as is.
-	 *
-	 * So any further bytes that are already in the packet buffer we simply
-	 * append to the newly created packet. If there's bytes of the packet that
-	 * we have not buffered yet, then we forward those by using our general
-	 * SBuf forwarding logic. We explicitely don't buffer the full packet,
-	 * since the prepared statement arguments might be very large (and we don't
-	 * need to change any of those).
+	 * Track the Bind command that we're going send to server and forward
+	 * the response to the client, because they expect one.
+	 */
+	if (!add_outstanding_request(client, 'B', RA_FORWARD))
+		goto oom;
+
+	/*
+	 * The Bind packet that we received from the client won't be sent as-is
+	 * to the server. Instead we replace the statement name with our mapped
+	 * name and also change the length if statement name is different
+	 * length. Those are the only changes that we wish to make though, and
+	 * the rest of the packet can be forwarded as is.
 	 */
 	diff = strlen(bp.name) - ps->stmt_name_len;
 	buf = pktbuf_temp();
 	if (buf == NULL)
 		goto oom;
 	pktbuf_put_char(buf, pkt->type);
-	pktbuf_put_uint32(buf, pkt->len - diff - 1);	/* length does not include type byte */
+	/*
+	 * the -1 is because the length field does not include type byte, but
+	 * pkt->len does
+	 */
+	pktbuf_put_uint32(buf, pkt->len - diff - 1);
 	pktbuf_put_string(buf, bp.portal);
 	pktbuf_put_string(buf, ps->stmt_name);
-	pktbuf_put_bytes(buf, pkt->data.data + pkt->data.read_pos,
-			 pkt->data.write_pos - pkt->data.read_pos);
-	if (!sbuf_queue_packet(&client->sbuf, &server->sbuf, buf))
-		goto oom;
-
-	/*
-	 * Track the Bind command that we send to server and forward the response
-	 * to the client, because they expect one.
-	 */
-	if (!add_outstanding_request(client, 'B', RA_FORWARD))
-		goto oom;
 
 	if (client->packet_cb_state.flag == CB_HANDLE_COMPLETE_PACKET) {
 		/*
-		 * If we used special callback buffering for this packet then there's
-		 * no other bytes that we need to send. This is an exceptional case. It
-		 * only happens when the statement name does not fit in pkt_buf.
+		 * If we used special callback buffering for this packet then
+		 * we need to include all the bytes following the statement
+		 * name, because our SBuf logic considers those already
+		 * consumed by the callback. This is an exceptional case. It
+		 * only happens when the statement name does not fit in
+		 * pkt_buf.
 		 */
+		pktbuf_put_bytes(buf, pkt->data.data + pkt->data.read_pos,
+				 pkt->data.write_pos - pkt->data.read_pos);
+		if (!sbuf_queue_packet(&client->sbuf, &server->sbuf, buf))
+			goto oom;
 		return true;
 	}
+
 	/*
-	 * For all other cases we tell SBuf to skip over the bytes that were
-	 * in the current packet buffer, but we do still want it to forward all the
-	 * remaining bytes.
+	 * If we didn't use special callback buffering then we tell SBuf to
+	 * skip over all the bytes up to and including the statement name. But
+	 * for all the bytes after the statement name we use normal packet
+	 * forwarding logic. The reason for this is that our normal packet
+	 * forwarding logic is more efficient at sending data than the
+	 * sbuf_queue_packet logic, especially for large amounts of data. And
+	 * since the data after the statement name include the arguments to the
+	 * prepared statement, the remaining amount of data can be quite large.
 	 */
-	sbuf_prepare_skip_then_send_leftover(&client->sbuf, &server->sbuf, pkt->data.write_pos, pkt->len);
+	if (!sbuf_queue_packet(&client->sbuf, &server->sbuf, buf))
+		goto oom;
+
+	sbuf_prepare_skip_then_send_leftover(&client->sbuf, &server->sbuf, pkt->data.read_pos, pkt->len);
 	return true;
 
 oom:

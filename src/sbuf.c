@@ -833,9 +833,9 @@ static bool sbuf_process_pending(SBuf *sbuf)
 			} else {
 				if (sbuf->skip_remain != 0) {
 					iobuf_tag_skip(io, sbuf->skip_remain);
-					sbuf->skip_remain = 0;
 				}
 				iobuf_tag_send(io, avail - sbuf->skip_remain);
+				sbuf->skip_remain = 0;
 			}
 			break;
 		}

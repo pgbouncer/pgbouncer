@@ -681,14 +681,17 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 		return;
 
 	/*
-	 * Creating new pools to enable `min_pool_size` enforcement even if there are no active clients.
+	 * Creating new pools to enable `min_pool_size` enforcement even if
+	 * there are no active clients.
 	 *
-	 * If clients never connect there won't be a pool to maintain the min_pool_size on, which means we have to
-	 * proactively create a pool, so that it can be maintained.
+	 * If clients never connect there won't be a pool to maintain the
+	 * min_pool_size on, which means we have to proactively create a pool,
+	 * so that it can be maintained.
 	 *
-	 * We are doing this for databases with forced users only, to reduce the risk of creating connections in
-	 * unexpected ways, where there are many users.
-	 */
+	 * We are doing this for databases with forced users only, to reduce
+	 * the risk of creating connections in unexpected ways, where there are
+	 * many users.
+	   _	 */
 	statlist_for_each_safe(item, &database_list, tmp) {
 		db = container_of(item, PgDatabase, head);
 		if (database_min_pool_size(db) > 0 && db->forced_user != NULL) {

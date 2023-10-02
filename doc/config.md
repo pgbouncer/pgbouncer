@@ -139,8 +139,9 @@ of total inactivity.  The value is effectively capped at the pool size.
 
 Only enforced for pools where at least one of the following is true:
 
-* the pool has a `user` set in the `[database]` section (aka forced user)
-* there are clients connected to the pool
+* the entry in the `[database]` section for the pool has a value set for the
+  `user` key (aka forced user)
+* there is at least one client connected to the pool
 
 Default: 0 (disabled)
 
@@ -1087,8 +1088,10 @@ used.
 
 Only enforced if at least one of the following is true:
 
-* the pool has a `user` set (aka forced user)
-* there are clients connected to the pool
+* this entry in the `[database]` section has a value set for the `user` key
+  (aka forced user)
+* there is at least one client connected to the pool
+
 
 ### reserve_pool
 

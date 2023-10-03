@@ -370,38 +370,40 @@ static void refresh_stats(evutil_socket_t s, short flags, void *arg)
 	if (cf_log_stats) {
 		log_info("stats: %" PRIu64 " xacts/s,"
 			 " %" PRIu64 " queries/s,"
+			 " %" PRIu64 " client parses/s,"
+			 " %" PRIu64 " server parses/s,"
+			 " %" PRIu64 " binds/s,"
 			 " in %" PRIu64 " B/s,"
 			 " out %" PRIu64 " B/s,"
 			 " xact %" PRIu64 " us,"
 			 " query %" PRIu64 " us,"
 			 " wait %" PRIu64 " us",
-			 avg.xact_count, avg.query_count,
+			 avg.xact_count,
+			 avg.query_count,
+			 avg.ps_client_parse_count,
+			 avg.ps_server_parse_count,
+			 avg.ps_bind_count,
 			 avg.client_bytes, avg.server_bytes,
 			 avg.xact_time, avg.query_time,
 			 avg.wait_time);
-
-		if (cf_max_prepared_statements) {
-			log_info("prepared statement stats: %" PRIu64 " client parses/s (total %" PRIu64 "),"
-				 " %" PRIu64 " server parses/s (total %" PRIu64 "),"
-				 " %" PRIu64 " binds/s (total %" PRIu64 ")",
-				 avg.ps_client_parse_count,
-				 cur_total.ps_client_parse_count,
-				 avg.ps_server_parse_count,
-				 cur_total.ps_server_parse_count,
-				 avg.ps_bind_count,
-				 cur_total.ps_bind_count);
-		}
 	}
 
 	sd_notifyf(0,
 		   "STATUS=stats: %" PRIu64 " xacts/s,"
 		   " %" PRIu64 " queries/s,"
+		   " %" PRIu64 " client parses/s,"
+		   " %" PRIu64 " server parses/s,"
+		   " %" PRIu64 " binds/s,"
 		   " in %" PRIu64 " B/s,"
 		   " out %" PRIu64 " B/s,"
 		   " xact %" PRIu64 " μs,"
 		   " query %" PRIu64 " μs,"
 		   " wait %" PRIu64 " μs",
-		   avg.xact_count, avg.query_count,
+		   avg.xact_count,
+		   avg.query_count,
+		   avg.ps_client_parse_count,
+		   avg.ps_server_parse_count,
+		   avg.ps_bind_count,
 		   avg.client_bytes, avg.server_bytes,
 		   avg.xact_time, avg.query_time,
 		   avg.wait_time);

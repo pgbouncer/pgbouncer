@@ -21,6 +21,7 @@ void kill_pool_logins(PgPool *pool, const char *sqlstate, const char *msg);
 int pool_pool_mode(PgPool *pool) _MUSTCHECK;
 int pool_pool_size(PgPool *pool) _MUSTCHECK;
 int pool_min_pool_size(PgPool *pool) _MUSTCHECK;
+int database_min_pool_size(PgDatabase *db) _MUSTCHECK;
 int pool_res_pool_size(PgPool *pool) _MUSTCHECK;
 int database_max_connections(PgDatabase *db) _MUSTCHECK;
 int user_max_connections(PgUser *user) _MUSTCHECK;

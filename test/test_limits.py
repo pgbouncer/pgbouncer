@@ -1,4 +1,5 @@
 import asyncio
+import re
 
 import psycopg
 import pytest
@@ -37,10 +38,35 @@ async def test_pool_size(pg, bouncer):
 
 @pytest.mark.asyncio
 async def test_min_pool_size(pg, bouncer):
-    bouncer.admin("set min_pool_size = 3")
-    assert pg.connection_count("p1") == 0
+    # uncommenting the db that has "forced" maintenance enabled
+    # by not having this db enabled we avoid polluting other tests
+    # with connections getting autocreated
+    with bouncer.ini_path.open() as f:
+        original = f.read()
+    with bouncer.ini_path.open("w") as f:
+        # uncomment the relevant db
+        new = re.sub(r"^;p0z= (.+)", r"p0z= \g<1>", original, flags=re.MULTILINE)
+        print(new)
+        f.write(new)
+    bouncer.admin("reload")
 
-    # It's a bit tricky to get the timing of this test to work
+    # having to wait a little to give janitor time to create connection to satisfy min_pool_size
+    await asyncio.sleep(2)
+
+    # ensure db without min_pool_size has no connections
+    # p0
+    assert pg.connection_count(dbname="p0", users=("bouncer",)) == 0
+    # ensure db with min_pool_size and forced user (p0z) has the required
+    # backend connections
+    assert pg.connection_count(dbname="p0", users=("pswcheck",)) == 3
+
+    # ensure db with min_pool_size and no forced user (p0x) has no backend
+    # connections
+    assert pg.connection_count(dbname="p0", users=("postgres",)) == 0
+    # client connecting to p0x should trigger backend connection creation up to
+    # min_pool_size.
+    #
+    # NOTE: It's a bit tricky to get the timing of this test to work
     # robustly: Full maintenance runs three times a second, so we
     # need to wait at least 1/3 seconds for it to notice for sure
     # that the pool is in use.  When it does, it will launch one
@@ -49,10 +75,10 @@ async def test_min_pool_size(pg, bouncer):
     # Also, we need to keep the query running while this is
     # happening so that the pool doesn't become momentarily
     # unused.
-    result = bouncer.asleep(2, dbname="p1")
+    result = bouncer.asleep(2, dbname="p0x")
     await asyncio.sleep(2)
     await result
-    assert pg.connection_count("p1") == 3
+    assert pg.connection_count(dbname="p0", users=("postgres",)) == 5
 
 
 def test_min_pool_size_with_lower_max_user_connections(bouncer):

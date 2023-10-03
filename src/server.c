@@ -221,12 +221,19 @@ int pool_pool_size(PgPool *pool)
 		return pool->db->pool_size;
 }
 
+/* min_pool_size of the pool's db */
 int pool_min_pool_size(PgPool *pool)
 {
-	if (pool->db->min_pool_size < 0)
+	return database_min_pool_size(pool->db);
+}
+
+/* min_pool_size of the db */
+int database_min_pool_size(PgDatabase *db)
+{
+	if (db->min_pool_size < 0)
 		return cf_min_pool_size;
 	else
-		return pool->db->min_pool_size;
+		return db->min_pool_size;
 }
 
 int pool_res_pool_size(PgPool *pool)

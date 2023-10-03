@@ -259,12 +259,14 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	PktBuf *msg;
 	PgDatabase *db;
 	struct CfValue cv;
+	struct CfValue load_balance_hosts_lookup;
 	int pool_size = -1;
 	int min_pool_size = -1;
 	int res_pool_size = -1;
 	int max_db_connections = -1;
 	int dbname_ofs;
 	int pool_mode = POOL_INHERIT;
+	enum LoadBalanceHosts load_balance_hosts = LOAD_BALANCE_HOSTS_ROUND_ROBIN;
 
 	char *tmp_connstr;
 	const char *dbname = name;
@@ -282,6 +284,9 @@ bool parse_database(void *base, const char *name, const char *connstr)
 
 	cv.value_p = &pool_mode;
 	cv.extra = (const void *)pool_mode_map;
+
+	load_balance_hosts_lookup.value_p = &load_balance_hosts;
+	load_balance_hosts_lookup.extra = (const void *)load_balance_hosts_map;
 
 	if (!check_reserved_database(name)) {
 		log_error("database name \"%s\" is reserved", name);
@@ -344,6 +349,11 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			res_pool_size = atoi(val);
 		} else if (strcmp("max_db_connections", key) == 0) {
 			max_db_connections = atoi(val);
+		} else if (strcmp("load_balance_hosts", key) == 0) {
+			if (!cf_set_lookup(&load_balance_hosts_lookup, val)) {
+				log_error("invalid load_balance_hosts: %s", val);
+				goto fail;
+			}
 		} else if (strcmp("pool_mode", key) == 0) {
 			if (!cf_set_lookup(&cv, val)) {
 				log_error("invalid pool mode: %s", val);
@@ -394,6 +404,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			changed = true;
 		} else if (!strings_equal(db->auth_dbname, auth_dbname)) {
 			changed = true;
+		} else if (load_balance_hosts != db->load_balance_hosts) {
+			changed = true;
 		}
 		if (changed)
 			tag_database_dirty(db);
@@ -407,6 +419,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	db->res_pool_size = res_pool_size;
 	db->pool_mode = pool_mode;
 	db->max_db_connections = max_db_connections;
+	db->load_balance_hosts = load_balance_hosts;
 	free(db->connect_query);
 	db->connect_query = connect_query;
 

@@ -427,6 +427,9 @@ maxwait_us
 pool_mode
 :   The pooling mode in use.
 
+load_balance_hosts
+:   The load_balance_hosts in use if the pool's host contains a comma-separated list.
+
 #### SHOW PEER_POOLS
 
 A new peer_pool entry is made for each configured peer.
@@ -525,6 +528,9 @@ reserve_pool
 
 pool_mode
 :   The database's override pool_mode, or NULL if the default will be used instead.
+
+host_strategy
+:   The database's load_balance_hosts if the host contains a comma-separated list.
 
 max_connections
 :   Maximum number of allowed connections for this database, as set by

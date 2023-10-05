@@ -46,6 +46,13 @@ struct AATree user_tree;
 struct AATree pam_user_tree;
 
 /*
+ * The global prepared statement cache, which deduplicates prepared statements
+ * sent by the clients statements by storing every unique prepared statement
+ * only once.
+ */
+PgPreparedStatement *prepared_statements = NULL;
+
+/*
  * client and server objects will be pre-allocated
  * they are always in either active or free lists
  * in addition to others.
@@ -60,7 +67,9 @@ struct Slab *peer_pool_cache;
 struct Slab *pool_cache;
 struct Slab *user_cache;
 struct Slab *iobuf_cache;
+struct Slab *outstanding_request_cache;
 struct Slab *var_list_cache;
+struct Slab *server_prepared_statement_cache;
 
 /*
  * libevent may still report events when event_del()
@@ -94,6 +103,7 @@ static void construct_client(void *obj)
 	sbuf_init(&client->sbuf, client_proto);
 	client->vars.var_list = slab_alloc(var_list_cache);
 	client->state = CL_FREE;
+	client->client_prepared_statements = NULL;
 }
 
 static void construct_server(void *obj)
@@ -105,6 +115,8 @@ static void construct_server(void *obj)
 	sbuf_init(&server->sbuf, server_proto);
 	server->vars.var_list = slab_alloc(var_list_cache);
 	server->state = SV_FREE;
+	server->server_prepared_statements = NULL;
+	statlist_init(&server->outstanding_requests, "outstanding_requests");
 }
 
 /* compare string with PgUser->name, for usage with btree */
@@ -132,6 +144,7 @@ void init_objects(void)
 	peer_cache = slab_create("peer_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
 	peer_pool_cache = slab_create("peer_pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
 	pool_cache = slab_create("pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
+	outstanding_request_cache = slab_create("outstanding_request_cache", sizeof(OutstandingRequest), 0, NULL, USUAL_ALLOC);
 
 	if (!user_cache || !db_cache || !peer_cache || !peer_pool_cache || !pool_cache)
 		fatal("cannot create initial caches");
@@ -150,7 +163,38 @@ void init_caches(void)
 	client_cache = slab_create("client_cache", sizeof(PgSocket), 0, construct_client, USUAL_ALLOC);
 	iobuf_cache = slab_create("iobuf_cache", IOBUF_SIZE, 0, do_iobuf_reset, USUAL_ALLOC);
 	var_list_cache = slab_create("var_list_cache", sizeof(struct PStr *) * get_num_var_cached(), 0, NULL, USUAL_ALLOC);
+	server_prepared_statement_cache = slab_create("server_prepared_statement_cache", sizeof(PgServerPreparedStatement), 0, NULL, USUAL_ALLOC);
 }
+
+/* free all memory related to the given client */
+static void client_free(PgSocket *client)
+{
+	free_client_prepared_statements(client);
+	varcache_clean(&client->vars);
+	slab_free(var_list_cache, client->vars.var_list);
+	slab_free(client_cache, client);
+}
+
+/* free all memory related to the given server */
+static void server_free(PgSocket *server)
+{
+	struct List *el, *tmp_l;
+	OutstandingRequest *request;
+
+	statlist_for_each_safe(el, &server->outstanding_requests, tmp_l) {
+		request = container_of(el, OutstandingRequest, node);
+		statlist_remove(&server->canceling_clients, el);
+		if (request->server_ps)
+			free_server_prepared_statement(request->server_ps);
+		slab_free(outstanding_request_cache, request);
+	}
+
+	free_server_prepared_statements(server);
+	varcache_clean(&server->vars);
+	slab_free(var_list_cache, server->vars.var_list);
+	slab_free(server_cache, server);
+}
+
 
 /* state change means moving between lists */
 void change_client_state(PgSocket *client, SocketState newstate)
@@ -194,9 +238,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	/* put to new location */
 	switch (client->state) {
 	case CL_FREE:
-		varcache_clean(&client->vars);
-		slab_free(var_list_cache, client->vars.var_list);
-		slab_free(client_cache, client);
+		client_free(client);
 		break;
 	case CL_JUSTFREE:
 		statlist_append(&justfree_client_list, &client->head);
@@ -265,9 +307,7 @@ void change_server_state(PgSocket *server, SocketState newstate)
 	/* put to new location */
 	switch (server->state) {
 	case SV_FREE:
-		varcache_clean(&server->vars);
-		slab_free(var_list_cache, server->vars.var_list);
-		slab_free(server_cache, server);
+		server_free(server);
 		break;
 	case SV_JUSTFREE:
 		statlist_append(&justfree_server_list, &server->head);
@@ -802,6 +842,7 @@ bool find_server(PgSocket *client)
 	if (client->link)
 		return true;
 
+	slog_noise(client, "find_server: client had no linked server yet");
 	/* try to get idle server, if allowed */
 	if (cf_pause_mode == P_PAUSE || pool->db->db_paused) {
 		server = NULL;
@@ -835,6 +876,7 @@ bool find_server(PgSocket *client)
 
 	/* link or send to waiters list */
 	if (server) {
+		slog_noise(client, "linking client to S-%p", server);
 		client->link = server;
 		server->link = client;
 		change_server_state(server, SV_ACTIVE);
@@ -842,6 +884,7 @@ bool find_server(PgSocket *client)
 			server->setting_vars = true;
 			server->ready = false;
 			res = false;	/* don't process client data yet */
+			slog_noise(client, "pausing client while applying vars");
 			if (!sbuf_pause(&client->sbuf))
 				disconnect_client(client, true, "pause failed");
 		} else {
@@ -872,6 +915,139 @@ static bool reuse_on_release(PgSocket *server)
 			res = false;
 	}
 	return res;
+}
+
+bool queue_fake_response(PgSocket *client, char request_type)
+{
+	bool res = true;
+	PgSocket *server = client->link;
+	Assert(server);
+
+	if (request_type == 'P') {
+		slog_debug(client, "Queuing fake ParseComplete packet");
+		QUEUE_ParseComplete(res, server, client);
+	} else if (request_type == 'C') {
+		slog_debug(client, "Queuing fake CloseComplete packet");
+		QUEUE_CloseComplete(res, server, client);
+	} else {
+		fatal("Unknown fake request type %c", request_type);
+	}
+	return res;
+}
+
+/*
+ * Adds a request to the outstanding requests queue, and schedule the given
+ * action (see comments on ResponseAction for details).
+ *
+ * returns false if the required allocations failed
+ */
+bool add_outstanding_request(PgSocket *client, char type, ResponseAction action)
+{
+	OutstandingRequest *request = NULL;
+
+	PgSocket *server = client->link;
+	Assert(server);
+
+	if (action == RA_FAKE && statlist_empty(&server->outstanding_requests)) {
+		/*
+		 * If there's no outstanding requests, we can send the response
+		 * right away. And we're actually required to do that to make
+		 * sure the client receives it, because we normally only send
+		 * responses to fake requests right after we handle a response
+		 * to a real request. So if none are outstanding, we won't send
+		 * such a response.
+		 */
+		slog_noise(client, "add_outstanding_request: queueing fake response right away %c",
+			   type);
+		return queue_fake_response(client, type);
+	}
+
+	request = slab_alloc(outstanding_request_cache);
+	if (request == NULL)
+		return false;
+	request->type = type;
+	request->action = action;
+	statlist_append(&server->outstanding_requests, &request->node);
+	slog_noise(client, "add_outstanding_request: added %c, still outstanding %d",
+		   type, statlist_count(&client->link->outstanding_requests));
+	return true;
+}
+
+/*
+ * If the next outstanding request is of one of the given types, pop it off the
+ * queue. If it is of a different type, don't do anything.
+ *
+ * returns true if one of the given types was popped of off the queue.
+ */
+bool pop_outstanding_request(PgSocket *server, char *types, bool *skip)
+{
+	OutstandingRequest *request;
+	struct List *item = statlist_first(&server->outstanding_requests);
+	if (!item)
+		return false;
+
+	request = container_of(item, OutstandingRequest, node);
+	if (request->action == RA_FAKE) {
+		/*
+		 * This is weird, normally we should have already processed all fake
+		 * requests at the end of the previous packet.
+		 */
+		slog_warning(server, "pop_outstanding_request: unexpected fake request of type %c", request->type);
+		return false;
+	}
+
+	if (strchr(types, request->type) == NULL)
+		return false;
+
+	statlist_pop(&server->outstanding_requests);
+	if (skip)
+		*skip = request->action == RA_SKIP;
+	slog_noise(server, "pop_outstanding_request: popped %c, still outstanding %d, skip %d",
+		   request->type, statlist_count(&server->outstanding_requests), request->action == RA_SKIP);
+	if (request->server_ps != NULL) {
+		free_server_prepared_statement(request->server_ps);
+	}
+	slab_free(outstanding_request_cache, request);
+	return true;
+}
+
+/*
+ * clear all outstanding requests until we reach a Sync ('S') response, any
+ * Parse or Close statement requests that were still outstanding will be
+ * unregistered or re-registered from the server its cache
+ */
+bool clear_outstanding_requests_until_sync(PgSocket *server)
+{
+	struct List *item, *tmp;
+	statlist_for_each_safe(item, &server->outstanding_requests, tmp) {
+		OutstandingRequest *request = container_of(item, OutstandingRequest, node);
+		char type = request->type;
+		if (type == 'P' && request->server_ps_query_id > 0) {
+			unregister_prepared_statement(server, request->server_ps_query_id);
+			slog_noise(server,
+				   "failed prepared statement '" PREPARED_STMT_NAME_FORMAT "' removed from server cache, %d cached items",
+				   request->server_ps_query_id,
+				   HASH_COUNT(server->server_prepared_statements));
+		} else if (type == 'C' && request->server_ps != NULL) {
+			if (!add_prepared_statement(server, request->server_ps)) {
+				if (server->link)
+					disconnect_client(server->link, true, "out of memory");
+				disconnect_server(server, true, "out of memory");
+				return false;
+			}
+			slog_noise(server,
+				   "prepared statement '%s' added back to server cache, %d cached items",
+				   request->server_ps->ps->stmt_name,
+				   HASH_COUNT(server->server_prepared_statements));
+		}
+		statlist_remove(&server->outstanding_requests, item);
+		slab_free(outstanding_request_cache, request);
+
+		if (type == 'S')
+			break;
+	}
+	slog_noise(server, "clear_outstanding_requests_until_sync: still outstanding %d", statlist_count(&server->outstanding_requests));
+	return true;
 }
 
 /* send reset query */
@@ -973,6 +1149,18 @@ bool release_server(PgSocket *server)
 		disconnect_server(server, true, "server lifetime over");
 		pool->last_lifetime_disconnect = get_cached_time();
 		return false;
+	}
+
+	if (statlist_count(&server->outstanding_requests) > 0) {
+		/*
+		 * We can't release the server if there are outstanding requests
+		 * that haven't been responded to yet, otherwise the server
+		 * might get linked to another client and it will get those
+		 * responses when it does not expect them. To be on the safe
+		 * side we simply close this connection.
+		 */
+		disconnect_server(server, true, "client disconnected with queries in progress");
+		return true;
 	}
 
 	/* enforce close request */
@@ -1239,6 +1427,7 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 		send_pooler_error(client, false, sqlstate, true, reason);
 	}
 
+	free_header(&client->packet_cb_state.pkt);
 	free_scram_state(&client->scram_state);
 	if (client->login_user && client->login_user->mock_auth) {
 		free(client->login_user);
@@ -2211,7 +2400,6 @@ void tag_host_addr_dirty(const char *host, const struct sockaddr *sa)
 	}
 }
 
-
 /* move objects from justfree_* to free_* lists */
 void reuse_just_freed_objects(void)
 {
@@ -2266,6 +2454,16 @@ void objects_cleanup(void)
 		kill_peer(peer);
 	}
 
+	statlist_for_each_safe(item, &justfree_server_list, tmp) {
+		PgSocket *server = container_of(item, PgSocket, head);
+		server_free(server);
+	}
+
+	statlist_for_each_safe(item, &justfree_client_list, tmp) {
+		PgSocket *client = container_of(item, PgSocket, head);
+		client_free(client);
+	}
+
 	memset(&login_client_list, 0, sizeof login_client_list);
 	memset(&user_list, 0, sizeof user_list);
 	memset(&database_list, 0, sizeof database_list);
@@ -2289,6 +2487,10 @@ void objects_cleanup(void)
 	user_cache = NULL;
 	slab_destroy(iobuf_cache);
 	iobuf_cache = NULL;
+	slab_destroy(outstanding_request_cache);
+	outstanding_request_cache = NULL;
 	slab_destroy(var_list_cache);
 	var_list_cache = NULL;
+	slab_destroy(server_prepared_statement_cache);
+	server_prepared_statement_cache = NULL;
 }

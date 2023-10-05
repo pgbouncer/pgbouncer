@@ -22,6 +22,8 @@
 
 #include "bouncer.h"
 
+#include <usual/slab.h>
+
 #define ERRCODE_CANNOT_CONNECT_NOW "57P03"
 
 static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
@@ -267,6 +269,8 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	SBuf *sbuf = &server->sbuf;
 	PgSocket *client = server->link;
 	bool async_response = false;
+	struct List *item, *tmp;
+	bool ignore_packet = false;
 
 	Assert(!server->pool->db->admin);
 
@@ -282,6 +286,13 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		/* if partial pkt, wait */
 		if (!mbuf_get_char(&pkt->data, &state))
 			return false;
+
+		if (!pop_outstanding_request(server, "SQF", &ignore_packet)
+		    && server->query_failed) {
+			if (!clear_outstanding_requests_until_sync(server))
+				return false;
+		}
+		server->query_failed = false;
 
 		/* set ready only if no tx */
 		if (state == 'I') {
@@ -333,7 +344,17 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			disconnect_server(server, true, "invalid server parameter");
 			return false;
 		}
-	/* fallthrough */
+		/* ErrorResponse and CommandComplete show end of copy mode */
+		if (server->copy_mode) {
+			server->copy_mode = false;
+
+			/* it's impossible to track sync count over copy */
+			if (client)
+				client->expect_rfq_count = 0;
+		} else {
+			server->query_failed = true;
+		}
+		break;
 	case 'C':		/* CommandComplete */
 
 		/* ErrorResponse and CommandComplete show end of copy mode */
@@ -344,6 +365,8 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			if (client)
 				client->expect_rfq_count = 0;
 		}
+		pop_outstanding_request(server, "E", &ignore_packet);
+
 		break;
 
 	case 'N':		/* NoticeResponse */
@@ -362,21 +385,32 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		server->copy_mode = true;
 		break;
 	/* chat packets */
+	case '1':		/* ParseComplete */
+		pop_outstanding_request(server, "P", &ignore_packet);
+		break;
 	case '2':		/* BindComplete */
+		pop_outstanding_request(server, "B", &ignore_packet);
+		break;
 	case '3':		/* CloseComplete */
+		pop_outstanding_request(server, "C", &ignore_packet);
+		break;
+	case 'n':		/* NoData */
+	case 'T':		/* RowDescription */
+		pop_outstanding_request(server, "D", &ignore_packet);
+		break;
+	case 't':		/* ParameterDescription */
 	case 'c':		/* CopyDone(F/B) */
 	case 'f':		/* CopyFail(F/B) */
-	case 'I':		/* EmptyQueryResponse == CommandComplete */
 	case 'V':		/* FunctionCallResponse */
-	case 'n':		/* NoData */
-	case '1':		/* ParseComplete */
+		break;
+	case 'I':		/* EmptyQueryResponse == CommandComplete */
 	case 's':		/* PortalSuspended */
+		pop_outstanding_request(server, "E", &ignore_packet);
+		break;
 
 	/* data packets, there will be more coming */
 	case 'd':		/* CopyData(F/B) */
 	case 'D':		/* DataRow */
-	case 't':		/* ParameterDescription */
-	case 'T':		/* RowDescription */
 		break;
 	}
 	server->idle_tx = idle_tx;
@@ -389,6 +423,9 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	} else if (client) {
 		if (client->state == CL_LOGIN) {
 			return handle_auth_query_response(client, pkt);
+		} else if (ignore_packet) {
+			slog_noise(server, "not forwarding packet with type '%c' from server", pkt->type);
+			sbuf_prepare_skip(sbuf, pkt->len);
 		} else {
 			sbuf_prepare_send(sbuf, &client->sbuf, pkt->len);
 
@@ -432,6 +469,30 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 						slog_warning(client, "FIXME: transaction end, but xact_start == 0");
 					}
 				}
+			}
+			statlist_for_each_safe(item, &server->outstanding_requests, tmp) {
+				OutstandingRequest *request = container_of(item, OutstandingRequest, node);
+				if (request->action != RA_FAKE)
+					break;
+
+				statlist_pop(&server->outstanding_requests);
+				sbuf->extra_packet_queue_after = true;
+
+				if (!queue_fake_response(client, request->type)) {
+					/*
+					 * The only reason the above could have failed is because
+					 * of allocation errors. To actually be able to retry after
+					 * these failures the next round we would need to restore
+					 * the outstanding_requests queue to how it was before.
+					 * Instead of doing that, we take the easy and known
+					 * correct way out: Simply disconnecting the involved
+					 * client and server.
+					 */
+					disconnect_client(client, true, "out of memory");
+					disconnect_server(client->link, true, "out of memory");
+					return false;
+				}
+				slab_free(outstanding_request_cache, request);
 			}
 		}
 	} else {
@@ -631,6 +692,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			Assert(client);
 
 			server->setting_vars = false;
+			log_noise("done setting vars unpausing client");
 			sbuf_continue(&client->sbuf);
 			break;
 		}
@@ -643,7 +705,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			case SV_TESTED:
 				/* keep link if client expects more Syncs */
 				if (server->link) {
-					if (server->link->expect_rfq_count > 0)
+					if (server->link->expect_rfq_count > 0 || statlist_count(&server->outstanding_requests) > 0)
 						break;
 				}
 

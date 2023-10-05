@@ -115,6 +115,21 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
 #define pktbuf_write_SSLRequest(buf) \
 	pktbuf_write_generic(buf, PKT_SSLREQ, "")
 
+#define pktbuf_write_Parse(buf, stmt, query_and_parameters, query_and_parameters_len) \
+	pktbuf_write_generic(buf, 'P', "sb", stmt, query_and_parameters, query_and_parameters_len)
+
+#define pktbuf_write_ParseComplete(buf) \
+	pktbuf_write_generic(buf, '1', "")
+
+#define pktbuf_write_DescribeStmt(buf, stmt) \
+	pktbuf_write_generic(buf, 'D', "cs", 'S', stmt)
+
+#define pktbuf_write_CloseStmt(buf, stmt) \
+	pktbuf_write_generic(buf, 'C', "cs", 'S', stmt)
+
+#define pktbuf_write_CloseComplete(buf) \
+	pktbuf_write_generic(buf, '3', "")
+
 /*
  * Shortcut for creating DataRow in memory.
  */
@@ -127,7 +142,14 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
 } while (0)
 
 /*
- * Shortcuts for immediate send of one packet.
+ * Shortcuts for immediate send of one packet. These should only be used when
+ * server and client are not linked yet. Otherwise the data sent by these
+ * functions might get sent right in the middle of a message send by the other
+ * side of the link.
+ *
+ * NOTE: If the OS socket buffer is full then these functions return failure. So
+ * only use these functions when that is so unlikely that we don't expect that
+ * to ever happen in practice.
  */
 
 #define SEND_wrap(buflen, pktfn, res, sk, args...) do { \
@@ -157,5 +179,33 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
 
 #define SEND_SASLResponseMessage(res, sk, cr) \
 	SEND_wrap(512, pkgbuf_write_SASLResponseMessage, res, sk, cr)
+
+#define SEND_CloseComplete(res, sk) \
+	SEND_wrap(5, pktbuf_write_CloseComplete, res, sk)
+
+/*
+ * Shortcuts for queueing one packet. These should only be used when the server
+ * and client are linked. They wait with actually sending the data until a
+ * any partially sent packet from the other side of the link has been fully
+ * sent.
+ */
+#define QUEUE_wrap(buflen, pktfn, res, source, target, args...) do { \
+		uint8_t _data[buflen]; PktBuf _buf; \
+		pktbuf_static(&_buf, _data, sizeof(_data)); \
+		pktfn(&_buf, ## args); \
+		res = sbuf_queue_packet(&source->sbuf, &target->sbuf, &_buf); \
+} while (0)
+
+#define QUEUE_ParseComplete(res, source, target) \
+	QUEUE_wrap(5, pktbuf_write_ParseComplete, res, source, target)
+
+#define QUEUE_DescribeStmt(res, source, target, statement) \
+	QUEUE_wrap(6 + MAX_SERVER_PREPARED_STMT_NAME, pktbuf_write_DescribeStmt, res, source, target, statement)
+
+#define QUEUE_CloseStmt(res, source, target, statement) \
+	QUEUE_wrap(6 + MAX_SERVER_PREPARED_STMT_NAME, pktbuf_write_CloseStmt, res, source, target, statement)
+
+#define QUEUE_CloseComplete(res, source, target) \
+	QUEUE_wrap(5, pktbuf_write_CloseComplete, res, source, target)
 
 void pktbuf_cleanup(void);

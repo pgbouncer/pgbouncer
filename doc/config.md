@@ -306,6 +306,97 @@ updated and how often aggregated statistics are written to the log
 
 Default: 60
 
+### max_prepared_statements
+
+When this is set to a non-zero value PgBouncer tracks protocol-level named
+prepared statements related commands sent by the client in transaction and
+statement pooling mode. PgBouncer makes sure that any statement prepared by
+a client is available on the backing server connection. Even when the statement
+was originally prepared on another server connection.
+
+PgBouncer internally examines all the queries that are sent as a prepared
+statement by clients and gives each unique query string an internal name with
+the format `PGBOUNCER_{unique_id}`. Prepared statements are only prepared using
+this name on the corresponding PostgreSQL server. PgBouncer keeps track of the
+name that the client gave to each prepared statement. It rewrites each command
+that uses a prepared statement to use the matching internal name (e.g.
+`PGBOUNCER_123`) before forwarding that command to the server. More
+importantly, if the prepared statement that the client wants to use is not
+prepared on the server yet, it automatically prepares that statement before
+forwarding the command that the client sent.
+
+Note: This tracking and rewriting of prepared statement commands does not work
+for SQL-level prepared statement commands such as `PREPARE`, `EXECUTE`,
+`DEALLOCATE`, `DEALLOCATE ALL` and `DISCARD ALL`. Running `DEALLOCATE ALL` and
+`DISCARD ALL` is especially problematic, since those commands appear to run
+successfully, but they mess up with the state of the server connection
+significantly without PgBouncer noticing. Which in turn will very likely break
+the execution of any further prepared statements on that server connection.
+
+The actual value of this setting controls the number of prepared statements
+kept active on a single server connection. When the setting is set to 0
+prepared statement support for transaction and statement pooling is disabled.
+To get the best performance you should try to make sure that this setting is
+larger than the amount of commonly used prepared statements in your
+application. Keep in mind that the higher this value, the larger the memory
+footprint of each PgBouncer connection will be on your PostgreSQL server,
+because it will keep more queries prepared on those connections. It also
+increases the memory footprint of PgBouncer itself, because it now needs to
+keep track of query strings.
+
+The impact on PgBouncer memory usage is not that big though:
+- Each unique query is stored once in a global query cache.
+- Each client connection keeps a buffer that it uses to rewrite packets. This
+  is at most 4 times the size of `pkt_buf`. This limit is often not reached
+  though, it only happens when the queries in your prepared statements are
+  between 2 and 4 times the size of `pkt_buf`.
+
+So if you consider the following as an example scenario:
+- There are 1000 active clients
+- The clients prepare 200 unique queries
+- The average size of a query is 5kB
+- `pkt_buf` parameter is set to the default of 4096 (4kB)
+
+Then PgBouncer needs at most the following amount of memory to handle these
+prepared statements:
+
+200 x 5kB + 1000 x 4 x 4kB = ~17MB of memory.
+
+Tracking prepared statements does not only come with a memory cost, but also
+with increased CPU usage, because PgBouncer needs to inspect and rewrite the
+queries. Multiple PgBouncer instances can listen on the same port to use more
+than one core for processing, see [the documentation for the `so_reuseport`
+option](/config.html#so_reuseport) for details.
+
+But of course there are also performance benefits to prepared statements. Just
+as when connecting to PostgreSQL directly, by preparing a query that is
+executed many times, it reduces the total amount of parsing and planning that
+needs to be done. The way that PgBouncer tracks prepared statements is
+especially beneficial to performance when multiple clients prepare the same
+queries. Because client connections automatically reuse a prepared statement on
+a server connection even if it was prepared by another client. As an example if
+you have a `pool_size` of 20 and you have 100 clients that all prepare the
+exact same query, then the query is prepared (and thus parsed) only 20 times on
+the PostgreSQL server.
+
+The reuse of prepared statements has one downside. If the return or argument
+types of a prepared statement changes across executions then PostgreSQL
+currently throws an error such as:
+
+```
+ERROR:  cached plan must not change result type
+```
+
+You can avoid such errors by not having multiple clients that use the exact
+same query string in a prepared statement, but expecting different argument or
+result types. One of the most common ways of running into this issue is during
+a DDL migration where you add a new column or change a column type on an
+existing table. In those cases you can run `RECONNECT` on the PgBouncer admin
+console after doing the migration to force a re-prepare of the query and make
+the error goes away.
+
+Default: 0
+
 
 ## Authentication settings
 

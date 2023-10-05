@@ -188,6 +188,8 @@ char *cf_server_tls_cert_file;
 char *cf_server_tls_key_file;
 char *cf_server_tls_ciphers;
 
+int cf_max_prepared_statements;
+
 /*
  * config file description
  */
@@ -269,6 +271,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("max_client_conn", CF_INT, cf_max_client_conn, 0, "100"),
 	CF_ABS("max_db_connections", CF_INT, cf_max_db_connections, 0, "0"),
 	CF_ABS("max_packet_size", CF_UINT, cf_max_packet_size, 0, "2147483647"),
+	CF_ABS("max_prepared_statements", CF_INT, cf_max_prepared_statements, 0, "0"),
 	CF_ABS("max_user_connections", CF_INT, cf_max_user_connections, 0, "0"),
 	CF_ABS("min_pool_size", CF_INT, cf_min_pool_size, 0, "0"),
 	CF_ABS("peer_id", CF_INT, cf_peer_id, 0, "0"),

@@ -123,7 +123,7 @@ def test_server_ssl_verify(pg, bouncer, cert_dir):
             psycopg.OperationalError,
             match="connection timeout expired",
         ):
-            bouncer.test(connect_timeout=2)
+            bouncer.test(connect_timeout=4)
     bouncer.admin(f"set server_tls_ca_file = '{root}'")
     bouncer.test()
 

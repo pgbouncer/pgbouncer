@@ -25,6 +25,7 @@
 #include "scram.h"
 
 #include <usual/pgutil.h>
+#include <usual/slab.h>
 
 static const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
 {
@@ -1025,6 +1026,10 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 {
 	SBuf *sbuf = &client->sbuf;
 	int rfq_delta = 0;
+	int track_outstanding = false;
+	PreparedStatementAction ps_action = PS_IGNORE;
+	PgClosePacket close_packet;
+	PgPool *pool = client->pool;
 
 	switch (pkt->type) {
 	/* one-packet queries */
@@ -1035,14 +1040,17 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 			return false;
 		}
 		rfq_delta++;
+		track_outstanding = true;
 		break;
 	case 'F':		/* FunctionCall */
 		rfq_delta++;
+		track_outstanding = true;
 		break;
 
 	/* request immediate response from server */
 	case 'S':		/* Sync */
 		rfq_delta++;
+		track_outstanding = true;
 		break;
 	case 'H':		/* Flush */
 		break;
@@ -1057,10 +1065,41 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	 * to buffer packets until sync or flush is sent by client
 	 */
 	case 'P':		/* Parse */
+		track_outstanding = true;
+		if (is_prepared_statements_enabled(pool)) {
+			ps_action = inspect_parse_packet(client, pkt);
+			pkt_rewind_v3(pkt);
+		}
+		break;
+
 	case 'E':		/* Execute */
+		track_outstanding = true;
+		break;
+
 	case 'C':		/* Close */
+		track_outstanding = true;
+		if (is_prepared_statements_enabled(pool)) {
+			ps_action = inspect_describe_or_close_packet(client, pkt);
+			pkt_rewind_v3(pkt);
+		}
+		break;
+
 	case 'B':		/* Bind */
+		track_outstanding = true;
+		if (is_prepared_statements_enabled(pool)) {
+			ps_action = inspect_bind_packet(client, pkt);
+			pkt_rewind_v3(pkt);
+		}
+		break;
+
 	case 'D':		/* Describe */
+		track_outstanding = true;
+		if (is_prepared_statements_enabled(pool)) {
+			ps_action = inspect_describe_or_close_packet(client, pkt);
+			pkt_rewind_v3(pkt);
+		}
+		break;
+
 	case 'd':		/* CopyData(F/B) */
 		break;
 
@@ -1073,6 +1112,82 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		disconnect_client(client, false, "client close request");
 		return false;
 	}
+
+	if (ps_action == PS_HANDLE_FULL_PACKET && incomplete_pkt(pkt)) {
+		if (pkt->len > (unsigned) cf_sbuf_len) {
+			/*
+			 * We need to handle the complete packet, but it is too
+			 * large to fit into our sbuf buffer size (determined
+			 * by the pkt_buf config). So now we need to fetch the
+			 * whole packet using our dynamically sized packet
+			 * buffering logic.
+			 */
+			client->packet_cb_state.flag = CB_WANT_COMPLETE_PACKET;
+			sbuf_prepare_fetch(sbuf, pkt->len);
+			return true;
+		} else {
+			/*
+			 * We need to handle the complete packet, but it fits
+			 * in our sbuf buffer, so we can simply return false to
+			 * indicate to sbuf to retry once it has received more
+			 * data
+			 */
+			return false;
+		}
+	}
+
+	if (ps_action == PS_INSPECT_FAILED) {
+		if (!incomplete_pkt(pkt)) {
+			/*
+			 * We have the full packet, but still inspection
+			 * failed. That means the packet is plain wrong.
+			 */
+			slog_error(client, "failed to parse prepared statement packet type '%c'", pkt->type);
+			disconnect_client(client, true, "failed to parse packet");
+			return false;
+		}
+
+		/*
+		 * We don't have the full packet yet, so probably inspection
+		 * failed because the required part of the packet was not
+		 * received yet.
+		 */
+
+		if (pkt->data.write_pos >= (unsigned) cf_sbuf_len) {
+			/*
+			 * We've filled up our complete sbuf buffer with this
+			 * packet, but we still haven't been able to determine
+			 * if we should handle this packet or not. This is
+			 * quite unexpected, and probably means that the
+			 * name of the prepared statement is larger than
+			 * pkt_buf.
+			 */
+			client->packet_cb_state.flag = CB_WANT_COMPLETE_PACKET;
+			sbuf_prepare_fetch(sbuf, pkt->len);
+			return true;
+		}
+		/*
+		 * In all other cases we simply return false to indicate to
+		 * sbuf to retry after receiving more data.
+		 */
+		return false;
+	}
+
+	if (ps_action != PS_IGNORE && pkt->type == 'C') {
+		if (!unmarshall_close_packet(client, pkt, &close_packet))
+			return false;
+
+		if (is_close_named_statement_packet(&close_packet)) {
+			if (!handle_close_statement_command(client, pkt, &close_packet))
+				return false;
+
+			client->pool->stats.client_bytes += pkt->len;
+
+			/* No further processing required */
+			return true;
+		}
+	}
+
 
 	/* update stats */
 	if (!client->query_start) {
@@ -1104,7 +1219,60 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	client->link->ready = false;
 	client->link->idle_tx = false;
 
+	if (ps_action != PS_IGNORE) {
+		/*
+		 * All the following handle_xxx_packet functions below insert packets
+		 * into the packet queue through the extra_packets field of SBuf. This
+		 * requires that all previous data in the iobuf is flushed. So lets
+		 * just do that now, so that these functions don't have to worry about
+		 * doing that.
+		 */
+		if (!sbuf_flush(sbuf))
+			return false;
+
+		switch (pkt->type)
+		{
+		case 'P':
+			return handle_parse_command(client, pkt);
+		case 'B':
+			return handle_bind_command(client, pkt);
+		case 'D':
+			return handle_describe_command(client, pkt);
+		}
+		return true;
+	}
+
 	/* forward the packet */
+	if (track_outstanding) {
+		if (!add_outstanding_request(client, pkt->type, RA_FORWARD)) {
+			/* TODO disconnect oom */
+			return false;
+		}
+	}
+
+	if (client->packet_cb_state.flag == CB_HANDLE_COMPLETE_PACKET) {
+		/*
+		 * It's possible that the prepared statement logic required fully
+		 * buffering the packet for inspection purposes using our callback
+		 * packet buffering logic. But once it was fully buffered and the
+		 * inspection caused us to determine that we should simply forward the
+		 * packet (e.g. it was a Describe for a Portal). In those cases we
+		 * cannot simply call sbuf_prepare_send, because we already consumed
+		 * the packet using our callback logic. So now we need to first flush
+		 * the queue, and then re-queue the fully buffered packet using our
+		 * packet queueing logic.
+		 */
+		if (!sbuf_flush(sbuf))
+			return false;
+
+		if (!sbuf_queue_full_packet(&client->sbuf, &client->link->sbuf, pkt)) {
+			disconnect_client(client, true, "out of memory");
+			disconnect_server(client->link, true, "out of memory");
+			return false;
+		}
+		return true;
+	}
+
 	sbuf_prepare_send(sbuf, &client->link->sbuf, pkt->len);
 
 	return true;
@@ -1199,8 +1367,71 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		/* client is not interested in it */
 		break;
 	case SBUF_EV_PKT_CALLBACK:
-		/* unused ATM */
+	{
+		bool first = false;
+		if (client->packet_cb_state.pkt.type == 0) {
+			first = true;
+			if (!get_header(data, &client->packet_cb_state.pkt)) {
+				char hex[8*2 + 1];
+				disconnect_client(client, true, "bad packet header: '%s'",
+						  hdr2hex(data, hex, sizeof(hex)));
+				return false;
+			}
+			mbuf_rewind_reader(data);
+		}
+
+		switch (client->packet_cb_state.flag) {
+		case CB_WANT_COMPLETE_PACKET:
+			if (first) {
+				slog_debug(client,
+					   "buffering complete packet, pkt='%c' len=%d incomplete=%s available=%d",
+					   pkt_desc(&client->packet_cb_state.pkt),
+					   client->packet_cb_state.pkt.len,
+					   incomplete_pkt(&client->packet_cb_state.pkt) ? "true" : "false",
+					   mbuf_avail_for_read(data));
+
+				mbuf_init_dynamic(&client->packet_cb_state.pkt.data);
+				if (!mbuf_make_room(&client->packet_cb_state.pkt.data, client->packet_cb_state.pkt.len))
+					return false;
+			}
+
+			if (!mbuf_write_raw_mbuf(&client->packet_cb_state.pkt.data, data))
+				return false;
+
+			if (sbuf->pkt_remain != mbuf_avail_for_read(data)) {
+				/*
+				 * We wrote the partial packet to our temporary buffer. So
+				 * we "handled" it and want to receive more data.
+				 */
+				res = true;
+				break;
+			}
+
+			/*
+			 * We wrote the full packet into memory. Change the callback state
+			 * to indicate that. If anything fails while handling this packet
+			 * we'll continue from the current state in the callback state
+			 * machine.
+			 */
+			client->packet_cb_state.flag = CB_HANDLE_COMPLETE_PACKET;
+		/* fallthrough */
+		case CB_HANDLE_COMPLETE_PACKET:
+			/* Make sure we start reading after the header. */
+			pkt_rewind_v3(&client->packet_cb_state.pkt);
+			res = handle_client_work(client, &client->packet_cb_state.pkt);
+			if (!res) {
+				return false;
+			}
+
+			client->packet_cb_state.flag = CB_NONE;
+			free_header(&client->packet_cb_state.pkt);
+			break;
+		default:
+			disconnect_client(client, true, "BUG: unknown packet callback flag");
+			break;
+		}
 		break;
+	}
 	case SBUF_EV_TLS_READY:
 		sbuf_continue(&client->sbuf);
 		res = true;

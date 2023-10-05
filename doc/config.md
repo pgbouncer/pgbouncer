@@ -365,11 +365,11 @@ prepared statements:
 Tracking prepared statements does not only come with a memory cost, but also
 with increased CPU usage, because PgBouncer needs to inspect and rewrite the
 queries. Multiple PgBouncer instances can listen on the same port to use more
-than one core for processing, see the documentation for the `so_reuseport`
-option for details.
+than one core for processing, see [the documentation for the `so_reuseport`
+option](/config.html#so_reuseport) for details.
 
 But of course there are also performance benefits to prepared statements. Just
-as when connecting to PostgreSQL directly, by preparing a query that are
+as when connecting to PostgreSQL directly, by preparing a query that is
 executed many times, it reduces the total amount of parsing and planning that
 needs to be done. The way that PgBouncer tracks prepared statements is
 especially beneficial to performance when multiple clients prepare the same

@@ -1278,7 +1278,7 @@ different).  Example:
     1 = host=host1.example.com
     2 = host=/tmp/pgbouncer-2  port=5555
 
-Note: For peering to work, the `peer_id` of each PgBouncer process in the group
+Note 1: For peering to work, the `peer_id` of each PgBouncer process in the group
 must be unique within the peered group.  And the `[peers]` section should
 contain entries for each of those peer ids.  An example can be found in the
 examples section of these docs.  It **is** allowed, but not necessary, for the
@@ -1286,6 +1286,11 @@ examples section of these docs.  It **is** allowed, but not necessary, for the
 for. Such an entry will be ignored, but it is allowed to config management easy.
 Because it allows using the exact same `[peers]` section for multiple
 configs.
+
+Note 2: Cross-version peering is supported as long as all peers are on the same
+side of the v1.21.0 version boundary. In v1.21.0 some breaking changes were
+made in how we encode the cancellation tokens that made them incompatible with
+the ones created by earlier versions.
 
 ### host
 

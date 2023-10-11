@@ -670,7 +670,7 @@ Show the PgBouncer state settings. Current states are active, paused and suspend
 PgBouncer tries to disconnect from all servers. Disconnecting each server connection
 waits for that server connection to be released according to the server pool's pooling
 mode (in transaction pooling mode, the transaction must complete, in statement mode,
-the statement most complete, and in session pooling mode the client must disconnect).
+the statement must complete, and in session pooling mode the client must disconnect).
 The command will not return before all server connections have been disconnected.
 To be used at the time of database restart.
 

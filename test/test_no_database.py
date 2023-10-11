@@ -55,6 +55,7 @@ def test_no_database_scram_auth_scram_pw_success(bouncer):
             bouncer.test(dbname="nosuchdb", user="scramuser1", password="foo")
 
 
+@pytest.mark.md5
 def test_no_database_md5_auth_md5_pw_success(bouncer):
     # Testing what happens on successful MD5 auth with a MD5 pw connection to
     # non-existent DB Segfaults have been seen after mock authentication was

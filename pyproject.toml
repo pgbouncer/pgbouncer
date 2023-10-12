@@ -4,6 +4,9 @@ addopts = [
     "--showlocals",
     "--tb=short",
 ]
+markers = [
+    "md5: uses MD5, will fail in FIPS mode",
+]
 timeout = 30
 
 # The asyncio_mode setting doesn't work on outdated versions of pytest-asyncio.

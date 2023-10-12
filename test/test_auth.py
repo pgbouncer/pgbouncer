@@ -7,6 +7,7 @@ import pytest
 from .utils import LONG_PASSWORD, PG_SUPPORTS_SCRAM, WINDOWS
 
 
+@pytest.mark.md5
 def test_auth_user(bouncer):
     bouncer.default_db = "authdb"
     bouncer.admin(f"set auth_type='md5'")
@@ -21,6 +22,7 @@ def test_auth_user(bouncer):
         bouncer.test(user="someuser", password="badpasswd")
 
 
+@pytest.mark.md5
 def test_auth_dbname_global(bouncer):
     bouncer.admin(f"set auth_dbname='authdb'")
     bouncer.admin(f"set auth_user='pswcheck'")
@@ -29,6 +31,7 @@ def test_auth_dbname_global(bouncer):
     bouncer.test(dbname="p7a", user="someuser", password="anypasswd")
 
 
+@pytest.mark.md5
 def test_auth_dbname_global_invalid(bouncer):
     bouncer.admin(f"set auth_dbname='p_unconfigured_auth_dbname'")
     bouncer.admin(f"set auth_type='md5'")
@@ -54,6 +57,7 @@ def test_auth_dbname_disabled(bouncer):
         bouncer.test(dbname="pauthz", user="someuser", password="anypasswd")
 
 
+@pytest.mark.md5
 def test_auth_dbname_with_auto_database(bouncer):
     with bouncer.ini_path.open() as f:
         original = f.read()
@@ -72,6 +76,7 @@ def test_auth_dbname_with_auto_database(bouncer):
     bouncer.test(dbname="postgres", user="someuser", password="anypasswd")
 
 
+@pytest.mark.md5
 def test_unconfigured_auth_database_with_auto_database(bouncer):
     """
     Tests the scenario where the authentication database does not
@@ -139,6 +144,7 @@ def test_password_server(bouncer):
     bouncer.test(dbname="p4l")
 
 
+@pytest.mark.md5
 def test_md5_server(bouncer):
     run_server_auth_test(bouncer, "p5")
 
@@ -160,6 +166,7 @@ def test_scram_server(bouncer):
         bouncer.test(dbname="p6z")
 
 
+@pytest.mark.md5
 def connect_with_password_client_users(bouncer):
     # good password
     bouncer.test(user="puser1", password="foo")
@@ -191,6 +198,7 @@ def connect_with_scram_client_users(bouncer):
 
 
 # Test plain-text password authentication from client to PgBouncer
+@pytest.mark.md5
 def test_password_client(bouncer):
     bouncer.admin(f"set auth_type='plain'")
     connect_with_password_client_users(bouncer)
@@ -206,6 +214,7 @@ def test_password_client(bouncer):
         bouncer.test(user="longpass", password="X" + LONG_PASSWORD)
 
 
+@pytest.mark.md5
 def test_md5_client(bouncer):
     bouncer.admin(f"set auth_type='md5'")
     connect_with_password_client_users(bouncer)
@@ -332,6 +341,7 @@ def test_auth_dbname_usage_global_setting(
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+@pytest.mark.md5
 def test_auth_dbname_works_fine(
     bouncer,
 ):

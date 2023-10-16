@@ -1,6 +1,76 @@
 PgBouncer changelog
 ===================
 
+PgBouncer 1.21.x
+----------------
+
+**2023-10-16  -  PgBouncer 1.21.0  -  "The one with prepared statements"**
+
+- Features
+  * Add support for protocol-level named prepared statements! This is probably
+    one of the most requested features for PgBouncer. Using prepared statements
+    together with PgBouncer can reduce the CPU load on your system a lot (both
+    at the PgBouncer side and the PostgreSQL side). In synthetic benchmarks the
+    this feature was able to increase query throughput anywhere from 15% to
+    250%, depending on the workload. To benefit from this new feature you need
+    to change the new `max_prepared_statements` setting to a non-zero value
+    (the exact value depends on your workload, but 100 is probably reasonable).
+    See [the docs on
+    `max_prepared_statements`](https://pgbouncer.org/config.html#max_prepared_statements)
+    for details on how the feature works, its limitations, and how to tune the
+    value. After doing that you need to make sure your client library
+    actually uses prepared statements. How to do that differs for each client,
+    so you should look at the docs for the client you're using. This feature
+    has been tested very well before releasing, but performance issues or
+    bugs might very well exist due to the complexity of the feature. If you
+    find those, please report them. ([#845])
+
+- Changes
+  * Improve security of OpenSSL settings, the defaults used were VERY outdated.
+    With this release the defaults are now the same as the OpenSSL defaults of the
+    system that runs PgBouncer. ([#948] & [libusual/#41])
+  * PgBouncer now uses OpenSSL to calculate MD5 hashes when possible. This is
+    necessary to use PgBouncer in a FIPS compliant way. ([#949])
+  * Maintain `min_pool_size` for pools with a forced user even if no clients
+    are connected to PgBouncer ([#947])
+  * The way a `peer_id` is encoded in the cancellation token by PgBouncer has
+    changed, this means that peering between different PgBouncer versions will
+    not work if not all of them are on the same side of the v1.21.0 version
+    boundary. ([#945])
+
+- Fixes
+  * Fix crash with error message: "FATAL in function client\_proto(): bad
+    client state: 6/7" ([#928]) (bug introduced in 1.18.0)
+  * Fix crash with error message: "FATAL in function server\_proto(): server in
+    bad state: 11" ([#927]) (bug introduced in 1.18.0)
+  * Reduce cancellation sending log level ([#903])
+  * Fix slog log prefix for peers ([#922])
+  * Fix typos in docs ([#932])
+  * Fix errors pointed out by static analyzer ([#943])
+  * Don't kill all waiting clients on temporary FATAL errors during login ([#946])
+  * Use auto-database when database in `auth_dbname` is not explicitly configured
+    ([#921])
+
+- Cleanup
+  * Remove support for udns ([#938])
+
+[#845]: https://github.com/pgbouncer/pgbouncer/pull/845
+[#948]: https://github.com/pgbouncer/pgbouncer/pull/948
+[#949]: https://github.com/pgbouncer/pgbouncer/pull/949
+[#947]: https://github.com/pgbouncer/pgbouncer/pull/947
+[#945]: https://github.com/pgbouncer/pgbouncer/pull/945
+[#903]: https://github.com/pgbouncer/pgbouncer/pull/903
+[#922]: https://github.com/pgbouncer/pgbouncer/pull/922
+[#932]: https://github.com/pgbouncer/pgbouncer/pull/932
+[#928]: https://github.com/pgbouncer/pgbouncer/pull/928
+[#927]: https://github.com/pgbouncer/pgbouncer/pull/927
+[#943]: https://github.com/pgbouncer/pgbouncer/pull/943
+[#946]: https://github.com/pgbouncer/pgbouncer/pull/946
+[#921]: https://github.com/pgbouncer/pgbouncer/pull/921
+[#938]: https://github.com/pgbouncer/pgbouncer/pull/938
+[libusual/#41]: https://github.com/libusual/libusual/pull/41
+
+
 PgBouncer 1.20.x
 ----------------
 

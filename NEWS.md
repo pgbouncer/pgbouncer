@@ -10,7 +10,7 @@ PgBouncer 1.21.x
   * Add support for protocol-level named prepared statements! This is probably
     one of the most requested features for PgBouncer. Using prepared statements
     together with PgBouncer can reduce the CPU load on your system a lot (both
-    at the PgBouncer side and the PostgreSQL side). In synthetic benchmarks the
+    at the PgBouncer side and the PostgreSQL side). In synthetic benchmarks
     this feature was able to increase query throughput anywhere from 15% to
     250%, depending on the workload. To benefit from this new feature you need
     to change the new `max_prepared_statements` setting to a non-zero value

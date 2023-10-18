@@ -11,7 +11,7 @@ pip3 install --user -r requirements.txt
 ```
 
 This will install the packages globally on your system, if you don't want to do
-that (or if tests are still not working after the executing the above command) you can use a
+that (or if tests are still not working after executing the above command) you can use a
 [virtual environment][1] instead:
 ```bash
 # create a virtual environment (only needed once)

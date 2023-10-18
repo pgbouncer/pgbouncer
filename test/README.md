@@ -4,21 +4,21 @@ Tests
 ## Setting up Python dependencies for testing
 
 To be able to run most of the tests you need to install a few python tools.  To
-do so, you should run the following from of the root of the repository:
+do so, you should run the following from the root of the repository:
 
 ```bash
 pip3 install --user -r requirements.txt
 ```
 
 This will install the packages globally on your system, if you don't want to do
-that (or if tests are still not working after the above command) you can use a
+that (or if tests are still not working after the executing the above command) you can use a
 [virtual environment][1] instead:
 ```bash
 # create a virtual environment (only needed once)
 python3 -m venv env
 
 # activate the environment. You will need to activate this environment in
-# your shell every time you want to run the tests. (so needed once per
+# your shell every time you want to run the tests. (so it's needed once per
 # shell).
 source env/bin/activate
 
@@ -47,7 +47,7 @@ Optionally, this test suite can use `iptables`/`pfctl` to simulate various
 network conditions.  To include these tests, set the environment variable
 USE_SUDO to a nonempty value, for example `make check USE_SUDO=1`.  This will
 ask for sudo access, so it might convenient to run `sudo -v` before the test, or
-set up `/etc/sudoers` appropriately at your peril.  Check the source if there
+set up `/etc/sudoers` appropriately, at your peril.  Check the source if there
 are any doubts.
 
 This test is run by `make check`.
@@ -89,4 +89,4 @@ to build, then see `run-conntest.sh` how to run the different pieces.
 
 ### `stress.py`
 
-Stress test, see source for details.  Requires Python and `psycopg2` module.
+Stress test, see source code for details.  Requires Python and `psycopg2` module.

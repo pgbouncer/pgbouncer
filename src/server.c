@@ -365,6 +365,13 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			if (client)
 				client->expect_rfq_count = 0;
 		}
+		/*
+		 * Clean up prepared statements if needed if the client sent a
+		 * DEALLOCATE ALL or a DISCARD ALL query. Not doing so would
+		 * confuse our prepared statement handling, because we would
+		 * expect certain queries to be prepared at the server that are
+		 * not.
+		 */
 		if (is_prepared_statements_enabled(server->pool)
 		    && (pkt->len == 1 + 4 + 15 || pkt->len == 1 + 4 + 12)) {	/* size of complete DEALLOCATE/DISCARD ALL */
 			const char *tag;

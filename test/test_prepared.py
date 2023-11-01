@@ -54,6 +54,66 @@ def test_prepared_statement_params(bouncer):
                 cur2.execute(prepared_query, params=(1,), prepare=True)
 
 
+def test_deallocate_all(bouncer):
+    bouncer.admin(f"set pool_mode=transaction")
+    bouncer.admin(f"set max_prepared_statements=100")
+    prepared_query = "SELECT 1"
+    with bouncer.cur() as cur1:
+        with bouncer.cur() as cur2:
+            # prepare query on client 1
+            cur1.execute(prepared_query, prepare=True)
+            # Run the prepared query again on same server and client
+            cur1.execute(prepared_query)
+
+            # prepared query for client 2
+            cur2.execute(prepared_query, prepare=True)
+
+            # execute DEALLOCATE ALL on client 1
+            cur1.execute("DEALLOCATE ALL")
+
+            # Run the prepared query again on server 2 and client 2
+            cur2.execute(prepared_query)
+
+            # Confirm that the prepared query is not available anymore on
+            # client 1
+            with bouncer.log_contains("prepared statement did not exist"):
+                with pytest.raises(
+                    psycopg.OperationalError,
+                    match="prepared statement did not exist|server closed the connection unexpectedly",
+                ):
+                    cur1.execute(prepared_query)
+
+
+def test_discard_all(bouncer):
+    bouncer.admin(f"set pool_mode=transaction")
+    bouncer.admin(f"set max_prepared_statements=100")
+    prepared_query = "SELECT 1"
+    with bouncer.cur() as cur1:
+        with bouncer.cur() as cur2:
+            # prepare query on client 1
+            cur1.execute(prepared_query, prepare=True)
+            # Run the prepared query again on same server and client
+            cur1.execute(prepared_query)
+
+            # prepared query for client 2
+            cur2.execute(prepared_query, prepare=True)
+
+            # execute DISCARD ALL on client 1
+            cur1.execute("DISCARD ALL")
+
+            # Run the prepared query again on server 2 and client 2
+            cur2.execute(prepared_query)
+
+            # Confirm that the prepared query is not available anymore on
+            # client 1
+            with bouncer.log_contains("prepared statement did not exist"):
+                with pytest.raises(
+                    psycopg.OperationalError,
+                    match="prepared statement did not exist|server closed the connection unexpectedly",
+                ):
+                    cur1.execute(prepared_query)
+
+
 def test_parse_larger_than_pkt_buf(bouncer):
     bouncer.admin(f"set max_prepared_statements=100")
     long_string = "1" * PKT_BUF_SIZE * 10

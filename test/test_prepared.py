@@ -58,7 +58,6 @@ def test_deallocate_all(bouncer):
     bouncer.admin(f"set pool_mode=transaction")
     bouncer.admin(f"set max_prepared_statements=100")
     prepared_query = "SELECT 1"
-    prepared_query2 = "SELECT 2"
     with bouncer.cur() as cur1:
         with bouncer.cur() as cur2:
             # prepare query on client 1

@@ -79,7 +79,8 @@ def test_deallocate_all(bouncer):
             # client 1
             with bouncer.log_contains("prepared statement did not exist"):
                 with pytest.raises(
-                    psycopg.OperationalError, match="prepared statement did not exist|server closed the connection unexpectedly"
+                    psycopg.OperationalError,
+                    match="prepared statement did not exist|server closed the connection unexpectedly",
                 ):
                     cur1.execute(prepared_query)
 
@@ -108,7 +109,8 @@ def test_discard_all(bouncer):
             # client 1
             with bouncer.log_contains("prepared statement did not exist"):
                 with pytest.raises(
-                    psycopg.OperationalError, match="prepared statement did not exist|server closed the connection unexpectedly"
+                    psycopg.OperationalError,
+                    match="prepared statement did not exist|server closed the connection unexpectedly",
                 ):
                     cur1.execute(prepared_query)
 

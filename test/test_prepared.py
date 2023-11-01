@@ -77,10 +77,11 @@ def test_deallocate_all(bouncer):
 
             # Confirm that the prepared query is not available anymore on
             # client 1
-            with pytest.raises(
-                psycopg.OperationalError, match="prepared statement did not exist"
-            ):
-                cur1.execute(prepared_query)
+            with bouncer.log_contains("prepared statement did not exist"):
+                with pytest.raises(
+                    psycopg.OperationalError, match="prepared statement did not exist|server closed the connection unexpectedly"
+                ):
+                    cur1.execute(prepared_query)
 
 
 def test_discard_all(bouncer):
@@ -105,10 +106,11 @@ def test_discard_all(bouncer):
 
             # Confirm that the prepared query is not available anymore on
             # client 1
-            with pytest.raises(
-                psycopg.OperationalError, match="prepared statement did not exist"
-            ):
-                cur1.execute(prepared_query)
+            with bouncer.log_contains("prepared statement did not exist"):
+                with pytest.raises(
+                    psycopg.OperationalError, match="prepared statement did not exist|server closed the connection unexpectedly"
+                ):
+                    cur1.execute(prepared_query)
 
 
 def test_parse_larger_than_pkt_buf(bouncer):

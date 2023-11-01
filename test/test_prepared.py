@@ -53,6 +53,7 @@ def test_prepared_statement_params(bouncer):
                 # prepared query for this different client.
                 cur2.execute(prepared_query, params=(1,), prepare=True)
 
+
 def test_deallocate_all(bouncer):
     bouncer.admin(f"set pool_mode=transaction")
     bouncer.admin(f"set max_prepared_statements=100")
@@ -64,7 +65,7 @@ def test_deallocate_all(bouncer):
             # prepare query on server 2 and client 2
             cur2.execute(prepared_query, params=(1,), prepare=True)
 
-            #execute DEALLOCATE ALL on server 1
+            # execute DEALLOCATE ALL on server 1
             cur1.execute("DEALLOCATE ALL")
 
             # Run the prepared query again on server 2 and client 2
@@ -73,11 +74,12 @@ def test_deallocate_all(bouncer):
             # prepare query on server 1 and client 1
             cur1.execute(prepared_query, params=(2,), prepare=True)
 
-            #execute DISCARD ALL on server 2
+            # execute DISCARD ALL on server 2
             cur2.execute("DISCARD ALL")
 
             # Run the prepared query again on server 1 and client 1
             cur1.execute(prepared_query, params=(2,))
+
 
 def test_parse_larger_than_pkt_buf(bouncer):
     bouncer.admin(f"set max_prepared_statements=100")

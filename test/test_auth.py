@@ -344,13 +344,13 @@ def test_auth_dbname_usage_global_setting(
 def test_auth_query_database_setting(
     bouncer,
 ):
-    # """
-    # Check the pgbouncer can use auth_query in database section to get password
-    # """
+    """
+    Check the pgbouncer can use auth_query in database section to get password
+    """
 
     config = f"""
         [databases]
-        postgres = auth_query='SELECT usename, passwd FROM pg_shadow where usename = $1' host={bouncer.pg.host} port={bouncer.pg.port} 
+        postgres = auth_query='SELECT usename, passwd FROM pg_shadow where usename = $1' host={bouncer.pg.host} port={bouncer.pg.port}
         [pgbouncer]
         auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
         auth_user = pswcheck
@@ -372,7 +372,7 @@ def test_auth_query_database_setting(
 
     config = f"""
         [databases]
-        postgres = auth_query='SELECT usename, substring(passwd,1,3) FROM pg_shadow where usename = $1' host={bouncer.pg.host} port={bouncer.pg.port} 
+        postgres = auth_query='SELECT usename, substring(passwd,1,3) FROM pg_shadow where usename = $1' host={bouncer.pg.host} port={bouncer.pg.port}
         [pgbouncer]
         auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
         auth_user = pswcheck
@@ -389,7 +389,7 @@ def test_auth_query_database_setting(
     with bouncer.run_with_config(config):
         with pytest.raises(
             psycopg.OperationalError, match="password authentication failed"
-            ): 
+        ):
             with bouncer.run_with_config(config):
                 bouncer.sql(
                     query="select version()", user="stats", password="stats", dbname="postgres"

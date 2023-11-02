@@ -528,6 +528,7 @@ struct PgDatabase {
 	char *auth_dbname;	/* if not NULL, auth_query will be run on the specified database */
 	PgUser *forced_user;	/* if not NULL, the user/psw is forced */
 	PgUser *auth_user;	/* if not NULL, users not in userlist.txt will be looked up on the server */
+	char *auth_query; /* if not NULL, will be used to fetch password from database. */
 
 	/*
 	 * run-time state

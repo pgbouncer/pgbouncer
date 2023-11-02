@@ -167,12 +167,12 @@ static void start_auth_query(PgSocket *client, const char *username)
 {
 	int res;
 	PktBuf *buf;
+	const char *auth_query = client->db->auth_query ? client->db->auth_query : cf_auth_query; 
 
 	/* have to fetch user info from db */
 	PgDatabase *auth_db = prepare_auth_database(client);
 	if (!auth_db)
 		return;
-
 	client->pool = get_pool(auth_db, client->db->auth_user);
 	if (!find_server(client)) {
 		client->wait_for_user_conn = true;
@@ -191,7 +191,7 @@ static void start_auth_query(PgSocket *client, const char *username)
 	res = 0;
 	buf = pktbuf_dynamic(512);
 	if (buf) {
-		pktbuf_write_ExtQuery(buf, cf_auth_query, 1, username);
+		pktbuf_write_ExtQuery(buf, auth_query, 1, username);
 		res = pktbuf_send_immediate(buf, client->link);
 		pktbuf_free(buf);
 		/*

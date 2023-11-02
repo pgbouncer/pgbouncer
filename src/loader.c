@@ -421,7 +421,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	if (!set_value(&db->auth_dbname, auth_dbname))
 		goto fail;
 	
-	if (!set_value(&(db->auth_query), auth_query))
+	if (!set_value(&db->auth_query, auth_query))
 		goto fail;
 
 	if (db->startup_params) {

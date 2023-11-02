@@ -368,7 +368,10 @@ def test_auth_query_database_setting(
     with bouncer.run_with_config(config):
         with bouncer.run_with_config(config):
             bouncer.sql(
-                query="select version()", user="stats", password="stats", dbname="postgres"
+                query="select version()",
+                user="stats",
+                password="stats",
+                dbname="postgres",
             )
 
     config = f"""
@@ -394,7 +397,10 @@ def test_auth_query_database_setting(
         ):
             with bouncer.run_with_config(config):
                 bouncer.sql(
-                    query="select version()", user="stats", password="stats", dbname="postgres"
+                    query="select version()",
+                    user="stats",
+                    password="stats",
+                    dbname="postgres",
                 )
 
 

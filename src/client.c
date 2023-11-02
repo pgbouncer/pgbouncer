@@ -167,7 +167,7 @@ static void start_auth_query(PgSocket *client, const char *username)
 {
 	int res;
 	PktBuf *buf;
-	const char *auth_query = client->db->auth_query ? client->db->auth_query : cf_auth_query; 
+	const char *auth_query = client->db->auth_query ? client->db->auth_query : cf_auth_query;
 
 	/* have to fetch user info from db */
 	PgDatabase *auth_db = prepare_auth_database(client);

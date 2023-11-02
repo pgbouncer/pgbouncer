@@ -361,7 +361,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			}
 		} else if (strcmp("application_name", key) == 0) {
 			appname = val;
-		} else if (strcmp("auth_query", key) == 0){
+		} else if (strcmp("auth_query", key) == 0) {
 			auth_query = val;
 		} else {
 			log_error("unrecognized connection parameter: %s", key);
@@ -400,7 +400,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			changed = true;
 		} else if (!strings_equal(db->auth_dbname, auth_dbname)) {
 			changed = true;
-		} else if (!strings_equal(db->auth_query, auth_query)){
+		} else if (!strings_equal(db->auth_query, auth_query)) {
 			changed = true;
 		}
 		if (changed)
@@ -420,7 +420,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 
 	if (!set_value(&db->auth_dbname, auth_dbname))
 		goto fail;
-	
+
 	if (!set_value(&db->auth_query, auth_query))
 		goto fail;
 

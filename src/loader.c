@@ -134,6 +134,9 @@ static bool strings_equal(const char *str_left, const char *str_right)
 	return strcmp(str_left, str_right) == 0;
 }
 
+/*
+ * Free the old value and set the new value
+ */
 static bool set_value(char **old_value, const char *new_value)
 {
 	if (strings_equal(*old_value, new_value))

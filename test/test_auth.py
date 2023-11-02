@@ -345,12 +345,12 @@ def test_auth_query_database_setting(
     bouncer,
 ):
     # """
-    # Check that pgbouncer can use auth_query in database section to get password
+    # Check the pgbouncer can use auth_query in database section to get password
     # """
 
     config = f"""
         [databases]
-        postgres = host={bouncer.pg.host} port={bouncer.pg.port} auth_query='SELECT usename, passwd FROM pg_shadow where usename = $1'
+        postgres = auth_query='SELECT usename, passwd FROM pg_shadow where usename = $1' host={bouncer.pg.host} port={bouncer.pg.port} 
         [pgbouncer]
         auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
         auth_user = pswcheck
@@ -372,7 +372,7 @@ def test_auth_query_database_setting(
 
     config = f"""
         [databases]
-        postgres = host={bouncer.pg.host} port={bouncer.pg.port} auth_query='SELECT usename, substring(passwd,1,3) FROM pg_shadow where usename = $1'
+        postgres = auth_query='SELECT usename, substring(passwd,1,3) FROM pg_shadow where usename = $1' host={bouncer.pg.host} port={bouncer.pg.port} 
         [pgbouncer]
         auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
         auth_user = pswcheck

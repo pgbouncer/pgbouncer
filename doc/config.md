@@ -1171,7 +1171,7 @@ Override of the global `auth_user` setting, if specified.
 
 ### auth_query
 
-Override of the global `auth_auery` setting, if specified. The entire SQL statement needs to be enclosed in quotes.
+Override of the global `auth_query` setting, if specified. The entire SQL statement needs to be enclosed in double quotes.
 
 ### pool_size
 

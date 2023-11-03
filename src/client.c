@@ -178,7 +178,7 @@ static void start_auth_query(PgSocket *client, const char *username)
 		client->wait_for_user_conn = true;
 		return;
 	}
-	slog_noise(client, "doing auth_conn query");
+	slog_noise(client, "doing auth_conn query: %s", auth_query);
 	client->wait_for_user_conn = false;
 	client->wait_for_user = true;
 	if (!sbuf_pause(&client->sbuf)) {

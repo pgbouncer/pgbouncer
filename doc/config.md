@@ -326,12 +326,11 @@ prepared on the server yet, it automatically prepares that statement before
 forwarding the command that the client sent.
 
 Note: This tracking and rewriting of prepared statement commands does not work
-for SQL-level prepared statement commands such as `PREPARE`, `EXECUTE`,
-`DEALLOCATE`, `DEALLOCATE ALL` and `DISCARD ALL`. Running `DEALLOCATE ALL` and
-`DISCARD ALL` is especially problematic, since those commands appear to run
-successfully, but they mess up with the state of the server connection
-significantly without PgBouncer noticing. Which in turn will very likely break
-the execution of any further prepared statements on that server connection.
+for SQL-level prepared statement commands, so `PREPARE`, `EXECUTE` and
+`DEALLOCATE` are forwarded straight to Postgres. The exception to this rule are
+the `DEALLOCATE ALL` and `DISCARD ALL` commands, these do work as expected and
+will clear the prepared statements that PgBouncer tracked for the client that
+sends this command.
 
 The actual value of this setting controls the number of prepared statements
 kept active on a single server connection. When the setting is set to 0

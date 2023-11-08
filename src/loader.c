@@ -134,22 +134,25 @@ static bool strings_equal(const char *str_left, const char *str_right)
 	return strcmp(str_left, str_right) == 0;
 }
 
-static bool set_auth_dbname(PgDatabase *db, const char *new_auth_dbname)
+/*
+ * Free the old value and set the new value
+ */
+static bool set_param_value(char **old_value, const char *new_value)
 {
-	if (strings_equal(db->auth_dbname, new_auth_dbname))
+	if (strings_equal(*old_value, new_value))
 		return true;
 
-	if (db->auth_dbname)
-		free(db->auth_dbname);
+	if (*old_value)
+		free(*old_value);
 
-	if (new_auth_dbname) {
-		db->auth_dbname = strdup(new_auth_dbname);
-		if (!db->auth_dbname) {
-			log_error("auth_dbname %s could not be set for database %s, out of memory", new_auth_dbname, db->name);
+	if (new_value) {
+		*old_value = strdup(new_value);
+		if (!(*old_value)) {
+			log_error("out of memory");
 			return false;
 		}
 	} else {
-		db->auth_dbname = NULL;
+		*old_value = NULL;
 	}
 
 	return true;
@@ -279,6 +282,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	char *timezone = NULL;
 	char *connect_query = NULL;
 	char *appname = NULL;
+	char *auth_query = NULL;
 
 	cv.value_p = &pool_mode;
 	cv.extra = (const void *)pool_mode_map;
@@ -357,6 +361,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			}
 		} else if (strcmp("application_name", key) == 0) {
 			appname = val;
+		} else if (strcmp("auth_query", key) == 0) {
+			auth_query = val;
 		} else {
 			log_error("unrecognized connection parameter: %s", key);
 			goto fail;
@@ -394,6 +400,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			changed = true;
 		} else if (!strings_equal(db->auth_dbname, auth_dbname)) {
 			changed = true;
+		} else if (!strings_equal(db->auth_query, auth_query)) {
+			changed = true;
 		}
 		if (changed)
 			tag_database_dirty(db);
@@ -410,7 +418,10 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	free(db->connect_query);
 	db->connect_query = connect_query;
 
-	if (!set_auth_dbname(db, auth_dbname))
+	if (!set_param_value(&db->auth_dbname, auth_dbname))
+		goto fail;
+
+	if (!set_param_value(&db->auth_query, auth_query))
 		goto fail;
 
 	if (db->startup_params) {

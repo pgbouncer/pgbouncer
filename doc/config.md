@@ -1168,6 +1168,10 @@ If no password is specified here, the password from the `auth_file` or
 
 Override of the global `auth_user` setting, if specified.
 
+### auth_query
+
+Override of the global `auth_query` setting, if specified. The entire SQL statement needs to be enclosed in single quotes.
+
 ### pool_size
 
 Set the maximum size of pools for this database.  If not set,

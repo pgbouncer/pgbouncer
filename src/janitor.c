@@ -827,6 +827,9 @@ void kill_database(PgDatabase *db)
 	if (db->auth_dbname)
 		free((void *)db->auth_dbname);
 
+	if (db->auth_query)
+		free((void *)db->auth_query);
+
 	aatree_destroy(&db->user_tree);
 	slab_free(db_cache, db);
 }

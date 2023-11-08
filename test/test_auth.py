@@ -341,6 +341,70 @@ def test_auth_dbname_usage_global_setting(
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+def test_auth_query_database_setting(
+    bouncer,
+):
+    """
+    Check the pgbouncer can use auth_query in database section to get password
+    """
+
+    config = f"""
+        [databases]
+        postgres = auth_query='SELECT usename, passwd FROM pg_shadow where usename = $1'\
+            host={bouncer.pg.host} port={bouncer.pg.port}
+        [pgbouncer]
+        auth_query = SELECT 1
+        auth_user = pswcheck
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = postgres
+    """
+
+    with bouncer.run_with_config(config):
+        with bouncer.run_with_config(config):
+            bouncer.sql(
+                query="select version()",
+                user="stats",
+                password="stats",
+                dbname="postgres",
+            )
+
+    config = f"""
+        [databases]
+        postgres = auth_query='SELECT usename, substring(passwd,1,3) FROM pg_shadow where usename = $1'\
+            host={bouncer.pg.host} port={bouncer.pg.port}
+        [pgbouncer]
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
+        auth_user = pswcheck
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = postgres
+    """
+
+    with bouncer.run_with_config(config):
+        with pytest.raises(
+            psycopg.OperationalError, match="password authentication failed"
+        ):
+            with bouncer.run_with_config(config):
+                bouncer.sql(
+                    query="select version()",
+                    user="stats",
+                    password="stats",
+                    dbname="postgres",
+                )
+
+
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
 @pytest.mark.md5
 def test_auth_dbname_works_fine(
     bouncer,

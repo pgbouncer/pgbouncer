@@ -137,7 +137,7 @@ static bool strings_equal(const char *str_left, const char *str_right)
 /*
  * Free the old value and set the new value
  */
-static bool set_value(char **old_value, const char *new_value)
+static bool set_param_value(char **old_value, const char *new_value)
 {
 	if (strings_equal(*old_value, new_value))
 		return true;
@@ -418,10 +418,10 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	free(db->connect_query);
 	db->connect_query = connect_query;
 
-	if (!set_value(&db->auth_dbname, auth_dbname))
+	if (!set_param_value(&db->auth_dbname, auth_dbname))
 		goto fail;
 
-	if (!set_value(&db->auth_query, auth_query))
+	if (!set_param_value(&db->auth_query, auth_query))
 		goto fail;
 
 	if (db->startup_params) {

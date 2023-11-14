@@ -25,6 +25,8 @@
 #include <usual/slab.h>
 
 #define ERRCODE_CANNOT_CONNECT_NOW "57P03"
+// invalid_catalog_name 3D000
+#define ERRCODE_UNDEFINED_DATABASE "3D000"
 
 static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 {
@@ -94,6 +96,14 @@ static void kill_pool_logins_server_error(PgPool *pool, PktHdr *errpkt)
 	 */
 	if (strcmp(sqlstate, ERRCODE_CANNOT_CONNECT_NOW) != 0) {
 		log_noise("kill_pool_logins_server_error: sqlstate: %s", sqlstate);
+		kill_pool_logins(pool, sqlstate, msg);
+	}
+
+// invalid_catalog_name 3D000
+// If the database is not found, we want to kill all the clients,
+// because the database is not going to appear later.
+	if strcmp(sqlstate, ERRCODE_UNDEFINED_DATABASE) == 0 {
+		log_warning("db is not found or something: sqlstate: %s", sqlstate);
 		kill_pool_logins(pool, sqlstate, msg);
 	}
 }

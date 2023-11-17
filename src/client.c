@@ -204,7 +204,7 @@ static void start_auth_query(PgSocket *client, const char *username)
 		disconnect_server(client->link, false, "unable to send auth_query");
 }
 
-static bool login_via_cert(PgSocket *client)
+static bool login_via_cert(PgSocket *client, struct HBARule *rule)
 {
 	struct tls *tls = client->sbuf.tls;
 
@@ -220,9 +220,22 @@ static bool login_via_cert(PgSocket *client)
 		goto fail;
 
 	log_debug("TLS cert login: %s", tls_peer_cert_subject(client->sbuf.tls));
+
 	if (!tls_peer_cert_contains_name(client->sbuf.tls, client->login_user->name)) {
-		slog_error(client, "TLS certificate name mismatch");
-		goto fail;
+		log_debug("TLS certificate name mismatch. Looking for a map.");
+		if (!rule)
+			goto fail;
+
+		if (rule->identmap == NULL)
+			goto fail;
+
+		if (!tls_peer_cert_contains_name(client->sbuf.tls, rule->identmap->system_user_name))
+			goto fail;
+
+		if (strcmp(client->login_user->name, rule->identmap->postgres_user_name)) {
+			if (strcmp(rule->identmap->postgres_user_name, "all"))
+				goto fail;
+		}
 	}
 
 	/* login successful */
@@ -250,6 +263,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 {
 	bool ok = false;
 	int auth;
+	struct HBARule *rule = NULL;
 
 	if (!client->login_user->mock_auth && !client->db->fake) {
 		PgUser *pool_user;
@@ -291,8 +305,15 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 
 	auth = cf_auth_type;
 	if (auth == AUTH_HBA) {
-		auth = hba_eval(parsed_hba, &client->remote_addr, !!client->sbuf.tls,
+		rule = hba_eval(parsed_hba, &client->remote_addr, !!client->sbuf.tls,
 				client->db->name, client->login_user->name);
+
+		if (!rule)
+			return false;
+
+		log_warning("hba_eval returned Ident map %s %s %s", rule->identmap->map_name, rule->identmap->system_user_name, rule->identmap->postgres_user_name);
+
+		auth = rule->rule_method;
 	}
 
 	if (auth == AUTH_MD5) {
@@ -320,7 +341,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		ok = send_client_authreq(client);
 		break;
 	case AUTH_CERT:
-		ok = login_via_cert(client);
+		ok = login_via_cert(client, rule);
 		break;
 	case AUTH_PEER:
 		ok = login_as_unix_peer(client);

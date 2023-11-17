@@ -15,9 +15,51 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+enum RuleType {
+	RULE_LOCAL,
+	RULE_HOST,
+	RULE_HOSTSSL,
+	RULE_HOSTNOSSL,
+};
 
-struct HBA;
+struct NameSlot {
+	size_t strlen;
+	char str[];
+};
+struct HBAName {
+	unsigned int flags;
+	struct StrSet *name_set;
+};
 
-struct HBA *hba_load_rules(const char *fn);
+struct HBARule {
+	struct List node;
+	enum RuleType rule_type;
+	int rule_method;
+	int rule_af;
+	uint8_t rule_addr[16];
+	uint8_t rule_mask[16];
+	struct HBAName db_name;
+	struct HBAName user_name;
+	struct IDENTMap *identmap;
+};
+
+struct HBA {
+	struct List rules;
+};
+
+struct IDENTMap {
+	struct List node;
+	char *map_name;
+	char *system_user_name;
+	char *postgres_user_name;
+};
+
+struct IDENT {
+	struct List maps;
+};
+
+struct IDENT *ident_load_map(const char *fn);
+void ident_free(struct IDENT *ident);
+struct HBA *hba_load_rules(const char *fn, struct IDENT *ident);
 void hba_free(struct HBA *hba);
-int hba_eval(struct HBA *hba, PgAddr *addr, bool is_tls, const char *dbname, const char *username);
+struct HBARule *hba_eval(struct HBA *hba, PgAddr *addr, bool is_tls, const char *dbname, const char *username);

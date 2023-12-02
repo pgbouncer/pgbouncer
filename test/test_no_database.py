@@ -1,5 +1,8 @@
+import subprocess
 import psycopg
 import pytest
+
+from test import utils
 
 
 def test_no_database(bouncer):
@@ -67,3 +70,18 @@ def test_no_database_md5_auth_md5_pw_success(bouncer):
             psycopg.OperationalError, match="no such database: nosuchdb"
         ):
             bouncer.test(dbname="nosuchdb", user="muser1", password="foo")
+
+
+def test_autodb_database_does_not_exist(bouncer):
+    config = f"""
+        [databases]
+        * = host={bouncer.pg.host} port={bouncer.pg.port} auth_user=postgres password=password
+        [pgbouncer]
+        listen_addr = {bouncer.host}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+    """
+    with bouncer.run_with_config(config):
+        with bouncer.log_contains(r"closing because: database \"fake\" does not exist"):
+            with pytest.raises(subprocess.CalledProcessError):
+                utils.run(["psql", f"port={bouncer.port} host={bouncer.host} dbname=fake"], shell=False)

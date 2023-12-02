@@ -75,7 +75,7 @@ void kill_pool_logins(PgPool *pool, const char *sqlstate, const char *msg)
 
 	statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
 		client = container_of(item, PgSocket, head);
-		if (!client->wait_for_welcome)
+		if (!client->wait_for_welcome && !client->wait_for_user_conn)
 			continue;
 
 		disconnect_client_sqlstate(client, true, sqlstate, msg);
@@ -96,14 +96,6 @@ static void kill_pool_logins_server_error(PgPool *pool, PktHdr *errpkt)
 	 */
 	if (strcmp(sqlstate, ERRCODE_CANNOT_CONNECT_NOW) != 0) {
 		log_noise("kill_pool_logins_server_error: sqlstate: %s", sqlstate);
-		kill_pool_logins(pool, sqlstate, msg);
-	}
-
-// invalid_catalog_name 3D000
-// If the database is not found, we want to kill all the clients,
-// because the database is not going to appear later.
-	if strcmp(sqlstate, ERRCODE_UNDEFINED_DATABASE) == 0 {
-		log_warning("db is not found or something: sqlstate: %s", sqlstate);
 		kill_pool_logins(pool, sqlstate, msg);
 	}
 }

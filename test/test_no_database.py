@@ -84,4 +84,7 @@ def test_autodb_database_does_not_exist(bouncer):
     with bouncer.run_with_config(config):
         with bouncer.log_contains(r"closing because: database \"fake\" does not exist"):
             with pytest.raises(subprocess.CalledProcessError):
-                utils.run(["psql", f"port={bouncer.port} host={bouncer.host} dbname=fake"], shell=False)
+                utils.run(
+                    ["psql", f"port={bouncer.port} host={bouncer.host} dbname=fake"],
+                    shell=False,
+                )

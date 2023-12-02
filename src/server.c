@@ -25,8 +25,6 @@
 #include <usual/slab.h>
 
 #define ERRCODE_CANNOT_CONNECT_NOW "57P03"
-// invalid_catalog_name 3D000
-#define ERRCODE_UNDEFINED_DATABASE "3D000"
 
 static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 {

@@ -25,7 +25,8 @@
 Description=connection pooler for PostgreSQL
 Documentation=man:pgbouncer(1)
 Documentation=https://www.pgbouncer.org/
-After=network.target
+After=network-online.target
+Wants=network-online.target
 #Requires=pgbouncer.socket
 
 [Service]

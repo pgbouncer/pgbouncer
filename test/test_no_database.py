@@ -1,8 +1,8 @@
+import subprocess
+from test import utils
+
 import psycopg
 import pytest
-import subprocess
-
-from test import utils
 
 
 def test_no_database(bouncer):

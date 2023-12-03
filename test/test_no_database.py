@@ -1,6 +1,6 @@
-import subprocess
 import psycopg
 import pytest
+import subprocess
 
 from test import utils
 

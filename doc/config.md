@@ -333,10 +333,10 @@ will clear the prepared statements that PgBouncer tracked for the client that
 sends this command.
 
 The actual value of this setting controls the number of prepared statements
-kept active on a single server connection. When the setting is set to 0
-prepared statement support for transaction and statement pooling is disabled.
-To get the best performance you should try to make sure that this setting is
-larger than the amount of commonly used prepared statements in your
+kept active in a LRU cache on a single server connection. When the setting is 
+set to 0 prepared statement support for transaction and statement pooling is
+disabled. To get the best performance you should try to make sure that this 
+setting is larger than the amount of commonly used prepared statements in your
 application. Keep in mind that the higher this value, the larger the memory
 footprint of each PgBouncer connection will be on your PostgreSQL server,
 because it will keep more queries prepared on those connections. It also

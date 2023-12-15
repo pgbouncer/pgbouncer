@@ -235,6 +235,9 @@ avg_wait_time
     of the wait times for clients assigned a backend during the current
     `stats_period`).
 
+now
+: Current timestamp
+
 #### SHOW STATS_TOTALS
 
 Subset of **SHOW STATS** showing the total values (**total_**).
@@ -321,6 +324,9 @@ prepared_statements
 :  The amount of prepared statements that are prepared on the server. This
    number is limited by the `max_prepared_statements` setting.
 
+now
+: Current timestamp
+
 #### SHOW CLIENTS
 
 type
@@ -387,6 +393,9 @@ application_name
 prepared_statements
 :  The amount of prepared statements that the client has prepared
 
+now
+: Current timestamp
+
 #### SHOW POOLS
 
 A new pool entry is made for each couple of (database, user).
@@ -447,6 +456,9 @@ maxwait_us
 pool_mode
 :   The pooling mode in use.
 
+now
+: Current timestamp
+
 #### SHOW PEER_POOLS
 
 A new peer_pool entry is made for each configured peer.
@@ -466,6 +478,9 @@ sv_active_cancel
 
 sv_login
 :   Server connections currently in the process of logging in.
+
+now
+: Current timestamp
 
 #### SHOW LISTS
 
@@ -529,6 +544,9 @@ max_user_connections
 current_connections
 :   Current number of connections that this user has open to all servers.
 
+now
+: Current timestamp
+
 #### SHOW DATABASES
 
 name
@@ -575,6 +593,9 @@ paused
 
 disabled
 :   1 if this database is currently disabled, else 0.
+
+now
+: Current timestamp
 
 #### SHOW PEERS
 

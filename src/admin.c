@@ -691,6 +691,7 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 	struct CfValue load_balance_hosts_lookup;
 	int pool_mode;
 	const char *load_balance_hosts_str;
+	char timebuf[64];
 
 	cv.extra = pool_mode_map;
 	cv.value_p = &pool_mode;
@@ -700,7 +701,8 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 		admin_error(admin, "no mem");
 		return true;
 	}
-	pktbuf_write_RowDescription(buf, "ssiiiiiiiiiiiiiss",
+	format_time_ms(0, timebuf, sizeof(timebuf));
+	pktbuf_write_RowDescription(buf, "ssiiiiiiiiiiiiisss",
 				    "database", "user",
 				    "cl_active", "cl_waiting",
 				    "cl_active_cancel_req",
@@ -712,7 +714,8 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 				    "sv_used", "sv_tested",
 				    "sv_login", "maxwait",
 				    "maxwait_us", "pool_mode",
-				    "load_balance_hosts");
+				    "load_balance_hosts",
+					"timestamp");
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
 		waiter = first_socket(&pool->waiting_client_list);
@@ -724,7 +727,7 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 		if (pool->db->host && strchr(pool->db->host, ','))
 			load_balance_hosts_str = cf_get_lookup(&load_balance_hosts_lookup);
 
-		pktbuf_write_DataRow(buf, "ssiiiiiiiiiiiiiss",
+		pktbuf_write_DataRow(buf, "ssiiiiiiiiiiiiisss",
 				     pool->db->name, pool->user_credentials->name,
 				     statlist_count(&pool->active_client_list),
 				     statlist_count(&pool->waiting_client_list),
@@ -741,7 +744,8 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 				     (int)(max_wait / USEC),
 				     (int)(max_wait % USEC),
 				     cf_get_lookup(&cv),
-				     load_balance_hosts_str);
+				     load_balance_hosts_str,
+					 timebuf);
 	}
 	admin_flush(admin, buf, "SHOW");
 	return true;

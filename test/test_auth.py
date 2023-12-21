@@ -496,7 +496,6 @@ def test_hba_leak(bouncer):
     bouncer.admin("reload")
     bouncer.admin("reload")
 
-
 async def test_change_server_password_reconnect(bouncer, pg):
     bouncer.default_db = "p4"
     bouncer.admin(f"set default_pool_size=1")
@@ -576,3 +575,35 @@ async def test_change_server_password_server_lifetime(bouncer, pg):
                 await result3
     finally:
         pg.sql("ALTER USER puser1 PASSWORD 'foo'")
+
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+def test_client_hba_cert(bouncer, cert_dir):
+    root = cert_dir / "TestCA1" / "ca.crt"
+    key = cert_dir / "TestCA1" / "sites" / "01-localhost.key"
+    cert = cert_dir / "TestCA1" / "sites" / "01-localhost.crt"
+
+
+    bouncer.write_ini(f"client_tls_key_file = {key}")
+    bouncer.write_ini(f"client_tls_cert_file = {cert}")
+    bouncer.write_ini(f"client_tls_ca_file = {root}")
+    bouncer.write_ini(f"client_tls_sslmode = require")
+    bouncer.write_ini(f"auth_type = hba")
+    bouncer.write_ini(f"auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1")
+    bouncer.write_ini(f"auth_user = pswcheck")
+    bouncer.write_ini(f"auth_file = {bouncer.auth_path}")
+    bouncer.write_ini(f"auth_hba_file = pgbouncer_hba.conf")
+    bouncer.write_ini(f"auth_pgident_file = pgident.conf")
+
+    bouncer.admin("reload")
+
+    client_key = cert_dir / "TestCA1" / "sites" / "04-pgbouncer.acme.org.key"
+    client_cert = cert_dir / "TestCA1" / "sites" / "04-pgbouncer.acme.org.crt"
+
+    bouncer.psql_test(
+        host="localhost",
+        user="someuser",
+        sslmode="verify-full",
+        sslkey=client_key,
+        sslcert=client_cert,
+        sslrootcert=root,
+    )

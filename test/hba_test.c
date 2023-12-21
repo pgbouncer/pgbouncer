@@ -68,7 +68,7 @@ static int hba_test_eval(struct HBA *hba, char *ln, int linenr)
 	const char *addr=NULL, *user=NULL, *db=NULL, *tls=NULL, *exp=NULL;
 	PgAddr pgaddr;
 	struct HBARule *rule;
-	int res;
+	int res = 0;
 
 	if (ln[0] == '#')
 		return 0;

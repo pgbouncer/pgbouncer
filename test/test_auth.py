@@ -582,13 +582,14 @@ def test_client_hba_cert(bouncer, cert_dir):
     key = cert_dir / "TestCA1" / "sites" / "01-localhost.key"
     cert = cert_dir / "TestCA1" / "sites" / "01-localhost.crt"
 
-
     bouncer.write_ini(f"client_tls_key_file = {key}")
     bouncer.write_ini(f"client_tls_cert_file = {cert}")
     bouncer.write_ini(f"client_tls_ca_file = {root}")
     bouncer.write_ini(f"client_tls_sslmode = require")
     bouncer.write_ini(f"auth_type = hba")
-    bouncer.write_ini(f"auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1")
+    bouncer.write_ini(
+        f"auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1"
+    )
     bouncer.write_ini(f"auth_user = pswcheck")
     bouncer.write_ini(f"auth_file = {bouncer.auth_path}")
     bouncer.write_ini(f"auth_hba_file = pgbouncer_hba.conf")

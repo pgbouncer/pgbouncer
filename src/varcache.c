@@ -156,7 +156,7 @@ static int apply_var(PktBuf *pkt, const char *key,
 	const char *tmp;
 
 	/* if unset, skip */
-	if (!cval || !sval || !*cval->str)
+	if (!cval || !sval)
 		return 0;
 
 	/* if equal, skip */

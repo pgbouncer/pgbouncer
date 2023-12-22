@@ -453,7 +453,7 @@ HBA configuration file to use when `auth_type` is `hba`.
 
 Default: not set
 
-### auth_pgident_file
+### auth_ident_file
 
 Identity map file to use when `auth_type` is `hba` and a user map will be defined.
 

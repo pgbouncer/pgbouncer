@@ -593,7 +593,7 @@ def test_client_hba_cert(bouncer, cert_dir):
     bouncer.write_ini(f"auth_user = pswcheck")
     bouncer.write_ini(f"auth_file = {bouncer.auth_path}")
     bouncer.write_ini(f"auth_hba_file = pgbouncer_hba.conf")
-    bouncer.write_ini(f"auth_pgident_file = pgident.conf")
+    bouncer.write_ini(f"auth_ident_file = pgident.conf")
 
     bouncer.admin("reload")
 

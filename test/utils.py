@@ -635,6 +635,26 @@ class Postgres(QueryRunner):
         """
         self.sql(f"alter system set {config}")
 
+    @contextmanager
+    def log_contains(self, re_string, times=None):
+        """Checks if during this with block the log matches re_string
+
+        re_string:
+            The regex to search for.
+        times:
+            If None, any number of matches is accepted. If a number, only that
+            specific number of matches is accepted.
+        """
+        with self.log_path.open() as f:
+            f.seek(0, os.SEEK_END)
+            yield
+            content = f.read()
+            if times is None:
+                assert re.search(re_string, content)
+            else:
+                match_count = len(re.findall(re_string, content))
+                assert match_count == times
+
 
 class Bouncer(QueryRunner):
     def __init__(

@@ -475,3 +475,23 @@ def test_auth_dbname_works_fine(
         # The client connects to postgres DB that matches with autodb
         # pgbouncer must use postgres_authdb1, which is defined in [pgbouncer] section
         bouncer.test(user="stats", password="stats", dbname="postgres")
+
+
+def test_hba_leak(bouncer):
+    """
+    Don't actually check if HBA auth works, but check that it doesn't leak
+    memory when using the feature.
+    """
+    bouncer.write_ini(f"auth_type = hba")
+    bouncer.write_ini(f"auth_hba_file = hba_test.rules")
+
+    bouncer.admin("reload")
+
+    bouncer.write_ini(f"auth_type = trust")
+
+    bouncer.admin("reload")
+
+    bouncer.write_ini(f"auth_type = hba")
+
+    bouncer.admin("reload")
+    bouncer.admin("reload")

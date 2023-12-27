@@ -446,10 +446,12 @@ void load_config(void)
 	if (cf_auth_type == AUTH_HBA) {
 		struct HBA *hba = hba_load_rules(cf_auth_hba_file);
 		if (hba) {
-			if (parsed_hba)
-				hba_free(parsed_hba);
+			hba_free(parsed_hba);
 			parsed_hba = hba;
 		}
+	} else {
+		hba_free(parsed_hba);
+		parsed_hba = NULL;
 	}
 
 	/* kill dbs */
@@ -852,6 +854,8 @@ static void cleanup(void)
 	}
 	adns_free_context(adns);
 	adns = NULL;
+	hba_free(parsed_hba);
+	parsed_hba = NULL;
 
 	admin_cleanup();
 	objects_cleanup();

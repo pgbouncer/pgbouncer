@@ -24,19 +24,14 @@ task:
     - echo 127.0.0.1 localhost >> c:\Windows\System32\Drivers\etc\hosts
     - sh -l -c 'echo "127.0.0.1   localhost" >> /etc/hosts'
     - choco install -y --no-progress pandoc
-    - ls -l /mingw64
-    - ls -l /mingw64/include
     - ls -l /mingw64/include/openssl
-    - ls -l /tools
-    - ls -l /tools/msys64
-    - ls -l /tools/msys64/include
-    - ls -l /tools/msys64/include/openssl
+    - pkg-config --static
   env:
-    CPPFLAGS: -I/mingw64/include -I/tools/msys64/include
-    LDFLAGS: -L/mingw64/lib -I/tools/msys64/lib
+    CPPFLAGS: -I/mingw64/include
+    LDFLAGS: -L/mingw64/lib
   build_script:
     - sh -l -c "./autogen.sh"
-    - sh -l -c "./configure --prefix=$HOME/install --enable-werror PANDOC=/c/programdata/chocolatey/bin/pandoc LDFLAGS=-static LIBS=-liphlpapi PKG_CONFIG='pkg-config --static'"
+    - sh -l -c "./configure --prefix=$HOME/install --enable-werror PANDOC=/c/programdata/chocolatey/bin/pandoc LDFLAGS='-static -L/mingw64/lib' LIBS=-liphlpapi PKG_CONFIG='pkg-config --static'"
     - sh -l -c "make -j4"
   test_script:
     - sh -l -c "make -j4 check CONCURRENCY=3"

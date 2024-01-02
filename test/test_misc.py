@@ -5,7 +5,7 @@ import time
 import psycopg
 import pytest
 
-from .utils import HAVE_IPV6_LOCALHOST, WINDOWS
+from .utils import HAVE_IPV6_LOCALHOST, PG_MAJOR_VERSION, WINDOWS
 
 
 def test_connect_query(bouncer):
@@ -235,3 +235,18 @@ def test_empty_application_name(bouncer):
         assert cur.execute("SHOW application_name").fetchone()[0] == ""
         cur.execute("SET application_name = test")
         assert cur.execute("SHOW application_name").fetchone()[0] == "test"
+
+
+def test_equivalent_startup_param(bouncer):
+    bouncer.admin("set verbose=2")
+
+    canonical_expected_times = 1 if PG_MAJOR_VERSION >= 14 else 0
+    with bouncer.cur(options="-c DateStyle=ISO") as cur:
+        with bouncer.log_contains(
+            "varcache_apply: .*SET DateStyle='ISO'", times=1
+        ), bouncer.log_contains(
+            "varcache_set_canonical: setting DateStyle to its canonical version ISO -> ISO, MDY",
+            times=canonical_expected_times,
+        ):
+            cur.execute("SELECT 1")
+            cur.execute("SELECT 1")

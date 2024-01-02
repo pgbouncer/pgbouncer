@@ -712,6 +712,18 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			PgSocket *client = server->link;
 			Assert(client);
 
+			/*
+			 * It's possible that the client vars and server vars have
+			 * different string representations, but still Postgres did not
+			 * send a ParamaterStatus packet. This happens when the server
+			 * variable is the canonical version of the client variable, i.e.
+			 * they mean the same just written slightly different. To make sure
+			 * that the canonical version is also stored in the client, we now
+			 * copy the server variables over to the client variables.
+			 * See issue #776 for an example of this.
+			 */
+			varcache_set_canonical(server, client);
+
 			server->setting_vars = false;
 			log_noise("done setting vars unpausing client");
 			sbuf_continue(&client->sbuf);

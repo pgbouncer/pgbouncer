@@ -449,13 +449,15 @@ pam
 
 ### auth_hba_file
 
-HBA configuration file to use when `auth_type` is `hba`.
+HBA configuration file to use when `auth_type` is `hba`. See
+section [HBA file format](#hba-file-format) below about details.
 
 Default: not set
 
 ### auth_ident_file
 
-Identity map file to use when `auth_type` is `hba` and a user map will be defined.
+Identity map file to use when `auth_type` is `hba` and a user map will be defined.  See
+section [Ident map file format](#ident-map-file-format) below about details.
 
 Default: not set
 
@@ -1419,8 +1421,20 @@ The file follows the format of the PostgreSQL `pg_hba.conf` file
 * Address field: Supports IPv4, IPv6.  Not supported: DNS names, domain prefixes.
 * Auth-method field: Only methods supported by PgBouncer's `auth_type`
   are supported, plus `peer` and `reject`, but except `any` and `pam`, which only work globally.
-  User name map (`map=`) parameter is not supported.
+* User name map (`map = `) parameter is only supported for `auth_type` `cert`.
 
+## Ident map file format
+
+The location of the ident map file is specified by the setting
+`auth_ident_file`. It is only loaded if `auth_type` is set to `hba`.
+
+The file format is a simplified variation of the PostgreSQL ident map file
+(see <https://www.postgresql.org/docs/current/auth-username-maps.html>).
+
+* Supported lines are only of the form `map-name system-username database-username`.
+* There is no support for including file/directory.
+* System-username field: Not supported: regular expressions.
+* Database-username field: Supports `all` or a single postgres user name. Not supported: `+groupname`, multiple names.
 
 ## Examples
 

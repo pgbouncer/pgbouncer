@@ -497,6 +497,7 @@ def test_hba_leak(bouncer):
     bouncer.admin("reload")
     bouncer.admin("reload")
 
+<<<<<<< HEAD
 async def test_change_server_password_reconnect(bouncer, pg):
     bouncer.default_db = "p4"
     bouncer.admin(f"set default_pool_size=1")
@@ -576,6 +577,8 @@ async def test_change_server_password_server_lifetime(bouncer, pg):
                 await result3
     finally:
         pg.sql("ALTER USER puser1 PASSWORD 'foo'")
+=======
+>>>>>>> 50f0051 (Doc and format)
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
 @pytest.mark.skipif(not TLS_SUPPORT, reason="pgbouncer is built without TLS support")

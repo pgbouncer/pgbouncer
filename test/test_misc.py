@@ -225,6 +225,18 @@ def test_options_startup_param(bouncer):
     )
 
 
+def test_empty_application_name(bouncer):
+    with bouncer.cur(dbname="p1", application_name="") as cur:
+        assert cur.execute("SHOW application_name").fetchone()[0] == ""
+        cur.execute("SET application_name = test")
+        assert cur.execute("SHOW application_name").fetchone()[0] == "test"
+
+    with bouncer.cur(dbname="p1", application_name="") as cur:
+        assert cur.execute("SHOW application_name").fetchone()[0] == ""
+        cur.execute("SET application_name = test")
+        assert cur.execute("SHOW application_name").fetchone()[0] == "test"
+
+
 def test_equivalent_startup_param(bouncer):
     bouncer.admin("set verbose=2")
 

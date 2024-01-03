@@ -333,9 +333,9 @@ will clear the prepared statements that PgBouncer tracked for the client that
 sends this command.
 
 The actual value of this setting controls the number of prepared statements
-kept active in an LRU cache on a single server connection. When the setting is 
+kept active in an LRU cache on a single server connection. When the setting is
 set to 0 prepared statement support for transaction and statement pooling is
-disabled. To get the best performance you should try to make sure that this 
+disabled. To get the best performance you should try to make sure that this
 setting is larger than the amount of commonly used prepared statements in your
 application. Keep in mind that the higher this value, the larger the memory
 footprint of each PgBouncer connection will be on your PostgreSQL server,
@@ -1171,6 +1171,10 @@ Override of the global `auth_user` setting, if specified.
 ### auth_query
 
 Override of the global `auth_query` setting, if specified. The entire SQL statement needs to be enclosed in single quotes.
+
+### auth_dbname
+
+Override of the global `auth_dbname` setting, if specified.
 
 ### pool_size
 

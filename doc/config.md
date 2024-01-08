@@ -1434,7 +1434,7 @@ The file format is a simplified variation of the PostgreSQL ident map file
 * Supported lines are only of the form `map-name system-username database-username`.
 * There is no support for including file/directory.
 * System-username field: Not supported: regular expressions.
-* Database-username field: Supports `all` or a single postgres user name. Not supported: `+groupname`, multiple names.
+* Database-username field: Supports `all` or a single postgres user name. Not supported: `+groupname`, multiple names, regular expressions.
 
 ## Examples
 

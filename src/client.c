@@ -999,7 +999,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 	case PKT_STARTUP_V2:
 		disconnect_client(client, true, "old V2 protocol not supported");
 		return false;
-	case PKT_STARTUP:
+	case PKT_STARTUP_V3:
 		/* require SSL except on unix socket */
 		if (client_accept_sslmode >= SSLMODE_REQUIRE && !client->sbuf.tls && !is_unix) {
 			disconnect_client(client, true, "SSL required");

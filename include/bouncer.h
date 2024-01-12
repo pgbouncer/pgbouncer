@@ -229,6 +229,8 @@ extern int cf_sbuf_len;
 /* type codes for weird pkts */
 #define PKT_STARTUP_V2  0x20000
 #define PKT_STARTUP_V3  0x30000
+#define PKT_STARTUP_V3_UNSUPPORTED 0x30001
+#define PKT_STARTUP_V4  0x40000
 #define PKT_CANCEL      80877102
 #define PKT_SSLREQ      80877103
 #define PKT_GSSENCREQ   80877104

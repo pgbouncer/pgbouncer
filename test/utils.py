@@ -188,6 +188,16 @@ class PortLock:
         self.lock.release()
 
 
+def notice_handler(diag: psycopg.errors.Diagnostic):
+    print(f"{diag.severity}: {diag.message_primary}")
+    if diag.message_detail:
+        print(f"DETAIL: {diag.message_detail}")
+    if diag.message_hint:
+        print(f"HINT: {diag.message_hint}")
+    if diag.context:
+        print(f"CONTEXT: {diag.context}")
+
+
 class QueryRunner:
     def __init__(self, host, port):
         self.host = host
@@ -213,12 +223,14 @@ class QueryRunner:
     def conn(self, *, autocommit=True, **kwargs):
         """Open a psycopg connection to this server"""
         self.set_default_connection_options(kwargs)
-        return psycopg.connect(
+        conn = psycopg.connect(
             autocommit=autocommit,
             host=self.host,
             port=self.port,
             **kwargs,
         )
+        conn.add_notice_handler(notice_handler)
+        return conn
 
     def aconn(self, *, autocommit=True, **kwargs):
         """Open an asynchronous psycopg connection to this server"""

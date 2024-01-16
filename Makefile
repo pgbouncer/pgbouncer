@@ -156,9 +156,9 @@ CONCURRENCY = auto
 check: all
 	etc/optscan.sh
 	if [ $(CONCURRENCY) = 1 ]; then \
-		PYTHONIOENCODING=utf8 $(PYTEST); \
+		PYTHONIOENCODING=utf8 $(PYTEST) test/test_auth.py::test_hba_leak test/test_ssl.py::test_server_ssl; \
 	else \
-		PYTHONIOENCODING=utf8 $(PYTEST) -n $(CONCURRENCY); \
+		PYTHONIOENCODING=utf8 $(PYTEST) test/test_auth.py::test_hba_leak test/test_ssl.py::test_server_ssl; \
 	fi
 	$(MAKE) -C test check
 

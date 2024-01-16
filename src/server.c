@@ -65,22 +65,37 @@ failed_store:
 	return false;
 }
 
-/* we cannot log in at all, notify clients */
+/*
+ * We cannot log in to the server at all. If we don't already have any usable
+ * server connections, we disconnect all other clients in the pool that are
+ * waiting for a server.
+ */
 void kill_pool_logins(PgPool *pool, const char *sqlstate, const char *msg)
 {
 	struct List *item, *tmp;
 	PgSocket *client;
+	/*
+	 * The check for welcome_msg_ready is necessary because that indicates
+	 * that the pool got tagged as dirty. It's possible that there's still
+	 * working server connections in that case, but as soon as they get
+	 * unassigned from their client they would be closed. So they don't
+	 * really count as usable anymore.
+	 */
+	if (pool_connected_server_count(pool) != 0 && pool->welcome_msg_ready)
+		return;
 
 	statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
 		client = container_of(item, PgSocket, head);
-		if (!client->wait_for_welcome)
-			continue;
-
 		disconnect_client_sqlstate(client, true, sqlstate, msg);
 	}
 }
 
-/* we cannot log in at all, notify clients with server error */
+/*
+ * We cannot log in to the server at all. If we don't already have any usable
+ * server connections, we disconnect all other clients in the pool that are
+ * also waiting for a server. We disconnect them with exactly the same error
+ * message and code as we received from the server.
+ */
 static void kill_pool_logins_server_error(PgPool *pool, PktHdr *errpkt)
 {
 	const char *level, *msg, *sqlstate;
@@ -133,10 +148,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 		break;
 
 	case 'E':		/* ErrorResponse */
-		if (!server->pool->welcome_msg_ready)
-			kill_pool_logins_server_error(server->pool, pkt);
-		else
-			log_server_error("S: login failed", pkt);
+		kill_pool_logins_server_error(server->pool, pkt);
 
 		disconnect_server(server, true, "login failed");
 		break;

@@ -18,6 +18,7 @@ task:
     # - env:
     #     MSYSTEM: MINGW32
   setup_script:
+    - uname
     - choco install -y --no-progress msys2
     - sh -l -c "pacman --noconfirm -S --needed base-devel ${MINGW_PACKAGE_PREFIX}-gcc ${MINGW_PACKAGE_PREFIX}-libevent ${MINGW_PACKAGE_PREFIX}-openssl ${MINGW_PACKAGE_PREFIX}-postgresql autoconf automake libtool ${MINGW_PACKAGE_PREFIX}-python ${MINGW_PACKAGE_PREFIX}-python-pip zip"
     - sh -l -c 'pip install -r requirements.txt'

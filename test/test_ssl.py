@@ -34,6 +34,7 @@ def test_server_ssl(pg, bouncer, cert_dir):
     pg.configure("ssl=on")
     root = cert_dir / "TestCA1" / "ca.crt"
     pg.configure(f"ssl_ca_file='{root}'")
+    print("ARE WE WINDOWS?", WINDOWS)
     if PG_MAJOR_VERSION < 10 or WINDOWS:
         pg.restart()
     else:
@@ -47,6 +48,7 @@ def test_server_ssl_set_disable(pg, bouncer, cert_dir):
     pg.configure("ssl=on")
     root = cert_dir / "TestCA1" / "ca.crt"
     pg.configure(f"ssl_ca_file='{root}'")
+    print("ARE WE WINDOWS?", WINDOWS)
     if PG_MAJOR_VERSION < 10 or WINDOWS:
         pg.restart()
     else:
@@ -55,6 +57,7 @@ def test_server_ssl_set_disable(pg, bouncer, cert_dir):
     bouncer.test()
 
     pg.reset_hba()
+    print("ARE WE WINDOWS?", WINDOWS)
     if PG_MAJOR_VERSION < 10 or WINDOWS:
         pg.restart()
     else:
@@ -78,6 +81,7 @@ def test_server_ssl_set_enable(pg, bouncer, cert_dir):
     pg.configure("ssl=on")
     root = cert_dir / "TestCA1" / "ca.crt"
     pg.configure(f"ssl_ca_file='{root}'")
+    print("ARE WE WINDOWS?", WINDOWS)
     if PG_MAJOR_VERSION < 10 or WINDOWS:
         pg.restart()
     else:
@@ -87,6 +91,7 @@ def test_server_ssl_set_enable(pg, bouncer, cert_dir):
 
     pg.nossl_access("all", "reject")
     pg.ssl_access("all", "trust")
+    print("ARE WE WINDOWS?", WINDOWS)
     if PG_MAJOR_VERSION < 10 or WINDOWS:
         pg.restart()
     else:
@@ -114,6 +119,7 @@ def test_server_ssl_verify(pg, bouncer, cert_dir):
     pg.ssl_access("all", "trust")
     pg.configure("ssl=on")
     pg.configure(f"ssl_ca_file='{root}'")
+    print("ARE WE WINDOWS?", WINDOWS)
     if PG_MAJOR_VERSION < 10 or WINDOWS:
         pg.restart()
     else:

@@ -1,6 +1,7 @@
 [submodule "lib"]
 	path = lib
-	url = https://github.com/libusual/libusual.git
+	url = https://github.com/JelteF/libusual.git
+	branch = debug-windows-ssl
 [submodule "uthash"]
 	path = uthash
 	url = https://github.com/troydhanson/uthash.git

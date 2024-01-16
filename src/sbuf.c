@@ -1332,7 +1332,7 @@ bool sbuf_tls_setup(void)
 		}
 	}
 
-	tls_free(client_accept_base);
+	usual_tls_free(client_accept_base);
 	tls_config_free(client_accept_conf);
 	tls_config_free(server_connect_conf);
 	client_accept_base = new_client_accept_base;
@@ -1342,7 +1342,7 @@ bool sbuf_tls_setup(void)
 	server_connect_sslmode = cf_server_tls_sslmode;
 	return true;
 failed:
-	tls_free(new_client_accept_base);
+	usual_tls_free(new_client_accept_base);
 	tls_config_free(new_client_accept_conf);
 	tls_config_free(new_server_connect_conf);
 	return false;
@@ -1425,7 +1425,7 @@ bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
 	err = tls_configure(ctls, server_connect_conf);
 	if (err < 0) {
 		log_error("tls client config failed: %s", tls_error(ctls));
-		tls_free(ctls);
+		usual_tls_free(ctls);
 		return false;
 	}
 
@@ -1502,7 +1502,7 @@ static int tls_sbufio_close(struct SBuf *sbuf)
 	log_noise("tls_close");
 	if (sbuf->tls) {
 		tls_close(sbuf->tls);
-		tls_free(sbuf->tls);
+		usual_tls_free(sbuf->tls);
 		sbuf->tls = NULL;
 	}
 	if (sbuf->sock > 0) {
@@ -1514,7 +1514,7 @@ static int tls_sbufio_close(struct SBuf *sbuf)
 
 void sbuf_cleanup(void)
 {
-	tls_free(client_accept_base);
+	usual_tls_free(client_accept_base);
 	tls_config_free(client_accept_conf);
 	tls_config_free(server_connect_conf);
 	client_accept_conf = NULL;

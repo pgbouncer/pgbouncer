@@ -30,7 +30,7 @@ task:
     - ls -al /mingw64/lib
   build_script:
     - sh -l -c "./autogen.sh"
-    - sh -l -c "./configure --prefix=$HOME/install --enable-werror PANDOC=/c/programdata/chocolatey/bin/pandoc LDFLAGS=-static LIBS='-liphlpapi -lssl -lcrypto -lws2_32 -lgdi32 -lcrypt32 -lcrypto -lws2_32 -lgdi32 -lcrypt32' PKG_CONFIG='pkg-config --static'"
+    - sh -l -c "./configure --prefix=$HOME/install --enable-werror PANDOC=/c/programdata/chocolatey/bin/pandoc LDFLAGS=-static LIBS='-liphlpapi $(pkgconf -libs -static openssl)' PKG_CONFIG='pkg-config --static'"
     - sh -l -c "make -j4"
   test_script:
     - sh -l -c "make -j4 check CONCURRENCY=3"

@@ -1367,7 +1367,7 @@ static bool handle_tls_handshake(SBuf *sbuf)
 		sbuf_call_proto(sbuf, SBUF_EV_TLS_READY);
 		return true;
 	} else {
-		log_warning("TLS handshake error: %s", tls_error(sbuf->tls));
+		log_warning("TLS handshake error %d: %s", err, tls_error(sbuf->tls));
 		return false;
 	}
 }

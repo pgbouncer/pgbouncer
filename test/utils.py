@@ -717,7 +717,7 @@ class Bouncer(QueryRunner):
                 ini.write(f"auth_file = {self.auth_path}\n")
                 ini.write("pidfile = \n")
                 # Uncomment for much more noise but, more detailed debugging
-                # ini.write("verbose = 3\n")
+                ini.write("verbose = 3\n")
 
                 if not USE_UNIX_SOCKETS:
                     ini.write(f"unix_socket_dir = \n")

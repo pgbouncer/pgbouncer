@@ -489,51 +489,33 @@ static bool match_map(struct HBARule *rule, struct IDENT *ident, const char *map
 
 static bool parse_map_definition(struct HBARule *rule, struct IDENT *ident, struct TokParser *tp, int linenr)
 {
-	const char *mapdef;
-	const char *mapname = NULL;
-	const char *rest;
+	const char *str;
+	char *val;
 
-	if (!expect(tp, TOK_IDENT, &mapdef))
+	if (!expect(tp, TOK_IDENT, &str))
 		return true;
 
-	log_warning("hba line %d: map definition : %s", linenr, mapdef);
+	log_noise("hba line %d: map definition : %s", linenr, str);
 
-	if (strcmp(mapdef, "map") == 0) {
-		next_token(tp);
+	val = strchr(str, '=');
 
-		if (!expect(tp, TOK_IDENT, &rest))
-			return false;
-
-		if (strcmp(rest, "=") == 0) {
-			next_token(tp);
-
-			if (!expect(tp, TOK_IDENT, &mapname))
-				return false;
-		} else if (rest[0] == '=') {
-			mapname = rest + 1;
-		} else {
-			return false;
-		}
-	} else if (strncmp(mapdef, "map", 3) == 0) {
-		if (mapdef[3] == '=') {
-			mapname = mapdef + 4;
-		} else {
-			return false;
-		}
-	} else {
+	if (val == NULL || strncmp(str, "map=", 4) != 0) {
+		log_warning("hba line %d: Ident map %s is malformed. It is not in map=value format.", linenr, str);
 		return false;
 	}
 
-	log_warning("hba line %d: map name : %s", linenr, mapname);
+	val++;
+
+	log_noise("hba line %d: map name : %s", linenr, val);
 
 	next_token(tp);
 
-	if (!match_map(rule, ident, mapname)) {
-		log_warning("hba line %d: Ident map %s is not found in ident config file", linenr, mapname);
+	if (!match_map(rule, ident, val)) {
+		log_warning("hba line %d: Ident map %s is not found in ident config file", linenr, val);
 		return false;
 	}
 
-	log_warning("hba line %d: mapped user name : %s", linenr, rule->identmap->postgres_user_name);
+	log_noise("hba line %d: mapped user name : %s", linenr, rule->identmap->postgres_user_name);
 
 	return true;
 }

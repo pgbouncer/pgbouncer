@@ -453,8 +453,7 @@ void load_config(void)
 		ident = ident_load_map(cf_auth_ident_file);
 
 		if (ident) {
-			if (parsed_ident)
-				ident_free(parsed_ident);
+			ident_free(parsed_ident);
 			parsed_ident = ident;
 		}
 
@@ -871,6 +870,8 @@ static void cleanup(void)
 	adns = NULL;
 	hba_free(parsed_hba);
 	parsed_hba = NULL;
+	ident_free(parsed_ident);
+	parsed_ident = NULL;
 
 	admin_cleanup();
 	objects_cleanup();

@@ -24,8 +24,6 @@
 #include <usual/socket.h>
 #include <usual/string.h>
 
-#define NAME_SAMEUSER   2
-
 /*
  * StrSet
  */

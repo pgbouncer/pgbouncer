@@ -17,6 +17,7 @@
  */
 
 #define NAME_ALL        1
+#define NAME_SAMEUSER   2
 
 enum RuleType {
 	RULE_LOCAL,

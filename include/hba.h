@@ -15,6 +15,9 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+
+#define NAME_ALL        1
+
 enum RuleType {
 	RULE_LOCAL,
 	RULE_HOST,
@@ -52,6 +55,7 @@ struct IDENTMap {
 	char *map_name;
 	char *system_user_name;
 	char *postgres_user_name;
+	unsigned int name_flags;
 };
 
 struct IDENT {

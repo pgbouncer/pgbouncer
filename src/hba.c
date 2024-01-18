@@ -24,7 +24,6 @@
 #include <usual/socket.h>
 #include <usual/string.h>
 
-#define NAME_ALL        1
 #define NAME_SAMEUSER   2
 
 /*
@@ -313,6 +312,7 @@ static void free_parser(struct TokParser *p)
 }
 
 static bool parse_names(struct HBAName *hname, struct TokParser *p, bool is_db, const char *parent_filename);
+static bool parse_ident_name(const char **ident_name, struct TokParser *tp, bool *is_name_all);
 
 static bool parse_namefile(struct HBAName *hname, const char *fn, bool is_db)
 {
@@ -343,6 +343,22 @@ static bool parse_namefile(struct HBAName *hname, const char *fn, bool is_db)
 	free(ln);
 	fclose(f);
 	return ok;
+}
+
+static bool parse_ident_name(const char **ident_name, struct TokParser *tp, bool *is_name_all)
+{
+	if (eat_kw(tp, "all")) {
+		*is_name_all = true;
+		return true;
+	}
+
+	if (!expect(tp, TOK_IDENT, ident_name)) {
+		if (!expect(tp, TOK_STRING, ident_name)) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 static bool parse_names(struct HBAName *hname, struct TokParser *tp, bool is_db, const char *parent_filename)
@@ -535,6 +551,7 @@ static bool parse_ident_line(struct IDENT *ident, struct TokParser *tp, int line
 	const char *system_user_name = NULL;
 	const char *postgres_user_name = NULL;
 	struct IDENTMap *ident_map = NULL;
+	bool is_name_all = false;
 
 	if (eat(tp, TOK_EOL)) {
 		return true;
@@ -563,11 +580,16 @@ static bool parse_ident_line(struct IDENT *ident, struct TokParser *tp, int line
 
 	next_token(tp);
 
-	if (!expect(tp, TOK_IDENT, &postgres_user_name)) {
+
+	if (!parse_ident_name(&postgres_user_name, tp, &is_name_all)) {
 		goto failed;
 	}
 
-	ident_map->postgres_user_name = strdup(postgres_user_name);
+	if (is_name_all) {
+		ident_map->name_flags |= NAME_ALL;
+	} else {
+		ident_map->postgres_user_name = strdup(postgres_user_name);
+	}
 
 	next_token(tp);
 

@@ -221,21 +221,16 @@ static bool login_via_cert(PgSocket *client, struct HBARule *rule)
 
 	log_debug("TLS cert login: %s", tls_peer_cert_subject(client->sbuf.tls));
 
-	if (!tls_peer_cert_contains_name(client->sbuf.tls, client->login_user->name)) {
-		log_debug("TLS certificate name mismatch. Looking for a map.");
-		if (!rule)
-			goto fail;
-
-		if (rule->identmap == NULL)
-			goto fail;
-
+	if (rule && rule->identmap) {
 		if (!tls_peer_cert_contains_name(client->sbuf.tls, rule->identmap->system_user_name))
 			goto fail;
 
-		if (strcmp(client->login_user->name, rule->identmap->postgres_user_name)) {
-			if (strcmp(rule->identmap->postgres_user_name, "all"))
+		if (!(rule->identmap->name_flags & NAME_ALL)) {
+			if (strcmp(client->login_user->name, rule->identmap->postgres_user_name))
 				goto fail;
 		}
+	} else if (!tls_peer_cert_contains_name(client->sbuf.tls, client->login_user->name)) {
+		goto fail;
 	}
 
 	/* login successful */

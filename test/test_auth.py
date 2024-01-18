@@ -607,7 +607,7 @@ def test_client_hba_cert(bouncer, cert_dir):
 
     # The client connects to p0 DB using a client certificate with CN=pgbouncer.acme.org.
     # hba_eval returns the followign line:
-    #    hostssl all             someuser        0.0.0.0/0               cert    map = test
+    #    hostssl all             someuser        0.0.0.0/0               cert    map=test
     # where "test" map is defined in pgident.conf as
     #    test            pgbouncer.acme.org      someuser
     # hence the test succeeds.
@@ -624,7 +624,7 @@ def test_client_hba_cert(bouncer, cert_dir):
 
     # The client connects to p0 DB using a client certificate with CN="pgbouncer.acme.org".
     # hba_eval returns the followign line:
-    #    hostssl all             anotheruser     0.0.0.0/0               cert    map = test2
+    #    hostssl all             anotheruser     0.0.0.0/0               cert    map=test2
     # where "test2" map is defined in pgident.conf as
     #    test2           bouncer                 all
     # CN expected in map is "bouncer" which does not match the CN="pgbouncer.acme.org" in client cert
@@ -648,12 +648,12 @@ def test_client_hba_cert(bouncer, cert_dir):
 
     # The client connects to p0 DB using a client certificate with CN=bouncer.
     # hba_eval returns the followign line:
-    #    hostssl all             anotheruser     0.0.0.0/0               cert    map = test2
+    #    hostssl all             anotheruser     0.0.0.0/0               cert    map=test2
     # where "test2" map is defined in pgident.conf as
     #    test2           bouncer                 all
     # CN expected in map is "bouncer" which matches the CN in the client cert
     # hence the test succeeds.
-    with bouncer.log_contains("hba_eval returned Ident map test2 bouncer all"):
+    with bouncer.log_contains("hba_eval returned Ident map test2 bouncer "):
         bouncer.psql_test(
             host="localhost",
             user="anotheruser",

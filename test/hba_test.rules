@@ -11,6 +11,10 @@
 
 # testing
 
+# Allow access to pgbouncer admin database from localhost for windows tests
+host		pgbouncer	pgbouncer	127.0.0.1/32	trust
+
+# actual tests
 local		dbp		all					peer
 local		all		userp					password
 local		dbz		userz					trust

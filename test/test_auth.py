@@ -652,10 +652,41 @@ def test_client_hba_cert(bouncer, cert_dir):
     #    test2           bouncer                 all
     # CN expected in map is "bouncer" which matches the CN in the client cert
     # hence the test succeeds.
-    with bouncer.log_contains("hba_eval returned Ident map test2 bouncer "):
+    bouncer.psql_test(
+        host="localhost",
+        user="anotheruser",
+        sslmode="verify-full",
+        sslkey=client_key,
+        sslcert=client_cert,
+        sslrootcert=root,
+    )
+
+    # The client connects to p0 DB using a client certificate with CN=bouncer.
+    # hba_eval returns the followign line:
+    #    hostssl all             bouncer     0.0.0.0/0               cert
+    # CN matches the postgres user name hence the test succeeds.
+    bouncer.psql_test(
+        host="localhost",
+        user="bouncer",
+        sslmode="verify-full",
+        sslkey=client_key,
+        sslcert=client_cert,
+        sslrootcert=root,
+    )
+
+    client_key = cert_dir / "TestCA1" / "sites" / "04-pgbouncer.acme.org.key"
+    client_cert = cert_dir / "TestCA1" / "sites" / "04-pgbouncer.acme.org.crt"
+
+    # The client connects to p0 DB using a client certificate with CN=pgbouncer.acme.org
+    # hba_eval returns the followign line:
+    #    hostssl all             bouncer     0.0.0.0/0               cert
+    # CN does not match the postgres user name and there is no map defined. Hence the test fails.
+    with pytest.raises(
+        subprocess.CalledProcessError,
+    ):
         bouncer.psql_test(
             host="localhost",
-            user="anotheruser",
+            user="bouncer",
             sslmode="verify-full",
             sslkey=client_key,
             sslcert=client_cert,

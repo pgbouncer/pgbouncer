@@ -306,8 +306,6 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		if (!rule)
 			return false;
 
-		log_warning("hba_eval returned Ident map %s %s %s", rule->identmap->map_name, rule->identmap->system_user_name, rule->identmap->postgres_user_name);
-
 		auth = rule->rule_method;
 	}
 

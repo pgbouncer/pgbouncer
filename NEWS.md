@@ -1,6 +1,38 @@
 PgBouncer changelog
 ===================
 
+PgBouncer 1.22.x
+----------------
+
+**2024-01-31  -  PgBouncer 1.22.0  -  "DEALLOCATE ALL"**
+
+- Features
+  * Adds support for `DEALLOCATE ALL` and `DISCARD ALL` when
+    `max_prepared_statements` is set to a non-zero value (normal `DEALLOCATE`
+    is still unsupported) ([#972])
+  * Support configuring `auth_query` per database ([#979])
+
+- Changes
+  * Improve settings in the recommended systemd unit file ([#983])
+  * Make fail fast logic handle all scenarios where no working connections to
+    the database exist anymore and none can be established ([#998])
+  * Multiple documentation improvements
+
+- Fixes
+  * Fix issue in PG14+ where PgBouncer would send `SET DateStyle='ISO'` for
+    every transaction ([#879])
+  * Fix handling of empty `application_name` ([#999])
+  * Fix building on Windows with OpenSSL 3.2.0 ([#1009])
+
+[#972]: https://github.com/pgbouncer/pgbouncer/pull/972
+[#979]: https://github.com/pgbouncer/pgbouncer/pull/979
+[#983]: https://github.com/pgbouncer/pgbouncer/pull/983
+[#998]: https://github.com/pgbouncer/pgbouncer/pull/998
+[#879]: https://github.com/pgbouncer/pgbouncer/pull/879
+[#999]: https://github.com/pgbouncer/pgbouncer/pull/999
+[#1009]: https://github.com/pgbouncer/pgbouncer/pull/1009
+
+
 PgBouncer 1.21.x
 ----------------
 

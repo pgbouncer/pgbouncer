@@ -184,7 +184,7 @@ total_xact_count
 :   Total number of SQL transactions pooled by **pgbouncer**.
 
 total_query_count
-:   Total number of SQL queries pooled by **pgbouncer**.
+:   Total number of SQL commands pooled by **pgbouncer**.
 
 total_received
 :   Total volume in bytes of network traffic received by **pgbouncer**.
@@ -468,7 +468,9 @@ pools
 :   Count of pools.
 
 free_clients
-:   Count of free clients.
+:   Count of free clients. These are clients that are disconnected, but
+    PgBouncer keeps the memory around that was allocated for them so it can be
+    reused for a future clients to avoid allocations.
 
 used_clients
 :   Count of used clients.
@@ -477,7 +479,9 @@ login_clients
 :   Count of clients in **login** state.
 
 free_servers
-:   Count of free servers.
+:   Count of free servers. These are servers that are disconnected, but
+    PgBouncer keeps the memory around that was allocated for them so it can be
+    reused for a future servers to avoid allocations.
 
 used_servers
 :   Count of used servers.

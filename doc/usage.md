@@ -747,19 +747,22 @@ This command initiates shutdown logic intended rolling restarts: We stop
 accepting new connections and shutdown the process once all existing clients
 have disconnected. The operational process you can use for a zero-downtime
 rolling restart of two PgBouncer processes is as follows:
-    1. Have two PgBouncer processes running using `so_reuseport` and peering,
-       these processes will be called A and B.
-    2. Send `SIGINT` to process A.
-    3. Cause all clients reconnect. Possibly by waiting some time until the
-       client side pooler causes reconnects due to its `server_idle_timeout`
-       (or similar config). Or if no client side pooler is used, possibly by
-       restarting the clients. Once all clients have reconnected. Process A
-       will exit automatically, because no clients are connected to it anymore.
-    4. Start process A again
-    5. Repeat step 2, 3 and 4 for process B.
 
-If you have more than two processes, repeat the steps 2, 3 and 4 for each of
-them.
+1. Have two or more PgBouncer processes running on the same port using
+   `so_reuseport` ([configuring peering](/config.html#section-peers) is
+   recommended, but not required). To achieve zero downtime when
+   restarting we'll restart these processes one-by-one, thus leaving the
+   others running to accept connections while one is being restarted.
+2. Pick a process to restart first, let's call it A.
+3. Send `SIGINT` to process A.
+4. Cause all clients to reconnect. Possibly by waiting some time until the
+   client side pooler causes reconnects due to its `server_idle_timeout`
+   (or similar config). Or if no client side pooler is used, possibly by
+   restarting the clients. Once all clients have reconnected. Process A
+   will exit automatically, because no clients are connected to it anymore.
+5. Start process A again.
+6. Repeat step 3, 4 and 5 for each of the remaining processes, one-by-one
+   until you restarted all processes.
 
 
 #### RELOAD

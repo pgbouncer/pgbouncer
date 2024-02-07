@@ -71,7 +71,7 @@ struct event_base *pgb_event_base;
 struct DNSContext *adns;
 
 struct HBA *parsed_hba;
-struct IDENT *parsed_ident;
+struct Ident *parsed_ident;
 
 /*
  * configuration storage
@@ -447,7 +447,7 @@ void load_config(void)
 	}
 
 	if (cf_auth_type == AUTH_HBA) {
-		struct IDENT *ident;
+		struct Ident *ident;
 		struct HBA *hba;
 
 		ident = ident_load_map(cf_auth_ident_file);

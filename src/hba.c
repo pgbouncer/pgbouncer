@@ -481,16 +481,16 @@ static bool bad_mask(struct HBARule *rule)
 	return !!res;
 }
 
-static bool match_map(struct HBARule *rule, struct IDENT *ident, const char *mapname)
+static bool match_map(struct HBARule *rule, struct Ident *ident, const char *mapname)
 {
 	struct List *el;
-	struct IDENTMap *map;
+	struct IdentMap *map;
 
 	if (!ident)
 		return false;
 
 	list_for_each(el, &ident->maps) {
-		map = container_of(el, struct IDENTMap, node);
+		map = container_of(el, struct IdentMap, node);
 
 		if (strcmp(map->map_name, mapname) == 0) {
 			rule->identmap = map;
@@ -501,7 +501,7 @@ static bool match_map(struct HBARule *rule, struct IDENT *ident, const char *map
 	return false;
 }
 
-static bool parse_map_definition(struct HBARule *rule, struct IDENT *ident, struct TokParser *tp, int linenr)
+static bool parse_map_definition(struct HBARule *rule, struct Ident *ident, struct TokParser *tp, int linenr)
 {
 	const char *str;
 	char *val;
@@ -529,36 +529,66 @@ static bool parse_map_definition(struct HBARule *rule, struct IDENT *ident, stru
 		return false;
 	}
 
-	log_noise("hba line %d: mapped user name : %s", linenr, rule->identmap->postgres_user_name);
-
 	return true;
 }
-
-static void ident_map_free(struct IDENTMap *ident_map)
+static void mapping_free(struct Mapping *mapping)
 {
-	free(ident_map->map_name);
-	free(ident_map->system_user_name);
-	free(ident_map->postgres_user_name);
+	free(mapping->system_user_name);
+	free(mapping->postgres_user_name);
+	free(mapping);
+}
 
+static void ident_map_free(struct IdentMap *ident_map)
+{
+	struct List *el, *tmp;
+	struct Mapping *mapping;
+
+	if (!ident_map)
+		return;
+
+	list_for_each_safe(el, &ident_map->mappings, tmp) {
+		mapping = container_of(el, struct Mapping, node);
+		list_del(&mapping->node);
+		mapping_free(mapping);
+	}
+
+	free(ident_map->map_name);
 	free(ident_map);
 }
 
-static bool parse_ident_line(struct IDENT *ident, struct TokParser *tp, int linenr)
+static bool find_ident_map(struct Ident *ident, const char *mapname, struct IdentMap **ident_map)
+{
+	struct List *el;
+
+	list_for_each(el, &ident->maps) {
+		*ident_map = container_of(el, struct IdentMap, node);
+
+		if (!strcmp((*ident_map)->map_name, mapname))
+			return true;
+	}
+
+	return false;
+}
+
+static bool parse_ident_line(struct Ident *ident, struct TokParser *tp, int linenr)
 {
 	const char *map_name = NULL;
+	char *map_name_copy = NULL;
 	const char *system_user_name = NULL;
 	const char *postgres_user_name = NULL;
-	struct IDENTMap *ident_map = NULL;
+	struct IdentMap *ident_map = NULL;
+	struct Mapping *mapping = NULL;
+
 	bool is_name_all = false;
 
 	if (eat(tp, TOK_EOL)) {
 		return true;
 	}
 
-	ident_map = calloc(sizeof *ident_map, 1);
+	mapping = calloc(sizeof *mapping, 1);
 
-	if (!ident_map) {
-		log_warning("ident: no mem for parsing ident map");
+	if (!mapping) {
+		log_warning("ident: no mem for parsing mapping");
 		return false;
 	}
 
@@ -566,7 +596,7 @@ static bool parse_ident_line(struct IDENT *ident, struct TokParser *tp, int line
 		goto failed;
 	}
 
-	ident_map->map_name = strdup(map_name);
+	map_name_copy = strdup(map_name);
 
 	next_token(tp);
 
@@ -574,7 +604,7 @@ static bool parse_ident_line(struct IDENT *ident, struct TokParser *tp, int line
 		goto failed;
 	}
 
-	ident_map->system_user_name = strdup(system_user_name);
+	mapping->system_user_name = strdup(system_user_name);
 
 	next_token(tp);
 
@@ -584,9 +614,9 @@ static bool parse_ident_line(struct IDENT *ident, struct TokParser *tp, int line
 	}
 
 	if (is_name_all) {
-		ident_map->name_flags |= NAME_ALL;
+		mapping->name_flags |= NAME_ALL;
 	} else {
-		ident_map->postgres_user_name = strdup(postgres_user_name);
+		mapping->postgres_user_name = strdup(postgres_user_name);
 	}
 
 	next_token(tp);
@@ -596,16 +626,32 @@ static bool parse_ident_line(struct IDENT *ident, struct TokParser *tp, int line
 		goto failed;
 	}
 
-	list_append(&ident->maps, &ident_map->node);
+
+	if (find_ident_map(ident, map_name_copy, &ident_map)) {
+		list_append(&ident_map->mappings, &mapping->node);
+	} else {
+		ident_map = calloc(sizeof *ident_map, 1);
+
+		if (!ident_map) {
+			log_warning("ident: no mem for parsing ident_map");
+			return false;
+		}
+
+		ident_map->map_name = map_name_copy;
+		list_init(&ident_map->mappings);
+		list_append(&ident_map->mappings, &mapping->node);
+		list_append(&ident->maps, &ident_map->node);
+	}
 
 	return true;
 
 failed:
+	mapping_free(mapping);
 	ident_map_free(ident_map);
 	return false;
 }
 
-static bool parse_line(struct HBA *hba, struct IDENT *ident, struct TokParser *tp, int linenr, const char *parent_filename)
+static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *tp, int linenr, const char *parent_filename)
 {
 	const char *addr = NULL, *mask = NULL;
 	enum RuleType rtype;
@@ -717,9 +763,9 @@ failed:
 	return false;
 }
 
-struct IDENT *ident_load_map(const char *fn)
+struct Ident *ident_load_map(const char *fn)
 {
-	struct IDENT *ident = NULL;
+	struct Ident *ident = NULL;
 	FILE *f = NULL;
 	char *ln = NULL;
 	size_t lnbuf = 0;
@@ -771,7 +817,7 @@ out:
 	return ident;
 }
 
-struct HBA *hba_load_rules(const char *fn, struct IDENT *ident)
+struct HBA *hba_load_rules(const char *fn, struct Ident *ident)
 {
 	struct HBA *hba = NULL;
 	FILE *f = NULL;
@@ -815,16 +861,16 @@ out:
 	return hba;
 }
 
-void ident_free(struct IDENT *ident)
+void ident_free(struct Ident *ident)
 {
 	struct List *el, *tmp;
-	struct IDENTMap *map;
+	struct IdentMap *map;
 
 	if (!ident)
 		return;
 
 	list_for_each_safe(el, &ident->maps, tmp) {
-		map = container_of(el, struct IDENTMap, node);
+		map = container_of(el, struct IdentMap, node);
 		list_del(&map->node);
 		ident_map_free(map);
 	}

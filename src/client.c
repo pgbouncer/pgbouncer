@@ -222,18 +222,31 @@ static bool login_via_cert(PgSocket *client, struct HBARule *rule)
 	log_debug("TLS cert login: %s", tls_peer_cert_subject(client->sbuf.tls));
 
 	if (rule && rule->identmap) {
-		slog_noise(client, "ident map: %s %s %s", rule->identmap->map_name, rule->identmap->system_user_name, (rule->identmap->name_flags & NAME_ALL) ? "NAME_ALL" : rule->identmap->postgres_user_name);
+		struct List *el;
+		struct Mapping *mapping;
+		bool mapped = false;
 
-		if (!tls_peer_cert_contains_name(client->sbuf.tls, rule->identmap->system_user_name)) {
-			slog_error(client, "TLS client certificate subject name: %s does not match system user name in ident map: %s", tls_peer_cert_subject(client->sbuf.tls), rule->identmap->system_user_name);
-			goto fail;
+		list_for_each(el, &rule->identmap->mappings) {
+			mapping = container_of(el, struct Mapping, node);
+
+			if (!tls_peer_cert_contains_name(client->sbuf.tls, mapping->system_user_name)) {
+				continue;
+			}
+
+			if (!(mapping->name_flags & NAME_ALL)) {
+				if (strcmp(client->login_user->name, mapping->postgres_user_name)) {
+					continue;
+				}
+			}
+
+			slog_noise(client, "ident map: %s %s %s", rule->identmap->map_name, mapping->system_user_name, mapping->postgres_user_name);
+			mapped = true;
+			break;
 		}
 
-		if (!(rule->identmap->name_flags & NAME_ALL)) {
-			if (strcmp(client->login_user->name, rule->identmap->postgres_user_name)) {
-				slog_error(client, "user name: %s does not match postgres user name in ident map: %s", client->login_user->name, rule->identmap->postgres_user_name);
-				goto fail;
-			}
+		if (!mapped) {
+			slog_error(client, "ident map: %s does not have a match", rule->identmap->map_name);
+			goto fail;
 		}
 	} else if (!tls_peer_cert_contains_name(client->sbuf.tls, client->login_user->name)) {
 		slog_error(client, "TLS certificate name mismatch");

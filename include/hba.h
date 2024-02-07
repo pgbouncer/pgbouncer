@@ -44,27 +44,32 @@ struct HBARule {
 	uint8_t rule_mask[16];
 	struct HBAName db_name;
 	struct HBAName user_name;
-	struct IDENTMap *identmap;
+	struct IdentMap *identmap;
 };
 
 struct HBA {
 	struct List rules;
 };
 
-struct IDENTMap {
+struct Mapping {
 	struct List node;
-	char *map_name;
 	char *system_user_name;
 	char *postgres_user_name;
 	unsigned int name_flags;
 };
 
-struct IDENT {
+struct IdentMap {
+	struct List node;
+	char *map_name;
+	struct List mappings;
+};
+
+struct Ident {
 	struct List maps;
 };
 
-struct IDENT *ident_load_map(const char *fn);
-void ident_free(struct IDENT *ident);
-struct HBA *hba_load_rules(const char *fn, struct IDENT *ident);
+struct Ident *ident_load_map(const char *fn);
+void ident_free(struct Ident *ident);
+struct HBA *hba_load_rules(const char *fn, struct Ident *ident);
 void hba_free(struct HBA *hba);
 struct HBARule *hba_eval(struct HBA *hba, PgAddr *addr, bool is_tls, const char *dbname, const char *username);

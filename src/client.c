@@ -222,14 +222,21 @@ static bool login_via_cert(PgSocket *client, struct HBARule *rule)
 	log_debug("TLS cert login: %s", tls_peer_cert_subject(client->sbuf.tls));
 
 	if (rule && rule->identmap) {
-		if (!tls_peer_cert_contains_name(client->sbuf.tls, rule->identmap->system_user_name))
+		slog_noise(client, "ident map: %s %s %s", rule->identmap->map_name, rule->identmap->system_user_name, (rule->identmap->name_flags & NAME_ALL) ? "NAME_ALL" : rule->identmap->postgres_user_name);
+
+		if (!tls_peer_cert_contains_name(client->sbuf.tls, rule->identmap->system_user_name)) {
+			slog_error(client, "TLS client certificate subject name: %s does not match system user name in ident map: %s", tls_peer_cert_subject(client->sbuf.tls), rule->identmap->system_user_name);
 			goto fail;
+		}
 
 		if (!(rule->identmap->name_flags & NAME_ALL)) {
-			if (strcmp(client->login_user->name, rule->identmap->postgres_user_name))
+			if (strcmp(client->login_user->name, rule->identmap->postgres_user_name)) {
+				slog_error(client, "user name: %s does not match postgres user name in ident map: %s", client->login_user->name, rule->identmap->postgres_user_name);
 				goto fail;
+			}
 		}
 	} else if (!tls_peer_cert_contains_name(client->sbuf.tls, client->login_user->name)) {
+		slog_error(client, "TLS certificate name mismatch");
 		goto fail;
 	}
 
@@ -303,8 +310,10 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		rule = hba_eval(parsed_hba, &client->remote_addr, !!client->sbuf.tls,
 				client->db->name, client->login_user->name);
 
-		if (!rule)
+		if (!rule) {
+			disconnect_client(client, true, "no authentication method is found");
 			return false;
+		}
 
 		auth = rule->rule_method;
 	}

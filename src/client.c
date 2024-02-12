@@ -328,6 +328,8 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 			return false;
 		}
 
+		slog_noise(client, "HBA Line %d is matched", rule->hba_linenr);
+
 		auth = rule->rule_method;
 	}
 

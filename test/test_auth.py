@@ -604,13 +604,15 @@ def test_client_hba_cert(bouncer, cert_dir):
     client_key = cert_dir / "TestCA1" / "sites" / "04-pgbouncer.acme.org.key"
     client_cert = cert_dir / "TestCA1" / "sites" / "04-pgbouncer.acme.org.crt"
 
-    # The client connects to p0 DB using a client certificate with CN=pgbouncer.acme.org.
+    # The client connects to p0x using a client certificate with CN=pgbouncer.acme.org.
     # hba_eval returns the followign line:
-    #    hostssl all             someuser        0.0.0.0/0               cert    map=test
+    #    hostssl p0x    all        0.0.0.0/0               cert    map=test
     # where "test" map is defined in pgident.conf as
     #    test            pgbouncer.acme.org      someuser
+    #    test            pgbouncer.acme.org      anotheruser
     # hence the test succeeds.
     bouncer.psql_test(
+        dbname="p0x",
         host="localhost",
         user="someuser",
         sslmode="verify-full",
@@ -621,38 +623,15 @@ def test_client_hba_cert(bouncer, cert_dir):
 
     bouncer.pg.sql("create user anotheruser with login;")
 
-    # The client connects to p0 DB using a client certificate with CN="pgbouncer.acme.org".
+    # The client connects to p0x using a client certificate with CN=pgbouncer.acme.org.
     # hba_eval returns the followign line:
-    #    hostssl all             anotheruser     0.0.0.0/0               cert    map=test2
-    # where "test2" map is defined in pgident.conf as
-    #    test2           bouncer                 all
-    # CN expected in map is "bouncer" which does not match the CN="pgbouncer.acme.org" in client cert
-    # hence the test raises an exception.
-    with pytest.raises(
-        subprocess.CalledProcessError,
-    ):
-        with bouncer.log_contains(
-            "p0/anotheruser@127.0.0.1:52482 pooler error: certificate authentication failed"
-        ):
-            bouncer.psql_test(
-                host="localhost",
-                user="anotheruser",
-                sslmode="verify-full",
-                sslkey=client_key,
-                sslcert=client_cert,
-                sslrootcert=root,
-            )
-    client_key = cert_dir / "TestCA1" / "sites" / "02-bouncer.key"
-    client_cert = cert_dir / "TestCA1" / "sites" / "02-bouncer.crt"
-
-    # The client connects to p0 DB using a client certificate with CN=bouncer.
-    # hba_eval returns the followign line:
-    #    hostssl all             anotheruser     0.0.0.0/0               cert    map=test2
-    # where "test2" map is defined in pgident.conf as
-    #    test2           bouncer                 all
-    # CN expected in map is "bouncer" which matches the CN in the client cert
+    #    hostssl p0x    all        0.0.0.0/0               cert    map=test
+    # where "test" map is defined in pgident.conf as
+    #    test            pgbouncer.acme.org      someuser
+    #    test            pgbouncer.acme.org      anotheruser
     # hence the test succeeds.
     bouncer.psql_test(
+        dbname="p0x",
         host="localhost",
         user="anotheruser",
         sslmode="verify-full",
@@ -661,13 +640,60 @@ def test_client_hba_cert(bouncer, cert_dir):
         sslrootcert=root,
     )
 
-    # The client connects to p0 DB using a client certificate with CN=bouncer.
+    # The client connects to p0x using a client certificate with CN=pgbouncer.acme.org.
     # hba_eval returns the followign line:
-    #    hostssl all             bouncer     0.0.0.0/0               cert
-    # CN matches the postgres user name hence the test succeeds.
+    #    hostssl p0x    all        0.0.0.0/0               cert    map=test
+    # where "test" map is defined in pgident.conf as
+    #    test            pgbouncer.acme.org      someuser
+    #    test            pgbouncer.acme.org      anotheruser
+    # the username 'bouncer' does not match any mapped pg-username.
+    # hence the test fails.
+    with pytest.raises(
+        subprocess.CalledProcessError,
+    ):
+        with bouncer.log_contains(
+            "p0x/bouncer@127.0.0.1:43544 ident map: test does not have a match"
+        ):
+            bouncer.psql_test(
+                dbname="p0x",
+                host="localhost",
+                user="bouncer",
+                sslmode="verify-full",
+                sslkey=client_key,
+                sslcert=client_cert,
+                sslrootcert=root,
+            )
+
+    client_key = cert_dir / "TestCA1" / "sites" / "02-bouncer.key"
+    client_cert = cert_dir / "TestCA1" / "sites" / "02-bouncer.crt"
+
+    # The client connects to p0 using a client certificate with CN=bouncer.
+    # hba_eval returns the followign line:
+    #    hostssl p0              bouncer         0.0.0.0/0               cert
+    # CN expected in map is "bouncer" which matches the CN in the client cert
+    # hence the test succeeds.
     bouncer.psql_test(
+        dbname="p0",
         host="localhost",
         user="bouncer",
+        sslmode="verify-full",
+        sslkey=client_key,
+        sslcert=client_cert,
+        sslrootcert=root,
+    )
+
+    # The client connects to p0y using a client certificate with CN=bouncer.
+    # hba_eval returns the followign line:
+    #    hostssl p0y             all             0.0.0.0/0               cert    map=test2
+    # where
+    #   test2           bouncer                 all
+    #   test2           pgbouncer.acme.org      "anotheruser"
+    # test2 mapping allows any client with CN="bouncer" to connect using any user name.
+    # Hence the test succeeds.
+    bouncer.psql_test(
+        dbname="p0y",
+        host="localhost",
+        user="someuser",
         sslmode="verify-full",
         sslkey=client_key,
         sslcert=client_cert,
@@ -677,18 +703,44 @@ def test_client_hba_cert(bouncer, cert_dir):
     client_key = cert_dir / "TestCA1" / "sites" / "04-pgbouncer.acme.org.key"
     client_cert = cert_dir / "TestCA1" / "sites" / "04-pgbouncer.acme.org.crt"
 
-    # The client connects to p0 DB using a client certificate with CN=pgbouncer.acme.org
+    # The client connects to p0y using a client certificate with CN=pgbouncer.acme.org.
     # hba_eval returns the followign line:
-    #    hostssl all             bouncer     0.0.0.0/0               cert
-    # CN does not match the postgres user name and there is no map defined. Hence the test fails.
+    #    hostssl p0y             all             0.0.0.0/0               cert    map=test2
+    # where
+    #   test2           bouncer                 all
+    #   test2           pgbouncer.acme.org      "anotheruser"
+    # for CN=pgbouncer.acme.org, test2 allows to use anotheruser. Hence the test fails.
+
     with pytest.raises(
         subprocess.CalledProcessError,
     ):
-        bouncer.psql_test(
-            host="localhost",
-            user="bouncer",
-            sslmode="verify-full",
-            sslkey=client_key,
-            sslcert=client_cert,
-            sslrootcert=root,
-        )
+        with bouncer.log_contains(
+            "p0y/someuser@127.0.0.1:39712 ident map: test2 does not have a match"
+        ):
+            bouncer.psql_test(
+                dbname="p0y",
+                host="localhost",
+                user="someuser",
+                sslmode="verify-full",
+                sslkey=client_key,
+                sslcert=client_cert,
+                sslrootcert=root,
+            )
+
+    # The client connects to p0y using a client certificate with CN=pgbouncer.acme.org.
+    # hba_eval returns the followign line:
+    #    hostssl p0y             all             0.0.0.0/0               cert    map=test2
+    # where
+    #   test2           bouncer                 all
+    #   test2           pgbouncer.acme.org      "anotheruser"
+    # for CN=pgbouncer.acme.org, test2 allows to use anotheruser. Hence the test succeeds.
+
+    bouncer.psql_test(
+        dbname="p0y",
+        host="localhost",
+        user="anotheruser",
+        sslmode="verify-full",
+        sslkey=client_key,
+        sslcert=client_cert,
+        sslrootcert=root,
+    )

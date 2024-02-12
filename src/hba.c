@@ -756,6 +756,7 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 		goto failed;
 	}
 
+	rule->hba_linenr = linenr;
 	list_append(&hba->rules, &rule->node);
 	return true;
 failed:

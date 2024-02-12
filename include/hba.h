@@ -45,6 +45,7 @@ struct HBARule {
 	struct HBAName db_name;
 	struct HBAName user_name;
 	struct IdentMap *identmap;
+	int hba_linenr;
 };
 
 struct HBA {

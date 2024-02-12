@@ -473,9 +473,9 @@ static struct event ev_sigint;
 
 static void handle_sigterm(evutil_socket_t sock, short flags, void *arg)
 {
-	log_info("got SIGTERM, fast exit");
-	/* pidfile cleanup happens via atexit() */
-	exit(0);
+	log_info("got SIGTERM, shutting down after all clients disconnect");
+	cf_shutdown = SHUTDOWN_WAIT_FOR_CLIENTS;
+	cleanup_tcp_sockets();
 }
 
 static void handle_sigint(evutil_socket_t sock, short flags, void *arg)
@@ -486,21 +486,23 @@ static void handle_sigint(evutil_socket_t sock, short flags, void *arg)
 		die("takeover was in progress, going down immediately");
 	if (cf_pause_mode == P_SUSPEND)
 		die("suspend was in progress, going down immediately");
-	if (cf_so_reuseport) {
-		/* Do the rolling restart logic */
-		cf_shutdown = SHUTDOWN_WAIT_FOR_CLIENTS;
-		cleanup_tcp_sockets();
-	} else {
-		cf_pause_mode = P_PAUSE;
-		cf_shutdown = SHUTDOWN_WAIT_FOR_SERVERS;
-	}
+	cf_pause_mode = P_PAUSE;
+	cf_shutdown = SHUTDOWN_WAIT_FOR_SERVERS;
 }
 
 #ifndef WIN32
 
+static struct event ev_sigquit;
 static struct event ev_sigusr1;
 static struct event ev_sigusr2;
 static struct event ev_sighup;
+
+static void handle_sigquit(evutil_socket_t sock, short flags, void *arg)
+{
+	log_info("got SIGQUIT, fast exit");
+	/* pidfile cleanup happens via atexit() */
+	exit(0);
+}
 
 static void handle_sigusr1(int sock, short flags, void *arg)
 {
@@ -580,6 +582,11 @@ static void signal_setup(void)
 
 	evsignal_assign(&ev_sighup, pgb_event_base, SIGHUP, handle_sighup, NULL);
 	err = evsignal_add(&ev_sighup, NULL);
+	if (err < 0)
+		fatal_perror("evsignal_add");
+
+	evsignal_assign(&ev_sigquit, pgb_event_base, SIGQUIT, handle_sigquit, NULL);
+	err = evsignal_add(&ev_sigquit, NULL);
 	if (err < 0)
 		fatal_perror("evsignal_add");
 #endif

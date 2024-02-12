@@ -107,7 +107,7 @@ async def test_rolling_restart_admin(peers):
     assert not peers[1].running()
 
 
-async def test_rolling_restart_sigint(peers):
+async def test_rolling_restart_sigterm(peers):
     # Stop 2 of the 3 peers, so that we know we connect to peer 1
     await peers[2].stop()
     await peers[3].stop()
@@ -116,7 +116,7 @@ async def test_rolling_restart_sigint(peers):
 
         # Trigger a shutdown, but the process should keep running until we
         # close the connection
-        peers[1].sigint()
+        peers[1].sigterm()
         time.sleep(1)
         assert peers[1].running()
 

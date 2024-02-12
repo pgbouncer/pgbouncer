@@ -808,10 +808,13 @@ class Bouncer(QueryRunner):
         self.aprocess = None
 
     async def stop(self):
-        if self.process is not None:
-            self.process.terminate()
-        if self.aprocess is not None:
-            self.aprocess.terminate()
+        if not WINDOWS:
+            self.sigquit()
+        else:
+            if self.process is not None:
+                self.process.terminate()
+            if self.aprocess is not None:
+                self.aprocess.terminate()
 
         await self.wait_for_exit()
 
@@ -855,11 +858,23 @@ class Bouncer(QueryRunner):
             self.process.send_signal(signal.SIGHUP)
         time.sleep(1)
 
+    def sigterm(self):
+        if self.aprocess:
+            self.aprocess.send_signal(signal.SIGTERM)
+        if self.process:
+            self.process.send_signal(signal.SIGTERM)
+
     def sigint(self):
         if self.aprocess:
             self.aprocess.send_signal(signal.SIGINT)
         if self.process:
             self.process.send_signal(signal.SIGINT)
+
+    def sigquit(self):
+        if self.aprocess:
+            self.aprocess.send_signal(signal.SIGQUIT)
+        if self.process:
+            self.process.send_signal(signal.SIGQUIT)
 
     def print_logs(self):
         print(f"\n\nBOUNCER_LOG {self.config_dir}\n")

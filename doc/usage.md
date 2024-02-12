@@ -754,7 +754,7 @@ rolling restart of two PgBouncer processes is as follows:
    restarting we'll restart these processes one-by-one, thus leaving the
    others running to accept connections while one is being restarted.
 2. Pick a process to restart first, let's call it A.
-3. Send `SIGINT` to process A.
+3. Run `SHUTDOWN WAIT_FOR_CLIENTS` (or send `SIGTERM`) to process A.
 4. Cause all clients to reconnect. Possibly by waiting some time until the
    client side pooler causes reconnects due to its `server_idle_timeout`
    (or similar config). Or if no client side pooler is used, possibly by
@@ -805,13 +805,16 @@ passed to the PostgreSQL backend like any other SQL command.)
 SIGHUP
 :   Reload config. Same as issuing the command **RELOAD** on the console.
 
-SIGINT
-:   Safe shutdown. If `so_reuseport` is set to 0, then this is the same as
-    issuing **PAUSE** and **SHUTDOWN** on the console. If `so_reuseport` is set
-    to 1 then this is the same as issuing **SHUTDOWN WAIT_FOR_CLIENTS** on
-    the console.
-
 SIGTERM
+:   Safe shutdown. Wait for all existing clients to disconnect, but don't
+    accept new connections. This is the same as issuing
+    `SHUTDOWN WAIT_FOR_CLIENS` on the console. In PgBouncer versions earlier
+    than 1.23.0, this signal would trigger an immediate shutdown instead.
+
+SIGINT
+:   Normal shutdown. Same as issuing **PAUSE** and **SHUTDOWN** on the console.
+
+SIGQUIT
 :   Immediate shutdown. Same as issuing **SHUTDOWN** on the console.
 
 SIGUSR1

@@ -509,8 +509,6 @@ static bool parse_map_definition(struct HBARule *rule, struct Ident *ident, stru
 	if (!expect(tp, TOK_IDENT, &str))
 		return true;
 
-	log_noise("hba line %d: map definition : %s", linenr, str);
-
 	val = strchr(str, '=');
 
 	if (val == NULL || strncmp(str, "map=", 4) != 0) {
@@ -519,8 +517,6 @@ static bool parse_map_definition(struct HBARule *rule, struct Ident *ident, stru
 	}
 
 	val++;
-
-	log_noise("hba line %d: map name : %s", linenr, val);
 
 	next_token(tp);
 

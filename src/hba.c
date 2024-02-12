@@ -601,7 +601,8 @@ static bool parse_ident_line(struct Ident *ident, struct TokParser *tp, int line
 	next_token(tp);
 
 	if (!expect(tp, TOK_IDENT, &system_user_name)) {
-		goto failed;
+		if (!expect(tp, TOK_STRING, &system_user_name))
+			goto failed;
 	}
 
 	mapping->system_user_name = strdup(system_user_name);

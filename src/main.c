@@ -474,8 +474,9 @@ static struct event ev_sigint;
 static void handle_sigterm(evutil_socket_t sock, short flags, void *arg)
 {
 	log_info("got SIGTERM, shutting down after all clients disconnect");
+	sd_notify(0, "STOPPING=1");
 	cf_shutdown = SHUTDOWN_WAIT_FOR_CLIENTS;
-	cleanup_tcp_sockets();
+	cleanup_sockets();
 }
 
 static void handle_sigint(evutil_socket_t sock, short flags, void *arg)

@@ -630,6 +630,7 @@ static bool parse_ident_line(struct Ident *ident, struct TokParser *tp, int line
 
 	if (find_ident_map(ident, map_name_copy, &ident_map)) {
 		list_append(&ident_map->mappings, &mapping->node);
+		free(map_name_copy);
 	} else {
 		ident_map = calloc(sizeof *ident_map, 1);
 

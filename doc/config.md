@@ -1421,7 +1421,7 @@ The file follows the format of the PostgreSQL `pg_hba.conf` file
 * Address field: Supports IPv4, IPv6.  Not supported: DNS names, domain prefixes.
 * Auth-method field: Only methods supported by PgBouncer's `auth_type`
   are supported, plus `peer` and `reject`, but except `any` and `pam`, which only work globally.
-* User name map (`map=`) parameter is only supported for `auth_type` `cert`.
+* User name map (`map=`) parameter is supported when `auth_type` is `cert` or `peer`. 
 
 ## Ident map file format
 

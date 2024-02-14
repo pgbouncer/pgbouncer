@@ -260,14 +260,38 @@ fail:
 	return false;
 }
 
-static bool login_as_unix_peer(PgSocket *client)
+static bool login_as_unix_peer(PgSocket *client, struct HBARule *rule)
 {
 	if (!pga_is_unix(&client->remote_addr))
 		goto fail;
 	if (client->login_user->mock_auth)
 		goto fail;
-	if (!check_unix_peer_name(sbuf_socket(&client->sbuf), client->login_user->name))
-		goto fail;
+
+	if (rule && rule->identmap) {
+		struct List *el;
+		struct Mapping *mapping;
+		bool mapped = false;
+
+		list_for_each(el, &rule->identmap->mappings) {
+			mapping = container_of(el, struct Mapping, node);
+
+			if (check_unix_peer_name(sbuf_socket(&client->sbuf), mapping->system_user_name)) {
+				if (!strcmp(mapping->postgres_user_name, client->login_user->name)) {
+					mapped = true;
+					break;
+				}
+			}
+		}
+
+		if (!mapped) {
+			slog_error(client, "ident map %s cannot be matched",
+				   rule->identmap->map_name);
+			goto fail;
+		}
+	} else {
+		if (!check_unix_peer_name(sbuf_socket(&client->sbuf), client->login_user->name))
+			goto fail;
+	}
 	return finish_client_login(client);
 fail:
 	disconnect_client(client, true, "unix socket login rejected");
@@ -361,7 +385,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		ok = login_via_cert(client, rule);
 		break;
 	case AUTH_PEER:
-		ok = login_as_unix_peer(client);
+		ok = login_as_unix_peer(client, rule);
 		break;
 	default:
 		disconnect_client(client, true, "login rejected");

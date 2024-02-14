@@ -12,6 +12,16 @@ trim_trailing_whitespace = true
 indent_style = tab
 indent_size = 8
 
+[hba_test.{eval,rules}]
+indent_style = tab
+indent_size = 8
+
+[hba_test.rules]
+# Disable automatic trailing whitespace trimming for hba_test.rules, because
+# one of the tests in that file is that parsing doesn't break in case of
+# trailing whitespace.
+trim_trailing_whitespace = false
+
 [*.py]
 indent_style = space
 indent_size = 4

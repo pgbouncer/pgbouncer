@@ -751,13 +751,13 @@ def test_client_hba_cert(bouncer, cert_dir):
 def test_peer_auth_ident_map(bouncer):
     cur_user = getpass.getuser()
 
-    with open("ident.conf", "w") as f:
+    with open(bouncer.config_dir / "ident.conf", "w") as f:
         f.write(f"mymap {cur_user} postgres\n")
         f.write(f"mymap {cur_user} someuser\n")
 
     bouncer.write_ini(f"auth_ident_file = ident.conf")
 
-    with open("hba.conf", "w") as f:
+    with open(bouncer.config_dir / "hba.conf", "w") as f:
         f.write(f"local   all  all peer map=mymap")
 
     bouncer.write_ini(f"auth_type = hba")

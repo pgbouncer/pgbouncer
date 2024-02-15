@@ -752,14 +752,22 @@ def test_peer_auth_ident_map(bouncer):
     cur_user = getpass.getuser()
 
     with open("ident.conf", "w") as f:
-        f.write(f"mymap {cur_user} postgres")
+        f.write(f"mymap {cur_user} postgres\n")
+        f.write(f"mymap {cur_user} someuser\n")
 
     bouncer.write_ini(f"auth_ident_file = ident.conf")
 
-    bouncer.admin("reload")
-
     with open("hba.conf", "w") as f:
         f.write(f"local   all  all peer map=mymap")
+
+    bouncer.write_ini(f"auth_type = hba")
+    bouncer.write_ini(
+        f"auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1"
+    )
+    bouncer.write_ini(f"auth_user = pswcheck")
+    bouncer.write_ini(f"auth_file = {bouncer.auth_path}")
+
+    bouncer.write_ini(f"auth_hba_file = hba.conf")
 
     bouncer.admin("reload")
 
@@ -768,3 +776,21 @@ def test_peer_auth_ident_map(bouncer):
         host=f"{bouncer.admin_host}",
         user="postgres",
     )
+
+    bouncer.psql_test(
+        dbname="p0y",
+        host=f"{bouncer.admin_host}",
+        user="someuser",
+    )
+
+    with pytest.raises(
+        subprocess.CalledProcessError,
+    ):
+        with bouncer.log_contains(
+            "p0y/bouncer@unix(6202):10202 ident map mymap cannot be matched"
+        ):
+            bouncer.psql_test(
+                dbname="p0y",
+                host=f"{bouncer.admin_host}",
+                user="bouncer",
+            )

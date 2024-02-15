@@ -811,9 +811,13 @@ class Bouncer(QueryRunner):
         if not WINDOWS:
             self.sigquit()
         else:
+            # Windows does not have SIGQUIT, so call terminate() twice to
+            # trigger fast exit
             if self.process is not None:
                 self.process.terminate()
+                self.process.terminate()
             if self.aprocess is not None:
+                self.aprocess.terminate()
                 self.aprocess.terminate()
 
         await self.wait_for_exit()

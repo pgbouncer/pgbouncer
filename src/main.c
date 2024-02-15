@@ -473,6 +473,11 @@ static struct event ev_sigint;
 
 static void handle_sigterm(evutil_socket_t sock, short flags, void *arg)
 {
+	if (cf_shutdown) {
+		log_info("got SIGTERM while shutting down, fast exit");
+		/* pidfile cleanup happens via atexit() */
+		exit(0);
+	}
 	log_info("got SIGTERM, shutting down after all clients disconnect");
 	sd_notify(0, "STOPPING=1");
 	cf_shutdown = SHUTDOWN_WAIT_FOR_CLIENTS;

@@ -250,3 +250,23 @@ def test_equivalent_startup_param(bouncer):
         ):
             cur.execute("SELECT 1")
             cur.execute("SELECT 1")
+
+
+async def test_repeated_sigterm(bouncer):
+    with bouncer.cur() as cur:
+        cur.execute("SELECT 1")
+        bouncer.sigterm()
+
+        # Single sigterm should wait for clients
+        time.sleep(1)
+        cur.execute("SELECT 1")
+        assert bouncer.running()
+
+        # Second sigterm should cause fast exit
+        bouncer.sigterm()
+        await bouncer.wait_for_exit()
+        with pytest.raises(
+            psycopg.OperationalError, match="server closed the connection unexpectedly"
+        ):
+            cur.execute("SELECT 1")
+        assert not bouncer.running()

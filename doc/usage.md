@@ -808,8 +808,10 @@ SIGHUP
 SIGTERM
 :   Safe shutdown. Wait for all existing clients to disconnect, but don't
     accept new connections. This is the same as issuing
-    `SHUTDOWN WAIT_FOR_CLIENS` on the console. In PgBouncer versions earlier
-    than 1.23.0, this signal would trigger an immediate shutdown instead.
+    `SHUTDOWN WAIT_FOR_CLIENS` on the console. If this signal is received while
+    there is already a shutdown in progress, then an "immediate shutdown" is
+    triggered instead of a "safe shutdown". In PgBouncer versions earlier than
+    1.23.0, this signal would cause an "immediate shutdown".
 
 SIGINT
 :   Normal shutdown. Same as issuing **PAUSE** and **SHUTDOWN** on the console.

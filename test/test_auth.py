@@ -1,3 +1,4 @@
+import getpass
 import re
 import subprocess
 import time
@@ -743,4 +744,27 @@ def test_client_hba_cert(bouncer, cert_dir):
         sslkey=client_key,
         sslcert=client_cert,
         sslrootcert=root,
+    )
+
+
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+def test_peer_auth_ident_map(bouncer):
+    cur_user = getpass.getuser()
+
+    with open("ident.conf", "w") as f:
+        f.write(f"mymap {cur_user} postgres")
+
+    bouncer.write_ini(f"auth_ident_file = ident.conf")
+
+    bouncer.admin("reload")
+
+    with open("hba.conf", "w") as f:
+        f.write(f"local   all  all peer map=mymap")
+
+    bouncer.admin("reload")
+
+    bouncer.psql_test(
+        dbname="p0y",
+        host=f"{bouncer.admin_host}",
+        user="postgres",
     )

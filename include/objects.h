@@ -65,7 +65,7 @@ PgUser * add_db_user(PgDatabase *db, const char *name, const char *passwd) _MUST
 PgUser * force_user(PgDatabase *db, const char *username, const char *passwd) _MUSTCHECK;
 bool add_outstanding_request(PgSocket *client, char type, ResponseAction action) _MUSTCHECK;
 bool pop_outstanding_request(PgSocket *client, char *types, bool *skip);
-bool clear_outstanding_requests_until_sync(PgSocket *server) _MUSTCHECK;
+bool clear_outstanding_requests_until(PgSocket *server, char *types) _MUSTCHECK;
 bool queue_fake_response(PgSocket *client, char request_type) _MUSTCHECK;
 
 PgUser * add_pam_user(const char *name, const char *passwd) _MUSTCHECK;

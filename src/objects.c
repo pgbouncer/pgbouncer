@@ -1012,11 +1012,11 @@ bool pop_outstanding_request(PgSocket *server, char *types, bool *skip)
 }
 
 /*
- * clear all outstanding requests until we reach a Sync ('S') response, any
- * Parse or Close statement requests that were still outstanding will be
- * unregistered or re-registered from the server its cache
+ * Clear all outstanding requests until we reach response of any of the message
+ * types in "types". Any Parse or Close statement requests that were still
+ * outstanding will be unregistered or re-registered from the server its cache
  */
-bool clear_outstanding_requests_until_sync(PgSocket *server)
+bool clear_outstanding_requests_until(PgSocket *server, char *types)
 {
 	struct List *item, *tmp;
 	statlist_for_each_safe(item, &server->outstanding_requests, tmp) {
@@ -1043,7 +1043,7 @@ bool clear_outstanding_requests_until_sync(PgSocket *server)
 		statlist_remove(&server->outstanding_requests, item);
 		slab_free(outstanding_request_cache, request);
 
-		if (type == 'S')
+		if (strchr(types, type))
 			break;
 	}
 	slog_noise(server, "clear_outstanding_requests_until_sync: still outstanding %d", statlist_count(&server->outstanding_requests));

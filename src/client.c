@@ -202,7 +202,6 @@ static void start_auth_query(PgSocket *client, const char *username)
 	}
 	if (!res)
 		disconnect_server(client->link, false, "unable to send auth_query");
-	client->expect_rfq_count++;
 }
 
 static bool login_via_cert(PgSocket *client)
@@ -1025,7 +1024,6 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 {
 	SBuf *sbuf = &client->sbuf;
-	int rfq_delta = 0;
 	int track_outstanding = false;
 	PreparedStatementAction ps_action = PS_IGNORE;
 	PgClosePacket close_packet;
@@ -1039,17 +1037,14 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 			disconnect_client(client, true, "PQexec disallowed");
 			return false;
 		}
-		rfq_delta++;
 		track_outstanding = true;
 		break;
 	case 'F':		/* FunctionCall */
-		rfq_delta++;
 		track_outstanding = true;
 		break;
 
 	/* request immediate response from server */
 	case 'S':		/* Sync */
-		rfq_delta++;
 		track_outstanding = true;
 		break;
 	case 'H':		/* Flush */
@@ -1058,6 +1053,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	/* copy end markers */
 	case 'c':		/* CopyDone(F/B) */
 	case 'f':		/* CopyFail(F/B) */
+		track_outstanding = true;
 		break;
 
 	/*
@@ -1207,11 +1203,6 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	/* acquire server */
 	if (!find_server(client))
 		return false;
-
-	/* postpone rfq change until certain that client will not be paused */
-	if (rfq_delta) {
-		client->expect_rfq_count += rfq_delta;
-	}
 
 	client->pool->stats.client_bytes += pkt->len;
 

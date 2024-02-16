@@ -301,7 +301,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 
 		if (!pop_outstanding_request(server, "SQF", &ignore_packet)
 		    && server->query_failed) {
-			if (!clear_outstanding_requests_until_sync(server))
+			if (!clear_outstanding_requests_until(server, "S"))
 				return false;
 		}
 		server->query_failed = false;
@@ -314,14 +314,6 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			return false;
 		} else if (state == 'T' || state == 'E') {
 			idle_tx = true;
-		}
-
-		if (client && !server->setting_vars) {
-			if (client->expect_rfq_count > 0) {
-				client->expect_rfq_count--;
-			} else if (server->state == SV_ACTIVE) {
-				slog_debug(client, "unexpected ReadyForQuery - expect_rfq_count=%d", client->expect_rfq_count);
-			}
 		}
 		break;
 
@@ -358,11 +350,23 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		}
 		/* ErrorResponse and CommandComplete show end of copy mode */
 		if (server->copy_mode) {
+			slog_debug(server, "COPY failed");
 			server->copy_mode = false;
 
-			/* it's impossible to track sync count over copy */
-			if (client)
-				client->expect_rfq_count = 0;
+			/*
+			 * Clear until next CopyDone or CopyFail message in the
+			 * queue. This is needed to remove any Sync messages
+			 * from the outstanding requests queue, for which we
+			 * don't expect a response from the server.
+			 *
+			 * It isn't a problem if the CopyDone or CopyFail
+			 * message has not been received yet. This message will
+			 * be removed from the queue later when the server
+			 * sends a ReadyForQuery message and we clear the queue
+			 * until the next Sync.
+			 */
+			if (!clear_outstanding_requests_until(server, "cf"))
+				return false;
 		} else {
 			server->query_failed = true;
 		}
@@ -371,11 +375,17 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 
 		/* ErrorResponse and CommandComplete show end of copy mode */
 		if (server->copy_mode) {
+			slog_debug(server, "COPY finished");
 			server->copy_mode = false;
 
-			/* it's impossible to track sync count over copy */
-			if (client)
-				client->expect_rfq_count = 0;
+			/*
+			 * Clear until next CopyDone message in the queue. This
+			 * is needed to remove any Sync messages from the
+			 * outstanding requests queue, for which we don't
+			 * expect a response from the server.
+			 */
+			if (!clear_outstanding_requests_until(server, "c"))
+				return false;
 		}
 		/*
 		 * Clean up prepared statements if needed if the client sent a
@@ -414,8 +424,10 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 
 	/* copy mode */
 	case 'G':		/* CopyInResponse */
-	case 'H':		/* CopyOutResponse */
+		slog_debug(server, "COPY started");
 		server->copy_mode = true;
+		break;
+	case 'H':		/* CopyOutResponse */
 		break;
 	/* chat packets */
 	case '1':		/* ParseComplete */
@@ -466,15 +478,16 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			 * Compute query and transaction times
 			 *
 			 * For pipelined overlapping commands, we wait until
-			 * the last command is done (expect_rfq_count==0).
+			 * the last command is done (outstanding_requests==0).
 			 * That means, we count the time that PgBouncer is
-			 * occupied in a query or transaction, not the total
-			 * time that all queries/transactions take
-			 * individually.  For that, we would have to track the
-			 * start time of each query separately in a queue or
-			 * similar, not only per client.
+			 * occupied in a series of pipelined commands, not the
+			 * total time that all commands/queries take
+			 * individually. For that, we would have to track the
+			 * start time of each command separately in queue or
+			 * similar, not only per client. (which would probably
+			 * be a good future improvement)
 			 */
-			if (client->expect_rfq_count == 0) {
+			if (statlist_count(&server->outstanding_requests) == 0) {
 				/* every statement (independent or in a transaction) counts as a query */
 				if (ready || idle_tx) {
 					if (client->query_start) {
@@ -485,6 +498,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 						slog_debug(client, "query time: %d us", (int)total);
 					} else if (!async_response) {
 						slog_warning(client, "FIXME: query end, but query_start == 0");
+						Assert(false);
 					}
 				}
 
@@ -748,9 +762,9 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			case SV_ACTIVE:
 			case SV_ACTIVE_CANCEL:
 			case SV_TESTED:
-				/* keep link if client expects more Syncs */
+				/* keep link if client expects more responses */
 				if (server->link) {
-					if (server->link->expect_rfq_count > 0 || statlist_count(&server->outstanding_requests) > 0)
+					if (statlist_count(&server->outstanding_requests) > 0)
 						break;
 				}
 

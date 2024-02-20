@@ -252,6 +252,7 @@ def test_equivalent_startup_param(bouncer):
             cur.execute("SELECT 1")
 
 
+@pytest.mark.skipif("WINDOWS", reason="Windows doesn't support sending SIGTERM")
 async def test_repeated_sigterm(bouncer):
     with bouncer.cur() as cur:
         cur.execute("SELECT 1")

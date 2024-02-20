@@ -276,7 +276,10 @@ static bool login_as_unix_peer(PgSocket *client, struct HBARule *rule)
 			mapping = container_of(el, struct Mapping, node);
 
 			if (check_unix_peer_name(sbuf_socket(&client->sbuf), mapping->system_user_name)) {
-				if (!strcmp(mapping->postgres_user_name, client->login_user->name)) {
+				if ((mapping->name_flags & NAME_ALL) ||
+				    strcmp(mapping->postgres_user_name, client->login_user->name) == 0) {
+					slog_noise(client, "ident map '%s' is applied", rule->identmap->map_name);
+
 					mapped = true;
 					break;
 				}

@@ -747,7 +747,7 @@ def test_client_hba_cert(bouncer, cert_dir):
     )
 
 
-@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have peer authentication")
 def test_peer_auth_ident_map(bouncer):
     cur_user = getpass.getuser()
 
@@ -794,3 +794,14 @@ def test_peer_auth_ident_map(bouncer):
                 host=f"{bouncer.admin_host}",
                 user="bouncer",
             )
+
+    with open("ident.conf", "w") as f:
+        f.write(f"mymap {cur_user} all")
+
+    bouncer.admin("reload")
+
+    bouncer.psql_test(
+        dbname="p0",
+        host=f"{bouncer.admin_host}",
+        user="bouncer",
+    )

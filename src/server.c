@@ -348,6 +348,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			disconnect_server(server, true, "invalid server parameter");
 			return false;
 		}
+
 		/* ErrorResponse and CommandComplete show end of copy mode */
 		if (server->copy_mode) {
 			slog_debug(server, "COPY failed");
@@ -367,9 +368,9 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			 */
 			if (!clear_outstanding_requests_until(server, "cf"))
 				return false;
-		} else {
-			server->query_failed = true;
 		}
+
+		server->query_failed = true;
 		break;
 	case 'C':		/* CommandComplete */
 

@@ -1361,6 +1361,17 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 				 * precise and less scary.
 				 */
 				disconnect_server(server, true, "client disconnect while server was not ready");
+			} else if (statlist_count(&server->outstanding_requests) > 0) {
+				server->link = NULL;
+				client->link = NULL;
+				/*
+				 * If there are outstanding requests we can't
+				 * release the server, because the responses
+				 * might be received by a different client. So
+				 * we need to close the client connection
+				 * immediately.
+				 */
+				disconnect_server(server, true, "client disconnected with queries in progress");
 			} else if (!sbuf_is_empty(&server->sbuf)) {
 				/* ->ready may be set before all is sent */
 				server->link = NULL;

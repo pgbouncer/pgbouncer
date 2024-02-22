@@ -1012,11 +1012,11 @@ bool pop_outstanding_request(PgSocket *server, char *types, bool *skip)
 }
 
 /*
- * clear all outstanding requests until we reach a Sync ('S') response, any
- * Parse or Close statement requests that were still outstanding will be
- * unregistered or re-registered from the server its cache
+ * Clear all outstanding requests until we reach response of any of the message
+ * types in "types". Any Parse or Close statement requests that were still
+ * outstanding will be unregistered or re-registered from the server its cache.
  */
-bool clear_outstanding_requests_until_sync(PgSocket *server)
+bool clear_outstanding_requests_until(PgSocket *server, char *types)
 {
 	struct List *item, *tmp;
 	statlist_for_each_safe(item, &server->outstanding_requests, tmp) {
@@ -1043,7 +1043,7 @@ bool clear_outstanding_requests_until_sync(PgSocket *server)
 		statlist_remove(&server->outstanding_requests, item);
 		slab_free(outstanding_request_cache, request);
 
-		if (type == 'S')
+		if (strchr(types, type))
 			break;
 	}
 	slog_noise(server, "clear_outstanding_requests_until_sync: still outstanding %d", statlist_count(&server->outstanding_requests));
@@ -1361,6 +1361,17 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 				 * precise and less scary.
 				 */
 				disconnect_server(server, true, "client disconnect while server was not ready");
+			} else if (statlist_count(&server->outstanding_requests) > 0) {
+				server->link = NULL;
+				client->link = NULL;
+				/*
+				 * If there are outstanding requests we can't
+				 * release the server, because the responses
+				 * might be received by a different client. So
+				 * we need to close the client connection
+				 * immediately.
+				 */
+				disconnect_server(server, true, "client disconnected with query in progress");
 			} else if (!sbuf_is_empty(&server->sbuf)) {
 				/* ->ready may be set before all is sent */
 				server->link = NULL;

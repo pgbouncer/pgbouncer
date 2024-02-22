@@ -844,11 +844,22 @@ class Bouncer(QueryRunner):
 
     def print_logs(self):
         print(f"\n\nBOUNCER_LOG {self.config_dir}\n")
+
+        log_contents = ""
         try:
             with self.log_path.open() as f:
-                print(f.read())
+                log_contents = f.read()
+                print(log_contents)
         except Exception:
             pass
+
+        # Most reliable way to detect Assert failures. Otherwise we might miss
+        # Assert failures at the end of the test run.
+        assert not re.search("FATAL.*Assert", log_contents)
+        # None of our tests should have a query in progress on the server when
+        # the client disconnects. If this fails it almost certainly indicates a
+        # bug in our outstanding request tracking.
+        assert "client disconnected with query in progress" not in log_contents
 
         if ENABLE_VALGRIND:
             failed_valgrind = False

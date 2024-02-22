@@ -12,7 +12,7 @@ EXTRA_DIST = conntest.sh ctest6000.ini ctest7000.ini run-conntest.sh \
 	     hba_test.eval hba_test.rules Makefile \
 	     test.ini stress.py userlist.txt \
 	     __init__.py conftest.py utils.py \
-	     test_admin.py test_auth.py test_cancel.py test_limits.py \
+	     test_admin.py test_auth.py test_cancel.py test_copy.py test_limits.py \
 	     test_misc.py test_no_database.py test_no_user.py test_operations.py \
 	     test_peering.py test_prepared.py test_ssl.py test_timeouts.py
 

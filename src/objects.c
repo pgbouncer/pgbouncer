@@ -1014,7 +1014,7 @@ bool pop_outstanding_request(PgSocket *server, char *types, bool *skip)
 /*
  * Clear all outstanding requests until we reach response of any of the message
  * types in "types". Any Parse or Close statement requests that were still
- * outstanding will be unregistered or re-registered from the server its cache
+ * outstanding will be unregistered or re-registered from the server its cache.
  */
 bool clear_outstanding_requests_until(PgSocket *server, char *types)
 {
@@ -1371,7 +1371,7 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 				 * we need to close the client connection
 				 * immediately.
 				 */
-				disconnect_server(server, true, "client disconnected with queries in progress");
+				disconnect_server(server, true, "client disconnected with query in progress");
 			} else if (!sbuf_is_empty(&server->sbuf)) {
 				/* ->ready may be set before all is sent */
 				server->link = NULL;

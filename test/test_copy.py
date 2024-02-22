@@ -8,7 +8,7 @@ from .utils import LIBPQ_SUPPORTS_PIPELINING
 
 def test_copy_stdin_success_simple(bouncer):
     with bouncer.conn() as conn:
-        conn.pgconn.send_query(f"COPY t(i) FROM STDIN".encode())
+        conn.pgconn.send_query(f"COPY test_copy(i) FROM STDIN".encode())
         assert conn.pgconn.get_result().status == pq.ExecStatus.COPY_IN
         conn.pgconn.put_copy_data(b"1\n")
         conn.pgconn.put_copy_end()
@@ -18,7 +18,7 @@ def test_copy_stdin_success_simple(bouncer):
 
 def test_copy_stdin_error_before_copy_done_simple(bouncer):
     with bouncer.conn() as conn:
-        conn.pgconn.send_query(f"COPY t(i) FROM STDIN".encode())
+        conn.pgconn.send_query(f"COPY test_copy(i) FROM STDIN".encode())
         assert conn.pgconn.get_result().status == pq.ExecStatus.COPY_IN
         # Send bad row
         conn.pgconn.put_copy_data(b"\n")
@@ -33,7 +33,7 @@ def test_copy_stdin_error_before_copy_done_simple(bouncer):
 
 def test_copy_stdin_error_after_copy_done_simple(bouncer):
     with bouncer.conn() as conn:
-        conn.pgconn.send_query(f"COPY t(i) FROM STDIN".encode())
+        conn.pgconn.send_query(f"COPY test_copy(i) FROM STDIN".encode())
         assert conn.pgconn.get_result().status == pq.ExecStatus.COPY_IN
         # Send bad row
         conn.pgconn.put_copy_data(b"\n")
@@ -63,7 +63,7 @@ def test_copy_stdout_simple(bouncer):
 def test_copy_stdin_success_extended(bouncer):
     with bouncer.conn() as conn:
         conn.pgconn.enter_pipeline_mode()
-        conn.pgconn.send_query_params(f"COPY t(i) FROM STDIN".encode(), [])
+        conn.pgconn.send_query_params(f"COPY test_copy(i) FROM STDIN".encode(), [])
         conn.pgconn.pipeline_sync()
         assert conn.pgconn.get_result().status == pq.ExecStatus.COPY_IN
         conn.pgconn.put_copy_data(b"1\n")
@@ -80,7 +80,7 @@ def test_copy_stdin_success_extended(bouncer):
 def test_copy_stdin_error_before_copy_done_extended(bouncer):
     with bouncer.conn() as conn:
         conn.pgconn.enter_pipeline_mode()
-        conn.pgconn.send_query_params(f"COPY t(i) FROM STDIN".encode(), [])
+        conn.pgconn.send_query_params(f"COPY test_copy(i) FROM STDIN".encode(), [])
         conn.pgconn.pipeline_sync()
         assert conn.pgconn.get_result().status == pq.ExecStatus.COPY_IN
         # Send bad row
@@ -102,7 +102,7 @@ def test_copy_stdin_error_before_copy_done_extended(bouncer):
 def test_copy_stdin_error_after_copy_done_extended(bouncer):
     with bouncer.conn() as conn:
         conn.pgconn.enter_pipeline_mode()
-        conn.pgconn.send_query_params(f"COPY t(i) FROM STDIN".encode(), [])
+        conn.pgconn.send_query_params(f"COPY test_copy(i) FROM STDIN".encode(), [])
         conn.pgconn.pipeline_sync()
         assert conn.pgconn.get_result().status == pq.ExecStatus.COPY_IN
         # Send bad row
@@ -144,7 +144,7 @@ def test_copy_stdin_success_prepared(bouncer):
 
     with bouncer.conn() as conn:
         conn.pgconn.enter_pipeline_mode()
-        conn.pgconn.send_prepare(b"p1", f"COPY t(i) FROM STDIN".encode())
+        conn.pgconn.send_prepare(b"p1", f"COPY test_copy(i) FROM STDIN".encode())
         conn.pgconn.send_query_prepared(b"p1", [])
         conn.pgconn.pipeline_sync()
         assert conn.pgconn.get_result().status == pq.ExecStatus.COMMAND_OK
@@ -166,7 +166,7 @@ def test_copy_stdin_error_before_copy_done_prepared(bouncer):
 
     with bouncer.conn() as conn:
         conn.pgconn.enter_pipeline_mode()
-        conn.pgconn.send_prepare(b"p1", f"COPY t(i) FROM STDIN".encode())
+        conn.pgconn.send_prepare(b"p1", f"COPY test_copy(i) FROM STDIN".encode())
         conn.pgconn.send_query_prepared(b"p1", [])
         conn.pgconn.pipeline_sync()
         assert conn.pgconn.get_result().status == pq.ExecStatus.COMMAND_OK
@@ -193,7 +193,7 @@ def test_copy_stdin_error_after_copy_done_prepared(bouncer):
 
     with bouncer.conn() as conn:
         conn.pgconn.enter_pipeline_mode()
-        conn.pgconn.send_prepare(b"p1", f"COPY t(i) FROM STDIN".encode())
+        conn.pgconn.send_prepare(b"p1", f"COPY test_copy(i) FROM STDIN".encode())
         conn.pgconn.send_query_prepared(b"p1", [])
         conn.pgconn.pipeline_sync()
         assert conn.pgconn.get_result().status == pq.ExecStatus.COMMAND_OK

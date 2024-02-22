@@ -856,10 +856,10 @@ class Bouncer(QueryRunner):
         # Most reliable way to detect Assert failures. Otherwise we might miss
         # Assert failures at the end of the test run.
         assert not re.search("FATAL.*Assert", log_contents)
-        # None of our tests should have queries in progress on the server when
+        # None of our tests should have a query in progress on the server when
         # the client disconnects. If this fails it almost certainly indicates a
         # bug in our outstanding request tracking.
-        assert "client disconnected with queries in progress" not in log_contents
+        assert "client disconnected with query in progress" not in log_contents
 
         if ENABLE_VALGRIND:
             failed_valgrind = False

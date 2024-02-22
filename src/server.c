@@ -365,6 +365,13 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			 * be removed from the queue later when the server
 			 * sends a ReadyForQuery message and we clear the queue
 			 * until the next Sync.
+			 *
+			 * NOTE: CopyFail is the obvious error case, because
+			 * here the client triggers a failure of the COPY.
+			 * But CopyDone is also included in the search. The
+			 * reason for that being that the server might fail the
+			 * COPY for some reason unknown to the client (e.g. a
+			 * unique constraint violation).
 			 */
 			if (!clear_outstanding_requests_until(server, "cf"))
 				return false;

@@ -136,8 +136,8 @@ def pg(tmp_path_factory, cert_dir):
     pg.sql(f"create user longpass with password '{LONG_PASSWORD}';")
     pg.sql("create user stats password 'stats';")
     pg.sql("grant all on schema public to public", dbname="p0")
-    pg.sql("create table t(i int)", dbname="p0")
-    pg.sql("grant all on table t to public", dbname="p0")
+    pg.sql("create table test_copy(i int)", dbname="p0")
+    pg.sql("grant all on table test_copy to public", dbname="p0")
 
     if PG_SUPPORTS_SCRAM:
         pg.sql("set password_encryption = 'md5'; create user muser1 password 'foo';")

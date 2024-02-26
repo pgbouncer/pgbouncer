@@ -4,6 +4,19 @@ PgBouncer changelog
 PgBouncer 1.22.x
 ----------------
 
+**2024-03-04  -  PgBouncer 1.22.1  -  "It's summer in Bangalore"**
+
+- Fixes
+  * Fix issues caused by some clients using `COPY FROM STDIN` queries. Such
+    queries could introduce memory leaks, performance regressions and prepared
+    statement misbehavior. ([#1025])
+    (bug introduced in 1.21.0)
+  * Add missing tests to release tarball ([#1026])
+    (missing tests were introduced in 1.19.0 & 1.21.0)
+
+[#1025]: https://github.com/pgbouncer/pgbouncer/pull/1025
+[#1026]: https://github.com/pgbouncer/pgbouncer/pull/1026
+
 **2024-01-31  -  PgBouncer 1.22.0  -  "DEALLOCATE ALL"**
 
 - Features

@@ -161,7 +161,7 @@ task:
 task:
   name: FreeBSD
   freebsd_instance:
-    image_family: freebsd-13-2
+    image_family: freebsd-14-0
   env:
     HAVE_IPV6_LOCALHOST: yes
     USE_SUDO: true
@@ -195,7 +195,7 @@ task:
 task:
   name: macOS
   macos_instance:
-    image: ghcr.io/cirruslabs/macos-ventura-base:latest
+    image: ghcr.io/cirruslabs/macos-sonoma-base:latest
   env:
     HAVE_IPV6_LOCALHOST: yes
     USE_SUDO: true

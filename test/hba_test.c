@@ -67,7 +67,8 @@ static int hba_test_eval(struct HBA *hba, char *ln, int linenr)
 {
 	const char *addr=NULL, *user=NULL, *db=NULL, *tls=NULL, *exp=NULL;
 	PgAddr pgaddr;
-	int res;
+	struct HBARule *rule;
+	int res = 0;
 
 	if (ln[0] == '#')
 		return 0;
@@ -84,14 +85,27 @@ static int hba_test_eval(struct HBA *hba, char *ln, int linenr)
 	if (!pga_pton(&pgaddr, addr, 9999))
 		die("hbatest: invalid addr on line #%d", linenr);
 
-	res = hba_eval(hba, &pgaddr, !!tls, db, user);
-	if (strcmp(method2string(res), exp) == 0) {
-		res = 0;
+	rule = hba_eval(hba, &pgaddr, !!tls, db, user);
+
+	if (!rule) {
+	       if (strcmp("reject", exp) == 0) {
+		       	res = 0;
+	       } else {
+			log_warning("FAIL on line %d: No rule for user=%s db=%s addr=%s",
+                            linenr, user, db, addr);
+			res = 1;
+	       }
+
 	} else {
-		log_warning("FAIL on line %d: expected '%s' got '%s' - user=%s db=%s addr=%s",
+		if (strcmp(method2string(rule->rule_method), exp) == 0) {
+			res = 0;
+		} else {
+			log_warning("FAIL on line %d: expected '%s' got '%s' - user=%s db=%s addr=%s",
 			    linenr, exp, method2string(res), user, db, addr);
-		res = 1;
+			res = 1;
+		}
 	}
+
 	return res;
 }
 
@@ -105,7 +119,7 @@ static void hba_test(void)
 	int linenr;
 	int nfailed = 0;
 
-	hba = hba_load_rules("hba_test.rules");
+	hba = hba_load_rules("hba_test.rules", NULL);
 	if (!hba)
 		die("hbatest: did not find config");
 

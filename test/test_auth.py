@@ -6,7 +6,7 @@ import time
 import psycopg
 import pytest
 
-from .utils import LONG_PASSWORD, PG_SUPPORTS_SCRAM, TLS_SUPPORT, WINDOWS
+from .utils import LONG_PASSWORD, MACOS, PG_SUPPORTS_SCRAM, TLS_SUPPORT, WINDOWS
 
 
 @pytest.mark.md5
@@ -580,6 +580,7 @@ async def test_change_server_password_server_lifetime(bouncer, pg):
         pg.sql("ALTER USER puser1 PASSWORD 'foo'")
 
 
+@pytest.mark.skipif("MACOS", reason="SSL tests are broken on OSX in CI #1031")
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
 @pytest.mark.skipif(not TLS_SUPPORT, reason="pgbouncer is built without TLS support")
 def test_client_hba_cert(bouncer, cert_dir):

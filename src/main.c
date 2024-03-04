@@ -71,7 +71,6 @@ struct event_base *pgb_event_base;
 struct DNSContext *adns;
 
 struct HBA *parsed_hba;
-struct Ident *parsed_ident;
 
 /*
  * configuration storage
@@ -114,7 +113,6 @@ int cf_tcp_user_timeout;
 int cf_auth_type = AUTH_MD5;
 char *cf_auth_file;
 char *cf_auth_hba_file;
-char *cf_auth_ident_file;
 char *cf_auth_user;
 char *cf_auth_query;
 char *cf_auth_dbname;
@@ -239,7 +237,6 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("auth_dbname", CF_AUTHDB, cf_auth_dbname, 0, NULL),
 	CF_ABS("auth_file", CF_STR, cf_auth_file, 0, NULL),
 	CF_ABS("auth_hba_file", CF_STR, cf_auth_hba_file, 0, ""),
-	CF_ABS("auth_ident_file", CF_STR, cf_auth_ident_file, 0, NULL),
 	CF_ABS("auth_query", CF_STR, cf_auth_query, 0, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1"),
 	CF_ABS("auth_type", CF_LOOKUP(auth_type_map), cf_auth_type, 0, "md5"),
 	CF_ABS("auth_user", CF_STR, cf_auth_user, 0, NULL),
@@ -447,18 +444,7 @@ void load_config(void)
 	}
 
 	if (cf_auth_type == AUTH_HBA) {
-		struct Ident *ident;
-		struct HBA *hba;
-
-		ident = ident_load_map(cf_auth_ident_file);
-
-		if (ident) {
-			ident_free(parsed_ident);
-			parsed_ident = ident;
-		}
-
-		hba = hba_load_rules(cf_auth_hba_file, parsed_ident);
-
+		struct HBA *hba = hba_load_rules(cf_auth_hba_file);
 		if (hba) {
 			hba_free(parsed_hba);
 			parsed_hba = hba;
@@ -870,8 +856,6 @@ static void cleanup(void)
 	adns = NULL;
 	hba_free(parsed_hba);
 	parsed_hba = NULL;
-	ident_free(parsed_ident);
-	parsed_ident = NULL;
 
 	admin_cleanup();
 	objects_cleanup();
@@ -891,7 +875,6 @@ static void cleanup(void)
 	xfree(&cf_unix_socket_dir);
 	xfree(&cf_unix_socket_group);
 	xfree(&cf_auth_file);
-	xfree(&cf_auth_ident_file);
 	xfree(&cf_auth_dbname);
 	xfree(&cf_auth_hba_file);
 	xfree(&cf_auth_query);

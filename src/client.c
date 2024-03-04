@@ -204,7 +204,7 @@ static void start_auth_query(PgSocket *client, const char *username)
 		disconnect_server(client->link, false, "unable to send auth_query");
 }
 
-static bool login_via_cert(PgSocket *client, struct HBARule *rule)
+static bool login_via_cert(PgSocket *client)
 {
 	struct tls *tls = client->sbuf.tls;
 
@@ -220,35 +220,7 @@ static bool login_via_cert(PgSocket *client, struct HBARule *rule)
 		goto fail;
 
 	log_debug("TLS cert login: %s", tls_peer_cert_subject(client->sbuf.tls));
-
-	if (rule && rule->identmap) {
-		struct List *el;
-		struct Mapping *mapping;
-		bool mapped = false;
-
-		list_for_each(el, &rule->identmap->mappings) {
-			mapping = container_of(el, struct Mapping, node);
-
-			if (!tls_peer_cert_contains_name(client->sbuf.tls, mapping->system_user_name)) {
-				continue;
-			}
-
-			if (!(mapping->name_flags & NAME_ALL)) {
-				if (strcmp(client->login_user->name, mapping->postgres_user_name)) {
-					continue;
-				}
-			}
-
-			slog_noise(client, "ident map: %s %s %s", rule->identmap->map_name, mapping->system_user_name, mapping->postgres_user_name);
-			mapped = true;
-			break;
-		}
-
-		if (!mapped) {
-			slog_error(client, "ident map: %s does not have a match", rule->identmap->map_name);
-			goto fail;
-		}
-	} else if (!tls_peer_cert_contains_name(client->sbuf.tls, client->login_user->name)) {
+	if (!tls_peer_cert_contains_name(client->sbuf.tls, client->login_user->name)) {
 		slog_error(client, "TLS certificate name mismatch");
 		goto fail;
 	}
@@ -260,41 +232,14 @@ fail:
 	return false;
 }
 
-static bool login_as_unix_peer(PgSocket *client, struct HBARule *rule)
+static bool login_as_unix_peer(PgSocket *client)
 {
 	if (!pga_is_unix(&client->remote_addr))
 		goto fail;
 	if (client->login_user->mock_auth)
 		goto fail;
-
-	if (rule && rule->identmap) {
-		struct List *el;
-		struct Mapping *mapping;
-		bool mapped = false;
-
-		list_for_each(el, &rule->identmap->mappings) {
-			mapping = container_of(el, struct Mapping, node);
-
-			if (check_unix_peer_name(sbuf_socket(&client->sbuf), mapping->system_user_name)) {
-				if ((mapping->name_flags & NAME_ALL) ||
-				    strcmp(mapping->postgres_user_name, client->login_user->name) == 0) {
-					slog_noise(client, "ident map '%s' is applied", rule->identmap->map_name);
-
-					mapped = true;
-					break;
-				}
-			}
-		}
-
-		if (!mapped) {
-			slog_error(client, "ident map %s cannot be matched",
-				   rule->identmap->map_name);
-			goto fail;
-		}
-	} else {
-		if (!check_unix_peer_name(sbuf_socket(&client->sbuf), client->login_user->name))
-			goto fail;
-	}
+	if (!check_unix_peer_name(sbuf_socket(&client->sbuf), client->login_user->name))
+		goto fail;
 	return finish_client_login(client);
 fail:
 	disconnect_client(client, true, "unix socket login rejected");
@@ -305,7 +250,6 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 {
 	bool ok = false;
 	int auth;
-	struct HBARule *rule = NULL;
 
 	if (!client->login_user->mock_auth && !client->db->fake) {
 		PgUser *pool_user;
@@ -347,17 +291,8 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 
 	auth = cf_auth_type;
 	if (auth == AUTH_HBA) {
-		rule = hba_eval(parsed_hba, &client->remote_addr, !!client->sbuf.tls,
+		auth = hba_eval(parsed_hba, &client->remote_addr, !!client->sbuf.tls,
 				client->db->name, client->login_user->name);
-
-		if (!rule) {
-			disconnect_client(client, true, "no authentication method is found");
-			return false;
-		}
-
-		slog_noise(client, "HBA Line %d is matched", rule->hba_linenr);
-
-		auth = rule->rule_method;
 	}
 
 	if (auth == AUTH_MD5) {
@@ -385,10 +320,10 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		ok = send_client_authreq(client);
 		break;
 	case AUTH_CERT:
-		ok = login_via_cert(client, rule);
+		ok = login_via_cert(client);
 		break;
 	case AUTH_PEER:
-		ok = login_as_unix_peer(client, rule);
+		ok = login_as_unix_peer(client);
 		break;
 	default:
 		disconnect_client(client, true, "login rejected");

@@ -480,7 +480,8 @@ PgDatabase *register_auto_database(const char *name)
 	return db;
 }
 
-/* set user password */
+/* set user password, and toggle the user's dynamic password flag
+	as appropriate. */
 static void set_user_password(PgUser *user, const char *passwd)
 {
 	if (strlen(passwd) > 0) {

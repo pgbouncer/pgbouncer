@@ -480,6 +480,24 @@ PgDatabase *register_auto_database(const char *name)
 	return db;
 }
 
+/* set user password */
+void set_user_password(PgUser *user, const char *passwd, bool pam_user)
+{
+	/* Set a fixed password if we have one.
+	   Otherwise, if the user is not a pam user, assume the password is
+	   dynamic. If the user *is* a pam user, we should make no such assumption.
+	   This lets us properly deal with the times when a user is configured
+	   with per-user options, but has no entry in auth_file. */
+	if (strlen(passwd) > 0 || pam_user) {
+		user->dynamic_passwd = false;
+		safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
+		log_debug("user \"%s\" gets pw \"%s\"", user->name, user->passwd);
+	} else {
+		user->dynamic_passwd = true;
+		log_debug("user \"%s\" has dynamic pw", user->name);
+	}
+}
+
 /* add or update client users */
 PgUser *add_user(const char *name, const char *passwd)
 {
@@ -498,14 +516,17 @@ PgUser *add_user(const char *name, const char *passwd)
 		aatree_insert(&user_tree, (uintptr_t)user->name, &user->tree_node);
 		user->pool_mode = POOL_INHERIT;
 	}
-	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
+
+	set_user_password(user, passwd, false);
 	return user;
 }
 
-/* add or update db users */
+/* add or update db users. Used for dynamic users configured with
+   auth_query. */
 PgUser *add_db_user(PgDatabase *db, const char *name, const char *passwd)
 {
 	PgUser *user = NULL;
+	PgUser *cf_user = NULL;
 	struct AANode *node;
 
 	node = aatree_search(&db->user_tree, (uintptr_t)name);
@@ -523,7 +544,16 @@ PgUser *add_db_user(PgDatabase *db, const char *name, const char *passwd)
 		aatree_insert(&db->user_tree, (uintptr_t)user->name, &user->tree_node);
 		user->pool_mode = POOL_INHERIT;
 	}
-	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
+
+	set_user_password(user, passwd, false);
+
+	/* If this user we have fetched from the db is shadowing a configured user,
+		 then keep track of which one so that we don't lose any options it has
+		 been configured with. */
+	cf_user = find_user(name);
+	if(cf_user && cf_user->dynamic_passwd)
+		user->cf_user = cf_user;
+
 	return user;
 }
 
@@ -548,8 +578,7 @@ PgUser *add_pam_user(const char *name, const char *passwd)
 		aatree_insert(&pam_user_tree, (uintptr_t)user->name, &user->tree_node);
 		user->pool_mode = POOL_INHERIT;
 	}
-	if (passwd)
-		safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
+	set_user_password(user, passwd, true);
 	return user;
 }
 
@@ -566,7 +595,7 @@ PgUser *force_user(PgDatabase *db, const char *name, const char *passwd)
 		user->pool_mode = POOL_INHERIT;
 	}
 	safe_strcpy(user->name, name, sizeof(user->name));
-	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
+	set_user_password(user, passwd, false);
 	db->forced_user = user;
 	return user;
 }
@@ -1291,7 +1320,10 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 
 	server->pool->db->connection_count--;
 	if (server->pool->user) {
-		server->pool->user->connection_count--;
+		if (server->pool->user->cf_user)
+			server->pool->user->cf_user->connection_count--;
+		else
+			server->pool->user->connection_count--;
 	}
 
 	change_server_state(server, SV_JUSTFREE);
@@ -1772,14 +1804,15 @@ allow_new:
 	max = user_max_connections(pool->user);
 	if (max > 0) {
 		/* try to evict unused connection first */
-		while (evict_if_needed && pool->user->connection_count >= max) {
+		PgUser *real_user = pool->user->cf_user ? pool->user->cf_user : pool->user;
+		while (evict_if_needed && real_user->connection_count >= max) {
 			if (!evict_user_connection(pool->user)) {
 				break;
 			}
 		}
-		if (pool->user->connection_count >= max) {
+		if (real_user->connection_count >= max) {
 			log_debug("launch_new_connection: user '%s' full (%d >= %d)",
-				  pool->user->name, pool->user->connection_count, max);
+				  real_user->name, real_user->connection_count, max);
 			return;
 		}
 	}
@@ -1801,7 +1834,10 @@ force_new:
 	change_server_state(server, SV_LOGIN);
 	pool->db->connection_count++;
 	if (pool->user) {
-		pool->user->connection_count++;
+		if (pool->user->cf_user)
+			pool->user->cf_user->connection_count++;
+		else
+			pool->user->connection_count++;
 	}
 
 	dns_connect(server);

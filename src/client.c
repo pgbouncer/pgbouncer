@@ -453,7 +453,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 		}
 	} else {
 		client->login_user = find_user(username);
-		if (!client->login_user) {
+		if (!client->login_user || client->login_user->dynamic_passwd) {
 			/*
 			 * If the login user specified by the client
 			 * does not exist, check if an auth_user is
@@ -554,6 +554,7 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
 			length = sizeof(user.passwd) - 1;
 		memcpy(user.passwd, password, length);
 
+		slog_debug(client, "successfully parsed auth_query response for user %s", user.name);
 		client->login_user = add_db_user(client->db, user.name, user.passwd);
 		if (!client->login_user) {
 			disconnect_server(server, false, "unable to allocate new user for auth");

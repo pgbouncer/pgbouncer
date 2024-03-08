@@ -217,7 +217,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 
 int pool_pool_mode(PgPool *pool)
 {
-	int pool_mode = pool->user->pool_mode;
+	int pool_mode = pool->user->cf_user ? pool->user->cf_user->pool_mode : pool->user->pool_mode;
 	if (pool_mode == POOL_INHERIT)
 		pool_mode = pool->db->pool_mode;
 	if (pool_mode == POOL_INHERIT)
@@ -266,10 +266,10 @@ int database_max_connections(PgDatabase *db)
 
 int user_max_connections(PgUser *user)
 {
-	if (user->max_user_connections <= 0)
+	if ((user->cf_user && user->cf_user->max_user_connections <= 0) || (!user->cf_user && user->max_user_connections <= 0))
 		return cf_max_user_connections;
 	else
-		return user->max_user_connections;
+		return user->cf_user ? user->cf_user->max_user_connections : user->max_user_connections;
 }
 
 /* process packets on logged in connection */

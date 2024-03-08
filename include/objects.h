@@ -60,6 +60,7 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 PgDatabase * add_peer(const char *name, int peer_id) _MUSTCHECK;
 PgDatabase * add_database(const char *name) _MUSTCHECK;
 PgDatabase *register_auto_database(const char *name);
+void set_user_password(PgUser *user, const char *passwd, bool pam_user);
 PgUser * add_user(const char *name, const char *passwd) _MUSTCHECK;
 PgUser * add_db_user(PgDatabase *db, const char *name, const char *passwd) _MUSTCHECK;
 PgUser * force_user(PgDatabase *db, const char *username, const char *passwd) _MUSTCHECK;

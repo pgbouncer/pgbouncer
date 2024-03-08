@@ -590,7 +590,7 @@ PgUser *force_user(PgDatabase *db, const char *name, const char *passwd)
 		user->pool_mode = POOL_INHERIT;
 	}
 	safe_strcpy(user->name, name, sizeof(user->name));
-	set_user_password(user, passwd, false);
+	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
 	db->forced_user = user;
 	return user;
 }

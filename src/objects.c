@@ -481,14 +481,9 @@ PgDatabase *register_auto_database(const char *name)
 }
 
 /* set user password */
-void set_user_password(PgUser *user, const char *passwd, bool pam_user)
+static void set_user_password(PgUser *user, const char *passwd)
 {
-	/* Set a fixed password if we have one.
-	   Otherwise, if the user is not a pam user, assume the password is
-	   dynamic. If the user *is* a pam user, we should make no such assumption.
-	   This lets us properly deal with the times when a user is configured
-	   with per-user options, but has no entry in auth_file. */
-	if (strlen(passwd) > 0 || pam_user) {
+	if (strlen(passwd) > 0) {
 		user->dynamic_passwd = false;
 		safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
 		log_debug("user \"%s\" gets pw \"%s\"", user->name, user->passwd);
@@ -517,7 +512,7 @@ PgUser *add_user(const char *name, const char *passwd)
 		user->pool_mode = POOL_INHERIT;
 	}
 
-	set_user_password(user, passwd, false);
+	set_user_password(user, passwd);
 	return user;
 }
 
@@ -545,7 +540,7 @@ PgUser *add_db_user(PgDatabase *db, const char *name, const char *passwd)
 		user->pool_mode = POOL_INHERIT;
 	}
 
-	set_user_password(user, passwd, false);
+	set_user_password(user, passwd);
 
 	/* If this user we have fetched from the db is shadowing a configured user,
 		 then keep track of which one so that we don't lose any options it has
@@ -578,7 +573,7 @@ PgUser *add_pam_user(const char *name, const char *passwd)
 		aatree_insert(&pam_user_tree, (uintptr_t)user->name, &user->tree_node);
 		user->pool_mode = POOL_INHERIT;
 	}
-	set_user_password(user, passwd, true);
+	safe_strcpy(user->passwd, passwd, sizeof(user->passwd));
 	return user;
 }
 

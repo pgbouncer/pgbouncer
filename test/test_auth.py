@@ -406,6 +406,80 @@ def test_auth_query_database_setting(
                 )
 
 
+def test_auth_query_works_with_configured_users(bouncer):
+    """
+    Check that when a user is configured with per-user options, but missing from auth_file
+    pgBouncer will still attempt to valididate passwords if auth_query is configured.
+    """
+
+    config = f"""
+        [databases]
+        postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+        [pgbouncer]
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
+        auth_user = pswcheck
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = postgres
+        pool_mode = session
+        [users]
+        puser1 = pool_mode=statement
+    """
+
+    # As a sanity check, make sure that a user with a password in auth_file cannot run transactions
+    # while configured to be in statement pooling mode
+    with bouncer.run_with_config(config):
+        with pytest.raises(
+            psycopg.OperationalError, match="transaction blocks not allowed in statement pooling mode"
+        ):
+            bouncer.sql(
+                query="begin",
+                user="puser1",
+                password="foo",
+                dbname="postgres",
+            )
+
+    config = f"""
+        [databases]
+        postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+        [pgbouncer]
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
+        auth_user = pswcheck
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = postgres
+        pool_mode = session
+        [users]
+        stats = pool_mode=statement
+    """
+
+    # While pgbouncer is set to use session mode by default, the stats user
+    # is set to use statement pooling. pgBouncer should fail to allow a begin
+    # statement while in statement pooling mode, but still be able to authenticate
+    # using auth_query.
+    with bouncer.run_with_config(config):
+        with pytest.raises(
+            psycopg.OperationalError, match="transaction blocks not allowed in statement pooling mode"
+        ):
+            bouncer.sql(
+                query="begin",
+                user="stats",
+                password="stats",
+                dbname="postgres",
+            )
+
+
+
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
 @pytest.mark.md5
 def test_auth_dbname_works_fine(

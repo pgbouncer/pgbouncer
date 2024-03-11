@@ -757,6 +757,7 @@ TLS mode to use for connections from clients.  TLS connections
 are disabled by default.  When enabled, `client_tls_key_file`
 and `client_tls_cert_file` must be also configured to set up
 the key and certificate PgBouncer uses to accept client connections.
+The most common certificate file format usable by PgBouncer is pem.
 
 disable
 :   Plain TCP.  If client requests TLS, it's ignored.  Default.

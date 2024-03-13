@@ -404,7 +404,7 @@ static bool pam_check_passwd(struct pam_auth_request *request)
 	return true;
 }
 
-#else	/* !HAVE_PAM */
+#else /* !HAVE_PAM */
 
 /* If PAM is not supported then this dummy functions is used which always rejects passwords */
 

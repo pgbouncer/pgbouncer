@@ -29,7 +29,7 @@
 #include <event2/dns.h>
 #define addrinfo evutil_addrinfo
 #define freeaddrinfo evutil_freeaddrinfo
-#endif	/* USE_EVDNS */
+#endif /* USE_EVDNS */
 
 #ifdef USE_CARES
 #include <ares.h>
@@ -202,9 +202,9 @@ failed:
 	return NULL;
 }
 
-#endif	/* USE_CARES */
+#endif /* USE_CARES */
 
-#endif	/* custom addrinfo */
+#endif /* custom addrinfo */
 
 
 /*
@@ -334,7 +334,7 @@ static void impl_release(struct DNSContext *ctx)
 	}
 }
 
-#endif	/* USE_GETADDRINFO_A */
+#endif /* USE_GETADDRINFO_A */
 
 
 /*
@@ -410,7 +410,7 @@ static void impl_release(struct DNSContext *ctx)
 	evdns_base_free(dns, 0);
 }
 
-#endif	/* USE_EVDNS */
+#endif /* USE_EVDNS */
 
 
 /*
@@ -825,14 +825,14 @@ failed_stat:
 	return (status == ARES_EBADNAME) ? ARES_EBADRESP : status;
 }
 
-#else	/* HAVE_ARES_PARSE_SOA_REPLY */
+#else /* HAVE_ARES_PARSE_SOA_REPLY */
 
 static void xares_free_soa(struct ares_soa_reply *soa)
 {
 	ares_free_data(soa);
 }
 
-#endif	/* HAVE_ARES_PARSE_SOA_REPLY */
+#endif /* HAVE_ARES_PARSE_SOA_REPLY */
 
 
 /* called by c-ares on SOA reply */
@@ -875,7 +875,7 @@ static int impl_query_soa_serial(struct DNSContext *ctx, const char *zonename)
 	return 0;
 }
 
-#endif	/* USE_CARES */
+#endif /* USE_CARES */
 
 
 /*

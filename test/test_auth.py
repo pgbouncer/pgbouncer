@@ -435,7 +435,8 @@ def test_auth_query_works_with_configured_users(bouncer):
     # while configured to be in statement pooling mode
     with bouncer.run_with_config(config):
         with pytest.raises(
-            psycopg.OperationalError, match="transaction blocks not allowed in statement pooling mode"
+            psycopg.OperationalError,
+            match="transaction blocks not allowed in statement pooling mode",
         ):
             bouncer.sql(
                 query="begin",
@@ -469,7 +470,8 @@ def test_auth_query_works_with_configured_users(bouncer):
     # using auth_query.
     with bouncer.run_with_config(config):
         with pytest.raises(
-            psycopg.OperationalError, match="transaction blocks not allowed in statement pooling mode"
+            psycopg.OperationalError,
+            match="transaction blocks not allowed in statement pooling mode",
         ):
             bouncer.sql(
                 query="begin",
@@ -477,7 +479,6 @@ def test_auth_query_works_with_configured_users(bouncer):
                 password="stats",
                 dbname="postgres",
             )
-
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")

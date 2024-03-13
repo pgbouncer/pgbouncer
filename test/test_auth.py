@@ -7,12 +7,12 @@ import psycopg
 import pytest
 
 from .utils import (
+    FREEBSD,
     LONG_PASSWORD,
     MACOS,
     PG_SUPPORTS_SCRAM,
     TLS_SUPPORT,
     WINDOWS,
-    FREEBSD,
 )
 
 

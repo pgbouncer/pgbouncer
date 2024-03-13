@@ -6,7 +6,7 @@ import time
 import psycopg
 import pytest
 
-from .utils import LONG_PASSWORD, MACOS, PG_SUPPORTS_SCRAM, TLS_SUPPORT, WINDOWS
+from .utils import LONG_PASSWORD, MACOS, PG_SUPPORTS_SCRAM, TLS_SUPPORT, WINDOWS, FREEBSD
 
 
 @pytest.mark.md5
@@ -406,6 +406,8 @@ def test_auth_query_database_setting(
                 )
 
 
+@pytest.mark.skipif("FREEBSD", reason="FreeBSD does not seem to observe the expected OperationalError description")
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
 def test_auth_query_works_with_configured_users(bouncer):
     """
     Check that when a user is configured with per-user options, but missing from auth_file

@@ -481,7 +481,7 @@ PgDatabase *register_auto_database(const char *name)
 }
 
 /* set user password, and toggle the user's dynamic password flag
-	as appropriate. */
+        as appropriate. */
 static void set_user_password(PgUser *user, const char *passwd)
 {
 	if (strlen(passwd) > 0) {
@@ -544,10 +544,10 @@ PgUser *add_db_user(PgDatabase *db, const char *name, const char *passwd)
 	set_user_password(user, passwd);
 
 	/* If this user we have fetched from the db is shadowing a configured user,
-		 then keep track of which one so that we don't lose any options it has
-		 been configured with. */
+	         then keep track of which one so that we don't lose any options it has
+	         been configured with. */
 	cf_user = find_user(name);
-	if(cf_user && cf_user->dynamic_passwd)
+	if (cf_user && cf_user->dynamic_passwd)
 		user->cf_user = cf_user;
 
 	return user;

@@ -497,7 +497,7 @@ struct PgUser {
 	int pool_mode;
 	int max_user_connections;	/* how much server connections are allowed */
 	int connection_count;	/* how much connections are used by user now */
-	struct PgUser *cf_user; /* when set, which configured user this dynamic user shadows */
+	struct PgUser *cf_user;	/* when set, which configured user this dynamic user shadows */
 };
 
 /*

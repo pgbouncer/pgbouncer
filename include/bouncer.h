@@ -347,6 +347,11 @@ struct PgPool {
 	 * Clients that sent cancel request, to cancel another client its query.
 	 * These requests are waiting for a new server connection to be opened,
 	 * before the request can be forwarded.
+	 *
+	 * This is a separate list from waiting_client_list, because we want to
+	 * give cancel requests priority over regular clients. The main reason
+	 * for this is, because a cancel request might free up a connection,
+	 * which can be used for one of the waiting clients.
 	 */
 	struct StatList waiting_cancel_req_list;
 

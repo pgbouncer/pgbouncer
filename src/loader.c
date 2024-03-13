@@ -591,7 +591,10 @@ static void unquote_add_authfile_user(const char *username, const char *password
 
 	user = add_user(real_user, real_passwd);
 	if (!user)
+	{
 		log_warning("cannot create user, no memory");
+		return;
+	}
 	user->dynamic_passwd = false;
 }
 

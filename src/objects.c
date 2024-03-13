@@ -503,6 +503,7 @@ PgUser *add_user(const char *name, const char *passwd)
 		user = slab_alloc(user_cache);
 		if (!user)
 			return NULL;
+		user->cf_user = user;
 
 		list_init(&user->head);
 		list_init(&user->pool_list);
@@ -525,6 +526,8 @@ PgUser *add_db_user(PgDatabase *db, const char *name, const char *passwd)
 	PgUser *cf_user = NULL;
 	struct AANode *node;
 
+	/* db users are stored in a different aatree than configured users,
+	   so we cannot use find_user() here. */
 	node = aatree_search(&db->user_tree, (uintptr_t)name);
 	user = node ? container_of(node, PgUser, tree_node) : NULL;
 
@@ -549,6 +552,8 @@ PgUser *add_db_user(PgDatabase *db, const char *name, const char *passwd)
 	cf_user = find_user(name);
 	if (cf_user && cf_user->dynamic_passwd)
 		user->cf_user = cf_user;
+	else
+		user->cf_user = user;
 
 	return user;
 }
@@ -566,6 +571,7 @@ PgUser *add_pam_user(const char *name, const char *passwd)
 		user = slab_alloc(user_cache);
 		if (!user)
 			return NULL;
+		user->cf_user = user;
 
 		list_init(&user->head);
 		list_init(&user->pool_list);
@@ -587,6 +593,8 @@ PgUser *force_user(PgDatabase *db, const char *name, const char *passwd)
 		user = slab_alloc(user_cache);
 		if (!user)
 			return NULL;
+		user->cf_user = user;
+
 		list_init(&user->head);
 		list_init(&user->pool_list);
 		user->pool_mode = POOL_INHERIT;
@@ -1316,12 +1324,8 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 	free_scram_state(&server->scram_state);
 
 	server->pool->db->connection_count--;
-	if (server->pool->user) {
-		if (server->pool->user->cf_user)
-			server->pool->user->cf_user->connection_count--;
-		else
-			server->pool->user->connection_count--;
-	}
+	if (server->pool->user)
+		server->pool->user->cf_user->connection_count--;
 
 	change_server_state(server, SV_JUSTFREE);
 	if (!sbuf_close(&server->sbuf))
@@ -1801,15 +1805,14 @@ allow_new:
 	max = user_max_connections(pool->user);
 	if (max > 0) {
 		/* try to evict unused connection first */
-		PgUser *real_user = pool->user->cf_user ? pool->user->cf_user : pool->user;
-		while (evict_if_needed && real_user->connection_count >= max) {
+		while (evict_if_needed && pool->user->cf_user->connection_count >= max) {
 			if (!evict_user_connection(pool->user)) {
 				break;
 			}
 		}
-		if (real_user->connection_count >= max) {
+		if (pool->user->cf_user->connection_count >= max) {
 			log_debug("launch_new_connection: user '%s' full (%d >= %d)",
-				  real_user->name, real_user->connection_count, max);
+				  pool->user->cf_user->name, pool->user->cf_user->connection_count, max);
 			return;
 		}
 	}
@@ -1830,12 +1833,8 @@ force_new:
 	pool->last_connect_time = get_cached_time();
 	change_server_state(server, SV_LOGIN);
 	pool->db->connection_count++;
-	if (pool->user) {
-		if (pool->user->cf_user)
-			pool->user->cf_user->connection_count++;
-		else
-			pool->user->connection_count++;
-	}
+	if (pool->user)
+		pool->user->cf_user->connection_count++;
 
 	dns_connect(server);
 }

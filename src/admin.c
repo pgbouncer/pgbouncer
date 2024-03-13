@@ -600,8 +600,8 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 		user = container_of(item, PgUser, head);
 		pool_mode_str = NULL;
 
-		cv.value_p = user->cf_user ? &user->cf_user->pool_mode : &user->pool_mode;
-		if ((user->cf_user && user->cf_user->pool_mode != POOL_INHERIT) || (!user->cf_user && user->pool_mode != POOL_INHERIT))
+		cv.value_p = &user->cf_user->pool_mode;
+		if (user->cf_user->pool_mode != POOL_INHERIT)
 			pool_mode_str = cf_get_lookup(&cv);
 
 		pktbuf_write_DataRow(buf, "ss", user->name, pool_mode_str);

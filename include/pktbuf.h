@@ -98,7 +98,14 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
 	pktbuf_write_generic(buf, PKT_CANCEL, "b", key, 8)
 
 #define pktbuf_write_StartupMessage(buf, user, parms, parms_len) \
-	pktbuf_write_generic(buf, PKT_STARTUP, "bsss", parms, parms_len, "user", user, "")
+	pktbuf_write_generic(buf, PKT_STARTUP_V3, "bsss", parms, parms_len, "user", user, "")
+
+#define pktbuf_write_NegotiateProtocolVersion( \
+		buf, \
+		unsupported_protocol_extensions_count, \
+		unsupported_protocol_extensions_bytes, \
+		unsupported_protocol_extensions_bytes_length) \
+	pktbuf_write_generic(buf, 'v', "iib", PKT_STARTUP_V3, unsupported_protocol_extensions_count, unsupported_protocol_extensions_bytes, unsupported_protocol_extensions_bytes_length)
 
 #define pktbuf_write_PasswordMessage(buf, psw) \
 	pktbuf_write_generic(buf, 'p', "s", psw)

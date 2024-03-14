@@ -577,7 +577,10 @@ static void copy_quoted(char *dst, const char *src, int len)
 	*dst = 0;
 }
 
-static void unquote_add_user(const char *username, const char *password)
+/* This function is only called when parsing the auth file, so
+   all users added by this function do not have a dynamic password,
+   by definition. If the password is empty, so be it. */
+static void unquote_add_authfile_user(const char *username, const char *password)
 {
 	char real_user[MAX_USERNAME];
 	char real_passwd[MAX_PASSWORD];
@@ -587,8 +590,11 @@ static void unquote_add_user(const char *username, const char *password)
 	copy_quoted(real_passwd, password, sizeof(real_passwd));
 
 	user = add_user(real_user, real_passwd);
-	if (!user)
+	if (!user) {
 		log_warning("cannot create user, no memory");
+		return;
+	}
+	user->dynamic_passwd = false;
 }
 
 static bool auth_loaded(const char *fn)
@@ -706,7 +712,7 @@ bool load_auth_file(const char *fn)
 		*p++ = 0;	/* tag password end */
 
 		/* send them away */
-		unquote_add_user(user, password);
+		unquote_add_authfile_user(user, password);
 
 		/* skip rest of the line */
 		while (*p && *p != '\n') p++;

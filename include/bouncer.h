@@ -498,9 +498,15 @@ struct PgUser {
 	uint8_t scram_ServerKey[32];
 	bool has_scram_keys;		/* true if the above two are valid */
 	bool mock_auth;			/* not a real user, only for mock auth */
+	bool dynamic_passwd;		/* does the password need to be refreshed every use */
 	int pool_mode;
 	int max_user_connections;	/* how much server connections are allowed */
 	int connection_count;	/* how much connections are used by user now */
+
+	/* cf_user points at the configured user that a user
+	 * with a dynamic password is shadowing. For configured
+	 * users, cf_user points at itself. */
+	struct PgUser *cf_user;
 };
 
 /*

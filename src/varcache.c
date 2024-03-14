@@ -250,6 +250,21 @@ void varcache_set_canonical(PgSocket *server, PgSocket *client)
 	}
 }
 
+void varcache_apply_startup(PktBuf *pkt, PgSocket *client)
+{
+	const struct var_lookup *lk, *tmp;
+
+	HASH_ITER(hh, lookup_map, lk, tmp) {
+		struct PStr *val = get_value(&client->vars, lk);
+		if (!val)
+			continue;
+
+		slog_debug(client, "varcache_apply_startup: %s=%s", lk->name, val->str);
+		pktbuf_put_string(pkt, lk->name);
+		pktbuf_put_string(pkt, val->str);
+	}
+}
+
 void varcache_fill_unset(VarCache *src, PgSocket *dst)
 {
 	struct PStr *srcval, *dstval;

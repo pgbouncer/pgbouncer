@@ -27,6 +27,8 @@ pgbouncer_SOURCES = \
 	src/util.c \
 	src/varcache.c \
 	src/common/base64.c \
+	src/common/bool.c \
+	src/common/pgstrcasecmp.c \
 	src/common/saslprep.c \
 	src/common/scram-common.c \
 	src/common/unicode_norm.c \
@@ -55,6 +57,7 @@ pgbouncer_SOURCES = \
 	include/util.h \
 	include/varcache.h \
 	include/common/base64.h \
+	include/common/builtins.h \
 	include/common/pg_wchar.h \
 	include/common/postgres_compat.h \
 	include/common/saslprep.h \

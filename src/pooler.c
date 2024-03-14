@@ -58,7 +58,7 @@ static struct timeval err_timeout = {5, 0};
 static void tune_accept(int sock, bool on);
 
 /* atexit() cleanup func */
-static void cleanup_sockets(void)
+void cleanup_sockets(void)
 {
 	struct ListenSocket *ls;
 	struct List *el;

@@ -748,6 +748,30 @@ Resume work from previous **KILL**, **PAUSE**, or **SUSPEND** command.
 
 The PgBouncer process will exit.
 
+#### SHUTDOWN WAIT_FOR_CLIENTS
+
+This command initiates shutdown logic intended rolling restarts: We stop
+accepting new connections and shutdown the process once all existing clients
+have disconnected. The operational process you can use for a zero-downtime
+rolling restart of two PgBouncer processes is as follows:
+
+1. Have two or more PgBouncer processes running on the same port using
+   `so_reuseport` ([configuring peering](/config.html#section-peers) is
+   recommended, but not required). To achieve zero downtime when
+   restarting we'll restart these processes one-by-one, thus leaving the
+   others running to accept connections while one is being restarted.
+2. Pick a process to restart first, let's call it A.
+3. Run `SHUTDOWN WAIT_FOR_CLIENTS` (or send `SIGTERM`) to process A.
+4. Cause all clients to reconnect. Possibly by waiting some time until the
+   client side pooler causes reconnects due to its `server_idle_timeout`
+   (or similar config). Or if no client side pooler is used, possibly by
+   restarting the clients. Once all clients have reconnected. Process A
+   will exit automatically, because no clients are connected to it anymore.
+5. Start process A again.
+6. Repeat step 3, 4 and 5 for each of the remaining processes, one-by-one
+   until you restarted all processes.
+
+
 #### RELOAD
 
 The PgBouncer process will reload its configuration files and update
@@ -788,10 +812,18 @@ passed to the PostgreSQL backend like any other SQL command.)
 SIGHUP
 :   Reload config. Same as issuing the command **RELOAD** on the console.
 
-SIGINT
-:   Safe shutdown. Same as issuing **PAUSE** and **SHUTDOWN** on the console.
-
 SIGTERM
+:   Safe shutdown. Wait for all existing clients to disconnect, but don't
+    accept new connections. This is the same as issuing
+    `SHUTDOWN WAIT_FOR_CLIENS` on the console. If this signal is received while
+    there is already a shutdown in progress, then an "immediate shutdown" is
+    triggered instead of a "safe shutdown". In PgBouncer versions earlier than
+    1.23.0, this signal would cause an "immediate shutdown".
+
+SIGINT
+:   Normal shutdown. Same as issuing **PAUSE** and **SHUTDOWN** on the console.
+
+SIGQUIT
 :   Immediate shutdown. Same as issuing **SHUTDOWN** on the console.
 
 SIGUSR1

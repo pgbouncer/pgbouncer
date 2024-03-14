@@ -90,9 +90,28 @@ enum PauseMode {
 };
 
 enum ShutDownMode {
+	/* just stay running */
 	SHUTDOWN_NONE = 0,
-	/* wait for all servers to become idle before stopping the process */
+	/*
+	 * Wait for all servers to become idle before stopping the process. New
+	 * clients will still accepted, but they are not given connections from
+	 * the pool. Already connected clients which are unlinked are also not
+	 * given servers from the pool again.
+	 *
+	 * This is effectively the same as running PAUSE from the admin console
+	 * and then, once all clients are paused, you run SHUTDOWN (which
+	 * translates to SHUTDOWN_IMMEDIATE).
+	 */
 	SHUTDOWN_WAIT_FOR_SERVERS,
+	/*
+	 * Wait for all clients to disconnect before stopping the process. Stop
+	 * listening on the socket so no new clients can connect. Still
+	 * connected clients will continue to be handed connections from the
+	 * pool until they disconnect.
+	 *
+	 * This allows for a rolling restart in combination with so_reuseport.
+	 */
+	SHUTDOWN_WAIT_FOR_CLIENTS,
 	/* close all connections immediately and stop the process */
 	SHUTDOWN_IMMEDIATE,
 };

@@ -742,6 +742,13 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 		return;
 	}
 
+	if (cf_shutdown == SHUTDOWN_WAIT_FOR_CLIENTS && get_active_client_count() == 0) {
+		log_info("client connections dropped, exiting");
+		cf_shutdown = SHUTDOWN_IMMEDIATE;
+		event_base_loopbreak(pgb_event_base);
+		return;
+	}
+
 	adns_zone_cache_maint(adns);
 }
 

@@ -503,8 +503,9 @@ struct PgUser {
 	int max_user_connections;	/* how much server connections are allowed */
 	int connection_count;	/* how much connections are used by user now */
 
-	/* cf_user points at the configured user that a user with a dynamic password is shadowing.
-	   For configured users, cf_user points at itself. */
+	/* cf_user points at the configured user that a user
+	 * with a dynamic password is shadowing. For configured
+	 * users, cf_user points at itself. */
 	struct PgUser *cf_user;
 };
 

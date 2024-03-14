@@ -413,10 +413,6 @@ def test_auth_query_database_setting(
                 )
 
 
-@pytest.mark.skipif(
-    "FREEBSD",
-    reason="FreeBSD does not seem to observe the expected OperationalError description",
-)
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
 def test_auth_query_works_with_configured_users(bouncer):
     """
@@ -446,16 +442,16 @@ def test_auth_query_works_with_configured_users(bouncer):
     # As a sanity check, make sure that a user with a password in auth_file cannot run transactions
     # while configured to be in statement pooling mode
     with bouncer.run_with_config(config):
-        with pytest.raises(
-            psycopg.OperationalError,
-            match="transaction blocks not allowed in statement pooling mode",
-        ):
-            bouncer.sql(
-                query="begin",
-                user="puser1",
-                password="foo",
-                dbname="postgres",
-            )
+        with pytest.raises(psycopg.OperationalError):
+            with bouncer.log_contains(
+                "closing because: transaction blocks not allowed in statement pooling mode"
+            ):
+                bouncer.sql(
+                    query="begin",
+                    user="puser1",
+                    password="foo",
+                    dbname="postgres",
+                )
 
     config = f"""
         [databases]
@@ -481,16 +477,16 @@ def test_auth_query_works_with_configured_users(bouncer):
     # statement while in statement pooling mode, but still be able to authenticate
     # using auth_query.
     with bouncer.run_with_config(config):
-        with pytest.raises(
-            psycopg.OperationalError,
-            match="transaction blocks not allowed in statement pooling mode",
-        ):
-            bouncer.sql(
-                query="begin",
-                user="stats",
-                password="stats",
-                dbname="postgres",
-            )
+        with pytest.raises(psycopg.OperationalError):
+            with bouncer.log_contains(
+                "closing because: transaction blocks not allowed in statement pooling mode"
+            ):
+                bouncer.sql(
+                    query="begin",
+                    user="stats",
+                    password="stats",
+                    dbname="postgres",
+                )
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")

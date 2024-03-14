@@ -506,6 +506,13 @@ name
 pool_mode
 :   The user's override pool_mode, or NULL if the default will be used instead.
 
+max_user_connections
+:   The user's max_user_connections setting. If this setting is not set
+    for this specific user, then the default value will be displayed.
+
+current_connections
+:   Current number of connections that this user has open to all servers.
+
 #### SHOW DATABASES
 
 name

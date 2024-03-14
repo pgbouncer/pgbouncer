@@ -595,7 +595,7 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	}
 	cv.extra = pool_mode_map;
 
-	pktbuf_write_RowDescription(buf, "ss", "name", "pool_mode");
+	pktbuf_write_RowDescription(buf, "ssii", "name", "pool_mode", "max_user_connections", "current_connections");
 	statlist_for_each(item, &user_list) {
 		user = container_of(item, PgUser, head);
 		pool_mode_str = NULL;
@@ -604,7 +604,11 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 		if (user->cf_user->pool_mode != POOL_INHERIT)
 			pool_mode_str = cf_get_lookup(&cv);
 
-		pktbuf_write_DataRow(buf, "ss", user->name, pool_mode_str);
+		pktbuf_write_DataRow(buf, "ssii", user->name,
+				     pool_mode_str,
+				     user_max_connections(user),
+				     user->connection_count
+				     );
 	}
 	admin_flush(admin, buf, "SHOW");
 	return true;

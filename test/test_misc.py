@@ -238,7 +238,7 @@ def test_empty_application_name(bouncer):
 
 
 def test_equivalent_startup_param(bouncer):
-    bouncer.admin("set verbose=2")
+    bouncer.admin("set verbose=1")
 
     canonical_expected_times = 1 if PG_MAJOR_VERSION >= 14 else 0
     with bouncer.cur(options="-c DateStyle=ISO") as cur:

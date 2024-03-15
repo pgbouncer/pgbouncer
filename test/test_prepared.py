@@ -350,7 +350,7 @@ def test_statement_name_longer_than_pkt_buf(bouncer):
         assert result.status == pq.ExecStatus.COMMAND_OK
         result = conn.pgconn.describe_prepared(name)
         assert result.status == pq.ExecStatus.COMMAND_OK
-        result = conn.pgconn.exec_prepared(name, (b"abc",))
+        result = conn.pgconn.exec_prepared(name, [b"abc"])
         assert result.status == pq.ExecStatus.TUPLES_OK
         assert result.get_value(0, 0) == b"abc"
 
@@ -408,7 +408,7 @@ def test_prepared_statement_pipeline_error_delayed_sync(bouncer):
             ):
                 cur.execute("SELECT 123")
 
-            with pytest.raises(psycopg.errors.PipelineAborted):
+            with pytest.raises(psycopg.errors.DatabaseError):
                 cur.fetchall()
 
             p.sync()

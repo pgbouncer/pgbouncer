@@ -516,6 +516,9 @@ class Postgres(QueryRunner):
             # are the same.
             pgconf.write("extra_float_digits = 1\n")
 
+            # Make sure this is consistent across platforms
+            pgconf.write("datestyle = 'iso, mdy'\n")
+
     def pgctl(self, command, **kwargs):
         run(f"pg_ctl -w --pgdata {self.pgdata} {command}", **kwargs)
 

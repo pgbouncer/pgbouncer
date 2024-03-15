@@ -321,14 +321,14 @@ bool welcome_client(PgSocket *client)
  * Password authentication for server
  */
 
-static PgUser *get_srv_psw(PgSocket *server)
+static PgAuthInfo *get_srv_psw(PgSocket *server)
 {
 	PgDatabase *db = server->pool->db;
-	PgUser *user = server->pool->user;
+	PgAuthInfo *user = server->pool->user;
 
 	/* if forced user without password, use userlist psw */
-	if (!user->passwd[0] && db->forced_user) {
-		PgUser *u2 = find_user(user->name);
+	if (!user->passwd[0] && db->forced_auth_info) {
+		PgAuthInfo *u2 = find_global_auth_info(user->name);
 		if (u2)
 			return u2;
 	}
@@ -345,7 +345,7 @@ static bool send_password(PgSocket *server, const char *enc_psw)
 
 static bool login_clear_psw(PgSocket *server)
 {
-	PgUser *user = get_srv_psw(server);
+	PgAuthInfo *user = get_srv_psw(server);
 	slog_debug(server, "P: send clear password");
 	return send_password(server, user->passwd);
 }
@@ -353,7 +353,7 @@ static bool login_clear_psw(PgSocket *server)
 static bool login_md5_psw(PgSocket *server, const uint8_t *salt)
 {
 	char txt[MD5_PASSWD_LEN + 1], *src;
-	PgUser *user = get_srv_psw(server);
+	PgAuthInfo *user = get_srv_psw(server);
 
 	slog_debug(server, "P: send md5 password");
 
@@ -380,7 +380,7 @@ static bool login_md5_psw(PgSocket *server, const uint8_t *salt)
 
 static bool login_scram_sha_256(PgSocket *server)
 {
-	PgUser *user = get_srv_psw(server);
+	PgAuthInfo *user = get_srv_psw(server);
 	bool res;
 	char *client_first_message = NULL;
 
@@ -420,7 +420,7 @@ static bool login_scram_sha_256(PgSocket *server)
 
 static bool login_scram_sha_256_cont(PgSocket *server, unsigned datalen, const uint8_t *data)
 {
-	PgUser *user = get_srv_psw(server);
+	PgAuthInfo *user = get_srv_psw(server);
 	char *ibuf = NULL;
 	char *input;
 	char *server_nonce;
@@ -474,7 +474,7 @@ failed:
 
 static bool login_scram_sha_256_final(PgSocket *server, unsigned datalen, const uint8_t *data)
 {
-	PgUser *user = get_srv_psw(server);
+	PgAuthInfo *user = get_srv_psw(server);
 	char *ibuf = NULL;
 	char *input;
 	char ServerSignature[SHA256_DIGEST_LENGTH];

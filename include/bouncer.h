@@ -127,7 +127,8 @@ enum PacketCallbackFlag {
 
 
 typedef struct PgSocket PgSocket;
-typedef struct PgUser PgUser;
+typedef struct PgAuthInfo PgAuthInfo;
+typedef struct PgGlobalUser PgGlobalUser;
 typedef struct PgDatabase PgDatabase;
 typedef struct PgPool PgPool;
 typedef struct PgStats PgStats;
@@ -326,7 +327,7 @@ struct PgPool {
 	struct List map_head;			/* entry in user->pool_list */
 
 	PgDatabase *db;			/* corresponding database */
-	PgUser *user;			/* user logged in as, this field is NULL for peer pools */
+	PgAuthInfo *user;			/* user logged in as, this field is NULL for peer pools */
 
 	/*
 	 * Clients that are both logged in and where pgbouncer is actively
@@ -483,13 +484,12 @@ struct PgPool {
  * FIXME: remove ->head as ->tree_node should be enough.
  *
  * For databases where remote user is forced, the pool is:
- * first(db->forced_user->pool_list), where pool_list has only one entry.
+ * first(db->forced_auth_info->pool_list), where pool_list has only one entry.
  *
  * Otherwise, ->pool_list contains multiple pools, for all PgDatabases
  * which user has logged in.
  */
-struct PgUser {
-	struct List head;		/* used to attach user to list */
+struct PgAuthInfo {
 	struct List pool_list;		/* list of pools where pool->user == this user */
 	struct AANode tree_node;	/* used to attach user to tree */
 	char name[MAX_USERNAME];
@@ -499,14 +499,19 @@ struct PgUser {
 	bool has_scram_keys;		/* true if the above two are valid */
 	bool mock_auth;			/* not a real user, only for mock auth */
 	bool dynamic_passwd;		/* does the password need to be refreshed every use */
+
+	/* global_user points at the configured user that a user
+	 * with a dynamic password is shadowing. For configured
+	 * users, global_user points at itself. */
+	PgGlobalUser *global_user;
+};
+
+struct PgGlobalUser {
+	PgAuthInfo auth_info;	/* needs to be first for AAtree */
+	struct List head;	/* used to attach user to list */
 	int pool_mode;
 	int max_user_connections;	/* how much server connections are allowed */
 	int connection_count;	/* how much connections are used by user now */
-
-	/* cf_user points at the configured user that a user
-	 * with a dynamic password is shadowing. For configured
-	 * users, cf_user points at itself. */
-	struct PgUser *cf_user;
 };
 
 /*
@@ -537,8 +542,8 @@ struct PgDatabase {
 	struct PktBuf *startup_params;	/* partial StartupMessage (without user) be sent to server */
 	const char *dbname;	/* server-side name, pointer to inside startup_msg */
 	char *auth_dbname;	/* if not NULL, auth_query will be run on the specified database */
-	PgUser *forced_user;	/* if not NULL, the user/psw is forced */
-	PgUser *auth_user;	/* if not NULL, users not in userlist.txt will be looked up on the server */
+	PgAuthInfo *forced_auth_info;	/* if not NULL, the user/psw is forced */
+	PgAuthInfo *auth_user;	/* if not NULL, users not in userlist.txt will be looked up on the server */
 	char *auth_query;	/* if not NULL, will be used to fetch password from database. */
 
 	/*
@@ -599,7 +604,7 @@ struct PgSocket {
 	PgSocket *link;		/* the dest of packets */
 	PgPool *pool;		/* parent pool, if NULL not yet assigned */
 
-	PgUser *login_user;	/* presented login, for client it may differ from pool->user */
+	PgAuthInfo *login_user;	/* presented login, for client it may differ from pool->user */
 
 	int client_auth_type;	/* auth method decided by hba */
 

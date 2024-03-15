@@ -38,7 +38,7 @@ PasswordType get_password_type(const char *shadow_pass);
 
 char *build_client_first_message(ScramState *scram_state);
 char *build_client_final_message(ScramState *scram_state,
-				 const PgUser *user,
+				 const PgAuthInfo *user,
 				 const char *server_nonce,
 				 const char *salt,
 				 int saltlen,
@@ -48,7 +48,7 @@ bool read_server_first_message(PgSocket *server, char *input,
 			       char **server_nonce_p, char **salt_p, int *saltlen_p, int *iterations_p);
 bool read_server_final_message(PgSocket *server, char *input, char *ServerSignature);
 
-bool verify_server_signature(ScramState *scram_state, const PgUser *user, const char *ServerSignature);
+bool verify_server_signature(ScramState *scram_state, const PgAuthInfo *user, const char *ServerSignature);
 
 
 /*

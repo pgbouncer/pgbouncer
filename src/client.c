@@ -82,7 +82,7 @@ PgDatabase *prepare_auth_database(PgSocket *client)
 
 static bool check_client_passwd(PgSocket *client, const char *passwd)
 {
-	PgUser *user = client->login_user;
+	PgAuthInfo *user = client->login_user;
 	int auth_type = client->client_auth_type;
 
 	if (user->mock_auth)
@@ -317,10 +317,10 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	struct HBARule *rule = NULL;
 
 	if (!client->login_user->mock_auth && !client->db->fake) {
-		PgUser *pool_user;
+		PgAuthInfo *pool_user;
 
-		if (client->db->forced_user)
-			pool_user = client->db->forced_user;
+		if (client->db->forced_auth_info)
+			pool_user = client->db->forced_auth_info;
 		else
 			pool_user = client->login_user;
 
@@ -441,12 +441,12 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 	/* find user */
 	if (cf_auth_type == AUTH_ANY) {
 		/* ignore requested user */
-		if (client->db->forced_user == NULL) {
+		if (client->db->forced_auth_info == NULL) {
 			slog_error(client, "auth_type=any requires forced user");
 			disconnect_client(client, true, "bouncer config error");
 			return false;
 		}
-		client->login_user = client->db->forced_user;
+		client->login_user = client->db->forced_auth_info;
 	} else if (cf_auth_type == AUTH_PAM) {
 		if (client->db->auth_user) {
 			slog_error(client, "PAM can't be used together with database authentication");
@@ -454,14 +454,14 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			return false;
 		}
 		/* Password will be set after successful authentication when not in takeover mode */
-		client->login_user = add_pam_user(username, password);
+		client->login_user = add_pam_auth_info(username, password);
 		if (!client->login_user) {
 			slog_error(client, "set_pool(): failed to allocate new PAM user");
 			disconnect_client(client, true, "bouncer resources exhaustion");
 			return false;
 		}
 	} else {
-		client->login_user = find_user(username);
+		client->login_user = find_global_auth_info(username);
 		if (!client->login_user || client->login_user->dynamic_passwd) {
 			/*
 			 * If the login user specified by the client
@@ -471,16 +471,16 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			 * see if the global auth_user is set and use that.
 			 */
 			if (!client->db->auth_user && cf_auth_user) {
-				client->db->auth_user = find_user(cf_auth_user);
+				client->db->auth_user = find_global_auth_info(cf_auth_user);
 				if (!client->db->auth_user)
-					client->db->auth_user = add_user(cf_auth_user, "");
+					client->db->auth_user = &add_global_user(cf_auth_user, "")->auth_info;
 			}
 			if (client->db->auth_user) {
 				if (client->db->fake) {
 					slog_debug(client, "not running auth_query because database is fake");
 				} else {
 					if (takeover) {
-						client->login_user = add_db_user(client->db, username, password);
+						client->login_user = add_dynamic_auth_info(client->db, username, password);
 						return finish_set_pool(client, takeover);
 					}
 					start_auth_query(client, username);
@@ -503,7 +503,7 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
 	uint16_t columns;
 	uint32_t length;
 	const char *username, *password;
-	PgUser user;
+	PgAuthInfo user;
 	PgSocket *server = client->link;
 
 	switch (pkt->type) {
@@ -564,7 +564,7 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
 		memcpy(user.passwd, password, length);
 
 		slog_debug(client, "successfully parsed auth_query response for user %s", user.name);
-		client->login_user = add_db_user(client->db, user.name, user.passwd);
+		client->login_user = add_dynamic_auth_info(client->db, user.name, user.passwd);
 		if (!client->login_user) {
 			disconnect_server(server, false, "unable to allocate new user for auth");
 			return false;
@@ -805,7 +805,7 @@ static bool scram_client_first(PgSocket *client, uint32_t datalen, const uint8_t
 	char *ibuf;
 	char *input;
 	int res;
-	PgUser *user = client->login_user;
+	PgAuthInfo *user = client->login_user;
 
 	ibuf = malloc(datalen + 1);
 	if (ibuf == NULL)

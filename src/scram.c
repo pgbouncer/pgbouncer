@@ -28,7 +28,7 @@
 
 
 static bool calculate_client_proof(ScramState *scram_state,
-				   const PgUser *user,
+				   const PgAuthInfo *user,
 				   const char *salt,
 				   int saltlen,
 				   int iterations,
@@ -323,7 +323,7 @@ failed:
 }
 
 char *build_client_final_message(ScramState *scram_state,
-				 const PgUser *user,
+				 const PgAuthInfo *user,
 				 const char *server_nonce,
 				 const char *salt,
 				 int saltlen,
@@ -468,7 +468,7 @@ failed:
 }
 
 static bool calculate_client_proof(ScramState *scram_state,
-				   const PgUser *user,
+				   const PgAuthInfo *user,
 				   const char *salt,
 				   int saltlen,
 				   int iterations,
@@ -533,7 +533,7 @@ failed:
 	return false;
 }
 
-bool verify_server_signature(ScramState *scram_state, const PgUser *user, const char *ServerSignature)
+bool verify_server_signature(ScramState *scram_state, const PgAuthInfo *user, const char *ServerSignature)
 {
 	uint8_t expected_ServerSignature[SCRAM_KEY_LEN];
 	uint8_t ServerKey[SCRAM_KEY_LEN];

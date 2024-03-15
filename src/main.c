@@ -81,7 +81,7 @@ int cf_daemon;
 int cf_pause_mode = P_NONE;
 int cf_shutdown = SHUTDOWN_NONE;
 int cf_reboot;
-static char *cf_username;
+static char *global_username;
 char *cf_config_file;
 
 char *cf_listen_addr;
@@ -328,7 +328,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("unix_socket_mode", CF_INT, cf_unix_socket_mode, CF_NO_RELOAD, "0777"),
 #endif
 #ifndef WIN32
-	CF_ABS("user", CF_STR, cf_username, CF_NO_RELOAD, NULL),
+	CF_ABS("user", CF_STR, global_username, CF_NO_RELOAD, NULL),
 #endif
 	CF_ABS("verbose", CF_INT, cf_verbose, 0, NULL),
 
@@ -750,7 +750,7 @@ static void check_limits(void)
 	fd_count = cf_max_client_conn + 10;
 	statlist_for_each(item, &database_list) {
 		db = container_of(item, PgDatabase, head);
-		if (db->forced_user)
+		if (db->forced_auth_info)
 			fd_count += (db->pool_size >= 0 ? db->pool_size : cf_default_pool_size);
 		else
 			fd_count += (db->pool_size >= 0 ? db->pool_size : cf_default_pool_size) * total_users;
@@ -885,7 +885,7 @@ static void cleanup(void)
 
 	reset_logging();
 
-	xfree(&cf_username);
+	xfree(&global_username);
 	xfree(&cf_config_file);
 	xfree(&cf_listen_addr);
 	xfree(&cf_unix_socket_dir);
@@ -1010,13 +1010,13 @@ int main(int argc, char *argv[])
 
 	/* prefer cmdline over config for username */
 	if (arg_username) {
-		free(cf_username);
-		cf_username = xstrdup(arg_username);
+		free(global_username);
+		global_username = xstrdup(arg_username);
 	}
 
 	/* switch user is needed */
-	if (cf_username && *cf_username)
-		change_user(cf_username);
+	if (global_username && *global_username)
+		change_user(global_username);
 
 	/* disallow running as root */
 	if (getuid() == 0)

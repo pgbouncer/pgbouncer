@@ -351,11 +351,11 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	if (!mbuf_get_uint64be(&tmp, &ckey))
 		return false;
 
-	if (sk->pool && sk->pool->db->auth_user && sk->login_user && !find_user(sk->login_user->name))
+	if (sk->pool && sk->pool->db->auth_user && sk->login_user && !find_global_user(sk->login_user->name))
 		password = sk->login_user->passwd;
 
 	/* PAM requires passwords as well since they are not stored externally */
-	if (cf_auth_type == AUTH_PAM && !find_user(sk->login_user->name))
+	if (cf_auth_type == AUTH_PAM && !find_global_user(sk->login_user->name))
 		password = sk->login_user->passwd;
 
 	if (sk->pool && sk->pool->user && sk->pool->user->has_scram_keys)
@@ -500,7 +500,7 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 	statlist_for_each(item, &database_list) {
 		db = container_of(item, PgDatabase, head);
 
-		f_user = db->forced_user ? db->forced_user->name : NULL;
+		f_user = db->forced_auth_info ? db->forced_auth_info->name : NULL;
 		pool_mode_str = NULL;
 		cv.value_p = &db->pool_mode;
 		if (db->pool_mode != POOL_INHERIT)
@@ -583,7 +583,6 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 /* Command: SHOW USERS */
 static bool admin_show_users(PgSocket *admin, const char *arg)
 {
-	PgUser *user;
 	struct List *item;
 	PktBuf *buf = pktbuf_dynamic(256);
 	struct CfValue cv;
@@ -597,14 +596,14 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 
 	pktbuf_write_RowDescription(buf, "ssii", "name", "pool_mode", "max_user_connections", "current_connections");
 	statlist_for_each(item, &user_list) {
-		user = container_of(item, PgUser, head);
+		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
 		pool_mode_str = NULL;
 
-		cv.value_p = &user->cf_user->pool_mode;
-		if (user->cf_user->pool_mode != POOL_INHERIT)
+		cv.value_p = &user->pool_mode;
+		if (user->pool_mode != POOL_INHERIT)
 			pool_mode_str = cf_get_lookup(&cv);
 
-		pktbuf_write_DataRow(buf, "ssii", user->name,
+		pktbuf_write_DataRow(buf, "ssii", user->auth_info.name,
 				     pool_mode_str,
 				     user_max_connections(user),
 				     user->connection_count
@@ -1638,7 +1637,7 @@ bool admin_pre_login(PgSocket *client, const char *username)
 		res = getpeereid(sbuf_socket(&client->sbuf), &peer_uid, &peer_gid);
 		if (res >= 0 && peer_uid == getuid()
 		    && strcmp("pgbouncer", username) == 0) {
-			client->login_user = admin_pool->db->forced_user;
+			client->login_user = admin_pool->db->forced_auth_info;
 			client->own_user = true;
 			client->admin_user = true;
 			if (cf_log_connections)
@@ -1653,11 +1652,11 @@ bool admin_pre_login(PgSocket *client, const char *username)
 	 */
 	if (cf_auth_type == AUTH_ANY) {
 		if (strlist_contains(cf_admin_users, username)) {
-			client->login_user = admin_pool->db->forced_user;
+			client->login_user = admin_pool->db->forced_auth_info;
 			client->admin_user = true;
 			return true;
 		} else if (strlist_contains(cf_stats_users, username)) {
-			client->login_user = admin_pool->db->forced_user;
+			client->login_user = admin_pool->db->forced_auth_info;
 			return true;
 		}
 	}
@@ -1687,7 +1686,7 @@ void admin_setup(void)
 {
 	PgDatabase *db;
 	PgPool *pool;
-	PgUser *user;
+	PgGlobalUser *user;
 	PktBuf *msg;
 	int res;
 
@@ -1700,20 +1699,20 @@ void admin_setup(void)
 	db->pool_size = 2;
 	db->admin = true;
 	db->pool_mode = POOL_STMT;
-	if (!force_user(db, "pgbouncer", ""))
+	if (!force_auth_info(db, "pgbouncer", ""))
 		die("no mem on startup - cannot alloc pgbouncer user");
 
 	/* fake pool */
-	pool = get_pool(db, db->forced_user);
+	pool = get_pool(db, db->forced_auth_info);
 	if (!pool)
 		die("cannot create admin pool?");
 	admin_pool = pool;
 
 	/* user */
-	user = find_user("pgbouncer");
+	user = find_global_user("pgbouncer");
 	if (!user) {
 		/* fake user with disabled psw */
-		user = add_user("pgbouncer", "");
+		user = add_global_user("pgbouncer", "");
 		if (!user)
 			die("cannot create admin user?");
 	}

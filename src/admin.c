@@ -587,6 +587,7 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	struct List *item;
 	PktBuf *buf = pktbuf_dynamic(256);
 	struct CfValue cv;
+  char pool_size_str[10] = "";
 	const char *pool_mode_str;
 
 	if (!buf) {
@@ -595,15 +596,18 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	}
 	cv.extra = pool_mode_map;
 
-	pktbuf_write_RowDescription(buf, "ssii", "name", "pool_mode", "max_user_connections", "current_connections");
+	pktbuf_write_RowDescription(buf, "sssii", "name", "pool_size", "pool_mode", "max_user_connections", "current_connections");
 	statlist_for_each(item, &user_list) {
 		user = container_of(item, PgUser, head);
+    if (user->pool_size >= 0)
+      snprintf(pool_size_str, sizeof(pool_size_str), "% 9d", user->pool_size);
 		pool_mode_str = NULL;
 		cv.value_p = &user->pool_mode;
 		if (user->pool_mode != POOL_INHERIT)
 			pool_mode_str = cf_get_lookup(&cv);
 
-		pktbuf_write_DataRow(buf, "ssii", user->name,
+		pktbuf_write_DataRow(buf, "sssii", user->name,
+             pool_size_str,
 				     pool_mode_str,
 				     user_max_connections(user),
 				     user->connection_count

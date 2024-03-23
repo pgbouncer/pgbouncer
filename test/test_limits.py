@@ -23,9 +23,18 @@ async def test_max_client_conn(bouncer):
 
 @pytest.mark.asyncio
 async def test_pool_size(pg, bouncer):
-    await bouncer.asleep(0.5, times=10)
+    # per user pool_size
+    await bouncer.asleep(0.5, dbname="p0a", user="poolsize1", times=10)
+    assert pg.connection_count(dbname="p0", users=("poolsize1",)) == 1
+
+    await bouncer.asleep(0.5, dbname="p0", user="poolsize1", times=10)
+    assert pg.connection_count(dbname="p0", users=("bouncer",)) == 2  # p0 uses forced user 'bouncer' hence settings from poolsize1 do not apply
+
+    # per db pool_size
+    await bouncer.asleep(0.5, times=5)
     assert pg.connection_count("p0") == 2
 
+    # global pool_size
     bouncer.default_db = "p1"
     await bouncer.asleep(0.5, times=10)
     assert pg.connection_count("p1") == 5

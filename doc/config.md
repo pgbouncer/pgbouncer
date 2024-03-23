@@ -1255,6 +1255,11 @@ Example:
 
 Only a few settings are available here.
 
+### pool_size
+
+Set the maximum size of pools for all connections from this user.  If not set,
+the database or `default_pool_size` is used.
+
 ### pool_mode
 
 Set the pool mode to be used for all connections from this user. If not set, the

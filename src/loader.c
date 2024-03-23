@@ -492,6 +492,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	PgUser *user;
 	struct CfValue cv;
 	int pool_mode = POOL_INHERIT;
+  int pool_size = -1;
 	int max_user_connections = -1;
 
 
@@ -519,9 +520,11 @@ bool parse_user(void *base, const char *name, const char *connstr)
 				log_error("invalid pool mode: %s", val);
 				goto fail;
 			}
-		} else if (strcmp("max_user_connections", key) == 0) {
-			max_user_connections = atoi(val);
-		} else {
+		} else if (strcmp("pool_size", key) == 0) {
+      pool_size = atoi(val);
+    } else if (strcmp("max_user_connections", key) == 0) {
+      max_user_connections = atoi(val);
+    } else {
 			log_error("unrecognized user parameter: %s", key);
 			goto fail;
 		}
@@ -537,6 +540,8 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	}
 
 	user->pool_mode = pool_mode;
+  user->pool_size = pool_size;
+  log_info("Setting pool_size for user %s: %d", user->name, user->pool_size);
 	user->max_user_connections = max_user_connections;
 
 	free(tmp_connstr);

@@ -414,7 +414,7 @@ struct PgPool {
 	 *
 	 * A special case is when there are cancel requests waiting to be forwarded
 	 * to servers in waiting_cancel_req_list. In that case the server bails out
-	 * of the login flow, because a cancel reuest needs to be sent before
+	 * of the login flow, because a cancel request needs to be sent before
 	 * logging in.
 	 *
 	 * NOTE: This list can at most contain a single server due to the way

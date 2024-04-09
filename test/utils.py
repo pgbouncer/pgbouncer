@@ -217,7 +217,7 @@ class QueryRunner:
         # Always required for Ubuntu 18.04, but also needed for any tests
         # involving the varcache_change database. The difference between the
         # client_encoding specified in the config and client_encoding by the
-        # client will force a varcache change when a connectino is given.
+        # client will force a varcache change when a connection is given.
         options.setdefault("client_encoding", "UTF8")
 
     def conn(self, *, autocommit=True, **kwargs):
@@ -586,7 +586,7 @@ class Postgres(QueryRunner):
         return self.pgdata / "postgresql.conf"
 
     def commit_hba(self):
-        """Mark the current HBA contents as non-resetable by reset_hba"""
+        """Mark the current HBA contents as non-resettable by reset_hba"""
         with self.hba_path.open() as pghba:
             old_contents = pghba.read()
         with self.hba_path.open(mode="w") as pghba:

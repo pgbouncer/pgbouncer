@@ -279,7 +279,7 @@ PgBouncer 1.18.x
     ([#648](https://github.com/pgbouncer/pgbouncer/pull/648))
   * Fix `SHOW HELP` with PostgreSQL 15
     ([#769](https://github.com/pgbouncer/pgbouncer/issues/769))
-  * Fix race condition in query cancelation handling.  It was possible
+  * Fix race condition in query cancellation handling.  It was possible
     that a query cancellation for one client canceled a query for
     another one.  This could happen when a cancel request was received
     by PgBouncer when the query it was meant to cancel already
@@ -825,7 +825,7 @@ PgBouncer 1.6.x
 
     [CVE-2015-6817](https://access.redhat.com/security/cve/cve-2015-6817)
 
-  * Skip NoticeResponce in handle_auth_response.  Otherwise verbose
+  * Skip NoticeResponse in handle_auth_response.  Otherwise verbose
     log levels on server cause login failures.
 
   * console: Fill `auth_user` when auth_type=any.  Otherwise
@@ -966,12 +966,12 @@ PgBouncer 1.5.x
   * max_packet_size - config parameter to tune maximum packet size
     that is allowed through.  Default is kept same: (2G-1), but now
     it can be made smaller.
-  * In case of unparseable packet header, show it in hex in log and
+  * In case of unparsable packet header, show it in hex in log and
     error message.
 
 - Fixes
 
-  * AntiMake: it used $(relpath) and $(abspath) to manupulate pathnames,
+  * AntiMake: it used $(relpath) and $(abspath) to manipulate pathnames,
     but the result was build failure when source tree path contained
     symlinks.  The code is now changed to work on plain strings only.
   * console: now SET can be used to set empty string values.
@@ -1011,7 +1011,7 @@ PgBouncer 1.5.x
     earlier versions anymore.
   * Stop trying to retry on EINTR from close().
 
-**2012-01-05  -  PgBouncer 1.5  -  "Bouncing Satisified Clients Since 2007"**
+**2012-01-05  -  PgBouncer 1.5  -  "Bouncing Satisfied Clients Since 2007"**
 
 If you use more than 8 IPs behind one DNS name, you now need to
 use EDNS0 protocol to query.  Only getaddrinfo_a()/getaddrinfo()
@@ -1050,7 +1050,7 @@ GNU Make 3.81+ is required for building.
     (Dan McGee)
   * Console: Support ident quoting with "".  Originally we did not
     have any commands that took database names, so no quoting was needed.
-  * Console: allow numbers at the stard of word regex.  Trying
+  * Console: allow numbers at the start of word regex.  Trying
     to use strict parser makes things too complex here.
   * Don't expire auto DBs that are paused.
     (Michael Tharp)
@@ -1363,7 +1363,7 @@ PgBouncer 1.3.x
 
   * In case event_del() reports failure, just proceed with cleanup.
     Previously pgbouncer retried it, in case the failure was due ENOMEM.
-    But this has caused log floods with inifinite repeats, so it seems
+    But this has caused log floods with infinite repeats, so it seems
     libevent does not like it.
 
     Why event_del() report failure first time is still mystery.
@@ -1545,7 +1545,7 @@ PgBouncer 1.1.x
     - Accept custom unix socket location in host=
     - Accept quoted values: password=' asd''foo'
 
-  * New config var: server_reset_query, to be sent immidiately after release
+  * New config var: server_reset_query, to be sent immediately after release
   * New config var: server_round_robin, to switch between LIFO and RR.
   * Cancel pkt sent for idle connection does not drop it anymore.
   * Cancel with ^C from psql works for SUSPEND / PAUSE.
@@ -1634,13 +1634,13 @@ PgBouncer 1.0.x
 - Fixes
   * libevent may report a deleted event inside same loop.
     Avoid socket reuse for one loop.
-  * release_server() from disconnect_client() didnt look
+  * release_server() from disconnect_client() didn't look
     it the packet was actually sent.
 
 **2007-03-15  -  PgBouncer 1.0.1  -  "Alien technology"**
 
 - Fixes
-  * Mixed usage of cached and non-cached time, plus unsiged usec_t typedef
+  * Mixed usage of cached and non-cached time, plus unsigned usec_t typedef
     created spurious query_timeout errors.
   * Fix rare case when socket woken up from send-wait could stay stalling.
   * More fair queueing of server connections.  Before, a new query could

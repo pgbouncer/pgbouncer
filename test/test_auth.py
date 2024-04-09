@@ -607,7 +607,7 @@ def test_client_hba_cert(bouncer, cert_dir):
     client_cert = cert_dir / "TestCA1" / "sites" / "04-pgbouncer.acme.org.crt"
 
     # The client connects to p0x using a client certificate with CN=pgbouncer.acme.org.
-    # hba_eval returns the followign line:
+    # hba_eval returns the following line:
     #    hostssl p0x    all        0.0.0.0/0               cert    map=test
     # where "test" map is defined in pgident.conf as
     #    test            pgbouncer.acme.org      someuser
@@ -626,7 +626,7 @@ def test_client_hba_cert(bouncer, cert_dir):
     bouncer.pg.sql("create user anotheruser with login;")
 
     # The client connects to p0x using a client certificate with CN=pgbouncer.acme.org.
-    # hba_eval returns the followign line:
+    # hba_eval returns the following line:
     #    hostssl p0x    all        0.0.0.0/0               cert    map=test
     # where "test" map is defined in pgident.conf as
     #    test            pgbouncer.acme.org      someuser
@@ -643,7 +643,7 @@ def test_client_hba_cert(bouncer, cert_dir):
     )
 
     # The client connects to p0x using a client certificate with CN=pgbouncer.acme.org.
-    # hba_eval returns the followign line:
+    # hba_eval returns the following line:
     #    hostssl p0x    all        0.0.0.0/0               cert    map=test
     # where "test" map is defined in pgident.conf as
     #    test            pgbouncer.acme.org      someuser
@@ -670,7 +670,7 @@ def test_client_hba_cert(bouncer, cert_dir):
     client_cert = cert_dir / "TestCA1" / "sites" / "02-bouncer.crt"
 
     # The client connects to p0 using a client certificate with CN=bouncer.
-    # hba_eval returns the followign line:
+    # hba_eval returns the following line:
     #    hostssl p0              bouncer         0.0.0.0/0               cert
     # CN expected in map is "bouncer" which matches the CN in the client cert
     # hence the test succeeds.
@@ -685,7 +685,7 @@ def test_client_hba_cert(bouncer, cert_dir):
     )
 
     # The client connects to p0y using a client certificate with CN=bouncer.
-    # hba_eval returns the followign line:
+    # hba_eval returns the following line:
     #    hostssl p0y             all             0.0.0.0/0               cert    map=test2
     # where
     #   test2           bouncer                 all
@@ -706,7 +706,7 @@ def test_client_hba_cert(bouncer, cert_dir):
     client_cert = cert_dir / "TestCA1" / "sites" / "04-pgbouncer.acme.org.crt"
 
     # The client connects to p0y using a client certificate with CN=pgbouncer.acme.org.
-    # hba_eval returns the followign line:
+    # hba_eval returns the following line:
     #    hostssl p0y             all             0.0.0.0/0               cert    map=test2
     # where
     #   test2           bouncer                 all
@@ -730,7 +730,7 @@ def test_client_hba_cert(bouncer, cert_dir):
             )
 
     # The client connects to p0y using a client certificate with CN=pgbouncer.acme.org.
-    # hba_eval returns the followign line:
+    # hba_eval returns the following line:
     #    hostssl p0y             all             0.0.0.0/0               cert    map=test2
     # where
     #   test2           bouncer                 all

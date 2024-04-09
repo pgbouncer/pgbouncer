@@ -64,7 +64,7 @@ def shared_setup(tmp_path_factory, worker_id):
 
     It currently sets up 2 things:
     1. A cert directory, for TLS tests
-    2. A queueing disciplince (qdisc), for tests that require latency
+    2. A queueing disciplines (qdisc), for tests that require latency
 
     It yields the certificate directory, which is why the fixture name is
     cert_dir.

@@ -32,6 +32,7 @@
 #endif /* USE_EVDNS */
 
 #ifdef USE_CARES
+#define CARES_NO_DEPRECATED
 #include <ares.h>
 #include <ares_dns.h>
 #ifdef HAVE_ARES_NAMESER_H

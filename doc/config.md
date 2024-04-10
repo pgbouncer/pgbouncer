@@ -236,11 +236,16 @@ Default: IntervalStyle
 
 By default, PgBouncer allows only parameters it can keep track of in startup
 packets: `client_encoding`, `datestyle`, `timezone` and `standard_conforming_strings`.
-All others parameters will raise an error.  To allow others parameters, they can be
+All other parameters will raise an error. To allow other parameters, they can be
 specified here, so that PgBouncer knows that they are handled by the admin and it can ignore them.
 
-If you need to specify multiple values, use a comma-separated list (e.g.
-`options,extra_float_digits`)
+If you need to specify multiple parameters, use a comma-separated list (e.g.
+`options,extra_float_digits`).
+
+If you need to specify a value for the parameter, you can do so, e.g.,
+`options,extra_float_digits=2`. In this example, the parameter
+`extra_float_digits` with value `3` would still raise an error, but the same
+parameter with value `2` will be ignored by pgBouncer.
 
 The Postgres protocol allows specifying parameters settings, both directly as a
 parameter in the startup packet, or inside the [`options` startup

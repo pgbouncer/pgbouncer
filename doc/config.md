@@ -327,7 +327,7 @@ replacing `my_prepared_stamenent` with `PGBOUNCER_123`) before forwarding that
 command to the server. More importantly, if the prepared statement that the
 client wants to execute is not yet prepared on the server (e.g. because a
 different server is now assigned to the client then when the client prepared
-the statement), then PgBouncer transparrently prepares the statement before
+the statement), then PgBouncer transparently prepares the statement before
 executing it.
 
 Note: This tracking and rewriting of prepared statement commands does not work

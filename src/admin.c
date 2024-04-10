@@ -159,7 +159,7 @@ bool admin_ready(PgSocket *admin, const char *desc)
 
 /*
  * some silly clients start actively messing with server parameters
- * without checking if thats necessary.  Fake some env for them.
+ * without checking if that's necessary.  Fake some env for them.
  */
 struct FakeParam {
 	const char *name;

@@ -312,7 +312,7 @@ def test_prepared_statement_pipeline_stress(bouncer):
                         assert curs[i].fetchall() == [(i, str(i).zfill(size_of_param))]
 
 
-def test_describe_non_existant_prepared_statement(bouncer):
+def test_describe_non_existent_prepared_statement(bouncer):
     bouncer.admin(f"set max_prepared_statements=100")
 
     with bouncer.conn() as conn:
@@ -331,7 +331,7 @@ def test_close_prepared_statement(bouncer):
         assert result.status == pq.ExecStatus.COMMAND_OK
         result = conn.pgconn.close_prepared(b"test")
         assert result.status == pq.ExecStatus.COMMAND_OK
-        # closing a non-existant prepared statement should not raise an error
+        # closing a non-existent prepared statement should not raise an error
         result = conn.pgconn.close_prepared(b"test")
         assert result.status == pq.ExecStatus.COMMAND_OK
         # ensure that the prepared statement is actually closed by trying to
@@ -501,7 +501,7 @@ def test_pipeline_flushes_on_full_pkt_buf(bouncer):
 
     # We want to construct a Parse packet that is exactly the size of pkt_buf,
     # so we don't trigger the logic to use the callback buffering logic, but do
-    # need the whole sbuf buffer to be availble. So let's calculate the exact
+    # need the whole sbuf buffer to be available. So let's calculate the exact
     # length of the statement name that we need to make this happen.
     size_type = 1  # 'P'
     size_length = 4  # int32

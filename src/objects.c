@@ -608,7 +608,7 @@ PgDatabase *find_database(const char *name)
 }
 
 /*
- * Similar to find_database. In case databse is not found, it will try to register
+ * Similar to find_database. In case database is not found, it will try to register
  * it if auto-database ('*') is configured.
  */
 PgDatabase *find_or_register_database(PgSocket *connection, const char *name)
@@ -768,7 +768,7 @@ void activate_client(PgSocket *client)
 
 	Assert(client->wait_start > 0);
 
-	/* acount for time client spent waiting for server */
+	/* account for time client spent waiting for server */
 	client->pool->stats.wait_time += (get_cached_time() - client->wait_start);
 
 	slog_debug(client, "activate_client");

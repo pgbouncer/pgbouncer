@@ -749,7 +749,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			/*
 			 * It's possible that the client vars and server vars have
 			 * different string representations, but still Postgres did not
-			 * send a ParamaterStatus packet. This happens when the server
+			 * send a ParameterStatus packet. This happens when the server
 			 * variable is the canonical version of the client variable, i.e.
 			 * they mean the same just written slightly different. To make sure
 			 * that the canonical version is also stored in the client, we now

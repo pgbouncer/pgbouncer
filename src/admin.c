@@ -607,7 +607,7 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 			pool_mode_str = cf_get_lookup(&cv);
 
 		pktbuf_write_DataRow(buf, "sssii", user->name,
-					 pool_size_str,
+				     pool_size_str,
 				     pool_mode_str,
 				     user_max_connections(user),
 				     user->connection_count

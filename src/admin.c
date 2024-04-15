@@ -587,7 +587,7 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	struct List *item;
 	PktBuf *buf = pktbuf_dynamic(256);
 	struct CfValue cv;
-	char pool_size_str[10] = "";
+	char pool_size_str[12] = "";
 	const char *pool_mode_str;
 
 	if (!buf) {

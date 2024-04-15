@@ -225,7 +225,8 @@ int pool_pool_mode(PgPool *pool)
 	return pool_mode;
 }
 
-int pool_pool_size(PgPool *pool) {
+int pool_pool_size(PgPool *pool)
+{
 	int pool_size;
 	if (pool->user->pool_size >= 0)
 		pool_size = pool->user->pool_size;

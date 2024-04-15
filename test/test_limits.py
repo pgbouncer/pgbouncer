@@ -26,9 +26,9 @@ async def test_pool_size(pg, bouncer):
     # per user pool_size
     await bouncer.asleep(0.5, dbname="p0a", user="poolsize1", times=10)
     assert pg.connection_count(dbname="p0", users=("poolsize1",)) == 1
-
+    # even though we connect using user poolsize1 its setting do not apply is forced user is configured for db
     await bouncer.asleep(0.5, dbname="p0", user="poolsize1", times=10)
-    assert pg.connection_count(dbname="p0", users=("bouncer",)) == 2  # p0 uses forced user 'bouncer' hence settings from poolsize1 do not apply
+    assert pg.connection_count(dbname="p0", users=("bouncer",)) == 2
 
     # per db pool_size
     await bouncer.asleep(0.5, times=5)

@@ -1317,7 +1317,7 @@ bool sbuf_tls_setup(void)
 	 * To change server TLS settings all connections are marked as dirty. This
 	 * way they are recycled and the new TLS settings will be used. Otherwise
 	 * old TLS settings, possibly less secure, could be used for old
-	 * connections indefinitly. If TLS is disabled, and it was disabled before
+	 * connections indefinitely. If TLS is disabled, and it was disabled before
 	 * as well then recycling connections is not necessary, since we know none
 	 * of the settings have changed. In all other cases we recycle the
 	 * connections to be on the safe side, even though it's possible nothing

@@ -188,6 +188,15 @@ static void start_auth_query(PgSocket *client, const char *username)
 	}
 	client->link->ready = false;
 
+	/*
+	 * Add outstanding request, so that the server is closed if the client
+	 * disconnects before the auth_query completes.
+	 */
+	if (!add_outstanding_request(client, 'S', RA_SKIP)) {
+		disconnect_server(client->link, true, "out of memory");
+		return;
+	}
+
 	res = 0;
 	buf = pktbuf_dynamic(512);
 	if (buf) {

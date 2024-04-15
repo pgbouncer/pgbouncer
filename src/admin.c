@@ -600,7 +600,7 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	statlist_for_each(item, &user_list) {
 		user = container_of(item, PgUser, head);
 		if (user->pool_size >= 0)
-			snprintf(pool_size_str, sizeof(pool_size_str), "% 9d", user->pool_size);
+			snprintf(pool_size_str, sizeof(pool_size_str), "%9d", user->pool_size);
 		pool_mode_str = NULL;
 		cv.value_p = &user->pool_mode;
 		if (user->pool_mode != POOL_INHERIT)

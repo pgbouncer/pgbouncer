@@ -266,6 +266,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	int min_pool_size = -1;
 	int res_pool_size = -1;
 	int max_db_connections = -1;
+	int server_lifetime = -1;
 	int dbname_ofs;
 	int pool_mode = POOL_INHERIT;
 
@@ -348,6 +349,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			res_pool_size = atoi(val);
 		} else if (strcmp("max_db_connections", key) == 0) {
 			max_db_connections = atoi(val);
+		} else if (strcmp("server_lifetime", key) == 0) {
+			server_lifetime = atoi(val);
 		} else if (strcmp("pool_mode", key) == 0) {
 			if (!cf_set_lookup(&cv, val)) {
 				log_error("invalid pool mode: %s", val);
@@ -415,6 +418,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	db->res_pool_size = res_pool_size;
 	db->pool_mode = pool_mode;
 	db->max_db_connections = max_db_connections;
+	db->server_lifetime = server_lifetime;
 	free(db->connect_query);
 	db->connect_query = connect_query;
 

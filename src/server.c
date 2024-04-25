@@ -241,6 +241,12 @@ int pool_min_pool_size(PgPool *pool)
 	return database_min_pool_size(pool->db);
 }
 
+/* server_lifetime of the pool's db */
+int pool_server_lifetime(PgPool *pool)
+{
+	return database_server_lifetime(pool->db);
+}
+
 /* min_pool_size of the db */
 int database_min_pool_size(PgDatabase *db)
 {
@@ -248,6 +254,15 @@ int database_min_pool_size(PgDatabase *db)
 		return cf_min_pool_size;
 	else
 		return db->min_pool_size;
+}
+
+/* server_lifetime of the db */
+int database_server_lifetime(PgDatabase *db)
+{
+	if (db->server_lifetime <= 0)
+		return cf_server_lifetime;
+	else
+		return db->server_lifetime;
 }
 
 int pool_res_pool_size(PgPool *pool)

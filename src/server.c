@@ -227,10 +227,12 @@ int pool_pool_mode(PgPool *pool)
 
 int pool_pool_size(PgPool *pool)
 {
-	if (pool->db->pool_size < 0)
-		return cf_default_pool_size;
-	else
+	if (pool->user && pool->user->pool_size >= 0)
+		return pool->user->pool_size;
+	else if (pool->db->pool_size >= 0)
 		return pool->db->pool_size;
+	else
+		return cf_default_pool_size;
 }
 
 /* min_pool_size of the pool's db */

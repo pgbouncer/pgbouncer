@@ -23,7 +23,6 @@ int pool_pool_size(PgPool *pool) _MUSTCHECK;
 int pool_min_pool_size(PgPool *pool) _MUSTCHECK;
 int pool_server_lifetime(PgPool *pool) _MUSTCHECK;
 int database_min_pool_size(PgDatabase *db) _MUSTCHECK;
-int database_server_lifetime(PgDatabase *db) _MUSTCHECK;
 int pool_res_pool_size(PgPool *pool) _MUSTCHECK;
 int database_max_connections(PgDatabase *db) _MUSTCHECK;
 int user_max_connections(PgUser *user) _MUSTCHECK;

@@ -242,7 +242,7 @@ static bool eat(struct TokParser *p, enum TokType ttype)
 	return false;
 }
 
-/* Do not call next_token, just check value */
+/* Do not get next token, just check value */
 static bool check_kw(struct TokParser *p, const char *kw)
 {
 	if (p->cur_tok == TOK_IDENT && strcmp(kw, p->cur_tok_str) == 0) {

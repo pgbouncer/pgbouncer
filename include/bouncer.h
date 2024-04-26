@@ -243,6 +243,7 @@ extern int cf_sbuf_len;
 #define AUTH_REJECT     110
 #define AUTH_PAM        111
 #define AUTH_SCRAM_SHA_256      112
+#define AUTH_LDAP   113
 
 /* type codes for weird pkts */
 #define PKT_STARTUP_V2  0x20000

@@ -50,6 +50,7 @@ struct HBARule {
 	struct HBAName user_name;
 	struct IdentMap *identmap;
 	int hba_linenr;
+	char *auth_options;
 };
 
 struct HBA {

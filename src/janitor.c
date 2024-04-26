@@ -453,16 +453,15 @@ static void peer_pool_client_maint(PgPool *pool)
 static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle_test)
 {
 	usec_t now = get_cached_time();
+	usec_t server_lifetime = pool_server_lifetime(pool);
+
 	struct List *item, *tmp;
 	usec_t idle, age;
-	usec_t server_lifetime;
 	PgSocket *server;
 
 	/* disconnect idle servers if needed */
 	statlist_for_each_safe(item, slist, tmp) {
 		server = container_of(item, PgSocket, head);
-
-		server_lifetime = pool_server_lifetime(pool);
 		age = now - server->connect_time;
 		idle = now - server->request_time;
 

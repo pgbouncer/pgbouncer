@@ -21,6 +21,7 @@
  */
 
 #include "bouncer.h"
+#include "usual/cfparser.h"
 
 #include <usual/fileutil.h>
 #include <usual/string.h>
@@ -350,7 +351,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		} else if (strcmp("max_db_connections", key) == 0) {
 			max_db_connections = atoi(val);
 		} else if (strcmp("server_lifetime", key) == 0) {
-			server_lifetime = atoi(val);
+			server_lifetime = atoi(val) * USEC;
 		} else if (strcmp("pool_mode", key) == 0) {
 			if (!cf_set_lookup(&cv, val)) {
 				log_error("invalid pool mode: %s", val);

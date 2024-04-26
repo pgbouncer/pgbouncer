@@ -5,6 +5,7 @@ import filelock
 import pytest
 
 from .utils import (
+    LDAP_SUPPORT,
     LINUX,
     LONG_PASSWORD,
     PG_SUPPORTS_SCRAM,
@@ -12,6 +13,7 @@ from .utils import (
     TLS_SUPPORT,
     USE_SUDO,
     Bouncer,
+    OpenLDAP,
     Postgres,
     Proxy,
     run,
@@ -129,6 +131,9 @@ def pg(tmp_path_factory, cert_dir):
     for i in range(8):
         pg.sql(f"create database p{i}")
 
+    if LDAP_SUPPORT:
+        pg.sql("create user ldapuser1 login password 'secret1'")
+
     pg.sql("create database unconfigured_auth_database")
     pg.sql("create user bouncer")
 
@@ -230,3 +235,12 @@ def pg_reset(pg):
         pg.reload()
 
     yield
+
+
+@pytest.fixture
+def openldap(tmp_path_factory):
+    """Starts an openldap server under tmp_path for tests in this process"""
+    ldap = OpenLDAP(tmp_path_factory.getbasetemp())
+    ldap.startup()
+    yield ldap
+    ldap.cleanup()

@@ -12,7 +12,7 @@ task:
     - container:
         image: ubuntu:22.04
       env:
-        configure_args: '--with-cares --with-pam'
+        configure_args: '--with-cares --with-pam --with-ldap'
     - container:
         image: ubuntu:22.04
       env:
@@ -68,6 +68,7 @@ task:
     - if [ x"$ENABLE_VALGRIND" = x"yes" ]; then pkgs="$pkgs valgrind"; fi
     - if [ x"$use_scan_build" = x"yes" ]; then pkgs="$pkgs clang-tools"; fi
     - apt-get -y install $pkgs
+    - apt-get -y install libldap-dev slapd ldap-utils
     - python3 -m venv /venv
     - /venv/bin/pip install -r requirements.txt
     - useradd user

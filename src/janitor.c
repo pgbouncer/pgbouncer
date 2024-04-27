@@ -462,6 +462,7 @@ static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle
 	/* disconnect idle servers if needed */
 	statlist_for_each_safe(item, slist, tmp) {
 		server = container_of(item, PgSocket, head);
+
 		age = now - server->connect_time;
 		idle = now - server->request_time;
 

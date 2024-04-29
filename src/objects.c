@@ -503,6 +503,7 @@ PgGlobalUser *add_global_user(const char *name, const char *passwd)
 		user->pool_size = -1;
 	}
 
+	passwd = passwd ? passwd : "";
 	safe_strcpy(user->credentials.passwd, passwd, sizeof(user->credentials.passwd));
 	user->credentials.dynamic_passwd = strlen(passwd) == 0;
 	return user;

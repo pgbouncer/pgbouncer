@@ -172,6 +172,14 @@ def get_tls_support():
 
 TLS_SUPPORT = get_tls_support()
 
+def get_ldap_support():
+    with open("../config.mak", encoding="utf-8") as f:
+        match = re.search(r"ldap_support = (\w+)", f.read())
+        assert match is not None
+        return match.group(1) == "yes"
+
+
+LDAP_SUPPORT = get_ldap_support()
 
 # this is out of ephemeral port range for many systems hence
 # it is a lower change that it will conflict with "in-use" ports
@@ -1168,3 +1176,98 @@ class Bouncer(QueryRunner):
             with self.ini_path.open("w") as f:
                 f.write(config_old)
             self.admin("RELOAD")
+
+class OpenLDAP:
+    def __init__(self, config_dir):
+        self.port_lock = PortLock()
+        self.slapd = "/usr/sbin/slapd"
+        self.config_dir = config_dir
+        self.ldap_dir = config_dir / "ldap"
+        self.ldap_dir.mkdir()
+        self.ldap_datadir = self.ldap_dir / "openldap-data"
+        self.slapd_conf = self.ldap_dir / "slapd.conf"
+        self.slapd_pidfile = self.ldap_dir / "slapd.pid"
+        self.slapd_logfile = self.ldap_dir / "slapd.log"
+        self.ldap_conf = self.ldap_dir / "ldap.conf"
+
+        self.ldap_server = "localhost"
+        self.ldap_port = self.port_lock.port
+        self.ldap_url = f"ldap://{self.ldap_server}:{self.port_lock.port}"
+        self.ldap_basedn = 'dc=example,dc=net'
+        self.ldap_rootdn = 'cn=Manager,dc=example,dc=net'
+        self.ldap_rootpw = 'secret'
+        self.ldif_file = self.ldap_dir / "ldap.ldif"
+        if os.path.exists("/etc/ldap/schema"):
+            self.ldap_schema_dir = "/etc/ldap/schema"
+        else:
+            self.ldap_schema_dir = "/etc/openldap/schema"
+
+    def startup(self):
+        assert (os.path.exists(f"{self.slapd}"))
+        with self.ldap_conf.open("w") as ldap_conf:
+            ldap_conf.write("TLS_REQCERT never\n")
+
+        with self.slapd_conf.open('w') as slapd_conf:
+            slapd_conf.write(
+f"""include {self.ldap_schema_dir}/core.schema
+include {self.ldap_schema_dir}/cosine.schema
+include {self.ldap_schema_dir}/nis.schema
+include {self.ldap_schema_dir}/inetorgperson.schema
+pidfile {self.slapd_pidfile}
+logfile {self.slapd_logfile}
+access to *
+        by * read
+        by anonymous auth
+
+database ldif
+directory {self.ldap_datadir}
+suffix "dc=example,dc=net"
+rootdn "{self.ldap_rootdn}"
+rootpw {self.ldap_rootpw}
+""")
+        self.ldap_datadir.mkdir()
+        with self.ldif_file.open('w') as ldif_file:
+            ldif_file.write(
+"""dn: dc=example,dc=net
+objectClass: top
+objectClass: dcObject
+objectClass: organization
+dc: example
+o: ExampleCo
+
+dn: uid=ldapuser1,dc=example,dc=net
+objectClass: inetOrgPerson
+objectClass: posixAccount
+uid: ldapuser1
+sn: Lastname
+givenName: Firstname
+cn: First Test User
+displayName: First Test User
+uidNumber: 101
+gidNumber: 100
+homeDirectory: /home/ldapuser1
+mail: ldapuser1@example.net
+
+""")
+        d = dict()
+        d["LDAPURI"] = self.ldap_url
+        d["LDAPBINDDN"] = self.ldap_rootdn
+
+        print(f"{self.slapd} -f {self.slapd_conf} -h {self.ldap_url}")
+        run([f"{self.slapd}", "-f", f"{self.slapd_conf}", "-h", f"{self.ldap_url}"], shell=False)
+        time.sleep(1)
+        print(f"ldapadd -x -w {self.ldap_rootpw} -f {self.ldif_file} -H {self.ldap_url}")
+        run(["ldapadd", "-x", "-w", f"{self.ldap_rootpw}", "-f", f"{self.ldif_file}"], shell=True, env=d)
+        run(["ldappasswd", "-x", "-w", f"{self.ldap_rootpw}", "-s", "secret1", "uid=ldapuser1,dc=example,dc=net"], shell=True, env=d)
+        run(["ldapsearch", "-x", "-b", "dc=example,dc=net"], shell=True, env=d)
+        time.sleep(1)
+
+
+    def stop(self):
+        with self.slapd_pidfile.open('r') as pid_file:
+            pid = pid_file.read()
+        os.kill(int(pid), signal.SIGTERM)
+
+    def cleanup(self):
+        self.stop()
+        self.port_lock.release()

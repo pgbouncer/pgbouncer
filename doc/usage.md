@@ -503,8 +503,11 @@ dns_pending
 name
 :   The user name
 
+pool_size
+:   The user's override pool_size. or NULL if not set.
+
 pool_mode
-:   The user's override pool_mode, or NULL if the default will be used instead.
+:   The user's override pool_mode, or NULL if not set.
 
 max_user_connections
 :   The user's max_user_connections setting. If this setting is not set

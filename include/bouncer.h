@@ -523,6 +523,7 @@ struct PgGlobalUser {
 	PgCredentials credentials;	/* needs to be first for AAtree */
 	struct List head;	/* used to attach user to list */
 	int pool_mode;
+	int pool_size;				/* max server connections in one pool */
 	int max_user_connections;	/* how much server connections are allowed */
 	int connection_count;	/* how much connections are used by user now */
 };

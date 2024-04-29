@@ -1262,6 +1262,10 @@ password for that user if `auth_user` is set. If `auth_user` is not set,
 pgBouncer will pretend the user exists and fail to return "no such user"
 messages to the client, but neither will it accept any provided password.
 
+### pool_size
+
+Set the maximum size of pools for all connections from this user.  If not set,
+the database or `default_pool_size` is used.
 
 ### pool_mode
 

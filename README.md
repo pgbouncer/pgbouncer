@@ -83,8 +83,8 @@ well as socket activation.  See `etc/pgbouncer.service` and
 Building from Git
 -----------------
 
-Building PgBouncer from Git requires that you fetch the libusual
-submodule and generate the header and configuration files before
+Building PgBouncer from Git requires that you fetch the libusual and
+uthash submodules and generate the header and configuration files before
 you can run `configure`:
 
 	$ git clone https://github.com/pgbouncer/pgbouncer.git
@@ -92,9 +92,14 @@ you can run `configure`:
 	$ git submodule init
 	$ git submodule update
 	$ ./autogen.sh
-	$ ./configure ...
+	$ ./configure
 	$ make
 	$ make install
+
+All files will be installed under `/usr/local` by default. You can
+supply one or more command-line options to `configure`. Run
+`./configure --help` to list the available options and the environment
+variables that customizes the configuration.
 
 Additional packages required: autoconf, automake, libtool, pandoc
 
@@ -113,12 +118,12 @@ Visual $ANYTHING are not supported.
 
 To build on MinGW, do the usual:
 
-	$ ./configure ...
+	$ ./configure
 	$ make
 
 If cross-compiling from Unix:
 
-	$ ./configure --host=i586-mingw32msvc ...
+	$ ./configure --host=i586-mingw32msvc
 
 Running on Windows
 ------------------

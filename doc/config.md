@@ -1256,11 +1256,11 @@ Example:
 
 Only a few settings are available here.
 
-Note that when `auth_file` is in play, if a user is defined in this section but
-not listed in `auth_file`, pgBouncer will attempt to use `auth_query` to find
-a password for that user. If `auth_query` is not configured, pgBouncer will pretend
-the user exists and fail to return "no such user" messages to the client, but
-neither will it accept any provided password.
+Note that when `auth_file` configured, if a user is defined in this section but
+not listed in `auth_file`, pgBouncer will attempt to use `auth_query` to find a
+password for that user if `auth_user` is set. If `auth_user` is not set,
+pgBouncer will pretend the user exists and fail to return "no such user"
+messages to the client, but neither will it accept any provided password.
 
 
 ### pool_mode
@@ -1430,7 +1430,7 @@ The file follows the format of the PostgreSQL `pg_hba.conf` file
 * Address field: Supports IPv4, IPv6.  Not supported: DNS names, domain prefixes.
 * Auth-method field: Only methods supported by PgBouncer's `auth_type`
   are supported, plus `peer` and `reject`, but except `any` and `pam`, which only work globally.
-* User name map (`map=`) parameter is supported when `auth_type` is `cert` or `peer`. 
+* User name map (`map=`) parameter is supported when `auth_type` is `cert` or `peer`.
 
 ## Ident map file format
 

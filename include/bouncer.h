@@ -506,7 +506,7 @@ struct PgCredentials {
 	bool dynamic_passwd;		/* does the password need to be refreshed every use */
 
 	/*
-	 * global_user points at the global user that is used for configuration
+	 * global_user points at the global user which is used for configuration
 	 * settings and connection count tracking.
 	 */
 	PgGlobalUser *global_user;
@@ -514,7 +514,7 @@ struct PgCredentials {
 
 /*
  * The global user is used for configuration settings and connection count. It
- * includes credentials, but this are empty if the user is not configured in
+ * includes credentials, but these are empty if the user is not configured in
  * the auth_file.
  *
  * FIXME: remove ->head as ->tree_node should be enough.

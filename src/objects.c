@@ -530,15 +530,19 @@ PgCredentials *add_global_credentials(const char *name, const char *passwd)
 	return &user->credentials;
 }
 
-/* add or update db users. Used for dynamic users configured with
-   auth_query. */
+/*
+ * Add dynamic credentials to this database. This should be used for dynamic
+ * credentials, that were retrieved using the auth_query.
+ */
 PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const char *passwd)
 {
 	PgCredentials *credentials = NULL;
 	struct AANode *node;
 
-	/* db users are stored in a different aatree than configured users,
-	   so we cannot use find_global_user() here. */
+	/*
+	 * Dynamic credentials are stored in an aatree that's specific to the
+	 * database. So we cannot use find_global_user() here.
+	 */
 	node = aatree_search(&db->user_tree, (uintptr_t)name);
 	credentials = node ? container_of(node, PgCredentials, tree_node) : NULL;
 

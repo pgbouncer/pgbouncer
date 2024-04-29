@@ -483,15 +483,16 @@ struct PgPool {
 		statlist_count(&(pool)->waiting_client_list))
 
 /*
- * A user in login db.
- *
- * FIXME: remove ->head as ->tree_node should be enough.
+ * Credentials for a user in login db.
  *
  * For databases where remote user is forced, the pool is:
  * first(db->forced_user_credentials->pool_list), where pool_list has only one entry.
  *
+ * For dynamic credentials coming from auth_query, the pool list only contains
+ * one pool.
+ *
  * Otherwise, ->pool_list contains multiple pools, for all PgDatabases
- * which user has logged in.
+ * that use these credentials.
  */
 struct PgCredentials {
 	struct List pool_list;		/* list of pools where pool->user == this user */
@@ -504,12 +505,20 @@ struct PgCredentials {
 	bool mock_auth;			/* not a real user, only for mock auth */
 	bool dynamic_passwd;		/* does the password need to be refreshed every use */
 
-	/* global_user points at the configured user that a user
-	 * with a dynamic password is shadowing. For configured
-	 * users, global_user points at itself. */
+	/*
+	 * global_user points at the global user that is used for configuration
+	 * settings and connection count tracking.
+	 */
 	PgGlobalUser *global_user;
 };
 
+/*
+ * The global user is used for configuration settings and connection count. It
+ * includes credentials, but this are empty if the user is not configured in
+ * the auth_file.
+ *
+ * FIXME: remove ->head as ->tree_node should be enough.
+ */
 struct PgGlobalUser {
 	PgCredentials credentials;	/* needs to be first for AAtree */
 	struct List head;	/* used to attach user to list */

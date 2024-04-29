@@ -482,22 +482,6 @@ PgDatabase *register_auto_database(const char *name)
 	return db;
 }
 
-/*
- * set PgCredentials password, and toggle the its dynamic password flag as
- * appropriate.
- */
-static void set_credentials_password(PgCredentials *credentials, const char *passwd)
-{
-	if (passwd && strlen(passwd) > 0) {
-		credentials->dynamic_passwd = false;
-		safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
-		log_debug("user \"%s\" gets pw \"%s\"", credentials->name, credentials->passwd);
-	} else {
-		credentials->dynamic_passwd = true;
-		log_debug("user \"%s\" has dynamic pw", credentials->name);
-	}
-}
-
 /* add or update client users */
 PgGlobalUser *add_global_user(const char *name, const char *passwd)
 {
@@ -519,7 +503,8 @@ PgGlobalUser *add_global_user(const char *name, const char *passwd)
 		user->pool_size = -1;
 	}
 
-	set_credentials_password(&user->credentials, passwd);
+	safe_strcpy(user->credentials.passwd, passwd, sizeof(user->credentials.passwd));
+	user->credentials.dynamic_passwd = strlen(passwd) == 0;
 	return user;
 }
 
@@ -562,7 +547,8 @@ PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const c
 		}
 	}
 
-	set_credentials_password(credentials, passwd);
+	safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
+	credentials->dynamic_passwd = true;
 
 	return credentials;
 }

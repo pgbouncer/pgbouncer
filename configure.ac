@@ -96,6 +96,7 @@ AC_ARG_WITH(ldap,
         fi
         if test x"${have_ldap_header}" != x -a x"${have_libldap}" != x -a x"${have_pthreads}" = xyes; then
           ldap_support=yes
+          AC_SUBST(ldap_support)
           AC_SUBST(LDAP_CFLAGS, "-DLDAP_DEPRECATED")
           AC_DEFINE(HAVE_LDAP, 1, [LDAP support])
         fi

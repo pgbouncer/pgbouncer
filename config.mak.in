@@ -71,5 +71,6 @@ WINDRES = @WINDRES@
 
 enable_debug = @enable_debug@
 tls_support = @tls_support@
+ldap_support = @ldap_support@
 
 host_cpu = @host_cpu@

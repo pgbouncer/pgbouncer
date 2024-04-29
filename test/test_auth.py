@@ -13,6 +13,7 @@ from .utils import (
     PG_SUPPORTS_SCRAM,
     TLS_SUPPORT,
     WINDOWS,
+    LDAP_SUPPORT,
 )
 
 
@@ -890,3 +891,16 @@ def test_peer_auth_ident_map(bouncer):
         host=f"{bouncer.admin_host}",
         user="bouncer",
     )
+
+@pytest.mark.skipif("MACOS", reason="OpenLDAP on OSX is difficult")
+@pytest.mark.skipif("WINDOWS", reason="We do not expect to support ldap on Windows")
+@pytest.mark.skipif(not LDAP_SUPPORT, reason="pgbouncer is built without LDAP support")
+def test_ldap_auth(bouncer, openldap):
+    hba_conf_file = bouncer.config_dir / "ldap_hba.conf"
+    with open(hba_conf_file, 'w') as f:
+        f.write(f'host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 ldapport={openldap.ldap_port} ldapprefix="uid=" ldapsuffix=",dc=example,dc=net"\n')
+        f.write('local all ldapuser1 ldap ldapserver=127.0.0.1 ldapport={openldap.ldap_port} ldapprefix="uid=" ldapsuffix=",dc=example,dc=net"\n')
+    bouncer.write_ini(f"auth_type = hba")
+    bouncer.write_ini(f"auth_hba_file = {hba_conf_file}")
+    bouncer.admin("reload")
+    bouncer.test(user="ldapuser1", password="secret1")

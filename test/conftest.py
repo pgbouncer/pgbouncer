@@ -10,11 +10,13 @@ from .utils import (
     PG_SUPPORTS_SCRAM,
     TEST_DIR,
     TLS_SUPPORT,
+    LDAP_SUPPORT,
     USE_SUDO,
     Bouncer,
     Postgres,
     run,
     sudo,
+    OpenLDAP,
 )
 
 
@@ -128,6 +130,9 @@ def pg(tmp_path_factory, cert_dir):
     for i in range(8):
         pg.sql(f"create database p{i}")
 
+    if LDAP_SUPPORT:
+        pg.sql("create user ldapuser1 login password 'secret1'")
+
     pg.sql("create database unconfigured_auth_database")
     pg.sql("create user bouncer")
     pg.sql("create user pswcheck with superuser createdb password 'pgbouncer-check';")
@@ -208,3 +213,12 @@ def pg_reset(pg):
         pg.reload()
 
     yield
+
+
+@pytest.fixture
+def openldap(tmp_path_factory):
+    """Starts an openldap server under tmp_path/ldap for tests in this process"""
+    ldap = OpenLDAP(tmp_path_factory.getbasetemp())
+    ldap.startup()
+    yield ldap
+    ldap.cleanup()

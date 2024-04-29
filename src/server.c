@@ -217,7 +217,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 
 int pool_pool_mode(PgPool *pool)
 {
-	int pool_mode = pool->user->global_user->pool_mode;
+	int pool_mode = pool->user_credentials->global_user->pool_mode;
 	if (pool_mode == POOL_INHERIT)
 		pool_mode = pool->db->pool_mode;
 	if (pool_mode == POOL_INHERIT)

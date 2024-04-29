@@ -127,7 +127,7 @@ enum PacketCallbackFlag {
 
 
 typedef struct PgSocket PgSocket;
-typedef struct PgAuthInfo PgAuthInfo;
+typedef struct PgCredentials PgCredentials;
 typedef struct PgGlobalUser PgGlobalUser;
 typedef struct PgDatabase PgDatabase;
 typedef struct PgPool PgPool;
@@ -327,7 +327,11 @@ struct PgPool {
 	struct List map_head;			/* entry in user->pool_list */
 
 	PgDatabase *db;			/* corresponding database */
-	PgAuthInfo *user;			/* user logged in as, this field is NULL for peer pools */
+	/*
+	 * credentials for the user logged in user, this field is NULL for peer
+	 * pools.
+	 */
+	PgCredentials *user_credentials;
 
 	/*
 	 * Clients that are both logged in and where pgbouncer is actively
@@ -484,12 +488,12 @@ struct PgPool {
  * FIXME: remove ->head as ->tree_node should be enough.
  *
  * For databases where remote user is forced, the pool is:
- * first(db->forced_auth_info->pool_list), where pool_list has only one entry.
+ * first(db->forced_user_credentials->pool_list), where pool_list has only one entry.
  *
  * Otherwise, ->pool_list contains multiple pools, for all PgDatabases
  * which user has logged in.
  */
-struct PgAuthInfo {
+struct PgCredentials {
 	struct List pool_list;		/* list of pools where pool->user == this user */
 	struct AANode tree_node;	/* used to attach user to tree */
 	char name[MAX_USERNAME];
@@ -507,7 +511,7 @@ struct PgAuthInfo {
 };
 
 struct PgGlobalUser {
-	PgAuthInfo auth_info;	/* needs to be first for AAtree */
+	PgCredentials credentials;	/* needs to be first for AAtree */
 	struct List head;	/* used to attach user to list */
 	int pool_mode;
 	int max_user_connections;	/* how much server connections are allowed */
@@ -542,8 +546,8 @@ struct PgDatabase {
 	struct PktBuf *startup_params;	/* partial StartupMessage (without user) be sent to server */
 	const char *dbname;	/* server-side name, pointer to inside startup_msg */
 	char *auth_dbname;	/* if not NULL, auth_query will be run on the specified database */
-	PgAuthInfo *forced_auth_info;	/* if not NULL, the user/psw is forced */
-	PgAuthInfo *auth_user;	/* if not NULL, users not in userlist.txt will be looked up on the server */
+	PgCredentials *forced_user_credentials;	/* if not NULL, the user/psw is forced */
+	PgCredentials *auth_user_credentials;	/* if not NULL, users not in userlist.txt will be looked up on the server */
 	char *auth_query;	/* if not NULL, will be used to fetch password from database. */
 
 	/*
@@ -604,7 +608,7 @@ struct PgSocket {
 	PgSocket *link;		/* the dest of packets */
 	PgPool *pool;		/* parent pool, if NULL not yet assigned */
 
-	PgAuthInfo *login_user;	/* presented login, for client it may differ from pool->user */
+	PgCredentials *login_user_credentials;	/* presented login, for client it may differ from pool->user */
 
 	int client_auth_type;	/* auth method decided by hba */
 

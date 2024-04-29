@@ -66,7 +66,7 @@ struct Slab *peer_cache;
 struct Slab *peer_pool_cache;
 struct Slab *pool_cache;
 struct Slab *user_cache;
-struct Slab *auth_info_cache;
+struct Slab *credentials_cache;
 struct Slab *iobuf_cache;
 struct Slab *outstanding_request_cache;
 struct Slab *var_list_cache;
@@ -120,28 +120,28 @@ static void construct_server(void *obj)
 	statlist_init(&server->outstanding_requests, "outstanding_requests");
 }
 
-/* compare string with PgAuthInfo->name, for usage with btree */
-static int user_node_cmp(uintptr_t userptr, struct AANode *node)
+/* compare string with PgCredentials->name, for usage with btree */
+static int credentials_node_cmp(uintptr_t userptr, struct AANode *node)
 {
 	const char *name = (const char *)userptr;
-	PgAuthInfo *user = container_of(node, PgAuthInfo, tree_node);
-	return strcmp(name, user->name);
+	PgCredentials *credentials = container_of(node, PgCredentials, tree_node);
+	return strcmp(name, credentials->name);
 }
 
-/* destroy PgAuthInfo, for usage with btree */
-static void auth_info_node_release(struct AANode *node, void *arg)
+/* destroy PgCredentials, for usage with btree */
+static void credentials_node_release(struct AANode *node, void *arg)
 {
-	PgAuthInfo *user = container_of(node, PgAuthInfo, tree_node);
+	PgCredentials *user = container_of(node, PgCredentials, tree_node);
 	slab_free(user_cache, user);
 }
 
 /* initialization before config loading */
 void init_objects(void)
 {
-	aatree_init(&user_tree, user_node_cmp, NULL);
-	aatree_init(&pam_user_tree, user_node_cmp, NULL);
+	aatree_init(&user_tree, credentials_node_cmp, NULL);
+	aatree_init(&pam_user_tree, credentials_node_cmp, NULL);
 	user_cache = slab_create("user_cache", sizeof(PgGlobalUser), 0, NULL, USUAL_ALLOC);
-	auth_info_cache = slab_create("auth_info_cache", sizeof(PgAuthInfo), 0, NULL, USUAL_ALLOC);
+	credentials_cache = slab_create("credentials_cache", sizeof(PgCredentials), 0, NULL, USUAL_ALLOC);
 	db_cache = slab_create("db_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
 	peer_cache = slab_create("peer_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
 	peer_pool_cache = slab_create("peer_pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
@@ -354,14 +354,14 @@ static int cmp_pool(struct List *i1, struct List *i2)
 	PgPool *p2 = container_of(i2, PgPool, head);
 	if (p1->db != p2->db)
 		return strcmp(p1->db->name, p2->db->name);
-	if (p1->user != p2->user) {
-		if (p1->user == NULL) {
+	if (p1->user_credentials != p2->user_credentials) {
+		if (p1->user_credentials == NULL) {
 			return 1;
 		}
-		if (p2->user == NULL) {
+		if (p2->user_credentials == NULL) {
 			return -1;
 		}
-		return strcmp(p1->user->name, p2->user->name);
+		return strcmp(p1->user_credentials->name, p2->user_credentials->name);
 	}
 	return 0;
 }
@@ -381,7 +381,7 @@ static int cmp_user(struct List *i1, struct List *i2)
 {
 	PgGlobalUser *u1 = container_of(i1, PgGlobalUser, head);
 	PgGlobalUser *u2 = container_of(i2, PgGlobalUser, head);
-	return strcmp(u1->auth_info.name, u2->auth_info.name);
+	return strcmp(u1->credentials.name, u2->credentials.name);
 }
 
 /* compare db names, for use with put_in_order */
@@ -456,7 +456,7 @@ PgDatabase *add_database(const char *name)
 			slab_free(db_cache, db);
 			return NULL;
 		}
-		aatree_init(&db->user_tree, user_node_cmp, auth_info_node_release);
+		aatree_init(&db->user_tree, credentials_node_cmp, credentials_node_release);
 		put_in_order(&db->head, &database_list, cmp_database);
 	}
 
@@ -483,18 +483,18 @@ PgDatabase *register_auto_database(const char *name)
 }
 
 /*
- * set PgAuthInfo password, and toggle the its dynamic password flag as
+ * set PgCredentials password, and toggle the its dynamic password flag as
  * appropriate.
  */
-static void set_auth_info_password(PgAuthInfo *auth_info, const char *passwd)
+static void set_credentials_password(PgCredentials *credentials, const char *passwd)
 {
 	if (passwd && strlen(passwd) > 0) {
-		auth_info->dynamic_passwd = false;
-		safe_strcpy(auth_info->passwd, passwd, sizeof(auth_info->passwd));
-		log_debug("user \"%s\" gets pw \"%s\"", auth_info->name, auth_info->passwd);
+		credentials->dynamic_passwd = false;
+		safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
+		log_debug("user \"%s\" gets pw \"%s\"", credentials->name, credentials->passwd);
 	} else {
-		auth_info->dynamic_passwd = true;
-		log_debug("user \"%s\" has dynamic pw", auth_info->name);
+		credentials->dynamic_passwd = true;
+		log_debug("user \"%s\" has dynamic pw", credentials->name);
 	}
 }
 
@@ -507,108 +507,108 @@ PgGlobalUser *add_global_user(const char *name, const char *passwd)
 		user = slab_alloc(user_cache);
 		if (!user)
 			return NULL;
-		user->auth_info.global_user = user;
+		user->credentials.global_user = user;
 
 		list_init(&user->head);
-		list_init(&user->auth_info.pool_list);
-		safe_strcpy(user->auth_info.name, name, sizeof(user->auth_info.name));
+		list_init(&user->credentials.pool_list);
+		safe_strcpy(user->credentials.name, name, sizeof(user->credentials.name));
 		put_in_order(&user->head, &user_list, cmp_user);
 
-		aatree_insert(&user_tree, (uintptr_t)user->auth_info.name, &user->auth_info.tree_node);
-		user->auth_info.global_user->pool_mode = POOL_INHERIT;
+		aatree_insert(&user_tree, (uintptr_t)user->credentials.name, &user->credentials.tree_node);
+		user->credentials.global_user->pool_mode = POOL_INHERIT;
 	}
 
-	set_auth_info_password(&user->auth_info, passwd);
+	set_credentials_password(&user->credentials, passwd);
 	return user;
 }
 
-PgAuthInfo *add_global_auth_info(const char *name, const char *passwd)
+PgCredentials *add_global_credentials(const char *name, const char *passwd)
 {
 	PgGlobalUser *user = add_global_user(name, passwd);
 	if (!user)
 		return NULL;
-	return &user->auth_info;
+	return &user->credentials;
 }
 
 /* add or update db users. Used for dynamic users configured with
    auth_query. */
-PgAuthInfo *add_dynamic_auth_info(PgDatabase *db, const char *name, const char *passwd)
+PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const char *passwd)
 {
-	PgAuthInfo *auth_info = NULL;
+	PgCredentials *credentials = NULL;
 	struct AANode *node;
 
 	/* db users are stored in a different aatree than configured users,
 	   so we cannot use find_global_user() here. */
 	node = aatree_search(&db->user_tree, (uintptr_t)name);
-	auth_info = node ? container_of(node, PgAuthInfo, tree_node) : NULL;
+	credentials = node ? container_of(node, PgCredentials, tree_node) : NULL;
 
-	if (auth_info == NULL) {
-		auth_info = slab_alloc(auth_info_cache);
-		if (!auth_info)
+	if (credentials == NULL) {
+		credentials = slab_alloc(credentials_cache);
+		if (!credentials)
 			return NULL;
 
-		list_init(&auth_info->pool_list);
-		safe_strcpy(auth_info->name, name, sizeof(auth_info->name));
+		list_init(&credentials->pool_list);
+		safe_strcpy(credentials->name, name, sizeof(credentials->name));
 
-		aatree_insert(&db->user_tree, (uintptr_t)auth_info->name, &auth_info->tree_node);
-		auth_info->global_user = find_global_user(name);
-		if (!auth_info->global_user) {
-			auth_info->global_user = add_global_user(name, NULL);
+		aatree_insert(&db->user_tree, (uintptr_t)credentials->name, &credentials->tree_node);
+		credentials->global_user = find_global_user(name);
+		if (!credentials->global_user) {
+			credentials->global_user = add_global_user(name, NULL);
 		}
 	}
 
-	set_auth_info_password(auth_info, passwd);
+	set_credentials_password(credentials, passwd);
 
-	return auth_info;
+	return credentials;
 }
 
-/* Add PAM user. The logic is same as in add_dynamic_auth_info */
-PgAuthInfo *add_pam_auth_info(const char *name, const char *passwd)
+/* Add PAM user. The logic is same as in add_dynamic_credentials */
+PgCredentials *add_pam_credentials(const char *name, const char *passwd)
 {
-	PgAuthInfo *auth_info = NULL;
+	PgCredentials *credentials = NULL;
 	struct AANode *node;
 
 	node = aatree_search(&pam_user_tree, (uintptr_t)name);
-	auth_info = node ? container_of(node, PgAuthInfo, tree_node) : NULL;
+	credentials = node ? container_of(node, PgCredentials, tree_node) : NULL;
 
-	if (auth_info == NULL) {
-		auth_info = slab_alloc(auth_info_cache);
-		if (!auth_info)
+	if (credentials == NULL) {
+		credentials = slab_alloc(credentials_cache);
+		if (!credentials)
 			return NULL;
 
-		list_init(&auth_info->pool_list);
-		safe_strcpy(auth_info->name, name, sizeof(auth_info->name));
+		list_init(&credentials->pool_list);
+		safe_strcpy(credentials->name, name, sizeof(credentials->name));
 
-		aatree_insert(&pam_user_tree, (uintptr_t)auth_info->name, &auth_info->tree_node);
-		auth_info->global_user = find_global_user(name);
-		if (!auth_info->global_user) {
-			auth_info->global_user = add_global_user(name, NULL);
+		aatree_insert(&pam_user_tree, (uintptr_t)credentials->name, &credentials->tree_node);
+		credentials->global_user = find_global_user(name);
+		if (!credentials->global_user) {
+			credentials->global_user = add_global_user(name, NULL);
 		}
 	}
 	if (passwd)
-		safe_strcpy(auth_info->passwd, passwd, sizeof(auth_info->passwd));
-	return auth_info;
+		safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
+	return credentials;
 }
 
-/* create separate PgAuthInfo object for this database */
-PgAuthInfo *force_auth_info(PgDatabase *db, const char *name, const char *passwd)
+/* create separate PgCredentials object for this database */
+PgCredentials *force_user_credentials(PgDatabase *db, const char *name, const char *passwd)
 {
-	PgAuthInfo *auth_info = db->forced_auth_info;
-	if (!auth_info) {
-		auth_info = slab_alloc(auth_info_cache);
-		if (!auth_info)
+	PgCredentials *credentials = db->forced_user_credentials;
+	if (!credentials) {
+		credentials = slab_alloc(credentials_cache);
+		if (!credentials)
 			return NULL;
 
-		list_init(&auth_info->pool_list);
-		auth_info->global_user = find_global_user(name);
-		if (!auth_info->global_user) {
-			auth_info->global_user = add_global_user(name, NULL);
+		list_init(&credentials->pool_list);
+		credentials->global_user = find_global_user(name);
+		if (!credentials->global_user) {
+			credentials->global_user = add_global_user(name, NULL);
 		}
 	}
-	safe_strcpy(auth_info->name, name, sizeof(auth_info->name));
-	safe_strcpy(auth_info->passwd, passwd, sizeof(auth_info->passwd));
-	db->forced_auth_info = auth_info;
-	return auth_info;
+	safe_strcpy(credentials->name, name, sizeof(credentials->name));
+	safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
+	db->forced_user_credentials = credentials;
+	return credentials;
 }
 
 /* find an existing database */
@@ -671,22 +671,22 @@ PgGlobalUser *find_global_user(const char *name)
 	struct AANode *node;
 
 	node = aatree_search(&user_tree, (uintptr_t)name);
-	/* we use the tree_node in the embedded PgAuthInfo struct */
-	user = node ? (PgGlobalUser *) container_of(node, PgAuthInfo, tree_node) : NULL;
+	/* we use the tree_node in the embedded PgCredentials struct */
+	user = node ? (PgGlobalUser *) container_of(node, PgCredentials, tree_node) : NULL;
 	return user;
 }
 
-PgAuthInfo *find_global_auth_info(const char *name)
+PgCredentials *find_global_credentials(const char *name)
 {
 	PgGlobalUser *user = find_global_user(name);
 	if (!user)
 		return NULL;
-	return &user->auth_info;
+	return &user->credentials;
 }
 
 
 /* create new pool object */
-static PgPool *new_pool(PgDatabase *db, PgAuthInfo *user)
+static PgPool *new_pool(PgDatabase *db, PgCredentials *user_credentials)
 {
 	PgPool *pool;
 
@@ -698,7 +698,7 @@ static PgPool *new_pool(PgDatabase *db, PgAuthInfo *user)
 	list_init(&pool->map_head);
 	pool->orig_vars.var_list = slab_alloc(var_list_cache);
 
-	pool->user = user;
+	pool->user_credentials = user_credentials;
 	pool->db = db;
 
 	statlist_init(&pool->active_client_list, "active_client_list");
@@ -713,7 +713,7 @@ static PgPool *new_pool(PgDatabase *db, PgAuthInfo *user)
 	statlist_init(&pool->active_cancel_server_list, "active_cancel_server_list");
 	statlist_init(&pool->being_canceled_server_list, "being_canceled_server_list");
 
-	list_append(&user->pool_list, &pool->map_head);
+	list_append(&user_credentials->pool_list, &pool->map_head);
 
 	/* keep pools in db/user order to make stats faster */
 	put_in_order(&pool->head, &pool_list, cmp_pool);
@@ -754,21 +754,21 @@ static PgPool *new_peer_pool(PgDatabase *db)
 	return pool;
 }
 /* find pool object, create if needed */
-PgPool *get_pool(PgDatabase *db, PgAuthInfo *user)
+PgPool *get_pool(PgDatabase *db, PgCredentials *user_credentials)
 {
 	struct List *item;
 	PgPool *pool;
 
-	if (!db || !user)
+	if (!db || !user_credentials)
 		return NULL;
 
-	list_for_each(item, &user->pool_list) {
+	list_for_each(item, &user_credentials->pool_list) {
 		pool = container_of(item, PgPool, map_head);
 		if (pool->db == db)
 			return pool;
 	}
 
-	return new_pool(db, user);
+	return new_pool(db, user_credentials);
 }
 
 /* find pool object for the peer */
@@ -1340,8 +1340,8 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 	free_scram_state(&server->scram_state);
 
 	server->pool->db->connection_count--;
-	if (server->pool->user)
-		server->pool->user->global_user->connection_count--;
+	if (server->pool->user_credentials)
+		server->pool->user_credentials->global_user->connection_count--;
 
 	change_server_state(server, SV_JUSTFREE);
 	if (!sbuf_close(&server->sbuf))
@@ -1489,9 +1489,9 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 
 	free_header(&client->packet_cb_state.pkt);
 	free_scram_state(&client->scram_state);
-	if (client->login_user && client->login_user->mock_auth) {
-		free(client->login_user);
-		client->login_user = NULL;
+	if (client->login_user_credentials && client->login_user_credentials->mock_auth) {
+		free(client->login_user_credentials);
+		client->login_user_credentials = NULL;
 	}
 	if (client->db && client->db->fake) {
 		free(client->db);
@@ -1693,7 +1693,7 @@ bool evict_connection(PgDatabase *db)
 }
 
 /* evict the single most idle connection from among all pools to make room in the user */
-bool evict_user_connection(PgAuthInfo *user)
+bool evict_user_connection(PgCredentials *user_credentials)
 {
 	struct List *item;
 	PgPool *pool;
@@ -1701,7 +1701,7 @@ bool evict_user_connection(PgAuthInfo *user)
 
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
-		if (pool->user != user)
+		if (pool->user_credentials != user_credentials)
 			continue;
 		oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->idle_server_list));
 		/* only evict testing connections if nobody's waiting */
@@ -1818,17 +1818,17 @@ allow_new:
 		}
 	}
 
-	max = user_max_connections(pool->user->global_user);
+	max = user_max_connections(pool->user_credentials->global_user);
 	if (max > 0) {
 		/* try to evict unused connection first */
-		while (evict_if_needed && pool->user->global_user->connection_count >= max) {
-			if (!evict_user_connection(pool->user)) {
+		while (evict_if_needed && pool->user_credentials->global_user->connection_count >= max) {
+			if (!evict_user_connection(pool->user_credentials)) {
 				break;
 			}
 		}
-		if (pool->user->global_user->connection_count >= max) {
+		if (pool->user_credentials->global_user->connection_count >= max) {
 			log_debug("launch_new_connection: user '%s' full (%d >= %d)",
-				  pool->user->name, pool->user->global_user->connection_count, max);
+				  pool->user_credentials->name, pool->user_credentials->global_user->connection_count, max);
 			return;
 		}
 	}
@@ -1843,14 +1843,14 @@ force_new:
 
 	/* initialize it */
 	server->pool = pool;
-	server->login_user = server->pool->user;
+	server->login_user_credentials = server->pool->user_credentials;
 	server->connect_time = get_cached_time();
 	statlist_init(&server->canceling_clients, "canceling_clients");
 	pool->last_connect_time = get_cached_time();
 	change_server_state(server, SV_LOGIN);
 	pool->db->connection_count++;
-	if (pool->user)
-		pool->user->global_user->connection_count++;
+	if (pool->user_credentials)
+		pool->user_credentials->global_user->connection_count++;
 
 	dns_connect(server);
 }
@@ -1894,7 +1894,7 @@ bool finish_client_login(PgSocket *client)
 {
 	if (client->db->fake) {
 		if (cf_log_connections)
-			slog_info(client, "login failed: db=%s user=%s", client->db->name, client->login_user->name);
+			slog_info(client, "login failed: db=%s user=%s", client->db->name, client->login_user_credentials->name);
 		disconnect_client(client, true, "no such database: %s", client->db->name);
 		return false;
 	}
@@ -2159,18 +2159,18 @@ bool use_client_socket(int fd, PgAddr *addr,
 	}
 
 	if (scram_client_key || scram_server_key) {
-		PgAuthInfo *user;
+		PgCredentials *credentials;
 
 		if (!scram_client_key || !scram_server_key) {
 			log_error("incomplete SCRAM key data");
 			return false;
 		}
-		if (sizeof(user->scram_ClientKey) != scram_client_key_len
-		    || sizeof(user->scram_ServerKey) != scram_server_key_len) {
+		if (sizeof(credentials->scram_ClientKey) != scram_client_key_len
+		    || sizeof(credentials->scram_ServerKey) != scram_server_key_len) {
 			log_error("incompatible SCRAM key data");
 			return false;
 		}
-		if (db->forced_auth_info) {
+		if (db->forced_user_credentials) {
 			log_error("SCRAM key data received for forced user");
 			return false;
 		}
@@ -2178,16 +2178,16 @@ bool use_client_socket(int fd, PgAddr *addr,
 			log_error("SCRAM key data received for PAM user");
 			return false;
 		}
-		user = find_global_auth_info(username);
-		if (!user && db->auth_user)
-			user = add_dynamic_auth_info(db, username, password);
+		credentials = find_global_credentials(username);
+		if (!credentials && db->auth_user_credentials)
+			credentials = add_dynamic_credentials(db, username, password);
 
-		if (!user)
+		if (!credentials)
 			return false;
 
-		memcpy(user->scram_ClientKey, scram_client_key, sizeof(user->scram_ClientKey));
-		memcpy(user->scram_ServerKey, scram_server_key, sizeof(user->scram_ServerKey));
-		user->has_scram_keys = true;
+		memcpy(credentials->scram_ClientKey, scram_client_key, sizeof(credentials->scram_ClientKey));
+		memcpy(credentials->scram_ServerKey, scram_server_key, sizeof(credentials->scram_ServerKey));
+		credentials->has_scram_keys = true;
 	}
 
 	client = accept_client(fd, pga_is_unix(addr));
@@ -2226,7 +2226,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 		       const char *scram_server_key, int scram_server_key_len)
 {
 	PgDatabase *db = find_database(dbname);
-	PgAuthInfo *user;
+	PgCredentials *credentials;
 	PgPool *pool;
 	PgSocket *server;
 	PktBuf tmp;
@@ -2239,17 +2239,17 @@ bool use_server_socket(int fd, PgAddr *addr,
 			return true;
 	}
 
-	if (db->forced_auth_info) {
-		user = db->forced_auth_info;
+	if (db->forced_user_credentials) {
+		credentials = db->forced_user_credentials;
 	} else if (cf_auth_type == AUTH_PAM) {
-		user = add_pam_auth_info(username, password);
+		credentials = add_pam_credentials(username, password);
 	} else {
-		user = find_global_auth_info(username);
+		credentials = find_global_credentials(username);
 	}
-	if (!user && db->auth_user)
-		user = add_dynamic_auth_info(db, username, password);
+	if (!credentials && db->auth_user_credentials)
+		credentials = add_dynamic_credentials(db, username, password);
 
-	pool = get_pool(db, user);
+	pool = get_pool(db, credentials);
 	if (!pool)
 		return false;
 
@@ -2265,7 +2265,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 
 	server->suspended = true;
 	server->pool = pool;
-	server->login_user = user;
+	server->login_user_credentials = credentials;
 	server->connect_time = server->request_time = get_cached_time();
 	server->query_start = 0;
 	statlist_init(&server->canceling_clients, "canceling_clients");
@@ -2544,8 +2544,8 @@ void objects_cleanup(void)
 	pool_cache = NULL;
 	slab_destroy(user_cache);
 	user_cache = NULL;
-	slab_destroy(auth_info_cache);
-	auth_info_cache = NULL;
+	slab_destroy(credentials_cache);
+	credentials_cache = NULL;
 	slab_destroy(iobuf_cache);
 	iobuf_cache = NULL;
 	slab_destroy(outstanding_request_cache);

@@ -351,19 +351,19 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	if (!mbuf_get_uint64be(&tmp, &ckey))
 		return false;
 
-	if (sk->pool && sk->pool->db->auth_user && sk->login_user && !find_global_user(sk->login_user->name))
-		password = sk->login_user->passwd;
+	if (sk->pool && sk->pool->db->auth_user_credentials && sk->login_user_credentials && !find_global_user(sk->login_user_credentials->name))
+		password = sk->login_user_credentials->passwd;
 
 	/* PAM requires passwords as well since they are not stored externally */
-	if (cf_auth_type == AUTH_PAM && !find_global_user(sk->login_user->name))
-		password = sk->login_user->passwd;
+	if (cf_auth_type == AUTH_PAM && !find_global_user(sk->login_user_credentials->name))
+		password = sk->login_user_credentials->passwd;
 
-	if (sk->pool && sk->pool->user && sk->pool->user->has_scram_keys)
+	if (sk->pool && sk->pool->user_credentials && sk->pool->user_credentials->has_scram_keys)
 		send_scram_keys = true;
 
 	return send_one_fd(admin, sbuf_socket(&sk->sbuf),
 			   is_server_socket(sk) ? "server" : "client",
-			   sk->login_user ? sk->login_user->name : NULL,
+			   sk->login_user_credentials ? sk->login_user_credentials->name : NULL,
 			   sk->pool ? sk->pool->db->name : NULL,
 			   pga_ntop(addr, addrbuf, sizeof(addrbuf)),
 			   pga_port(addr),
@@ -374,10 +374,10 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 			   datestyle ? datestyle->str : NULL,
 			   timezone ? timezone->str : NULL,
 			   password,
-			   send_scram_keys ? sk->pool->user->scram_ClientKey : NULL,
-			   send_scram_keys ? (int) sizeof(sk->pool->user->scram_ClientKey) : -1,
-			   send_scram_keys ? sk->pool->user->scram_ServerKey : NULL,
-			   send_scram_keys ? (int) sizeof(sk->pool->user->scram_ServerKey) : -1);
+			   send_scram_keys ? sk->pool->user_credentials->scram_ClientKey : NULL,
+			   send_scram_keys ? (int) sizeof(sk->pool->user_credentials->scram_ClientKey) : -1,
+			   send_scram_keys ? sk->pool->user_credentials->scram_ServerKey : NULL,
+			   send_scram_keys ? (int) sizeof(sk->pool->user_credentials->scram_ServerKey) : -1);
 }
 
 static bool show_pooler_cb(void *arg, int fd, const PgAddr *a)
@@ -500,7 +500,7 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 	statlist_for_each(item, &database_list) {
 		db = container_of(item, PgDatabase, head);
 
-		f_user = db->forced_auth_info ? db->forced_auth_info->name : NULL;
+		f_user = db->forced_user_credentials ? db->forced_user_credentials->name : NULL;
 		pool_mode_str = NULL;
 		cv.value_p = &db->pool_mode;
 		if (db->pool_mode != POOL_INHERIT)
@@ -603,7 +603,7 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 		if (user->pool_mode != POOL_INHERIT)
 			pool_mode_str = cf_get_lookup(&cv);
 
-		pktbuf_write_DataRow(buf, "ssii", user->auth_info.name,
+		pktbuf_write_DataRow(buf, "ssii", user->credentials.name,
 				     pool_mode_str,
 				     user_max_connections(user),
 				     user->connection_count
@@ -684,7 +684,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 
 	pktbuf_write_DataRow(buf, debug ? SKF_DBG : SKF_STD,
 			     is_server_socket(sk) ? "S" : "C",
-			     sk->login_user ? sk->login_user->name : "(nouser)",
+			     sk->login_user_credentials ? sk->login_user_credentials->name : "(nouser)",
 			     sk->pool && !sk->pool->db->peer_id ? sk->pool->db->name : "(nodb)",
 			     state, r_addr, pga_port(&sk->remote_addr),
 			     l_addr, pga_port(&sk->local_addr),
@@ -890,7 +890,7 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 		max_wait = (waiter && waiter->query_start) ? now - waiter->query_start : 0;
 		pool_mode = pool_pool_mode(pool);
 		pktbuf_write_DataRow(buf, "ssiiiiiiiiiiiiis",
-				     pool->db->name, pool->user->name,
+				     pool->db->name, pool->user_credentials->name,
 				     statlist_count(&pool->active_client_list),
 				     statlist_count(&pool->waiting_client_list),
 				     statlist_count(&pool->active_cancel_req_list),
@@ -1637,7 +1637,7 @@ bool admin_pre_login(PgSocket *client, const char *username)
 		res = getpeereid(sbuf_socket(&client->sbuf), &peer_uid, &peer_gid);
 		if (res >= 0 && peer_uid == getuid()
 		    && strcmp("pgbouncer", username) == 0) {
-			client->login_user = admin_pool->db->forced_auth_info;
+			client->login_user_credentials = admin_pool->db->forced_user_credentials;
 			client->own_user = true;
 			client->admin_user = true;
 			if (cf_log_connections)
@@ -1652,11 +1652,11 @@ bool admin_pre_login(PgSocket *client, const char *username)
 	 */
 	if (cf_auth_type == AUTH_ANY) {
 		if (strlist_contains(cf_admin_users, username)) {
-			client->login_user = admin_pool->db->forced_auth_info;
+			client->login_user_credentials = admin_pool->db->forced_user_credentials;
 			client->admin_user = true;
 			return true;
 		} else if (strlist_contains(cf_stats_users, username)) {
-			client->login_user = admin_pool->db->forced_auth_info;
+			client->login_user_credentials = admin_pool->db->forced_user_credentials;
 			return true;
 		}
 	}
@@ -1665,7 +1665,7 @@ bool admin_pre_login(PgSocket *client, const char *username)
 
 bool admin_post_login(PgSocket *client)
 {
-	const char *username = client->login_user->name;
+	const char *username = client->login_user_credentials->name;
 
 	if (cf_auth_type == AUTH_ANY)
 		return true;
@@ -1699,11 +1699,11 @@ void admin_setup(void)
 	db->pool_size = 2;
 	db->admin = true;
 	db->pool_mode = POOL_STMT;
-	if (!force_auth_info(db, "pgbouncer", ""))
+	if (!force_user_credentials(db, "pgbouncer", ""))
 		die("no mem on startup - cannot alloc pgbouncer user");
 
 	/* fake pool */
-	pool = get_pool(db, db->forced_auth_info);
+	pool = get_pool(db, db->forced_user_credentials);
 	if (!pool)
 		die("cannot create admin pool?");
 	admin_pool = pool;

@@ -390,11 +390,11 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			changed = true;
 		} else if (port != db->port) {
 			changed = true;
-		} else if (username && !db->forced_auth_info) {
+		} else if (username && !db->forced_user_credentials) {
 			changed = true;
-		} else if (username && strcmp(username, db->forced_auth_info->name) != 0) {
+		} else if (username && strcmp(username, db->forced_user_credentials->name) != 0) {
 			changed = true;
-		} else if (!username && db->forced_auth_info) {
+		} else if (!username && db->forced_user_credentials) {
 			changed = true;
 		} else if (!strings_equal(connect_query, db->connect_query)) {
 			changed = true;
@@ -459,19 +459,19 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	}
 
 	if (auth_username != NULL) {
-		db->auth_user = find_global_auth_info(auth_username);
-		if (!db->auth_user) {
-			db->auth_user = add_global_auth_info(auth_username, "");
+		db->auth_user_credentials = find_global_credentials(auth_username);
+		if (!db->auth_user_credentials) {
+			db->auth_user_credentials = add_global_credentials(auth_username, "");
 		}
-	} else if (db->auth_user) {
-		db->auth_user = NULL;
+	} else if (db->auth_user_credentials) {
+		db->auth_user_credentials = NULL;
 	}
 
 	/* if user is forced, create fake object for it */
 	if (username != NULL) {
-		if (!force_auth_info(db, username, password))
+		if (!force_user_credentials(db, username, password))
 			log_warning("db setup failed, trying to continue");
-	} else if (db->forced_auth_info) {
+	} else if (db->forced_user_credentials) {
 		log_warning("losing forced user not supported,"
 			    " keeping old setting");
 	}
@@ -594,7 +594,7 @@ static void unquote_add_authfile_user(const char *username, const char *password
 		log_warning("cannot create user, no memory");
 		return;
 	}
-	user->auth_info.dynamic_passwd = false;
+	user->credentials.dynamic_passwd = false;
 }
 
 static bool auth_loaded(const char *fn)
@@ -640,7 +640,7 @@ static void disable_users(void)
 
 	statlist_for_each(item, &user_list) {
 		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
-		user->auth_info.passwd[0] = 0;
+		user->credentials.passwd[0] = 0;
 	}
 }
 

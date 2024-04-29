@@ -50,7 +50,7 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
 	port = pga_port(&sock->remote_addr);
 	peer_id = sock->pool ? sock->pool->db->peer_id : 0;
 	db = sock->pool ? sock->pool->db->name : "(nodb)";
-	user = sock->login_user ? sock->login_user->name : "(nouser)";
+	user = sock->login_user_credentials ? sock->login_user_credentials->name : "(nouser)";
 	if (pga_is_unix(&sock->remote_addr)) {
 		unsigned long pid = sock->remote_addr.scred.pid;
 		if (pid) {

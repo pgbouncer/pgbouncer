@@ -750,7 +750,7 @@ static void check_limits(void)
 	fd_count = cf_max_client_conn + 10;
 	statlist_for_each(item, &database_list) {
 		db = container_of(item, PgDatabase, head);
-		if (db->forced_auth_info)
+		if (db->forced_user_credentials)
 			fd_count += (db->pool_size >= 0 ? db->pool_size : cf_default_pool_size);
 		else
 			fd_count += (db->pool_size >= 0 ? db->pool_size : cf_default_pool_size) * total_users;

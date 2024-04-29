@@ -28,7 +28,7 @@
 
 
 static bool calculate_client_proof(ScramState *scram_state,
-				   const PgAuthInfo *user,
+				   const PgCredentials *credentials,
 				   const char *salt,
 				   int saltlen,
 				   int iterations,
@@ -323,7 +323,7 @@ failed:
 }
 
 char *build_client_final_message(ScramState *scram_state,
-				 const PgAuthInfo *user,
+				 const PgCredentials *credentials,
 				 const char *server_nonce,
 				 const char *salt,
 				 int saltlen,
@@ -340,7 +340,7 @@ char *build_client_final_message(ScramState *scram_state,
 	if (scram_state->client_final_message_without_proof == NULL)
 		goto failed;
 
-	if (!calculate_client_proof(scram_state, user,
+	if (!calculate_client_proof(scram_state, credentials,
 				    salt, saltlen, iterations, buf,
 				    client_proof))
 		goto failed;
@@ -468,7 +468,7 @@ failed:
 }
 
 static bool calculate_client_proof(ScramState *scram_state,
-				   const PgAuthInfo *user,
+				   const PgCredentials *credentials,
 				   const char *salt,
 				   int saltlen,
 				   int iterations,
@@ -482,15 +482,15 @@ static bool calculate_client_proof(ScramState *scram_state,
 	uint8_t ClientSignature[SCRAM_KEY_LEN];
 	scram_HMAC_ctx ctx;
 
-	if (user->has_scram_keys) {
-		memcpy(ClientKey, user->scram_ClientKey, SCRAM_KEY_LEN);
+	if (credentials->has_scram_keys) {
+		memcpy(ClientKey, credentials->scram_ClientKey, SCRAM_KEY_LEN);
 	} else
 	{
-		rc = pg_saslprep(user->passwd, &prep_password);
+		rc = pg_saslprep(credentials->passwd, &prep_password);
 		if (rc == SASLPREP_OOM)
 			return false;
 		if (rc != SASLPREP_SUCCESS) {
-			prep_password = strdup(user->passwd);
+			prep_password = strdup(credentials->passwd);
 			if (!prep_password)
 				return false;
 		}
@@ -533,14 +533,14 @@ failed:
 	return false;
 }
 
-bool verify_server_signature(ScramState *scram_state, const PgAuthInfo *user, const char *ServerSignature)
+bool verify_server_signature(ScramState *scram_state, const PgCredentials *credentials, const char *ServerSignature)
 {
 	uint8_t expected_ServerSignature[SCRAM_KEY_LEN];
 	uint8_t ServerKey[SCRAM_KEY_LEN];
 	scram_HMAC_ctx ctx;
 
-	if (user->has_scram_keys)
-		memcpy(ServerKey, user->scram_ServerKey, SCRAM_KEY_LEN);
+	if (credentials->has_scram_keys)
+		memcpy(ServerKey, credentials->scram_ServerKey, SCRAM_KEY_LEN);
 	else
 		scram_ServerKey(scram_state->SaltedPassword, ServerKey);
 

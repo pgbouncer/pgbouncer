@@ -321,18 +321,18 @@ bool welcome_client(PgSocket *client)
  * Password authentication for server
  */
 
-static PgAuthInfo *get_srv_psw(PgSocket *server)
+static PgCredentials *get_srv_psw(PgSocket *server)
 {
 	PgDatabase *db = server->pool->db;
-	PgAuthInfo *user = server->pool->user;
+	PgCredentials *credentials = server->pool->user_credentials;
 
 	/* if forced user without password, use userlist psw */
-	if (!user->passwd[0] && db->forced_auth_info) {
-		PgAuthInfo *u2 = find_global_auth_info(user->name);
-		if (u2)
-			return u2;
+	if (!credentials->passwd[0] && db->forced_user_credentials) {
+		PgCredentials *c2 = find_global_credentials(credentials->name);
+		if (c2)
+			return c2;
 	}
-	return user;
+	return credentials;
 }
 
 /* actual packet send */
@@ -345,26 +345,26 @@ static bool send_password(PgSocket *server, const char *enc_psw)
 
 static bool login_clear_psw(PgSocket *server)
 {
-	PgAuthInfo *user = get_srv_psw(server);
+	PgCredentials *credentials = get_srv_psw(server);
 	slog_debug(server, "P: send clear password");
-	return send_password(server, user->passwd);
+	return send_password(server, credentials->passwd);
 }
 
 static bool login_md5_psw(PgSocket *server, const uint8_t *salt)
 {
 	char txt[MD5_PASSWD_LEN + 1], *src;
-	PgAuthInfo *user = get_srv_psw(server);
+	PgCredentials *credentials = get_srv_psw(server);
 
 	slog_debug(server, "P: send md5 password");
 
-	switch (get_password_type(user->passwd)) {
+	switch (get_password_type(credentials->passwd)) {
 	case PASSWORD_TYPE_PLAINTEXT:
-		if (!pg_md5_encrypt(user->passwd, user->name, strlen(user->name), txt))
+		if (!pg_md5_encrypt(credentials->passwd, credentials->name, strlen(credentials->name), txt))
 			return false;
 		src = txt + 3;
 		break;
 	case PASSWORD_TYPE_MD5:
-		src = user->passwd + 3;
+		src = credentials->passwd + 3;
 		break;
 	default:
 		slog_error(server, "cannot do MD5 authentication: wrong password type");
@@ -380,16 +380,16 @@ static bool login_md5_psw(PgSocket *server, const uint8_t *salt)
 
 static bool login_scram_sha_256(PgSocket *server)
 {
-	PgAuthInfo *user = get_srv_psw(server);
+	PgCredentials *credentials = get_srv_psw(server);
 	bool res;
 	char *client_first_message = NULL;
 
-	switch (get_password_type(user->passwd)) {
+	switch (get_password_type(credentials->passwd)) {
 	case PASSWORD_TYPE_PLAINTEXT:
 		/* ok */
 		break;
 	case PASSWORD_TYPE_SCRAM_SHA_256:
-		if (!user->has_scram_keys) {
+		if (!credentials->has_scram_keys) {
 			slog_error(server, "cannot do SCRAM authentication: password is SCRAM secret but client authentication did not provide SCRAM keys");
 			kill_pool_logins(server->pool, NULL, "server login failed: wrong password type");
 			return false;
@@ -420,7 +420,7 @@ static bool login_scram_sha_256(PgSocket *server)
 
 static bool login_scram_sha_256_cont(PgSocket *server, unsigned datalen, const uint8_t *data)
 {
-	PgAuthInfo *user = get_srv_psw(server);
+	PgCredentials *credentials = get_srv_psw(server);
 	char *ibuf = NULL;
 	char *input;
 	char *server_nonce;
@@ -453,7 +453,7 @@ static bool login_scram_sha_256_cont(PgSocket *server, unsigned datalen, const u
 		goto failed;
 
 	client_final_message = build_client_final_message(&server->scram_state,
-							  user, server_nonce,
+							  credentials, server_nonce,
 							  salt, saltlen, iterations);
 
 	free(salt);
@@ -474,7 +474,7 @@ failed:
 
 static bool login_scram_sha_256_final(PgSocket *server, unsigned datalen, const uint8_t *data)
 {
-	PgAuthInfo *user = get_srv_psw(server);
+	PgCredentials *credentials = get_srv_psw(server);
 	char *ibuf = NULL;
 	char *input;
 	char ServerSignature[SHA256_DIGEST_LENGTH];
@@ -495,7 +495,7 @@ static bool login_scram_sha_256_final(PgSocket *server, unsigned datalen, const 
 	if (!read_server_final_message(server, input, ServerSignature))
 		goto failed;
 
-	if (!verify_server_signature(&server->scram_state, user, ServerSignature)) {
+	if (!verify_server_signature(&server->scram_state, credentials, ServerSignature)) {
 		slog_error(server, "invalid server signature");
 		kill_pool_logins(server->pool, NULL, "server login failed: invalid server signature");
 		goto failed;
@@ -598,7 +598,7 @@ bool answer_authreq(PgSocket *server, PktHdr *pkt)
 bool send_startup_packet(PgSocket *server)
 {
 	PgDatabase *db = server->pool->db;
-	const char *username = server->pool->user->name;
+	const char *username = server->pool->user_credentials->name;
 	PktBuf *pkt;
 
 	pkt = pktbuf_temp();

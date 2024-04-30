@@ -21,7 +21,6 @@
  */
 
 #include "bouncer.h"
-#include "usual/cfparser.h"
 #include "usual/time.h"
 
 #include <usual/fileutil.h>

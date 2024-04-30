@@ -156,15 +156,15 @@ void auth_ldap_init(void)
 
 #define reset_ptr(ptr, name) ptr->name = NULL
 #define ldap_parameter_dup(ptr, name, src_str) \
-do {                                           \
-    (ptr)->name = (ptr)->ldap_parameters + (ptr)->param_pos; \
-    safe_strcpy((ptr)->name, src_str, sizeof((ptr)->ldap_parameters) - (ptr)->param_pos); \
-    (ptr)->param_pos += strlen(src_str) + 1;      \
-    if ((ptr)->param_pos >= MAX_LDAP_CONFIG) {    \
-		log_warning("The parameters are longer than MAX_LDAP_CONFIG:%d", MAX_LDAP_CONFIG); \
-		return false; \
-    } \
-} while(0)
+	do {                                           \
+		(ptr)->name = (ptr)->ldap_parameters + (ptr)->param_pos; \
+		safe_strcpy((ptr)->name, src_str, sizeof((ptr)->ldap_parameters) - (ptr)->param_pos); \
+		(ptr)->param_pos += strlen(src_str) + 1;      \
+		if ((ptr)->param_pos >= MAX_LDAP_CONFIG) {    \
+			log_warning("The parameters are longer than MAX_LDAP_CONFIG:%d", MAX_LDAP_CONFIG); \
+			return false; \
+		} \
+	} while (0)
 
 static void free_ldap_parameters(struct ldap_auth_request *request)
 {
@@ -193,17 +193,17 @@ static bool validate_ldap_parameters(struct ldap_auth_request *request)
 	 */
 	if (request->ldapprefix || request->ldapsuffix) {
 		if (request->ldapbasedn ||
-			request->ldapbinddn ||
-			request->ldapbindpasswd ||
-			request->ldapsearchattribute ||
-			request->ldapsearchfilter ) {
+		    request->ldapbinddn ||
+		    request->ldapbindpasswd ||
+		    request->ldapsearchattribute ||
+		    request->ldapsearchfilter) {
 			log_warning("cannot use ldapbasedn, ldapbinddn, ldapbindpasswd, "
-						"ldapsearchattribute, ldapsearchfilter, or ldapurl together with ldapprefix");
+				    "ldapsearchattribute, ldapsearchfilter, or ldapurl together with ldapprefix");
 			return false;
 		}
 	} else if (!request->ldapbasedn) {
 		log_warning(
-				"authentication method \"ldap\" requires argument \"ldapbasedn\", \"ldapprefix\", or \"ldapsuffix\" to be set");
+			"authentication method \"ldap\" requires argument \"ldapbasedn\", \"ldapprefix\", or \"ldapsuffix\" to be set");
 		return false;
 	}
 	/*
@@ -229,7 +229,7 @@ static bool parse_ldapurl(struct ldap_auth_request *request, char *val)
 	}
 
 	if (strcmp(urldata->lud_scheme, "ldap") != 0 &&
-		strcmp(urldata->lud_scheme, "ldaps") != 0) {
+	    strcmp(urldata->lud_scheme, "ldaps") != 0) {
 		log_warning("unsupported LDAP URL scheme: %s", urldata->lud_scheme);
 		ldap_free_urldesc(urldata);
 		return false;
@@ -243,7 +243,7 @@ static bool parse_ldapurl(struct ldap_auth_request *request, char *val)
 	if (urldata->lud_dn)
 		ldap_parameter_dup(request, ldapbasedn, urldata->lud_dn);
 	if (urldata->lud_attrs)
-		ldap_parameter_dup(request, ldapsearchattribute, urldata->lud_attrs[0]); /* only use first one */
+		ldap_parameter_dup(request, ldapsearchattribute, urldata->lud_attrs[0]);/* only use first one */
 	request->ldapscope = urldata->lud_scope;
 	if (urldata->lud_filter)
 		ldap_parameter_dup(request, ldapsearchfilter, urldata->lud_filter);
@@ -257,13 +257,13 @@ static bool get_key_value(char **p, char **key, char **value)
 
 	start = *p;
 	while (*start && isspace(*start))
-		++start; /* skip space */
+		++start;/* skip space */
 
 	name = start;
 	while (*start && *start != '=')
 		start++;
 	if (!*start)
-		return false; /* Only key, stop scan */
+		return false;	/* Only key, stop scan */
 	*start++ = 0;
 
 	val = start;
@@ -272,11 +272,11 @@ static bool get_key_value(char **p, char **key, char **value)
 		while (*start && *start != '"')
 			++start;
 		if (!*start)
-			return false; /* incomplete value */
+			return false;	/* incomplete value */
 		*start++ = 0;
 	} else {
 		if (*start == ' ')
-			return false; /* Not key=value format */
+			return false;	/* Not key=value format */
 		while (*start && *start != ' ')
 			start++;
 		if (*start == ' ')
@@ -353,9 +353,9 @@ void ldap_auth_begin(PgSocket *client, const char *passwd)
 	struct ldap_auth_request *request;
 
 	slog_debug(
-			client,
-			"ldap_auth_begin(): ldap_first_taken_slot=%d, ldap_first_free_slot=%d",
-			ldap_first_taken_slot, ldap_first_free_slot);
+		client,
+		"ldap_auth_begin(): ldap_first_taken_slot=%d, ldap_first_free_slot=%d",
+		ldap_first_taken_slot, ldap_first_free_slot);
 
 	client->wait_for_auth = true;
 
@@ -432,7 +432,6 @@ static void *ldap_auth_worker(void *arg)
 	struct ldap_auth_request *request;
 
 	while (true) {
-
 		/* Wait for new data in the queue */
 		pthread_mutex_lock(&ldap_queue_tail_mutex);
 
@@ -504,18 +503,17 @@ static void ldap_auth_finish(struct ldap_auth_request *request)
  * Initialize a connection to the LDAP server, including setting up
  * TLS if requested.
  */
-static bool
-InitializeLDAPConnection(struct ldap_auth_request *request, LDAP **ldap)
+static bool InitializeLDAPConnection(struct ldap_auth_request *request, LDAP **ldap)
 {
 	int ldapversion = LDAP_VERSION3;
 	int r;
 	struct timeval ts;
 
 	if (strncmp(request->ldapserver, "ldaps://", 8) == 0 ||
-		strncmp(request->ldapserver, "ldap://", 7) == 0) {
+	    strncmp(request->ldapserver, "ldap://", 7) == 0) {
 		if ((r = ldap_initialize(ldap, request->ldapserver)) != LDAP_SUCCESS) {
 			log_warning("could not initialize LDAP: code: %d, msg: %s",
-						r, ldap_err2string(r));
+				    r, ldap_err2string(r));
 			*ldap = NULL;
 			return false;
 		}
@@ -545,7 +543,7 @@ InitializeLDAPConnection(struct ldap_auth_request *request, LDAP **ldap)
 	if (request->ldaptls) {
 		if ((r = ldap_start_tls_s(*ldap, NULL, NULL)) != LDAP_SUCCESS) {
 			log_warning("could not start LDAP TLS session: %s, server: %s, port: %d",
-						ldap_err2string(r), request->ldapserver, request->ldapport);
+				    ldap_err2string(r), request->ldapserver, request->ldapport);
 			ldap_unbind(*ldap);
 			return false;
 		}
@@ -560,8 +558,7 @@ InitializeLDAPConnection(struct ldap_auth_request *request, LDAP **ldap)
  * Return a newly allocated C string copied from "pattern" with all
  * occurrences of the placeholder "$username" replaced with "user_name".
  */
-static void
-format_search_filter(char *filter, int length, const char *pattern, const char *user_name)
+static void format_search_filter(char *filter, int length, const char *pattern, const char *user_name)
 {
 	int cur_len = 0;
 	while ((*pattern != '\0') && (cur_len < length)) {
@@ -579,8 +576,7 @@ format_search_filter(char *filter, int length, const char *pattern, const char *
 /*
  * Perform LDAP authentication
  */
-static bool
-check_ldap_auth(struct ldap_auth_request *request)
+static bool check_ldap_auth(struct ldap_auth_request *request)
 {
 	LDAP *ldap;
 	int r;
@@ -590,14 +586,14 @@ check_ldap_auth(struct ldap_auth_request *request)
 		return false;
 	}
 	if ((!request->ldapserver || request->ldapserver[0] == '\0') &&
-		(!request->ldapbasedn || request->ldapbasedn[0] == '\0')) {
+	    (!request->ldapbasedn || request->ldapbasedn[0] == '\0')) {
 		log_warning("LDAP server not specified, and no ldapbasedn");
 		return false;
 	}
 
 	if (request->ldapport == 0) {
 		if (request->ldapscheme != NULL &&
-			strcmp(request->ldapscheme, "ldaps") == 0)
+		    strcmp(request->ldapscheme, "ldaps") == 0)
 			request->ldapport = LDAPS_PORT;
 		else
 			request->ldapport = LDAP_PORT;
@@ -632,10 +628,10 @@ check_ldap_auth(struct ldap_auth_request *request)
 		 */
 		for (c = request->username; *c; c++) {
 			if (*c == '*' ||
-				*c == '(' ||
-				*c == ')' ||
-				*c == '\\' ||
-				*c == '/') {
+			    *c == '(' ||
+			    *c == ')' ||
+			    *c == '\\' ||
+			    *c == '/') {
 				log_warning("invalid character in user name for LDAP authentication");
 				return false;
 			}
@@ -646,38 +642,38 @@ check_ldap_auth(struct ldap_auth_request *request)
 		 * searching. If none is specified, this turns into an anonymous bind.
 		 */
 		r = ldap_simple_bind_s(ldap,
-							   request->ldapbinddn ? request->ldapbinddn : "",
-							   request->ldapbindpasswd ? request->ldapbindpasswd : "");
+				       request->ldapbinddn ? request->ldapbinddn : "",
+				       request->ldapbindpasswd ? request->ldapbindpasswd : "");
 		if (r != LDAP_SUCCESS) {
 			log_warning("could not perform initial LDAP bind for ldapbinddn \"%s\" on server \"%s\": %s",
-						request->ldapbinddn ? request->ldapbinddn : "",
-						request->ldapserver, ldap_err2string(r));
+				    request->ldapbinddn ? request->ldapbinddn : "",
+				    request->ldapserver, ldap_err2string(r));
 			ldap_unbind(ldap);
 			return false;
 		}
 
 		/* Fetch just one attribute, else *all* attributes are returned */
-		if (request->ldapsearchfilter)
+		if (request->ldapsearchfilter) {
 			format_search_filter(filter, LDAP_LONG_LENGTH, request->ldapsearchfilter, request->username);
-		else {
+		} else {
 			attributes[0] = request->ldapsearchattribute ? request->ldapsearchattribute : "uid";
 			attributes[1] = NULL;
 			snprintf(filter, LDAP_LONG_LENGTH, "(%s=%s)",
-					 attributes[0],
-					 request->username);
+				 attributes[0],
+				 request->username);
 		}
 
 		r = ldap_search_s(ldap,
-						  request->ldapbasedn,
-						  request->ldapscope,
-						  filter,
-						  attributes,
-						  0,
-						  &search_message);
+				  request->ldapbasedn,
+				  request->ldapscope,
+				  filter,
+				  attributes,
+				  0,
+				  &search_message);
 
 		if (r != LDAP_SUCCESS) {
 			log_warning("could not search LDAP for filter \"%s\" on server \"%s\": %s",
-						filter, request->ldapserver, ldap_err2string(r));
+				    filter, request->ldapserver, ldap_err2string(r));
 			ldap_unbind(ldap);
 			return false;
 		}
@@ -687,11 +683,11 @@ check_ldap_auth(struct ldap_auth_request *request)
 			if (count == 0) {
 				log_warning("LDAP user \"%s\" does not exist", request->username);
 				log_warning("LDAP search for filter \"%s\" on server \"%s\" returned no entries.",
-							filter, request->ldapserver);
+					    filter, request->ldapserver);
 			} else {
 				log_warning("LDAP user \"%s\" is not unique", request->username);
 				log_warning("LDAP search for filter \"%s\" on server \"%s\" returned %d entries.",
-							filter, request->ldapserver, count);
+					    filter, request->ldapserver, count);
 			}
 			ldap_unbind(ldap);
 			ldap_msgfree(search_message);
@@ -705,7 +701,7 @@ check_ldap_auth(struct ldap_auth_request *request)
 
 			(void) ldap_get_option(ldap, LDAP_OPT_ERROR_NUMBER, &error);
 			log_warning("could not get dn for the first entry matching \"%s\" on server \"%s\": %s",
-						filter, request->ldapserver, ldap_err2string(error));
+				    filter, request->ldapserver, ldap_err2string(error));
 			ldap_unbind(ldap);
 			ldap_msgfree(search_message);
 			return false;
@@ -722,7 +718,7 @@ check_ldap_auth(struct ldap_auth_request *request)
 
 			(void) ldap_get_option(ldap, LDAP_OPT_ERROR_NUMBER, &error);
 			log_warning("could not unbind after searching for user \"%s\" on server \"%s\": %s",
-						fulluser, request->ldapserver, ldap_err2string(error));
+				    fulluser, request->ldapserver, ldap_err2string(error));
 			return false;
 		}
 
@@ -734,18 +730,19 @@ check_ldap_auth(struct ldap_auth_request *request)
 			/* Error message already sent */
 			return false;
 		}
-	} else
+	} else {
 		snprintf(fulluser, LDAP_LONG_LENGTH, "%s%s%s",
-				 request->ldapprefix ? request->ldapprefix : "",
-				 request->username,
-				 request->ldapsuffix ? request->ldapsuffix : "");
+			 request->ldapprefix ? request->ldapprefix : "",
+			 request->username,
+			 request->ldapsuffix ? request->ldapsuffix : "");
+	}
 
 	r = ldap_simple_bind_s(ldap, fulluser, request->password);
 	ldap_unbind(ldap);
 
 	if (r != LDAP_SUCCESS) {
 		log_warning("LDAP login failed for user %s on server %s: %s",
-					fulluser, request->ldapserver, ldap_err2string(r));
+			    fulluser, request->ldapserver, ldap_err2string(r));
 		return false;
 	}
 

@@ -5,18 +5,18 @@ import filelock
 import pytest
 
 from .utils import (
+    LDAP_SUPPORT,
     LINUX,
     LONG_PASSWORD,
     PG_SUPPORTS_SCRAM,
     TEST_DIR,
     TLS_SUPPORT,
-    LDAP_SUPPORT,
     USE_SUDO,
     Bouncer,
+    OpenLDAP,
     Postgres,
     run,
     sudo,
-    OpenLDAP,
 )
 
 

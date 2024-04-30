@@ -544,6 +544,9 @@ min_pool_size
 reserve_pool
 :   Maximum number of additional connections for this database.
 
+server_lifetime
+:   The maximum lifetime of a server connection for this database
+
 pool_mode
 :   The database's override pool_mode, or NULL if the default will be used instead.
 

@@ -21,6 +21,7 @@
  */
 
 #include "bouncer.h"
+#include "usual/time.h"
 
 #include <usual/slab.h>
 
@@ -242,9 +243,9 @@ int pool_min_pool_size(PgPool *pool)
 }
 
 /* server_lifetime of the pool's db */
-int pool_server_lifetime(PgPool *pool)
+usec_t pool_server_lifetime(PgPool *pool)
 {
-	if (pool->db->server_lifetime <= 0)
+	if (pool->db->server_lifetime == 0)
 		return cf_server_lifetime;
 	else
 		return pool->db->server_lifetime;

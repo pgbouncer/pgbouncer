@@ -22,6 +22,7 @@
 
 #include "bouncer.h"
 #include "usual/cfparser.h"
+#include "usual/time.h"
 
 #include <usual/fileutil.h>
 #include <usual/string.h>
@@ -267,7 +268,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	int min_pool_size = -1;
 	int res_pool_size = -1;
 	int max_db_connections = -1;
-	int server_lifetime = -1;
+	usec_t server_lifetime = 0;
 	int dbname_ofs;
 	int pool_mode = POOL_INHERIT;
 

@@ -217,7 +217,7 @@ def pg_reset(pg):
 
 @pytest.fixture
 def openldap(tmp_path_factory):
-    """Starts an openldap server under tmp_path/ldap for tests in this process"""
+    """Starts an openldap server under tmp_path for tests in this process"""
     ldap = OpenLDAP(tmp_path_factory.getbasetemp())
     ldap.startup()
     yield ldap

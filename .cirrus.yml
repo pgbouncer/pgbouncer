@@ -12,7 +12,7 @@ task:
     - container:
         image: ubuntu:22.04
       env:
-        configure_args: '--with-cares --with-pam'
+        configure_args: '--with-cares --with-pam --with-ldap'
     - container:
         image: ubuntu:22.04
       env:
@@ -72,6 +72,7 @@ task:
     - if [ "$PGVERSION" = 17 ]; then pkgs="$pkgs postgresql-common=$(apt-cache show postgresql-common | grep "^Version: .*pgdg" | awk '{print $2}')"; fi
     - if [ "$PGVERSION" = 17 ]; then pkgs="$pkgs postgresql-client-common=$(apt-cache show postgresql-client-common | grep "^Version: .*pgdg" | awk '{print $2}')"; fi
     - apt-get -y install $pkgs
+    - apt-get -y install libldap-dev slapd ldap-utils
     - python3 -m venv /venv
     - /venv/bin/pip install -r requirements.txt
     - useradd user

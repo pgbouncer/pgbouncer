@@ -497,14 +497,14 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 		}
 #ifdef HAVE_LDAP
 	} else if (check_if_need_ldap_authentication(client, dbname, username)) {
-		if (client->db->auth_user) {
+		if (client->db->auth_user_credentials) {
 			slog_error(client, "LDAP can't be used together with database authentication");
 			disconnect_client(client, true, "bouncer config error");
 			return false;
 		}
 		/* Password will be set after successful authentication when not in takeover mode */
-		client->login_user = add_user(username, NULL);
-		if (!client->login_user) {
+		client->login_user_credentials = add_global_credentials(username, NULL);
+		if (!client->login_user_credentials) {
 			slog_error(client, "set_pool(): failed to allocate new LDAP user");
 			disconnect_client(client, true, "bouncer resources exhaustion");
 			return false;

@@ -8,12 +8,12 @@ import pytest
 
 from .utils import (
     FREEBSD,
+    LDAP_SUPPORT,
     LONG_PASSWORD,
     MACOS,
     PG_SUPPORTS_SCRAM,
     TLS_SUPPORT,
     WINDOWS,
-    LDAP_SUPPORT,
 )
 
 

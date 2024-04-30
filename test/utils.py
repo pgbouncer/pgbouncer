@@ -1187,15 +1187,7 @@ class OpenLDAP:
         self.slapd_pid_file = self.config_dir / "ldap" / "slapd.pid"
 
     def startup(self):
-        print(
-            subprocess.run(
-                [
-                    f"{START_OPENLDAP_SCRIPT}",
-                    f"{self.config_dir}",
-                    f"{self.port_lock.port}",
-                ]
-            )
-        )
+        run(f"{START_OPENLDAP_SCRIPT} {self.config_dir} {self.port_lock.port}")
 
     @property
     def ldap_port(self):

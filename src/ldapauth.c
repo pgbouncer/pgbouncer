@@ -61,7 +61,7 @@ struct ldap_auth_request {
 	/* The request status, one of the LDAP_STATUS_* constants */
 	int status;
 
-	/* The username (same as in client->login_user->name).
+	/* The username (same as in client->login_user_credentials->name).
 	 * See the comment for remote_addr.
 	 */
 	char username[MAX_USERNAME];
@@ -380,7 +380,7 @@ void ldap_auth_begin(PgSocket *client, const char *passwd)
 	request->connect_time = client->connect_time;
 	request->status = LDAP_STATUS_IN_PROGRESS;
 	memcpy(&request->remote_addr, &client->remote_addr, sizeof(client->remote_addr));
-	safe_strcpy(request->username, client->login_user->name, MAX_USERNAME);
+	safe_strcpy(request->username, client->login_user_credentials->name, MAX_USERNAME);
 	safe_strcpy(request->password, passwd, MAX_PASSWORD);
 	/* Reset value of ldap parameters */
 	free_ldap_parameters(request);
@@ -492,7 +492,7 @@ static void ldap_auth_finish(struct ldap_auth_request *request)
 	bool authenticated = (request->status == LDAP_STATUS_SUCCESS);
 
 	if (authenticated) {
-		safe_strcpy(client->login_user->passwd, request->password, sizeof(client->login_user->passwd));
+		safe_strcpy(client->login_user_credentials->passwd, request->password, sizeof(client->login_user_credentials->passwd));
 		sbuf_continue(&client->sbuf);
 	} else {
 		disconnect_client(client, true, "LDAP authentication failed");

@@ -377,7 +377,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		auth = rule->rule_method;
 #ifdef HAVE_LDAP
 		if (auth == AUTH_LDAP) {
-				snprintf(client->ldap_parameters, MAX_LDAP_CONFIG, "%s", rule->auth_options);
+			snprintf(client->ldap_parameters, MAX_LDAP_CONFIG, "%s", rule->auth_options);
 		}
 #endif
 		slog_noise(client, "HBA Line %d is matched", rule->hba_linenr);
@@ -433,7 +433,7 @@ static bool check_if_need_ldap_authentication(PgSocket *client, const char *dbna
 {
 	if (cf_auth_type == AUTH_HBA) {
 		struct HBARule *rule = hba_eval(parsed_hba, &client->remote_addr, !!client->sbuf.tls,
-				dbname, username);
+						dbname, username);
 		if (rule != NULL && rule->rule_method == AUTH_LDAP)
 			return true;
 	}

@@ -892,40 +892,57 @@ def test_peer_auth_ident_map(bouncer):
         user="bouncer",
     )
 
+
 @pytest.mark.skipif("MACOS", reason="OpenLDAP on OSX is difficult")
 @pytest.mark.skipif("WINDOWS", reason="We do not expect to support ldap on Windows")
 @pytest.mark.skipif(not LDAP_SUPPORT, reason="pgbouncer is built without LDAP support")
 def test_ldap_auth(bouncer, openldap):
-    #1 test "simple bind"
+    # 1 test "simple bind"
     hba_conf_file = bouncer.config_dir / "ldap_hba.conf"
-    with open(hba_conf_file, 'w') as f:
-        f.write(f'host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 ldapport={openldap.ldap_port} ldapprefix="uid=" ldapsuffix=",dc=example,dc=net"\n')
+    with open(hba_conf_file, "w") as f:
+        f.write(
+            "host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 "
+            f'ldapport={openldap.ldap_port} ldapprefix="uid=" '
+            f'ldapsuffix=",dc=example,dc=net"\n'
+        )
     bouncer.write_ini(f"auth_type = hba")
     bouncer.write_ini(f"auth_hba_file = {hba_conf_file}")
     bouncer.admin("reload")
     bouncer.test(user="ldapuser1", password="secret1")
-    #2 test "search+bind"
-    with open(hba_conf_file, 'w') as f:
-        f.write(f'host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 ldapport={openldap.ldap_port} ldapbasedn="dc=example,dc=net"')
+    # 2 test "search+bind"
+    with open(hba_conf_file, "w") as f:
+        f.write(
+            f'host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 ldapport={openldap.ldap_port} ldapbasedn="dc=example,dc=net"'
+        )
     bouncer.admin("reload")
     bouncer.test(user="ldapuser1", password="secret1")
-    #3 test "multiple servers"
-    with open(hba_conf_file, 'w') as f:
-        f.write(f'host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 ldapport={openldap.ldap_port} ldapbasedn="dc=example,dc=net"')
+    # 3 test "multiple servers"
+    with open(hba_conf_file, "w") as f:
+        f.write(
+            f'host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 ldapport={openldap.ldap_port} ldapbasedn="dc=example,dc=net"'
+        )
     bouncer.admin("reload")
     bouncer.test(user="ldapuser1", password="secret1")
-    #4 test "LDAP URLs"
-    with open(hba_conf_file, 'w') as f:
-        f.write(f'host all ldapuser1 0.0.0.0/0 ldap ldapurl="ldap://127.0.0.1:{openldap.ldap_port}/dc=example,dc=net?uid?sub"')
+    # 4 test "LDAP URLs"
+    with open(hba_conf_file, "w") as f:
+        f.write(
+            f'host all ldapuser1 0.0.0.0/0 ldap ldapurl="ldap://127.0.0.1:{openldap.ldap_port}/dc=example,dc=net?uid?sub"'
+        )
     bouncer.admin("reload")
     bouncer.test(user="ldapuser1", password="secret1")
-    #5 test "search filters"
-    with open(hba_conf_file, 'w') as f:
-        f.write(f'host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 ldapport={openldap.ldap_port} ldapbasedn="dc=example,dc=net" ldapsearchfilter="uid=$username"')
+    # 5 test "search filters"
+    with open(hba_conf_file, "w") as f:
+        f.write(
+            f"host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 ldapport={openldap.ldap_port} "
+            f'ldapbasedn="dc=example,dc=net" ldapsearchfilter="uid=$username"'
+        )
     bouncer.admin("reload")
     bouncer.test(user="ldapuser1", password="secret1")
     ##6 test "search filters in LDAP URLs"
-    with open(hba_conf_file, 'w') as f:
-        f.write(f'host all ldapuser1 0.0.0.0/0 ldap ldapurl="ldap://127.0.0.1:{openldap.ldap_port}/dc=example,dc=net??sub?(|(uid=$username)(mail=$username))"')
+    with open(hba_conf_file, "w") as f:
+        f.write(
+            f"host all ldapuser1 0.0.0.0/0 ldap "
+            f'ldapurl="ldap://127.0.0.1:{openldap.ldap_port}/dc=example,dc=net??sub?(|(uid=$username)(mail=$username))"'
+        )
     bouncer.admin("reload")
     bouncer.test(user="ldapuser1", password="secret1")

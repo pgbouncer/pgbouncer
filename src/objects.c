@@ -1075,8 +1075,9 @@ bool life_over(PgSocket *server)
 	usec_t now = get_cached_time();
 	usec_t age = now - server->connect_time;
 	usec_t last_kill = now - pool->last_lifetime_disconnect;
+	usec_t server_lifetime = pool_server_lifetime(pool);
 
-	if (age < cf_server_lifetime)
+	if (age < server_lifetime)
 		return false;
 
 	/*
@@ -1085,7 +1086,7 @@ bool life_over(PgSocket *server)
 	 * of connections together.
 	 */
 	if (pool_pool_size(pool) > 0)
-		lifetime_kill_gap = cf_server_lifetime / pool_pool_size(pool);
+		lifetime_kill_gap = server_lifetime / pool_pool_size(pool);
 
 	if (last_kill >= lifetime_kill_gap)
 		return true;

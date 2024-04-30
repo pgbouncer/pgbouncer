@@ -485,6 +485,7 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 	PktBuf *buf;
 	struct CfValue cv;
 	const char *pool_mode_str;
+	usec_t server_lifetime_secs;
 
 	cv.extra = pool_mode_map;
 	buf = pktbuf_dynamic(256);
@@ -493,24 +494,29 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "ssissiiisiiii",
+	pktbuf_write_RowDescription(buf, "ssissiiiisiiii",
 				    "name", "host", "port",
 				    "database", "force_user", "pool_size", "min_pool_size", "reserve_pool",
-				    "pool_mode", "max_connections", "current_connections", "paused", "disabled");
+				    "server_lifetime", "pool_mode", "max_connections", "current_connections",
+				    "paused", "disabled");
 	statlist_for_each(item, &database_list) {
 		db = container_of(item, PgDatabase, head);
 
+		server_lifetime_secs = (db->server_lifetime > 0 ? db->server_lifetime : cf_server_lifetime) / USEC;
 		f_user = db->forced_user ? db->forced_user->name : NULL;
 		pool_mode_str = NULL;
 		cv.value_p = &db->pool_mode;
 		if (db->pool_mode != POOL_INHERIT)
 			pool_mode_str = cf_get_lookup(&cv);
-		pktbuf_write_DataRow(buf, "ssissiiisiiii",
+
+
+		pktbuf_write_DataRow(buf, "ssissiiiisiiii",
 				     db->name, db->host, db->port,
 				     db->dbname, f_user,
 				     db->pool_size >= 0 ? db->pool_size : cf_default_pool_size,
 				     db->min_pool_size >= 0 ? db->min_pool_size : cf_min_pool_size,
 				     db->res_pool_size >= 0 ? db->res_pool_size : cf_res_pool_size,
+				     server_lifetime_secs,
 				     pool_mode_str,
 				     database_max_connections(db),
 				     db->connection_count,

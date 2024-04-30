@@ -19,6 +19,14 @@ def test_server_lifetime(pg, bouncer):
     bouncer.test()
 
 
+def test_server_lifetime_per_pool(pg, bouncer):
+    bouncer.test(dbname="p9")
+    assert pg.connection_count() == 1
+    time.sleep(3)
+    assert pg.connection_count() == 0
+    bouncer.test(dbname="p9")
+
+
 def test_server_idle_timeout(pg, bouncer):
     bouncer.admin(f"set server_idle_timeout=2")
 

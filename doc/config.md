@@ -1177,8 +1177,9 @@ user name, meaning that there will be one pool per user.
 
 ### password
 
-If no password is specified here, the password from the `auth_file` or
-`auth_query` will be used.
+If no password is specified here, the password from the `auth_file` will
+be used for the user specified above. Dynamic forms of password discovery
+such as `auth_query` are not currently supported.
 
 ### auth_user
 
@@ -1261,6 +1262,12 @@ Example:
     user1 = pool_mode=session
 
 Only a few settings are available here.
+
+Note that when `auth_file` is configured, if a user is defined in this section
+but not listed in `auth_file`, pgBouncer will attempt to use `auth_query` to
+find a password for that user if `auth_user` is set. If `auth_user` is not set,
+pgBouncer will pretend the user exists and fail to return "no such user"
+messages to the client, but neither will it accept any provided password.
 
 ### pool_size
 

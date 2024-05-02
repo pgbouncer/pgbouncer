@@ -82,7 +82,7 @@ PgDatabase *prepare_auth_database(PgSocket *client)
 
 static bool check_client_passwd(PgSocket *client, const char *passwd)
 {
-	PgUser *user = client->login_user;
+	PgCredentials *user = client->login_user_credentials;
 	int auth_type = client->client_auth_type;
 
 	if (user->mock_auth)
@@ -173,7 +173,7 @@ static void start_auth_query(PgSocket *client, const char *username)
 	PgDatabase *auth_db = prepare_auth_database(client);
 	if (!auth_db)
 		return;
-	client->pool = get_pool(auth_db, client->db->auth_user);
+	client->pool = get_pool(auth_db, client->db->auth_user_credentials);
 	if (!find_server(client)) {
 		client->wait_for_user_conn = true;
 		return;
@@ -225,7 +225,7 @@ static bool login_via_cert(PgSocket *client, struct HBARule *rule)
 		slog_error(client, "TLS client certificate required");
 		goto fail;
 	}
-	if (client->login_user->mock_auth)
+	if (client->login_user_credentials->mock_auth)
 		goto fail;
 
 	log_debug("TLS cert login: %s", tls_peer_cert_subject(client->sbuf.tls));
@@ -243,7 +243,7 @@ static bool login_via_cert(PgSocket *client, struct HBARule *rule)
 			}
 
 			if (!(mapping->name_flags & NAME_ALL)) {
-				if (strcmp(client->login_user->name, mapping->postgres_user_name)) {
+				if (strcmp(client->login_user_credentials->name, mapping->postgres_user_name)) {
 					continue;
 				}
 			}
@@ -257,7 +257,7 @@ static bool login_via_cert(PgSocket *client, struct HBARule *rule)
 			slog_error(client, "ident map: %s does not have a match", rule->identmap->map_name);
 			goto fail;
 		}
-	} else if (!tls_peer_cert_contains_name(client->sbuf.tls, client->login_user->name)) {
+	} else if (!tls_peer_cert_contains_name(client->sbuf.tls, client->login_user_credentials->name)) {
 		slog_error(client, "TLS certificate name mismatch");
 		goto fail;
 	}
@@ -273,7 +273,7 @@ static bool login_as_unix_peer(PgSocket *client, struct HBARule *rule)
 {
 	if (!pga_is_unix(&client->remote_addr))
 		goto fail;
-	if (client->login_user->mock_auth)
+	if (client->login_user_credentials->mock_auth)
 		goto fail;
 
 	if (rule && rule->identmap) {
@@ -286,7 +286,7 @@ static bool login_as_unix_peer(PgSocket *client, struct HBARule *rule)
 
 			if (check_unix_peer_name(sbuf_socket(&client->sbuf), mapping->system_user_name)) {
 				if ((mapping->name_flags & NAME_ALL) ||
-				    strcmp(mapping->postgres_user_name, client->login_user->name) == 0) {
+				    strcmp(mapping->postgres_user_name, client->login_user_credentials->name) == 0) {
 					slog_noise(client, "ident map '%s' is applied", rule->identmap->map_name);
 
 					mapped = true;
@@ -301,7 +301,7 @@ static bool login_as_unix_peer(PgSocket *client, struct HBARule *rule)
 			goto fail;
 		}
 	} else {
-		if (!check_unix_peer_name(sbuf_socket(&client->sbuf), client->login_user->name))
+		if (!check_unix_peer_name(sbuf_socket(&client->sbuf), client->login_user_credentials->name))
 			goto fail;
 	}
 	return finish_client_login(client);
@@ -316,15 +316,15 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	int auth;
 	struct HBARule *rule = NULL;
 
-	if (!client->login_user->mock_auth && !client->db->fake) {
-		PgUser *pool_user;
+	if (!client->login_user_credentials->mock_auth && !client->db->fake) {
+		PgCredentials *pool_user_credentials;
 
-		if (client->db->forced_user)
-			pool_user = client->db->forced_user;
+		if (client->db->forced_user_credentials)
+			pool_user_credentials = client->db->forced_user_credentials;
 		else
-			pool_user = client->login_user;
+			pool_user_credentials = client->login_user_credentials;
 
-		client->pool = get_pool(client->db, pool_user);
+		client->pool = get_pool(client->db, pool_user_credentials);
 		if (!client->pool) {
 			disconnect_client(client, true, "no memory for pool");
 			return false;
@@ -336,10 +336,10 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 			char infobuf[96] = "";
 			tls_get_connection_info(client->sbuf.tls, infobuf, sizeof infobuf);
 			slog_info(client, "login attempt: db=%s user=%s tls=%s",
-				  client->db->name, client->login_user->name, infobuf);
+				  client->db->name, client->login_user_credentials->name, infobuf);
 		} else {
 			slog_info(client, "login attempt: db=%s user=%s tls=no",
-				  client->db->name, client->login_user->name);
+				  client->db->name, client->login_user_credentials->name);
 		}
 	}
 
@@ -357,7 +357,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	auth = cf_auth_type;
 	if (auth == AUTH_HBA) {
 		rule = hba_eval(parsed_hba, &client->remote_addr, !!client->sbuf.tls,
-				client->db->name, client->login_user->name);
+				client->db->name, client->login_user_credentials->name);
 
 		if (!rule) {
 			disconnect_client(client, true, "no authentication method is found");
@@ -370,7 +370,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	}
 
 	if (auth == AUTH_MD5) {
-		if (get_password_type(client->login_user->passwd) == PASSWORD_TYPE_SCRAM_SHA_256)
+		if (get_password_type(client->login_user_credentials->passwd) == PASSWORD_TYPE_SCRAM_SHA_256)
 			auth = AUTH_SCRAM_SHA_256;
 	}
 
@@ -382,7 +382,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		ok = finish_client_login(client);
 		break;
 	case AUTH_TRUST:
-		if (client->login_user->mock_auth)
+		if (client->login_user_credentials->mock_auth)
 			disconnect_client(client, true, "\"trust\" authentication failed");
 		else
 			ok = finish_client_login(client);
@@ -441,46 +441,46 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 	/* find user */
 	if (cf_auth_type == AUTH_ANY) {
 		/* ignore requested user */
-		if (client->db->forced_user == NULL) {
+		if (client->db->forced_user_credentials == NULL) {
 			slog_error(client, "auth_type=any requires forced user");
 			disconnect_client(client, true, "bouncer config error");
 			return false;
 		}
-		client->login_user = client->db->forced_user;
+		client->login_user_credentials = client->db->forced_user_credentials;
 	} else if (cf_auth_type == AUTH_PAM) {
-		if (client->db->auth_user) {
+		if (client->db->auth_user_credentials) {
 			slog_error(client, "PAM can't be used together with database authentication");
 			disconnect_client(client, true, "bouncer config error");
 			return false;
 		}
 		/* Password will be set after successful authentication when not in takeover mode */
-		client->login_user = add_pam_user(username, password);
-		if (!client->login_user) {
+		client->login_user_credentials = add_pam_credentials(username, password);
+		if (!client->login_user_credentials) {
 			slog_error(client, "set_pool(): failed to allocate new PAM user");
 			disconnect_client(client, true, "bouncer resources exhaustion");
 			return false;
 		}
 	} else {
-		client->login_user = find_user(username);
-		if (!client->login_user) {
+		client->login_user_credentials = find_global_credentials(username);
+		if (!client->login_user_credentials || client->login_user_credentials->dynamic_passwd) {
 			/*
 			 * If the login user specified by the client
-			 * does not exist, check if an auth_user is
-			 * set and if so send off an auth_query.  If
-			 * no auth_user is set for the db, see if the
-			 * global auth_user is set and use that.
+			 * does not exist or if it has no entry in auth_file,
+			 * check if an auth_user is set and if so, send off
+			 * an auth_query.  If no auth_user is set for the db,
+			 * see if the global auth_user is set and use that.
 			 */
-			if (!client->db->auth_user && cf_auth_user) {
-				client->db->auth_user = find_user(cf_auth_user);
-				if (!client->db->auth_user)
-					client->db->auth_user = add_user(cf_auth_user, "");
+			if (!client->db->auth_user_credentials && cf_auth_user) {
+				client->db->auth_user_credentials = find_global_credentials(cf_auth_user);
+				if (!client->db->auth_user_credentials)
+					client->db->auth_user_credentials = add_global_credentials(cf_auth_user, "");
 			}
-			if (client->db->auth_user) {
+			if (client->db->auth_user_credentials) {
 				if (client->db->fake) {
 					slog_debug(client, "not running auth_query because database is fake");
 				} else {
 					if (takeover) {
-						client->login_user = add_db_user(client->db, username, password);
+						client->login_user_credentials = add_dynamic_credentials(client->db, username, password);
 						return finish_set_pool(client, takeover);
 					}
 					start_auth_query(client, username);
@@ -489,9 +489,9 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			}
 
 			slog_info(client, "no such user: %s", username);
-			client->login_user = calloc(1, sizeof(*client->login_user));
-			client->login_user->mock_auth = true;
-			safe_strcpy(client->login_user->name, username, sizeof(client->login_user->name));
+			client->login_user_credentials = calloc(1, sizeof(*client->login_user_credentials));
+			client->login_user_credentials->mock_auth = true;
+			safe_strcpy(client->login_user_credentials->name, username, sizeof(client->login_user_credentials->name));
 		}
 	}
 
@@ -503,7 +503,7 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
 	uint16_t columns;
 	uint32_t length;
 	const char *username, *password;
-	PgUser user;
+	PgCredentials credentials;
 	PgSocket *server = client->link;
 
 	switch (pkt->type) {
@@ -518,7 +518,7 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
 		}
 		break;
 	case 'D':	/* DataRow */
-		memset(&user, 0, sizeof(user));
+		memset(&credentials, 0, sizeof(credentials));
 		if (!mbuf_get_uint16be(&pkt->data, &columns)) {
 			disconnect_server(server, false, "bad packet");
 			return false;
@@ -539,9 +539,9 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
 			disconnect_server(server, false, "bad packet");
 			return false;
 		}
-		if (sizeof(user.name) - 1 < length)
-			length = sizeof(user.name) - 1;
-		memcpy(user.name, username, length);
+		if (sizeof(credentials.name) - 1 < length)
+			length = sizeof(credentials.name) - 1;
+		memcpy(credentials.name, username, length);
 		if (!mbuf_get_uint32be(&pkt->data, &length)) {
 			disconnect_server(server, false, "bad packet");
 			return false;
@@ -559,12 +559,13 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
 				return false;
 			}
 		}
-		if (sizeof(user.passwd) - 1 < length)
-			length = sizeof(user.passwd) - 1;
-		memcpy(user.passwd, password, length);
+		if (sizeof(credentials.passwd) - 1 < length)
+			length = sizeof(credentials.passwd) - 1;
+		memcpy(credentials.passwd, password, length);
 
-		client->login_user = add_db_user(client->db, user.name, user.passwd);
-		if (!client->login_user) {
+		slog_debug(client, "successfully parsed auth_query response for user %s", credentials.name);
+		client->login_user_credentials = add_dynamic_credentials(client->db, credentials.name, credentials.passwd);
+		if (!client->login_user_credentials) {
 			disconnect_server(server, false, "unable to allocate new user for auth");
 			return false;
 		}
@@ -581,7 +582,7 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
 		break;
 	case 'Z':	/* ReadyForQuery */
 		sbuf_prepare_skip(&client->link->sbuf, pkt->len);
-		if (!client->login_user) {
+		if (!client->login_user_credentials) {
 			if (cf_log_connections)
 				slog_info(client, "login failed: db=%s", client->db->name);
 			/*
@@ -804,7 +805,7 @@ static bool scram_client_first(PgSocket *client, uint32_t datalen, const uint8_t
 	char *ibuf;
 	char *input;
 	int res;
-	PgUser *user = client->login_user;
+	PgCredentials *user = client->login_user_credentials;
 
 	ibuf = malloc(datalen + 1);
 	if (ibuf == NULL)
@@ -878,7 +879,7 @@ static bool scram_client_final(PgSocket *client, uint32_t datalen, const uint8_t
 	}
 
 	if (!verify_client_proof(&client->scram_state, proof)
-	    || !client->login_user) {
+	    || !client->login_user_credentials) {
 		slog_error(client, "password authentication failed");
 		goto failed;
 	}
@@ -991,7 +992,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		break;
 	case 'p':		/* PasswordMessage, SASLInitialResponse, or SASLResponse */
 		/* too early */
-		if (!client->login_user) {
+		if (!client->login_user_credentials) {
 			disconnect_client(client, true, "client password pkt before startup packet");
 			return false;
 		}
@@ -1026,13 +1027,13 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 				if (scram_client_final(client, length, data)) {
 					/* save SCRAM keys for user */
 					if (!client->scram_state.adhoc && !client->db->fake) {
-						memcpy(client->pool->user->scram_ClientKey,
+						memcpy(client->pool->user_credentials->scram_ClientKey,
 						       client->scram_state.ClientKey,
 						       sizeof(client->scram_state.ClientKey));
-						memcpy(client->pool->user->scram_ServerKey,
+						memcpy(client->pool->user_credentials->scram_ServerKey,
 						       client->scram_state.ServerKey,
 						       sizeof(client->scram_state.ServerKey));
-						client->pool->user->has_scram_keys = true;
+						client->pool->user_credentials->has_scram_keys = true;
 					}
 
 					free_scram_state(&client->scram_state);

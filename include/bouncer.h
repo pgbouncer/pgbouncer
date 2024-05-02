@@ -127,7 +127,8 @@ enum PacketCallbackFlag {
 
 
 typedef struct PgSocket PgSocket;
-typedef struct PgUser PgUser;
+typedef struct PgCredentials PgCredentials;
+typedef struct PgGlobalUser PgGlobalUser;
 typedef struct PgDatabase PgDatabase;
 typedef struct PgPool PgPool;
 typedef struct PgStats PgStats;
@@ -326,7 +327,11 @@ struct PgPool {
 	struct List map_head;			/* entry in user->pool_list */
 
 	PgDatabase *db;			/* corresponding database */
-	PgUser *user;			/* user logged in as, this field is NULL for peer pools */
+	/*
+	 * credentials for the user logged in user, this field is NULL for peer
+	 * pools.
+	 */
+	PgCredentials *user_credentials;
 
 	/*
 	 * Clients that are both logged in and where pgbouncer is actively
@@ -478,18 +483,18 @@ struct PgPool {
 		statlist_count(&(pool)->waiting_client_list))
 
 /*
- * A user in login db.
- *
- * FIXME: remove ->head as ->tree_node should be enough.
+ * Credentials for a user in login db.
  *
  * For databases where remote user is forced, the pool is:
- * first(db->forced_user->pool_list), where pool_list has only one entry.
+ * first(db->forced_user_credentials->pool_list), where pool_list has only one entry.
+ *
+ * For dynamic credentials coming from auth_query, the pool list only contains
+ * one pool.
  *
  * Otherwise, ->pool_list contains multiple pools, for all PgDatabases
- * which user has logged in.
+ * that use these credentials.
  */
-struct PgUser {
-	struct List head;		/* used to attach user to list */
+struct PgCredentials {
 	struct List pool_list;		/* list of pools where pool->user == this user */
 	struct AANode tree_node;	/* used to attach user to tree */
 	char name[MAX_USERNAME];
@@ -498,6 +503,25 @@ struct PgUser {
 	uint8_t scram_ServerKey[32];
 	bool has_scram_keys;		/* true if the above two are valid */
 	bool mock_auth;			/* not a real user, only for mock auth */
+	bool dynamic_passwd;		/* does the password need to be refreshed every use */
+
+	/*
+	 * global_user points at the global user which is used for configuration
+	 * settings and connection count tracking.
+	 */
+	PgGlobalUser *global_user;
+};
+
+/*
+ * The global user is used for configuration settings and connection count. It
+ * includes credentials, but these are empty if the user is not configured in
+ * the auth_file.
+ *
+ * FIXME: remove ->head as ->tree_node should be enough.
+ */
+struct PgGlobalUser {
+	PgCredentials credentials;	/* needs to be first for AAtree */
+	struct List head;	/* used to attach user to list */
 	int pool_mode;
 	int pool_size;				/* max server connections in one pool */
 	int max_user_connections;	/* how much server connections are allowed */
@@ -533,8 +557,8 @@ struct PgDatabase {
 	struct PktBuf *startup_params;	/* partial StartupMessage (without user) be sent to server */
 	const char *dbname;	/* server-side name, pointer to inside startup_msg */
 	char *auth_dbname;	/* if not NULL, auth_query will be run on the specified database */
-	PgUser *forced_user;	/* if not NULL, the user/psw is forced */
-	PgUser *auth_user;	/* if not NULL, users not in userlist.txt will be looked up on the server */
+	PgCredentials *forced_user_credentials;	/* if not NULL, the user/psw is forced */
+	PgCredentials *auth_user_credentials;	/* if not NULL, users not in userlist.txt will be looked up on the server */
 	char *auth_query;	/* if not NULL, will be used to fetch password from database. */
 
 	/*
@@ -595,7 +619,7 @@ struct PgSocket {
 	PgSocket *link;		/* the dest of packets */
 	PgPool *pool;		/* parent pool, if NULL not yet assigned */
 
-	PgUser *login_user;	/* presented login, for client it may differ from pool->user */
+	PgCredentials *login_user_credentials;	/* presented login, for client it may differ from pool->user */
 
 	int client_auth_type;	/* auth method decided by hba */
 

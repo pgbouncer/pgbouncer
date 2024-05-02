@@ -394,11 +394,11 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			changed = true;
 		} else if (port != db->port) {
 			changed = true;
-		} else if (username && !db->forced_user) {
+		} else if (username && !db->forced_user_credentials) {
 			changed = true;
-		} else if (username && strcmp(username, db->forced_user->name) != 0) {
+		} else if (username && strcmp(username, db->forced_user_credentials->name) != 0) {
 			changed = true;
-		} else if (!username && db->forced_user) {
+		} else if (!username && db->forced_user_credentials) {
 			changed = true;
 		} else if (!strings_equal(connect_query, db->connect_query)) {
 			changed = true;
@@ -464,19 +464,19 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	}
 
 	if (auth_username != NULL) {
-		db->auth_user = find_user(auth_username);
-		if (!db->auth_user) {
-			db->auth_user = add_user(auth_username, "");
+		db->auth_user_credentials = find_global_credentials(auth_username);
+		if (!db->auth_user_credentials) {
+			db->auth_user_credentials = add_global_credentials(auth_username, "");
 		}
-	} else if (db->auth_user) {
-		db->auth_user = NULL;
+	} else if (db->auth_user_credentials) {
+		db->auth_user_credentials = NULL;
 	}
 
 	/* if user is forced, create fake object for it */
 	if (username != NULL) {
-		if (!force_user(db, username, password))
+		if (!force_user_credentials(db, username, password))
 			log_warning("db setup failed, trying to continue");
-	} else if (db->forced_user) {
+	} else if (db->forced_user_credentials) {
 		log_warning("losing forced user not supported,"
 			    " keeping old setting");
 	}
@@ -494,7 +494,7 @@ fail:
 bool parse_user(void *base, const char *name, const char *connstr)
 {
 	char *p, *key, *val, *tmp_connstr;
-	PgUser *user;
+	PgGlobalUser *user;
 	struct CfValue cv;
 	int pool_mode = POOL_INHERIT;
 	int pool_size = -1;
@@ -535,9 +535,9 @@ bool parse_user(void *base, const char *name, const char *connstr)
 		}
 	}
 
-	user = find_user(name);
+	user = find_global_user(name);
 	if (!user) {
-		user = add_user(name, "");
+		user = add_global_user(name, "");
 		if (!user) {
 			log_error("cannot create user, no memory?");
 			goto fail;
@@ -586,18 +586,24 @@ static void copy_quoted(char *dst, const char *src, int len)
 	*dst = 0;
 }
 
-static void unquote_add_user(const char *username, const char *password)
+/* This function is only called when parsing the auth file, so
+   all users added by this function do not have a dynamic password,
+   by definition. If the password is empty, so be it. */
+static void unquote_add_authfile_user(const char *username, const char *password)
 {
 	char real_user[MAX_USERNAME];
 	char real_passwd[MAX_PASSWORD];
-	PgUser *user;
+	PgGlobalUser *user;
 
 	copy_quoted(real_user, username, sizeof(real_user));
 	copy_quoted(real_passwd, password, sizeof(real_passwd));
 
-	user = add_user(real_user, real_passwd);
-	if (!user)
+	user = add_global_user(real_user, real_passwd);
+	if (!user) {
 		log_warning("cannot create user, no memory");
+		return;
+	}
+	user->credentials.dynamic_passwd = false;
 }
 
 static bool auth_loaded(const char *fn)
@@ -639,12 +645,11 @@ bool loader_users_check(void)
 
 static void disable_users(void)
 {
-	PgUser *user;
 	struct List *item;
 
 	statlist_for_each(item, &user_list) {
-		user = container_of(item, PgUser, head);
-		user->passwd[0] = 0;
+		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
+		user->credentials.passwd[0] = 0;
 	}
 }
 
@@ -715,7 +720,7 @@ bool load_auth_file(const char *fn)
 		*p++ = 0;	/* tag password end */
 
 		/* send them away */
-		unquote_add_user(user, password);
+		unquote_add_authfile_user(user, password);
 
 		/* skip rest of the line */
 		while (*p && *p != '\n') p++;

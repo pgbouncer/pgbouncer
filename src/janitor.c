@@ -517,7 +517,7 @@ static void check_pool_size(PgPool *pool)
 	    cur < pool_pool_size(pool) &&
 	    cf_pause_mode == P_NONE &&
 	    cf_reboot == 0 &&
-	    (pool_client_count(pool) > 0 || pool->db->forced_user != NULL)) {
+	    (pool_client_count(pool) > 0 || pool->db->forced_user_credentials != NULL)) {
 		log_debug("launching new connection to satisfy min_pool_size");
 		launch_new_connection(pool, /* evict_if_needed= */ false);
 	}
@@ -696,8 +696,8 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	   _	 */
 	statlist_for_each_safe(item, &database_list, tmp) {
 		db = container_of(item, PgDatabase, head);
-		if (database_min_pool_size(db) > 0 && db->forced_user != NULL) {
-			get_pool(db, db->forced_user);
+		if (database_min_pool_size(db) > 0 && db->forced_user_credentials != NULL) {
+			get_pool(db, db->forced_user_credentials);
 		}
 	}
 
@@ -817,8 +817,8 @@ void kill_database(PgDatabase *db)
 	pktbuf_free(db->startup_params);
 	free(db->host);
 
-	if (db->forced_user)
-		slab_free(user_cache, db->forced_user);
+	if (db->forced_user_credentials)
+		slab_free(user_cache, db->forced_user_credentials);
 	free(db->connect_query);
 	if (db->inactive_time) {
 		statlist_remove(&autodatabase_idle_list, &db->head);

@@ -40,12 +40,13 @@ extern PgPreparedStatement *prepared_statements;
 PgDatabase *find_peer(int peer_id);
 PgDatabase *find_database(const char *name);
 PgDatabase *find_or_register_database(PgSocket *connection, const char *name);
-PgUser *find_user(const char *name);
-PgPool *get_pool(PgDatabase *, PgUser *);
+PgGlobalUser *find_global_user(const char *name);
+PgCredentials *find_global_credentials(const char *name);
+PgPool *get_pool(PgDatabase *db, PgCredentials *user_credentials);
 PgPool *get_peer_pool(PgDatabase *);
 PgSocket *compare_connections_by_time(PgSocket *lhs, PgSocket *rhs);
 bool evict_connection(PgDatabase *db)           _MUSTCHECK;
-bool evict_user_connection(PgUser *user)        _MUSTCHECK;
+bool evict_user_connection(PgCredentials *user_credentials)        _MUSTCHECK;
 bool find_server(PgSocket *client)              _MUSTCHECK;
 bool life_over(PgSocket *server);
 bool release_server(PgSocket *server) /* _MUSTCHECK */;
@@ -60,15 +61,16 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 PgDatabase * add_peer(const char *name, int peer_id) _MUSTCHECK;
 PgDatabase * add_database(const char *name) _MUSTCHECK;
 PgDatabase *register_auto_database(const char *name);
-PgUser * add_user(const char *name, const char *passwd) _MUSTCHECK;
-PgUser * add_db_user(PgDatabase *db, const char *name, const char *passwd) _MUSTCHECK;
-PgUser * force_user(PgDatabase *db, const char *username, const char *passwd) _MUSTCHECK;
+PgGlobalUser * add_global_user(const char *name, const char *passwd) _MUSTCHECK;
+PgCredentials *add_global_credentials(const char *name, const char *passwd) _MUSTCHECK;
+PgCredentials * add_dynamic_credentials(PgDatabase *db, const char *name, const char *passwd) _MUSTCHECK;
+PgCredentials * force_user_credentials(PgDatabase *db, const char *username, const char *passwd) _MUSTCHECK;
 bool add_outstanding_request(PgSocket *client, char type, ResponseAction action) _MUSTCHECK;
 bool pop_outstanding_request(PgSocket *client, char *types, bool *skip);
 bool clear_outstanding_requests_until(PgSocket *server, char *types) _MUSTCHECK;
 bool queue_fake_response(PgSocket *client, char request_type) _MUSTCHECK;
 
-PgUser * add_pam_user(const char *name, const char *passwd) _MUSTCHECK;
+PgCredentials * add_pam_credentials(const char *name, const char *passwd) _MUSTCHECK;
 
 void accept_cancel_request(PgSocket *req);
 bool forward_cancel_request(PgSocket *server);

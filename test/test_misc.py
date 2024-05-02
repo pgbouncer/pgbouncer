@@ -5,7 +5,7 @@ import time
 import psycopg
 import pytest
 
-from .utils import HAVE_IPV6_LOCALHOST, PG_MAJOR_VERSION, WINDOWS
+from .utils import HAVE_IPV6_LOCALHOST, PG_MAJOR_VERSION, PKT_BUF_SIZE, WINDOWS
 
 
 def test_connect_query(bouncer):
@@ -190,14 +190,6 @@ def test_options_startup_param(bouncer):
     ):
         bouncer.test(options="-c timezone")
 
-    too_long_param = "a" * 1000
-
-    with pytest.raises(
-        psycopg.OperationalError,
-        match="unsupported options startup parameter: parameter too long",
-    ):
-        bouncer.test(options="-c timezone=" + too_long_param)
-
     with pytest.raises(
         psycopg.OperationalError,
         match="unsupported startup parameter in options: enable_seqscan",
@@ -223,6 +215,11 @@ def test_options_startup_param(bouncer):
         )
         == "Portugal"
     )
+
+
+def test_startup_packet_larger_than_pktbuf(bouncer):
+    long_string = "1" * PKT_BUF_SIZE
+    bouncer.test(options=f"-c extra_float_digits={long_string}")
 
 
 def test_empty_application_name(bouncer):

@@ -5,9 +5,7 @@ import psycopg
 import pytest
 from psycopg import pq, sql
 
-from .utils import LIBPQ_SUPPORTS_PIPELINING, LINUX, USE_SUDO
-
-PKT_BUF_SIZE = 4096
+from .utils import LIBPQ_SUPPORTS_PIPELINING, LINUX, PKT_BUF_SIZE, USE_SUDO
 
 
 def test_prepared_statement(bouncer):

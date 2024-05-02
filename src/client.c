@@ -677,6 +677,7 @@ static bool set_startup_options(PgSocket *client, const char *options)
 	slog_debug(client, "received options: %s", options);
 
 	while (*position) {
+		const char *start_position = position;
 		const char *key_string, *value_string;
 		char *equals;
 		mbuf_rewind_writer(&arg);
@@ -687,7 +688,13 @@ static bool set_startup_options(PgSocket *client, const char *options)
 		position = cstr_skip_ws((char *) position);
 
 		if (!read_escaped_token(&position, &arg)) {
-			disconnect_client(client, true, "unsupported options startup parameter: parameter too long");
+			if (arg.fixed) {
+				mbuf_init_dynamic(&arg);
+				position = start_position;
+				continue;
+			}
+			disconnect_client(client, true, "out of memory");
+			mbuf_free(&arg);
 			return false;
 		}
 
@@ -705,13 +712,16 @@ static bool set_startup_options(PgSocket *client, const char *options)
 		} else {
 			slog_warning(client, "unsupported startup parameter in options: %s=%s", key_string, value_string);
 			disconnect_client(client, true, "unsupported startup parameter in options: %s", key_string);
+			mbuf_free(&arg);
 			return false;
 		}
 	}
 
+	mbuf_free(&arg);
 	return true;
 fail:
 	disconnect_client(client, true, "unsupported options startup parameter: only '-c config=val' is allowed");
+	mbuf_free(&arg);
 	return false;
 }
 
@@ -916,14 +926,34 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 
 	/* don't tolerate partial packets */
 	if (incomplete_pkt(pkt)) {
-		disconnect_client(client, true, "client sent partial pkt in startup phase");
-		return false;
+		if (pkt->len > (unsigned) cf_sbuf_len) {
+			/*
+			 * We need to handle the complete packet, but it is too
+			 * large to fit into our sbuf buffer size (determined
+			 * by the pkt_buf config). So now we need to fetch the
+			 * whole packet using our dynamically sized packet
+			 * buffering logic.
+			 */
+			client->packet_cb_state.flag = CB_WANT_COMPLETE_PACKET;
+			sbuf_prepare_fetch(sbuf, pkt->len);
+			return true;
+		} else {
+			/*
+			 * We need to handle the complete packet, but it fits
+			 * in our sbuf buffer, so we can simply return false to
+			 * indicate to sbuf to retry once it has received more
+			 * data
+			 */
+			return false;
+		}
 	}
 
 	if (client->wait_for_welcome || client->wait_for_auth) {
 		if (finish_client_login(client)) {
-			/* the packet was already parsed */
-			sbuf_prepare_skip(sbuf, pkt->len);
+			if (client->packet_cb_state.flag != CB_HANDLE_COMPLETE_PACKET) {
+				/* the packet was already parsed */
+				sbuf_prepare_skip(sbuf, pkt->len);
+			}
 			return true;
 		} else {
 			return false;
@@ -1090,7 +1120,9 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		disconnect_client(client, false, "bad packet");
 		return false;
 	}
-	sbuf_prepare_skip(sbuf, pkt->len);
+	if (client->packet_cb_state.flag != CB_HANDLE_COMPLETE_PACKET) {
+		sbuf_prepare_skip(sbuf, pkt->len);
+	}
 	client->request_time = get_cached_time();
 	return true;
 }
@@ -1344,6 +1376,34 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	return true;
 }
 
+
+/*
+ * expect_startup_packet chooses returns true if we expect a startup packet and
+ * false if we expect a regular packet.
+ */
+static bool expect_startup_packet(PgSocket *client)
+{
+	switch (client->state) {
+	case CL_LOGIN:
+		return true;
+		break;
+	case CL_ACTIVE:
+		if (client->wait_for_welcome)
+			return true;
+		else
+			return false;
+		break;
+	case CL_WAITING:
+		fatal("why waiting client in client_proto()");
+	case CL_WAITING_CANCEL:
+	case CL_ACTIVE_CANCEL:
+		fatal("why canceling client in client_proto()");
+	default:
+		fatal("bad client state: %d", client->state);
+	}
+}
+
+
 /* callback from SBuf */
 bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 {
@@ -1410,24 +1470,12 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		}
 
 		client->request_time = get_cached_time();
-		switch (client->state) {
-		case CL_LOGIN:
+		if (expect_startup_packet(client)) {
 			res = handle_client_startup(client, &pkt);
-			break;
-		case CL_ACTIVE:
-			if (client->wait_for_welcome)
-				res = handle_client_startup(client, &pkt);
-			else
-				res = handle_client_work(client, &pkt);
-			break;
-		case CL_WAITING:
-			fatal("why waiting client in client_proto()");
-		case CL_WAITING_CANCEL:
-		case CL_ACTIVE_CANCEL:
-			fatal("why canceling client in client_proto()");
-		default:
-			fatal("bad client state: %d", client->state);
+		} else {
+			res = handle_client_work(client, &pkt);
 		}
+
 		break;
 	case SBUF_EV_FLUSH:
 		/* client is not interested in it */
@@ -1483,8 +1531,13 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		/* fallthrough */
 		case CB_HANDLE_COMPLETE_PACKET:
 			/* Make sure we start reading after the header. */
-			pkt_rewind_v3(&client->packet_cb_state.pkt);
-			res = handle_client_work(client, &client->packet_cb_state.pkt);
+			if (expect_startup_packet(client)) {
+				pkt_rewind_v2(&client->packet_cb_state.pkt);
+				res = handle_client_startup(client, &client->packet_cb_state.pkt);
+			} else {
+				pkt_rewind_v3(&client->packet_cb_state.pkt);
+				res = handle_client_work(client, &client->packet_cb_state.pkt);
+			}
 			if (!res) {
 				return false;
 			}

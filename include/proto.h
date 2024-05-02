@@ -80,10 +80,22 @@ static inline bool incomplete_header(const struct MBuf *data)
 	return data->data[data->read_pos] == 0;
 }
 
-/* rewind the body of a v3 packet. Does not work for v2 packets, e.g. startup packets */
+/*
+ * rewind the body of a v3 packet. Does not work for v2 packets, e.g. startup
+ * packets
+ */
 static inline void pkt_rewind_v3(PktHdr *pkt)
 {
 	pkt->data.read_pos = NEW_HEADER_LEN;
+}
+
+/*
+ * rewind the body of a v2 packet. Does not work for v3 packets, i.e.
+ * everything except a startup packet
+ */
+static inline void pkt_rewind_v2(PktHdr *pkt)
+{
+	pkt->data.read_pos = OLD_HEADER_LEN;
 }
 
 /* one char desc */

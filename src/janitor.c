@@ -453,6 +453,8 @@ static void peer_pool_client_maint(PgPool *pool)
 static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle_test)
 {
 	usec_t now = get_cached_time();
+	usec_t server_lifetime = pool_server_lifetime(pool);
+
 	struct List *item, *tmp;
 	usec_t idle, age;
 	PgSocket *server;
@@ -473,7 +475,7 @@ static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle
 		} else if (cf_server_idle_timeout > 0 && idle > cf_server_idle_timeout
 			   && (pool_min_pool_size(pool) == 0 || pool_connected_server_count(pool) > pool_min_pool_size(pool))) {
 			disconnect_server(server, true, "server idle timeout");
-		} else if (age >= cf_server_lifetime) {
+		} else if (age >= server_lifetime) {
 			if (life_over(server)) {
 				disconnect_server(server, true, "server lifetime over");
 				pool->last_lifetime_disconnect = now;

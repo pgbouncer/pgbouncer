@@ -656,6 +656,8 @@ server connection that has been connected longer
 than this. Setting it to 0 means the connection is to be used only once,
 then closed. [seconds]
 
+This can also be set per database in the `[databases]` section.
+
 Default: 3600.0
 
 ### server_idle_timeout
@@ -1228,6 +1230,11 @@ the default `pool_mode` is used.
 
 Configure a database-wide maximum (i.e. all pools within the database will
 not have more than this many server connections).
+
+### server_lifetime
+
+Configure the server_lifetime per database. If not set the database will fall back
+to the instance wide configured value for `server_lifetime`
 
 ### client_encoding
 

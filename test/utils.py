@@ -132,6 +132,7 @@ def get_max_password_length():
     return max_password_length
 
 
+PKT_BUF_SIZE = 4096
 MAX_PASSWORD_LENGTH = get_max_password_length()
 LONG_PASSWORD = "a" * MAX_PASSWORD_LENGTH
 

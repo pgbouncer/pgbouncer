@@ -676,6 +676,7 @@ static bool set_startup_options(PgSocket *client, const char *options)
 	slog_debug(client, "received options: %s", options);
 
 	while (*position) {
+		const char *start_position = position;
 		const char *key_string, *value_string;
 		char *equals;
 		mbuf_rewind_writer(&arg);
@@ -686,7 +687,13 @@ static bool set_startup_options(PgSocket *client, const char *options)
 		position = cstr_skip_ws((char *) position);
 
 		if (!read_escaped_token(&position, &arg)) {
-			disconnect_client(client, true, "unsupported options startup parameter: parameter too long");
+			if (arg.fixed) {
+				mbuf_init_dynamic(&arg);
+				position = start_position;
+				continue;
+			}
+			disconnect_client(client, true, "out of memory");
+			mbuf_free(&arg);
 			return false;
 		}
 
@@ -704,13 +711,16 @@ static bool set_startup_options(PgSocket *client, const char *options)
 		} else {
 			slog_warning(client, "unsupported startup parameter in options: %s=%s", key_string, value_string);
 			disconnect_client(client, true, "unsupported startup parameter in options: %s", key_string);
+			mbuf_free(&arg);
 			return false;
 		}
 	}
 
+	mbuf_free(&arg);
 	return true;
 fail:
 	disconnect_client(client, true, "unsupported options startup parameter: only '-c config=val' is allowed");
+	mbuf_free(&arg);
 	return false;
 }
 

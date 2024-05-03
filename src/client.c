@@ -679,7 +679,7 @@ static bool set_startup_options(PgSocket *client, const char *options)
 	while (*position) {
 		const char *start_position = position;
 		const char *key_string, *value_string;
-		char *equals;
+		char *equals, *key_value = NULL;
 		mbuf_rewind_writer(&arg);
 		position = cstr_skip_ws((char *) position);
 		if (strncmp("-c", position, 2) != 0)
@@ -698,23 +698,34 @@ static bool set_startup_options(PgSocket *client, const char *options)
 			return false;
 		}
 
+		key_value = (char *)malloc(strlen((char *)arg.data)*sizeof(char));
+		if (key_value == NULL)
+			return false;
+
+		strcpy(key_value, (char *)arg.data);
 		equals = strchr((char *) arg.data, '=');
-		if (!equals)
+		if (!equals) {
+			free(key_value);
 			goto fail;
+		}
 		*equals = '\0';
 
 		key_string = (const char *) arg.data;
 		value_string = (const char *) equals + 1;
 		if (varcache_set(&client->vars, key_string, value_string)) {
 			slog_debug(client, "got var from options: %s=%s", key_string, value_string);
-		} else if (strlist_contains(cf_ignore_startup_params, key_string) || strlist_contains(cf_ignore_startup_params, "options")) {
+		} else if (strlist_contains(cf_ignore_startup_params, key_value) ||
+					strlist_contains(cf_ignore_startup_params, key_string) ||
+					strlist_contains(cf_ignore_startup_params, "options")) {
 			slog_debug(client, "ignoring startup parameter from options: %s=%s", key_string, value_string);
 		} else {
 			slog_warning(client, "unsupported startup parameter in options: %s=%s", key_string, value_string);
+			free(key_value);
 			disconnect_client(client, true, "unsupported startup parameter in options: %s", key_string);
 			mbuf_free(&arg);
 			return false;
 		}
+		free(key_value);
 	}
 
 	mbuf_free(&arg);
@@ -752,6 +763,8 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 	const char *key, *val;
 	bool ok;
 	bool appname_found = false;
+	int key_value_len;
+	char *key_value = NULL;
 
 	while (1) {
 		ok = mbuf_get_string(&pkt->data, &key);
@@ -761,6 +774,13 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 		if (!ok)
 			break;
 
+		/* Concatenate key and val to a string: key=val */
+		key_value_len = strlen(key) + strlen(val) + 2;
+		key_value = (char *)malloc(key_value_len*sizeof(char));
+		if (key_value == NULL)
+			return false;
+		snprintf(key_value, key_value_len, "%s=%s", key, val);
+
 		if (strcmp(key, "database") == 0) {
 			slog_debug(client, "got var: %s=%s", key, val);
 			dbname = val;
@@ -768,21 +788,25 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 			slog_debug(client, "got var: %s=%s", key, val);
 			username = val;
 		} else if (strcmp(key, "options") == 0) {
-			if (!set_startup_options(client, val))
+			if (!set_startup_options(client, val)) {
+				free(key_value);
 				return false;
+			}
 		} else if (strcmp(key, "application_name") == 0) {
 			set_appname(client, val);
 			appname_found = true;
 		} else if (varcache_set(&client->vars, key, val)) {
 			slog_debug(client, "got var: %s=%s", key, val);
-		} else if (strlist_contains(cf_ignore_startup_params, key)) {
+		} else if (strlist_contains(cf_ignore_startup_params, key) || strlist_contains(cf_ignore_startup_params, key_value)) {
 			slog_debug(client, "ignoring startup parameter: %s=%s", key, val);
 		} else {
 			slog_warning(client, "unsupported startup parameter: %s=%s", key, val);
+			free(key_value);
 			disconnect_client(client, true, "unsupported startup parameter: %s", key);
 			return false;
 		}
 	}
+	free(key_value);
 	if (!username || !username[0]) {
 		disconnect_client(client, true, "no username supplied");
 		return false;

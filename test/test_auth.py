@@ -1071,11 +1071,18 @@ def test_ldap_auth(bouncer, openldap):
         )
     bouncer.admin("reload")
     bouncer.test(user="ldapuser1", password="secret1")
-    ##6 test "search filters in LDAP URLs"
+    # 6 test "search filters in LDAP URLs"
     with open(hba_conf_file, "w") as f:
         f.write(
             f"host all ldapuser1 0.0.0.0/0 ldap "
             f'ldapurl="ldap://127.0.0.1:{openldap.ldap_port}/dc=example,dc=net??sub?(|(uid=$username)(mail=$username))"'
         )
+    bouncer.admin("reload")
+    bouncer.test(user="ldapuser1", password="secret1")
+    # 7 test ldap auth_type
+    bouncer.write_ini(f"auth_type = ldap")
+    bouncer.write_ini(
+        f'auth_ldap_parameter = ldapurl="ldap://127.0.0.1:{openldap.ldap_port}/dc=example,dc=net?uid?sub"'
+    )
     bouncer.admin("reload")
     bouncer.test(user="ldapuser1", password="secret1")

@@ -360,6 +360,17 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		return finish_client_login(client);
 
 	auth = cf_auth_type;
+#ifdef HAVE_LDAP
+	if (auth == AUTH_LDAP) {
+		if (cf_auth_ldap_parameter == NULL) {
+			disconnect_client(client, true, "auth_ldap_parameter is null");
+			return false;
+		} else {
+			snprintf(client->ldap_parameters, MAX_LDAP_CONFIG, "%s", cf_auth_ldap_parameter);
+			slog_noise(client, "The value of cf_auth_ldap_parameter is %s", cf_auth_ldap_parameter);
+		}
+	} else
+#endif
 	if (auth == AUTH_HBA) {
 		rule = hba_eval(
 			parsed_hba,
@@ -496,7 +507,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			return false;
 		}
 #ifdef HAVE_LDAP
-	} else if (check_if_need_ldap_authentication(client, dbname, username)) {
+	} else if (check_if_need_ldap_authentication(client, dbname, username) || cf_auth_type == AUTH_LDAP) {
 		if (client->db->auth_user_credentials) {
 			slog_error(client, "LDAP can't be used together with database authentication");
 			disconnect_client(client, true, "bouncer config error");

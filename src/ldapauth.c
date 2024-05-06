@@ -60,6 +60,8 @@ struct ldap_auth_request {
 
 	/* The request status, one of the LDAP_STATUS_* constants */
 	int status;
+	/* Protect status from main thread reading and worker thread writing at the same time */
+	pthread_mutex_t mutex;
 
 	/* The username (same as in client->login_user_credentials->name).
 	 * See the comment for remote_addr.
@@ -119,7 +121,7 @@ pthread_cond_t ldap_data_available;
 /* Forward declarations */
 static void *ldap_auth_worker(void *arg);
 static bool is_valid_socket(const struct ldap_auth_request *request);
-static void ldap_auth_finish(struct ldap_auth_request *request);
+static void ldap_auth_finish(struct ldap_auth_request *request, int status);
 static void free_ldap_parameters(struct ldap_auth_request *request);
 static bool validate_ldap_parameters(struct ldap_auth_request *request);
 static bool parse_ldapurl(struct ldap_auth_request *request, char *val);
@@ -128,6 +130,9 @@ static bool initialize_ldap_parameters(struct ldap_auth_request *request, char *
 static bool InitializeLDAPConnection(struct ldap_auth_request *request, LDAP **ldap);
 static void format_search_filter(char *filter, int length, const char *pattern, const char *user_name);
 static bool check_ldap_auth(struct ldap_auth_request *request);
+static int get_request_status(struct ldap_auth_request *request);
+static void set_request_status(struct ldap_auth_request *request, int status);
+
 /*
  * Initialize LDAP subsystem.
  */
@@ -152,6 +157,30 @@ void auth_ldap_init(void)
 	if (rc != 0) {
 		die("failed to create the authentication thread: %s", strerror(errno));
 	}
+	for (int i = 0; i < LDAP_REQUEST_QUEUE_SIZE; i++) {
+		struct ldap_auth_request *request = &ldap_auth_queue[i];
+		rc = pthread_mutex_init(&request->mutex, NULL);
+		if (rc != 0) {
+			die("failed to initialize a mutex for request[%d]: %s", i, strerror(errno));
+		}
+	}
+}
+
+static int get_request_status(struct ldap_auth_request *request)
+{
+	int rc = 0;
+
+	pthread_mutex_lock(&request->mutex);
+	rc = request->status;
+	pthread_mutex_unlock(&request->mutex);
+	return rc;
+}
+
+static void set_request_status(struct ldap_auth_request *request, int status)
+{
+	pthread_mutex_lock(&request->mutex);
+	request->status = status;
+	pthread_mutex_unlock(&request->mutex);
 }
 
 #define reset_ptr(ptr, name) ptr->name = NULL
@@ -378,7 +407,7 @@ void ldap_auth_begin(PgSocket *client, const char *passwd)
 
 	request->client = client;
 	request->connect_time = client->connect_time;
-	request->status = LDAP_STATUS_IN_PROGRESS;
+	request->status = LDAP_STATUS_IN_PROGRESS;	/* This is protected by ldap_queue_tail_mutex */
 	memcpy(&request->remote_addr, &client->remote_addr, sizeof(client->remote_addr));
 	safe_strcpy(request->username, client->login_user_credentials->name, MAX_USERNAME);
 	safe_strcpy(request->password, passwd, MAX_PASSWORD);
@@ -399,11 +428,13 @@ int ldap_poll(void)
 {
 	struct ldap_auth_request *request;
 	int count = 0;
+	int status = 0;
 
 	while (ldap_first_taken_slot != ldap_first_free_slot) {
 		request = &ldap_auth_queue[ldap_first_taken_slot];
 
-		if (request->status == LDAP_STATUS_IN_PROGRESS) {
+		status = get_request_status(request);
+		if (status == LDAP_STATUS_IN_PROGRESS) {
 			/* When still-in-progress slot is found there is no need to continue
 			 * the loop since all further requests will be in progress too.
 			 */
@@ -411,7 +442,7 @@ int ldap_poll(void)
 		}
 
 		if (is_valid_socket(request)) {
-			ldap_auth_finish(request);
+			ldap_auth_finish(request, status);
 		}
 
 		count++;
@@ -430,6 +461,7 @@ static void *ldap_auth_worker(void *arg)
 {
 	int current_slot = ldap_first_taken_slot;
 	struct ldap_auth_request *request;
+	int request_status = 0;
 
 	while (true) {
 		/* Wait for new data in the queue */
@@ -447,24 +479,14 @@ static void *ldap_auth_worker(void *arg)
 		request = &ldap_auth_queue[current_slot];
 		current_slot = (current_slot + 1) % LDAP_REQUEST_QUEUE_SIZE;
 
-		/* If the socket is already in the wrong state or reused then ignore it.
-		 * This check is not safe and should not be trusted (the socket state
-		 * might change exactly after it), but it helps to quickly filter out invalid
-		 * sockets and thus save some time.
-		 */
-		if (!is_valid_socket(request)) {
-			log_debug("ldap_auth_worker(): invalid socket in slot %d", current_slot);
-			request->status = LDAP_STATUS_FAILED;
-			continue;
-		}
-
 		if (check_ldap_auth(request)) {
-			request->status = LDAP_STATUS_SUCCESS;
+			request_status = LDAP_STATUS_SUCCESS;
 		} else {
-			request->status = LDAP_STATUS_FAILED;
+			request_status = LDAP_STATUS_FAILED;
 		}
+		set_request_status(request, request_status);
 
-		log_debug("ldap_auth_worker(): authentication completed, status=%d", request->status);
+		log_debug("ldap_auth_worker(): authentication completed, status=%d", request_status);
 	}
 
 	return NULL;
@@ -486,10 +508,10 @@ static bool is_valid_socket(const struct ldap_auth_request *request)
  * Finishes the handshake after successful or unsuccessful authentication.
  * The function is only called from the main thread.
  */
-static void ldap_auth_finish(struct ldap_auth_request *request)
+static void ldap_auth_finish(struct ldap_auth_request *request, int status)
 {
 	PgSocket *client = request->client;
-	bool authenticated = (request->status == LDAP_STATUS_SUCCESS);
+	bool authenticated = (status == LDAP_STATUS_SUCCESS);
 
 	if (authenticated) {
 		safe_strcpy(client->login_user_credentials->passwd, request->password, sizeof(client->login_user_credentials->passwd));

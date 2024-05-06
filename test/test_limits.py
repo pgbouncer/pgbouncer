@@ -98,7 +98,7 @@ def test_min_pool_size_with_lower_max_user_connections(bouncer):
 
     # Running a query for sufficient time for us to reach the final
     # connection count in the pool and detect any evictions.
-    with bouncer.log_contains("new connection to server", times=2):
+    with bouncer.log_contains(r"new connection to server \(from", times=2):
         with bouncer.log_contains("closing because: evicted", times=0):
             bouncer.sleep(2, dbname="p0x", user="maxedout2")
 
@@ -111,7 +111,7 @@ def test_min_pool_size_with_lower_max_db_connections(bouncer):
 
     # Running a query for sufficient time for us to reach the final
     # connection count in the pool and detect any evictions.
-    with bouncer.log_contains("new connection to server", times=2):
+    with bouncer.log_contains(r"new connection to server \(from", times=2):
         with bouncer.log_contains("closing because: evicted", times=0):
             bouncer.sleep(2, dbname="p0y", user="puser1")
 

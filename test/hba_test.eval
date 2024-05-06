@@ -79,3 +79,16 @@ md5		mdb	muser		ff11:2::1
 md5		mdb	muser		ff22:3::1
 trust		mdb	muser		::1
 reject		mdb	muser		::2
+
+# replication
+reject		mdb		muser		::1	replication
+reject		db		userp		unix	replication
+reject		replication	userp		unix	replication
+trust		db		admin		::1	replication
+trust		replication	admin		::1	replication
+reject		db		admin		::1
+reject		replication	admin		::1
+trust		db		admin2		::1	replication
+trust		replication	admin2		::1	replication
+trust		db2		admin2		::1
+reject		replication	admin2		::1

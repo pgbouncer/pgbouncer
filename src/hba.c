@@ -381,8 +381,8 @@ static bool parse_names(struct HBAName *hname, struct TokParser *tp, bool is_db,
 				return false;
 			}
 			if (eat_kw(tp, "replication")) {
-				log_warning("replication is not supported");
-				return false;
+				hname->flags |= NAME_REPLICATION;
+				goto eat_comma;
 			}
 		}
 
@@ -924,7 +924,7 @@ static bool match_inet6(const struct HBARule *rule, PgAddr *addr)
 	       (src[2] & mask[2]) == base[2] && (src[3] & mask[3]) == base[3];
 }
 
-struct HBARule * hba_eval(struct HBA *hba, PgAddr *addr, bool is_tls, const char *dbname, const char *username)
+struct HBARule * hba_eval(struct HBA *hba, PgAddr *addr, bool is_tls, ReplicationType replication, const char *dbname, const char *username)
 {
 	struct List *el;
 	struct HBARule *rule;
@@ -958,8 +958,14 @@ struct HBARule * hba_eval(struct HBA *hba, PgAddr *addr, bool is_tls, const char
 		}
 
 		/* match db & user */
-		if (!name_match(&rule->db_name, dbname, dbnamelen, username))
-			continue;
+		if (replication == REPLICATION_PHYSICAL) {
+			if (!(rule->db_name.flags & NAME_REPLICATION)) {
+				continue;
+			}
+		} else {
+			if (!name_match(&rule->db_name, dbname, dbnamelen, username))
+				continue;
+		}
 		if (!name_match(&rule->user_name, username, unamelen, dbname))
 			continue;
 

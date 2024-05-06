@@ -334,3 +334,41 @@ def test_client_ssl_scram(bouncer, cert_dir):
         sslmode="verify-full",
         sslrootcert=root,
     )
+
+
+def test_ssl_replication(pg, bouncer, cert_dir):
+    root = cert_dir / "TestCA1" / "ca.crt"
+    key = cert_dir / "TestCA1" / "sites" / "01-localhost.key"
+    cert = cert_dir / "TestCA1" / "sites" / "01-localhost.crt"
+
+    bouncer.write_ini(f"server_tls_sslmode = verify-full")
+    bouncer.write_ini(f"server_tls_ca_file = {root}")
+    bouncer.write_ini(f"client_tls_sslmode = require")
+    bouncer.write_ini(f"client_tls_key_file = {key}")
+    bouncer.write_ini(f"client_tls_cert_file = {cert}")
+    bouncer.write_ini(f"client_tls_ca_file = {root}")
+    bouncer.admin("reload")
+    pg.ssl_access("all", "trust")
+    pg.ssl_access("replication", "trust", user="postgres")
+    pg.configure("ssl=on")
+    pg.configure(f"ssl_ca_file='{root}'")
+
+    if PG_MAJOR_VERSION < 10 or WINDOWS:
+        pg.restart()
+    else:
+        pg.reload()
+
+    # Logical rep
+    connect_args = {
+        "host": "localhost",
+        "dbname": "p7a",
+        "replication": "database",
+        "user": "postgres",
+        "application_name": "abc",
+        "sslmode": "verify-full",
+        "sslrootcert": root,
+    }
+    bouncer.psql("IDENTIFY_SYSTEM", **connect_args)
+    # physical rep
+    connect_args["replication"] = "true"
+    bouncer.psql("IDENTIFY_SYSTEM", **connect_args)

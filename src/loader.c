@@ -122,20 +122,6 @@ static char * cstr_get_pair(char *p,
 }
 
 /*
- * Same as strcmp, but handles NULLs. If both sides are NULL, returns "true".
- */
-static bool strings_equal(const char *str_left, const char *str_right)
-{
-	if (str_left == NULL && str_right == NULL)
-		return true;
-
-	if (str_left == NULL || str_right == NULL)
-		return false;
-
-	return strcmp(str_left, str_right) == 0;
-}
-
-/*
  * Free the old value and set the new value
  */
 static bool set_param_value(char **old_value, const char *new_value)

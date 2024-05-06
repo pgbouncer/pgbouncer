@@ -7,6 +7,7 @@
 /* from c.h */
 
 #include <string.h>
+#include <usual/ctype.h>
 
 #define int8 int8_t
 #define uint8 uint8_t

@@ -46,6 +46,7 @@ PgPool *get_pool(PgDatabase *db, PgCredentials *user_credentials);
 PgPool *get_peer_pool(PgDatabase *);
 PgSocket *compare_connections_by_time(PgSocket *lhs, PgSocket *rhs);
 bool evict_connection(PgDatabase *db)           _MUSTCHECK;
+bool evict_pool_connection(PgPool *pool)        _MUSTCHECK;
 bool evict_user_connection(PgCredentials *user_credentials)        _MUSTCHECK;
 bool find_server(PgSocket *client)              _MUSTCHECK;
 bool life_over(PgSocket *server);

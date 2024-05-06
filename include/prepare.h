@@ -31,8 +31,9 @@ typedef struct PgServerPreparedStatement {
 	PgPreparedStatement *ps;
 } PgServerPreparedStatement;
 
-#define is_prepared_statements_enabled(pool) \
-	(pool_pool_mode(pool) != POOL_SESSION && cf_max_prepared_statements != 0)
+#define is_prepared_statements_enabled(client_or_server) \
+	(connection_pool_mode(client_or_server) != POOL_SESSION && cf_max_prepared_statements != 0)
+
 
 bool handle_parse_command(PgSocket *client, PktHdr *pkt);
 bool handle_bind_command(PgSocket *client, PktHdr *pkt);

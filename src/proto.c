@@ -102,8 +102,10 @@ bool get_header(struct MBuf *data, PktHdr *pkt)
 			type = PKT_SSLREQ;
 		} else if (code == PKT_GSSENCREQ) {
 			type = PKT_GSSENCREQ;
-		} else if ((code >> 16) == 3 && (code & 0xFFFF) < 2) {
-			type = PKT_STARTUP;
+		} else if (code >= PKT_STARTUP_V3 && code < PKT_STARTUP_V3_UNSUPPORTED) {
+			type = PKT_STARTUP_V3;
+		} else if (code >= PKT_STARTUP_V3_UNSUPPORTED && code < PKT_STARTUP_V4) {
+			type = PKT_STARTUP_V3_UNSUPPORTED;
 		} else if (code == PKT_STARTUP_V2) {
 			type = PKT_STARTUP_V2;
 		} else {

@@ -253,6 +253,9 @@ void pktbuf_put_uint64(PktBuf *buf, uint64_t val)
 
 void pktbuf_put_bytes(PktBuf *buf, const void *data, int len)
 {
+	if (len == 0)
+		return;
+
 	make_room(buf, len);
 	if (buf->failed)
 		return;

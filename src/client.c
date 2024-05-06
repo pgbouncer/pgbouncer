@@ -752,6 +752,10 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 	const char *key, *val;
 	bool ok;
 	bool appname_found = false;
+	struct MBuf unsupported_protocol_extensions;
+	int unsupported_protocol_extensions_count = 0;
+
+	mbuf_init_dynamic(&unsupported_protocol_extensions);
 
 	while (1) {
 		ok = mbuf_get_string(&pkt->data, &key);
@@ -773,6 +777,11 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 		} else if (strcmp(key, "application_name") == 0) {
 			set_appname(client, val);
 			appname_found = true;
+		} else if (strncmp("_pq_.", key, 5) == 0) {
+			slog_debug(client, "ignoring protocol extension parameter: %s=%s", key, val);
+			unsupported_protocol_extensions_count++;
+			if (!mbuf_write(&unsupported_protocol_extensions, key, strlen(key) + 1))
+				return false;
 		} else if (varcache_set(&client->vars, key, val)) {
 			slog_debug(client, "got var: %s=%s", key, val);
 		} else if (strlist_contains(cf_ignore_startup_params, key)) {
@@ -804,6 +813,21 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 			disconnect_client(client, true, "no more connections allowed (max_client_conn)");
 			return false;
 		}
+	}
+
+	if (pkt->type == PKT_STARTUP_V3_UNSUPPORTED || unsupported_protocol_extensions_count > 0) {
+		PktBuf *buf = pktbuf_dynamic(512);
+		int res;
+
+		pktbuf_write_NegotiateProtocolVersion(
+			buf,
+			unsupported_protocol_extensions_count,
+			unsupported_protocol_extensions.data,
+			unsupported_protocol_extensions.write_pos
+			);
+		res = pktbuf_send_immediate(buf, client);
+		if (!res)
+			disconnect_client(client, false, "unable to send protocol negotiation packet");
 	}
 
 	/* find pool */
@@ -999,7 +1023,8 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 	case PKT_STARTUP_V2:
 		disconnect_client(client, true, "old V2 protocol not supported");
 		return false;
-	case PKT_STARTUP:
+	case PKT_STARTUP_V3_UNSUPPORTED:
+	case PKT_STARTUP_V3:
 		/* require SSL except on unix socket */
 		if (client_accept_sslmode >= SSLMODE_REQUIRE && !client->sbuf.tls && !is_unix) {
 			disconnect_client(client, true, "SSL required");

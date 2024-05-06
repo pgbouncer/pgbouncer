@@ -487,14 +487,29 @@ static struct event ev_sigint;
 
 static void handle_sigterm(evutil_socket_t sock, short flags, void *arg)
 {
-	log_info("got SIGTERM, fast exit");
-	/* pidfile cleanup happens via atexit() */
-	exit(0);
+	if (cf_shutdown) {
+		log_info("got SIGTERM while shutting down, fast exit");
+		/* pidfile cleanup happens via atexit() */
+		exit(0);
+	}
+	log_info("got SIGTERM, shutting down, waiting for all clients disconnect");
+	sd_notify(0, "STOPPING=1");
+	if (cf_reboot)
+		die("takeover was in progress, going down immediately");
+	if (cf_pause_mode == P_SUSPEND)
+		die("suspend was in progress, going down immediately");
+	cf_shutdown = SHUTDOWN_WAIT_FOR_CLIENTS;
+	cleanup_sockets();
 }
 
 static void handle_sigint(evutil_socket_t sock, short flags, void *arg)
 {
-	log_info("got SIGINT, shutting down");
+	if (cf_shutdown) {
+		log_info("got SIGINT while shutting down, fast exit");
+		/* pidfile cleanup happens via atexit() */
+		exit(0);
+	}
+	log_info("got SIGINT, shutting down, waiting for all servers connections to be released");
 	sd_notify(0, "STOPPING=1");
 	if (cf_reboot)
 		die("takeover was in progress, going down immediately");
@@ -502,13 +517,22 @@ static void handle_sigint(evutil_socket_t sock, short flags, void *arg)
 		die("suspend was in progress, going down immediately");
 	cf_pause_mode = P_PAUSE;
 	cf_shutdown = SHUTDOWN_WAIT_FOR_SERVERS;
+	cleanup_sockets();
 }
 
 #ifndef WIN32
 
+static struct event ev_sigquit;
 static struct event ev_sigusr1;
 static struct event ev_sigusr2;
 static struct event ev_sighup;
+
+static void handle_sigquit(evutil_socket_t sock, short flags, void *arg)
+{
+	log_info("got SIGQUIT, fast exit");
+	/* pidfile cleanup happens via atexit() */
+	exit(0);
+}
 
 static void handle_sigusr1(int sock, short flags, void *arg)
 {
@@ -522,6 +546,10 @@ static void handle_sigusr1(int sock, short flags, void *arg)
 
 static void handle_sigusr2(int sock, short flags, void *arg)
 {
+	if (cf_shutdown) {
+		log_info("got SIGUSR2 while shutting down, ignoring");
+		return;
+	}
 	switch (cf_pause_mode) {
 	case P_SUSPEND:
 		log_info("got SIGUSR2, continuing from SUSPEND");
@@ -534,12 +562,6 @@ static void handle_sigusr2(int sock, short flags, void *arg)
 		break;
 	case P_NONE:
 		log_info("got SIGUSR2, but not paused/suspended");
-	}
-
-	/* avoid surprise later if cf_shutdown stays set */
-	if (cf_shutdown) {
-		log_info("canceling shutdown");
-		cf_shutdown = SHUTDOWN_NONE;
 	}
 }
 
@@ -582,6 +604,11 @@ static void signal_setup(void)
 
 	evsignal_assign(&ev_sighup, pgb_event_base, SIGHUP, handle_sighup, NULL);
 	err = evsignal_add(&ev_sighup, NULL);
+	if (err < 0)
+		fatal_perror("evsignal_add");
+
+	evsignal_assign(&ev_sigquit, pgb_event_base, SIGQUIT, handle_sigquit, NULL);
+	err = evsignal_add(&ev_sigquit, NULL);
 	if (err < 0)
 		fatal_perror("evsignal_add");
 #endif

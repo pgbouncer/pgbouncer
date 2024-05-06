@@ -404,7 +404,9 @@ static void pool_client_maint(PgPool *pool)
 				age = now - client->query_start;
 			}
 
-			if (cf_query_timeout > 0 && age > cf_query_timeout) {
+			if (cf_shutdown == SHUTDOWN_WAIT_FOR_SERVERS) {
+				disconnect_client(client, true, "server shutting down");
+			} else if (cf_query_timeout > 0 && age > cf_query_timeout) {
 				disconnect_client(client, true, "query_timeout");
 			} else if (cf_query_wait_timeout > 0 && age > cf_query_wait_timeout) {
 				disconnect_client(client, true, "query_wait_timeout");
@@ -756,6 +758,13 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 
 	if (cf_shutdown == SHUTDOWN_WAIT_FOR_SERVERS && get_active_server_count() == 0) {
 		log_info("server connections dropped, exiting");
+		cf_shutdown = SHUTDOWN_IMMEDIATE;
+		event_base_loopbreak(pgb_event_base);
+		return;
+	}
+
+	if (cf_shutdown == SHUTDOWN_WAIT_FOR_CLIENTS && get_active_client_count() == 0) {
+		log_info("client connections dropped, exiting");
 		cf_shutdown = SHUTDOWN_IMMEDIATE;
 		event_base_loopbreak(pgb_event_base);
 		return;

@@ -247,3 +247,110 @@ def test_equivalent_startup_param(bouncer):
         ):
             cur.execute("SELECT 1")
             cur.execute("SELECT 1")
+
+
+@pytest.mark.skipif("WINDOWS", reason="Windows doesn't support sending SIGTERM")
+async def test_repeated_sigterm(bouncer):
+    with bouncer.cur() as cur:
+        cur.execute("SELECT 1")
+        bouncer.sigterm()
+
+        # Single sigterm should wait for clients
+        time.sleep(1)
+        cur.execute("SELECT 1")
+        assert bouncer.running()
+
+        # Second sigterm should cause fast exit
+        bouncer.sigterm()
+        await bouncer.wait_for_exit()
+        with pytest.raises(
+            psycopg.OperationalError, match="server closed the connection unexpectedly"
+        ):
+            cur.execute("SELECT 1")
+        assert not bouncer.running()
+
+
+@pytest.mark.skipif("WINDOWS", reason="Windows doesn't support sending SIGINT")
+async def test_repeated_sigint(bouncer):
+    bouncer.admin(f"set pool_mode=session")
+    with bouncer.cur() as cur:
+        cur.execute("SELECT 1")
+        bouncer.sigint()
+
+        # Single sigint should wait for servers to be released
+        time.sleep(1)
+        cur.execute("SELECT 1")
+        assert bouncer.running()
+
+        # But new clients should be rejected, because we stopped listening for
+        # new connections.
+        with pytest.raises(psycopg.OperationalError, match="Connection refused"):
+            bouncer.test()
+
+        # Second sigint should cause fast exit
+        bouncer.sigint()
+        await bouncer.wait_for_exit()
+        with pytest.raises(
+            psycopg.OperationalError, match="server closed the connection unexpectedly"
+        ):
+            cur.execute("SELECT 1")
+        assert not bouncer.running()
+
+
+def test_newly_paused_client_during_wait_for_servers_shutdown(bouncer):
+    bouncer.admin(f"set pool_mode=transaction")
+    with bouncer.transaction() as cur1, bouncer.cur() as cur2:
+        cur1.execute("SELECT 1")
+        bouncer.admin("SHUTDOWN WAIT_FOR_SERVERS")
+        # Still in the same transaction, so this should work
+        cur1.execute("SELECT 1")
+        # New transaction so this should fail
+        with bouncer.log_contains(r"closing because: server shutting down"):
+            with pytest.raises(psycopg.OperationalError):
+                cur2.execute("SELECT 1")
+
+
+async def test_already_paused_client_during_wait_for_servers_shutdown(bouncer):
+    bouncer.admin(f"set pool_mode=transaction")
+    bouncer.admin(f"set default_pool_size=1")
+    bouncer.default_db = "p1"
+    with bouncer.transaction() as cur1:
+        conn2 = await bouncer.aconn()
+        cur2 = conn2.cursor()
+
+        cur1.execute("SELECT 1")
+        # start the request before the shutdown
+        task = asyncio.ensure_future(cur2.execute("SELECT 1"))
+        # We wait for one second so that the client goes to CL_WAITING state
+        done, pending = await asyncio.wait([task], timeout=1)
+        assert done == set()
+        assert pending == {task}
+        bouncer.admin("SHUTDOWN WAIT_FOR_SERVERS")
+        # Still in the same transaction, so this should work
+        cur1.execute("SELECT 1")
+        # New transaction so this should fail
+        with bouncer.log_contains(r"closing because: server shutting down"):
+            with pytest.raises(psycopg.OperationalError):
+                await task
+
+
+def test_resume_during_shutdown(bouncer):
+    with bouncer.cur() as cur, bouncer.admin_runner.cur() as admin_cur:
+        cur.execute("SELECT 1")
+        bouncer.admin("SHUTDOWN WAIT_FOR_CLIENTS")
+
+        with pytest.raises(
+            psycopg.errors.ProtocolViolation, match="pooler is shutting down"
+        ):
+            admin_cur.execute("RESUME")
+
+
+def test_sigusr2_during_shutdown(bouncer):
+    with bouncer.cur() as cur:
+        cur.execute("SELECT 1")
+        bouncer.admin("SHUTDOWN WAIT_FOR_CLIENTS")
+
+        if not WINDOWS:
+            with bouncer.log_contains(r"got SIGUSR2 while shutting down, ignoring"):
+                bouncer.sigusr2()
+                time.sleep(1)

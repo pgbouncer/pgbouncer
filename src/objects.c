@@ -783,12 +783,14 @@ PgPool *get_peer_pool(PgDatabase *db)
 /* deactivate socket and put into wait queue */
 static void pause_client(PgSocket *client)
 {
-	SocketState newstate;
 	Assert(client->state == CL_ACTIVE || client->state == CL_LOGIN);
 	slog_debug(client, "pause_client");
-	newstate = CL_WAITING;
 
-	change_client_state(client, newstate);
+	if (cf_shutdown == SHUTDOWN_WAIT_FOR_SERVERS) {
+		disconnect_client(client, true, "server shutting down");
+		return;
+	}
+	change_client_state(client, CL_WAITING);
 	if (!sbuf_pause(&client->sbuf))
 		disconnect_client(client, true, "pause failed");
 }

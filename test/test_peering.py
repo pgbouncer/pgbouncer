@@ -70,3 +70,73 @@ def test_peering_with_own_index(peers):
                     psycopg.errors.QueryCanceled, match="due to user request"
                 ):
                     query.result()
+
+
+async def test_rolling_restart_admin(peers):
+    # Stop 2 of the 3 peers, so that we know we connect to peer 1
+    await peers[2].stop()
+    await peers[3].stop()
+    with peers[1].cur() as cur:
+        cur.execute("select 1")
+
+        # Trigger a shutdown, but the process should keep running until we
+        # close the connection
+        peers[1].admin("shutdown wait_for_clients")
+        time.sleep(1)
+        assert peers[1].running()
+
+        # New connection attempts are now expected to fail, because no process
+        # is listening on the port. Under normal usage you would continue to
+        # leave at least one running. But for testing purposes this is the
+        # easiest way to show that peer[1] is not accepting new connections
+        # anymore.
+        with pytest.raises(psycopg.OperationalError, match="Connection refused"):
+            peers[1].test()
+        # But the existing connection is still be allowed to execute any
+        # queries.
+        cur.execute("select 1")
+
+        await peers[2].start()
+
+        # Now that peer[2] is running again, new connections should start
+        # working too.
+        peers[1].test()
+
+    # Now that the connection is closed, peer[1] should exit automatically.
+    await peers[1].wait_for_exit()
+    assert not peers[1].running()
+
+
+async def test_rolling_restart_sigterm(peers):
+    # Stop 2 of the 3 peers, so that we know we connect to peer 1
+    await peers[2].stop()
+    await peers[3].stop()
+    with peers[1].cur() as cur:
+        cur.execute("select 1")
+
+        # Trigger a shutdown, but the process should keep running until we
+        # close the connection
+        peers[1].sigterm()
+        time.sleep(1)
+        assert peers[1].running()
+
+        # New connection attempts are now expected to fail, because no process
+        # is listening on the port. Under normal usage you would continue to
+        # leave at least one running. But for testing purposes this is the
+        # easiest way to show that peer[1] is not accepting new connections
+        # anymore.
+        with pytest.raises(psycopg.OperationalError, match="Connection refused"):
+            peers[1].test()
+        # But the existing connection is still be allowed to execute any
+        # queries.
+        cur.execute("select 1")
+
+        await peers[2].start()
+
+        # Now that peer[2] is running again, new connections should start
+        # working too.
+        peers[1].test()
+
+    # Now that the connection is closed, peer[1] should exit automatically.
+    await peers[1].wait_for_exit()
+    assert not peers[1].running()

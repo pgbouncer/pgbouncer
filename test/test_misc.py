@@ -165,6 +165,13 @@ def test_options_startup_param(bouncer):
 
     assert (
         bouncer.sql_value(
+            "SHOW timezone", options="--timezone=Portugal  --datestyle=German,\\ YMD"
+        )
+        == "Portugal"
+    )
+
+    assert (
+        bouncer.sql_value(
             "SHOW timezone",
             options="-c t\\imezone=\\P\\o\\r\\t\\ugal  -c    dat\\estyle\\=\\Ge\\rman,\\ YMD",
         )
@@ -180,13 +187,13 @@ def test_options_startup_param(bouncer):
 
     with pytest.raises(
         psycopg.OperationalError,
-        match="unsupported options startup parameter: only '-c config=val' is allowed",
+        match="unsupported options startup parameter: only '-c config=val' and '--config=val' are allowed",
     ):
         bouncer.test(options="-d")
 
     with pytest.raises(
         psycopg.OperationalError,
-        match="unsupported options startup parameter: only '-c config=val' is allowed",
+        match="unsupported options startup parameter: only '-c config=val' and '--config=val' are allowed",
     ):
         bouncer.test(options="-c timezone")
 

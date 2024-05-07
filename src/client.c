@@ -711,10 +711,14 @@ static bool set_startup_options(PgSocket *client, const char *options)
 		char *equals;
 		mbuf_rewind_writer(&arg);
 		position = cstr_skip_ws((char *) position);
-		if (strncmp("-c", position, 2) != 0)
+		if (strncmp("-c", position, 2) == 0) {
+			position += 2;
+			position = cstr_skip_ws((char *) position);
+		} else if (strncmp("--", position, 2) == 0) {
+			position += 2;
+		} else {
 			goto fail;
-		position += 2;
-		position = cstr_skip_ws((char *) position);
+		}
 
 		if (!read_escaped_token(&position, &arg)) {
 			if (arg.fixed) {
@@ -749,7 +753,7 @@ static bool set_startup_options(PgSocket *client, const char *options)
 	mbuf_free(&arg);
 	return true;
 fail:
-	disconnect_client(client, true, "unsupported options startup parameter: only '-c config=val' is allowed");
+	disconnect_client(client, true, "unsupported options startup parameter: only '-c config=val' and '--config=val' are allowed");
 	mbuf_free(&arg);
 	return false;
 }

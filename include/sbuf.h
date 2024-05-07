@@ -40,7 +40,7 @@ typedef enum {
  * to see completely.  Generally just header,
  * but currently also ServerParam pkt.
  */
-#define SBUF_SMALL_PKT	64
+#define SBUF_SMALL_PKT  64
 
 struct tls;
 
@@ -52,8 +52,8 @@ typedef struct SBufIO SBufIO;
    false if it used sbuf_pause(), sbuf_close() or simply wants to wait for
    next event loop (eg. too few data available). */
 typedef bool (*sbuf_cb_t)(SBuf *sbuf,
-			SBufEvent evtype,
-			struct MBuf *mbuf);
+			  SBufEvent evtype,
+			  struct MBuf *mbuf);
 
 struct SBufIO {
 	ssize_t (*sbufio_recv)(SBuf *sbuf, void *buf, size_t len);
@@ -77,6 +77,9 @@ struct SBuf {
 	int sock;		/* fd for this socket */
 
 	unsigned pkt_remain;	/* total packet length remaining */
+	unsigned skip_remain;	/* the amount of data that still needs to be skipped before doing the pkt_action */
+	struct MBuf extra_packets;	/* extra packets that pgbouncer inserts into the packet stream */
+	bool extra_packet_queue_after;	/* if packets should be queued after the current packet that's being put on the queue */
 
 	sbuf_cb_t proto_cb;	/* protocol callback */
 
@@ -118,10 +121,15 @@ bool sbuf_pause(SBuf *sbuf) _MUSTCHECK;
 void sbuf_continue(SBuf *sbuf);
 bool sbuf_close(SBuf *sbuf) _MUSTCHECK;
 
+bool sbuf_flush(SBuf *sbuf) _MUSTCHECK;
+
 /* proto_fn can use those functions to order behaviour */
 void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, unsigned amount);
 void sbuf_prepare_skip(SBuf *sbuf, unsigned amount);
+void sbuf_prepare_skip_then_send_leftover(SBuf *sbuf, SBuf *dst, unsigned skip_amount, unsigned total_amount);
 void sbuf_prepare_fetch(SBuf *sbuf, unsigned amount);
+bool sbuf_queue_packet(SBuf *sbuf, SBuf *dst, PktBuf *pkt) _MUSTCHECK;
+bool sbuf_queue_full_packet(SBuf *sbuf, SBuf *dst, PktHdr *pkt) _MUSTCHECK;
 
 bool sbuf_answer(SBuf *sbuf, const void *buf, size_t len)  _MUSTCHECK;
 

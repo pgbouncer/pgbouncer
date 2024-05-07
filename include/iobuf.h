@@ -57,7 +57,7 @@ typedef struct iobuf IOBuf;
 static inline bool iobuf_sane(const IOBuf *io)
 {
 	return (io == NULL) ||
-		(  io->parse_pos >= io->done_pos
+	       (io->parse_pos >= io->done_pos
 		&& io->recv_pos >= io->parse_pos
 		&& (unsigned)cf_sbuf_len >= io->recv_pos);
 }
@@ -114,7 +114,7 @@ static inline void iobuf_tag_send(IOBuf *io, unsigned len)
 
 static inline void iobuf_tag_skip(IOBuf *io, unsigned len)
 {
-	Assert(io->parse_pos == io->done_pos); /* no send pending */
+	Assert(io->parse_pos == io->done_pos);	/* no send pending */
 	Assert(len > 0 && len <= iobuf_amount_parse(io));
 
 	io->parse_pos += len;

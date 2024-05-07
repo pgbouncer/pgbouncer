@@ -10,11 +10,17 @@ DIST_SUBDIRS = ssl
 
 EXTRA_DIST = conntest.sh ctest6000.ini ctest7000.ini run-conntest.sh \
 	     hba_test.eval hba_test.rules Makefile \
-	     test.ini test.sh stress.py userlist.txt
+	     test.ini stress.py userlist.txt \
+	     __init__.py conftest.py utils.py \
+	     test_admin.py test_auth.py test_cancel.py test_copy.py test_limits.py \
+	     test_misc.py test_no_database.py test_no_user.py test_operations.py \
+	     test_peering.py test_prepared.py test_ssl.py test_timeouts.py
 
+
+UTHASH = ../uthash
 noinst_PROGRAMS = hba_test
-hba_test_CPPFLAGS = -I../include $(LIBEVENT_CFLAGS)
-hba_test_LDADD = $(LIBEVENT_LIBS)
+hba_test_CPPFLAGS = -I../include $(LIBEVENT_CFLAGS) -I$(UTHASH)/src
+hba_test_LDADD = $(LIBEVENT_LIBS) $(TLS_LIBS)
 hba_test_CFLAGS = -O0
 hba_test_SOURCES = hba_test.c ../src/hba.c ../src/util.c
 hba_test_EMBED_LIBUSUAL = 1
@@ -33,8 +39,4 @@ include ../config.mak
 include ../lib/mk/antimake.mk
 
 check: all
-	./test.sh
 	./hba_test
-ifeq ($(tls_support),yes)
-	$(MAKE) -C ssl check
-endif

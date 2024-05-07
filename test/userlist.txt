@@ -4,6 +4,9 @@
 "pgbouncer" "fake"
 "pswcheck" "pgbouncer-check"
 "maxedout" ""
+"maxedout2" ""
+"poolsize1" ""
+"bouncer" "zzzz"
 
 ;the following pairs of passwords are "foo" and "bar"
 

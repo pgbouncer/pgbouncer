@@ -7,103 +7,92 @@ env:
 task:
   name: Linux (Debian/Ubuntu)
   matrix:
+    # - container:
+    #     image: ubuntu:20.04
     - container:
-        image: ubuntu:20.04
-    - container:
-        image: ubuntu:20.04
+        image: ubuntu:22.04
       env:
         configure_args: '--with-cares --with-pam'
     - container:
-        image: ubuntu:20.04
+        image: ubuntu:22.04
       env:
-        configure_args: '--with-udns --without-openssl'
-    - container:
-        image: ubuntu:20.04
-      env:
-        configure_args: '--disable-evdns'
-    - container:
-        image: ubuntu:20.04
-      env:
-        CC: clang
-    - container:
-        image: ubuntu:20.04
-      env:
-        CFLAGS: -fno-sanitize-recover=all -fsanitize=undefined -fsanitize-address-use-after-scope -fno-sanitize=shift
-    - container:
-        image: ubuntu:20.04
-      env:
-        use_valgrind: yes
-        CFLAGS: -O0 -g
-    - container:
-        image: ubuntu:20.04
-      env:
-        use_valgrind: yes
-        CFLAGS: -O0 -g
-        PGVERSION: 9.6
-    - container:
-        image: ubuntu:20.04
-      env:
-        use_scan_build: yes
-    - arm_container:
-        image: ubuntu:20.04
+        configure_args: '--without-openssl'
+    # - container:
+    #     image: ubuntu:20.04
+    #   env:
+    #     configure_args: '--disable-evdns'
+    # - container:
+    #     image: ubuntu:20.04
+    #   env:
+    #     CC: clang
+    # - container:
+    #     image: ubuntu:20.04
+    #   env:
+    #     CFLAGS: -fno-sanitize-recover=all -fsanitize=undefined -fsanitize-address-use-after-scope -fno-sanitize=shift
     - container:
         image: ubuntu:22.04
-    - container:
-        image: ubuntu:18.04
       env:
-        PGVERSION: 10
-    - container:
-        image: ubuntu:16.04
-      env:
-        PGVERSION: 9.6
-    - container:
-        image: debian:stable
-      env:
-        PGVERSION: 13
-    - container:
-        image: debian:oldstable
-      env:
-        PGVERSION: 11
+        ENABLE_VALGRIND: yes
+        CFLAGS: -O0 -g
+        PGVERSION: 17
+    # - container:
+    #     image: ubuntu:20.04
+    #   env:
+    #     ENABLE_VALGRIND: yes
+    #     CFLAGS: -O0 -g
+    #     PGVERSION: 9.6
+    # - container:
+    #     image: ubuntu:20.04
+    #   env:
+    #     use_scan_build: yes
+    # - arm_container:
+    #     image: ubuntu:20.04
+    # - container:
+    #     image: ubuntu:22.04
+    # - container:
+    #     image: debian:stable
+    #   env:
+    #     PGVERSION: 13
+    # - container:
+    #     image: debian:oldstable
+    #   env:
+    #     PGVERSION: 11
   setup_script:
     - apt-get update
     - apt-get -y install curl gnupg lsb-release
     - curl https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
-    - echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main" | tee /etc/apt/sources.list.d/pgdg.list
+    - echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main $PGVERSION" | tee /etc/apt/sources.list.d/pgdg.list
+    - if [ "$PGVERSION" = 17 ]; then echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg-snapshot main 17" | tee /etc/apt/sources.list.d/pgdg.list; fi
     - apt-get update
-    - pkgs="autoconf automake ca-certificates cpio libc-ares-dev libevent-dev libssl-dev libsystemd-dev libtool libudns-dev make pandoc postgresql-$PGVERSION pkg-config python3"
+    - pkgs="autoconf automake ca-certificates cpio libc-ares-dev libevent-dev libpam0g-dev libssl-dev libsystemd-dev libtool make pandoc postgresql-$PGVERSION pkg-config python3 python3-pip python3-venv sudo iptables"
     - case $CC in clang) pkgs="$pkgs clang";; esac
-    - if [ x"$use_valgrind" = x"yes" ]; then pkgs="$pkgs valgrind"; fi
+    - if [ x"$ENABLE_VALGRIND" = x"yes" ]; then pkgs="$pkgs valgrind"; fi
     - if [ x"$use_scan_build" = x"yes" ]; then pkgs="$pkgs clang-tools"; fi
+    - if [ "$PGVERSION" = 17 ]; then pkgs="$pkgs libpq5=$(apt-cache show libpq5 | grep "^Version: $PGVERSION" | awk '{print $2}')"; fi
+    - if [ "$PGVERSION" = 17 ]; then pkgs="$pkgs postgresql-common=$(apt-cache show postgresql-common | grep "^Version: .*pgdg" | awk '{print $2}')"; fi
+    - if [ "$PGVERSION" = 17 ]; then pkgs="$pkgs postgresql-client-common=$(apt-cache show postgresql-client-common | grep "^Version: .*pgdg" | awk '{print $2}')"; fi
     - apt-get -y install $pkgs
+    - python3 -m venv /venv
+    - /venv/bin/pip install -r requirements.txt
     - useradd user
     - chown -R user .
+    - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
   build_script:
     - su user -c "./autogen.sh"
     - su user -c "${use_scan_build:+scan-build} ./configure --prefix=$HOME/install --enable-cassert --enable-werror --without-cares --with-systemd $configure_args"
-    - su user -c "${use_scan_build:+scan-build} make"
+    - su user -c "${use_scan_build:+scan-build} make -j4"
   test_script:
-    - |
-      if [ x"$use_valgrind" = x"yes" ]; then
-        export BOUNCER_EXE_PREFIX="valgrind --quiet --leak-check=full --show-reachable=no --track-origins=yes --error-markers=VALGRIND-ERROR-BEGIN,VALGRIND-ERROR-END --log-file=/tmp/valgrind.%p.log"
-      fi
-    - su user -c "PATH=/usr/lib/postgresql/${PGVERSION}/bin:$PATH make check"
-    - |
-      if [ x"$use_valgrind" = x"yes" ]; then
-        if grep -q VALGRIND-ERROR /tmp/valgrind.*.log; then
-          cat /tmp/valgrind.*.log
-          exit 1
-        fi
-      fi
+    - source /venv/bin/activate && su user -c "PATH=/usr/lib/postgresql/${PGVERSION}/bin:$PATH make -j4 check CONCURRENCY=4"
   install_script:
-    - make install
+    - make -j4 install
   dist_script:
-    - make dist
+    - make -j4 dist
     - PACKAGE_VERSION=$(sed -n 's/PACKAGE_VERSION = //p' config.mak)
     - tar -x -v -f pgbouncer-${PACKAGE_VERSION}.tar.gz
     - cd pgbouncer-${PACKAGE_VERSION}/
     - ./configure --prefix=$HOME/install2 --enable-werror --without-cares $configure_args
-    - make
-    - make install
+    - make -j4
+    - make -j4 install
   tarball_artifacts:
     path: "pgbouncer-*.tar.gz"
   always:
@@ -111,68 +100,81 @@ task:
       path: "config.log"
       type: text/plain
 
-task:
-  name: Linux (Red Hat)
-  container:
-    matrix:
-      - image: rockylinux:8
-      - image: centos:centos7
-  setup_script:
-    - yum -y install autoconf automake diffutils file libevent-devel libtool make openssl-devel pkg-config postgresql-server systemd-devel wget
-    - if cat /etc/centos-release | grep -q ' 7'; then yum -y install python; else yum -y install python3; fi
-    - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
-    - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
-    - useradd user
-    - chown -R user .
-  build_script:
-    - su user -c "./autogen.sh"
-    - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror --with-systemd"
-    - su user -c "make"
-  test_script:
-# XXX: postgresql too old on centos7
-    - if cat /etc/centos-release | grep -q ' 7'; then true; else su user -c "make check"; fi
-  install_script:
-    - make install
-  always:
-    configure_artifacts:
-      path: "config.log"
-      type: text/plain
+# task:
+#   name: Linux (Red Hat)
+#   container:
+#     matrix:
+#       - image: rockylinux:9
+#       - image: rockylinux:8
+#       - image: centos:centos7
+#   setup_script:
+#     - yum -y install autoconf automake diffutils file libevent-devel libtool make openssl-devel pkg-config postgresql-server postgresql-contrib systemd-devel wget
+#     - if cat /etc/centos-release | grep -q ' 7'; then yum -y install python python-pip; else yum -y install python3 python3-pip sudo iptables; fi
+#     - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
+#     - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
+# # XXX: python too old
+#     - if cat /etc/centos-release | grep -q ' 7'; then true; else pip3 install -r requirements.txt; fi
+#     - useradd user
+#     - chown -R user .
+#     - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+#   build_script:
+#     - su user -c "./autogen.sh"
+#     - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror --with-systemd"
+#     - su user -c "make -j4"
+#   test_script:
+# # XXX: postgresql too old on centos7
+#     - if cat /etc/centos-release | grep -q ' 7'; then true; else su user -c "make -j4 check CONCURRENCY=4"; fi
+#   install_script:
+#     - make -j4 install
+#   always:
+#     configure_artifacts:
+#       path: "config.log"
+#       type: text/plain
 
-task:
-  name: Linux (Alpine)
-  container:
-    matrix:
-      - image: alpine:latest
-  setup_script:
-    - apk update
-    - apk add autoconf automake build-base libevent-dev libtool openssl openssl-dev pkgconf postgresql python3 wget
-    - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
-    - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
-    - adduser --disabled-password user
-    - chown -R user .
-  build_script:
-    - su user -c "./autogen.sh"
-    - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror"
-    - su user -c "make"
-  test_script:
-    - su user -c "make check"
-  install_script:
-    - make install
-  always:
-    configure_artifacts:
-      path: "config.log"
-      type: text/plain
+# task:
+#   name: Linux (Alpine)
+#   container:
+#     matrix:
+#       - image: alpine:latest
+#   setup_script:
+#     - apk update
+#     - apk add autoconf automake bash build-base libevent-dev libtool openssl openssl-dev pkgconf postgresql postgresql-contrib python3 py3-pip wget sudo iptables
+#     - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
+#     - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
+#     - python3 -m pip install -r requirements.txt
+#     - adduser --disabled-password user
+#     - chown -R user .
+#     - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+#   build_script:
+#     - su user -c "./autogen.sh"
+#     - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror"
+#     - su user -c "make -j4"
+#   test_script:
+#     - su user -c "make -j4 check CONCURRENCY=4"
+#   install_script:
+#     - make -j4 install
+#   always:
+#     configure_artifacts:
+#       path: "config.log"
+#       type: text/plain
 
 task:
   name: FreeBSD
   freebsd_instance:
-    image_family: freebsd-13-0
+    image_family: freebsd-14-0
   env:
     HAVE_IPV6_LOCALHOST: yes
+    USE_SUDO: true
   setup_script:
-    - pkg install -y autoconf automake bash gmake hs-pandoc libevent libtool pkgconf postgresql12-server python
+    - pkg install -y autoconf automake bash gmake hs-pandoc libevent libtool pkgconf postgresql12-server postgresql12-contrib python devel/py-pip sudo
+    - pip install -r requirements.txt
+    - kldload pf
+    - echo 'anchor "pgbouncer_test/*"' >> /etc/pf.conf
+    - echo 'pf_enable="YES"' >> /etc/rc.conf
+    - service pf start
     - pw useradd user
     - chown -R user .
+    - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /usr/local/etc/sudoers
   env:
     CPPFLAGS: -I/usr/local/include
     LDFLAGS: -L/usr/local/lib
@@ -180,11 +182,11 @@ task:
   build_script:
     - su user -c "./autogen.sh"
     - su user -c "./configure --prefix=$HOME/install --enable-werror"
-    - su user -c "gmake"
+    - su user -c "gmake -j4"
   test_script:
-    - su user -c "gmake check"
+    - su user -c "gmake -j4 check CONCURRENCY=4"
   install_script:
-    - gmake install
+    - gmake -j4 install
   always:
     configure_artifacts:
       path: "config.log"
@@ -192,24 +194,27 @@ task:
 
 task:
   name: macOS
-  osx_instance:
-    matrix:
-      - image: monterey-base
+  macos_instance:
+    image: ghcr.io/cirruslabs/macos-sonoma-base:latest
   env:
     HAVE_IPV6_LOCALHOST: yes
+    USE_SUDO: true
   setup_script:
-    - brew install autoconf automake bash libevent libtool openssl pandoc pkg-config postgresql
+    - brew install autoconf automake bash libevent libtool openssl pandoc pkg-config postgresql@${PGVERSION}
+    - python3 -m pip install -r requirements.txt
+    - echo 'anchor "pgbouncer_test/*"' | sudo tee -a /etc/pf.conf
+    - sudo pfctl -f /etc/pf.conf
   env:
-    CPPFLAGS: -I/usr/local/opt/openssl/include
-    LDFLAGS: -L/usr/local/opt/openssl/lib
+    CPPFLAGS: -I/opt/homebrew/opt/openssl@3/include
+    LDFLAGS: -L/opt/homebrew/opt/openssl@3/lib
   build_script:
     - ./autogen.sh
     - ./configure --prefix=$HOME/install --enable-werror
-    - make
+    - make -j4
   test_script:
-    - make check
+    - make check -j4 CONCURRENCY=4
   install_script:
-    - make install
+    - make -j4 install
   always:
     configure_artifacts:
       path: "config.log"
@@ -226,26 +231,43 @@ task:
   matrix:
     - env:
         MSYSTEM: MINGW64
-    - env:
-        MSYSTEM: MINGW32
+    # - env:
+    #     MSYSTEM: MINGW32
   setup_script:
     - choco install -y --no-progress msys2
-    - sh -l -c "pacman --noconfirm -S --needed base-devel ${MINGW_PACKAGE_PREFIX}-gcc ${MINGW_PACKAGE_PREFIX}-libevent ${MINGW_PACKAGE_PREFIX}-openssl ${MINGW_PACKAGE_PREFIX}-postgresql autoconf automake libtool python zip"
+    - sh -l -c "pacman --noconfirm -S --needed base-devel ${MINGW_PACKAGE_PREFIX}-gcc ${MINGW_PACKAGE_PREFIX}-libevent ${MINGW_PACKAGE_PREFIX}-openssl ${MINGW_PACKAGE_PREFIX}-postgresql autoconf automake libtool ${MINGW_PACKAGE_PREFIX}-python ${MINGW_PACKAGE_PREFIX}-python-pip zip"
+    - sh -l -c 'pip install -r requirements.txt'
+    - echo 127.0.0.1 localhost >> c:\Windows\System32\Drivers\etc\hosts
+    - sh -l -c 'echo "127.0.0.1   localhost" >> /etc/hosts'
     - choco install -y --no-progress pandoc
   build_script:
     - sh -l -c "./autogen.sh"
-    - sh -l -c "./configure --prefix=$HOME/install --enable-werror PANDOC=/c/programdata/chocolatey/bin/pandoc LDFLAGS=-static LIBS=-liphlpapi PKG_CONFIG='pkg-config --static'"
-    - sh -l -c "make"
+    - sh -l -c "./configure --prefix=$HOME/install --enable-werror PANDOC=/c/programdata/chocolatey/bin/pandoc LDFLAGS=-static \"LIBS=-liphlpapi $(pkgconf -libs -static openssl)\" PKG_CONFIG='pkg-config --static'"
+    - sh -l -c "make -j4"
   test_script:
-    - sh -l -c "make check tls_support=no"
+    - sh -l -c "make -j4 check CONCURRENCY=3"
     - sh -l -c "windres pgbouncer.exe"
   install_script:
-    - sh -l -c "make install"
+    - sh -l -c "make -j4 install"
   dist_script:
-    - sh -l -c "make zip"
+    - sh -l -c "make -j4 zip"
   zip_artifacts:
     path: "pgbouncer-*.zip"
   always:
     configure_artifacts:
       path: "config.log"
       type: text/plain
+
+task:
+  name: Formatting checks & linting
+  container:
+    image: ubuntu:22.04
+  setup_script:
+    - apt-get update
+    - apt-get install -y python3 python3-pip cmake curl
+    - pip install -r dev_requirements.txt
+  build_script:
+    - touch config.mak # Fake that configure has run
+  test_script:
+    - make format-check
+    - make lint

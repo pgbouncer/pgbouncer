@@ -21,6 +21,11 @@
  */
 
 #include "bouncer.h"
+#include "usual/time.h"
+
+#include <usual/slab.h>
+
+#define ERRCODE_CANNOT_CONNECT_NOW "57P03"
 
 static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 {
@@ -61,29 +66,52 @@ failed_store:
 	return false;
 }
 
-/* we cannot log in at all, notify clients */
-void kill_pool_logins(PgPool *pool, const char *msg)
+/*
+ * We cannot log in to the server at all. If we don't already have any usable
+ * server connections, we disconnect all other clients in the pool that are
+ * waiting for a server.
+ */
+void kill_pool_logins(PgPool *pool, const char *sqlstate, const char *msg)
 {
 	struct List *item, *tmp;
 	PgSocket *client;
+	/*
+	 * The check for welcome_msg_ready is necessary because that indicates
+	 * that the pool got tagged as dirty. It's possible that there's still
+	 * working server connections in that case, but as soon as they get
+	 * unassigned from their client they would be closed. So they don't
+	 * really count as usable anymore.
+	 */
+	if (pool_connected_server_count(pool) != 0 && pool->welcome_msg_ready)
+		return;
 
 	statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
 		client = container_of(item, PgSocket, head);
-		if (!client->wait_for_welcome)
-			continue;
-
-		disconnect_client(client, true, "%s", msg);
+		disconnect_client_sqlstate(client, true, sqlstate, msg);
 	}
 }
 
-/* we cannot log in at all, notify clients with server error */
+/*
+ * We cannot log in to the server at all. If we don't already have any usable
+ * server connections, we disconnect all other clients in the pool that are
+ * also waiting for a server. We disconnect them with exactly the same error
+ * message and code as we received from the server.
+ */
 static void kill_pool_logins_server_error(PgPool *pool, PktHdr *errpkt)
 {
-	const char *level, *msg;
+	const char *level, *msg, *sqlstate;
 
-	parse_server_error(errpkt, &level, &msg);
+	parse_server_error(errpkt, &level, &msg, &sqlstate);
 	log_warning("server login failed: %s %s", level, msg);
-	kill_pool_logins(pool, msg);
+
+	/*
+	 * Kill all waiting clients unless it's a temporary error, such as
+	 * "database system is starting up".
+	 */
+	if (strcmp(sqlstate, ERRCODE_CANNOT_CONNECT_NOW) != 0) {
+		log_noise("kill_pool_logins_server_error: sqlstate: %s", sqlstate);
+		kill_pool_logins(pool, sqlstate, msg);
+	}
 }
 
 /* process packets on server auth phase */
@@ -107,7 +135,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 
 		case 'E':	/* log & ignore errors */
 			log_server_error("S: error while executing exec_on_query", pkt);
-			/* fallthrough */
+		/* fallthrough */
 		default:	/* ignore rest */
 			sbuf_prepare_skip(sbuf, pkt->len);
 			return true;
@@ -121,7 +149,22 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 		break;
 
 	case 'E':		/* ErrorResponse */
-		if (!server->pool->welcome_msg_ready)
+		/*
+		 * If we cannot log into the server, then we drop all clients
+		 * that are currently trying to log in because they will almost
+		 * certainly hit the same error.
+		 *
+		 * However, we don't do this if it's a replication connection,
+		 * because those can fail due to a variety of missing
+		 * permissions specific to replication connections, such as
+		 * missing REPLICATION role or missing pg_hba.conf line for the
+		 * replication database. In such cases normal connections would
+		 * still be able connect and query the database just fine, so
+		 * we don't want to kill all of those just yet. If there really
+		 * is a problem impacting all connections, we can wait for a
+		 * normal connection to report this problem.
+		 */
+		if (!server->replication)
 			kill_pool_logins_server_error(server->pool, pkt);
 		else
 			log_server_error("S: login failed", pkt);
@@ -191,9 +234,31 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 	return res;
 }
 
-int pool_pool_mode(PgPool *pool)
+/*
+ * connection_pool_mode returns the pool_mode for the server. It specifically
+ * forces session pooling if the server is a replication connection, because
+ * replication connections require session pooling to work correctly.
+ */
+int connection_pool_mode(PgSocket *connection)
 {
-	int pool_mode = pool->user->pool_mode;
+	if (connection->replication)
+		return POOL_SESSION;
+	return probably_wrong_pool_pool_mode(connection->pool);
+}
+
+/*
+ * probably_wrong_pool_pool_mode returns the pool_mode for the pool.
+ *
+ * IMPORTANT: You should almost certainly not use this function directly,
+ * because the pool_mode of a pool is not necessarily the same as the pool mode
+ * of each of the clients and servers in the pool. Most importantly replication
+ * connections in a transaction/statement pool will still use session pooling.
+ *
+ * Normally you should use connection_pool_mode()
+ */
+int probably_wrong_pool_pool_mode(PgPool *pool)
+{
+	int pool_mode = pool->user_credentials->global_user->pool_mode;
 	if (pool_mode == POOL_INHERIT)
 		pool_mode = pool->db->pool_mode;
 	if (pool_mode == POOL_INHERIT)
@@ -203,18 +268,37 @@ int pool_pool_mode(PgPool *pool)
 
 int pool_pool_size(PgPool *pool)
 {
-	if (pool->db->pool_size < 0)
-		return cf_default_pool_size;
-	else
+	int user_pool_size = pool->user_credentials ? pool->user_credentials->global_user->pool_size : -1;
+	if (user_pool_size >= 0)
+		return user_pool_size;
+	else if (pool->db->pool_size >= 0)
 		return pool->db->pool_size;
+	else
+		return cf_default_pool_size;
 }
 
+/* min_pool_size of the pool's db */
 int pool_min_pool_size(PgPool *pool)
 {
-	if (pool->db->min_pool_size < 0)
+	return database_min_pool_size(pool->db);
+}
+
+/* server_lifetime of the pool's db */
+usec_t pool_server_lifetime(PgPool *pool)
+{
+	if (pool->db->server_lifetime == 0)
+		return cf_server_lifetime;
+	else
+		return pool->db->server_lifetime;
+}
+
+/* min_pool_size of the db */
+int database_min_pool_size(PgDatabase *db)
+{
+	if (db->min_pool_size < 0)
 		return cf_min_pool_size;
 	else
-		return pool->db->min_pool_size;
+		return db->min_pool_size;
 }
 
 int pool_res_pool_size(PgPool *pool)
@@ -227,20 +311,18 @@ int pool_res_pool_size(PgPool *pool)
 
 int database_max_connections(PgDatabase *db)
 {
-	if (db->max_db_connections <= 0) {
+	if (db->max_db_connections <= 0)
 		return cf_max_db_connections;
-        } else {
+	else
 		return db->max_db_connections;
-	}
 }
 
-int user_max_connections(PgUser *user)
+int user_max_connections(PgGlobalUser *user)
 {
-	if (user->max_user_connections <= 0) {
+	if (user->max_user_connections <= 0)
 		return cf_max_user_connections;
-	} else {
+	else
 		return user->max_user_connections;
-	}
 }
 
 /* process packets on logged in connection */
@@ -252,6 +334,8 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	SBuf *sbuf = &server->sbuf;
 	PgSocket *client = server->link;
 	bool async_response = false;
+	struct List *item, *tmp;
+	bool ignore_packet = false;
 
 	Assert(!server->pool->db->admin);
 
@@ -268,22 +352,21 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		if (!mbuf_get_char(&pkt->data, &state))
 			return false;
 
+		if (!pop_outstanding_request(server, "SQF", &ignore_packet)
+		    && server->query_failed) {
+			if (!clear_outstanding_requests_until(server, "S"))
+				return false;
+		}
+		server->query_failed = false;
+
 		/* set ready only if no tx */
-		if (state == 'I')
+		if (state == 'I') {
 			ready = true;
-		else if (pool_pool_mode(server->pool) == POOL_STMT) {
+		} else if (connection_pool_mode(server) == POOL_STMT) {
 			disconnect_server(server, true, "transaction blocks not allowed in statement pooling mode");
 			return false;
 		} else if (state == 'T' || state == 'E') {
 			idle_tx = true;
-		}
-
-		if (client && !server->setting_vars) {
-			if (client->expect_rfq_count > 0) {
-				client->expect_rfq_count--;
-			} else if (server->state == SV_ACTIVE) {
-				slog_debug(client, "unexpected ReadyForQuery - expect_rfq_count=%d", client->expect_rfq_count);
-			}
 		}
 		break;
 
@@ -318,17 +401,76 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			disconnect_server(server, true, "invalid server parameter");
 			return false;
 		}
-		/* fallthrough */
+
+		/* ErrorResponse and CommandComplete show end of copy mode */
+		if (server->copy_mode) {
+			slog_debug(server, "COPY failed");
+			server->copy_mode = false;
+
+			/*
+			 * Clear until next CopyDone or CopyFail message in the
+			 * queue. This is needed to remove any Sync messages
+			 * from the outstanding requests queue, for which we
+			 * don't expect a response from the server.
+			 *
+			 * It isn't a problem if the CopyDone or CopyFail
+			 * message has not been received yet. This message will
+			 * be removed from the queue later when the server
+			 * sends a ReadyForQuery message and we clear the queue
+			 * until the next Sync.
+			 *
+			 * NOTE: CopyFail is the obvious error case, because
+			 * here the client triggers a failure of the COPY.
+			 * But CopyDone is also included in the search. The
+			 * reason for that being that the server might fail the
+			 * COPY for some reason unknown to the client (e.g. a
+			 * unique constraint violation).
+			 */
+			if (!clear_outstanding_requests_until(server, "cf"))
+				return false;
+		}
+
+		server->query_failed = true;
+		break;
 	case 'C':		/* CommandComplete */
 
 		/* ErrorResponse and CommandComplete show end of copy mode */
 		if (server->copy_mode) {
+			slog_debug(server, "COPY finished");
 			server->copy_mode = false;
 
-			/* it's impossible to track sync count over copy */
-			if (client)
-				client->expect_rfq_count = 0;
+			/*
+			 * Clear until next CopyDone message in the queue. This
+			 * is needed to remove any Sync messages from the
+			 * outstanding requests queue, for which we don't
+			 * expect a response from the server.
+			 */
+			if (!clear_outstanding_requests_until(server, "c"))
+				return false;
 		}
+		/*
+		 * Clean up prepared statements if needed if the client sent a
+		 * DEALLOCATE ALL or a DISCARD ALL query. Not doing so would
+		 * confuse our prepared statement handling, because we would
+		 * expect certain queries to be prepared at the server that are
+		 * not.
+		 */
+		if (is_prepared_statements_enabled(server)
+		    && (pkt->len == 1 + 4 + 15 || pkt->len == 1 + 4 + 12)) {	/* size of complete DEALLOCATE/DISCARD ALL */
+			const char *tag;
+			if (mbuf_get_string(&pkt->data, &tag)) {
+				if (strcmp(tag, "DEALLOCATE ALL") == 0 ||
+				    strcmp(tag, "DISCARD ALL") == 0) {
+					free_server_prepared_statements(server);
+					if (client)
+						free_client_prepared_statements(client);
+				}
+			} else {
+				return false;
+			}
+		}
+		pop_outstanding_request(server, "E", &ignore_packet);
+
 		break;
 
 	case 'N':		/* NoticeResponse */
@@ -343,25 +485,39 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 
 	/* copy mode */
 	case 'G':		/* CopyInResponse */
-	case 'H':		/* CopyOutResponse */
+	case 'W':		/* CopyBothResponse */
+		slog_debug(server, "COPY started");
 		server->copy_mode = true;
 		break;
+	case 'H':		/* CopyOutResponse */
+		break;
 	/* chat packets */
+	case '1':		/* ParseComplete */
+		pop_outstanding_request(server, "P", &ignore_packet);
+		break;
 	case '2':		/* BindComplete */
+		pop_outstanding_request(server, "B", &ignore_packet);
+		break;
 	case '3':		/* CloseComplete */
+		pop_outstanding_request(server, "C", &ignore_packet);
+		break;
+	case 'n':		/* NoData */
+	case 'T':		/* RowDescription */
+		pop_outstanding_request(server, "D", &ignore_packet);
+		break;
+	case 't':		/* ParameterDescription */
 	case 'c':		/* CopyDone(F/B) */
 	case 'f':		/* CopyFail(F/B) */
-	case 'I':		/* EmptyQueryResponse == CommandComplete */
 	case 'V':		/* FunctionCallResponse */
-	case 'n':		/* NoData */
-	case '1':		/* ParseComplete */
+		break;
+	case 'I':		/* EmptyQueryResponse == CommandComplete */
 	case 's':		/* PortalSuspended */
+		pop_outstanding_request(server, "E", &ignore_packet);
+		break;
 
 	/* data packets, there will be more coming */
 	case 'd':		/* CopyData(F/B) */
 	case 'D':		/* DataRow */
-	case 't':		/* ParameterDescription */
-	case 'T':		/* RowDescription */
 		break;
 	}
 	server->idle_tx = idle_tx;
@@ -374,6 +530,9 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	} else if (client) {
 		if (client->state == CL_LOGIN) {
 			return handle_auth_query_response(client, pkt);
+		} else if (ignore_packet) {
+			slog_noise(server, "not forwarding packet with type '%c' from server", pkt->type);
+			sbuf_prepare_skip(sbuf, pkt->len);
 		} else {
 			sbuf_prepare_send(sbuf, &client->sbuf, pkt->len);
 
@@ -381,15 +540,16 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			 * Compute query and transaction times
 			 *
 			 * For pipelined overlapping commands, we wait until
-			 * the last command is done (expect_rfq_count==0).
+			 * the last command is done (outstanding_requests==0).
 			 * That means, we count the time that PgBouncer is
-			 * occupied in a query or transaction, not the total
-			 * time that all queries/transactions take
-			 * individually.  For that, we would have to track the
-			 * start time of each query separately in a queue or
-			 * similar, not only per client.
+			 * occupied in a series of pipelined commands, not the
+			 * total time that all commands/queries take
+			 * individually. For that, we would have to track the
+			 * start time of each command separately in queue or
+			 * similar, not only per client. (which would probably
+			 * be a good future improvement)
 			 */
-			if (client->expect_rfq_count == 0) {
+			if (statlist_count(&server->outstanding_requests) == 0) {
 				/* every statement (independent or in a transaction) counts as a query */
 				if (ready || idle_tx) {
 					if (client->query_start) {
@@ -400,6 +560,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 						slog_debug(client, "query time: %d us", (int)total);
 					} else if (!async_response) {
 						slog_warning(client, "FIXME: query end, but query_start == 0");
+						Assert(false);
 					}
 				}
 
@@ -418,12 +579,37 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 					}
 				}
 			}
+			statlist_for_each_safe(item, &server->outstanding_requests, tmp) {
+				OutstandingRequest *request = container_of(item, OutstandingRequest, node);
+				if (request->action != RA_FAKE)
+					break;
+
+				statlist_pop(&server->outstanding_requests);
+				sbuf->extra_packet_queue_after = true;
+
+				if (!queue_fake_response(client, request->type)) {
+					/*
+					 * The only reason the above could have failed is because
+					 * of allocation errors. To actually be able to retry after
+					 * these failures the next round we would need to restore
+					 * the outstanding_requests queue to how it was before.
+					 * Instead of doing that, we take the easy and known
+					 * correct way out: Simply disconnecting the involved
+					 * client and server.
+					 */
+					disconnect_client(client, true, "out of memory");
+					disconnect_server(client->link, true, "out of memory");
+					return false;
+				}
+				slab_free(outstanding_request_cache, request);
+			}
 		}
 	} else {
-		if (server->state != SV_TESTED)
+		if (server->state != SV_TESTED) {
 			slog_warning(server,
 				     "got packet '%c' from server when not linked",
 				     pkt_desc(pkt));
+		}
 		sbuf_prepare_skip(sbuf, pkt->len);
 	}
 
@@ -441,20 +627,41 @@ static bool handle_connect(PgSocket *server)
 	fill_local_addr(server, sbuf_socket(&server->sbuf), is_unix);
 
 	if (cf_log_connections) {
-		if (pga_is_unix(&server->remote_addr))
+		if (pga_is_unix(&server->remote_addr)) {
 			slog_info(server, "new connection to server");
-		else
+		} else {
 			slog_info(server, "new connection to server (from %s)",
 				  pga_str(&server->local_addr, buf, sizeof(buf)));
+		}
 	}
 
-	if (!statlist_empty(&pool->cancel_req_list)) {
+	/*
+	 * If there are cancel requests waiting we first handle those. By handling
+	 * these first we reduce the load on the server and we a server connection
+	 * might actually become free to use for queries, because its query got
+	 * canceled.
+	 *
+	 * Only if there are no cancel requests we proceed with the login procedure
+	 * that's necessary to handle queries. Cancel requests need to be sent
+	 * before the login procedure starts.
+	 *
+	 * A special case is when this is a peer pool, instead of a regular pool.
+	 * Since only cancellation requests should be sent to peers.
+	 */
+	if (!statlist_empty(&pool->waiting_cancel_req_list)) {
 		slog_debug(server, "use it for pending cancel req");
-		/* if pending cancel req, send it */
-		forward_cancel_request(server);
+		if (forward_cancel_request(server)) {
+			change_server_state(server, SV_ACTIVE_CANCEL);
+			sbuf_continue(&server->sbuf);
+		} else {
+			/* notify disconnect_server() that connect did not fail */
+			server->ready = true;
+			disconnect_server(server, false, "failed to send cancel req");
+		}
+	} else if (pool->db->peer_id) {
 		/* notify disconnect_server() that connect did not fail */
 		server->ready = true;
-		disconnect_server(server, false, "sent cancel req");
+		disconnect_server(server, false, "peer server was not necessary anymore, because client cancel connection was already closed");
 	} else {
 		/* proceed with login */
 		if (server_connect_sslmode > SSLMODE_DISABLED && !is_unix) {
@@ -532,7 +739,10 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 
 	switch (evtype) {
 	case SBUF_EV_RECV_FAILED:
-		disconnect_server(server, false, "server conn crashed?");
+		if (server->state == SV_ACTIVE_CANCEL)
+			disconnect_server(server, false, "successfully sent cancel request");
+		else
+			disconnect_server(server, false, "server conn crashed?");
 		break;
 	case SBUF_EV_SEND_FAILED:
 		disconnect_client(server->link, false, "unexpected eof");
@@ -562,6 +772,8 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		case SV_TESTED:
 		case SV_USED:
 		case SV_ACTIVE:
+		case SV_ACTIVE_CANCEL:
+		case SV_BEING_CANCELED:
 		case SV_IDLE:
 			res = handle_server_work(server, &pkt);
 			break;
@@ -588,19 +800,33 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			PgSocket *client = server->link;
 			Assert(client);
 
+			/*
+			 * It's possible that the client vars and server vars have
+			 * different string representations, but still Postgres did not
+			 * send a ParameterStatus packet. This happens when the server
+			 * variable is the canonical version of the client variable, i.e.
+			 * they mean the same just written slightly different. To make sure
+			 * that the canonical version is also stored in the client, we now
+			 * copy the server variables over to the client variables.
+			 * See issue #776 for an example of this.
+			 */
+			varcache_set_canonical(server, client);
+
 			server->setting_vars = false;
+			log_noise("done setting vars unpausing client");
 			sbuf_continue(&client->sbuf);
 			break;
 		}
 
-		if (pool_pool_mode(pool) != POOL_SESSION || server->state == SV_TESTED || server->resetting) {
+		if (connection_pool_mode(server) != POOL_SESSION || server->state == SV_TESTED || server->resetting) {
 			server->resetting = false;
 			switch (server->state) {
 			case SV_ACTIVE:
+			case SV_ACTIVE_CANCEL:
 			case SV_TESTED:
-				/* keep link if client expects more Syncs */
+				/* keep link if client expects more responses */
 				if (server->link) {
-					if (server->link->expect_rfq_count > 0)
+					if (statlist_count(&server->outstanding_requests) > 0)
 						break;
 				}
 
@@ -609,6 +835,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 				break;
 			default:
 				slog_warning(server, "EV_FLUSH with state=%d", server->state);
+			case SV_BEING_CANCELED:
 			case SV_IDLE:
 				break;
 			}

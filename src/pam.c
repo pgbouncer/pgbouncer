@@ -39,7 +39,7 @@
  * pam_auth_begin when the queue is full.
  * Default is 100 milliseconds.
  */
-#define PAM_QUEUE_WAIT_SLEEP_MCS	(100*1000)
+#define PAM_QUEUE_WAIT_SLEEP_MCS        (100*1000)
 
 
 struct pam_auth_request {
@@ -61,7 +61,7 @@ struct pam_auth_request {
 	/* The request status, one of the PAM_STATUS_* constants */
 	int status;
 
-	/* The username (same as in client->login_user->name).
+	/* The username (same as in client->login_user_credentials->name).
 	 * See the comment for remote_addr.
 	 */
 	char username[MAX_USERNAME];
@@ -101,7 +101,7 @@ pthread_mutex_t pam_queue_tail_mutex;
 pthread_cond_t pam_data_available;
 
 /* Forward declarations */
-static void* pam_auth_worker(void *arg);
+static void * pam_auth_worker(void *arg);
 static bool is_valid_socket(const struct pam_auth_request *request);
 static void pam_auth_finish(struct pam_auth_request *request);
 static bool pam_check_passwd(struct pam_auth_request *request);
@@ -171,7 +171,7 @@ void pam_auth_begin(PgSocket *client, const char *passwd)
 	request->connect_time = client->connect_time;
 	request->status = PAM_STATUS_IN_PROGRESS;
 	memcpy(&request->remote_addr, &client->remote_addr, sizeof(client->remote_addr));
-	safe_strcpy(request->username, client->login_user->name, MAX_USERNAME);
+	safe_strcpy(request->username, client->login_user_credentials->name, MAX_USERNAME);
 	safe_strcpy(request->password, passwd, MAX_PASSWORD);
 
 	pam_first_free_slot = next_free_slot;
@@ -215,13 +215,12 @@ int pam_poll(void)
  * The authentication thread function.
  * Performs scanning the queue for new requests and calling PAM for them.
  */
-static void* pam_auth_worker(void *arg)
+static void * pam_auth_worker(void *arg)
 {
 	int current_slot = pam_first_taken_slot;
 	struct pam_auth_request *request;
 
 	while (true) {
-
 		/* Wait for new data in the queue */
 		pthread_mutex_lock(&pam_queue_tail_mutex);
 
@@ -265,7 +264,8 @@ static void* pam_auth_worker(void *arg)
  * By validity we mean that it is still waiting in the login phase
  * and was not reused for other connections.
  */
-static bool is_valid_socket(const struct pam_auth_request *request) {
+static bool is_valid_socket(const struct pam_auth_request *request)
+{
 	if (request->client->state != CL_LOGIN || request->client->connect_time != request->connect_time)
 		return false;
 	return true;
@@ -281,7 +281,7 @@ static void pam_auth_finish(struct pam_auth_request *request)
 	bool authenticated = (request->status == PAM_STATUS_SUCCESS);
 
 	if (authenticated) {
-		safe_strcpy(client->login_user->passwd, request->password, sizeof(client->login_user->passwd));
+		safe_strcpy(client->login_user_credentials->passwd, request->password, sizeof(client->login_user_credentials->passwd));
 		sbuf_continue(&client->sbuf);
 	} else {
 		disconnect_client(client, true, "PAM authentication failed");
@@ -289,9 +289,9 @@ static void pam_auth_finish(struct pam_auth_request *request)
 }
 
 static int pam_conversation(int msgc,
-							const struct pam_message **msgv,
-							struct pam_response **rspv,
-							void *authdata)
+			    const struct pam_message **msgv,
+			    struct pam_response **rspv,
+			    void *authdata)
 {
 	struct pam_auth_request *request = (struct pam_auth_request *)authdata;
 	int i, rc;
@@ -317,7 +317,7 @@ static int pam_conversation(int msgc,
 
 	rc = PAM_SUCCESS;
 
-	for (i=0; i<msgc; i++) {
+	for (i = 0; i < msgc; i++) {
 		if (rc != PAM_SUCCESS)
 			break;
 
@@ -345,7 +345,7 @@ static int pam_conversation(int msgc,
 	}
 
 	if (rc != PAM_SUCCESS) {
-		for (i=0; i<msgc; i++)
+		for (i = 0; i < msgc; i++)
 			free((*rspv)[i].resp);
 		free(*rspv);
 	}

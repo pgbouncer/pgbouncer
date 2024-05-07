@@ -45,7 +45,6 @@ their probing order:
 | backend                    | parallel | EDNS0 (1) | /etc/hosts | SOA lookup (2) | note                                  |
 |----------------------------|----------|-----------|------------|----------------|---------------------------------------|
 | c-ares                     | yes      | yes       | yes        | yes            | IPv6+CNAME buggy in <=1.10            |
-| udns                       | yes      | yes       | no         | yes            | IPv4 only                             |
 | evdns, libevent 2.x        | yes      | no        | yes        | no             | does not check /etc/hosts updates     |
 | getaddrinfo_a, glibc 2.9+  | yes      | yes (3)   | yes        | no             | N/A on non-glibc                      |
 | getaddrinfo, libc          | no       | yes (3)   | yes        | no             | requires pthreads                     |
@@ -62,10 +61,9 @@ options at this point and don't receive much testing anymore.
 
 By default, c-ares is used if it can be found.  Its use can be forced
 with `configure --with-cares` or disabled with `--without-cares`.  If
-c-ares is not used (not found or disabled), then specify `--with-udns`
-to pick udns, else Libevent is used.  Specify `--disable-evdns` to
-disable the use of Libevent's evdns and fall back to a libc-based
-implementation.
+c-ares is not used (not found or disabled), then Libevent is used.  Specify
+`--disable-evdns` to disable the use of Libevent's evdns and fall back to a
+libc-based implementation.
 
 PAM authentication
 ------------------
@@ -85,8 +83,8 @@ well as socket activation.  See `etc/pgbouncer.service` and
 Building from Git
 -----------------
 
-Building PgBouncer from Git requires that you fetch the libusual
-submodule and generate the header and configuration files before
+Building PgBouncer from Git requires that you fetch the libusual and
+uthash submodules and generate the header and configuration files before
 you can run `configure`:
 
 	$ git clone https://github.com/pgbouncer/pgbouncer.git
@@ -94,11 +92,23 @@ you can run `configure`:
 	$ git submodule init
 	$ git submodule update
 	$ ./autogen.sh
-	$ ./configure ...
+	$ ./configure
 	$ make
 	$ make install
 
+All files will be installed under `/usr/local` by default. You can
+supply one or more command-line options to `configure`. Run
+`./configure --help` to list the available options and the environment
+variables that customizes the configuration.
+
 Additional packages required: autoconf, automake, libtool, pandoc
+
+Testing
+-------
+
+See the [`README.md` file in the test directory][1] on how to run the tests.
+
+[1]: https://github.com/pgbouncer/pgbouncer/blob/master/test/README.md
 
 Building on Windows
 -------------------
@@ -108,12 +118,12 @@ Visual $ANYTHING are not supported.
 
 To build on MinGW, do the usual:
 
-	$ ./configure ...
+	$ ./configure
 	$ make
 
 If cross-compiling from Unix:
 
-	$ ./configure --host=i586-mingw32msvc ...
+	$ ./configure --host=i586-mingw32msvc
 
 Running on Windows
 ------------------

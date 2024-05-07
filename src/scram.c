@@ -28,7 +28,7 @@
 
 
 static bool calculate_client_proof(ScramState *scram_state,
-				   const PgUser *user,
+				   const PgCredentials *credentials,
 				   const char *salt,
 				   int saltlen,
 				   int iterations,
@@ -63,7 +63,7 @@ static bool is_scram_printable(char *p)
 	 *------
 	 */
 	for (; *p; p++)
-		if (*p < 0x21 || *p > 0x7E || *p == 0x2C /* comma */ )
+		if (*p < 0x21 || *p > 0x7E || *p == 0x2C /* comma */)
 			return false;
 
 	return true;
@@ -88,16 +88,14 @@ static char *read_attr_value(PgSocket *sk, char **input, char attr)
 	char *begin = *input;
 	char *end;
 
-	if (*begin != attr)
-	{
+	if (*begin != attr) {
 		slog_error(sk, "malformed SCRAM message (attribute \"%c\" expected)",
 			   attr);
 		return NULL;
 	}
 	begin++;
 
-	if (*begin != '=')
-	{
+	if (*begin != '=') {
 		slog_error(sk, "malformed SCRAM message (expected \"=\" after attribute \"%c\")",
 			   attr);
 		return NULL;
@@ -108,13 +106,12 @@ static char *read_attr_value(PgSocket *sk, char **input, char attr)
 	while (*end && *end != ',')
 		end++;
 
-	if (*end)
-	{
+	if (*end) {
 		*end = '\0';
 		*input = end + 1;
-	}
-	else
+	} else {
 		*input = end;
+	}
 
 	return begin;
 }
@@ -124,16 +121,14 @@ static char *read_attr_value(PgSocket *sk, char **input, char attr)
  *
  * Returns NULL if there is no attribute.
  */
-static char *
-read_any_attr(PgSocket *sk, char **input, char *attr_p)
+static char *read_any_attr(PgSocket *sk, char **input, char *attr_p)
 {
 	char *begin = *input;
 	char *end;
 	char attr = *begin;
 
 	if (!((attr >= 'A' && attr <= 'Z') ||
-	      (attr >= 'a' && attr <= 'z')))
-	{
+	      (attr >= 'a' && attr <= 'z'))) {
 		slog_error(sk, "malformed SCRAM message (attribute expected, but found invalid character \"%s\")",
 			   sanitize_char(attr));
 		return NULL;
@@ -142,8 +137,7 @@ read_any_attr(PgSocket *sk, char **input, char *attr_p)
 		*attr_p = attr;
 	begin++;
 
-	if (*begin != '=')
-	{
+	if (*begin != '=') {
 		slog_error(sk, "malformed SCRAM message (expected character \"=\" after attribute \"%c\")",
 			   attr);
 		return NULL;
@@ -154,13 +148,12 @@ read_any_attr(PgSocket *sk, char **input, char *attr_p)
 	while (*end && *end != ',')
 		end++;
 
-	if (*end)
-	{
+	if (*end) {
 		*end = '\0';
 		*input = end + 1;
-	}
-	else
+	} else {
 		*input = end;
+	}
 
 	return begin;
 }
@@ -171,19 +164,19 @@ read_any_attr(PgSocket *sk, char **input, char *attr_p)
  * Returns true if the SCRAM secret has been parsed, and false otherwise.
  */
 static bool parse_scram_secret(const char *secret, int *iterations, char **salt,
-				 uint8_t *stored_key, uint8_t *server_key)
+			       uint8_t *stored_key, uint8_t *server_key)
 {
-	char	   *s;
-	char	   *p;
-	char	   *scheme_str;
-	char	   *salt_str;
-	char	   *iterations_str;
-	char	   *storedkey_str;
-	char	   *serverkey_str;
-	int			decoded_len;
-	char	   *decoded_salt_buf;
-	char	   *decoded_stored_buf = NULL;
-	char	   *decoded_server_buf = NULL;
+	char *s;
+	char *p;
+	char *scheme_str;
+	char *salt_str;
+	char *iterations_str;
+	char *storedkey_str;
+	char *serverkey_str;
+	int decoded_len;
+	char *decoded_salt_buf;
+	char *decoded_stored_buf = NULL;
+	char *decoded_server_buf = NULL;
 
 	/*
 	 * The secret is of form:
@@ -268,8 +261,7 @@ invalid_secret:
 /*
  * What kind of a password type is 'shadow_pass'?
  */
-PasswordType
-get_password_type(const char *shadow_pass)
+PasswordType get_password_type(const char *shadow_pass)
 {
 	char *encoded_salt = NULL;
 	int iterations;
@@ -281,7 +273,7 @@ get_password_type(const char *shadow_pass)
 	    strspn(shadow_pass + 3, MD5_PASSWD_CHARSET) == MD5_PASSWD_LEN - 3)
 		return PASSWORD_TYPE_MD5;
 	if (parse_scram_secret(shadow_pass, &iterations, &encoded_salt,
-				 stored_key, server_key)) {
+			       stored_key, server_key)) {
 		free(encoded_salt);
 		return PASSWORD_TYPE_SCRAM_SHA_256;
 	}
@@ -331,7 +323,7 @@ failed:
 }
 
 char *build_client_final_message(ScramState *scram_state,
-				 const PgUser *user,
+				 const PgCredentials *credentials,
 				 const char *server_nonce,
 				 const char *salt,
 				 int saltlen,
@@ -339,7 +331,7 @@ char *build_client_final_message(ScramState *scram_state,
 {
 	char buf[512];
 	size_t len;
-	uint8_t	client_proof[SCRAM_KEY_LEN];
+	uint8_t client_proof[SCRAM_KEY_LEN];
 	int enclen;
 
 	snprintf(buf, sizeof(buf), "c=biws,r=%s", server_nonce);
@@ -348,7 +340,7 @@ char *build_client_final_message(ScramState *scram_state,
 	if (scram_state->client_final_message_without_proof == NULL)
 		goto failed;
 
-	if (!calculate_client_proof(scram_state, user,
+	if (!calculate_client_proof(scram_state, credentials,
 				    salt, saltlen, iterations, buf,
 				    client_proof))
 		goto failed;
@@ -356,8 +348,8 @@ char *build_client_final_message(ScramState *scram_state,
 	len = strlcat(buf, ",p=", sizeof(buf));
 	enclen = pg_b64_enc_len(sizeof(client_proof));
 	enclen = pg_b64_encode((char *) client_proof,
-			     SCRAM_KEY_LEN,
-			     buf + len, enclen);
+			       SCRAM_KEY_LEN,
+			       buf + len, enclen);
 	if (enclen < 0)
 		goto failed;
 	len += enclen;
@@ -388,8 +380,7 @@ bool read_server_first_message(PgSocket *server, char *input,
 		goto failed;
 
 	if (strlen(server_nonce) < strlen(server->scram_state.client_nonce) ||
-	    memcmp(server_nonce, server->scram_state.client_nonce, strlen(server->scram_state.client_nonce)) != 0)
-	{
+	    memcmp(server_nonce, server->scram_state.client_nonce, strlen(server->scram_state.client_nonce)) != 0) {
 		slog_error(server, "invalid SCRAM response (nonce mismatch)");
 		goto failed;
 	}
@@ -404,8 +395,7 @@ bool read_server_first_message(PgSocket *server, char *input,
 	saltlen = pg_b64_decode(encoded_salt,
 				strlen(encoded_salt),
 				salt, saltlen);
-	if (saltlen < 0)
-	{
+	if (saltlen < 0) {
 		slog_error(server, "malformed SCRAM message (invalid salt)");
 		goto failed;
 	}
@@ -415,14 +405,12 @@ bool read_server_first_message(PgSocket *server, char *input,
 		goto failed;
 
 	iterations = strtol(iterations_str, &endptr, 10);
-	if (*endptr != '\0' || iterations < 1)
-	{
+	if (*endptr != '\0' || iterations < 1) {
 		slog_error(server, "malformed SCRAM message (invalid iteration count)");
 		goto failed;
 	}
 
-	if (*input != '\0')
-	{
+	if (*input != '\0') {
 		slog_error(server, "malformed SCRAM message (garbage at end of server-first-message)");
 		goto failed;
 	}
@@ -443,8 +431,7 @@ bool read_server_final_message(PgSocket *server, char *input, char *ServerSignat
 	char *decoded_server_signature = NULL;
 	int server_signature_len;
 
-	if (*input == 'e')
-	{
+	if (*input == 'e') {
 		char *errmsg = read_attr_value(server, &input, 'e');
 		slog_error(server, "error received from server in SCRAM exchange: %s",
 			   errmsg);
@@ -467,8 +454,7 @@ bool read_server_final_message(PgSocket *server, char *input, char *ServerSignat
 					     strlen(encoded_server_signature),
 					     decoded_server_signature,
 					     server_signature_len);
-	if (server_signature_len != SCRAM_KEY_LEN)
-	{
+	if (server_signature_len != SCRAM_KEY_LEN) {
 		slog_error(server, "malformed SCRAM message (malformed server signature)");
 		goto failed;
 	}
@@ -482,7 +468,7 @@ failed:
 }
 
 static bool calculate_client_proof(ScramState *scram_state,
-				   const PgUser *user,
+				   const PgCredentials *credentials,
 				   const char *salt,
 				   int saltlen,
 				   int iterations,
@@ -491,23 +477,20 @@ static bool calculate_client_proof(ScramState *scram_state,
 {
 	pg_saslprep_rc rc;
 	char *prep_password = NULL;
-	uint8_t	StoredKey[SCRAM_KEY_LEN];
-	uint8_t	ClientKey[SCRAM_KEY_LEN];
-	uint8_t	ClientSignature[SCRAM_KEY_LEN];
+	uint8_t StoredKey[SCRAM_KEY_LEN];
+	uint8_t ClientKey[SCRAM_KEY_LEN];
+	uint8_t ClientSignature[SCRAM_KEY_LEN];
 	scram_HMAC_ctx ctx;
 
-	if (user->has_scram_keys)
+	if (credentials->has_scram_keys) {
+		memcpy(ClientKey, credentials->scram_ClientKey, SCRAM_KEY_LEN);
+	} else
 	{
-		memcpy(ClientKey, user->scram_ClientKey, SCRAM_KEY_LEN);
-	}
-	else
-	{
-		rc = pg_saslprep(user->passwd, &prep_password);
+		rc = pg_saslprep(credentials->passwd, &prep_password);
 		if (rc == SASLPREP_OOM)
 			return false;
-		if (rc != SASLPREP_SUCCESS)
-		{
-			prep_password = strdup(user->passwd);
+		if (rc != SASLPREP_SUCCESS) {
+			prep_password = strdup(credentials->passwd);
 			if (!prep_password)
 				return false;
 		}
@@ -550,14 +533,14 @@ failed:
 	return false;
 }
 
-bool verify_server_signature(ScramState *scram_state, const PgUser *user, const char *ServerSignature)
+bool verify_server_signature(ScramState *scram_state, const PgCredentials *credentials, const char *ServerSignature)
 {
 	uint8_t expected_ServerSignature[SCRAM_KEY_LEN];
 	uint8_t ServerKey[SCRAM_KEY_LEN];
 	scram_HMAC_ctx ctx;
 
-	if (user->has_scram_keys)
-		memcpy(ServerKey, user->scram_ServerKey, SCRAM_KEY_LEN);
+	if (credentials->has_scram_keys)
+		memcpy(ServerKey, credentials->scram_ServerKey, SCRAM_KEY_LEN);
 	else
 		scram_ServerKey(scram_state->SaltedPassword, ServerKey);
 
@@ -707,8 +690,7 @@ bool read_client_final_message(PgSocket *client, const uint8_t *raw_input, char 
 	client_final_nonce = read_attr_value(client, &input, 'r');
 
 	/* ignore optional extensions */
-	do
-	{
+	do {
 		proof_start = input - 1;
 		value = read_any_attr(client, &input, &attr);
 	} while (value && attr != 'p');
@@ -873,10 +855,10 @@ char *build_server_first_message(ScramState *scram_state, const char *username, 
 		switch (get_password_type(stored_secret)) {
 		case PASSWORD_TYPE_SCRAM_SHA_256:
 			if (!parse_scram_secret(stored_secret,
-						  &scram_state->iterations,
-						  &scram_state->salt,
-						  scram_state->StoredKey,
-						  scram_state->ServerKey))
+						&scram_state->iterations,
+						&scram_state->salt,
+						scram_state->StoredKey,
+						scram_state->ServerKey))
 				goto failed;
 			break;
 		case PASSWORD_TYPE_PLAINTEXT:
@@ -924,12 +906,11 @@ failed:
 	return NULL;
 }
 
-static char *
-compute_server_signature(ScramState *state)
+static char *compute_server_signature(ScramState *state)
 {
-	uint8_t		ServerSignature[SCRAM_KEY_LEN];
-	char	   *server_signature_base64;
-	int			siglen;
+	uint8_t ServerSignature[SCRAM_KEY_LEN];
+	char *server_signature_base64;
+	int siglen;
 	scram_HMAC_ctx ctx;
 
 	/* calculate ServerSignature */
@@ -953,8 +934,10 @@ compute_server_signature(ScramState *state)
 		return NULL;
 	siglen = pg_b64_encode((const char *) ServerSignature,
 			       SCRAM_KEY_LEN, server_signature_base64, siglen);
-	if (siglen < 0)
+	if (siglen < 0) {
+		free(server_signature_base64);
 		return NULL;
+	}
 	server_signature_base64[siglen] = '\0';
 
 	return server_signature_base64;
@@ -971,6 +954,16 @@ char *build_server_final_message(ScramState *scram_state)
 		goto failed;
 
 	len = 2 + strlen(server_signature) + 1;
+
+	/*
+	 * Avoid compiler warning at snprintf() below because len
+	 * could in theory overflow snprintf() result.  If this
+	 * happened in practice, it would surely be some crazy
+	 * corruption, so treat it as an error.
+	 */
+	if (len >= INT_MAX)
+		goto failed;
+
 	result = malloc(len);
 	if (!result)
 		goto failed;
@@ -1001,37 +994,37 @@ bool verify_final_nonce(const ScramState *scram_state, const char *client_final_
 
 bool verify_client_proof(ScramState *state, const char *ClientProof)
 {
-    uint8_t ClientSignature[SCRAM_KEY_LEN];
-    uint8_t client_StoredKey[SCRAM_KEY_LEN];
-    scram_HMAC_ctx ctx;
-    int i;
+	uint8_t ClientSignature[SCRAM_KEY_LEN];
+	uint8_t client_StoredKey[SCRAM_KEY_LEN];
+	scram_HMAC_ctx ctx;
+	int i;
 
-    /* calculate ClientSignature */
-    scram_HMAC_init(&ctx, state->StoredKey, SCRAM_KEY_LEN);
-    scram_HMAC_update(&ctx,
-		      state->client_first_message_bare,
-		      strlen(state->client_first_message_bare));
-    scram_HMAC_update(&ctx, ",", 1);
-    scram_HMAC_update(&ctx,
-		      state->server_first_message,
-		      strlen(state->server_first_message));
-    scram_HMAC_update(&ctx, ",", 1);
-    scram_HMAC_update(&ctx,
-		      state->client_final_message_without_proof,
-		      strlen(state->client_final_message_without_proof));
-    scram_HMAC_final(ClientSignature, &ctx);
+	/* calculate ClientSignature */
+	scram_HMAC_init(&ctx, state->StoredKey, SCRAM_KEY_LEN);
+	scram_HMAC_update(&ctx,
+			  state->client_first_message_bare,
+			  strlen(state->client_first_message_bare));
+	scram_HMAC_update(&ctx, ",", 1);
+	scram_HMAC_update(&ctx,
+			  state->server_first_message,
+			  strlen(state->server_first_message));
+	scram_HMAC_update(&ctx, ",", 1);
+	scram_HMAC_update(&ctx,
+			  state->client_final_message_without_proof,
+			  strlen(state->client_final_message_without_proof));
+	scram_HMAC_final(ClientSignature, &ctx);
 
-    /* Extract the ClientKey that the client calculated from the proof */
-    for (i = 0; i < SCRAM_KEY_LEN; i++)
-	    state->ClientKey[i] = ClientProof[i] ^ ClientSignature[i];
+	/* Extract the ClientKey that the client calculated from the proof */
+	for (i = 0; i < SCRAM_KEY_LEN; i++)
+		state->ClientKey[i] = ClientProof[i] ^ ClientSignature[i];
 
-    /* Hash it one more time, and compare with StoredKey */
-    scram_H(state->ClientKey, SCRAM_KEY_LEN, client_StoredKey);
+	/* Hash it one more time, and compare with StoredKey */
+	scram_H(state->ClientKey, SCRAM_KEY_LEN, client_StoredKey);
 
-    if (memcmp(client_StoredKey, state->StoredKey, SCRAM_KEY_LEN) != 0)
-	    return false;
+	if (memcmp(client_StoredKey, state->StoredKey, SCRAM_KEY_LEN) != 0)
+		return false;
 
-    return true;
+	return true;
 }
 
 /*
@@ -1039,10 +1032,9 @@ bool verify_client_proof(ScramState *state, const char *ClientProof)
  * performing plaintext password authentication for a user that has a SCRAM
  * secret stored in pg_authid.
  */
-bool
-scram_verify_plain_password(PgSocket *client,
-			    const char *username, const char *password,
-			    const char *secret)
+bool scram_verify_plain_password(PgSocket *client,
+				 const char *username, const char *password,
+				 const char *secret)
 {
 	char *encoded_salt = NULL;
 	char *salt = NULL;
@@ -1057,8 +1049,7 @@ scram_verify_plain_password(PgSocket *client,
 	bool result = false;
 
 	if (!parse_scram_secret(secret, &iterations, &encoded_salt,
-				  stored_key, server_key))
-	{
+				stored_key, server_key)) {
 		/* The password looked like a SCRAM secret, but could not be parsed. */
 		slog_warning(client, "invalid SCRAM secret for user \"%s\"", username);
 		goto failed;
@@ -1069,8 +1060,7 @@ scram_verify_plain_password(PgSocket *client,
 	if (!salt)
 		goto failed;
 	saltlen = pg_b64_decode(encoded_salt, strlen(encoded_salt), salt, saltlen);
-	if (saltlen < 0)
-	{
+	if (saltlen < 0) {
 		slog_warning(client, "invalid SCRAM secret for user \"%s\"", username);
 		goto failed;
 	}

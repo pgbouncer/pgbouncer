@@ -94,7 +94,7 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	int fd;
 	char *task, *saddr, *user, *db;
 	char *client_enc, *std_string, *datestyle, *timezone, *password,
-		*scram_client_key, *scram_server_key;
+	     *scram_client_key, *scram_server_key;
 	int scram_client_key_len, scram_server_key_len;
 	int oldfd, port, linkfd;
 	int got;
@@ -105,9 +105,8 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	memset(&addr, 0, sizeof(addr));
 
 	if (cmsg->cmsg_level == SOL_SOCKET
-		&& cmsg->cmsg_type == SCM_RIGHTS
-		&& cmsg->cmsg_len >= CMSG_LEN(sizeof(int)))
-	{
+	    && cmsg->cmsg_type == SCM_RIGHTS
+	    && cmsg->cmsg_len >= CMSG_LEN(sizeof(int))) {
 		/* get the fd */
 		memcpy(&fd, CMSG_DATA(cmsg), sizeof(int));
 		log_debug("got fd: %d", fd);
@@ -148,16 +147,16 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	/* decide what to do with it */
 	if (strcmp(task, "client") == 0) {
 		res = use_client_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
-				  client_enc, std_string, datestyle, timezone,
-				  password,
-				  scram_client_key, scram_client_key_len,
-				  scram_server_key, scram_server_key_len);
+					client_enc, std_string, datestyle, timezone,
+					password,
+					scram_client_key, scram_client_key_len,
+					scram_server_key, scram_server_key_len);
 	} else if (strcmp(task, "server") == 0) {
 		res = use_server_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
-				  client_enc, std_string, datestyle, timezone,
-				  password,
-				  scram_client_key, scram_client_key_len,
-				  scram_server_key, scram_server_key_len);
+					client_enc, std_string, datestyle, timezone,
+					password,
+					scram_client_key, scram_client_key_len,
+					scram_server_key, scram_server_key_len);
 	} else if (strcmp(task, "pooler") == 0) {
 		res = use_pooler_socket(fd, pga_is_unix(&addr));
 	} else {
@@ -271,25 +270,26 @@ static void takeover_parse_data(PgSocket *bouncer,
 			fatal("unexpected partial packet");
 
 		switch (pkt.type) {
-		case 'T': /* RowDescription */
+		case 'T':	/* RowDescription */
 			log_debug("takeover_parse_data: 'T'");
 			break;
-		case 'D': /* DataRow */
+		case 'D':	/* DataRow */
 			log_debug("takeover_parse_data: 'D'");
 			if (cmsg) {
 				takeover_load_fd(&pkt.data, cmsg);
 				cmsg = CMSG_NXTHDR(msg, cmsg);
-			} else
+			} else {
 				fatal("got row without fd info");
+			}
 			break;
-		case 'Z': /* ReadyForQuery */
+		case 'Z':	/* ReadyForQuery */
 			log_debug("takeover_parse_data: 'Z'");
 			break;
-		case 'C': /* CommandComplete */
+		case 'C':	/* CommandComplete */
 			log_debug("takeover_parse_data: 'C'");
 			next_command(bouncer, &pkt.data);
 			break;
-		case 'E': /* ErrorMessage */
+		case 'E':	/* ErrorMessage */
 			log_server_error("old bouncer sent", &pkt);
 			fatal("something failed");
 		default:
@@ -361,13 +361,13 @@ bool takeover_login(PgSocket *bouncer)
 void takeover_init(void)
 {
 	PgDatabase *db = find_database("pgbouncer");
-	PgPool *pool = get_pool(db, db->forced_user);
+	PgPool *pool = get_pool(db, db->forced_user_credentials);
 
 	if (!pool)
 		fatal("no admin pool?");
 
 	log_info("takeover_init: launching connection");
-	launch_new_connection(pool);
+	launch_new_connection(pool, /* evict_if_needed= */ true);
 }
 
 void takeover_login_failed(void)

@@ -31,6 +31,10 @@ static void reset_stats(PgStats *stat)
 	stat->xact_count = 0;
 	stat->xact_time = 0;
 	stat->wait_time = 0;
+
+	stat->ps_client_parse_count = 0;
+	stat->ps_server_parse_count = 0;
+	stat->ps_bind_count = 0;
 }
 
 static void stat_add(PgStats *total, PgStats *stat)
@@ -43,6 +47,10 @@ static void stat_add(PgStats *total, PgStats *stat)
 	total->xact_count += stat->xact_count;
 	total->xact_time += stat->xact_time;
 	total->wait_time += stat->wait_time;
+
+	total->ps_client_parse_count += stat->ps_client_parse_count;
+	total->ps_server_parse_count += stat->ps_server_parse_count;
+	total->ps_bind_count += stat->ps_bind_count;
 }
 
 static void calc_average(PgStats *avg, PgStats *cur, PgStats *old)
@@ -50,6 +58,9 @@ static void calc_average(PgStats *avg, PgStats *cur, PgStats *old)
 	uint64_t backend_assignment_count;
 	uint64_t query_count;
 	uint64_t xact_count;
+	uint64_t ps_client_parse_count;
+	uint64_t ps_server_parse_count;
+	uint64_t ps_bind_count;
 
 	usec_t dur = get_cached_time() - old_stamp;
 
@@ -76,6 +87,14 @@ static void calc_average(PgStats *avg, PgStats *cur, PgStats *old)
 
 	if (backend_assignment_count > 0)
 		avg->wait_time = (cur->wait_time - old->wait_time) / backend_assignment_count;
+
+	ps_client_parse_count = cur->ps_client_parse_count - old->ps_client_parse_count;
+	ps_server_parse_count = cur->ps_server_parse_count - old->ps_server_parse_count;
+	ps_bind_count = cur->ps_bind_count - old->ps_bind_count;
+
+	avg->ps_client_parse_count = USEC * ps_client_parse_count / dur;
+	avg->ps_server_parse_count = USEC * ps_server_parse_count / dur;
+	avg->ps_bind_count = USEC * ps_bind_count / dur;
 }
 
 static void write_stats(PktBuf *buf, PgStats *stat, PgStats *old, char *dbname)
@@ -338,12 +357,19 @@ static void refresh_stats(evutil_socket_t s, short flags, void *arg)
 	if (cf_log_stats) {
 		log_info("stats: %" PRIu64 " xacts/s,"
 			 " %" PRIu64 " queries/s,"
+			 " %" PRIu64 " client parses/s,"
+			 " %" PRIu64 " server parses/s,"
+			 " %" PRIu64 " binds/s,"
 			 " in %" PRIu64 " B/s,"
 			 " out %" PRIu64 " B/s,"
 			 " xact %" PRIu64 " us,"
 			 " query %" PRIu64 " us,"
 			 " wait %" PRIu64 " us",
-			 avg.xact_count, avg.query_count,
+			 avg.xact_count,
+			 avg.query_count,
+			 avg.ps_client_parse_count,
+			 avg.ps_server_parse_count,
+			 avg.ps_bind_count,
 			 avg.client_bytes, avg.server_bytes,
 			 avg.xact_time, avg.query_time,
 			 avg.wait_time);
@@ -352,12 +378,19 @@ static void refresh_stats(evutil_socket_t s, short flags, void *arg)
 	sd_notifyf(0,
 		   "STATUS=stats: %" PRIu64 " xacts/s,"
 		   " %" PRIu64 " queries/s,"
+		   " %" PRIu64 " client parses/s,"
+		   " %" PRIu64 " server parses/s,"
+		   " %" PRIu64 " binds/s,"
 		   " in %" PRIu64 " B/s,"
 		   " out %" PRIu64 " B/s,"
 		   " xact %" PRIu64 " μs,"
 		   " query %" PRIu64 " μs,"
 		   " wait %" PRIu64 " μs",
-		   avg.xact_count, avg.query_count,
+		   avg.xact_count,
+		   avg.query_count,
+		   avg.ps_client_parse_count,
+		   avg.ps_server_parse_count,
+		   avg.ps_bind_count,
 		   avg.client_bytes, avg.server_bytes,
 		   avg.xact_time, avg.query_time,
 		   avg.wait_time);

@@ -5,6 +5,8 @@
 /config.status
 /config.sub
 /configure
+/doc/pgbouncer_1.md
+/doc/pgbouncer_5.md
 /install-sh
 /pgbouncer
 /.objs
@@ -27,3 +29,8 @@
 *.exe
 *.gz
 *.swp
+env
+venv
+.venv
+
+/uncrustify

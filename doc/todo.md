@@ -15,7 +15,7 @@ Waiting for contributors...
 Problems / cleanups
 -------------------
 
-* Bad naming in data strctures:
+* Bad naming in data structures:
 
   * PgSocket->db [vs. PgPool->db]
 

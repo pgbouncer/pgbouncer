@@ -134,8 +134,14 @@ Default: 20
 ### min_pool_size
 
 Add more server connections to pool if below this number.
-Improves behavior when the normal load suddently comes back after a period
+Improves behavior when the normal load suddenly comes back after a period
 of total inactivity.  The value is effectively capped at the pool size.
+
+Only enforced for pools where at least one of the following is true:
+
+* the entry in the `[database]` section for the pool has a value set for the
+  `user` key (aka forced user)
+* there is at least one client connected to the pool
 
 Default: 0 (disabled)
 
@@ -200,6 +206,32 @@ achieving uniform load.
 
 Default: 0
 
+### track_extra_parameters
+
+By default, PgBouncer tracks `client_encoding`, `datestyle`, `timezone`, `standard_conforming_strings`
+and `application_name` parameters per client. To allow other parameters to be tracked, they can be
+specified here, so that PgBouncer knows that they should be maintained in the client variable cache
+and restored in the server whenever the client becomes active.
+
+If you need to specify multiple values, use a comma-separated list (e.g.
+`default_transaction_readonly, IntervalStyle`)
+
+Note: Most parameters cannot be tracked this way. The only parameters that can be tracked are ones that
+Postgres reports to the client. Postgres has
+[an official list of parameters that it reports to the client](https://www.postgresql.org/docs/15/protocol-flow.html#PROTOCOL-ASYNC).
+Postgres extensions can change this list though, they can add parameters themselves that they also report,
+and they can start reporting already existing parameters that Postgres does not report.
+Notably Citus 12.0+ causes Postgres to also report `search_path`.
+
+The Postgres protocol allows specifying parameters settings, both directly as a
+parameter in the startup packet, or inside the [`options` startup
+packet][options-startup]. Parameters specified using both of these methods are
+supported by `track_extra_parameters`. However, it's not possible to include
+`options` itself in `track_extra_parameters`, only the parameters contained in
+`options`.
+
+Default: IntervalStyle
+
 ### ignore_startup_parameters
 
 By default, PgBouncer allows only parameters it can keep track of in startup
@@ -207,7 +239,29 @@ packets: `client_encoding`, `datestyle`, `timezone` and `standard_conforming_str
 All others parameters will raise an error.  To allow others parameters, they can be
 specified here, so that PgBouncer knows that they are handled by the admin and it can ignore them.
 
+If you need to specify multiple values, use a comma-separated list (e.g.
+`options,extra_float_digits`)
+
+The Postgres protocol allows specifying parameters settings, both directly as a
+parameter in the startup packet, or inside the [`options` startup
+packet][options-startup]. Parameters specified using both of these methods are
+supported by `ignore_startup_parameters`. It's even possible to include
+`options` itself in `track_extra_parameters`, which results in any unknown
+parameters contained inside `options` to be ignored.
+
+
+[options-startup]: https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNECT-OPTIONS
+
 Default: empty
+
+### peer_id
+The peer id used to identify this PgBouncer process in a group of PgBouncer
+processes that are peered together. The `peer_id` value should be unique within
+a group of peered PgBouncer processes. When set to 0 pgbouncer peering is
+disabled. See the docs for the `[peers]` section for more information. The
+maximum value that can be used for the `peer_id` is 16383.
+
+Default: 0
 
 ### disable_pqexec
 
@@ -251,6 +305,101 @@ updated and how often aggregated statistics are written to the log
 (but see `log_stats`). [seconds]
 
 Default: 60
+
+### max_prepared_statements
+
+When this is set to a non-zero value PgBouncer tracks protocol-level named
+prepared statements related commands sent by the client in transaction and
+statement pooling mode. PgBouncer makes sure that any statement prepared by
+a client is available on the backing server connection. Even when the statement
+was originally prepared on another server connection.
+
+PgBouncer internally examines all the queries that are sent as a prepared
+statement by clients and gives each unique query string an internal name with
+the format `PGBOUNCER_{unique_id}`. If the same query string is prepared
+multiple times (possibly by different clients), then these queries share the
+same internal name. PgBouncer only prepares the statement on the actual
+PostgreSQL server using the internal name (so not the name provided by the
+client). PgBouncer keeps track of the name that the client gave to each
+prepared statement. It then rewrites each command that uses a prepared
+statement to by replacing the client side name with the the internal name (e.g.
+replacing `my_prepared_stamenent` with `PGBOUNCER_123`) before forwarding that
+command to the server. More importantly, if the prepared statement that the
+client wants to execute is not yet prepared on the server (e.g. because a
+different server is now assigned to the client then when the client prepared
+the statement), then PgBouncer transparently prepares the statement before
+executing it.
+
+Note: This tracking and rewriting of prepared statement commands does not work
+for SQL-level prepared statement commands, so `PREPARE`, `EXECUTE` and
+`DEALLOCATE` are forwarded straight to Postgres. The exception to this rule are
+the `DEALLOCATE ALL` and `DISCARD ALL` commands, these do work as expected and
+will clear the prepared statements that PgBouncer tracked for the client that
+sends this command.
+
+The actual value of this setting controls the number of prepared statements
+kept active in an LRU cache on a single server connection. When the setting is
+set to 0 prepared statement support for transaction and statement pooling is
+disabled. To get the best performance you should try to make sure that this
+setting is larger than the amount of commonly used prepared statements in your
+application. Keep in mind that the higher this value, the larger the memory
+footprint of each PgBouncer connection will be on your PostgreSQL server,
+because it will keep more queries prepared on those connections. It also
+increases the memory footprint of PgBouncer itself, because it now needs to
+keep track of query strings.
+
+The impact on PgBouncer memory usage is not that big though:
+- Each unique query is stored once in a global query cache.
+- Each client connection keeps a buffer that it uses to rewrite packets. This
+  is at most 4 times the size of `pkt_buf`. This limit is often not reached
+  though, it only happens when the queries in your prepared statements are
+  between 2 and 4 times the size of `pkt_buf`.
+
+So if you consider the following as an example scenario:
+- There are 1000 active clients
+- The clients prepare 200 unique queries
+- The average size of a query is 5kB
+- `pkt_buf` parameter is set to the default of 4096 (4kB)
+
+Then PgBouncer needs at most the following amount of memory to handle these
+prepared statements:
+
+200 x 5kB + 1000 x 4 x 4kB = ~17MB of memory.
+
+Tracking prepared statements does not only come with a memory cost, but also
+with increased CPU usage, because PgBouncer needs to inspect and rewrite the
+queries. Multiple PgBouncer instances can listen on the same port to use more
+than one core for processing, see [the documentation for the `so_reuseport`
+option](/config.html#so_reuseport) for details.
+
+But of course there are also performance benefits to prepared statements. Just
+as when connecting to PostgreSQL directly, by preparing a query that is
+executed many times, it reduces the total amount of parsing and planning that
+needs to be done. The way that PgBouncer tracks prepared statements is
+especially beneficial to performance when multiple clients prepare the same
+queries. Because client connections automatically reuse a prepared statement on
+a server connection even if it was prepared by another client. As an example if
+you have a `pool_size` of 20 and you have 100 clients that all prepare the
+exact same query, then the query is prepared (and thus parsed) only 20 times on
+the PostgreSQL server.
+
+The reuse of prepared statements has one downside. If the return or argument
+types of a prepared statement changes across executions then PostgreSQL
+currently throws an error such as:
+
+```
+ERROR:  cached plan must not change result type
+```
+
+You can avoid such errors by not having multiple clients that use the exact
+same query string in a prepared statement, but expecting different argument or
+result types. One of the most common ways of running into this issue is during
+a DDL migration where you add a new column or change a column type on an
+existing table. In those cases you can run `RECONNECT` on the PgBouncer admin
+console after doing the migration to force a re-prepare of the query and make
+the error goes away.
+
+Default: 0
 
 
 ## Authentication settings
@@ -300,7 +449,15 @@ pam
 
 ### auth_hba_file
 
-HBA configuration file to use when `auth_type` is `hba`.
+HBA configuration file to use when `auth_type` is `hba`. See
+section [HBA file format](#hba-file-format) below about details.
+
+Default: not set
+
+### auth_ident_file
+
+Identity map file to use when `auth_type` is `hba` and a user map will be defined.  See
+section [Ident map file format](#ident-map-file-format) below about details.
 
 Default: not set
 
@@ -339,6 +496,11 @@ is used, it needs to be installed into each database.
 
 Default: `SELECT usename, passwd FROM pg_shadow WHERE usename=$1`
 
+### auth_dbname
+
+Database name in the `[database]` section to be used for authentication purposes. This
+option can be either global or overridden in the connection string if this parameter is
+specified.
 
 ## Log settings
 
@@ -394,7 +556,6 @@ Increase verbosity.  Mirrors the "-v" switch on the command line.
 For example, using "-v -v" on the command line is the same as `verbose=2`.
 
 Default: 0
-
 
 ## Console access control
 
@@ -495,6 +656,8 @@ server connection that has been connected longer
 than this. Setting it to 0 means the connection is to be used only once,
 then closed. [seconds]
 
+This can also be set per database in the `[databases]` section.
+
 Default: 3600.0
 
 ### server_idle_timeout
@@ -569,7 +732,7 @@ If it notices changes, all host names under that zone
 are looked up again.  If any host IP changes, its connections
 are invalidated.
 
-Works only with UDNS and c-ares backends (`configure` option `--with-udns` or `--with-cares`).
+Works only with c-ares backend (`configure` option `--with-cares`).
 
 Default: 0.0 (disabled)
 
@@ -596,6 +759,7 @@ TLS mode to use for connections from clients.  TLS connections
 are disabled by default.  When enabled, `client_tls_key_file`
 and `client_tls_cert_file` must be also configured to set up
 the key and certificate PgBouncer uses to accept client connections.
+The most common certificate file format usable by PgBouncer is pem.
 
 disable
 :   Plain TCP.  If client requests TLS, it's ignored.  Default.
@@ -645,14 +809,15 @@ Default: `secure`
 ### client_tls_ciphers
 
 Allowed TLS ciphers, in OpenSSL syntax.  Shortcuts:
-`default`/`secure`, `compat`/`legacy`, `insecure`/`all`, `normal`,
-`fast`.
+
+- `default`/`secure`/`fast`/`normal` (these all use system wide OpenSSL defaults)
+- `all` (enables all ciphers, not recommended)
 
 Only connections using TLS version 1.2 and lower are affected.  There
 is currently no setting that controls the cipher choices used by TLS
 version 1.3 connections.
 
-Default: `fast`
+Default: `default`
 
 ### client_tls_ecdhcurve
 
@@ -672,11 +837,11 @@ Default: `auto`
 
 ### server_tls_sslmode
 
-TLS mode to use for connections to PostgreSQL servers.
-TLS connections are disabled by default.
+TLS mode to use for connections to PostgreSQL servers.  The default mode is
+`prefer`.
 
 disable
-:   Plain TCP.  TCP is not even requested from the server.  Default.
+:   Plain TCP.  TLS is not even requested from the server.
 
 allow
 :   FIXME: if server rejects plain, try TLS?
@@ -684,7 +849,7 @@ allow
 prefer
 :   TLS connection is always requested first from PostgreSQL.
     If refused, the connection will be established over plain TCP.
-    Server certificate is not validated.
+    Server certificate is not validated.  Default
 
 require
 :   Connection must go over TLS.  If server rejects it,
@@ -728,14 +893,15 @@ Default: `secure`
 ### server_tls_ciphers
 
 Allowed TLS ciphers, in OpenSSL syntax.  Shortcuts:
-`default`/`secure`, `compat`/`legacy`, `insecure`/`all`, `normal`,
-`fast`.
+
+- `default`/`secure`/`fast`/`normal` (these all use system wide OpenSSL defaults)
+- `all` (enables all ciphers, not recommended)
 
 Only connections using TLS version 1.2 and lower are affected.  There
 is currently no setting that controls the cipher choices used by TLS
 version 1.3 connections.
 
-Default: `fast`
+Default: `default`
 
 
 ## Dangerous timeouts
@@ -760,7 +926,19 @@ This setting is used to prevent unresponsive servers from grabbing up
 connections.  It also helps when the server is down or rejects
 connections for any reason.
 
-Default: 120
+Default: 120.0
+
+### cancel_wait_timeout
+
+Maximum time cancellation requests are allowed to spend waiting for execution.
+If the cancel request is not assigned to a server during that time, the client is
+disconnected.
+0 disables.  If this is disabled, cancel requests will be queued indefinitely. [seconds]
+
+This setting is used to prevent a client locking up when a cancel cannot be
+forwarded due to the server being down.
+
+Default: 10.0
 
 ### client_idle_timeout
 
@@ -844,6 +1022,12 @@ at least `unix_socket_dir` and `pidfile`, as well as `logfile` if that
 is used.  Also note that if you make use of this option, you can no
 longer connect to a specific PgBouncer instance via TCP/IP, which
 might have implications for monitoring and metrics collection.
+
+To make sure query cancellations keep working, you should set up PgBouncer
+peering between the different PgBouncer processes. For details look at docs
+for the `peer_id` configuration option and the `peers` configuration section.
+There's also an example that uses peering and so_reuseport in the example
+section of these docs.
 
 Default: 0
 
@@ -993,12 +1177,21 @@ user name, meaning that there will be one pool per user.
 
 ### password
 
-If no password is specified here, the password from the `auth_file` or
-`auth_query` will be used.
+If no password is specified here, the password from the `auth_file` will
+be used for the user specified above. Dynamic forms of password discovery
+such as `auth_query` are not currently supported.
 
 ### auth_user
 
 Override of the global `auth_user` setting, if specified.
+
+### auth_query
+
+Override of the global `auth_query` setting, if specified. The entire SQL statement needs to be enclosed in single quotes.
+
+### auth_dbname
+
+Override of the global `auth_dbname` setting, if specified.
 
 ### pool_size
 
@@ -1009,6 +1202,13 @@ the `default_pool_size` is used.
 
 Set the minimum pool size for this database. If not set, the global `min_pool_size` is
 used.
+
+Only enforced if at least one of the following is true:
+
+* this entry in the `[database]` section has a value set for the `user` key
+  (aka forced user)
+* there is at least one client connected to the pool
+
 
 ### reserve_pool
 
@@ -1030,6 +1230,11 @@ the default `pool_mode` is used.
 
 Configure a database-wide maximum (i.e. all pools within the database will
 not have more than this many server connections).
+
+### server_lifetime
+
+Configure the server_lifetime per database. If not set the database will fall back
+to the instance wide configured value for `server_lifetime`
 
 ### client_encoding
 
@@ -1058,6 +1263,17 @@ Example:
 
 Only a few settings are available here.
 
+Note that when `auth_file` is configured, if a user is defined in this section
+but not listed in `auth_file`, pgBouncer will attempt to use `auth_query` to
+find a password for that user if `auth_user` is set. If `auth_user` is not set,
+pgBouncer will pretend the user exists and fail to return "no such user"
+messages to the client, but neither will it accept any provided password.
+
+### pool_size
+
+Set the maximum size of pools for all connections from this user.  If not set,
+the database or `default_pool_size` is used.
+
 ### pool_mode
 
 Set the pool mode to be used for all connections from this user. If not set, the
@@ -1067,6 +1283,84 @@ database or default `pool_mode` is used.
 
 Configure a maximum for the user (i.e. all pools with the user will
 not have more than this many server connections).
+
+## Section [peers]
+
+The section `[peers]` defines the peers that PgBouncer can forward cancellation
+requests to and where those cancellation requests will be routed.
+
+PgBouncer processes can be peered together in a group by defining a `peer_id`
+value and a `[peers]` section in the configs of all the PgBouncer processes.
+These PgBouncer processes can then forward cancellations requests to the process
+that it originated from.  This is needed to make cancellations work when
+multiple PgBouncer processes (possibly on different servers) are behind the same
+TCP load balancer.  Cancellation requests are sent over different TCP
+connections than the query they are cancelling, so a TCP load balancer might
+send the cancellation request connection to a different process than the one
+that it was meant for.  By peering them these cancellation requests eventually
+end up at the right process. A more in-depth explanation is provided in this
+[recording of a conference talk][cancel-problem-video].
+
+[cancel-problem-video]: https://www.youtube.com/watch?v=M585FfbboNA
+
+The section contains key=value lines like
+
+    peer_id = connection string
+
+Where the key will be taken as a `peer_id` and the value as a connection string,
+consisting of key=value pairs of connection parameters, described below (similar
+to libpq, but the actual libpq is not used and the set of available features is
+different).  Example:
+
+    1 = host=host1.example.com
+    2 = host=/tmp/pgbouncer-2  port=5555
+
+Note 1: For peering to work, the `peer_id` of each PgBouncer process in the group
+must be unique within the peered group.  And the `[peers]` section should
+contain entries for each of those peer ids.  An example can be found in the
+examples section of these docs.  It **is** allowed, but not necessary, for the
+`[peers]` section to contain the `peer_id` of the PgBouncer that the config is
+for. Such an entry will be ignored, but it is allowed to config management easy.
+Because it allows using the exact same `[peers]` section for multiple
+configs.
+
+Note 2: Cross-version peering is supported as long as all peers are on the same
+side of the v1.21.0 version boundary. In v1.21.0 some breaking changes were
+made in how we encode the cancellation tokens that made them incompatible with
+the ones created by earlier versions.
+
+### host
+
+Host name or IP address to connect to.  Host names are resolved at connection
+time, the result is cached per `dns_max_ttl` parameter.  If DNS returns several
+results, they are used in a round-robin manner.  But in general it's not
+recommended to use a hostname that resolves to multiple IPs, because then the
+cancel request might still be forwarded to the wrong node and it would need to
+be forwarded again (which is only allowed up to three times).
+
+If the value begins with `/`, then a Unix socket in the file-system namespace is
+used.  If the value begins with `@`, then a Unix socket in the abstract
+namespace is used.
+
+Examples:
+
+	host=localhost
+	host=127.0.0.1
+	host=2001:0db8:85a3:0000:0000:8a2e:0370:7334
+	host=/var/run/pgbouncer-1
+
+### port
+
+Default: 6432
+
+### pool_size
+
+Set the maximum number of cancel requests that can be in flight to the peer at
+the same time.  It's quite normal for cancel requests to arrive in bursts, e.g.
+when the backing Postgres server slow or down.  So it's important for
+`pool_size` to not be so low that it cannot handle these bursts.
+
+If not set, the `default_pool_size` is used.
 
 
 ## Include directive
@@ -1142,13 +1436,25 @@ The file follows the format of the PostgreSQL `pg_hba.conf` file
 (see <https://www.postgresql.org/docs/current/auth-pg-hba-conf.html>).
 
 * Supported record types: `local`, `host`, `hostssl`, `hostnossl`.
-* Database field: Supports `all`, `sameuser`, `@file`, multiple names.  Not supported: `replication`, `samerole`, `samegroup`.
+* Database field: Supports `all`, `replication`, `sameuser`, `@file`, multiple names.  Not supported: `samerole`, `samegroup`.
 * User name field: Supports `all`, `@file`, multiple names.  Not supported: `+groupname`.
 * Address field: Supports IPv4, IPv6.  Not supported: DNS names, domain prefixes.
 * Auth-method field: Only methods supported by PgBouncer's `auth_type`
   are supported, plus `peer` and `reject`, but except `any` and `pam`, which only work globally.
-  User name map (`map=`) parameter is not supported.
+* User name map (`map=`) parameter is supported when `auth_type` is `cert` or `peer`.
 
+## Ident map file format
+
+The location of the ident map file is specified by the setting
+`auth_ident_file`. It is only loaded if `auth_type` is set to `hba`.
+
+The file format is a simplified variation of the PostgreSQL ident map file
+(see <https://www.postgresql.org/docs/current/auth-username-maps.html>).
+
+* Supported lines are only of the form `map-name system-username database-username`.
+* There is no support for including file/directory.
+* System-username field: Not supported: regular expressions.
+* Database-username field: Supports `all` or a single postgres user name. Not supported: `+groupname`, regular expressions.
 
 ## Examples
 
@@ -1194,6 +1500,40 @@ Example of a secure function for `auth_query`:
     REVOKE ALL ON FUNCTION pgbouncer.user_lookup(text) FROM public, pgbouncer;
     GRANT EXECUTE ON FUNCTION pgbouncer.user_lookup(text) TO pgbouncer;
 
+Example configs for 2 peered PgBouncer processes to create a multi-core
+PgBouncer setup using `so_reuseport`. The config for the first process:
+
+    [databases]
+    postgres = host=localhost dbname=postgres
+
+    [peers]
+    1 = host=/tmp/pgbouncer1
+    2 = host=/tmp/pgbouncer2
+
+    [pgbouncer]
+    listen_addr=127.0.0.1
+    auth_file=auth_file.conf
+    so_reuseport=1
+    unix_socket_dir=/tmp/pgbouncer1
+    peer_id=1
+
+
+The config for the second process:
+
+    [databases]
+    postgres = host=localhost dbname=postgres
+
+    [peers]
+    1 = host=/tmp/pgbouncer1
+    2 = host=/tmp/pgbouncer2
+
+    [pgbouncer]
+    listen_addr=127.0.0.1
+    auth_file=auth_file.conf
+    so_reuseport=1
+    ; only unix_socket_dir and peer_id are different
+    unix_socket_dir=/tmp/pgbouncer2
+    peer_id=2
 
 ## See also
 

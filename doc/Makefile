@@ -28,7 +28,5 @@ pgbouncer_1.md: filter.py frag-usage-man.md usage.md
 pgbouncer_5.md: filter.py frag-config-man.md config.md
 	$(PYTHON) $^ >$@
 
-.INTERMEDIATE: pgbouncer_1.md pgbouncer_5.md
-
 web:
 	$(MAKE) -C ../../pgbouncer.github.io

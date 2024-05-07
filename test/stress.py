@@ -1,32 +1,30 @@
 #! /usr/bin/env python3
 
-import sys
-import os
-import re
-import time
-import psycopg2
-import threading
 import random
+import threading
+import time
+
+import psycopg2
 
 n_thread = 100
 longtx = False
 tx_sleep = 8
 
 conn_data = {
-    'dbname': 'marko',
+    "dbname": "marko",
     #'host': '127.0.0.1',
-    'host': '/tmp',
-    'port': '6432',
-    'user': 'marko',
+    "host": "/tmp",
+    "port": "6432",
+    "user": "marko",
     #'password': '',
-    'connect_timeout': '5',
+    "connect_timeout": "5",
 }
 
 
 def get_connstr():
     tmp = []
     for k, v in conn_data.items():
-        tmp.append(k+'='+v)
+        tmp.append(k + "=" + v)
     return " ".join(tmp)
 
 
@@ -112,12 +110,12 @@ def main():
             print("avg %s" % avg)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         main()
     except SystemExit:
         pass
     except KeyboardInterrupt:
         pass
-    #except Exception as d:
+    # except Exception as d:
     #    print d

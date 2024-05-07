@@ -28,14 +28,15 @@
 
 #include <usual/safeio.h>
 #include <usual/slab.h>
+#include <usual/mbuf.h>
 
 #ifdef USUAL_LIBSSL_FOR_TLS
 #define USE_TLS
 #endif
 
 /* sbuf_main_loop() skip_recv values */
-#define DO_RECV		false
-#define SKIP_RECV	true
+#define DO_RECV         false
+#define SKIP_RECV       true
 
 #define ACT_UNSET 0
 #define ACT_SEND 1
@@ -58,17 +59,17 @@ enum WaitType {
 };
 
 #define AssertSanity(sbuf) do { \
-	Assert(iobuf_sane((sbuf)->io)); \
+		Assert(iobuf_sane((sbuf)->io)); \
 } while (0)
 
 #define AssertActive(sbuf) do { \
-	Assert((sbuf)->sock > 0); \
-	AssertSanity(sbuf); \
+		Assert((sbuf)->sock > 0); \
+		AssertSanity(sbuf); \
 } while (0)
 
 /* declare static stuff */
 static bool sbuf_queue_send(SBuf *sbuf) _MUSTCHECK;
-static bool sbuf_send_pending(SBuf *sbuf) _MUSTCHECK;
+static bool sbuf_send_pending_iobuf(SBuf *sbuf) _MUSTCHECK;
 static bool sbuf_process_pending(SBuf *sbuf) _MUSTCHECK;
 static void sbuf_connect_cb(evutil_socket_t sock, short flags, void *arg);
 static void sbuf_recv_cb(evutil_socket_t sock, short flags, void *arg);
@@ -79,7 +80,7 @@ static void sbuf_main_loop(SBuf *sbuf, bool skip_recv);
 static bool sbuf_call_proto(SBuf *sbuf, int event) /* _MUSTCHECK */;
 static bool sbuf_actual_recv(SBuf *sbuf, size_t len)  _MUSTCHECK;
 static bool sbuf_after_connect_check(SBuf *sbuf)  _MUSTCHECK;
-static bool handle_tls_handshake(SBuf *sbuf) /* _MUSTCHECK */;
+static bool handle_tls_handshake(SBuf *sbuf) _MUSTCHECK;
 
 /* regular I/O */
 static ssize_t raw_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len);
@@ -104,9 +105,11 @@ static const SBufIO tls_sbufio_ops = {
 static void sbuf_tls_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
 #endif
 
-/*********************************
+/*
+ *********************************
  * Public functions
- *********************************/
+ *********************************
+ */
 
 /* initialize SBuf with proto handler */
 void sbuf_init(SBuf *sbuf, sbuf_cb_t proto_fn)
@@ -150,6 +153,7 @@ bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, socklen_t sa_len, time_
 {
 	int res, sock;
 	struct timeval timeout;
+	char buf[128];
 	bool is_unix = sa->sa_family == AF_UNIX;
 
 	Assert(iobuf_empty(sbuf->io) && sbuf->sock == 0);
@@ -189,7 +193,8 @@ bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, socklen_t sa_len, time_
 	}
 
 failed:
-	log_warning("sbuf_connect failed: %s", strerror(errno));
+	log_warning("sbuf_connect failed to connect to %s: %s",
+		    sa2str(sa, buf, sizeof(buf)), strerror(errno));
 
 	if (sock >= 0)
 		safe_close(sock);
@@ -253,7 +258,7 @@ bool sbuf_continue_with_callback(SBuf *sbuf, event_callback_fn user_cb)
 	AssertActive(sbuf);
 
 	event_assign(&sbuf->ev, pgb_event_base, sbuf->sock, EV_READ | EV_PERSIST,
-		  user_cb, sbuf);
+		     user_cb, sbuf);
 
 	err = event_add(&sbuf->ev, NULL);
 	if (err < 0) {
@@ -271,7 +276,7 @@ bool sbuf_use_callback_once(SBuf *sbuf, short ev, event_callback_fn user_cb)
 
 	if (sbuf->wait_type != W_NONE) {
 		err = event_del(&sbuf->ev);
-		sbuf->wait_type = W_NONE; /* make sure its called only once */
+		sbuf->wait_type = W_NONE;	/* make sure its called only once */
 		if (err < 0) {
 			log_warning("sbuf_queue_once: event_del failed: %s", strerror(errno));
 			return false;
@@ -315,6 +320,7 @@ bool sbuf_close(SBuf *sbuf)
 		slab_free(iobuf_cache, sbuf->io);
 		sbuf->io = NULL;
 	}
+	mbuf_free(&sbuf->extra_packets);
 	return true;
 }
 
@@ -340,10 +346,32 @@ void sbuf_prepare_skip(SBuf *sbuf, unsigned amount)
 	Assert(amount > 0);
 
 	sbuf->pkt_action = ACT_SKIP;
+	sbuf->skip_remain = amount;
 	sbuf->pkt_remain = amount;
 }
 
-/* proto_fn tells to skip some amount of bytes */
+/*
+ * proto_fn tells to send some bytes to socket, but before doing that skip
+ * some of the bytes first.
+ */
+void sbuf_prepare_skip_then_send_leftover(SBuf *sbuf, SBuf *dst, unsigned skip_amount, unsigned total_amount)
+{
+	AssertActive(sbuf);
+	Assert(sbuf->pkt_remain == 0);
+	/* Assert(sbuf->pkt_action == ACT_UNSET || sbuf->pkt_action == ACT_SEND || iobuf_amount_pending(&sbuf->io)); */
+	Assert(total_amount > 0);
+	Assert(total_amount >= skip_amount);
+
+	sbuf->pkt_action = ACT_SKIP;
+	sbuf->pkt_remain = total_amount;
+	sbuf->skip_remain = skip_amount;
+	sbuf->dst = dst;
+}
+
+/*
+ * proto_fn tells to skip some amount of bytes and call a callback with those
+ * bytes instead
+ */
 void sbuf_prepare_fetch(SBuf *sbuf, unsigned amount)
 {
 	AssertActive(sbuf);
@@ -352,13 +380,93 @@ void sbuf_prepare_fetch(SBuf *sbuf, unsigned amount)
 	Assert(amount > 0);
 
 	sbuf->pkt_action = ACT_CALL;
+	sbuf->skip_remain = amount;
 	sbuf->pkt_remain = amount;
-	/* sbuf->dst = NULL; // FIXME ?? */
 }
 
-/*************************
+/*
+ * queue a packet for sending and free it too (on both failure and success)
+ *
+ * This is used to inject custom packets into the stream of packets from source
+ * to clients. The packet is sent before the packet that is currently being
+ * processed, unless src->extra_packet_queue_after is set to true (then it is
+ * sent right after the current one). By calling sbuf_prepare_skip after
+ * sbuf_queue_packet, you effectively repalce the current packet with the one
+ * that you're passing into sbuf_queue_packet.
+ */
+bool sbuf_queue_packet(SBuf *src, SBuf *dst, PktBuf *pkt)
+{
+	bool res;
+	AssertActive(src);
+	Assert(dst);
+
+	/*
+	 * If we're queueing the packet before the packet that we're currently
+	 * handling, we need to make sure that any pending data in iobuf is
+	 * flushed. One important reason to do so is because we might want to
+	 * call sbuf_prepare_skip later (to skip sending the current packet and
+	 * completely replace it with this packet). Then the resulting ACT_SKIP
+	 * will trigger a flush of iobuf too. By making sure we're flush here
+	 * already, we make sure that its impossible for the flush caused by
+	 * ACT_SKIP to fail. And knowing that significantly reduces the already
+	 * complex failure scenarios we need to consider, because any failure
+	 * will cause a rerun of the code that queues these packets.
+	 */
+	Assert(src->extra_packet_queue_after
+	       || src->io == NULL
+	       || iobuf_amount_pending(src->io) == 0);
+
+	if (!pkt || pkt->failed) {
+		pktbuf_free(pkt);
+		return false;
+	}
+	src->dst = dst;
+	res = mbuf_write(&src->extra_packets, pkt->buf, pkt->write_pos);
+	pktbuf_free(pkt);
+	return res;
+}
+
+/*
+ * queue the packet in PktHdr for sending
+ *
+ * This is pretty much the same as sbuf_queue_packet, but it works with a PktHdr
+ * instead of a PktBuf. Apart from that the only difference is that it does not
+ * free the passed in packet.
+ */
+bool sbuf_queue_full_packet(SBuf *src, SBuf *dst, PktHdr *pkt)
+{
+	bool res;
+	AssertActive(src);
+	Assert(dst);
+
+	/*
+	 * If we're queueing the packet before the packet that we're currently
+	 * handling, we need to make sure that any pending data in iobuf is
+	 * flushed. One important reason to do so is because we might want to
+	 * call sbuf_prepare_skip later (to skip sending the current packet and
+	 * completely replace it with this packet). Then the resulting ACT_SKIP
+	 * will trigger a flush of iobuf too. By making sure we're flush here
+	 * already, we make sure that its impossible for the flush caused by
+	 * ACT_SKIP to fail. And knowing that significantly reduces the already
+	 * complex failure scenarios we need to consider, because any failure
+	 * will cause a rerun of the code that queues these packets.
+	 */
+	Assert(src->extra_packet_queue_after
+	       || src->io == NULL
+	       || iobuf_amount_pending(src->io) == 0);
+	Assert(!incomplete_pkt(pkt));
+	Assert(pkt->data.read_pos == 0);
+	src->dst = dst;
+	res = mbuf_write(&src->extra_packets, pkt->data.data, pkt->data.write_pos);
+	return res;
+}
+
+
+/*
+ *************************
  * Internal functions
- *************************/
+ *************************
+ */
 
 /*
  * Call proto callback with proper struct MBuf.
@@ -451,6 +559,7 @@ static void sbuf_send_cb(evutil_socket_t sock, short flags, void *arg)
 {
 	SBuf *sbuf = arg;
 	bool res;
+	log_noise("Socket is writable again");
 
 	/* sbuf was closed before in this loop */
 	if (!sbuf->sock)
@@ -483,7 +592,7 @@ static bool sbuf_queue_send(SBuf *sbuf)
 
 	/* stop waiting for read events */
 	err = event_del(&sbuf->ev);
-	sbuf->wait_type = W_NONE; /* make sure its called only once */
+	sbuf->wait_type = W_NONE;	/* make sure its called only once */
 	if (err < 0) {
 		log_warning("sbuf_queue_send: event_del failed: %s", strerror(errno));
 		return false;
@@ -502,11 +611,24 @@ static bool sbuf_queue_send(SBuf *sbuf)
 }
 
 /*
+ * flush all pending data in the iobuf. This should be called before calling
+ * needed before calling sbuf_queue_packet.
+ */
+bool sbuf_flush(SBuf *sbuf)
+{
+	if (sbuf->io) {
+		log_noise("sbuf_flush");
+		return sbuf_send_pending_iobuf(sbuf);
+	}
+	return true;
+}
+
+/*
  * There's data in buffer to be sent. Returns bool if processing can continue.
  *
  * Does not look at pkt_pos/remain fields, expects them to be merged to send_*
  */
-static bool sbuf_send_pending(SBuf *sbuf)
+static bool sbuf_send_pending_iobuf(SBuf *sbuf)
 {
 	int avail;
 	ssize_t res;
@@ -514,6 +636,7 @@ static bool sbuf_send_pending(SBuf *sbuf)
 
 	AssertActive(sbuf);
 	Assert(sbuf->dst || iobuf_amount_pending(io) == 0);
+	log_noise("sbuf_send_pending_iobuf");
 
 try_more:
 	/* how much data is available for sending */
@@ -522,7 +645,8 @@ try_more:
 		return true;
 
 	if (sbuf->dst->sock == 0) {
-		log_error("sbuf_send_pending: no dst sock?");
+		log_error("sbuf_send_pending_iobuf: no dst sock?");
+		sbuf_call_proto(sbuf, SBUF_EV_SEND_FAILED);
 		return false;
 	}
 
@@ -533,9 +657,10 @@ try_more:
 		io->done_pos += res;
 	} else if (res < 0) {
 		if (errno == EAGAIN) {
-			if (!sbuf_queue_send(sbuf))
+			if (!sbuf_queue_send(sbuf)) {
 				/* drop if queue failed */
 				sbuf_call_proto(sbuf, SBUF_EV_SEND_FAILED);
+			}
 		} else {
 			sbuf_call_proto(sbuf, SBUF_EV_SEND_FAILED);
 		}
@@ -552,16 +677,111 @@ try_more:
 	goto try_more;
 }
 
+/*
+ * There's data in extra_packets buffer to be sent. Returns bool if processing
+ * can continue.
+ */
+static bool sbuf_send_pending_extra_packets(SBuf *sbuf)
+{
+	int avail;
+	ssize_t res;
+	struct MBuf *mbuf = &sbuf->extra_packets;
+
+	AssertActive(sbuf);
+	Assert(sbuf->dst || mbuf_avail_for_read(mbuf) == 0);
+	log_noise("sbuf_send_pending_extra_packets ");
+
+try_more:
+	/* how much data is available for sending */
+	avail = mbuf_avail_for_read(mbuf);
+	if (avail == 0)
+		return true;
+
+	if (sbuf->dst->sock == 0) {
+		log_error("sbuf_send_pending_extra_packets: no dst sock?");
+		sbuf_call_proto(sbuf, SBUF_EV_SEND_FAILED);
+		return false;
+	}
+
+	/* actually send it */
+	//res = iobuf_send_pending(io, sbuf->dst->sock);
+	res = sbuf_op_send(sbuf->dst, mbuf->data + mbuf->read_pos, avail);
+	if (res > 0) {
+		mbuf->read_pos += res;
+	} else if (res < 0) {
+		if (errno == EAGAIN) {
+			if (!sbuf_queue_send(sbuf)) {
+				/* drop if queue failed */
+				sbuf_call_proto(sbuf, SBUF_EV_SEND_FAILED);
+			}
+		} else {
+			sbuf_call_proto(sbuf, SBUF_EV_SEND_FAILED);
+		}
+		return false;
+	}
+
+	AssertActive(sbuf);
+
+	/*
+	 * Should do sbuf_queue_send() immediately?
+	 *
+	 * To be sure, let's run into EAGAIN.
+	 */
+	goto try_more;
+}
+
+
 /* process as much data as possible */
 static bool sbuf_process_pending(SBuf *sbuf)
 {
 	unsigned avail;
 	IOBuf *io = sbuf->io;
+	struct MBuf *extra_packets = &sbuf->extra_packets;
 	bool full = iobuf_amount_recv(io) <= 0;
-	bool res;
+	int loop_number = 0;
+	log_noise("sbuf_process_pending: start");
 
 	while (1) {
+		/*
+		 * If there's still queued extra packets from a previous packet, make
+		 * sure to flush those first. Otherwise the packet we process next
+		 * might add even more packets there, which would be bad because it
+		 * would mean they get delivered out of order.
+		 */
+		if (mbuf_avail_for_read(extra_packets)) {
+			if (sbuf->extra_packet_queue_after) {
+				if (!sbuf_send_pending_iobuf(sbuf)) {
+					log_noise("sbuf_process_pending failed to send all pending data");
+					return false;
+				}
+			}
+
+			if (!sbuf_send_pending_extra_packets(sbuf)) {
+				log_noise("sbuf_process_pending ended early because of not being able to send the queued extra packets");
+				return false;
+			}
+			/*
+			 * To avoid frequent allocations we try to reuse the
+			 * extra_packets MBuf. But if it has grown to more than
+			 * 4 times pkt_buf, we free it to avoid wasting memory.
+			 * Otherwise one huge packet can cause a lot of memory
+			 * to stay allocated for the lifetime of the
+			 * connection. The most common case where this might
+			 * occur is a huge query in a prepared statement.
+			 *
+			 * We use 4 times pkt_buf as an arbitrary but
+			 * reosanable limit.
+			 */
+			if (extra_packets->alloc_len > (unsigned) cf_sbuf_len * 4) {
+				mbuf_free(extra_packets);
+			} else {
+				mbuf_rewind_writer(extra_packets);
+			}
+		}
+
 		AssertActive(sbuf);
+		loop_number++;
+		log_noise("sbuf_process_pending: loop %d", loop_number);
 
 		/*
 		 * Enough for now?
@@ -579,18 +799,17 @@ static bool sbuf_process_pending(SBuf *sbuf)
 		 * If start of packet, process packet header.
 		 */
 		if (sbuf->pkt_remain == 0) {
-			res = sbuf_call_proto(sbuf, SBUF_EV_READ);
-			if (!res)
-				return false;
+			if (!sbuf_call_proto(sbuf, SBUF_EV_READ)) {
+				goto need_more_data;
+			}
 			Assert(sbuf->pkt_remain > 0);
 		}
 
 		if (sbuf->pkt_action == ACT_SKIP || sbuf->pkt_action == ACT_CALL) {
 			/* send any pending data before skipping */
 			if (iobuf_amount_pending(io) > 0) {
-				res = sbuf_send_pending(sbuf);
-				if (!res)
-					return res;
+				if (!sbuf_send_pending_iobuf(sbuf))
+					return false;
 			}
 		}
 
@@ -602,19 +821,70 @@ static bool sbuf_process_pending(SBuf *sbuf)
 			iobuf_tag_send(io, avail);
 			break;
 		case ACT_CALL:
-			res = sbuf_call_proto(sbuf, SBUF_EV_PKT_CALLBACK);
-			if (!res)
-				return false;
-			/* fallthrough */
-			/* after callback, skip pkt */
+			if (!sbuf_call_proto(sbuf, SBUF_EV_PKT_CALLBACK)) {
+				goto need_more_data;
+			}
+		/* fallthrough */
+		/* after callback, skip pkt */
 		case ACT_SKIP:
-			iobuf_tag_skip(io, avail);
+			if (sbuf->skip_remain >= avail) {
+				iobuf_tag_skip(io, avail);
+				sbuf->skip_remain -= avail;
+			} else {
+				if (sbuf->skip_remain != 0) {
+					iobuf_tag_skip(io, sbuf->skip_remain);
+				}
+				iobuf_tag_send(io, avail - sbuf->skip_remain);
+				sbuf->skip_remain = 0;
+			}
 			break;
 		}
 		sbuf->pkt_remain -= avail;
 	}
 
-	return sbuf_send_pending(sbuf);
+	log_noise("sbuf_process_pending: done looping");
+	if (!sbuf_send_pending_iobuf(sbuf)) {
+		log_noise("sbuf_process_pending failed to send all pending data");
+		return false;
+	}
+	log_noise("sbuf_process_pending: end");
+	return true;
+
+need_more_data:
+	/*
+	 * We need to wait for more data before we can handle the current
+	 * packet. We'll call the handler for this packet again after receiving
+	 * more data and then all of the extra packets that were generated this
+	 * time will be regenerated again, so clean the ones up that were
+	 * generated this time.
+	 */
+	mbuf_rewind_writer(extra_packets);
+
+	if (sbuf->sock && io && sbuf->wait_type == W_RECV) {
+		/*
+		 * There might still be some previous packets that we're able
+		 * to send though. Let's do that now to create some extra space
+		 * in the buffer.
+		 */
+		if (iobuf_amount_pending(io) > 0) {
+			if (!sbuf_send_pending_iobuf(sbuf))
+				return false;
+		}
+
+		/*
+		 * If we've filled the whole buffer, but the packet handler
+		 * still needs more data, we should force a resync to make some
+		 * space.
+		 */
+		if (io && io->recv_pos == (unsigned) cf_sbuf_len) {
+			log_noise("resync(%d): done=%u, parse=%u, recv=%u, forced",
+				  sbuf->sock,
+				  io->done_pos, io->parse_pos, io->recv_pos);
+			iobuf_try_resync(io, cf_sbuf_len);
+		}
+	}
+
+	return false;
 }
 
 /* reposition at buffer start again */
@@ -746,8 +1016,7 @@ try_more:
 		 */
 		if (cf_pause_mode == P_SUSPEND
 		    && sbuf->pkt_remain > 0
-		    && sbuf->pkt_remain < free)
-		{
+		    && sbuf->pkt_remain < free) {
 			free = sbuf->pkt_remain;
 		}
 
@@ -776,7 +1045,8 @@ skip_recv:
 
 	if (sbuf->tls_state == SBUF_TLS_DO_HANDSHAKE) {
 		sbuf->pkt_action = SBUF_TLS_IN_HANDSHAKE;
-		handle_tls_handshake(sbuf);
+		if (!handle_tls_handshake(sbuf))
+			sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
 	}
 }
 
@@ -786,7 +1056,7 @@ static bool sbuf_after_connect_check(SBuf *sbuf)
 	int optval = 0, err;
 	socklen_t optlen = sizeof(optval);
 
-	err = getsockopt(sbuf->sock, SOL_SOCKET, SO_ERROR, (void*)&optval, &optlen);
+	err = getsockopt(sbuf->sock, SOL_SOCKET, SO_ERROR, (void *)&optval, &optlen);
 	if (err < 0) {
 		log_debug("sbuf_after_connect_check: getsockopt: %s",
 			  strerror(errno));
@@ -1047,7 +1317,7 @@ bool sbuf_tls_setup(void)
 	 * To change server TLS settings all connections are marked as dirty. This
 	 * way they are recycled and the new TLS settings will be used. Otherwise
 	 * old TLS settings, possibly less secure, could be used for old
-	 * connections indefinitly. If TLS is disabled, and it was disabled before
+	 * connections indefinitely. If TLS is disabled, and it was disabled before
 	 * as well then recycling connections is not necessary, since we know none
 	 * of the settings have changed. In all other cases we recycle the
 	 * connections to be on the safe side, even though it's possible nothing
@@ -1062,7 +1332,7 @@ bool sbuf_tls_setup(void)
 		}
 	}
 
-	tls_free(client_accept_base);
+	usual_tls_free(client_accept_base);
 	tls_config_free(client_accept_conf);
 	tls_config_free(server_connect_conf);
 	client_accept_base = new_client_accept_base;
@@ -1072,7 +1342,7 @@ bool sbuf_tls_setup(void)
 	server_connect_sslmode = cf_server_tls_sslmode;
 	return true;
 failed:
-	tls_free(new_client_accept_base);
+	usual_tls_free(new_client_accept_base);
 	tls_config_free(new_client_accept_conf);
 	tls_config_free(new_server_connect_conf);
 	return false;
@@ -1155,7 +1425,7 @@ bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
 	err = tls_configure(ctls, server_connect_conf);
 	if (err < 0) {
 		log_error("tls client config failed: %s", tls_error(ctls));
-		tls_free(ctls);
+		usual_tls_free(ctls);
 		return false;
 	}
 
@@ -1232,7 +1502,7 @@ static int tls_sbufio_close(struct SBuf *sbuf)
 	log_noise("tls_close");
 	if (sbuf->tls) {
 		tls_close(sbuf->tls);
-		tls_free(sbuf->tls);
+		usual_tls_free(sbuf->tls);
 		sbuf->tls = NULL;
 	}
 	if (sbuf->sock > 0) {
@@ -1244,7 +1514,7 @@ static int tls_sbufio_close(struct SBuf *sbuf)
 
 void sbuf_cleanup(void)
 {
-	tls_free(client_accept_base);
+	usual_tls_free(client_accept_base);
 	tls_config_free(client_accept_conf);
 	tls_config_free(server_connect_conf);
 	client_accept_conf = NULL;
@@ -1257,9 +1527,18 @@ void sbuf_cleanup(void)
 int client_accept_sslmode = SSLMODE_DISABLED;
 int server_connect_sslmode = SSLMODE_DISABLED;
 
-bool sbuf_tls_setup(void) { return true; }
-bool sbuf_tls_accept(SBuf *sbuf) { return false; }
-bool sbuf_tls_connect(SBuf *sbuf, const char *hostname) { return false; }
+bool sbuf_tls_setup(void)
+{
+	return true;
+}
+bool sbuf_tls_accept(SBuf *sbuf)
+{
+	return false;
+}
+bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
+{
+	return false;
+}
 
 void sbuf_cleanup(void)
 {

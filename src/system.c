@@ -45,6 +45,10 @@ void change_user(const char *user)
 	const struct passwd *pw;
 	gid_t gset[1];
 
+#ifdef WIN32
+	die("option --user (-u) is not supported on this platform");
+#endif
+
 	/* check for a valid username */
 	pw = getpwnam(user);
 	if (pw == NULL)
@@ -84,9 +88,10 @@ void change_file_mode(const char *fn, mode_t mode,
 		} else {
 			/* check for a valid username */
 			pw = getpwnam(user_name);
-			if (!pw)
+			if (!pw) {
 				die("could not find user '%s': %s",
-				      user_name, strerror(errno));
+				    user_name, strerror(errno));
+			}
 			uid = pw->pw_uid;
 		}
 	}
@@ -100,9 +105,10 @@ void change_file_mode(const char *fn, mode_t mode,
 			gid = val;
 		} else {
 			gr = getgrnam(group_name);
-			if (!gr)
+			if (!gr) {
 				die("could not find group '%s': %s",
-				      group_name, strerror(errno));
+				    group_name, strerror(errno));
+			}
 			gid = gr->gr_gid;
 		}
 	}
@@ -112,7 +118,7 @@ void change_file_mode(const char *fn, mode_t mode,
 		res = chown(fn, uid, gid);
 		if (res != 0) {
 			die("chown(%s, %u, %u) failed: %s",
-			      fn, uid, gid, strerror(errno));
+			    fn, uid, gid, strerror(errno));
 		}
 	}
 
@@ -120,7 +126,7 @@ void change_file_mode(const char *fn, mode_t mode,
 	res = chmod(fn, mode);
 	if (res != 0) {
 		die("failure to chmod(%s, 0%o): %s",
-		      fn, mode, strerror(errno));
+		    fn, mode, strerror(errno));
 	}
 }
 

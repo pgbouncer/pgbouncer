@@ -186,6 +186,9 @@ total_xact_count
 total_query_count
 :   Total number of SQL commands pooled by **pgbouncer**.
 
+total_server_assignment_count
+:   Total times a server was assigned to a client
+
 total_received
 :   Total volume in bytes of network traffic received by **pgbouncer**.
 
@@ -210,6 +213,10 @@ avg_xact_count
 
 avg_query_count
 :   Average queries per second in last stat period.
+
+avg_server_assignment_count
+:   Average number of times a server as assigned to a client per second in the
+    last stat period.
 
 avg_recv
 :   Average received (from clients) bytes per second.

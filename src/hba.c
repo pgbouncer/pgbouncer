@@ -581,7 +581,7 @@ static bool parse_ident_line(struct Ident *ident, struct TokParser *tp, int line
 		return true;
 	}
 
-	mapping = calloc(sizeof *mapping, 1);
+	mapping = calloc(1, sizeof(*mapping));
 
 	if (!mapping) {
 		log_warning("ident: no mem for parsing mapping");
@@ -628,7 +628,7 @@ static bool parse_ident_line(struct Ident *ident, struct TokParser *tp, int line
 		list_append(&ident_map->mappings, &mapping->node);
 		free(map_name_copy);
 	} else {
-		ident_map = calloc(sizeof *ident_map, 1);
+		ident_map = calloc(1, sizeof(*ident_map));
 
 		if (!ident_map) {
 			log_warning("ident: no mem for parsing ident_map");
@@ -671,7 +671,7 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 		return false;
 	}
 
-	rule = calloc(sizeof *rule, 1);
+	rule = calloc(1, sizeof(*rule));
 	if (!rule) {
 		log_warning("hba: no mem for rule");
 		return false;

@@ -942,6 +942,7 @@ bool find_server(PgSocket *client)
 		slog_noise(client, "linking client to S-%p", server);
 		client->link = server;
 		server->link = client;
+		server->pool->stats.server_assignment_count++;
 		change_server_state(server, SV_ACTIVE);
 		if (varchange) {
 			server->setting_vars = true;

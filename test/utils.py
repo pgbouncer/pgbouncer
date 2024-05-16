@@ -312,6 +312,12 @@ class QueryRunner:
         """
         with self.cur(**kwargs) as cur:
             cur.execute(query, params=params)
+            try:
+                return cur.fetchall()
+            except psycopg.ProgrammingError as e:
+                if "the last operation didn't produce a result" == str(e):
+                    return None
+                raise
 
     def sql_value(self, query, params=None, **kwargs):
         """Run an SQL query that returns a single cell and return this value

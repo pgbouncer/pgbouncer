@@ -186,6 +186,9 @@ total_xact_count
 total_query_count
 :   Total number of SQL commands pooled by **pgbouncer**.
 
+total_server_assignment_count
+:   Total times a server was assigned to a client
+
 total_received
 :   Total volume in bytes of network traffic received by **pgbouncer**.
 
@@ -211,6 +214,10 @@ avg_xact_count
 avg_query_count
 :   Average queries per second in last stat period.
 
+avg_server_assignment_count
+:   Average number of times a server as assigned to a client per second in the
+    last stat period.
+
 avg_recv
 :   Average received (from clients) bytes per second.
 
@@ -224,9 +231,9 @@ avg_query_time
 :   Average query duration, in microseconds.
 
 avg_wait_time
-:   Average time spent by clients waiting for a server that were assigned a
-    backend connection within the current `stats_period`, in microseconds
-    (averaged per second within that period).
+:   Time spent by clients waiting for a server, in microseconds (average
+    of the wait times for clients assigned a backend during the current
+    `stats_period`).
 
 #### SHOW STATS_TOTALS
 

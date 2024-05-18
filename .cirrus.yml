@@ -143,7 +143,8 @@ task:
     - apk add autoconf automake bash build-base libevent-dev libtool openssl openssl-dev pkgconf postgresql postgresql-contrib python3 py3-pip wget sudo iptables
     - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
     - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
-    - python3 -m pip install -r requirements.txt
+    - python3 -m venv /venv
+    - /venv/bin/pip install -r requirements.txt
     - adduser --disabled-password user
     - chown -R user .
     - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
@@ -152,7 +153,7 @@ task:
     - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror"
     - su user -c "make -j4"
   test_script:
-    - su user -c "make -j4 check CONCURRENCY=4"
+    - source /venv/bin/activate && su user -c "make -j4 check CONCURRENCY=4"
   install_script:
     - make -j4 install
   always:

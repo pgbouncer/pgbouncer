@@ -100,63 +100,65 @@ task:
       path: "config.log"
       type: text/plain
 
-# task:
-#   name: Linux (Red Hat)
-#   container:
-#     matrix:
-#       - image: rockylinux:9
-#       - image: rockylinux:8
-#       - image: centos:centos7
-#   setup_script:
-#     - yum -y install autoconf automake diffutils file libevent-devel libtool make openssl-devel pkg-config postgresql-server postgresql-contrib systemd-devel wget
-#     - if cat /etc/centos-release | grep -q ' 7'; then yum -y install python python-pip; else yum -y install python3 python3-pip sudo iptables; fi
-#     - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
-#     - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
-# # XXX: python too old
-#     - if cat /etc/centos-release | grep -q ' 7'; then true; else pip3 install -r requirements.txt; fi
-#     - useradd user
-#     - chown -R user .
-#     - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
-#   build_script:
-#     - su user -c "./autogen.sh"
-#     - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror --with-systemd"
-#     - su user -c "make -j4"
-#   test_script:
-# # XXX: postgresql too old on centos7
-#     - if cat /etc/centos-release | grep -q ' 7'; then true; else su user -c "make -j4 check CONCURRENCY=4"; fi
-#   install_script:
-#     - make -j4 install
-#   always:
-#     configure_artifacts:
-#       path: "config.log"
-#       type: text/plain
+task:
+  name: Linux (Red Hat)
+  trigger_type: manual
+  container:
+    matrix:
+      - image: rockylinux:9
+      - image: rockylinux:8
+      - image: centos:centos7
+  setup_script:
+    - yum -y install autoconf automake diffutils file libevent-devel libtool make openssl-devel pkg-config postgresql-server postgresql-contrib systemd-devel wget
+    - if cat /etc/centos-release | grep -q ' 7'; then yum -y install python python-pip; else yum -y install python3 python3-pip sudo iptables; fi
+    - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
+    - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
+# XXX: python too old
+    - if cat /etc/centos-release | grep -q ' 7'; then true; else pip3 install -r requirements.txt; fi
+    - useradd user
+    - chown -R user .
+    - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+  build_script:
+    - su user -c "./autogen.sh"
+    - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror --with-systemd"
+    - su user -c "make -j4"
+  test_script:
+# XXX: postgresql too old on centos7
+    - if cat /etc/centos-release | grep -q ' 7'; then true; else su user -c "make -j4 check CONCURRENCY=4"; fi
+  install_script:
+    - make -j4 install
+  always:
+    configure_artifacts:
+      path: "config.log"
+      type: text/plain
 
-# task:
-#   name: Linux (Alpine)
-#   container:
-#     matrix:
-#       - image: alpine:latest
-#   setup_script:
-#     - apk update
-#     - apk add autoconf automake bash build-base libevent-dev libtool openssl openssl-dev pkgconf postgresql postgresql-contrib python3 py3-pip wget sudo iptables
-#     - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
-#     - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
-#     - python3 -m pip install -r requirements.txt
-#     - adduser --disabled-password user
-#     - chown -R user .
-#     - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
-#   build_script:
-#     - su user -c "./autogen.sh"
-#     - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror"
-#     - su user -c "make -j4"
-#   test_script:
-#     - su user -c "make -j4 check CONCURRENCY=4"
-#   install_script:
-#     - make -j4 install
-#   always:
-#     configure_artifacts:
-#       path: "config.log"
-#       type: text/plain
+task:
+  name: Linux (Alpine)
+  trigger_type: manual
+  container:
+    matrix:
+      - image: alpine:latest
+  setup_script:
+    - apk update
+    - apk add autoconf automake bash build-base libevent-dev libtool openssl openssl-dev pkgconf postgresql postgresql-contrib python3 py3-pip wget sudo iptables
+    - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
+    - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
+    - python3 -m pip install -r requirements.txt
+    - adduser --disabled-password user
+    - chown -R user .
+    - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+  build_script:
+    - su user -c "./autogen.sh"
+    - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror"
+    - su user -c "make -j4"
+  test_script:
+    - su user -c "make -j4 check CONCURRENCY=4"
+  install_script:
+    - make -j4 install
+  always:
+    configure_artifacts:
+      path: "config.log"
+      type: text/plain
 
 task:
   name: FreeBSD

@@ -122,7 +122,7 @@ AC_ARG_WITH(cares,
 AC_MSG_RESULT([$use_cares])
 
 if test "$use_cares" = "auto"; then
-  PKG_CHECK_MODULES(CARES, [libcares >= 1.6.0], [use_cares=yes], [use_cares=no])
+  PKG_CHECK_MODULES(CARES, [libcares >= 1.9.0], [use_cares=yes], [use_cares=no])
 fi
 
 if test "$use_cares" = "yes"; then
@@ -132,8 +132,6 @@ if test "$use_cares" = "yes"; then
   tmp_LIBS="$LIBS"
   CFLAGS="$CARES_CFLAGS $CFLAGS"
   LIBS="$CARES_LIBS $LIBS"
-  # does it support SOA parse
-  AC_CHECK_FUNCS(ares_parse_soa_reply)
   # portability substitute for arpa/nameser.h, needed mainly for Windows
   AC_CHECK_HEADERS([ares_nameser.h])
   LIBS="$tmp_LIBS"

@@ -105,7 +105,7 @@ static int hba_test_eval(struct HBA *hba, char *ln, int linenr)
 			res = 0;
 		} else {
 			log_warning("FAIL on line %d: expected '%s' got '%s' - user=%s db=%s addr=%s",
-			    linenr, exp, method2string(res), user, db, addr);
+			    linenr, exp, method2string(rule->rule_method), user, db, addr);
 			res = 1;
 		}
 	}

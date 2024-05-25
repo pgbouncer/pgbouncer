@@ -35,6 +35,7 @@ User=postgres
 ExecStart=/usr/bin/pgbouncer /etc/pgbouncer/pgbouncer.ini
 ExecReload=/bin/kill -HUP $MAINPID
 KillSignal=SIGINT
+Restart=on-failure
 #LimitNOFILE=1024
 
 [Install]

@@ -16,6 +16,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#define ADDRESS_ALL             1
+
 #define NAME_ALL                1
 #define NAME_SAMEUSER           2
 #define NAME_REPLICATION        4
@@ -27,10 +29,13 @@ enum RuleType {
 	RULE_HOSTNOSSL,
 };
 
-struct NameSlot {
-	size_t strlen;
-	char str[];
+struct HBAAddress {
+	unsigned int flags;
+	int family;
+	uint8_t addr[16];
+	uint8_t mask[16];
 };
+
 struct HBAName {
 	unsigned int flags;
 	struct StrSet *name_set;
@@ -40,9 +45,7 @@ struct HBARule {
 	struct List node;
 	enum RuleType rule_type;
 	int rule_method;
-	int rule_af;
-	uint8_t rule_addr[16];
-	uint8_t rule_mask[16];
+	struct HBAAddress address;
 	struct HBAName db_name;
 	struct HBAName user_name;
 	struct IdentMap *identmap;

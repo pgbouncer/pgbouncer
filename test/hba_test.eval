@@ -80,6 +80,12 @@ md5		mdb	muser		ff22:3::1
 trust		mdb	muser		::1
 reject		mdb	muser		::2
 
+# "all" address
+scram-sha-256	mdb3	muser		1.2.3.4
+scram-sha-256	mdb3	muser		face::1
+reject		mdb4	muser		1.2.3.4
+reject		mdb4	muser		face::1
+
 # replication
 reject		mdb		muser		::1	replication
 reject		db		userp		unix	replication

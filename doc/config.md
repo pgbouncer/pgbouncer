@@ -1438,7 +1438,7 @@ The file follows the format of the PostgreSQL `pg_hba.conf` file
 * Supported record types: `local`, `host`, `hostssl`, `hostnossl`.
 * Database field: Supports `all`, `replication`, `sameuser`, `@file`, multiple names.  Not supported: `samerole`, `samegroup`.
 * User name field: Supports `all`, `@file`, multiple names.  Not supported: `+groupname`.
-* Address field: Supports IPv4, IPv6.  Not supported: DNS names, domain prefixes.
+* Address field: Supports `all`, IPv4, IPv6.  Not supported: `samehost`, `samenet`, DNS names, domain prefixes.
 * Auth-method field: Only methods supported by PgBouncer's `auth_type`
   are supported, plus `peer` and `reject`, but except `any` and `pam`, which only work globally.
 * User name map (`map=`) parameter is supported when `auth_type` is `cert` or `peer`.

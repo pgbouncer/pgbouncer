@@ -1045,10 +1045,6 @@ int main(int argc, char *argv[])
 	if (global_username && *global_username)
 		change_user(global_username);
 
-	/* disallow running as root */
-	if (getuid() == 0)
-		die("PgBouncer should not run as root");
-
 	admin_setup();
 
 	if (cf_reboot) {

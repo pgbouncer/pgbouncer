@@ -314,8 +314,8 @@ statement pooling mode. PgBouncer makes sure that any statement prepared by
 a client is available on the backing server connection. Even when the statement
 was originally prepared on another server connection.
 
-PgBouncer internally examines all the queries that are sent as a prepared
-statement by clients and gives each unique query string an internal name with
+PgBouncer internally examines all the queries that are sent by clients as a prepared
+statement, and gives each unique query string an internal name with
 the format `PGBOUNCER_{unique_id}`. If the same query string is prepared
 multiple times (possibly by different clients), then these queries share the
 same internal name. PgBouncer only prepares the statement on the actual
@@ -323,10 +323,10 @@ PostgreSQL server using the internal name (so not the name provided by the
 client). PgBouncer keeps track of the name that the client gave to each
 prepared statement. It then rewrites each command that uses a prepared
 statement to by replacing the client side name with the the internal name (e.g.
-replacing `my_prepared_stamenent` with `PGBOUNCER_123`) before forwarding that
+replacing `my_prepared_statement` with `PGBOUNCER_123`) before forwarding that
 command to the server. More importantly, if the prepared statement that the
 client wants to execute is not yet prepared on the server (e.g. because a
-different server is now assigned to the client then when the client prepared
+different server is now assigned to the client than when the client prepared
 the statement), then PgBouncer transparently prepares the statement before
 executing it.
 
@@ -351,7 +351,7 @@ keep track of query strings.
 The impact on PgBouncer memory usage is not that big though:
 - Each unique query is stored once in a global query cache.
 - Each client connection keeps a buffer that it uses to rewrite packets. This
-  is at most 4 times the size of `pkt_buf`. This limit is often not reached
+  is, at most, 4 times the size of `pkt_buf`. This limit is often not reached
   though, it only happens when the queries in your prepared statements are
   between 2 and 4 times the size of `pkt_buf`.
 
@@ -361,7 +361,7 @@ So if you consider the following as an example scenario:
 - The average size of a query is 5kB
 - `pkt_buf` parameter is set to the default of 4096 (4kB)
 
-Then PgBouncer needs at most the following amount of memory to handle these
+Then, PgBouncer needs at most the following amount of memory to handle these
 prepared statements:
 
 200 x 5kB + 1000 x 4 x 4kB = ~17MB of memory.
@@ -378,7 +378,7 @@ executed many times, it reduces the total amount of parsing and planning that
 needs to be done. The way that PgBouncer tracks prepared statements is
 especially beneficial to performance when multiple clients prepare the same
 queries. Because client connections automatically reuse a prepared statement on
-a server connection even if it was prepared by another client. As an example if
+a server connection, even if it was prepared by another client. As an example, if
 you have a `pool_size` of 20 and you have 100 clients that all prepare the
 exact same query, then the query is prepared (and thus parsed) only 20 times on
 the PostgreSQL server.
@@ -397,7 +397,7 @@ result types. One of the most common ways of running into this issue is during
 a DDL migration where you add a new column or change a column type on an
 existing table. In those cases you can run `RECONNECT` on the PgBouncer admin
 console after doing the migration to force a re-prepare of the query and make
-the error goes away.
+the error go away.
 
 Default: 0
 

@@ -1409,8 +1409,17 @@ client connections, if a password-based authentication method is
 configured.  Second, they are used as the passwords for outgoing
 connections to the backend server, if the backend server requires
 password-based authentication (unless the password is specified
-directly in the database's connection string).  The latter works if
-the password is stored in plain text or MD5-hashed.  SCRAM secrets can
+directly in the database's connection string). 
+
+### Limitations
+If the password is stored in plain text, it can be used for any password-based
+authentication used in the backend server; plain text, MD5 or SCRAM
+(see <https://www.postgresql.org/docs/current/auth-password.html> for details).
+
+MD5-hashed passwords can be used if backend server uses MD5 authentication
+(or specific users have MD5-hashed passwords).
+
+SCRAM secrets can
 only be used for logging into a server if the client authentication
 also uses SCRAM, the PgBouncer database definition does not specify a
 user name, and the SCRAM secrets are identical in PgBouncer and the
@@ -1426,6 +1435,30 @@ file from the `pg_shadow` system table.  Alternatively, use
 `auth_query` instead of `auth_file` to avoid having to maintain a
 separate authentication file.
 
+### Notes on managed servers
+If the backend server is configured to use SCRAM password authentication PgBouncer cannot 
+successfully authenticate if it does not know either a) user password in plain text or 
+b) corresponding SCRAM secret.
+
+Some cloud providers (i.e. AWS RDS) prohibit access to PostgreSQL sensitive system tables 
+for fetching passwords. Even for the most privileged user (i.e. member of rds_superuser) the
+`select * from pg_authid`;  returns the `ERROR:  permission denied for table pg_authid.`
+That is a known behaviour 
+([blog](https://aws.amazon.com/blogs/database/best-practices-for-migrating-postgresql-databases-to-amazon-rds-and-amazon-aurora/)).
+
+Therefore, fetching an existing SCRAM secret once it has been stored in a managed server
+is impossible which makes it hard to configure PgBouncer to use the same SCRAM secret. 
+Nevertheless, SCRAM secret can still be configured and used on both sides using the following trick: 
+
+Generate SCRAM secret for arbitrary password locally (using a custom script or local postgres installation 
+running on your desktop). Then take the secret and set it inside PgBouncer's `userlist.txt` 
+as well as inside managed server via alter role command.
+
+```sql
+alter role <role_name> password 'SCRAM-SHA-256$<iterations>:<salt>$<storedkey>:<serverkey>';
+```
+The option of supplying password string that is already in SCRAM-encrypted format is officially supported 
+by PostgreSQL (see <https://www.postgresql.org/docs/current/sql-createrole.htm> for more details).
 
 ## HBA file format
 

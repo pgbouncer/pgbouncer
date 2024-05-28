@@ -1464,7 +1464,7 @@ ALTER USER <role_name> PASSWORD 'SCRAM-SHA-256$<iterations>:<salt>$<storedkey>:<
 ```
 Note down the SCRAM secret from the QUERY and set it in PgBouncer's `userlist.txt`. 
 
-If you used a tool other than `psql -E` then you need to set the SCRAM secret also in the server 
+If you used a tool other than `psql --echo-hidden` then you need to set the SCRAM secret also in the server 
 (you can use `alter role <role_name> password '<scram_secret>'` for that).
 
 ## HBA file format

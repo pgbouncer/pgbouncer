@@ -1454,6 +1454,8 @@ Generate SCRAM secret for arbitrary password with a tool that is capable of prin
 For example `psql --echo-hidden` and the command `\password` prints out the SCRAM secret 
 to the console before sending it over to the server. 
 ```
+$ psql --echo-hidden <connection_string>
+postgres=# \password <role_name>
 Enter new password for user "<role_name>": 
 Enter it again: 
 ********* QUERY **********

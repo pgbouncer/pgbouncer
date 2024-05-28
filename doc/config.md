@@ -1435,7 +1435,7 @@ file from the `pg_shadow` system table.  Alternatively, use
 `auth_query` instead of `auth_file` to avoid having to maintain a
 separate authentication file.
 
-### Notes on managed servers
+### Note on managed servers
 If the backend server is configured to use SCRAM password authentication PgBouncer cannot 
 successfully authenticate if it does not know either a) user password in plain text or 
 b) corresponding SCRAM secret.
@@ -1450,15 +1450,20 @@ Therefore, fetching an existing SCRAM secret once it has been stored in a manage
 is impossible which makes it hard to configure PgBouncer to use the same SCRAM secret. 
 Nevertheless, SCRAM secret can still be configured and used on both sides using the following trick: 
 
-Generate SCRAM secret for arbitrary password locally (using a custom script or local postgres installation 
-running on your desktop). Then take the secret and set it inside PgBouncer's `userlist.txt` 
-as well as inside managed server via alter role command.
-
-```sql
-alter role <role_name> password 'SCRAM-SHA-256$<iterations>:<salt>$<storedkey>:<serverkey>';
+Generate SCRAM secret for arbitrary password with a tool that is capable of printing out the secret. 
+For example `psql --echo-hidden` and the command `\password` prints out the SCRAM secret 
+to the console before sending it over to the server. 
 ```
-The option of supplying password string that is already in SCRAM-encrypted format is officially supported 
-by PostgreSQL (see <https://www.postgresql.org/docs/current/sql-createrole.htm> for more details).
+Enter new password for user "<role_name>": 
+Enter it again: 
+********* QUERY **********
+ALTER USER <role_name> PASSWORD 'SCRAM-SHA-256$<iterations>:<salt>$<storedkey>:<serverkey>'
+**************************
+```
+Note down the SCRAM secret from the QUERY and set it in PgBouncer's `userlist.txt`. 
+
+If you used a tool other than `psql -E` then you need to set the SCRAM secret also in the server 
+(you can use `alter role <role_name> password '<scram_secret>'` for that).
 
 ## HBA file format
 

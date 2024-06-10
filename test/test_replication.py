@@ -226,9 +226,8 @@ def test_physical_rep_pg_basebackup(bouncer, tmp_path):
             bouncer.make_conninfo(),
             "--checkpoint=fast",
             "--pgdata",
-            str(dump_dir),
+            dump_dir,
         ],
-        shell=False,
     )
     children = list(dump_dir.iterdir())
     assert len(children) > 0

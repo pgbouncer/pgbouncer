@@ -12,6 +12,7 @@ import asyncio
 import os
 import platform
 import re
+import shlex
 import signal
 import socket
 import sys
@@ -85,28 +86,45 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def run(command, *args, check=True, shell=True, silent=False, **kwargs):
+def run(command, *args, check=True, shell=None, silent=False, **kwargs):
     """run runs the given command and prints it to stderr"""
 
+    if shell is None:
+        shell = isinstance(command, str)
+
+    if not shell:
+        command = list(map(str, command))
+
     if not silent:
-        eprint(f"+ {command} ")
+        if shell:
+            eprint(f"+ {command}")
+        else:
+            # We could normally use shlex.join here, but it's not available in
+            # Python 3.6 which we still like to support
+            unsafe_string_cmd = " ".join(map(shlex.quote, command))
+            eprint(f"+ {unsafe_string_cmd}")
     if silent:
         kwargs.setdefault("stdout", subprocess.DEVNULL)
     return subprocess.run(command, *args, check=check, shell=shell, **kwargs)
 
 
-def sudo(command, *args, shell=True, **kwargs):
+def sudo(command, *args, shell=None, **kwargs):
     """
     A version of run that prefixes the command with sudo when the process is
     not already run as root
     """
     effective_user_id = os.geteuid()
+
     if effective_user_id == 0:
         return run(command, *args, shell=shell, **kwargs)
+
+    if shell is None:
+        shell = isinstance(command, str)
+
     if shell:
         return run(f"sudo {command}", *args, shell=shell, **kwargs)
     else:
-        return run(["sudo", *command])
+        return run(["sudo", *command], *args, shell=shell, **kwargs)
 
 
 def capture(command, *args, stdout=subprocess.PIPE, encoding="utf-8", **kwargs):
@@ -631,8 +649,7 @@ class QueryRunner:
     def psql_debug(self, **kwargs):
         conninfo = self.make_conninfo(**kwargs)
         run(
-            ["psql", f"{conninfo}"],
-            shell=False,
+            ["psql", conninfo],
             silent=True,
         )
 

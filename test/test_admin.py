@@ -39,14 +39,13 @@ def test_show_version(bouncer):
     admin_version = bouncer.admin_value(f"SHOW VERSION")
     subprocess_result = capture(
         [*bouncer.base_command(), "--version"],
-        shell=False,
     )
     subprocess_version = subprocess_result.split("\n")[0]
     assert admin_version == subprocess_version
 
 
 def test_help(bouncer):
-    run([*bouncer.base_command(), "--help"], shell=False)
+    run([*bouncer.base_command(), "--help"])
 
 
 def test_show_stats(bouncer):

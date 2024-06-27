@@ -18,7 +18,7 @@ PgBouncer 1.22.x
   * Allow `server_lifetime` configuration per database. ([#1057])
   * Add support for listing dynamically created users in the output of `SHOW USERS`. ([#1052])
   * Add support for `all` address type in hba configuration. ([#1078])
-  * Add support for automatically restarting when using systemd.  ([#1080])
+  * Add support for automatically restarting when using systemd. ([#1080])
 
 - Fixes
   * Fix issues handling large and partial startup packets. ([#1058])

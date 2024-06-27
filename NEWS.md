@@ -4,6 +4,40 @@ PgBouncer changelog
 PgBouncer 1.22.x
 ----------------
 
+**2024-06-28  -  PgBouncer 1.22.2  -  "Into the new beginnings"**
+- Features
+  * Add support for user name maps for for `cert` and `peer` authentication
+    methods. ([#996])
+  * Add support for negotiating the postgres protocol version with the client. ([#1007])
+  * Add support for replication connections through PgBouncer. ([#876])
+  * Add support for rolling restarts when peering is configured. ([#902])
+
+- Changes
+  * Improve `SHOW USERS` output listing the connections. ([#1040])
+  * Allow `pool_size` configuration per user. ([#1049])
+  * Allow `server_lifetime` configuration per database. ([#1057])
+  * Add support for listing dynamically created users in the output of `SHOW USERS`. ([#1052])
+  * Add support for `all` address type in hba configuration. ([#1078])
+  * Add support for automatically restarting when using systemd.  ([#1080])
+
+- Fixes
+  * Fix issues handling large and partial startup packets. ([#1058])
+  * Add support for `--config=value` format in options startup parameter. ([#1064])
+  * Multiple documentation and CI improvements.
+
+[#996]: https://github.com/pgbouncer/pgbouncer/pull/996
+[#1040]: https://github.com/pgbouncer/pgbouncer/pull/1040
+[#1049]: https://github.com/pgbouncer/pgbouncer/pull/1049
+[#1057]: https://github.com/pgbouncer/pgbouncer/pull/1057
+[#1052]: https://github.com/pgbouncer/pgbouncer/pull/1052
+[#1058]: https://github.com/pgbouncer/pgbouncer/pull/1058
+[#1007]: https://github.com/pgbouncer/pgbouncer/pull/1007
+[#876]: https://github.com/pgbouncer/pgbouncer/pull/876
+[#902]: https://github.com/pgbouncer/pgbouncer/pull/902
+[#1064]: https://github.com/pgbouncer/pgbouncer/pull/1064
+[#1078]: https://github.com/pgbouncer/pgbouncer/pull/1078
+[#1080]: https://github.com/pgbouncer/pgbouncer/pull/1080
+
 **2024-03-04  -  PgBouncer 1.22.1  -  "It's summer in Bangalore"**
 
 - Fixes

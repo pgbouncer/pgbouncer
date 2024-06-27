@@ -214,7 +214,7 @@ specified here, so that PgBouncer knows that they should be maintained in the cl
 and restored in the server whenever the client becomes active.
 
 If you need to specify multiple values, use a comma-separated list (e.g.
-`default_transaction_readonly, IntervalStyle`)
+`default_transaction_read_only, IntervalStyle`)
 
 Note: Most parameters cannot be tracked this way. The only parameters that can be tracked are ones that
 Postgres reports to the client. Postgres has

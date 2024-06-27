@@ -6,16 +6,18 @@ PgBouncer 1.23.x
 
 **2024-06-28  -  PgBouncer 1.23.0  -  "Into the new beginnings"**
 
+- Breaking Changes
+  * This release changes the meaning of SIGTERM to add support for rolling
+    restarts of PgBouncer processes. This is a minor breaking change.
+    If you relied on the old behaviour of SIGTERM in your Dockerfile or
+    SystemD service file you should now use SIGQUIT.
+
 - Features
-  * Add support for rolling restarts when peering is configured.
-    This is a breaking change.
-    SIGTERM doesn't cause immediate shutdown of the PgBouncer process anymore.
-    It now does a "super safe shutdown": waiting for all clients to disconnect
-    before shutting down. If you used SIGTERM to trigger an immediate shutdown
-    in your Dockerfile or SystemD service file, you should replace that signal
-    with a SIGQUIT to keep the existing behaviour. The new SIGTERM behaviour
-    allows rolling restarts of multiple PgBouncer processes behind a load balancer,
-    or listening on the same port using so_reuseport. ([#902])
+  * Add support for rolling restarts. SIGTERM doesn't cause immediate shutdown
+    of the PgBouncer process anymore. It now does a "super safe shutdown":
+    waiting for all clients to disconnect before shutting down. The new SIGTERM
+    behaviour allows rolling restarts of multiple PgBouncer processes behind
+    a load balancer, or listening on the same port using so_reuseport. ([#902])
   * Add support for user name maps for `cert` and `peer` authentication
     methods. This feature provides the flexibility that the user initiating
     the connection does not have to be the database user. PgBouncer support

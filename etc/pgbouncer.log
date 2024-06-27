@@ -1,0 +1,1592 @@
+2024-05-09 16:17:46.281 +03 [137407] DEBUG parse_ini_file: 'logfile' = 'pgbouncer.log' ok:1
+2024-05-09 16:17:46.281 +03 [137407] DEBUG parse_ini_file: 'pidfile' = 'pgbouncer.pid'
+2024-05-09 16:17:46.281 +03 [137407] DEBUG parse_ini_file: 'pidfile' = 'pgbouncer.pid' ok:1
+2024-05-09 16:17:46.281 +03 [137407] DEBUG parse_ini_file: 'listen_addr' = 'localhost'
+2024-05-09 16:17:46.281 +03 [137407] DEBUG parse_ini_file: 'listen_addr' = 'localhost' ok:1
+2024-05-09 16:17:46.281 +03 [137407] DEBUG parse_ini_file: 'listen_port' = '6432'
+2024-05-09 16:17:46.281 +03 [137407] DEBUG parse_ini_file: 'listen_port' = '6432' ok:1
+2024-05-09 16:17:46.281 +03 [137407] DEBUG parse_ini_file: 'unix_socket_dir' = '/tmp'
+2024-05-09 16:17:46.281 +03 [137407] DEBUG parse_ini_file: 'unix_socket_dir' = '/tmp' ok:1
+2024-05-09 16:17:46.281 +03 [137407] DEBUG parse_ini_file: 'auth_type' = 'md5'
+2024-05-09 16:17:46.281 +03 [137407] DEBUG parse_ini_file: 'auth_type' = 'md5' ok:1
+2024-05-09 16:17:46.281 +03 [137407] DEBUG parse_ini_file: 'auth_file' = 'userlist.txt'
+2024-05-09 16:17:46.281 +03 [137407] DEBUG parse_ini_file: 'auth_file' = 'userlist.txt' ok:1
+2024-05-09 16:17:46.281 +03 [137407] DEBUG loading auth_file: "userlist.txt"
+2024-05-09 16:17:46.281 +03 [137407] DEBUG pktbuf_dynamic(128): 0x5605a57f87e0
+2024-05-09 16:17:46.281 +03 [137407] DEBUG make_room(0x5605a57f87e0, 9): realloc newlen=256
+2024-05-09 16:17:46.281 +03 [137407] DEBUG pktbuf_dynamic(128): 0x5605a57f89c0
+2024-05-09 16:17:46.281 +03 [137407] NOISE connect(4, unix:/tmp/.s.PGSQL.6432) = No such file or directory
+2024-05-09 16:17:46.281 +03 [137407] NOISE event: 128, SBuf: 224, PgSocket: 688, IOBuf: 4108
+2024-05-09 16:17:46.281 +03 [137407] LOG kernel file descriptor limit: 1024 (hard: 1048576); max_client_conn: 100, max expected fd use: 112
+2024-05-09 16:17:46.283 +03 [137407] DEBUG adns_create_context: evdns2
+2024-05-09 16:17:46.284 +03 [137407] DEBUG add_listen: 127.0.0.1:6432
+2024-05-09 16:17:46.284 +03 [137407] NOISE old TCP_DEFER_ACCEPT on 8 = 0
+2024-05-09 16:17:46.284 +03 [137407] NOISE install TCP_DEFER_ACCEPT on 8
+2024-05-09 16:17:46.284 +03 [137407] LOG listening on 127.0.0.1:6432
+2024-05-09 16:17:46.284 +03 [137407] DEBUG add_listen: unix:/tmp/.s.PGSQL.6432
+2024-05-09 16:17:46.284 +03 [137407] LOG listening on unix:/tmp/.s.PGSQL.6432
+2024-05-09 16:17:46.284 +03 [137407] LOG process up: PgBouncer 1.21.0, libevent 2.1.12-stable (epoll), adns: evdns2, tls: OpenSSL 3.0.2 15 Mar 2022
+2024-05-09 16:17:56.490 +03 [137407] NOISE new fd from accept=10
+2024-05-09 16:17:56.490 +03 [137407] NOISE unix peer uid: 1000
+2024-05-09 16:17:56.490 +03 [137407] DEBUG C-0x5605a580a320: (nodb)/(nouser)@unix(137452):6432 P: got connection: unix->unix
+2024-05-09 16:17:56.490 +03 [137407] NOISE safe_accept(9) = Resource temporarily unavailable
+2024-05-09 16:17:56.490 +03 [137407] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-09 16:17:56.490 +03 [137407] NOISE sbuf_process_pending: start
+2024-05-09 16:17:56.490 +03 [137407] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:17:56.490 +03 [137407] NOISE C-0x5605a580a320: (nodb)/(nouser)@unix(137452):6432 read pkt='!' len=76
+2024-05-09 16:17:56.490 +03 [137407] DEBUG C-0x5605a580a320: (nodb)/(nouser)@unix(137452):6432 got var: user=emel
+2024-05-09 16:17:56.490 +03 [137407] DEBUG C-0x5605a580a320: (nodb)/(nouser)@unix(137452):6432 got var: database=emel
+2024-05-09 16:17:56.490 +03 [137407] DEBUG C-0x5605a580a320: (nodb)/(nouser)@unix(137452):6432 using application_name: psql
+2024-05-09 16:17:56.490 +03 [137407] DEBUG C-0x5605a580a320: (nodb)/(nouser)@unix(137452):6432 got var: client_encoding=UTF8
+2024-05-09 16:17:56.490 +03 [137407] NOISE cstr_get_pair: "host"="localhost"
+2024-05-09 16:17:56.490 +03 [137407] NOISE cstr_get_pair: "dbname"="emel"
+2024-05-09 16:17:56.490 +03 [137407] NOISE cstr_get_pair: "port"="9700"
+2024-05-09 16:17:56.490 +03 [137407] DEBUG pktbuf_dynamic(128): 0x5605a5808a00
+2024-05-09 16:17:56.490 +03 [137407] LOG C-0x5605a580a320: (nodb)/(nouser)@unix(137452):6432 registered new auto-database: emel
+2024-05-09 16:17:56.490 +03 [137407] LOG C-0x5605a580a320: emel/emel@unix(137452):6432 login attempt: db=emel user=emel tls=no
+2024-05-09 16:17:56.490 +03 [137407] NOISE C-0x5605a580a320: emel/emel@unix(137452):6432 Auth request sent successfully
+2024-05-09 16:17:56.490 +03 [137407] NOISE sbuf_process_pending: loop 2
+2024-05-09 16:17:56.490 +03 [137407] NOISE sbuf_process_pending: done looping
+2024-05-09 16:17:56.490 +03 [137407] NOISE sbuf_send_pending_iobuf
+2024-05-09 16:17:56.490 +03 [137407] NOISE sbuf_process_pending: end
+2024-05-09 16:17:56.490 +03 [137407] NOISE resync(10): done=76, parse=76, recv=76
+2024-05-09 16:17:56.491 +03 [137407] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-09 16:17:58.984 +03 [137407] NOISE new fd from accept=10
+2024-05-09 16:17:58.984 +03 [137407] NOISE unix peer uid: 1000
+2024-05-09 16:17:58.984 +03 [137407] DEBUG C-0x5605a580a320: (nodb)/(nouser)@unix(137452):6432 P: got connection: unix->unix
+2024-05-09 16:17:58.984 +03 [137407] NOISE safe_accept(9) = Resource temporarily unavailable
+2024-05-09 16:17:58.984 +03 [137407] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-09 16:17:58.984 +03 [137407] NOISE sbuf_process_pending: start
+2024-05-09 16:17:58.984 +03 [137407] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:17:58.984 +03 [137407] NOISE C-0x5605a580a320: (nodb)/(nouser)@unix(137452):6432 read pkt='!' len=76
+2024-05-09 16:17:58.984 +03 [137407] DEBUG C-0x5605a580a320: (nodb)/(nouser)@unix(137452):6432 got var: user=emel
+2024-05-09 16:17:58.984 +03 [137407] DEBUG C-0x5605a580a320: (nodb)/(nouser)@unix(137452):6432 got var: database=emel
+2024-05-09 16:17:58.984 +03 [137407] DEBUG C-0x5605a580a320: (nodb)/(nouser)@unix(137452):6432 using application_name: psql
+2024-05-09 16:17:58.984 +03 [137407] DEBUG C-0x5605a580a320: (nodb)/(nouser)@unix(137452):6432 got var: client_encoding=UTF8
+2024-05-09 16:17:58.984 +03 [137407] LOG C-0x5605a580a320: emel/emel@unix(137452):6432 login attempt: db=emel user=emel tls=no
+2024-05-09 16:17:58.984 +03 [137407] NOISE C-0x5605a580a320: emel/emel@unix(137452):6432 Auth request sent successfully
+2024-05-09 16:17:58.984 +03 [137407] NOISE sbuf_process_pending: loop 2
+2024-05-09 16:17:58.984 +03 [137407] NOISE sbuf_process_pending: done looping
+2024-05-09 16:17:58.984 +03 [137407] NOISE sbuf_send_pending_iobuf
+2024-05-09 16:17:58.984 +03 [137407] NOISE sbuf_process_pending: end
+2024-05-09 16:17:58.984 +03 [137407] NOISE resync(10): done=76, parse=76, recv=76
+2024-05-09 16:17:58.986 +03 [137407] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-09 16:17:58.986 +03 [137407] NOISE sbuf_process_pending: start
+2024-05-09 16:17:58.986 +03 [137407] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:17:58.986 +03 [137407] NOISE C-0x5605a580a320: emel/emel@unix(137452):6432 read pkt='p' len=41
+2024-05-09 16:17:58.986 +03 [137407] LOG C-0x5605a580a320: emel/emel@unix(137452):6432 closing because: password authentication failed (age=0s)
+2024-05-09 16:17:58.986 +03 [137407] WARNING C-0x5605a580a320: emel/emel@unix(137452):6432 pooler error: password authentication failed
+2024-05-09 16:18:05.577 +03 [137407] LOG got SIGINT, shutting down
+2024-05-09 16:18:05.620 +03 [137407] LOG server connections dropped, exiting
+2024-05-09 16:18:05.620 +03 [137407] WARNING dropping database 'emel' as it does not exist anymore or inactive auto-database
+2024-05-09 16:18:05.620 +03 [137407] DEBUG pktbuf_free(0x5605a5808a00)
+2024-05-09 16:18:05.620 +03 [137407] WARNING dropping database 'pgbouncer' as it does not exist anymore or inactive auto-database
+2024-05-09 16:18:05.620 +03 [137407] DEBUG pktbuf_free(0x5605a57f87e0)
+2024-05-09 16:18:05.620 +03 [137407] DEBUG pktbuf_free(0x5605a57f89c0)
+2024-05-09 16:20:53.186 +03 [138168] DEBUG parse_ini_file: 'logfile' = 'pgbouncer.log' ok:1
+2024-05-09 16:20:53.186 +03 [138168] DEBUG parse_ini_file: 'pidfile' = 'pgbouncer.pid'
+2024-05-09 16:20:53.186 +03 [138168] DEBUG parse_ini_file: 'pidfile' = 'pgbouncer.pid' ok:1
+2024-05-09 16:20:53.186 +03 [138168] DEBUG parse_ini_file: 'listen_addr' = 'localhost'
+2024-05-09 16:20:53.186 +03 [138168] DEBUG parse_ini_file: 'listen_addr' = 'localhost' ok:1
+2024-05-09 16:20:53.186 +03 [138168] DEBUG parse_ini_file: 'listen_port' = '6432'
+2024-05-09 16:20:53.186 +03 [138168] DEBUG parse_ini_file: 'listen_port' = '6432' ok:1
+2024-05-09 16:20:53.186 +03 [138168] DEBUG parse_ini_file: 'unix_socket_dir' = '/tmp'
+2024-05-09 16:20:53.186 +03 [138168] DEBUG parse_ini_file: 'unix_socket_dir' = '/tmp' ok:1
+2024-05-09 16:20:53.186 +03 [138168] DEBUG parse_ini_file: 'auth_type' = 'trust'
+2024-05-09 16:20:53.186 +03 [138168] DEBUG parse_ini_file: 'auth_type' = 'trust' ok:1
+2024-05-09 16:20:53.186 +03 [138168] DEBUG parse_ini_file: 'auth_file' = 'userlist.txt'
+2024-05-09 16:20:53.186 +03 [138168] DEBUG parse_ini_file: 'auth_file' = 'userlist.txt' ok:1
+2024-05-09 16:20:53.186 +03 [138168] DEBUG loading auth_file: "userlist.txt"
+2024-05-09 16:20:53.186 +03 [138168] DEBUG pktbuf_dynamic(128): 0x55d7025df7e0
+2024-05-09 16:20:53.186 +03 [138168] DEBUG make_room(0x55d7025df7e0, 9): realloc newlen=256
+2024-05-09 16:20:53.186 +03 [138168] DEBUG pktbuf_dynamic(128): 0x55d7025df9c0
+2024-05-09 16:20:53.186 +03 [138168] NOISE connect(4, unix:/tmp/.s.PGSQL.6432) = No such file or directory
+2024-05-09 16:20:53.186 +03 [138168] NOISE event: 128, SBuf: 224, PgSocket: 688, IOBuf: 4108
+2024-05-09 16:20:53.186 +03 [138168] LOG kernel file descriptor limit: 1024 (hard: 1048576); max_client_conn: 100, max expected fd use: 112
+2024-05-09 16:20:53.187 +03 [138168] DEBUG adns_create_context: evdns2
+2024-05-09 16:20:53.187 +03 [138168] DEBUG add_listen: 127.0.0.1:6432
+2024-05-09 16:20:53.187 +03 [138168] NOISE old TCP_DEFER_ACCEPT on 8 = 0
+2024-05-09 16:20:53.187 +03 [138168] NOISE install TCP_DEFER_ACCEPT on 8
+2024-05-09 16:20:53.187 +03 [138168] LOG listening on 127.0.0.1:6432
+2024-05-09 16:20:53.187 +03 [138168] DEBUG add_listen: unix:/tmp/.s.PGSQL.6432
+2024-05-09 16:20:53.187 +03 [138168] LOG listening on unix:/tmp/.s.PGSQL.6432
+2024-05-09 16:20:53.187 +03 [138168] LOG process up: PgBouncer 1.21.0, libevent 2.1.12-stable (epoll), adns: evdns2, tls: OpenSSL 3.0.2 15 Mar 2022
+2024-05-09 16:20:57.642 +03 [138168] NOISE new fd from accept=10
+2024-05-09 16:20:57.642 +03 [138168] NOISE unix peer uid: 1000
+2024-05-09 16:20:57.642 +03 [138168] DEBUG C-0x55d7025f1320: (nodb)/(nouser)@unix(138186):6432 P: got connection: unix->unix
+2024-05-09 16:20:57.642 +03 [138168] NOISE safe_accept(9) = Resource temporarily unavailable
+2024-05-09 16:20:57.642 +03 [138168] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-09 16:20:57.642 +03 [138168] NOISE sbuf_process_pending: start
+2024-05-09 16:20:57.642 +03 [138168] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:20:57.642 +03 [138168] NOISE C-0x55d7025f1320: (nodb)/(nouser)@unix(138186):6432 read pkt='!' len=76
+2024-05-09 16:20:57.642 +03 [138168] DEBUG C-0x55d7025f1320: (nodb)/(nouser)@unix(138186):6432 got var: user=emel
+2024-05-09 16:20:57.642 +03 [138168] DEBUG C-0x55d7025f1320: (nodb)/(nouser)@unix(138186):6432 got var: database=emel
+2024-05-09 16:20:57.642 +03 [138168] DEBUG C-0x55d7025f1320: (nodb)/(nouser)@unix(138186):6432 using application_name: psql
+2024-05-09 16:20:57.642 +03 [138168] DEBUG C-0x55d7025f1320: (nodb)/(nouser)@unix(138186):6432 got var: client_encoding=UTF8
+2024-05-09 16:20:57.642 +03 [138168] NOISE cstr_get_pair: "host"="localhost"
+2024-05-09 16:20:57.642 +03 [138168] NOISE cstr_get_pair: "dbname"="emel"
+2024-05-09 16:20:57.642 +03 [138168] NOISE cstr_get_pair: "port"="9700"
+2024-05-09 16:20:57.642 +03 [138168] DEBUG pktbuf_dynamic(128): 0x55d7025efa00
+2024-05-09 16:20:57.642 +03 [138168] LOG C-0x55d7025f1320: (nodb)/(nouser)@unix(138186):6432 registered new auto-database: emel
+2024-05-09 16:20:57.642 +03 [138168] LOG C-0x55d7025f1320: emel/emel@unix(138186):6432 login attempt: db=emel user=emel tls=no
+2024-05-09 16:20:57.642 +03 [138168] DEBUG finish_client_login: no welcome message, pause
+2024-05-09 16:20:57.642 +03 [138168] DEBUG C-0x55d7025f1320: emel/emel@unix(138186):6432 pause_client
+2024-05-09 16:20:57.642 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@(bad-af):0 inet socket: localhost
+2024-05-09 16:20:57.642 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@(bad-af):0 dns socket: localhost
+2024-05-09 16:20:57.642 +03 [138168] NOISE dns: new req: localhost
+2024-05-09 16:20:57.642 +03 [138168] DEBUG zone_register(localhost)
+2024-05-09 16:20:57.642 +03 [138168] NOISE DNS: localhost[0] = 127.0.0.1:0 [STREAM]
+2024-05-09 16:20:57.642 +03 [138168] NOISE dns: evdns_getaddrinfo(localhost)=(nil)
+2024-05-09 16:20:57.642 +03 [138168] NOISE dns: deliver_info(localhost) addr=127.0.0.1:0
+2024-05-09 16:20:57.642 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@(bad-af):0 dns_callback: inet4: 127.0.0.1:9700
+2024-05-09 16:20:57.642 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 launching new connection to server
+2024-05-09 16:20:57.643 +03 [138168] DEBUG launch_new_connection: already progress
+2024-05-09 16:20:57.643 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 S: connect ok
+2024-05-09 16:20:57.643 +03 [138168] LOG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 new connection to server (from 127.0.0.1:49268)
+2024-05-09 16:20:57.643 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 P: SSL request
+2024-05-09 16:20:57.643 +03 [138168] DEBUG launch_new_connection: already progress
+2024-05-09 16:20:57.644 +03 [138168] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-09 16:20:57.644 +03 [138168] NOISE sbuf_process_pending: start
+2024-05-09 16:20:57.644 +03 [138168] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:20:57.644 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 launching tls
+2024-05-09 16:20:57.646 +03 [138168] NOISE sbuf_process_pending: loop 2
+2024-05-09 16:20:57.646 +03 [138168] NOISE sbuf_process_pending: done looping
+2024-05-09 16:20:57.646 +03 [138168] NOISE sbuf_send_pending_iobuf
+2024-05-09 16:20:57.646 +03 [138168] NOISE sbuf_process_pending: end
+2024-05-09 16:20:57.646 +03 [138168] NOISE resync(11): done=1, parse=1, recv=1
+2024-05-09 16:20:57.646 +03 [138168] NOISE tls_handshake: err=-2
+2024-05-09 16:20:57.646 +03 [138168] DEBUG launch_new_connection: already progress
+2024-05-09 16:20:57.647 +03 [138168] NOISE tls_handshake: err=-2
+2024-05-09 16:20:57.647 +03 [138168] DEBUG launch_new_connection: already progress
+2024-05-09 16:20:57.650 +03 [138168] NOISE tls_handshake: err=0
+2024-05-09 16:20:57.650 +03 [138168] LOG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 SSL established: TLSv1.3/TLS_AES_256_GCM_SHA384/ECDH=prime256v1
+2024-05-09 16:20:57.650 +03 [138168] DEBUG pktbuf_dynamic(512): 0x55d7026ba3d0
+2024-05-09 16:20:57.650 +03 [138168] NOISE tls_write: req=33 out=33
+2024-05-09 16:20:57.651 +03 [138168] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-09 16:20:57.651 +03 [138168] NOISE tls_read: req=4096 out=-2
+2024-05-09 16:20:57.651 +03 [138168] NOISE sbuf_process_pending: start
+2024-05-09 16:20:57.651 +03 [138168] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:20:57.651 +03 [138168] NOISE sbuf_process_pending: done looping
+2024-05-09 16:20:57.651 +03 [138168] NOISE sbuf_send_pending_iobuf
+2024-05-09 16:20:57.651 +03 [138168] NOISE sbuf_process_pending: end
+2024-05-09 16:20:57.651 +03 [138168] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-09 16:20:57.651 +03 [138168] DEBUG launch_new_connection: already progress
+2024-05-09 16:20:57.653 +03 [138168] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-09 16:20:57.653 +03 [138168] NOISE tls_read: req=4096 out=448
+2024-05-09 16:20:57.653 +03 [138168] NOISE sbuf_process_pending: start
+2024-05-09 16:20:57.653 +03 [138168] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:20:57.653 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='R', len=9
+2024-05-09 16:20:57.653 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 calling login_answer
+2024-05-09 16:20:57.653 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 S: auth ok
+2024-05-09 16:20:57.653 +03 [138168] NOISE sbuf_process_pending: loop 2
+2024-05-09 16:20:57.653 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='S', len=24
+2024-05-09 16:20:57.653 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 S: param: in_hot_standby = off
+2024-05-09 16:20:57.653 +03 [138168] DEBUG pktbuf_dynamic(128): 0x55d7025e0ec0
+2024-05-09 16:20:57.653 +03 [138168] NOISE sbuf_process_pending: loop 3
+2024-05-09 16:20:57.653 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='S', len=26
+2024-05-09 16:20:57.653 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 S: param: integer_datetimes = on
+2024-05-09 16:20:57.653 +03 [138168] NOISE sbuf_process_pending: loop 4
+2024-05-09 16:20:57.653 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='S', len=30
+2024-05-09 16:20:57.653 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 S: param: TimeZone = Europe/Istanbul
+2024-05-09 16:20:57.653 +03 [138168] NOISE sbuf_process_pending: loop 5
+2024-05-09 16:20:57.653 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='S', len=28
+2024-05-09 16:20:57.653 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 S: param: IntervalStyle = postgres
+2024-05-09 16:20:57.653 +03 [138168] NOISE sbuf_process_pending: loop 6
+2024-05-09 16:20:57.653 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='S', len=33
+2024-05-09 16:20:57.653 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 S: param: search_path = "$user", public
+2024-05-09 16:20:57.653 +03 [138168] NOISE sbuf_process_pending: loop 7
+2024-05-09 16:20:57.653 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='S', len=21
+2024-05-09 16:20:57.653 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 S: param: is_superuser = on
+2024-05-09 16:20:57.653 +03 [138168] NOISE sbuf_process_pending: loop 8
+2024-05-09 16:20:57.653 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='S', len=23
+2024-05-09 16:20:57.653 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 S: param: application_name = 
+2024-05-09 16:20:57.653 +03 [138168] NOISE sbuf_process_pending: loop 9
+2024-05-09 16:20:57.653 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='S', len=39
+2024-05-09 16:20:57.653 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 S: param: default_transaction_read_only = off
+2024-05-09 16:20:57.653 +03 [138168] DEBUG make_room(0x55d7025e0ec0, 30): realloc newlen=256
+2024-05-09 16:20:57.653 +03 [138168] NOISE sbuf_process_pending: loop 10
+2024-05-09 16:20:57.653 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='S', len=27
+2024-05-09 16:20:57.653 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 S: param: scram_iterations = 4096
+2024-05-09 16:20:57.653 +03 [138168] NOISE sbuf_process_pending: loop 11
+2024-05-09 16:20:57.653 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='S', len=24
+2024-05-09 16:20:57.653 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 S: param: DateStyle = ISO, MDY
+2024-05-09 16:20:57.653 +03 [138168] NOISE sbuf_process_pending: loop 12
+2024-05-09 16:20:57.653 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='S', len=36
+2024-05-09 16:20:57.653 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 S: param: standard_conforming_strings = on
+2024-05-09 16:20:57.654 +03 [138168] NOISE sbuf_process_pending: loop 13
+2024-05-09 16:20:57.654 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='S', len=32
+2024-05-09 16:20:57.654 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 S: param: session_authorization = emel
+2024-05-09 16:20:57.654 +03 [138168] NOISE sbuf_process_pending: loop 14
+2024-05-09 16:20:57.654 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='S', len=26
+2024-05-09 16:20:57.654 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 S: param: client_encoding = UTF8
+2024-05-09 16:20:57.654 +03 [138168] NOISE sbuf_process_pending: loop 15
+2024-05-09 16:20:57.654 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='S', len=25
+2024-05-09 16:20:57.654 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 S: param: server_version = 16.0
+2024-05-09 16:20:57.654 +03 [138168] NOISE sbuf_process_pending: loop 16
+2024-05-09 16:20:57.654 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='S', len=26
+2024-05-09 16:20:57.654 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 S: param: server_encoding = UTF8
+2024-05-09 16:20:57.654 +03 [138168] DEBUG make_room(0x55d7025e0ec0, 16): realloc newlen=512
+2024-05-09 16:20:57.654 +03 [138168] NOISE sbuf_process_pending: loop 17
+2024-05-09 16:20:57.654 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='K', len=13
+2024-05-09 16:20:57.654 +03 [138168] NOISE sbuf_process_pending: loop 18
+2024-05-09 16:20:57.654 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-09 16:20:57.654 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 server login ok, start accepting queries
+2024-05-09 16:20:57.654 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 release_server: new state=12
+2024-05-09 16:20:57.654 +03 [138168] DEBUG C-0x55d7025f1320: emel/emel@unix(138186):6432 activate_client
+2024-05-09 16:20:57.654 +03 [138168] NOISE resync(10): done=0, parse=0, recv=76
+2024-05-09 16:20:57.654 +03 [138168] NOISE safe_recv(10, 4020) = Resource temporarily unavailable
+2024-05-09 16:20:57.654 +03 [138168] NOISE sbuf_process_pending: start
+2024-05-09 16:20:57.654 +03 [138168] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:20:57.654 +03 [138168] NOISE C-0x55d7025f1320: emel/emel@unix(138186):6432 read pkt='!' len=76
+2024-05-09 16:20:57.654 +03 [138168] NOISE C-0x55d7025f1320: emel/emel@unix(138186):6432 P: welcome_client
+2024-05-09 16:20:57.654 +03 [138168] DEBUG C-0x55d7025f1320: emel/emel@unix(138186):6432 logged in
+2024-05-09 16:20:57.654 +03 [138168] NOISE sbuf_process_pending: loop 2
+2024-05-09 16:20:57.654 +03 [138168] NOISE sbuf_process_pending: done looping
+2024-05-09 16:20:57.654 +03 [138168] NOISE sbuf_send_pending_iobuf
+2024-05-09 16:20:57.654 +03 [138168] NOISE sbuf_process_pending: end
+2024-05-09 16:20:57.654 +03 [138168] NOISE resync(10): done=76, parse=76, recv=76
+2024-05-09 16:20:57.654 +03 [138168] NOISE sbuf_process_pending: loop 19
+2024-05-09 16:20:57.654 +03 [138168] NOISE sbuf_process_pending: done looping
+2024-05-09 16:20:57.654 +03 [138168] NOISE sbuf_send_pending_iobuf
+2024-05-09 16:20:57.654 +03 [138168] NOISE sbuf_process_pending: end
+2024-05-09 16:20:57.654 +03 [138168] NOISE resync(11): done=448, parse=448, recv=448
+2024-05-09 16:21:04.847 +03 [138168] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-09 16:21:04.848 +03 [138168] NOISE sbuf_process_pending: start
+2024-05-09 16:21:04.848 +03 [138168] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:21:04.848 +03 [138168] NOISE C-0x55d7025f1320: emel/emel@unix(138186):6432 read pkt='Q' len=746
+2024-05-09 16:21:04.848 +03 [138168] NOISE C-0x55d7025f1320: emel/emel@unix(138186):6432 find_server: client had no linked server yet
+2024-05-09 16:21:04.848 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 varcache_apply: SET application_name='psql';
+2024-05-09 16:21:04.848 +03 [138168] NOISE tls_write: req=34 out=34
+2024-05-09 16:21:04.848 +03 [138168] NOISE C-0x55d7025f1320: emel/emel@unix(138186):6432 linking client to S-0x55d7025f99a0
+2024-05-09 16:21:04.848 +03 [138168] NOISE C-0x55d7025f1320: emel/emel@unix(138186):6432 pausing client while applying vars
+2024-05-09 16:21:04.850 +03 [138168] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-09 16:21:04.850 +03 [138168] NOISE tls_read: req=4096 out=42
+2024-05-09 16:21:04.850 +03 [138168] NOISE sbuf_process_pending: start
+2024-05-09 16:21:04.850 +03 [138168] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:21:04.850 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='C', len=9
+2024-05-09 16:21:04.850 +03 [138168] NOISE sbuf_process_pending: loop 2
+2024-05-09 16:21:04.850 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='S', len=27
+2024-05-09 16:21:04.850 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 S: param: application_name = psql
+2024-05-09 16:21:04.850 +03 [138168] DEBUG C-0x55d7025f1320: emel/emel@unix(138186):6432 setting client var: application_name='psql'
+2024-05-09 16:21:04.850 +03 [138168] NOISE sbuf_process_pending: loop 3
+2024-05-09 16:21:04.850 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-09 16:21:04.850 +03 [138168] NOISE sbuf_process_pending: loop 4
+2024-05-09 16:21:04.850 +03 [138168] NOISE sbuf_process_pending: done looping
+2024-05-09 16:21:04.850 +03 [138168] NOISE sbuf_send_pending_iobuf
+2024-05-09 16:21:04.850 +03 [138168] NOISE sbuf_process_pending: end
+2024-05-09 16:21:04.850 +03 [138168] NOISE resync(11): done=42, parse=42, recv=42
+2024-05-09 16:21:04.850 +03 [138168] NOISE done setting vars unpausing client
+2024-05-09 16:21:04.850 +03 [138168] NOISE resync(10): done=0, parse=0, recv=746
+2024-05-09 16:21:04.850 +03 [138168] NOISE safe_recv(10, 3350) = Resource temporarily unavailable
+2024-05-09 16:21:04.850 +03 [138168] NOISE sbuf_process_pending: start
+2024-05-09 16:21:04.850 +03 [138168] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:21:04.850 +03 [138168] NOISE C-0x55d7025f1320: emel/emel@unix(138186):6432 read pkt='Q' len=746
+2024-05-09 16:21:04.850 +03 [138168] NOISE C-0x55d7025f1320: emel/emel@unix(138186):6432 add_outstanding_request: added Q, still outstanding 1
+2024-05-09 16:21:04.850 +03 [138168] NOISE sbuf_process_pending: loop 2
+2024-05-09 16:21:04.850 +03 [138168] NOISE sbuf_process_pending: done looping
+2024-05-09 16:21:04.850 +03 [138168] NOISE sbuf_send_pending_iobuf
+2024-05-09 16:21:04.850 +03 [138168] NOISE tls_write: req=746 out=746
+2024-05-09 16:21:04.850 +03 [138168] NOISE sbuf_process_pending: end
+2024-05-09 16:21:04.850 +03 [138168] NOISE resync(10): done=746, parse=746, recv=746
+2024-05-09 16:21:04.861 +03 [138168] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-09 16:21:04.861 +03 [138168] NOISE tls_read: req=4096 out=122
+2024-05-09 16:21:04.861 +03 [138168] NOISE sbuf_process_pending: start
+2024-05-09 16:21:04.861 +03 [138168] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:21:04.861 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='T', len=102
+2024-05-09 16:21:04.861 +03 [138168] NOISE sbuf_process_pending: loop 2
+2024-05-09 16:21:04.861 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='C', len=14
+2024-05-09 16:21:04.861 +03 [138168] NOISE sbuf_process_pending: loop 3
+2024-05-09 16:21:04.861 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-09 16:21:04.861 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 pop_outstanding_request: popped Q, still outstanding 0, skip 0
+2024-05-09 16:21:04.861 +03 [138168] DEBUG C-0x55d7025f1320: emel/emel@unix(138186):6432 query time: 13059 us
+2024-05-09 16:21:04.861 +03 [138168] DEBUG C-0x55d7025f1320: emel/emel@unix(138186):6432 transaction time: 13059 us
+2024-05-09 16:21:04.861 +03 [138168] NOISE sbuf_process_pending: loop 4
+2024-05-09 16:21:04.861 +03 [138168] NOISE sbuf_process_pending: done looping
+2024-05-09 16:21:04.861 +03 [138168] NOISE sbuf_send_pending_iobuf
+2024-05-09 16:21:04.861 +03 [138168] NOISE sbuf_process_pending: end
+2024-05-09 16:21:04.861 +03 [138168] NOISE resync(11): done=122, parse=122, recv=122
+2024-05-09 16:21:07.456 +03 [138168] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-09 16:21:07.456 +03 [138168] NOISE sbuf_process_pending: start
+2024-05-09 16:21:07.456 +03 [138168] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:21:07.456 +03 [138168] NOISE C-0x55d7025f1320: emel/emel@unix(138186):6432 read pkt='X' len=5
+2024-05-09 16:21:07.456 +03 [138168] LOG C-0x55d7025f1320: emel/emel@unix(138186):6432 closing because: client close request (age=9s)
+2024-05-09 16:21:07.456 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 release_server: new state=16
+2024-05-09 16:21:07.456 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 resetting: DISCARD ALL
+2024-05-09 16:21:07.456 +03 [138168] NOISE tls_write: req=17 out=17
+2024-05-09 16:21:07.457 +03 [138168] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-09 16:21:07.457 +03 [138168] NOISE tls_read: req=4096 out=46
+2024-05-09 16:21:07.457 +03 [138168] NOISE sbuf_process_pending: start
+2024-05-09 16:21:07.457 +03 [138168] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:21:07.457 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='C', len=17
+2024-05-09 16:21:07.457 +03 [138168] NOISE sbuf_process_pending: loop 2
+2024-05-09 16:21:07.457 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='S', len=23
+2024-05-09 16:21:07.457 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 S: param: application_name = 
+2024-05-09 16:21:07.457 +03 [138168] NOISE sbuf_process_pending: loop 3
+2024-05-09 16:21:07.457 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-09 16:21:07.457 +03 [138168] NOISE sbuf_process_pending: loop 4
+2024-05-09 16:21:07.457 +03 [138168] NOISE sbuf_process_pending: done looping
+2024-05-09 16:21:07.457 +03 [138168] NOISE sbuf_send_pending_iobuf
+2024-05-09 16:21:07.457 +03 [138168] NOISE sbuf_process_pending: end
+2024-05-09 16:21:07.457 +03 [138168] NOISE resync(11): done=46, parse=46, recv=46
+2024-05-09 16:21:07.457 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 release_server: new state=12
+2024-05-09 16:21:53.198 +03 [138168] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 12 B/s, out 3 B/s, xact 13059 us, query 13059 us, wait 184 us
+2024-05-09 16:22:53.197 +03 [138168] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-09 16:23:25.643 +03 [138168] NOISE new fd from accept=10
+2024-05-09 16:23:25.643 +03 [138168] NOISE unix peer uid: 1000
+2024-05-09 16:23:25.643 +03 [138168] DEBUG C-0x55d7025f1320: (nodb)/(nouser)@unix(138786):6432 P: got connection: unix->unix
+2024-05-09 16:23:25.643 +03 [138168] NOISE safe_accept(9) = Resource temporarily unavailable
+2024-05-09 16:23:25.643 +03 [138168] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-09 16:23:25.643 +03 [138168] NOISE sbuf_process_pending: start
+2024-05-09 16:23:25.643 +03 [138168] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:23:25.643 +03 [138168] NOISE C-0x55d7025f1320: (nodb)/(nouser)@unix(138786):6432 read pkt='!' len=122
+2024-05-09 16:23:25.643 +03 [138168] DEBUG C-0x55d7025f1320: (nodb)/(nouser)@unix(138786):6432 got var: user=emel
+2024-05-09 16:23:25.643 +03 [138168] DEBUG C-0x55d7025f1320: (nodb)/(nouser)@unix(138786):6432 got var: database=emel
+2024-05-09 16:23:25.643 +03 [138168] DEBUG C-0x55d7025f1320: (nodb)/(nouser)@unix(138786):6432 received options: -c geqo=off -c statement_timeout=5min
+2024-05-09 16:23:25.643 +03 [138168] WARNING C-0x55d7025f1320: (nodb)/(nouser)@unix(138786):6432 unsupported startup parameter in options: geqo=off
+2024-05-09 16:23:25.643 +03 [138168] LOG C-0x55d7025f1320: (nodb)/(nouser)@unix(138786):6432 closing because: unsupported startup parameter in options: geqo (age=0s)
+2024-05-09 16:23:25.643 +03 [138168] WARNING C-0x55d7025f1320: (nodb)/(nouser)@unix(138786):6432 pooler error: unsupported startup parameter in options: geqo
+2024-05-09 16:23:53.197 +03 [138168] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-09 16:24:23.850 +03 [138168] NOISE new fd from accept=10
+2024-05-09 16:24:23.850 +03 [138168] NOISE unix peer uid: 1000
+2024-05-09 16:24:23.850 +03 [138168] DEBUG C-0x55d7025f1320: (nodb)/(nouser)@unix(139025):6432 P: got connection: unix->unix
+2024-05-09 16:24:23.850 +03 [138168] NOISE safe_accept(9) = Resource temporarily unavailable
+2024-05-09 16:24:23.850 +03 [138168] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-09 16:24:23.850 +03 [138168] NOISE sbuf_process_pending: start
+2024-05-09 16:24:23.850 +03 [138168] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:24:23.850 +03 [138168] NOISE C-0x55d7025f1320: (nodb)/(nouser)@unix(139025):6432 read pkt='!' len=131
+2024-05-09 16:24:23.850 +03 [138168] DEBUG C-0x55d7025f1320: (nodb)/(nouser)@unix(139025):6432 got var: user=emel
+2024-05-09 16:24:23.850 +03 [138168] DEBUG C-0x55d7025f1320: (nodb)/(nouser)@unix(139025):6432 got var: database=emel
+2024-05-09 16:24:23.850 +03 [138168] DEBUG C-0x55d7025f1320: (nodb)/(nouser)@unix(139025):6432 received options: -c timezone=Portugal -c datestyle=German,\ YMD
+2024-05-09 16:24:23.850 +03 [138168] DEBUG C-0x55d7025f1320: (nodb)/(nouser)@unix(139025):6432 got var from options: timezone=Portugal
+2024-05-09 16:24:23.850 +03 [138168] DEBUG C-0x55d7025f1320: (nodb)/(nouser)@unix(139025):6432 got var from options: datestyle=German, YMD
+2024-05-09 16:24:23.850 +03 [138168] DEBUG C-0x55d7025f1320: (nodb)/(nouser)@unix(139025):6432 using application_name: psql
+2024-05-09 16:24:23.850 +03 [138168] DEBUG C-0x55d7025f1320: (nodb)/(nouser)@unix(139025):6432 got var: client_encoding=UTF8
+2024-05-09 16:24:23.851 +03 [138168] LOG C-0x55d7025f1320: emel/emel@unix(139025):6432 login attempt: db=emel user=emel tls=no
+2024-05-09 16:24:23.851 +03 [138168] NOISE C-0x55d7025f1320: emel/emel@unix(139025):6432 P: welcome_client
+2024-05-09 16:24:23.851 +03 [138168] DEBUG C-0x55d7025f1320: emel/emel@unix(139025):6432 logged in
+2024-05-09 16:24:23.851 +03 [138168] NOISE sbuf_process_pending: loop 2
+2024-05-09 16:24:23.851 +03 [138168] NOISE sbuf_process_pending: done looping
+2024-05-09 16:24:23.851 +03 [138168] NOISE sbuf_send_pending_iobuf
+2024-05-09 16:24:23.851 +03 [138168] NOISE sbuf_process_pending: end
+2024-05-09 16:24:23.851 +03 [138168] NOISE resync(10): done=131, parse=131, recv=131
+2024-05-09 16:24:38.710 +03 [138168] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-09 16:24:38.711 +03 [138168] NOISE sbuf_process_pending: start
+2024-05-09 16:24:38.711 +03 [138168] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:24:38.711 +03 [138168] NOISE C-0x55d7025f1320: emel/emel@unix(139025):6432 read pkt='Q' len=20
+2024-05-09 16:24:38.711 +03 [138168] NOISE C-0x55d7025f1320: emel/emel@unix(139025):6432 find_server: client had no linked server yet
+2024-05-09 16:24:38.711 +03 [138168] DEBUG C-0x55d7025f1320: emel/emel@unix(139025):6432 pause_client
+2024-05-09 16:24:38.711 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 P: checking: select 1
+2024-05-09 16:24:38.711 +03 [138168] NOISE tls_write: req=14 out=14
+2024-05-09 16:24:38.712 +03 [138168] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-09 16:24:38.712 +03 [138168] NOISE tls_read: req=4096 out=66
+2024-05-09 16:24:38.712 +03 [138168] NOISE sbuf_process_pending: start
+2024-05-09 16:24:38.712 +03 [138168] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:24:38.712 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='T', len=34
+2024-05-09 16:24:38.712 +03 [138168] NOISE sbuf_process_pending: loop 2
+2024-05-09 16:24:38.712 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='D', len=12
+2024-05-09 16:24:38.712 +03 [138168] NOISE sbuf_process_pending: loop 3
+2024-05-09 16:24:38.712 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='C', len=14
+2024-05-09 16:24:38.712 +03 [138168] NOISE sbuf_process_pending: loop 4
+2024-05-09 16:24:38.712 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-09 16:24:38.712 +03 [138168] NOISE sbuf_process_pending: loop 5
+2024-05-09 16:24:38.712 +03 [138168] NOISE sbuf_process_pending: done looping
+2024-05-09 16:24:38.712 +03 [138168] NOISE sbuf_send_pending_iobuf
+2024-05-09 16:24:38.712 +03 [138168] NOISE sbuf_process_pending: end
+2024-05-09 16:24:38.712 +03 [138168] NOISE resync(11): done=66, parse=66, recv=66
+2024-05-09 16:24:38.712 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 release_server: new state=12
+2024-05-09 16:24:38.712 +03 [138168] DEBUG C-0x55d7025f1320: emel/emel@unix(139025):6432 activate_client
+2024-05-09 16:24:38.712 +03 [138168] NOISE resync(10): done=0, parse=0, recv=20
+2024-05-09 16:24:38.712 +03 [138168] NOISE safe_recv(10, 4076) = Resource temporarily unavailable
+2024-05-09 16:24:38.712 +03 [138168] NOISE sbuf_process_pending: start
+2024-05-09 16:24:38.712 +03 [138168] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:24:38.712 +03 [138168] NOISE C-0x55d7025f1320: emel/emel@unix(139025):6432 read pkt='Q' len=20
+2024-05-09 16:24:38.712 +03 [138168] NOISE C-0x55d7025f1320: emel/emel@unix(139025):6432 find_server: client had no linked server yet
+2024-05-09 16:24:38.712 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 varcache_apply: SET DateStyle='German, YMD';SET TimeZone='Portugal';SET application_name='psql';
+2024-05-09 16:24:38.712 +03 [138168] NOISE tls_write: req=86 out=86
+2024-05-09 16:24:38.712 +03 [138168] NOISE C-0x55d7025f1320: emel/emel@unix(139025):6432 linking client to S-0x55d7025f99a0
+2024-05-09 16:24:38.712 +03 [138168] NOISE C-0x55d7025f1320: emel/emel@unix(139025):6432 pausing client while applying vars
+2024-05-09 16:24:38.716 +03 [138168] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-09 16:24:38.716 +03 [138168] NOISE tls_read: req=4096 out=110
+2024-05-09 16:24:38.716 +03 [138168] NOISE sbuf_process_pending: start
+2024-05-09 16:24:38.716 +03 [138168] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:24:38.716 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='C', len=9
+2024-05-09 16:24:38.716 +03 [138168] NOISE sbuf_process_pending: loop 2
+2024-05-09 16:24:38.716 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='C', len=9
+2024-05-09 16:24:38.716 +03 [138168] NOISE sbuf_process_pending: loop 3
+2024-05-09 16:24:38.716 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='C', len=9
+2024-05-09 16:24:38.716 +03 [138168] NOISE sbuf_process_pending: loop 4
+2024-05-09 16:24:38.716 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='S', len=27
+2024-05-09 16:24:38.716 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 S: param: application_name = psql
+2024-05-09 16:24:38.716 +03 [138168] DEBUG C-0x55d7025f1320: emel/emel@unix(139025):6432 setting client var: application_name='psql'
+2024-05-09 16:24:38.716 +03 [138168] NOISE sbuf_process_pending: loop 5
+2024-05-09 16:24:38.716 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='S', len=23
+2024-05-09 16:24:38.716 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 S: param: TimeZone = Portugal
+2024-05-09 16:24:38.716 +03 [138168] DEBUG C-0x55d7025f1320: emel/emel@unix(139025):6432 setting client var: TimeZone='Portugal'
+2024-05-09 16:24:38.716 +03 [138168] NOISE sbuf_process_pending: loop 6
+2024-05-09 16:24:38.716 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='S', len=27
+2024-05-09 16:24:38.716 +03 [138168] DEBUG S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 S: param: DateStyle = German, YMD
+2024-05-09 16:24:38.716 +03 [138168] DEBUG C-0x55d7025f1320: emel/emel@unix(139025):6432 setting client var: DateStyle='German, YMD'
+2024-05-09 16:24:38.716 +03 [138168] NOISE sbuf_process_pending: loop 7
+2024-05-09 16:24:38.716 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-09 16:24:38.716 +03 [138168] NOISE sbuf_process_pending: loop 8
+2024-05-09 16:24:38.716 +03 [138168] NOISE sbuf_process_pending: done looping
+2024-05-09 16:24:38.716 +03 [138168] NOISE sbuf_send_pending_iobuf
+2024-05-09 16:24:38.716 +03 [138168] NOISE sbuf_process_pending: end
+2024-05-09 16:24:38.716 +03 [138168] NOISE resync(11): done=110, parse=110, recv=110
+2024-05-09 16:24:38.716 +03 [138168] NOISE done setting vars unpausing client
+2024-05-09 16:24:38.716 +03 [138168] NOISE resync(10): done=0, parse=0, recv=20
+2024-05-09 16:24:38.716 +03 [138168] NOISE safe_recv(10, 4076) = Resource temporarily unavailable
+2024-05-09 16:24:38.716 +03 [138168] NOISE sbuf_process_pending: start
+2024-05-09 16:24:38.716 +03 [138168] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:24:38.716 +03 [138168] NOISE C-0x55d7025f1320: emel/emel@unix(139025):6432 read pkt='Q' len=20
+2024-05-09 16:24:38.716 +03 [138168] NOISE C-0x55d7025f1320: emel/emel@unix(139025):6432 add_outstanding_request: added Q, still outstanding 1
+2024-05-09 16:24:38.716 +03 [138168] NOISE sbuf_process_pending: loop 2
+2024-05-09 16:24:38.716 +03 [138168] NOISE sbuf_process_pending: done looping
+2024-05-09 16:24:38.716 +03 [138168] NOISE sbuf_send_pending_iobuf
+2024-05-09 16:24:38.716 +03 [138168] NOISE tls_write: req=20 out=20
+2024-05-09 16:24:38.716 +03 [138168] NOISE sbuf_process_pending: end
+2024-05-09 16:24:38.716 +03 [138168] NOISE resync(10): done=20, parse=20, recv=20
+2024-05-09 16:24:38.717 +03 [138168] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-09 16:24:38.717 +03 [138168] NOISE tls_read: req=4096 out=69
+2024-05-09 16:24:38.717 +03 [138168] NOISE sbuf_process_pending: start
+2024-05-09 16:24:38.717 +03 [138168] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:24:38.717 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='T', len=34
+2024-05-09 16:24:38.717 +03 [138168] NOISE sbuf_process_pending: loop 2
+2024-05-09 16:24:38.717 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='D', len=19
+2024-05-09 16:24:38.717 +03 [138168] NOISE sbuf_process_pending: loop 3
+2024-05-09 16:24:38.717 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='C', len=10
+2024-05-09 16:24:38.717 +03 [138168] NOISE sbuf_process_pending: loop 4
+2024-05-09 16:24:38.717 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-09 16:24:38.717 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 pop_outstanding_request: popped Q, still outstanding 0, skip 0
+2024-05-09 16:24:38.717 +03 [138168] DEBUG C-0x55d7025f1320: emel/emel@unix(139025):6432 query time: 6499 us
+2024-05-09 16:24:38.717 +03 [138168] DEBUG C-0x55d7025f1320: emel/emel@unix(139025):6432 transaction time: 6499 us
+2024-05-09 16:24:38.717 +03 [138168] NOISE sbuf_process_pending: loop 5
+2024-05-09 16:24:38.717 +03 [138168] NOISE sbuf_process_pending: done looping
+2024-05-09 16:24:38.717 +03 [138168] NOISE sbuf_send_pending_iobuf
+2024-05-09 16:24:38.717 +03 [138168] NOISE sbuf_process_pending: end
+2024-05-09 16:24:38.717 +03 [138168] NOISE resync(11): done=69, parse=69, recv=69
+2024-05-09 16:24:45.103 +03 [138168] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-09 16:24:45.103 +03 [138168] NOISE sbuf_process_pending: start
+2024-05-09 16:24:45.103 +03 [138168] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:24:45.103 +03 [138168] NOISE C-0x55d7025f1320: emel/emel@unix(139025):6432 read pkt='Q' len=21
+2024-05-09 16:24:45.103 +03 [138168] NOISE C-0x55d7025f1320: emel/emel@unix(139025):6432 add_outstanding_request: added Q, still outstanding 1
+2024-05-09 16:24:45.103 +03 [138168] NOISE sbuf_process_pending: loop 2
+2024-05-09 16:24:45.103 +03 [138168] NOISE sbuf_process_pending: done looping
+2024-05-09 16:24:45.103 +03 [138168] NOISE sbuf_send_pending_iobuf
+2024-05-09 16:24:45.103 +03 [138168] NOISE tls_write: req=21 out=21
+2024-05-09 16:24:45.106 +03 [138168] NOISE sbuf_process_pending: end
+2024-05-09 16:24:45.106 +03 [138168] NOISE resync(10): done=21, parse=21, recv=21
+2024-05-09 16:24:45.107 +03 [138168] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-09 16:24:45.107 +03 [138168] NOISE tls_read: req=4096 out=73
+2024-05-09 16:24:45.107 +03 [138168] NOISE sbuf_process_pending: start
+2024-05-09 16:24:45.107 +03 [138168] NOISE sbuf_process_pending: loop 1
+2024-05-09 16:24:45.107 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='T', len=35
+2024-05-09 16:24:45.107 +03 [138168] NOISE sbuf_process_pending: loop 2
+2024-05-09 16:24:45.107 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='D', len=22
+2024-05-09 16:24:45.107 +03 [138168] NOISE sbuf_process_pending: loop 3
+2024-05-09 16:24:45.107 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='C', len=10
+2024-05-09 16:24:45.107 +03 [138168] NOISE sbuf_process_pending: loop 4
+2024-05-09 16:24:45.107 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-09 16:24:45.107 +03 [138168] NOISE S-0x55d7025f99a0: emel/emel@127.0.0.1:9700 pop_outstanding_request: popped Q, still outstanding 0, skip 0
+2024-05-09 16:24:45.107 +03 [138168] DEBUG C-0x55d7025f1320: emel/emel@unix(139025):6432 query time: 3666 us
+2024-05-09 16:24:45.107 +03 [138168] DEBUG C-0x55d7025f1320: emel/emel@unix(139025):6432 transaction time: 3666 us
+2024-05-09 16:24:45.107 +03 [138168] NOISE sbuf_process_pending: loop 5
+2024-05-09 16:24:45.107 +03 [138168] NOISE sbuf_process_pending: done looping
+2024-05-09 16:24:45.107 +03 [138168] NOISE sbuf_send_pending_iobuf
+2024-05-09 16:24:45.107 +03 [138168] NOISE sbuf_process_pending: end
+2024-05-09 16:24:45.107 +03 [138168] NOISE resync(11): done=73, parse=73, recv=73
+2024-05-09 16:24:53.197 +03 [138168] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 5 B/s, xact 5082 us, query 5082 us, wait 20 us
+2024-05-09 16:25:53.198 +03 [138168] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 10:47:13.324 +03 [20902] DEBUG parse_ini_file: 'logfile' = 'pgbouncer.log' ok:1
+2024-05-10 10:47:13.325 +03 [20902] DEBUG parse_ini_file: 'pidfile' = 'pgbouncer.pid'
+2024-05-10 10:47:13.325 +03 [20902] DEBUG parse_ini_file: 'pidfile' = 'pgbouncer.pid' ok:1
+2024-05-10 10:47:13.325 +03 [20902] DEBUG parse_ini_file: 'listen_addr' = 'localhost'
+2024-05-10 10:47:13.325 +03 [20902] DEBUG parse_ini_file: 'listen_addr' = 'localhost' ok:1
+2024-05-10 10:47:13.325 +03 [20902] DEBUG parse_ini_file: 'listen_port' = '6432'
+2024-05-10 10:47:13.325 +03 [20902] DEBUG parse_ini_file: 'listen_port' = '6432' ok:1
+2024-05-10 10:47:13.325 +03 [20902] DEBUG parse_ini_file: 'unix_socket_dir' = '/tmp'
+2024-05-10 10:47:13.325 +03 [20902] DEBUG parse_ini_file: 'unix_socket_dir' = '/tmp' ok:1
+2024-05-10 10:47:13.325 +03 [20902] DEBUG parse_ini_file: 'auth_type' = 'trust'
+2024-05-10 10:47:13.325 +03 [20902] DEBUG parse_ini_file: 'auth_type' = 'trust' ok:1
+2024-05-10 10:47:13.325 +03 [20902] DEBUG parse_ini_file: 'auth_file' = 'userlist.txt'
+2024-05-10 10:47:13.325 +03 [20902] DEBUG parse_ini_file: 'auth_file' = 'userlist.txt' ok:1
+2024-05-10 10:47:13.325 +03 [20902] DEBUG loading auth_file: "userlist.txt"
+2024-05-10 10:47:13.325 +03 [20902] DEBUG pktbuf_dynamic(128): 0x55d3456257e0
+2024-05-10 10:47:13.325 +03 [20902] DEBUG make_room(0x55d3456257e0, 9): realloc newlen=256
+2024-05-10 10:47:13.325 +03 [20902] DEBUG pktbuf_dynamic(128): 0x55d3456259c0
+2024-05-10 10:47:13.326 +03 [20902] NOISE connect(4, unix:/tmp/.s.PGSQL.6432) = No such file or directory
+2024-05-10 10:47:13.326 +03 [20902] LOG stale pidfile, removing
+2024-05-10 10:47:13.326 +03 [20902] NOISE event: 128, SBuf: 224, PgSocket: 688, IOBuf: 4108
+2024-05-10 10:47:13.326 +03 [20902] LOG kernel file descriptor limit: 1024 (hard: 1048576); max_client_conn: 100, max expected fd use: 112
+2024-05-10 10:47:13.327 +03 [20902] DEBUG adns_create_context: evdns2
+2024-05-10 10:47:13.327 +03 [20902] DEBUG add_listen: 127.0.0.1:6432
+2024-05-10 10:47:13.327 +03 [20902] NOISE old TCP_DEFER_ACCEPT on 8 = 0
+2024-05-10 10:47:13.327 +03 [20902] NOISE install TCP_DEFER_ACCEPT on 8
+2024-05-10 10:47:13.327 +03 [20902] LOG listening on 127.0.0.1:6432
+2024-05-10 10:47:13.327 +03 [20902] DEBUG add_listen: unix:/tmp/.s.PGSQL.6432
+2024-05-10 10:47:13.327 +03 [20902] LOG listening on unix:/tmp/.s.PGSQL.6432
+2024-05-10 10:47:13.327 +03 [20902] LOG process up: PgBouncer 1.21.0, libevent 2.1.12-stable (epoll), adns: evdns2, tls: OpenSSL 3.0.2 15 Mar 2022
+2024-05-10 10:48:13.328 +03 [20902] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 10:49:13.328 +03 [20902] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 10:50:13.329 +03 [20902] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 10:51:13.327 +03 [20902] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 10:52:13.328 +03 [20902] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 10:53:04.725 +03 [20902] NOISE new fd from accept=10
+2024-05-10 10:53:04.725 +03 [20902] NOISE unix peer uid: 1000
+2024-05-10 10:53:04.725 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(22296):6432 P: got connection: unix->unix
+2024-05-10 10:53:04.725 +03 [20902] NOISE safe_accept(9) = Resource temporarily unavailable
+2024-05-10 10:53:04.725 +03 [20902] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-10 10:53:04.725 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:53:04.725 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:53:04.725 +03 [20902] NOISE C-0x55d345637320: (nodb)/(nouser)@unix(22296):6432 read pkt='!' len=131
+2024-05-10 10:53:04.725 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(22296):6432 got var: user=emel
+2024-05-10 10:53:04.725 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(22296):6432 got var: database=emel
+2024-05-10 10:53:04.725 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(22296):6432 received options: -c timezone=Portugal -c datestyle=German,\ YMD
+2024-05-10 10:53:04.725 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(22296):6432 got var from options: timezone=Portugal
+2024-05-10 10:53:04.725 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(22296):6432 got var from options: datestyle=German, YMD
+2024-05-10 10:53:04.725 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(22296):6432 using application_name: psql
+2024-05-10 10:53:04.725 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(22296):6432 got var: client_encoding=UTF8
+2024-05-10 10:53:04.725 +03 [20902] NOISE cstr_get_pair: "host"="localhost"
+2024-05-10 10:53:04.725 +03 [20902] NOISE cstr_get_pair: "dbname"="emel"
+2024-05-10 10:53:04.725 +03 [20902] NOISE cstr_get_pair: "port"="9700"
+2024-05-10 10:53:04.725 +03 [20902] DEBUG pktbuf_dynamic(128): 0x55d345635aa0
+2024-05-10 10:53:04.725 +03 [20902] LOG C-0x55d345637320: (nodb)/(nouser)@unix(22296):6432 registered new auto-database: emel
+2024-05-10 10:53:04.725 +03 [20902] LOG C-0x55d345637320: emel/emel@unix(22296):6432 login attempt: db=emel user=emel tls=no
+2024-05-10 10:53:04.725 +03 [20902] DEBUG finish_client_login: no welcome message, pause
+2024-05-10 10:53:04.725 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(22296):6432 pause_client
+2024-05-10 10:53:04.725 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@(bad-af):0 inet socket: localhost
+2024-05-10 10:53:04.725 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@(bad-af):0 dns socket: localhost
+2024-05-10 10:53:04.725 +03 [20902] NOISE dns: new req: localhost
+2024-05-10 10:53:04.725 +03 [20902] DEBUG zone_register(localhost)
+2024-05-10 10:53:04.725 +03 [20902] NOISE DNS: localhost[0] = 127.0.0.1:0 [STREAM]
+2024-05-10 10:53:04.725 +03 [20902] NOISE dns: evdns_getaddrinfo(localhost)=(nil)
+2024-05-10 10:53:04.725 +03 [20902] NOISE dns: deliver_info(localhost) addr=127.0.0.1:0
+2024-05-10 10:53:04.725 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@(bad-af):0 dns_callback: inet4: 127.0.0.1:9700
+2024-05-10 10:53:04.725 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 launching new connection to server
+2024-05-10 10:53:04.725 +03 [20902] DEBUG launch_new_connection: already progress
+2024-05-10 10:53:04.725 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: connect ok
+2024-05-10 10:53:04.725 +03 [20902] LOG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 new connection to server (from 127.0.0.1:41378)
+2024-05-10 10:53:04.725 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 P: SSL request
+2024-05-10 10:53:04.725 +03 [20902] DEBUG launch_new_connection: already progress
+2024-05-10 10:53:04.726 +03 [20902] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 10:53:04.726 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:53:04.726 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:53:04.726 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 launching tls
+2024-05-10 10:53:04.728 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 10:53:04.728 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 10:53:04.728 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 10:53:04.728 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 10:53:04.728 +03 [20902] NOISE resync(11): done=1, parse=1, recv=1
+2024-05-10 10:53:04.728 +03 [20902] NOISE tls_handshake: err=-2
+2024-05-10 10:53:04.728 +03 [20902] DEBUG launch_new_connection: already progress
+2024-05-10 10:53:04.728 +03 [20902] NOISE tls_handshake: err=-2
+2024-05-10 10:53:04.728 +03 [20902] DEBUG launch_new_connection: already progress
+2024-05-10 10:53:04.730 +03 [20902] NOISE tls_handshake: err=0
+2024-05-10 10:53:04.730 +03 [20902] LOG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 SSL established: TLSv1.3/TLS_AES_256_GCM_SHA384/ECDH=prime256v1
+2024-05-10 10:53:04.730 +03 [20902] DEBUG pktbuf_dynamic(512): 0x55d345700470
+2024-05-10 10:53:04.730 +03 [20902] NOISE tls_write: req=33 out=33
+2024-05-10 10:53:04.730 +03 [20902] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 10:53:04.730 +03 [20902] NOISE tls_read: req=4096 out=-2
+2024-05-10 10:53:04.730 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:53:04.730 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:53:04.730 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 10:53:04.730 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 10:53:04.730 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 10:53:04.730 +03 [20902] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 10:53:04.730 +03 [20902] DEBUG launch_new_connection: already progress
+2024-05-10 10:53:04.731 +03 [20902] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 10:53:04.732 +03 [20902] NOISE tls_read: req=4096 out=448
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:53:04.732 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='R', len=9
+2024-05-10 10:53:04.732 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 calling login_answer
+2024-05-10 10:53:04.732 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: auth ok
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 10:53:04.732 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=24
+2024-05-10 10:53:04.732 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: in_hot_standby = off
+2024-05-10 10:53:04.732 +03 [20902] DEBUG pktbuf_dynamic(128): 0x55d345626ec0
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: loop 3
+2024-05-10 10:53:04.732 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=26
+2024-05-10 10:53:04.732 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: integer_datetimes = on
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: loop 4
+2024-05-10 10:53:04.732 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=30
+2024-05-10 10:53:04.732 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: TimeZone = Europe/Istanbul
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: loop 5
+2024-05-10 10:53:04.732 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=28
+2024-05-10 10:53:04.732 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: IntervalStyle = postgres
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: loop 6
+2024-05-10 10:53:04.732 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=33
+2024-05-10 10:53:04.732 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: search_path = "$user", public
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: loop 7
+2024-05-10 10:53:04.732 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=21
+2024-05-10 10:53:04.732 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: is_superuser = on
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: loop 8
+2024-05-10 10:53:04.732 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=23
+2024-05-10 10:53:04.732 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: application_name = 
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: loop 9
+2024-05-10 10:53:04.732 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=39
+2024-05-10 10:53:04.732 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: default_transaction_read_only = off
+2024-05-10 10:53:04.732 +03 [20902] DEBUG make_room(0x55d345626ec0, 30): realloc newlen=256
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: loop 10
+2024-05-10 10:53:04.732 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=27
+2024-05-10 10:53:04.732 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: scram_iterations = 4096
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: loop 11
+2024-05-10 10:53:04.732 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=24
+2024-05-10 10:53:04.732 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: DateStyle = ISO, MDY
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: loop 12
+2024-05-10 10:53:04.732 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=36
+2024-05-10 10:53:04.732 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: standard_conforming_strings = on
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: loop 13
+2024-05-10 10:53:04.732 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=32
+2024-05-10 10:53:04.732 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: session_authorization = emel
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: loop 14
+2024-05-10 10:53:04.732 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=26
+2024-05-10 10:53:04.732 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: client_encoding = UTF8
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: loop 15
+2024-05-10 10:53:04.732 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=25
+2024-05-10 10:53:04.732 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: server_version = 16.0
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: loop 16
+2024-05-10 10:53:04.732 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=26
+2024-05-10 10:53:04.732 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: server_encoding = UTF8
+2024-05-10 10:53:04.732 +03 [20902] DEBUG make_room(0x55d345626ec0, 16): realloc newlen=512
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: loop 17
+2024-05-10 10:53:04.732 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='K', len=13
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: loop 18
+2024-05-10 10:53:04.732 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-10 10:53:04.732 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 server login ok, start accepting queries
+2024-05-10 10:53:04.732 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 release_server: new state=12
+2024-05-10 10:53:04.732 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(22296):6432 activate_client
+2024-05-10 10:53:04.732 +03 [20902] NOISE resync(10): done=0, parse=0, recv=131
+2024-05-10 10:53:04.732 +03 [20902] NOISE safe_recv(10, 3965) = Resource temporarily unavailable
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:53:04.732 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(22296):6432 read pkt='!' len=131
+2024-05-10 10:53:04.732 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(22296):6432 P: welcome_client
+2024-05-10 10:53:04.732 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(22296):6432 logged in
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 10:53:04.732 +03 [20902] NOISE resync(10): done=131, parse=131, recv=131
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: loop 19
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 10:53:04.732 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 10:53:04.732 +03 [20902] NOISE resync(11): done=448, parse=448, recv=448
+2024-05-10 10:53:13.329 +03 [20902] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 112 us
+2024-05-10 10:53:14.066 +03 [20902] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-10 10:53:14.066 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:53:14.066 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:53:14.066 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(22296):6432 read pkt='Q' len=20
+2024-05-10 10:53:14.066 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(22296):6432 find_server: client had no linked server yet
+2024-05-10 10:53:14.066 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 varcache_apply: SET DateStyle='German, YMD';SET TimeZone='Portugal';SET application_name='psql';
+2024-05-10 10:53:14.066 +03 [20902] NOISE tls_write: req=86 out=86
+2024-05-10 10:53:14.066 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(22296):6432 linking client to S-0x55d34563f9a0
+2024-05-10 10:53:14.066 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(22296):6432 pausing client while applying vars
+2024-05-10 10:53:14.072 +03 [20902] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 10:53:14.072 +03 [20902] NOISE tls_read: req=4096 out=110
+2024-05-10 10:53:14.072 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:53:14.072 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:53:14.072 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='C', len=9
+2024-05-10 10:53:14.072 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 10:53:14.072 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='C', len=9
+2024-05-10 10:53:14.072 +03 [20902] NOISE sbuf_process_pending: loop 3
+2024-05-10 10:53:14.072 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='C', len=9
+2024-05-10 10:53:14.072 +03 [20902] NOISE sbuf_process_pending: loop 4
+2024-05-10 10:53:14.072 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=27
+2024-05-10 10:53:14.072 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: application_name = psql
+2024-05-10 10:53:14.072 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(22296):6432 setting client var: application_name='psql'
+2024-05-10 10:53:14.072 +03 [20902] NOISE sbuf_process_pending: loop 5
+2024-05-10 10:53:14.072 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=23
+2024-05-10 10:53:14.072 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: TimeZone = Portugal
+2024-05-10 10:53:14.072 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(22296):6432 setting client var: TimeZone='Portugal'
+2024-05-10 10:53:14.072 +03 [20902] NOISE sbuf_process_pending: loop 6
+2024-05-10 10:53:14.072 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=27
+2024-05-10 10:53:14.073 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: DateStyle = German, YMD
+2024-05-10 10:53:14.073 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(22296):6432 setting client var: DateStyle='German, YMD'
+2024-05-10 10:53:14.073 +03 [20902] NOISE sbuf_process_pending: loop 7
+2024-05-10 10:53:14.073 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-10 10:53:14.073 +03 [20902] NOISE sbuf_process_pending: loop 8
+2024-05-10 10:53:14.073 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 10:53:14.073 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 10:53:14.073 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 10:53:14.073 +03 [20902] NOISE resync(11): done=110, parse=110, recv=110
+2024-05-10 10:53:14.073 +03 [20902] NOISE done setting vars unpausing client
+2024-05-10 10:53:14.073 +03 [20902] NOISE resync(10): done=0, parse=0, recv=20
+2024-05-10 10:53:14.073 +03 [20902] NOISE safe_recv(10, 4076) = Resource temporarily unavailable
+2024-05-10 10:53:14.073 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:53:14.073 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:53:14.073 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(22296):6432 read pkt='Q' len=20
+2024-05-10 10:53:14.073 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(22296):6432 add_outstanding_request: added Q, still outstanding 1
+2024-05-10 10:53:14.073 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 10:53:14.073 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 10:53:14.073 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 10:53:14.073 +03 [20902] NOISE tls_write: req=20 out=20
+2024-05-10 10:53:14.073 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 10:53:14.073 +03 [20902] NOISE resync(10): done=20, parse=20, recv=20
+2024-05-10 10:53:14.073 +03 [20902] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 10:53:14.073 +03 [20902] NOISE tls_read: req=4096 out=69
+2024-05-10 10:53:14.073 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:53:14.073 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:53:14.073 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='T', len=34
+2024-05-10 10:53:14.073 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 10:53:14.073 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='D', len=19
+2024-05-10 10:53:14.073 +03 [20902] NOISE sbuf_process_pending: loop 3
+2024-05-10 10:53:14.073 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='C', len=10
+2024-05-10 10:53:14.073 +03 [20902] NOISE sbuf_process_pending: loop 4
+2024-05-10 10:53:14.073 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-10 10:53:14.073 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 pop_outstanding_request: popped Q, still outstanding 0, skip 0
+2024-05-10 10:53:14.073 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(22296):6432 query time: 7135 us
+2024-05-10 10:53:14.073 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(22296):6432 transaction time: 7135 us
+2024-05-10 10:53:14.073 +03 [20902] NOISE sbuf_process_pending: loop 5
+2024-05-10 10:53:14.073 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 10:53:14.073 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 10:53:14.074 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 10:53:14.074 +03 [20902] NOISE resync(11): done=69, parse=69, recv=69
+2024-05-10 10:53:22.625 +03 [20902] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-10 10:53:22.625 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:53:22.625 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:53:22.625 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(22296):6432 read pkt='Q' len=21
+2024-05-10 10:53:22.625 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(22296):6432 add_outstanding_request: added Q, still outstanding 1
+2024-05-10 10:53:22.625 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 10:53:22.625 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 10:53:22.625 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 10:53:22.626 +03 [20902] NOISE tls_write: req=21 out=21
+2024-05-10 10:53:22.626 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 10:53:22.626 +03 [20902] NOISE resync(10): done=21, parse=21, recv=21
+2024-05-10 10:53:22.626 +03 [20902] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 10:53:22.626 +03 [20902] NOISE tls_read: req=4096 out=73
+2024-05-10 10:53:22.626 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:53:22.626 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:53:22.626 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='T', len=35
+2024-05-10 10:53:22.626 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 10:53:22.626 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='D', len=22
+2024-05-10 10:53:22.626 +03 [20902] NOISE sbuf_process_pending: loop 3
+2024-05-10 10:53:22.626 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='C', len=10
+2024-05-10 10:53:22.626 +03 [20902] NOISE sbuf_process_pending: loop 4
+2024-05-10 10:53:22.626 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-10 10:53:22.626 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 pop_outstanding_request: popped Q, still outstanding 0, skip 0
+2024-05-10 10:53:22.626 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(22296):6432 query time: 908 us
+2024-05-10 10:53:22.626 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(22296):6432 transaction time: 908 us
+2024-05-10 10:53:22.626 +03 [20902] NOISE sbuf_process_pending: loop 5
+2024-05-10 10:53:22.626 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 10:53:22.626 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 10:53:22.626 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 10:53:22.627 +03 [20902] NOISE resync(11): done=73, parse=73, recv=73
+2024-05-10 10:53:24.513 +03 [20902] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-10 10:53:24.513 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:53:24.513 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:53:24.513 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(22296):6432 read pkt='X' len=5
+2024-05-10 10:53:24.513 +03 [20902] LOG C-0x55d345637320: emel/emel@unix(22296):6432 closing because: client close request (age=19s)
+2024-05-10 10:53:24.513 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 release_server: new state=16
+2024-05-10 10:53:24.513 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 resetting: DISCARD ALL
+2024-05-10 10:53:24.513 +03 [20902] NOISE tls_write: req=17 out=17
+2024-05-10 10:53:24.514 +03 [20902] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 10:53:24.514 +03 [20902] NOISE tls_read: req=4096 out=100
+2024-05-10 10:53:24.514 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:53:24.514 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:53:24.514 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='C', len=17
+2024-05-10 10:53:24.514 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 10:53:24.514 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=23
+2024-05-10 10:53:24.514 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: application_name = 
+2024-05-10 10:53:24.514 +03 [20902] NOISE sbuf_process_pending: loop 3
+2024-05-10 10:53:24.514 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=30
+2024-05-10 10:53:24.514 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: TimeZone = Europe/Istanbul
+2024-05-10 10:53:24.514 +03 [20902] NOISE sbuf_process_pending: loop 4
+2024-05-10 10:53:24.514 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=24
+2024-05-10 10:53:24.514 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: DateStyle = ISO, MDY
+2024-05-10 10:53:24.514 +03 [20902] NOISE sbuf_process_pending: loop 5
+2024-05-10 10:53:24.514 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-10 10:53:24.514 +03 [20902] NOISE sbuf_process_pending: loop 6
+2024-05-10 10:53:24.514 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 10:53:24.514 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 10:53:24.514 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 10:53:24.514 +03 [20902] NOISE resync(11): done=100, parse=100, recv=100
+2024-05-10 10:53:24.514 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 release_server: new state=12
+2024-05-10 10:53:30.125 +03 [20902] NOISE new fd from accept=10
+2024-05-10 10:53:30.125 +03 [20902] NOISE unix peer uid: 1000
+2024-05-10 10:53:30.125 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(22399):6432 P: got connection: unix->unix
+2024-05-10 10:53:30.125 +03 [20902] NOISE safe_accept(9) = Resource temporarily unavailable
+2024-05-10 10:53:30.125 +03 [20902] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-10 10:53:30.125 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:53:30.125 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:53:30.125 +03 [20902] NOISE C-0x55d345637320: (nodb)/(nouser)@unix(22399):6432 read pkt='!' len=76
+2024-05-10 10:53:30.125 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(22399):6432 got var: user=emel
+2024-05-10 10:53:30.125 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(22399):6432 got var: database=emel
+2024-05-10 10:53:30.125 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(22399):6432 using application_name: psql
+2024-05-10 10:53:30.125 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(22399):6432 got var: client_encoding=UTF8
+2024-05-10 10:53:30.125 +03 [20902] LOG C-0x55d345637320: emel/emel@unix(22399):6432 login attempt: db=emel user=emel tls=no
+2024-05-10 10:53:30.125 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(22399):6432 P: welcome_client
+2024-05-10 10:53:30.125 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(22399):6432 logged in
+2024-05-10 10:53:30.125 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 10:53:30.125 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 10:53:30.126 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 10:53:30.126 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 10:53:30.126 +03 [20902] NOISE resync(10): done=76, parse=76, recv=76
+2024-05-10 10:53:32.337 +03 [20902] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-10 10:53:32.337 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:53:32.337 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:53:32.337 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(22399):6432 read pkt='Q' len=21
+2024-05-10 10:53:32.337 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(22399):6432 find_server: client had no linked server yet
+2024-05-10 10:53:32.337 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 varcache_apply: SET application_name='psql';
+2024-05-10 10:53:32.337 +03 [20902] NOISE tls_write: req=34 out=34
+2024-05-10 10:53:32.337 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(22399):6432 linking client to S-0x55d34563f9a0
+2024-05-10 10:53:32.337 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(22399):6432 pausing client while applying vars
+2024-05-10 10:53:32.338 +03 [20902] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 10:53:32.338 +03 [20902] NOISE tls_read: req=4096 out=42
+2024-05-10 10:53:32.338 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:53:32.338 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:53:32.338 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='C', len=9
+2024-05-10 10:53:32.338 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 10:53:32.338 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=27
+2024-05-10 10:53:32.338 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: application_name = psql
+2024-05-10 10:53:32.338 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(22399):6432 setting client var: application_name='psql'
+2024-05-10 10:53:32.338 +03 [20902] NOISE sbuf_process_pending: loop 3
+2024-05-10 10:53:32.338 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-10 10:53:32.338 +03 [20902] NOISE sbuf_process_pending: loop 4
+2024-05-10 10:53:32.338 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 10:53:32.338 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 10:53:32.338 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 10:53:32.338 +03 [20902] NOISE resync(11): done=42, parse=42, recv=42
+2024-05-10 10:53:32.338 +03 [20902] NOISE done setting vars unpausing client
+2024-05-10 10:53:32.339 +03 [20902] NOISE resync(10): done=0, parse=0, recv=21
+2024-05-10 10:53:32.339 +03 [20902] NOISE safe_recv(10, 4075) = Resource temporarily unavailable
+2024-05-10 10:53:32.339 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:53:32.339 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:53:32.339 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(22399):6432 read pkt='Q' len=21
+2024-05-10 10:53:32.339 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(22399):6432 add_outstanding_request: added Q, still outstanding 1
+2024-05-10 10:53:32.339 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 10:53:32.339 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 10:53:32.339 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 10:53:32.339 +03 [20902] NOISE tls_write: req=21 out=21
+2024-05-10 10:53:32.339 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 10:53:32.339 +03 [20902] NOISE resync(10): done=21, parse=21, recv=21
+2024-05-10 10:53:32.339 +03 [20902] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 10:53:32.339 +03 [20902] NOISE tls_read: req=4096 out=70
+2024-05-10 10:53:32.339 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:53:32.339 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:53:32.339 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='T', len=35
+2024-05-10 10:53:32.339 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 10:53:32.339 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='D', len=19
+2024-05-10 10:53:32.339 +03 [20902] NOISE sbuf_process_pending: loop 3
+2024-05-10 10:53:32.339 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='C', len=10
+2024-05-10 10:53:32.339 +03 [20902] NOISE sbuf_process_pending: loop 4
+2024-05-10 10:53:32.339 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-10 10:53:32.339 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 pop_outstanding_request: popped Q, still outstanding 0, skip 0
+2024-05-10 10:53:32.339 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(22399):6432 query time: 2083 us
+2024-05-10 10:53:32.339 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(22399):6432 transaction time: 2083 us
+2024-05-10 10:53:32.340 +03 [20902] NOISE sbuf_process_pending: loop 5
+2024-05-10 10:53:32.340 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 10:53:32.340 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 10:53:32.340 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 10:53:32.340 +03 [20902] NOISE resync(11): done=70, parse=70, recv=70
+2024-05-10 10:53:34.930 +03 [20902] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-10 10:53:34.930 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:53:34.930 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:53:34.930 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(22399):6432 read pkt='Q' len=20
+2024-05-10 10:53:34.930 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(22399):6432 add_outstanding_request: added Q, still outstanding 1
+2024-05-10 10:53:34.930 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 10:53:34.930 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 10:53:34.930 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 10:53:34.930 +03 [20902] NOISE tls_write: req=20 out=20
+2024-05-10 10:53:34.930 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 10:53:34.930 +03 [20902] NOISE resync(10): done=20, parse=20, recv=20
+2024-05-10 10:53:34.930 +03 [20902] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 10:53:34.930 +03 [20902] NOISE tls_read: req=4096 out=76
+2024-05-10 10:53:34.930 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:53:34.930 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:53:34.930 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='T', len=34
+2024-05-10 10:53:34.930 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 10:53:34.930 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='D', len=26
+2024-05-10 10:53:34.930 +03 [20902] NOISE sbuf_process_pending: loop 3
+2024-05-10 10:53:34.930 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='C', len=10
+2024-05-10 10:53:34.931 +03 [20902] NOISE sbuf_process_pending: loop 4
+2024-05-10 10:53:34.931 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-10 10:53:34.931 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 pop_outstanding_request: popped Q, still outstanding 0, skip 0
+2024-05-10 10:53:34.931 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(22399):6432 query time: 818 us
+2024-05-10 10:53:34.931 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(22399):6432 transaction time: 818 us
+2024-05-10 10:53:34.931 +03 [20902] NOISE sbuf_process_pending: loop 5
+2024-05-10 10:53:34.931 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 10:53:34.931 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 10:53:34.931 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 10:53:34.931 +03 [20902] NOISE resync(11): done=76, parse=76, recv=76
+2024-05-10 10:54:13.328 +03 [20902] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 1 B/s, out 9 B/s, xact 2736 us, query 2736 us, wait 0 us
+2024-05-10 10:55:04.490 +03 [20902] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-10 10:55:04.490 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:55:04.490 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:55:04.490 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(22399):6432 read pkt='X' len=5
+2024-05-10 10:55:04.490 +03 [20902] LOG C-0x55d345637320: emel/emel@unix(22399):6432 closing because: client close request (age=94s)
+2024-05-10 10:55:04.490 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 release_server: new state=16
+2024-05-10 10:55:04.490 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 resetting: DISCARD ALL
+2024-05-10 10:55:04.490 +03 [20902] NOISE tls_write: req=17 out=17
+2024-05-10 10:55:04.491 +03 [20902] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 10:55:04.491 +03 [20902] NOISE tls_read: req=4096 out=46
+2024-05-10 10:55:04.491 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:55:04.492 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:55:04.492 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='C', len=17
+2024-05-10 10:55:04.492 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 10:55:04.492 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=23
+2024-05-10 10:55:04.492 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: application_name = 
+2024-05-10 10:55:04.492 +03 [20902] NOISE sbuf_process_pending: loop 3
+2024-05-10 10:55:04.492 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-10 10:55:04.492 +03 [20902] NOISE sbuf_process_pending: loop 4
+2024-05-10 10:55:04.492 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 10:55:04.492 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 10:55:04.492 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 10:55:04.492 +03 [20902] NOISE resync(11): done=46, parse=46, recv=46
+2024-05-10 10:55:04.492 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 release_server: new state=12
+2024-05-10 10:55:13.328 +03 [20902] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 10:56:13.328 +03 [20902] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 10:56:45.780 +03 [20902] NOISE new fd from accept=10
+2024-05-10 10:56:45.780 +03 [20902] NOISE unix peer uid: 1000
+2024-05-10 10:56:45.780 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(23173):6432 P: got connection: unix->unix
+2024-05-10 10:56:45.780 +03 [20902] NOISE safe_accept(9) = Resource temporarily unavailable
+2024-05-10 10:56:45.780 +03 [20902] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-10 10:56:45.780 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 10:56:45.780 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 10:56:45.780 +03 [20902] NOISE C-0x55d345637320: (nodb)/(nouser)@unix(23173):6432 read pkt='!' len=76
+2024-05-10 10:56:45.780 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(23173):6432 got var: user=emel
+2024-05-10 10:56:45.780 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(23173):6432 got var: database=emel
+2024-05-10 10:56:45.780 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(23173):6432 using application_name: psql
+2024-05-10 10:56:45.780 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(23173):6432 got var: client_encoding=UTF8
+2024-05-10 10:56:45.780 +03 [20902] LOG C-0x55d345637320: emel/emel@unix(23173):6432 login attempt: db=emel user=emel tls=no
+2024-05-10 10:56:45.780 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(23173):6432 P: welcome_client
+2024-05-10 10:56:45.780 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(23173):6432 logged in
+2024-05-10 10:56:45.780 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 10:56:45.780 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 10:56:45.780 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 10:56:45.780 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 10:56:45.780 +03 [20902] NOISE resync(10): done=76, parse=76, recv=76
+2024-05-10 10:57:13.324 +03 [20902] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 10:58:13.328 +03 [20902] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 10:59:13.328 +03 [20902] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 11:00:13.329 +03 [20902] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 11:01:13.323 +03 [20902] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 11:01:41.311 +03 [20902] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-10 11:01:41.312 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 11:01:41.312 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:01:41.312 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(23173):6432 read pkt='X' len=5
+2024-05-10 11:01:41.312 +03 [20902] LOG C-0x55d345637320: emel/emel@unix(23173):6432 closing because: client close request (age=295s)
+2024-05-10 11:01:44.074 +03 [20902] NOISE new fd from accept=10
+2024-05-10 11:01:44.075 +03 [20902] NOISE unix peer uid: 1000
+2024-05-10 11:01:44.075 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(24358):6432 P: got connection: unix->unix
+2024-05-10 11:01:44.075 +03 [20902] NOISE safe_accept(9) = Resource temporarily unavailable
+2024-05-10 11:01:44.075 +03 [20902] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-10 11:01:44.075 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 11:01:44.075 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:01:44.075 +03 [20902] NOISE C-0x55d345637320: (nodb)/(nouser)@unix(24358):6432 read pkt='!' len=131
+2024-05-10 11:01:44.075 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(24358):6432 got var: user=emel
+2024-05-10 11:01:44.075 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(24358):6432 got var: database=emel
+2024-05-10 11:01:44.075 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(24358):6432 received options: -c timezone=Portugal -c datestyle=German,\ YMD
+2024-05-10 11:01:44.075 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(24358):6432 got var from options: timezone=Portugal
+2024-05-10 11:01:44.075 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(24358):6432 got var from options: datestyle=German, YMD
+2024-05-10 11:01:44.075 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(24358):6432 using application_name: psql
+2024-05-10 11:01:44.075 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(24358):6432 got var: client_encoding=UTF8
+2024-05-10 11:01:44.075 +03 [20902] LOG C-0x55d345637320: emel/emel@unix(24358):6432 login attempt: db=emel user=emel tls=no
+2024-05-10 11:01:44.075 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(24358):6432 P: welcome_client
+2024-05-10 11:01:44.075 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(24358):6432 logged in
+2024-05-10 11:01:44.075 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 11:01:44.075 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 11:01:44.075 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 11:01:44.075 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 11:01:44.075 +03 [20902] NOISE resync(10): done=131, parse=131, recv=131
+2024-05-10 11:01:45.984 +03 [20902] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-10 11:01:45.984 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 11:01:45.984 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:01:45.984 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(24358):6432 read pkt='Q' len=20
+2024-05-10 11:01:45.984 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(24358):6432 find_server: client had no linked server yet
+2024-05-10 11:01:45.984 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(24358):6432 pause_client
+2024-05-10 11:01:45.984 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 P: checking: select 1
+2024-05-10 11:01:45.984 +03 [20902] NOISE tls_write: req=14 out=14
+2024-05-10 11:01:45.986 +03 [20902] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 11:01:45.987 +03 [20902] NOISE tls_read: req=4096 out=66
+2024-05-10 11:01:45.987 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 11:01:45.987 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:01:45.987 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='T', len=34
+2024-05-10 11:01:45.987 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 11:01:45.987 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='D', len=12
+2024-05-10 11:01:45.987 +03 [20902] NOISE sbuf_process_pending: loop 3
+2024-05-10 11:01:45.987 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='C', len=14
+2024-05-10 11:01:45.987 +03 [20902] NOISE sbuf_process_pending: loop 4
+2024-05-10 11:01:45.987 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-10 11:01:45.987 +03 [20902] NOISE sbuf_process_pending: loop 5
+2024-05-10 11:01:45.987 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 11:01:45.987 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 11:01:45.987 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 11:01:45.987 +03 [20902] NOISE resync(11): done=66, parse=66, recv=66
+2024-05-10 11:01:45.987 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 release_server: new state=12
+2024-05-10 11:01:45.987 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(24358):6432 activate_client
+2024-05-10 11:01:45.987 +03 [20902] NOISE resync(10): done=0, parse=0, recv=20
+2024-05-10 11:01:45.987 +03 [20902] NOISE safe_recv(10, 4076) = Resource temporarily unavailable
+2024-05-10 11:01:45.987 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 11:01:45.987 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:01:45.987 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(24358):6432 read pkt='Q' len=20
+2024-05-10 11:01:45.987 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(24358):6432 find_server: client had no linked server yet
+2024-05-10 11:01:45.987 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 varcache_apply: SET DateStyle='German, YMD';SET TimeZone='Portugal';SET application_name='psql';
+2024-05-10 11:01:45.987 +03 [20902] NOISE tls_write: req=86 out=86
+2024-05-10 11:01:45.987 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(24358):6432 linking client to S-0x55d34563f9a0
+2024-05-10 11:01:45.987 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(24358):6432 pausing client while applying vars
+2024-05-10 11:01:45.987 +03 [20902] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 11:01:45.988 +03 [20902] NOISE tls_read: req=4096 out=110
+2024-05-10 11:01:45.988 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 11:01:45.988 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:01:45.988 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='C', len=9
+2024-05-10 11:01:45.988 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 11:01:45.988 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='C', len=9
+2024-05-10 11:01:45.988 +03 [20902] NOISE sbuf_process_pending: loop 3
+2024-05-10 11:01:45.988 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='C', len=9
+2024-05-10 11:01:45.988 +03 [20902] NOISE sbuf_process_pending: loop 4
+2024-05-10 11:01:45.988 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=27
+2024-05-10 11:01:45.988 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: application_name = psql
+2024-05-10 11:01:45.988 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(24358):6432 setting client var: application_name='psql'
+2024-05-10 11:01:45.988 +03 [20902] NOISE sbuf_process_pending: loop 5
+2024-05-10 11:01:45.988 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=23
+2024-05-10 11:01:45.988 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: TimeZone = Portugal
+2024-05-10 11:01:45.988 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(24358):6432 setting client var: TimeZone='Portugal'
+2024-05-10 11:01:45.988 +03 [20902] NOISE sbuf_process_pending: loop 6
+2024-05-10 11:01:45.988 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=27
+2024-05-10 11:01:45.988 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: DateStyle = German, YMD
+2024-05-10 11:01:45.988 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(24358):6432 setting client var: DateStyle='German, YMD'
+2024-05-10 11:01:45.988 +03 [20902] NOISE sbuf_process_pending: loop 7
+2024-05-10 11:01:45.988 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-10 11:01:45.988 +03 [20902] NOISE sbuf_process_pending: loop 8
+2024-05-10 11:01:45.988 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 11:01:45.988 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 11:01:45.988 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 11:01:45.988 +03 [20902] NOISE resync(11): done=110, parse=110, recv=110
+2024-05-10 11:01:45.988 +03 [20902] NOISE done setting vars unpausing client
+2024-05-10 11:01:45.988 +03 [20902] NOISE resync(10): done=0, parse=0, recv=20
+2024-05-10 11:01:45.988 +03 [20902] NOISE safe_recv(10, 4076) = Resource temporarily unavailable
+2024-05-10 11:01:45.988 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 11:01:45.988 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:01:45.988 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(24358):6432 read pkt='Q' len=20
+2024-05-10 11:01:45.988 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(24358):6432 add_outstanding_request: added Q, still outstanding 1
+2024-05-10 11:01:45.988 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 11:01:45.988 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 11:01:45.988 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 11:01:45.988 +03 [20902] NOISE tls_write: req=20 out=20
+2024-05-10 11:01:45.988 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 11:01:45.988 +03 [20902] NOISE resync(10): done=20, parse=20, recv=20
+2024-05-10 11:01:45.989 +03 [20902] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 11:01:45.989 +03 [20902] NOISE tls_read: req=4096 out=69
+2024-05-10 11:01:45.989 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 11:01:45.989 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:01:45.989 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='T', len=34
+2024-05-10 11:01:45.989 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 11:01:45.989 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='D', len=19
+2024-05-10 11:01:45.989 +03 [20902] NOISE sbuf_process_pending: loop 3
+2024-05-10 11:01:45.989 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='C', len=10
+2024-05-10 11:01:45.989 +03 [20902] NOISE sbuf_process_pending: loop 4
+2024-05-10 11:01:45.989 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-10 11:01:45.989 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 pop_outstanding_request: popped Q, still outstanding 0, skip 0
+2024-05-10 11:01:45.989 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(24358):6432 query time: 5133 us
+2024-05-10 11:01:45.989 +03 [20902] DEBUG C-0x55d345637320: emel/emel@unix(24358):6432 transaction time: 5133 us
+2024-05-10 11:01:45.989 +03 [20902] NOISE sbuf_process_pending: loop 5
+2024-05-10 11:01:45.989 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 11:01:45.989 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 11:01:45.989 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 11:01:45.989 +03 [20902] NOISE resync(11): done=69, parse=69, recv=69
+2024-05-10 11:01:48.122 +03 [20902] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-10 11:01:48.122 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 11:01:48.123 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:01:48.123 +03 [20902] NOISE C-0x55d345637320: emel/emel@unix(24358):6432 read pkt='X' len=5
+2024-05-10 11:01:48.123 +03 [20902] LOG C-0x55d345637320: emel/emel@unix(24358):6432 closing because: client close request (age=4s)
+2024-05-10 11:01:48.123 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 release_server: new state=16
+2024-05-10 11:01:48.123 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 resetting: DISCARD ALL
+2024-05-10 11:01:48.123 +03 [20902] NOISE tls_write: req=17 out=17
+2024-05-10 11:01:48.123 +03 [20902] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 11:01:48.123 +03 [20902] NOISE tls_read: req=4096 out=100
+2024-05-10 11:01:48.123 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 11:01:48.123 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:01:48.123 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='C', len=17
+2024-05-10 11:01:48.123 +03 [20902] NOISE sbuf_process_pending: loop 2
+2024-05-10 11:01:48.123 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=23
+2024-05-10 11:01:48.123 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: application_name = 
+2024-05-10 11:01:48.123 +03 [20902] NOISE sbuf_process_pending: loop 3
+2024-05-10 11:01:48.123 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=30
+2024-05-10 11:01:48.123 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: TimeZone = Europe/Istanbul
+2024-05-10 11:01:48.123 +03 [20902] NOISE sbuf_process_pending: loop 4
+2024-05-10 11:01:48.123 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='S', len=24
+2024-05-10 11:01:48.123 +03 [20902] DEBUG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 S: param: DateStyle = ISO, MDY
+2024-05-10 11:01:48.123 +03 [20902] NOISE sbuf_process_pending: loop 5
+2024-05-10 11:01:48.123 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-10 11:01:48.123 +03 [20902] NOISE sbuf_process_pending: loop 6
+2024-05-10 11:01:48.123 +03 [20902] NOISE sbuf_process_pending: done looping
+2024-05-10 11:01:48.123 +03 [20902] NOISE sbuf_send_pending_iobuf
+2024-05-10 11:01:48.123 +03 [20902] NOISE sbuf_process_pending: end
+2024-05-10 11:01:48.123 +03 [20902] NOISE resync(11): done=100, parse=100, recv=100
+2024-05-10 11:01:48.123 +03 [20902] NOISE S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 release_server: new state=12
+2024-05-10 11:01:59.217 +03 [20902] NOISE new fd from accept=10
+2024-05-10 11:01:59.217 +03 [20902] NOISE unix peer uid: 1000
+2024-05-10 11:01:59.217 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(24418):6432 P: got connection: unix->unix
+2024-05-10 11:01:59.217 +03 [20902] NOISE safe_accept(9) = Resource temporarily unavailable
+2024-05-10 11:01:59.217 +03 [20902] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-10 11:01:59.217 +03 [20902] NOISE sbuf_process_pending: start
+2024-05-10 11:01:59.217 +03 [20902] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:01:59.217 +03 [20902] NOISE C-0x55d345637320: (nodb)/(nouser)@unix(24418):6432 read pkt='!' len=129
+2024-05-10 11:01:59.217 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(24418):6432 got var: user=emel
+2024-05-10 11:01:59.217 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(24418):6432 got var: database=emel
+2024-05-10 11:01:59.218 +03 [20902] DEBUG C-0x55d345637320: (nodb)/(nouser)@unix(24418):6432 received options: --timezone=Portugal --datestyle=German,\ YMD
+2024-05-10 11:01:59.218 +03 [20902] LOG C-0x55d345637320: (nodb)/(nouser)@unix(24418):6432 closing because: unsupported options startup parameter: only '-c config=val' is allowed (age=0s)
+2024-05-10 11:01:59.218 +03 [20902] WARNING C-0x55d345637320: (nodb)/(nouser)@unix(24418):6432 pooler error: unsupported options startup parameter: only '-c config=val' is allowed
+2024-05-10 11:02:08.184 +03 [20902] LOG got SIGINT, shutting down
+2024-05-10 11:02:08.184 +03 [20902] LOG S-0x55d34563f9a0: emel/emel@127.0.0.1:9700 closing because: pause mode (age=543s)
+2024-05-10 11:02:08.185 +03 [20902] NOISE tls_write: req=5 out=5
+2024-05-10 11:02:08.185 +03 [20902] NOISE tls_close
+2024-05-10 11:02:08.326 +03 [20902] LOG server connections dropped, exiting
+2024-05-10 11:02:08.327 +03 [20902] WARNING dropping database 'emel' as it does not exist anymore or inactive auto-database
+2024-05-10 11:02:08.327 +03 [20902] DEBUG pktbuf_free(0x55d345626ec0)
+2024-05-10 11:02:08.327 +03 [20902] DEBUG pktbuf_free(0x55d345635aa0)
+2024-05-10 11:02:08.327 +03 [20902] WARNING dropping database 'pgbouncer' as it does not exist anymore or inactive auto-database
+2024-05-10 11:02:08.327 +03 [20902] DEBUG pktbuf_free(0x55d3456257e0)
+2024-05-10 11:02:08.327 +03 [20902] DEBUG pktbuf_free(0x55d3456259c0)
+2024-05-10 11:02:08.328 +03 [20902] DEBUG pktbuf_free(0x55d345700470)
+2024-05-10 11:10:57.246 +03 [27273] DEBUG parse_ini_file: 'logfile' = 'pgbouncer.log' ok:1
+2024-05-10 11:10:57.246 +03 [27273] DEBUG parse_ini_file: 'pidfile' = 'pgbouncer.pid'
+2024-05-10 11:10:57.246 +03 [27273] DEBUG parse_ini_file: 'pidfile' = 'pgbouncer.pid' ok:1
+2024-05-10 11:10:57.246 +03 [27273] DEBUG parse_ini_file: 'listen_addr' = 'localhost'
+2024-05-10 11:10:57.246 +03 [27273] DEBUG parse_ini_file: 'listen_addr' = 'localhost' ok:1
+2024-05-10 11:10:57.246 +03 [27273] DEBUG parse_ini_file: 'listen_port' = '6432'
+2024-05-10 11:10:57.246 +03 [27273] DEBUG parse_ini_file: 'listen_port' = '6432' ok:1
+2024-05-10 11:10:57.246 +03 [27273] DEBUG parse_ini_file: 'unix_socket_dir' = '/tmp'
+2024-05-10 11:10:57.246 +03 [27273] DEBUG parse_ini_file: 'unix_socket_dir' = '/tmp' ok:1
+2024-05-10 11:10:57.246 +03 [27273] DEBUG parse_ini_file: 'auth_type' = 'trust'
+2024-05-10 11:10:57.246 +03 [27273] DEBUG parse_ini_file: 'auth_type' = 'trust' ok:1
+2024-05-10 11:10:57.246 +03 [27273] DEBUG parse_ini_file: 'auth_file' = 'userlist.txt'
+2024-05-10 11:10:57.246 +03 [27273] DEBUG parse_ini_file: 'auth_file' = 'userlist.txt' ok:1
+2024-05-10 11:10:57.246 +03 [27273] DEBUG loading auth_file: "userlist.txt"
+2024-05-10 11:10:57.246 +03 [27273] DEBUG pktbuf_dynamic(128): 0x5579e3ea5c40
+2024-05-10 11:10:57.246 +03 [27273] DEBUG make_room(0x5579e3ea5c40, 9): realloc newlen=256
+2024-05-10 11:10:57.246 +03 [27273] DEBUG pktbuf_dynamic(128): 0x5579e3ea5e20
+2024-05-10 11:10:57.246 +03 [27273] NOISE connect(4, unix:/tmp/.s.PGSQL.6432) = No such file or directory
+2024-05-10 11:10:57.246 +03 [27273] NOISE event: 128, SBuf: 224, PgSocket: 696, IOBuf: 4108
+2024-05-10 11:10:57.246 +03 [27273] LOG kernel file descriptor limit: 1024 (hard: 1048576); max_client_conn: 100, max expected fd use: 112
+2024-05-10 11:10:57.246 +03 [27273] DEBUG adns_create_context: evdns2
+2024-05-10 11:10:57.246 +03 [27273] DEBUG add_listen: 127.0.0.1:6432
+2024-05-10 11:10:57.246 +03 [27273] NOISE old TCP_DEFER_ACCEPT on 8 = 0
+2024-05-10 11:10:57.246 +03 [27273] NOISE install TCP_DEFER_ACCEPT on 8
+2024-05-10 11:10:57.246 +03 [27273] LOG listening on 127.0.0.1:6432
+2024-05-10 11:10:57.246 +03 [27273] DEBUG add_listen: unix:/tmp/.s.PGSQL.6432
+2024-05-10 11:10:57.246 +03 [27273] LOG listening on unix:/tmp/.s.PGSQL.6432
+2024-05-10 11:10:57.246 +03 [27273] LOG process up: PgBouncer 1.22.1, libevent 2.1.12-stable (epoll), adns: evdns2, tls: OpenSSL 3.0.2 15 Mar 2022
+2024-05-10 11:11:01.017 +03 [27273] NOISE new fd from accept=10
+2024-05-10 11:11:01.017 +03 [27273] NOISE unix peer uid: 1000
+2024-05-10 11:11:01.017 +03 [27273] DEBUG C-0x5579e3eb7840: (nodb)/(nouser)@unix(27289):6432 P: got connection: unix->unix
+2024-05-10 11:11:01.017 +03 [27273] NOISE safe_accept(9) = Resource temporarily unavailable
+2024-05-10 11:11:01.017 +03 [27273] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-10 11:11:01.017 +03 [27273] NOISE sbuf_process_pending: start
+2024-05-10 11:11:01.017 +03 [27273] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:11:01.017 +03 [27273] NOISE C-0x5579e3eb7840: (nodb)/(nouser)@unix(27289):6432 read pkt='!' len=129
+2024-05-10 11:11:01.017 +03 [27273] DEBUG C-0x5579e3eb7840: (nodb)/(nouser)@unix(27289):6432 got var: user=emel
+2024-05-10 11:11:01.017 +03 [27273] DEBUG C-0x5579e3eb7840: (nodb)/(nouser)@unix(27289):6432 got var: database=emel
+2024-05-10 11:11:01.017 +03 [27273] DEBUG C-0x5579e3eb7840: (nodb)/(nouser)@unix(27289):6432 received options: --timezone=Portugal --datestyle=German,\ YMD
+2024-05-10 11:11:01.017 +03 [27273] DEBUG C-0x5579e3eb7840: (nodb)/(nouser)@unix(27289):6432 got var from options: timezone=Portugal
+2024-05-10 11:11:01.017 +03 [27273] DEBUG C-0x5579e3eb7840: (nodb)/(nouser)@unix(27289):6432 got var from options: datestyle=German, YMD
+2024-05-10 11:11:01.017 +03 [27273] DEBUG C-0x5579e3eb7840: (nodb)/(nouser)@unix(27289):6432 using application_name: psql
+2024-05-10 11:11:01.017 +03 [27273] DEBUG C-0x5579e3eb7840: (nodb)/(nouser)@unix(27289):6432 got var: client_encoding=UTF8
+2024-05-10 11:11:01.017 +03 [27273] NOISE cstr_get_pair: "host"="localhost"
+2024-05-10 11:11:01.017 +03 [27273] NOISE cstr_get_pair: "dbname"="emel"
+2024-05-10 11:11:01.017 +03 [27273] NOISE cstr_get_pair: "port"="9700"
+2024-05-10 11:11:01.017 +03 [27273] DEBUG pktbuf_dynamic(128): 0x5579e3eb5fc0
+2024-05-10 11:11:01.017 +03 [27273] LOG C-0x5579e3eb7840: (nodb)/(nouser)@unix(27289):6432 registered new auto-database: emel
+2024-05-10 11:11:01.017 +03 [27273] LOG C-0x5579e3eb7840: emel/emel@unix(27289):6432 login attempt: db=emel user=emel tls=no replication=no
+2024-05-10 11:11:01.017 +03 [27273] DEBUG finish_client_login: no welcome message, pause
+2024-05-10 11:11:01.017 +03 [27273] DEBUG C-0x5579e3eb7840: emel/emel@unix(27289):6432 pause_client
+2024-05-10 11:11:01.017 +03 [27273] DEBUG launch_new_connection: start
+2024-05-10 11:11:01.017 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@(bad-af):0 inet socket: localhost
+2024-05-10 11:11:01.017 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@(bad-af):0 dns socket: localhost
+2024-05-10 11:11:01.017 +03 [27273] NOISE dns: new req: localhost
+2024-05-10 11:11:01.017 +03 [27273] DEBUG zone_register(localhost)
+2024-05-10 11:11:01.017 +03 [27273] NOISE DNS: localhost[0] = 127.0.0.1:0 [STREAM]
+2024-05-10 11:11:01.018 +03 [27273] NOISE dns: evdns_getaddrinfo(localhost)=(nil)
+2024-05-10 11:11:01.018 +03 [27273] NOISE dns: deliver_info(localhost) addr=127.0.0.1:0
+2024-05-10 11:11:01.018 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@(bad-af):0 dns_callback: inet4: 127.0.0.1:9700
+2024-05-10 11:11:01.018 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 launching new connection to server
+2024-05-10 11:11:01.018 +03 [27273] DEBUG launch_new_connection: start
+2024-05-10 11:11:01.018 +03 [27273] DEBUG launch_new_connection: already progress
+2024-05-10 11:11:01.018 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: connect ok
+2024-05-10 11:11:01.018 +03 [27273] LOG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 new connection to server (from 127.0.0.1:55636)
+2024-05-10 11:11:01.018 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 P: SSL request
+2024-05-10 11:11:01.018 +03 [27273] DEBUG launch_new_connection: start
+2024-05-10 11:11:01.018 +03 [27273] DEBUG launch_new_connection: already progress
+2024-05-10 11:11:01.019 +03 [27273] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 11:11:01.019 +03 [27273] NOISE sbuf_process_pending: start
+2024-05-10 11:11:01.019 +03 [27273] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:11:01.019 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 launching tls
+2024-05-10 11:11:01.022 +03 [27273] NOISE sbuf_process_pending: loop 2
+2024-05-10 11:11:01.022 +03 [27273] NOISE sbuf_process_pending: done looping
+2024-05-10 11:11:01.022 +03 [27273] NOISE sbuf_send_pending_iobuf
+2024-05-10 11:11:01.022 +03 [27273] NOISE sbuf_process_pending: end
+2024-05-10 11:11:01.022 +03 [27273] NOISE resync(11): done=1, parse=1, recv=1
+2024-05-10 11:11:01.022 +03 [27273] NOISE tls_handshake: err=-2
+2024-05-10 11:11:01.022 +03 [27273] DEBUG launch_new_connection: start
+2024-05-10 11:11:01.022 +03 [27273] DEBUG launch_new_connection: already progress
+2024-05-10 11:11:01.022 +03 [27273] NOISE tls_handshake: err=-2
+2024-05-10 11:11:01.022 +03 [27273] DEBUG launch_new_connection: start
+2024-05-10 11:11:01.022 +03 [27273] DEBUG launch_new_connection: already progress
+2024-05-10 11:11:01.024 +03 [27273] NOISE tls_handshake: err=0
+2024-05-10 11:11:01.025 +03 [27273] LOG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 SSL established: TLSv1.3/TLS_AES_256_GCM_SHA384/ECDH=prime256v1
+2024-05-10 11:11:01.025 +03 [27273] DEBUG pktbuf_dynamic(512): 0x5579e3f80cb0
+2024-05-10 11:11:01.025 +03 [27273] NOISE tls_write: req=33 out=33
+2024-05-10 11:11:01.025 +03 [27273] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 11:11:01.025 +03 [27273] NOISE tls_read: req=4096 out=-2
+2024-05-10 11:11:01.025 +03 [27273] NOISE sbuf_process_pending: start
+2024-05-10 11:11:01.025 +03 [27273] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:11:01.025 +03 [27273] NOISE sbuf_process_pending: done looping
+2024-05-10 11:11:01.025 +03 [27273] NOISE sbuf_send_pending_iobuf
+2024-05-10 11:11:01.025 +03 [27273] NOISE sbuf_process_pending: end
+2024-05-10 11:11:01.025 +03 [27273] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 11:11:01.025 +03 [27273] DEBUG launch_new_connection: start
+2024-05-10 11:11:01.025 +03 [27273] DEBUG launch_new_connection: already progress
+2024-05-10 11:11:01.026 +03 [27273] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 11:11:01.026 +03 [27273] NOISE tls_read: req=4096 out=448
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: start
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:11:01.026 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='R', len=9
+2024-05-10 11:11:01.026 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 calling login_answer
+2024-05-10 11:11:01.026 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: auth ok
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: loop 2
+2024-05-10 11:11:01.026 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=24
+2024-05-10 11:11:01.026 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: in_hot_standby = off
+2024-05-10 11:11:01.026 +03 [27273] DEBUG pktbuf_dynamic(128): 0x5579e3ea7320
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: loop 3
+2024-05-10 11:11:01.026 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=26
+2024-05-10 11:11:01.026 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: integer_datetimes = on
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: loop 4
+2024-05-10 11:11:01.026 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=30
+2024-05-10 11:11:01.026 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: TimeZone = Europe/Istanbul
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: loop 5
+2024-05-10 11:11:01.026 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=28
+2024-05-10 11:11:01.026 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: IntervalStyle = postgres
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: loop 6
+2024-05-10 11:11:01.026 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=33
+2024-05-10 11:11:01.026 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: search_path = "$user", public
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: loop 7
+2024-05-10 11:11:01.026 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=21
+2024-05-10 11:11:01.026 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: is_superuser = on
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: loop 8
+2024-05-10 11:11:01.026 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=23
+2024-05-10 11:11:01.026 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: application_name = 
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: loop 9
+2024-05-10 11:11:01.026 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=39
+2024-05-10 11:11:01.026 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: default_transaction_read_only = off
+2024-05-10 11:11:01.026 +03 [27273] DEBUG make_room(0x5579e3ea7320, 30): realloc newlen=256
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: loop 10
+2024-05-10 11:11:01.026 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=27
+2024-05-10 11:11:01.026 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: scram_iterations = 4096
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: loop 11
+2024-05-10 11:11:01.026 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=24
+2024-05-10 11:11:01.026 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: DateStyle = ISO, MDY
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: loop 12
+2024-05-10 11:11:01.026 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=36
+2024-05-10 11:11:01.026 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: standard_conforming_strings = on
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: loop 13
+2024-05-10 11:11:01.026 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=32
+2024-05-10 11:11:01.026 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: session_authorization = emel
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: loop 14
+2024-05-10 11:11:01.026 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=26
+2024-05-10 11:11:01.026 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: client_encoding = UTF8
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: loop 15
+2024-05-10 11:11:01.026 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=25
+2024-05-10 11:11:01.026 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: server_version = 16.0
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: loop 16
+2024-05-10 11:11:01.026 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=26
+2024-05-10 11:11:01.026 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: server_encoding = UTF8
+2024-05-10 11:11:01.026 +03 [27273] DEBUG make_room(0x5579e3ea7320, 16): realloc newlen=512
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: loop 17
+2024-05-10 11:11:01.026 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='K', len=13
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: loop 18
+2024-05-10 11:11:01.026 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-10 11:11:01.026 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 server login ok, start accepting queries
+2024-05-10 11:11:01.026 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 release_server: new state=12
+2024-05-10 11:11:01.026 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 reuse_on_release: replication 0
+2024-05-10 11:11:01.026 +03 [27273] DEBUG C-0x5579e3eb7840: emel/emel@unix(27289):6432 activate_client
+2024-05-10 11:11:01.026 +03 [27273] NOISE resync(10): done=0, parse=0, recv=129
+2024-05-10 11:11:01.026 +03 [27273] NOISE safe_recv(10, 3967) = Resource temporarily unavailable
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: start
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:11:01.026 +03 [27273] NOISE C-0x5579e3eb7840: emel/emel@unix(27289):6432 read pkt='!' len=129
+2024-05-10 11:11:01.026 +03 [27273] NOISE C-0x5579e3eb7840: emel/emel@unix(27289):6432 P: welcome_client
+2024-05-10 11:11:01.026 +03 [27273] DEBUG C-0x5579e3eb7840: emel/emel@unix(27289):6432 logged in
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: loop 2
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: done looping
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_send_pending_iobuf
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: end
+2024-05-10 11:11:01.026 +03 [27273] NOISE resync(10): done=129, parse=129, recv=129
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: loop 19
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: done looping
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_send_pending_iobuf
+2024-05-10 11:11:01.026 +03 [27273] NOISE sbuf_process_pending: end
+2024-05-10 11:11:01.026 +03 [27273] NOISE resync(11): done=448, parse=448, recv=448
+2024-05-10 11:11:02.908 +03 [27273] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-10 11:11:02.908 +03 [27273] NOISE sbuf_process_pending: start
+2024-05-10 11:11:02.908 +03 [27273] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:11:02.908 +03 [27273] NOISE C-0x5579e3eb7840: emel/emel@unix(27289):6432 read pkt='Q' len=20
+2024-05-10 11:11:02.908 +03 [27273] NOISE C-0x5579e3eb7840: emel/emel@unix(27289):6432 find_server: client had no linked server yet
+2024-05-10 11:11:02.908 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 varcache_apply: SET DateStyle='German, YMD';SET TimeZone='Portugal';SET application_name='psql';
+2024-05-10 11:11:02.908 +03 [27273] NOISE tls_write: req=86 out=86
+2024-05-10 11:11:02.910 +03 [27273] NOISE C-0x5579e3eb7840: emel/emel@unix(27289):6432 linking client to S-0x5579e3ec0050
+2024-05-10 11:11:02.911 +03 [27273] NOISE C-0x5579e3eb7840: emel/emel@unix(27289):6432 pausing client while applying vars
+2024-05-10 11:11:02.911 +03 [27273] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 11:11:02.911 +03 [27273] NOISE tls_read: req=4096 out=110
+2024-05-10 11:11:02.911 +03 [27273] NOISE sbuf_process_pending: start
+2024-05-10 11:11:02.911 +03 [27273] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:11:02.911 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='C', len=9
+2024-05-10 11:11:02.911 +03 [27273] NOISE sbuf_process_pending: loop 2
+2024-05-10 11:11:02.911 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='C', len=9
+2024-05-10 11:11:02.911 +03 [27273] NOISE sbuf_process_pending: loop 3
+2024-05-10 11:11:02.911 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='C', len=9
+2024-05-10 11:11:02.911 +03 [27273] NOISE sbuf_process_pending: loop 4
+2024-05-10 11:11:02.911 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=27
+2024-05-10 11:11:02.911 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: application_name = psql
+2024-05-10 11:11:02.911 +03 [27273] DEBUG C-0x5579e3eb7840: emel/emel@unix(27289):6432 setting client var: application_name='psql'
+2024-05-10 11:11:02.911 +03 [27273] NOISE sbuf_process_pending: loop 5
+2024-05-10 11:11:02.911 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=23
+2024-05-10 11:11:02.911 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: TimeZone = Portugal
+2024-05-10 11:11:02.911 +03 [27273] DEBUG C-0x5579e3eb7840: emel/emel@unix(27289):6432 setting client var: TimeZone='Portugal'
+2024-05-10 11:11:02.911 +03 [27273] NOISE sbuf_process_pending: loop 6
+2024-05-10 11:11:02.911 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=27
+2024-05-10 11:11:02.911 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: DateStyle = German, YMD
+2024-05-10 11:11:02.911 +03 [27273] DEBUG C-0x5579e3eb7840: emel/emel@unix(27289):6432 setting client var: DateStyle='German, YMD'
+2024-05-10 11:11:02.911 +03 [27273] NOISE sbuf_process_pending: loop 7
+2024-05-10 11:11:02.911 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-10 11:11:02.911 +03 [27273] NOISE sbuf_process_pending: loop 8
+2024-05-10 11:11:02.911 +03 [27273] NOISE sbuf_process_pending: done looping
+2024-05-10 11:11:02.911 +03 [27273] NOISE sbuf_send_pending_iobuf
+2024-05-10 11:11:02.911 +03 [27273] NOISE sbuf_process_pending: end
+2024-05-10 11:11:02.911 +03 [27273] NOISE resync(11): done=110, parse=110, recv=110
+2024-05-10 11:11:02.911 +03 [27273] NOISE done setting vars unpausing client
+2024-05-10 11:11:02.911 +03 [27273] NOISE resync(10): done=0, parse=0, recv=20
+2024-05-10 11:11:02.911 +03 [27273] NOISE safe_recv(10, 4076) = Resource temporarily unavailable
+2024-05-10 11:11:02.911 +03 [27273] NOISE sbuf_process_pending: start
+2024-05-10 11:11:02.911 +03 [27273] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:11:02.911 +03 [27273] NOISE C-0x5579e3eb7840: emel/emel@unix(27289):6432 read pkt='Q' len=20
+2024-05-10 11:11:02.911 +03 [27273] NOISE C-0x5579e3eb7840: emel/emel@unix(27289):6432 add_outstanding_request: added Q, still outstanding 1
+2024-05-10 11:11:02.911 +03 [27273] NOISE sbuf_process_pending: loop 2
+2024-05-10 11:11:02.911 +03 [27273] NOISE sbuf_process_pending: done looping
+2024-05-10 11:11:02.911 +03 [27273] NOISE sbuf_send_pending_iobuf
+2024-05-10 11:11:02.911 +03 [27273] NOISE tls_write: req=20 out=20
+2024-05-10 11:11:02.911 +03 [27273] NOISE sbuf_process_pending: end
+2024-05-10 11:11:02.911 +03 [27273] NOISE resync(10): done=20, parse=20, recv=20
+2024-05-10 11:11:02.912 +03 [27273] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 11:11:02.912 +03 [27273] NOISE tls_read: req=4096 out=69
+2024-05-10 11:11:02.912 +03 [27273] NOISE sbuf_process_pending: start
+2024-05-10 11:11:02.912 +03 [27273] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:11:02.912 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='T', len=34
+2024-05-10 11:11:02.912 +03 [27273] NOISE sbuf_process_pending: loop 2
+2024-05-10 11:11:02.912 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='D', len=19
+2024-05-10 11:11:02.912 +03 [27273] NOISE sbuf_process_pending: loop 3
+2024-05-10 11:11:02.912 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='C', len=10
+2024-05-10 11:11:02.912 +03 [27273] NOISE sbuf_process_pending: loop 4
+2024-05-10 11:11:02.912 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-10 11:11:02.912 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 pop_outstanding_request: popped Q, still outstanding 0, skip 0
+2024-05-10 11:11:02.912 +03 [27273] DEBUG C-0x5579e3eb7840: emel/emel@unix(27289):6432 query time: 3515 us
+2024-05-10 11:11:02.912 +03 [27273] DEBUG C-0x5579e3eb7840: emel/emel@unix(27289):6432 transaction time: 3515 us
+2024-05-10 11:11:02.912 +03 [27273] NOISE sbuf_process_pending: loop 5
+2024-05-10 11:11:02.912 +03 [27273] NOISE sbuf_process_pending: done looping
+2024-05-10 11:11:02.912 +03 [27273] NOISE sbuf_send_pending_iobuf
+2024-05-10 11:11:02.912 +03 [27273] NOISE sbuf_process_pending: end
+2024-05-10 11:11:02.912 +03 [27273] NOISE resync(11): done=69, parse=69, recv=69
+2024-05-10 11:11:09.733 +03 [27273] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-10 11:11:09.733 +03 [27273] NOISE sbuf_process_pending: start
+2024-05-10 11:11:09.733 +03 [27273] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:11:09.733 +03 [27273] NOISE C-0x5579e3eb7840: emel/emel@unix(27289):6432 read pkt='Q' len=21
+2024-05-10 11:11:09.733 +03 [27273] NOISE C-0x5579e3eb7840: emel/emel@unix(27289):6432 add_outstanding_request: added Q, still outstanding 1
+2024-05-10 11:11:09.733 +03 [27273] NOISE sbuf_process_pending: loop 2
+2024-05-10 11:11:09.733 +03 [27273] NOISE sbuf_process_pending: done looping
+2024-05-10 11:11:09.733 +03 [27273] NOISE sbuf_send_pending_iobuf
+2024-05-10 11:11:09.734 +03 [27273] NOISE tls_write: req=21 out=21
+2024-05-10 11:11:09.734 +03 [27273] NOISE sbuf_process_pending: end
+2024-05-10 11:11:09.734 +03 [27273] NOISE resync(10): done=21, parse=21, recv=21
+2024-05-10 11:11:09.734 +03 [27273] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 11:11:09.734 +03 [27273] NOISE tls_read: req=4096 out=73
+2024-05-10 11:11:09.734 +03 [27273] NOISE sbuf_process_pending: start
+2024-05-10 11:11:09.734 +03 [27273] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:11:09.734 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='T', len=35
+2024-05-10 11:11:09.734 +03 [27273] NOISE sbuf_process_pending: loop 2
+2024-05-10 11:11:09.734 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='D', len=22
+2024-05-10 11:11:09.734 +03 [27273] NOISE sbuf_process_pending: loop 3
+2024-05-10 11:11:09.734 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='C', len=10
+2024-05-10 11:11:09.734 +03 [27273] NOISE sbuf_process_pending: loop 4
+2024-05-10 11:11:09.734 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-10 11:11:09.734 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 pop_outstanding_request: popped Q, still outstanding 0, skip 0
+2024-05-10 11:11:09.734 +03 [27273] DEBUG C-0x5579e3eb7840: emel/emel@unix(27289):6432 query time: 868 us
+2024-05-10 11:11:09.734 +03 [27273] DEBUG C-0x5579e3eb7840: emel/emel@unix(27289):6432 transaction time: 868 us
+2024-05-10 11:11:09.734 +03 [27273] NOISE sbuf_process_pending: loop 5
+2024-05-10 11:11:09.734 +03 [27273] NOISE sbuf_process_pending: done looping
+2024-05-10 11:11:09.734 +03 [27273] NOISE sbuf_send_pending_iobuf
+2024-05-10 11:11:09.734 +03 [27273] NOISE sbuf_process_pending: end
+2024-05-10 11:11:09.734 +03 [27273] NOISE resync(11): done=73, parse=73, recv=73
+2024-05-10 11:11:14.581 +03 [27273] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-10 11:11:14.581 +03 [27273] NOISE sbuf_process_pending: start
+2024-05-10 11:11:14.581 +03 [27273] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:11:14.581 +03 [27273] NOISE C-0x5579e3eb7840: emel/emel@unix(27289):6432 read pkt='X' len=5
+2024-05-10 11:11:14.581 +03 [27273] LOG C-0x5579e3eb7840: emel/emel@unix(27289):6432 closing because: client close request (age=13s)
+2024-05-10 11:11:14.581 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 release_server: new state=16
+2024-05-10 11:11:14.581 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 resetting: DISCARD ALL
+2024-05-10 11:11:14.581 +03 [27273] NOISE tls_write: req=17 out=17
+2024-05-10 11:11:14.582 +03 [27273] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 11:11:14.582 +03 [27273] NOISE tls_read: req=4096 out=100
+2024-05-10 11:11:14.582 +03 [27273] NOISE sbuf_process_pending: start
+2024-05-10 11:11:14.582 +03 [27273] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:11:14.582 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='C', len=17
+2024-05-10 11:11:14.582 +03 [27273] NOISE sbuf_process_pending: loop 2
+2024-05-10 11:11:14.582 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=23
+2024-05-10 11:11:14.582 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: application_name = 
+2024-05-10 11:11:14.582 +03 [27273] NOISE sbuf_process_pending: loop 3
+2024-05-10 11:11:14.582 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=30
+2024-05-10 11:11:14.582 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: TimeZone = Europe/Istanbul
+2024-05-10 11:11:14.582 +03 [27273] NOISE sbuf_process_pending: loop 4
+2024-05-10 11:11:14.582 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=24
+2024-05-10 11:11:14.582 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: DateStyle = ISO, MDY
+2024-05-10 11:11:14.582 +03 [27273] NOISE sbuf_process_pending: loop 5
+2024-05-10 11:11:14.582 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-10 11:11:14.582 +03 [27273] NOISE sbuf_process_pending: loop 6
+2024-05-10 11:11:14.582 +03 [27273] NOISE sbuf_process_pending: done looping
+2024-05-10 11:11:14.582 +03 [27273] NOISE sbuf_send_pending_iobuf
+2024-05-10 11:11:14.582 +03 [27273] NOISE sbuf_process_pending: end
+2024-05-10 11:11:14.582 +03 [27273] NOISE resync(11): done=100, parse=100, recv=100
+2024-05-10 11:11:14.582 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 release_server: new state=12
+2024-05-10 11:11:14.583 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 reuse_on_release: replication 0
+2024-05-10 11:11:19.003 +03 [27273] NOISE new fd from accept=10
+2024-05-10 11:11:19.003 +03 [27273] NOISE unix peer uid: 1000
+2024-05-10 11:11:19.003 +03 [27273] DEBUG C-0x5579e3eb7840: (nodb)/(nouser)@unix(27361):6432 P: got connection: unix->unix
+2024-05-10 11:11:19.003 +03 [27273] NOISE safe_accept(9) = Resource temporarily unavailable
+2024-05-10 11:11:19.003 +03 [27273] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-10 11:11:19.003 +03 [27273] NOISE sbuf_process_pending: start
+2024-05-10 11:11:19.003 +03 [27273] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:11:19.003 +03 [27273] NOISE C-0x5579e3eb7840: (nodb)/(nouser)@unix(27361):6432 read pkt='!' len=132
+2024-05-10 11:11:19.003 +03 [27273] DEBUG C-0x5579e3eb7840: (nodb)/(nouser)@unix(27361):6432 got var: user=emel
+2024-05-10 11:11:19.003 +03 [27273] DEBUG C-0x5579e3eb7840: (nodb)/(nouser)@unix(27361):6432 got var: database=emel
+2024-05-10 11:11:19.003 +03 [27273] DEBUG C-0x5579e3eb7840: (nodb)/(nouser)@unix(27361):6432 received options: --timezone=Portugal    --datestyle=German,\ YMD
+2024-05-10 11:11:19.003 +03 [27273] DEBUG C-0x5579e3eb7840: (nodb)/(nouser)@unix(27361):6432 got var from options: timezone=Portugal
+2024-05-10 11:11:19.003 +03 [27273] DEBUG C-0x5579e3eb7840: (nodb)/(nouser)@unix(27361):6432 got var from options: datestyle=German, YMD
+2024-05-10 11:11:19.003 +03 [27273] DEBUG C-0x5579e3eb7840: (nodb)/(nouser)@unix(27361):6432 using application_name: psql
+2024-05-10 11:11:19.003 +03 [27273] DEBUG C-0x5579e3eb7840: (nodb)/(nouser)@unix(27361):6432 got var: client_encoding=UTF8
+2024-05-10 11:11:19.003 +03 [27273] LOG C-0x5579e3eb7840: emel/emel@unix(27361):6432 login attempt: db=emel user=emel tls=no replication=no
+2024-05-10 11:11:19.003 +03 [27273] NOISE C-0x5579e3eb7840: emel/emel@unix(27361):6432 P: welcome_client
+2024-05-10 11:11:19.003 +03 [27273] DEBUG C-0x5579e3eb7840: emel/emel@unix(27361):6432 logged in
+2024-05-10 11:11:19.003 +03 [27273] NOISE sbuf_process_pending: loop 2
+2024-05-10 11:11:19.003 +03 [27273] NOISE sbuf_process_pending: done looping
+2024-05-10 11:11:19.003 +03 [27273] NOISE sbuf_send_pending_iobuf
+2024-05-10 11:11:19.003 +03 [27273] NOISE sbuf_process_pending: end
+2024-05-10 11:11:19.003 +03 [27273] NOISE resync(10): done=132, parse=132, recv=132
+2024-05-10 11:11:20.822 +03 [27273] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-10 11:11:20.822 +03 [27273] NOISE sbuf_process_pending: start
+2024-05-10 11:11:20.822 +03 [27273] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:11:20.822 +03 [27273] NOISE C-0x5579e3eb7840: emel/emel@unix(27361):6432 read pkt='Q' len=21
+2024-05-10 11:11:20.822 +03 [27273] NOISE C-0x5579e3eb7840: emel/emel@unix(27361):6432 find_server: client had no linked server yet
+2024-05-10 11:11:20.822 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 varcache_apply: SET DateStyle='German, YMD';SET TimeZone='Portugal';SET application_name='psql';
+2024-05-10 11:11:20.822 +03 [27273] NOISE tls_write: req=86 out=86
+2024-05-10 11:11:20.822 +03 [27273] NOISE C-0x5579e3eb7840: emel/emel@unix(27361):6432 linking client to S-0x5579e3ec0050
+2024-05-10 11:11:20.822 +03 [27273] NOISE C-0x5579e3eb7840: emel/emel@unix(27361):6432 pausing client while applying vars
+2024-05-10 11:11:20.823 +03 [27273] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 11:11:20.823 +03 [27273] NOISE tls_read: req=4096 out=110
+2024-05-10 11:11:20.823 +03 [27273] NOISE sbuf_process_pending: start
+2024-05-10 11:11:20.823 +03 [27273] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:11:20.823 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='C', len=9
+2024-05-10 11:11:20.823 +03 [27273] NOISE sbuf_process_pending: loop 2
+2024-05-10 11:11:20.823 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='C', len=9
+2024-05-10 11:11:20.823 +03 [27273] NOISE sbuf_process_pending: loop 3
+2024-05-10 11:11:20.823 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='C', len=9
+2024-05-10 11:11:20.823 +03 [27273] NOISE sbuf_process_pending: loop 4
+2024-05-10 11:11:20.823 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=27
+2024-05-10 11:11:20.823 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: application_name = psql
+2024-05-10 11:11:20.823 +03 [27273] DEBUG C-0x5579e3eb7840: emel/emel@unix(27361):6432 setting client var: application_name='psql'
+2024-05-10 11:11:20.823 +03 [27273] NOISE sbuf_process_pending: loop 5
+2024-05-10 11:11:20.823 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=23
+2024-05-10 11:11:20.823 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: TimeZone = Portugal
+2024-05-10 11:11:20.823 +03 [27273] DEBUG C-0x5579e3eb7840: emel/emel@unix(27361):6432 setting client var: TimeZone='Portugal'
+2024-05-10 11:11:20.823 +03 [27273] NOISE sbuf_process_pending: loop 6
+2024-05-10 11:11:20.823 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='S', len=27
+2024-05-10 11:11:20.823 +03 [27273] DEBUG S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 S: param: DateStyle = German, YMD
+2024-05-10 11:11:20.823 +03 [27273] DEBUG C-0x5579e3eb7840: emel/emel@unix(27361):6432 setting client var: DateStyle='German, YMD'
+2024-05-10 11:11:20.823 +03 [27273] NOISE sbuf_process_pending: loop 7
+2024-05-10 11:11:20.823 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-10 11:11:20.823 +03 [27273] NOISE sbuf_process_pending: loop 8
+2024-05-10 11:11:20.823 +03 [27273] NOISE sbuf_process_pending: done looping
+2024-05-10 11:11:20.823 +03 [27273] NOISE sbuf_send_pending_iobuf
+2024-05-10 11:11:20.823 +03 [27273] NOISE sbuf_process_pending: end
+2024-05-10 11:11:20.823 +03 [27273] NOISE resync(11): done=110, parse=110, recv=110
+2024-05-10 11:11:20.823 +03 [27273] NOISE done setting vars unpausing client
+2024-05-10 11:11:20.823 +03 [27273] NOISE resync(10): done=0, parse=0, recv=21
+2024-05-10 11:11:20.823 +03 [27273] NOISE safe_recv(10, 4075) = Resource temporarily unavailable
+2024-05-10 11:11:20.823 +03 [27273] NOISE sbuf_process_pending: start
+2024-05-10 11:11:20.823 +03 [27273] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:11:20.823 +03 [27273] NOISE C-0x5579e3eb7840: emel/emel@unix(27361):6432 read pkt='Q' len=21
+2024-05-10 11:11:20.823 +03 [27273] NOISE C-0x5579e3eb7840: emel/emel@unix(27361):6432 add_outstanding_request: added Q, still outstanding 1
+2024-05-10 11:11:20.823 +03 [27273] NOISE sbuf_process_pending: loop 2
+2024-05-10 11:11:20.823 +03 [27273] NOISE sbuf_process_pending: done looping
+2024-05-10 11:11:20.823 +03 [27273] NOISE sbuf_send_pending_iobuf
+2024-05-10 11:11:20.823 +03 [27273] NOISE tls_write: req=21 out=21
+2024-05-10 11:11:20.823 +03 [27273] NOISE sbuf_process_pending: end
+2024-05-10 11:11:20.823 +03 [27273] NOISE resync(10): done=21, parse=21, recv=21
+2024-05-10 11:11:20.824 +03 [27273] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 11:11:20.824 +03 [27273] NOISE tls_read: req=4096 out=73
+2024-05-10 11:11:20.824 +03 [27273] NOISE sbuf_process_pending: start
+2024-05-10 11:11:20.824 +03 [27273] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:11:20.824 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='T', len=35
+2024-05-10 11:11:20.824 +03 [27273] NOISE sbuf_process_pending: loop 2
+2024-05-10 11:11:20.824 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='D', len=22
+2024-05-10 11:11:20.824 +03 [27273] NOISE sbuf_process_pending: loop 3
+2024-05-10 11:11:20.824 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='C', len=10
+2024-05-10 11:11:20.824 +03 [27273] NOISE sbuf_process_pending: loop 4
+2024-05-10 11:11:20.824 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-10 11:11:20.824 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 pop_outstanding_request: popped Q, still outstanding 0, skip 0
+2024-05-10 11:11:20.824 +03 [27273] DEBUG C-0x5579e3eb7840: emel/emel@unix(27361):6432 query time: 2178 us
+2024-05-10 11:11:20.824 +03 [27273] DEBUG C-0x5579e3eb7840: emel/emel@unix(27361):6432 transaction time: 2178 us
+2024-05-10 11:11:20.824 +03 [27273] NOISE sbuf_process_pending: loop 5
+2024-05-10 11:11:20.824 +03 [27273] NOISE sbuf_process_pending: done looping
+2024-05-10 11:11:20.824 +03 [27273] NOISE sbuf_send_pending_iobuf
+2024-05-10 11:11:20.824 +03 [27273] NOISE sbuf_process_pending: end
+2024-05-10 11:11:20.824 +03 [27273] NOISE resync(11): done=73, parse=73, recv=73
+2024-05-10 11:11:22.831 +03 [27273] NOISE resync(10): done=0, parse=0, recv=0
+2024-05-10 11:11:22.831 +03 [27273] NOISE sbuf_process_pending: start
+2024-05-10 11:11:22.831 +03 [27273] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:11:22.831 +03 [27273] NOISE C-0x5579e3eb7840: emel/emel@unix(27361):6432 read pkt='Q' len=20
+2024-05-10 11:11:22.831 +03 [27273] NOISE C-0x5579e3eb7840: emel/emel@unix(27361):6432 add_outstanding_request: added Q, still outstanding 1
+2024-05-10 11:11:22.831 +03 [27273] NOISE sbuf_process_pending: loop 2
+2024-05-10 11:11:22.831 +03 [27273] NOISE sbuf_process_pending: done looping
+2024-05-10 11:11:22.831 +03 [27273] NOISE sbuf_send_pending_iobuf
+2024-05-10 11:11:22.831 +03 [27273] NOISE tls_write: req=20 out=20
+2024-05-10 11:11:22.831 +03 [27273] NOISE sbuf_process_pending: end
+2024-05-10 11:11:22.831 +03 [27273] NOISE resync(10): done=20, parse=20, recv=20
+2024-05-10 11:11:22.832 +03 [27273] NOISE resync(11): done=0, parse=0, recv=0
+2024-05-10 11:11:22.832 +03 [27273] NOISE tls_read: req=4096 out=69
+2024-05-10 11:11:22.832 +03 [27273] NOISE sbuf_process_pending: start
+2024-05-10 11:11:22.832 +03 [27273] NOISE sbuf_process_pending: loop 1
+2024-05-10 11:11:22.832 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='T', len=34
+2024-05-10 11:11:22.832 +03 [27273] NOISE sbuf_process_pending: loop 2
+2024-05-10 11:11:22.832 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='D', len=19
+2024-05-10 11:11:22.832 +03 [27273] NOISE sbuf_process_pending: loop 3
+2024-05-10 11:11:22.832 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='C', len=10
+2024-05-10 11:11:22.832 +03 [27273] NOISE sbuf_process_pending: loop 4
+2024-05-10 11:11:22.832 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 read pkt='Z', len=6
+2024-05-10 11:11:22.832 +03 [27273] NOISE S-0x5579e3ec0050: emel/emel@127.0.0.1:9700 pop_outstanding_request: popped Q, still outstanding 0, skip 0
+2024-05-10 11:11:22.832 +03 [27273] DEBUG C-0x5579e3eb7840: emel/emel@unix(27361):6432 query time: 1030 us
+2024-05-10 11:11:22.832 +03 [27273] DEBUG C-0x5579e3eb7840: emel/emel@unix(27361):6432 transaction time: 1030 us
+2024-05-10 11:11:22.832 +03 [27273] NOISE sbuf_process_pending: loop 5
+2024-05-10 11:11:22.832 +03 [27273] NOISE sbuf_process_pending: done looping
+2024-05-10 11:11:22.832 +03 [27273] NOISE sbuf_send_pending_iobuf
+2024-05-10 11:11:22.832 +03 [27273] NOISE sbuf_process_pending: end
+2024-05-10 11:11:22.832 +03 [27273] NOISE resync(11): done=69, parse=69, recv=69
+2024-05-10 11:11:57.258 +03 [27273] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 1 B/s, out 10 B/s, xact 1897 us, query 1897 us, wait 143 us
+2024-05-10 11:12:57.258 +03 [27273] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 11:13:57.257 +03 [27273] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 11:14:57.259 +03 [27273] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 11:15:57.253 +03 [27273] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 11:16:57.257 +03 [27273] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 11:17:57.257 +03 [27273] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 11:18:57.258 +03 [27273] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 11:19:57.258 +03 [27273] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 11:20:57.259 +03 [27273] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 11:21:57.253 +03 [27273] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 11:22:57.259 +03 [27273] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 11:23:57.258 +03 [27273] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 11:24:57.258 +03 [27273] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 11:25:57.258 +03 [27273] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 11:26:57.259 +03 [27273] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 11:27:57.259 +03 [27273] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 11:28:57.252 +03 [27273] LOG stats: 0 xacts/s, 0 queries/s, 0 client parses/s, 0 server parses/s, 0 binds/s, in 0 B/s, out 0 B/s, xact 0 us, query 0 us, wait 0 us
+2024-05-10 11:29:20.379 +03 [27273] LOG got SIGINT, shutting down, waiting for all servers connections to be released
+2024-05-10 11:29:23.321 +03 [27273] LOG got SIGINT while shutting down, fast exit

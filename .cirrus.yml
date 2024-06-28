@@ -13,10 +13,11 @@ task:
         image: ubuntu:22.04
       env:
         configure_args: '--with-cares --with-pam'
-    - container:
-        image: ubuntu:22.04
-      env:
-        configure_args: '--without-openssl'
+# FIXME
+#    - container:
+#        image: ubuntu:22.04
+#      env:
+#        configure_args: '--without-openssl'
     # - container:
     #     image: ubuntu:20.04
     #   env:
@@ -98,6 +99,53 @@ task:
   always:
     configure_artifacts:
       path: "config.log"
+      type: text/plain
+
+task:
+  name: Linux (Debian/Ubuntu) - Meson
+  matrix:
+    - container:
+        image: ubuntu:22.04
+      env:
+        configure_args: '-Dcares=enabled -Dpam=enabled'
+  setup_script:
+    - apt-get update
+    - apt-get -y install curl gnupg lsb-release
+    - curl https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
+    - echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main $PGVERSION" | tee /etc/apt/sources.list.d/pgdg.list
+    - if [ "$PGVERSION" = 17 ]; then echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg-snapshot main 17" | tee /etc/apt/sources.list.d/pgdg.list; fi
+    - apt-get update
+    - pkgs="meson ca-certificates cpio libc-ares-dev libevent-dev libpam0g-dev libssl-dev libsystemd-dev libtool make pandoc postgresql-$PGVERSION pkg-config python3 python3-pip python3-venv sudo iptables"
+    - case $CC in clang) pkgs="$pkgs clang";; esac
+    - if [ "$PGVERSION" = 17 ]; then pkgs="$pkgs libpq5=$(apt-cache show libpq5 | grep "^Version: $PGVERSION" | awk '{print $2}')"; fi
+    - if [ "$PGVERSION" = 17 ]; then pkgs="$pkgs postgresql-common=$(apt-cache show postgresql-common | grep "^Version: .*pgdg" | awk '{print $2}')"; fi
+    - if [ "$PGVERSION" = 17 ]; then pkgs="$pkgs postgresql-client-common=$(apt-cache show postgresql-client-common | grep "^Version: .*pgdg" | awk '{print $2}')"; fi
+    - apt-get -y install $pkgs
+    - python3 -m venv /venv
+    - /venv/bin/pip install -r requirements.txt
+    - useradd user
+    - chown -R user .
+    - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+  build_script:
+    - su user -c "meson setup build --prefix=$HOME/install -Dcassert=true --werror -Dsystemd=enabled $configure_args"
+    - su user -c "meson compile -C build -v"
+  test_script:
+    - source /venv/bin/activate && su user -c "PATH=/usr/lib/postgresql/${PGVERSION}/bin:$PATH meson test -C build -v"
+  install_script:
+    - meson install -C build
+#  dist_script:
+#    - make -j4 dist
+#    - PACKAGE_VERSION=$(sed -n 's/PACKAGE_VERSION = //p' config.mak)
+#    - tar -x -v -f pgbouncer-${PACKAGE_VERSION}.tar.gz
+#    - cd pgbouncer-${PACKAGE_VERSION}/
+#    - ./configure --prefix=$HOME/install2 --enable-werror --without-cares $configure_args
+#   - make -j4
+#   - make -j4 install
+#  tarball_artifacts:
+#    path: "pgbouncer-*.tar.gz"
+  always:
+    meson_log_artifacts:
+      path: "build*/meson-logs/*.txt"
       type: text/plain
 
 task:
@@ -222,6 +270,33 @@ task:
   always:
     configure_artifacts:
       path: "config.log"
+      type: text/plain
+
+task:
+  name: macOS - Meson
+  macos_instance:
+    image: ghcr.io/cirruslabs/macos-sonoma-base:latest
+  env:
+    HAVE_IPV6_LOCALHOST: yes
+    USE_SUDO: true
+  setup_script:
+    - brew install meson bash libevent openssl pandoc pkg-config postgresql@${PGVERSION}
+#    - pip3 install --break-system-packages -r requirements.txt
+    - python3 -m pip install -r requirements.txt
+    - echo 'anchor "pgbouncer_test/*"' | sudo tee -a /etc/pf.conf
+    - sudo pfctl -f /etc/pf.conf
+  env:
+    PKG_CONFIG_PATH: /opt/homebrew/opt/pkgconfig
+  build_script:
+    - meson setup build
+    - meson compile -C build
+  test_script:
+    - meson test -C build
+  install_script:
+    - meson install -C build
+  always:
+    meson_log_artifacts:
+      path: "build*/meson-logs/*.txt"
       type: text/plain
 
 task:

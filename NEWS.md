@@ -12,7 +12,7 @@ PgBouncer 1.23.x
     waiting for all clients to disconnect before shutting down. The new SIGTERM
     behaviour allows rolling restarts of multiple PgBouncer processes behind a
     load balancer, or listening on the same port using `so_reuseport`.
-    This is a minor **breaking change**. If you relied on the old behaviour of
+    This is a **minor breaking change**. If you relied on the old behaviour of
     SIGTERM in your Dockerfile or Systemd service file you should now use SIGQUIT.
     ([#902])
   * Add support for user name maps for `cert` and `peer` authentication

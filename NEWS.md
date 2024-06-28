@@ -6,18 +6,15 @@ PgBouncer 1.23.x
 
 **2024-06-28  -  PgBouncer 1.23.0  -  "Into the new beginnings"**
 
-- Breaking Changes
-  * This release changes the meaning of SIGTERM to add support for rolling
-    restarts of PgBouncer processes. This is a minor breaking change.
-    If you relied on the old behaviour of SIGTERM in your Dockerfile or
-    SystemD service file you should now use SIGQUIT.
-
 - Features
   * Add support for rolling restarts. SIGTERM doesn't cause immediate shutdown
     of the PgBouncer process anymore. It now does a "super safe shutdown":
     waiting for all clients to disconnect before shutting down. The new SIGTERM
-    behaviour allows rolling restarts of multiple PgBouncer processes behind
-    a load balancer, or listening on the same port using so_reuseport. ([#902])
+    behaviour allows rolling restarts of multiple PgBouncer processes behind a
+    load balancer, or listening on the same port using `so_reuseport`.
+    This is a minor **breaking change**. If you relied on the old behaviour of
+    SIGTERM in your Dockerfile or Systemd service file you should now use SIGQUIT.
+    ([#902])
   * Add support for user name maps for `cert` and `peer` authentication
     methods. This feature provides the flexibility that the user initiating
     the connection does not have to be the database user. PgBouncer support
@@ -39,6 +36,7 @@ PgBouncer 1.23.x
   * Add support for `--config=value` format in options startup parameter. ([#1064])
   * Fix `avg_wait_time` metric calculation. ([#727])
   * Add support for negotiating the postgres protocol version with the client. ([#1007])
+  * Add outstanding request for `auth_query`. ([#1034])
   * Multiple documentation and CI improvements.
 
 [#996]: https://github.com/pgbouncer/pgbouncer/pull/996
@@ -55,6 +53,8 @@ PgBouncer 1.23.x
 [#1080]: https://github.com/pgbouncer/pgbouncer/pull/1080
 [#727]: https://github.com/pgbouncer/pgbouncer/pull/727
 [#1076]: https://github.com/pgbouncer/pgbouncer/pull/1076
+[#1034]: https://github.com/pgbouncer/pgbouncer/pull/1034
+
 
 PgBouncer 1.22.x
 ----------------

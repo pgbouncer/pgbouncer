@@ -198,6 +198,7 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 		}
 
 		if (strcmp("host", key) == 0) {
+			free(host);
 			host = strdup(val);
 			if (!host) {
 				log_error("out of memory");
@@ -233,13 +234,17 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 
 	free(peer->host);
 	peer->host = host;
+	host = NULL;
 	peer->port = port;
 	peer->pool_size = pool_size;
+
+	Assert(host == NULL);
 
 	free(tmp_connstr);
 	return true;
 fail:
 	free(tmp_connstr);
+	free(host);
 	return false;
 }
 /* fill PgDatabase from connstr */

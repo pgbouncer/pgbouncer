@@ -303,6 +303,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		if (strcmp("dbname", key) == 0) {
 			dbname = val;
 		} else if (strcmp("host", key) == 0) {
+			free(host);
 			host = strdup(val);
 			if (!host) {
 				log_error("out of memory");
@@ -344,6 +345,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 				goto fail;
 			}
 		} else if (strcmp("connect_query", key) == 0) {
+			free(connect_query);
 			connect_query = strdup(val);
 			if (!connect_query) {
 				log_error("out of memory");
@@ -399,6 +401,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 
 	free(db->host);
 	db->host = host;
+	host = NULL;
 	db->port = port;
 	db->pool_size = pool_size;
 	db->min_pool_size = min_pool_size;
@@ -408,6 +411,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	db->server_lifetime = server_lifetime;
 	free(db->connect_query);
 	db->connect_query = connect_query;
+	connect_query = NULL;
 
 	if (!set_param_value(&db->auth_dbname, auth_dbname))
 		goto fail;
@@ -470,10 +474,15 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	/* remember dbname */
 	db->dbname = (char *)msg->buf + dbname_ofs;
 
+	Assert(host == NULL);
+	Assert(connect_query == NULL);
+
 	free(tmp_connstr);
 	return true;
 fail:
 	free(tmp_connstr);
+	free(host);
+	free(connect_query);
 	return false;
 }
 

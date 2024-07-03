@@ -1,6 +1,61 @@
 PgBouncer changelog
 ===================
 
+PgBouncer 1.23.x
+----------------
+
+**2024-07-03  -  PgBouncer 1.23.0  -  "Into the new beginnings"**
+
+- Features
+  * Add support for rolling restarts. SIGTERM doesn't cause immediate shutdown
+    of the PgBouncer process anymore. It now does a "super safe shutdown":
+    waiting for all clients to disconnect before shutting down. The new SIGTERM
+    behaviour allows rolling restarts of multiple PgBouncer processes behind a
+    load balancer, or listening on the same port using `so_reuseport`.
+    This is a **minor breaking change**. If you relied on the old behaviour of
+    SIGTERM in your Dockerfile or Systemd service file you should now use SIGQUIT.
+    ([#902])
+  * Add support for user name maps for `cert` and `peer` authentication
+    methods. This feature provides the flexibility that the user initiating
+    the connection does not have to be the database user. PgBouncer support
+    for user name maps works very similar to the postgres with the exceptions
+    listed in the docs. ([#996])
+  * Add support for replication connections through PgBouncer. ([#876])
+
+- Changes
+  * Improve `SHOW USERS` output listing the connections. ([#1040])
+  * Allow `pool_size` configuration per user. ([#1049])
+  * Allow `server_lifetime` configuration per database. ([#1057])
+  * Add support for listing dynamically created users in the output of `SHOW USERS`. ([#1052])
+  * Add support for `all` address type in hba configuration. ([#1078])
+  * Add support for automatically restarting when using systemd. ([#1080])
+  * Increase c-ares minimum version requirement to 1.9.0 ([#1076])
+
+- Fixes
+  * Fix issues handling large and partial startup packets. ([#1058])
+  * Add support for `--config=value` format in options startup parameter. ([#1064])
+  * Fix `avg_wait_time` metric calculation. ([#727])
+  * Add support for negotiating the postgres protocol version with the client. ([#1007])
+  * Add outstanding request for `auth_query`. ([#1034])
+  * Multiple documentation and CI improvements.
+
+[#996]: https://github.com/pgbouncer/pgbouncer/pull/996
+[#1040]: https://github.com/pgbouncer/pgbouncer/pull/1040
+[#1049]: https://github.com/pgbouncer/pgbouncer/pull/1049
+[#1057]: https://github.com/pgbouncer/pgbouncer/pull/1057
+[#1052]: https://github.com/pgbouncer/pgbouncer/pull/1052
+[#1058]: https://github.com/pgbouncer/pgbouncer/pull/1058
+[#1007]: https://github.com/pgbouncer/pgbouncer/pull/1007
+[#876]: https://github.com/pgbouncer/pgbouncer/pull/876
+[#902]: https://github.com/pgbouncer/pgbouncer/pull/902
+[#1064]: https://github.com/pgbouncer/pgbouncer/pull/1064
+[#1078]: https://github.com/pgbouncer/pgbouncer/pull/1078
+[#1080]: https://github.com/pgbouncer/pgbouncer/pull/1080
+[#727]: https://github.com/pgbouncer/pgbouncer/pull/727
+[#1076]: https://github.com/pgbouncer/pgbouncer/pull/1076
+[#1034]: https://github.com/pgbouncer/pgbouncer/pull/1034
+
+
 PgBouncer 1.22.x
 ----------------
 

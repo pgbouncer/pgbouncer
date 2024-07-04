@@ -4,6 +4,7 @@ from .utils import capture, run, Bouncer
 
 from configparser import ConfigParser
 
+
 def test_show(bouncer):
     show_items = [
         "clients",
@@ -102,11 +103,11 @@ def test_reload_and_check_dbs(bouncer: Bouncer):
     C_INI_SECTION__DATABASES = "databases"
 
     def reload_and_check(bouncer: Bouncer, config: ConfigParser):
-        with open(bouncer.ini_path, 'w') as configfile:
+        with open(bouncer.ini_path, "w") as configfile:
             config.write(configfile)
 
         bouncer.admin("RELOAD")
-        cur_dbs = bouncer.admin("SHOW DATABASES", row_factory = dict_row)
+        cur_dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
 
         expected_dbs = []
         for x in config.options(C_INI_SECTION__DATABASES):
@@ -114,16 +115,16 @@ def test_reload_and_check_dbs(bouncer: Bouncer):
 
         actual_dbs = []
         for x in cur_dbs:
-            actual_dbs.append(x['name'])
+            actual_dbs.append(x["name"])
 
         # Try to find all expected databases
         for x in expected_dbs:
-            assert x in actual_dbs;
+            assert x in actual_dbs
 
         # Verification of all the actual databases
         has_pgbouncer_db = False
         for x in actual_dbs:
-            if x == 'pgbouncer':
+            if x == "pgbouncer":
                 has_pgbouncer_db = True
             else:
                 assert x in expected_dbs
@@ -138,10 +139,10 @@ def test_reload_and_check_dbs(bouncer: Bouncer):
 
     # Removing databases
     for db_name in dbs:
-        config.remove_option(C_INI_SECTION__DATABASES, db_name);
+        config.remove_option(C_INI_SECTION__DATABASES, db_name)
         reload_and_check(bouncer, config)
 
     # Appending databases
     for db_name in dbs:
-        config.set(C_INI_SECTION__DATABASES,db_name, dbs[db_name]);
+        config.set(C_INI_SECTION__DATABASES, db_name, dbs[db_name])
         reload_and_check(bouncer, config)

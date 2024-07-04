@@ -131,8 +131,7 @@ def test_reload_and_check_dbs(bouncer: Bouncer):
         assert has_pgbouncer_db
 
     config = ConfigParser(strict=False)
-    iniFile = bouncer.ini_path
-    config.read(iniFile)
+    config.read(bouncer.ini_path)
     dbs = {}
     for x in config.options(C_INI_SECTION__DATABASES):
         dbs[x] = config.get(C_INI_SECTION__DATABASES, x)

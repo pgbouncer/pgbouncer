@@ -658,9 +658,6 @@ static bool parse_ident_line(struct Ident *ident, struct TokParser *tp, int line
 	return true;
 
 failed:
-	/* Not null ident_map is not expected here. */
-	Assert(ident_map == NULL);
-
 	mapping_free(mapping);
 	ident_map_free(ident_map);
 	free(map_name_copy);

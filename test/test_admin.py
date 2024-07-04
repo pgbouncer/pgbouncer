@@ -1,7 +1,8 @@
 from psycopg.rows import dict_row
 
-from .utils import capture, run
+from .utils import capture, run, Bouncer
 
+from configparser import ConfigParser
 
 def test_show(bouncer):
     show_items = [
@@ -93,3 +94,54 @@ def test_show_stats(bouncer):
     assert ("total_xact_count", 10) in totals
     # 11 SELECT 1 + 2 times COMMIT and ROLLBACK + 4 admin commands
     assert ("total_query_count", 19) in totals
+
+
+def test_reload_and_check_dbs(bouncer: Bouncer):
+    # This test changes database list in INI file, reloads pgbouncer
+    # and checks actual databases
+    C_INI_SECTION__DATABASES = "databases"
+
+    def reload_and_check(bouncer: Bouncer, config: ConfigParser):
+        with open(bouncer.ini_path, 'w') as configfile:
+            config.write(configfile)
+
+        bouncer.admin("RELOAD")
+        cur_dbs = bouncer.admin("SHOW DATABASES", row_factory = dict_row)
+
+        expected_dbs = []
+        for x in config.options(C_INI_SECTION__DATABASES):
+            expected_dbs.append(x)
+
+        actual_dbs = []
+        for x in cur_dbs:
+            actual_dbs.append(x['name'])
+
+        # Try to find all expected databases
+        for x in expected_dbs:
+            assert x in actual_dbs;
+
+        # Verification of all the actual databases
+        has_pgbouncer_db = False
+        for x in actual_dbs:
+            if x == 'pgbouncer':
+                has_pgbouncer_db = True
+            else:
+                assert x in expected_dbs
+        assert has_pgbouncer_db
+
+    config = ConfigParser(strict=False)
+    iniFile = bouncer.ini_path
+    config.read(iniFile)
+    dbs = {}
+    for x in config.options(C_INI_SECTION__DATABASES):
+        dbs[x] = config.get(C_INI_SECTION__DATABASES, x)
+
+    # Removing databases
+    for db_name in dbs:
+        config.remove_option(C_INI_SECTION__DATABASES, db_name);
+        reload_and_check(bouncer, config)
+
+    # Appending databases
+    for db_name in dbs:
+        config.set(C_INI_SECTION__DATABASES,db_name, dbs[db_name]);
+        reload_and_check(bouncer, config)

@@ -1,8 +1,8 @@
+from configparser import ConfigParser
+
 from psycopg.rows import dict_row
 
-from .utils import capture, run, Bouncer
-
-from configparser import ConfigParser
+from .utils import Bouncer, capture, run
 
 
 def test_show(bouncer):

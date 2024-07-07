@@ -366,7 +366,7 @@ static int cmp_pool(struct List *i1, struct List *i2)
 
 	if (p1->db != p2->db) {
 		const int c1 = strcmp(p1->db->name, p2->db->name);
-		Assert(c1 != 0); /* databases must be unigue! */
+		Assert(c1 != 0);/* databases must be unigue! */
 		return c1;
 	}
 	{

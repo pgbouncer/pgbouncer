@@ -345,7 +345,6 @@ struct PgStats {
  */
 struct PgPool {
 	struct List head;			/* entry in global pool_list */
-	struct List map_head;			/* entry in user->pool_list */
 
 	PgDatabase *db;			/* corresponding database */
 	/*
@@ -516,7 +515,6 @@ struct PgPool {
  * that use these credentials.
  */
 struct PgCredentials {
-	struct List pool_list;		/* list of pools where pool->user == this user */
 	struct AANode tree_node;	/* used to attach user to tree */
 	char name[MAX_USERNAME];
 	char passwd[MAX_PASSWORD];

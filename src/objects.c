@@ -506,7 +506,6 @@ PgGlobalUser *add_global_user(const char *name, const char *passwd)
 		user->credentials.global_user = user;
 
 		list_init(&user->head);
-		list_init(&user->credentials.pool_list);
 		safe_strcpy(user->credentials.name, name, sizeof(user->credentials.name));
 		put_in_order(&user->head, &user_list, cmp_user);
 
@@ -550,7 +549,6 @@ PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const c
 		if (!credentials)
 			return NULL;
 
-		list_init(&credentials->pool_list);
 		safe_strcpy(credentials->name, name, sizeof(credentials->name));
 
 		aatree_insert(&db->user_tree, (uintptr_t)credentials->name, &credentials->tree_node);
@@ -580,7 +578,6 @@ PgCredentials *add_pam_credentials(const char *name, const char *passwd)
 		if (!credentials)
 			return NULL;
 
-		list_init(&credentials->pool_list);
 		safe_strcpy(credentials->name, name, sizeof(credentials->name));
 
 		aatree_insert(&pam_user_tree, (uintptr_t)credentials->name, &credentials->tree_node);
@@ -603,7 +600,6 @@ PgCredentials *force_user_credentials(PgDatabase *db, const char *name, const ch
 		if (!credentials)
 			return NULL;
 
-		list_init(&credentials->pool_list);
 		credentials->global_user = find_global_user(name);
 		if (!credentials->global_user) {
 			credentials->global_user = add_global_user(name, NULL);
@@ -699,7 +695,6 @@ static PgPool *new_pool(PgDatabase *db, PgCredentials *user_credentials)
 		return NULL;
 
 	list_init(&pool->head);
-	list_init(&pool->map_head);
 	pool->orig_vars.var_list = slab_alloc(var_list_cache);
 
 	pool->user_credentials = user_credentials;
@@ -716,8 +711,6 @@ static PgPool *new_pool(PgDatabase *db, PgCredentials *user_credentials)
 	statlist_init(&pool->active_cancel_req_list, "active_cancel_req_list");
 	statlist_init(&pool->active_cancel_server_list, "active_cancel_server_list");
 	statlist_init(&pool->being_canceled_server_list, "being_canceled_server_list");
-
-	list_append(&user_credentials->pool_list, &pool->map_head);
 
 	/* keep pools in db/user order to make stats faster */
 	put_in_order(&pool->head, &pool_list, cmp_pool);
@@ -742,7 +735,6 @@ static PgPool *new_peer_pool(PgDatabase *db)
 		return NULL;
 
 	list_init(&pool->head);
-	list_init(&pool->map_head);
 	pool->orig_vars.var_list = slab_alloc(var_list_cache);
 
 	pool->db = db;

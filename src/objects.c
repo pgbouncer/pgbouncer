@@ -1022,7 +1022,7 @@ bool queue_fake_response(PgSocket *client, char request_type)
 	return res;
 }
 
-/* Find exists or add new global user */
+/* Find an exist global user or add a new global user */
 PgGlobalUser *find_exist_or_add_new_global_user(const char *name, const char *passwd)
 {
 	PgGlobalUser *user = find_global_user(name);
@@ -1033,7 +1033,7 @@ PgGlobalUser *find_exist_or_add_new_global_user(const char *name, const char *pa
 	return user;
 }
 
-/* Find exists or add new global credentials */
+/* Find an exist global credentials or add a new global credentials */
 PgCredentials *find_exist_or_add_new_global_credentials(const char *name, const char *passwd)
 {
 	PgGlobalUser *user = find_exist_or_add_new_global_user(name, passwd);

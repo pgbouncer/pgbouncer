@@ -521,13 +521,10 @@ bool parse_user(void *base, const char *name, const char *connstr)
 		}
 	}
 
-	user = find_global_user(name);
+	user = find_exist_or_add_new_global_user(name, "");
 	if (!user) {
-		user = add_global_user(name, "");
-		if (!user) {
-			log_error("cannot create user, no memory?");
-			goto fail;
-		}
+		log_error("cannot create user, no memory?");
+		goto fail;
 	}
 
 	user->pool_mode = pool_mode;

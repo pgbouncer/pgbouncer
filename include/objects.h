@@ -71,6 +71,8 @@ bool pop_outstanding_request(PgSocket *client, char *types, bool *skip);
 bool clear_outstanding_requests_until(PgSocket *server, char *types) _MUSTCHECK;
 bool queue_fake_response(PgSocket *client, char request_type) _MUSTCHECK;
 
+PgGlobalUser * find_exist_or_add_new_global_user(const char *name, const char *passwd) _MUSTCHECK;
+
 PgCredentials * add_pam_credentials(const char *name, const char *passwd) _MUSTCHECK;
 
 void accept_cancel_request(PgSocket *req);

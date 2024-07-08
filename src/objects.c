@@ -138,7 +138,7 @@ static int credentials_node_cmp(uintptr_t userptr, struct AANode *node)
 static void credentials_node_release(struct AANode *node, void *arg)
 {
 	PgCredentials *user = container_of(node, PgCredentials, tree_node);
-	slab_free(user_cache, user);
+	slab_free(credentials_cache, user);
 }
 
 /* initialization before config loading */

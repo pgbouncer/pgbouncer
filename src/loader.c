@@ -198,12 +198,8 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 		}
 
 		if (strcmp("host", key) == 0) {
-			free(host);
-			host = strdup(val);
-			if (!host) {
-				log_error("out of memory");
+			if (!set_param_value(&host, val))
 				goto fail;
-			}
 		} else if (strcmp("port", key) == 0) {
 			port = atoi(val);
 			if (port == 0) {
@@ -308,12 +304,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		if (strcmp("dbname", key) == 0) {
 			dbname = val;
 		} else if (strcmp("host", key) == 0) {
-			free(host);
-			host = strdup(val);
-			if (!host) {
-				log_error("out of memory");
+			if (!set_param_value(&host, val))
 				goto fail;
-			}
 		} else if (strcmp("port", key) == 0) {
 			port = atoi(val);
 			if (port == 0) {
@@ -350,12 +342,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 				goto fail;
 			}
 		} else if (strcmp("connect_query", key) == 0) {
-			free(connect_query);
-			connect_query = strdup(val);
-			if (!connect_query) {
-				log_error("out of memory");
+			if (!set_param_value(&connect_query, val))
 				goto fail;
-			}
 		} else if (strcmp("application_name", key) == 0) {
 			appname = val;
 		} else if (strcmp("auth_query", key) == 0) {

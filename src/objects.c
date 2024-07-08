@@ -529,6 +529,7 @@ PgGlobalUser *add_global_user(const char *name, const char *passwd)
 	return update_global_user_passwd(user, passwd);
 }
 
+//TODO: is not used.
 PgCredentials *add_global_credentials(const char *name, const char *passwd)
 {
 	PgGlobalUser *user = add_global_user(name, passwd);
@@ -1030,6 +1031,17 @@ PgGlobalUser *find_exist_or_add_new_global_user(const char *name, const char *pa
 		user = create_new_global_user(name, passwd);
 
 	return user;
+}
+
+/* Find exists or add new global credentials */
+PgCredentials *find_exist_or_add_new_global_credentials(const char *name, const char *passwd)
+{
+	PgGlobalUser *user = find_exist_or_add_new_global_user(name, passwd);
+
+	if (!user)
+		return NULL;
+
+	return &user->credentials;
 }
 
 /*

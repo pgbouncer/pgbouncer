@@ -176,7 +176,7 @@ static void start_auth_query(PgSocket *client, const char *username)
 		return;
 	client->pool = get_pool(auth_db, client->db->auth_user_credentials);
 	if (!client->pool) {
-		disconnect_client(client, true, "no memory for auth_db pool");
+		disconnect_client(client, true, "no memory for authentication pool");
 		return;
 	}
 	if (!find_server(client)) {

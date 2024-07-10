@@ -16,12 +16,12 @@ def test_qa_gh001103__put_in_order__v01__get_pool(bouncer):
         listen_addr = {bouncer.host}
         listen_port = {bouncer.port}
 
-        auth_type = md5
+        auth_type = trust
         auth_file = {bouncer.auth_path}
         auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
         auth_user = postgres
         auth_dbname = postgres
-        admin_users = pswcheck
+        admin_users = pgbouncer
         logfile = {bouncer.log_path}
     """
 

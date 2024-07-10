@@ -40,5 +40,5 @@ def test_qa_gh001104(bouncer):
     n = 0
     while n < 15:
         n = n + 1
-        print("ATTEMPT #",n);
+        print("ATTEMPT #", n)
         do_attempt(bouncer, n)

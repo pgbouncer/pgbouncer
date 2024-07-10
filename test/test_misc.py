@@ -385,9 +385,6 @@ def test_qa_gh1104(bouncer):
 
             auth_type = md5
             auth_file = {bouncer.auth_path}
-            auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
-            auth_user = postgres
-            auth_dbname = postgres
             logfile = {bouncer.log_path}
         """
 

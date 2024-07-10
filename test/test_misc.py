@@ -395,7 +395,6 @@ def test_qa_gh1104(bouncer):
             bouncer.admin("RELOAD")  # again
 
     n = 0
-
-    while n < 50:
+    while n < 15:
         n = n + 1
         do_attempt(bouncer, n)

@@ -387,7 +387,7 @@ def test_qa_gh1104(bouncer):
             auth_file = {bouncer.auth_path}
 
             admin_users = pgbouncer
-            
+
             logfile = {bouncer.log_path}
         """
 

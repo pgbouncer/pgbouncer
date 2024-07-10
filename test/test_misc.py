@@ -5,13 +5,7 @@ import time
 import psycopg
 import pytest
 
-from .utils import (
-    HAVE_IPV6_LOCALHOST,
-    PG_MAJOR_VERSION,
-    PKT_BUF_SIZE,
-    USE_UNIX_SOCKETS,
-    WINDOWS,
-)
+from .utils import HAVE_IPV6_LOCALHOST, PG_MAJOR_VERSION, PKT_BUF_SIZE, WINDOWS
 
 
 def test_connect_query(bouncer):
@@ -389,16 +383,13 @@ def test_qa_gh1104(bouncer):
             listen_addr = {bouncer.host}
             listen_port = {bouncer.port}
 
-            auth_type = md5
+            auth_type = trust
             auth_file = {bouncer.auth_path}
+
+            admin_users = pgbouncer
+            
             logfile = {bouncer.log_path}
         """
-
-        if not USE_UNIX_SOCKETS:
-            config += f"unix_socket_dir = \n"
-            config += f"admin_users = pgbouncer\n"
-        else:
-            config += f"unix_socket_dir = {bouncer.admin_host}\n"
 
         with bouncer.run_with_config(config):
             bouncer.admin("RELOAD")  # again

@@ -130,6 +130,8 @@ def pg(tmp_path_factory, cert_dir):
 
     pg.sql("create database unconfigured_auth_database")
     pg.sql("create user bouncer")
+
+    pg.sql("create user pgbouncer_auth with superuser")
     pg.sql("create user pswcheck with superuser createdb password 'pgbouncer-check';")
     pg.sql("create user someuser with password 'anypasswd';")
     pg.sql("create user maxedout;")

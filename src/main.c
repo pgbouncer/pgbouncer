@@ -427,6 +427,7 @@ void load_config(void)
 {
 	static bool loaded = false;
 	bool ok;
+	PgGlobalUser *auth_user;
 
 	set_dbs_dead(true);
 	set_peers_dead(true);
@@ -466,6 +467,15 @@ void load_config(void)
 	} else {
 		hba_free(parsed_hba);
 		parsed_hba = NULL;
+	}
+
+	if (cf_auth_user) {
+		auth_user = find_global_user(cf_auth_user);
+		if (auth_user) {
+			auth_user->credentials.passwd[0] = 0;
+		}
+		auth_user = add_global_user(cf_auth_user, "");
+		auth_user->credentials.dynamic_passwd = false;
 	}
 
 	/* kill dbs */

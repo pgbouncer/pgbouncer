@@ -897,6 +897,9 @@ def test_auth_user_trust_auth_without_auth_file(bouncer) -> None:
     Test that for issue that causes pgbouncer to crash given the following conditions
       1. Connect to pgbouncer as auth user
       2. Auth user is not listed in userlist.txt
+      3. Auth type is trust
+
+    This is a regression test for issue #1116
     """
     config = f"""
         [databases]

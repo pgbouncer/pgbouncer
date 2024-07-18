@@ -892,15 +892,12 @@ def test_peer_auth_ident_map(bouncer):
     )
 
 
-def test_auth_user_crash_issue(bouncer) -> None:
+def test_auth_user_trust_auth_without_auth_file(bouncer) -> None:
     """
     Test that for issue that causes pgbouncer to crash given the following conditions
       1. Connect to pgbouncer as auth user
       2. Auth user is not listed in userlist.txt
     """
-
-    hba_conf_file = bouncer.config_dir / "hba.conf"
-
     config = f"""
         [databases]
         postgres = host={bouncer.pg.host} dbname=postgres port={bouncer.pg.port} min_pool_size=2
@@ -908,17 +905,40 @@ def test_auth_user_crash_issue(bouncer) -> None:
         [pgbouncer]
         listen_addr = {bouncer.host}
         listen_port = {bouncer.port}
-        auth_type = hba
-        auth_hba_file = {hba_conf_file}
-        auth_user = pgbouncer_auth
+        auth_type = trust
+        auth_user = pgbouncer_not_in_auth_file
         auth_dbname = postgres
         logfile = {bouncer.log_path}
+        auth_file = {bouncer.auth_path}
     """
 
-    with open(hba_conf_file, "w") as f:
-        f.write(f"host postgres  pgbouncer_auth 0.0.0.0/0 trust")
+    with bouncer.run_with_config(config):
+        with bouncer.conn(
+            dbname="postgres",
+            user="pgbouncer_not_in_auth_file",
+        ) as cn:
+            with cn.cursor() as cur:
+                cur.execute("select 1")
+
+
+def test_auth_user_password_auth_with_auth_file(bouncer):
+    config = f"""
+        [databases]
+        postgres = host={bouncer.pg.host} dbname=postgres port={bouncer.pg.port} min_pool_size=2
+
+        [pgbouncer]
+        listen_addr = {bouncer.host}
+        listen_port = {bouncer.port}
+        auth_type = md5
+        auth_user = pswcheck
+        auth_dbname = postgres
+        logfile = {bouncer.log_path}
+        auth_file = {bouncer.auth_path}
+    """
 
     with bouncer.run_with_config(config):
-        with bouncer.conn(dbname="postgres", user="pgbouncer_auth") as cn:
+        with bouncer.conn(
+            dbname="postgres", user="pswcheck", password="pgbouncer-check"
+        ) as cn:
             with cn.cursor() as cur:
                 cur.execute("select 1")

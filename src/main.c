@@ -469,13 +469,13 @@ void load_config(void)
 		parsed_hba = NULL;
 	}
 
+	/* ensure auth_user is added as a global user even if it isn't in the auth_file */
 	if (cf_auth_user) {
 		auth_user = find_global_user(cf_auth_user);
-		if (auth_user) {
-			auth_user->credentials.passwd[0] = 0;
+		if (!auth_user) {
+			auth_user = add_global_user(cf_auth_user, "");
+			auth_user->credentials.dynamic_passwd = false;
 		}
-		auth_user = add_global_user(cf_auth_user, "");
-		auth_user->credentials.dynamic_passwd = false;
 	}
 
 	/* kill dbs */

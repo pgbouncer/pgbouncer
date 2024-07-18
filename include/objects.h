@@ -31,6 +31,7 @@ extern struct Slab *peer_cache;
 extern struct Slab *peer_pool_cache;
 extern struct Slab *pool_cache;
 extern struct Slab *user_cache;
+extern struct Slab *credentials_cache;
 extern struct Slab *iobuf_cache;
 extern struct Slab *outstanding_request_cache;
 extern struct Slab *var_list_cache;

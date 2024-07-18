@@ -516,7 +516,6 @@ struct PgPool {
  * that use these credentials.
  */
 struct PgCredentials {
-	struct List pool_list;		/* list of pools where pool->user == this user */
 	struct AANode tree_node;	/* used to attach user to tree */
 	char name[MAX_USERNAME];
 	char passwd[MAX_PASSWORD];
@@ -543,6 +542,7 @@ struct PgCredentials {
 struct PgGlobalUser {
 	PgCredentials credentials;	/* needs to be first for AAtree */
 	struct List head;	/* used to attach user to list */
+	struct List pool_list;		/* list of pools where pool->user == this user */
 	int pool_mode;
 	int pool_size;				/* max server connections in one pool */
 	int max_user_connections;	/* how much server connections are allowed */

@@ -114,6 +114,7 @@ int cf_tcp_user_timeout;
 int cf_auth_type = AUTH_MD5;
 char *cf_auth_file;
 char *cf_auth_hba_file;
+char *cf_auth_ldap_parameter;
 char *cf_auth_ident_file;
 char *cf_auth_user;
 char *cf_auth_query;
@@ -209,6 +210,9 @@ static const struct CfLookup auth_type_map[] = {
 #ifdef HAVE_PAM
 	{ "pam", AUTH_PAM },
 #endif
+#ifdef HAVE_LDAP
+	{ "ldap", AUTH_LDAP },
+#endif
 	{ "scram-sha-256", AUTH_SCRAM_SHA_256 },
 	{ NULL }
 };
@@ -243,6 +247,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("auth_query", CF_STR, cf_auth_query, 0, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1"),
 	CF_ABS("auth_type", CF_LOOKUP(auth_type_map), cf_auth_type, 0, "md5"),
 	CF_ABS("auth_user", CF_STR, cf_auth_user, 0, NULL),
+	CF_ABS("auth_ldap_parameter", CF_STR, cf_auth_ldap_parameter, 0, NULL),
 	CF_ABS("autodb_idle_timeout", CF_TIME_USEC, cf_autodb_idle_timeout, 0, "3600"),
 	CF_ABS("client_idle_timeout", CF_TIME_USEC, cf_client_idle_timeout, 0, "0"),
 	CF_ABS("client_login_timeout", CF_TIME_USEC, cf_client_login_timeout, 0, "60"),
@@ -824,6 +829,7 @@ static void main_loop_once(void)
 			log_warning("event_loop failed: %s", strerror(errno));
 	}
 	pam_poll();
+	ldap_poll();
 	per_loop_maint();
 	reuse_just_freed_objects();
 	rescue_timers();
@@ -921,6 +927,7 @@ static void cleanup(void)
 	xfree(&cf_auth_ident_file);
 	xfree(&cf_auth_dbname);
 	xfree(&cf_auth_hba_file);
+	xfree(&cf_auth_ldap_parameter);
 	xfree(&cf_auth_query);
 	xfree(&cf_auth_user);
 	xfree(&cf_server_reset_query);
@@ -1089,6 +1096,7 @@ int main(int argc, char *argv[])
 	stats_setup();
 
 	pam_init();
+	auth_ldap_init();
 
 	if (did_takeover) {
 		takeover_finish();

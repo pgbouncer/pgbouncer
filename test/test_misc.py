@@ -361,3 +361,33 @@ def test_sigusr2_during_shutdown(bouncer):
             with bouncer.log_contains(r"got SIGUSR2 while shutting down, ignoring"):
                 bouncer.sigusr2()
                 time.sleep(1)
+
+
+def test_issue_1104(bouncer):
+    # regression test for GitHub issue #1104 [PgCredentials objects are freed incorrectly]
+
+    for i in range(1, 15):
+        config = """
+            [databases]
+        """
+
+        for j in range(1, 10 * i):
+            config += f"""
+                testdb_{i}_{j} = host={bouncer.pg.host} port={bouncer.pg.port} user=dummy_user_{i}_{j}
+            """
+
+        config += f"""
+            [pgbouncer]
+            listen_addr = {bouncer.host}
+            listen_port = {bouncer.port}
+
+            auth_type = trust
+            auth_file = {bouncer.auth_path}
+
+            admin_users = pgbouncer
+
+            logfile = {bouncer.log_path}
+        """
+
+        with bouncer.run_with_config(config):
+            bouncer.admin("RELOAD")

@@ -363,19 +363,17 @@ def test_sigusr2_during_shutdown(bouncer):
                 time.sleep(1)
 
 
-def test_qa_gh1104(bouncer):
-    # QA test for GitHub issue #1104 [PgCredentials objects are freed incorrectly]
+def test_issue_1104(bouncer):
+    # regression test for GitHub issue #1104 [PgCredentials objects are freed incorrectly]
 
-    def do_attempt(bouncer, passNum):
-        config = f"""
+    for i in range(1, 15):
+        config = """
             [databases]
         """
 
-        n = 0
-        while n < (10 * passNum):
-            n = n + 1
+        for j in range(1, 10 * i):
             config += f"""
-                testdb_{passNum}_{n} = host={bouncer.pg.host} port={bouncer.pg.port} user=dummy_user_{passNum}_{n}
+                testdb_{i}_{j} = host={bouncer.pg.host} port={bouncer.pg.port} user=dummy_user_{i}_{j}
             """
 
         config += f"""
@@ -392,9 +390,4 @@ def test_qa_gh1104(bouncer):
         """
 
         with bouncer.run_with_config(config):
-            bouncer.admin("RELOAD")  # again
-
-    n = 0
-    while n < 15:
-        n = n + 1
-        do_attempt(bouncer, n)
+            bouncer.admin("RELOAD")

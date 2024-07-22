@@ -713,7 +713,7 @@ class Postgres(QueryRunner):
 
             # Make PostgreSQL listen on both IPv4 and IPv6 (if supported)
             if HAVE_IPV6_LOCALHOST:
-                pgconf.write("listen_addresses='0.0.0.0,::'\n")
+                pgconf.write("listen_addresses='127.0.0.1,::1'\n")
 
     def pgctl(self, command, **kwargs):
         run(f"pg_ctl -w --pgdata {self.pgdata} {command}", **kwargs)

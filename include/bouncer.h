@@ -505,15 +505,6 @@ struct PgPool {
 
 /*
  * Credentials for a user in login db.
- *
- * For databases where remote user is forced, the pool is:
- * first(db->forced_user_credentials->pool_list), where pool_list has only one entry.
- *
- * For dynamic credentials coming from auth_query, the pool list only contains
- * one pool.
- *
- * Otherwise, ->pool_list contains multiple pools, for all PgDatabases
- * that use these credentials.
  */
 struct PgCredentials {
 	struct AANode tree_node;	/* used to attach user to tree */
@@ -536,6 +527,9 @@ struct PgCredentials {
  * The global user is used for configuration settings and connection count. It
  * includes credentials, but these are empty if the user is not configured in
  * the auth_file.
+ *
+ * global_user->pool_list contains all the pools that this user is used for
+ * each PgDatabases that uses this global user.
  *
  * FIXME: remove ->head as ->tree_node should be enough.
  */

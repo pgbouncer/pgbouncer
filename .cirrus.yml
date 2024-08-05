@@ -2,7 +2,7 @@ env:
   CIRRUS_CLONE_SUBMODULES: true
   DEBIAN_FRONTEND: noninteractive
   LANG: C
-  PGVERSION: 14
+  PGVERSION: 16
 
 task:
   name: Linux (Debian/Ubuntu)

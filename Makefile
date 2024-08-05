@@ -186,8 +186,11 @@ htmls:
 		mkdir -p html && $(PANDOC) $$f -o html/`basename $$f`.html; \
 	done
 
-doc/pgbouncer.1 doc/pgbouncer.5:
-	$(MAKE) -C doc $(@F)
+doc/pgbouncer.1:
+	$(MAKE) -C doc pgbouncer.1
+
+doc/pgbouncer.5:
+	$(MAKE) -C doc pgbouncer.5
 
 lint:
 	flake8

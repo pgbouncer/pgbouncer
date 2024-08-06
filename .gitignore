@@ -34,3 +34,7 @@ venv
 .venv
 
 /uncrustify
+
+.direnv/
+.zig-cache/
+zig-out/

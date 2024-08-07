@@ -554,6 +554,7 @@ Default: 1
 
 Increase verbosity.  Mirrors the "-v" switch on the command line.
 For example, using "-v -v" on the command line is the same as `verbose=2`.
+2 is the highest currently-supported verbosity.
 
 Default: 0
 

@@ -504,8 +504,6 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 				if (!client->db->auth_user_credentials)
 					client->db->auth_user_credentials = add_global_credentials(cf_auth_user, "");
 			}
-
-
 			if (client->db->auth_user_credentials) {
 				if (client->db->fake) {
 					slog_debug(client, "not running auth_query because database is fake");

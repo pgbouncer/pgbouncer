@@ -1403,7 +1403,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 {
 	if (client->login_user_credentials) {
 		if (client->login_user_credentials->global_user) {
-		    client->login_user_credentials->global_user->client_connection_count--;
+			client->login_user_credentials->global_user->client_connection_count--;
 		}
 	}
 	if (reason) {

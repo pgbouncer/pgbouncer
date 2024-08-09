@@ -481,16 +481,16 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 
 		// Check client_connection count limit
 		if (client->login_user_credentials) {
-		    max_user_client_connections = client->login_user_credentials->global_user->max_user_client_connections;
-		    if (max_user_client_connections > 0) {
-			client_connection_count = client->login_user_credentials->global_user->client_connection_count;
-			if (client_connection_count >= max_user_client_connections) {
-			    log_debug("set_pool: user '%s' full (%d >= %d)",
-				  username, client_connection_count, max_user_client_connections);
-			    disconnect_client(client, true, "client connections exceeded");
-			    return false;
+			max_user_client_connections = client->login_user_credentials->global_user->max_user_client_connections;
+			if (max_user_client_connections > 0) {
+				client_connection_count = client->login_user_credentials->global_user->client_connection_count;
+				if (client_connection_count >= max_user_client_connections) {
+					log_debug("set_pool: user '%s' full (%d >= %d)",
+						  username, client_connection_count, max_user_client_connections);
+					disconnect_client(client, true, "client connections exceeded");
+					return false;
+				}
 			}
-		    }
 		}
 
 		if (!client->login_user_credentials || client->login_user_credentials->dynamic_passwd) {

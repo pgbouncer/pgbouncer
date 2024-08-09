@@ -1286,7 +1286,6 @@ Configure a maximum for the user (i.e. all pools with the user will
 not have more than this many server connections).
 
 ### max_user_client_connections
-
 Configure a maximum for the user. This is the user equivalent ofthe max_client_conn settting.
 
 ## Section [peers]
@@ -1414,7 +1413,7 @@ client connections, if a password-based authentication method is
 configured.  Second, they are used as the passwords for outgoing
 connections to the backend server, if the backend server requires
 password-based authentication (unless the password is specified
-directly in the database's connection string).
+directly in the database's connection string). 
 
 ### Limitations
 If the password is stored in plain text, it can be used for any password-based
@@ -1441,35 +1440,35 @@ file from the `pg_shadow` system table.  Alternatively, use
 separate authentication file.
 
 ### Note on managed servers
-If the backend server is configured to use SCRAM password authentication PgBouncer cannot
-successfully authenticate if it does not know either a) user password in plain text or
+If the backend server is configured to use SCRAM password authentication PgBouncer cannot 
+successfully authenticate if it does not know either a) user password in plain text or 
 b) corresponding SCRAM secret.
 
-Some cloud providers (i.e. AWS RDS) prohibit access to PostgreSQL sensitive system tables
+Some cloud providers (i.e. AWS RDS) prohibit access to PostgreSQL sensitive system tables 
 for fetching passwords. Even for the most privileged user (i.e. member of rds_superuser) the
 `select * from pg_authid`;  returns the `ERROR:  permission denied for table pg_authid.`
-That is a known behaviour
+That is a known behaviour 
 ([blog](https://aws.amazon.com/blogs/database/best-practices-for-migrating-postgresql-databases-to-amazon-rds-and-amazon-aurora/)).
 
 Therefore, fetching an existing SCRAM secret once it has been stored in a managed server
-is impossible which makes it hard to configure PgBouncer to use the same SCRAM secret.
-Nevertheless, SCRAM secret can still be configured and used on both sides using the following trick:
+is impossible which makes it hard to configure PgBouncer to use the same SCRAM secret. 
+Nevertheless, SCRAM secret can still be configured and used on both sides using the following trick: 
 
-Generate SCRAM secret for arbitrary password with a tool that is capable of printing out the secret.
-For example `psql --echo-hidden` and the command `\password` prints out the SCRAM secret
-to the console before sending it over to the server.
+Generate SCRAM secret for arbitrary password with a tool that is capable of printing out the secret. 
+For example `psql --echo-hidden` and the command `\password` prints out the SCRAM secret 
+to the console before sending it over to the server. 
 ```
 $ psql --echo-hidden <connection_string>
 postgres=# \password <role_name>
-Enter new password for user "<role_name>":
-Enter it again:
+Enter new password for user "<role_name>": 
+Enter it again: 
 ********* QUERY **********
 ALTER USER <role_name> PASSWORD 'SCRAM-SHA-256$<iterations>:<salt>$<storedkey>:<serverkey>'
 **************************
 ```
-Note down the SCRAM secret from the QUERY and set it in PgBouncer's `userlist.txt`.
+Note down the SCRAM secret from the QUERY and set it in PgBouncer's `userlist.txt`. 
 
-If you used a tool other than `psql --echo-hidden` then you need to set the SCRAM secret also in the server
+If you used a tool other than `psql --echo-hidden` then you need to set the SCRAM secret also in the server 
 (you can use `alter role <role_name> password '<scram_secret>'` for that).
 
 ## HBA file format

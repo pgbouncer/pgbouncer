@@ -602,8 +602,8 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	cv.extra = pool_mode_map;
 
 	pktbuf_write_RowDescription(
-            buf, "sssiiii", "name", "pool_size", "pool_mode", "max_user_connections", "current_connections", 
-            "max_user_client_connections", "current_client_connections");
+		buf, "sssiiii", "name", "pool_size", "pool_mode", "max_user_connections", "current_connections",
+		"max_user_client_connections", "current_client_connections");
 	statlist_for_each(item, &user_list) {
 		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
 		if (user->pool_size >= 0)

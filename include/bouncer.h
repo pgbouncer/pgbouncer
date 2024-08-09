@@ -539,10 +539,10 @@ struct PgGlobalUser {
 	struct List pool_list;		/* list of pools where pool->user == this user */
 	int pool_mode;
 	int pool_size;				/* max server connections in one pool */
-	int max_user_connections;	/* how much server connections are allowed */
-	int max_user_client_connections;	/* how much server connections are allowed */
-	int connection_count;	/* how much connections are used by user now */
-	int client_connection_count;	/* how much connections are used by user now */
+	int max_user_connections;	/* how many server connections are allowed */
+	int max_user_client_connections;	/* how many client connections are allowed */
+	int connection_count;	/* how many server connections are used by user now */
+	int client_connection_count;	/* how many client connections are used by user now */
 };
 
 /*

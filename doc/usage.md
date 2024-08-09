@@ -529,6 +529,13 @@ max_user_connections
 current_connections
 :   Current number of connections that this user has open to all servers.
 
+max_user_client_connections 
+:   The user's max_user_client_connections setting. If this setting is not set
+    for this specific user, then the default value will be displayed.
+
+current_client_connections
+:   Current number of connections that this user has open to pgbouncer.
+
 #### SHOW DATABASES
 
 name

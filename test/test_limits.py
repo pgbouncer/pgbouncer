@@ -90,6 +90,20 @@ async def test_min_pool_size(pg, bouncer):
     assert pg.connection_count(dbname="p0", users=("postgres",)) == 5
 
 
+@pytest.mark.asyncio
+async def test_max_user_client_connections(bouncer):
+    result = bouncer.asleep(3, user="maxedout3")
+    await asyncio.sleep(1)
+    # should still be allowed, since it's the last allowed connection
+    await bouncer.atest(user="maxedout3")
+    result_last = bouncer.asleep(3, user="maxedout3")
+    await asyncio.sleep(1)
+    with pytest.raises(psycopg.OperationalError, match=r"max_user_client_connections"):
+        await bouncer.atest(user="maxedout3")
+    await result
+    await result_last
+
+
 def test_min_pool_size_with_lower_max_user_connections(bouncer):
     # The p0x in test.init has min_pool_size set to 5. This should make
     # the PgBouncer try to create a pool for maxedout2 user of size 5 after a

@@ -5,6 +5,7 @@
 "pswcheck" "pgbouncer-check"
 "maxedout" ""
 "maxedout2" ""
+"maxedout3" ""
 "poolsize1" ""
 "bouncer" "zzzz"
 

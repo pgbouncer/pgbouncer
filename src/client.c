@@ -476,6 +476,21 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 		}
 	} else {
 		client->login_user_credentials = find_global_credentials(username);
+
+        // Check client_connection count limit
+        int max_user_client_connections;
+        max_user_client_connections = client->login_user_credentials->global_user->max_user_client_connections;
+        if (max_user_client_connections > 0) {
+           int client_connection_count;
+           client_connection_count = client->login_user_credentials->global_user->client_connection_count;
+           if (client_connection_count  >= max_user_client_connections ){
+                log_debug("set_pool: user '%s' full (%d >= %d)",
+                      username, client_connection_count, max_user_client_connections);
+			    disconnect_client(client, true, "client connections exceeded");
+                return false;
+           }
+        }
+
 		if (!client->login_user_credentials || client->login_user_credentials->dynamic_passwd) {
 			/*
 			 * If the login user specified by the client
@@ -489,6 +504,8 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 				if (!client->db->auth_user_credentials)
 					client->db->auth_user_credentials = add_global_credentials(cf_auth_user, "");
 			}
+
+
 			if (client->db->auth_user_credentials) {
 				if (client->db->fake) {
 					slog_debug(client, "not running auth_query because database is fake");

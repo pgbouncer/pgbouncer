@@ -1401,6 +1401,9 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
  */
 void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 {
+    if (client->login_user_credentials){
+        client->login_user_credentials->global_user->client_connection_count--;
+    }
 	if (reason) {
 		char buf[128];
 		va_list ap;
@@ -2009,6 +2012,9 @@ bool finish_client_login(PgSocket *client)
 	/* send the message */
 	if (!welcome_client(client))
 		return false;
+
+    // Increment client connection count
+    client->login_user_credentials->global_user->client_connection_count++;
 
 	slog_debug(client, "logged in");
 

@@ -1285,6 +1285,10 @@ database or default `pool_mode` is used.
 Configure a maximum for the user (i.e. all pools with the user will
 not have more than this many server connections).
 
+### max_user_client_connections
+
+Configure a maximum for the user. This is the user equivalent ofthe max_client_conn settting.
+
 ## Section [peers]
 
 The section `[peers]` defines the peers that PgBouncer can forward cancellation

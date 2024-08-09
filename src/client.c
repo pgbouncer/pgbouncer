@@ -485,7 +485,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			if (max_user_client_connections > 0) {
 				client_connection_count = client->login_user_credentials->global_user->client_connection_count;
 				if (client_connection_count >= max_user_client_connections) {
-					slog_debug("set_pool: user '%s' full (%d >= %d)",
+					log_debug("set_pool: user '%s' full (%d >= %d)",
 						   username, client_connection_count, max_user_client_connections);
 					disconnect_client(client, true, "client connections exceeded (max_user_client_connections)");
 					return false;

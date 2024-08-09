@@ -252,6 +252,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	int pool_size = -1;
 	int min_pool_size = -1;
 	int res_pool_size = -1;
+	int max_db_client_connections = -1;
 	int max_db_connections = -1;
 	usec_t server_lifetime = 0;
 	int dbname_ofs;
@@ -336,6 +337,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			res_pool_size = atoi(val);
 		} else if (strcmp("max_db_connections", key) == 0) {
 			max_db_connections = atoi(val);
+		} else if (strcmp("max_db_client_connections", key) == 0) {
+			max_db_client_connections = atoi(val);
 		} else if (strcmp("server_lifetime", key) == 0) {
 			server_lifetime = atoi(val) * USEC;
 		} else if (strcmp("pool_mode", key) == 0) {
@@ -404,6 +407,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	db->min_pool_size = min_pool_size;
 	db->res_pool_size = res_pool_size;
 	db->pool_mode = pool_mode;
+	db->max_db_client_connections = max_db_client_connections;
 	db->max_db_connections = max_db_connections;
 	db->server_lifetime = server_lifetime;
 	free(db->connect_query);

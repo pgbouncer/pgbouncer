@@ -479,7 +479,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 	} else {
 		client->login_user_credentials = find_global_credentials(username);
 
-		// Check client_connection count limit
+		/* Check client_connection count limit */
 		if (client->login_user_credentials) {
 			max_user_client_connections = client->login_user_credentials->global_user->max_user_client_connections;
 			if (max_user_client_connections > 0) {

@@ -540,7 +540,9 @@ struct PgGlobalUser {
 	int pool_mode;
 	int pool_size;				/* max server connections in one pool */
 	int max_user_connections;	/* how much server connections are allowed */
+	int max_user_client_connections;	/* how much server connections are allowed */
 	int connection_count;	/* how much connections are used by user now */
+	int client_connection_count;	/* how much connections are used by user now */
 };
 
 /*
@@ -770,6 +772,7 @@ extern int cf_res_pool_size;
 extern usec_t cf_res_pool_timeout;
 extern int cf_max_db_connections;
 extern int cf_max_user_connections;
+extern int cf_max_user_client_connections;
 
 extern char *cf_autodb_connstr;
 extern usec_t cf_autodb_idle_timeout;

@@ -22,6 +22,22 @@ async def test_max_client_conn(bouncer):
 
 
 @pytest.mark.asyncio
+async def test_max_db_client_connections(bouncer):
+    test_db = "conn_limit_db"
+    test_user = "muser1"
+    result = bouncer.asleep(3, dbname=test_db, user=test_user)
+    await asyncio.sleep(1)
+    # should still be allowed, since it's the last allowed connection
+    await bouncer.atest(dbname=test_db, user=test_user)
+    result_last = bouncer.asleep(3, dbname=test_db, user=test_user)
+    await asyncio.sleep(1)
+    with pytest.raises(psycopg.OperationalError, match=r"max_db_client_connections"):
+        await bouncer.atest(dbname=test_db, user=test_user)
+    await result
+    await result_last
+
+
+@pytest.mark.asyncio
 async def test_pool_size(pg, bouncer):
     # per user pool_size
     await bouncer.asleep(0.5, dbname="p0a", user="poolsize1", times=3)

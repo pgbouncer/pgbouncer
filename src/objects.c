@@ -1393,6 +1393,9 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
  */
 void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 {
+	if (client->db) {
+		client->db->client_connection_count--;
+	}
 	if (reason) {
 		char buf[128];
 		va_list ap;
@@ -2002,6 +2005,7 @@ bool finish_client_login(PgSocket *client)
 	if (!welcome_client(client))
 		return false;
 
+	client->db->client_connection_count++;
 	slog_debug(client, "logged in");
 
 	return true;

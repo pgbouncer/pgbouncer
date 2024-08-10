@@ -1024,7 +1024,7 @@ PgGlobalUser *find_exist_or_add_new_global_user(const char *name, const char *pa
 	return user;
 }
 
-/* Find an exist global credentials or add a new global credentials */
+/* Find an existing global credentials or add a new global credentials */
 PgCredentials *find_exist_or_add_new_global_credentials(const char *name, const char *passwd)
 {
 	PgGlobalUser *user = find_exist_or_add_new_global_user(name, passwd);

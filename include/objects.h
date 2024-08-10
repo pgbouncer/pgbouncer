@@ -63,7 +63,6 @@ PgDatabase * add_peer(const char *name, int peer_id) _MUSTCHECK;
 PgDatabase * add_database(const char *name) _MUSTCHECK;
 PgDatabase *register_auto_database(const char *name);
 PgGlobalUser * add_global_user(const char *name, const char *passwd) _MUSTCHECK;
-PgCredentials *add_global_credentials(const char *name, const char *passwd) _MUSTCHECK;
 PgCredentials * add_dynamic_credentials(PgDatabase *db, const char *name, const char *passwd) _MUSTCHECK;
 PgCredentials * force_user_credentials(PgDatabase *db, const char *username, const char *passwd) _MUSTCHECK;
 bool add_outstanding_request(PgSocket *client, char type, ResponseAction action) _MUSTCHECK;

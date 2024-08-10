@@ -529,15 +529,6 @@ PgGlobalUser *add_global_user(const char *name, const char *passwd)
 	return update_global_user_passwd(user, passwd);
 }
 
-//TODO: is not used.
-PgCredentials *add_global_credentials(const char *name, const char *passwd)
-{
-	PgGlobalUser *user = add_global_user(name, passwd);
-	if (!user)
-		return NULL;
-	return &user->credentials;
-}
-
 /*
  * Add dynamic credentials to this database. This should be used for dynamic
  * credentials, that were retrieved using the auth_query.

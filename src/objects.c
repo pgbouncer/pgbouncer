@@ -552,7 +552,7 @@ PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const c
 
 		safe_strcpy(credentials->name, name, sizeof(credentials->name));
 
-		credentials->global_user = find_exist_or_add_new_global_user(name, NULL);
+		credentials->global_user = find_or_add_new_global_user(name, NULL);
 		if (!credentials->global_user) {
 			slab_free(credentials_cache, credentials);
 			return NULL;
@@ -583,7 +583,7 @@ PgCredentials *add_pam_credentials(const char *name, const char *passwd)
 
 		safe_strcpy(credentials->name, name, sizeof(credentials->name));
 
-		credentials->global_user = find_exist_or_add_new_global_user(name, NULL);
+		credentials->global_user = find_or_add_new_global_user(name, NULL);
 		if (!credentials->global_user) {
 			slab_free(credentials_cache, credentials);
 			return NULL;
@@ -605,7 +605,7 @@ PgCredentials *force_user_credentials(PgDatabase *db, const char *name, const ch
 		if (!credentials)
 			return NULL;
 
-		credentials->global_user = find_exist_or_add_new_global_user(name, NULL);
+		credentials->global_user = find_or_add_new_global_user(name, NULL);
 		if (!credentials->global_user) {
 			slab_free(credentials_cache, credentials);
 			return NULL;
@@ -1011,7 +1011,7 @@ bool queue_fake_response(PgSocket *client, char request_type)
 }
 
 /* Find an existing global user or add a new global user */
-PgGlobalUser *find_exist_or_add_new_global_user(const char *name, const char *passwd)
+PgGlobalUser *find_or_add_new_global_user(const char *name, const char *passwd)
 {
 	PgGlobalUser *user = find_global_user(name);
 
@@ -1024,7 +1024,7 @@ PgGlobalUser *find_exist_or_add_new_global_user(const char *name, const char *pa
 /* Find an existing global credentials or add a new global credentials */
 PgCredentials *find_exist_or_add_new_global_credentials(const char *name, const char *passwd)
 {
-	PgGlobalUser *user = find_exist_or_add_new_global_user(name, passwd);
+	PgGlobalUser *user = find_or_add_new_global_user(name, passwd);
 
 	if (!user)
 		return NULL;

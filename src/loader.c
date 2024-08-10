@@ -520,7 +520,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 		}
 	}
 
-	user = find_exist_or_add_new_global_user(name, "");
+	user = find_or_add_new_global_user(name, "");
 	if (!user) {
 		log_error("cannot create user, no memory?");
 		goto fail;

@@ -486,6 +486,11 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			 */
 			if (!client->db->auth_user_credentials && cf_auth_user) {
 				client->db->auth_user_credentials = find_or_add_new_global_credentials(cf_auth_user, "");
+				if (client->db->auth_user_credentials == NULL) {
+					slog_error(client, "set_pool(): failed to allocate a new global credentials");
+					disconnect_client(client, true, "bouncer resources exhaustion");
+					return false;					
+				}
 			}
 			if (client->db->auth_user_credentials) {
 				if (client->db->fake) {

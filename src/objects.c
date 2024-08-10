@@ -507,7 +507,7 @@ static PgGlobalUser *create_new_global_user(const char *name, const char *passwd
 	user->credentials.global_user = user;
 
 	list_init(&user->head);
-	list_init(&user->credentials.pool_list);
+	list_init(&user->pool_list);
 	safe_strcpy(user->credentials.name, name, sizeof(user->credentials.name));
 	put_in_order(&user->head, &user_list, cmp_user);
 

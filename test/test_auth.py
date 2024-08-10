@@ -38,6 +38,7 @@ def test_auth_dbname_global(bouncer):
     bouncer.admin(f"set auth_type='md5'")
 
     bouncer.test(dbname="p7a", user="someuser", password="anypasswd")
+    bouncer.test(dbname="p7a", user="pswcheck", password="pgbouncer-check")
 
 
 @pytest.mark.md5
@@ -83,6 +84,7 @@ def test_auth_dbname_with_auto_database(bouncer):
     bouncer.admin(f"set auth_type='md5'")
     # postgres is not defined in test.ini
     bouncer.test(dbname="postgres", user="someuser", password="anypasswd")
+    bouncer.test(dbname="postgres", user="pswcheck", password="pgbouncer-check")
 
 
 @pytest.mark.md5
@@ -890,3 +892,136 @@ def test_peer_auth_ident_map(bouncer):
         host=f"{bouncer.admin_host}",
         user="bouncer",
     )
+
+
+async def test_auth_user_trust_auth_without_auth_file_set(bouncer) -> None:
+    """
+    This is a regression test for issue #1116, using the SET command
+    """
+    bouncer.admin("set auth_user='pswcheck_not_in_auth_file'")
+    bouncer.admin("set auth_type='trust'")
+    with bouncer.conn(
+        dbname="p7a",
+        user="pswcheck_not_in_auth_file",
+    ) as cn:
+        with cn.cursor() as cur:
+            cur.execute("select 1")
+
+
+def test_auth_user_trust_auth_without_auth_file_reload(bouncer) -> None:
+    """
+    This is a regression test for issue #1116, using the RELOAD command
+    """
+    config = f"""
+        [databases]
+        postgres = host={bouncer.pg.host} dbname=postgres port={bouncer.pg.port} min_pool_size=2
+
+        [pgbouncer]
+        listen_addr = {bouncer.host}
+        listen_port = {bouncer.port}
+        auth_type = trust
+        auth_user = pswcheck_not_in_auth_file
+        auth_dbname = postgres
+        admin_users = pgbouncer
+        logfile = {bouncer.log_path}
+        auth_file = {bouncer.auth_path}
+    """
+
+    with bouncer.run_with_config(config):
+        with bouncer.conn(
+            dbname="postgres",
+            user="postgres",
+        ) as cn:
+            with cn.cursor() as cur:
+                cur.execute("select 1")
+
+
+def test_auth_user_at_db_level_trust_auth_without_auth_file_reload(bouncer) -> None:
+    """
+    This is a regression test for issue #1116, when auth_user was set at the
+    database level
+    """
+    config = f"""
+        [databases]
+        postgres = host={bouncer.pg.host} dbname=postgres port={bouncer.pg.port} min_pool_size=2 auth_user=pswcheck_not_in_auth_file
+
+        [pgbouncer]
+        listen_addr = {bouncer.host}
+        listen_port = {bouncer.port}
+        auth_type = trust
+        auth_dbname = postgres
+        admin_users = pgbouncer
+        logfile = {bouncer.log_path}
+        auth_file = {bouncer.auth_path}
+    """
+
+    with bouncer.run_with_config(config):
+        with bouncer.conn(
+            dbname="postgres",
+            user="pswcheck_not_in_auth_file",
+        ) as cn:
+            with cn.cursor() as cur:
+                cur.execute("select 1")
+
+
+def test_auth_user_with_same_forced_user(bouncer):
+    """
+    Check that the pgbouncer correctly handles multiple credentials with the
+    same name with a global auth_user (isue #1103).
+    """
+
+    config = f"""
+        [databases]
+        * = host={bouncer.pg.host} port={bouncer.pg.port} user=postgres min_pool_size=2
+        [pgbouncer]
+        listen_addr = {bouncer.host}
+        listen_port = {bouncer.port}
+        auth_type = trust
+        auth_user = postgres
+        auth_dbname = postgres
+        admin_users = pgbouncer
+        logfile = {bouncer.log_path}
+        auth_file = {bouncer.auth_path}
+    """
+
+    with bouncer.run_with_config(config):
+        # Let's get an error "no such user"
+        with pytest.raises(psycopg.OperationalError, match="no such user"):
+            bouncer.conn(dbname="dummydb2", user="dummyuser2", password="dummypswd2")
+        # Let's wait a few seconds for the janitor to kick in and crash pgbouncer
+        time.sleep(2)
+        # Now we will try to connect with OK parameters
+        with bouncer.conn(dbname="p3", user="postgres", password="asdasd") as cn:
+            with cn.cursor() as cur:
+                cur.execute("select 1")
+
+
+def test_auth_user_at_db_level_with_same_forced_user(bouncer):
+    """
+    Check that the pgbouncer correctly handles multiple credentials with the
+    same name with auth_user for the specific database (isue #1103).
+    """
+
+    config = f"""
+        [databases]
+        * = host={bouncer.pg.host} port={bouncer.pg.port} auth_user=postgres user=postgres min_pool_size=2
+        [pgbouncer]
+        listen_addr = {bouncer.host}
+        listen_port = {bouncer.port}
+        auth_type = trust
+        auth_dbname = postgres
+        admin_users = pgbouncer
+        logfile = {bouncer.log_path}
+        auth_file = {bouncer.auth_path}
+    """
+
+    with bouncer.run_with_config(config):
+        # Let's get an error "no such user"
+        with pytest.raises(psycopg.OperationalError, match="no such user"):
+            bouncer.conn(dbname="dummydb2", user="dummyuser2", password="dummypswd2")
+        # Let's wait a few seconds for the janitor to kick in and crash pgbouncer
+        time.sleep(2)
+        # Now we will try to connect with OK parameters
+        with bouncer.conn(dbname="p3", user="postgres", password="asdasd") as cn:
+            with cn.cursor() as cur:
+                cur.execute("select 1")

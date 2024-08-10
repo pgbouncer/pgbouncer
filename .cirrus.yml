@@ -107,14 +107,12 @@ task:
     matrix:
       - image: rockylinux:9
       - image: rockylinux:8
-      - image: centos:centos7
   setup_script:
     - yum -y install autoconf automake diffutils file libevent-devel libtool make openssl-devel pkg-config postgresql-server postgresql-contrib systemd-devel wget
-    - if cat /etc/centos-release | grep -q ' 7'; then yum -y install python python-pip; else yum -y install python3 python3-pip sudo iptables; fi
+    - yum -y install python3 python3-pip sudo iptables
     - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
     - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
-# XXX: python too old
-    - if cat /etc/centos-release | grep -q ' 7'; then true; else pip3 install -r requirements.txt; fi
+    - pip3 install -r requirements.txt
     - useradd user
     - chown -R user .
     - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
@@ -123,8 +121,7 @@ task:
     - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror --with-systemd"
     - su user -c "make -j4"
   test_script:
-# XXX: postgresql too old on centos7
-    - if cat /etc/centos-release | grep -q ' 7'; then true; else su user -c "make -j4 check CONCURRENCY=4"; fi
+    - su user -c "make -j4 check CONCURRENCY=4"
   install_script:
     - make -j4 install
   always:

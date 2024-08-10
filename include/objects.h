@@ -72,7 +72,7 @@ bool clear_outstanding_requests_until(PgSocket *server, char *types) _MUSTCHECK;
 bool queue_fake_response(PgSocket *client, char request_type) _MUSTCHECK;
 
 PgGlobalUser * find_or_add_new_global_user(const char *name, const char *passwd) _MUSTCHECK;
-PgCredentials * find_exist_or_add_new_global_credentials(const char *name, const char *passwd) _MUSTCHECK;
+PgCredentials * find_or_add_new_global_credentials(const char *name, const char *passwd) _MUSTCHECK;
 
 PgCredentials * add_pam_credentials(const char *name, const char *passwd) _MUSTCHECK;
 

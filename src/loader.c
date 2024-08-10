@@ -450,7 +450,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	}
 
 	if (auth_username != NULL) {
-		db->auth_user_credentials = find_exist_or_add_new_global_credentials(auth_username, "");
+		db->auth_user_credentials = find_or_add_new_global_credentials(auth_username, "");
 		if (!db->auth_user_credentials)
 			goto fail;
 	} else if (db->auth_user_credentials) {

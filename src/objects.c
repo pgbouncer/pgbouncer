@@ -1022,7 +1022,7 @@ PgGlobalUser *find_or_add_new_global_user(const char *name, const char *passwd)
 }
 
 /* Find an existing global credentials or add a new global credentials */
-PgCredentials *find_exist_or_add_new_global_credentials(const char *name, const char *passwd)
+PgCredentials *find_or_add_new_global_credentials(const char *name, const char *passwd)
 {
 	PgGlobalUser *user = find_or_add_new_global_user(name, passwd);
 

@@ -485,7 +485,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			 * see if the global auth_user is set and use that.
 			 */
 			if (!client->db->auth_user_credentials && cf_auth_user) {
-				client->db->auth_user_credentials = find_exist_or_add_new_global_credentials(cf_auth_user, "");
+				client->db->auth_user_credentials = find_or_add_new_global_credentials(cf_auth_user, "");
 			}
 			if (client->db->auth_user_credentials) {
 				if (client->db->fake) {

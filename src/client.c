@@ -432,7 +432,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 		strlcpy(client->db->name, dbname, sizeof(client->db->name));
 	}
 
-	if (client->db->max_db_client_connections > 0) {
+	if (database_max_client_connections(client->db) > 0) {
 		if (client->db->client_connection_count >= client->db->max_db_client_connections) {
 			log_debug("set_pool: db '%s' full (%d >= %d)",
 				  dbname, client->db->client_connection_count, client->db->max_db_client_connections);

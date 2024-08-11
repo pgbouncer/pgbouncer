@@ -1233,7 +1233,7 @@ to limit the number of connections that pgbouncer is allowed to accept.
 
 ### max_db_connections
 
-Configure a database-wide maximum (i.e. all pools within the database will
+Configure a database-wide maximum of server connections (i.e. all pools within the database will
 not have more than this many server connections).
 
 ### server_lifetime

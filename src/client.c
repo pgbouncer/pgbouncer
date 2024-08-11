@@ -810,6 +810,7 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 	struct MBuf unsupported_protocol_extensions;
 	int unsupported_protocol_extensions_count = 0;
 	unsigned original_read_pos = pkt->data.read_pos;
+	int active_clients = 0;
 
 	mbuf_init_dynamic(&unsupported_protocol_extensions);
 
@@ -887,9 +888,11 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 	/* check if limit allows, don't limit admin db
 	   nb: new incoming conn will be attached to PgSocket, thus
 	   get_active_client_count() counts it */
-	if (get_active_client_count() > cf_max_client_conn) {
+	active_clients = get_active_client_count();
+	if (active_clients > cf_max_client_conn) {
 		if (strcmp(dbname, "pgbouncer") != 0) {
-			disconnect_client(client, true, "no more connections allowed (max_client_conn)");
+			disconnect_client(client, true, "no more connections allowed (max_client_conn=%d, active_clients=%d)",
+					  cf_max_client_conn, active_clients);
 			return false;
 		}
 	}

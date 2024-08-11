@@ -574,7 +574,7 @@ max_client_connections
 :   Maximum number of allowed client connections for this pgbouncer instance, as set by max_db_client_connections per database.
 
 current_client_connections
-:   Current number of connections for this pgboucer instance.
+:   Current number of client connections for this database.
 
 paused
 :   1 if this database is currently paused, else 0.

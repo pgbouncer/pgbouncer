@@ -97,8 +97,10 @@ async def test_max_user_client_connections_positive(bouncer):
     users = bouncer.admin("SHOW USERS")
     user = [user for user in users if user[0] == "maxedout3"][0]
     assert user == ("maxedout3", "", None, 0, 0, 2, 1)
-    # should still be allowed, since it's the last allowed connection
 
+    # should still be allowed, since it's the last allowed connection
+    await bouncer.atest(user="maxedout3")
+    await result
 
 @pytest.mark.asyncio
 async def test_max_user_client_connections_negative(bouncer):

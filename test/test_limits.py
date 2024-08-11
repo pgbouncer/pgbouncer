@@ -102,6 +102,7 @@ async def test_max_user_client_connections_positive(bouncer):
     await bouncer.atest(user="maxedout3")
     await result
 
+
 @pytest.mark.asyncio
 async def test_max_user_client_connections_negative(bouncer):
     result = bouncer.asleep(3, user="maxedout3")

@@ -564,7 +564,7 @@ pool_mode
 :   The database's override pool_mode, or NULL if the default will be used instead.
 
 max_connections
-:   Maximum number of allowed connections for this database, as set by
+:   Maximum number of allowed server connections for this database, as set by
     **max_db_connections**, either globally or per database.
 
 current_connections

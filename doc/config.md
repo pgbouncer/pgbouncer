@@ -1227,15 +1227,15 @@ they are logged but ignored otherwise.
 Set the pool mode specific to this database. If not set,
 the default `pool_mode` is used.
 
-### max_db_client_connections
-
-Configure a database-wide client connection maximum. Should be used in conjunction with max_client_conn 
-to limit the number of connections that pgbouncer is allowed to accept.
-
 ### max_db_connections
 
 Configure a database-wide maximum of server connections (i.e. all pools within the database will
 not have more than this many server connections).
+
+### max_db_client_connections
+
+Configure a database-wide client connection maximum. Should be used in conjunction with max_client_conn
+to limit the number of connections that pgbouncer is allowed to accept.
 
 ### server_lifetime
 

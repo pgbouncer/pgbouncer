@@ -176,6 +176,22 @@ pool.
 
 Default: 0 (unlimited)
 
+### max_db_client_connections
+
+Do not allow more than this many client connections to pgbouncer per database
+(regardless of user).  This considers the PgBouncer database that the
+client has connected to, not the PostgreSQL database of the outgoing
+connection.
+
+This should be set at a number greater than or equal to
+max_db_connections. The difference between the two numbers can be thought
+of as how many connections to a given database can be in the queue while
+waiting for active connections to finish.
+
+This can also be set per database in the `[databases]` section.
+
+Default: 0 (unlimited)
+
 ### max_user_connections
 
 Do not allow more than this many server connections per user

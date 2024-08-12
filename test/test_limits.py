@@ -22,19 +22,101 @@ async def test_max_client_conn(bouncer):
 
 
 @pytest.mark.asyncio
-async def test_max_db_client_connections(bouncer):
+async def test_max_db_client_connections_local_override_global(bouncer):
+    bouncer.admin("set max_db_client_connections = 3")
+    test_db = "conn_limit_db"
+    test_user = "muser1"
+    result = bouncer.asleep(3, dbname=test_db, user=test_user)
+    result_last = bouncer.asleep(3, dbname=test_db, user=test_user)
+    await asyncio.sleep(1)
+    dbs = bouncer.admin("SHOW DATABASES")
+    db = [db for db in dbs if db[0] == test_db][0]
+    assert db == (test_db, '127.0.0.1', 10201, 'p0', None, 5, 0, 0, 120, None, 0, 2, 2, 2, 0, 0)
+    with pytest.raises(psycopg.OperationalError, match=r"max_db_client_connections"):
+        await bouncer.atest(dbname=test_db, user=test_user)
+    await result
+    await result_last
+
+
+@pytest.mark.asyncio
+async def test_max_db_client_connections_global_negative(bouncer):
+    bouncer.admin("set max_db_client_connections = 2")
+    test_db = "p0"
+    test_user = "muser1"
+    result = bouncer.asleep(3, dbname=test_db, user=test_user)
+    result_last = bouncer.asleep(3, dbname=test_db, user=test_user)
+    await asyncio.sleep(1)
+    dbs = bouncer.admin("SHOW DATABASES")
+    db = [db for db in dbs if db[0] == test_db][0]
+    assert db == ('p0', '127.0.0.1', 10201, 'p0', 'bouncer', 2, 0, 0, 120, None, 0, 2, 2, 2, 0, 0)
+    with pytest.raises(psycopg.OperationalError, match=r"max_db_client_connections"):
+        await bouncer.atest(dbname=test_db, user=test_user)
+    await result
+    await result_last
+
+
+@pytest.mark.asyncio
+async def test_max_db_client_connections_global_positive(bouncer):
+    test_user = "muser1"
+    test_db = "p0"
+    bouncer.admin("set max_db_client_connections = 2")
+    result = bouncer.asleep(3, dbname=test_db, user=test_user)
+    await asyncio.sleep(1)
+    # should still be allowed, since it's the last allowed connection
+    dbs = bouncer.admin("SHOW DATABASES")
+    db = [db for db in dbs if db[0] == test_db][0]
+    assert db == ('p0', '127.0.0.1', 10201, 'p0', 'bouncer', 2, 0, 0, 120, None, 0, 1, 2, 1, 0, 0)
+    await bouncer.atest(dbname=test_db, user=test_user)
+    await asyncio.sleep(1)
+    await result
+
+@pytest.mark.asyncio
+async def test_max_db_client_connections_decrement(bouncer):
+    test_db = "conn_limit_db"
+    test_user = "muser1"
+    result = bouncer.asleep(6, dbname=test_db, user=test_user)
+    result_last = bouncer.asleep(3, dbname=test_db, user=test_user)
+    await asyncio.sleep(1)
+    dbs = bouncer.admin("SHOW DATABASES")
+    db = [db for db in dbs if db[0] == test_db][0]
+    assert db == (test_db, '127.0.0.1', 10201, 'p0', None, 5, 0, 0, 120, None, 0, 2, 2, 2, 0, 0)
+    await result_last
+    await asyncio.sleep(1)
+    dbs = bouncer.admin("SHOW DATABASES")
+    db = [db for db in dbs if db[0] == test_db][0]
+    assert db == (test_db, '127.0.0.1', 10201, 'p0', None, 5, 0, 0, 120, None, 0, 2, 2, 1, 0, 0)
+    await result
+
+
+@pytest.mark.asyncio
+async def test_max_db_client_connections_negative(bouncer):
+    test_db = "conn_limit_db"
+    test_user = "muser1"
+    result = bouncer.asleep(3, dbname=test_db, user=test_user)
+    result_last = bouncer.asleep(3, dbname=test_db, user=test_user)
+    await asyncio.sleep(1)
+    dbs = bouncer.admin("SHOW DATABASES")
+    db = [db for db in dbs if db[0] == test_db][0]
+    assert db == (test_db, '127.0.0.1', 10201, 'p0', None, 5, 0, 0, 120, None, 0, 2, 2, 2, 0, 0)
+    with pytest.raises(psycopg.OperationalError, match=r"max_db_client_connections"):
+        await bouncer.atest(dbname=test_db, user=test_user)
+    await result
+    await result_last
+
+
+@pytest.mark.asyncio
+async def test_max_db_client_connections_positive(bouncer):
     test_db = "conn_limit_db"
     test_user = "muser1"
     result = bouncer.asleep(3, dbname=test_db, user=test_user)
     await asyncio.sleep(1)
     # should still be allowed, since it's the last allowed connection
+    dbs = bouncer.admin("SHOW DATABASES")
+    db = [db for db in dbs if db[0] == test_db][0]
+    assert db == (test_db, '127.0.0.1', 10201, 'p0', None, 5, 0, 0, 120, None, 0, 1, 2, 1, 0, 0)
     await bouncer.atest(dbname=test_db, user=test_user)
-    result_last = bouncer.asleep(3, dbname=test_db, user=test_user)
     await asyncio.sleep(1)
-    with pytest.raises(psycopg.OperationalError, match=r"max_db_client_connections"):
-        await bouncer.atest(dbname=test_db, user=test_user)
     await result
-    await result_last
 
 
 @pytest.mark.asyncio

@@ -31,7 +31,24 @@ async def test_max_db_client_connections_local_override_global(bouncer):
     await asyncio.sleep(1)
     dbs = bouncer.admin("SHOW DATABASES")
     db = [db for db in dbs if db[0] == test_db][0]
-    assert db == (test_db, '127.0.0.1', 10201, 'p0', None, 5, 0, 0, 120, None, 0, 2, 2, 2, 0, 0)
+    assert db == (
+        test_db,
+        "127.0.0.1",
+        10201,
+        "p0",
+        None,
+        5,
+        0,
+        0,
+        120,
+        None,
+        0,
+        2,
+        2,
+        2,
+        0,
+        0,
+    )
     with pytest.raises(psycopg.OperationalError, match=r"max_db_client_connections"):
         await bouncer.atest(dbname=test_db, user=test_user)
     await result
@@ -48,7 +65,24 @@ async def test_max_db_client_connections_global_negative(bouncer):
     await asyncio.sleep(1)
     dbs = bouncer.admin("SHOW DATABASES")
     db = [db for db in dbs if db[0] == test_db][0]
-    assert db == ('p0', '127.0.0.1', 10201, 'p0', 'bouncer', 2, 0, 0, 120, None, 0, 2, 2, 2, 0, 0)
+    assert db == (
+        "p0",
+        "127.0.0.1",
+        10201,
+        "p0",
+        "bouncer",
+        2,
+        0,
+        0,
+        120,
+        None,
+        0,
+        2,
+        2,
+        2,
+        0,
+        0,
+    )
     with pytest.raises(psycopg.OperationalError, match=r"max_db_client_connections"):
         await bouncer.atest(dbname=test_db, user=test_user)
     await result
@@ -65,10 +99,28 @@ async def test_max_db_client_connections_global_positive(bouncer):
     # should still be allowed, since it's the last allowed connection
     dbs = bouncer.admin("SHOW DATABASES")
     db = [db for db in dbs if db[0] == test_db][0]
-    assert db == ('p0', '127.0.0.1', 10201, 'p0', 'bouncer', 2, 0, 0, 120, None, 0, 1, 2, 1, 0, 0)
+    assert db == (
+        "p0",
+        "127.0.0.1",
+        10201,
+        "p0",
+        "bouncer",
+        2,
+        0,
+        0,
+        120,
+        None,
+        0,
+        1,
+        2,
+        1,
+        0,
+        0,
+    )
     await bouncer.atest(dbname=test_db, user=test_user)
     await asyncio.sleep(1)
     await result
+
 
 @pytest.mark.asyncio
 async def test_max_db_client_connections_decrement(bouncer):
@@ -79,12 +131,46 @@ async def test_max_db_client_connections_decrement(bouncer):
     await asyncio.sleep(1)
     dbs = bouncer.admin("SHOW DATABASES")
     db = [db for db in dbs if db[0] == test_db][0]
-    assert db == (test_db, '127.0.0.1', 10201, 'p0', None, 5, 0, 0, 120, None, 0, 2, 2, 2, 0, 0)
+    assert db == (
+        test_db,
+        "127.0.0.1",
+        10201,
+        "p0",
+        None,
+        5,
+        0,
+        0,
+        120,
+        None,
+        0,
+        2,
+        2,
+        2,
+        0,
+        0,
+    )
     await result_last
     await asyncio.sleep(1)
     dbs = bouncer.admin("SHOW DATABASES")
     db = [db for db in dbs if db[0] == test_db][0]
-    assert db == (test_db, '127.0.0.1', 10201, 'p0', None, 5, 0, 0, 120, None, 0, 2, 2, 1, 0, 0)
+    assert db == (
+        test_db,
+        "127.0.0.1",
+        10201,
+        "p0",
+        None,
+        5,
+        0,
+        0,
+        120,
+        None,
+        0,
+        2,
+        2,
+        1,
+        0,
+        0,
+    )
     await result
 
 
@@ -97,7 +183,24 @@ async def test_max_db_client_connections_negative(bouncer):
     await asyncio.sleep(1)
     dbs = bouncer.admin("SHOW DATABASES")
     db = [db for db in dbs if db[0] == test_db][0]
-    assert db == (test_db, '127.0.0.1', 10201, 'p0', None, 5, 0, 0, 120, None, 0, 2, 2, 2, 0, 0)
+    assert db == (
+        test_db,
+        "127.0.0.1",
+        10201,
+        "p0",
+        None,
+        5,
+        0,
+        0,
+        120,
+        None,
+        0,
+        2,
+        2,
+        2,
+        0,
+        0,
+    )
     with pytest.raises(psycopg.OperationalError, match=r"max_db_client_connections"):
         await bouncer.atest(dbname=test_db, user=test_user)
     await result
@@ -113,7 +216,24 @@ async def test_max_db_client_connections_positive(bouncer):
     # should still be allowed, since it's the last allowed connection
     dbs = bouncer.admin("SHOW DATABASES")
     db = [db for db in dbs if db[0] == test_db][0]
-    assert db == (test_db, '127.0.0.1', 10201, 'p0', None, 5, 0, 0, 120, None, 0, 1, 2, 1, 0, 0)
+    assert db == (
+        test_db,
+        "127.0.0.1",
+        10201,
+        "p0",
+        None,
+        5,
+        0,
+        0,
+        120,
+        None,
+        0,
+        1,
+        2,
+        1,
+        0,
+        0,
+    )
     await bouncer.atest(dbname=test_db, user=test_user)
     await asyncio.sleep(1)
     await result

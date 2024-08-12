@@ -91,6 +91,20 @@ async def test_min_pool_size(pg, bouncer):
 
 
 @pytest.mark.asyncio
+async def test_max_user_client_connections_local_override_global(bouncer):
+    test_user = "maxedout3"
+    bouncer.admin("set max_user_client_connections = 1")
+    result = bouncer.asleep(6, user=test_user)
+    await asyncio.sleep(1)
+    users = bouncer.admin("SHOW USERS")
+    user = [user for user in users if user[0] == test_user][0]
+    assert user == (test_user, "", None, 0, 0, 2, 1)
+
+    await bouncer.atest(user=test_user)
+    await result
+
+
+@pytest.mark.asyncio
 async def test_max_user_client_connections_global_positive(bouncer):
     test_user = "postgres"
     bouncer.admin("set max_user_client_connections = 2")
@@ -98,7 +112,7 @@ async def test_max_user_client_connections_global_positive(bouncer):
     await asyncio.sleep(1)
     users = bouncer.admin("SHOW USERS")
     user = [user for user in users if user[0] == test_user][0]
-    assert user == (user_test, "", None, 0, 0, 2, 1)
+    assert user == (test_user, "        1", None, 0, 0, 2, 1)
 
     # should still be allowed, since it's the last allowed connection
     await bouncer.atest(user=test_user)
@@ -114,7 +128,7 @@ async def test_max_user_client_connections_global_negative(bouncer):
     await asyncio.sleep(1)
     users = bouncer.admin("SHOW USERS")
     user = [user for user in users if user[0] == test_user][0]
-    assert user == (user_test, "", None, 0, 0, 2, 2)
+    assert user == (test_user, "        1", None, 0, 0, 2, 2)
     with pytest.raises(psycopg.OperationalError, match=r"max_user_client_connections"):
         await bouncer.atest(user=test_user)
     await result
@@ -123,27 +137,29 @@ async def test_max_user_client_connections_global_negative(bouncer):
 
 @pytest.mark.asyncio
 async def test_max_user_client_connections_positive(bouncer):
-    result = bouncer.asleep(6, user="maxedout3")
+    test_user = "maxedout3"
+    result = bouncer.asleep(6, user=test_user)
     await asyncio.sleep(1)
     users = bouncer.admin("SHOW USERS")
-    user = [user for user in users if user[0] == "maxedout3"][0]
-    assert user == ("maxedout3", "", None, 0, 0, 2, 1)
+    user = [user for user in users if user[0] == test_user][0]
+    assert user == (test_user, "", None, 0, 0, 2, 1)
 
     # should still be allowed, since it's the last allowed connection
-    await bouncer.atest(user="maxedout3")
+    await bouncer.atest(user=test_user)
     await result
 
 
 @pytest.mark.asyncio
 async def test_max_user_client_connections_negative(bouncer):
-    result = bouncer.asleep(3, user="maxedout3")
-    result_last = bouncer.asleep(3, user="maxedout3")
+    test_user = "maxedout3"
+    result = bouncer.asleep(3, user=test_user)
+    result_last = bouncer.asleep(3, user=test_user)
     await asyncio.sleep(1)
     users = bouncer.admin("SHOW USERS")
-    user = [user for user in users if user[0] == "maxedout3"][0]
-    assert user == ("maxedout3", "", None, 0, 0, 2, 2)
+    user = [user for user in users if user[0] == test_user][0]
+    assert user == (test_user, "", None, 0, 0, 2, 2)
     with pytest.raises(psycopg.OperationalError, match=r"max_user_client_connections"):
-        await bouncer.atest(user="maxedout3")
+        await bouncer.atest(user=test_user)
     await result
     await result_last
 

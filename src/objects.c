@@ -2015,9 +2015,6 @@ bool finish_client_login(PgSocket *client)
 	if (!welcome_client(client))
 		return false;
 
-	/* Increment client connection count */
-	client->login_user_credentials->global_user->client_connection_count++;
-
 	slog_debug(client, "logged in");
 
 	return true;

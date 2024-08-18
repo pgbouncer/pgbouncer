@@ -131,6 +131,9 @@ async def test_max_user_client_connections_global_negative(bouncer):
     assert user == (test_user, "        1", None, 0, 0, 2, 2)
     with pytest.raises(psycopg.OperationalError, match=r"max_user_client_connections"):
         await bouncer.atest(user=test_user)
+    # Make sure error is correctly raised again
+    with pytest.raises(psycopg.OperationalError, match=r"max_user_client_connections"):
+        await bouncer.atest(user=test_user)
     await result
     await result_last
 

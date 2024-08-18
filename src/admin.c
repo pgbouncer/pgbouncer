@@ -1680,9 +1680,9 @@ bool admin_pre_login(PgSocket *client, const char *username)
 		if (res >= 0 && peer_uid == getuid()
 		    && strcmp("pgbouncer", username) == 0) {
 			client->login_user_credentials = admin_pool->db->forced_user_credentials;
-            if (!check_user_connection_count(client)){
-                return false;
-            }
+			if (!check_user_connection_count(client)) {
+				return false;
+			}
 			client->own_user = true;
 			client->admin_user = true;
 			if (cf_log_connections)
@@ -1698,16 +1698,16 @@ bool admin_pre_login(PgSocket *client, const char *username)
 	if (cf_auth_type == AUTH_ANY) {
 		if (strlist_contains(cf_admin_users, username)) {
 			client->login_user_credentials = admin_pool->db->forced_user_credentials;
-            if (!check_user_connection_count(client)){
-                return false;
-            }
+			if (!check_user_connection_count(client)) {
+				return false;
+			}
 			client->admin_user = true;
 			return true;
 		} else if (strlist_contains(cf_stats_users, username)) {
 			client->login_user_credentials = admin_pool->db->forced_user_credentials;
-            if (!check_user_connection_count(client)){
-                return false;
-            }
+			if (!check_user_connection_count(client)) {
+				return false;
+			}
 			return true;
 		}
 	}

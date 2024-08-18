@@ -464,9 +464,6 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	/* remember dbname */
 	db->dbname = (char *)msg->buf + dbname_ofs;
 
-	Assert(host == NULL);
-	Assert(connect_query == NULL);
-
 	free(tmp_connstr);
 	return true;
 fail:

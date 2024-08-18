@@ -230,11 +230,8 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 
 	free(peer->host);
 	peer->host = host;
-	host = NULL;
 	peer->port = port;
 	peer->pool_size = pool_size;
-
-	Assert(host == NULL);
 
 	free(tmp_connstr);
 	return true;

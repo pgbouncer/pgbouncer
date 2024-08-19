@@ -126,6 +126,14 @@ static void construct_server(void *obj)
 	statlist_init(&server->outstanding_requests, "outstanding_requests");
 }
 
+/* compare string with PgGlobalUser->credentials.name, for usage with btree */
+static int global_user_node_cmp(uintptr_t userptr, struct AANode *node)
+{
+	const char *name = (const char *)userptr;
+	PgGlobalUser *global_user = container_of(node, PgGlobalUser, credentials.tree_node);
+	return strcmp(name, global_user->credentials.name);
+}
+
 /* compare string with PgCredentials->name, for usage with btree */
 static int credentials_node_cmp(uintptr_t userptr, struct AANode *node)
 {
@@ -144,7 +152,7 @@ static void credentials_node_release(struct AANode *node, void *arg)
 /* initialization before config loading */
 void init_objects(void)
 {
-	aatree_init(&user_tree, credentials_node_cmp, NULL);
+	aatree_init(&user_tree, global_user_node_cmp, NULL);
 	aatree_init(&pam_user_tree, credentials_node_cmp, NULL);
 	user_cache = slab_create("user_cache", sizeof(PgGlobalUser), 0, NULL, USUAL_ALLOC);
 	credentials_cache = slab_create("credentials_cache", sizeof(PgCredentials), 0, NULL, USUAL_ALLOC);
@@ -2632,6 +2640,7 @@ void objects_cleanup(void)
 	memset(&user_list, 0, sizeof user_list);
 	memset(&database_list, 0, sizeof database_list);
 	memset(&pool_list, 0, sizeof pool_list);
+	memset(&pam_user_tree, 0, sizeof pam_user_tree);
 	memset(&user_tree, 0, sizeof user_tree);
 	memset(&autodatabase_idle_list, 0, sizeof autodatabase_idle_list);
 

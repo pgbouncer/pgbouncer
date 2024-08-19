@@ -34,7 +34,7 @@ async def test_max_db_client_connections_local_override_global(bouncer):
     assert db == (
         test_db,
         "127.0.0.1",
-        10201,
+        bouncer.pg.port,
         "p0",
         None,
         5,
@@ -49,6 +49,8 @@ async def test_max_db_client_connections_local_override_global(bouncer):
         0,
         0,
     )
+    with pytest.raises(psycopg.OperationalError, match=r"max_db_client_connections"):
+        await bouncer.atest(dbname=test_db, user=test_user)
     with pytest.raises(psycopg.OperationalError, match=r"max_db_client_connections"):
         await bouncer.atest(dbname=test_db, user=test_user)
     await result
@@ -68,7 +70,7 @@ async def test_max_db_client_connections_global_negative(bouncer):
     assert db == (
         "p0",
         "127.0.0.1",
-        10201,
+        bouncer.pg.port,
         "p0",
         "bouncer",
         2,
@@ -102,7 +104,7 @@ async def test_max_db_client_connections_global_positive(bouncer):
     assert db == (
         "p0",
         "127.0.0.1",
-        10201,
+        bouncer.pg.port,
         "p0",
         "bouncer",
         2,
@@ -134,7 +136,7 @@ async def test_max_db_client_connections_decrement(bouncer):
     assert db == (
         test_db,
         "127.0.0.1",
-        10201,
+        bouncer.pg.port,
         "p0",
         None,
         5,
@@ -156,7 +158,7 @@ async def test_max_db_client_connections_decrement(bouncer):
     assert db == (
         test_db,
         "127.0.0.1",
-        10201,
+        bouncer.pg.port,
         "p0",
         None,
         5,
@@ -186,7 +188,7 @@ async def test_max_db_client_connections_negative(bouncer):
     assert db == (
         test_db,
         "127.0.0.1",
-        10201,
+        bouncer.pg.port,
         "p0",
         None,
         5,
@@ -219,7 +221,7 @@ async def test_max_db_client_connections_positive(bouncer):
     assert db == (
         test_db,
         "127.0.0.1",
-        10201,
+        bouncer.pg.port,
         "p0",
         None,
         5,

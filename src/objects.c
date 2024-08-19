@@ -2005,7 +2005,6 @@ bool finish_client_login(PgSocket *client)
 	if (!welcome_client(client))
 		return false;
 
-	client->db->client_connection_count++;
 	slog_debug(client, "logged in");
 
 	return true;

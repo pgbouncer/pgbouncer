@@ -593,6 +593,10 @@ static bool parse_ident_line(struct Ident *ident, struct TokParser *tp, int line
 	}
 
 	map_name_copy = strdup(map_name);
+	if (!map_name_copy) {
+		log_warning("ident: no mem for map_name");
+		goto failed;
+	}
 
 	next_token(tp);
 
@@ -602,6 +606,10 @@ static bool parse_ident_line(struct Ident *ident, struct TokParser *tp, int line
 	}
 
 	mapping->system_user_name = strdup(system_user_name);
+	if (!mapping->system_user_name) {
+		log_warning("ident: no mem for system_user_name");
+		goto failed;
+	}
 
 	next_token(tp);
 
@@ -614,6 +622,10 @@ static bool parse_ident_line(struct Ident *ident, struct TokParser *tp, int line
 		mapping->name_flags |= NAME_ALL;
 	} else {
 		mapping->postgres_user_name = strdup(postgres_user_name);
+		if (!mapping->postgres_user_name) {
+			log_warning("ident: no mem for postgres_user_name");
+			goto failed;
+		}
 	}
 
 	next_token(tp);
@@ -627,15 +639,17 @@ static bool parse_ident_line(struct Ident *ident, struct TokParser *tp, int line
 	if (find_ident_map(ident, map_name_copy, &ident_map)) {
 		list_append(&ident_map->mappings, &mapping->node);
 		free(map_name_copy);
+		map_name_copy = NULL;
 	} else {
 		ident_map = calloc(1, sizeof(*ident_map));
 
 		if (!ident_map) {
 			log_warning("ident: no mem for parsing ident_map");
-			return false;
+			goto failed;
 		}
 
 		ident_map->map_name = map_name_copy;
+		map_name_copy = NULL;
 		list_init(&ident_map->mappings);
 		list_append(&ident_map->mappings, &mapping->node);
 		list_append(&ident->maps, &ident_map->node);
@@ -646,6 +660,7 @@ static bool parse_ident_line(struct Ident *ident, struct TokParser *tp, int line
 failed:
 	mapping_free(mapping);
 	ident_map_free(ident_map);
+	free(map_name_copy);
 	return false;
 }
 

@@ -90,7 +90,6 @@ async def test_min_pool_size(pg, bouncer):
     assert pg.connection_count(dbname="p0", users=("postgres",)) == 5
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize("test_db", ["p1", "pgbouncer"])
 async def test_max_user_client_connections_local_override_global(
     bouncer, test_db: str
@@ -109,7 +108,6 @@ async def test_max_user_client_connections_local_override_global(
     conn_1.close()
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize("test_db", ["p1", "pgbouncer"])
 def test_max_user_client_connections_global_positive(bouncer, test_db: str) -> None:
     test_user = "postgres"
@@ -126,7 +124,6 @@ def test_max_user_client_connections_global_positive(bouncer, test_db: str) -> N
     conn_1.close()
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize("test_db", ["p1", "pgbouncer"])
 def test_max_user_client_connections_global_negative(bouncer, test_db: str) -> None:
     # Test that default user level connection limit correctly rejects connection after
@@ -152,7 +149,6 @@ def test_max_user_client_connections_global_negative(bouncer, test_db: str) -> N
         conn.close()
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize("test_db", ["p1", "pgbouncer"])
 def test_max_user_client_connections_positive(bouncer, test_db: str) -> None:
     # Test that user level connection limits allow users to connect up to the limit level.
@@ -172,7 +168,6 @@ def test_max_user_client_connections_positive(bouncer, test_db: str) -> None:
         conn.close()
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize("test_db", ["p1", "pgbouncer"])
 def test_max_user_client_connections_negative(bouncer, test_db: str) -> None:
     # Test that user level connection limit correctly rejects connection after

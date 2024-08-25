@@ -424,26 +424,28 @@ bool check_user_connection_count(PgSocket *client)
 {
 	int client_connection_count;
 	int max_user_client_connections;
+
 	/* Check client_connection count limit */
-	if (client->login_user_credentials) {
-		/* increment count now, so that we can decrement it safely in disconnect_client if limit was reached */
-		if (client->login_user_credentials->global_user) {
-			client->login_user_credentials->global_user->client_connection_count++;
-		} else {
-			return true;
-		}
-		max_user_client_connections = user_client_max_connections(client->login_user_credentials->global_user);
-		if (max_user_client_connections > 0) {
-			client_connection_count = client->login_user_credentials->global_user->client_connection_count;
-			if (client_connection_count > max_user_client_connections) {
-				log_debug("set_pool: user '%s' full (%d >= %d)",
-					  client->login_user_credentials->name, client_connection_count, max_user_client_connections);
-				disconnect_client(client, true, "client connections exceeded (max_user_client_connections)");
-				return false;
-			}
-		}
-	}
-	return true;
+	if (!client->login_user_credentials)
+		return true;
+
+	/* increment count now, so that we can decrement it safely in disconnect_client if limit was reached */
+	if (!client->login_user_credentials->global_user)
+		return true;
+
+	client->login_user_credentials->global_user->client_connection_count++;
+	max_user_client_connections = user_client_max_connections(client->login_user_credentials->global_user);
+	if (max_user_client_connections == 0)
+		return true;
+
+	client_connection_count = client->login_user_credentials->global_user->client_connection_count;
+	if (client_connection_count <= max_user_client_connections)
+		return true;
+
+	log_debug("set_pool: user '%s' full (%d >= %d)",
+		  client->login_user_credentials->name, client_connection_count, max_user_client_connections);
+	disconnect_client(client, true, "client connections exceeded (max_user_client_connections)");
+	return false;
 }
 
 bool set_pool(PgSocket *client, const char *dbname, const char *username, const char *password, bool takeover)

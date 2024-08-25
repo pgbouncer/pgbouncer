@@ -91,80 +91,96 @@ async def test_min_pool_size(pg, bouncer):
 
 
 @pytest.mark.asyncio
-async def test_max_user_client_connections_local_override_global(bouncer):
+@pytest.mark.parametrize("test_db", ["p1", "pgbouncer"])
+async def test_max_user_client_connections_local_override_global(
+    bouncer, test_db: str
+) -> None:
     test_user = "maxedout3"
+    connect_args = {"dbname": test_db, "user": test_user}
+    bouncer.admin("set admin_users='maxedout3'")
     bouncer.admin("set max_user_client_connections = 1")
-    result = bouncer.asleep(6, user=test_user)
-    await asyncio.sleep(1)
+
+    conn_1 = bouncer.conn(**connect_args)
     users = bouncer.admin("SHOW USERS")
     user = [user for user in users if user[0] == test_user][0]
     assert user == (test_user, "", None, 0, 0, 2, 1)
 
-    await bouncer.atest(user=test_user)
-    await result
+    bouncer.conn(**connect_args)
 
 
 @pytest.mark.asyncio
-async def test_max_user_client_connections_global_positive(bouncer):
+@pytest.mark.parametrize("test_db", ["p1", "pgbouncer"])
+def test_max_user_client_connections_global_positive(bouncer, test_db: str) -> None:
     test_user = "postgres"
     bouncer.admin("set max_user_client_connections = 2")
-    result = bouncer.asleep(6, user=test_user)
-    await asyncio.sleep(1)
+    bouncer.admin("set admin_users='postgres'")
+
+    connect_args = {"dbname": test_db, "user": test_user}
+    conn_1 = bouncer.conn(**connect_args)
     users = bouncer.admin("SHOW USERS")
     user = [user for user in users if user[0] == test_user][0]
     assert user == (test_user, "        1", None, 0, 0, 2, 1)
 
     # should still be allowed, since it's the last allowed connection
-    await bouncer.atest(user=test_user)
-    await result
+    bouncer.conn(**connect_args)
 
 
 @pytest.mark.asyncio
-async def test_max_user_client_connections_global_negative(bouncer):
+@pytest.mark.parametrize("test_db", ["p1", "pgbouncer"])
+def test_max_user_client_connections_global_negative(bouncer, test_db: str) -> None:
+    # Test that default user level connection limit correctly rejects connection after
+    # 2 users are connected. Also checks that user counts are correctly reflected in
+    # SHOW USERS stats command.
+    # Test covers admin db and real db
+    bouncer.admin("set admin_users='postgres'")
     test_user = "postgres"
     bouncer.admin("set max_user_client_connections = 2")
-    result = bouncer.asleep(3, user=test_user)
-    result_last = bouncer.asleep(3, user=test_user)
-    await asyncio.sleep(1)
+    connect_args = {"dbname": test_db, "user": test_user}
+    conns = [bouncer.conn(**connect_args) for _ in range(2)]
     users = bouncer.admin("SHOW USERS")
     user = [user for user in users if user[0] == test_user][0]
     assert user == (test_user, "        1", None, 0, 0, 2, 2)
     with pytest.raises(psycopg.OperationalError, match=r"max_user_client_connections"):
-        await bouncer.atest(user=test_user)
+        bouncer.conn(**connect_args)
+
     # Make sure error is correctly raised again
     with pytest.raises(psycopg.OperationalError, match=r"max_user_client_connections"):
-        await bouncer.atest(user=test_user)
-    await result
-    await result_last
+        bouncer.conn(**connect_args)
 
 
 @pytest.mark.asyncio
-async def test_max_user_client_connections_positive(bouncer):
+@pytest.mark.parametrize("test_db", ["p1", "pgbouncer"])
+def test_max_user_client_connections_positive(bouncer, test_db: str) -> None:
+    # Test that user level connection limits allow users to connect up to the limit level.
+    # Also test that SHOW USERS stats correctly reflect this number.
+    bouncer.admin("set admin_users='maxedout3'")
     test_user = "maxedout3"
-    result = bouncer.asleep(6, user=test_user)
-    await asyncio.sleep(1)
+    connect_args = {"dbname": test_db, "user": test_user}
+    conn_1 = bouncer.conn(**connect_args)
     users = bouncer.admin("SHOW USERS")
     user = [user for user in users if user[0] == test_user][0]
     assert user == (test_user, "", None, 0, 0, 2, 1)
 
     # should still be allowed, since it's the last allowed connection
-    await bouncer.atest(user=test_user)
-    await result
+    conn_2 = bouncer.conn(**connect_args)
 
 
 @pytest.mark.asyncio
-async def test_max_user_client_connections_negative(bouncer):
+@pytest.mark.parametrize("test_db", ["p1", "pgbouncer"])
+def test_max_user_client_connections_negative(bouncer, test_db: str) -> None:
+    # Test that user level connection limit correctly rejects connection after
+    # 2 users are connected. Also checks that user counts are correctly reflected in
+    # SHOW USERS stats command.
+    # Test covers admin db and real db
+    bouncer.admin("set admin_users='maxedout3'")
     test_user = "maxedout3"
-    result = bouncer.asleep(3, user=test_user)
-    result_last = bouncer.asleep(3, user=test_user)
-    await asyncio.sleep(1)
+    connect_args = {"dbname": test_db, "user": test_user}
+    conns = [bouncer.conn(**connect_args) for _ in range(2)]
     users = bouncer.admin("SHOW USERS")
     user = [user for user in users if user[0] == test_user][0]
     assert user == (test_user, "", None, 0, 0, 2, 2)
     with pytest.raises(psycopg.OperationalError, match=r"max_user_client_connections"):
-        await bouncer.atest(user=test_user)
-    await result
-    await result_last
+        bouncer.conn(**connect_args)
 
 
 def test_min_pool_size_with_lower_max_user_connections(bouncer):

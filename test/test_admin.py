@@ -1,3 +1,5 @@
+import psycopg
+import pytest
 from psycopg.rows import dict_row
 
 from .utils import capture, run
@@ -33,6 +35,27 @@ def test_show(bouncer):
 
     for item in show_items:
         bouncer.admin(f"SHOW {item}")
+
+
+def test_kill_client(bouncer):
+    # Connect to client as user A
+    conn_1 = bouncer.conn(dbname="p0", user="maxedout")
+
+    # Validate count
+    clients = bouncer.admin("SHOW CLIENTS")
+    assert len(clients) == 2
+
+    # Get clients id
+    client_id = [client for client in clients if client[2] == "p0"][0][-6]
+
+    # Issue kill client command
+    clients = bouncer.admin(f"KILL_CLIENT {client_id}")
+
+    # Validate count
+    clients = bouncer.admin("SHOW CLIENTS")
+    assert len(clients) == 1
+
+    conn_1.close()
 
 
 def test_show_version(bouncer):

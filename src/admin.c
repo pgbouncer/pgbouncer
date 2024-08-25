@@ -1330,6 +1330,83 @@ static bool admin_cmd_enable(PgSocket *admin, const char *arg)
 	return admin_ready(admin, "ENABLE");
 }
 
+
+
+PgSocket *find_socket_in_list(const char *arg, struct StatList *sockets)
+{
+	struct List *item;
+	int j;
+	int string_comp;
+	char buffer[strlen(arg) + 1];
+	PgSocket *socket;
+
+	statlist_for_each(item, sockets) {
+		socket = container_of(item, PgSocket, head);
+		j = snprintf(buffer, strlen(arg) + 1, "%p", socket);
+		if (j < (int)strlen(arg) + 1) {
+			string_comp = strcmp(buffer, arg);
+			if (string_comp == 0) {
+				return socket;
+			}
+		}
+	}
+	return NULL;
+}
+
+PgSocket *find_client_global(const char *arg)
+{
+	PgSocket *client = NULL;
+	struct List *item;
+	PgPool *pool;
+	statlist_for_each(item, &pool_list) {
+		pool = container_of(item, PgPool, head);
+
+		client = find_socket_in_list(arg, &pool->active_client_list);
+		if (client != NULL) {
+			return client;
+		}
+		client = find_socket_in_list(arg, &pool->waiting_client_list);
+		if (client != NULL) {
+			return client;
+		}
+		client = find_socket_in_list(arg, &pool->active_cancel_req_list);
+		if (client != NULL) {
+			return client;
+		}
+		client = find_socket_in_list(arg, &pool->waiting_cancel_req_list);
+		if (client != NULL) {
+			return client;
+		}
+	}
+
+	statlist_for_each(item, &peer_pool_list) {
+		pool = container_of(item, PgPool, head);
+
+		client = find_socket_in_list(arg, &pool->active_cancel_req_list);
+		if (client != NULL) {
+			return client;
+		}
+		client = find_socket_in_list(arg, &pool->waiting_cancel_req_list);
+		if (client != NULL) {
+			return client;
+		}
+	}
+	return NULL;
+}
+
+/* Command: KILL_CLIENT */
+static bool admin_cmd_kill_client(PgSocket *admin, const char *arg)
+{
+	PgSocket *client = NULL;
+
+	client = find_client_global(arg);
+	if (client == NULL) {
+		return admin_error(admin, "client not found");
+	}
+	disconnect_client(client, true, "admin forced disconnect");
+	return admin_ready(admin, "KILL");
+}
+
 /* Command: KILL */
 static bool admin_cmd_kill(PgSocket *admin, const char *arg)
 {
@@ -1467,6 +1544,7 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		     "\tENABLE <db>\n"
 		     "\tRECONNECT [<db>]\n"
 		     "\tKILL <db>\n"
+		     "\tKILL_CLIENT <client_ptr>\n"
 		     "\tSUSPEND\n"
 		     "\tSHUTDOWN\n"
 		     "\tSHUTDOWN WAIT_FOR_SERVERS|WAIT_FOR_CLIENTS\n"
@@ -1552,6 +1630,7 @@ static struct cmd_lookup cmd_list [] = {
 	{"disable", admin_cmd_disable},
 	{"enable", admin_cmd_enable},
 	{"kill", admin_cmd_kill},
+	{"kill_client", admin_cmd_kill_client},
 	{"pause", admin_cmd_pause},
 	{"reconnect", admin_cmd_reconnect},
 	{"reload", admin_cmd_reload},

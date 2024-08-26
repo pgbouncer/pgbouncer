@@ -96,7 +96,7 @@ async def test_max_user_client_connections_local_override_global(
 ) -> None:
     test_user = "maxedout3"
     connect_args = {"dbname": test_db, "user": test_user}
-    bouncer.admin("set admin_users='maxedout3'")
+    bouncer.admin("set admin_users='maxedout3,pgbouncer'")
     bouncer.admin("set max_user_client_connections = 1")
 
     conn_1 = bouncer.conn(**connect_args)
@@ -112,7 +112,7 @@ async def test_max_user_client_connections_local_override_global(
 def test_max_user_client_connections_global_positive(bouncer, test_db: str) -> None:
     test_user = "postgres"
     bouncer.admin("set max_user_client_connections = 2")
-    bouncer.admin("set admin_users='postgres'")
+    bouncer.admin("set admin_users='postgres,pgbouncer'")
 
     connect_args = {"dbname": test_db, "user": test_user}
     conn_1 = bouncer.conn(**connect_args)
@@ -130,7 +130,7 @@ def test_max_user_client_connections_global_negative(bouncer, test_db: str) -> N
     # 2 users are connected. Also checks that user counts are correctly reflected in
     # SHOW USERS stats command.
     # Test covers admin db and real db
-    bouncer.admin("set admin_users='postgres'")
+    bouncer.admin("set admin_users='postgres,pgbouncer'")
     test_user = "postgres"
     bouncer.admin("set max_user_client_connections = 2")
     connect_args = {"dbname": test_db, "user": test_user}
@@ -153,7 +153,7 @@ def test_max_user_client_connections_global_negative(bouncer, test_db: str) -> N
 def test_max_user_client_connections_positive(bouncer, test_db: str) -> None:
     # Test that user level connection limits allow users to connect up to the limit level.
     # Also test that SHOW USERS stats correctly reflect this number.
-    bouncer.admin("set admin_users='maxedout3'")
+    bouncer.admin("set admin_users='maxedout3,pgbouncer'")
     test_user = "maxedout3"
     connect_args = {"dbname": test_db, "user": test_user}
     conn_1 = bouncer.conn(**connect_args)
@@ -174,7 +174,7 @@ def test_max_user_client_connections_negative(bouncer, test_db: str) -> None:
     # 2 users are connected. Also checks that user counts are correctly reflected in
     # SHOW USERS stats command.
     # Test covers admin db and real db
-    bouncer.admin("set admin_users='maxedout3'")
+    bouncer.admin("set admin_users='maxedout3,pgbouncer'")
     test_user = "maxedout3"
     connect_args = {"dbname": test_db, "user": test_user}
     conns = [bouncer.conn(**connect_args) for _ in range(2)]

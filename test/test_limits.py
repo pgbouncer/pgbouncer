@@ -91,7 +91,7 @@ async def test_min_pool_size(pg, bouncer):
 
 
 @pytest.mark.parametrize("test_db", ["p0", "pgbouncer"])
-async def test_max_user_client_connections_local_override_global(
+def test_max_user_client_connections_local_override_global(
     bouncer, test_db: str
 ) -> None:
     test_user = "maxedout3"

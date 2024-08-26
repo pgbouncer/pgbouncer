@@ -168,7 +168,7 @@ def test_max_user_client_connections_positive(bouncer, test_db: str) -> None:
         conn.close()
 
 
-@pytest.mark.parametrize("test_db", ["postgres", "pgbouncer"])
+@pytest.mark.parametrize("test_db", ["p0", "pgbouncer"])
 def test_max_user_client_connections_negative(bouncer, test_db: str) -> None:
     # Test that user level connection limit correctly rejects connection after
     # 2 users are connected. Also checks that user counts are correctly reflected in

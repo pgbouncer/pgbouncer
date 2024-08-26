@@ -90,7 +90,7 @@ async def test_min_pool_size(pg, bouncer):
     assert pg.connection_count(dbname="p0", users=("postgres",)) == 5
 
 
-@pytest.mark.parametrize("test_db", ["p1", "pgbouncer"])
+@pytest.mark.parametrize("test_db", ["postgres", "pgbouncer"])
 async def test_max_user_client_connections_local_override_global(
     bouncer, test_db: str
 ) -> None:
@@ -108,7 +108,7 @@ async def test_max_user_client_connections_local_override_global(
     conn_1.close()
 
 
-@pytest.mark.parametrize("test_db", ["p1", "pgbouncer"])
+@pytest.mark.parametrize("test_db", ["postgres", "pgbouncer"])
 def test_max_user_client_connections_global_positive(bouncer, test_db: str) -> None:
     test_user = "postgres"
     bouncer.admin("set max_user_client_connections = 2")
@@ -124,7 +124,7 @@ def test_max_user_client_connections_global_positive(bouncer, test_db: str) -> N
     conn_1.close()
 
 
-@pytest.mark.parametrize("test_db", ["p1", "pgbouncer"])
+@pytest.mark.parametrize("test_db", ["postgres", "pgbouncer"])
 def test_max_user_client_connections_global_negative(bouncer, test_db: str) -> None:
     # Test that default user level connection limit correctly rejects connection after
     # 2 users are connected. Also checks that user counts are correctly reflected in
@@ -149,7 +149,7 @@ def test_max_user_client_connections_global_negative(bouncer, test_db: str) -> N
         conn.close()
 
 
-@pytest.mark.parametrize("test_db", ["p1", "pgbouncer"])
+@pytest.mark.parametrize("test_db", ["postgres", "pgbouncer"])
 def test_max_user_client_connections_positive(bouncer, test_db: str) -> None:
     # Test that user level connection limits allow users to connect up to the limit level.
     # Also test that SHOW USERS stats correctly reflect this number.
@@ -168,7 +168,7 @@ def test_max_user_client_connections_positive(bouncer, test_db: str) -> None:
         conn.close()
 
 
-@pytest.mark.parametrize("test_db", ["p1", "pgbouncer"])
+@pytest.mark.parametrize("test_db", ["postgres", "pgbouncer"])
 def test_max_user_client_connections_negative(bouncer, test_db: str) -> None:
     # Test that user level connection limit correctly rejects connection after
     # 2 users are connected. Also checks that user counts are correctly reflected in

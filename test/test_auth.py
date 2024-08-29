@@ -16,6 +16,35 @@ from .utils import (
 )
 
 
+def test_message(bouncer, pg):
+    test_user = "maxedout"
+    test_database = "p0a"
+    # Connect to database as User, creates existing pool
+    conn_1 = bouncer.conn(user=test_user, dbname=test_database)
+
+    # Change user to nologin
+    pg.sql(f"ALTER USER {test_user} WITH NOLOGIN;")
+
+    # Kill process on postgres
+    terminate_string = f"""
+  SELECT pg_terminate_backend(pid)
+  FROM pg_stat_activity
+  WHERE
+    pid <> pg_backend_pid()
+    AND usename = '{test_user}'
+  """
+    pg.sql(terminate_string)
+
+    # login, check error message
+    with pytest.raises(psycopg.OperationalError, match=r"is not permitted to log in"):
+        bouncer.test(user=test_user, dbname=test_database)
+
+    # login again, check error message
+    # TODO This assert fails, No longer raises 'is not permitted to log in', why?
+    with pytest.raises(psycopg.OperationalError, match=r"is not permitted to log in"):
+        bouncer.test(user=test_user, dbname=test_database)
+
+
 @pytest.mark.md5
 def test_auth_user(bouncer):
     bouncer.default_db = "authdb"

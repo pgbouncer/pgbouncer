@@ -496,6 +496,16 @@ is used, it needs to be installed into each database.
 
 Default: `SELECT usename, passwd FROM pg_shadow WHERE usename=$1`
 
+### auth_query_param_count
+
+Parameter count to bind for `auth_query`
+
+Possible values are 1 and 2.
+If the value is set to 1 only username will be passed as $1,
+if the value will be set to 2 dbname will be passed as $2 param.
+
+Default: 1
+
 ### auth_dbname
 
 Database name in the `[database]` section to be used for authentication purposes. This

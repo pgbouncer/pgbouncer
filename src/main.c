@@ -110,6 +110,7 @@ int cf_tcp_keepcnt;
 int cf_tcp_keepidle;
 int cf_tcp_keepintvl;
 int cf_tcp_user_timeout;
+int cf_auth_query_param_count;
 
 int cf_auth_type = AUTH_MD5;
 char *cf_auth_file;
@@ -241,6 +242,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("auth_hba_file", CF_STR, cf_auth_hba_file, 0, ""),
 	CF_ABS("auth_ident_file", CF_STR, cf_auth_ident_file, 0, NULL),
 	CF_ABS("auth_query", CF_STR, cf_auth_query, 0, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1"),
+	CF_ABS("auth_query_param_count", CF_INT, cf_auth_query_param_count, 0, "1"),
 	CF_ABS("auth_type", CF_LOOKUP(auth_type_map), cf_auth_type, 0, "md5"),
 	CF_ABS("auth_user", CF_STR, cf_auth_user, 0, NULL),
 	CF_ABS("autodb_idle_timeout", CF_TIME_USEC, cf_autodb_idle_timeout, 0, "3600"),

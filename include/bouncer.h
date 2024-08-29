@@ -575,6 +575,7 @@ struct PgDatabase {
 	PgCredentials *forced_user_credentials;	/* if not NULL, the user/psw is forced */
 	PgCredentials *auth_user_credentials;	/* if not NULL, users not in userlist.txt will be looked up on the server */
 	char *auth_query;	/* if not NULL, will be used to fetch password from database. */
+	int auth_query_param_count;	/* parameter count to pass for auth_query, allowed values are: 1 (only username will be passed), 2 (username and dbname will be passed) */
 
 	/*
 	 * run-time state
@@ -798,6 +799,7 @@ extern usec_t cf_dns_zone_check_period;
 extern char *cf_resolv_conf;
 
 extern int cf_auth_type;
+extern int cf_auth_query_param_count;
 extern char *cf_auth_file;
 extern char *cf_auth_query;
 extern char *cf_auth_user;

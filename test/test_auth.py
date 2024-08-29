@@ -492,6 +492,162 @@ def test_auth_query_works_with_configured_users(bouncer):
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+def test_auth_query_with_two_params_error(
+    bouncer,
+):
+    """
+    Check the pgbouncer can pass dbname in auth_query
+    """
+
+    config = f"""
+        [databases]
+        * = host={bouncer.pg.host} port={bouncer.pg.port}
+        [pgbouncer]
+        auth_user = pswcheck
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1 and 'p7' = $2
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = postgres
+    """
+
+    with bouncer.run_with_config(config):
+        # Let's get an error "no such user"
+        with pytest.raises(psycopg.OperationalError, match="bouncer config error"):
+            bouncer.conn(dbname="p0", user="user", password="foo")
+
+
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+def test_auth_query_with_two_params_config_error(
+    bouncer,
+):
+    """
+    Check the pgbouncer can pass dbname in auth_query
+    """
+
+    config = f"""
+        [databases]
+        * = host={bouncer.pg.host} port={bouncer.pg.port} auth_query_param_count = 3
+        [pgbouncer]
+        auth_user = pswcheck
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1 and 'p7' = $2
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = postgres
+    """
+
+    with bouncer.run_with_config(config):
+        # Let's get an error "no such user"
+        with bouncer.log_contains("ERROR auth_query_param_count: 3"):
+            with pytest.raises(
+                psycopg.OperationalError, match="password authentication failed"
+            ):
+                bouncer.test(dbname="p0", user="user", password="foo")
+
+    config = f"""
+        [databases]
+        * = host={bouncer.pg.host} port={bouncer.pg.port} auth_query_param_count = 0
+        [pgbouncer]
+        auth_user = pswcheck
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1 and 'p7' = $2
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = postgres
+    """
+
+    with bouncer.run_with_config(config):
+        # Let's get an error "no such user"
+        with bouncer.log_contains("ERROR auth_query_param_count: 0"):
+            with pytest.raises(
+                psycopg.OperationalError, match="password authentication failed"
+            ):
+                bouncer.test(dbname="p0", user="user", password="foo")
+
+
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+def test_auth_query_with_two_params_db(
+    bouncer,
+):
+    """
+    Check the pgbouncer can pass dbname in auth_query
+    """
+
+    config = f"""
+        [databases]
+        * = host={bouncer.pg.host} port={bouncer.pg.port} auth_query_param_count = 2
+        [pgbouncer]
+        auth_user = pswcheck
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1 and 'p7' = $2
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = postgres
+    """
+
+    with bouncer.run_with_config(config):
+        # Let's get an error "no such user"
+        with pytest.raises(psycopg.OperationalError, match="no such user"):
+            bouncer.conn(dbname="p0", user="user", password="foo")
+        # Let's wait a few seconds for the janitor to kick in and crash pgbouncer
+        time.sleep(2)
+        # # Now we will try to connect with OK parameters
+        bouncer.test(dbname="p7", user="pswcheck", password="pgbouncer-check")
+
+
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+def test_auth_query_with_two_params_global(
+    bouncer,
+):
+    """
+    Check the pgbouncer can pass dbname in auth_query
+    """
+
+    config = f"""
+        [databases]
+        * = host={bouncer.pg.host} port={bouncer.pg.port}
+        [pgbouncer]
+        auth_user = pswcheck
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1 and 'p7' = $2
+        auth_query_param_count = 2
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = postgres
+    """
+
+    with bouncer.run_with_config(config):
+        # Let's get an error "no such user"
+        with pytest.raises(psycopg.OperationalError, match="no such user"):
+            bouncer.conn(dbname="p0", user="user", password="foo")
+        # Let's wait a few seconds for the janitor to kick in and crash pgbouncer
+        time.sleep(2)
+        # # Now we will try to connect with OK parameters
+        bouncer.test(dbname="p7", user="pswcheck", password="pgbouncer-check")
+
+
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
 @pytest.mark.md5
 def test_auth_dbname_works_fine(
     bouncer,

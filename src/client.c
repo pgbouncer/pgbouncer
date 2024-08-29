@@ -169,6 +169,7 @@ static void start_auth_query(PgSocket *client, const char *username)
 	int res;
 	PktBuf *buf;
 	const char *auth_query = client->db->auth_query ? client->db->auth_query : cf_auth_query;
+	int auth_query_param_count = client->db->auth_query_param_count ? client->db->auth_query_param_count : cf_auth_query_param_count;
 
 	/* have to fetch user info from db */
 	PgDatabase *auth_db = prepare_auth_database(client);
@@ -205,7 +206,18 @@ static void start_auth_query(PgSocket *client, const char *username)
 	res = 0;
 	buf = pktbuf_dynamic(512);
 	if (buf) {
-		pktbuf_write_ExtQuery(buf, auth_query, 1, username);
+		switch (auth_query_param_count) {
+		case 1:
+			pktbuf_write_ExtQuery(buf, auth_query, 1, username);
+			break;
+		case 2:
+			pktbuf_write_ExtQuery(buf, auth_query, 2, username, client->db->name);
+			break;
+		default:
+			slog_error(client->link, "auth_query_param_count should be 1 or 2 received: %d", auth_query_param_count);
+			disconnect_server(client->link, false, "invalid auth_query_param_count");
+			return;
+		}
 		res = pktbuf_send_immediate(buf, client->link);
 		pktbuf_free(buf);
 		/*

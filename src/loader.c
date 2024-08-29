@@ -256,6 +256,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	usec_t server_lifetime = 0;
 	int dbname_ofs;
 	int pool_mode = POOL_INHERIT;
+	int auth_query_param_count = 0;
 
 	char *tmp_connstr;
 	const char *dbname = name;
@@ -353,6 +354,12 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			appname = val;
 		} else if (strcmp("auth_query", key) == 0) {
 			auth_query = val;
+		} else if (strcmp("auth_query_param_count", key) == 0) {
+			auth_query_param_count = atoi(val);
+			if (auth_query_param_count <= 0 || auth_query_param_count > 2) {
+				log_error("auth_query_param_count: %s", val);
+				goto fail;
+			}
 		} else {
 			log_error("unrecognized connection parameter: %s", key);
 			goto fail;
@@ -392,6 +399,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			changed = true;
 		} else if (!strings_equal(db->auth_query, auth_query)) {
 			changed = true;
+		} else if (db->auth_query_param_count != auth_query_param_count) {
+			changed = true;
 		}
 		if (changed)
 			tag_database_dirty(db);
@@ -408,6 +417,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	db->server_lifetime = server_lifetime;
 	free(db->connect_query);
 	db->connect_query = connect_query;
+	db->auth_query_param_count = auth_query_param_count;
 
 	if (!set_param_value(&db->auth_dbname, auth_dbname))
 		goto fail;

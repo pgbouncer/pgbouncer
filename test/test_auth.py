@@ -20,7 +20,7 @@ def test_message(bouncer, pg):
     test_user = "maxedout"
     test_database = "p0a"
     # Connect to database as User, creates existing pool
-    conn_1 = bouncer.conn(user=test_user, dbname=test_database)
+    _ = bouncer.conn(user=test_user, dbname=test_database)
 
     # Change user to nologin
     pg.sql(f"ALTER USER {test_user} WITH NOLOGIN;")

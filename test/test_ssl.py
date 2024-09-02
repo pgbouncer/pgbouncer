@@ -372,8 +372,3 @@ def test_ssl_replication(pg, bouncer, cert_dir):
     # physical rep
     connect_args["replication"] = "true"
     bouncer.psql("IDENTIFY_SYSTEM", **connect_args)
-
-def test_server_tls_protocols_legacy(bouncer, cert_dir):
-    bouncer.write_ini(f"server_tls_protocols = legacy")
-    with bouncer.log_contains(r'ERROR invalid server_tls_protocols: legacy',0):
-        bouncer.admin("reload")

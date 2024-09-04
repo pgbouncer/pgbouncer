@@ -1240,15 +1240,13 @@ static bool tls_config_changed(struct tls_config *new_server_connect_conf)
 {
 	return (strings_equal(new_server_connect_conf->ca_file, server_connect_conf->ca_file) &&
 		strings_equal(new_server_connect_conf->ca_path, server_connect_conf->ca_path) &&
-		strings_equal(new_server_connect_conf->ca_mem, server_connect_conf->ca_mem) &&
-		(new_server_connect_conf->ca_len == server_connect_conf->ca_len) &&
+		memcmp(new_server_connect_conf->ca_mem, server_connect_conf->ca_mem, new_server_connect_conf->ca_len) == 0 &&
 		strings_equal(new_server_connect_conf->ciphers, server_connect_conf->ciphers) &&
 		(new_server_connect_conf->ciphers_server == server_connect_conf->ciphers_server) &&
 		(new_server_connect_conf->dheparams == server_connect_conf->dheparams) &&
 		(new_server_connect_conf->ecdhecurve == server_connect_conf->ecdhecurve) &&
 		strings_equal(new_server_connect_conf->ocsp_file, server_connect_conf->ocsp_file) &&
-		strings_equal(new_server_connect_conf->ocsp_mem, server_connect_conf->ocsp_mem) &&
-		(new_server_connect_conf->ocsp_len == server_connect_conf->ocsp_len) &&
+		memcmp(new_server_connect_conf->ocsp_mem, server_connect_conf->ocsp_mem, new_server_connect_conf->ocsp_len) == 0 &&
 		(new_server_connect_conf->protocols == server_connect_conf->protocols) &&
 		(new_server_connect_conf->verify_cert == server_connect_conf->verify_cert) &&
 		(new_server_connect_conf->verify_client == server_connect_conf->verify_client) &&

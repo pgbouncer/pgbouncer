@@ -421,9 +421,7 @@ def test_servers_disconnect_when_enabling_ssl(bouncer, pg, cert_dir):
         bouncer.write_ini(f"server_tls_sslmode = allow")
         bouncer.admin("RELOAD")
 
-        with bouncer.log_contains(
-            r"closing because: obsolete connection"
-        ):
+        with bouncer.log_contains(r"closing because: obsolete connection"):
             cur.execute("SELECT 1")
 
 
@@ -435,7 +433,5 @@ def test_servers_disconnect_when_changing_sslmode(bouncer, pg, cert_dir):
         bouncer.write_ini(f"server_tls_sslmode = allow")
         bouncer.admin("RELOAD")
 
-        with bouncer.log_contains(
-            r"closing because: obsolete connection"
-        ):
+        with bouncer.log_contains(r"closing because: obsolete connection"):
             cur.execute("SELECT 1")

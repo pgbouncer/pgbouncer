@@ -1236,7 +1236,7 @@ static bool setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
 	return true;
 }
 
-static bool tls_config_changed(struct tls_config *new_server_connect_conf)
+static bool tls_config_unchanged(struct tls_config *new_server_connect_conf)
 {
 	return (strings_equal(new_server_connect_conf->ca_file, server_connect_conf->ca_file) &&
 		strings_equal(new_server_connect_conf->ca_path, server_connect_conf->ca_path) &&
@@ -1263,7 +1263,7 @@ static bool tls_change_requires_reconnect(struct tls_config *new_server_connect_
 	} else if (server_connect_conf == NULL) {
 		log_noise("no existing server tls config detected");
 		return true;
-	} else if (tls_config_changed(new_server_connect_conf)) {
+	} else if (tls_config_unchanged(new_server_connect_conf)) {
 		log_noise("no server tls config change detected");
 		return false;
 	} else {

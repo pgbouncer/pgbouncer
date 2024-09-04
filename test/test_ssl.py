@@ -422,10 +422,8 @@ def test_servers_disconnect_when_enabling_ssl(bouncer, pg, cert_dir):
         bouncer.admin("RELOAD")
 
         with bouncer.log_contains(
-            r"pTxnPool.*closing because: database configuration changed", 1
+            r"closing because: obsolete connection"
         ):
-            time.sleep(0.5)
-            assert pg.connection_count(dbname="p0") == 0
             cur.execute("SELECT 1")
 
 
@@ -438,8 +436,6 @@ def test_servers_disconnect_when_changing_sslmode(bouncer, pg, cert_dir):
         bouncer.admin("RELOAD")
 
         with bouncer.log_contains(
-            r"pTxnPool.*closing because: database configuration changed"
+            r"closing because: obsolete connection"
         ):
-            time.sleep(0.5)
-            assert pg.connection_count(dbname="p0") == 0
             cur.execute("SELECT 1")

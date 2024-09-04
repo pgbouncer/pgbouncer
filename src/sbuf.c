@@ -1238,40 +1238,40 @@ static bool setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
 
 static bool tls_config_changed(struct tls_config *new_server_connect_conf)
 {
-  return (strings_equal(new_server_connect_conf[0].ca_file, server_connect_conf->ca_file) &&
-    strings_equal(new_server_connect_conf[0].ca_path, server_connect_conf->ca_path) &&
-    strings_equal(new_server_connect_conf[0].ca_mem, server_connect_conf->ca_mem) &&
-    (new_server_connect_conf[0].ca_len == server_connect_conf->ca_len) &&
-    strings_equal(new_server_connect_conf[0].ciphers, server_connect_conf->ciphers) &&
-    (new_server_connect_conf[0].ciphers_server == server_connect_conf->ciphers_server) &&
-    (new_server_connect_conf[0].dheparams == server_connect_conf->dheparams) &&
-    (new_server_connect_conf[0].ecdhecurve == server_connect_conf->ecdhecurve) &&
-    strings_equal(new_server_connect_conf[0].ocsp_file, server_connect_conf->ocsp_file) &&
-    strings_equal(new_server_connect_conf[0].ocsp_mem, server_connect_conf->ocsp_mem) &&
-    (new_server_connect_conf[0].ocsp_len == server_connect_conf->ocsp_len) &&
-    (new_server_connect_conf[0].protocols == server_connect_conf->protocols) &&
-    (new_server_connect_conf[0].verify_cert == server_connect_conf->verify_cert) &&
-    (new_server_connect_conf[0].verify_client == server_connect_conf->verify_client) &&
-    (new_server_connect_conf[0].verify_depth == server_connect_conf->verify_depth) &&
-    (new_server_connect_conf[0].verify_name == server_connect_conf->verify_name) &&
-    (new_server_connect_conf[0].verify_time == server_connect_conf->verify_time));
+	return (strings_equal(new_server_connect_conf[0].ca_file, server_connect_conf->ca_file) &&
+		strings_equal(new_server_connect_conf[0].ca_path, server_connect_conf->ca_path) &&
+		strings_equal(new_server_connect_conf[0].ca_mem, server_connect_conf->ca_mem) &&
+		(new_server_connect_conf[0].ca_len == server_connect_conf->ca_len) &&
+		strings_equal(new_server_connect_conf[0].ciphers, server_connect_conf->ciphers) &&
+		(new_server_connect_conf[0].ciphers_server == server_connect_conf->ciphers_server) &&
+		(new_server_connect_conf[0].dheparams == server_connect_conf->dheparams) &&
+		(new_server_connect_conf[0].ecdhecurve == server_connect_conf->ecdhecurve) &&
+		strings_equal(new_server_connect_conf[0].ocsp_file, server_connect_conf->ocsp_file) &&
+		strings_equal(new_server_connect_conf[0].ocsp_mem, server_connect_conf->ocsp_mem) &&
+		(new_server_connect_conf[0].ocsp_len == server_connect_conf->ocsp_len) &&
+		(new_server_connect_conf[0].protocols == server_connect_conf->protocols) &&
+		(new_server_connect_conf[0].verify_cert == server_connect_conf->verify_cert) &&
+		(new_server_connect_conf[0].verify_client == server_connect_conf->verify_client) &&
+		(new_server_connect_conf[0].verify_depth == server_connect_conf->verify_depth) &&
+		(new_server_connect_conf[0].verify_name == server_connect_conf->verify_name) &&
+		(new_server_connect_conf[0].verify_time == server_connect_conf->verify_time));
 }
 
 static bool skip_tag_pools_dirty(struct tls_config *new_server_connect_conf)
 {
-  if (server_connect_sslmode != cf_server_tls_sslmode) {
-    log_noise("new server_tls_sslmode detected");
-    return false;
-  } else if (server_connect_conf == NULL) {
-    log_noise("no existing server tls config detected");
-    return false;
-  } else if (tls_config_changed(new_server_connect_conf)) {
-    log_noise("no server tls config change detected");
-    return true;
-  } else {
-    log_noise("server tls config change detected");
-    return false;
-  }
+	if (server_connect_sslmode != cf_server_tls_sslmode) {
+		log_noise("new server_tls_sslmode detected");
+		return false;
+	} else if (server_connect_conf == NULL) {
+		log_noise("no existing server tls config detected");
+		return false;
+	} else if (tls_config_changed(new_server_connect_conf)) {
+		log_noise("no server tls config change detected");
+		return true;
+	} else {
+		log_noise("server tls config change detected");
+		return false;
+	}
 }
 
 bool sbuf_tls_setup(void)

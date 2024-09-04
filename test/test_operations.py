@@ -101,6 +101,7 @@ def test_database_change(bouncer):
 
     assert bouncer.sql_value("select current_database()") == "p0"
 
+
 def test_reconnect(bouncer):
     pid1 = bouncer.sql_value("select pg_backend_pid()")
 

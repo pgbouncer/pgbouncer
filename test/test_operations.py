@@ -101,18 +101,29 @@ def test_database_change(bouncer):
 
     assert bouncer.sql_value("select current_database()") == "p0"
 
-def test_servers_disconnect_on_reload_with_no_ssl_change(bouncer):
+def test_servers_no_disconnect_on_reload_with_no_tls_change(bouncer):
     bouncer.default_db = "pTxnPool"
 
     with bouncer.cur() as cur:
         # change nothing and RELOAD
         bouncer.admin("RELOAD")
 
-        with bouncer.log_contains(r'pTxnPool.*closing because: database configuration changed', 1):
+        with bouncer.log_contains(r'pTxnPool.*closing because: database configuration changed', 0):
             # keep cursor open for > full_maint_period
             # full_maint_period = 3x/s https://github.com/pgbouncer/pgbouncer/blob/master/src/janitor.c#L28
             time.sleep(0.5)
 
+def test_servers_disconnect_when_changing_tls_config(bouncer):
+    bouncer.default_db = "pTxnPool"
+    bouncer.write_ini(f"server_tls_protocols = tlsv1.0")
+    bouncer.admin("RELOAD")
+
+    with bouncer.cur() as cur:
+        bouncer.write_ini(f"server_tls_protocols = secure")
+        bouncer.admin("RELOAD")
+
+        with bouncer.log_contains(r'pTxnPool.*closing because: database configuration changed', 1):
+            time.sleep(0.5)
 
 def test_reconnect(bouncer):
     pid1 = bouncer.sql_value("select pg_backend_pid()")

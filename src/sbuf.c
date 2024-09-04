@@ -29,6 +29,7 @@
 #include <usual/safeio.h>
 #include <usual/slab.h>
 #include <usual/mbuf.h>
+#include <usual/tls/tls_internal.h>
 
 #ifdef USUAL_LIBSSL_FOR_TLS
 #define USE_TLS
@@ -1235,6 +1236,38 @@ static bool setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
 	return true;
 }
 
+static bool tls_config_changed(struct tls_config *new_server_connect_conf)
+{
+  return (strings_equal(new_server_connect_conf[0].ca_file, server_connect_conf->ca_file) &&
+    strings_equal(new_server_connect_conf[0].ca_path, server_connect_conf->ca_path) &&
+    strings_equal(new_server_connect_conf[0].ca_mem, server_connect_conf->ca_mem) &&
+    (new_server_connect_conf[0].ca_len == server_connect_conf->ca_len) &&
+    strings_equal(new_server_connect_conf[0].ciphers, server_connect_conf->ciphers) &&
+    (new_server_connect_conf[0].ciphers_server == server_connect_conf->ciphers_server) &&
+    (new_server_connect_conf[0].dheparams == server_connect_conf->dheparams) &&
+    (new_server_connect_conf[0].ecdhecurve == server_connect_conf->ecdhecurve) &&
+    strings_equal(new_server_connect_conf[0].ocsp_file, server_connect_conf->ocsp_file) &&
+    strings_equal(new_server_connect_conf[0].ocsp_mem, server_connect_conf->ocsp_mem) &&
+    (new_server_connect_conf[0].ocsp_len == server_connect_conf->ocsp_len) &&
+    (new_server_connect_conf[0].protocols == server_connect_conf->protocols) &&
+    (new_server_connect_conf[0].verify_cert == server_connect_conf->verify_cert) &&
+    (new_server_connect_conf[0].verify_client == server_connect_conf->verify_client) &&
+    (new_server_connect_conf[0].verify_depth == server_connect_conf->verify_depth) &&
+    (new_server_connect_conf[0].verify_name == server_connect_conf->verify_name) &&
+    (new_server_connect_conf[0].verify_time == server_connect_conf->verify_time));
+}
+
+static bool skip_tag_pools_dirty(struct tls_config *new_server_connect_conf)
+{
+  if (tls_config_changed(new_server_connect_conf)) {
+    log_noise("no server tls config change detected");
+    return true;
+  } else {
+    log_noise("server tls config change detected");
+    return false;
+  }
+}
+
 bool sbuf_tls_setup(void)
 {
 	int err;
@@ -1319,11 +1352,8 @@ bool sbuf_tls_setup(void)
 	 * old TLS settings, possibly less secure, could be used for old
 	 * connections indefinitely. If TLS is disabled, and it was disabled before
 	 * as well then recycling connections is not necessary, since we know none
-	 * of the settings have changed. In all other cases we recycle the
-	 * connections to be on the safe side, even though it's possible nothing
-	 * has changed.
-	 */
-	if (server_connect_conf || new_server_connect_conf) {
+	 * of the settings have changed. */
+	if ((server_connect_conf || new_server_connect_conf) && !skip_tag_pools_dirty(new_server_connect_conf)) {
 		struct List *item;
 		PgPool *pool;
 		statlist_for_each(item, &pool_list) {

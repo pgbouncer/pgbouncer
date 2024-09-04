@@ -1255,20 +1255,20 @@ static bool tls_config_changed(struct tls_config *new_server_connect_conf)
 		(new_server_connect_conf->verify_time == server_connect_conf->verify_time));
 }
 
-static bool skip_tag_pools_dirty(struct tls_config *new_server_connect_conf)
+static bool tls_change_requires_reconnect(struct tls_config *new_server_connect_conf)
 {
 	if (server_connect_sslmode != cf_server_tls_sslmode) {
 		log_noise("new server_tls_sslmode detected");
-		return false;
+		return true;
 	} else if (server_connect_conf == NULL) {
 		log_noise("no existing server tls config detected");
-		return false;
+		return true;
 	} else if (tls_config_changed(new_server_connect_conf)) {
 		log_noise("no server tls config change detected");
-		return true;
+		return false;
 	} else {
 		log_noise("server tls config change detected");
-		return false;
+		return true;
 	}
 }
 
@@ -1357,7 +1357,7 @@ bool sbuf_tls_setup(void)
 	 * connections indefinitely. If TLS is disabled, and it was disabled before
 	 * as well then recycling connections is not necessary, since we know none
 	 * of the settings have changed. */
-	if ((server_connect_conf || new_server_connect_conf) && !skip_tag_pools_dirty(new_server_connect_conf)) {
+	if ((server_connect_conf || new_server_connect_conf) && tls_change_requires_reconnect(new_server_connect_conf)) {
 		struct List *item;
 		PgPool *pool;
 		statlist_for_each(item, &pool_list) {

@@ -125,6 +125,18 @@ def test_servers_disconnect_when_changing_tls_config(bouncer):
         with bouncer.log_contains(r'pTxnPool.*closing because: database configuration changed', 1):
             time.sleep(0.5)
 
+def test_servers_disconnect_when_enabling_ssl(bouncer):
+    bouncer.default_db = "pTxnPool"
+    bouncer.write_ini(f"server_tls_sslmode = disable")
+    bouncer.admin("RELOAD")
+
+    with bouncer.cur() as cur:
+        bouncer.write_ini(f"server_tls_sslmode = allow")
+        bouncer.admin("RELOAD")
+
+        with bouncer.log_contains(r'pTxnPool.*closing because: database configuration changed', 1):
+            time.sleep(0.5)
+
 def test_reconnect(bouncer):
     pid1 = bouncer.sql_value("select pg_backend_pid()")
 

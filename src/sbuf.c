@@ -1259,7 +1259,10 @@ static bool tls_config_changed(struct tls_config *new_server_connect_conf)
 
 static bool skip_tag_pools_dirty(struct tls_config *new_server_connect_conf)
 {
-  if (tls_config_changed(new_server_connect_conf)) {
+  if (server_connect_conf == NULL) {
+    log_noise("no existing server tls config detected");
+    return false;
+  } else if (tls_config_changed(new_server_connect_conf)) {
     log_noise("no server tls config change detected");
     return true;
   } else {

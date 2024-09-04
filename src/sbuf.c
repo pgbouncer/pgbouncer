@@ -1238,6 +1238,9 @@ static bool setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
 
 static bool tls_config_unchanged(struct tls_config *new_server_connect_conf)
 {
+  /* Note: the tls_conf->keypair is not checked because it is nulled out at this point for
+   * both the new_server_connect_conf and the original server_connect_conf. There is nothing
+   * to check */
 	return (strings_equal(new_server_connect_conf->ca_file, server_connect_conf->ca_file) &&
 		strings_equal(new_server_connect_conf->ca_path, server_connect_conf->ca_path) &&
 		memcmp(new_server_connect_conf->ca_mem, server_connect_conf->ca_mem, new_server_connect_conf->ca_len) == 0 &&

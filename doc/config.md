@@ -796,6 +796,12 @@ Default: not set
 
 ### client_tls_ca_file
 
+If the contents of this file are changed without changing the actual
+setting, the new CA file will be used for new connections. Existing
+connections won't be closed though. If it's necessary for security
+reasons that connections using the old CA are recycled ASAP, it's
+advised to run RECONNECT after the reload.
+
 Root certificate file to validate client certificates.
 
 Default: not set
@@ -869,6 +875,12 @@ verify-full
 ### server_tls_ca_file
 
 Root certificate file to validate PostgreSQL server certificates.
+
+If the contents of this file are changed without changing the actual
+setting, the new CA file will be used for new connections. Existing
+connections won't be closed though. If it's necessary for security
+reasons that connections using the old CA are recycled ASAP, it's
+advised to run RECONNECT after the reload.
 
 Default: not set
 

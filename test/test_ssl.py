@@ -380,12 +380,12 @@ def test_servers_no_disconnect_on_reload_with_no_tls_change(bouncer, pg, cert_di
 
     with bouncer.cur() as cur:
         assert pg.connection_count(dbname="p0") == 1
-        # change nothing and RELOAD
-        bouncer.admin("RELOAD")
 
         with bouncer.log_contains(
             r"pTxnPool.*closing because: database configuration changed", 0
         ):
+            # change nothing and RELOAD
+            bouncer.admin("RELOAD")
             # keep cursor open for > full_maint_period
             # full_maint_period = 3x/s https://github.com/pgbouncer/pgbouncer/blob/master/src/janitor.c#L28
             time.sleep(0.5)

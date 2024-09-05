@@ -29,7 +29,6 @@
 #include <usual/safeio.h>
 #include <usual/slab.h>
 #include <usual/mbuf.h>
-#include <usual/tls/tls_internal.h>
 
 #ifdef USUAL_LIBSSL_FOR_TLS
 #define USE_TLS
@@ -1236,28 +1235,6 @@ static bool setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
 	return true;
 }
 
-static bool tls_config_unchanged(struct tls_config *new_server_connect_conf)
-{
-  /* Note: the tls_conf->keypair is not checked because it is nulled out at this point for
-   * both the new_server_connect_conf and the original server_connect_conf. There is nothing
-   * to check */
-	return (strings_equal(new_server_connect_conf->ca_file, server_connect_conf->ca_file) &&
-		strings_equal(new_server_connect_conf->ca_path, server_connect_conf->ca_path) &&
-		memcmp(new_server_connect_conf->ca_mem, server_connect_conf->ca_mem, new_server_connect_conf->ca_len) == 0 &&
-		strings_equal(new_server_connect_conf->ciphers, server_connect_conf->ciphers) &&
-		(new_server_connect_conf->ciphers_server == server_connect_conf->ciphers_server) &&
-		(new_server_connect_conf->dheparams == server_connect_conf->dheparams) &&
-		(new_server_connect_conf->ecdhecurve == server_connect_conf->ecdhecurve) &&
-		strings_equal(new_server_connect_conf->ocsp_file, server_connect_conf->ocsp_file) &&
-		memcmp(new_server_connect_conf->ocsp_mem, server_connect_conf->ocsp_mem, new_server_connect_conf->ocsp_len) == 0 &&
-		(new_server_connect_conf->protocols == server_connect_conf->protocols) &&
-		(new_server_connect_conf->verify_cert == server_connect_conf->verify_cert) &&
-		(new_server_connect_conf->verify_client == server_connect_conf->verify_client) &&
-		(new_server_connect_conf->verify_depth == server_connect_conf->verify_depth) &&
-		(new_server_connect_conf->verify_name == server_connect_conf->verify_name) &&
-		(new_server_connect_conf->verify_time == server_connect_conf->verify_time));
-}
-
 static bool tls_change_requires_reconnect(struct tls_config *new_server_connect_conf)
 {
 	if (server_connect_sslmode != cf_server_tls_sslmode) {
@@ -1266,7 +1243,7 @@ static bool tls_change_requires_reconnect(struct tls_config *new_server_connect_
 	} else if (server_connect_conf == NULL) {
 		log_noise("no existing server tls config detected");
 		return true;
-	} else if (tls_config_unchanged(new_server_connect_conf)) {
+	} else if (tls_configs_equal(new_server_connect_conf, server_connect_conf)) {
 		log_noise("no server tls config change detected");
 		return false;
 	} else {

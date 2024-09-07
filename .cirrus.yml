@@ -195,7 +195,7 @@ task:
 task:
   name: macOS
   macos_instance:
-    image: ghcr.io/cirruslabs/macos-sonoma-base:latest
+    image: ghcr.io/cirruslabs/macos-runner:sonoma
   env:
     HAVE_IPV6_LOCALHOST: yes
     USE_SUDO: true

@@ -200,15 +200,15 @@ task:
     HAVE_IPV6_LOCALHOST: yes
     USE_SUDO: true
     LD_LIBRARY_PATH: /opt/homebrew/opt/postgresql@${PGVERSION}/lib
+    CPPFLAGS: -I/opt/homebrew/opt/openssl@3/include -L/opt/homebrew/opt/postgresql@${PGVERSION}/include
+    LDFLAGS: -L/opt/homebrew/opt/openssl@3/lib -I/opt/homebrew/opt/postgresql@${PGVERSION}/include
+    PKG_CONFIG_PATH: /opt/homebrew/opt/postgresql@${PGVERSION}/lib/pkgconfig
   setup_script:
     - brew install autoconf automake bash libevent libtool openssl pandoc pkg-config postgresql@${PGVERSION}
     - python3 -m venv venv
     - venv/bin/pip install -r requirements.txt
     - echo 'anchor "pgbouncer_test/*"' | sudo tee -a /etc/pf.conf
     - sudo pfctl -f /etc/pf.conf
-  env:
-    CPPFLAGS: -I/opt/homebrew/opt/openssl@3/include
-    LDFLAGS: -L/opt/homebrew/opt/openssl@3/lib
   build_script:
     - ./autogen.sh
     - ./configure --prefix=$HOME/install --enable-werror

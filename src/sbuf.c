@@ -1243,7 +1243,7 @@ static bool tls_change_requires_reconnect(struct tls_config *new_server_connect_
 	} else if (server_connect_conf == NULL) {
 		log_noise("no existing server tls config detected");
 		return true;
-	} else if (tls_configs_equal(new_server_connect_conf, server_connect_conf)) {
+	} else if (tls_config_equal(new_server_connect_conf, server_connect_conf)) {
 		log_noise("no server tls config change detected");
 		return false;
 	} else {

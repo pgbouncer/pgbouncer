@@ -533,3 +533,17 @@ bool check_reserved_database(const char *value)
 	return true;
 }
 
+/*
+ * Same as strcmp, but handles NULLs. If both sides are NULL, returns "true".
+ */
+bool strings_equal(const char *str_left, const char *str_right)
+{
+	if (str_left == NULL && str_right == NULL)
+		return true;
+
+	if (str_left == NULL || str_right == NULL)
+		return false;
+
+	return strcmp(str_left, str_right) == 0;
+}
+

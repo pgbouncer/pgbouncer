@@ -754,6 +754,16 @@ Default: empty (use operating system defaults)
 
 ## TLS settings
 
+If the contents of any of the cert or key files are changed without
+changing the actual setting filename in the config, the new file
+contents will be used for new connections after a RELOAD. Existing
+connections won't be closed though. If it's necessary for security
+reasons that all connections start using the new files ASAP, it's
+advised to run RECONNECT after the RELOAD.
+
+Changing any TLS settings will trigger a RECONNECT automatically
+for security reasons.
+
 ### client_tls_sslmode
 
 TLS mode to use for connections from clients.  TLS connections
@@ -795,12 +805,6 @@ Certificate for private key.  Clients can validate it.
 Default: not set
 
 ### client_tls_ca_file
-
-If the contents of this file are changed without changing the actual
-setting, the new CA file will be used for new connections. Existing
-connections won't be closed though. If it's necessary for security
-reasons that connections using the old CA are recycled ASAP, it's
-advised to run RECONNECT after the reload.
 
 Root certificate file to validate client certificates.
 
@@ -875,12 +879,6 @@ verify-full
 ### server_tls_ca_file
 
 Root certificate file to validate PostgreSQL server certificates.
-
-If the contents of this file are changed without changing the actual
-setting, the new CA file will be used for new connections. Existing
-connections won't be closed though. If it's necessary for security
-reasons that connections using the old CA are recycled ASAP, it's
-advised to run RECONNECT after the reload.
 
 Default: not set
 

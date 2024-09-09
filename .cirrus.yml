@@ -199,6 +199,8 @@ task:
   env:
     HAVE_IPV6_LOCALHOST: yes
     USE_SUDO: true
+    CPPFLAGS: -I/opt/homebrew/opt/openssl@3/include
+    LDFLAGS: -L/opt/homebrew/opt/openssl@3/lib
     LD_LIBRARY_PATH: /opt/homebrew/opt/postgresql@${PGVERSION}/lib
     PKG_CONFIG_PATH: /opt/homebrew/opt/postgresql@${PGVERSION}/lib/pkgconfig
   setup_script:

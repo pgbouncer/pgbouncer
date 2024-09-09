@@ -214,7 +214,8 @@ task:
     - ./configure --prefix=$HOME/install --enable-werror
     - make -j4
   test_script:
-    - source venv/bin/activate && make check -j4 CONCURRENCY=4
+    - brew ls -v postgresql@${PGVERSION}
+    - source /venv/bin/activate && "PATH=/opt/homebrew/opt/postgresql@${PGVERSION}/bin:$PATH make -j4 check CONCURRENCY=4"
   install_script:
     - make -j4 install
   always:

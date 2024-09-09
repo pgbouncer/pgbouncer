@@ -200,8 +200,8 @@ task:
     HAVE_IPV6_LOCALHOST: yes
     USE_SUDO: true
     LD_LIBRARY_PATH: /opt/homebrew/opt/postgresql@${PGVERSION}/lib
-    CPPFLAGS: -I/opt/homebrew/opt/openssl@3/include -L/opt/homebrew/opt/postgresql@${PGVERSION}/include
-    LDFLAGS: -L/opt/homebrew/opt/openssl@3/lib -I/opt/homebrew/opt/postgresql@${PGVERSION}/include
+    CPPFLAGS: -I/opt/homebrew/opt/openssl@3/include -I/opt/homebrew/opt/postgresql@${PGVERSION}/include
+    LDFLAGS: -L/opt/homebrew/opt/openssl@3/lib -L/opt/homebrew/opt/postgresql@${PGVERSION}/lib
     PKG_CONFIG_PATH: /opt/homebrew/opt/postgresql@${PGVERSION}/lib/pkgconfig
   setup_script:
     - brew install autoconf automake bash libevent libtool openssl pandoc pkg-config postgresql@${PGVERSION}

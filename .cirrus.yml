@@ -215,7 +215,7 @@ task:
     - make -j4
   test_script:
     - brew ls -v postgresql@${PGVERSION}
-    - source /venv/bin/activate && "PATH=/opt/homebrew/opt/postgresql@${PGVERSION}/bin:$PATH make -j4 check CONCURRENCY=4"
+    - source venv/bin/activate && "PATH=/opt/homebrew/opt/postgresql@${PGVERSION}/bin:$PATH make -j4 check CONCURRENCY=4"
   install_script:
     - make -j4 install
   always:

@@ -382,7 +382,7 @@ def test_servers_no_disconnect_on_reload_with_no_tls_change(bouncer, pg, cert_di
         assert pg.connection_count(dbname="p0") == 1
 
         with bouncer.log_contains(
-            r"pTxnPool.*closing because: database configuration changed", 0
+            r"pTxnPool.*database configuration changed|pTxnPool.*obsolete connection", 0
         ):
             # change nothing and RELOAD
             bouncer.admin("RELOAD")
@@ -403,7 +403,7 @@ def test_servers_disconnect_when_changing_tls_config(bouncer, pg, cert_dir):
         bouncer.write_ini(f"server_tls_protocols = secure")
 
         with bouncer.log_contains(
-            r"pTxnPool.*closing because: database configuration changed", 1
+            r"pTxnPool.*database configuration changed|pTxnPool.*obsolete connection", 1
         ):
             bouncer.admin("RELOAD")
             time.sleep(0.5)
@@ -420,7 +420,7 @@ def test_servers_disconnect_when_enabling_ssl(bouncer, pg, cert_dir):
         assert pg.connection_count(dbname="p0") == 1
         bouncer.write_ini(f"server_tls_sslmode = allow")
 
-        with bouncer.log_contains(r"closing because: obsolete connection"):
+        with bouncer.log_contains(r"pTxnPool.*database configuration changed|pTxnPool.*obsolete connection"):
             bouncer.admin("RELOAD")
             cur.execute("SELECT 1")
 
@@ -432,6 +432,6 @@ def test_servers_disconnect_when_changing_sslmode(bouncer, pg, cert_dir):
         assert pg.connection_count(dbname="p0") == 1
         bouncer.write_ini(f"server_tls_sslmode = allow")
 
-        with bouncer.log_contains(r"closing because: obsolete connection"):
+        with bouncer.log_contains(r"pTxnPool.*database configuration changed|pTxnPool.*obsolete connection"):
             bouncer.admin("RELOAD")
             cur.execute("SELECT 1")

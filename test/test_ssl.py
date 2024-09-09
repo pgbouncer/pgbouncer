@@ -420,7 +420,9 @@ def test_servers_disconnect_when_enabling_ssl(bouncer, pg, cert_dir):
         assert pg.connection_count(dbname="p0") == 1
         bouncer.write_ini(f"server_tls_sslmode = allow")
 
-        with bouncer.log_contains(r"pTxnPool.*database configuration changed|pTxnPool.*obsolete connection"):
+        with bouncer.log_contains(
+            r"pTxnPool.*database configuration changed|pTxnPool.*obsolete connection"
+        ):
             bouncer.admin("RELOAD")
             cur.execute("SELECT 1")
 
@@ -432,6 +434,8 @@ def test_servers_disconnect_when_changing_sslmode(bouncer, pg, cert_dir):
         assert pg.connection_count(dbname="p0") == 1
         bouncer.write_ini(f"server_tls_sslmode = allow")
 
-        with bouncer.log_contains(r"pTxnPool.*database configuration changed|pTxnPool.*obsolete connection"):
+        with bouncer.log_contains(
+            r"pTxnPool.*database configuration changed|pTxnPool.*obsolete connection"
+        ):
             bouncer.admin("RELOAD")
             cur.execute("SELECT 1")

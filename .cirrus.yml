@@ -200,8 +200,6 @@ task:
     HAVE_IPV6_LOCALHOST: yes
     USE_SUDO: true
     LD_LIBRARY_PATH: /opt/homebrew/opt/postgresql@${PGVERSION}/lib
-    CPPFLAGS: -I/opt/homebrew/opt/openssl@3/include -I/opt/homebrew/opt/postgresql@${PGVERSION}/include
-    LDFLAGS: -L/opt/homebrew/opt/openssl@3/lib -L/opt/homebrew/opt/postgresql@${PGVERSION}/lib
     PKG_CONFIG_PATH: /opt/homebrew/opt/postgresql@${PGVERSION}/lib/pkgconfig
   setup_script:
     - brew install autoconf automake bash libevent libtool openssl pandoc pkg-config postgresql@${PGVERSION}
@@ -213,9 +211,9 @@ task:
     - ./autogen.sh
     - ./configure --prefix=$HOME/install --enable-werror
     - make -j4
+  env:
+    PATH: /opt/homebrew/opt/postgresql@${PGVERSION}/bin:$PATH
   test_script:
-    - brew ls -v postgresql@${PGVERSION}
-    - export PATH=/opt/homebrew/opt/postgresql@${PGVERSION}/bin:$PATH
     - source venv/bin/activate && make -j4 check CONCURRENCY=4
   install_script:
     - make -j4 install

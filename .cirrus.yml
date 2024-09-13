@@ -201,7 +201,6 @@ task:
     USE_SUDO: true
     CPPFLAGS: -I/opt/homebrew/opt/openssl@3/include
     LDFLAGS: -L/opt/homebrew/opt/openssl@3/lib
-    LD_LIBRARY_PATH: /opt/homebrew/opt/postgresql@${PGVERSION}/lib
   setup_script:
     - brew install autoconf automake bash libevent libtool openssl pandoc pkg-config postgresql@${PGVERSION}
     - python3 -m venv venv

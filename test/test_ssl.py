@@ -1,4 +1,5 @@
 import subprocess
+import time
 
 import psycopg
 import pytest
@@ -372,3 +373,69 @@ def test_ssl_replication(pg, bouncer, cert_dir):
     # physical rep
     connect_args["replication"] = "true"
     bouncer.psql("IDENTIFY_SYSTEM", **connect_args)
+
+
+def test_servers_no_disconnect_on_reload_with_no_tls_change(bouncer, pg, cert_dir):
+    bouncer.default_db = "pTxnPool"
+
+    with bouncer.cur() as cur:
+        assert pg.connection_count(dbname="p0") == 1
+
+        with bouncer.log_contains(
+            r"pTxnPool.*database configuration changed|pTxnPool.*obsolete connection", 0
+        ):
+            # change nothing and RELOAD
+            bouncer.admin("RELOAD")
+            # keep cursor open for > full_maint_period
+            # full_maint_period = 3x/s https://github.com/pgbouncer/pgbouncer/blob/master/src/janitor.c#L28
+            time.sleep(0.5)
+            assert pg.connection_count(dbname="p0") == 1
+            cur.execute("SELECT 1")
+
+
+def test_servers_disconnect_when_changing_tls_config(bouncer, pg, cert_dir):
+    bouncer.default_db = "pTxnPool"
+    bouncer.write_ini(f"server_tls_protocols = tlsv1.0")
+    bouncer.admin("RELOAD")
+
+    with bouncer.cur() as cur:
+        assert pg.connection_count(dbname="p0") == 1
+        bouncer.write_ini(f"server_tls_protocols = secure")
+
+        with bouncer.log_contains(
+            r"pTxnPool.*database configuration changed|pTxnPool.*obsolete connection", 1
+        ):
+            bouncer.admin("RELOAD")
+            time.sleep(0.5)
+            assert pg.connection_count(dbname="p0") == 0
+            cur.execute("SELECT 1")
+
+
+def test_servers_disconnect_when_enabling_ssl(bouncer, pg, cert_dir):
+    bouncer.default_db = "pTxnPool"
+    bouncer.write_ini(f"server_tls_sslmode = disable")
+    bouncer.admin("RELOAD")
+
+    with bouncer.cur() as cur:
+        assert pg.connection_count(dbname="p0") == 1
+        bouncer.write_ini(f"server_tls_sslmode = allow")
+
+        with bouncer.log_contains(
+            r"pTxnPool.*database configuration changed|pTxnPool.*obsolete connection"
+        ):
+            bouncer.admin("RELOAD")
+            cur.execute("SELECT 1")
+
+
+def test_servers_disconnect_when_changing_sslmode(bouncer, pg, cert_dir):
+    bouncer.default_db = "pTxnPool"
+
+    with bouncer.cur() as cur:
+        assert pg.connection_count(dbname="p0") == 1
+        bouncer.write_ini(f"server_tls_sslmode = allow")
+
+        with bouncer.log_contains(
+            r"pTxnPool.*database configuration changed|pTxnPool.*obsolete connection"
+        ):
+            bouncer.admin("RELOAD")
+            cur.execute("SELECT 1")

@@ -754,6 +754,16 @@ Default: empty (use operating system defaults)
 
 ## TLS settings
 
+If the contents of any of the cert or key files are changed without
+changing the actual setting filename in the config, the new file
+contents will be used for new connections after a RELOAD. Existing
+connections won't be closed though. If it's necessary for security
+reasons that all connections start using the new files ASAP, it's
+advised to run RECONNECT after the RELOAD.
+
+Changing any TLS settings will trigger a RECONNECT automatically
+for security reasons.
+
 ### client_tls_sslmode
 
 TLS mode to use for connections from clients.  TLS connections

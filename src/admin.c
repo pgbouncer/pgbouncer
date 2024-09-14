@@ -1332,63 +1332,57 @@ static bool admin_cmd_enable(PgSocket *admin, const char *arg)
 
 
 
-PgSocket *find_socket_in_list(const char *arg, struct StatList *sockets)
+static PgSocket *find_socket_in_list(PgSocket *target_client, struct StatList *sockets)
 {
 	struct List *item;
-	int j;
-	int string_comp;
-	char buffer[strlen(arg) + 1];
 	PgSocket *socket;
 
 	statlist_for_each(item, sockets) {
 		socket = container_of(item, PgSocket, head);
-		j = snprintf(buffer, strlen(arg) + 1, "%p", socket);
-		if (j < (int)strlen(arg) + 1) {
-			string_comp = strcmp(buffer, arg);
-			if (string_comp == 0) {
-				return socket;
-			}
+		if (target_client == socket) {
+			return socket;
 		}
 	}
 	return NULL;
 }
 
-PgSocket *find_client_global(const char *arg)
+static PgSocket *find_client_global(PgSocket *target_client)
 {
-	PgSocket *client = NULL;
+	PgSocket *kill_client;
 	struct List *item;
 	PgPool *pool;
+
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
 
-		client = find_socket_in_list(arg, &pool->active_client_list);
-		if (client != NULL) {
-			return client;
+		kill_client = find_socket_in_list(target_client, &pool->active_client_list);
+		if (kill_client != NULL) {
+			return kill_client;
 		}
-		client = find_socket_in_list(arg, &pool->waiting_client_list);
-		if (client != NULL) {
-			return client;
+		kill_client = find_socket_in_list(target_client, &pool->waiting_client_list);
+		if (kill_client != NULL) {
+			return kill_client;
 		}
-		client = find_socket_in_list(arg, &pool->active_cancel_req_list);
-		if (client != NULL) {
-			return client;
+		kill_client = find_socket_in_list(target_client, &pool->active_cancel_req_list);
+		if (kill_client != NULL) {
+			return kill_client;
 		}
-		client = find_socket_in_list(arg, &pool->waiting_cancel_req_list);
-		if (client != NULL) {
-			return client;
+		kill_client = find_socket_in_list(target_client, &pool->waiting_cancel_req_list);
+		if (kill_client != NULL) {
+			return kill_client;
 		}
 	}
 
 	statlist_for_each(item, &peer_pool_list) {
 		pool = container_of(item, PgPool, head);
 
-		client = find_socket_in_list(arg, &pool->active_cancel_req_list);
-		if (client != NULL) {
-			return client;
+		kill_client = find_socket_in_list(target_client, &pool->active_cancel_req_list);
+		if (kill_client != NULL) {
+			return kill_client;
 		}
-		client = find_socket_in_list(arg, &pool->waiting_cancel_req_list);
-		if (client != NULL) {
-			return client;
+		kill_client = find_socket_in_list(target_client, &pool->waiting_cancel_req_list);
+		if (kill_client != NULL) {
+			return kill_client;
 		}
 	}
 	return NULL;
@@ -1397,13 +1391,15 @@ PgSocket *find_client_global(const char *arg)
 /* Command: KILL_CLIENT */
 static bool admin_cmd_kill_client(PgSocket *admin, const char *arg)
 {
-	PgSocket *client = NULL;
+	PgSocket *kill_client;
+	PgSocket *target_client;
 
-	client = find_client_global(arg);
-	if (client == NULL) {
+	target_client = (PgSocket *) strtol(arg, NULL, 16);
+	kill_client = find_client_global(target_client);
+	if (kill_client == NULL) {
 		return admin_error(admin, "client not found");
 	}
-	disconnect_client(client, true, "admin forced disconnect");
+	disconnect_client(kill_client, true, "admin forced disconnect");
 	return admin_ready(admin, "KILL");
 }
 

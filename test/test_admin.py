@@ -37,6 +37,28 @@ def test_show(bouncer):
         bouncer.admin(f"SHOW {item}")
 
 
+def test_kill_client_nonexisting(bouncer):
+    # Connect to client as user A
+    conn_1 = bouncer.conn(dbname="p0", user="maxedout")
+
+    # Validate count
+    clients = bouncer.admin("SHOW CLIENTS")
+    assert len(clients) == 2
+
+    # Issue kill client command
+    with pytest.raises(
+        psycopg.errors.ProtocolViolation,
+        match=r"client not found",
+    ):
+        clients = bouncer.admin("KILL_CLIENT non_existant_client_id")
+
+    # Validate count
+    clients = bouncer.admin("SHOW CLIENTS")
+    assert len(clients) == 2
+
+    conn_1.close()
+
+
 def test_kill_client(bouncer):
     # Connect to client as user A
     conn_1 = bouncer.conn(dbname="p0", user="maxedout")

@@ -26,5 +26,3 @@ bool admin_flush(PgSocket *admin, PktBuf *buf, const char *desc) /* _MUSTCHECK *
 bool admin_ready(PgSocket *admin, const char *desc)  _MUSTCHECK;
 void admin_handle_cancel(PgSocket *client);
 void admin_cleanup(void);
-PgSocket *find_client_global(const char *arg);
-PgSocket *find_socket_in_list(const char *arg, struct StatList *sockets);

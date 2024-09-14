@@ -750,6 +750,12 @@ Immediately drop all client and server connections on given database.
 New client connections to a killed database will wait until **RESUME**
 is called.
 
+#### KILL_CLIENT [ptr]
+
+Immediately kill specificed client connection along with any server 
+connections for the given client. The client to kill, is identified
+by the ptr value that can be found using the SHOW CLIENTS command.
+
 #### SUSPEND
 
 All socket buffers are flushed and PgBouncer stops listening for data on them.

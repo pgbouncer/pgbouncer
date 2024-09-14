@@ -79,8 +79,8 @@ static int hba_test_eval(struct HBA *hba, char *ln, int linenr)
 	user = get_token(&ln);
 	addr = get_token(&ln);
 	modifier = get_token(&ln);
-	tls = strings_equal(modifier, "tls");
-	replication = strings_equal(modifier, "replication") ?  REPLICATION_PHYSICAL : REPLICATION_NONE;
+	tls = strcmpeq(modifier, "tls");
+	replication = strcmpeq(modifier, "replication") ?  REPLICATION_PHYSICAL : REPLICATION_NONE;
 	if (!exp)
 		return 0;
 	if (!db || !user)

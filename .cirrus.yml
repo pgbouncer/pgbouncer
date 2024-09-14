@@ -68,7 +68,7 @@ task:
     - case $CC in clang) pkgs="$pkgs clang";; esac
     - if [ x"$ENABLE_VALGRIND" = x"yes" ]; then pkgs="$pkgs valgrind"; fi
     - if [ x"$use_scan_build" = x"yes" ]; then pkgs="$pkgs clang-tools"; fi
-    - if [ "$PGVERSION" = 17 ]; then pkgs="$pkgs libpq5=$(apt-cache show libpq5 | grep "^Version: $PGVERSION" | awk '{print $2}')"; fi
+    - if [ "$PGVERSION" = 17 ]; then pkgs="$pkgs libpq5=$(apt-cache show libpq5 | grep "^Version: $PGVERSION" | awk '{print $2}' | sort | tail -n 1)"; fi
     - if [ "$PGVERSION" = 17 ]; then pkgs="$pkgs postgresql-common=$(apt-cache show postgresql-common | grep "^Version: .*pgdg" | awk '{print $2}')"; fi
     - if [ "$PGVERSION" = 17 ]; then pkgs="$pkgs postgresql-client-common=$(apt-cache show postgresql-client-common | grep "^Version: .*pgdg" | awk '{print $2}')"; fi
     - apt-get -y install $pkgs

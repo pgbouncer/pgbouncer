@@ -399,7 +399,7 @@ existing table. In those cases you can run `RECONNECT` on the PgBouncer admin
 console after doing the migration to force a re-prepare of the query and make
 the error go away.
 
-Default: 0
+Default: 200
 
 
 ## Authentication settings

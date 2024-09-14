@@ -126,7 +126,7 @@ static char * cstr_get_pair(char *p,
  */
 static bool set_param_value(char **old_value, const char *new_value)
 {
-	if (strings_equal(*old_value, new_value))
+	if (strcmpeq(*old_value, new_value))
 		return true;
 
 	if (*old_value)
@@ -376,7 +376,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		bool changed = false;
 		if (strcmp(db->dbname, dbname) != 0) {
 			changed = true;
-		} else if (!strings_equal(host, db->host)) {
+		} else if (!strcmpeq(host, db->host)) {
 			changed = true;
 		} else if (port != db->port) {
 			changed = true;
@@ -386,11 +386,11 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			changed = true;
 		} else if (!username && db->forced_user_credentials) {
 			changed = true;
-		} else if (!strings_equal(connect_query, db->connect_query)) {
+		} else if (!strcmpeq(connect_query, db->connect_query)) {
 			changed = true;
-		} else if (!strings_equal(db->auth_dbname, auth_dbname)) {
+		} else if (!strcmpeq(db->auth_dbname, auth_dbname)) {
 			changed = true;
-		} else if (!strings_equal(db->auth_query, auth_query)) {
+		} else if (!strcmpeq(db->auth_query, auth_query)) {
 			changed = true;
 		}
 		if (changed)

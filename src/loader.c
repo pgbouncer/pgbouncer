@@ -198,11 +198,8 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 		}
 
 		if (strcmp("host", key) == 0) {
-			host = strdup(val);
-			if (!host) {
-				log_error("out of memory");
+			if (!set_param_value(&host, val))
 				goto fail;
-			}
 		} else if (strcmp("port", key) == 0) {
 			port = atoi(val);
 			if (port == 0) {
@@ -240,6 +237,7 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 	return true;
 fail:
 	free(tmp_connstr);
+	free(host);
 	return false;
 }
 /* fill PgDatabase from connstr */
@@ -303,11 +301,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		if (strcmp("dbname", key) == 0) {
 			dbname = val;
 		} else if (strcmp("host", key) == 0) {
-			host = strdup(val);
-			if (!host) {
-				log_error("out of memory");
+			if (!set_param_value(&host, val))
 				goto fail;
-			}
 		} else if (strcmp("port", key) == 0) {
 			port = atoi(val);
 			if (port == 0) {
@@ -344,11 +339,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 				goto fail;
 			}
 		} else if (strcmp("connect_query", key) == 0) {
-			connect_query = strdup(val);
-			if (!connect_query) {
-				log_error("out of memory");
+			if (!set_param_value(&connect_query, val))
 				goto fail;
-			}
 		} else if (strcmp("application_name", key) == 0) {
 			appname = val;
 		} else if (strcmp("auth_query", key) == 0) {
@@ -399,6 +391,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 
 	free(db->host);
 	db->host = host;
+	host = NULL;
 	db->port = port;
 	db->pool_size = pool_size;
 	db->min_pool_size = min_pool_size;
@@ -408,6 +401,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	db->server_lifetime = server_lifetime;
 	free(db->connect_query);
 	db->connect_query = connect_query;
+	connect_query = NULL;
 
 	if (!set_param_value(&db->auth_dbname, auth_dbname))
 		goto fail;
@@ -474,6 +468,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	return true;
 fail:
 	free(tmp_connstr);
+	free(host);
+	free(connect_query);
 	return false;
 }
 

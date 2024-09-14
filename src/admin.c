@@ -1392,9 +1392,9 @@ static PgSocket *find_client_global(PgSocket *target_client)
 static bool admin_cmd_kill_client(PgSocket *admin, const char *arg)
 {
 	PgSocket *kill_client;
-	PgSocket *target_client;
+	PgSocket *target_client = NULL;
 
-	target_client = (PgSocket *) strtol(arg, NULL, 16);
+	sscanf(arg, "%p", &target_client);
 	kill_client = find_client_global(target_client);
 	if (kill_client == NULL) {
 		return admin_error(admin, "client not found");

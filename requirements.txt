@@ -2,7 +2,6 @@ pytest
 pytest-asyncio
 pytest-timeout
 pytest-xdist
-psycopg; python_version < "3.7"
-https://github.com/psycopg/psycopg/archive/master.zip#egg=psycopg&subdirectory=psycopg; python_version >= "3.7"
+psycopg
 filelock
 contextlib2; python_version < "3.7"

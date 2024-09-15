@@ -201,6 +201,7 @@ task:
     USE_SUDO: true
     CPPFLAGS: -I/opt/homebrew/opt/openssl@3/include
     LDFLAGS: -L/opt/homebrew/opt/openssl@3/lib
+    PATH: /opt/homebrew/opt/postgresql@${PGVERSION}/bin:$PATH
   setup_script:
     - brew install autoconf automake bash libevent libtool openssl pandoc pkg-config postgresql@${PGVERSION}
     - python3 -m venv venv
@@ -211,8 +212,6 @@ task:
     - ./autogen.sh
     - ./configure --prefix=$HOME/install --enable-werror
     - make -j4
-  env:
-    PATH: /opt/homebrew/opt/postgresql@${PGVERSION}/bin:$PATH
   test_script:
     - source venv/bin/activate && make -j4 check CONCURRENCY=4
   install_script:

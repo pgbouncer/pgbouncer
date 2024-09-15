@@ -57,9 +57,8 @@ Problems / cleanups
 Dubious/complicated features
 ----------------------------
 
-* Load-balancing / failover.  Both are already solved via DNS.
-  Adding load-balancing config in pgbouncer might be good idea.
-  Adding failover decision-making is not...
+* Failover.  Already solved via DNS.
+  Adding failover decision-making is not a good idea...
 
 * User-based route.  Simplest would be to move db info to pool
   and fill username into dns.

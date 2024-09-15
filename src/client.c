@@ -164,6 +164,14 @@ static bool send_client_authreq(PgSocket *client)
 	return res;
 }
 
+/*
+ * Returns true if the currently trying to send an auth query to the server.
+ */
+bool sending_auth_query(PgSocket *client)
+{
+	return client->wait_for_user_conn || client->wait_for_user;
+}
+
 static void start_auth_query(PgSocket *client, const char *username)
 {
 	int res;
@@ -179,8 +187,8 @@ static void start_auth_query(PgSocket *client, const char *username)
 		disconnect_client(client, true, "no memory for authentication pool");
 		return;
 	}
+	client->wait_for_user_conn = true;
 	if (!find_server(client)) {
-		client->wait_for_user_conn = true;
 		return;
 	}
 	slog_noise(client, "doing auth_conn query: %s", auth_query);

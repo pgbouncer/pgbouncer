@@ -907,7 +907,7 @@ bool find_server(PgSocket *client)
 	/* try to get idle server, if allowed */
 	if (cf_pause_mode == P_PAUSE || pool->db->db_paused) {
 		server = NULL;
-	} else if (client->replication) {
+	} else if (client->replication && !sending_auth_query(client)) {
 		/*
 		 * For replication clients we open dedicated server connections. These
 		 * connections are linked to a client as soon as the server is ready,
@@ -979,7 +979,7 @@ static bool reuse_on_release(PgSocket *server)
 	Assert(!server->replication);
 	slog_debug(server, "reuse_on_release: replication %d", server->replication);
 	client = first_socket(&pool->waiting_client_list);
-	if (client && !client->replication) {
+	if (client && (!client->replication || sending_auth_query(client))) {
 		activate_client(client);
 
 		/*
@@ -1885,7 +1885,7 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed)
 			}
 		}
 
-		if (c && c->replication) {
+		if (c && c->replication && !sending_auth_query(c)) {
 			while (evict_if_needed && pool_pool_size(pool) >= max) {
 				if (!evict_pool_connection(pool))
 					break;

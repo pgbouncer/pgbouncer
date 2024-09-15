@@ -2,7 +2,7 @@ env:
   CIRRUS_CLONE_SUBMODULES: true
   DEBIAN_FRONTEND: noninteractive
   LANG: C
-  PGVERSION: 14
+  PGVERSION: 16
 
 task:
   name: Linux (Debian/Ubuntu)
@@ -68,7 +68,7 @@ task:
     - case $CC in clang) pkgs="$pkgs clang";; esac
     - if [ x"$ENABLE_VALGRIND" = x"yes" ]; then pkgs="$pkgs valgrind"; fi
     - if [ x"$use_scan_build" = x"yes" ]; then pkgs="$pkgs clang-tools"; fi
-    - if [ "$PGVERSION" = 17 ]; then pkgs="$pkgs libpq5=$(apt-cache show libpq5 | grep "^Version: $PGVERSION" | awk '{print $2}')"; fi
+    - if [ "$PGVERSION" = 17 ]; then pkgs="$pkgs libpq5=$(apt-cache show libpq5 | grep "^Version: $PGVERSION" | awk '{print $2}' | sort | tail -n 1)"; fi
     - if [ "$PGVERSION" = 17 ]; then pkgs="$pkgs postgresql-common=$(apt-cache show postgresql-common | grep "^Version: .*pgdg" | awk '{print $2}')"; fi
     - if [ "$PGVERSION" = 17 ]; then pkgs="$pkgs postgresql-client-common=$(apt-cache show postgresql-client-common | grep "^Version: .*pgdg" | awk '{print $2}')"; fi
     - apt-get -y install $pkgs
@@ -195,25 +195,25 @@ task:
 task:
   name: macOS
   macos_instance:
-    image: ghcr.io/cirruslabs/macos-sonoma-base:latest
+    image: ghcr.io/cirruslabs/macos-runner:sonoma
   env:
     HAVE_IPV6_LOCALHOST: yes
     USE_SUDO: true
+    CPPFLAGS: -I/opt/homebrew/opt/openssl@3/include
+    LDFLAGS: -L/opt/homebrew/opt/openssl@3/lib
+    PATH: /opt/homebrew/opt/postgresql@${PGVERSION}/bin:$PATH
   setup_script:
     - brew install autoconf automake bash libevent libtool openssl pandoc pkg-config postgresql@${PGVERSION}
     - python3 -m venv venv
     - venv/bin/pip install -r requirements.txt
     - echo 'anchor "pgbouncer_test/*"' | sudo tee -a /etc/pf.conf
     - sudo pfctl -f /etc/pf.conf
-  env:
-    CPPFLAGS: -I/opt/homebrew/opt/openssl@3/include
-    LDFLAGS: -L/opt/homebrew/opt/openssl@3/lib
   build_script:
     - ./autogen.sh
     - ./configure --prefix=$HOME/install --enable-werror
     - make -j4
   test_script:
-    - source venv/bin/activate && make check -j4 CONCURRENCY=4
+    - source venv/bin/activate && make -j4 check CONCURRENCY=4
   install_script:
     - make -j4 install
   always:

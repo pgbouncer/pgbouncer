@@ -796,11 +796,10 @@ struct Ident *ident_load_map(const char *fn)
 	init_parser(&tp);
 
 	ident = malloc(sizeof *ident);
-
-	list_init(&ident->maps);
-
 	if (!ident)
 		goto out;
+
+	list_init(&ident->maps);
 
 	f = fopen(fn, "r");
 

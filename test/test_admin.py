@@ -45,10 +45,36 @@ def test_kill_client_nonexisting(bouncer):
     clients = bouncer.admin("SHOW CLIENTS")
     assert len(clients) == 2
 
+    # Get clients id
+    client_id = [client for client in clients if client[2] == "p0"][0][-6]
+    fake_client_id = hex(int(client_id, 16) + 1)
+
     # Issue kill client command
     with pytest.raises(
         psycopg.errors.ProtocolViolation,
         match=r"client not found",
+    ):
+        clients = bouncer.admin(f"KILL_CLIENT {fake_client_id}")
+
+    # Validate count
+    clients = bouncer.admin("SHOW CLIENTS")
+    assert len(clients) == 2
+
+    conn_1.close()
+
+
+def test_kill_client_invalid(bouncer):
+    # Connect to client as user A
+    conn_1 = bouncer.conn(dbname="p0", user="maxedout")
+
+    # Validate count
+    clients = bouncer.admin("SHOW CLIENTS")
+    assert len(clients) == 2
+
+    # Issue kill client command
+    with pytest.raises(
+        psycopg.errors.ProtocolViolation,
+        match=r"invalid client pointer supplied",
     ):
         clients = bouncer.admin("KILL_CLIENT non_existant_client_id")
 

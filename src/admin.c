@@ -1392,15 +1392,18 @@ static PgSocket *find_client_global(PgSocket *target_client)
 static bool admin_cmd_kill_client(PgSocket *admin, const char *arg)
 {
 	PgSocket *kill_client;
-	PgSocket *target_client = NULL;
+	void *target_client = NULL;
 
-	sscanf(arg, "%p", &target_client);
-	kill_client = find_client_global(target_client);
+	if (sscanf(arg, "%p", &target_client) != 1) {
+		return admin_error(admin, "invalid client pointer supplied");
+	}
+
+	kill_client = find_client_global((PgSocket *) target_client);
 	if (kill_client == NULL) {
 		return admin_error(admin, "client not found");
 	}
 	disconnect_client(kill_client, true, "admin forced disconnect");
-	return admin_ready(admin, "KILL");
+	return admin_ready(admin, "KILL_CLIENT");
 }
 
 /* Command: KILL */

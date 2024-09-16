@@ -76,9 +76,9 @@ systemd integration
 -------------------
 
 To enable systemd integration, use the `configure` option
-`--with-systemd`.  This allows using `Type=notify` service units as
-well as socket activation.  See `etc/pgbouncer.service` and
-`etc/pgbouncer.socket` for examples.
+`--with-systemd`.  This allows using `Type=notify` (or `Type=notify-reload` if
+you are using systemd 253 or later) as well as socket activation.  See
+`etc/pgbouncer.service` and `etc/pgbouncer.socket` for examples.
 
 Building from Git
 -----------------

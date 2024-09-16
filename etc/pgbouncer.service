@@ -2,8 +2,8 @@
 #
 # - Adjust the paths in ExecStart for your installation.
 #
-# - For systemd 253 and later, pgbouncer supports Type=notify-reload (instead of
-#   Type=notify with ExecReload= command).
+# - For systemd 253 and later, PgBouncer supports Type=notify-reload
+#   (instead of Type=notify with ExecReload= command).
 #
 # - The User setting requires careful consideration.  PgBouncer needs
 #   to be able to place a Unix-domain socket file where PostgreSQL

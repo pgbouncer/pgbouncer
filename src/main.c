@@ -566,14 +566,10 @@ static void handle_sigusr2(int sock, short flags, void *arg)
 }
 
 /*
- * Notify systemd that we are reloading, including a CLOCK_MONOTONIC timestamp in usec
- * so that the program is compatible with a Type=notify-reload service.
+ * Notify systemd that we are reloading, including a CLOCK_MONOTONIC timestamp
+ * in usec so that the program is compatible with a Type=notify-reload service.
  *
  * See https://www.freedesktop.org/software/systemd/man/latest/sd_notify.html
- *
- * Note that get_cached_time/get_time_usec from libusual uses gettimeofday
- * instead of a monotonic clock, otherwise this function would be a single line:
- *     sd_notifyf(0, "RELOADING=1\nMONOTONIC_USEC=%" PRIu64, get_cached_time());
  */
 static void notify_reloading(void)
 {

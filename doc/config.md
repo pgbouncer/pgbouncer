@@ -1261,7 +1261,7 @@ not have more than this many server connections).
 ### max_db_client_connections
 
 Configure a database-wide client connection maximum. Should be used in conjunction with max_client_conn
-to limit the number of connections that pgbouncer is allowed to accept.
+to limit the number of connections that PgBouncer is allowed to accept.
 
 ### server_lifetime
 

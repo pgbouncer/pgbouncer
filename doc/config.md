@@ -178,7 +178,7 @@ Default: 0 (unlimited)
 
 ### max_db_client_connections
 
-Do not allow more than this many client connections to pgbouncer per database
+Do not allow more than this many client connections to PgBouncer per database
 (regardless of user).  This considers the PgBouncer database that the
 client has connected to, not the PostgreSQL database of the outgoing
 connection.

@@ -566,7 +566,7 @@ server_lifetime
 pool_mode
 :   The database's override pool_mode, or NULL if the default will be used instead.
 
-host_strategy
+load_balance_hosts
 :   The database's load_balance_hosts if the host contains a comma-separated list.
 
 max_connections

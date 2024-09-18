@@ -1249,6 +1249,9 @@ disable
 :   A new connection continues using the same host entry until a connection
     fails, after which the next host entry is chosen.
 
+It is recommended to set `server_login_retry` lower than the default to ensure
+fast retries when multiple hosts are available.
+
 Default: `round-robin`
 
 ### max_db_connections

@@ -572,7 +572,7 @@ struct PgDatabase {
 	int max_db_connections;	/* max server connections between all pools */
 	usec_t server_lifetime;	/* max lifetime of server connection */
 	char *connect_query;	/* startup commands to send to server after connect */
-	enum LoadBalanceHosts load_balance_hosts; /* strategy for host selection in a comma-separated host list */
+	enum LoadBalanceHosts load_balance_hosts;	/* strategy for host selection in a comma-separated host list */
 
 	struct PktBuf *startup_params;	/* partial StartupMessage (without user) be sent to server */
 	const char *dbname;	/* server-side name, pointer to inside startup_msg */

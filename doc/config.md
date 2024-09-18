@@ -1242,6 +1242,8 @@ the default `pool_mode` is used.
 When a comma-separated list is specified in `host`, `load_balance_hosts` controls
 which entry is chosen for a new connection.
 
+Note: This setting currently only controls the load balancing behaviour when providing multiple hosts in the connection string, but not when a single host its DNS record references multiple IP addresses. This is a missing feature, so in a future release this setting might start to to control both methods of load balancing.
+
 round-robin
 :   A new connection attempt chooses the next host entry in the list.
 

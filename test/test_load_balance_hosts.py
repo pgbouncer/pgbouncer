@@ -25,17 +25,24 @@ async def test_load_balance_hosts_disable_bad_first(bouncer):
 def test_load_balance_hosts_reload(bouncer):
     with bouncer.admin_runner.cur() as cur:
         results = cur.execute("show databases").fetchall()
-        result = [r for r in results if r[0] == 'load_balance_hosts_update'][0]
+        result = [r for r in results if r[0] == "load_balance_hosts_update"][0]
         assert "disable" in result
 
     with bouncer.ini_path.open() as f:
         original = f.read()
     with bouncer.ini_path.open("w") as f:
-        f.write(re.sub(r"^(load_balance_hosts_update.*load_balance_hosts=)disable", "\\1round-robin", original, flags=re.MULTILINE))
+        f.write(
+            re.sub(
+                r"^(load_balance_hosts_update.*load_balance_hosts=)disable",
+                "\\1round-robin",
+                original,
+                flags=re.MULTILINE,
+            )
+        )
 
     bouncer.admin("reload")
 
     with bouncer.admin_runner.cur() as cur:
         results = cur.execute("show databases").fetchall()
-        result = [r for r in results if r[0] == 'load_balance_hosts_update'][0]
+        result = [r for r in results if r[0] == "load_balance_hosts_update"][0]
         assert "round-robin" in result

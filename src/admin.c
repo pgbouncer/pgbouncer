@@ -1331,7 +1331,6 @@ static bool admin_cmd_enable(PgSocket *admin, const char *arg)
 }
 
 
-
 static PgSocket *find_socket_in_list(PgSocket *target_client, struct StatList *sockets)
 {
 	struct List *item;
@@ -1388,7 +1387,14 @@ static PgSocket *find_client_global(PgSocket *target_client)
 	return NULL;
 }
 
-/* Command: KILL_CLIENT */
+/*
+ * Command: KILL_CLIENT
+ * TODO: This command relies on the memory address of a client to identify which
+ * client to kill. This is potentially dangerous because memory addresses are reused.
+ * The long term solution to this is to assign an integer or UUID identifier to identify
+ * clients instead of memory addresses but we are going to wait to see how much of an
+ * issue this is in practice before implementing this.
+ */
 static bool admin_cmd_kill_client(PgSocket *admin, const char *arg)
 {
 	PgSocket *kill_client;

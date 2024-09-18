@@ -90,102 +90,255 @@ async def test_min_pool_size(pg, bouncer):
     assert pg.connection_count(dbname="p0", users=("postgres",)) == 5
 
 
-@pytest.mark.parametrize("test_db", ["p0", "pgbouncer"])
+@pytest.mark.parametrize(
+    ("test_db", "test_user"),
+    [
+        ("p0", "maxedout3"), ("pgbouncer", "maxedout3"),
+        ("pgbouncer", "maxedout2"), ("authdb", "pswcheck_not_in_auth_file"),
+    ]
+)
 def test_max_user_client_connections_local_override_global(
-    bouncer, test_db: str
+    bouncer, test_db: str, test_user: str
 ) -> None:
-    test_user = "maxedout3"
-    connect_args = {"dbname": test_db, "user": test_user}
-    bouncer.admin("set admin_users='maxedout3,pgbouncer'")
-    bouncer.admin("set max_user_client_connections = 1")
+    """Test that user level overrides global connection limit."""
+    config = f"""
+    [databases]
+    p0 = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 user=bouncer pool_size=2
+    authdb = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 auth_user=pswcheck pool_size=2 user=bouncer
+    * = host=127.0.0.1 port={bouncer.pg.port}
 
-    conn_1 = bouncer.conn(**connect_args)
-    users = bouncer.admin("SHOW USERS")
-    user = [user for user in users if user[0] == test_user][0]
-    assert user == (test_user, "", None, 0, 0, 2, 1)
+    [pgbouncer]
+    admin_users = maxedout3,pgbouncer
+    stats_users = maxedout2
+    listen_addr = 127.0.0.1
+    auth_type = trust
+    auth_file = userlist.txt
+    pool_mode = statement
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    max_user_client_connections=1
 
-    bouncer.conn(**connect_args)
-    conn_1.close()
+    [users]
+    maxedout3 = max_user_client_connections=2 pool_size=1
+    maxedout2 = max_user_client_connections=2 pool_size=1
+    pswcheck_not_in_auth_file = max_user_client_connections=2 pool_size=1
+    """
+    with bouncer.run_with_config(config):
+      connect_args = {"dbname": test_db, "user": test_user}
+      bouncer.admin("set max_user_client_connections = 1")
+
+      conn_1 = bouncer.conn(**connect_args)
+      users = bouncer.admin("SHOW USERS")
+      user = next(user for user in users if user[0] == test_user)
+      assert user == (test_user, "        1", None, 0, 0, 2, 1)
+
+      bouncer.conn(**connect_args)
+      conn_1.close()
 
 
-@pytest.mark.parametrize("test_db", ["p0", "pgbouncer"])
-def test_max_user_client_connections_global_positive(bouncer, test_db: str) -> None:
-    test_user = "postgres"
-    bouncer.admin("set max_user_client_connections = 2")
-    bouncer.admin("set admin_users='postgres,pgbouncer'")
+@pytest.mark.parametrize(
+    ("test_db", "test_user"),
+    [
+        ("p0", "maxedout3"), ("pgbouncer", "maxedout3"),
+        ("pgbouncer", "maxedout2"), ("authdb", "pswcheck_not_in_auth_file"),
+    ]
+)
+def test_max_user_client_connections_global_positive(bouncer, test_db: str, test_user: str) -> None:
+    """Positive test for max_user_client_connections setting."""
+    config = f"""
+    [databases]
+    p0 = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 user=bouncer pool_size=2
+    authdb = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 auth_user=pswcheck pool_size=2 user=bouncer
+    * = host=127.0.0.1 port={bouncer.pg.port}
 
-    connect_args = {"dbname": test_db, "user": test_user}
-    conn_1 = bouncer.conn(**connect_args)
-    users = bouncer.admin("SHOW USERS")
-    user = [user for user in users if user[0] == test_user][0]
-    assert user == (test_user, "        1", None, 0, 0, 2, 1)
-    # should still be allowed, since it's the last allowed connection
-    bouncer.conn(**connect_args)
-    conn_1.close()
+    [pgbouncer]
+    admin_users = maxedout3,pgbouncer
+    stats_users = maxedout2
+    listen_addr = 127.0.0.1
+    auth_type = trust
+    auth_file = userlist.txt
+    pool_mode = statement
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    max_user_client_connections=2
+
+    [users]
+    maxedout3 = pool_size=1
+    maxedout2 = pool_size=1
+    pswcheck_not_in_auth_file = pool_size=1
+    """
+    with bouncer.run_with_config(config):
+      connect_args = {"dbname": test_db, "user": test_user}
+      conn_1 = bouncer.conn(**connect_args)
+      users = bouncer.admin("SHOW USERS")
+      user = next(user for user in users if user[0] == test_user)
+      assert user == (test_user, "        1", None, 0, 0, 2, 1)
+      # should still be allowed, since it's the last allowed connection
+      bouncer.conn(**connect_args)
+      conn_1.close()
 
 
-@pytest.mark.parametrize("test_db", ["p0", "pgbouncer"])
-def test_max_user_client_connections_global_negative(bouncer, test_db: str) -> None:
-    # Test that default user level connection limit correctly rejects connection after
-    # 2 users are connected. Also checks that user counts are correctly reflected in
-    # SHOW USERS stats command.
-    # Test covers admin db and real db
-    bouncer.admin("set admin_users='postgres,pgbouncer'")
-    test_user = "postgres"
-    bouncer.admin("set max_user_client_connections = 2")
-    connect_args = {"dbname": test_db, "user": test_user}
-    conns = [bouncer.conn(**connect_args) for _ in range(2)]
-    users = bouncer.admin("SHOW USERS")
-    user = [user for user in users if user[0] == test_user][0]
-    assert user == (test_user, "        1", None, 0, 0, 2, 2)
-    with pytest.raises(psycopg.OperationalError, match=r"max_user_client_connections"):
+@pytest.mark.parametrize(
+    ("test_db", "test_user"),
+    [
+        ("p0", "maxedout3"), ("pgbouncer", "maxedout3"),
+        ("pgbouncer", "maxedout2"), ("authdb", "pswcheck_not_in_auth_file"),
+    ]
+)
+def test_max_user_client_connections_global_negative(bouncer, test_db: str, test_user: str) -> None:
+    """Negative test for max_user_client_connections setting.
+
+    Test that default user level connection limit correctly rejects connection after
+    2 users are connected. Also checks that user counts are correctly reflected in
+    SHOW USERS stats command.
+    Test covers admin db and real db
+    """
+    config = f"""
+    [databases]
+    p0 = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 user=bouncer pool_size=2
+    authdb = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 auth_user=pswcheck pool_size=2 user=bouncer
+    * = host=127.0.0.1 port={bouncer.pg.port}
+
+    [pgbouncer]
+    admin_users = maxedout3,pgbouncer
+    stats_users = maxedout2
+    listen_addr = 127.0.0.1
+    auth_type = trust
+    auth_file = userlist.txt
+    pool_mode = statement
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    max_user_client_connections=2
+
+    [users]
+    maxedout3 = pool_size=1
+    maxedout2 = pool_size=1
+    pswcheck_not_in_auth_file = pool_size=1
+    """
+    with bouncer.run_with_config(config):
+      connect_args = {"dbname": test_db, "user": test_user}
+      conns = [bouncer.conn(**connect_args) for _ in range(2)]
+      users = bouncer.admin("SHOW USERS")
+      user = next(user for user in users if user[0] == test_user)
+      assert user == (test_user, "        1", None, 0, 0, 2, 2)
+
+      if test_db == 'pgbouncer' and test_user == "maxedout3":
         bouncer.conn(**connect_args)
+      else:
+        with pytest.raises(psycopg.OperationalError, match=r"max_user_client_connections"):
+            bouncer.conn(**connect_args)
 
-    # Make sure error is correctly raised again
-    with pytest.raises(psycopg.OperationalError, match=r"max_user_client_connections"):
+      # Make sure error is correctly raised again
+      if test_db == 'pgbouncer' and test_user == "maxedout3":
         bouncer.conn(**connect_args)
+      else:
+        with pytest.raises(psycopg.OperationalError, match=r"max_user_client_connections"):
+            bouncer.conn(**connect_args)
 
-    for conn in conns:
-        conn.close()
-
-
-@pytest.mark.parametrize("test_db", ["p0", "pgbouncer"])
-def test_max_user_client_connections_positive(bouncer, test_db: str) -> None:
-    # Test that user level connection limits allow users to connect up to the limit level.
-    # Also test that SHOW USERS stats correctly reflect this number.
-    bouncer.admin("set admin_users='maxedout3,pgbouncer'")
-    test_user = "maxedout3"
-    connect_args = {"dbname": test_db, "user": test_user}
-    conn_1 = bouncer.conn(**connect_args)
-    users = bouncer.admin("SHOW USERS")
-    user = [user for user in users if user[0] == test_user][0]
-    assert user == (test_user, "", None, 0, 0, 2, 1)
-
-    # should still be allowed, since it's the last allowed connection
-    conn_2 = bouncer.conn(**connect_args)
-
-    for conn in [conn_1, conn_2]:
-        conn.close()
+      for conn in conns:
+          conn.close()
 
 
-@pytest.mark.parametrize("test_db", ["p0", "pgbouncer"])
-def test_max_user_client_connections_negative(bouncer, test_db: str) -> None:
-    # Test that user level connection limit correctly rejects connection after
-    # 2 users are connected. Also checks that user counts are correctly reflected in
-    # SHOW USERS stats command.
-    # Test covers admin db and real db
-    bouncer.admin("set admin_users='maxedout3,pgbouncer'")
-    test_user = "maxedout3"
-    connect_args = {"dbname": test_db, "user": test_user}
-    conns = [bouncer.conn(**connect_args) for _ in range(2)]
-    users = bouncer.admin("SHOW USERS")
-    user = [user for user in users if user[0] == test_user][0]
-    assert user == (test_user, "", None, 0, 0, 2, 2)
-    with pytest.raises(psycopg.OperationalError, match=r"max_user_client_connections"):
-        bouncer.conn(**connect_args)
+@pytest.mark.parametrize(
+    ("test_db", "test_user"),
+    [
+        ("p0", "maxedout3"), ("pgbouncer", "maxedout3"),
+        ("pgbouncer", "maxedout2"), ("authdb", "pswcheck_not_in_auth_file"),
+    ]
+)
+def test_max_user_client_connections_positive(bouncer, test_db: str, test_user: str) -> None:
+    """Positive test of user level max_user_client_connections setting.
 
-    for conn in conns:
-        conn.close()
+    Test that user level connection limits allow users to connect up to the limit level.
+    Also test that SHOW USERS stats correctly reflect this number.
+    """
+    config = f"""
+    [databases]
+    p0 = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 user=bouncer pool_size=2
+    authdb = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 auth_user=pswcheck pool_size=2 user=bouncer
+    * = host=127.0.0.1 port={bouncer.pg.port}
+
+    [pgbouncer]
+    admin_users = 'maxedout3,pgbouncer'
+    stats_users = maxedout2
+    listen_addr = 127.0.0.1
+    auth_type = trust
+    auth_file = userlist.txt
+    pool_mode = statement
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+
+    [users]
+    maxedout3 = max_user_client_connections=2 pool_size=1
+    maxedout2 = max_user_client_connections=2 pool_size=1
+    pswcheck_not_in_auth_file = max_user_client_connections=2 pool_size=1
+    """
+    with bouncer.run_with_config(config):
+      bouncer.admin("set admin_users='maxedout3,pgbouncer'")
+      connect_args = {"dbname": test_db, "user": test_user}
+      conn_1 = bouncer.conn(**connect_args)
+      users = bouncer.admin("SHOW USERS")
+      user = next(user for user in users if user[0] == test_user)
+      assert user == (test_user, "        1", None, 0, 0, 2, 1)
+
+      # should still be allowed, since it's the last allowed connection
+      conn_2 = bouncer.conn(**connect_args)
+
+      for conn in [conn_1, conn_2]:
+          conn.close()
+
+
+@pytest.mark.parametrize(
+    ("test_db", "test_user"),
+    [
+      ("p0", "maxedout3"), ("pgbouncer", "maxedout3"),
+      ("pgbouncer", "maxedout2"), ("authdb", "pswcheck_not_in_auth_file"),
+    ]
+)
+def test_max_user_client_connections_negative(bouncer, test_db: str, test_user: str) -> None:
+    """Negative test of user level max_user_client_connections setting.
+
+    Test that user level connection limit correctly rejects connection after
+    2 users are connected. Also checks that user counts are correctly reflected in
+    SHOW USERS stats command.
+    Test covers admin db and real db
+    """
+    config = f"""
+    [databases]
+    p0 = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 user=bouncer pool_size=2
+    authdb = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 auth_user=pswcheck pool_size=2 user=bouncer
+    * = host=127.0.0.1 port={bouncer.pg.port}
+
+    [pgbouncer]
+    admin_users = maxedout3, pgbouncer
+    stats_users = maxedout2
+    listen_addr = 127.0.0.1
+    auth_type = trust
+    pool_mode = statement
+    auth_file = userlist.txt
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+
+    [users]
+    maxedout3 = max_user_client_connections=2 pool_size=1
+    maxedout2 = max_user_client_connections=2 pool_size=1
+    pswcheck_not_in_auth_file = max_user_client_connections=2 pool_size=1
+    """
+    with bouncer.run_with_config(config):
+      connect_args = {"dbname": test_db, "user": test_user}
+      conns = [bouncer.conn(**connect_args) for _ in range(2)]
+      users = bouncer.admin("SHOW USERS")
+      user = next(user for user in users if user[0] == test_user)
+      assert user == (test_user, "        1", None, 0, 0, 2, 2)
+
+      if test_db == 'pgbouncer' and test_user == "maxedout3":
+          bouncer.conn(**connect_args)
+      else:
+          with pytest.raises(psycopg.OperationalError, match=r"max_user_client_connections"):
+              bouncer.conn(**connect_args)
+
+      for conn in conns:
+          conn.close()
 
 
 def test_min_pool_size_with_lower_max_user_connections(bouncer):

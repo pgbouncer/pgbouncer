@@ -433,7 +433,15 @@ bool check_user_connection_count(PgSocket *client)
 	if (!client->login_user_credentials->global_user)
 		return true;
 
-	client->login_user_credentials->global_user->client_connection_count++;
+  if (!client->user_connection_counted) {
+    client->login_user_credentials->global_user->client_connection_count++;
+      client->user_connection_counted = 1;
+  }
+
+	if (client->db->admin && strlist_contains(cf_admin_users, client->login_user_credentials->name)) {
+		return true;
+  }
+
 	max_user_client_connections = user_client_max_connections(client->login_user_credentials->global_user);
 	if (max_user_client_connections == 0)
 		return true;
@@ -545,11 +553,11 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 
 			slog_info(client, "no such user: %s", username);
 			client->login_user_credentials = calloc(1, sizeof(*client->login_user_credentials));
+			client->login_user_credentials->mock_auth = true;
+			safe_strcpy(client->login_user_credentials->name, username, sizeof(client->login_user_credentials->name));
 			if (!check_user_connection_count(client)) {
 				return false;
 			}
-			client->login_user_credentials->mock_auth = true;
-			safe_strcpy(client->login_user_credentials->name, username, sizeof(client->login_user_credentials->name));
 		}
 	}
 

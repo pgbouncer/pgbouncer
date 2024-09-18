@@ -1,6 +1,7 @@
+import re
+
 import psycopg
 import pytest
-import re
 
 
 @pytest.mark.asyncio

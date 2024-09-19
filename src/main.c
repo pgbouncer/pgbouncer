@@ -274,7 +274,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("max_client_conn", CF_INT, cf_max_client_conn, 0, "100"),
 	CF_ABS("max_db_connections", CF_INT, cf_max_db_connections, 0, "0"),
 	CF_ABS("max_packet_size", CF_UINT, cf_max_packet_size, 0, "2147483647"),
-	CF_ABS("max_prepared_statements", CF_INT, cf_max_prepared_statements, 0, "0"),
+	CF_ABS("max_prepared_statements", CF_INT, cf_max_prepared_statements, 0, "200"),
 	CF_ABS("max_user_connections", CF_INT, cf_max_user_connections, 0, "0"),
 	CF_ABS("min_pool_size", CF_INT, cf_min_pool_size, 0, "0"),
 	CF_ABS("peer_id", CF_INT, cf_peer_id, 0, "0"),
@@ -565,10 +565,27 @@ static void handle_sigusr2(int sock, short flags, void *arg)
 	}
 }
 
+/*
+ * Notify systemd that we are reloading, including a CLOCK_MONOTONIC timestamp
+ * in usec so that the program is compatible with a Type=notify-reload service.
+ *
+ * See https://www.freedesktop.org/software/systemd/man/latest/sd_notify.html
+ */
+static void notify_reloading(void)
+{
+#ifdef USE_SYSTEMD
+	struct timespec ts;
+	usec_t usec;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	usec = (usec_t)ts.tv_sec * USEC + (usec_t)ts.tv_nsec / (usec_t)1000;
+	sd_notifyf(0, "RELOADING=1\nMONOTONIC_USEC=%" PRIu64, usec);
+#endif
+}
+
 static void handle_sighup(int sock, short flags, void *arg)
 {
 	log_info("got SIGHUP, re-reading config");
-	sd_notify(0, "RELOADING=1");
+	notify_reloading();
 	load_config();
 	if (!sbuf_tls_setup())
 		log_error("TLS configuration could not be reloaded, keeping old configuration");

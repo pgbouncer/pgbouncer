@@ -22,8 +22,7 @@ async def test_max_client_conn(bouncer):
     await result_last
 
 
-@pytest.mark.asyncio
-async def test_max_db_client_connections_local_override_global(bouncer):
+def test_max_db_client_connections_local_override_global(bouncer):
     """Test that database level max_db_client_connections overrides server level max_db_client_connections."""
     config = f"""
     [databases]
@@ -61,7 +60,6 @@ async def test_max_db_client_connections_local_override_global(bouncer):
             conn.close()
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("test_db", "test_user"),
     [
@@ -71,7 +69,7 @@ async def test_max_db_client_connections_local_override_global(bouncer):
         ("authdb", "pswcheck_not_in_auth_file"),
     ],
 )
-async def test_max_db_client_connections_global_negative(
+def test_max_db_client_connections_global_negative(
     bouncer, test_db: str, test_user: str
 ) -> None:
     """Negative test of server wide max_db_client_connections setting."""
@@ -111,7 +109,6 @@ async def test_max_db_client_connections_global_negative(
             conn.close()
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("test_db", "test_user"),
     [
@@ -121,7 +118,7 @@ async def test_max_db_client_connections_global_negative(
         ("authdb", "pswcheck_not_in_auth_file"),
     ],
 )
-async def test_max_db_client_connections_global_positive(
+def test_max_db_client_connections_global_positive(
     bouncer, test_db: str, test_user: str
 ) -> None:
     """Positive test of server wide max_db_client_connections setting."""
@@ -153,7 +150,6 @@ async def test_max_db_client_connections_global_positive(
         conn.close()
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("test_db", "test_user"),
     [
@@ -196,7 +192,6 @@ def test_max_db_client_connections_decrement(
         assert db["current_client_connections"] == 1 if test_db == "p0" else 2
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("test_db", "test_user"),
     [
@@ -204,7 +199,7 @@ def test_max_db_client_connections_decrement(
         ("authdb", "pswcheck_not_in_auth_file"),
     ],
 )
-async def test_max_db_client_connections_negative(
+def test_max_db_client_connections_negative(
     bouncer, test_db: str, test_user: str
 ) -> None:
     """Negative test of database specific max_db_client_connections setting."""
@@ -240,7 +235,6 @@ async def test_max_db_client_connections_negative(
             conn.close()
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("test_db", "test_user"),
     [
@@ -248,7 +242,7 @@ async def test_max_db_client_connections_negative(
         ("authdb", "pswcheck_not_in_auth_file"),
     ],
 )
-async def test_max_db_client_connections_positive(
+def test_max_db_client_connections_positive(
     bouncer, test_db: str, test_user
 ) -> None:
     """Positive test of database specific max_db_client_connections setting."""

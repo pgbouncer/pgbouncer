@@ -799,7 +799,12 @@ static bool set_startup_options(PgSocket *client, const char *options)
 		 * GUC_REPORT flag, specifically extra_float_digits which is a
 		 * configuration that is set by CREATE SUBSCRIPTION in the
 		 * options parameter.
+		 *
+		 * First free it, because set_startup_options might be called
+		 * multiple times in some cases. One of these being when
+		 * auth_user is enabled.
 		 */
+		free(client->startup_options);
 		client->startup_options = strdup(options);
 		if (!client->startup_options)
 			disconnect_client(client, true, "out of memory");

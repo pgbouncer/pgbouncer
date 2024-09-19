@@ -34,3 +34,5 @@ venv
 .venv
 
 /uncrustify
+
+__pycache__/

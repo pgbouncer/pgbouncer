@@ -360,8 +360,12 @@ bool takeover_login(PgSocket *bouncer)
 /* launch connection to running process */
 void takeover_init(void)
 {
-	PgDatabase *db = find_database("pgbouncer");
-	PgPool *pool = get_pool(db, db->forced_user_credentials);
+	PgDatabase *db;
+	PgPool *pool = NULL;
+
+	db = find_database("pgbouncer");
+	if (db)
+		pool = get_pool(db, db->forced_user_credentials);
 
 	if (!pool)
 		fatal("no admin pool?");

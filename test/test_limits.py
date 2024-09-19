@@ -127,7 +127,6 @@ def test_max_user_client_connections_local_override_global(
     """
     with bouncer.run_with_config(config):
         connect_args = {"dbname": test_db, "user": test_user}
-        bouncer.admin("set max_user_client_connections = 1")
 
         conn_1 = bouncer.conn(**connect_args)
         users = bouncer.admin("SHOW USERS")
@@ -292,7 +291,6 @@ def test_max_user_client_connections_positive(
     pswcheck_not_in_auth_file = max_user_client_connections=2 pool_size=1
     """
     with bouncer.run_with_config(config):
-        bouncer.admin("set admin_users='maxedout3,pgbouncer'")
         connect_args = {"dbname": test_db, "user": test_user}
         conn_1 = bouncer.conn(**connect_args)
         users = bouncer.admin("SHOW USERS")

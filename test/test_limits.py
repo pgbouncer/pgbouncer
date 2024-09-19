@@ -2,8 +2,8 @@ import asyncio
 import re
 
 import psycopg
-from psycopg.rows import dict_row
 import pytest
+from psycopg.rows import dict_row
 
 
 @pytest.mark.asyncio

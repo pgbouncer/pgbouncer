@@ -276,7 +276,7 @@ def test_max_user_client_connections_positive(
     * = host=127.0.0.1 port={bouncer.pg.port}
 
     [pgbouncer]
-    admin_users = 'maxedout3,pgbouncer'
+    admin_users = maxedout3,pgbouncer
     stats_users = maxedout2
     listen_addr = 127.0.0.1
     auth_type = trust

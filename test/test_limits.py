@@ -51,11 +51,14 @@ async def test_max_db_client_connections_local_override_global(bouncer):
         with pytest.raises(
             psycopg.OperationalError, match=r"max_db_client_connections"
         ):
-            test_conn = bouncer.conn(**connect_args)
+            _ = bouncer.conn(**connect_args)
         with pytest.raises(
             psycopg.OperationalError, match=r"max_db_client_connections"
         ):
-            test_conn = bouncer.conn(**connect_args)
+            _ = bouncer.conn(**connect_args)
+
+        for conn in conns:
+            conn.close()
 
 
 @pytest.mark.asyncio
@@ -97,12 +100,15 @@ async def test_max_db_client_connections_global_negative(
         assert db["max_client_connections"] == 2
 
         if test_db == "pgbouncer" and test_user == "pgbouncer":
-            err_con = bouncer.conn(**connect_args)
+            _ = bouncer.conn(**connect_args)
         else:
             with pytest.raises(
                 psycopg.OperationalError, match=r"max_db_client_connections"
             ):
-                err_con = bouncer.conn(**connect_args)
+                _ = bouncer.conn(**connect_args)
+
+        for conn in conns:
+            conn.close()
 
 
 @pytest.mark.asyncio
@@ -137,13 +143,14 @@ async def test_max_db_client_connections_global_positive(
     """
     with bouncer.run_with_config(config):
         connect_args = {"dbname": test_db, "user": test_user}
-        con = bouncer.conn(**connect_args)
+        conn = bouncer.conn(**connect_args)
         # should still be allowed, since it's the last allowed connection
         dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
         db = [db for db in dbs if db["name"] == test_db][0]
         assert db["current_client_connections"] == 1 if test_db == "p0" else 2
         assert db["max_client_connections"] == 2
-        err_con = bouncer.conn(**connect_args)
+        _ = bouncer.conn(**connect_args)
+        conn.close()
 
 
 @pytest.mark.asyncio
@@ -229,6 +236,9 @@ async def test_max_db_client_connections_negative(
         ):
             bouncer.conn(**connect_args)
 
+        for conn in conns:
+            conn.close()
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
@@ -259,13 +269,14 @@ async def test_max_db_client_connections_positive(
     """
     connect_args = {"dbname": test_db, "user": test_user}
     with bouncer.run_with_config(config):
-        conn_1 = bouncer.conn(**connect_args)
+        conn = bouncer.conn(**connect_args)
         # should still be allowed, since it's the last allowed connection
         dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
         db = [db for db in dbs if db["name"] == test_db][0]
         assert db["current_client_connections"] == 1 if test_db == "p0" else 2
         assert db["max_client_connections"] == 2
-        conn_2 = bouncer.conn(**connect_args)
+        _ = bouncer.conn(**connect_args)
+        conn.close()
 
 
 @pytest.mark.asyncio

@@ -1681,6 +1681,8 @@ bool admin_pre_login(PgSocket *client, const char *username)
 			client->login_user_credentials = admin_pool->db->forced_user_credentials;
 			client->own_user = true;
 			client->admin_user = true;
+			if (!check_db_connection_count(client))
+				return false;
 			if (cf_log_connections)
 				slog_info(client, "pgbouncer access from unix socket");
 			return true;
@@ -1695,9 +1697,13 @@ bool admin_pre_login(PgSocket *client, const char *username)
 		if (strlist_contains(cf_admin_users, username)) {
 			client->login_user_credentials = admin_pool->db->forced_user_credentials;
 			client->admin_user = true;
+			if (!check_db_connection_count(client))
+				return false;
 			return true;
 		} else if (strlist_contains(cf_stats_users, username)) {
 			client->login_user_credentials = admin_pool->db->forced_user_credentials;
+			if (!check_db_connection_count(client))
+				return false;
 			return true;
 		}
 	}

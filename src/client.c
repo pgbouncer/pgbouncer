@@ -420,6 +420,30 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	return ok;
 }
 
+bool check_db_connection_count(PgSocket *client)
+{
+	if (!client->contributes_db_client_count) {
+		client->contributes_db_client_count = true;
+		client->db->client_connection_count++;
+	}
+
+	if (database_max_client_connections(client->db) <= 0)
+		return true;
+
+	/* increment count now, so that we can decrement it safely in disconnect_client if limit was reached */
+	if (client->db->client_connection_count <= database_max_client_connections(client->db))
+		return true;
+
+	if (client->db->admin && strlist_contains(cf_admin_users, client->login_user_credentials->name))
+		return true;
+
+	log_debug("set_pool: db '%s' full (%d >= %d)",
+		  client->db->name, client->db->client_connection_count, client->db->max_db_client_connections);
+	disconnect_client(client, true, "client connections exceeded (max_db_client_connections)");
+
+	return false;
+}
+
 bool set_pool(PgSocket *client, const char *dbname, const char *username, const char *password, bool takeover)
 {
 	Assert((password && takeover) || (!password && !takeover));
@@ -430,17 +454,6 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 		client->db = calloc(1, sizeof(*client->db));
 		client->db->fake = true;
 		strlcpy(client->db->name, dbname, sizeof(client->db->name));
-	}
-
-	if (database_max_client_connections(client->db) > 0) {
-		/* increment count now, so that we can decrement it safely in disconnect_client if limit was reached */
-		client->db->client_connection_count++;
-		if (client->db->client_connection_count > database_max_client_connections(client->db)) {
-			log_debug("set_pool: db '%s' full (%d >= %d)",
-				  dbname, client->db->client_connection_count, client->db->max_db_client_connections);
-			disconnect_client(client, true, "client connections exceeded (max_db_client_connections)");
-			return false;
-		}
 	}
 
 	if (client->db->admin) {
@@ -472,6 +485,8 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			return false;
 		}
 		client->login_user_credentials = client->db->forced_user_credentials;
+		if (!check_db_connection_count(client))
+			return false;
 	} else if (cf_auth_type == AUTH_PAM) {
 		if (client->db->auth_user_credentials) {
 			slog_error(client, "PAM can't be used together with database authentication");
@@ -480,6 +495,8 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 		}
 		/* Password will be set after successful authentication when not in takeover mode */
 		client->login_user_credentials = add_pam_credentials(username, password);
+		if (!check_db_connection_count(client))
+			return false;
 		if (!client->login_user_credentials) {
 			slog_error(client, "set_pool(): failed to allocate new PAM user");
 			disconnect_client(client, true, "bouncer resources exhaustion");
@@ -487,6 +504,8 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 		}
 	} else {
 		client->login_user_credentials = find_global_credentials(username);
+		if (!check_db_connection_count(client))
+			return false;
 		if (!client->login_user_credentials || client->login_user_credentials->dynamic_passwd) {
 			/*
 			 * If the login user specified by the client
@@ -506,6 +525,8 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 				} else {
 					if (takeover) {
 						client->login_user_credentials = add_dynamic_credentials(client->db, username, password);
+						if (!check_db_connection_count(client))
+							return false;
 						return finish_set_pool(client, takeover);
 					}
 					start_auth_query(client, username);
@@ -515,6 +536,8 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 
 			slog_info(client, "no such user: %s", username);
 			client->login_user_credentials = calloc(1, sizeof(*client->login_user_credentials));
+			if (!check_db_connection_count(client))
+				return false;
 			client->login_user_credentials->mock_auth = true;
 			safe_strcpy(client->login_user_credentials->name, username, sizeof(client->login_user_credentials->name));
 		}

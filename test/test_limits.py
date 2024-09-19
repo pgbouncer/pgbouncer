@@ -2,6 +2,7 @@ import asyncio
 import re
 
 import psycopg
+from psycopg.rows import dict_row
 import pytest
 
 
@@ -23,222 +24,248 @@ async def test_max_client_conn(bouncer):
 
 @pytest.mark.asyncio
 async def test_max_db_client_connections_local_override_global(bouncer):
-    bouncer.admin("set max_db_client_connections = 3")
-    test_db = "conn_limit_db"
-    test_user = "muser1"
-    result = bouncer.asleep(3, dbname=test_db, user=test_user)
-    result_last = bouncer.asleep(3, dbname=test_db, user=test_user)
-    await asyncio.sleep(1)
-    dbs = bouncer.admin("SHOW DATABASES")
-    db = [db for db in dbs if db[0] == test_db][0]
-    assert db == (
-        test_db,
-        "127.0.0.1",
-        bouncer.pg.port,
-        "p0",
-        None,
-        5,
-        0,
-        0,
-        120,
-        None,
-        0,
-        2,
-        2,
-        2,
-        0,
-        0,
-    )
-    with pytest.raises(psycopg.OperationalError, match=r"max_db_client_connections"):
-        await bouncer.atest(dbname=test_db, user=test_user)
-    with pytest.raises(psycopg.OperationalError, match=r"max_db_client_connections"):
-        await bouncer.atest(dbname=test_db, user=test_user)
-    await result
-    await result_last
+    """Test that database level max_db_client_connections overrides server level max_db_client_connections."""
+    config = f"""
+    [databases]
+    conn_limit_db = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 max_db_client_connections=2
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    listen_port = {bouncer.port}
+    auth_type = trust
+    auth_user = pgbouncer
+    auth_dbname = postgres
+    admin_users = pgbouncer
+    logfile = {bouncer.log_path}
+    auth_file = {bouncer.auth_path}
+    max_db_client_connections = 3
+    """
+    with bouncer.run_with_config(config):
+        test_db = "conn_limit_db"
+        connect_args = {"dbname": test_db, "user": "muser1"}
+        conns = [bouncer.conn(**connect_args) for _ in range(2)]
+        dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
+        db = [db for db in dbs if db["name"] == test_db][0]
+        assert db["current_client_connections"] == 2
+        assert db["max_client_connections"] == 2
+        with pytest.raises(
+            psycopg.OperationalError, match=r"max_db_client_connections"
+        ):
+            test_conn = bouncer.conn(**connect_args)
+        with pytest.raises(
+            psycopg.OperationalError, match=r"max_db_client_connections"
+        ):
+            test_conn = bouncer.conn(**connect_args)
 
 
 @pytest.mark.asyncio
-async def test_max_db_client_connections_global_negative(bouncer):
-    bouncer.admin("set max_db_client_connections = 2")
-    test_db = "p0"
-    test_user = "muser1"
-    result = bouncer.asleep(3, dbname=test_db, user=test_user)
-    result_last = bouncer.asleep(3, dbname=test_db, user=test_user)
-    await asyncio.sleep(1)
-    dbs = bouncer.admin("SHOW DATABASES")
-    db = [db for db in dbs if db[0] == test_db][0]
-    assert db == (
-        "p0",
-        "127.0.0.1",
-        bouncer.pg.port,
-        "p0",
-        "bouncer",
-        2,
-        0,
-        0,
-        120,
-        None,
-        0,
-        2,
-        2,
-        2,
-        0,
-        0,
-    )
-    with pytest.raises(psycopg.OperationalError, match=r"max_db_client_connections"):
-        await bouncer.atest(dbname=test_db, user=test_user)
-    await result
-    await result_last
+@pytest.mark.parametrize(
+    ("test_db", "test_user"),
+    [
+        ("p0", "muser1"),
+        ("pgbouncer", "pgbouncer"),
+        ("pgbouncer", "muser1"),
+        ("authdb", "pswcheck_not_in_auth_file"),
+    ],
+)
+async def test_max_db_client_connections_global_negative(
+    bouncer, test_db: str, test_user: str
+) -> None:
+    """Negative test of server wide max_db_client_connections setting."""
+    config = f"""
+    [databases]
+    p0 = port={bouncer.pg.port} host=127.0.0.1 dbname=p0
+    authdb = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 auth_user=pswcheck
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    listen_port = {bouncer.port}
+    auth_type = trust
+    auth_user = pgbouncer
+    admin_users = pgbouncer
+    stats_users = muser1
+    logfile = {bouncer.log_path}
+    auth_file = {bouncer.auth_path}
+    max_db_client_connections = 2
+    """
+    with bouncer.run_with_config(config):
+        connect_args = {"dbname": test_db, "user": test_user}
+        conns = [bouncer.conn(**connect_args) for _ in range(2)]
+        dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
+        db = [db for db in dbs if db["name"] == test_db][0]
+        assert db["current_client_connections"] == 2 if test_db == "p0" else 3
+        assert db["max_client_connections"] == 2
+
+        if test_db == "pgbouncer" and test_user == "pgbouncer":
+            err_con = bouncer.conn(**connect_args)
+        else:
+            with pytest.raises(
+                psycopg.OperationalError, match=r"max_db_client_connections"
+            ):
+                err_con = bouncer.conn(**connect_args)
 
 
 @pytest.mark.asyncio
-async def test_max_db_client_connections_global_positive(bouncer):
-    test_user = "muser1"
-    test_db = "p0"
-    bouncer.admin("set max_db_client_connections = 2")
-    result = bouncer.asleep(3, dbname=test_db, user=test_user)
-    await asyncio.sleep(1)
-    # should still be allowed, since it's the last allowed connection
-    dbs = bouncer.admin("SHOW DATABASES")
-    db = [db for db in dbs if db[0] == test_db][0]
-    assert db == (
-        "p0",
-        "127.0.0.1",
-        bouncer.pg.port,
-        "p0",
-        "bouncer",
-        2,
-        0,
-        0,
-        120,
-        None,
-        0,
-        1,
-        2,
-        1,
-        0,
-        0,
-    )
-    await bouncer.atest(dbname=test_db, user=test_user)
-    await asyncio.sleep(1)
-    await result
+@pytest.mark.parametrize(
+    ("test_db", "test_user"),
+    [
+        ("p0", "muser1"),
+        ("pgbouncer", "pgbouncer"),
+        ("pgbouncer", "muser1"),
+        ("authdb", "pswcheck_not_in_auth_file"),
+    ],
+)
+async def test_max_db_client_connections_global_positive(
+    bouncer, test_db: str, test_user: str
+) -> None:
+    """Positive test of server wide max_db_client_connections setting."""
+    config = f"""
+    [databases]
+    p0 = port={bouncer.pg.port} host=127.0.0.1 dbname=p0
+    authdb = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 auth_user=pswcheck
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    listen_port = {bouncer.port}
+    auth_type = trust
+    auth_user = pgbouncer
+    admin_users = pgbouncer
+    stats_users = muser1
+    logfile = {bouncer.log_path}
+    auth_file = {bouncer.auth_path}
+    max_db_client_connections = 2
+    """
+    with bouncer.run_with_config(config):
+        connect_args = {"dbname": test_db, "user": test_user}
+        con = bouncer.conn(**connect_args)
+        # should still be allowed, since it's the last allowed connection
+        dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
+        db = [db for db in dbs if db["name"] == test_db][0]
+        assert db["current_client_connections"] == 1 if test_db == "p0" else 2
+        assert db["max_client_connections"] == 2
+        err_con = bouncer.conn(**connect_args)
 
 
 @pytest.mark.asyncio
-async def test_max_db_client_connections_decrement(bouncer):
-    test_db = "conn_limit_db"
-    test_user = "muser1"
-    result = bouncer.asleep(6, dbname=test_db, user=test_user)
-    result_last = bouncer.asleep(3, dbname=test_db, user=test_user)
-    await asyncio.sleep(1)
-    dbs = bouncer.admin("SHOW DATABASES")
-    db = [db for db in dbs if db[0] == test_db][0]
-    assert db == (
-        test_db,
-        "127.0.0.1",
-        bouncer.pg.port,
-        "p0",
-        None,
-        5,
-        0,
-        0,
-        120,
-        None,
-        0,
-        2,
-        2,
-        2,
-        0,
-        0,
-    )
-    await result_last
-    await asyncio.sleep(1)
-    dbs = bouncer.admin("SHOW DATABASES")
-    db = [db for db in dbs if db[0] == test_db][0]
-    assert db == (
-        test_db,
-        "127.0.0.1",
-        bouncer.pg.port,
-        "p0",
-        None,
-        5,
-        0,
-        0,
-        120,
-        None,
-        0,
-        2,
-        2,
-        1,
-        0,
-        0,
-    )
-    await result
+@pytest.mark.parametrize(
+    ("test_db", "test_user"),
+    [
+        ("p0", "muser1"),
+        ("pgbouncer", "pgbouncer"),
+        ("pgbouncer", "muser1"),
+        ("authdb", "pswcheck_not_in_auth_file"),
+    ],
+)
+def test_max_db_client_connections_decrement(
+    bouncer, test_db: str, test_user: str
+) -> None:
+    """Test that max_db_connections is correctly decremented when user closes connection."""
+    config = f"""
+    [databases]
+    p0 = port={bouncer.pg.port} host=127.0.0.1 dbname=p0
+    authdb = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 auth_user=pswcheck
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    listen_port = {bouncer.port}
+    auth_type = trust
+    auth_user = pgbouncer
+    admin_users = pgbouncer
+    stats_users = muser1
+    logfile = {bouncer.log_path}
+    auth_file = {bouncer.auth_path}
+    max_db_client_connections = 2
+    """
+    with bouncer.run_with_config(config):
+        connect_args = {"dbname": test_db, "user": test_user}
+        [conn_1, conn_2] = [bouncer.conn(**connect_args) for _ in range(2)]
+        dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
+        db = [db for db in dbs if db["name"] == test_db][0]
+        assert db["current_client_connections"] == 2 if test_db == "p0" else 3
+
+        conn_2.close()
+        dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
+        db = [db for db in dbs if db["name"] == test_db][0]
+        assert db["current_client_connections"] == 1 if test_db == "p0" else 2
 
 
 @pytest.mark.asyncio
-async def test_max_db_client_connections_negative(bouncer):
-    test_db = "conn_limit_db"
-    test_user = "muser1"
-    result = bouncer.asleep(3, dbname=test_db, user=test_user)
-    result_last = bouncer.asleep(3, dbname=test_db, user=test_user)
-    await asyncio.sleep(1)
-    dbs = bouncer.admin("SHOW DATABASES")
-    db = [db for db in dbs if db[0] == test_db][0]
-    assert db == (
-        test_db,
-        "127.0.0.1",
-        bouncer.pg.port,
-        "p0",
-        None,
-        5,
-        0,
-        0,
-        120,
-        None,
-        0,
-        2,
-        2,
-        2,
-        0,
-        0,
-    )
-    with pytest.raises(psycopg.OperationalError, match=r"max_db_client_connections"):
-        await bouncer.atest(dbname=test_db, user=test_user)
-    await result
-    await result_last
+@pytest.mark.parametrize(
+    ("test_db", "test_user"),
+    [
+        ("p0", "muser1"),
+        ("authdb", "pswcheck_not_in_auth_file"),
+    ],
+)
+async def test_max_db_client_connections_negative(
+    bouncer, test_db: str, test_user: str
+) -> None:
+    """Negative test of database specific max_db_client_connections setting."""
+    config = f"""
+    [databases]
+    p0 = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 max_db_client_connections=2
+    authdb = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 auth_user=pswcheck max_db_client_connections=2
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    listen_port = {bouncer.port}
+    auth_type = trust
+    auth_user = pgbouncer
+    admin_users = pgbouncer
+    stats_users = muser1
+    logfile = {bouncer.log_path}
+    auth_file = {bouncer.auth_path}
+    """
+    connect_args = {"dbname": test_db, "user": test_user}
+    with bouncer.run_with_config(config):
+        conns = [bouncer.conn(**connect_args) for _ in range(2)]
+        dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
+        db = [db for db in dbs if db["name"] == test_db][0]
+        assert db["current_client_connections"] == 2 if test_db == "p0" else 3
+        assert db["max_client_connections"] == 2
+
+        with pytest.raises(
+            psycopg.OperationalError, match=r"max_db_client_connections"
+        ):
+            bouncer.conn(**connect_args)
 
 
 @pytest.mark.asyncio
-async def test_max_db_client_connections_positive(bouncer):
-    test_db = "conn_limit_db"
-    test_user = "muser1"
-    result = bouncer.asleep(3, dbname=test_db, user=test_user)
-    await asyncio.sleep(1)
-    # should still be allowed, since it's the last allowed connection
-    dbs = bouncer.admin("SHOW DATABASES")
-    db = [db for db in dbs if db[0] == test_db][0]
-    assert db == (
-        test_db,
-        "127.0.0.1",
-        bouncer.pg.port,
-        "p0",
-        None,
-        5,
-        0,
-        0,
-        120,
-        None,
-        0,
-        1,
-        2,
-        1,
-        0,
-        0,
-    )
-    await bouncer.atest(dbname=test_db, user=test_user)
-    await asyncio.sleep(1)
-    await result
+@pytest.mark.parametrize(
+    ("test_db", "test_user"),
+    [
+        ("p0", "muser1"),
+        ("authdb", "pswcheck_not_in_auth_file"),
+    ],
+)
+async def test_max_db_client_connections_positive(
+    bouncer, test_db: str, test_user
+) -> None:
+    """Positive test of database specific max_db_client_connections setting."""
+    config = f"""
+    [databases]
+    p0 = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 max_db_client_connections=2
+    authdb = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 auth_user=pswcheck max_db_client_connections=2
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    listen_port = {bouncer.port}
+    auth_type = trust
+    auth_file = userlist.txt
+    auth_user = pgbouncer
+    admin_users = pgbouncer
+    stats_users = muser1
+    logfile = {bouncer.log_path}
+    """
+    connect_args = {"dbname": test_db, "user": test_user}
+    with bouncer.run_with_config(config):
+        conn_1 = bouncer.conn(**connect_args)
+        # should still be allowed, since it's the last allowed connection
+        dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
+        db = [db for db in dbs if db["name"] == test_db][0]
+        assert db["current_client_connections"] == 1 if test_db == "p0" else 2
+        assert db["max_client_connections"] == 2
+        conn_2 = bouncer.conn(**connect_args)
 
 
 @pytest.mark.asyncio

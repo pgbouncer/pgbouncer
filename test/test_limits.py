@@ -242,9 +242,7 @@ def test_max_db_client_connections_negative(
         ("authdb", "pswcheck_not_in_auth_file"),
     ],
 )
-def test_max_db_client_connections_positive(
-    bouncer, test_db: str, test_user
-) -> None:
+def test_max_db_client_connections_positive(bouncer, test_db: str, test_user) -> None:
     """Positive test of database specific max_db_client_connections setting."""
     config = f"""
     [databases]

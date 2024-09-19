@@ -3,6 +3,7 @@ import re
 
 import psycopg
 import pytest
+from psycopg.rows import dict_row
 
 
 @pytest.mark.asyncio
@@ -129,9 +130,10 @@ def test_max_user_client_connections_local_override_global(
         connect_args = {"dbname": test_db, "user": test_user}
 
         conn_1 = bouncer.conn(**connect_args)
-        users = bouncer.admin("SHOW USERS")
-        user = next(user for user in users if user[0] == test_user)
-        assert user == (test_user, "        1", None, 0, 0, 2, 1)
+        users = bouncer.admin("SHOW USERS", row_factory=dict_row)
+        user = next(user for user in users if user["name"] == test_user)
+        assert user["max_user_client_connections"] == 2
+        assert user["current_client_connections"] == 1
 
         bouncer.conn(**connect_args)
         conn_1.close()
@@ -175,9 +177,10 @@ def test_max_user_client_connections_global_positive(
     with bouncer.run_with_config(config):
         connect_args = {"dbname": test_db, "user": test_user}
         conn_1 = bouncer.conn(**connect_args)
-        users = bouncer.admin("SHOW USERS")
-        user = next(user for user in users if user[0] == test_user)
-        assert user == (test_user, "        1", None, 0, 0, 2, 1)
+        users = bouncer.admin("SHOW USERS", row_factory=dict_row)
+        user = next(user for user in users if user["name"] == test_user)
+        assert user["max_user_client_connections"] == 2
+        assert user["current_client_connections"] == 1
         # should still be allowed, since it's the last allowed connection
         bouncer.conn(**connect_args)
         conn_1.close()
@@ -227,9 +230,10 @@ def test_max_user_client_connections_global_negative(
     with bouncer.run_with_config(config):
         connect_args = {"dbname": test_db, "user": test_user}
         conns = [bouncer.conn(**connect_args) for _ in range(2)]
-        users = bouncer.admin("SHOW USERS")
-        user = next(user for user in users if user[0] == test_user)
-        assert user == (test_user, "        1", None, 0, 0, 2, 2)
+        users = bouncer.admin("SHOW USERS", row_factory=dict_row)
+        user = next(user for user in users if user["name"] == test_user)
+        assert user["max_user_client_connections"] == 2
+        assert user["current_client_connections"] == 2
 
         if test_db == "pgbouncer" and test_user == "maxedout3":
             bouncer.conn(**connect_args)
@@ -293,9 +297,10 @@ def test_max_user_client_connections_positive(
     with bouncer.run_with_config(config):
         connect_args = {"dbname": test_db, "user": test_user}
         conn_1 = bouncer.conn(**connect_args)
-        users = bouncer.admin("SHOW USERS")
-        user = next(user for user in users if user[0] == test_user)
-        assert user == (test_user, "        1", None, 0, 0, 2, 1)
+        users = bouncer.admin("SHOW USERS", row_factory=dict_row)
+        user = next(user for user in users if user["name"] == test_user)
+        assert user["max_user_client_connections"] == 2
+        assert user["current_client_connections"] == 1
 
         # should still be allowed, since it's the last allowed connection
         conn_2 = bouncer.conn(**connect_args)
@@ -347,9 +352,10 @@ def test_max_user_client_connections_negative(
     with bouncer.run_with_config(config):
         connect_args = {"dbname": test_db, "user": test_user}
         conns = [bouncer.conn(**connect_args) for _ in range(2)]
-        users = bouncer.admin("SHOW USERS")
-        user = next(user for user in users if user[0] == test_user)
-        assert user == (test_user, "        1", None, 0, 0, 2, 2)
+        users = bouncer.admin("SHOW USERS", row_factory=dict_row)
+        user = next(user for user in users if user["name"] == test_user)
+        assert user["max_user_client_connections"] == 2
+        assert user["current_client_connections"] == 2
 
         if test_db == "pgbouncer" and test_user == "maxedout3":
             bouncer.conn(**connect_args)

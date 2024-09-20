@@ -71,7 +71,7 @@ struct Slab *iobuf_cache;
 struct Slab *outstanding_request_cache;
 struct Slab *var_list_cache;
 struct Slab *server_prepared_statement_cache;
-
+int max_client_id;
 /*
  * libevent may still report events when event_del()
  * is called from somewhere else.  So hide just freed
@@ -104,13 +104,15 @@ int get_active_server_count(void)
 static void construct_client(void *obj)
 {
 	PgSocket *client = obj;
-
 	memset(client, 0, sizeof(PgSocket));
 	list_init(&client->head);
 	sbuf_init(&client->sbuf, client_proto);
 	client->vars.var_list = slab_alloc(var_list_cache);
 	client->state = CL_FREE;
 	client->client_prepared_statements = NULL;
+
+	max_client_id++;
+	client->id = max_client_id;
 }
 
 static void construct_server(void *obj)

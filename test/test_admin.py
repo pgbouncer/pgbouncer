@@ -35,6 +35,25 @@ def test_show(bouncer):
         bouncer.admin(f"SHOW {item}")
 
 
+def test_id(bouncer):
+    initial_id = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)[0]["id"]
+
+    clients = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)
+    assert [
+        initial_id + 1,
+    ] == [client["id"] for client in clients]
+
+    clients = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)
+    assert [
+        initial_id + 2,
+    ] == [client["id"] for client in clients]
+
+    clients = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)
+    assert [
+        initial_id + 3,
+    ] == [client["id"] for client in clients]
+
+
 def test_show_version(bouncer):
     admin_version = bouncer.admin_value(f"SHOW VERSION")
     subprocess_result = capture(

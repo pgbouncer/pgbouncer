@@ -623,13 +623,13 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	return true;
 }
 
-#define SKF_STD "ssssssisiTTiiississi"
-#define SKF_DBG "ssssssisiTTiiississiiiiiiii"
+#define SKF_STD "issssssisiTTiiississi"
+#define SKF_DBG "issssssisiTTiiississiiiiiiii"
 
 static void socket_header(PktBuf *buf, bool debug)
 {
 	pktbuf_write_RowDescription(buf, debug ? SKF_DBG : SKF_STD,
-				    "type", "user", "database", "replication", "state",
+				    "id", "type", "user", "database", "replication", "state",
 				    "addr", "port", "local_addr", "local_port",
 				    "connect_time", "request_time",
 				    "wait", "wait_us", "close_needed",
@@ -701,6 +701,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 		replication = "physical";
 
 	pktbuf_write_DataRow(buf, debug ? SKF_DBG : SKF_STD,
+			     sk->id,
 			     is_server_socket(sk) ? "S" : "C",
 			     sk->login_user_credentials ? sk->login_user_credentials->name : "(nouser)",
 			     sk->pool && !sk->pool->db->peer_id ? sk->pool->db->name : "(nodb)",

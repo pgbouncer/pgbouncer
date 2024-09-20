@@ -416,5 +416,6 @@ void stats_setup(void)
 
 	/* launch stats */
 	event_assign(&ev_stats, pgb_event_base, -1, EV_PERSIST, refresh_stats, NULL);
-	event_add(&ev_stats, &period);
+	if (event_add(&ev_stats, &period) < 0)
+		log_warning("event_add failed: %s", strerror(errno));
 }

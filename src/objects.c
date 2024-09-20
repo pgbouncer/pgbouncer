@@ -71,7 +71,7 @@ struct Slab *iobuf_cache;
 struct Slab *outstanding_request_cache;
 struct Slab *var_list_cache;
 struct Slab *server_prepared_statement_cache;
-int max_client_id;
+unsigned long long int max_pgsocket_id;
 /*
  * libevent may still report events when event_del()
  * is called from somewhere else.  So hide just freed
@@ -111,8 +111,8 @@ static void construct_client(void *obj)
 	client->state = CL_FREE;
 	client->client_prepared_statements = NULL;
 
-	max_client_id++;
-	client->id = max_client_id;
+	max_pgsocket_id++;
+	client->id = max_pgsocket_id;
 }
 
 static void construct_server(void *obj)
@@ -126,6 +126,9 @@ static void construct_server(void *obj)
 	server->state = SV_FREE;
 	server->server_prepared_statements = NULL;
 	statlist_init(&server->outstanding_requests, "outstanding_requests");
+
+	max_pgsocket_id++;
+	server->id = max_pgsocket_id;
 }
 
 /* compare string with PgGlobalUser->credentials.name, for usage with btree */

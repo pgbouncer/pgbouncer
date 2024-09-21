@@ -250,6 +250,9 @@ Like **SHOW STATS** but aggregated across all databases.
 
 #### SHOW SERVERS
 
+id
+:   Unique ID for this connection.
+
 type
 :   S, for server.
 
@@ -298,7 +301,8 @@ close_needed
 
 ptr
 :   Address of internal object for this connection.
-    Used as unique ID.
+    Used as unique ID for a point in time but can be recycled over time.
+    For a unique ID that stays unique through time see the ID field above.
 
 link
 :   Address of client connection the server is paired with.
@@ -322,6 +326,9 @@ prepared_statements
    number is limited by the `max_prepared_statements` setting.
 
 #### SHOW CLIENTS
+
+id
+:   Unique ID for this connection.
 
 type
 :   C, for client.
@@ -368,7 +375,8 @@ close_needed
 
 ptr
 :   Address of internal object for this connection.
-    Used as unique ID.
+    Used as unique ID for a point in time but can be recycled over time.
+    For a unique ID that stays unique through time see the ID field above.
 
 link
 :   Address of server connection the client is paired with.

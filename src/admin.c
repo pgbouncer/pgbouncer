@@ -1331,6 +1331,88 @@ static bool admin_cmd_enable(PgSocket *admin, const char *arg)
 	return admin_ready(admin, "ENABLE");
 }
 
+
+static PgSocket *find_socket_in_list(PgSocket *target_client, struct StatList *sockets)
+{
+	struct List *item;
+	PgSocket *socket;
+
+	statlist_for_each(item, sockets) {
+		socket = container_of(item, PgSocket, head);
+		if (target_client == socket) {
+			return socket;
+		}
+	}
+	return NULL;
+}
+
+static PgSocket *find_client_global(PgSocket *target_client)
+{
+	PgSocket *kill_client;
+	struct List *item;
+	PgPool *pool;
+
+	statlist_for_each(item, &pool_list) {
+		pool = container_of(item, PgPool, head);
+
+		kill_client = find_socket_in_list(target_client, &pool->active_client_list);
+		if (kill_client != NULL) {
+			return kill_client;
+		}
+		kill_client = find_socket_in_list(target_client, &pool->waiting_client_list);
+		if (kill_client != NULL) {
+			return kill_client;
+		}
+		kill_client = find_socket_in_list(target_client, &pool->active_cancel_req_list);
+		if (kill_client != NULL) {
+			return kill_client;
+		}
+		kill_client = find_socket_in_list(target_client, &pool->waiting_cancel_req_list);
+		if (kill_client != NULL) {
+			return kill_client;
+		}
+	}
+
+	statlist_for_each(item, &peer_pool_list) {
+		pool = container_of(item, PgPool, head);
+
+		kill_client = find_socket_in_list(target_client, &pool->active_cancel_req_list);
+		if (kill_client != NULL) {
+			return kill_client;
+		}
+		kill_client = find_socket_in_list(target_client, &pool->waiting_cancel_req_list);
+		if (kill_client != NULL) {
+			return kill_client;
+		}
+	}
+	return NULL;
+}
+
+/*
+ * Command: KILL_CLIENT
+ * TODO: This command relies on the memory address of a client to identify which
+ * client to kill. This is potentially dangerous because memory addresses are reused.
+ * The long term solution to this is to assign an integer or UUID identifier to identify
+ * clients instead of memory addresses but we are going to wait to see how much of an
+ * issue this is in practice before implementing this.
+ */
+static bool admin_cmd_kill_client(PgSocket *admin, const char *arg)
+{
+	PgSocket *kill_client;
+	void *target_client = NULL;
+
+	if (sscanf(arg, "%p", &target_client) != 1) {
+		return admin_error(admin, "invalid client pointer supplied");
+	}
+
+	kill_client = find_client_global((PgSocket *) target_client);
+	if (kill_client == NULL) {
+		return admin_error(admin, "client not found");
+	}
+	disconnect_client(kill_client, true, "admin forced disconnect");
+	return admin_ready(admin, "KILL_CLIENT");
+}
+
 /* Command: KILL */
 static bool admin_cmd_kill(PgSocket *admin, const char *arg)
 {
@@ -1468,6 +1550,7 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		     "\tENABLE <db>\n"
 		     "\tRECONNECT [<db>]\n"
 		     "\tKILL <db>\n"
+		     "\tKILL_CLIENT <client_ptr>\n"
 		     "\tSUSPEND\n"
 		     "\tSHUTDOWN\n"
 		     "\tSHUTDOWN WAIT_FOR_SERVERS|WAIT_FOR_CLIENTS\n"
@@ -1553,6 +1636,7 @@ static struct cmd_lookup cmd_list [] = {
 	{"disable", admin_cmd_disable},
 	{"enable", admin_cmd_enable},
 	{"kill", admin_cmd_kill},
+	{"kill_client", admin_cmd_kill_client},
 	{"pause", admin_cmd_pause},
 	{"reconnect", admin_cmd_reconnect},
 	{"reload", admin_cmd_reload},

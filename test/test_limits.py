@@ -24,40 +24,20 @@ async def test_max_client_conn(bouncer):
 
 def test_max_db_client_connections_local_override_global(bouncer):
     """Test that database level max_db_client_connections overrides server level max_db_client_connections."""
-    config = f"""
-    [databases]
-    conn_limit_db = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 max_db_client_connections=2
+    test_db = "conn_limit_db"
+    connect_args = {"dbname": test_db, "user": "muser1"}
+    conns = [bouncer.conn(**connect_args) for _ in range(2)]
+    dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
+    db = [db for db in dbs if db["name"] == test_db][0]
+    assert db["current_client_connections"] == 2
+    assert db["max_client_connections"] == 2
+    with pytest.raises(psycopg.OperationalError, match=r"max_db_client_connections"):
+        _ = bouncer.conn(**connect_args)
+    with pytest.raises(psycopg.OperationalError, match=r"max_db_client_connections"):
+        _ = bouncer.conn(**connect_args)
 
-    [pgbouncer]
-    listen_addr = {bouncer.host}
-    listen_port = {bouncer.port}
-    auth_type = trust
-    auth_user = pgbouncer
-    auth_dbname = postgres
-    admin_users = pgbouncer
-    logfile = {bouncer.log_path}
-    auth_file = {bouncer.auth_path}
-    max_db_client_connections = 3
-    """
-    with bouncer.run_with_config(config):
-        test_db = "conn_limit_db"
-        connect_args = {"dbname": test_db, "user": "muser1"}
-        conns = [bouncer.conn(**connect_args) for _ in range(2)]
-        dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
-        db = [db for db in dbs if db["name"] == test_db][0]
-        assert db["current_client_connections"] == 2
-        assert db["max_client_connections"] == 2
-        with pytest.raises(
-            psycopg.OperationalError, match=r"max_db_client_connections"
-        ):
-            _ = bouncer.conn(**connect_args)
-        with pytest.raises(
-            psycopg.OperationalError, match=r"max_db_client_connections"
-        ):
-            _ = bouncer.conn(**connect_args)
-
-        for conn in conns:
-            conn.close()
+    for conn in conns:
+        conn.close()
 
 
 @pytest.mark.parametrize(
@@ -73,40 +53,27 @@ def test_max_db_client_connections_global_negative(
     bouncer, test_db: str, test_user: str
 ) -> None:
     """Negative test of server wide max_db_client_connections setting."""
-    config = f"""
-    [databases]
-    p0 = port={bouncer.pg.port} host=127.0.0.1 dbname=p0
-    authdb = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 auth_user=pswcheck
+    bouncer.admin("SET max_db_client_connections = 2")
+    bouncer.admin("SET stats_users = 'muser1'")
+    bouncer.admin("SET admin_users = 'pgbouncer'")
 
-    [pgbouncer]
-    listen_addr = {bouncer.host}
-    listen_port = {bouncer.port}
-    auth_type = trust
-    auth_user = pgbouncer
-    admin_users = pgbouncer
-    stats_users = muser1
-    logfile = {bouncer.log_path}
-    auth_file = {bouncer.auth_path}
-    max_db_client_connections = 2
-    """
-    with bouncer.run_with_config(config):
-        connect_args = {"dbname": test_db, "user": test_user}
-        conns = [bouncer.conn(**connect_args) for _ in range(2)]
-        dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
-        db = [db for db in dbs if db["name"] == test_db][0]
-        assert db["current_client_connections"] == 2 if test_db == "p0" else 3
-        assert db["max_client_connections"] == 2
+    connect_args = {"dbname": test_db, "user": test_user}
+    conns = [bouncer.conn(**connect_args) for _ in range(2)]
+    dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
+    db = [db for db in dbs if db["name"] == test_db][0]
+    assert db["current_client_connections"] == 2 if test_db == "p0" else 3
+    assert db["max_client_connections"] == 2
 
-        if test_db == "pgbouncer" and test_user == "pgbouncer":
+    if test_db == "pgbouncer" and test_user == "pgbouncer":
+        _ = bouncer.conn(**connect_args)
+    else:
+        with pytest.raises(
+            psycopg.OperationalError, match=r"max_db_client_connections"
+        ):
             _ = bouncer.conn(**connect_args)
-        else:
-            with pytest.raises(
-                psycopg.OperationalError, match=r"max_db_client_connections"
-            ):
-                _ = bouncer.conn(**connect_args)
 
-        for conn in conns:
-            conn.close()
+    for conn in conns:
+        conn.close()
 
 
 @pytest.mark.parametrize(
@@ -122,32 +89,20 @@ def test_max_db_client_connections_global_positive(
     bouncer, test_db: str, test_user: str
 ) -> None:
     """Positive test of server wide max_db_client_connections setting."""
-    config = f"""
-    [databases]
-    p0 = port={bouncer.pg.port} host=127.0.0.1 dbname=p0
-    authdb = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 auth_user=pswcheck
+    # with bouncer.run_with_config(config):
+    bouncer.admin("SET max_db_client_connections = 2")
+    bouncer.admin("SET stats_users = 'muser1'")
+    bouncer.admin("SET admin_users = 'pgbouncer'")
 
-    [pgbouncer]
-    listen_addr = {bouncer.host}
-    listen_port = {bouncer.port}
-    auth_type = trust
-    auth_user = pgbouncer
-    admin_users = pgbouncer
-    stats_users = muser1
-    logfile = {bouncer.log_path}
-    auth_file = {bouncer.auth_path}
-    max_db_client_connections = 2
-    """
-    with bouncer.run_with_config(config):
-        connect_args = {"dbname": test_db, "user": test_user}
-        conn = bouncer.conn(**connect_args)
-        # should still be allowed, since it's the last allowed connection
-        dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
-        db = [db for db in dbs if db["name"] == test_db][0]
-        assert db["current_client_connections"] == 1 if test_db == "p0" else 2
-        assert db["max_client_connections"] == 2
-        _ = bouncer.conn(**connect_args)
-        conn.close()
+    connect_args = {"dbname": test_db, "user": test_user}
+    conn = bouncer.conn(**connect_args)
+    # should still be allowed, since it's the last allowed connection
+    dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
+    db = [db for db in dbs if db["name"] == test_db][0]
+    assert db["current_client_connections"] == 1 if test_db == "p0" else 2
+    assert db["max_client_connections"] == 2
+    _ = bouncer.conn(**connect_args)
+    conn.close()
 
 
 @pytest.mark.parametrize(
@@ -163,112 +118,66 @@ def test_max_db_client_connections_decrement(
     bouncer, test_db: str, test_user: str
 ) -> None:
     """Test that max_db_connections is correctly decremented when user closes connection."""
-    config = f"""
-    [databases]
-    p0 = port={bouncer.pg.port} host=127.0.0.1 dbname=p0
-    authdb = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 auth_user=pswcheck
+    bouncer.admin("SET stats_users = 'muser1'")
+    bouncer.admin("SET admin_users = 'pgbouncer'")
 
-    [pgbouncer]
-    listen_addr = {bouncer.host}
-    listen_port = {bouncer.port}
-    auth_type = trust
-    auth_user = pgbouncer
-    admin_users = pgbouncer
-    stats_users = muser1
-    logfile = {bouncer.log_path}
-    auth_file = {bouncer.auth_path}
-    max_db_client_connections = 2
-    """
-    with bouncer.run_with_config(config):
-        connect_args = {"dbname": test_db, "user": test_user}
-        [conn_1, conn_2] = [bouncer.conn(**connect_args) for _ in range(2)]
-        dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
-        db = [db for db in dbs if db["name"] == test_db][0]
-        assert db["current_client_connections"] == 2 if test_db == "p0" else 3
+    connect_args = {"dbname": test_db, "user": test_user}
+    [conn_1, conn_2] = [bouncer.conn(**connect_args) for _ in range(2)]
+    dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
+    db = [db for db in dbs if db["name"] == test_db][0]
+    assert db["current_client_connections"] == 2 if test_db == "p0" else 3
 
-        conn_2.close()
-        dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
-        db = [db for db in dbs if db["name"] == test_db][0]
-        assert db["current_client_connections"] == 1 if test_db == "p0" else 2
+    conn_2.close()
+    dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
+    db = [db for db in dbs if db["name"] == test_db][0]
+    assert db["current_client_connections"] == 1 if test_db == "p0" else 2
 
 
 @pytest.mark.parametrize(
     ("test_db", "test_user"),
     [
-        ("p0", "muser1"),
-        ("authdb", "pswcheck_not_in_auth_file"),
+        ("client_limit_db", "muser1"),
+        ("client_limit_db_auth_passthrough", "pswcheck_not_in_auth_file"),
     ],
 )
 def test_max_db_client_connections_negative(
     bouncer, test_db: str, test_user: str
 ) -> None:
     """Negative test of database specific max_db_client_connections setting."""
-    config = f"""
-    [databases]
-    p0 = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 max_db_client_connections=2
-    authdb = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 auth_user=pswcheck max_db_client_connections=2
-
-    [pgbouncer]
-    listen_addr = {bouncer.host}
-    listen_port = {bouncer.port}
-    auth_type = trust
-    auth_user = pgbouncer
-    admin_users = pgbouncer
-    stats_users = muser1
-    logfile = {bouncer.log_path}
-    auth_file = {bouncer.auth_path}
-    """
     connect_args = {"dbname": test_db, "user": test_user}
-    with bouncer.run_with_config(config):
-        conns = [bouncer.conn(**connect_args) for _ in range(2)]
-        dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
-        db = [db for db in dbs if db["name"] == test_db][0]
-        assert db["current_client_connections"] == 2 if test_db == "p0" else 3
-        assert db["max_client_connections"] == 2
+    # with bouncer.run_with_config(config):
+    conns = [bouncer.conn(**connect_args) for _ in range(2)]
+    dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
+    db = [db for db in dbs if db["name"] == test_db][0]
+    assert db["current_client_connections"] == 2 if test_db == "p0" else 3
+    assert db["max_client_connections"] == 2
 
-        with pytest.raises(
-            psycopg.OperationalError, match=r"max_db_client_connections"
-        ):
-            bouncer.conn(**connect_args)
+    with pytest.raises(psycopg.OperationalError, match=r"max_db_client_connections"):
+        bouncer.conn(**connect_args)
 
-        for conn in conns:
-            conn.close()
+    for conn in conns:
+        conn.close()
 
 
 @pytest.mark.parametrize(
     ("test_db", "test_user"),
     [
-        ("p0", "muser1"),
-        ("authdb", "pswcheck_not_in_auth_file"),
+        ("client_limit_db", "muser1"),
+        ("client_limit_db_auth_passthrough", "pswcheck_not_in_auth_file"),
     ],
 )
 def test_max_db_client_connections_positive(bouncer, test_db: str, test_user) -> None:
     """Positive test of database specific max_db_client_connections setting."""
-    config = f"""
-    [databases]
-    p0 = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 max_db_client_connections=2
-    authdb = port={bouncer.pg.port} host=127.0.0.1 dbname=p0 auth_user=pswcheck max_db_client_connections=2
-
-    [pgbouncer]
-    listen_addr = {bouncer.host}
-    listen_port = {bouncer.port}
-    auth_type = trust
-    auth_file = userlist.txt
-    auth_user = pgbouncer
-    admin_users = pgbouncer
-    stats_users = muser1
-    logfile = {bouncer.log_path}
-    """
     connect_args = {"dbname": test_db, "user": test_user}
-    with bouncer.run_with_config(config):
-        conn = bouncer.conn(**connect_args)
-        # should still be allowed, since it's the last allowed connection
-        dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
-        db = [db for db in dbs if db["name"] == test_db][0]
-        assert db["current_client_connections"] == 1 if test_db == "p0" else 2
-        assert db["max_client_connections"] == 2
-        _ = bouncer.conn(**connect_args)
-        conn.close()
+    # with bouncer.run_with_config(config):
+    conn = bouncer.conn(**connect_args)
+    # should still be allowed, since it's the last allowed connection
+    dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
+    db = [db for db in dbs if db["name"] == test_db][0]
+    assert db["current_client_connections"] == 1 if test_db == "p0" else 2
+    assert db["max_client_connections"] == 2
+    _ = bouncer.conn(**connect_args)
+    conn.close()
 
 
 @pytest.mark.asyncio

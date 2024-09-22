@@ -19,12 +19,12 @@ from .utils import (
 @pytest.fixture
 def test_message_fixture(bouncer, pg):
     yield bouncer, pg
-    pg.sql("ALTER USER maxedout WITH NOLOGIN;")
+    pg.sql("ALTER USER test_error_message_user WITH LOGIN;")
 
 
 def test_message(test_message_fixture):
     bouncer, pg = test_message_fixture
-    test_user = "maxedout"
+    test_user = "test_error_message_user"
     connection_params = {"user": test_user, "dbname": "p0a"}
     # Connect to database as User, creates existing pool
     _ = bouncer.conn(**connection_params)

@@ -833,6 +833,55 @@ void activate_client(PgSocket *client)
 	sbuf_continue(&client->sbuf);
 }
 
+/*
+ * Don't let clients queue at all if there is no working server connection.
+ *
+ * It must still allow following cases:
+ * - empty pool on startup
+ * - idle pool where all servers are removed
+ *
+ * Current assumptions:
+ * - old server connections will be dropped by query_timeout
+ * - new server connections fail due to server_connect_timeout, or other failure
+ *
+ * So here we drop client if all server connections have been dropped
+ * and new ones fail.
+ *
+ * Return true if the client connection should be allowed, false if it
+ * should be rejected.
+ */
+bool check_fast_fail(PgSocket *client)
+{
+	int cnt;
+	PgPool *pool = client->pool;
+
+	/* Could be mock authentication, proceed normally */
+	if (!pool)
+		return true;
+
+	/* If last login succeeded, client can go ahead. */
+	if (!pool->last_login_failed)
+		return true;
+
+	/* If there are servers available, client can go ahead. */
+	cnt = pool_server_count(pool) - statlist_count(&pool->new_server_list);
+	if (cnt)
+		return true;
+
+	/* Else we fail the client. */
+	disconnect_client(client, true, "%s", pool->last_connect_failed_message);
+
+	/*
+	 * Try to launch a new connection.  (launch_new_connection()
+	 * will check for server_login_retry etc.)  The usual relaunch
+	 * from janitor.c won't do anything, as there are no waiting
+	 * clients, so we need to do it here to get any new servers
+	 * eventually.
+	 */
+	launch_new_connection(pool, /* evict_if_needed= */ true);
+
+	return false;
+}
 
 /* link if found, otherwise put into wait queue */
 bool find_server(PgSocket *client)
@@ -878,6 +927,9 @@ bool find_server(PgSocket *client)
 				break;
 			}
 		}
+
+		if (!server && !check_fast_fail(client))
+			return false;
 	}
 	Assert(!server || server->state == SV_IDLE);
 
@@ -1290,6 +1342,8 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 		if (!server->ready) {
 			server->pool->last_login_failed = true;
 			server->pool->last_connect_failed = true;
+			safe_strcpy(server->pool->last_connect_failed_message, reason, sizeof(server->pool->last_connect_failed_message));
+			// server->pool->last_connect_failed_message = (char*)reason;
 		} else
 		{
 			/*

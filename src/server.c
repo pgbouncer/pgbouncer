@@ -97,9 +97,9 @@ void kill_pool_logins(PgPool *pool, const char *sqlstate, const char *msg)
  * also waiting for a server. We disconnect them with exactly the same error
  * message and code as we received from the server.
  */
-static void kill_pool_logins_server_error(PgPool *pool, PktHdr *errpkt)
+const char * kill_pool_logins_server_error(PgPool *pool, PktHdr *errpkt)
 {
-	const char *level, *msg, *sqlstate;
+	const char *level, *sqlstate, *msg;
 
 	parse_server_error(errpkt, &level, &msg, &sqlstate);
 	log_warning("server login failed: %s %s", level, msg);
@@ -112,12 +112,14 @@ static void kill_pool_logins_server_error(PgPool *pool, PktHdr *errpkt)
 		log_noise("kill_pool_logins_server_error: sqlstate: %s", sqlstate);
 		kill_pool_logins(pool, sqlstate, msg);
 	}
+	return msg;
 }
 
 /* process packets on server auth phase */
 static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 {
 	SBuf *sbuf = &server->sbuf;
+	const char *msg;
 	bool res = false;
 	const uint8_t *ckey;
 
@@ -164,12 +166,13 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 		 * is a problem impacting all connections, we can wait for a
 		 * normal connection to report this problem.
 		 */
-		if (!server->replication)
-			kill_pool_logins_server_error(server->pool, pkt);
-		else
+		if (!server->replication) {
+			msg = kill_pool_logins_server_error(server->pool, pkt);
+			disconnect_server(server, true, "%s", (char *)msg);
+		} else {
 			log_server_error("S: login failed", pkt);
-
-		disconnect_server(server, true, "login failed");
+			disconnect_server(server, true, "login failed");
+		}
 		break;
 
 	/* packets that need closer look */

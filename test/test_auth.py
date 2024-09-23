@@ -639,7 +639,7 @@ async def test_change_server_password_reconnect(bouncer, pg):
             with pg.log_contains(
                 r"password authentication failed", times=1
             ), bouncer.log_contains(
-                r"closing because: password authentication failed for user", times=3
+                r"closing because: password authentication failed for user", times=4
             ):
                 result1 = bouncer.atest()
                 result2 = bouncer.atest()
@@ -684,7 +684,7 @@ async def test_change_server_password_server_lifetime(bouncer, pg):
         with pg.log_contains(
             r"password authentication failed", times=1
         ), bouncer.log_contains(
-            r"closing because: password authentication failed for user", times=3
+            r"closing because: password authentication failed for user", times=4
         ):
             result1 = bouncer.atest()
             result2 = bouncer.atest()

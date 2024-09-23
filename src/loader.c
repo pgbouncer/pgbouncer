@@ -639,6 +639,8 @@ static void disable_users(void)
 bool load_auth_file(const char *fn)
 {
 	char *user, *password, *buf, *p;
+	char msg[1000];
+	int n = 0;
 
 	/* No file to load? */
 	if (fn == NULL)
@@ -655,6 +657,9 @@ bool load_auth_file(const char *fn)
 
 	p = buf;
 	while (*p) {
+	
+		n++;
+	
 		/* skip whitespace and empty lines */
 		while (*p && isspace(*p)) p++;
 		if (!*p)
@@ -666,38 +671,54 @@ bool load_auth_file(const char *fn)
 			continue;
 		}
 
-		/* start of line */
+		/* start of line - skip line if not starting with " */
 		if (*p != '"') {
-			log_error("broken auth file");
-			break;
+			sprintf(msg, "Error on line %d of auth_file. Line not starting with a quotation mark. Skipping line.", n);
+			log_error("%s", msg);
+			continue;
 		}
+
 		user = ++p;
 		p = find_quote(p, false);
+
+		/* if no matching " found: skip line */
 		if (*p != '"') {
-			log_error("broken auth file");
-			break;
+			sprintf(msg, "Error on line %d of auth_file. No matching quotation mark found. Skipping line.", n);
+			log_error("%s", msg);
+			continue;
 		}
+		
+		/* if username is too long, skip the line */
 		if (p - user >= MAX_USERNAME) {
-			log_error("username too long in auth file");
-			break;
+			sprintf(msg, "Error on line %d of auth_file. Username too long. Skipping line", n);
+			log_error("%s", msg);
+			continue;
 		}
 		*p++ = 0;	/* tag username end */
 
-		/* get password */
+		/* get password - if too long, skip the line */
 		p = find_quote(p, true);
 		if (*p != '"') {
-			log_error("broken auth file");
-			break;
+			sprintf(msg, "Error on line %d of auth_file. Unmatched quotation mark. Skipping line", n);
+			log_error("%s", msg);
+			continue;
 		}
+
 		password = ++p;
 		p = find_quote(p, false);
+
+		/* if no matching " found: skip line */
 		if (*p != '"') {
-			log_error("broken auth file");
-			break;
+			sprintf(msg, "Error on line %d of auth_file. Unmatched quotation mark. Skipping line", n);
+			log_error("%s", msg);
+			continue;
 		}
+
+		/* if password is too long, skip line */
 		if (p - password >= MAX_PASSWORD) {
-			log_error("password too long in auth file");
-			break;
+			sprintf(msg, "Error on line %d of auth_file. Password too long. Skipping line", n);
+			log_error("%s", msg);
+			continue;
 		}
 		*p++ = 0;	/* tag password end */
 

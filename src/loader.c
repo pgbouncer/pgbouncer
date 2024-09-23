@@ -639,8 +639,8 @@ static void disable_users(void)
 bool load_auth_file(const char *fn)
 {
 	char *user, *password, *buf, *p;
-	char msg[1000];
 	int n = 0;
+	bool errorsfound = false;
 
 	/* No file to load? */
 	if (fn == NULL)
@@ -673,8 +673,8 @@ bool load_auth_file(const char *fn)
 
 		/* start of line - skip line if not starting with " */
 		if (*p != '"') {
-			sprintf(msg, "Error on line %d of auth_file. Line not starting with a quotation mark. Skipping line.", n);
-			log_error("%s", msg);
+			log_error("Error on line %d of auth_file \"%s\". Line not starting with a quotation mark.", n, fn);
+			errorsfound = true;
 			continue;
 		}
 
@@ -683,15 +683,15 @@ bool load_auth_file(const char *fn)
 
 		/* if no matching " found: skip line */
 		if (*p != '"') {
-			sprintf(msg, "Error on line %d of auth_file. No matching quotation mark found. Skipping line.", n);
-			log_error("%s", msg);
+			log_error("Error on line %d of auth_file \"%s\". No matching quotation mark found.", n, fn);
+			errorsfound = true;
 			continue;
 		}
 
 		/* if username is too long, skip the line */
 		if (p - user >= MAX_USERNAME) {
-			sprintf(msg, "Error on line %d of auth_file. Username too long. Skipping line", n);
-			log_error("%s", msg);
+			log_error("Error on line %d of auth_file \"%s\". Username too long (Max length = %d characters).", n, fn, MAX_USERNAME);
+			errorsfound = true;
 			continue;
 		}
 		*p++ = 0;	/* tag username end */
@@ -699,8 +699,8 @@ bool load_auth_file(const char *fn)
 		/* get password - if too long, skip the line */
 		p = find_quote(p, true);
 		if (*p != '"') {
-			sprintf(msg, "Error on line %d of auth_file. Unmatched quotation mark. Skipping line", n);
-			log_error("%s", msg);
+			log_error("Error on line %d of auth_file \"%s\". Unmatched quotation mark.", n, fn);
+			errorsfound = true;
 			continue;
 		}
 
@@ -709,15 +709,15 @@ bool load_auth_file(const char *fn)
 
 		/* if no matching " found: skip line */
 		if (*p != '"') {
-			sprintf(msg, "Error on line %d of auth_file. Unmatched quotation mark. Skipping line", n);
-			log_error("%s", msg);
+			log_error("Error on line %d of auth_file \"%s\". Unmatched quotation mark.", n, fn);
+			errorsfound = true;
 			continue;
 		}
 
 		/* if password is too long, skip line */
 		if (p - password >= MAX_PASSWORD) {
-			sprintf(msg, "Error on line %d of auth_file. Password too long. Skipping line", n);
-			log_error("%s", msg);
+			log_error("Error on line %d of auth_file \"%s\". Password too long (Max length = %d characters).", n, fn, MAX_PASSWORD);
+			errorsfound = true;
 			continue;
 		}
 		*p++ = 0;	/* tag password end */
@@ -729,6 +729,11 @@ bool load_auth_file(const char *fn)
 		while (*p && *p != '\n') p++;
 	}
 	free(buf);
+
+	if (errorsfound) {
+		log_error("One or more errors encountered during parsing of auth_file \"%s\". auth_file contents have NOT been loaded into config. Please correct errors and try again.", fn);
+		return false;
+	}
 
 	return true;
 }

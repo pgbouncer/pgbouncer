@@ -97,9 +97,9 @@ static char *cstr_get_value(char *p, char **dst_p)
  * Get key=val pair from connstring.  Returns position it stopped
  * or NULL on error.  EOF is signaled by *key = 0.
  */
-static char * cstr_get_pair(char *p,
-			    char **key_p,
-			    char **val_p)
+static char *cstr_get_pair(char *p,
+			   char **key_p,
+			   char **val_p)
 {
 	p = cstr_skip_ws(p);
 	*key_p = *val_p = p;
@@ -656,10 +656,10 @@ bool load_auth_file(const char *fn)
 	disable_users();
 
 	p = buf;
+
 	while (*p) {
-	
 		n++;
-	
+
 		/* skip whitespace and empty lines */
 		while (*p && isspace(*p)) p++;
 		if (!*p)
@@ -687,7 +687,7 @@ bool load_auth_file(const char *fn)
 			log_error("%s", msg);
 			continue;
 		}
-		
+
 		/* if username is too long, skip the line */
 		if (p - user >= MAX_USERNAME) {
 			sprintf(msg, "Error on line %d of auth_file. Username too long. Skipping line", n);

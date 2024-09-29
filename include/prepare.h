@@ -34,6 +34,7 @@ typedef struct PgServerPreparedStatement {
 #define is_prepared_statements_enabled(client_or_server) \
 	(connection_pool_mode(client_or_server) != POOL_SESSION && cf_max_prepared_statements != 0)
 
+void skip_possibly_completely_buffered_packet(PgSocket *client, PktHdr *pkt);
 
 bool handle_parse_command(PgSocket *client, PktHdr *pkt);
 bool handle_bind_command(PgSocket *client, PktHdr *pkt);

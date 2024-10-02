@@ -610,7 +610,8 @@ session features over a transaction-pooled PgBouncer.  It changes non-determinis
 to deterministic breakage: Clients always lose their state after each
 transaction. Client applications should be designed to not use session features
 over a transaction-pooled PgBouncer but this can provide a guardrail against
-unintentional breakage in an application or its' dependencies (in, say, a hypothetical ORM).
+unintentional breakage in an application or its' dependencies (for instance ActivRecord
+uses session features out of the box).
 
 Default: 0
 

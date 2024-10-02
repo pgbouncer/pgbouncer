@@ -258,6 +258,8 @@ void varcache_apply_startup(PktBuf *pkt, PgSocket *client)
 		struct PStr *val = get_value(&client->vars, lk);
 		if (!val)
 			continue;
+		if (strcmp(lk->name, "in_hot_standby") == 0 || strcmp(lk->name, "default_transaction_read_only") == 0)
+			continue;
 
 		slog_debug(client, "varcache_apply_startup: %s=%s", lk->name, val->str);
 		pktbuf_put_string(pkt, lk->name);

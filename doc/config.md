@@ -605,12 +605,23 @@ setting is off (default), the `server_reset_query` will be run only in pools
 that are in sessions-pooling mode.  Connections in transaction-pooling mode
 should not have any need for a reset query.
 
-This setting is for working around broken setups that run applications that use session features
-over a transaction-pooled PgBouncer.  It changes non-deterministic breakage
+This setting is for working around ill-advised setups which run applications that use
+session features over a transaction-pooled PgBouncer.  It changes non-deterministic breakage
 to deterministic breakage: Clients always lose their state after each
-transaction.
+transaction. Client applications should be designed to not use session features
+over a transaction-pooled PgBouncer but this can provide a guardrail against
+unintentional breakage in an application or its' dependencies (in, say, a hypothetical ORM).
 
 Default: 0
+
+Note: Using `DISCARD ALL` also works around the very non-obvious potential performance land-mine
+that can happen to query plan caching with the server-side `plan_cache_mode` default of `auto`.
+Clients can be stuck with a cached plan that was efficient for a previous client that is
+no longer because the dataset being queried has changed. With transaction pooling it may
+be worth considering setting `plan_cache_mode` to `custom`. When using transaction pooling it
+is at a minimum [strongly adised to review the Postgres docs][postgres-plan-cache-mode-docs].
+
+[postgres-plan-cache-mode-docs]: https://www.postgresql.org/docs/current/runtime-config-query.html#GUC-PLAN-CACHE-MODE
 
 ### server_check_delay
 

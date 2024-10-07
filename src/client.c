@@ -430,7 +430,6 @@ bool check_db_connection_count(PgSocket *client)
 	if (database_max_client_connections(client->db) <= 0)
 		return true;
 
-	/* increment count now, so that we can decrement it safely in disconnect_client if limit was reached */
 	if (client->db->client_connection_count <= database_max_client_connections(client->db))
 		return true;
 

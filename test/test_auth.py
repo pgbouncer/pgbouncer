@@ -22,6 +22,7 @@ def test_message_fixture(bouncer, pg):
     pg.sql("ALTER USER test_error_message_user WITH LOGIN;")
 
 
+@pytest.mark.skipif("FREEBSD", reason="FreeBSD error reporting broken")
 def test_message(test_message_fixture):
     bouncer, pg = test_message_fixture
     test_user = "test_error_message_user"

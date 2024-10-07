@@ -1401,7 +1401,7 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
  */
 void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 {
-	if (client->db) {
+	if (client->db && client->contributes_db_client_count) {
 		client->db->client_connection_count--;
 	}
 	if (reason) {

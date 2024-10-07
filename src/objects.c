@@ -1343,7 +1343,6 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 			server->pool->last_login_failed = true;
 			server->pool->last_connect_failed = true;
 			safe_strcpy(server->pool->last_connect_failed_message, reason, sizeof(server->pool->last_connect_failed_message));
-			// server->pool->last_connect_failed_message = (char*)reason;
 		} else
 		{
 			/*

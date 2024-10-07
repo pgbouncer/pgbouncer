@@ -429,7 +429,6 @@ bool check_user_connection_count(PgSocket *client)
 	if (!client->login_user_credentials)
 		return true;
 
-	/* increment count now, so that we can decrement it safely in disconnect_client if limit was reached */
 	if (!client->login_user_credentials->global_user)
 		return true;
 

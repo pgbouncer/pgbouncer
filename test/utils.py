@@ -975,16 +975,6 @@ class Bouncer(QueryRunner):
                 continue
             break
 
-    def admin_dict(self, query, params, **kwargs):
-        with self.cur(**kwargs) as cur:
-            cur.execute(query, params=params)
-            try:
-                return cur.fetchall()
-            except psycopg.ProgrammingError as e:
-                if "the last operation didn't produce a result" == str(e):
-                    return None
-                raise
-
     def admin(self, query, **kwargs):
         """Run an SQL query on the PgBouncer admin database"""
         return self.admin_runner.sql(query, **kwargs)

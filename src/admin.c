@@ -1391,13 +1391,13 @@ static PgSocket *find_client_global(unsigned long long int target_id)
 static bool admin_cmd_kill_client(PgSocket *admin, const char *arg)
 {
 	PgSocket *kill_client;
-	unsigned long long int target_client_id = 0;
+	unsigned long long int target_id = 0;
 
-	if (sscanf(arg, "%llu", &target_client_id) != 1) {
+	if (sscanf(arg, "%llu", &target_id) != 1) {
 		return admin_error(admin, "invalid client pointer supplied");
 	}
 
-	kill_client = find_client_global((unsigned long long int) target_client_id);
+	kill_client = find_client_global((unsigned long long int) target_id);
 	if (kill_client == NULL) {
 		return admin_error(admin, "client not found");
 	}

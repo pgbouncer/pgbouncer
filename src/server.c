@@ -309,6 +309,15 @@ int pool_res_pool_size(PgPool *pool)
 		return pool->db->res_pool_size;
 }
 
+int database_max_client_connections(PgDatabase *db)
+{
+	if (db->max_db_client_connections <= 0)
+		return cf_max_db_client_connections;
+	else
+		return db->max_db_client_connections;
+}
+
+
 int database_max_connections(PgDatabase *db)
 {
 	if (db->max_db_connections <= 0)

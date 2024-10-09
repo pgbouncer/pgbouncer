@@ -164,6 +164,14 @@ static bool send_client_authreq(PgSocket *client)
 	return res;
 }
 
+/*
+ * Returns true if the currently trying to send an auth query to the server.
+ */
+bool sending_auth_query(PgSocket *client)
+{
+	return client->wait_for_user_conn || client->wait_for_user;
+}
+
 static void start_auth_query(PgSocket *client, const char *username)
 {
 	int res;
@@ -179,8 +187,8 @@ static void start_auth_query(PgSocket *client, const char *username)
 		disconnect_client(client, true, "no memory for authentication pool");
 		return;
 	}
+	client->wait_for_user_conn = true;
 	if (!find_server(client)) {
-		client->wait_for_user_conn = true;
 		return;
 	}
 	slog_noise(client, "doing auth_conn query: %s", auth_query);
@@ -699,7 +707,12 @@ static bool set_startup_options(PgSocket *client, const char *options)
 		 * GUC_REPORT flag, specifically extra_float_digits which is a
 		 * configuration that is set by CREATE SUBSCRIPTION in the
 		 * options parameter.
+		 *
+		 * First free it, because set_startup_options might be called
+		 * multiple times in some cases. One of these being when
+		 * auth_user is enabled.
 		 */
+		free(client->startup_options);
 		client->startup_options = strdup(options);
 		if (!client->startup_options)
 			disconnect_client(client, true, "out of memory");

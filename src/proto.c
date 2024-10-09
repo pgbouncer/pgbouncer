@@ -613,7 +613,7 @@ bool send_startup_packet(PgSocket *server)
 	 * to do some special stuff for it.
 	 */
 	client = first_socket(&pool->waiting_client_list);
-	if (client && client->replication) {
+	if (client && client->replication && !sending_auth_query(client)) {
 		server->replication = client->replication;
 		pktbuf_put_string(pkt, "replication");
 		slog_debug(server, "send_startup_packet: creating replication connection");

@@ -428,7 +428,7 @@ void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...)
  * 's' - string to text
  * 'b' - bytes to bytea
  * 'N' - uint64_t to numeric
- * 'T' - usec_t to date
+ * 'T' - usec_t to date and time (ms precision)
  */
 void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 {
@@ -469,7 +469,7 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 			}
 		} else if (tupdesc[i] == 'T') {
 			usec_t time = va_arg(ap, usec_t);
-			val = format_time_s(time, tmp, sizeof(tmp));
+			val = format_time_ms(time, tmp, sizeof(tmp));
 		} else {
 			fatal("bad tupdesc: %s", tupdesc);
 		}

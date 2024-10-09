@@ -486,6 +486,7 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 	struct CfValue cv;
 	const char *pool_mode_str;
 	usec_t server_lifetime_secs;
+	usec_t now = get_cached_time();
 
 	cv.extra = pool_mode_map;
 	buf = pktbuf_dynamic(256);
@@ -494,11 +495,11 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "ssissiiiisiiii",
+	pktbuf_write_RowDescription(buf, "ssissiiiisiiiiT",
 				    "name", "host", "port",
 				    "database", "force_user", "pool_size", "min_pool_size", "reserve_pool",
 				    "server_lifetime", "pool_mode", "max_connections", "current_connections",
-				    "paused", "disabled");
+				    "paused", "disabled", "now");
 	statlist_for_each(item, &database_list) {
 		db = container_of(item, PgDatabase, head);
 
@@ -509,8 +510,7 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 		if (db->pool_mode != POOL_INHERIT)
 			pool_mode_str = cf_get_lookup(&cv);
 
-
-		pktbuf_write_DataRow(buf, "ssissiiiisiiii",
+		pktbuf_write_DataRow(buf, "ssissiiiisiiiiT",
 				     db->name, db->host, db->port,
 				     db->dbname, f_user,
 				     db->pool_size >= 0 ? db->pool_size : cf_default_pool_size,
@@ -521,7 +521,8 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 				     database_max_connections(db),
 				     db->connection_count,
 				     db->db_paused,
-				     db->db_disabled);
+				     db->db_disabled,
+				     now);
 	}
 	admin_flush(admin, buf, "SHOW");
 	return true;
@@ -594,6 +595,7 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	struct CfValue cv;
 	char pool_size_str[12] = "";
 	const char *pool_mode_str;
+	usec_t now = get_cached_time();
 
 	if (!buf) {
 		admin_error(admin, "no mem");
@@ -601,7 +603,7 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	}
 	cv.extra = pool_mode_map;
 
-	pktbuf_write_RowDescription(buf, "sssii", "name", "pool_size", "pool_mode", "max_user_connections", "current_connections");
+	pktbuf_write_RowDescription(buf, "sssiiT", "name", "pool_size", "pool_mode", "max_user_connections", "current_connections", "now");
 	statlist_for_each(item, &user_list) {
 		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
 		if (user->pool_size >= 0)
@@ -612,19 +614,20 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 		if (user->pool_mode != POOL_INHERIT)
 			pool_mode_str = cf_get_lookup(&cv);
 
-		pktbuf_write_DataRow(buf, "sssii", user->credentials.name,
+		pktbuf_write_DataRow(buf, "sssiiT", user->credentials.name,
 				     pool_size_str,
 				     pool_mode_str,
 				     user_max_connections(user),
-				     user->connection_count
+				     user->connection_count,
+				     now
 				     );
 	}
 	admin_flush(admin, buf, "SHOW");
 	return true;
 }
 
-#define SKF_STD "ssssssisiTTiiississi"
-#define SKF_DBG "ssssssisiTTiiississiiiiiiii"
+#define SKF_STD "ssssssisiTTiiississiT"
+#define SKF_DBG "ssssssisiTTiiississiTiiiiiii"
 
 static void socket_header(PktBuf *buf, bool debug)
 {
@@ -636,6 +639,7 @@ static void socket_header(PktBuf *buf, bool debug)
 				    "ptr", "link", "remote_pid", "tls",
 				    "application_name",
 				    "prepared_statements",
+				    "now",
 					/* debug follows */
 				    "recv_pos", "pkt_pos", "pkt_remain",
 				    "send_pos", "send_remain",
@@ -715,6 +719,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 			     ptrbuf, linkbuf, remote_pid, infobuf,
 			     application_name ? application_name->str : "",
 			     prepared_statement_count,
+			     now,
 				/* debug */
 			     io ? io->recv_pos : 0,
 			     io ? io->parse_pos : 0,
@@ -891,7 +896,7 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 		admin_error(admin, "no mem");
 		return true;
 	}
-	pktbuf_write_RowDescription(buf, "ssiiiiiiiiiiiiis",
+	pktbuf_write_RowDescription(buf, "ssiiiiiiiiiiiiisT",
 				    "database", "user",
 				    "cl_active", "cl_waiting",
 				    "cl_active_cancel_req",
@@ -902,13 +907,14 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 				    "sv_idle",
 				    "sv_used", "sv_tested",
 				    "sv_login", "maxwait",
-				    "maxwait_us", "pool_mode");
+				    "maxwait_us", "pool_mode",
+				    "now");
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
 		waiter = first_socket(&pool->waiting_client_list);
 		max_wait = (waiter && waiter->query_start) ? now - waiter->query_start : 0;
 		pool_mode = probably_wrong_pool_pool_mode(pool);
-		pktbuf_write_DataRow(buf, "ssiiiiiiiiiiiiis",
+		pktbuf_write_DataRow(buf, "ssiiiiiiiiiiiiisT",
 				     pool->db->name, pool->user_credentials->name,
 				     statlist_count(&pool->active_client_list),
 				     statlist_count(&pool->waiting_client_list),
@@ -924,7 +930,8 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 					/* how long is the oldest client waited */
 				     (int)(max_wait / USEC),
 				     (int)(max_wait % USEC),
-				     cf_get_lookup(&cv));
+				     cf_get_lookup(&cv),
+				     now);
 	}
 	admin_flush(admin, buf, "SHOW");
 	return true;
@@ -936,26 +943,29 @@ static bool admin_show_peer_pools(PgSocket *admin, const char *arg)
 	struct List *item;
 	PgPool *pool;
 	PktBuf *buf;
+	usec_t now = get_cached_time();
 
 	buf = pktbuf_dynamic(256);
 	if (!buf) {
 		admin_error(admin, "no mem");
 		return true;
 	}
-	pktbuf_write_RowDescription(buf, "iiiii",
+	pktbuf_write_RowDescription(buf, "iiiiiT",
 				    "peer_id",
 				    "cl_active_cancel_req",
 				    "cl_waiting_cancel_req",
 				    "sv_active_cancel",
-				    "sv_login");
+				    "sv_login",
+				    "now");
 	statlist_for_each(item, &peer_pool_list) {
 		pool = container_of(item, PgPool, head);
-		pktbuf_write_DataRow(buf, "iiiii",
+		pktbuf_write_DataRow(buf, "iiiiiT",
 				     pool->db->peer_id,
 				     statlist_count(&pool->active_cancel_req_list),
 				     statlist_count(&pool->waiting_cancel_req_list),
 				     statlist_count(&pool->active_cancel_server_list),
-				     statlist_count(&pool->new_server_list));
+				     statlist_count(&pool->new_server_list),
+				     now);
 	}
 	admin_flush(admin, buf, "SHOW");
 	return true;

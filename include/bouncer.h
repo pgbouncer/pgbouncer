@@ -462,6 +462,7 @@ struct PgPool {
 	/* if last connect to server failed, there should be delay before next */
 	usec_t last_connect_time;
 	bool last_connect_failed : 1;
+	char last_connect_failed_message[100];
 	bool last_login_failed : 1;
 
 	bool welcome_msg_ready : 1;

@@ -623,19 +623,19 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	return true;
 }
 
-#define SKF_STD "issssssisiTTiiississi"
-#define SKF_DBG "issssssisiTTiiississiiiiiiii"
+#define SKF_STD "ssssssisiTTiiississii"
+#define SKF_DBG "ssssssisiTTiiississiiiiiiiii"
 
 static void socket_header(PktBuf *buf, bool debug)
 {
 	pktbuf_write_RowDescription(buf, debug ? SKF_DBG : SKF_STD,
-				    "id", "type", "user", "database", "replication", "state",
+				    "type", "user", "database", "replication", "state",
 				    "addr", "port", "local_addr", "local_port",
 				    "connect_time", "request_time",
 				    "wait", "wait_us", "close_needed",
 				    "ptr", "link", "remote_pid", "tls",
 				    "application_name",
-				    "prepared_statements",
+				    "prepared_statements", "id",
 					/* debug follows */
 				    "recv_pos", "pkt_pos", "pkt_remain",
 				    "send_pos", "send_remain",
@@ -701,7 +701,6 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 		replication = "physical";
 
 	pktbuf_write_DataRow(buf, debug ? SKF_DBG : SKF_STD,
-			     sk->id,
 			     is_server_socket(sk) ? "S" : "C",
 			     sk->login_user_credentials ? sk->login_user_credentials->name : "(nouser)",
 			     sk->pool && !sk->pool->db->peer_id ? sk->pool->db->name : "(nodb)",
@@ -715,7 +714,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 			     sk->close_needed,
 			     ptrbuf, linkbuf, remote_pid, infobuf,
 			     application_name ? application_name->str : "",
-			     prepared_statement_count,
+			     prepared_statement_count, sk->id,
 				/* debug */
 			     io ? io->recv_pos : 0,
 			     io ? io->parse_pos : 0,
@@ -1332,21 +1331,21 @@ static bool admin_cmd_enable(PgSocket *admin, const char *arg)
 }
 
 
-static PgSocket *find_socket_in_list(unsigned long long int target_client_id, struct StatList *sockets)
+static PgSocket *find_socket_in_list(unsigned long long int target_id, struct StatList *sockets)
 {
 	struct List *item;
 	PgSocket *socket;
 
 	statlist_for_each(item, sockets) {
 		socket = container_of(item, PgSocket, head);
-		if (target_client_id == socket->id) {
+		if (target_id == socket->id) {
 			return socket;
 		}
 	}
 	return NULL;
 }
 
-static PgSocket *find_client_global(unsigned long long int target_client_id)
+static PgSocket *find_client_global(unsigned long long int target_id)
 {
 	PgSocket *kill_client;
 	struct List *item;
@@ -1355,19 +1354,19 @@ static PgSocket *find_client_global(unsigned long long int target_client_id)
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
 
-		kill_client = find_socket_in_list(target_client_id, &pool->active_client_list);
+		kill_client = find_socket_in_list(target_id, &pool->active_client_list);
 		if (kill_client != NULL) {
 			return kill_client;
 		}
-		kill_client = find_socket_in_list(target_client_id, &pool->waiting_client_list);
+		kill_client = find_socket_in_list(target_id, &pool->waiting_client_list);
 		if (kill_client != NULL) {
 			return kill_client;
 		}
-		kill_client = find_socket_in_list(target_client_id, &pool->active_cancel_req_list);
+		kill_client = find_socket_in_list(target_id, &pool->active_cancel_req_list);
 		if (kill_client != NULL) {
 			return kill_client;
 		}
-		kill_client = find_socket_in_list(target_client_id, &pool->waiting_cancel_req_list);
+		kill_client = find_socket_in_list(target_id, &pool->waiting_cancel_req_list);
 		if (kill_client != NULL) {
 			return kill_client;
 		}
@@ -1376,11 +1375,11 @@ static PgSocket *find_client_global(unsigned long long int target_client_id)
 	statlist_for_each(item, &peer_pool_list) {
 		pool = container_of(item, PgPool, head);
 
-		kill_client = find_socket_in_list(target_client_id, &pool->active_cancel_req_list);
+		kill_client = find_socket_in_list(target_id, &pool->active_cancel_req_list);
 		if (kill_client != NULL) {
 			return kill_client;
 		}
-		kill_client = find_socket_in_list(target_client_id, &pool->waiting_cancel_req_list);
+		kill_client = find_socket_in_list(target_id, &pool->waiting_cancel_req_list);
 		if (kill_client != NULL) {
 			return kill_client;
 		}
@@ -1392,9 +1391,9 @@ static PgSocket *find_client_global(unsigned long long int target_client_id)
 static bool admin_cmd_kill_client(PgSocket *admin, const char *arg)
 {
 	PgSocket *kill_client;
-	unsigned int target_client_id = 0;
+	unsigned long long int target_client_id = 0;
 
-	if (sscanf(arg, "%u", &target_client_id) != 1) {
+	if (sscanf(arg, "%llu", &target_client_id) != 1) {
 		return admin_error(admin, "invalid client pointer supplied");
 	}
 

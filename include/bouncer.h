@@ -644,7 +644,7 @@ struct PgSocket {
 
 	PgCredentials *login_user_credentials;	/* presented login, for client it may differ from pool->user */
 
-	unsigned long long int id;  /* unique numeric ID used to identify PgSocket instance */
+	unsigned long long int id;	/* unique numeric ID used to identify PgSocket instance */
 	int client_auth_type;	/* auth method decided by hba */
 
 	/* the queue of requests that we still expect a server response for */

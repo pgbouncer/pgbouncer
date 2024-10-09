@@ -325,6 +325,14 @@ int user_max_connections(PgGlobalUser *user)
 		return user->max_user_connections;
 }
 
+int user_client_max_connections(PgGlobalUser *user)
+{
+	if (user->max_user_client_connections <= 0)
+		return cf_max_user_client_connections;
+	else
+		return user->max_user_client_connections;
+}
+
 /* process packets on logged in connection */
 static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 {

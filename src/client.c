@@ -420,6 +420,41 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	return ok;
 }
 
+bool check_user_connection_count(PgSocket *client)
+{
+	int client_connection_count;
+	int max_user_client_connections;
+
+	/* Check client_connection count limit */
+	if (!client->login_user_credentials)
+		return true;
+
+	if (!client->login_user_credentials->global_user)
+		return true;
+
+	if (!client->user_connection_counted) {
+		client->login_user_credentials->global_user->client_connection_count++;
+		client->user_connection_counted = 1;
+	}
+
+	if (client->db->admin && strlist_contains(cf_admin_users, client->login_user_credentials->name)) {
+		return true;
+	}
+
+	max_user_client_connections = user_client_max_connections(client->login_user_credentials->global_user);
+	if (max_user_client_connections == 0)
+		return true;
+
+	client_connection_count = client->login_user_credentials->global_user->client_connection_count;
+	if (client_connection_count <= max_user_client_connections)
+		return true;
+
+	log_debug("set_pool: user '%s' full (%d >= %d)",
+		  client->login_user_credentials->name, client_connection_count, max_user_client_connections);
+	disconnect_client(client, true, "client connections exceeded (max_user_client_connections)");
+	return false;
+}
+
 bool set_pool(PgSocket *client, const char *dbname, const char *username, const char *password, bool takeover)
 {
 	Assert((password && takeover) || (!password && !takeover));
@@ -461,6 +496,9 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			return false;
 		}
 		client->login_user_credentials = client->db->forced_user_credentials;
+		if (!check_user_connection_count(client)) {
+			return false;
+		}
 	} else if (cf_auth_type == AUTH_PAM) {
 		if (client->db->auth_user_credentials) {
 			slog_error(client, "PAM can't be used together with database authentication");
@@ -474,8 +512,15 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			disconnect_client(client, true, "bouncer resources exhaustion");
 			return false;
 		}
+		if (!check_user_connection_count(client)) {
+			return false;
+		}
 	} else {
 		client->login_user_credentials = find_global_credentials(username);
+		if (!check_user_connection_count(client)) {
+			return false;
+		}
+
 		if (!client->login_user_credentials || client->login_user_credentials->dynamic_passwd) {
 			/*
 			 * If the login user specified by the client
@@ -495,6 +540,9 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 				} else {
 					if (takeover) {
 						client->login_user_credentials = add_dynamic_credentials(client->db, username, password);
+						if (!check_user_connection_count(client)) {
+							return false;
+						}
 						return finish_set_pool(client, takeover);
 					}
 					start_auth_query(client, username);
@@ -506,6 +554,9 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			client->login_user_credentials = calloc(1, sizeof(*client->login_user_credentials));
 			client->login_user_credentials->mock_auth = true;
 			safe_strcpy(client->login_user_credentials->name, username, sizeof(client->login_user_credentials->name));
+			if (!check_user_connection_count(client)) {
+				return false;
+			}
 		}
 	}
 
@@ -579,6 +630,9 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
 
 		slog_debug(client, "successfully parsed auth_query response for user %s", credentials.name);
 		client->login_user_credentials = add_dynamic_credentials(client->db, credentials.name, credentials.passwd);
+		if (!check_user_connection_count(client)) {
+			return false;
+		}
 		if (!client->login_user_credentials) {
 			disconnect_server(server, false, "unable to allocate new user for auth");
 			return false;

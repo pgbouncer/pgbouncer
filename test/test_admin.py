@@ -1,3 +1,5 @@
+import time
+
 import psycopg
 import pytest
 from psycopg.rows import dict_row
@@ -37,24 +39,126 @@ def test_show(bouncer):
         bouncer.admin(f"SHOW {item}")
 
 
+def test_socket_id(bouncer) -> None:
+    """Test that PgSocket id is assigned as expected for sockets."""
+    config = f"""
+    [databases]
+    p1 = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    listen_port = {bouncer.port}
+    auth_type = trust
+    admin_users = pgbouncer
+    logfile = {bouncer.log_path}
+    auth_file = {bouncer.auth_path}
+    pool_mode = session
+    server_lifetime = 0
+    """
+
+    with bouncer.run_with_config(config):
+        with bouncer.cur(
+            dbname="pgbouncer", user="pgbouncer", row_factory=dict_row
+        ) as admin_cursor:
+            admin_cursor.execute("SHOW SOCKETS")
+            servers = admin_cursor.fetchall()
+            initial_id = max([i["id"] for i in servers])
+
+            for i in range(1, 4):
+                conn_2 = bouncer.conn(dbname="p1")
+                curr = conn_2.cursor()
+                _ = curr.execute("SELECT 1")
+                time.sleep(2)
+                clients = admin_cursor.execute("SHOW SOCKETS").fetchall()
+                assert len(clients) == 3
+                assert set(
+                    [
+                        initial_id,
+                        initial_id + i * 2 - 1,
+                        initial_id + i * 2,
+                    ]
+                ) == set([client["id"] for client in clients])
+                conn_2.close()
+                time.sleep(2)
+
+
+def test_server_id(bouncer) -> None:
+    """Test that PgSocket id is assigned as expected for servers."""
+    config = f"""
+    [databases]
+    p1 = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    listen_port = {bouncer.port}
+    auth_type = trust
+    admin_users = pgbouncer
+    logfile = {bouncer.log_path}
+    auth_file = {bouncer.auth_path}
+    server_lifetime = 0
+    """
+
+    with bouncer.run_with_config(config):
+        with bouncer.cur(
+            dbname="pgbouncer", user="pgbouncer", row_factory=dict_row
+        ) as admin_cursor:
+            admin_cursor.execute("SHOW SOCKETS")
+            servers = admin_cursor.fetchall()
+            initial_id = max([i["id"] for i in servers])
+
+            for i in range(1, 4):
+                conn_2 = bouncer.conn(dbname="p1")
+                curr = conn_2.cursor()
+                _ = curr.execute("SELECT 1")
+                time.sleep(2)
+                clients = admin_cursor.execute("SHOW SERVERS").fetchall()
+                assert [
+                    initial_id + i * 2,
+                ] == [client["id"] for client in clients]
+                conn_2.close()
+                time.sleep(2)
+
+
+def test_client_id(bouncer) -> None:
+    """Test that PgSocket id is assigned as expected for clients."""
+    config = f"""
+    [databases]
+    p1 = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    listen_port = {bouncer.port}
+    auth_type = trust
+    admin_users = pgbouncer
+    logfile = {bouncer.log_path}
+    auth_file = {bouncer.auth_path}
+    server_lifetime = 0
+    """
+
+    with bouncer.run_with_config(config):
+        initial_id = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)[0]["id"]
+
+        for i in range(1, 4):
+            clients = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)
+            assert [
+                initial_id + i,
+            ] == [client["id"] for client in clients]
+
+
 def test_kill_client_nonexisting(bouncer):
     # Connect to client as user A
     conn_1 = bouncer.conn(dbname="p0", user="maxedout")
 
     # Validate count
-    clients = bouncer.admin("SHOW CLIENTS")
+    clients = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)
     assert len(clients) == 2
-
-    # Get clients id
-    client_id = [client for client in clients if client[2] == "p0"][0][-6]
-    fake_client_id = hex(int(client_id, 16) + 1)
 
     # Issue kill client command
     with pytest.raises(
         psycopg.errors.ProtocolViolation,
         match=r"client not found",
     ):
-        clients = bouncer.admin(f"KILL_CLIENT {fake_client_id}")
+        clients = bouncer.admin(f"KILL_CLIENT 1000")
 
     # Validate count
     clients = bouncer.admin("SHOW CLIENTS")
@@ -90,11 +194,11 @@ def test_kill_client(bouncer):
     conn_1 = bouncer.conn(dbname="p0", user="maxedout")
 
     # Validate count
-    clients = bouncer.admin("SHOW CLIENTS")
+    clients = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)
     assert len(clients) == 2
 
     # Get clients id
-    client_id = [client for client in clients if client[2] == "p0"][0][-6]
+    client_id = [client for client in clients if client["database"] == "p0"][0]["id"]
 
     # Issue kill client command
     clients = bouncer.admin(f"KILL_CLIENT {client_id}")

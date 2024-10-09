@@ -197,6 +197,11 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 			break;
 		}
 
+		if (!valid_target_session_attrs(server)) {
+			disconnect_server(server, true, "server does not satisfy target_session_attrs");
+			break;
+		}
+
 		/* login ok */
 		slog_debug(server, "server login ok, start accepting queries");
 		server->ready = true;
@@ -232,6 +237,33 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 		sbuf_prepare_skip(sbuf, pkt->len);
 
 	return res;
+}
+
+/*
+ * Compare connection attributes as returned by the server
+ * against desired connection attributes. This matches the
+ * behavior of libpq's `target_session_attrs` albeit only
+ * implementing a subset of the functionality:
+ * 1) It does not support `prefer-standby`.
+ * 2) It requires PG 14+ to send connection parameters at startup.
+ */
+bool valid_target_session_attrs(PgSocket *server)
+{
+	VarCache *v = &server->vars;
+	const struct PStr *in_hot_standby = v->var_list[VInHotStandby];
+	const struct PStr *default_transaction_read_only = v->var_list[VDefaultTransactionReadOnly];
+	enum TargetSessionAttrs target = server->pool->db->target_session_attrs;
+
+	// If the server did not return the in_hot_standby and/or
+	// default_transaction_read_only parameters, assume false.
+	bool hot_standby = in_hot_standby && strcmp(in_hot_standby->str, "on") == 0;
+	bool transaction_read_only = default_transaction_read_only && strcmp(default_transaction_read_only->str, "on") == 0;
+
+	return (target == TARGET_SESSION_ANY) ||
+	       (target == TARGET_SESSION_READWRITE && !transaction_read_only) ||
+	       (target == TARGET_SESSION_READONLY && transaction_read_only) ||
+	       (target == TARGET_SESSION_PRIMARY && !hot_standby) ||
+	       (target == TARGET_SESSION_STANDBY && hot_standby);
 }
 
 /*

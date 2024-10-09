@@ -447,6 +447,9 @@ maxwait_us
 pool_mode
 :   The pooling mode in use.
 
+target_session_attrs
+:   The target_session_attrs setting in use
+
 #### SHOW PEER_POOLS
 
 A new peer_pool entry is made for each configured peer.
@@ -562,6 +565,9 @@ server_lifetime
 
 pool_mode
 :   The database's override pool_mode, or NULL if the default will be used instead.
+
+target_session_attrs
+:   The database's target_session_attrs if set to a value other than `any`.
 
 max_connections
 :   Maximum number of allowed connections for this database, as set by

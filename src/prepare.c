@@ -158,7 +158,7 @@ static PgPreparedStatement *get_prepared_statement(PgParsePacket *pkt, bool *fou
  * This is equivalent of sbuf_prepare_skip() but it also handles the case where
  * we used our special callbacke packet buffering logic.
  */
-static void skip_possibly_completely_buffered_packet(PgSocket *client, PktHdr *pkt)
+void skip_possibly_completely_buffered_packet(PgSocket *client, PktHdr *pkt)
 {
 	/*
 	 * Now we need to make sure the original packet is not sent to the server.

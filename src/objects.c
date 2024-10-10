@@ -72,6 +72,7 @@ struct Slab *outstanding_request_cache;
 struct Slab *var_list_cache;
 struct Slab *server_prepared_statement_cache;
 unsigned long long int last_pgsocket_id;
+
 /*
  * libevent may still report events when event_del()
  * is called from somewhere else.  So hide just freed
@@ -111,8 +112,7 @@ static void construct_client(void *obj)
 	client->state = CL_FREE;
 	client->client_prepared_statements = NULL;
 
-	last_pgsocket_id++;
-	client->id = last_pgsocket_id;
+	client->id = ++last_pgsocket_id;
 }
 
 static void construct_server(void *obj)
@@ -127,8 +127,7 @@ static void construct_server(void *obj)
 	server->server_prepared_statements = NULL;
 	statlist_init(&server->outstanding_requests, "outstanding_requests");
 
-	last_pgsocket_id++;
-	server->id = last_pgsocket_id;
+	server->id = ++last_pgsocket_id;
 }
 
 /* compare string with PgGlobalUser->credentials.name, for usage with btree */

@@ -321,7 +321,7 @@ prepared_statements
    number is limited by the `max_prepared_statements` setting.
 
 id
-:   Unique ID for this connection.
+:   Unique ID for server.
 
 
 #### SHOW CLIENTS
@@ -390,7 +390,7 @@ prepared_statements
 :  The amount of prepared statements that the client has prepared
 
 id
-:   Unique ID for this connection.
+:   Unique ID for client.
 
 #### SHOW POOLS
 

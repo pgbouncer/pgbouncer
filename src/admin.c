@@ -915,6 +915,7 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 	cv.extra = pool_mode_map;
 	cv.value_p = &pool_mode;
 	load_balance_hosts_lookup.extra = load_balance_hosts_map;
+	target_session_attrs_lookup.extra = target_session_attrs_map;
 	buf = pktbuf_dynamic(256);
 	if (!buf) {
 		admin_error(admin, "no mem");

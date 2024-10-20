@@ -491,7 +491,9 @@ def test_auth_query_works_with_configured_users(bouncer):
                 )
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
-def test_auth_query_logs_server_error(bouncer):
+def test_auth_query_logs_server_error(
+    bouncer,
+):
     """
     Check that when the auth_query response has an error, pgbouncer logs
     the error message provided by postgres.

@@ -1063,7 +1063,15 @@ def test_ldap_auth(bouncer, openldap):
         )
     bouncer.admin("reload")
     bouncer.test(user="ldapuser1", password="secret1")
-    # 5 test "search filters"
+    # 5 test "ldapsearchattribute"
+    with open(hba_conf_file, "w") as f:
+        f.write(
+            f"host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 ldapport={openldap.ldap_port} "
+            f'ldapbasedn="dc=example,dc=net" ldapsearchattribute=uid'
+        )
+    bouncer.admin("reload")
+    bouncer.test(user="ldapuser1", password="secret1")
+    # 6 test "search filters"
     with open(hba_conf_file, "w") as f:
         f.write(
             f"host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 ldapport={openldap.ldap_port} "
@@ -1071,7 +1079,7 @@ def test_ldap_auth(bouncer, openldap):
         )
     bouncer.admin("reload")
     bouncer.test(user="ldapuser1", password="secret1")
-    # 6 test "search filters in LDAP URLs"
+    # 7 test "search filters in LDAP URLs"
     with open(hba_conf_file, "w") as f:
         f.write(
             f"host all ldapuser1 0.0.0.0/0 ldap "
@@ -1079,10 +1087,27 @@ def test_ldap_auth(bouncer, openldap):
         )
     bouncer.admin("reload")
     bouncer.test(user="ldapuser1", password="secret1")
-    # 7 test ldap auth_type
+    # 8 test "use ldaps in LDAP URLs"
+    with open(hba_conf_file, "w") as f:
+        f.write(
+            f"host all ldapuser1 0.0.0.0/0 ldap "
+            f'ldapurl="ldaps://127.0.0.1:{openldap.ldap_port}/dc=example,dc=net??sub?(|(uid=$username)(mail=$username))"'
+        )
+    bouncer.admin("reload")
+    bouncer.test(user="ldapuser1", password="secret1")
+    # 9 test "hba format"
+    with open(hba_conf_file, "w") as f:
+        f.write(
+            f"host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 "ldapport"={openldap.ldap_port} "
+            f'ldapbasedn="dc=example,dc=net" ,ldapsearchfilter="uid=$username"'
+        )
+    bouncer.admin("reload")
+    bouncer.test(user="ldapuser1", password="secret1")
+    # 10 test ldap auth_type
     bouncer.write_ini(f"auth_type = ldap")
     bouncer.write_ini(
         f'auth_ldap_parameter = ldapurl="ldap://127.0.0.1:{openldap.ldap_port}/dc=example,dc=net?uid?sub"'
     )
     bouncer.admin("reload")
     bouncer.test(user="ldapuser1", password="secret1")
+

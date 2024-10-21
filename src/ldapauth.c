@@ -283,33 +283,83 @@ static bool parse_ldapurl(struct ldap_auth_request *request, char *val)
 static bool get_key_value(char **p, char **key, char **value)
 {
 	char *start, *name, *val;
+	char *name_copy = NULL;
+	char *val_copy = NULL;
 
 	start = *p;
 	while (*start && isspace(*start))
 		++start;/* skip space */
+	if (*start == ',')
+		++start;/* skip ',' */
+	while (*start && isspace(*start))
+		++start;/* skip space */
 
-	name = start;
-	while (*start && *start != '=')
-		start++;
-	if (!*start)
-		return false;	/* Only key, stop scan */
-	*start++ = 0;
-
-	val = start;
+	/* Parse key */
 	if (*start == '"') {
-		val = ++start;
-		while (*start && *start != '"')
-			++start;
-		if (!*start)
-			return false;	/* incomplete value */
-		*start++ = 0;
+		start++;
+		name = start;
+		name_copy = start;
+		while (*start) {
+			if (*start == '"' && *(start + 1) == '"') {
+				*name_copy++ = '"';
+				start += 2;
+			} else if (*start == '"') {
+				*name_copy = '\0';
+				start++;
+				break;
+			} else {
+				*name_copy++ = *start++;
+			}
+		}
+		if ((!*start) || (*start != '='))
+			return false;	/* Only key, stop scan */
 	} else {
-		if (*start == ' ')
-			return false;	/* Not key=value format */
-		while (*start && *start != ' ')
+		name = start;
+		name_copy = start;
+		while ((*start) && (*start != '=')) {
+			*name_copy++ = *start++;
+		}
+		if ((!*start) || (*start != '='))
+			return false;	/* Only key, stop scan */
+		*name_copy = '\0';
+	}
+
+	start++;// skip '='
+	if (isspace(*start)) {
+		/* Not allow insert space after '=' */
+		return false;
+	}
+
+	/* Parse value */
+	if (*start == '"') {
+		start++;
+		val = start;
+		val_copy = start;
+		while (*start) {
+			if (*start == '"' && *(start + 1) == '"') {
+				*val_copy++ = '"';
+				start += 2;
+			} else if (*start == '"') {
+				*val_copy++ = '\0';
+				start++;
+				break;
+			} else {
+				*val_copy++ = *start++;
+			}
+		}
+	} else {
+		val = start;
+		val_copy = start;
+		while (*start && !(isspace(*start) || *start == ',')) {
+			*val_copy++ = *start++;
+		}
+		if (*val_copy != '\0') {
+			*val_copy = '\0';
 			start++;
-		if (*start == ' ')
-			*start++ = 0;
+		}
+	}
+	if (*name == '\0' || *val == '\0') {
+		return false;	/* No key or no value */
 	}
 
 	*p = start;
@@ -317,12 +367,23 @@ static bool get_key_value(char **p, char **key, char **value)
 	*value = val;
 	return true;
 }
+static void ignore_space_from_end(char *parameter)
+{
+	int length = strlen(parameter);
+	while (length > 0 && isspace(parameter[length - 1])) {
+		parameter[length - 1] = '\0';
+		length--;
+	}
+	return;
+}
 
 static bool initialize_ldap_parameters(struct ldap_auth_request *request, char *parameter)
 {
 	char *key, *value;
 	char *p = parameter;
 
+	/* There maybe \n at the end of parameter */
+	ignore_space_from_end(parameter);
 	request->ldapscope = LDAP_SCOPE_SUBTREE;
 	while (get_key_value(&p, &key, &value)) {
 		if (strcmp(key, "ldaptls") == 0) {

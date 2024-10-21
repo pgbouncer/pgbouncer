@@ -894,6 +894,7 @@ def test_peer_auth_ident_map(bouncer):
         user="bouncer",
     )
 
+
 async def test_auth_user_trust_auth_without_auth_file_set(bouncer) -> None:
     """
     This is a regression test for issue #1116, using the SET command
@@ -1026,6 +1027,7 @@ def test_auth_user_at_db_level_with_same_forced_user(bouncer):
             with cn.cursor() as cur:
                 cur.execute("select 1")
 
+
 @pytest.mark.skipif("MACOS", reason="OpenLDAP on OSX is difficult")
 @pytest.mark.skipif("WINDOWS", reason="We do not expect to support ldap on Windows")
 @pytest.mark.skipif(not LDAP_SUPPORT, reason="pgbouncer is built without LDAP support")
@@ -1098,7 +1100,7 @@ def test_ldap_auth(bouncer, openldap):
     # 9 test "hba format"
     with open(hba_conf_file, "w") as f:
         f.write(
-            f"host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 "ldapport"={openldap.ldap_port} "
+            f'host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 "ldapport"={openldap.ldap_port} '
             f'ldapbasedn="dc=example,dc=net" ,ldapsearchfilter="uid=$username"'
         )
     bouncer.admin("reload")
@@ -1110,4 +1112,3 @@ def test_ldap_auth(bouncer, openldap):
     )
     bouncer.admin("reload")
     bouncer.test(user="ldapuser1", password="secret1")
-

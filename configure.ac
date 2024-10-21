@@ -99,6 +99,8 @@ AC_ARG_WITH(ldap,
           AC_SUBST(ldap_support)
           AC_SUBST(LDAP_CFLAGS, "-DLDAP_DEPRECATED")
           AC_DEFINE(HAVE_LDAP, 1, [LDAP support])
+        else
+          AC_MSG_ERROR([ldap libarary or header is needed for LDAP compilation])
         fi
     fi
   ], [])

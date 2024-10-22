@@ -541,7 +541,7 @@ struct PgGlobalUser {
 	int pool_size;				/* max server connections in one pool */
 	int max_user_connections;	/* how much server connections are allowed */
 	int connection_count;	/* how much connections are used by user now */
-	usec_t client_idle_timeout;  /* how long is user allowed to idly connect to pgbouncer */
+	usec_t client_idle_timeout;	/* how long is user allowed to idly connect to pgbouncer */
 };
 
 /*

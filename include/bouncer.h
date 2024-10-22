@@ -541,6 +541,8 @@ struct PgGlobalUser {
 	int pool_size;				/* max server connections in one pool */
 	int max_user_connections;	/* how much server connections are allowed */
 	int connection_count;	/* how much connections are used by user now */
+    usec_t idle_transaction_timeout;
+    usec_t query_timeout;
 };
 
 /*
@@ -790,6 +792,7 @@ extern usec_t cf_cancel_wait_timeout;
 extern usec_t cf_client_idle_timeout;
 extern usec_t cf_client_login_timeout;
 extern usec_t cf_idle_transaction_timeout;
+extern bool any_user_level_timeout_set;
 extern int cf_server_round_robin;
 extern int cf_disable_pqexec;
 extern usec_t cf_dns_max_ttl;

@@ -27,6 +27,7 @@
 /* do full maintenance 3x per second */
 static struct timeval full_maint_period = {0, USEC / 3};
 static struct event full_maint_ev;
+extern bool any_user_level_timeout_set;
 
 /* close all sockets in server list */
 static void close_server_list(struct StatList *sk_list, const char *reason)
@@ -594,6 +595,39 @@ static void pool_server_maint(PgPool *pool)
 			}
 		}
 	}
+
+	/* handle user level idle_transaction_timeout */
+	/* TODO Add check to see if any user level idle_transaction_timeout set? */
+    if (any_user_level_timeout_set) {
+        statlist_for_each_safe(item, &pool->active_server_list, tmp) {
+            usec_t age_client, age_server, idle_transaction_timeout, query_timeout;
+
+            server = container_of(item, PgSocket, head);
+            Assert(server->state == SV_ACTIVE);
+            if (server->ready)
+                continue;
+
+            /*
+             * Note the different age calculations:
+             * query_timeout counts from the last request
+             * of the client (the client started the
+             * query), idle_transaction_timeout counts
+             * from the last request of the server (the
+             * server sent the idle information).
+             */
+            age_client = now - server->link->request_time;
+            age_server = now - server->request_time;
+            idle_transaction_timeout = server->login_user_credentials->global_user->idle_transaction_timeout;
+            query_timeout = server->login_user_credentials->global_user->query_timeout;
+            if (query_timeout > 0 && age_client > query_timeout) {
+                disconnect_server(server, true, "query timeout");
+            } else if (idle_transaction_timeout > 0 &&
+                   server->idle_tx &&
+                   age_server > idle_transaction_timeout) {
+                disconnect_server(server, true, "idle transaction timeout");
+            }
+        }
+    }
 
 	/* find connections that got connect, but could not log in */
 	if (cf_server_connect_timeout > 0) {

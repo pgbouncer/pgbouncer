@@ -36,8 +36,8 @@ def test_server_idle_timeout(pg, bouncer):
     assert pg.connection_count() == 0
     bouncer.test()
 
-def test_user_idle_transaction_timeout(bouncer):
 
+def test_user_idle_transaction_timeout(bouncer):
     config = f"""
         [databases]
         postgres = host={bouncer.pg.host} port={bouncer.pg.port}
@@ -56,18 +56,17 @@ def test_user_idle_transaction_timeout(bouncer):
 
     # while configured to be in statement pooling mode
     with bouncer.run_with_config(config):
-      with bouncer.transaction(dbname="postgres", user="puser1") as cur:
-          with bouncer.log_contains(r"idle transaction timeout"):
-              time.sleep(3)
-              with pytest.raises(
-                  psycopg.OperationalError,
-                  match=r"server closed the connection unexpectedly|Software caused connection abort",
-              ):
-                  cur.execute("select 1")
+        with bouncer.transaction(dbname="postgres", user="puser1") as cur:
+            with bouncer.log_contains(r"idle transaction timeout"):
+                time.sleep(3)
+                with pytest.raises(
+                    psycopg.OperationalError,
+                    match=r"server closed the connection unexpectedly|Software caused connection abort",
+                ):
+                    cur.execute("select 1")
 
 
 def test_user_query_timeout(bouncer):
-
     config = f"""
         [databases]
         postgres = host={bouncer.pg.host} port={bouncer.pg.port}
@@ -86,11 +85,13 @@ def test_user_query_timeout(bouncer):
 
     # while configured to be in statement pooling mode
     with bouncer.run_with_config(config):
-      with bouncer.log_contains(r"query timeout"):
-          with pytest.raises(
-              psycopg.OperationalError, match=r"server closed the connection unexpectedly"
-          ):
-              bouncer.sleep(5, user="puser1", dbname="postgres")
+        with bouncer.log_contains(r"query timeout"):
+            with pytest.raises(
+                psycopg.OperationalError,
+                match=r"server closed the connection unexpectedly",
+            ):
+                bouncer.sleep(5, user="puser1", dbname="postgres")
+
 
 def test_query_timeout(bouncer):
     bouncer.admin(f"set query_timeout=1")

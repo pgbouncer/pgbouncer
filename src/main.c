@@ -427,7 +427,7 @@ void load_config(void)
 {
 	static bool loaded = false;
 	bool ok;
-    any_user_level_timeout_set = false;
+	any_user_level_timeout_set = false;
 
 	set_dbs_dead(true);
 	set_peers_dead(true);

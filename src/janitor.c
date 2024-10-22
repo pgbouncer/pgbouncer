@@ -27,6 +27,7 @@
 /* do full maintenance 3x per second */
 static struct timeval full_maint_period = {0, USEC / 3};
 static struct event full_maint_ev;
+extern bool any_user_level_client_timeout_set;
 
 /* close all sockets in server list */
 static void close_server_list(struct StatList *sk_list, const char *reason)
@@ -378,6 +379,7 @@ static void pool_client_maint(PgPool *pool)
 	struct List *item, *tmp;
 	usec_t now = get_cached_time();
 	PgSocket *client;
+	PgGlobalUser *user;
 	usec_t age;
 
 	/* force client_idle_timeout */
@@ -388,6 +390,19 @@ static void pool_client_maint(PgPool *pool)
 			if (client->link)
 				continue;
 			if (now - client->request_time > cf_client_idle_timeout)
+				disconnect_client(client, true, "client_idle_timeout");
+		}
+	}
+
+	/* check user client_idle_timout */
+	if (any_user_level_client_timeout_set) {
+		statlist_for_each_safe(item, &pool->active_client_list, tmp) {
+			client = container_of(item, PgSocket, head);
+			Assert(client->state == CL_ACTIVE);
+			if (client->link)
+				continue;
+			user = client->login_user_credentials->global_user;
+			if (now - client->request_time > user->client_idle_timeout && user->client_idle_timeout > (usec_t)0)
 				disconnect_client(client, true, "client_idle_timeout");
 		}
 	}

@@ -428,6 +428,8 @@ void load_config(void)
 	static bool loaded = false;
 	bool ok;
 
+	any_user_level_client_timeout_set = false;
+
 	set_dbs_dead(true);
 	set_peers_dead(true);
 

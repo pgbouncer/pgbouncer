@@ -47,6 +47,38 @@ def test_query_timeout(bouncer):
             bouncer.sleep(5)
 
 
+def test_user_level_idle_client_timeout(bouncer):
+    bouncer.admin(f"set pool_mode=transaction")
+    config = f"""
+        [databases]
+        postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+
+        [pgbouncer]
+        listen_addr = {bouncer.host}
+        auth_type = trust
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = postgres
+        pool_mode = session
+
+        [users]
+        puser1 = pool_mode=transaction client_idle_timeout=2
+    """
+
+    with bouncer.run_with_config(config):
+        bouncer.admin("RELOAD")
+        with bouncer.cur(dbname="postgres", user="puser1") as cur:
+            cur.execute("SELECT 1")
+            with bouncer.log_contains(r"client_idle_timeout"):
+                time.sleep(3)
+                with pytest.raises(
+                    psycopg.OperationalError,
+                    match=r"server closed the connection unexpectedly|Software caused connection abort",
+                ):
+                    cur.execute("SELECT 1")
+
+
 def test_idle_transaction_timeout(bouncer):
     bouncer.admin(f"set pool_mode=transaction")
     bouncer.admin(f"set idle_transaction_timeout=2")

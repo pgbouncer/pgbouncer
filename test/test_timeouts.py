@@ -56,6 +56,7 @@ def test_user_level_idle_client_timeout(bouncer):
         [pgbouncer]
         listen_addr = {bouncer.host}
         auth_type = trust
+        admin_users = pgbouncer
         auth_file = {bouncer.auth_path}
         listen_port = {bouncer.port}
         logfile = {bouncer.log_path}

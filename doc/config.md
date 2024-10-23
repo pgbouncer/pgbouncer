@@ -1295,6 +1295,12 @@ database or default `pool_mode` is used.
 Configure a maximum for the user (i.e. all pools with the user will
 not have more than this many server connections).
 
+### idle_transaction_timeout
+
+Set the maximum length of time a user can have an idle transaction open.
+If set this timeout applies in addition to the pgbouncer level config
+described above.
+
 ## Section [peers]
 
 The section `[peers]` defines the peers that PgBouncer can forward cancellation

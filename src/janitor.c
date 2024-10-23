@@ -597,7 +597,6 @@ static void pool_server_maint(PgPool *pool)
 	}
 
 	/* handle user level idle_transaction_timeout */
-	/* TODO Add check to see if any user level idle_transaction_timeout set? */
 	if (any_user_level_timeout_set) {
 		statlist_for_each_safe(item, &pool->active_server_list, tmp) {
 			usec_t age_client, age_server, idle_transaction_timeout, query_timeout;

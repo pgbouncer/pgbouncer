@@ -44,6 +44,7 @@ def test_user_idle_transaction_timeout(bouncer):
 
         [pgbouncer]
         listen_addr = {bouncer.host}
+        admin_users = pgbouncer
         auth_type = trust
         auth_file = {bouncer.auth_path}
         listen_port = {bouncer.port}
@@ -73,6 +74,7 @@ def test_user_query_timeout(bouncer):
 
         [pgbouncer]
         listen_addr = {bouncer.host}
+        admin_users = pgbouncer
         auth_type = trust
         auth_file = {bouncer.auth_path}
         listen_port = {bouncer.port}

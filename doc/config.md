@@ -1295,6 +1295,14 @@ database or default `pool_mode` is used.
 Configure a maximum for the user (i.e. all pools with the user will
 not have more than this many server connections).
 
+### client_idle_timeout
+
+Set the maximum amount of time that a client is allowed to idly connect to
+the pgbouncer instance. If set this timeout applies in addition to the
+pgbouncer level config described above.
+
+Please note that this is a potentially dangeous timeout.
+
 ## Section [peers]
 
 The section `[peers]` defines the peers that PgBouncer can forward cancellation

@@ -717,7 +717,10 @@ class Postgres(QueryRunner):
 
     def init_from(self, pg):
         cmd = f"pg_basebackup --host={pg.host} --port={pg.port} --pgdata={self.pgdata} "
-        cmd = cmd + "--username=postgres --checkpoint=fast --no-sync --write-recovery-conf"
+        cmd = (
+            cmd
+            + "--username=postgres --checkpoint=fast --no-sync --write-recovery-conf"
+        )
         run(
             cmd,
             stdout=subprocess.DEVNULL,

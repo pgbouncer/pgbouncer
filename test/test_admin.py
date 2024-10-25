@@ -104,13 +104,16 @@ def test_socket_id(bouncer) -> None:
                 time.sleep(2)
                 clients = admin_cursor.execute("SHOW SOCKETS").fetchall()
                 assert len(clients) == 3
-                assert set(
-                    [
-                        initial_id,
-                        initial_id + i * 2 - 1,
-                        initial_id + i * 2,
-                    ]
-                ) == set([client["id"] for client in clients])
+                assert (
+                    set(
+                        [
+                            initial_id,
+                            initial_id + i * 2 - 1,
+                            initial_id + i * 2,
+                        ]
+                    )
+                    == set([client["id"] for client in clients])
+                )
                 conn_2.close()
                 time.sleep(2)
 

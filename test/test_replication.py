@@ -39,9 +39,7 @@ def test_logical_rep_unprivileged(bouncer):
     else:
         expected_log = "permission denied to start WAL sender"
 
-    with bouncer.log_contains(
-        expected_log,
-    ), bouncer.log_contains(
+    with bouncer.log_contains(expected_log,), bouncer.log_contains(
         r"closing because: login failed \(age", times=2
     ), pytest.raises(psycopg.OperationalError, match=r"login failed"):
         bouncer.sql("IDENTIFY_SYSTEM", replication="database")

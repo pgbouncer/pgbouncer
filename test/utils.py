@@ -758,8 +758,10 @@ class Postgres(QueryRunner):
                 pgconf.write("listen_addresses='127.0.0.1,::1'\n")
 
     def init_from(self, pg):
+        cmd = f"pg_basebackup --host={pg.host} --port={pg.port} --pgdata={self.pgdata} "
+        cmd = cmd + "--username=postgres --checkpoint=fast --no-sync --write-recovery-conf"
         run(
-            f"pg_basebackup --host={pg.host} --port={pg.port} --username=postgres --checkpoint=fast --no-sync --write-recovery-conf --pgdata={self.pgdata}",
+            cmd,
             stdout=subprocess.DEVNULL,
         )
 

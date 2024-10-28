@@ -212,37 +212,20 @@ extern int cf_sbuf_len;
 #define MAX_PASSWORD    2048
 
 /*
- * AUTH_* symbols are used for both protocol handling and
- * configuration settings (auth_type, hba).  Some are only applicable
- * to one or the other.
+ * Symbols for authentication type settings (auth_type, hba).
  */
-
-/* no-auth modes */
-#define AUTH_ANY        -1	/* same as trust but without username check */
-#define AUTH_TRUST      AUTH_OK
-
-/* protocol codes in Authentication* 'R' messages from server */
-#define AUTH_OK         0
-#define AUTH_KRB4       1	/* not supported */
-#define AUTH_KRB5       2	/* not supported */
-#define AUTH_PLAIN      3
-#define AUTH_CRYPT      4	/* not supported */
-#define AUTH_MD5        5
-#define AUTH_SCM_CREDS  6	/* not supported */
-#define AUTH_GSS        7	/* not supported */
-#define AUTH_GSS_CONT   8	/* not supported */
-#define AUTH_SSPI       9	/* not supported */
-#define AUTH_SASL       10
-#define AUTH_SASL_CONT  11
-#define AUTH_SASL_FIN   12
-
-/* internal codes */
-#define AUTH_CERT       107
-#define AUTH_PEER       108
-#define AUTH_HBA        109
-#define AUTH_REJECT     110
-#define AUTH_PAM        111
-#define AUTH_SCRAM_SHA_256      112
+enum auth_type {
+	AUTH_TYPE_ANY,
+	AUTH_TYPE_TRUST,
+	AUTH_TYPE_PLAIN,
+	AUTH_TYPE_MD5,
+	AUTH_TYPE_CERT,
+	AUTH_TYPE_HBA,
+	AUTH_TYPE_PAM,
+	AUTH_TYPE_SCRAM_SHA_256,
+	AUTH_TYPE_PEER,
+	AUTH_TYPE_REJECT,
+};
 
 /* type codes for weird pkts */
 #define PKT_STARTUP_V2  0x20000

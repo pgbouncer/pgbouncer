@@ -94,7 +94,7 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 		return false;
 
 	switch (auth_type) {
-	case AUTH_PLAIN:
+	case AUTH_TYPE_PLAIN:
 		switch (get_password_type(user->passwd)) {
 		case PASSWORD_TYPE_PLAINTEXT:
 			return strcmp(user->passwd, passwd) == 0;
@@ -109,7 +109,7 @@ static bool check_client_passwd(PgSocket *client, const char *passwd)
 		default:
 			return false;
 		}
-	case AUTH_MD5: {
+	case AUTH_TYPE_MD5: {
 		char *stored_passwd;
 		char md5[MD5_PASSWD_LEN + 1];
 
@@ -143,14 +143,14 @@ static bool send_client_authreq(PgSocket *client)
 	int res;
 	int auth_type = client->client_auth_type;
 
-	if (auth_type == AUTH_MD5) {
+	if (auth_type == AUTH_TYPE_MD5) {
 		uint8_t saltlen = 4;
 		get_random_bytes((void *)client->tmp_login_salt, saltlen);
-		SEND_generic(res, client, PqMsg_AuthenticationRequest, "ib", AUTH_MD5, client->tmp_login_salt, saltlen);
-	} else if (auth_type == AUTH_PLAIN || auth_type == AUTH_PAM) {
-		SEND_generic(res, client, PqMsg_AuthenticationRequest, "i", AUTH_PLAIN);
-	} else if (auth_type == AUTH_SCRAM_SHA_256) {
-		SEND_generic(res, client, PqMsg_AuthenticationRequest, "iss", AUTH_SASL, "SCRAM-SHA-256", "");
+		SEND_generic(res, client, PqMsg_AuthenticationRequest, "ib", AUTH_REQ_MD5, client->tmp_login_salt, saltlen);
+	} else if (auth_type == AUTH_TYPE_PLAIN || auth_type == AUTH_TYPE_PAM) {
+		SEND_generic(res, client, PqMsg_AuthenticationRequest, "i", AUTH_REQ_PASSWORD);
+	} else if (auth_type == AUTH_TYPE_SCRAM_SHA_256) {
+		SEND_generic(res, client, PqMsg_AuthenticationRequest, "iss", AUTH_REQ_SASL, "SCRAM-SHA-256", "");
 	} else {
 		return false;
 	}
@@ -364,7 +364,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		return finish_client_login(client);
 
 	auth = cf_auth_type;
-	if (auth == AUTH_HBA) {
+	if (auth == AUTH_TYPE_HBA) {
 		rule = hba_eval(
 			parsed_hba,
 			&client->remote_addr,
@@ -383,34 +383,34 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		auth = rule->rule_method;
 	}
 
-	if (auth == AUTH_MD5) {
+	if (auth == AUTH_TYPE_MD5) {
 		if (get_password_type(client->login_user_credentials->passwd) == PASSWORD_TYPE_SCRAM_SHA_256)
-			auth = AUTH_SCRAM_SHA_256;
+			auth = AUTH_TYPE_SCRAM_SHA_256;
 	}
 
 	/* remember method */
 	client->client_auth_type = auth;
 
 	switch (auth) {
-	case AUTH_ANY:
+	case AUTH_TYPE_ANY:
 		ok = finish_client_login(client);
 		break;
-	case AUTH_TRUST:
+	case AUTH_TYPE_TRUST:
 		if (client->login_user_credentials->mock_auth)
 			disconnect_client(client, true, "\"trust\" authentication failed");
 		else
 			ok = finish_client_login(client);
 		break;
-	case AUTH_PLAIN:
-	case AUTH_MD5:
-	case AUTH_PAM:
-	case AUTH_SCRAM_SHA_256:
+	case AUTH_TYPE_PLAIN:
+	case AUTH_TYPE_MD5:
+	case AUTH_TYPE_PAM:
+	case AUTH_TYPE_SCRAM_SHA_256:
 		ok = send_client_authreq(client);
 		break;
-	case AUTH_CERT:
+	case AUTH_TYPE_CERT:
 		ok = login_via_cert(client, rule);
 		break;
-	case AUTH_PEER:
+	case AUTH_TYPE_PEER:
 		ok = login_as_unix_peer(client, rule);
 		break;
 	default:
@@ -488,7 +488,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 	}
 
 	/* find user */
-	if (cf_auth_type == AUTH_ANY) {
+	if (cf_auth_type == AUTH_TYPE_ANY) {
 		/* ignore requested user */
 		if (client->db->forced_user_credentials == NULL) {
 			slog_error(client, "auth_type=any requires forced user");
@@ -499,7 +499,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 		if (!check_user_connection_count(client)) {
 			return false;
 		}
-	} else if (cf_auth_type == AUTH_PAM) {
+	} else if (cf_auth_type == AUTH_TYPE_PAM) {
 		if (client->db->auth_user_credentials) {
 			slog_error(client, "PAM can't be used together with database authentication");
 			disconnect_client(client, true, "bouncer config error");
@@ -1007,7 +1007,7 @@ static bool scram_client_first(PgSocket *client, uint32_t datalen, const uint8_t
 	slog_debug(client, "SCRAM server-first-message = \"%s\"", client->scram_state.server_first_message);
 
 	SEND_generic(res, client, PqMsg_AuthenticationRequest, "ib",
-		     AUTH_SASL_CONT,
+		     AUTH_REQ_SASL_CONT,
 		     client->scram_state.server_first_message,
 		     strlen(client->scram_state.server_first_message));
 
@@ -1059,7 +1059,7 @@ static bool scram_client_final(PgSocket *client, uint32_t datalen, const uint8_t
 	slog_debug(client, "SCRAM server-final-message = \"%s\"", server_final_message);
 
 	SEND_generic(res, client, PqMsg_AuthenticationRequest, "ib",
-		     AUTH_SASL_FIN,
+		     AUTH_REQ_SASL_FIN,
 		     server_final_message,
 		     strlen(server_final_message));
 
@@ -1187,7 +1187,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 			return false;
 		}
 
-		if (client->client_auth_type == AUTH_SCRAM_SHA_256) {
+		if (client->client_auth_type == AUTH_TYPE_SCRAM_SHA_256) {
 			const char *mech;
 			uint32_t length;
 			const uint8_t *data;
@@ -1248,7 +1248,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 					return false;
 				}
 
-				if (client->client_auth_type == AUTH_PAM) {
+				if (client->client_auth_type == AUTH_TYPE_PAM) {
 					if (!sbuf_pause(&client->sbuf)) {
 						disconnect_client(client, true, "pause failed");
 						return false;

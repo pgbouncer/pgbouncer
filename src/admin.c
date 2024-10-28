@@ -355,7 +355,7 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 		password = sk->login_user_credentials->passwd;
 
 	/* PAM requires passwords as well since they are not stored externally */
-	if (cf_auth_type == AUTH_PAM && !find_global_user(sk->login_user_credentials->name))
+	if (cf_auth_type == AUTH_TYPE_PAM && !find_global_user(sk->login_user_credentials->name))
 		password = sk->login_user_credentials->passwd;
 
 	if (sk->pool && sk->pool->user_credentials && sk->pool->user_credentials->has_scram_keys)
@@ -1769,7 +1769,7 @@ bool admin_pre_login(PgSocket *client, const char *username)
 	 * auth_type=any does not keep original username around,
 	 * so username based check has to take place here
 	 */
-	if (cf_auth_type == AUTH_ANY) {
+	if (cf_auth_type == AUTH_TYPE_ANY) {
 		if (strlist_contains(cf_admin_users, username)) {
 			client->login_user_credentials = admin_pool->db->forced_user_credentials;
 			client->admin_user = true;
@@ -1789,7 +1789,7 @@ bool admin_post_login(PgSocket *client)
 {
 	const char *username = client->login_user_credentials->name;
 
-	if (cf_auth_type == AUTH_ANY)
+	if (cf_auth_type == AUTH_TYPE_ANY)
 		return true;
 
 	if (client->admin_user || strlist_contains(cf_admin_users, username)) {

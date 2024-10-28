@@ -539,8 +539,10 @@ struct PgGlobalUser {
 	struct List pool_list;		/* list of pools where pool->user == this user */
 	int pool_mode;
 	int pool_size;				/* max server connections in one pool */
-	int max_user_connections;	/* how much server connections are allowed */
-	int connection_count;	/* how much connections are used by user now */
+	int max_user_connections;	/* how many server connections are allowed */
+	int max_user_client_connections;	/* how many client connections are allowed */
+	int connection_count;	/* how many server connections are used by user now */
+	int client_connection_count;	/* how many client connections are used by user now */
 };
 
 /*
@@ -646,13 +648,17 @@ struct PgSocket {
 
 	PgCredentials *login_user_credentials;	/* presented login, for client it may differ from pool->user */
 
+	unsigned long long int id;	/* unique numeric ID used to identify PgSocket instance */
 	int client_auth_type;	/* auth method decided by hba */
 
 	/* the queue of requests that we still expect a server response for */
 	struct StatList outstanding_requests;
 
 	SocketState state : 8;		/* this also specifies socket location */
-	bool contributes_db_client_count : 1;
+	
+  bool contributes_db_client_count : 1;
+	bool user_connection_counted : 1;
+  
 	bool ready : 1;			/* server: accepts new query */
 	bool idle_tx : 1;		/* server: idling in tx */
 	bool close_needed : 1;		/* server: this socket must be closed ASAP */
@@ -773,6 +779,7 @@ extern usec_t cf_res_pool_timeout;
 extern int cf_max_db_connections;
 extern int cf_max_db_client_connections;
 extern int cf_max_user_connections;
+extern int cf_max_user_client_connections;
 
 extern char *cf_autodb_connstr;
 extern usec_t cf_autodb_idle_timeout;

@@ -71,6 +71,7 @@ struct Slab *iobuf_cache;
 struct Slab *outstanding_request_cache;
 struct Slab *var_list_cache;
 struct Slab *server_prepared_statement_cache;
+unsigned long long int last_pgsocket_id;
 
 /*
  * libevent may still report events when event_del()
@@ -104,13 +105,14 @@ int get_active_server_count(void)
 static void construct_client(void *obj)
 {
 	PgSocket *client = obj;
-
 	memset(client, 0, sizeof(PgSocket));
 	list_init(&client->head);
 	sbuf_init(&client->sbuf, client_proto);
 	client->vars.var_list = slab_alloc(var_list_cache);
 	client->state = CL_FREE;
 	client->client_prepared_statements = NULL;
+
+	client->id = ++last_pgsocket_id;
 }
 
 static void construct_server(void *obj)
@@ -124,6 +126,8 @@ static void construct_server(void *obj)
 	server->state = SV_FREE;
 	server->server_prepared_statements = NULL;
 	statlist_init(&server->outstanding_requests, "outstanding_requests");
+
+	server->id = ++last_pgsocket_id;
 }
 
 /* compare string with PgGlobalUser->credentials.name, for usage with btree */
@@ -1401,8 +1405,15 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
  */
 void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 {
+
 	if (client->db && client->contributes_db_client_count) {
 		client->db->client_connection_count--;
+
+	if (client->login_user_credentials) {
+		if (client->login_user_credentials->global_user && client->user_connection_counted) {
+			client->login_user_credentials->global_user->client_connection_count--;
+		}
+
 	}
 	if (reason) {
 		char buf[128];

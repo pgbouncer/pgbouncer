@@ -298,7 +298,6 @@ close_needed
 
 ptr
 :   Address of internal object for this connection.
-    Used as unique ID.
 
 link
 :   Address of client connection the server is paired with.
@@ -320,6 +319,10 @@ application_name
 prepared_statements
 :  The amount of prepared statements that are prepared on the server. This
    number is limited by the `max_prepared_statements` setting.
+
+id
+:   Unique ID for server.
+
 
 #### SHOW CLIENTS
 
@@ -368,7 +371,6 @@ close_needed
 
 ptr
 :   Address of internal object for this connection.
-    Used as unique ID.
 
 link
 :   Address of server connection the client is paired with.
@@ -386,6 +388,9 @@ application_name
 
 prepared_statements
 :  The amount of prepared statements that the client has prepared
+
+id
+:   Unique ID for client.
 
 #### SHOW POOLS
 
@@ -527,7 +532,14 @@ max_user_connections
     for this specific user, then the default value will be displayed.
 
 current_connections
-:   Current number of connections that this user has open to all servers.
+:   Current number of server connections that this user has open to all servers.
+
+max_user_client_connections
+:   The user's max_user_client_connections setting. If this setting is not set
+    for this specific user, then the default value will be displayed.
+
+current_client_connections
+:   Current number of client connections that this user has open to pgbouncer.
 
 #### SHOW DATABASES
 
@@ -750,23 +762,13 @@ Immediately drop all client and server connections on given database.
 New client connections to a killed database will wait until **RESUME**
 is called.
 
-#### KILL_CLIENT ptr
+#### KILL_CLIENT id
 
 Immediately kill specificed client connection along with any server
 connections for the given client. The client to kill, is identified
-by the ptr value that can be found using the `SHOW CLIENTS` command.
+by the `id` value that can be found using the `SHOW CLIENTS` command.
 
-An example command will look something like `KILL_CLIENT 0x561a71404330`.
-
-Please note that memory addreses are reused and it is possible to kill
-an unintended client. For example if you run `SHOW CLIENTS`, grab a client
-ptr, that client disconnects, a new client connects, then you run `KILL_CLIENT`
-there is a high likelihood that the new client will have the old clients
-ptr and the new client will be disconnected. As such this command should
-only be used on a client who you are certain will not disconnect by themselves
-and should be run immediately after getting the ptr in `SHOW CLIENTS`, ideally
-in an automated script. This is a limitation that we are looking to addres
-in the future.
+An example command will look something like `KILL_CLIENT 1234`.
 
 #### SUSPEND
 

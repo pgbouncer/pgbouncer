@@ -2263,7 +2263,7 @@ bool use_client_socket(int fd, PgAddr *addr,
 			log_error("SCRAM key data received for forced user");
 			return false;
 		}
-		if (cf_auth_type == AUTH_PAM) {
+		if (cf_auth_type == AUTH_TYPE_PAM) {
 			log_error("SCRAM key data received for PAM user");
 			return false;
 		}
@@ -2330,7 +2330,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 
 	if (db->forced_user_credentials) {
 		credentials = db->forced_user_credentials;
-	} else if (cf_auth_type == AUTH_PAM) {
+	} else if (cf_auth_type == AUTH_TYPE_PAM) {
 		credentials = add_pam_credentials(username, password);
 	} else {
 		credentials = find_global_credentials(username);

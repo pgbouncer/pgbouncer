@@ -737,6 +737,12 @@ struct PgSocket {
 		PktHdr pkt;
 	} packet_cb_state;
 
+	/* 
+	 * when admin console supports extended queries, the parse packet's
+	 * contents will be stored here. When Execute packet is observed,
+	 * we will execute the command stored here.
+	 */
+	PgParsePacket *admin_extended_protocol_cmd;
 
 	SBuf sbuf;		/* stream buffer, must be last */
 };

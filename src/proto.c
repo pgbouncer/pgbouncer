@@ -158,7 +158,7 @@ bool send_pooler_error(PgSocket *client, bool send_ready, const char *sqlstate, 
 		slog_warning(client, "pooler error: %s", msg);
 
 	pktbuf_static(&buf, tmpbuf, sizeof(tmpbuf));
-	pktbuf_write_generic(&buf, 'E', "cscscsc",
+	pktbuf_write_generic(&buf, PqMsg_ErrorResponse, "cscscsc",
 			     'S', level_fatal ? "FATAL" : "ERROR",
 			     'C', sqlstate ? sqlstate : "08P01", 'M', msg, 0);
 	if (send_ready)

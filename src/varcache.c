@@ -210,7 +210,7 @@ bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
 	int sql_ofs;
 	struct PktBuf *pkt = pktbuf_temp();
 
-	pktbuf_start_packet(pkt, 'Q');
+	pktbuf_start_packet(pkt, PqMsg_Query);
 
 	/* grab query position inside pkt */
 	sql_ofs = pktbuf_written(pkt);

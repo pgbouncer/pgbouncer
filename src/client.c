@@ -146,11 +146,11 @@ static bool send_client_authreq(PgSocket *client)
 	if (auth_type == AUTH_MD5) {
 		uint8_t saltlen = 4;
 		get_random_bytes((void *)client->tmp_login_salt, saltlen);
-		SEND_generic(res, client, 'R', "ib", AUTH_MD5, client->tmp_login_salt, saltlen);
+		SEND_generic(res, client, PqMsg_AuthenticationRequest, "ib", AUTH_MD5, client->tmp_login_salt, saltlen);
 	} else if (auth_type == AUTH_PLAIN || auth_type == AUTH_PAM) {
-		SEND_generic(res, client, 'R', "i", AUTH_PLAIN);
+		SEND_generic(res, client, PqMsg_AuthenticationRequest, "i", AUTH_PLAIN);
 	} else if (auth_type == AUTH_SCRAM_SHA_256) {
-		SEND_generic(res, client, 'R', "iss", AUTH_SASL, "SCRAM-SHA-256", "");
+		SEND_generic(res, client, PqMsg_AuthenticationRequest, "iss", AUTH_SASL, "SCRAM-SHA-256", "");
 	} else {
 		return false;
 	}
@@ -197,7 +197,7 @@ static void start_auth_query(PgSocket *client, const char *username)
 	 * Add outstanding request, so that the server is closed if the client
 	 * disconnects before the auth_query completes.
 	 */
-	if (!add_outstanding_request(client, 'S', RA_SKIP)) {
+	if (!add_outstanding_request(client, PqMsg_Sync, RA_SKIP)) {
 		disconnect_server(client->link, true, "out of memory");
 		return;
 	}
@@ -572,7 +572,7 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
 	PgSocket *server = client->link;
 
 	switch (pkt->type) {
-	case 'T':	/* RowDescription */
+	case PqMsg_RowDescription:
 		if (!mbuf_get_uint16be(&pkt->data, &columns)) {
 			disconnect_server(server, false, "bad packet");
 			return false;
@@ -582,7 +582,7 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
 			return false;
 		}
 		break;
-	case 'D':	/* DataRow */
+	case PqMsg_DataRow:
 		memset(&credentials, 0, sizeof(credentials));
 		if (!mbuf_get_uint16be(&pkt->data, &columns)) {
 			disconnect_server(server, false, "bad packet");
@@ -638,17 +638,17 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
 			return false;
 		}
 		break;
-	case 'N':	/* NoticeResponse */
+	case PqMsg_NoticeResponse:
 		break;
-	case 'C':	/* CommandComplete */
+	case PqMsg_CommandComplete:
 		break;
-	case '1':	/* ParseComplete */
+	case PqMsg_ParseComplete:
 		break;
-	case '2':	/* BindComplete */
+	case PqMsg_BindComplete:
 		break;
-	case 'S':	/* ParameterStatus */
+	case PqMsg_ParameterStatus:
 		break;
-	case 'Z':	/* ReadyForQuery */
+	case PqMsg_ReadyForQuery:
 		sbuf_prepare_skip(&client->link->sbuf, pkt->len);
 		if (!client->login_user_credentials) {
 			if (cf_log_connections)
@@ -678,7 +678,7 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
 		if (server->state == SV_FREE || server->state == SV_JUSTFREE)
 			return false;
 		return true;
-	case 'E':	/* ErrorResponse */
+	case PqMsg_ErrorResponse:
 		disconnect_server(server, false, "error response from auth_query");
 		return false;
 	default:
@@ -1006,7 +1006,7 @@ static bool scram_client_first(PgSocket *client, uint32_t datalen, const uint8_t
 		goto failed;
 	slog_debug(client, "SCRAM server-first-message = \"%s\"", client->scram_state.server_first_message);
 
-	SEND_generic(res, client, 'R', "ib",
+	SEND_generic(res, client, PqMsg_AuthenticationRequest, "ib",
 		     AUTH_SASL_CONT,
 		     client->scram_state.server_first_message,
 		     strlen(client->scram_state.server_first_message));
@@ -1058,7 +1058,7 @@ static bool scram_client_final(PgSocket *client, uint32_t datalen, const uint8_t
 		goto failed;
 	slog_debug(client, "SCRAM server-final-message = \"%s\"", server_final_message);
 
-	SEND_generic(res, client, 'R', "ib",
+	SEND_generic(res, client, PqMsg_AuthenticationRequest, "ib",
 		     AUTH_SASL_FIN,
 		     server_final_message,
 		     strlen(server_final_message));
@@ -1180,7 +1180,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		}
 
 		break;
-	case 'p':		/* PasswordMessage, SASLInitialResponse, or SASLResponse */
+	case PqMsg_PasswordMessage:	/* or SASLInitialResponse, or SASLResponse */
 		/* too early */
 		if (!client->login_user_credentials) {
 			disconnect_client(client, true, "client password pkt before startup packet");
@@ -1297,28 +1297,28 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 
 	switch (pkt->type) {
 	/* one-packet queries */
-	case 'Q':		/* Query */
+	case PqMsg_Query:
 		if (cf_disable_pqexec) {
-			slog_error(client, "client used 'Q' packet type");
+			slog_error(client, "client used \"Query\" packet type");
 			disconnect_client(client, true, "PQexec disallowed");
 			return false;
 		}
 		track_outstanding = true;
 		break;
-	case 'F':		/* FunctionCall */
+	case PqMsg_FunctionCall:
 		track_outstanding = true;
 		break;
 
 	/* request immediate response from server */
-	case 'S':		/* Sync */
+	case PqMsg_Sync:
 		track_outstanding = true;
 		break;
-	case 'H':		/* Flush */
+	case PqMsg_Flush:
 		break;
 
 	/* copy end markers */
-	case 'c':		/* CopyDone(F/B) */
-	case 'f':		/* CopyFail(F/B) */
+	case PqMsg_CopyDone:
+	case PqMsg_CopyFail:
 		track_outstanding = true;
 		break;
 
@@ -1326,7 +1326,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	 * extended protocol allows server (and thus pooler)
 	 * to buffer packets until sync or flush is sent by client
 	 */
-	case 'P':		/* Parse */
+	case PqMsg_Parse:
 		track_outstanding = true;
 		if (is_prepared_statements_enabled(client)) {
 			ps_action = inspect_parse_packet(client, pkt);
@@ -1334,11 +1334,11 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		}
 		break;
 
-	case 'E':		/* Execute */
+	case PqMsg_Execute:
 		track_outstanding = true;
 		break;
 
-	case 'C':		/* Close */
+	case PqMsg_Close:
 		track_outstanding = true;
 		if (is_prepared_statements_enabled(client)) {
 			ps_action = inspect_describe_or_close_packet(client, pkt);
@@ -1346,7 +1346,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		}
 		break;
 
-	case 'B':		/* Bind */
+	case PqMsg_Bind:
 		track_outstanding = true;
 		if (is_prepared_statements_enabled(client)) {
 			ps_action = inspect_bind_packet(client, pkt);
@@ -1354,7 +1354,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		}
 		break;
 
-	case 'D':		/* Describe */
+	case PqMsg_Describe:
 		track_outstanding = true;
 		if (is_prepared_statements_enabled(client)) {
 			ps_action = inspect_describe_or_close_packet(client, pkt);
@@ -1362,7 +1362,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		}
 		break;
 
-	case 'd':		/* CopyData(F/B) */
+	case PqMsg_CopyData:
 		break;
 
 	/* client wants to go away */
@@ -1370,7 +1370,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		slog_error(client, "unknown pkt from client: %u/0x%x", pkt->type, pkt->type);
 		disconnect_client(client, true, "unknown pkt");
 		return false;
-	case 'X':	/* Terminate */
+	case PqMsg_Terminate:
 		disconnect_client(client, false, "client close request");
 		return false;
 	}
@@ -1435,7 +1435,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		return false;
 	}
 
-	if (ps_action != PS_IGNORE && pkt->type == 'C') {
+	if (ps_action != PS_IGNORE && pkt->type == PqMsg_Close) {
 		if (!unmarshall_close_packet(client, pkt, &close_packet))
 			return false;
 
@@ -1489,11 +1489,11 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 
 		switch (pkt->type)
 		{
-		case 'P':
+		case PqMsg_Parse:
 			return handle_parse_command(client, pkt);
-		case 'B':
+		case PqMsg_Bind:
 			return handle_bind_command(client, pkt);
-		case 'D':
+		case PqMsg_Describe:
 			return handle_describe_command(client, pkt);
 		}
 		return true;

@@ -1307,8 +1307,8 @@ not have more than this many server connections).
 ### client_idle_timeout
 
 Set the maximum amount of time in seconds that a client is allowed to idly connect to
-the pgbouncer instance. If set this timeout applies in addition to the
-pgbouncer level config described above.
+the pgbouncer instance. If set this timeout overrides the server level client_idle_timeout
+described above.
 
 Please note that this is a potentially dangeous timeout.
 

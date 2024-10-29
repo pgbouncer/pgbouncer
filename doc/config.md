@@ -1,5 +1,6 @@
 # pgbouncer.ini
 
+
 ## Description
 
 The configuration file is in "ini" format. Section names are between "[" and "]".  Lines

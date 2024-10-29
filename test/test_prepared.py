@@ -571,6 +571,7 @@ def test_prepared_statement_pipeline_latency(bouncer, pg):
                 for i in range(num_queries):
                     assert curs[i].fetchone()[0] == str(i)
 
+
 def test_prepared_statement_counters(bouncer):
     bouncer.default_db = "p0"
     bouncer.admin(f"set pool_mode=transaction")

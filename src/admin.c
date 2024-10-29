@@ -1785,8 +1785,8 @@ bool admin_pre_login(PgSocket *client, const char *username)
 			client->login_user_credentials = admin_pool->db->forced_user_credentials;
 			if (!check_db_connection_count(client))
 				return false;
-      
-			if (!check_user_connection_count(client)) 
+
+			if (!check_user_connection_count(client))
 				return false;
 
 			return true;

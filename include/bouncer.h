@@ -655,10 +655,10 @@ struct PgSocket {
 	struct StatList outstanding_requests;
 
 	SocketState state : 8;		/* this also specifies socket location */
-	
-  bool contributes_db_client_count : 1;
+
+	bool contributes_db_client_count : 1;
 	bool user_connection_counted : 1;
-  
+
 	bool ready : 1;			/* server: accepts new query */
 	bool idle_tx : 1;		/* server: idling in tx */
 	bool close_needed : 1;		/* server: this socket must be closed ASAP */

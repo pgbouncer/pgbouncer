@@ -439,7 +439,7 @@ bool check_db_connection_count(PgSocket *client)
 	log_debug("set_pool: db '%s' full (%d >= %d)",
 		  client->db->name, client->db->client_connection_count, client->db->max_db_client_connections);
 	disconnect_client(client, true, "client connections exceeded (max_db_client_connections)");
-  
+
 	return false;
 }
 
@@ -524,9 +524,8 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 		if (!check_db_connection_count(client))
 			return false;
 
-		if (!check_user_connection_count(client)) 
+		if (!check_user_connection_count(client))
 			return false;
-		
 	} else if (cf_auth_type == AUTH_PAM) {
 		if (client->db->auth_user_credentials) {
 			slog_error(client, "PAM can't be used together with database authentication");
@@ -551,9 +550,9 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 		if (!check_db_connection_count(client))
 			return false;
 
-		if (!check_user_connection_count(client)) 
+		if (!check_user_connection_count(client))
 			return false;
-	
+
 		if (!client->login_user_credentials || client->login_user_credentials->dynamic_passwd) {
 			/*
 			 * If the login user specified by the client
@@ -573,11 +572,11 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 				} else {
 					if (takeover) {
 						client->login_user_credentials = add_dynamic_credentials(client->db, username, password);
-            
+
 						if (!check_db_connection_count(client))
 							return false;
-            
-						if (!check_user_connection_count(client)) 
+
+						if (!check_user_connection_count(client))
 							return false;
 
 						return finish_set_pool(client, takeover);

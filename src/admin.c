@@ -601,7 +601,9 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	}
 	cv.extra = pool_mode_map;
 
-	pktbuf_write_RowDescription(buf, "sssii", "name", "pool_size", "pool_mode", "max_user_connections", "current_connections");
+	pktbuf_write_RowDescription(
+		buf, "sssiiii", "name", "pool_size", "pool_mode", "max_user_connections", "current_connections",
+		"max_user_client_connections", "current_client_connections");
 	statlist_for_each(item, &user_list) {
 		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
 		if (user->pool_size >= 0)
@@ -612,11 +614,13 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 		if (user->pool_mode != POOL_INHERIT)
 			pool_mode_str = cf_get_lookup(&cv);
 
-		pktbuf_write_DataRow(buf, "sssii", user->credentials.name,
+		pktbuf_write_DataRow(buf, "sssiiii", user->credentials.name,
 				     pool_size_str,
 				     pool_mode_str,
 				     user_max_connections(user),
-				     user->connection_count
+				     user->connection_count,
+				     user_client_max_connections(user),
+				     user->client_connection_count
 				     );
 	}
 	admin_flush(admin, buf, "SHOW");
@@ -1772,6 +1776,9 @@ bool admin_pre_login(PgSocket *client, const char *username)
 			return true;
 		} else if (strlist_contains(cf_stats_users, username)) {
 			client->login_user_credentials = admin_pool->db->forced_user_credentials;
+			if (!check_user_connection_count(client)) {
+				return false;
+			}
 			return true;
 		}
 	}

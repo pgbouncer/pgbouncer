@@ -127,6 +127,7 @@ int cf_res_pool_size;
 usec_t cf_res_pool_timeout;
 int cf_max_db_connections;
 int cf_max_user_connections;
+int cf_max_user_client_connections;
 
 char *cf_server_reset_query;
 int cf_server_reset_query_always;
@@ -276,6 +277,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("max_packet_size", CF_UINT, cf_max_packet_size, 0, "2147483647"),
 	CF_ABS("max_prepared_statements", CF_INT, cf_max_prepared_statements, 0, "200"),
 	CF_ABS("max_user_connections", CF_INT, cf_max_user_connections, 0, "0"),
+	CF_ABS("max_user_client_connections", CF_INT, cf_max_user_client_connections, 0, "0"),
 	CF_ABS("min_pool_size", CF_INT, cf_min_pool_size, 0, "0"),
 	CF_ABS("peer_id", CF_INT, cf_peer_id, 0, "0"),
 	CF_ABS("pidfile", CF_STR, cf_pidfile, CF_NO_RELOAD, ""),

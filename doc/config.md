@@ -195,6 +195,15 @@ pool.
 
 Default: 0 (unlimited)
 
+### max_user_client_connections
+
+Do not allow more than this many client connections per user
+(regardless of database). This value should be set to a number higher than max_user_connections. This difference between max_user_connections and max_user_client_connections can be conceptualized as the number the max size of the queue for the user.
+
+This can also be set per user in the `[users]` section.
+
+Default: 0 (unlimited)
+
 ### server_round_robin
 
 By default, PgBouncer reuses server connections in LIFO (last-in, first-out) manner,
@@ -1292,7 +1301,7 @@ database or default `pool_mode` is used.
 
 ### max_user_connections
 
-Configure a maximum for the user (i.e. all pools with the user will
+Configure a maximum for the user of server connections (i.e. all pools with the user will
 not have more than this many server connections).
 
 ### query_timeout
@@ -1305,6 +1314,9 @@ If set this timeout overrides the server level query_timeout described above.
 Set the maximum length of time a user can have an idle transaction open.
 If set this timeout overides the server level idle_transaction_timeout
 described above.
+
+### max_user_client_connections
+Configure a maximum for the user of client connections. This is the user equivalent ofthe max_client_conn setting.
 
 ## Section [peers]
 

@@ -483,8 +483,8 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	int pool_mode = POOL_INHERIT;
 	int pool_size = -1;
 	int max_user_connections = -1;
-	usec_t idle_transaction_timeout = -1;
-	usec_t query_timeout = -1;
+	usec_t idle_transaction_timeout = 0;
+	usec_t query_timeout = 0;
 
 	cv.value_p = &pool_mode;
 	cv.extra = (const void *)pool_mode_map;

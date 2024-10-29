@@ -1,5 +1,3 @@
-# pgbouncer.ini
-
 
 ## Description
 
@@ -1295,10 +1293,15 @@ database or default `pool_mode` is used.
 Configure a maximum for the user (i.e. all pools with the user will
 not have more than this many server connections).
 
+### query_timeout
+
+Set the maximum length of time that a user query can run for.
+If set this timeout overrides the server level query_timeout described above.
+
 ### idle_transaction_timeout
 
 Set the maximum length of time a user can have an idle transaction open.
-If set this timeout applies in addition to the pgbouncer level config
+If set this timeout overides the server level idle_transaction_timeout
 described above.
 
 ## Section [peers]

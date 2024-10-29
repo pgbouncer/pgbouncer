@@ -539,9 +539,11 @@ struct PgGlobalUser {
 	struct List pool_list;		/* list of pools where pool->user == this user */
 	int pool_mode;
 	int pool_size;				/* max server connections in one pool */
-	int max_user_connections;	/* how much server connections are allowed */
-	int connection_count;	/* how much connections are used by user now */
 	usec_t client_idle_timeout;	/* how long is user allowed to idly connect to pgbouncer */
+	int max_user_connections;	/* how many server connections are allowed */
+	int max_user_client_connections;	/* how many client connections are allowed */
+	int connection_count;	/* how many server connections are used by user now */
+	int client_connection_count;	/* how many client connections are used by user now */
 };
 
 /*
@@ -653,6 +655,7 @@ struct PgSocket {
 
 	SocketState state : 8;		/* this also specifies socket location */
 
+	bool user_connection_counted : 1;
 	bool ready : 1;			/* server: accepts new query */
 	bool idle_tx : 1;		/* server: idling in tx */
 	bool close_needed : 1;		/* server: this socket must be closed ASAP */
@@ -772,6 +775,7 @@ extern int cf_res_pool_size;
 extern usec_t cf_res_pool_timeout;
 extern int cf_max_db_connections;
 extern int cf_max_user_connections;
+extern int cf_max_user_client_connections;
 
 extern char *cf_autodb_connstr;
 extern usec_t cf_autodb_idle_timeout;

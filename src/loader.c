@@ -484,6 +484,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	int pool_size = -1;
 	int max_user_connections = -1;
 	usec_t client_idle_timeout = -1;
+	int max_user_client_connections = -1;
 
 	cv.value_p = &pool_mode;
 	cv.extra = (const void *)pool_mode_map;
@@ -516,6 +517,8 @@ bool parse_user(void *base, const char *name, const char *connstr)
 		} else if (strcmp("client_idle_timeout", key) == 0) {
 			any_user_level_client_timeout_set = true;
 			client_idle_timeout = atoi(val);
+		} else if (strcmp("max_user_client_connections", key) == 0) {
+			max_user_client_connections = atoi(val);
 		} else {
 			log_error("unrecognized user parameter: %s", key);
 			goto fail;
@@ -535,6 +538,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	user->pool_size = pool_size;
 	user->max_user_connections = max_user_connections;
 	user->client_idle_timeout = client_idle_timeout;
+	user->max_user_client_connections = max_user_client_connections;
 
 	free(tmp_connstr);
 	return true;

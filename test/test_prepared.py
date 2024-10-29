@@ -4,6 +4,7 @@ import time
 import psycopg
 import pytest
 from psycopg import pq, sql
+from psycopg.rows import dict_row
 
 from .utils import LIBPQ_SUPPORTS_PIPELINING, LINUX, PKT_BUF_SIZE, USE_SUDO
 
@@ -569,3 +570,59 @@ def test_prepared_statement_pipeline_latency(bouncer, pg):
                 # The results should be correct too
                 for i in range(num_queries):
                     assert curs[i].fetchone()[0] == str(i)
+
+def test_prepared_statement_counters(bouncer):
+    bouncer.default_db = "p0"
+    bouncer.admin(f"set pool_mode=transaction")
+
+    # Explicitly disable prepared statement support
+    bouncer.admin(f"set max_prepared_statements=0")
+    with bouncer.cur() as cur:
+        with cur.connection.transaction():
+            cur.execute("SELECT 1")
+            cur.execute("SELECT 1")
+            cur.execute("SELECT 1")
+        with cur.connection.transaction():
+            cur.execute("SELECT 1")
+            cur.execute("SELECT 1")
+            cur.execute("SELECT 1")
+
+    stats = bouncer.admin("SHOW STATS", row_factory=dict_row)
+    p0_stats = next(s for s in stats if s["database"] == "p0")
+    # All the prepared statement counters should be 0, as they are not applicable
+    assert p0_stats["total_client_parse_count"] == 0
+    assert p0_stats["total_server_parse_count"] == 0
+    assert p0_stats["total_bind_count"] == 0
+    assert p0_stats["avg_client_parse_count"] == 0
+    assert p0_stats["avg_server_parse_count"] == 0
+    assert p0_stats["avg_bind_count"] == 0
+
+    # Explicitly enable prepared statement support
+    bouncer.admin(f"set max_prepared_statements=10")
+    prepared_query = "SELECT 1"
+    with bouncer.cur() as cur1:
+        with bouncer.cur() as cur2:
+            # prepare query on server 1 and client 1
+            cur1.execute(prepared_query, prepare=True)
+            # Run the prepared query twice on same server and client
+            cur1.execute(prepared_query)
+            cur1.execute(prepared_query)
+            with cur2.connection.transaction():
+                # Claim server 1 with client 2
+                cur2.execute("SELECT 2")
+                # Client 1 now runs the prepared query, and it's automatically
+                # prepared on server 2
+                cur1.execute(prepared_query)
+                # Client 2 now prepares the same query that was already
+                # prepared on server 1. And PgBouncer reuses that already
+                # prepared query for this different client.
+                cur2.execute(prepared_query, prepare=True)
+
+    stats = bouncer.admin("SHOW STATS", row_factory=dict_row)
+    p0_stats = next(s for s in stats if s["database"] == "p0")
+    # 2 prepare=True executions
+    assert p0_stats["total_client_parse_count"] == 2
+    # server 1 and server 2 have to prepare the query
+    assert p0_stats["total_server_parse_count"] == 2
+    # 2 executions with prepare=True + 3 re-use executions
+    assert p0_stats["total_bind_count"] == 5

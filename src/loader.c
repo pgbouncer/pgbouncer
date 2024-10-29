@@ -483,7 +483,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	int pool_mode = POOL_INHERIT;
 	int pool_size = -1;
 	int max_user_connections = -1;
-	usec_t client_idle_timeout = -1;
+	usec_t client_idle_timeout = 0;
 	int max_user_client_connections = -1;
 
 	cv.value_p = &pool_mode;
@@ -516,7 +516,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 			max_user_connections = atoi(val);
 		} else if (strcmp("client_idle_timeout", key) == 0) {
 			any_user_level_client_timeout_set = true;
-			client_idle_timeout = atoi(val);
+			client_idle_timeout = atoi(val) * USEC;
 		} else if (strcmp("max_user_client_connections", key) == 0) {
 			max_user_client_connections = atoi(val);
 		} else {

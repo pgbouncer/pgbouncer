@@ -381,31 +381,27 @@ static void pool_client_maint(PgPool *pool)
 	PgSocket *client;
 	PgGlobalUser *user;
 	usec_t age;
+	usec_t effective_client_idle_timeout;
 
 	/* force client_idle_timeout */
-	if (cf_client_idle_timeout > 0) {
+	if (cf_client_idle_timeout > 0 || any_user_level_client_timeout_set) {
 		statlist_for_each_safe(item, &pool->active_client_list, tmp) {
 			client = container_of(item, PgSocket, head);
 			Assert(client->state == CL_ACTIVE);
 			if (client->link)
 				continue;
-			if (now - client->request_time > cf_client_idle_timeout)
+
+			user = client->login_user_credentials->global_user;
+			effective_client_idle_timeout = cf_client_idle_timeout;
+
+			if (user->client_idle_timeout > 0)
+				effective_client_idle_timeout = user->client_idle_timeout;
+
+			if (now - client->request_time > effective_client_idle_timeout)
 				disconnect_client(client, true, "client_idle_timeout");
 		}
 	}
 
-	/* check user client_idle_timout */
-	if (any_user_level_client_timeout_set) {
-		statlist_for_each_safe(item, &pool->active_client_list, tmp) {
-			client = container_of(item, PgSocket, head);
-			Assert(client->state == CL_ACTIVE);
-			if (client->link)
-				continue;
-			user = client->login_user_credentials->global_user;
-			if (now - client->request_time > user->client_idle_timeout && user->client_idle_timeout > (usec_t)0)
-				disconnect_client(client, true, "client_idle_timeout");
-		}
-	}
 
 	/* force timeouts for waiting queries */
 	if (cf_query_timeout > 0 || cf_query_wait_timeout > 0) {

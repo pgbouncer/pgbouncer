@@ -721,8 +721,10 @@ static void check_pidfile(void)
 	}
 	res = read(fd, buf, sizeof(buf) - 1);
 	close(fd);
-	if (res <= 0)
+	if (res < 0)
 		die("could not read pidfile '%s': %s", cf_pidfile, strerror(errno));
+	if (res == 0)
+		die("empty pidfile '%s', please remove if created manually: %s", cf_pidfile, strerror(errno));
 
 	/* parse pid */
 	buf[res] = 0;

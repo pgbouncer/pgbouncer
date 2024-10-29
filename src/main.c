@@ -724,7 +724,7 @@ static void check_pidfile(void)
 	if (res < 0)
 		die("could not read pidfile '%s': %s", cf_pidfile, strerror(errno));
 	if (res == 0)
-		die("empty pidfile '%s', please remove if created manually: %s", cf_pidfile, strerror(errno));
+		die("empty pidfile '%s', please remove if created manually", cf_pidfile);
 
 	/* parse pid */
 	buf[res] = 0;

@@ -601,7 +601,9 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	}
 	cv.extra = pool_mode_map;
 
-	pktbuf_write_RowDescription(buf, "sssii", "name", "pool_size", "pool_mode", "max_user_connections", "current_connections");
+	pktbuf_write_RowDescription(
+		buf, "sssiiii", "name", "pool_size", "pool_mode", "max_user_connections", "current_connections",
+		"max_user_client_connections", "current_client_connections");
 	statlist_for_each(item, &user_list) {
 		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
 		if (user->pool_size >= 0)
@@ -612,19 +614,21 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 		if (user->pool_mode != POOL_INHERIT)
 			pool_mode_str = cf_get_lookup(&cv);
 
-		pktbuf_write_DataRow(buf, "sssii", user->credentials.name,
+		pktbuf_write_DataRow(buf, "sssiiii", user->credentials.name,
 				     pool_size_str,
 				     pool_mode_str,
 				     user_max_connections(user),
-				     user->connection_count
+				     user->connection_count,
+				     user_client_max_connections(user),
+				     user->client_connection_count
 				     );
 	}
 	admin_flush(admin, buf, "SHOW");
 	return true;
 }
 
-#define SKF_STD "ssssssisiTTiiississi"
-#define SKF_DBG "ssssssisiTTiiississiiiiiiii"
+#define SKF_STD "ssssssisiTTiiississii"
+#define SKF_DBG "ssssssisiTTiiississiiiiiiiii"
 
 static void socket_header(PktBuf *buf, bool debug)
 {
@@ -635,7 +639,7 @@ static void socket_header(PktBuf *buf, bool debug)
 				    "wait", "wait_us", "close_needed",
 				    "ptr", "link", "remote_pid", "tls",
 				    "application_name",
-				    "prepared_statements",
+				    "prepared_statements", "id",
 					/* debug follows */
 				    "recv_pos", "pkt_pos", "pkt_remain",
 				    "send_pos", "send_remain",
@@ -714,7 +718,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 			     sk->close_needed,
 			     ptrbuf, linkbuf, remote_pid, infobuf,
 			     application_name ? application_name->str : "",
-			     prepared_statement_count,
+			     prepared_statement_count, sk->id,
 				/* debug */
 			     io ? io->recv_pos : 0,
 			     io ? io->parse_pos : 0,
@@ -1330,6 +1334,81 @@ static bool admin_cmd_enable(PgSocket *admin, const char *arg)
 	return admin_ready(admin, "ENABLE");
 }
 
+
+static PgSocket *find_socket_in_list(unsigned long long int target_id, struct StatList *sockets)
+{
+	struct List *item;
+	PgSocket *socket;
+
+	statlist_for_each(item, sockets) {
+		socket = container_of(item, PgSocket, head);
+		if (target_id == socket->id) {
+			return socket;
+		}
+	}
+	return NULL;
+}
+
+static PgSocket *find_client_global(unsigned long long int target_id)
+{
+	PgSocket *kill_client;
+	struct List *item;
+	PgPool *pool;
+
+	statlist_for_each(item, &pool_list) {
+		pool = container_of(item, PgPool, head);
+
+		kill_client = find_socket_in_list(target_id, &pool->active_client_list);
+		if (kill_client != NULL) {
+			return kill_client;
+		}
+		kill_client = find_socket_in_list(target_id, &pool->waiting_client_list);
+		if (kill_client != NULL) {
+			return kill_client;
+		}
+		kill_client = find_socket_in_list(target_id, &pool->active_cancel_req_list);
+		if (kill_client != NULL) {
+			return kill_client;
+		}
+		kill_client = find_socket_in_list(target_id, &pool->waiting_cancel_req_list);
+		if (kill_client != NULL) {
+			return kill_client;
+		}
+	}
+
+	statlist_for_each(item, &peer_pool_list) {
+		pool = container_of(item, PgPool, head);
+
+		kill_client = find_socket_in_list(target_id, &pool->active_cancel_req_list);
+		if (kill_client != NULL) {
+			return kill_client;
+		}
+		kill_client = find_socket_in_list(target_id, &pool->waiting_cancel_req_list);
+		if (kill_client != NULL) {
+			return kill_client;
+		}
+	}
+	return NULL;
+}
+
+/* Command: KILL_CLIENT */
+static bool admin_cmd_kill_client(PgSocket *admin, const char *arg)
+{
+	PgSocket *kill_client;
+	unsigned long long int target_id = 0;
+
+	if (sscanf(arg, "%llu", &target_id) != 1) {
+		return admin_error(admin, "invalid client pointer supplied");
+	}
+
+	kill_client = find_client_global((unsigned long long int) target_id);
+	if (kill_client == NULL) {
+		return admin_error(admin, "client not found");
+	}
+	disconnect_client(kill_client, true, "admin forced disconnect");
+	return admin_ready(admin, "KILL_CLIENT");
+}
+
 /* Command: KILL */
 static bool admin_cmd_kill(PgSocket *admin, const char *arg)
 {
@@ -1467,6 +1546,7 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		     "\tENABLE <db>\n"
 		     "\tRECONNECT [<db>]\n"
 		     "\tKILL <db>\n"
+		     "\tKILL_CLIENT <client_ptr>\n"
 		     "\tSUSPEND\n"
 		     "\tSHUTDOWN\n"
 		     "\tSHUTDOWN WAIT_FOR_SERVERS|WAIT_FOR_CLIENTS\n"
@@ -1552,6 +1632,7 @@ static struct cmd_lookup cmd_list [] = {
 	{"disable", admin_cmd_disable},
 	{"enable", admin_cmd_enable},
 	{"kill", admin_cmd_kill},
+	{"kill_client", admin_cmd_kill_client},
 	{"pause", admin_cmd_pause},
 	{"reconnect", admin_cmd_reconnect},
 	{"reload", admin_cmd_reload},
@@ -1695,6 +1776,9 @@ bool admin_pre_login(PgSocket *client, const char *username)
 			return true;
 		} else if (strlist_contains(cf_stats_users, username)) {
 			client->login_user_credentials = admin_pool->db->forced_user_credentials;
+			if (!check_user_connection_count(client)) {
+				return false;
+			}
 			return true;
 		}
 	}

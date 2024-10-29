@@ -38,6 +38,8 @@ extern struct Slab *var_list_cache;
 extern struct Slab *server_prepared_statement_cache;
 extern PgPreparedStatement *prepared_statements;
 
+extern unsigned long long int last_pgsocket_id;
+
 PgDatabase *find_peer(int peer_id);
 PgDatabase *find_database(const char *name);
 PgDatabase *find_or_register_database(PgSocket *connection, const char *name);

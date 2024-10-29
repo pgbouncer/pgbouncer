@@ -778,7 +778,8 @@ void janitor_setup(void)
 {
 	/* launch maintenance */
 	event_assign(&full_maint_ev, pgb_event_base, -1, EV_PERSIST, do_full_maint, NULL);
-	event_add(&full_maint_ev, &full_maint_period);
+	if (event_add(&full_maint_ev, &full_maint_period) < 0)
+		log_warning("event_add failed: %s", strerror(errno));
 }
 
 void kill_pool(PgPool *pool)

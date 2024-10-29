@@ -517,10 +517,10 @@ bool parse_user(void *base, const char *name, const char *connstr)
 			max_user_connections = atoi(val);
 		} else if (strcmp("idle_transaction_timeout", key) == 0) {
 			any_user_level_timeout_set = true;
-			idle_transaction_timeout = atoi(val);
+			idle_transaction_timeout = atoi(val) * USEC;
 		} else if (strcmp("query_timeout", key) == 0) {
 			any_user_level_timeout_set = true;
-			query_timeout = atoi(val);
+			query_timeout = atoi(val) * USEC;
 		} else if (strcmp("max_user_client_connections", key) == 0) {
 			max_user_client_connections = atoi(val);
 		} else {

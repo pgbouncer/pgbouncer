@@ -1272,7 +1272,7 @@ bool sbuf_tls_setup(void)
 			return false;
 		}
 	}
-	if (cf_auth_type == AUTH_CERT) {
+	if (cf_auth_type == AUTH_TYPE_CERT) {
 		if (cf_client_tls_sslmode != SSLMODE_VERIFY_FULL) {
 			log_error("auth_type=cert requires client_tls_sslmode=SSLMODE_VERIFY_FULL");
 			return false;

@@ -1311,7 +1311,7 @@ If set this timeout overrides the server level query_timeout described above.
 
 ### idle_transaction_timeout
 
-Set the maximum length of time a user can have an idle transaction open.
+Set the maximum number of seconds that a user can have an idle transaction open.
 If set this timeout overides the server level idle_transaction_timeout
 described above.
 

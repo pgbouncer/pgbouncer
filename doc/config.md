@@ -1306,7 +1306,7 @@ not have more than this many server connections).
 
 ### query_timeout
 
-Set the maximum length of time that a user query can run for.
+Set the maximum number of seconds that a user query can run for.
 If set this timeout overrides the server level query_timeout described above.
 
 ### idle_transaction_timeout

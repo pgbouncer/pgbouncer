@@ -111,7 +111,7 @@ int cf_tcp_keepidle;
 int cf_tcp_keepintvl;
 int cf_tcp_user_timeout;
 
-int cf_auth_type = AUTH_MD5;
+int cf_auth_type = AUTH_TYPE_MD5;
 char *cf_auth_file;
 char *cf_auth_hba_file;
 char *cf_auth_ident_file;
@@ -127,6 +127,7 @@ int cf_res_pool_size;
 usec_t cf_res_pool_timeout;
 int cf_max_db_connections;
 int cf_max_user_connections;
+int cf_max_user_client_connections;
 
 char *cf_server_reset_query;
 int cf_server_reset_query_always;
@@ -200,16 +201,16 @@ static bool set_defer_accept(struct CfValue *cv, const char *val);
 #define DEFER_OPS {set_defer_accept, cf_get_int}
 
 static const struct CfLookup auth_type_map[] = {
-	{ "any", AUTH_ANY },
-	{ "trust", AUTH_TRUST },
-	{ "plain", AUTH_PLAIN },
-	{ "md5", AUTH_MD5 },
-	{ "cert", AUTH_CERT },
-	{ "hba", AUTH_HBA },
+	{ "any", AUTH_TYPE_ANY },
+	{ "trust", AUTH_TYPE_TRUST },
+	{ "plain", AUTH_TYPE_PLAIN },
+	{ "md5", AUTH_TYPE_MD5 },
+	{ "cert", AUTH_TYPE_CERT },
+	{ "hba", AUTH_TYPE_HBA },
 #ifdef HAVE_PAM
-	{ "pam", AUTH_PAM },
+	{ "pam", AUTH_TYPE_PAM },
 #endif
-	{ "scram-sha-256", AUTH_SCRAM_SHA_256 },
+	{ "scram-sha-256", AUTH_TYPE_SCRAM_SHA_256 },
 	{ NULL }
 };
 
@@ -282,6 +283,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("max_packet_size", CF_UINT, cf_max_packet_size, 0, "2147483647"),
 	CF_ABS("max_prepared_statements", CF_INT, cf_max_prepared_statements, 0, "200"),
 	CF_ABS("max_user_connections", CF_INT, cf_max_user_connections, 0, "0"),
+	CF_ABS("max_user_client_connections", CF_INT, cf_max_user_client_connections, 0, "0"),
 	CF_ABS("min_pool_size", CF_INT, cf_min_pool_size, 0, "0"),
 	CF_ABS("peer_id", CF_INT, cf_peer_id, 0, "0"),
 	CF_ABS("pidfile", CF_STR, cf_pidfile, CF_NO_RELOAD, ""),
@@ -423,9 +425,9 @@ static void set_peers_dead(bool flag)
 static bool requires_auth_file(int auth_type)
 {
 	/* For PAM authentication auth file is not used */
-	if (auth_type == AUTH_PAM)
+	if (auth_type == AUTH_TYPE_PAM)
 		return false;
-	return auth_type >= AUTH_TRUST;
+	return auth_type >= AUTH_TYPE_TRUST;
 }
 
 /* config loading, tries to be tolerant to errors */
@@ -452,7 +454,7 @@ void load_config(void)
 		set_dbs_dead(false);
 	}
 
-	if (cf_auth_type == AUTH_HBA) {
+	if (cf_auth_type == AUTH_TYPE_HBA) {
 		struct Ident *ident;
 		struct HBA *hba;
 

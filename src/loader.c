@@ -494,6 +494,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	int pool_mode = POOL_INHERIT;
 	int pool_size = -1;
 	int max_user_connections = -1;
+	int max_user_client_connections = -1;
 
 
 	cv.value_p = &pool_mode;
@@ -524,6 +525,8 @@ bool parse_user(void *base, const char *name, const char *connstr)
 			pool_size = atoi(val);
 		} else if (strcmp("max_user_connections", key) == 0) {
 			max_user_connections = atoi(val);
+		} else if (strcmp("max_user_client_connections", key) == 0) {
+			max_user_client_connections = atoi(val);
 		} else {
 			log_error("unrecognized user parameter: %s", key);
 			goto fail;
@@ -542,6 +545,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	user->pool_mode = pool_mode;
 	user->pool_size = pool_size;
 	user->max_user_connections = max_user_connections;
+	user->max_user_client_connections = max_user_client_connections;
 
 	free(tmp_connstr);
 	return true;

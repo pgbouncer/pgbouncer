@@ -158,7 +158,7 @@ bool send_pooler_error(PgSocket *client, bool send_ready, const char *sqlstate, 
 		slog_warning(client, "pooler error: %s", msg);
 
 	pktbuf_static(&buf, tmpbuf, sizeof(tmpbuf));
-	pktbuf_write_generic(&buf, 'E', "cscscsc",
+	pktbuf_write_generic(&buf, PqMsg_ErrorResponse, "cscscsc",
 			     'S', level_fatal ? "FATAL" : "ERROR",
 			     'C', sqlstate ? sqlstate : "08P01", 'M', msg, 0);
 	if (send_ready)
@@ -524,21 +524,21 @@ bool answer_authreq(PgSocket *server, PktHdr *pkt)
 	if (!mbuf_get_uint32be(&pkt->data, &cmd))
 		return false;
 	switch (cmd) {
-	case AUTH_OK:
+	case AUTH_REQ_OK:
 		slog_debug(server, "S: auth ok");
 		res = true;
 		break;
-	case AUTH_PLAIN:
+	case AUTH_REQ_PASSWORD:
 		slog_debug(server, "S: req cleartext password");
 		res = login_clear_psw(server);
 		break;
-	case AUTH_MD5:
+	case AUTH_REQ_MD5:
 		slog_debug(server, "S: req md5-crypted psw");
 		if (!mbuf_get_bytes(&pkt->data, 4, &salt))
 			return false;
 		res = login_md5_psw(server, salt);
 		break;
-	case AUTH_SASL:
+	case AUTH_REQ_SASL:
 	{
 		bool selected_mechanism = false;
 
@@ -564,7 +564,7 @@ bool answer_authreq(PgSocket *server, PktHdr *pkt)
 		}
 		break;
 	}
-	case AUTH_SASL_CONT:
+	case AUTH_REQ_SASL_CONT:
 	{
 		unsigned len;
 		const uint8_t *data;
@@ -576,7 +576,7 @@ bool answer_authreq(PgSocket *server, PktHdr *pkt)
 		res = login_scram_sha_256_cont(server, len, data);
 		break;
 	}
-	case AUTH_SASL_FIN:
+	case AUTH_REQ_SASL_FIN:
 	{
 		unsigned len;
 		const uint8_t *data;

@@ -484,33 +484,37 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 	const char *f_user;
 	PktBuf *buf;
 	struct CfValue cv;
+	struct CfValue load_balance_hosts_lookup;
 	const char *pool_mode_str;
 	usec_t server_lifetime_secs;
+	const char *load_balance_hosts_str;
 
 	cv.extra = pool_mode_map;
+	load_balance_hosts_lookup.extra = load_balance_hosts_map;
 	buf = pktbuf_dynamic(256);
 	if (!buf) {
 		admin_error(admin, "no mem");
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "ssissiiiisiiii",
+	pktbuf_write_RowDescription(buf, "ssissiiiissiiii",
 				    "name", "host", "port",
 				    "database", "force_user", "pool_size", "min_pool_size", "reserve_pool",
-				    "server_lifetime", "pool_mode", "max_connections", "current_connections",
-				    "paused", "disabled");
+				    "server_lifetime", "pool_mode", "load_balance_hosts", "max_connections", "current_connections", "paused", "disabled");
 	statlist_for_each(item, &database_list) {
 		db = container_of(item, PgDatabase, head);
 
 		server_lifetime_secs = (db->server_lifetime > 0 ? db->server_lifetime : cf_server_lifetime) / USEC;
 		f_user = db->forced_user_credentials ? db->forced_user_credentials->name : NULL;
 		pool_mode_str = NULL;
+		load_balance_hosts_str = NULL;
 		cv.value_p = &db->pool_mode;
+		load_balance_hosts_lookup.value_p = &db->load_balance_hosts;
 		if (db->pool_mode != POOL_INHERIT)
 			pool_mode_str = cf_get_lookup(&cv);
-
-
-		pktbuf_write_DataRow(buf, "ssissiiiisiiii",
+		if (db->host && strchr(db->host, ','))
+			load_balance_hosts_str = cf_get_lookup(&load_balance_hosts_lookup);
+		pktbuf_write_DataRow(buf, "ssissiiiissiiii",
 				     db->name, db->host, db->port,
 				     db->dbname, f_user,
 				     db->pool_size >= 0 ? db->pool_size : cf_default_pool_size,
@@ -518,6 +522,7 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 				     db->res_pool_size >= 0 ? db->res_pool_size : cf_res_pool_size,
 				     server_lifetime_secs,
 				     pool_mode_str,
+				     load_balance_hosts_str,
 				     database_max_connections(db),
 				     db->connection_count,
 				     db->db_paused,
@@ -886,16 +891,19 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 	usec_t now = get_cached_time();
 	usec_t max_wait;
 	struct CfValue cv;
+	struct CfValue load_balance_hosts_lookup;
 	int pool_mode;
+	const char *load_balance_hosts_str;
 
 	cv.extra = pool_mode_map;
 	cv.value_p = &pool_mode;
+	load_balance_hosts_lookup.extra = load_balance_hosts_map;
 	buf = pktbuf_dynamic(256);
 	if (!buf) {
 		admin_error(admin, "no mem");
 		return true;
 	}
-	pktbuf_write_RowDescription(buf, "ssiiiiiiiiiiiiis",
+	pktbuf_write_RowDescription(buf, "ssiiiiiiiiiiiiiss",
 				    "database", "user",
 				    "cl_active", "cl_waiting",
 				    "cl_active_cancel_req",
@@ -906,13 +914,20 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 				    "sv_idle",
 				    "sv_used", "sv_tested",
 				    "sv_login", "maxwait",
-				    "maxwait_us", "pool_mode");
+				    "maxwait_us", "pool_mode",
+				    "load_balance_hosts");
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
 		waiter = first_socket(&pool->waiting_client_list);
 		max_wait = (waiter && waiter->query_start) ? now - waiter->query_start : 0;
 		pool_mode = probably_wrong_pool_pool_mode(pool);
-		pktbuf_write_DataRow(buf, "ssiiiiiiiiiiiiis",
+
+		load_balance_hosts_str = NULL;
+		load_balance_hosts_lookup.value_p = &pool->db->load_balance_hosts;
+		if (pool->db->host && strchr(pool->db->host, ','))
+			load_balance_hosts_str = cf_get_lookup(&load_balance_hosts_lookup);
+
+		pktbuf_write_DataRow(buf, "ssiiiiiiiiiiiiiss",
 				     pool->db->name, pool->user_credentials->name,
 				     statlist_count(&pool->active_client_list),
 				     statlist_count(&pool->waiting_client_list),
@@ -928,7 +943,8 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 					/* how long is the oldest client waited */
 				     (int)(max_wait / USEC),
 				     (int)(max_wait % USEC),
-				     cf_get_lookup(&cv));
+				     cf_get_lookup(&cv),
+				     load_balance_hosts_str);
 	}
 	admin_flush(admin, buf, "SHOW");
 	return true;

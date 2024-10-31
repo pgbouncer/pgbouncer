@@ -23,6 +23,7 @@ MACOS = False
 if platform.system() == "Darwin":
     MACOS = True
 
+
 def add_qdisc():
     if not LINUX or not USE_SUDO:
         return

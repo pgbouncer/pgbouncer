@@ -1,4 +1,5 @@
 import os
+import platform
 import shutil
 
 import filelock
@@ -20,6 +21,10 @@ from .utils import (
     sudo,
 )
 
+MACOS = False
+
+if platform.system() == "Darwin":
+    MACOS = True
 
 def add_qdisc():
     if not LINUX or not USE_SUDO:
@@ -182,6 +187,8 @@ def pg(tmp_path_factory, cert_dir):
 @pytest.fixture(scope="session")
 def replica(pg, tmp_path_factory):
     """Starts a new Postgres replica db that is shared for tests in this process"""
+    if MACOS:
+        sudo("ifconfig lo0 alias 127.0.0.2 netmask 0xff000000")
     replica = Postgres(tmp_path_factory.getbasetemp() / "pgdata_replica")
     replica.host = "127.0.0.2"
     replica.port = pg.port

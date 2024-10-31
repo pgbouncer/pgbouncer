@@ -721,8 +721,10 @@ static void check_pidfile(void)
 	}
 	res = read(fd, buf, sizeof(buf) - 1);
 	close(fd);
-	if (res <= 0)
+	if (res < 0)
 		die("could not read pidfile '%s': %s", cf_pidfile, strerror(errno));
+	if (res == 0)
+		goto locked_pidfile;
 
 	/* parse pid */
 	buf[res] = 0;
@@ -744,7 +746,7 @@ static void check_pidfile(void)
 	return;
 
 locked_pidfile:
-	die("pidfile exists, another instance running?");
+	die("pidfile '%s' exists, another instance running?", cf_pidfile);
 }
 
 static void write_pidfile(void)

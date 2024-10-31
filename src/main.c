@@ -533,7 +533,7 @@ static void handle_sigquit(evutil_socket_t sock, short flags, void *arg)
 {
 	log_info("got SIGQUIT, fast exit");
 	/* pidfile cleanup happens via atexit() */
-	exit(0);
+	exit(1);
 }
 
 static void handle_sigusr1(int sock, short flags, void *arg)

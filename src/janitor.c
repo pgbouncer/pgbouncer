@@ -158,7 +158,7 @@ static void launch_recheck(PgPool *pool)
 		/* send test query, wait for result */
 		slog_debug(server, "P: checking: %s", q);
 		change_server_state(server, SV_TESTED);
-		SEND_generic(res, server, 'Q', "s", q);
+		SEND_generic(res, server, PqMsg_Query, "s", q);
 		if (!res)
 			disconnect_server(server, false, "test query failed");
 	} else {

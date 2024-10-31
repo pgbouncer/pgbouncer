@@ -724,7 +724,7 @@ static void check_pidfile(void)
 	if (res < 0)
 		die("could not read pidfile '%s': %s", cf_pidfile, strerror(errno));
 	if (res == 0)
-		die("empty pidfile '%s', please remove if created manually", cf_pidfile);
+		goto locked_pidfile;
 
 	/* parse pid */
 	buf[res] = 0;
@@ -746,7 +746,7 @@ static void check_pidfile(void)
 	return;
 
 locked_pidfile:
-	die("pidfile exists, another instance running?");
+	die("pidfile '%s' exists, another instance running?", cf_pidfile);
 }
 
 static void write_pidfile(void)

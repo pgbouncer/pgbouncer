@@ -27,6 +27,7 @@
 /* do full maintenance 3x per second */
 static struct timeval full_maint_period = {0, USEC / 3};
 static struct event full_maint_ev;
+extern bool any_user_level_timeout_set;
 
 /* close all sockets in server list */
 static void close_server_list(struct StatList *sk_list, const char *reason)
@@ -539,6 +540,11 @@ static void pool_server_maint(PgPool *pool)
 	usec_t now = get_cached_time();
 	PgSocket *server;
 
+	usec_t effective_query_timeout;
+	usec_t effective_idle_transaction_timeout;
+	usec_t user_query_timeout;
+	usec_t user_idle_transaction_timeout;
+
 	/* find and disconnect idle servers */
 	check_unused_servers(pool, &pool->used_server_list, 0);
 	check_unused_servers(pool, &pool->tested_server_list, 0);
@@ -565,7 +571,7 @@ static void pool_server_maint(PgPool *pool)
 	}
 
 	/* handle query_timeout and idle_transaction_timeout */
-	if (cf_query_timeout > 0 || cf_idle_transaction_timeout > 0) {
+	if (cf_query_timeout > 0 || cf_idle_transaction_timeout > 0 || any_user_level_timeout_set) {
 		statlist_for_each_safe(item, &pool->active_server_list, tmp) {
 			usec_t age_client, age_server;
 
@@ -585,11 +591,23 @@ static void pool_server_maint(PgPool *pool)
 			age_client = now - server->link->request_time;
 			age_server = now - server->request_time;
 
-			if (cf_query_timeout > 0 && age_client > cf_query_timeout) {
+			user_idle_transaction_timeout = server->login_user_credentials->global_user->idle_transaction_timeout;
+			user_query_timeout = server->login_user_credentials->global_user->query_timeout;
+
+			effective_idle_transaction_timeout = cf_idle_transaction_timeout;
+			effective_query_timeout = cf_query_timeout;
+
+			if (user_idle_transaction_timeout > 0)
+				effective_idle_transaction_timeout = user_idle_transaction_timeout;
+
+			if (user_query_timeout > 0)
+				effective_query_timeout = user_query_timeout;
+
+			if (effective_query_timeout > 0 && age_client > effective_query_timeout) {
 				disconnect_server(server, true, "query timeout");
-			} else if (cf_idle_transaction_timeout > 0 &&
+			} else if (effective_idle_transaction_timeout > 0 &&
 				   server->idle_tx &&
-				   age_server > cf_idle_transaction_timeout) {
+				   age_server > effective_idle_transaction_timeout) {
 				disconnect_server(server, true, "idle transaction timeout");
 			}
 		}

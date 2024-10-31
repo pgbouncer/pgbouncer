@@ -1304,6 +1304,17 @@ database or default `pool_mode` is used.
 Configure a maximum for the user of server connections (i.e. all pools with the user will
 not have more than this many server connections).
 
+### query_timeout
+
+Set the maximum number of seconds that a user query can run for.
+If set this timeout overrides the server level query_timeout described above.
+
+### idle_transaction_timeout
+
+Set the maximum number of seconds that a user can have an idle transaction open.
+If set this timeout overides the server level idle_transaction_timeout
+described above.
+
 ### max_user_client_connections
 Configure a maximum for the user of client connections. This is the user equivalent ofthe max_client_conn setting.
 

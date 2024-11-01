@@ -355,7 +355,7 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 		password = sk->login_user_credentials->passwd;
 
 	/* PAM requires passwords as well since they are not stored externally */
-	if (cf_auth_type == AUTH_PAM && !find_global_user(sk->login_user_credentials->name))
+	if (cf_auth_type == AUTH_TYPE_PAM && !find_global_user(sk->login_user_credentials->name))
 		password = sk->login_user_credentials->passwd;
 
 	if (sk->pool && sk->pool->user_credentials && sk->pool->user_credentials->has_scram_keys)
@@ -1532,7 +1532,7 @@ static bool copy_arg(const char *src, regmatch_t *glist,
 static bool admin_show_help(PgSocket *admin, const char *arg)
 {
 	bool res;
-	SEND_generic(res, admin, 'N',
+	SEND_generic(res, admin, PqMsg_NoticeResponse,
 		     "sssss",
 		     "SNOTICE", "C00000", "MConsole usage",
 		     "D\n\tSHOW HELP|CONFIG|DATABASES"
@@ -1710,7 +1710,7 @@ bool admin_handle_client(PgSocket *admin, PktHdr *pkt)
 	}
 
 	switch (pkt->type) {
-	case 'Q':
+	case PqMsg_Query:
 		if (!mbuf_get_string(&pkt->data, &q)) {
 			disconnect_client(admin, true, "incomplete query");
 			return false;
@@ -1720,12 +1720,12 @@ bool admin_handle_client(PgSocket *admin, PktHdr *pkt)
 		if (res)
 			sbuf_prepare_skip(&admin->sbuf, pkt->len);
 		return res;
-	case 'X':
+	case PqMsg_Terminate:
 		disconnect_client(admin, false, "close req");
 		break;
-	case 'P':
-	case 'B':
-	case 'E':
+	case PqMsg_Parse:
+	case PqMsg_Bind:
+	case PqMsg_Execute:
 		/*
 		 * Effectively the same as the default case, but give
 		 * a more helpful error message in these cases.
@@ -1774,7 +1774,7 @@ bool admin_pre_login(PgSocket *client, const char *username)
 	 * auth_type=any does not keep original username around,
 	 * so username based check has to take place here
 	 */
-	if (cf_auth_type == AUTH_ANY) {
+	if (cf_auth_type == AUTH_TYPE_ANY) {
 		if (strlist_contains(cf_admin_users, username)) {
 			client->login_user_credentials = admin_pool->db->forced_user_credentials;
 			client->admin_user = true;
@@ -1799,7 +1799,7 @@ bool admin_post_login(PgSocket *client)
 {
 	const char *username = client->login_user_credentials->name;
 
-	if (cf_auth_type == AUTH_ANY)
+	if (cf_auth_type == AUTH_TYPE_ANY)
 		return true;
 
 	if (client->admin_user || strlist_contains(cf_admin_users, username)) {

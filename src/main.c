@@ -111,7 +111,7 @@ int cf_tcp_keepidle;
 int cf_tcp_keepintvl;
 int cf_tcp_user_timeout;
 
-int cf_auth_type = AUTH_MD5;
+int cf_auth_type = AUTH_TYPE_MD5;
 char *cf_auth_file;
 char *cf_auth_hba_file;
 char *cf_auth_ident_file;
@@ -202,16 +202,16 @@ static bool set_defer_accept(struct CfValue *cv, const char *val);
 #define DEFER_OPS {set_defer_accept, cf_get_int}
 
 static const struct CfLookup auth_type_map[] = {
-	{ "any", AUTH_ANY },
-	{ "trust", AUTH_TRUST },
-	{ "plain", AUTH_PLAIN },
-	{ "md5", AUTH_MD5 },
-	{ "cert", AUTH_CERT },
-	{ "hba", AUTH_HBA },
+	{ "any", AUTH_TYPE_ANY },
+	{ "trust", AUTH_TYPE_TRUST },
+	{ "plain", AUTH_TYPE_PLAIN },
+	{ "md5", AUTH_TYPE_MD5 },
+	{ "cert", AUTH_TYPE_CERT },
+	{ "hba", AUTH_TYPE_HBA },
 #ifdef HAVE_PAM
-	{ "pam", AUTH_PAM },
+	{ "pam", AUTH_TYPE_PAM },
 #endif
-	{ "scram-sha-256", AUTH_SCRAM_SHA_256 },
+	{ "scram-sha-256", AUTH_TYPE_SCRAM_SHA_256 },
 	{ NULL }
 };
 
@@ -421,9 +421,9 @@ static void set_peers_dead(bool flag)
 static bool requires_auth_file(int auth_type)
 {
 	/* For PAM authentication auth file is not used */
-	if (auth_type == AUTH_PAM)
+	if (auth_type == AUTH_TYPE_PAM)
 		return false;
-	return auth_type >= AUTH_TRUST;
+	return auth_type >= AUTH_TYPE_TRUST;
 }
 
 /* config loading, tries to be tolerant to errors */
@@ -450,7 +450,7 @@ void load_config(void)
 		set_dbs_dead(false);
 	}
 
-	if (cf_auth_type == AUTH_HBA) {
+	if (cf_auth_type == AUTH_TYPE_HBA) {
 		struct Ident *ident;
 		struct HBA *hba;
 
@@ -723,8 +723,10 @@ static void check_pidfile(void)
 	}
 	res = read(fd, buf, sizeof(buf) - 1);
 	close(fd);
-	if (res <= 0)
+	if (res < 0)
 		die("could not read pidfile '%s': %s", cf_pidfile, strerror(errno));
+	if (res == 0)
+		goto locked_pidfile;
 
 	/* parse pid */
 	buf[res] = 0;
@@ -746,7 +748,7 @@ static void check_pidfile(void)
 	return;
 
 locked_pidfile:
-	die("pidfile exists, another instance running?");
+	die("pidfile '%s' exists, another instance running?", cf_pidfile);
 }
 
 static void write_pidfile(void)

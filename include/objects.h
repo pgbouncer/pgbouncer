@@ -70,8 +70,8 @@ PgCredentials *add_global_credentials(const char *name, const char *passwd) _MUS
 PgCredentials * add_dynamic_credentials(PgDatabase *db, const char *name, const char *passwd) _MUSTCHECK;
 PgCredentials * force_user_credentials(PgDatabase *db, const char *username, const char *passwd) _MUSTCHECK;
 bool add_outstanding_request(PgSocket *client, char type, ResponseAction action) _MUSTCHECK;
-bool pop_outstanding_request(PgSocket *client, char *types, bool *skip);
-bool clear_outstanding_requests_until(PgSocket *server, char *types) _MUSTCHECK;
+bool pop_outstanding_request(PgSocket *client, const char types[], bool *skip);
+bool clear_outstanding_requests_until(PgSocket *server, const char types[]) _MUSTCHECK;
 bool queue_fake_response(PgSocket *client, char request_type) _MUSTCHECK;
 
 PgCredentials * add_pam_credentials(const char *name, const char *passwd) _MUSTCHECK;

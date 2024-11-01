@@ -45,7 +45,7 @@ void takeover_finish(void)
 
 	log_info("sending SHUTDOWN;");
 	socket_set_nonblocking(fd, 0);
-	SEND_generic(res, old_bouncer, 'Q', "s", "SHUTDOWN;");
+	SEND_generic(res, old_bouncer, PqMsg_Query, "s", "SHUTDOWN;");
 	if (!res)
 		die("failed to send SHUTDOWN;");
 
@@ -233,10 +233,10 @@ static void next_command(PgSocket *bouncer, struct MBuf *pkt)
 	if (!mbuf_get_string(pkt, &cmd))
 		fatal("bad result pkt");
 
-	log_debug("takeover_recv_fds: 'C' body: %s", cmd);
+	log_debug("takeover_recv_fds: CommandComplete body: %s", cmd);
 	if (strcmp(cmd, "SUSPEND") == 0) {
 		log_info("SUSPEND finished, sending SHOW FDS");
-		SEND_generic(res, bouncer, 'Q', "s", "SHOW FDS;");
+		SEND_generic(res, bouncer, PqMsg_Query, "s", "SHOW FDS;");
 	} else if (strncmp(cmd, "SHOW", 4) == 0) {
 		/* all fds loaded, review them */
 		takeover_postprocess_fds();
@@ -270,11 +270,11 @@ static void takeover_parse_data(PgSocket *bouncer,
 			fatal("unexpected partial packet");
 
 		switch (pkt.type) {
-		case 'T':	/* RowDescription */
-			log_debug("takeover_parse_data: 'T'");
+		case PqMsg_RowDescription:
+			log_debug("takeover_parse_data: RowDescription");
 			break;
-		case 'D':	/* DataRow */
-			log_debug("takeover_parse_data: 'D'");
+		case PqMsg_DataRow:
+			log_debug("takeover_parse_data: DataRow");
 			if (cmsg) {
 				takeover_load_fd(&pkt.data, cmsg);
 				cmsg = CMSG_NXTHDR(msg, cmsg);
@@ -282,14 +282,14 @@ static void takeover_parse_data(PgSocket *bouncer,
 				fatal("got row without fd info");
 			}
 			break;
-		case 'Z':	/* ReadyForQuery */
-			log_debug("takeover_parse_data: 'Z'");
+		case PqMsg_ReadyForQuery:
+			log_debug("takeover_parse_data: ReadyForQuery");
 			break;
-		case 'C':	/* CommandComplete */
-			log_debug("takeover_parse_data: 'C'");
+		case PqMsg_CommandComplete:
+			log_debug("takeover_parse_data: CommandComplete");
 			next_command(bouncer, &pkt.data);
 			break;
-		case 'E':	/* ErrorMessage */
+		case PqMsg_ErrorResponse:
 			log_server_error("old bouncer sent", &pkt);
 			fatal("something failed");
 		default:
@@ -343,7 +343,7 @@ bool takeover_login(PgSocket *bouncer)
 	bool res;
 
 	slog_info(bouncer, "login OK, sending SUSPEND");
-	SEND_generic(res, bouncer, 'Q', "s", "SUSPEND;");
+	SEND_generic(res, bouncer, PqMsg_Query, "s", "SUSPEND;");
 	if (res) {
 		/* use own callback */
 		if (!sbuf_pause(&bouncer->sbuf))

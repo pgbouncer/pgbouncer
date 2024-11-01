@@ -208,6 +208,19 @@ total_wait_time
 :   Time spent by clients waiting for a server, in microseconds. Updated
     when a client connection is assigned a backend connection.
 
+total_client_parse_count
+:   Total number of prepared statements created by clients. Only applicable
+    in named prepared statement tracking mode, see `max_prepared_statements`.
+
+total_server_parse_count
+:   Total number of prepared statements created by **pgbouncer** on a server. Only
+    applicable in named prepared statement tracking mode, see `max_prepared_statements`.
+
+total_bind_count
+:   Total number of prepared statements readied for execution by clients and forwarded
+    to PostgreSQL by **pgbouncer**. Only applicable in named prepared statement tracking
+    mode, see `max_prepared_statements`.
+
 avg_xact_count
 :   Average transactions per second in last stat period.
 
@@ -234,6 +247,19 @@ avg_wait_time
 :   Time spent by clients waiting for a server, in microseconds (average
     of the wait times for clients assigned a backend during the current
     `stats_period`).
+
+avg_client_parse_count
+:   Average number of prepared statements created by clients. Only applicable
+    in named prepared statement tracking mode, see `max_prepared_statements`.
+
+avg_server_parse_count
+:   Average number of prepared statements created by **pgbouncer** on a server. Only
+    applicable in named prepared statement tracking mode, see `max_prepared_statements`.
+
+avg_bind_count
+:   Average number of prepared statements readied for execution by clients and forwarded
+    to PostgreSQL by **pgbouncer**. Only applicable in named prepared statement tracking
+    mode, see `max_prepared_statements`.
 
 #### SHOW STATS_TOTALS
 

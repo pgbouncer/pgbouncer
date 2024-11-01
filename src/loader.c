@@ -444,10 +444,9 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	}
 
 	if (auth_username != NULL) {
-		db->auth_user_credentials = find_global_credentials(auth_username);
-		if (!db->auth_user_credentials) {
-			db->auth_user_credentials = add_global_credentials(auth_username, "");
-		}
+		db->auth_user_credentials = find_or_add_new_global_credentials(auth_username, "");
+		if (!db->auth_user_credentials)
+			goto fail;
 	} else if (db->auth_user_credentials) {
 		db->auth_user_credentials = NULL;
 	}
@@ -520,13 +519,10 @@ bool parse_user(void *base, const char *name, const char *connstr)
 		}
 	}
 
-	user = find_global_user(name);
+	user = find_or_add_new_global_user(name, "");
 	if (!user) {
-		user = add_global_user(name, "");
-		if (!user) {
-			log_error("cannot create user, no memory?");
-			goto fail;
-		}
+		log_error("cannot create user, no memory?");
+		goto fail;
 	}
 
 	user->pool_mode = pool_mode;

@@ -500,39 +500,45 @@ PgDatabase *register_auto_database(const char *name)
 	return db;
 }
 
-/* add or update client users */
-PgGlobalUser *add_global_user(const char *name, const char *passwd)
+static PgGlobalUser *update_global_user_passwd(PgGlobalUser *user, const char *passwd)
 {
-	PgGlobalUser *user = find_global_user(name);
-
-	if (user == NULL) {
-		user = slab_alloc(user_cache);
-		if (!user)
-			return NULL;
-		user->credentials.global_user = user;
-
-		list_init(&user->head);
-		list_init(&user->pool_list);
-		safe_strcpy(user->credentials.name, name, sizeof(user->credentials.name));
-		put_in_order(&user->head, &user_list, cmp_user);
-
-		aatree_insert(&user_tree, (uintptr_t)user->credentials.name, &user->credentials.tree_node);
-		user->pool_mode = POOL_INHERIT;
-		user->pool_size = -1;
-	}
-
+	Assert(user);
 	passwd = passwd ? passwd : "";
 	safe_strcpy(user->credentials.passwd, passwd, sizeof(user->credentials.passwd));
 	user->credentials.dynamic_passwd = strlen(passwd) == 0;
 	return user;
 }
 
-PgCredentials *add_global_credentials(const char *name, const char *passwd)
+static PgGlobalUser *create_new_global_user(const char *name, const char *passwd)
 {
-	PgGlobalUser *user = add_global_user(name, passwd);
+	PgGlobalUser *user = slab_alloc(user_cache);
+
 	if (!user)
 		return NULL;
-	return &user->credentials;
+
+	user->credentials.global_user = user;
+
+	list_init(&user->head);
+	list_init(&user->pool_list);
+	safe_strcpy(user->credentials.name, name, sizeof(user->credentials.name));
+	put_in_order(&user->head, &user_list, cmp_user);
+
+	aatree_insert(&user_tree, (uintptr_t)user->credentials.name, &user->credentials.tree_node);
+	user->pool_mode = POOL_INHERIT;
+	user->pool_size = -1;
+
+	return update_global_user_passwd(user, passwd);
+}
+
+/* add or update client users */
+PgGlobalUser *add_global_user(const char *name, const char *passwd)
+{
+	PgGlobalUser *user = find_global_user(name);
+
+	if (!user)
+		return create_new_global_user(name, passwd);
+
+	return update_global_user_passwd(user, passwd);
 }
 
 /*
@@ -558,11 +564,13 @@ PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const c
 
 		safe_strcpy(credentials->name, name, sizeof(credentials->name));
 
-		aatree_insert(&db->user_tree, (uintptr_t)credentials->name, &credentials->tree_node);
-		credentials->global_user = find_global_user(name);
+		credentials->global_user = find_or_add_new_global_user(name, NULL);
 		if (!credentials->global_user) {
-			credentials->global_user = add_global_user(name, NULL);
+			slab_free(credentials_cache, credentials);
+			return NULL;
 		}
+
+		aatree_insert(&db->user_tree, (uintptr_t)credentials->name, &credentials->tree_node);
 	}
 
 	safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
@@ -587,11 +595,13 @@ PgCredentials *add_pam_credentials(const char *name, const char *passwd)
 
 		safe_strcpy(credentials->name, name, sizeof(credentials->name));
 
-		aatree_insert(&pam_user_tree, (uintptr_t)credentials->name, &credentials->tree_node);
-		credentials->global_user = find_global_user(name);
+		credentials->global_user = find_or_add_new_global_user(name, NULL);
 		if (!credentials->global_user) {
-			credentials->global_user = add_global_user(name, NULL);
+			slab_free(credentials_cache, credentials);
+			return NULL;
 		}
+
+		aatree_insert(&pam_user_tree, (uintptr_t)credentials->name, &credentials->tree_node);
 	}
 	if (passwd)
 		safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
@@ -607,9 +617,10 @@ PgCredentials *force_user_credentials(PgDatabase *db, const char *name, const ch
 		if (!credentials)
 			return NULL;
 
-		credentials->global_user = find_global_user(name);
+		credentials->global_user = find_or_add_new_global_user(name, NULL);
 		if (!credentials->global_user) {
-			credentials->global_user = add_global_user(name, NULL);
+			slab_free(credentials_cache, credentials);
+			return NULL;
 		}
 	}
 	safe_strcpy(credentials->name, name, sizeof(credentials->name));
@@ -1009,6 +1020,28 @@ bool queue_fake_response(PgSocket *client, char request_type)
 		fatal("Unknown fake request type %c", request_type);
 	}
 	return res;
+}
+
+/* Find an existing global user or add a new global user */
+PgGlobalUser *find_or_add_new_global_user(const char *name, const char *passwd)
+{
+	PgGlobalUser *user = find_global_user(name);
+
+	if (!user)
+		user = create_new_global_user(name, passwd);
+
+	return user;
+}
+
+/* Find an existing global credentials or add a new global credentials */
+PgCredentials *find_or_add_new_global_credentials(const char *name, const char *passwd)
+{
+	PgGlobalUser *user = find_or_add_new_global_user(name, passwd);
+
+	if (!user)
+		return NULL;
+
+	return &user->credentials;
 }
 
 /*

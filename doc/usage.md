@@ -608,11 +608,17 @@ load_balance_hosts
 :   The database's load_balance_hosts if the host contains a comma-separated list.
 
 max_connections
-:   Maximum number of allowed connections for this database, as set by
+:   Maximum number of allowed server connections for this database, as set by
     **max_db_connections**, either globally or per database.
 
 current_connections
-:   Current number of connections for this database.
+:   Current number of server connections for this database.
+
+max_client_connections
+:   Maximum number of allowed client connections for this pgbouncer instance, as set by max_db_client_connections per database.
+
+current_client_connections
+:   Current number of client connections for this database.
 
 paused
 :   1 if this database is currently paused, else 0.

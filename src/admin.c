@@ -497,10 +497,12 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "ssissiiiissiiii",
+	pktbuf_write_RowDescription(buf, "ssissiiiissiiiiii",
 				    "name", "host", "port",
 				    "database", "force_user", "pool_size", "min_pool_size", "reserve_pool",
-				    "server_lifetime", "pool_mode", "load_balance_hosts", "max_connections", "current_connections", "paused", "disabled");
+				    "server_lifetime", "pool_mode", "load_balance_hosts", "max_connections",
+				    "current_connections", "max_client_connections", "current_client_connections",
+				    "paused", "disabled");
 	statlist_for_each(item, &database_list) {
 		db = container_of(item, PgDatabase, head);
 
@@ -512,9 +514,11 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 		load_balance_hosts_lookup.value_p = &db->load_balance_hosts;
 		if (db->pool_mode != POOL_INHERIT)
 			pool_mode_str = cf_get_lookup(&cv);
+
 		if (db->host && strchr(db->host, ','))
 			load_balance_hosts_str = cf_get_lookup(&load_balance_hosts_lookup);
-		pktbuf_write_DataRow(buf, "ssissiiiissiiii",
+
+		pktbuf_write_DataRow(buf, "ssissiiiissiiiiii",
 				     db->name, db->host, db->port,
 				     db->dbname, f_user,
 				     db->pool_size >= 0 ? db->pool_size : cf_default_pool_size,
@@ -525,6 +529,8 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 				     load_balance_hosts_str,
 				     database_max_connections(db),
 				     db->connection_count,
+				     database_max_client_connections(db),
+				     db->client_connection_count,
 				     db->db_paused,
 				     db->db_disabled);
 	}
@@ -1775,6 +1781,8 @@ bool admin_pre_login(PgSocket *client, const char *username)
 			client->login_user_credentials = admin_pool->db->forced_user_credentials;
 			client->own_user = true;
 			client->admin_user = true;
+			if (!check_db_connection_count(client))
+				return false;
 			if (cf_log_connections)
 				slog_info(client, "pgbouncer access from unix socket");
 			return true;
@@ -1789,12 +1797,17 @@ bool admin_pre_login(PgSocket *client, const char *username)
 		if (strlist_contains(cf_admin_users, username)) {
 			client->login_user_credentials = admin_pool->db->forced_user_credentials;
 			client->admin_user = true;
+			if (!check_db_connection_count(client))
+				return false;
 			return true;
 		} else if (strlist_contains(cf_stats_users, username)) {
 			client->login_user_credentials = admin_pool->db->forced_user_credentials;
-			if (!check_user_connection_count(client)) {
+			if (!check_db_connection_count(client))
 				return false;
-			}
+
+			if (!check_user_connection_count(client))
+				return false;
+
 			return true;
 		}
 	}

@@ -232,6 +232,12 @@ const struct CfLookup sslmode_map[] = {
 	{ NULL }
 };
 
+const struct CfLookup load_balance_hosts_map[] = {
+	{ "disable", LOAD_BALANCE_HOSTS_DISABLE },
+	{ "round-robin", LOAD_BALANCE_HOSTS_ROUND_ROBIN },
+	{ NULL }
+};
+
 /*
  * Add new parameters in alphabetical order. This order is used by SHOW CONFIG.
  */

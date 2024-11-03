@@ -580,11 +580,15 @@ static void unquote_add_authfile_user(const char *username, const char *password
 	copy_quoted(real_user, username, sizeof(real_user));
 	copy_quoted(real_passwd, password, sizeof(real_passwd));
 
-	user = add_global_user(real_user, real_passwd);
+	user = find_or_add_new_global_user(real_user, real_passwd);
 	if (!user) {
 		log_warning("cannot create user, no memory");
 		return;
 	}
+	if (strcmp(user->credentials.passwd, real_passwd) != 0) {
+		user = update_global_user_passwd(user, real_passwd);
+	}
+
 	user->credentials.dynamic_passwd = false;
 }
 

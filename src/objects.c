@@ -500,7 +500,7 @@ PgDatabase *register_auto_database(const char *name)
 	return db;
 }
 
-static PgGlobalUser *update_global_user_passwd(PgGlobalUser *user, const char *passwd)
+PgGlobalUser *update_global_user_passwd(PgGlobalUser *user, const char *passwd)
 {
 	Assert(user);
 	passwd = passwd ? passwd : "";
@@ -509,7 +509,7 @@ static PgGlobalUser *update_global_user_passwd(PgGlobalUser *user, const char *p
 	return user;
 }
 
-static PgGlobalUser *create_new_global_user(const char *name, const char *passwd)
+static PgGlobalUser *add_new_global_user(const char *name, const char *passwd)
 {
 	PgGlobalUser *user = slab_alloc(user_cache);
 
@@ -526,17 +526,6 @@ static PgGlobalUser *create_new_global_user(const char *name, const char *passwd
 	aatree_insert(&user_tree, (uintptr_t)user->credentials.name, &user->credentials.tree_node);
 	user->pool_mode = POOL_INHERIT;
 	user->pool_size = -1;
-
-	return update_global_user_passwd(user, passwd);
-}
-
-/* add or update client users */
-PgGlobalUser *add_global_user(const char *name, const char *passwd)
-{
-	PgGlobalUser *user = find_global_user(name);
-
-	if (!user)
-		return create_new_global_user(name, passwd);
 
 	return update_global_user_passwd(user, passwd);
 }
@@ -1028,7 +1017,7 @@ PgGlobalUser *find_or_add_new_global_user(const char *name, const char *passwd)
 	PgGlobalUser *user = find_global_user(name);
 
 	if (!user)
-		user = create_new_global_user(name, passwd);
+		user = add_new_global_user(name, passwd);
 
 	return user;
 }

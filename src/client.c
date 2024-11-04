@@ -165,7 +165,8 @@ static bool send_client_authreq(PgSocket *client)
 }
 
 /*
- * Returns true if the currently trying to send an auth query to the server.
+ * Returns true if the client is currently trying to send an auth query to the
+ * server.
  */
 bool sending_auth_query(PgSocket *client)
 {
@@ -1217,7 +1218,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 			return false;
 		}
 
-		if (client->pool && !client->wait_for_user_conn && !client->wait_for_user) {
+		if (client->pool && !sending_auth_query(client)) {
 			disconnect_client(client, true, "client re-sent startup pkt");
 			return false;
 		}

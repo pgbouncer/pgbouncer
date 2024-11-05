@@ -29,11 +29,17 @@ enum RuleType {
 	RULE_HOSTNOSSL,
 };
 
+struct HBADNSArg {
+	bool match;
+	char *addr;
+};
+
 struct HBAAddress {
 	unsigned int flags;
 	int family;
 	uint8_t addr[16];
 	uint8_t mask[16];
+	char *hostname;
 };
 
 struct HBAName {

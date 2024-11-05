@@ -750,19 +750,19 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 	}
 
 	if (eat_kw(tp, "trust")) {
-		rule->rule_method = AUTH_TRUST;
+		rule->rule_method = AUTH_TYPE_TRUST;
 	} else if (eat_kw(tp, "reject")) {
-		rule->rule_method = AUTH_REJECT;
+		rule->rule_method = AUTH_TYPE_REJECT;
 	} else if (eat_kw(tp, "md5")) {
-		rule->rule_method = AUTH_MD5;
+		rule->rule_method = AUTH_TYPE_MD5;
 	} else if (eat_kw(tp, "password")) {
-		rule->rule_method = AUTH_PLAIN;
+		rule->rule_method = AUTH_TYPE_PLAIN;
 	} else if (eat_kw(tp, "peer")) {
-		rule->rule_method = AUTH_PEER;
+		rule->rule_method = AUTH_TYPE_PEER;
 	} else if (eat_kw(tp, "cert")) {
-		rule->rule_method = AUTH_CERT;
+		rule->rule_method = AUTH_TYPE_CERT;
 	} else if (eat_kw(tp, "scram-sha-256")) {
-		rule->rule_method = AUTH_SCRAM_SHA_256;
+		rule->rule_method = AUTH_TYPE_SCRAM_SHA_256;
 	} else {
 		log_warning("hba line %d: unsupported method: buf=%s", linenr, tp->buf);
 		goto failed;

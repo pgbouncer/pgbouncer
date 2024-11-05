@@ -355,7 +355,7 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 		password = sk->login_user_credentials->passwd;
 
 	/* PAM requires passwords as well since they are not stored externally */
-	if (cf_auth_type == AUTH_PAM && !find_global_user(sk->login_user_credentials->name))
+	if (cf_auth_type == AUTH_TYPE_PAM && !find_global_user(sk->login_user_credentials->name))
 		password = sk->login_user_credentials->passwd;
 
 	if (sk->pool && sk->pool->user_credentials && sk->pool->user_credentials->has_scram_keys)
@@ -484,20 +484,24 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 	const char *f_user;
 	PktBuf *buf;
 	struct CfValue cv;
+	struct CfValue load_balance_hosts_lookup;
 	const char *pool_mode_str;
 	usec_t server_lifetime_secs;
+	const char *load_balance_hosts_str;
 
 	cv.extra = pool_mode_map;
+	load_balance_hosts_lookup.extra = load_balance_hosts_map;
 	buf = pktbuf_dynamic(256);
 	if (!buf) {
 		admin_error(admin, "no mem");
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "ssissiiiisiiii",
+	pktbuf_write_RowDescription(buf, "ssissiiiissiiiiii",
 				    "name", "host", "port",
 				    "database", "force_user", "pool_size", "min_pool_size", "reserve_pool",
-				    "server_lifetime", "pool_mode", "max_connections", "current_connections",
+				    "server_lifetime", "pool_mode", "load_balance_hosts", "max_connections",
+				    "current_connections", "max_client_connections", "current_client_connections",
 				    "paused", "disabled");
 	statlist_for_each(item, &database_list) {
 		db = container_of(item, PgDatabase, head);
@@ -505,12 +509,16 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 		server_lifetime_secs = (db->server_lifetime > 0 ? db->server_lifetime : cf_server_lifetime) / USEC;
 		f_user = db->forced_user_credentials ? db->forced_user_credentials->name : NULL;
 		pool_mode_str = NULL;
+		load_balance_hosts_str = NULL;
 		cv.value_p = &db->pool_mode;
+		load_balance_hosts_lookup.value_p = &db->load_balance_hosts;
 		if (db->pool_mode != POOL_INHERIT)
 			pool_mode_str = cf_get_lookup(&cv);
 
+		if (db->host && strchr(db->host, ','))
+			load_balance_hosts_str = cf_get_lookup(&load_balance_hosts_lookup);
 
-		pktbuf_write_DataRow(buf, "ssissiiiisiiii",
+		pktbuf_write_DataRow(buf, "ssissiiiissiiiiii",
 				     db->name, db->host, db->port,
 				     db->dbname, f_user,
 				     db->pool_size >= 0 ? db->pool_size : cf_default_pool_size,
@@ -518,8 +526,11 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 				     db->res_pool_size >= 0 ? db->res_pool_size : cf_res_pool_size,
 				     server_lifetime_secs,
 				     pool_mode_str,
+				     load_balance_hosts_str,
 				     database_max_connections(db),
 				     db->connection_count,
+				     database_max_client_connections(db),
+				     db->client_connection_count,
 				     db->db_paused,
 				     db->db_disabled);
 	}
@@ -601,7 +612,9 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	}
 	cv.extra = pool_mode_map;
 
-	pktbuf_write_RowDescription(buf, "sssii", "name", "pool_size", "pool_mode", "max_user_connections", "current_connections");
+	pktbuf_write_RowDescription(
+		buf, "sssiiii", "name", "pool_size", "pool_mode", "max_user_connections", "current_connections",
+		"max_user_client_connections", "current_client_connections");
 	statlist_for_each(item, &user_list) {
 		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
 		if (user->pool_size >= 0)
@@ -612,19 +625,21 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 		if (user->pool_mode != POOL_INHERIT)
 			pool_mode_str = cf_get_lookup(&cv);
 
-		pktbuf_write_DataRow(buf, "sssii", user->credentials.name,
+		pktbuf_write_DataRow(buf, "sssiiii", user->credentials.name,
 				     pool_size_str,
 				     pool_mode_str,
 				     user_max_connections(user),
-				     user->connection_count
+				     user->connection_count,
+				     user_client_max_connections(user),
+				     user->client_connection_count
 				     );
 	}
 	admin_flush(admin, buf, "SHOW");
 	return true;
 }
 
-#define SKF_STD "ssssssisiTTiiississi"
-#define SKF_DBG "ssssssisiTTiiississiiiiiiii"
+#define SKF_STD "ssssssisiTTiiississii"
+#define SKF_DBG "ssssssisiTTiiississiiiiiiiii"
 
 static void socket_header(PktBuf *buf, bool debug)
 {
@@ -635,7 +650,7 @@ static void socket_header(PktBuf *buf, bool debug)
 				    "wait", "wait_us", "close_needed",
 				    "ptr", "link", "remote_pid", "tls",
 				    "application_name",
-				    "prepared_statements",
+				    "prepared_statements", "id",
 					/* debug follows */
 				    "recv_pos", "pkt_pos", "pkt_remain",
 				    "send_pos", "send_remain",
@@ -714,7 +729,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 			     sk->close_needed,
 			     ptrbuf, linkbuf, remote_pid, infobuf,
 			     application_name ? application_name->str : "",
-			     prepared_statement_count,
+			     prepared_statement_count, sk->id,
 				/* debug */
 			     io ? io->recv_pos : 0,
 			     io ? io->parse_pos : 0,
@@ -882,16 +897,19 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 	usec_t now = get_cached_time();
 	usec_t max_wait;
 	struct CfValue cv;
+	struct CfValue load_balance_hosts_lookup;
 	int pool_mode;
+	const char *load_balance_hosts_str;
 
 	cv.extra = pool_mode_map;
 	cv.value_p = &pool_mode;
+	load_balance_hosts_lookup.extra = load_balance_hosts_map;
 	buf = pktbuf_dynamic(256);
 	if (!buf) {
 		admin_error(admin, "no mem");
 		return true;
 	}
-	pktbuf_write_RowDescription(buf, "ssiiiiiiiiiiiiis",
+	pktbuf_write_RowDescription(buf, "ssiiiiiiiiiiiiiss",
 				    "database", "user",
 				    "cl_active", "cl_waiting",
 				    "cl_active_cancel_req",
@@ -902,13 +920,20 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 				    "sv_idle",
 				    "sv_used", "sv_tested",
 				    "sv_login", "maxwait",
-				    "maxwait_us", "pool_mode");
+				    "maxwait_us", "pool_mode",
+				    "load_balance_hosts");
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
 		waiter = first_socket(&pool->waiting_client_list);
 		max_wait = (waiter && waiter->query_start) ? now - waiter->query_start : 0;
 		pool_mode = probably_wrong_pool_pool_mode(pool);
-		pktbuf_write_DataRow(buf, "ssiiiiiiiiiiiiis",
+
+		load_balance_hosts_str = NULL;
+		load_balance_hosts_lookup.value_p = &pool->db->load_balance_hosts;
+		if (pool->db->host && strchr(pool->db->host, ','))
+			load_balance_hosts_str = cf_get_lookup(&load_balance_hosts_lookup);
+
+		pktbuf_write_DataRow(buf, "ssiiiiiiiiiiiiiss",
 				     pool->db->name, pool->user_credentials->name,
 				     statlist_count(&pool->active_client_list),
 				     statlist_count(&pool->waiting_client_list),
@@ -924,7 +949,8 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 					/* how long is the oldest client waited */
 				     (int)(max_wait / USEC),
 				     (int)(max_wait % USEC),
-				     cf_get_lookup(&cv));
+				     cf_get_lookup(&cv),
+				     load_balance_hosts_str);
 	}
 	admin_flush(admin, buf, "SHOW");
 	return true;
@@ -1331,21 +1357,21 @@ static bool admin_cmd_enable(PgSocket *admin, const char *arg)
 }
 
 
-static PgSocket *find_socket_in_list(PgSocket *target_client, struct StatList *sockets)
+static PgSocket *find_socket_in_list(unsigned long long int target_id, struct StatList *sockets)
 {
 	struct List *item;
 	PgSocket *socket;
 
 	statlist_for_each(item, sockets) {
 		socket = container_of(item, PgSocket, head);
-		if (target_client == socket) {
+		if (target_id == socket->id) {
 			return socket;
 		}
 	}
 	return NULL;
 }
 
-static PgSocket *find_client_global(PgSocket *target_client)
+static PgSocket *find_client_global(unsigned long long int target_id)
 {
 	PgSocket *kill_client;
 	struct List *item;
@@ -1354,19 +1380,19 @@ static PgSocket *find_client_global(PgSocket *target_client)
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
 
-		kill_client = find_socket_in_list(target_client, &pool->active_client_list);
+		kill_client = find_socket_in_list(target_id, &pool->active_client_list);
 		if (kill_client != NULL) {
 			return kill_client;
 		}
-		kill_client = find_socket_in_list(target_client, &pool->waiting_client_list);
+		kill_client = find_socket_in_list(target_id, &pool->waiting_client_list);
 		if (kill_client != NULL) {
 			return kill_client;
 		}
-		kill_client = find_socket_in_list(target_client, &pool->active_cancel_req_list);
+		kill_client = find_socket_in_list(target_id, &pool->active_cancel_req_list);
 		if (kill_client != NULL) {
 			return kill_client;
 		}
-		kill_client = find_socket_in_list(target_client, &pool->waiting_cancel_req_list);
+		kill_client = find_socket_in_list(target_id, &pool->waiting_cancel_req_list);
 		if (kill_client != NULL) {
 			return kill_client;
 		}
@@ -1375,11 +1401,11 @@ static PgSocket *find_client_global(PgSocket *target_client)
 	statlist_for_each(item, &peer_pool_list) {
 		pool = container_of(item, PgPool, head);
 
-		kill_client = find_socket_in_list(target_client, &pool->active_cancel_req_list);
+		kill_client = find_socket_in_list(target_id, &pool->active_cancel_req_list);
 		if (kill_client != NULL) {
 			return kill_client;
 		}
-		kill_client = find_socket_in_list(target_client, &pool->waiting_cancel_req_list);
+		kill_client = find_socket_in_list(target_id, &pool->waiting_cancel_req_list);
 		if (kill_client != NULL) {
 			return kill_client;
 		}
@@ -1387,24 +1413,17 @@ static PgSocket *find_client_global(PgSocket *target_client)
 	return NULL;
 }
 
-/*
- * Command: KILL_CLIENT
- * TODO: This command relies on the memory address of a client to identify which
- * client to kill. This is potentially dangerous because memory addresses are reused.
- * The long term solution to this is to assign an integer or UUID identifier to identify
- * clients instead of memory addresses but we are going to wait to see how much of an
- * issue this is in practice before implementing this.
- */
+/* Command: KILL_CLIENT */
 static bool admin_cmd_kill_client(PgSocket *admin, const char *arg)
 {
 	PgSocket *kill_client;
-	void *target_client = NULL;
+	unsigned long long int target_id = 0;
 
-	if (sscanf(arg, "%p", &target_client) != 1) {
+	if (sscanf(arg, "%llu", &target_id) != 1) {
 		return admin_error(admin, "invalid client pointer supplied");
 	}
 
-	kill_client = find_client_global((PgSocket *) target_client);
+	kill_client = find_client_global((unsigned long long int) target_id);
 	if (kill_client == NULL) {
 		return admin_error(admin, "client not found");
 	}
@@ -1532,7 +1551,7 @@ static bool copy_arg(const char *src, regmatch_t *glist,
 static bool admin_show_help(PgSocket *admin, const char *arg)
 {
 	bool res;
-	SEND_generic(res, admin, 'N',
+	SEND_generic(res, admin, PqMsg_NoticeResponse,
 		     "sssss",
 		     "SNOTICE", "C00000", "MConsole usage",
 		     "D\n\tSHOW HELP|CONFIG|DATABASES"
@@ -1710,7 +1729,7 @@ bool admin_handle_client(PgSocket *admin, PktHdr *pkt)
 	}
 
 	switch (pkt->type) {
-	case 'Q':
+	case PqMsg_Query:
 		if (!mbuf_get_string(&pkt->data, &q)) {
 			disconnect_client(admin, true, "incomplete query");
 			return false;
@@ -1720,12 +1739,12 @@ bool admin_handle_client(PgSocket *admin, PktHdr *pkt)
 		if (res)
 			sbuf_prepare_skip(&admin->sbuf, pkt->len);
 		return res;
-	case 'X':
+	case PqMsg_Terminate:
 		disconnect_client(admin, false, "close req");
 		break;
-	case 'P':
-	case 'B':
-	case 'E':
+	case PqMsg_Parse:
+	case PqMsg_Bind:
+	case PqMsg_Execute:
 		/*
 		 * Effectively the same as the default case, but give
 		 * a more helpful error message in these cases.
@@ -1762,6 +1781,8 @@ bool admin_pre_login(PgSocket *client, const char *username)
 			client->login_user_credentials = admin_pool->db->forced_user_credentials;
 			client->own_user = true;
 			client->admin_user = true;
+			if (!check_db_connection_count(client))
+				return false;
 			if (cf_log_connections)
 				slog_info(client, "pgbouncer access from unix socket");
 			return true;
@@ -1772,13 +1793,21 @@ bool admin_pre_login(PgSocket *client, const char *username)
 	 * auth_type=any does not keep original username around,
 	 * so username based check has to take place here
 	 */
-	if (cf_auth_type == AUTH_ANY) {
+	if (cf_auth_type == AUTH_TYPE_ANY) {
 		if (strlist_contains(cf_admin_users, username)) {
 			client->login_user_credentials = admin_pool->db->forced_user_credentials;
 			client->admin_user = true;
+			if (!check_db_connection_count(client))
+				return false;
 			return true;
 		} else if (strlist_contains(cf_stats_users, username)) {
 			client->login_user_credentials = admin_pool->db->forced_user_credentials;
+			if (!check_db_connection_count(client))
+				return false;
+
+			if (!check_user_connection_count(client))
+				return false;
+
 			return true;
 		}
 	}
@@ -1789,7 +1818,7 @@ bool admin_post_login(PgSocket *client)
 {
 	const char *username = client->login_user_credentials->name;
 
-	if (cf_auth_type == AUTH_ANY)
+	if (cf_auth_type == AUTH_TYPE_ANY)
 		return true;
 
 	if (client->admin_user || strlist_contains(cf_admin_users, username)) {

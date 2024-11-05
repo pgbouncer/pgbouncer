@@ -176,6 +176,22 @@ pool.
 
 Default: 0 (unlimited)
 
+### max_db_client_connections
+
+Do not allow more than this many client connections to PgBouncer per database
+(regardless of user).  This considers the PgBouncer database that the
+client has connected to, not the PostgreSQL database of the outgoing
+connection.
+
+This should be set at a number greater than or equal to
+max_db_connections. The difference between the two numbers can be thought
+of as how many connections to a given database can be in the queue while
+waiting for active connections to finish.
+
+This can also be set per database in the `[databases]` section.
+
+Default: 0 (unlimited)
+
 ### max_user_connections
 
 Do not allow more than this many server connections per user
@@ -192,6 +208,15 @@ for another pool, because the server connection for the first pool is
 still open.  Once the server connection closes (due to idle timeout),
 a new server connection will immediately be opened for the waiting
 pool.
+
+Default: 0 (unlimited)
+
+### max_user_client_connections
+
+Do not allow more than this many client connections per user
+(regardless of database). This value should be set to a number higher than max_user_connections. This difference between max_user_connections and max_user_client_connections can be conceptualized as the number the max size of the queue for the user.
+
+This can also be set per user in the `[users]` section.
 
 Default: 0 (unlimited)
 
@@ -1237,10 +1262,38 @@ they are logged but ignored otherwise.
 Set the pool mode specific to this database. If not set,
 the default `pool_mode` is used.
 
+### load_balance_hosts
+
+When a comma-separated list is specified in `host`, `load_balance_hosts` controls
+which entry is chosen for a new connection.
+
+Note: This setting currently only controls the load balancing behaviour when
+providing multiple hosts in the connection string, but not when a single host
+its DNS record references multiple IP addresses. This is a missing feature, so
+in a future release this setting might start to to control both methods of load
+balancing.
+
+round-robin
+:   A new connection attempt chooses the next host entry in the list.
+
+disable
+:   A new connection continues using the same host entry until a connection
+    fails, after which the next host entry is chosen.
+
+It is recommended to set `server_login_retry` lower than the default to ensure
+fast retries when multiple hosts are available.
+
+Default: `round-robin`
+
 ### max_db_connections
 
-Configure a database-wide maximum (i.e. all pools within the database will
+Configure a database-wide maximum of server connections (i.e. all pools within the database will
 not have more than this many server connections).
+
+### max_db_client_connections
+
+Configure a database-wide client connection maximum. Should be used in conjunction with max_client_conn
+to limit the number of connections that PgBouncer is allowed to accept.
 
 ### server_lifetime
 
@@ -1292,8 +1345,11 @@ database or default `pool_mode` is used.
 
 ### max_user_connections
 
-Configure a maximum for the user (i.e. all pools with the user will
+Configure a maximum for the user of server connections (i.e. all pools with the user will
 not have more than this many server connections).
+
+### max_user_client_connections
+Configure a maximum for the user of client connections. This is the user equivalent ofthe max_client_conn setting.
 
 ## Section [peers]
 

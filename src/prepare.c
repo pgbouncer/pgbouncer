@@ -243,7 +243,7 @@ static bool register_prepared_statement(PgSocket *client, PgSocket *server, PgSe
 	el = statlist_last(&server->outstanding_requests);
 	Assert(el);
 	outstanding_request = container_of(el, OutstandingRequest, node);
-	Assert(outstanding_request->type == 'P');
+	Assert(outstanding_request->type == PqMsg_Parse);
 	Assert(outstanding_request->server_ps_query_id == 0);
 	outstanding_request->server_ps_query_id = server_ps->ps->query_id;
 
@@ -269,7 +269,7 @@ static bool register_prepared_statement(PgSocket *client, PgSocket *server, PgSe
 			return false;
 		}
 
-		if (!add_outstanding_request(client, 'C', RA_SKIP)) {
+		if (!add_outstanding_request(client, PqMsg_Close, RA_SKIP)) {
 			return false;
 		}
 		el = statlist_last(&server->outstanding_requests);
@@ -360,7 +360,7 @@ bool handle_parse_command(PgSocket *client, PktHdr *pkt)
 			 * Insert an entry into the request queue, so we can send a fake
 			 * response to the client at the point where they expect it.
 			 */
-			if (!add_outstanding_request(client, 'P', RA_FAKE))
+			if (!add_outstanding_request(client, PqMsg_Parse, RA_FAKE))
 				goto oom;
 			goto success;
 		}
@@ -381,7 +381,7 @@ bool handle_parse_command(PgSocket *client, PktHdr *pkt)
 	 * Track the Parse command that we send to server and forward the response
 	 * to the client, because they expect one.
 	 */
-	if (!add_outstanding_request(client, 'P', RA_FORWARD))
+	if (!add_outstanding_request(client, PqMsg_Parse, RA_FORWARD))
 		goto oom;
 
 	/* Register statement on server */
@@ -475,7 +475,7 @@ static bool ensure_statement_is_prepared_on_server(PgSocket *server, PgPreparedS
 	 * does not receive the respective response, because they did not
 	 * actually send a Parse request.
 	 */
-	if (!add_outstanding_request(client, 'P', RA_SKIP))
+	if (!add_outstanding_request(client, PqMsg_Parse, RA_SKIP))
 		return false;
 
 	buf = pktbuf_temp();
@@ -537,7 +537,7 @@ bool handle_bind_command(PgSocket *client, PktHdr *pkt)
 	 * Track the Bind command that we're going send to server and forward
 	 * the response to the client, because they expect one.
 	 */
-	if (!add_outstanding_request(client, 'B', RA_FORWARD))
+	if (!add_outstanding_request(client, PqMsg_Bind, RA_FORWARD))
 		goto oom;
 
 	/*
@@ -639,7 +639,7 @@ bool handle_describe_command(PgSocket *client, PktHdr *pkt)
 	 * Track the Describe command that we send to server and forward the
 	 * response to the client, because they expect one.
 	 */
-	if (!add_outstanding_request(client, 'D', RA_FORWARD))
+	if (!add_outstanding_request(client, PqMsg_Describe, RA_FORWARD))
 		goto oom;
 
 	skip_possibly_completely_buffered_packet(client, pkt);
@@ -687,7 +687,7 @@ bool handle_close_statement_command(PgSocket *client, PktHdr *pkt, PgClosePacket
 		return res;
 	}
 
-	if (!add_outstanding_request(client, 'C', RA_FAKE)) {
+	if (!add_outstanding_request(client, PqMsg_Close, RA_FAKE)) {
 		return false;
 	}
 	return true;

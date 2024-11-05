@@ -30,6 +30,8 @@
  * ConnString parsing
  */
 
+bool any_user_level_client_timeout_set;
+
 /* parse parameter name before '=' */
 static char *cstr_get_key(char *p, char **dst_p)
 {
@@ -498,8 +500,8 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	int pool_mode = POOL_INHERIT;
 	int pool_size = -1;
 	int max_user_connections = -1;
+	usec_t client_idle_timeout = 0;
 	int max_user_client_connections = -1;
-
 
 	cv.value_p = &pool_mode;
 	cv.extra = (const void *)pool_mode_map;
@@ -529,6 +531,9 @@ bool parse_user(void *base, const char *name, const char *connstr)
 			pool_size = atoi(val);
 		} else if (strcmp("max_user_connections", key) == 0) {
 			max_user_connections = atoi(val);
+		} else if (strcmp("client_idle_timeout", key) == 0) {
+			any_user_level_client_timeout_set = true;
+			client_idle_timeout = atoi(val) * USEC;
 		} else if (strcmp("max_user_client_connections", key) == 0) {
 			max_user_client_connections = atoi(val);
 		} else {
@@ -549,6 +554,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	user->pool_mode = pool_mode;
 	user->pool_size = pool_size;
 	user->max_user_connections = max_user_connections;
+	user->client_idle_timeout = client_idle_timeout;
 	user->max_user_client_connections = max_user_client_connections;
 
 	free(tmp_connstr);

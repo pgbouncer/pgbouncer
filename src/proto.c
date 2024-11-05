@@ -22,6 +22,7 @@
 
 #include "bouncer.h"
 #include "scram.h"
+#include "common/uthash_lowercase.h"
 
 /*
  * parse protocol header from struct MBuf
@@ -214,10 +215,45 @@ void log_server_error(const char *note, PktHdr *pkt)
 /* add another server parameter packet to cache */
 bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 {
-	PktBuf *msg = pool->welcome_msg;
+	WelcomeVarLookup *lookup = NULL;
+	WelcomeVarLookup *new_entry;
 
 	if (pool->welcome_msg_ready)
 		return true;
+
+	/* if not stored in ->orig_vars, write full packet */
+	if (!varcache_set(&pool->orig_vars, key, val)) {
+		// add to pool->welcome_params using uthash macros the entry
+		HASH_FIND_STR(pool->welcome_vars, key, lookup);
+
+		new_entry = (WelcomeVarLookup *)malloc(sizeof *new_entry);
+		if (new_entry == NULL)
+			return false;
+		new_entry->name = strdup(key);
+		new_entry->value = strdup(val);
+		HASH_REPLACE(hh, pool->welcome_vars, name[0], strlen(new_entry->name), new_entry, lookup);
+
+		if (lookup != NULL) {
+			free(lookup->name);
+			free(lookup->value);
+		}
+	}
+
+	return true;
+}
+
+bool build_welcome_message(PgPool *pool)
+{
+	PktBuf *msg = pool->welcome_msg;
+	const WelcomeVarLookup *lk, *tmp;
+
+	if (pool->welcome_msg_ready)
+		return true;
+
+	if (msg) {
+		pktbuf_free(msg);
+		msg = NULL;
+	}
 
 	if (!msg) {
 		msg = pktbuf_dynamic(128);
@@ -226,24 +262,28 @@ bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 		pool->welcome_msg = msg;
 	}
 
-	/* first packet must be AuthOk */
-	if (msg->write_pos == 0)
-		pktbuf_write_AuthenticationOk(msg);
+	pktbuf_write_AuthenticationOk(msg);
 
-	/* if not stored in ->orig_vars, write full packet */
-	if (!varcache_set(&pool->orig_vars, key, val))
-		pktbuf_write_ParameterStatus(msg, key, val);
+	HASH_ITER(hh, pool->welcome_vars, lk, tmp) {
+		if (lk->value != NULL)
+			pktbuf_write_ParameterStatus(msg, lk->name, lk->value);
+	}
 
 	return !msg->failed;
 }
 
 /* all parameters processed */
-void finish_welcome_msg(PgSocket *server)
+bool finish_welcome_msg(PgSocket *server)
 {
 	PgPool *pool = server->pool;
 	if (pool->welcome_msg_ready)
-		return;
+		return true;
+
+	if (!build_welcome_message(server->pool))
+		return false;
+
 	pool->welcome_msg_ready = true;
+	return true;
 }
 
 bool welcome_client(PgSocket *client)

@@ -15,9 +15,18 @@ struct VarCache {
 	struct PStr **var_list;
 };
 
+struct WelcomeVarLookup {
+	char *name;			/* key (string is WITHIN the structure) */
+	char *value;		/* value (string is WITHIN the structure) */
+	UT_hash_handle hh;	/* makes this structure hashable */
+};
+
+typedef struct WelcomeVarLookup WelcomeVarLookup;
+
 void init_var_lookup(const char *cf_track_extra_parameters);
 int get_num_var_cached(void);
 bool varcache_set(VarCache *cache, const char *key, const char *value) /* _MUSTCHECK */;
+bool varcache_get(VarCache *cache, const char *key, char **value) _MUSTCHECK;
 bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p) _MUSTCHECK;
 void varcache_apply_startup(PktBuf *pkt, PgSocket *client);
 void varcache_fill_unset(VarCache *src, PgSocket *dst);

@@ -71,8 +71,10 @@ static void init_var_lookup_from_config(const char *cf_track_extra_parameters, i
 		HASH_FIND_STR(lookup_map, var_name, lookup);
 
 		/* If the var name is already on the hash map, do not update its idx */
-		if (lookup != NULL)
+		if (lookup != NULL) {
+			free(var_name);
 			continue;
+		}
 
 		lookup = (struct var_lookup *)malloc(sizeof *lookup);
 		lookup->name = strdup(var_name);
@@ -135,6 +137,29 @@ bool varcache_set(VarCache *cache, const char *key, const char *value)
 	if (!pstr)
 		return false;
 	cache->var_list[lk->idx] = pstr;
+	return true;
+}
+
+bool varcache_get(VarCache *cache, const char *key, char **value)
+{
+	const struct var_lookup *lk = NULL;
+	struct PStr *pstr = NULL;
+
+	if (value != NULL)
+		*value = NULL;
+
+	HASH_FIND_STR(lookup_map, key, lk);
+
+	if (lk == NULL)
+		return false;
+
+	pstr = cache->var_list[lk->idx];
+	if (!pstr || !pstr->str)
+		return true;
+
+	if (value != NULL)
+		*value = strdup(pstr->str);
+
 	return true;
 }
 

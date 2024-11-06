@@ -504,8 +504,8 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 				    "name", "host", "port",
 				    "database", "force_user", "pool_size", "min_pool_size", "reserve_pool",
 				    "server_lifetime", "pool_mode", "load_balance_hosts", "target_session_attrs",
-            "max_connections", "current_connections", "max_client_connections",
-            "current_client_connections", "paused", "disabled");
+				    "max_connections", "current_connections", "max_client_connections",
+				    "current_client_connections", "paused", "disabled");
 	statlist_for_each(item, &database_list) {
 		db = container_of(item, PgDatabase, head);
 
@@ -939,7 +939,7 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 		pool = container_of(item, PgPool, head);
 		waiter = first_socket(&pool->waiting_client_list);
 		max_wait = (waiter && waiter->query_start) ? now - waiter->query_start : 0;
-		pool_mode = probably_wrong_poolepool_mode(pool);
+		pool_mode = probably_wrong_pool_pool_mode(pool);
 
 		load_balance_hosts_str = NULL;
 		load_balance_hosts_lookup.value_p = &pool->db->load_balance_hosts;

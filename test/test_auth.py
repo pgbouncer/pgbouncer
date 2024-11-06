@@ -1,5 +1,6 @@
 import getpass
 import re
+import socket
 import subprocess
 import time
 
@@ -831,6 +832,32 @@ def test_client_hba_cert(bouncer, cert_dir):
         sslcert=client_cert,
         sslrootcert=root,
     )
+
+
+def test_host_whitelist(bouncer) -> None:
+    hba_conf_file = bouncer.config_dir / "hba.conf"
+    hostname = socket.gethostname()
+
+    with open(hba_conf_file, "w") as f:
+        f.write(f"host    all             postgres        {hostname}          trust\n")
+
+    bouncer.write_ini(f"auth_type = hba")
+    bouncer.write_ini(f"auth_hba_file = {hba_conf_file}")
+
+    bouncer.admin("reload")
+    bouncer.psql_test(
+        dbname="p0y",
+        host=hostname,
+        user="postgres",
+    )
+    with pytest.raises(
+        subprocess.CalledProcessError,
+    ):
+        bouncer.psql_test(
+            dbname="p0y",
+            host=f"127.0.0.1",
+            user="postgres",
+        )
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have peer authentication")

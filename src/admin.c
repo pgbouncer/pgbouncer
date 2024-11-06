@@ -944,7 +944,7 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 		pool = container_of(item, PgPool, head);
 		waiter = first_socket(&pool->waiting_client_list);
 		max_wait = (waiter && waiter->query_start) ? now - waiter->query_start : 0;
-		pool_mode = probably_wrong_poolepool_mode(pool);
+		pool_mode = probably_wrong_pool_pool_mode(pool);
 
 		load_balance_hosts_str = NULL;
 		load_balance_hosts_lookup.value_p = &pool->db->load_balance_hosts;

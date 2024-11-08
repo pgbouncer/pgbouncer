@@ -34,3 +34,9 @@ void varcache_clean(VarCache *cache);
 void varcache_add_params(PktBuf *pkt, VarCache *vars);
 void varcache_deinit(void);
 void varcache_set_canonical(PgSocket *server, PgSocket *client);
+
+bool welcome_vars_set(WelcomeVarLookup **vars, const char *key, const char *val, bool when_different);
+void welcome_vars_add_params(PktBuf *pkt, WelcomeVarLookup *vars);
+const WelcomeVarLookup *welcome_vars_get(WelcomeVarLookup *vars, const char *key);
+void welcome_vars_apply(PgSocket *client);
+void welcome_vars_deinit(WelcomeVarLookup **vars);

@@ -55,35 +55,14 @@ static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 	if (startup) {
 		if (!add_welcome_parameter(server->pool, key, val))
 			goto failed_store;
-	} else {
-		WelcomeVarLookup *lookup = NULL;
-		/* If the value is in the original vars, we don't need to update the welcome message */
-		if (varcache_get(&server->pool->orig_vars, key, NULL))
-			return true;
-
-		HASH_FIND_STR(server->pool->welcome_vars, key, lookup);
-
-		if (lookup == NULL)
-			return true;
-
-		if (lookup->value == NULL && val == NULL)
-			return true;
-
-		if ((lookup->value == NULL && val != NULL) ||
-		    (lookup->value != NULL && val == NULL) ||
-		    strcmp(lookup->value, val) != 0) {
-			/* If the value is different, we need to update the welcome message */
-			WelcomeVarLookup *new_entry = (WelcomeVarLookup *)malloc(sizeof *new_entry);
-
-			slog_debug(server, "S: value changed for %s: '%s' -> '%s'", key, lookup->value, val);
-			new_entry->name = strdup(key);
-			new_entry->value = val ? strdup(val) : NULL;
-			HASH_REPLACE(hh, server->pool->welcome_vars, name[0], strlen(new_entry->name), new_entry, lookup);
-
+	} else if (!varcache_get(&server->pool->orig_vars, key, NULL)) {
+		/* If the value is not in the original vars, we do need to update the welcome message */
+		if (welcome_vars_set(&server->pool->welcome_vars, key, val, true)) {
+			slog_debug(server, "S: value changed for %s to '%s'", key, val);
+			/* rebuild welcome message */
 			server->pool->welcome_msg_ready = false;
-
-			free(lookup->name);
-			free(lookup->value);
+			if (!finish_welcome_msg(server))
+				goto failed_store;
 		}
 	}
 
@@ -853,6 +832,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		res = true;
 		if (!server->ready)
 			break;
+
 
 		if (server->setting_vars) {
 			PgSocket *client = server->link;

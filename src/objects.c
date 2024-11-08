@@ -948,26 +948,12 @@ bool find_server(PgSocket *client)
 
 	/* link or send to waiters list */
 	if (server) {
-		PktBuf *msg;
-		const WelcomeVarLookup *lk, *tmp;
-
 		slog_noise(client, "linking client to S-%p", server);
 		client->link = server;
 		server->link = client;
 		server->pool->stats.server_assignment_count++;
 
-		if (client->state == CL_ACTIVE && !client->wait_for_welcome) {
-			msg = pktbuf_temp();
-			HASH_ITER(hh, server->pool->welcome_vars, lk, tmp) {
-				if (lk->value != NULL)
-					pktbuf_write_ParameterStatus(msg, lk->name, lk->value);
-			}
-
-			res = pktbuf_send_immediate(msg, client);
-			if (!res) {
-				disconnect_client(client, true, "failed to send welcome vars to client");
-			}
-		}
+		welcome_vars_apply(client);
 
 		change_server_state(server, SV_ACTIVE);
 		if (varchange) {
@@ -1604,6 +1590,11 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 
 	free(client->startup_options);
 	client->startup_options = NULL;
+
+	if (client->welcome_msg) {
+		pktbuf_free(client->welcome_msg);
+		client->welcome_msg = NULL;
+	}
 
 	change_client_state(client, CL_JUSTFREE);
 	if (!sbuf_close(&client->sbuf))

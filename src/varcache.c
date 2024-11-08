@@ -154,8 +154,8 @@ bool varcache_get(VarCache *cache, const char *key, char **value)
 		return false;
 
 	pstr = cache->var_list[lk->idx];
-	if (!pstr || !pstr->str)
-		return true;
+	if (!pstr)
+		return false;
 
 	if (value != NULL)
 		*value = strdup(pstr->str);
@@ -329,4 +329,89 @@ void varcache_deinit(void)
 {
 	strpool_free(vpool);
 	vpool = NULL;
+}
+
+bool welcome_vars_set(WelcomeVarLookup **vars, const char *key, const char *val, bool when_different)
+{
+	WelcomeVarLookup *lookup = NULL;
+	WelcomeVarLookup *new_entry;
+
+	HASH_FIND_STR(*vars, key, lookup);
+
+	if (when_different) {
+		if (lookup == NULL || (lookup->value == NULL && val == NULL))
+			return false;
+
+		if (lookup->value != NULL && val != NULL && strcmp(lookup->value, val) == 0)
+			return false;
+	}
+
+	new_entry = (WelcomeVarLookup *)malloc(sizeof *new_entry);
+	if (new_entry == NULL)
+		return false;
+	new_entry->name = strdup(key);
+	new_entry->value = val ? strdup(val) : NULL;
+	HASH_REPLACE(hh, *vars, name[0], strlen(new_entry->name), new_entry, lookup);
+
+	if (lookup != NULL) {
+		free(lookup->name);
+		free(lookup->value);
+		free(lookup);
+	}
+	return true;
+}
+
+void welcome_vars_add_params(PktBuf *pkt, WelcomeVarLookup *vars)
+{
+	WelcomeVarLookup *lk, *tmp;
+
+	HASH_ITER(hh, vars, lk, tmp) {
+		if (lk->value != NULL)
+			pktbuf_write_ParameterStatus(pkt, lk->name, lk->value);
+	}
+}
+
+void welcome_vars_apply(PgSocket *client)
+{
+	bool res;
+	int pool_msg_offset = client->link->pool->welcome_msg_vars_offset;
+	struct PktBuf *pool_msg = client->link->pool->welcome_msg;
+	int pool_msg_len;
+
+	if (!client->welcome_msg || !pool_msg)
+		return;
+
+	pool_msg_len = pool_msg->write_pos - pool_msg_offset;
+
+	if (client->welcome_msg->write_pos == pool_msg_len &&
+	    memcmp(client->welcome_msg->buf, pool_msg->buf + pool_msg_offset, pool_msg_len) == 0)
+		return;
+
+	pktbuf_free(client->welcome_msg);
+	client->welcome_msg = pktbuf_dynamic(128);
+	if (!client->welcome_msg)
+		return;
+	pktbuf_put_bytes(client->welcome_msg, pool_msg->buf + pool_msg_offset, pool_msg_len);
+
+	if (client->state != CL_ACTIVE || client->wait_for_welcome)
+		return;
+
+	res = pktbuf_send_immediate(client->welcome_msg, client);
+	if (!res) {
+		disconnect_client(client, true, "failed to send welcome vars to client");
+	}
+}
+
+void welcome_vars_deinit(WelcomeVarLookup **vars)
+{
+	WelcomeVarLookup *lk, *tmp;
+
+	HASH_ITER(hh, *vars, lk, tmp) {
+		HASH_DEL(*vars, lk);
+		free(lk->name);
+		free(lk->value);
+		free(lk);
+	}
+	free(*vars);
+	*vars = NULL;
 }

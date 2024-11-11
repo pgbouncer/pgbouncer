@@ -377,7 +377,7 @@ void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...)
 
 	log_noise("write RowDescription");
 
-	pktbuf_start_packet(buf, 'T');
+	pktbuf_start_packet(buf, PqMsg_RowDescription);
 
 	pktbuf_put_uint16(buf, ncol);
 
@@ -435,7 +435,7 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 	int ncol = strlen(tupdesc);
 	va_list ap;
 
-	pktbuf_start_packet(buf, 'D');
+	pktbuf_start_packet(buf, PqMsg_DataRow);
 	pktbuf_put_uint16(buf, ncol);
 
 	va_start(ap, tupdesc);
@@ -497,11 +497,9 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...)
 	const char *val;
 	int len, i;
 
-	/* Parse */
-	pktbuf_write_generic(buf, 'P', "csh", 0, query, 0);
+	pktbuf_write_generic(buf, PqMsg_Parse, "csh", 0, query, 0);
 
-	/* Bind */
-	pktbuf_start_packet(buf, 'B');
+	pktbuf_start_packet(buf, PqMsg_Bind);
 	pktbuf_put_char(buf, 0);	/* portal name */
 	pktbuf_put_char(buf, 0);	/* query name */
 	pktbuf_put_uint16(buf, 0);	/* number of parameter format codes */
@@ -519,12 +517,7 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...)
 	pktbuf_put_uint16(buf, 0);	/* number of result-column format codes */
 	pktbuf_finish_packet(buf);
 
-	/* Describe */
-	pktbuf_write_generic(buf, 'D', "cc", 'P', 0);
-
-	/* Execute */
-	pktbuf_write_generic(buf, 'E', "ci", 0, 0);
-
-	/* Sync */
-	pktbuf_write_generic(buf, 'S', "");
+	pktbuf_write_generic(buf, PqMsg_Describe, "cc", 'P', 0);
+	pktbuf_write_generic(buf, PqMsg_Execute, "ci", 0, 0);
+	pktbuf_write_generic(buf, PqMsg_Sync, "");
 }

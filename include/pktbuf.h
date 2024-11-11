@@ -20,6 +20,8 @@
  * Safe & easy creation of PostgreSQL packets.
  */
 
+#include "common/protocol.h"
+
 typedef struct PktBuf PktBuf;
 struct PktBuf {
 	uint8_t *buf;
@@ -80,19 +82,19 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
  * Shortcuts for actual packets.
  */
 #define pktbuf_write_ParameterStatus(buf, key, val) \
-	pktbuf_write_generic(buf, 'S', "ss", key, val)
+	pktbuf_write_generic(buf, PqMsg_ParameterStatus, "ss", key, val)
 
 #define pktbuf_write_AuthenticationOk(buf) \
-	pktbuf_write_generic(buf, 'R', "i", 0)
+	pktbuf_write_generic(buf, PqMsg_AuthenticationRequest, "i", 0)
 
 #define pktbuf_write_ReadyForQuery(buf) \
-	pktbuf_write_generic(buf, 'Z', "c", 'I')
+	pktbuf_write_generic(buf, PqMsg_ReadyForQuery, "c", 'I')
 
 #define pktbuf_write_CommandComplete(buf, desc) \
-	pktbuf_write_generic(buf, 'C', "s", desc)
+	pktbuf_write_generic(buf, PqMsg_CommandComplete, "s", desc)
 
 #define pktbuf_write_BackendKeyData(buf, key) \
-	pktbuf_write_generic(buf, 'K', "b", key, 8)
+	pktbuf_write_generic(buf, PqMsg_BackendKeyData, "b", key, 8)
 
 #define pktbuf_write_CancelRequest(buf, key) \
 	pktbuf_write_generic(buf, PKT_CANCEL, "b", key, 8)
@@ -102,37 +104,37 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
 		unsupported_protocol_extensions_count, \
 		unsupported_protocol_extensions_bytes, \
 		unsupported_protocol_extensions_bytes_length) \
-	pktbuf_write_generic(buf, 'v', "iib", PKT_STARTUP_V3, unsupported_protocol_extensions_count, unsupported_protocol_extensions_bytes, unsupported_protocol_extensions_bytes_length)
+	pktbuf_write_generic(buf, PqMsg_NegotiateProtocolVersion, "iib", PKT_STARTUP_V3, unsupported_protocol_extensions_count, unsupported_protocol_extensions_bytes, unsupported_protocol_extensions_bytes_length)
 
 #define pktbuf_write_PasswordMessage(buf, psw) \
-	pktbuf_write_generic(buf, 'p', "s", psw)
+	pktbuf_write_generic(buf, PqMsg_PasswordMessage, "s", psw)
 
 #define pkgbuf_write_SASLInitialResponseMessage(buf, mech, cir) \
-	pktbuf_write_generic(buf, 'p', "sib", mech, strlen(cir), cir, strlen(cir))
+	pktbuf_write_generic(buf, PqMsg_SASLInitialResponse, "sib", mech, strlen(cir), cir, strlen(cir))
 
 #define pkgbuf_write_SASLResponseMessage(buf, cr) \
-	pktbuf_write_generic(buf, 'p', "b", cr, strlen(cr))
+	pktbuf_write_generic(buf, PqMsg_SASLResponse, "b", cr, strlen(cr))
 
 #define pktbuf_write_Notice(buf, msg) \
-	pktbuf_write_generic(buf, 'N', "sscss", "SNOTICE", "C00000", 'M', msg, "");
+	pktbuf_write_generic(buf, PqMsg_NoticeResponse, "sscss", "SNOTICE", "C00000", 'M', msg, "");
 
 #define pktbuf_write_SSLRequest(buf) \
 	pktbuf_write_generic(buf, PKT_SSLREQ, "")
 
 #define pktbuf_write_Parse(buf, stmt, query_and_parameters, query_and_parameters_len) \
-	pktbuf_write_generic(buf, 'P', "sb", stmt, query_and_parameters, query_and_parameters_len)
+	pktbuf_write_generic(buf, PqMsg_Parse, "sb", stmt, query_and_parameters, query_and_parameters_len)
 
 #define pktbuf_write_ParseComplete(buf) \
-	pktbuf_write_generic(buf, '1', "")
+	pktbuf_write_generic(buf, PqMsg_ParseComplete, "")
 
 #define pktbuf_write_DescribeStmt(buf, stmt) \
-	pktbuf_write_generic(buf, 'D', "cs", 'S', stmt)
+	pktbuf_write_generic(buf, PqMsg_Describe, "cs", 'S', stmt)
 
 #define pktbuf_write_CloseStmt(buf, stmt) \
-	pktbuf_write_generic(buf, 'C', "cs", 'S', stmt)
+	pktbuf_write_generic(buf, PqMsg_Close, "cs", 'S', stmt)
 
 #define pktbuf_write_CloseComplete(buf) \
-	pktbuf_write_generic(buf, '3', "")
+	pktbuf_write_generic(buf, PqMsg_CloseComplete, "")
 
 /*
  * Shortcut for creating DataRow in memory.

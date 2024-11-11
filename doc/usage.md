@@ -208,6 +208,19 @@ total_wait_time
 :   Time spent by clients waiting for a server, in microseconds. Updated
     when a client connection is assigned a backend connection.
 
+total_client_parse_count
+:   Total number of prepared statements created by clients. Only applicable
+    in named prepared statement tracking mode, see `max_prepared_statements`.
+
+total_server_parse_count
+:   Total number of prepared statements created by **pgbouncer** on a server. Only
+    applicable in named prepared statement tracking mode, see `max_prepared_statements`.
+
+total_bind_count
+:   Total number of prepared statements readied for execution by clients and forwarded
+    to PostgreSQL by **pgbouncer**. Only applicable in named prepared statement tracking
+    mode, see `max_prepared_statements`.
+
 avg_xact_count
 :   Average transactions per second in last stat period.
 
@@ -234,6 +247,19 @@ avg_wait_time
 :   Time spent by clients waiting for a server, in microseconds (average
     of the wait times for clients assigned a backend during the current
     `stats_period`).
+
+avg_client_parse_count
+:   Average number of prepared statements created by clients. Only applicable
+    in named prepared statement tracking mode, see `max_prepared_statements`.
+
+avg_server_parse_count
+:   Average number of prepared statements created by **pgbouncer** on a server. Only
+    applicable in named prepared statement tracking mode, see `max_prepared_statements`.
+
+avg_bind_count
+:   Average number of prepared statements readied for execution by clients and forwarded
+    to PostgreSQL by **pgbouncer**. Only applicable in named prepared statement tracking
+    mode, see `max_prepared_statements`.
 
 #### SHOW STATS_TOTALS
 
@@ -452,6 +478,9 @@ maxwait_us
 pool_mode
 :   The pooling mode in use.
 
+load_balance_hosts
+:   The load_balance_hosts in use if the pool's host contains a comma-separated list.
+
 #### SHOW PEER_POOLS
 
 A new peer_pool entry is made for each configured peer.
@@ -575,12 +604,21 @@ server_lifetime
 pool_mode
 :   The database's override pool_mode, or NULL if the default will be used instead.
 
+load_balance_hosts
+:   The database's load_balance_hosts if the host contains a comma-separated list.
+
 max_connections
-:   Maximum number of allowed connections for this database, as set by
+:   Maximum number of allowed server connections for this database, as set by
     **max_db_connections**, either globally or per database.
 
 current_connections
-:   Current number of connections for this database.
+:   Current number of server connections for this database.
+
+max_client_connections
+:   Maximum number of allowed client connections for this pgbouncer instance, as set by max_db_client_connections per database.
+
+current_client_connections
+:   Current number of client connections for this database.
 
 paused
 :   1 if this database is currently paused, else 0.

@@ -111,7 +111,7 @@ int cf_tcp_keepidle;
 int cf_tcp_keepintvl;
 int cf_tcp_user_timeout;
 
-int cf_auth_type = AUTH_MD5;
+int cf_auth_type = AUTH_TYPE_MD5;
 char *cf_auth_file;
 char *cf_auth_hba_file;
 char *cf_auth_ident_file;
@@ -126,6 +126,7 @@ int cf_min_pool_size;
 int cf_res_pool_size;
 usec_t cf_res_pool_timeout;
 int cf_max_db_connections;
+int cf_max_db_client_connections;
 int cf_max_user_connections;
 int cf_max_user_client_connections;
 
@@ -201,16 +202,16 @@ static bool set_defer_accept(struct CfValue *cv, const char *val);
 #define DEFER_OPS {set_defer_accept, cf_get_int}
 
 static const struct CfLookup auth_type_map[] = {
-	{ "any", AUTH_ANY },
-	{ "trust", AUTH_TRUST },
-	{ "plain", AUTH_PLAIN },
-	{ "md5", AUTH_MD5 },
-	{ "cert", AUTH_CERT },
-	{ "hba", AUTH_HBA },
+	{ "any", AUTH_TYPE_ANY },
+	{ "trust", AUTH_TYPE_TRUST },
+	{ "plain", AUTH_TYPE_PLAIN },
+	{ "md5", AUTH_TYPE_MD5 },
+	{ "cert", AUTH_TYPE_CERT },
+	{ "hba", AUTH_TYPE_HBA },
 #ifdef HAVE_PAM
-	{ "pam", AUTH_PAM },
+	{ "pam", AUTH_TYPE_PAM },
 #endif
-	{ "scram-sha-256", AUTH_SCRAM_SHA_256 },
+	{ "scram-sha-256", AUTH_TYPE_SCRAM_SHA_256 },
 	{ NULL }
 };
 
@@ -228,6 +229,12 @@ const struct CfLookup sslmode_map[] = {
 	{ "require", SSLMODE_REQUIRE },
 	{ "verify-ca", SSLMODE_VERIFY_CA },
 	{ "verify-full", SSLMODE_VERIFY_FULL },
+	{ NULL }
+};
+
+const struct CfLookup load_balance_hosts_map[] = {
+	{ "disable", LOAD_BALANCE_HOSTS_DISABLE },
+	{ "round-robin", LOAD_BALANCE_HOSTS_ROUND_ROBIN },
 	{ NULL }
 };
 
@@ -274,6 +281,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("logfile", CF_STR, cf_logfile, 0, ""),
 	CF_ABS("max_client_conn", CF_INT, cf_max_client_conn, 0, "100"),
 	CF_ABS("max_db_connections", CF_INT, cf_max_db_connections, 0, "0"),
+	CF_ABS("max_db_client_connections", CF_INT, cf_max_db_client_connections, 0, "0"),
 	CF_ABS("max_packet_size", CF_UINT, cf_max_packet_size, 0, "2147483647"),
 	CF_ABS("max_prepared_statements", CF_INT, cf_max_prepared_statements, 0, "200"),
 	CF_ABS("max_user_connections", CF_INT, cf_max_user_connections, 0, "0"),
@@ -419,9 +427,9 @@ static void set_peers_dead(bool flag)
 static bool requires_auth_file(int auth_type)
 {
 	/* For PAM authentication auth file is not used */
-	if (auth_type == AUTH_PAM)
+	if (auth_type == AUTH_TYPE_PAM)
 		return false;
-	return auth_type >= AUTH_TRUST;
+	return auth_type >= AUTH_TYPE_TRUST;
 }
 
 /* config loading, tries to be tolerant to errors */
@@ -429,6 +437,8 @@ void load_config(void)
 {
 	static bool loaded = false;
 	bool ok;
+
+	any_user_level_client_timeout_set = false;
 
 	set_dbs_dead(true);
 	set_peers_dead(true);
@@ -448,7 +458,7 @@ void load_config(void)
 		set_dbs_dead(false);
 	}
 
-	if (cf_auth_type == AUTH_HBA) {
+	if (cf_auth_type == AUTH_TYPE_HBA) {
 		struct Ident *ident;
 		struct HBA *hba;
 
@@ -721,8 +731,10 @@ static void check_pidfile(void)
 	}
 	res = read(fd, buf, sizeof(buf) - 1);
 	close(fd);
-	if (res <= 0)
+	if (res < 0)
 		die("could not read pidfile '%s': %s", cf_pidfile, strerror(errno));
+	if (res == 0)
+		goto locked_pidfile;
 
 	/* parse pid */
 	buf[res] = 0;
@@ -744,7 +756,7 @@ static void check_pidfile(void)
 	return;
 
 locked_pidfile:
-	die("pidfile exists, another instance running?");
+	die("pidfile '%s' exists, another instance running?", cf_pidfile);
 }
 
 static void write_pidfile(void)

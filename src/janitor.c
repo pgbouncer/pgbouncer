@@ -27,6 +27,7 @@
 /* do full maintenance 3x per second */
 static struct timeval full_maint_period = {0, USEC / 3};
 static struct event full_maint_ev;
+extern bool any_user_level_client_timeout_set;
 
 /* close all sockets in server list */
 static void close_server_list(struct StatList *sk_list, const char *reason)
@@ -158,7 +159,7 @@ static void launch_recheck(PgPool *pool)
 		/* send test query, wait for result */
 		slog_debug(server, "P: checking: %s", q);
 		change_server_state(server, SV_TESTED);
-		SEND_generic(res, server, 'Q', "s", q);
+		SEND_generic(res, server, PqMsg_Query, "s", q);
 		if (!res)
 			disconnect_server(server, false, "test query failed");
 	} else {
@@ -378,19 +379,29 @@ static void pool_client_maint(PgPool *pool)
 	struct List *item, *tmp;
 	usec_t now = get_cached_time();
 	PgSocket *client;
+	PgGlobalUser *user;
 	usec_t age;
+	usec_t effective_client_idle_timeout;
 
 	/* force client_idle_timeout */
-	if (cf_client_idle_timeout > 0) {
+	if (cf_client_idle_timeout > 0 || any_user_level_client_timeout_set) {
 		statlist_for_each_safe(item, &pool->active_client_list, tmp) {
 			client = container_of(item, PgSocket, head);
 			Assert(client->state == CL_ACTIVE);
 			if (client->link)
 				continue;
-			if (now - client->request_time > cf_client_idle_timeout)
+
+			user = client->login_user_credentials->global_user;
+			effective_client_idle_timeout = cf_client_idle_timeout;
+
+			if (user->client_idle_timeout > 0)
+				effective_client_idle_timeout = user->client_idle_timeout;
+
+			if (now - client->request_time > effective_client_idle_timeout)
 				disconnect_client(client, true, "client_idle_timeout");
 		}
 	}
+
 
 	/* force timeouts for waiting queries */
 	if (cf_query_timeout > 0 || cf_query_wait_timeout > 0) {

@@ -139,6 +139,10 @@ enum PacketCallbackFlag {
 	CB_HANDLE_COMPLETE_PACKET,
 };
 
+enum LoadBalanceHosts {
+	LOAD_BALANCE_HOSTS_DISABLE,
+	LOAD_BALANCE_HOSTS_ROUND_ROBIN
+};
 
 #define is_server_socket(sk) ((sk)->state >= SV_FREE)
 
@@ -212,37 +216,20 @@ extern int cf_sbuf_len;
 #define MAX_PASSWORD    2048
 
 /*
- * AUTH_* symbols are used for both protocol handling and
- * configuration settings (auth_type, hba).  Some are only applicable
- * to one or the other.
+ * Symbols for authentication type settings (auth_type, hba).
  */
-
-/* no-auth modes */
-#define AUTH_ANY        -1	/* same as trust but without username check */
-#define AUTH_TRUST      AUTH_OK
-
-/* protocol codes in Authentication* 'R' messages from server */
-#define AUTH_OK         0
-#define AUTH_KRB4       1	/* not supported */
-#define AUTH_KRB5       2	/* not supported */
-#define AUTH_PLAIN      3
-#define AUTH_CRYPT      4	/* not supported */
-#define AUTH_MD5        5
-#define AUTH_SCM_CREDS  6	/* not supported */
-#define AUTH_GSS        7	/* not supported */
-#define AUTH_GSS_CONT   8	/* not supported */
-#define AUTH_SSPI       9	/* not supported */
-#define AUTH_SASL       10
-#define AUTH_SASL_CONT  11
-#define AUTH_SASL_FIN   12
-
-/* internal codes */
-#define AUTH_CERT       107
-#define AUTH_PEER       108
-#define AUTH_HBA        109
-#define AUTH_REJECT     110
-#define AUTH_PAM        111
-#define AUTH_SCRAM_SHA_256      112
+enum auth_type {
+	AUTH_TYPE_ANY,
+	AUTH_TYPE_TRUST,
+	AUTH_TYPE_PLAIN,
+	AUTH_TYPE_MD5,
+	AUTH_TYPE_CERT,
+	AUTH_TYPE_HBA,
+	AUTH_TYPE_PAM,
+	AUTH_TYPE_SCRAM_SHA_256,
+	AUTH_TYPE_PEER,
+	AUTH_TYPE_REJECT,
+};
 
 /* type codes for weird pkts */
 #define PKT_STARTUP_V2  0x20000
@@ -540,6 +527,7 @@ struct PgGlobalUser {
 	struct List pool_list;		/* list of pools where pool->user == this user */
 	int pool_mode;
 	int pool_size;				/* max server connections in one pool */
+	usec_t client_idle_timeout;	/* how long is user allowed to idly connect to pgbouncer */
 	int max_user_connections;	/* how many server connections are allowed */
 	int max_user_client_connections;	/* how many client connections are allowed */
 	int connection_count;	/* how many server connections are used by user now */
@@ -568,9 +556,11 @@ struct PgDatabase {
 	int min_pool_size;	/* min server connections in one pool */
 	int res_pool_size;	/* additional server connections in case of trouble */
 	int pool_mode;		/* pool mode for this database */
+	int max_db_client_connections;	/* max connections that pgbouncer will accept from client to this database */
 	int max_db_connections;	/* max server connections between all pools */
 	usec_t server_lifetime;	/* max lifetime of server connection */
 	char *connect_query;	/* startup commands to send to server after connect */
+	enum LoadBalanceHosts load_balance_hosts;	/* strategy for host selection in a comma-separated host list */
 
 	struct PktBuf *startup_params;	/* partial StartupMessage (without user) be sent to server */
 	const char *dbname;	/* server-side name, pointer to inside startup_msg */
@@ -592,6 +582,7 @@ struct PgDatabase {
 	usec_t inactive_time;	/* when auto-database became inactive (to kill it after timeout) */
 	unsigned active_stamp;	/* set if autodb has connections */
 	int connection_count;	/* total connections for this database in all pools */
+	int client_connection_count;	/* total client connections for this database */
 
 	struct AATree user_tree;	/* users that have been queried on this database */
 };
@@ -655,7 +646,9 @@ struct PgSocket {
 
 	SocketState state : 8;		/* this also specifies socket location */
 
+	bool contributes_db_client_count : 1;
 	bool user_connection_counted : 1;
+
 	bool ready : 1;			/* server: accepts new query */
 	bool idle_tx : 1;		/* server: idling in tx */
 	bool close_needed : 1;		/* server: this socket must be closed ASAP */
@@ -774,6 +767,7 @@ extern int cf_min_pool_size;
 extern int cf_res_pool_size;
 extern usec_t cf_res_pool_timeout;
 extern int cf_max_db_connections;
+extern int cf_max_db_client_connections;
 extern int cf_max_user_connections;
 extern int cf_max_user_client_connections;
 
@@ -796,6 +790,7 @@ extern usec_t cf_cancel_wait_timeout;
 extern usec_t cf_client_idle_timeout;
 extern usec_t cf_client_login_timeout;
 extern usec_t cf_idle_transaction_timeout;
+extern bool any_user_level_client_timeout_set;
 extern int cf_server_round_robin;
 extern int cf_disable_pqexec;
 extern usec_t cf_dns_max_ttl;
@@ -859,6 +854,7 @@ extern char *cf_server_tls_ciphers;
 extern int cf_max_prepared_statements;
 
 extern const struct CfLookup pool_mode_map[];
+extern const struct CfLookup load_balance_hosts_map[];
 
 extern usec_t g_suspend_start;
 

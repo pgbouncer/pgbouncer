@@ -126,6 +126,7 @@ int cf_min_pool_size;
 int cf_res_pool_size;
 usec_t cf_res_pool_timeout;
 int cf_max_db_connections;
+int cf_max_db_client_connections;
 int cf_max_user_connections;
 int cf_max_user_client_connections;
 
@@ -231,6 +232,12 @@ const struct CfLookup sslmode_map[] = {
 	{ NULL }
 };
 
+const struct CfLookup load_balance_hosts_map[] = {
+	{ "disable", LOAD_BALANCE_HOSTS_DISABLE },
+	{ "round-robin", LOAD_BALANCE_HOSTS_ROUND_ROBIN },
+	{ NULL }
+};
+
 /*
  * Add new parameters in alphabetical order. This order is used by SHOW CONFIG.
  */
@@ -274,6 +281,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("logfile", CF_STR, cf_logfile, 0, ""),
 	CF_ABS("max_client_conn", CF_INT, cf_max_client_conn, 0, "100"),
 	CF_ABS("max_db_connections", CF_INT, cf_max_db_connections, 0, "0"),
+	CF_ABS("max_db_client_connections", CF_INT, cf_max_db_client_connections, 0, "0"),
 	CF_ABS("max_packet_size", CF_UINT, cf_max_packet_size, 0, "2147483647"),
 	CF_ABS("max_prepared_statements", CF_INT, cf_max_prepared_statements, 0, "200"),
 	CF_ABS("max_user_connections", CF_INT, cf_max_user_connections, 0, "0"),
@@ -430,6 +438,8 @@ void load_config(void)
 	static bool loaded = false;
 	bool ok;
 	any_user_level_timeout_set = false;
+
+	any_user_level_client_timeout_set = false;
 
 	set_dbs_dead(true);
 	set_peers_dead(true);
@@ -722,8 +732,10 @@ static void check_pidfile(void)
 	}
 	res = read(fd, buf, sizeof(buf) - 1);
 	close(fd);
-	if (res <= 0)
+	if (res < 0)
 		die("could not read pidfile '%s': %s", cf_pidfile, strerror(errno));
+	if (res == 0)
+		goto locked_pidfile;
 
 	/* parse pid */
 	buf[res] = 0;
@@ -745,7 +757,7 @@ static void check_pidfile(void)
 	return;
 
 locked_pidfile:
-	die("pidfile exists, another instance running?");
+	die("pidfile '%s' exists, another instance running?", cf_pidfile);
 }
 
 static void write_pidfile(void)

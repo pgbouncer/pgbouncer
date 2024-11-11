@@ -1176,14 +1176,15 @@ def test_ldap_auth(bouncer, openldap):
         )
     bouncer.admin("reload")
     bouncer.test(user="ldapuser1", password="secret1")
-    # 8 test "use ldaps in LDAP URLs"
-    with open(hba_conf_file, "w") as f:
-        f.write(
-            f"host all ldapuser1 0.0.0.0/0 ldap "
-            f'ldapurl="ldaps://127.0.0.1:{openldap.ldap_port}/dc=example,dc=net??sub?(|(uid=$username)(mail=$username))"'
-        )
-    bouncer.admin("reload")
-    bouncer.test(user="ldapuser1", password="secret1")
+    # # 8 test "use ldaps in LDAP URLs"
+    # LDAPs not supported yet, because the script are not started with ldaps.
+    # with open(hba_conf_file, "w") as f:
+    #     f.write(
+    #         f"host all ldapuser1 0.0.0.0/0 ldap "
+    #         f'ldapurl="ldaps://127.0.0.1:{openldap.ldap_port}/dc=example,dc=net??sub?(|(uid=$username)(mail=$username))"'
+    #     )
+    # bouncer.admin("reload")
+    # bouncer.test(user="ldapuser1", password="secret1")
     # 9 test "hba format"
     with open(hba_conf_file, "w") as f:
         f.write(

@@ -27,7 +27,7 @@
 /* do full maintenance 3x per second */
 static struct timeval full_maint_period = {0, USEC / 3};
 static struct event full_maint_ev;
-extern bool any_user_level_timeout_set;
+extern bool any_user_level_server_timeout_set;
 
 /* close all sockets in server list */
 static void close_server_list(struct StatList *sk_list, const char *reason)

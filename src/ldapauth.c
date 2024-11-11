@@ -41,6 +41,7 @@
  */
 #define LDAP_QUEUE_WAIT_SLEEP_MCS    (100*1000)
 #define LDAP_LONG_LENGTH 256
+#define MAX_INT_LENGTH 10
 
 struct ldap_auth_request {
 	/* The socket we check authentication for */
@@ -582,31 +583,131 @@ static void ldap_auth_finish(struct ldap_auth_request *request, int status)
 	}
 }
 
+#define append_target_string(uris, content, length, current_pos, total_length) \
+	do {    \
+		char *new_ptr = NULL;   \
+		while (total_length < current_pos + length + 1) {       \
+			new_ptr = realloc(uris, total_length * 2);      \
+			if (new_ptr == NULL) {  \
+				log_warning("could not realloc space for uris string"); \
+				free(uris);     \
+				return false;   \
+			} else {        \
+				uris = new_ptr; \
+				total_length = total_length * 2;        \
+			}       \
+		}       \
+		memcpy(uris + current_pos, content, length);    \
+		current_pos = current_pos + length;     \
+		*(uris + current_pos) = '\0';   \
+	} while (0)
+
 /*
  * Initialize a connection to the LDAP server, including setting up
  * TLS if requested.
  */
 static bool InitializeLDAPConnection(struct ldap_auth_request *request, LDAP **ldap)
 {
+	const char *scheme;
 	int ldapversion = LDAP_VERSION3;
 	int r;
 	struct timeval ts;
 
-	if (strncmp(request->ldapserver, "ldaps://", 8) == 0 ||
-	    strncmp(request->ldapserver, "ldap://", 7) == 0) {
-		if ((r = ldap_initialize(ldap, request->ldapserver)) != LDAP_SUCCESS) {
-			log_warning("could not initialize LDAP: code: %d, msg: %s",
-				    r, ldap_err2string(r));
-			*ldap = NULL;
+	scheme = request->ldapscheme;
+	if (scheme == NULL)
+		scheme = "ldap";
+	/*
+	 * OpenLDAP provides a non-standard extension ldap_initialize() that takes
+	 * a list of URIs, allowing us to request "ldaps" instead of "ldap".  It
+	 * also provides ldap_domain2hostlist() to find LDAP servers automatically
+	 * using DNS SRV.  They were introduced in the same version, so for now we
+	 * don't have an extra configure check for the latter.
+	 */
+	{
+		/* We'll build a space-separated scheme://hostname:port list here */
+		char *uris = NULL;
+		int uris_length = 0;
+		int current_pos = 0;
+		char *hostlist = NULL;
+		char *p;
+		bool append_port;
+
+		/*
+		 * If pg_hba.conf provided no hostnames, we can ask OpenLDAP to try to
+		 * find some by extracting a domain name from the base DN and looking
+		 * up DSN SRV records for _ldap._tcp.<domain>.
+		 */
+		if (!request->ldapserver || request->ldapserver[0] == '\0') {
+			char *domain;
+
+			/* ou=blah,dc=foo,dc=bar -> foo.bar */
+			if (ldap_dn2domain(request->ldapbasedn, &domain)) {
+				log_warning("could not extract domain name from ldapbasedn");
+				return false;
+			}
+
+			/* Look up a list of LDAP server hosts and port numbers */
+			if (ldap_domain2hostlist(domain, &hostlist)) {
+				log_warning("LDAP authentication could not find DNS SRV records for \"%s\"",
+					    domain);
+				ldap_memfree(domain);
+				return false;
+			}
+			ldap_memfree(domain);
+
+			/* We have a space-separated list of host:port entries */
+			p = hostlist;
+			append_port = false;
+		} else
+		{
+			/* We have a space-separated list of hosts from pg_hba.conf */
+			p = request->ldapserver;
+			append_port = true;
+		}
+
+		uris = (char *) zmalloc(LDAP_LONG_LENGTH);
+		uris_length = LDAP_LONG_LENGTH;
+		if (uris == NULL) {
+			log_warning("could not alloc memory for uris\n");
 			return false;
 		}
-	} else {
-		*ldap = ldap_init(request->ldapserver, request->ldapport);
-	}
+		/* Convert the list of host[:port] entries to full URIs */
+		do {
+			size_t size;
 
-	if (!*ldap) {
-		log_warning("could not initialize LDAP: %m");
-		return false;
+			/* Find the span of the next entry */
+			size = strcspn(p, " ");
+
+			/* Append a space separator if this isn't the first URI */
+			if (current_pos > 0)
+				append_target_string(uris, " ", 1, current_pos, uris_length);
+
+			/* Append scheme://host:port */
+			append_target_string(uris, scheme, (int)strlen(scheme), current_pos, uris_length);
+			append_target_string(uris, "://", (int)strlen("://"), current_pos, uris_length);
+			append_target_string(uris, p, (int)size, current_pos, uris_length);
+			if (append_port) {
+				char port_array[MAX_INT_LENGTH + 1] = {0};
+				snprintf(port_array, MAX_INT_LENGTH + 1, ":%d", request->ldapport);
+				append_target_string(uris, port_array, (int)strlen(port_array), current_pos, uris_length);
+			}
+			/* Step over this entry and any number of trailing spaces */
+			p += size;
+			while (*p == ' ')
+				++p;
+		} while (*p);
+
+		/* Free memory from OpenLDAP if we looked up SRV records */
+		if (hostlist)
+			ldap_memfree(hostlist);
+
+		/* Finally, try to connect using the URI list */
+		r = ldap_initialize(ldap, uris);
+		free(uris);
+		if (r != LDAP_SUCCESS) {
+			log_warning("could not initialize LDAP: %s", ldap_err2string(r));
+			return false;
+		}
 	}
 
 	if ((r = ldap_set_option(*ldap, LDAP_OPT_PROTOCOL_VERSION, &ldapversion)) != LDAP_SUCCESS) {

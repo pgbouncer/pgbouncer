@@ -1214,16 +1214,23 @@ class Bouncer(QueryRunner):
 
 class OpenLDAP:
     def __init__(self, config_dir):
-        self.port_lock = PortLock()
+        self.ldap_port_lock = PortLock()
+        self.ldaps_port_lock = PortLock()
         self.config_dir = config_dir
         self.slapd_pid_file = self.config_dir / "ldap" / "slapd.pid"
 
     def startup(self):
-        run(f"{START_OPENLDAP_SCRIPT} {self.config_dir} {self.port_lock.port}")
+        run(
+            f"{START_OPENLDAP_SCRIPT} {self.config_dir} {self.ldap_port_lock.port} {self.ldaps_port_lock.port}"
+        )
 
     @property
     def ldap_port(self):
-        return self.port_lock.port
+        return self.ldap_port_lock.port
+
+    @property
+    def ldaps_port(self):
+        return self.ldaps_port_lock.port
 
     def stop(self):
         with self.slapd_pid_file.open("r") as pid_file:
@@ -1232,4 +1239,5 @@ class OpenLDAP:
 
     def cleanup(self):
         self.stop()
-        self.port_lock.release()
+        self.ldap_port_lock.release()
+        self.ldaps_port_lock.release()

@@ -205,6 +205,23 @@ async def bouncer(pg, tmp_path):
     await bouncer.cleanup()
 
 
+@pytest.mark.asyncio
+@pytest.fixture
+async def bouncer_with_openldap(pg, tmp_path, monkeypatch):
+    """Starts a new PgBouncer process"""
+    bouncer = Bouncer(pg, tmp_path / "bouncer")
+    ldap = OpenLDAP(tmp_path)
+    bouncer.ldap = ldap
+    monkeypatch.setenv("LDAPCONF", str(tmp_path / "ldap/ldap.conf"))
+    ldap.startup()
+    await bouncer.start()
+
+    yield bouncer
+
+    ldap.cleanup()
+    await bouncer.cleanup()
+
+
 @pytest.fixture(autouse=True)
 def pg_log(pg):
     """Prints the Postgres logs that were created during the test
@@ -235,12 +252,3 @@ def pg_reset(pg):
         pg.reload()
 
     yield
-
-
-@pytest.fixture
-def openldap(tmp_path_factory):
-    """Starts an openldap server under tmp_path for tests in this process"""
-    ldap = OpenLDAP(tmp_path_factory.getbasetemp())
-    ldap.startup()
-    yield ldap
-    ldap.cleanup()

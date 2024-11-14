@@ -131,6 +131,28 @@ the per-database configuration.
 
 Default: 20
 
+### polling_frequency
+
+How often to poll the other nodes in a cluster if using the fast switchover feature.
+The query used to poll the nodes is `pg_is_in_recovery()`.
+
+Default: .1 (100ms)
+
+### server_failed_delay
+
+How long to wait between failed attempts to reconnect to a downed node when using fast
+switchovers. This prevents connection storming downed nodes.
+
+Default: 30
+
+### recreate_disconnected_pools
+
+If enabled, and [topology_query](#topology_query) is set for a pool, connections to the pools
+using the topology_query that have been closed will be automatically recreated during
+a failover.
+
+Default: 1 (enabled)
+
 ### min_pool_size
 
 Add more server connections to pool if below this number.
@@ -1054,6 +1076,13 @@ used.
 Query to be executed after a connection is established, but before
 allowing the connection to be used by any clients. If the query raises errors,
 they are logged but ignored otherwise.
+
+### topology_query
+
+Query to be executed to determine the topology for a multi-node cluster. If set,
+PgBouncer will precreate connection pools to each node in the cluster.
+
+Example: topology_query='select endpoint from rds_tools.show_topology()'
 
 ### pool_mode
 

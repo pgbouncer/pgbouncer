@@ -24,6 +24,8 @@
 
 #include <usual/slab.h>
 
+bool fast_switchover = false;
+
 /* do full maintenance 3x per second */
 static struct timeval full_maint_period = {0, USEC / 3};
 static struct event full_maint_ev;
@@ -125,21 +127,158 @@ void resume_all(void)
 	resume_pooler();
 }
 
-/*
- * send test/reset query to server if needed
- */
-static void launch_recheck(PgPool *pool)
+static bool update_client_pool(PgSocket *client, PgPool *new_pool)
 {
-	const char *q = cf_server_check_query;
+	char *username = NULL;
+	char *passwd = NULL;
+
+	if (client->pool == new_pool)
+		return true;
+
+	username = client->login_user->name;
+	passwd = client->login_user->passwd;
+	if (!set_pool(client, new_pool->db->name, username, passwd, true)) {
+		log_error("could not set pool to: %s", new_pool->db->name);
+		return false;
+	}
+
+	return true;
+}
+
+static void reset_recently_checked(void)
+{
+	struct List *item;
+	PgPool *pool;
+
+	statlist_for_each(item, &pool_list) {
+		pool = container_of(item, PgPool, head);
+		if (pool->db->admin)
+			continue;
+
+		if (!pool->db->topology_query)
+			continue;
+
+		log_debug("resetting pool: %s", pool->db->name);
+		pool->recently_checked = false;
+	}
+}
+
+/*
+ * send test/reset query to server if needed. If using fast switchovers,
+ * this is the entry point for finding the new writer.
+ */
+static void launch_recheck(PgPool *pool, PgSocket *client)
+{
+	char *q = cf_server_check_query;
+	char *recovery_query = NULL;
 	bool need_check = true;
 	PgSocket *server;
 	bool res = true;
+	struct List *item;
+	PgPool *next_pool;
+	usec_t polling_freq_in_ms = cf_polling_frequency / 1000;
+	usec_t last_poll_time;
+	usec_t difference_in_ms;
+	usec_t now;
+	PgPool *global_writer = get_global_writer(pool);
+
+	log_debug("launch_recheck: for db: %s, global_writer? %s", pool->db->name, global_writer ? global_writer->db->name : "no global_writer");
+
+	if (!pool->db->topology_query) {
+		log_debug("launch_recheck: no topology_query for this pool, so proceeding without cache");
+	} else if (global_writer) {
+		log_debug("launch_recheck: global writer is set: using cached pool: %s", global_writer->db->name);
+		update_client_pool(client, global_writer);
+	} else if (pool->last_connect_failed) {
+		bool found = false;
+		bool need_to_reconnect = true;
+		reset_time_cache();
+		now = get_cached_time();
+		log_debug("launch_recheck: need to iterate pool list");
+
+		statlist_for_each(item, &pool_list) {
+			next_pool = container_of(item, PgPool, head);
+
+			if (!next_pool->parent_pool || next_pool->parent_pool != pool) {
+				log_debug("launch_recheck: no parent pool, skipping: %s", next_pool->db->name);
+				continue;
+			}
+
+			if (next_pool->last_connect_failed) {
+				log_debug("launch_recheck: last_connect_failed, skipping: %s", next_pool->db->name);
+				continue;
+			}
+
+			need_to_reconnect = false;
+
+			if (next_pool->checking_for_new_writer) {
+				log_debug("launch_recheck: checking_for_new_writer is true for node '%s', can't run another recovery check until done.", next_pool->db->name);
+				return;
+			}
+
+			if (next_pool->recently_checked) {
+				log_debug("launch_recheck: pool was recently checked, skipping: %s", next_pool->db->name);
+				continue;
+			}
+
+			last_poll_time = next_pool->last_poll_time;
+			difference_in_ms = (now - last_poll_time) / 1000;
+			log_debug("launch_recheck: last time checked for pool %s: now: %llu last: %llu, diff: %llu, polling_freq_max: %llu", next_pool->db->name, now, last_poll_time, difference_in_ms, cf_polling_frequency/1000);
+
+			if (difference_in_ms < polling_freq_in_ms) {
+				log_debug("launch_recheck: skipping because it's too soon for pool %s (%llu ms)", next_pool->db->name, difference_in_ms);
+				continue;
+			}
+
+			log_debug("launch_recheck: found pool during iteration, setting to: %s", next_pool->db->name);
+
+			found = update_client_pool(client, next_pool);
+			if (!found)
+				return;
+
+			break;
+		}
+
+		if (need_to_reconnect && cf_recreate_disconnected_pools) {
+			log_debug("launch_recheck: all pools failed, so need to try to reconnect to parents");
+			statlist_for_each(item, &pool_list) {
+				next_pool = container_of(item, PgPool, head);
+
+				if (!next_pool->parent_pool || next_pool->parent_pool != pool) {
+					continue;
+				}
+
+				log_debug("launch_recheck: establishing new connection to pool: %s", next_pool->db->name);
+				launch_new_connection(next_pool, /* evict_if_needed= */ true);
+			}
+
+			return;
+		} else if (!found) {
+			log_debug("could not find alternate server, need to reset all pools");
+			reset_recently_checked();
+			/* drastically reduces switchover/failover time since we don't need to wait to get called again from per_loop_activate() */
+			launch_recheck(pool, client);
+
+			return;
+		} else {
+			next_pool->last_poll_time = now;
+			next_pool->recently_checked = true;
+		}
+	}
 
 	/* find clean server */
 	while (1) {
-		server = first_socket(&pool->used_server_list);
-		if (!server)
-			return;
+		server = first_socket(&client->pool->used_server_list);
+		if (!server) {
+			log_debug("launch_recheck: could not find used_server for pool: %s", client->pool->db->name);
+
+			/* if a new connection pool was created because all three nodes in the cluster are down, servers are in the idle list instead of used list */
+			server = first_socket(&client->pool->idle_server_list);
+			if (!server) {
+				client->pool->last_connect_failed = true;
+				return;
+			}
+		}
 		if (server->ready)
 			break;
 		disconnect_server(server, true, "idle server got dirty");
@@ -152,6 +291,31 @@ static void launch_recheck(PgPool *pool)
 		usec_t now = get_cached_time();
 		if (now - server->request_time < cf_server_check_delay)
 			need_check = false;
+	}
+
+	if (fast_switchover && pool->db->topology_query) {
+		if (!global_writer) {
+			client->pool->checking_for_new_writer = true;
+			recovery_query = strdup("select pg_is_in_recovery()");
+			if (recovery_query == NULL) {
+				log_error("strdup: no mem for pg_is_in_recovery()");
+				return;
+			}
+			slog_debug(server, "P: checking: %s (not done polling)", recovery_query);
+			SEND_generic(res, server, 'Q', "s", recovery_query);
+			if (!res)
+				disconnect_server(server, false, "pg_is_in_recovery() query failed");
+			free(recovery_query);
+			return;
+		} else {
+			reset_recently_checked();
+			change_server_state(server, SV_TESTED);
+
+			/* reactivate paused clients that never finished logging in */
+			if (client->state == CL_WAITING_LOGIN || client->state == CL_WAITING) {
+				activate_client(client);
+			}
+		}
 	}
 
 	if (need_check) {
@@ -202,11 +366,22 @@ static void per_loop_activate(PgPool *pool)
 			--sv_tested;
 		} else if (sv_used > 0) {
 			/* ask for more connections to be tested */
-			launch_recheck(pool);
+			launch_recheck(pool, client);
 			--sv_used;
 		} else {
 			/* not enough connections */
-			launch_new_connection(pool, /* evict_if_needed= */ true);
+			log_debug("launch_new_connection because not enough connections. number pools: %d, for: %s", statlist_count(&pool_list), pool->db->name);
+
+			if (fast_switchover && pool->db->topology_query &&
+			 	(!get_global_writer(pool) || pool->last_connect_failed)) {
+				log_debug("launch_new_connection loop: going to try to use pool cache since this pool was a writer: last_connect_failed (%d)",
+						pool->last_connect_failed);
+				launch_recheck(pool, client);
+			} else {
+				log_debug("launch_new_connection loop: need to launch new connection because pool is not already a writer");
+				launch_new_connection(pool, /* evict_if_needed= */ true);
+			}
+
 			break;
 		}
 	}
@@ -298,10 +473,7 @@ static int per_loop_wait_close(PgPool *pool)
 	return count;
 }
 
-/*
- * this function is called for each event loop.
- */
-void per_loop_maint(void)
+static void loop_maint(bool initialize)
 {
 	struct List *item;
 	PgPool *pool;
@@ -310,6 +482,7 @@ void per_loop_maint(void)
 	bool partial_pause = false;
 	bool partial_wait = false;
 	bool force_suspend = false;
+	usec_t now = get_cached_time();
 
 	if (cf_pause_mode == P_SUSPEND && cf_suspend_timeout > 0) {
 		usec_t stime = get_cached_time() - g_suspend_start;
@@ -321,13 +494,32 @@ void per_loop_maint(void)
 		pool = container_of(item, PgPool, head);
 		if (pool->db->admin)
 			continue;
+
+		if (initialize) {
+			if (!pool->db->topology_query)
+				continue;
+
+			pool->initial_writer_endpoint = true;
+			log_debug("create initial pool during startup for: %s", pool->db->name);
+		} else {
+			if (fast_switchover && pool->last_connect_failed && get_global_writer(pool)) {
+				if (now - pool->last_failed_time > cf_server_failed_delay) {
+					log_debug("last connect failed: %s, so launching new connection in per_loop_maint", pool->db->name);
+					launch_new_connection(pool, true);
+				}
+			}
+		}
+
 		switch (cf_pause_mode) {
 		case P_NONE:
 			if (pool->db->db_paused) {
 				partial_pause = true;
 				active_count += per_loop_pause(pool);
 			} else {
-				per_loop_activate(pool);
+				if (initialize)
+					launch_new_connection(pool, false);
+				else
+					per_loop_activate(pool);
 			}
 			break;
 		case P_PAUSE:
@@ -364,6 +556,27 @@ void per_loop_maint(void)
 
 	if (partial_wait && !waiting_count)
 		admin_wait_close_done();
+}
+
+/*
+ * Used to pre-create connection pools at pgbouncer init time.
+ */
+void run_once_to_init(void)
+{
+	if (!fast_switchover) {
+		log_debug("database does not have fast_switchovers enabled, so will not precreate pools to nodes");
+		return;
+	}
+
+	loop_maint(true);
+}
+
+/*
+ * this function is called for each event loop.
+ */
+void per_loop_maint(void)
+{
+	loop_maint(false);
 }
 
 /* maintaining clients in pool */
@@ -472,6 +685,7 @@ static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle
 		} else if (server->state == SV_USED && !server->ready) {
 			disconnect_server(server, true, "SV_USED server got dirty");
 		} else if (cf_server_idle_timeout > 0 && idle > cf_server_idle_timeout
+			   && (pool->db && !pool->db->topology_query)
 			   && (pool_min_pool_size(pool) == 0 || pool_connected_server_count(pool) > pool_min_pool_size(pool))) {
 			disconnect_server(server, true, "server idle timeout");
 		} else if (age >= cf_server_lifetime) {
@@ -801,6 +1015,7 @@ void kill_database(PgDatabase *db)
 	if (db->forced_user)
 		slab_free(user_cache, db->forced_user);
 	free(db->connect_query);
+	free(db->topology_query);
 	if (db->inactive_time) {
 		statlist_remove(&autodatabase_idle_list, &db->head);
 	} else {

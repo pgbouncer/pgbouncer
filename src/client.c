@@ -585,10 +585,10 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 		} else if (strcmp(key, "application_name") == 0) {
 			set_appname(client, val);
 			appname_found = true;
-		} else if (varcache_set(&client->vars, key, val)) {
-			slog_debug(client, "got var: %s=%s", key, val);
 		} else if (strlist_contains(cf_ignore_startup_params, key)) {
 			slog_debug(client, "ignoring startup parameter: %s=%s", key, val);
+		} else if (varcache_set(&client->vars, key, val)) {
+			slog_debug(client, "got var: %s=%s", key, val);
 		} else {
 			slog_warning(client, "unsupported startup parameter: %s=%s", key, val);
 			disconnect_client(client, true, "unsupported startup parameter: %s", key);
@@ -798,7 +798,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 			return false;
 		}
 
-		if (client->pool && !client->wait_for_user_conn && !client->wait_for_user) {
+		if (client->pool && !client->wait_for_user_conn && !client->wait_for_user && !get_global_writer(client->pool)) {
 			disconnect_client(client, true, "client re-sent startup pkt");
 			return false;
 		}
@@ -923,7 +923,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 {
 	SBuf *sbuf = &client->sbuf;
-	int rfq_delta = 0;
+	int rfq_delta = 0, in_transaction;
 
 	switch (pkt->type) {
 
@@ -980,14 +980,25 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		client->query_start = get_cached_time();
 	}
 
+	/* xact_start is non-zero if we are inside a transaction */
+	in_transaction = client->xact_start != 0;
+
 	/* remember timestamp of the first query in a transaction */
-	if (!client->xact_start) {
+	if (!in_transaction) {
 		client->pool->stats.xact_count++;
 		client->xact_start = client->query_start;
 	}
 
 	if (client->pool->db->admin)
 		return admin_handle_client(client, pkt);
+
+	/* pgbouncer-rr extensions: query rewrite & client connection routing */
+	if (pkt->type == 'Q' || pkt->type == 'P') {
+		if (!rewrite_query(client, in_transaction, pkt)) {
+			return false;
+		}
+		route_client_connection(client, in_transaction, pkt);
+	}
 
 	/* acquire server */
 	if (!find_server(client))

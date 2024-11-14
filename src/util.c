@@ -26,6 +26,33 @@
 #include <usual/crypto/csrandom.h>
 #include <usual/socket.h>
 
+PgPool *get_global_writer(PgPool *pool)
+{
+	if (!pool)
+		return NULL;
+
+	if (pool->global_writer)
+		return pool->global_writer;
+
+	if (!pool->parent_pool)
+		return NULL;
+
+	return pool->parent_pool->global_writer;
+}
+
+void clear_global_writer(PgPool *pool)
+{
+	if (pool->global_writer) {
+		pool->global_writer = NULL;
+		return;
+	}
+
+	if (!pool->parent_pool)
+		return;
+
+	pool->parent_pool->global_writer = NULL;
+}
+
 int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstlen)
 {
 	const struct PgSocket *sock = ctx;

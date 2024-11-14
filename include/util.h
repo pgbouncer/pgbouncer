@@ -20,6 +20,16 @@
 #include <usual/string.h>
 
 /*
+ * sets the global writer to NULL for the pool
+ */
+void clear_global_writer(PgPool *pool);
+
+/*
+ * get the global writer, if any from the pool
+ */
+PgPool *get_global_writer(PgPool *pool);
+
+/*
  * logging about specific socket
  */
 int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstlen);

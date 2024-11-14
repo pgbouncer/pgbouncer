@@ -1093,6 +1093,7 @@ static bool admin_cmd_reload(PgSocket *admin, const char *arg)
 	load_config();
 	if (!sbuf_tls_setup())
 		log_error("TLS configuration could not be reloaded, keeping old configuration");
+	run_once_to_init();
 	return admin_ready(admin, "RELOAD");
 }
 

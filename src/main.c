@@ -119,7 +119,9 @@ char *cf_auth_dbname;
 
 int cf_max_client_conn;
 int cf_default_pool_size;
+usec_t cf_polling_frequency;
 int cf_min_pool_size;
+int cf_recreate_disconnected_pools;
 int cf_res_pool_size;
 usec_t cf_res_pool_timeout;
 int cf_max_db_connections;
@@ -130,6 +132,7 @@ int cf_server_reset_query_always;
 char *cf_server_check_query;
 usec_t cf_server_check_delay;
 int cf_server_fast_close;
+usec_t cf_server_failed_delay;
 int cf_server_round_robin;
 int cf_disable_pqexec;
 usec_t cf_dns_max_ttl;
@@ -170,6 +173,11 @@ int cf_log_connections;
 int cf_log_disconnections;
 int cf_log_pooler_errors;
 int cf_application_name_add_host;
+
+/* pgbouncer-rr  extension */
+char *cf_routing_rules_py_module_file;
+char *cf_rewrite_query_py_module_file;
+char *cf_rewrite_query_disconnect_on_failure;
 
 int cf_client_tls_sslmode;
 char *cf_client_tls_protocols;
@@ -273,18 +281,27 @@ CF_ABS("min_pool_size", CF_INT, cf_min_pool_size, 0, "0"),
 CF_ABS("peer_id", CF_INT, cf_peer_id, 0, "0"),
 CF_ABS("pidfile", CF_STR, cf_pidfile, CF_NO_RELOAD, ""),
 CF_ABS("pkt_buf", CF_INT, cf_sbuf_len, CF_NO_RELOAD, "4096"),
+// in seconds. maps to 100ms by default.
+CF_ABS("polling_frequency", CF_TIME_USEC, cf_polling_frequency, 0, ".1"),
 CF_ABS("pool_mode", CF_LOOKUP(pool_mode_map), cf_pool_mode, 0, "session"),
 CF_ABS("query_timeout", CF_TIME_USEC, cf_query_timeout, 0, "0"),
 CF_ABS("query_wait_timeout", CF_TIME_USEC, cf_query_wait_timeout, 0, "120"),
 CF_ABS("cancel_wait_timeout", CF_TIME_USEC, cf_cancel_wait_timeout, 0, "10"),
+CF_ABS("recreate_disconnected_pools", DEFER_OPS, cf_recreate_disconnected_pools, 0, "1"),
 CF_ABS("reserve_pool_size", CF_INT, cf_res_pool_size, 0, "0"),
 CF_ABS("reserve_pool_timeout", CF_TIME_USEC, cf_res_pool_timeout, 0, "5"),
 CF_ABS("resolv_conf", CF_STR, cf_resolv_conf, CF_NO_RELOAD, ""),
+/* pgbouncer-rr extensions */
+CF_ABS("routing_rules_py_module_file", CF_STR, cf_routing_rules_py_module_file, 0, "not_enabled"),
+CF_ABS("rewrite_query_py_module_file", CF_STR, cf_rewrite_query_py_module_file, 0, "not_enabled"),
+CF_ABS("rewrite_query_disconnect_on_failure", CF_STR, cf_rewrite_query_disconnect_on_failure, 0, "false"),
 CF_ABS("sbuf_loopcnt", CF_INT, cf_sbuf_loopcnt, 0, "5"),
 CF_ABS("server_check_delay", CF_TIME_USEC, cf_server_check_delay, 0, "30"),
 CF_ABS("server_check_query", CF_STR, cf_server_check_query, 0, "select 1"),
 CF_ABS("server_connect_timeout", CF_TIME_USEC, cf_server_connect_timeout, 0, "15"),
 CF_ABS("server_fast_close", CF_INT, cf_server_fast_close, 0, "0"),
+// allow backing off after switchover/failover. The delay to wait until reopening failed connections.
+CF_ABS("server_failed_delay", CF_TIME_USEC, cf_server_failed_delay, 0, "30"),
 CF_ABS("server_idle_timeout", CF_TIME_USEC, cf_server_idle_timeout, 0, "600"),
 CF_ABS("server_lifetime", CF_TIME_USEC, cf_server_lifetime, 0, "3600"),
 CF_ABS("server_login_retry", CF_TIME_USEC, cf_server_login_retry, 0, "15"),
@@ -1040,6 +1057,8 @@ int main(int argc, char *argv[])
 	}
 
 	write_pidfile();
+	if (fast_switchover)
+		run_once_to_init();
 
 	log_info("process up: %s, libevent %s (%s), adns: %s, tls: %s", PACKAGE_STRING,
 		 event_get_version(), event_base_get_method(pgb_event_base), adns_get_backend(),

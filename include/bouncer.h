@@ -99,6 +99,11 @@ typedef struct ScramState ScramState;
 
 extern int cf_sbuf_len;
 
+/* pgbouncer-rr extensions */
+#include "pycall.h"
+#include "route_connection.h"
+#include "rewrite_query.h"
+
 #include "util.h"
 #include "iobuf.h"
 #include "sbuf.h"
@@ -374,12 +379,31 @@ struct PgPool {
 
 	/* if last connect to server failed, there should be delay before next */
 	usec_t last_connect_time;
+	usec_t last_poll_time;
+	usec_t last_failed_time; // last time the connection failed
 	bool last_connect_failed:1;
 	bool last_login_failed:1;
 
 	bool welcome_msg_ready:1;
+	bool recently_checked:1; // should be set once checking starts. If all pools have this set, they need to be unset so we can loop again.
+	bool initial_writer_endpoint:1; // used to indicate a configured writer when starting PgBouncer. Used for getting the topology of the cluster associated with the writer.
+	bool refresh_topology:1; // after a new writer is found, indicate that we need to refresh the topology.
+	/*
+	 * Used to indicate that DataRow, CommandComplete, and ReadyForQuery should be discarded.
+	 * This is for the case where the topology has to be refreshed, but the data should not be
+	 * sent to the client.
+	 * 
+	 * Once the ReadyForQuery is received, all topology data has been discarded and regular
+	 * client server communications can resume.
+	*/
+	bool collect_datarows:1; 
+	bool checking_for_new_writer:1; // this is linked with server and client so we can communicate when polling is truly done. Used to only allow checking for one node a time.
 
+	uint16_t num_nodes;
 	uint16_t rrcounter;		/* round-robin counter */
+
+	PgPool *global_writer;	/* global_writer pool for this pool */;
+	PgPool *parent_pool;	/* the parent pool for setting the global writer */
 };
 
 /*
@@ -466,6 +490,7 @@ struct PgDatabase {
 	int pool_mode;		/* pool mode for this database */
 	int max_db_connections;	/* max server connections between all pools */
 	char *connect_query;	/* startup commands to send to server after connect */
+	char *topology_query;	/* command to get topology to determine promoted writer. Also used to indicate whether to use fast_switchovers on a specific node */
 
 	struct PktBuf *startup_params; /* partial StartupMessage (without user) be sent to server */
 	const char *dbname;	/* server-side name, pointer to inside startup_msg */
@@ -598,7 +623,9 @@ extern int cf_peer_id;
 extern int cf_pool_mode;
 extern int cf_max_client_conn;
 extern int cf_default_pool_size;
+extern usec_t cf_polling_frequency;
 extern int cf_min_pool_size;
+extern int cf_recreate_disconnected_pools;
 extern int cf_res_pool_size;
 extern usec_t cf_res_pool_timeout;
 extern int cf_max_db_connections;
@@ -615,6 +642,7 @@ extern int cf_server_reset_query_always;
 extern char * cf_server_check_query;
 extern usec_t cf_server_check_delay;
 extern int cf_server_fast_close;
+extern usec_t cf_server_failed_delay;
 extern usec_t cf_server_connect_timeout;
 extern usec_t cf_server_login_retry;
 extern usec_t cf_query_timeout;
@@ -666,6 +694,11 @@ extern int cf_log_connections;
 extern int cf_log_disconnections;
 extern int cf_log_pooler_errors;
 extern int cf_application_name_add_host;
+
+/* pgbouncer-rr extensions */
+extern char *cf_routing_rules_py_module_file;
+extern char *cf_rewrite_query_py_module_file;
+extern char *cf_rewrite_query_disconnect_on_failure;
 
 extern int cf_client_tls_sslmode;
 extern char *cf_client_tls_protocols;

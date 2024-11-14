@@ -643,14 +643,20 @@ PgPool *get_pool(PgDatabase *db, PgUser *user)
 {
 	struct List *item;
 	PgPool *pool;
+	PgPool *global_writer = NULL;
 
 	if (!db || !user)
 		return NULL;
 
 	list_for_each(item, &user->pool_list) {
 		pool = container_of(item, PgPool, map_head);
-		if (pool->db == db)
+		if (pool->db == db) {
+			global_writer = get_global_writer(pool);
+			if (global_writer)
+				return global_writer;
+
 			return pool;
+		}
 	}
 
 	return new_pool(db, user);
@@ -853,6 +859,10 @@ bool life_over(PgSocket *server)
 	usec_t now = get_cached_time();
 	usec_t age = now - server->connect_time;
 	usec_t last_kill = now - pool->last_lifetime_disconnect;
+
+	// never close the pools when using fast switchovers
+	if (pool->db && pool->db->topology_query)
+		return false;
 
 	if (age < cf_server_lifetime)
 		return false;
@@ -1589,6 +1599,8 @@ PgSocket *accept_client(int sock, bool is_unix)
 /* client managed to authenticate, send welcome msg and accept queries */
 bool finish_client_login(PgSocket *client)
 {
+	PgPool *global_writer = get_global_writer(client->pool);
+
 	if (client->db->fake) {
 		if (cf_log_connections)
 			slog_info(client, "login failed: db=%s user=%s", client->db->name, client->login_user->name);
@@ -1603,6 +1615,21 @@ bool finish_client_login(PgSocket *client)
 
 	switch (client->state) {
 	case CL_LOGIN:
+		if (client->pool->db->admin) {
+			log_debug("finish_client_login: admin_db: nothing to do");
+		} else if (!fast_switchover) {
+			log_debug("finish_client_login: not using fast switchovers");
+		} else if (!client->pool->db->topology_query) {
+			log_debug("finish_client_login: no topology query, so not using fast switchover");
+		} else if (global_writer) {
+			log_debug("finish_client_login: global writer is set, so let's use the cached value: %s", global_writer->db->name);
+			if (client->pool != global_writer && !set_pool(client, global_writer->db->name, client->login_user->name, client->login_user->passwd, true)) {
+				log_error("could not set pool to: %s", global_writer->db->name);
+				return false;
+			}
+		} else {
+			log_debug("finish_client_login: done...activating client");
+		}
 		change_client_state(client, CL_ACTIVE);
 	case CL_ACTIVE:
 		break;

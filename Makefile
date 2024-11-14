@@ -21,6 +21,9 @@ pgbouncer_SOURCES = \
 	src/server.c \
 	src/stats.c \
 	src/system.c \
+        src/pycall.c \
+        src/route_connection.c \
+        src/rewrite_query.c \
 	src/takeover.c \
 	src/util.c \
 	src/varcache.c \
@@ -47,6 +50,9 @@ pgbouncer_SOURCES = \
 	include/server.h \
 	include/stats.h \
 	include/system.h \
+	include/pycall.h \
+	include/route_connection.h \
+	include/rewrite_query.h \
 	include/takeover.h \
 	include/util.h \
 	include/varcache.h \
@@ -59,7 +65,8 @@ pgbouncer_SOURCES = \
 	include/common/unicode_norm.h \
 	include/common/unicode_norm_table.h
 
-pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(LIBEVENT_CFLAGS) $(TLS_CPPFLAGS)
+python_CPPFLAGS = -I/usr/include/python3.9 -I/usr/include/python3.9
+pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(LIBEVENT_CFLAGS) $(TLS_CPPFLAGS) $(python_CPPFLAGS)
 
 # include libusual sources directly
 AM_FEATURES = libusual
@@ -71,6 +78,8 @@ dist_doc_DATA = README.md NEWS.md \
 	etc/pgbouncer.ini \
 	etc/pgbouncer.service \
 	etc/pgbouncer.socket \
+	etc/userlist.txt \
+	etc/pgbouncer.ini \
 	etc/userlist.txt
 
 DISTCLEANFILES = config.mak config.status lib/usual/config.h config.log
@@ -98,8 +107,10 @@ LIBUSUAL_DIST = $(filter-out %/config.h, $(sort $(wildcard \
 		lib/README lib/COPYRIGHT \
 		lib/find_modules.sh )))
 
+python_LDFLAGS = -lpthread -ldl -lutil -lm -lpython3.9 -Xlinker -export-dynamic
 pgbouncer_LDFLAGS := $(TLS_LDFLAGS)
-pgbouncer_LDADD := $(CARES_LIBS) $(LIBEVENT_LIBS) $(TLS_LIBS) $(LIBS)
+pgbouncer_LDADD := $(CARES_LIBS) $(LIBEVENT_LIBS) $(TLS_LIBS) $(LIBS) $(python_LDFLAGS)
+
 LIBS :=
 
 #

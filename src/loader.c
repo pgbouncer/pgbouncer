@@ -61,12 +61,20 @@ static char *cstr_unquote_value(char *p)
 	while (1) {
 		if (!*p)
 			return NULL;
+		/* Support escaping single quotes */
+		if (p[0] == '\\') {
+			if (p[1] == '\'') {
+				p++;
+				goto increment;
+			}
+		}
 		if (p[0] == '\'') {
 			if (p[1] == '\'')
 				p++;
 			else
 				break;
 		}
+increment:
 		*s++ = *p++;
 	}
 	/* terminate actual value */
@@ -260,6 +268,76 @@ fail:
 	free(tmp_connstr);
 	return false;
 }
+
+PgPool *new_pool_from_db(PgDatabase *db, char *dbname, char *hostname)
+{
+	PgPool *pool;
+	PgDatabase *new_db = find_database(dbname);
+	if (new_db) {
+		log_debug("db already exists, so won't create db from db: %s", dbname);
+		return NULL;
+	}
+
+	new_db = add_database(dbname);
+	if (!new_db)
+		goto oom;
+
+	if (db->startup_params) {
+		new_db->startup_params = pktbuf_copy(db->startup_params);
+		if (new_db->startup_params == NULL)
+			goto oom;
+	}
+
+	/* tag the db as alive */
+	new_db->db_dead = false;
+	/* assuming not an autodb */
+	new_db->db_auto = false;
+	new_db->inactive_time = 0;
+
+	new_db->host = strdup(hostname);
+	if (!new_db->host)
+		goto oom;
+
+	new_db->port = db->port;
+	new_db->pool_size = db->pool_size;
+	new_db->min_pool_size = db->min_pool_size;
+	new_db->res_pool_size = db->res_pool_size;
+	new_db->pool_mode = db->pool_mode;
+	new_db->max_db_connections = db->max_db_connections;
+	if (db->connect_query) {
+		new_db->connect_query = strdup(db->connect_query);
+		if (!new_db->connect_query)
+			goto oom;
+	}
+	if (new_db->topology_query) {
+		new_db->topology_query = strdup(db->topology_query);
+		if (!new_db->topology_query)
+			goto oom;
+	}
+	if (db->auth_dbname) {
+		new_db->auth_dbname = strdup(db->auth_dbname);
+		if (!new_db->auth_dbname)
+			goto oom;
+	}
+
+	if (db->forced_user) {
+		if (!force_user(new_db, db->forced_user->name, db->forced_user->passwd)) {;
+			goto oom;
+		}
+	}
+
+	log_debug("creating pool for %s", new_db->name);
+	pool = get_pool(new_db, new_db->forced_user);
+	if (!pool) {
+		fatal("pool could not be created for %s", new_db->name);
+		goto oom;
+	}
+	return pool;
+
+oom:
+	die("out of memory");
+}
+
 /* fill PgDatabase from connstr */
 bool parse_database(void *base, const char *name, const char *connstr)
 {
@@ -286,6 +364,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	char *datestyle = NULL;
 	char *timezone = NULL;
 	char *connect_query = NULL;
+	char *topology_query = NULL;
 	char *appname = NULL;
 
 	cv.value_p = &pool_mode;
@@ -358,11 +437,26 @@ bool parse_database(void *base, const char *name, const char *connstr)
 				goto fail;
 			}
 		} else if (strcmp("connect_query", key) == 0) {
+			if (topology_query != NULL) {
+				log_error("connect_query cannot be used if topology_query is set");
+				goto fail;
+			}
 			connect_query = strdup(val);
 			if (!connect_query) {
 				log_error("out of memory");
 				goto fail;
 			}
+		} else if (strcmp("topology_query", key) == 0) {
+			if (connect_query != NULL) {
+				log_error("topology_query cannot be used if connect_query is set");
+				goto fail;
+			}
+			topology_query = strdup(val);
+			if (!topology_query) {
+				log_error("out of memory");
+				goto fail;
+			}
+			fast_switchover = true;
 		} else if (strcmp("application_name", key) == 0) {
 			appname = val;
 		} else {
@@ -400,6 +494,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			changed = true;
 		} else if (!strings_equal(connect_query, db->connect_query)) {
 			changed = true;
+		} else if (!strings_equal(topology_query, db->topology_query)) {
+			changed = true;
 		} else if (!strings_equal(db->auth_dbname, auth_dbname)) {
 			changed = true;
 		}
@@ -416,7 +512,9 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	db->pool_mode = pool_mode;
 	db->max_db_connections = max_db_connections;
 	free(db->connect_query);
+	free(db->topology_query);
 	db->connect_query = connect_query;
+	db->topology_query = topology_query;
 
 	if (!set_auth_dbname(db, auth_dbname))
 		goto fail;
@@ -475,6 +573,13 @@ bool parse_database(void *base, const char *name, const char *connstr)
 
 	/* remember dbname */
 	db->dbname = (char *)msg->buf + dbname_ofs;
+
+	log_debug("creating pool for %s", db->name);
+	if (db->forced_user) {
+		PgPool *pool = get_pool(db, db->forced_user);
+		if (!pool)
+			fatal("pool could not be created for %s", db->name);
+	}
 
 	free(tmp_connstr);
 	return true;

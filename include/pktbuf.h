@@ -47,6 +47,8 @@ void pktbuf_free(PktBuf *buf);
 void pktbuf_reset(struct PktBuf *pkt);
 struct PktBuf *pktbuf_temp(void);
 
+PktBuf *pktbuf_copy(PktBuf *orig);
+
 
 /*
  * sending

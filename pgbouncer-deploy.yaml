@@ -1,0 +1,199 @@
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: pgbouncerrr
+  namespace: staging
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - "*"
+  verbs:
+  - "*"
+- apiGroups:
+  - rbac.authorization.k8s.io
+  - extensions
+  - apps
+  resources:
+  - "*"
+  verbs:
+  - "*"
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  - pods
+  - deployments
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - delete
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pgbouncerrr
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: pgbouncerrr
+  namespace: staging
+subjects:
+- kind: ServiceAccount
+  name: pgbouncerrr
+  namespace: staging
+roleRef:
+  kind: ClusterRole
+  name: pgbouncerrr
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: pgbouncerrr
+  name: pgbouncerrr
+  namespace: staging
+spec:
+  ports:
+  - name: pgbouncer-port
+    port: 5432
+    protocol: TCP
+    targetPort: pgbouncer-port
+  selector:
+    app: pgbouncerrr
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgbouncerrr
+  namespace: staging
+  labels:
+    app: pgbouncerrr
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 10
+  selector:
+    matchLabels:
+      app: pgbouncerrr
+  template:
+    metadata:
+      labels:
+        app: pgbouncerrr
+    spec:
+      serviceAccountName: pgbouncerrr
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: role
+                operator: In
+                values:
+                - pgbouncer-staging
+      tolerations:
+      - effect: NoSchedule
+        key: dedicated
+        operator: Equal
+        value: pgbouncer-staging
+      topologySpreadConstraints:
+      - labelSelector:
+          matchLabels:
+            app: pgbouncerrr
+        maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: DoNotSchedule
+      containers:
+        - name: pgbouncer
+          image: 242230929264.dkr.ecr.us-east-2.amazonaws.com/pgbouncer:1.15-rr
+          imagePullPolicy: Always
+          command:
+            - /bin/sh
+            - /start.sh
+          ports:
+            - containerPort: 5432
+              name: pgbouncer-port
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 512m
+              memory: 512Mi
+            limits:
+              cpu: 512m
+              memory: 512Mi
+          env:
+            - name: default_pool_size
+              value: "20"
+            - name: log_connections
+              value: "1"
+            - name: log_disconnections
+              value: "1"
+            - name: log_pooler_errors
+              value: "1"
+            - name: log_stats
+              value: "1"
+            - name: routing_rules_py_module_file
+              value: "/home/pgbouncer/routing_rules.py"
+            - name: PGB_LISTEN_PORT
+              value: "5432"
+            - name: PGB_LISTEN_ADDR
+              value: "0.0.0.0"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: MAIN_DB_HOST
+              value: "staging.cluster-c0gaj5h9ndhp.us-east-2.rds.amazonaws.com"
+            - name: MAIN_DB_PORT
+              value: "5432"
+            - name: MAIN_DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: username
+                  name: app-postgres-password
+            - name: MAIN_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: app-postgres-password
+            - name: MAIN_DB_NAME
+              value: "admincoin"
+            - name: GLOBAL_DB_HOST
+              value: "global-test.cluster-c0gaj5h9ndhp.us-east-2.rds.amazonaws.com"
+            - name: GLOBAL_DB_PORT
+              value: "5432"
+            - name: GLOBAL_DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: global_username
+                  name: app-postgres-password
+            - name: GLOBAL_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: global_password
+                  name: app-postgres-password
+            - name: GLOBAL_DB_NAME
+              value: "admincoin"
+            - name: PGB_USERLIST
+              valueFrom:
+                secretKeyRef:
+                  key: md5_global
+                  name: app-postgres-password
+          livenessProbe:
+            tcpSocket:
+              port: pgbouncer-port
+          readinessProbe:
+            tcpSocket:
+              port: pgbouncer-port
+          lifecycle:
+            preStop:
+              exec:
+                # Allow existing queries clients to complete within 120 seconds
+                command: ["/bin/sh", "-c", "killall -INT pgbouncer && sleep 120"]

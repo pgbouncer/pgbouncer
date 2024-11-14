@@ -662,6 +662,7 @@ async def test_change_server_password_reconnect(bouncer, pg):
                     psycopg.OperationalError, match="password authentication failed"
                 ):
                     await result3
+                time.sleep(3)
     finally:
         pg.sql("ALTER USER puser1 PASSWORD 'foo'")
 
@@ -697,6 +698,7 @@ async def test_change_server_password_server_lifetime(bouncer, pg):
                 await result2
             with pytest.raises(psycopg.OperationalError):
                 await result3
+            time.sleep(3)
     finally:
         pg.sql("ALTER USER puser1 PASSWORD 'foo'")
 

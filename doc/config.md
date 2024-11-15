@@ -555,6 +555,8 @@ authentication is configured via `auth_hba_file`.)  Example:
 
     auth_ldap_options = ldapurl="ldap://127.0.0.1:12345/dc=example,dc=net?uid?sub"
 
+### krb_server_keyfile
+
 ## Log settings
 
 ### syslog

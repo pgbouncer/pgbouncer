@@ -204,6 +204,8 @@ char *cf_server_tls_key_file;
 char *cf_server_tls_ciphers;
 char *cf_server_tls13_ciphers;
 
+char *cf_krb_server_keyfile;
+
 int cf_max_prepared_statements;
 
 int cf_scram_iterations;
@@ -229,6 +231,9 @@ static const struct CfLookup auth_type_map[] = {
 	{ "pam", AUTH_TYPE_PAM },
 #endif
 	{ "scram-sha-256", AUTH_TYPE_SCRAM_SHA_256 },
+#ifdef HAVE_GSS
+	{ "gss", AUTH_TYPE_GSS },
+#endif
 	{ NULL }
 };
 
@@ -333,6 +338,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("server_tls_ca_file", CF_STR, cf_server_tls_ca_file, 0, ""),
 	CF_ABS("server_tls_cert_file", CF_STR, cf_server_tls_cert_file, 0, ""),
 	CF_ABS("server_tls_ciphers", CF_STR, cf_server_tls_ciphers, 0, "default"),
+	CF_ABS("krb_server_keyfile", CF_STR, cf_krb_server_keyfile, 0, ""),
 	CF_ABS("server_tls_key_file", CF_STR, cf_server_tls_key_file, 0, ""),
 	CF_ABS("server_tls_protocols", CF_STR, cf_server_tls_protocols, 0, "secure"),
 	CF_ABS("server_tls_sslmode", CF_LOOKUP(sslmode_map), cf_server_tls_sslmode, 0, "prefer"),
@@ -891,6 +897,7 @@ static void main_loop_once(void)
 	}
 	ldap_poll();
 	pam_poll();
+	gss_poll();
 	per_loop_maint();
 	reuse_just_freed_objects();
 	rescue_timers();
@@ -1160,6 +1167,7 @@ int main(int argc, char *argv[])
 
 	auth_ldap_init();
 	pam_init();
+	gss_init();
 
 	if (did_takeover) {
 		takeover_finish();

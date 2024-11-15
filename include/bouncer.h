@@ -191,12 +191,19 @@ extern int cf_sbuf_len;
 #include "ldapauth.h"
 #include "messages.h"
 #include "pam.h"
+#include "gss.h"
 #include "prepare.h"
 
 #ifndef WIN32
 #define DEFAULT_UNIX_SOCKET_DIR "/tmp"
 #else
 #define DEFAULT_UNIX_SOCKET_DIR ""
+#endif
+
+#ifdef HAVE_GSS
+#include <gssapi/gssapi.h>
+#include <gssapi/gssapi_ext.h>
+#include <gssapi/gssapi_krb5.h>
 #endif
 
 /*
@@ -239,9 +246,38 @@ enum auth_type {
 	AUTH_TYPE_LDAP,
 	AUTH_TYPE_PAM,
 	AUTH_TYPE_SCRAM_SHA_256,
+	AUTH_TYPE_GSS,
+	AUTH_TYPE_CONT_GSS,
 	AUTH_TYPE_PEER,
 	AUTH_TYPE_REJECT,
 };
+
+/* no-auth modes */
+#define AUTH_ANY        -1	/* same as trust but without username check */
+#define AUTH_TRUST      AUTH_OK
+
+/* protocol codes in Authentication* 'R' messages from server */
+#define AUTH_OK         0
+#define AUTH_KRB4       1	/* not supported */
+#define AUTH_KRB5       2	/* not supported */
+#define AUTH_PLAIN      3
+#define AUTH_CRYPT      4	/* not supported */
+#define AUTH_MD5        5
+#define AUTH_SCM_CREDS  6	/* not supported */
+#define AUTH_GSS        7
+#define AUTH_GSS_CONT   8
+#define AUTH_SSPI       9	/* not supported */
+#define AUTH_SASL       10
+#define AUTH_SASL_CONT  11
+#define AUTH_SASL_FIN   12
+
+/* internal codes */
+#define AUTH_CERT       107
+#define AUTH_PEER       108
+#define AUTH_HBA        109
+#define AUTH_REJECT     110
+#define AUTH_PAM        111
+#define AUTH_SCRAM_SHA_256      112
 
 /* type codes for weird pkts */
 #define PKT_STARTUP_V2  0x20000
@@ -757,6 +793,24 @@ struct PgSocket {
 	char ldap_options[MAX_LDAP_CONFIG];
 #endif
 
+#ifdef HAVE_GSS
+	struct GSSState {
+		enum {
+			GSS_INITIAL,
+			GSS_CONTINUE,
+			GSS_DONE
+		} state;
+		gss_cred_id_t server_credentials;
+		gss_cred_id_t delegated_credentials;
+		gss_buffer_desc outbuf;	/* GSSAPI output token buffer */
+		gss_cred_id_t cred;	/* GSSAPI connection cred's */
+		gss_ctx_id_t ctx;	/* GSSAPI connection context */
+		gss_name_t name;/* GSSAPI client name */
+		gss_buffer_desc client_name;	/* Tempoary */
+		OM_uint32 flags;
+	} gss;
+#endif
+
 	VarCache vars;		/* state of interesting server parameters */
 
 	/* client: prepared statements prepared by this client */
@@ -903,6 +957,8 @@ extern char *cf_server_tls_cert_file;
 extern char *cf_server_tls_key_file;
 extern char *cf_server_tls_ciphers;
 extern char *cf_server_tls13_ciphers;
+
+extern char *cf_krb_server_keyfile;
 
 extern int cf_max_prepared_statements;
 

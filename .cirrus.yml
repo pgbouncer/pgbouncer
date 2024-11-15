@@ -12,7 +12,7 @@ task:
     - container:
         image: ubuntu:22.04
       env:
-        configure_args: '--with-cares --with-pam --with-ldap'
+        configure_args: '--with-cares --with-pam --with-ldap --with-gss'
     - container:
         image: ubuntu:22.04
       env:
@@ -54,12 +54,14 @@ task:
     - apt-get -y --no-install-recommends install gnupg postgresql-common
     - /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
     - apt-get update
-    - pkgs="autoconf automake ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev libtool make pandoc pkg-config postgresql-$PGVERSION python3 python3-pip python3-venv slapd socat sudo"
+    - pkgs="autoconf automake ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev libtool make pandoc pkg-config postgresql-$PGVERSION python3 python3-pip python3-venv slapd socat sudo krb5-kdc krb5-admin-server krb5-user libkrb5-dev"
     - case $CC in clang) pkgs="$pkgs clang";; esac
     - if [ x"$ENABLE_VALGRIND" = x"yes" ]; then pkgs="$pkgs valgrind"; fi
     - if [ x"$use_scan_build" = x"yes" ]; then pkgs="$pkgs clang-tools"; fi
     - apt-get -y --no-install-recommends install $pkgs
     - python3 -m venv /venv
+    - chmod +x ./test/setup_system_krb.sh
+    - ./test/setup_system_krb.sh
     - /venv/bin/pip install -r requirements.txt
     - useradd user
     - chown -R user .

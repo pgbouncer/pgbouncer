@@ -25,3 +25,4 @@
 
 "scramuser3" "baz"
 "test_error_message_user" ""
+"user" ""

@@ -160,6 +160,16 @@ def get_pg_major_version():
 PG_MAJOR_VERSION = get_pg_major_version()
 
 
+def get_gss_support():
+    with open("../config.mak", encoding="utf-8") as f:
+        match = re.search(r"gss_support = (\w+)", f.read())
+        assert match is not None
+        return match.group(1) == "yes"
+
+
+GSS_SUPPORT = get_gss_support()
+
+
 def get_max_password_length():
     with open("../include/bouncer.h", encoding="utf-8") as f:
         match = re.search(r"#define MAX_PASSWORD\s+([0-9].*)", f.read())

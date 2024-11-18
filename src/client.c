@@ -154,7 +154,7 @@ static bool send_client_authreq(PgSocket *client)
 		SEND_generic(res, client, PqMsg_AuthenticationRequest, "iss", AUTH_REQ_SASL, "SCRAM-SHA-256", "");
 #ifdef HAVE_GSS
 	} else if (auth_type == AUTH_TYPE_GSS) {
-		SEND_generic(res, client, 'R', "i", AUTH_GSS);
+		SEND_generic(res, client, 'R', "i", AUTH_TYPE_GSS);
 #endif
 	} else {
 		return false;
@@ -616,7 +616,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			return false;
 		}
 #ifdef HAVE_GSS
-	} else if (cf_auth_type == AUTH_GSS) {
+	} else if (cf_auth_type == AUTH_TYPE_GSS) {
 		client->login_user_credentials = add_global_credentials(username, NULL);
 #endif
 	} else {

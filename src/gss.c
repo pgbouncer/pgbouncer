@@ -301,7 +301,7 @@ static bool gss_check_passwd(struct gss_auth_request *request)
 		pktbuf_static(&_buf, _data, sizeof(_data));
 		pktbuf_put_char(&_buf, 'R');
 		pktbuf_put_uint32(&_buf, send_tok.length + 4 + 4);
-		pktbuf_put_uint32(&_buf, 8);
+		pktbuf_put_uint32(&_buf, AUTH_REQ_GSS_CONT);
 		pktbuf_put_bytes(&_buf, send_tok.value, send_tok.length);
 
 		if (false == (res = pktbuf_send_immediate(&_buf, request->client))) {

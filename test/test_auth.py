@@ -438,17 +438,16 @@ def test_auth_dbname_usage_global_setting(
             with bouncer.run_with_config(config):
                 pass
 
-class TestGss:
 
-    REALM="EXAMPLE.COM"
-    KADMIN_PRINCIPAL="root"
-    MASTER_PASSWORD="master_password"
-    KADMIN_PRINCIPAL_FULL=f"{getpass.getuser()}@{REALM}"
-    KADMIN_PASSWORD="root"
+class TestGss:
+    REALM = "EXAMPLE.COM"
+    KADMIN_PRINCIPAL = "root"
+    MASTER_PASSWORD = "master_password"
+    KADMIN_PRINCIPAL_FULL = f"{getpass.getuser()}@{REALM}"
+    KADMIN_PASSWORD = "root"
 
     @classmethod
     def setup_class(cls):
-
         kerberos_command = f"""
         sudo krb5_newrealm <<EOF
         {cls.MASTER_PASSWORD}
@@ -457,29 +456,27 @@ class TestGss:
         """
         subprocess.run(kerberos_command, check=False, shell=True)
 
-        delete_principal = (
-            f"sudo kadmin.local -q \"delete_principal -force postgres\""
-        )
+        delete_principal = f'sudo kadmin.local -q "delete_principal -force postgres"'
         subprocess.run(delete_principal, check=True, shell=True)
-        delete_principal = (
-            f"sudo kadmin.local -q \"delete_principal -force postgres/{socket.gethostname()}\""
-        )
+        delete_principal = f'sudo kadmin.local -q "delete_principal -force postgres/{socket.gethostname()}"'
         subprocess.run(delete_principal, check=True, shell=True)
 
-        create_principal = f"sudo kadmin.local -q \"addprinc -pw {cls.KADMIN_PASSWORD} {cls.KADMIN_PRINCIPAL_FULL}\""
+        create_principal = f'sudo kadmin.local -q "addprinc -pw {cls.KADMIN_PASSWORD} {cls.KADMIN_PRINCIPAL_FULL}"'
         subprocess.run(create_principal, check=True, shell=True)
 
-        create_principal = "sudo kadmin.local -q \"addprinc -randkey postgres\""
+        create_principal = 'sudo kadmin.local -q "addprinc -randkey postgres"'
         subprocess.run(create_principal, check=True, shell=True)
-
 
         create_principal = (
-                f"sudo kadmin.local -q \"addprinc -randkey postgres/{socket.gethostname()}\"")
+            f'sudo kadmin.local -q "addprinc -randkey postgres/{socket.gethostname()}"'
+        )
         subprocess.run(create_principal, check=True, shell=True)
 
-        kadd_command = f"sudo kadmin.local -q \"ktadd -k /tmp/pgbouncer.keytab postgres/{socket.gethostname()}\""
+        kadd_command = f'sudo kadmin.local -q "ktadd -k /tmp/pgbouncer.keytab postgres/{socket.gethostname()}"'
         subprocess.run(kadd_command, check=True, shell=True)
-        kadd_command_2 = "sudo kadmin.local -q \"ktadd -k /tmp/pgbouncer.keytab postgres\""
+        kadd_command_2 = (
+            'sudo kadmin.local -q "ktadd -k /tmp/pgbouncer.keytab postgres"'
+        )
         subprocess.run(kadd_command_2, check=True, shell=True)
 
         change_permissions = "sudo chmod 644 /tmp/pgbouncer.keytab"
@@ -489,13 +486,9 @@ class TestGss:
     def teardown_class(cls):
         subprocess.run("kdestroy", check=True, shell=True)
 
-        delete_principal = (
-            f'sudo kadmin.local -q "delete_principal -force {cls.KADMIN_PRINCIPAL_FULL}"'
-        )
+        delete_principal = f'sudo kadmin.local -q "delete_principal -force {cls.KADMIN_PRINCIPAL_FULL}"'
         subprocess.run(delete_principal, check=True, shell=True)
-        delete_principal = (
-            f"sudo kadmin.local -q \"delete_principal -force postgres/{socket.gethostname()}\""
-        )
+        delete_principal = f'sudo kadmin.local -q "delete_principal -force postgres/{socket.gethostname()}"'
         subprocess.run(delete_principal, check=True, shell=True)
         change_permissions = "sudo rm /tmp/pgbouncer.keytab"
         subprocess.run(change_permissions, check=True, shell=True)
@@ -525,7 +518,9 @@ class TestGss:
             bouncer.test(user=getpass.getuser(), host=hostname, dbname="postgres")
             change_permissions = "kdestroy"
             subprocess.run(change_permissions, check=True, shell=True)
-            with pytest.raises(psycopg.OperationalError, match="GSSAPI continuation error"):
+            with pytest.raises(
+                psycopg.OperationalError, match="GSSAPI continuation error"
+            ):
                 bouncer.test(user=getpass.getuser(), host=hostname, dbname="postgres")
 
     @pytest.mark.skipif(
@@ -551,7 +546,9 @@ class TestGss:
             bouncer.test(user=getpass.getuser(), host=hostname, dbname="postgres")
             change_permissions = "kdestroy"
             subprocess.run(change_permissions, check=True, shell=True)
-            with pytest.raises(psycopg.OperationalError, match="GSSAPI continuation error"):
+            with pytest.raises(
+                psycopg.OperationalError, match="GSSAPI continuation error"
+            ):
                 bouncer.test(user=getpass.getuser(), host=hostname, dbname="postgres")
 
 

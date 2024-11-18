@@ -23,17 +23,17 @@ from .utils import (
     sudo,
 )
 
-REALM = 'EXAMPLE.COM'
-SUPPORTED_ENCRYPTION_TYPES = 'aes256-cts-hmac-sha1-96:normal'
-KADMIN_PRINCIPAL = 'root'
-KADMIN_PASSWORD = 'root'
+REALM = "EXAMPLE.COM"
+SUPPORTED_ENCRYPTION_TYPES = "aes256-cts-hmac-sha1-96:normal"
+KADMIN_PRINCIPAL = "root"
+KADMIN_PASSWORD = "root"
 KDC_KADMIN_SERVER = socket.gethostname()
 
-LOGDIR = 'log'
-PG_LOG = f'{LOGDIR}/krb.log'
+LOGDIR = "log"
+PG_LOG = f"{LOGDIR}/krb.log"
 # Assumes packages are installed; krb5-kdc and krb5-admin-server on debian
-KADMIN_PRINCIPAL_FULL = f'{KADMIN_PRINCIPAL}@{REALM}'
-MASTER_PASSWORD = 'master_password'
+KADMIN_PRINCIPAL_FULL = f"{KADMIN_PRINCIPAL}@{REALM}"
+MASTER_PASSWORD = "master_password"
 
 
 def setup_krb():
@@ -79,13 +79,17 @@ def setup_krb():
     """
     subprocess.run(kerberos_command, check=False, shell=True)
 
-    delete_principal = f'kadmin.local -q "delete_principal -force {KADMIN_PRINCIPAL_FULL}"'
+    delete_principal = (
+        f'kadmin.local -q "delete_principal -force {KADMIN_PRINCIPAL_FULL}"'
+    )
     subprocess.run(delete_principal, check=True, shell=True)
 
-    create_principal = f'kadmin.local -q "addprinc -pw {KADMIN_PASSWORD} {KADMIN_PRINCIPAL_FULL}"'
+    create_principal = (
+        f'kadmin.local -q "addprinc -pw {KADMIN_PASSWORD} {KADMIN_PRINCIPAL_FULL}"'
+    )
     subprocess.run(create_principal, check=True, shell=True)
 
-    kinit_command = f'echo {KADMIN_PASSWORD} | kinit'
+    kinit_command = f"echo {KADMIN_PASSWORD} | kinit"
     subprocess.run(kinit_command, check=True, shell=True)
 
 

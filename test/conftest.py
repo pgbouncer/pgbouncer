@@ -1,11 +1,11 @@
 import os
 import shutil
-
-import filelock
-import pytest
 import signal
 import socket
 import subprocess
+
+import filelock
+import pytest
 
 from .utils import (
     LDAP_SUPPORT,

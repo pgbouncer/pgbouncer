@@ -118,6 +118,11 @@ def test_auto_database(bouncer):
 @pytest.mark.asyncio
 @pytest.mark.skipif("not HAVE_IPV6_LOCALHOST")
 async def test_host_list(bouncer):
+    with bouncer.admin_runner.cur() as cur:
+        results = cur.execute("show databases").fetchall()
+        result = [r for r in results if r[0] == "hostlist1"][0]
+        assert "disable" in result
+
     with bouncer.log_contains(r"new connection to server \(from 127.0.0.1", times=1):
         with bouncer.log_contains(r"new connection to server \(from \[::1\]", times=1):
             await bouncer.asleep(1, dbname="hostlist1", times=2)

@@ -676,9 +676,9 @@ class Postgres(QueryRunner):
             pgconf.write("log_connections = on\n")
             pgconf.write("log_disconnections = on\n")
             pgconf.write("logging_collector = off\n")
-
             # Allow CREATE SUBSCRIPTION to work
             pgconf.write("wal_level = 'logical'\n")
+
             # Faster logical replication status update so tests with logical replication
             # run faster
             pgconf.write("wal_receiver_status_interval = 1\n")
@@ -712,7 +712,7 @@ class Postgres(QueryRunner):
             pgconf.write("datestyle = 'iso, mdy'\n")
 
             # Make PostgreSQL listen on both IPv4 and IPv6 (if supported)
-            if HAVE_IPV6_LOCALHOST:
+            if HAVE_IPV6_LOCALHOST and "127.0.0.1" in self.host:
                 pgconf.write("listen_addresses='127.0.0.1,::1'\n")
 
     def init_from(self, pg):

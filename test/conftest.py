@@ -193,7 +193,7 @@ def replica(pg, tmp_path_factory):
     finally:
         replica.cleanup()
         if MACOS:
-            sudo("ifconfig lo0 inet 127.0.0.2 delete")
+            sudo("bash -c 'ifconfig lo0 inet 127.0.0.2 delete || /bin/true'")
 
 
 @pytest.mark.asyncio

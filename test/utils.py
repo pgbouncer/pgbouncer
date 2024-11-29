@@ -266,7 +266,7 @@ class QueryRunner:
         if ENABLE_VALGRIND:
             # If valgrind is enabled PgBouncer is a significantly slower to
             # respond to connection requests, so we wait a little longer.
-            options.setdefault("connect_timeout", 30)
+            options.setdefault("connect_timeout", 60)
         else:
             options.setdefault("connect_timeout", 3)
         # Always required for Ubuntu 18.04, but also needed for any tests

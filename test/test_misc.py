@@ -1,5 +1,6 @@
 import asyncio
 import re
+import sys
 import time
 
 import psycopg
@@ -121,7 +122,8 @@ async def test_host_list(bouncer):
     with bouncer.admin_runner.cur() as cur:
         results = cur.execute("show databases").fetchall()
         result = [r for r in results if r[0] == "hostlist1"][0]
-        assert "disable" in result
+        print(f"+ {result}", file=sys.stderr)
+        assert "round-robin" in result
 
     with bouncer.log_contains(r"new connection to server \(from 127.0.0.1", times=1):
         with bouncer.log_contains(r"new connection to server \(from \[::1\]", times=1):

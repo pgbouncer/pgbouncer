@@ -190,8 +190,8 @@ def replica(pg, tmp_path_factory):
     try:
         yield replica
 
-        replica.cleanup()
     finally:
+        replica.cleanup()
         if MACOS:
             sudo("ifconfig lo0 inet 127.0.0.2 delete")
 

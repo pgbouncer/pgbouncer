@@ -712,8 +712,7 @@ class Postgres(QueryRunner):
             pgconf.write("datestyle = 'iso, mdy'\n")
 
             # Make PostgreSQL listen on both IPv4 and IPv6 (if supported)
-            if HAVE_IPV6_LOCALHOST and "127.0.0.1" in self.host:
-                print(f"in here: #{self.host}")
+            if HAVE_IPV6_LOCALHOST:
                 pgconf.write("listen_addresses='127.0.0.1,::1'\n")
 
     def init_from(self, pg):

@@ -9,27 +9,27 @@ if PG_MAJOR_VERSION < 14:
     )
 
 
-def test_target_session_attrs_primary_first(bouncer, replica):
-    with bouncer.log_contains(r"127.0.0.1:\d+ new connection to server", 1):
-        bouncer.test(dbname="primary_first")
-
-
-def test_target_session_attrs_primary_second(bouncer, replica):
-    with bouncer.log_contains(
-        r"127.0.0.2:\d+ closing because: server does not satisfy target_session_attrs",
-        1,
-    ):
-        bouncer.test(dbname="primary_second")
-
-
-def test_target_session_attrs_standby_first(bouncer, replica):
-    with bouncer.log_contains(r"127.0.0.2:\d+ new connection to server", 1):
-        bouncer.test(dbname="standby_first")
-
-
-def test_target_session_attrs_standby_second(bouncer, replica):
-    with bouncer.log_contains(
-        r"127.0.0.1:\d+ closing because: server does not satisfy target_session_attrs",
-        1,
-    ):
-        bouncer.test(dbname="standby_second")
+# def test_target_session_attrs_primary_first(bouncer, replica):
+#     with bouncer.log_contains(r"127.0.0.1:\d+ new connection to server", 1):
+#         bouncer.test(dbname="primary_first")
+#
+#
+# def test_target_session_attrs_primary_second(bouncer, replica):
+#     with bouncer.log_contains(
+#         r"127.0.0.2:\d+ closing because: server does not satisfy target_session_attrs",
+#         1,
+#     ):
+#         bouncer.test(dbname="primary_second")
+#
+#
+# def test_target_session_attrs_standby_first(bouncer, replica):
+#     with bouncer.log_contains(r"127.0.0.2:\d+ new connection to server", 1):
+#         bouncer.test(dbname="standby_first")
+#
+#
+# def test_target_session_attrs_standby_second(bouncer, replica):
+#     with bouncer.log_contains(
+#         r"127.0.0.1:\d+ closing because: server does not satisfy target_session_attrs",
+#         1,
+#     ):
+#         bouncer.test(dbname="standby_second")

@@ -596,7 +596,8 @@ static void pool_server_maint(PgPool *pool)
 			age_client = now - server->link->request_time;
 			age_server = now - server->request_time;
 
-			if (cf_query_timeout > 0 && age_client > cf_query_timeout) {
+			if (cf_query_timeout > 0 && age_client > cf_query_timeout &&
+					!server->idle_tx) {
 				disconnect_server(server, true, "query timeout");
 			} else if (cf_idle_transaction_timeout > 0 &&
 				   server->idle_tx &&

@@ -26,4 +26,6 @@ usec_t pool_server_lifetime(PgPool *pool) _MUSTCHECK;
 int database_min_pool_size(PgDatabase *db) _MUSTCHECK;
 int pool_res_pool_size(PgPool *pool) _MUSTCHECK;
 int database_max_connections(PgDatabase *db) _MUSTCHECK;
+int database_max_client_connections(PgDatabase *db) _MUSTCHECK;
 int user_max_connections(PgGlobalUser *user) _MUSTCHECK;
+int user_client_max_connections(PgGlobalUser *user) _MUSTCHECK;

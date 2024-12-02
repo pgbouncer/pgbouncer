@@ -551,11 +551,6 @@ static void pool_server_maint(PgPool *pool)
 	usec_t now = get_cached_time();
 	PgSocket *server;
 
-	usec_t effective_query_timeout;
-	usec_t effective_idle_transaction_timeout;
-	usec_t user_query_timeout;
-	usec_t user_idle_transaction_timeout;
-
 	/* find and disconnect idle servers */
 	check_unused_servers(pool, &pool->used_server_list, 0);
 	check_unused_servers(pool, &pool->tested_server_list, 0);
@@ -585,6 +580,10 @@ static void pool_server_maint(PgPool *pool)
 	if (cf_query_timeout > 0 || cf_idle_transaction_timeout > 0 || any_user_level_timeout_set) {
 		statlist_for_each_safe(item, &pool->active_server_list, tmp) {
 			usec_t age_client, age_server;
+			usec_t effective_query_timeout;
+			usec_t effective_idle_transaction_timeout;
+			usec_t user_query_timeout;
+			usec_t user_idle_transaction_timeout;
 
 			server = container_of(item, PgSocket, head);
 			Assert(server->state == SV_ACTIVE);

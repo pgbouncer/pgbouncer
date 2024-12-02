@@ -21,4 +21,5 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 bool handle_auth_query_response(PgSocket *client, PktHdr *pkt);
 bool check_db_connection_count(PgSocket *client);
 bool check_user_connection_count(PgSocket *client);
+bool sending_auth_query(PgSocket *client);
 PgDatabase *prepare_auth_database(PgSocket *client) _MUSTCHECK;

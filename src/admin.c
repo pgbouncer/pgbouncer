@@ -1859,13 +1859,10 @@ void admin_setup(void)
 		die("cannot create admin pool?");
 	admin_pool = pool;
 
-	/* user */
-	user = find_global_user("pgbouncer");
+	/* find an existing user or create a new fake user with disabled password */
+	user = find_or_add_new_global_user("pgbouncer", "");
 	if (!user) {
-		/* fake user with disabled psw */
-		user = add_global_user("pgbouncer", "");
-		if (!user)
-			die("cannot create admin user?");
+		die("cannot create admin user?");
 	}
 
 	/* prepare welcome */

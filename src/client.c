@@ -716,12 +716,9 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
 		if (server->state == SV_FREE || server->state == SV_JUSTFREE)
 			return false;
 		return true;
-<<<<<<< HEAD
 	case 'E':	/* ErrorResponse */
 		log_server_error("S: error in auth_query", pkt);
-=======
 	case PqMsg_ErrorResponse:
->>>>>>> origin/master
 		disconnect_server(server, false, "error response from auth_query");
 		return false;
 	default:

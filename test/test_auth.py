@@ -16,6 +16,42 @@ from .utils import (
 )
 
 
+@pytest.fixture
+def test_message_fixture(bouncer, pg):
+    yield bouncer, pg
+    pg.sql("ALTER USER test_error_message_user WITH LOGIN;")
+
+
+@pytest.mark.skipif("FREEBSD", reason="FreeBSD error reporting broken")
+def test_message(test_message_fixture):
+    bouncer, pg = test_message_fixture
+    test_user = "test_error_message_user"
+    connection_params = {"user": test_user, "dbname": "p0a"}
+    # Connect to database as User, creates existing pool
+    _ = bouncer.conn(**connection_params)
+
+    # Change user to nologin
+    pg.sql(f"ALTER USER {test_user} WITH NOLOGIN;")
+
+    # Kill process on postgres
+    terminate_string = f"""
+    SELECT pg_terminate_backend(pid)
+    FROM pg_stat_activity
+    WHERE
+      pid <> pg_backend_pid()
+      AND usename = '{test_user}'
+    """
+    pg.sql(terminate_string)
+
+    # login, check error message
+    # login again, check error message
+    for _ in range(2):
+        with pytest.raises(
+            psycopg.OperationalError, match=r"is not permitted to log in"
+        ):
+            bouncer.test(**connection_params)
+
+
 @pytest.mark.md5
 def test_auth_user(bouncer):
     bouncer.default_db = "authdb"
@@ -604,7 +640,7 @@ async def test_change_server_password_reconnect(bouncer, pg):
             with pg.log_contains(
                 r"password authentication failed", times=1
             ), bouncer.log_contains(
-                r"closing because: password authentication failed for user", times=3
+                r"closing because: password authentication failed for user", times=4
             ):
                 result1 = bouncer.atest()
                 result2 = bouncer.atest()
@@ -626,6 +662,7 @@ async def test_change_server_password_reconnect(bouncer, pg):
                     psycopg.OperationalError, match="password authentication failed"
                 ):
                     await result3
+                time.sleep(3)
     finally:
         pg.sql("ALTER USER puser1 PASSWORD 'foo'")
 
@@ -649,7 +686,7 @@ async def test_change_server_password_server_lifetime(bouncer, pg):
         with pg.log_contains(
             r"password authentication failed", times=1
         ), bouncer.log_contains(
-            r"closing because: password authentication failed for user", times=3
+            r"closing because: password authentication failed for user", times=4
         ):
             result1 = bouncer.atest()
             result2 = bouncer.atest()
@@ -661,6 +698,7 @@ async def test_change_server_password_server_lifetime(bouncer, pg):
                 await result2
             with pytest.raises(psycopg.OperationalError):
                 await result3
+            time.sleep(3)
     finally:
         pg.sql("ALTER USER puser1 PASSWORD 'foo'")
 

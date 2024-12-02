@@ -873,7 +873,7 @@ bool check_fast_fail(PgSocket *client)
 		return true;
 
 	/* Else we fail the client. */
-	disconnect_client(client, true, "server login has been failing, try again later (server_login_retry)");
+	disconnect_client(client, true, "server login has been failing, cached error: %s (server_login_retry)", pool->last_connect_failed_message);
 
 	/*
 	 * Try to launch a new connection.  (launch_new_connection()
@@ -1346,6 +1346,7 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 		if (!server->ready) {
 			server->pool->last_login_failed = true;
 			server->pool->last_connect_failed = true;
+			safe_strcpy(server->pool->last_connect_failed_message, reason, sizeof(server->pool->last_connect_failed_message));
 		} else
 		{
 			/*

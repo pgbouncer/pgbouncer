@@ -19,46 +19,31 @@
 #include "bouncer.h"
 
 #include <usual/netdb.h>
+#include <usual/socket.h>
 
-/*
- * Available backends:
- *
- * c-ares - libcares
- * udns - libudns
- * getaddrinfo_a - glibc only
- * libevent1 - returns TTL, ignores hosts file.
- * libevent2 - does not return TTL, uses hosts file.
- */
-
-#if !defined(USE_EVDNS) && !defined(USE_UDNS) && !defined(USE_CARES)
+#if !defined(USE_EVDNS) && !defined(USE_CARES)
 #define USE_GETADDRINFO_A
 #endif
 
 #ifdef USE_EVDNS
-#ifdef EV_ET
-#define USE_LIBEVENT2
 #include <event2/dns.h>
 #define addrinfo evutil_addrinfo
 #define freeaddrinfo evutil_freeaddrinfo
-#else /* !EV_ET */
-#define USE_LIBEVENT1
-#include <evdns.h>
-#endif /* !EV_ET */
 #endif /* USE_EVDNS */
 
 #ifdef USE_CARES
+#define CARES_NO_DEPRECATED
 #include <ares.h>
 #include <ares_dns.h>
+#ifdef HAVE_ARES_NAMESER_H
+#include <ares_nameser.h>
+#else
 #include <arpa/nameser.h>
+#endif
 #define ZONE_RECHECK 1
 #else
 /* only c-ares requires this */
 #define impl_per_loop(ctx)
-#endif
-
-#ifdef USE_UDNS
-#include <udns.h>
-#define ZONE_RECHECK 1
 #endif
 
 #ifndef ZONE_RECHECK
@@ -90,7 +75,7 @@ struct DNSRequest {
 
 	struct List ucb_list;	/* DNSToken->node */
 
-	const char *name;
+	char *name;
 	int namelen;
 
 	bool done;
@@ -109,7 +94,7 @@ struct DNSZone {
 
 	struct StatList host_list;	/* DNSRequest->znode */
 
-	const char *zonename;
+	char *zonename;
 	uint32_t serial;
 };
 
@@ -143,7 +128,7 @@ static void got_zone_serial(struct DNSContext *ctx, uint32_t *serial);
  * Custom addrinfo generation
  */
 
-#if defined(USE_LIBEVENT1) || defined(USE_UDNS) || defined(USE_CARES)
+#if defined(USE_CARES)
 
 static struct addrinfo *mk_addrinfo(const void *adr, int af)
 {
@@ -194,27 +179,7 @@ static void freeaddrinfo(struct addrinfo *ai)
 	}
 }
 
-static inline struct addrinfo *convert_ipv4_result(const struct in_addr *adrs, int count)
-{
-	struct addrinfo *ai, *first = NULL, *last = NULL;
-	int i;
-
-	for (i = 0; i < count; i++) {
-		ai = mk_addrinfo(&adrs[i], AF_INET);
-		if (!ai)
-			goto failed;
-
-		if (!first)
-			first = ai;
-		else
-			last->ai_next = ai;
-		last = ai;
-	}
-	return first;
-failed:
-	freeaddrinfo(first);
-	return NULL;
-}
+#ifdef USE_CARES
 
 static inline struct addrinfo *convert_hostent(const struct hostent *h)
 {
@@ -238,6 +203,8 @@ failed:
 	return NULL;
 }
 
+#endif /* USE_CARES */
+
 #endif /* custom addrinfo */
 
 
@@ -252,7 +219,7 @@ const char *adns_get_backend(void)
 #ifdef HAVE_GETADDRINFO_A
 	return "libc"
 #ifdef __GLIBC__
-	"-" STR(__GLIBC__) "." STR(__GLIBC_MINOR__);
+	       "-" STR(__GLIBC__) "." STR(__GLIBC_MINOR__);
 #endif
 	;
 #else
@@ -294,7 +261,14 @@ static void dns_signal(int f, short ev, void *arg)
 
 static bool impl_init(struct DNSContext *ctx)
 {
-	struct GaiContext *gctx = calloc(1, sizeof(*gctx));
+	struct GaiContext *gctx;
+
+	if (cf_resolv_conf && cf_resolv_conf[0]) {
+		log_error("resolv_conf setting is not supported by libc adns");
+		return false;
+	}
+
+	gctx = calloc(1, sizeof(*gctx));
 	if (!gctx)
 		return false;
 	list_init(&gctx->gairq_list);
@@ -303,8 +277,8 @@ static bool impl_init(struct DNSContext *ctx)
 	gctx->sev.sigev_notify = SIGEV_SIGNAL;
 	gctx->sev.sigev_signo = SIGALRM;
 
-	signal_set(&gctx->ev, SIGALRM, dns_signal, gctx);
-	if (signal_add(&gctx->ev, NULL) < 0) {
+	evsignal_assign(&gctx->ev, pgb_event_base, SIGALRM, dns_signal, gctx);
+	if (evsignal_add(&gctx->ev, NULL) < 0) {
 		free(gctx);
 		return false;
 	}
@@ -355,7 +329,7 @@ static void impl_release(struct DNSContext *ctx)
 {
 	struct GaiContext *gctx = ctx->edns;
 	if (gctx) {
-		signal_del(&gctx->ev);
+		evsignal_del(&gctx->ev);
 		free(gctx);
 		ctx->edns = NULL;
 	}
@@ -368,19 +342,54 @@ static void impl_release(struct DNSContext *ctx)
  * ADNS with libevent2 <event2/dns.h>
  */
 
-#ifdef USE_LIBEVENT2
+#ifdef USE_EVDNS
 
 const char *adns_get_backend(void)
 {
 	return "evdns2";
 }
 
+/*
+ * Confusingly, this is not the same as evdns_err_to_string().
+ */
+static const char *_evdns_base_resolv_conf_parse_err_to_string(int err)
+{
+	switch (err) {
+	case 0: return "no error";
+	case 1: return "failed to open file";
+	case 2: return "failed to stat file";
+	case 3: return "file too large";
+	case 4: return "out of memory";
+	case 5: return "short read from file";
+	case 6: return "no nameservers listed in the file";
+	default: return "[Unknown error code]";
+	}
+}
+
 static bool impl_init(struct DNSContext *ctx)
 {
-	ctx->edns = evdns_base_new(NULL, 1);
-	if (!ctx->edns) {
-		log_warning("evdns_base_new failed");
-		return false;
+	if (cf_resolv_conf && cf_resolv_conf[0]) {
+		int err;
+
+		ctx->edns = evdns_base_new(pgb_event_base, 0);
+		if (!ctx->edns) {
+			log_error("evdns_base_new failed");
+			return false;
+		}
+		err = evdns_base_resolv_conf_parse(ctx->edns, DNS_OPTIONS_ALL,
+						   cf_resolv_conf);
+		if (err) {
+			log_error("evdns parsing of \"%s\" failed: %s",
+				  cf_resolv_conf,
+				  _evdns_base_resolv_conf_parse_err_to_string(err));
+			return false;
+		}
+	} else {
+		ctx->edns = evdns_base_new(pgb_event_base, 1);
+		if (!ctx->edns) {
+			log_error("evdns_base_new failed");
+			return false;
+		}
 	}
 	return true;
 }
@@ -402,336 +411,7 @@ static void impl_release(struct DNSContext *ctx)
 	evdns_base_free(dns, 0);
 }
 
-#endif /* USE_LIBEVENT2 */
-
-
-/*
- * ADNS with libevent 1.x <evdns.h>
- */
-
-#ifdef USE_LIBEVENT1
-
-const char *adns_get_backend(void)
-{
-	return "evdns1";
-}
-
-static void got_result_evdns(int result, char type, int count, int ttl, void *addresses, void *arg)
-{
-	struct DNSRequest *req = arg;
-	struct addrinfo *ai;
-
-	log_noise("dns: got_result_evdns: type=%d cnt=%d ttl=%d", type, count, ttl);
-	if (result == DNS_IPv4_A) {
-		ai = convert_ipv4_result(addresses, count);
-		if (ai) {
-			got_result_gai(0, ai, req);
-			return;
-		}
-	}
-	/* lookup failed */
-	got_result_gai(1, NULL, req);
-}
-
-static bool impl_init(struct DNSContext *ctx)
-{
-	return evdns_init() == 0;
-}
-
-static void impl_launch_query(struct DNSRequest *req)
-{
-	int err;
-
-	err = evdns_resolve_ipv4(req->name, 0, got_result_evdns, req);
-	log_noise("dns(%s): evdns_resolve_ipv4 = %d", req->name, err);
-	if (err != 0 && !req->done) {
-		/* if callback was not yet called, do it now */
-		got_result_gai(1, NULL, req);
-	}
-}
-
-static void impl_release(struct DNSContext *ctx)
-{
-	evdns_shutdown(0);
-}
-
-#endif /* USE_LIBEVENT1 */
-
-
-/*
- * ADNS with <udns.h>
- */
-
-#ifdef USE_UDNS
-
-struct UdnsMeta {
-	struct dns_ctx *ctx;
-	struct event ev_io;
-	struct event ev_timer;
-	bool timer_active;
-};
-
-const char *adns_get_backend(void)
-{
-	return "udns " UDNS_VERSION;
-}
-
-static void udns_timer_setter(struct dns_ctx *uctx, int timeout, void *arg)
-{
-	struct DNSContext *ctx = arg;
-	struct UdnsMeta *udns = ctx->edns;
-
-	log_noise("udns_timer_setter: ctx=%p timeout=%d", uctx, timeout);
-
-	if (udns->timer_active) {
-		event_del(&udns->ev_timer);
-		udns->timer_active = false;
-	}
-
-	if (uctx && timeout >= 0) {
-		struct timeval tv = { .tv_sec = timeout, .tv_usec = 0 };
-		evtimer_add(&udns->ev_timer, &tv);
-		udns->timer_active = true;
-	}
-}
-
-static void udns_timer_cb(int d, short fl, void *arg)
-{
-	struct DNSContext *ctx = arg;
-	struct UdnsMeta *udns = ctx->edns;
-	time_t now = get_cached_time() / USEC;
-
-	log_noise("udns_timer_cb");
-
-	dns_timeouts(udns->ctx, 10, now);
-}
-
-static void udns_io_cb(int fd, short fl, void *arg)
-{
-	struct DNSContext *ctx = arg;
-	struct UdnsMeta *udns = ctx->edns;
-	time_t now = get_cached_time() / USEC;
-
-	log_noise("udns_io_cb");
-
-	dns_ioevent(udns->ctx, now);
-}
-
-static void udns_result_a4(struct dns_ctx *ctx, struct dns_rr_a4 *a4, void *data)
-{
-	struct DNSRequest *req = data;
-	struct addrinfo *res = NULL;
-	int err;
-
-	err = dns_status(ctx);
-	if (err < 0) {
-		log_warning("udns_result_a4: %s: query failed [%d]", req->name, err);
-	} else if (a4) {
-		log_noise("udns_result_a4: %s: %d ips", req->name, a4->dnsa4_nrr);
-		res = convert_ipv4_result(a4->dnsa4_addr, a4->dnsa4_nrr);
-		free(a4);
-	} else {
-		log_warning("udns_result_a4: %s: missing result", req->name);
-	}
-	got_result_gai(0, res, req);
-}
-
-static void impl_launch_query(struct DNSRequest *req)
-{
-	struct UdnsMeta *udns = req->ctx->edns;
-	struct dns_query *q;
-	int flags = 0;
-
-	q = dns_submit_a4(udns->ctx, req->name, flags, udns_result_a4, req);
-	if (q) {
-		log_noise("dns: udns_launch_query(%s)=%p", req->name, q);
-	} else {
-		log_warning("dns: udns_launch_query(%s)=NULL", req->name);
-	}
-}
-
-static bool impl_init(struct DNSContext *ctx)
-{
-	int fd;
-	struct dns_ctx *dctx;
-	struct UdnsMeta *udns;
-	int err;
-
-	dns_init(NULL, 0);
-
-	dctx = dns_new(NULL);
-	if (!dctx)
-		return false;
-
-	udns = calloc(1, sizeof(*udns));
-	if (!udns)
-		return false;
-	ctx->edns = udns;
-	udns->ctx = dctx;
-
-	/* i/o callback setup */
-	fd = dns_open(dctx);
-	if (fd <= 0) {
-		log_warning("dns_open failed: fd=%d", fd);
-		return false;
-	}
-	event_set(&udns->ev_io, fd, EV_READ | EV_PERSIST, udns_io_cb, ctx);
-	err = event_add(&udns->ev_io, NULL);
-	if (err < 0)
-		log_warning("impl_init: event_add failed: %s", strerror(errno));
-
-	/* timer setup */
-	evtimer_set(&udns->ev_timer, udns_timer_cb, ctx);
-	dns_set_tmcbck(udns->ctx, udns_timer_setter, ctx);
-
-	return true;
-}
-
-static void impl_release(struct DNSContext *ctx)
-{
-	struct UdnsMeta *udns = ctx->edns;
-
-	event_del(&udns->ev_io);
-	dns_free(udns->ctx);
-	if (udns->timer_active) {
-		event_del(&udns->ev_timer);
-		udns->timer_active = false;
-	}
-}
-
-/*
- * generic SOA query for UDNS
- */
-
-struct SOA {
-	dns_rr_common(dnssoa);
-
-	char *dnssoa_nsname;
-	char *dnssoa_hostmaster;
-	uint32_t dnssoa_serial;
-	uint32_t dnssoa_refresh;
-	uint32_t dnssoa_retry;
-	uint32_t dnssoa_expire;
-	uint32_t dnssoa_minttl;
-};
-
-typedef void query_soa_fn(struct dns_ctx *ctx, struct SOA *result, void *data);
-
-static int parse_soa(dnscc_t *qdn, dnscc_t *pkt, dnscc_t *cur, dnscc_t *end, void **result)
-{
-	struct SOA *soa = NULL;
-	int res, len;
-	struct dns_parse p;
-	struct dns_rr rr;
-	dnsc_t buf[DNS_MAXDN];
-	char *s;
-
-	/* calc size */
-	len = 0;
-	dns_initparse(&p, qdn, pkt, cur, end);
-	while ((res = dns_nextrr(&p, &rr)) > 0) {
-		cur = rr.dnsrr_dptr;
-
-		res = dns_getdn(pkt, &cur, end, buf, sizeof(buf));
-		if (res <= 0)
-			goto failed;
-		len += dns_dntop_size(buf);
-
-		res = dns_getdn(pkt, &cur, end, buf, sizeof(buf));
-		if (res <= 0)
-			goto failed;
-		len += dns_dntop_size(buf);
-
-		if (cur + 5*4 != rr.dnsrr_dend)
-			goto failed;
-	}
-	if (res < 0 || p.dnsp_nrr != 1)
-		goto failed;
-	len += dns_stdrr_size(&p);
-
-	/* allocate */
-	soa = malloc(sizeof(*soa) + len);
-	if (!soa)
-		return DNS_E_NOMEM;
-
-	/* fill with data */
-	soa->dnssoa_nrr = 1;
-	dns_rewind(&p, qdn);
-	dns_nextrr(&p, &rr);
-	s = (char *)(soa + 1);
-	cur = rr.dnsrr_dptr;
-
-	soa->dnssoa_nsname = s;
-	dns_getdn(pkt, &cur, end, buf, sizeof(buf));
-	s += dns_dntop(buf, s, DNS_MAXNAME);
-
-	soa->dnssoa_hostmaster = s;
-	dns_getdn(pkt, &cur, end, buf, sizeof(buf));
-	s += dns_dntop(buf, s, DNS_MAXNAME);
-
-	soa->dnssoa_serial = dns_get32(cur + 0*4);
-	soa->dnssoa_refresh = dns_get32(cur + 1*4);
-	soa->dnssoa_retry = dns_get32(cur + 2*4);
-	soa->dnssoa_expire = dns_get32(cur + 3*4);
-	soa->dnssoa_minttl = dns_get32(cur + 4*4);
-
-	dns_stdrr_finish((struct dns_rr_null *)soa, s, &p);
-
-	*result = soa;
-	return 0;
-failed:
-	free(soa);
-	return DNS_E_PROTOCOL;
-}
-
-static struct dns_query *
-submit_soa(struct dns_ctx *ctx, const char *name, int flags, query_soa_fn *cb, void *data)
-{
-	  return dns_submit_p(ctx, name, DNS_C_IN, DNS_T_SOA, flags,
-			      parse_soa, (dns_query_fn *)cb, data);
-}
-
-/*
- * actual "get serial" part
- */
-
-static void udns_result_soa(struct dns_ctx *uctx, struct SOA *soa, void *data)
-{
-	struct DNSContext *ctx = data;
-
-	if (!soa) {
-		log_noise("SOA query failed");
-		got_zone_serial(ctx, NULL);
-		return;
-	}
-
-	log_noise("SOA1: cname=%s qname=%s ttl=%u nrr=%u",
-		  soa->dnssoa_cname, soa->dnssoa_qname,
-		  soa->dnssoa_ttl, soa->dnssoa_nrr);
-	log_noise("SOA2: nsname=%s hostmaster=%s serial=%u refresh=%u retry=%u expire=%u minttl=%u",
-		  soa->dnssoa_nsname, soa->dnssoa_hostmaster, soa->dnssoa_serial, soa->dnssoa_refresh,
-		  soa->dnssoa_retry, soa->dnssoa_expire, soa->dnssoa_minttl);
-
-	got_zone_serial(ctx, &soa->dnssoa_serial);
-
-	free(soa);
-}
-
-static int impl_query_soa_serial(struct DNSContext *ctx, const char *zonename)
-{
-	struct UdnsMeta *udns = ctx->edns;
-	struct dns_query *q;
-	int flags = 0;
-
-	log_debug("udns: impl_query_soa_serial: name=%s", zonename);
-	q = submit_soa(udns->ctx, zonename, flags, udns_result_soa, ctx);
-	if (!q) {
-		log_error("impl_query_soa_serial failed: %s", zonename);
-	}
-	return 0;
-}
-
-#endif /* USE_UDNS */
+#endif /* USE_EVDNS */
 
 
 /*
@@ -768,8 +448,7 @@ struct XaresMeta {
 
 	/* If dns events happened during event loop,
 	   timer may need recalibration. */
-	int got_events;
-
+	bool got_events;
 };
 
 const char *adns_get_backend(void)
@@ -779,19 +458,19 @@ const char *adns_get_backend(void)
 
 
 /* called by libevent on timer timeout */
-static void xares_timer_cb(int sock, short flags, void *arg)
+static void xares_timer_cb(evutil_socket_t sock, short flags, void *arg)
 {
 	struct DNSContext *ctx = arg;
 	struct XaresMeta *meta = ctx->edns;
 
 	ares_process_fd(meta->chan, ARES_SOCKET_BAD, ARES_SOCKET_BAD);
 
-	meta->timer_active = 0;
-	meta->got_events = 1;
+	meta->timer_active = false;
+	meta->got_events = true;
 }
 
 /* called by libevent on fd event */
-static void xares_fd_cb(int sock, short flags, void *arg)
+static void xares_fd_cb(evutil_socket_t sock, short flags, void *arg)
 {
 	struct XaresFD *xfd = arg;
 	struct XaresMeta *meta = xfd->meta;
@@ -801,7 +480,7 @@ static void xares_fd_cb(int sock, short flags, void *arg)
 	w = (flags & EV_WRITE) ? xfd->sock : ARES_SOCKET_BAD;
 	ares_process_fd(meta->chan, r, w);
 
-	meta->got_events = 1;
+	meta->got_events = true;
 }
 
 /* called by c-ares on new socket creation */
@@ -829,7 +508,7 @@ static int xares_new_socket_cb(ares_socket_t sock, int sock_type, void *arg)
 	xfd->meta = meta;
 	xfd->sock = sock;
 	xfd->wait = 0;
-	xfd->in_use = 1;
+	xfd->in_use = true;
 	return ARES_SUCCESS;
 }
 
@@ -871,11 +550,11 @@ re_set:
 		event_del(&xfd->ev);
 	xfd->wait = new_wait;
 	if (new_wait) {
-		event_set(&xfd->ev, sock, new_wait | EV_PERSIST, xares_fd_cb, xfd);
+		event_assign(&xfd->ev, pgb_event_base, sock, new_wait | EV_PERSIST, xares_fd_cb, xfd);
 		if (event_add(&xfd->ev, NULL) < 0)
 			log_warning("adns: event_add failed: %s", strerror(errno));
 	} else {
-		xfd->in_use = 0;
+		xfd->in_use = false;
 	}
 	return;
 }
@@ -911,7 +590,7 @@ static void impl_launch_query(struct DNSRequest *req)
  * in c-ares repo.
  */
 #if ARES_VERSION <= 0x10A00
-#warning Forcing c-ares to be IPv4-only.
+#warning c-ares <=1.10 has buggy IPv6 support; this PgBouncer build will use IPv4 only.
 	af = AF_INET;
 #else
 	af = AF_UNSPEC;
@@ -919,7 +598,7 @@ static void impl_launch_query(struct DNSRequest *req)
 	log_noise("dns: ares_gethostbyname(%s)", req->name);
 	ares_gethostbyname(meta->chan, req->name, af, xares_host_cb, req);
 
-	meta->got_events = 1;
+	meta->got_events = true;
 }
 
 /* re-set timer if any dns event happened */
@@ -943,7 +622,7 @@ static void impl_per_loop(struct DNSContext *ctx)
 		meta->timer_active = true;
 	}
 
-	meta->got_events = 0;
+	meta->got_events = false;
 }
 
 /* c-ares setup */
@@ -968,6 +647,20 @@ static bool impl_init(struct DNSContext *ctx)
 	opts.sock_state_cb = xares_state_cb;
 	opts.sock_state_cb_data = ctx;
 	mask = ARES_OPT_SOCK_STATE_CB;
+	if (cf_resolv_conf && cf_resolv_conf[0]) {
+#ifdef ARES_OPT_RESOLVCONF
+		opts.resolvconf_path = strdup(cf_resolv_conf);
+		if (!opts.resolvconf_path) {
+			free(meta);
+			return false;
+		}
+		mask |= ARES_OPT_RESOLVCONF;
+#else
+		log_error("resolv_conf setting is not supported by this version of c-ares");
+		free(meta);
+		return false;
+#endif
+	}
 
 	err = ares_init_options(&meta->chan, &opts, mask);
 	if (err) {
@@ -978,7 +671,7 @@ static bool impl_init(struct DNSContext *ctx)
 
 	ares_set_socket_callback(meta->chan, xares_new_socket_cb, ctx);
 
-	evtimer_set(&meta->ev_timer, xares_timer_cb, ctx);
+	evtimer_assign(&meta->ev_timer, pgb_event_base, xares_timer_cb, ctx);
 
 	ctx->edns = meta;
 	return true;
@@ -1003,150 +696,6 @@ static void impl_release(struct DNSContext *ctx)
  * query SOA with c-ares
  */
 
-#ifndef HAVE_ARES_PARSE_SOA_REPLY
-
-#define ares_soa_reply		xares_soa_reply
-#define ares_parse_soa_reply	xares_parse_soa_reply
-
-struct ares_soa_reply {
-	char *nsname;
-	char *hostmaster;
-	uint32_t serial;
-	uint32_t refresh;
-	uint32_t retry;
-	uint32_t expire;
-	uint32_t minttl;
-};
-
-static void xares_free_soa(struct ares_soa_reply *soa)
-{
-	if (soa) {
-		if (soa->nsname)
-			free(soa->nsname);
-		if (soa->hostmaster)
-			free(soa->hostmaster);
-		free(soa);
-	}
-}
-
-/*
- * Full SOA reply packet structure (rfc1035)
- *
- * 1) header
- *   id:16, flags:16, qdcount:16, ancount:16, nscount:16, arcount:16
- *
- * 2) query (qdcount)
- *   qname:name, qtype:16, qclass:16
- *
- * 3) answer (ancount)
- *   name:name, type:16, class:16, ttl:32, rdlength:16
- *
- * 3.1) soa rdata
- *   nsname:name, hostmaster:name,
- *   serial:32, refresh:32, retry:32, expire:32, minimum:32
- *
- * 4) authority (nscount) - ignored
- *
- * 5) additional (arcount) - ignored
- */
-static int ares_parse_soa_reply(const unsigned char *abuf, int alen, struct ares_soa_reply **soa_p)
-{
-	const unsigned char *aptr;
-	long len;
-	char *qname = NULL, *rr_name = NULL;
-	struct ares_soa_reply *soa = NULL;
-	int qdcount, ancount;
-	int status;
-
-	if (alen < NS_HFIXEDSZ)
-		return ARES_EBADRESP;
-
-	/* parse message header */
-	qdcount = DNS_HEADER_QDCOUNT(abuf);
-	ancount = DNS_HEADER_ANCOUNT(abuf);
-	if (qdcount != 1 || ancount != 1)
-		return ARES_EBADRESP;
-	aptr = abuf + NS_HFIXEDSZ;
-
-	/* allocate result struct */
-	soa = calloc(1, sizeof(*soa));
-	if (!soa)
-		return ARES_ENOMEM;
-
-	/* parse query */
-	status = ares_expand_name(aptr, abuf, alen, &qname, &len);
-	if (status != ARES_SUCCESS)
-		goto failed_stat;
-	aptr += len;
-
-	/* skip qtype & qclass */
-	if (aptr + NS_QFIXEDSZ > abuf + alen)
-		goto failed;
-	aptr += NS_QFIXEDSZ;
-
-	/* parse RR header */
-	status = ares_expand_name(aptr, abuf, alen, &rr_name, &len);
-	if (status != ARES_SUCCESS)
-		goto failed_stat;
-	aptr += len;
-
-	/* skip rr_type, rr_class, rr_ttl, rr_rdlen */
-	if (aptr + NS_RRFIXEDSZ > abuf + alen)
-		goto failed;
-	aptr += NS_RRFIXEDSZ;
-
-	/* nsname */
-	status = ares_expand_name(aptr, abuf, alen, &soa->nsname, &len);
-	if (status != ARES_SUCCESS)
-		goto failed_stat;
-	aptr += len;
-
-	/* hostmaster */
-	status = ares_expand_name(aptr, abuf, alen, &soa->hostmaster, &len);
-	if (status != ARES_SUCCESS)
-		goto failed_stat;
-	aptr += len;
-
-	/* integer fields */
-	if (aptr + 5*4 > abuf + alen)
-		goto failed;
-	soa->serial = DNS__32BIT(aptr + 0*4);
-	soa->refresh = DNS__32BIT(aptr + 1*4);
-	soa->retry = DNS__32BIT(aptr + 2*4);
-	soa->expire = DNS__32BIT(aptr + 3*4);
-	soa->minttl = DNS__32BIT(aptr + 4*4);
-
-	log_noise("Ares SOA result: qname=%s rr_name=%s serial=%u", qname, rr_name, soa->serial);
-
-	free(qname);
-	free(rr_name);
-
-	*soa_p = soa;
-
-	return ARES_SUCCESS;
-
-failed:
-	status = ARES_EBADRESP;
-
-failed_stat:
-	xares_free_soa(soa);
-	if (qname)
-		free(qname);
-	if (rr_name)
-		free(rr_name);
-	return (status == ARES_EBADNAME) ? ARES_EBADRESP : status;
-}
-
-#else /* HAVE_ARES_PARSE_SOA_REPLY */
-
-static void xares_free_soa(struct ares_soa_reply *soa)
-{
-	ares_free_data(soa);
-}
-
-#endif /* HAVE_ARES_PARSE_SOA_REPLY */
-
-
 /* called by c-ares on SOA reply */
 static void xares_soa_cb(void *arg, int status, int timeouts,
 			 unsigned char *abuf, int alen)
@@ -1155,7 +704,7 @@ static void xares_soa_cb(void *arg, int status, int timeouts,
 	struct XaresMeta *meta = ctx->edns;
 	struct ares_soa_reply *soa = NULL;
 
-	meta->got_events = 1;
+	meta->got_events = true;
 
 	log_noise("ares SOA result: %s", ares_strerror(status));
 	if (status != ARES_SUCCESS) {
@@ -1171,7 +720,7 @@ static void xares_soa_cb(void *arg, int status, int timeouts,
 		got_zone_serial(ctx, NULL);
 	}
 
-	xares_free_soa(soa);
+	ares_free_data(soa);
 }
 
 /* send SOA query */
@@ -1183,7 +732,7 @@ static int impl_query_soa_serial(struct DNSContext *ctx, const char *zonename)
 	ares_search(meta->chan, zonename, ns_c_in, ns_t_soa,
 		    xares_soa_cb, ctx);
 
-	meta->got_events = 1;
+	meta->got_events = true;
 	return 0;
 }
 
@@ -1361,12 +910,12 @@ nomem:
 
 static int cmp_addrinfo(const struct addrinfo *a1, const struct addrinfo *a2)
 {
-    if (a1->ai_family != a2->ai_family)
+	if (a1->ai_family != a2->ai_family)
 		return a1->ai_family - a2->ai_family;
-    if (a1->ai_addrlen != a2->ai_addrlen)
+	if (a1->ai_addrlen != a2->ai_addrlen)
 		return a1->ai_addrlen - a2->ai_addrlen;
 
-    return memcmp(a1->ai_addr, a2->ai_addr, a1->ai_addrlen);
+	return memcmp(a1->ai_addr, a2->ai_addr, a1->ai_addrlen);
 }
 
 /* check if new dns reply is missing some IP compared to old one */
@@ -1418,7 +967,7 @@ static void got_result_gai(int result, struct addrinfo *res, void *arg)
 		req->res_ttl = get_cached_time() + cf_dns_max_ttl;
 	} else {
 		/* lookup failed */
-		log_warning("lookup failed: %s: result=%d", req->name, result);
+		log_warning("DNS lookup failed: %s: result=%d", req->name, result);
 		req->res_ttl = get_cached_time() + cf_dns_nxdomain_ttl;
 	}
 
@@ -1515,7 +1064,7 @@ static void zone_register(struct DNSContext *ctx, struct DNSRequest *req)
 	req->zone = z;
 }
 
-static void zone_timer(int fd, short flg, void *arg)
+static void zone_timer(evutil_socket_t fd, short flg, void *arg)
 {
 	struct DNSContext *ctx = arg;
 	struct List *el;
@@ -1541,7 +1090,7 @@ static void launch_zone_timer(struct DNSContext *ctx)
 	tv.tv_sec = cf_dns_zone_check_period / USEC;
 	tv.tv_usec = cf_dns_zone_check_period % USEC;
 
-	evtimer_set(&ctx->ev_zone_timer, zone_timer, ctx);
+	evtimer_assign(&ctx->ev_zone_timer, pgb_event_base, zone_timer, ctx);
 	safe_evtimer_add(&ctx->ev_zone_timer, &tv);
 
 	ctx->zone_state = 2;

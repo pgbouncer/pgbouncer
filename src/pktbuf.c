@@ -22,17 +22,40 @@
 
 #include "bouncer.h"
 
-void pktbuf_free(PktBuf *buf)
+
+/*
+ * PostgreSQL type OIDs for result sets
+ */
+#define BYTEAOID 17
+#define INT8OID 20
+#define INT4OID 23
+#define TEXTOID 25
+#define NUMERICOID 1700
+
+
+static void pktbuf_free_internal(PktBuf *buf)
 {
 	if (!buf || buf->fixed_buf)
 		return;
 
 	log_debug("pktbuf_free(%p)", buf);
-	if (buf->buf)
-		free(buf->buf);
-	if (buf->ev)
-		free(buf->ev);
+	free(buf->buf);
+	free(buf->ev);
 	free(buf);
+}
+
+static PktBuf *temp_pktbuf;
+
+/*
+ * free the given buffer, if it's a dynamic buffer and not the global temp
+ * buffer
+ */
+void pktbuf_free(PktBuf *buf)
+{
+	if (buf == temp_pktbuf)
+		return;
+
+	pktbuf_free_internal(buf);
 }
 
 PktBuf *pktbuf_dynamic(int start_len)
@@ -58,11 +81,11 @@ PktBuf *pktbuf_dynamic(int start_len)
 
 void pktbuf_reset(struct PktBuf *pkt)
 {
-	pkt->failed = 0;
+	pkt->failed = false;
 	pkt->write_pos = 0;
 	pkt->pktlen_pos = 0;
 	pkt->send_pos = 0;
-	pkt->sending = 0;
+	pkt->sending = false;
 }
 
 void pktbuf_static(PktBuf *buf, uint8_t *data, int len)
@@ -70,24 +93,22 @@ void pktbuf_static(PktBuf *buf, uint8_t *data, int len)
 	memset(buf, 0, sizeof(*buf));
 	buf->buf = data;
 	buf->buf_len = len;
-	buf->fixed_buf = 1;
+	buf->fixed_buf = true;
 }
-
-static PktBuf *temp_pktbuf;
 
 struct PktBuf *pktbuf_temp(void)
 {
 	if (!temp_pktbuf)
 		temp_pktbuf = pktbuf_dynamic(512);
 	if (!temp_pktbuf)
-		fatal("failed to create temp pktbuf");
+		die("out of memory");
 	pktbuf_reset(temp_pktbuf);
 	return temp_pktbuf;
 }
 
 void pktbuf_cleanup(void)
 {
-	pktbuf_free(temp_pktbuf);
+	pktbuf_free_internal(temp_pktbuf);
 	temp_pktbuf = NULL;
 }
 
@@ -95,7 +116,7 @@ bool pktbuf_send_immediate(PktBuf *buf, PgSocket *sk)
 {
 	uint8_t *pos = buf->buf + buf->send_pos;
 	int amount = buf->write_pos - buf->send_pos;
-	int res;
+	ssize_t res;
 
 	if (buf->failed)
 		return false;
@@ -106,13 +127,13 @@ bool pktbuf_send_immediate(PktBuf *buf, PgSocket *sk)
 	return res == amount;
 }
 
-static void pktbuf_send_func(int fd, short flags, void *arg)
+static void pktbuf_send_func(evutil_socket_t fd, short flags, void *arg)
 {
 	PktBuf *buf = arg;
 	SBuf *sbuf = &buf->queued_dst->sbuf;
 	int amount, res;
 
-	log_debug("pktbuf_send_func(%d, %d, %p)", fd, (int)flags, buf);
+	log_debug("pktbuf_send_func(%" PRId64 ", %d, %p)", (int64_t)fd, (int)flags, buf);
 
 	if (buf->failed)
 		return;
@@ -131,7 +152,7 @@ static void pktbuf_send_func(int fd, short flags, void *arg)
 	buf->send_pos += res;
 
 	if (buf->send_pos < buf->write_pos) {
-		event_set(buf->ev, fd, EV_WRITE, pktbuf_send_func, buf);
+		event_assign(buf->ev, pgb_event_base, fd, EV_WRITE, pktbuf_send_func, buf);
 		res = event_add(buf->ev, NULL);
 		if (res < 0) {
 			log_error("pktbuf_send_func: %s", strerror(errno));
@@ -149,9 +170,9 @@ bool pktbuf_send_queued(PktBuf *buf, PgSocket *sk)
 
 	if (buf->failed) {
 		pktbuf_free(buf);
-		return send_pooler_error(sk, true, "result prepare failed");
+		return send_pooler_error(sk, true, NULL, false, "result prepare failed");
 	} else {
-		buf->sending = 1;
+		buf->sending = true;
 		buf->queued_dst = sk;
 		pktbuf_send_func(sk->sbuf.sock, EV_WRITE, buf);
 		return true;
@@ -171,7 +192,7 @@ static void make_room(PktBuf *buf, int len)
 		return;
 
 	if (buf->fixed_buf) {
-		buf->failed = 1;
+		buf->failed = true;
 		return;
 	}
 
@@ -182,7 +203,7 @@ static void make_room(PktBuf *buf, int len)
 		  buf, len, newlen);
 	ptr = realloc(buf->buf, newlen);
 	if (!ptr) {
-		buf->failed = 1;
+		buf->failed = true;
 	} else {
 		buf->buf = ptr;
 		buf->buf_len = newlen;
@@ -232,6 +253,9 @@ void pktbuf_put_uint64(PktBuf *buf, uint64_t val)
 
 void pktbuf_put_bytes(PktBuf *buf, const void *data, int len)
 {
+	if (len == 0)
+		return;
+
 	make_room(buf, len);
 	if (buf->failed)
 		return;
@@ -340,7 +364,9 @@ void pktbuf_write_generic(PktBuf *buf, int type, const char *pktdesc, ...)
  * tupdesc keys:
  * 'i' - int4
  * 'q' - int8
- * 's' - string
+ * 's' - string to text
+ * 'b' - bytes to bytea
+ * 'N' - uint64_t to numeric
  * 'T' - usec_t to date
  */
 void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...)
@@ -351,7 +377,7 @@ void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...)
 
 	log_noise("write RowDescription");
 
-	pktbuf_start_packet(buf, 'T');
+	pktbuf_start_packet(buf, PqMsg_RowDescription);
 
 	pktbuf_put_uint16(buf, ncol);
 
@@ -366,19 +392,25 @@ void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...)
 		if (tupdesc[i] == 's') {
 			pktbuf_put_uint32(buf, TEXTOID);
 			pktbuf_put_uint16(buf, -1);
+		} else if (tupdesc[i] == 'b') {
+			pktbuf_put_uint32(buf, BYTEAOID);
+			pktbuf_put_uint16(buf, -1);
 		} else if (tupdesc[i] == 'i') {
 			pktbuf_put_uint32(buf, INT4OID);
 			pktbuf_put_uint16(buf, 4);
 		} else if (tupdesc[i] == 'q') {
 			pktbuf_put_uint32(buf, INT8OID);
 			pktbuf_put_uint16(buf, 8);
+		} else if (tupdesc[i] == 'N') {
+			pktbuf_put_uint32(buf, NUMERICOID);
+			pktbuf_put_uint16(buf, -1);
 		} else if (tupdesc[i] == 'T') {
 			pktbuf_put_uint32(buf, TEXTOID);
 			pktbuf_put_uint16(buf, -1);
 		} else {
 			fatal("bad tupdesc");
 		}
-		pktbuf_put_uint32(buf, 0);
+		pktbuf_put_uint32(buf, -1);
 		pktbuf_put_uint16(buf, 0);
 	}
 	va_end(ap);
@@ -393,29 +425,48 @@ void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...)
  * tupdesc keys:
  * 'i' - int4
  * 'q' - int8
- * 's' - string
+ * 's' - string to text
+ * 'b' - bytes to bytea
+ * 'N' - uint64_t to numeric
  * 'T' - usec_t to date
  */
 void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 {
-	char tmp[32];
-	const char *val = NULL;
-	int i, len, ncol = strlen(tupdesc);
+	int ncol = strlen(tupdesc);
 	va_list ap;
 
-	pktbuf_start_packet(buf, 'D');
+	pktbuf_start_packet(buf, PqMsg_DataRow);
 	pktbuf_put_uint16(buf, ncol);
 
 	va_start(ap, tupdesc);
-	for (i = 0; i < ncol; i++) {
+	for (int i = 0; i < ncol; i++) {
+		char tmp[100];	/* XXX good enough in practice */
+		const char *val = NULL;
+
 		if (tupdesc[i] == 'i') {
 			snprintf(tmp, sizeof(tmp), "%d", va_arg(ap, int));
 			val = tmp;
-		} else if (tupdesc[i] == 'q') {
+		} else if (tupdesc[i] == 'q' || tupdesc[i] == 'N') {
 			snprintf(tmp, sizeof(tmp), "%" PRIu64, va_arg(ap, uint64_t));
 			val = tmp;
 		} else if (tupdesc[i] == 's') {
 			val = va_arg(ap, char *);
+		} else if (tupdesc[i] == 'b') {
+			int blen = va_arg(ap, int);
+			if (blen >= 0) {
+				uint8_t *bval = va_arg(ap, uint8_t *);
+				size_t required = 2 + blen * 2 + 1;
+
+				if (required > sizeof(tmp))
+					fatal("byte array too long (%zu > %zu)", required, sizeof(tmp));
+				strcpy(tmp, "\\x");
+				for (int j = 0; j < blen; j++)
+					sprintf(tmp + (2 + j * 2), "%02x", bval[j]);
+				val = tmp;
+			} else {
+				(void) va_arg(ap, uint8_t *);
+				val = NULL;
+			}
 		} else if (tupdesc[i] == 'T') {
 			usec_t time = va_arg(ap, usec_t);
 			val = format_time_s(time, tmp, sizeof(tmp));
@@ -424,7 +475,7 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 		}
 
 		if (val) {
-			len = strlen(val);
+			int len = strlen(val);
 			pktbuf_put_uint32(buf, len);
 			pktbuf_put_bytes(buf, val, len);
 		} else {
@@ -446,11 +497,9 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...)
 	const char *val;
 	int len, i;
 
-	/* Parse */
-	pktbuf_write_generic(buf, 'P', "csh", 0, query, 0);
+	pktbuf_write_generic(buf, PqMsg_Parse, "csh", 0, query, 0);
 
-	/* Bind */
-	pktbuf_start_packet(buf, 'B');
+	pktbuf_start_packet(buf, PqMsg_Bind);
 	pktbuf_put_char(buf, 0);	/* portal name */
 	pktbuf_put_char(buf, 0);	/* query name */
 	pktbuf_put_uint16(buf, 0);	/* number of parameter format codes */
@@ -468,12 +517,7 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...)
 	pktbuf_put_uint16(buf, 0);	/* number of result-column format codes */
 	pktbuf_finish_packet(buf);
 
-	/* Describe */
-	pktbuf_write_generic(buf, 'D', "cc", 'P', 0);
-
-	/* Execute */
-	pktbuf_write_generic(buf, 'E', "ci", 0, 0);
-
-	/* Sync */
-	pktbuf_write_generic(buf, 'S', "");
+	pktbuf_write_generic(buf, PqMsg_Describe, "cc", 'P', 0);
+	pktbuf_write_generic(buf, PqMsg_Execute, "ci", 0, 0);
+	pktbuf_write_generic(buf, PqMsg_Sync, "");
 }

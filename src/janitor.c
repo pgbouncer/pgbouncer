@@ -22,9 +22,12 @@
 
 #include "bouncer.h"
 
+#include <usual/slab.h>
+
 /* do full maintenance 3x per second */
 static struct timeval full_maint_period = {0, USEC / 3};
 static struct event full_maint_ev;
+extern bool any_user_level_client_timeout_set;
 
 /* close all sockets in server list */
 static void close_server_list(struct StatList *sk_list, const char *reason)
@@ -56,7 +59,7 @@ bool suspend_socket(PgSocket *sk, bool force_suspend)
 
 	if (sbuf_is_empty(&sk->sbuf)) {
 		if (sbuf_pause(&sk->sbuf))
-			sk->suspended = 1;
+			sk->suspended = true;
 	}
 
 	if (sk->suspended || !force_suspend)
@@ -93,7 +96,7 @@ static void resume_socket_list(struct StatList *list)
 	statlist_for_each_safe(item, list, tmp) {
 		sk = container_of(item, PgSocket, head);
 		if (sk->suspended) {
-			sk->suspended = 0;
+			sk->suspended = false;
 			sbuf_continue(&sk->sbuf);
 		}
 	}
@@ -154,9 +157,9 @@ static void launch_recheck(PgPool *pool)
 
 	if (need_check) {
 		/* send test query, wait for result */
-		slog_debug(server, "P: Checking: %s", q);
+		slog_debug(server, "P: checking: %s", q);
 		change_server_state(server, SV_TESTED);
-		SEND_generic(res, server, 'Q', "s", q);
+		SEND_generic(res, server, PqMsg_Query, "s", q);
 		if (!res)
 			disconnect_server(server, false, "test query failed");
 	} else {
@@ -174,16 +177,28 @@ static void per_loop_activate(PgPool *pool)
 	PgSocket *client;
 	int sv_tested, sv_used;
 
+	/* if there is a cancel request waiting, open a new connection */
+	if (!statlist_empty(&pool->waiting_cancel_req_list)) {
+		launch_new_connection(pool, /* evict_if_needed= */ true);
+		return;
+	}
+
 	/* see if any server have been freed */
 	sv_tested = statlist_count(&pool->tested_server_list);
 	sv_used = statlist_count(&pool->used_server_list);
 	statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
 		client = container_of(item, PgSocket, head);
-		if (!statlist_empty(&pool->idle_server_list)) {
-
+		if (client->replication) {
+			/*
+			 * For replication connections we always launch
+			 * a new connection, but we continue with the loop,
+			 * because there might be normal clients waiting too.
+			 */
+			launch_new_connection(pool, /* evict_if_needed= */ true);
+		} else if (!statlist_empty(&pool->idle_server_list)) {
 			/* db not fully initialized after reboot */
 			if (client->wait_for_welcome && !pool->welcome_msg_ready) {
-				launch_new_connection(pool);
+				launch_new_connection(pool, /* evict_if_needed= */ true);
 				continue;
 			}
 
@@ -198,7 +213,7 @@ static void per_loop_activate(PgPool *pool)
 			--sv_used;
 		} else {
 			/* not enough connections */
-			launch_new_connection(pool);
+			launch_new_connection(pool, /* evict_if_needed= */ true);
 			break;
 		}
 	}
@@ -254,14 +269,53 @@ static int per_loop_suspend(PgPool *pool, bool force_suspend)
 }
 
 /*
+ * Count the servers in server_list that have close_needed set.
+ */
+static int count_close_needed(struct StatList *server_list)
+{
+	struct List *item;
+	PgSocket *server;
+	int count = 0;
+
+	statlist_for_each(item, server_list) {
+		server = container_of(item, PgSocket, head);
+		if (server->close_needed)
+			count++;
+	}
+
+	return count;
+}
+
+/*
+ * Per-loop tasks for WAIT_CLOSE
+ */
+static int per_loop_wait_close(PgPool *pool)
+{
+	int count = 0;
+
+	if (pool->db->admin)
+		return 0;
+
+	count += count_close_needed(&pool->active_server_list);
+	count += count_close_needed(&pool->idle_server_list);
+	count += count_close_needed(&pool->new_server_list);
+	count += count_close_needed(&pool->tested_server_list);
+	count += count_close_needed(&pool->used_server_list);
+
+	return count;
+}
+
+/*
  * this function is called for each event loop.
  */
 void per_loop_maint(void)
 {
 	struct List *item;
 	PgPool *pool;
-	int active = 0;
-	int partial_pause = 0;
+	int active_count = 0;
+	int waiting_count = 0;
+	bool partial_pause = false;
+	bool partial_wait = false;
 	bool force_suspend = false;
 
 	if (cf_pause_mode == P_SUSPEND && cf_suspend_timeout > 0) {
@@ -277,18 +331,23 @@ void per_loop_maint(void)
 		switch (cf_pause_mode) {
 		case P_NONE:
 			if (pool->db->db_paused) {
-				partial_pause = 1;
-				active += per_loop_pause(pool);
+				partial_pause = true;
+				active_count += per_loop_pause(pool);
 			} else {
 				per_loop_activate(pool);
 			}
 			break;
 		case P_PAUSE:
-			active += per_loop_pause(pool);
+			active_count += per_loop_pause(pool);
 			break;
 		case P_SUSPEND:
-			active += per_loop_suspend(pool, force_suspend);
+			active_count += per_loop_suspend(pool, force_suspend);
 			break;
+		}
+
+		if (pool->db->db_wait_close) {
+			partial_wait = true;
+			waiting_count += per_loop_wait_close(pool);
 		}
 	}
 
@@ -297,17 +356,21 @@ void per_loop_maint(void)
 		if (force_suspend) {
 			close_client_list(&login_client_list, "suspend_timeout");
 		} else {
-			active += statlist_count(&login_client_list);
+			active_count += statlist_count(&login_client_list);
 		}
+	/* fallthrough */
 	case P_PAUSE:
-		if (!active)
+		if (!active_count)
 			admin_pause_done();
 		break;
 	case P_NONE:
-		if (partial_pause && !active)
+		if (partial_pause && !active_count)
 			admin_pause_done();
 		break;
 	}
+
+	if (partial_wait && !waiting_count)
+		admin_wait_close_done();
 }
 
 /* maintaining clients in pool */
@@ -316,19 +379,29 @@ static void pool_client_maint(PgPool *pool)
 	struct List *item, *tmp;
 	usec_t now = get_cached_time();
 	PgSocket *client;
+	PgGlobalUser *user;
 	usec_t age;
+	usec_t effective_client_idle_timeout;
 
 	/* force client_idle_timeout */
-	if (cf_client_idle_timeout > 0) {
+	if (cf_client_idle_timeout > 0 || any_user_level_client_timeout_set) {
 		statlist_for_each_safe(item, &pool->active_client_list, tmp) {
 			client = container_of(item, PgSocket, head);
 			Assert(client->state == CL_ACTIVE);
 			if (client->link)
 				continue;
-			if (now - client->request_time > cf_client_idle_timeout)
+
+			user = client->login_user_credentials->global_user;
+			effective_client_idle_timeout = cf_client_idle_timeout;
+
+			if (user->client_idle_timeout > 0)
+				effective_client_idle_timeout = user->client_idle_timeout;
+
+			if (now - client->request_time > effective_client_idle_timeout)
 				disconnect_client(client, true, "client_idle_timeout");
 		}
 	}
+
 
 	/* force timeouts for waiting queries */
 	if (cf_query_timeout > 0 || cf_query_wait_timeout > 0) {
@@ -342,11 +415,25 @@ static void pool_client_maint(PgPool *pool)
 				age = now - client->query_start;
 			}
 
-			if (cf_query_timeout > 0 && age > cf_query_timeout) {
+			if (cf_shutdown == SHUTDOWN_WAIT_FOR_SERVERS) {
+				disconnect_client(client, true, "server shutting down");
+			} else if (cf_query_timeout > 0 && age > cf_query_timeout) {
 				disconnect_client(client, true, "query_timeout");
 			} else if (cf_query_wait_timeout > 0 && age > cf_query_wait_timeout) {
 				disconnect_client(client, true, "query_wait_timeout");
 			}
+		}
+	}
+
+	/* apply cancel_wait_timeout for cancel connections */
+	if (cf_cancel_wait_timeout > 0) {
+		statlist_for_each_safe(item, &pool->waiting_cancel_req_list, tmp) {
+			client = container_of(item, PgSocket, head);
+			Assert(client->state == CL_WAITING_CANCEL);
+			age = now - client->request_time;
+
+			if (age > cf_cancel_wait_timeout)
+				disconnect_client(client, false, "cancel_wait_timeout");
 		}
 	}
 
@@ -363,21 +450,34 @@ static void pool_client_maint(PgPool *pool)
 	}
 }
 
+/* maintaining clients in peer pool */
+static void peer_pool_client_maint(PgPool *pool)
+{
+	struct List *item, *tmp;
+	usec_t now = get_cached_time();
+	PgSocket *client;
+	usec_t age;
+
+	if (cf_cancel_wait_timeout > 0) {
+		statlist_for_each_safe(item, &pool->waiting_cancel_req_list, tmp) {
+			client = container_of(item, PgSocket, head);
+			Assert(client->state == CL_WAITING_CANCEL);
+			age = now - client->request_time;
+
+			if (age > cf_cancel_wait_timeout)
+				disconnect_client(client, false, "cancel_wait_timeout");
+		}
+	}
+}
+
 static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle_test)
 {
 	usec_t now = get_cached_time();
+	usec_t server_lifetime = pool_server_lifetime(pool);
+
 	struct List *item, *tmp;
 	usec_t idle, age;
 	PgSocket *server;
-	usec_t lifetime_kill_gap = 0;
-
-	/*
-	 * Calculate the time that disconnects because of server_lifetime
-	 * must be separated.  This avoids the need to re-launch lot
-	 * of connections together.
-	 */
-	if (pool->db->pool_size > 0)
-		lifetime_kill_gap = cf_server_lifetime / pool->db->pool_size;
 
 	/* disconnect idle servers if needed */
 	statlist_for_each_safe(item, slist, tmp) {
@@ -393,10 +493,10 @@ static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle
 		} else if (server->state == SV_USED && !server->ready) {
 			disconnect_server(server, true, "SV_USED server got dirty");
 		} else if (cf_server_idle_timeout > 0 && idle > cf_server_idle_timeout
-			   && (cf_min_pool_size == 0 || pool_connected_server_count(pool) > cf_min_pool_size)) {
+			   && (pool_min_pool_size(pool) == 0 || pool_connected_server_count(pool) > pool_min_pool_size(pool))) {
 			disconnect_server(server, true, "server idle timeout");
-		} else if (age >= cf_server_lifetime) {
-			if (pool->last_lifetime_disconnect + lifetime_kill_gap <= now) {
+		} else if (age >= server_lifetime) {
+			if (life_over(server)) {
 				disconnect_server(server, true, "server lifetime over");
 				pool->last_lifetime_disconnect = now;
 			}
@@ -417,9 +517,9 @@ static void check_pool_size(PgPool *pool)
 {
 	PgSocket *server;
 	int cur = pool_connected_server_count(pool);
-	int many = cur - (pool->db->pool_size + pool->db->res_pool_size);
+	int many = cur - (pool_pool_size(pool) + pool_res_pool_size(pool));
 
-	Assert(pool->db->pool_size >= 0);
+	Assert(pool_pool_size(pool) >= 0);
 
 	while (many > 0) {
 		server = first_socket(&pool->used_server_list);
@@ -433,14 +533,13 @@ static void check_pool_size(PgPool *pool)
 	}
 
 	/* launch extra connections to satisfy min_pool_size */
-	if (cur < cf_min_pool_size &&
-	    cur < pool->db->pool_size &&
+	if (cur < pool_min_pool_size(pool) &&
+	    cur < pool_pool_size(pool) &&
 	    cf_pause_mode == P_NONE &&
 	    cf_reboot == 0 &&
-	    pool_client_count(pool) > 0)
-	{
-		log_debug("Launching new connection to satisfy min_pool_size");
-		launch_new_connection(pool);
+	    (pool_client_count(pool) > 0 || pool->db->forced_user_credentials != NULL)) {
+		log_debug("launching new connection to satisfy min_pool_size");
+		launch_new_connection(pool, /* evict_if_needed= */ false);
 	}
 }
 
@@ -448,7 +547,7 @@ static void check_pool_size(PgPool *pool)
 static void pool_server_maint(PgPool *pool)
 {
 	struct List *item, *tmp;
-	usec_t age, now = get_cached_time();
+	usec_t now = get_cached_time();
 	PgSocket *server;
 
 	/* find and disconnect idle servers */
@@ -456,20 +555,52 @@ static void pool_server_maint(PgPool *pool)
 	check_unused_servers(pool, &pool->tested_server_list, 0);
 	check_unused_servers(pool, &pool->idle_server_list, 1);
 
-	/* where query got did not get answer in query_timeout */
+	statlist_for_each_safe(item, &pool->active_server_list, tmp) {
+		server = container_of(item, PgSocket, head);
+		Assert(server->state == SV_ACTIVE);
+		/*
+		 * Disconnect active servers without outstanding requests if
+		 * server_fast_close is set. This only applies to session
+		 * pooling.
+		 */
+		if (cf_server_fast_close && server->ready && server->close_needed)
+			disconnect_server(server, true, "database configuration changed");
+		/*
+		 * Always disconnect close_needed replication servers. These
+		 * connections are expected to be very long lived (possibly
+		 * indefinitely), so waiting until the session/transaction is
+		 * over is not an option.
+		 */
+		if (server->replication && server->close_needed)
+			disconnect_server(server, true, "database configuration changed");
+	}
+
+	/* handle query_timeout and idle_transaction_timeout */
 	if (cf_query_timeout > 0 || cf_idle_transaction_timeout > 0) {
 		statlist_for_each_safe(item, &pool->active_server_list, tmp) {
+			usec_t age_client, age_server;
+
 			server = container_of(item, PgSocket, head);
 			Assert(server->state == SV_ACTIVE);
 			if (server->ready)
 				continue;
-			age = now - server->link->request_time;
-			if (cf_query_timeout > 0 && age > cf_query_timeout) {
+
+			/*
+			 * Note the different age calculations:
+			 * query_timeout counts from the last request
+			 * of the client (the client started the
+			 * query), idle_transaction_timeout counts
+			 * from the last request of the server (the
+			 * server sent the idle information).
+			 */
+			age_client = now - server->link->request_time;
+			age_server = now - server->request_time;
+
+			if (cf_query_timeout > 0 && age_client > cf_query_timeout) {
 				disconnect_server(server, true, "query timeout");
 			} else if (cf_idle_transaction_timeout > 0 &&
 				   server->idle_tx &&
-				   age > cf_idle_transaction_timeout)
-			{
+				   age_server > cf_idle_transaction_timeout) {
 				disconnect_server(server, true, "idle transaction timeout");
 			}
 		}
@@ -478,6 +609,8 @@ static void pool_server_maint(PgPool *pool)
 	/* find connections that got connect, but could not log in */
 	if (cf_server_connect_timeout > 0) {
 		statlist_for_each_safe(item, &pool->new_server_list, tmp) {
+			usec_t age;
+
 			server = container_of(item, PgSocket, head);
 			Assert(server->state == SV_LOGIN);
 
@@ -489,6 +622,37 @@ static void pool_server_maint(PgPool *pool)
 
 	check_pool_size(pool);
 }
+
+/* maintain servers in a peer pool */
+static void peer_pool_server_maint(PgPool *pool)
+{
+	struct List *item, *tmp;
+	usec_t now = get_cached_time();
+	PgSocket *server;
+
+	/*
+	 * find connections that got connected, but could not log in. For normal
+	 * pools we only compare against server_connect_timeout for these servers,
+	 * but since peer pools are only for sending cancellations we also compare
+	 * against cancel_wait_timeout here.
+	 */
+	if (cf_server_connect_timeout > 0 || cf_cancel_wait_timeout > 0) {
+		statlist_for_each_safe(item, &pool->new_server_list, tmp) {
+			usec_t age;
+
+			server = container_of(item, PgSocket, head);
+			Assert(server->state == SV_LOGIN);
+
+			age = now - server->connect_time;
+			if (cf_server_connect_timeout > 0 && age > cf_server_connect_timeout) {
+				disconnect_server(server, true, "connect timeout");
+			} else if (cf_cancel_wait_timeout > 0 && age > cf_cancel_wait_timeout) {
+				disconnect_server(server, true, "cancel_wait_timeout");
+			}
+		}
+	}
+}
+
 
 static void cleanup_client_logins(void)
 {
@@ -533,7 +697,7 @@ static void cleanup_inactive_autodatabases(void)
 }
 
 /* full-scale maintenance, done only occasionally */
-static void do_full_maint(int sock, short flags, void *arg)
+static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 {
 	struct List *item, *tmp;
 	PgPool *pool;
@@ -546,7 +710,26 @@ static void do_full_maint(int sock, short flags, void *arg)
 	 * Avoid doing anything that may surprise other pgbouncer.
 	 */
 	if (cf_pause_mode == P_SUSPEND)
-		goto skip_maint;
+		return;
+
+	/*
+	 * Creating new pools to enable `min_pool_size` enforcement even if
+	 * there are no active clients.
+	 *
+	 * If clients never connect there won't be a pool to maintain the
+	 * min_pool_size on, which means we have to proactively create a pool,
+	 * so that it can be maintained.
+	 *
+	 * We are doing this for databases with forced users only, to reduce
+	 * the risk of creating connections in unexpected ways, where there are
+	 * many users.
+	   _	 */
+	statlist_for_each_safe(item, &database_list, tmp) {
+		db = container_of(item, PgDatabase, head);
+		if (database_min_pool_size(db) > 0 && db->forced_user_credentials != NULL) {
+			get_pool(db, db->forced_user_credentials);
+		}
+	}
 
 	statlist_for_each_safe(item, &pool_list, tmp) {
 		pool = container_of(item, PgPool, head);
@@ -560,6 +743,12 @@ static void do_full_maint(int sock, short flags, void *arg)
 			if (pool_client_count(pool) > 0 || pool_server_count(pool) > 0)
 				pool->db->active_stamp = seq;
 		}
+	}
+
+	statlist_for_each_safe(item, &peer_pool_list, tmp) {
+		pool = container_of(item, PgPool, head);
+		peer_pool_server_maint(pool);
+		peer_pool_client_maint(pool);
 	}
 
 	/* find inactive autodbs */
@@ -578,28 +767,30 @@ static void do_full_maint(int sock, short flags, void *arg)
 
 	cleanup_client_logins();
 
-	if (cf_shutdown == 1 && get_active_server_count() == 0) {
+	if (cf_shutdown == SHUTDOWN_WAIT_FOR_SERVERS && get_active_server_count() == 0) {
 		log_info("server connections dropped, exiting");
-		cf_shutdown = 2;
-		event_loopbreak();
+		cf_shutdown = SHUTDOWN_IMMEDIATE;
+		event_base_loopbreak(pgb_event_base);
 		return;
 	}
 
-	if (requires_auth_file(cf_auth_type))
-		loader_users_check();
+	if (cf_shutdown == SHUTDOWN_WAIT_FOR_CLIENTS && get_active_client_count() == 0) {
+		log_info("client connections dropped, exiting");
+		cf_shutdown = SHUTDOWN_IMMEDIATE;
+		event_base_loopbreak(pgb_event_base);
+		return;
+	}
 
 	adns_zone_cache_maint(adns);
-
-skip_maint:
-	safe_evtimer_add(&full_maint_ev, &full_maint_period);
 }
 
 /* first-time initialization */
 void janitor_setup(void)
 {
 	/* launch maintenance */
-	evtimer_set(&full_maint_ev, do_full_maint, NULL);
-	safe_evtimer_add(&full_maint_ev, &full_maint_period);
+	event_assign(&full_maint_ev, pgb_event_base, -1, EV_PERSIST, do_full_maint, NULL);
+	if (event_add(&full_maint_ev, &full_maint_period) < 0)
+		log_warning("event_add failed: %s", strerror(errno));
 }
 
 void kill_pool(PgPool *pool)
@@ -608,9 +799,13 @@ void kill_pool(PgPool *pool)
 
 	close_client_list(&pool->active_client_list, reason);
 	close_client_list(&pool->waiting_client_list, reason);
-	close_client_list(&pool->cancel_req_list, reason);
+
+	close_client_list(&pool->active_cancel_req_list, reason);
+	close_client_list(&pool->waiting_cancel_req_list, reason);
 
 	close_server_list(&pool->active_server_list, reason);
+	close_server_list(&pool->active_cancel_server_list, reason);
+	close_server_list(&pool->being_canceled_server_list, reason);
 	close_server_list(&pool->idle_server_list, reason);
 	close_server_list(&pool->used_server_list, reason);
 	close_server_list(&pool->tested_server_list, reason);
@@ -621,8 +816,28 @@ void kill_pool(PgPool *pool)
 	list_del(&pool->map_head);
 	statlist_remove(&pool_list, &pool->head);
 	varcache_clean(&pool->orig_vars);
+	slab_free(var_list_cache, pool->orig_vars.var_list);
 	slab_free(pool_cache, pool);
 }
+
+void kill_peer_pool(PgPool *pool)
+{
+	const char *reason = "peer removed";
+
+	close_client_list(&pool->active_cancel_req_list, reason);
+	close_client_list(&pool->waiting_cancel_req_list, reason);
+	close_server_list(&pool->active_cancel_server_list, reason);
+	close_server_list(&pool->new_server_list, reason);
+
+	pktbuf_free(pool->welcome_msg);
+
+	list_del(&pool->map_head);
+	statlist_remove(&peer_pool_list, &pool->head);
+	varcache_clean(&pool->orig_vars);
+	slab_free(var_list_cache, pool->orig_vars.var_list);
+	slab_free(peer_pool_cache, pool);
+}
+
 
 void kill_database(PgDatabase *db)
 {
@@ -640,17 +855,42 @@ void kill_database(PgDatabase *db)
 	pktbuf_free(db->startup_params);
 	free(db->host);
 
-	if (db->forced_user)
-		slab_free(user_cache, db->forced_user);
-	if (db->connect_query)
-		free((void *)db->connect_query);
+	if (db->forced_user_credentials)
+		slab_free(credentials_cache, db->forced_user_credentials);
+	free(db->connect_query);
 	if (db->inactive_time) {
 		statlist_remove(&autodatabase_idle_list, &db->head);
 	} else {
 		statlist_remove(&database_list, &db->head);
 	}
+
+	if (db->auth_dbname)
+		free((void *)db->auth_dbname);
+
+	if (db->auth_query)
+		free((void *)db->auth_query);
+
 	aatree_destroy(&db->user_tree);
 	slab_free(db_cache, db);
+}
+
+void kill_peer(PgDatabase *db)
+{
+	PgPool *pool;
+	struct List *item, *tmp;
+
+	log_warning("dropping peer %s as it does not exist anymore", db->name);
+
+	statlist_for_each_safe(item, &peer_pool_list, tmp) {
+		pool = container_of(item, PgPool, head);
+		if (pool->db == db)
+			kill_peer_pool(pool);
+	}
+
+	free(db->host);
+
+	statlist_remove(&peer_list, &db->head);
+	slab_free(peer_cache, db);
 }
 
 /* as [pgbouncer] section can be loaded after databases,
@@ -666,9 +906,13 @@ void config_postprocess(void)
 			kill_database(db);
 			continue;
 		}
-		if (db->pool_size < 0)
-			db->pool_size = cf_default_pool_size;
-		if (db->res_pool_size < 0)
-			db->res_pool_size = cf_res_pool_size;
+	}
+
+	statlist_for_each_safe(item, &peer_list, tmp) {
+		db = container_of(item, PgDatabase, head);
+		if (db->db_dead) {
+			kill_peer(db);
+			continue;
+		}
 	}
 }

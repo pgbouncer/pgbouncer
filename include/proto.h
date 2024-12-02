@@ -17,9 +17,9 @@
  */
 
 /* old style V2 header: len:4b code:4b */
-#define OLD_HEADER_LEN	8
+#define OLD_HEADER_LEN  8
 /* new style V3 packet header len - type:1b, len:4b */
-#define NEW_HEADER_LEN	5
+#define NEW_HEADER_LEN  5
 
 /*
  * parsed packet header, plus whatever data is
@@ -39,9 +39,9 @@ struct PktHdr {
 
 bool get_header(struct MBuf *data, PktHdr *pkt) _MUSTCHECK;
 
-bool send_pooler_error(PgSocket *client, bool send_ready, const char *msg)  /*_MUSTCHECK*/;
+bool send_pooler_error(PgSocket *client, bool send_ready, const char *sqlstate, bool level_fatal, const char *msg) /*_MUSTCHECK*/;
 void log_server_error(const char *note, PktHdr *pkt);
-void parse_server_error(PktHdr *pkt, const char **level_p, const char **msg_p);
+void parse_server_error(PktHdr *pkt, const char **level_p, const char **msg_p, const char **sqlstate_p);
 
 bool add_welcome_parameter(PgPool *pool, const char *key, const char *val) _MUSTCHECK;
 void finish_welcome_msg(PgSocket *server);
@@ -54,6 +54,14 @@ bool send_sslreq_packet(PgSocket *server) _MUSTCHECK;
 
 int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...) _MUSTCHECK;
 
+/* reset the packet header and free the backing buffer */
+static inline void free_header(PktHdr *pkt)
+{
+	mbuf_free(&pkt->data);
+	pkt->type = 0;
+	pkt->len = 0;
+}
+
 /* is packet completely in our buffer */
 static inline bool incomplete_pkt(const PktHdr *pkt)
 {
@@ -61,7 +69,8 @@ static inline bool incomplete_pkt(const PktHdr *pkt)
 }
 
 /* is packet header completely in buffer */
-static inline bool incomplete_header(const struct MBuf *data) {
+static inline bool incomplete_header(const struct MBuf *data)
+{
 	uint32_t avail = mbuf_avail_for_read(data);
 	if (avail >= OLD_HEADER_LEN)
 		return false;
@@ -69,6 +78,24 @@ static inline bool incomplete_header(const struct MBuf *data) {
 		return true;
 	/* is it old V2 header? */
 	return data->data[data->read_pos] == 0;
+}
+
+/*
+ * rewind the body of a v3 packet. Does not work for v2 packets, e.g. startup
+ * packets
+ */
+static inline void pkt_rewind_v3(PktHdr *pkt)
+{
+	pkt->data.read_pos = NEW_HEADER_LEN;
+}
+
+/*
+ * rewind the body of a v2 packet. Does not work for v3 packets, i.e.
+ * everything except a startup packet
+ */
+static inline void pkt_rewind_v2(PktHdr *pkt)
+{
+	pkt->data.read_pos = OLD_HEADER_LEN;
 }
 
 /* one char desc */

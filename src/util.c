@@ -24,12 +24,20 @@
 
 #include <usual/crypto/md5.h>
 #include <usual/crypto/csrandom.h>
+#include <usual/socket.h>
+#include <usual/cfparser.h>
+
+#ifdef USUAL_LIBSSL_FOR_TLS
+#include <openssl/err.h>
+#include <openssl/evp.h>
+#endif
 
 int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstlen)
 {
 	const struct PgSocket *sock = ctx;
 	const char *user, *db, *host;
 	char host6[PGADDR_BUF];
+	int peer_id;
 	int port;
 	char stype;
 
@@ -40,8 +48,9 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
 	/* format prefix */
 	stype = is_server_socket(sock) ? 'S' : 'C';
 	port = pga_port(&sock->remote_addr);
+	peer_id = sock->pool ? sock->pool->db->peer_id : 0;
 	db = sock->pool ? sock->pool->db->name : "(nodb)";
-	user = sock->auth_user ? sock->auth_user->name : "(nouser)";
+	user = sock->login_user_credentials ? sock->login_user_credentials->name : "(nouser)";
 	if (pga_is_unix(&sock->remote_addr)) {
 		unsigned long pid = sock->remote_addr.scred.pid;
 		if (pid) {
@@ -55,11 +64,19 @@ int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstl
 	}
 
 	if (pga_family(&sock->remote_addr) == AF_INET6) {
+		if (peer_id) {
+			return snprintf(dst, dstlen, "%c-%p: peer-%d@[%s]:%d ",
+					stype, sock, peer_id, host, port);
+		}
 		return snprintf(dst, dstlen, "%c-%p: %s/%s@[%s]:%d ",
-			stype, sock, db, user, host, port);
+				stype, sock, db, user, host, port);
 	} else {
+		if (peer_id) {
+			return snprintf(dst, dstlen, "%c-%p: peer-%d@%s:%d ",
+					stype, sock, peer_id, host, port);
+		}
 		return snprintf(dst, dstlen, "%c-%p: %s/%s@%s:%d ",
-			stype, sock, db, user, host, port);
+				stype, sock, db, user, host, port);
 	}
 }
 
@@ -69,7 +86,7 @@ const char *bin2hex(const uint8_t *src, unsigned srclen, char *dst, unsigned dst
 	static const char hextbl [] = "0123456789abcdef";
 	if (!dstlen)
 		return "";
-	if (srclen*2+1 > dstlen)
+	if (srclen*2 + 1 > dstlen)
 		srclen = (dstlen - 1) / 2;
 	for (i = j = 0; i < srclen; i++) {
 		dst[j++] = hextbl[src[i] >> 4];
@@ -85,13 +102,42 @@ const char *bin2hex(const uint8_t *src, unsigned srclen, char *dst, unsigned dst
 
 static void hash2hex(const uint8_t *hash, char *dst)
 {
-	bin2hex(hash, MD5_DIGEST_LENGTH, dst, 16*2+1);
+	bin2hex(hash, MD5_DIGEST_LENGTH, dst, 16*2 + 1);
 }
 
-void pg_md5_encrypt(const char *part1,
+bool pg_md5_encrypt(const char *part1,
 		    const char *part2, size_t part2len,
 		    char *dest)
 {
+#ifdef USUAL_LIBSSL_FOR_TLS
+	EVP_MD_CTX *mdctx;
+	uint8_t hash[MD5_DIGEST_LENGTH];
+
+	ERR_clear_error();
+	mdctx = EVP_MD_CTX_create();
+	if (mdctx == NULL) {
+		log_error("MD5 authentication failed: out-of-memory");
+		return false;
+	}
+
+	if (!EVP_DigestInit(mdctx, EVP_md5()))
+		goto failed;
+	if (!EVP_DigestUpdate(mdctx, part1, strlen(part1)))
+		goto failed;
+	if (!EVP_DigestUpdate(mdctx, part2, part2len))
+		goto failed;
+	if (!EVP_DigestFinal_ex(mdctx, hash, 0))
+		goto failed;
+
+	EVP_MD_CTX_destroy(mdctx);
+	memcpy(dest, "md5", 3);
+	hash2hex(hash, dest + 3);
+	return true;
+failed:
+	log_error("MD5 authentication failed: %s", ERR_reason_error_string(ERR_get_error()));
+	EVP_MD_CTX_destroy(mdctx);
+	return false;
+#else
 	struct md5_ctx ctx;
 	uint8_t hash[MD5_DIGEST_LENGTH];
 
@@ -102,6 +148,8 @@ void pg_md5_encrypt(const char *part1,
 
 	memcpy(dest, "md5", 3);
 	hash2hex(hash, dest + 3);
+	return true;
+#endif
 }
 
 /* wrapped for getting random bytes */
@@ -115,11 +163,13 @@ bool tune_socket(int sock, bool is_unix)
 {
 	int res;
 	int val;
+	const char *errpos;
 	bool ok;
 
 	/*
 	 * Generic stuff + nonblock.
 	 */
+	errpos = "socket_setup";
 	ok = socket_setup(sock, true);
 	if (!ok)
 		goto fail;
@@ -133,20 +183,39 @@ bool tune_socket(int sock, bool is_unix)
 	/*
 	 * TCP Keepalive
 	 */
+	errpos = "socket_set_keepalive";
 	ok = socket_set_keepalive(sock, cf_tcp_keepalive, cf_tcp_keepidle,
 				  cf_tcp_keepintvl, cf_tcp_keepcnt);
 	if (!ok)
 		goto fail;
 
 	/*
+	 * TCP user timeout
+	 */
+	if (cf_tcp_user_timeout) {
+		errpos = "setsockopt/TCP_USER_TIMEOUT";
+#ifdef TCP_USER_TIMEOUT
+		val = cf_tcp_user_timeout;
+		res = setsockopt(sock, IPPROTO_TCP, TCP_USER_TIMEOUT, &val, sizeof(val));
+		if (res < 0)
+			goto fail;
+#else
+		errno = EINVAL;
+		goto fail;
+#endif
+	}
+
+	/*
 	 * set in-kernel socket buffer size
 	 */
 	if (cf_tcp_socket_buffer) {
 		val = cf_tcp_socket_buffer;
+		errpos = "setsockopt/SO_SNDBUF";
 		res = setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &val, sizeof(val));
 		if (res < 0)
 			goto fail;
 		val = cf_tcp_socket_buffer;
+		errpos = "setsockopt/SO_RCVBUF";
 		res = setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &val, sizeof(val));
 		if (res < 0)
 			goto fail;
@@ -156,12 +225,13 @@ bool tune_socket(int sock, bool is_unix)
 	 * Turn off kernel buffering, each send() will be one packet.
 	 */
 	val = 1;
+	errpos = "setsockopt/TCP_NODELAY";
 	res = setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));
 	if (res < 0)
 		goto fail;
 	return true;
 fail:
-	log_warning("tune_socket(%d) failed: %s", sock, strerror(errno));
+	log_warning("%s(%d) failed: %s", errpos, sock, strerror(errno));
 	return false;
 }
 
@@ -215,7 +285,12 @@ void fill_remote_addr(PgSocket *sk, int fd, bool is_unix)
 		pga_set(dst, AF_UNIX, cf_listen_port);
 		if (getpeercreds(fd, &uid, &gid, &pid) >= 0) {
 			log_noise("unix peer uid: %d", (int)uid);
-		} else {
+		} else if (errno != ENOSYS) {
+			/*
+			 * Check for ENOSYS, so we don't write a
+			 * warning every time if the OS doesn't
+			 * support this call.
+			 */
 			log_warning("unix peer uid failed: %s", strerror(errno));
 		}
 		dst->scred.uid = uid;
@@ -273,7 +348,7 @@ void safe_evtimer_add(struct event *ev, struct timeval *tv)
 		return;
 
 	if (timer_backup_used >= TIMER_BACKUP_SLOTS)
-		fatal_perror("TIMER_BACKUP_SLOTS full");
+		fatal("TIMER_BACKUP_SLOTS full");
 
 	ts = &timer_backup_list[timer_backup_used++];
 	ts->ev = ev;
@@ -335,7 +410,7 @@ void pga_copy(PgAddr *a, const struct sockaddr *sa)
 
 int pga_cmp_addr(const PgAddr *a, const PgAddr *b)
 {
-    if (pga_family(a) != pga_family(b))
+	if (pga_family(a) != pga_family(b))
 		return pga_family(a) - pga_family(b);
 
 	switch (pga_family(a)) {
@@ -439,4 +514,21 @@ const char *pga_details(const PgAddr *a, char *dst, int dstlen)
 		snprintf(dst, dstlen, "%s:%d", buf, pga_port(a));
 	}
 	return dst;
+}
+
+bool cf_set_authdb(struct CfValue *cv, const char *value)
+{
+	if (!check_reserved_database(value)) {
+		log_error("cannot use the reserved \"%s\" database as an auth_dbname", value);
+		return false;
+	}
+	return cf_set_str(cv, value);
+}
+
+bool check_reserved_database(const char *value)
+{
+	if (value && strcmp(value, "pgbouncer") == 0) {
+		return false;
+	}
+	return true;
 }

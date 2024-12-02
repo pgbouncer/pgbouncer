@@ -23,10 +23,6 @@
 #include <usual/base.h>
 #include <usual/ctype.h>
 
-#ifdef WIN32
-#include "win32support.h"
-#endif
-
 #include <sys/stat.h>
 
 #include <stdarg.h>
@@ -41,24 +37,15 @@
 #include <sys/uio.h>
 #endif
 
-#ifndef UNIX_PATH_MAX
-#define UNIX_PATH_MAX  128 /* actual sizeof() will be applied later anyway */
-#endif
-
-/*
- * PostgreSQL type OIDs for resultsets.
- */
-
-#define INT8OID 20
-#define INT4OID 23
-#define TEXTOID 25
-
 /*
  * libc compat functions.
  */
 
 #ifndef HAVE_LSTAT
-static inline int lstat(const char *path, struct stat *st) { return stat(path, st); }
+static inline int lstat(const char *path, struct stat *st)
+{
+	return stat(path, st);
+}
 #endif
 
 bool check_unix_peer_name(int fd, const char *username);

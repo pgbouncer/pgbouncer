@@ -1,0 +1,270 @@
+env:
+  CIRRUS_CLONE_SUBMODULES: true
+  DEBIAN_FRONTEND: noninteractive
+  LANG: C
+  PGVERSION: 16
+
+task:
+  name: Linux (Debian/Ubuntu)
+  matrix:
+    # - container:
+    #     image: ubuntu:20.04
+    - container:
+        image: ubuntu:22.04
+      env:
+        configure_args: '--with-cares --with-pam'
+    - container:
+        image: ubuntu:22.04
+      env:
+        configure_args: '--without-openssl'
+    # - container:
+    #     image: ubuntu:20.04
+    #   env:
+    #     configure_args: '--disable-evdns'
+    # - container:
+    #     image: ubuntu:20.04
+    #   env:
+    #     CC: clang
+    # - container:
+    #     image: ubuntu:20.04
+    #   env:
+    #     CFLAGS: -fno-sanitize-recover=all -fsanitize=undefined -fsanitize-address-use-after-scope -fno-sanitize=shift
+    - container:
+        image: ubuntu:22.04
+      env:
+        ENABLE_VALGRIND: yes
+        CFLAGS: -O0 -g
+        PGVERSION: 17
+    # - container:
+    #     image: ubuntu:20.04
+    #   env:
+    #     ENABLE_VALGRIND: yes
+    #     CFLAGS: -O0 -g
+    #     PGVERSION: 9.6
+    # - container:
+    #     image: ubuntu:20.04
+    #   env:
+    #     use_scan_build: yes
+    # - arm_container:
+    #     image: ubuntu:20.04
+    # - container:
+    #     image: ubuntu:22.04
+    # - container:
+    #     image: debian:stable
+    #   env:
+    #     PGVERSION: 13
+    # - container:
+    #     image: debian:oldstable
+    #   env:
+    #     PGVERSION: 11
+  setup_script:
+    - apt-get update
+    - apt-get -y install curl gnupg lsb-release
+    - curl https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
+    - echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main $PGVERSION" | tee /etc/apt/sources.list.d/pgdg.list
+    - apt-get update
+    - pkgs="autoconf automake ca-certificates cpio libc-ares-dev libevent-dev libpam0g-dev libssl-dev libsystemd-dev libtool make pandoc postgresql-$PGVERSION pkg-config python3 python3-pip python3-venv sudo iptables"
+    - case $CC in clang) pkgs="$pkgs clang";; esac
+    - if [ x"$ENABLE_VALGRIND" = x"yes" ]; then pkgs="$pkgs valgrind"; fi
+    - if [ x"$use_scan_build" = x"yes" ]; then pkgs="$pkgs clang-tools"; fi
+    - apt-get -y install $pkgs
+    - python3 -m venv /venv
+    - /venv/bin/pip install -r requirements.txt
+    - useradd user
+    - chown -R user .
+    - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+  build_script:
+    - su user -c "./autogen.sh"
+    - su user -c "${use_scan_build:+scan-build} ./configure --prefix=$HOME/install --enable-cassert --enable-werror --without-cares --with-systemd $configure_args"
+    - su user -c "${use_scan_build:+scan-build} make -j4"
+  test_script:
+    - source /venv/bin/activate && su user -c "PATH=/usr/lib/postgresql/${PGVERSION}/bin:$PATH make -j4 check CONCURRENCY=4"
+  install_script:
+    - make -j4 install
+  dist_script:
+    - make -j4 dist
+    - PACKAGE_VERSION=$(sed -n 's/PACKAGE_VERSION = //p' config.mak)
+    - tar -x -v -f pgbouncer-${PACKAGE_VERSION}.tar.gz
+    - cd pgbouncer-${PACKAGE_VERSION}/
+    - ./configure --prefix=$HOME/install2 --enable-werror --without-cares $configure_args
+    - make -j4
+    - make -j4 install
+  tarball_artifacts:
+    path: "pgbouncer-*.tar.gz"
+  always:
+    configure_artifacts:
+      path: "config.log"
+      type: text/plain
+
+task:
+  name: Linux (Red Hat)
+  trigger_type: manual
+  container:
+    matrix:
+      - image: rockylinux:9
+      - image: rockylinux:8
+  setup_script:
+    - yum -y install autoconf automake diffutils file libevent-devel libtool make openssl-devel pkg-config postgresql-server postgresql-contrib systemd-devel wget
+    - yum -y install python3 python3-pip sudo iptables
+    - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
+    - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
+    - pip3 install -r requirements.txt
+    - useradd user
+    - chown -R user .
+    - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+  build_script:
+    - su user -c "./autogen.sh"
+    - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror --with-systemd"
+    - su user -c "make -j4"
+  test_script:
+    - su user -c "make -j4 check CONCURRENCY=4"
+  install_script:
+    - make -j4 install
+  always:
+    configure_artifacts:
+      path: "config.log"
+      type: text/plain
+
+task:
+  name: Linux (Alpine)
+  trigger_type: manual
+  container:
+    matrix:
+      - image: alpine:latest
+  setup_script:
+    - apk update
+    - apk add autoconf automake bash build-base libevent-dev libtool openssl openssl-dev pkgconf postgresql postgresql-contrib python3 py3-pip wget sudo iptables
+    - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
+    - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
+    - python3 -m venv /venv
+    - /venv/bin/pip install -r requirements.txt
+    - adduser --disabled-password user
+    - chown -R user .
+    - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+  build_script:
+    - su user -c "./autogen.sh"
+    - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror"
+    - su user -c "make -j4"
+  test_script:
+    - source /venv/bin/activate && su user -c "make -j4 check CONCURRENCY=4"
+  install_script:
+    - make -j4 install
+  always:
+    configure_artifacts:
+      path: "config.log"
+      type: text/plain
+
+task:
+  name: FreeBSD
+  freebsd_instance:
+    image_family: freebsd-14-1
+  env:
+    HAVE_IPV6_LOCALHOST: yes
+    USE_SUDO: true
+  setup_script:
+    - pkg install -y autoconf automake bash gmake hs-pandoc libevent libtool pkgconf postgresql12-server postgresql12-contrib python devel/py-pip sudo
+    - pip install -r requirements.txt
+    - kldload pf
+    - echo 'anchor "pgbouncer_test/*"' >> /etc/pf.conf
+    - echo 'pf_enable="YES"' >> /etc/rc.conf
+    - service pf start
+    - pw useradd user
+    - chown -R user .
+    - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /usr/local/etc/sudoers
+  env:
+    CPPFLAGS: -I/usr/local/include
+    LDFLAGS: -L/usr/local/lib
+    M4: /usr/local/bin/gm4
+  build_script:
+    - su user -c "./autogen.sh"
+    - su user -c "./configure --prefix=$HOME/install --enable-werror"
+    - su user -c "gmake -j4"
+  test_script:
+    - su user -c "gmake -j4 check CONCURRENCY=4"
+  install_script:
+    - gmake -j4 install
+  always:
+    configure_artifacts:
+      path: "config.log"
+      type: text/plain
+
+task:
+  name: macOS
+  macos_instance:
+    image: ghcr.io/cirruslabs/macos-runner:sonoma
+  env:
+    HAVE_IPV6_LOCALHOST: yes
+    USE_SUDO: true
+    CPPFLAGS: -I/opt/homebrew/opt/openssl@3/include
+    LDFLAGS: -L/opt/homebrew/opt/openssl@3/lib
+    PATH: /opt/homebrew/opt/postgresql@${PGVERSION}/bin:$PATH
+  setup_script:
+    - brew install autoconf automake bash libevent libtool openssl pandoc pkg-config postgresql@${PGVERSION}
+    - python3 -m venv venv
+    - venv/bin/pip install -r requirements.txt
+    - echo 'anchor "pgbouncer_test/*"' | sudo tee -a /etc/pf.conf
+    - sudo pfctl -f /etc/pf.conf
+  build_script:
+    - ./autogen.sh
+    - ./configure --prefix=$HOME/install --enable-werror
+    - make -j4
+  test_script:
+    - source venv/bin/activate && make -j4 check CONCURRENCY=4
+  install_script:
+    - make -j4 install
+  always:
+    configure_artifacts:
+      path: "config.log"
+      type: text/plain
+
+task:
+  name: Windows
+  windows_container:
+    image: cirrusci/windowsservercore:cmake
+  env:
+    PATH: C:/tools/msys64/usr/bin;%PATH%
+    HOME: .
+    HAVE_IPV6_LOCALHOST: yes
+  matrix:
+    - env:
+        MSYSTEM: MINGW64
+    # - env:
+    #     MSYSTEM: MINGW32
+  setup_script:
+    - choco install -y --no-progress msys2
+    - sh -l -c "pacman --noconfirm -S --needed base-devel ${MINGW_PACKAGE_PREFIX}-gcc ${MINGW_PACKAGE_PREFIX}-libevent ${MINGW_PACKAGE_PREFIX}-openssl ${MINGW_PACKAGE_PREFIX}-postgresql autoconf automake libtool ${MINGW_PACKAGE_PREFIX}-python ${MINGW_PACKAGE_PREFIX}-python-pip zip"
+    - sh -l -c 'pip install -r requirements.txt'
+    - echo 127.0.0.1 localhost >> c:\Windows\System32\Drivers\etc\hosts
+    - sh -l -c 'echo "127.0.0.1   localhost" >> /etc/hosts'
+    - choco install -y --no-progress pandoc
+  build_script:
+    - sh -l -c "./autogen.sh"
+    - sh -l -c "./configure --prefix=$HOME/install --enable-werror PANDOC=/c/programdata/chocolatey/bin/pandoc LDFLAGS=-static \"LIBS=-liphlpapi $(pkgconf -libs -static openssl)\" PKG_CONFIG='pkg-config --static'"
+    - sh -l -c "make -j4"
+  test_script:
+    - sh -l -c "make -j4 check CONCURRENCY=3"
+    - sh -l -c "windres pgbouncer.exe"
+  install_script:
+    - sh -l -c "make -j4 install"
+  dist_script:
+    - sh -l -c "make -j4 zip"
+  zip_artifacts:
+    path: "pgbouncer-*.zip"
+  always:
+    configure_artifacts:
+      path: "config.log"
+      type: text/plain
+
+task:
+  name: Formatting checks & linting
+  container:
+    image: ubuntu:22.04
+  setup_script:
+    - apt-get update
+    - apt-get install -y python3 python3-pip cmake curl
+    - pip install -r dev_requirements.txt
+  build_script:
+    - touch config.mak # Fake that configure has run
+  test_script:
+    - make format-check
+    - make lint

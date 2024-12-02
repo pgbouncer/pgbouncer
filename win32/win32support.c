@@ -9,6 +9,7 @@
  */
 
 #include "bouncer.h"
+#include "win32support.h"
 
 #if defined(UNICODE) || defined(_UNICODE)
 #error This code does not support wide characters.
@@ -37,44 +38,11 @@ static char *service_password = NULL;
 
 static char *serviceDescription = "Lightweight connection pooler for PostgreSQL.";
 
-/* custom help string for win32 exe */
-static const char usage_str[] =
-"Usage: %s [OPTION]... config.ini\n"
-"  -q            No console messages\n"
-"  -v            Increase verbosity\n"
-"  -V            Show version\n"
-"  -h            Show this help screen and exit\n"
-"Windows service registration:\n"
-"  --regservice config.ini [-U username [-P password]]\n"
-"  --unregservice config.ini\n"
-"";
-
-static void usage(int err, char *exe)
-{
-	printf(usage_str, basename(exe));
-	exit(err);
-}
-
 static int exec_real_main(int argc, char *argv[])
 {
-	int i, j;
-
 	/* win32 stdio seems to be fully buffered by default */
 	setvbuf(stdout, NULL, _IONBF, 0);
 	setvbuf(stderr, NULL, _IONBF, 0);
-
-	/* check if regular arguments are in allowed list */
-	for (i = 1; i < argc; i++) {
-		char *p = argv[i];
-		if (p[0] != '-')
-			continue;
-		for (j = 1; p[j]; j++) {
-			if (!strchr("qvhV", p[j]))
-				usage(1, argv[0]);
-			if (p[j] == 'h')
-				usage(0, argv[0]);
-		}
-	}
 
 	/* call actual main() */
 	return real_main(argc, argv);
@@ -110,7 +78,7 @@ static void WINAPI win32_servicehandler(DWORD request)
 	case SERVICE_CONTROL_STOP:
 	case SERVICE_CONTROL_SHUTDOWN:
 		win32_setservicestatus(SERVICE_STOP_PENDING);
-		cf_shutdown = 2;
+		cf_shutdown = SHUTDOWN_IMMEDIATE;
 		break;
 	case SERVICE_CONTROL_INTERROGATE:
 		SetServiceStatus(hStatus, &svcStatus);
@@ -138,10 +106,8 @@ static void WINAPI win32_servicemain(DWORD argc, LPSTR *argv)
 
 	/* register control request handler */
 	hStatus = RegisterServiceCtrlHandler(servicename, win32_servicehandler);
-	if (hStatus == 0) {
-		fatal("could not connect to service control handler: %s", strerror(GetLastError()));
-		exit(1);
-	}
+	if (hStatus == 0)
+		die("could not connect to service control handler: %s", strerror(GetLastError()));
 
 	/* Tell SCM we are running before we make any API calls */
 	win32_setservicestatus(SERVICE_RUNNING);
@@ -278,35 +244,36 @@ int main(int argc, char *argv[])
 
 	/* initialize socket subsystem */
 	if (WSAStartup(MAKEWORD(2,0), &wsaData))
-		fatal("Cannot start the network subsystem");
+		die("could not start the network subsystem");
 
 	/* service cmdline */
 	if (argc >= 3) {
-		if (!strcmp(argv[1], "--service") || !strcmp(argv[1], "-service")) {
+		if (strcmp(argv[1], "--service") == 0 || strcmp(argv[1], "-service") == 0) {
 			cf_quiet = 1;
 			cf_config_file = argv[2];
 			win32_servicestart();
 			return 0;
 		}
 
-		if (!strcmp(argv[1], "--regservice") || !strcmp(argv[1], "-regservice")) {
+		if (strcmp(argv[1], "--regservice") == 0 || strcmp(argv[1], "-regservice") == 0) {
 			int i;
 			win32_load_config(argv[2]);
 			for (i = 3; i < argc; i++) {
-				if (!strcmp(argv[i], "-U") && i + 1 < argc) {
+				if (strcmp(argv[i], "-U") == 0 && i + 1 < argc) {
 					service_username = argv[++i];
-				} else if (!strcmp(argv[i], "-P") && i + 1 < argc) {
+				} else if (strcmp(argv[i], "-P") == 0 && i + 1 < argc) {
 					service_password = argv[++i];
 				} else {
-					printf("unknown arg: %s\n", argv[i]);
-					usage(1, argv[0]);
+					fprintf(stderr, "unknown arg: %s\n", argv[i]);
+					fprintf(stderr, "Try \"%s --help\" for more information.\n", argv[0]);
+					exit(1);
 				}
 			}
 			RegisterService();
 			return 0;
 		}
 
-		if (!strcmp(argv[1], "--unregservice") || !strcmp(argv[1], "-unregservice")) {
+		if (strcmp(argv[1], "--unregservice") == 0 || strcmp(argv[1], "-unregservice") == 0) {
 			win32_load_config(argv[2]);
 			UnRegisterService();
 			return 0;

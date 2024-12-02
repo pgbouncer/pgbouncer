@@ -24,7 +24,7 @@
 #define PGBOUNCER_PAM_SERVICE "pgbouncer"
 
 /*
- * Defines how many authorization requests can be placed to the waiting queue.
+ * Defines how many authentication requests can be placed to the waiting queue.
  * When the queue is full calls to pam_auth_begin() will block until there is
  * free space in the queue.
  */

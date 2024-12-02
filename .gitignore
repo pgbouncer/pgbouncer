@@ -5,6 +5,8 @@
 /config.status
 /config.sub
 /configure
+/doc/pgbouncer_1.md
+/doc/pgbouncer_5.md
 /install-sh
 /pgbouncer
 /.objs
@@ -12,11 +14,25 @@
 /test/.objs
 /test/hba_test
 /test/log
+/test/pgdata/
 /test/test.log
 /test/test.pid
+/test/ssl/log
+/test/ssl/tmp/
+/test/ssl/pgdata/
+/test/ssl/test.log
+/test/ssl/test.pid
+/test/ssl/TestCA[1-9]/
 
 *.html
 *.xml
 *.exe
 *.gz
 *.swp
+env
+venv
+.venv
+
+/uncrustify
+
+__pycache__/

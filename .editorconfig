@@ -1,0 +1,31 @@
+# top-most EditorConfig file
+root = true
+
+# basic rules for all files
+[*]
+end_of_line = lf
+insert_final_newline = true
+charset = utf-8
+trim_trailing_whitespace = true
+
+[*.{c,h}]
+indent_style = tab
+indent_size = 8
+
+[hba_test.{eval,rules}]
+indent_style = tab
+indent_size = 8
+
+[hba_test.rules]
+# Disable automatic trailing whitespace trimming for hba_test.rules, because
+# one of the tests in that file is that parsing doesn't break in case of
+# trailing whitespace.
+trim_trailing_whitespace = false
+
+[*.py]
+indent_style = space
+indent_size = 4
+
+[*.{yml,sh}]
+indent_style = space
+indent_size = 2

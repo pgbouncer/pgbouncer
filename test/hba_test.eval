@@ -3,6 +3,7 @@ md5		db	user		unix
 peer		dbp	user		unix
 password	db	userp		unix
 trust		dbz	userz		unix
+scram-sha-256	dbs	users		unix
 
 # hostssl
 cert		db	user		10.1.1.1	tls
@@ -78,3 +79,22 @@ md5		mdb	muser		ff11:2::1
 md5		mdb	muser		ff22:3::1
 trust		mdb	muser		::1
 reject		mdb	muser		::2
+
+# "all" address
+scram-sha-256	mdb3	muser		1.2.3.4
+scram-sha-256	mdb3	muser		face::1
+reject		mdb4	muser		1.2.3.4
+reject		mdb4	muser		face::1
+
+# replication
+reject		mdb		muser		::1	replication
+reject		db		userp		unix	replication
+reject		replication	userp		unix	replication
+trust		db		admin		::1	replication
+trust		replication	admin		::1	replication
+reject		db		admin		::1
+reject		replication	admin		::1
+trust		db		admin2		::1	replication
+trust		replication	admin2		::1	replication
+trust		db2		admin2		::1
+reject		replication	admin2		::1

@@ -27,6 +27,8 @@
 
 #include "bouncer.h"
 
+#include <usual/safeio.h>
+
 /*
  * Takeover done, old process shut down,
  * kick this one running.
@@ -39,20 +41,20 @@ void takeover_finish(void)
 	uint8_t buf[512];
 	int fd = sbuf_socket(&old_bouncer->sbuf);
 	bool res;
-	int got;
+	ssize_t got;
 
 	log_info("sending SHUTDOWN;");
 	socket_set_nonblocking(fd, 0);
-	SEND_generic(res, old_bouncer, 'Q', "s", "SHUTDOWN;");
+	SEND_generic(res, old_bouncer, PqMsg_Query, "s", "SHUTDOWN;");
 	if (!res)
-		fatal("failed to send SHUTDOWN;");
+		die("failed to send SHUTDOWN;");
 
 	while (1) {
 		got = safe_recv(fd, buf, sizeof(buf), 0);
 		if (got == 0)
 			break;
 		if (got < 0)
-			fatal_perror("sky is falling - error while waiting result from SHUTDOWN");
+			die("sky is falling - error while waiting result from SHUTDOWN: %s", strerror(errno));
 	}
 
 	disconnect_server(old_bouncer, false, "disko over");
@@ -91,7 +93,9 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 {
 	int fd;
 	char *task, *saddr, *user, *db;
-	char *client_enc, *std_string, *datestyle, *timezone, *password;
+	char *client_enc, *std_string, *datestyle, *timezone, *password,
+	     *scram_client_key, *scram_server_key;
+	int scram_client_key_len, scram_server_key_len;
 	int oldfd, port, linkfd;
 	int got;
 	uint64_t ckey;
@@ -101,9 +105,8 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	memset(&addr, 0, sizeof(addr));
 
 	if (cmsg->cmsg_level == SOL_SOCKET
-		&& cmsg->cmsg_type == SCM_RIGHTS
-		&& cmsg->cmsg_len >= CMSG_LEN(sizeof(int)))
-	{
+	    && cmsg->cmsg_type == SCM_RIGHTS
+	    && cmsg->cmsg_len >= CMSG_LEN(sizeof(int))) {
 		/* get the fd */
 		memcpy(&fd, CMSG_DATA(cmsg), sizeof(int));
 		log_debug("got fd: %d", fd);
@@ -112,12 +115,18 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	}
 
 	/* parse row contents */
-	got = scan_text_result(pkt, "issssiqisssss", &oldfd, &task, &user, &db,
+	got = scan_text_result(pkt, "issssiqisssssbb", &oldfd, &task, &user, &db,
 			       &saddr, &port, &ckey, &linkfd,
 			       &client_enc, &std_string, &datestyle, &timezone,
-			       &password);
-	if (got < 0 || task == NULL || saddr == NULL)
-		fatal("NULL data from old process");
+			       &password,
+			       &scram_client_key_len,
+			       &scram_client_key,
+			       &scram_server_key_len,
+			       &scram_server_key);
+	if (got < 0)
+		die("invalid data from old process");
+	if (task == NULL || saddr == NULL)
+		die("incomplete data from old process");
 
 	log_debug("FD row: fd=%d(%d) linkfd=%d task=%s user=%s db=%s enc=%s",
 		  oldfd, fd, linkfd, task,
@@ -138,20 +147,27 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	/* decide what to do with it */
 	if (strcmp(task, "client") == 0) {
 		res = use_client_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
-				  client_enc, std_string, datestyle, timezone,
-				  password);
+					client_enc, std_string, datestyle, timezone,
+					password,
+					scram_client_key, scram_client_key_len,
+					scram_server_key, scram_server_key_len);
 	} else if (strcmp(task, "server") == 0) {
 		res = use_server_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
-				  client_enc, std_string, datestyle, timezone,
-				  password);
+					client_enc, std_string, datestyle, timezone,
+					password,
+					scram_client_key, scram_client_key_len,
+					scram_server_key, scram_server_key_len);
 	} else if (strcmp(task, "pooler") == 0) {
 		res = use_pooler_socket(fd, pga_is_unix(&addr));
 	} else {
 		fatal("unknown task: %s", task);
 	}
 
+	free(scram_client_key);
+	free(scram_server_key);
+
 	if (!res)
-		fatal("socket takeover failed - no mem?");
+		fatal("socket takeover failed");
 }
 
 static void takeover_create_link(PgPool *pool, PgSocket *client)
@@ -217,10 +233,10 @@ static void next_command(PgSocket *bouncer, struct MBuf *pkt)
 	if (!mbuf_get_string(pkt, &cmd))
 		fatal("bad result pkt");
 
-	log_debug("takeover_recv_fds: 'C' body: %s", cmd);
+	log_debug("takeover_recv_fds: CommandComplete body: %s", cmd);
 	if (strcmp(cmd, "SUSPEND") == 0) {
 		log_info("SUSPEND finished, sending SHOW FDS");
-		SEND_generic(res, bouncer, 'Q', "s", "SHOW FDS;");
+		SEND_generic(res, bouncer, PqMsg_Query, "s", "SHOW FDS;");
 	} else if (strncmp(cmd, "SHOW", 4) == 0) {
 		/* all fds loaded, review them */
 		takeover_postprocess_fds();
@@ -254,25 +270,26 @@ static void takeover_parse_data(PgSocket *bouncer,
 			fatal("unexpected partial packet");
 
 		switch (pkt.type) {
-		case 'T': /* RowDescription */
-			log_debug("takeover_parse_data: 'T'");
+		case PqMsg_RowDescription:
+			log_debug("takeover_parse_data: RowDescription");
 			break;
-		case 'D': /* DataRow */
-			log_debug("takeover_parse_data: 'D'");
+		case PqMsg_DataRow:
+			log_debug("takeover_parse_data: DataRow");
 			if (cmsg) {
 				takeover_load_fd(&pkt.data, cmsg);
 				cmsg = CMSG_NXTHDR(msg, cmsg);
-			} else
+			} else {
 				fatal("got row without fd info");
+			}
 			break;
-		case 'Z': /* ReadyForQuery */
-			log_debug("takeover_parse_data: 'Z'");
+		case PqMsg_ReadyForQuery:
+			log_debug("takeover_parse_data: ReadyForQuery");
 			break;
-		case 'C': /* CommandComplete */
-			log_debug("takeover_parse_data: 'C'");
+		case PqMsg_CommandComplete:
+			log_debug("takeover_parse_data: CommandComplete");
 			next_command(bouncer, &pkt.data);
 			break;
-		case 'E': /* ErrorMessage */
+		case PqMsg_ErrorResponse:
 			log_server_error("old bouncer sent", &pkt);
 			fatal("something failed");
 		default:
@@ -286,14 +303,14 @@ static void takeover_parse_data(PgSocket *bouncer,
  *
  * use always recvmsg, to keep code simpler
  */
-static void takeover_recv_cb(int sock, short flags, void *arg)
+static void takeover_recv_cb(evutil_socket_t sock, short flags, void *arg)
 {
 	PgSocket *bouncer = container_of(arg, PgSocket, sbuf);
 	uint8_t data_buf[STARTUP_BUF * 2];
 	uint8_t cnt_buf[128];
 	struct msghdr msg;
 	struct iovec io;
-	int res;
+	ssize_t res;
 	struct MBuf data;
 
 	memset(&msg, 0, sizeof(msg));
@@ -325,8 +342,8 @@ bool takeover_login(PgSocket *bouncer)
 {
 	bool res;
 
-	slog_info(bouncer, "Login OK, sending SUSPEND");
-	SEND_generic(res, bouncer, 'Q', "s", "SUSPEND;");
+	slog_info(bouncer, "login OK, sending SUSPEND");
+	SEND_generic(res, bouncer, PqMsg_Query, "s", "SUSPEND;");
 	if (res) {
 		/* use own callback */
 		if (!sbuf_pause(&bouncer->sbuf))
@@ -343,14 +360,18 @@ bool takeover_login(PgSocket *bouncer)
 /* launch connection to running process */
 void takeover_init(void)
 {
-	PgDatabase *db = find_database("pgbouncer");
-	PgPool *pool = get_pool(db, db->forced_user);
+	PgDatabase *db;
+	PgPool *pool = NULL;
+
+	db = find_database("pgbouncer");
+	if (db)
+		pool = get_pool(db, db->forced_user_credentials);
 
 	if (!pool)
 		fatal("no admin pool?");
 
 	log_info("takeover_init: launching connection");
-	launch_new_connection(pool);
+	launch_new_connection(pool, /* evict_if_needed= */ true);
 }
 
 void takeover_login_failed(void)

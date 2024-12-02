@@ -4,8 +4,11 @@ manpages = pgbouncer.1 pgbouncer.5
 
 dist_man_MANS = $(manpages)
 
-EXTRA_DIST = config.rst usage.rst Makefile $(manpages) \
-	     frag-config-man frag-usage-man
+EXTRA_DIST = config.md usage.md Makefile $(manpages) \
+	     frag-config-man.md frag-usage-man.md \
+	     filter.py
+
+CLEANFILES = pgbouncer_1.md pgbouncer_5.md
 
 # make maintainer-clean removes those
 MAINTAINERCLEANFILES = $(manpages)
@@ -14,12 +17,16 @@ SUBLOC = doc
 abs_top_srcdir ?= $(CURDIR)/..
 include $(abs_top_srcdir)/lib/mk/antimake.mk
 
+export PACKAGE_VERSION
 
-pgbouncer.1: usage.rst frag-usage-man
-	$(SED) -e '4r frag-usage-man' usage.rst | $(RST2MAN) --exit-status=2 > $@
+pgbouncer.%: pgbouncer_%.md
+	$(PANDOC) -s -t man -o $@ $<
 
-pgbouncer.5: config.rst frag-config-man
-	$(SED) -e '4r frag-config-man' config.rst | $(RST2MAN) --exit-status=2 > $@
+pgbouncer_1.md: filter.py frag-usage-man.md usage.md
+	$(PYTHON) $^ >$@
+
+pgbouncer_5.md: filter.py frag-config-man.md config.md
+	$(PYTHON) $^ >$@
 
 web:
-	make -C ../../pgbouncer.github.io
+	$(MAKE) -C ../../pgbouncer.github.io

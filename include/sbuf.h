@@ -16,6 +16,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <usual/mbuf.h>
+
 /*
  * event types for protocol handler
  */
@@ -38,7 +40,7 @@ typedef enum {
  * to see completely.  Generally just header,
  * but currently also ServerParam pkt.
  */
-#define SBUF_SMALL_PKT	64
+#define SBUF_SMALL_PKT  64
 
 struct tls;
 
@@ -50,15 +52,12 @@ typedef struct SBufIO SBufIO;
    false if it used sbuf_pause(), sbuf_close() or simply wants to wait for
    next event loop (eg. too few data available). */
 typedef bool (*sbuf_cb_t)(SBuf *sbuf,
-			SBufEvent evtype,
-			struct MBuf *mbuf);
-
-/* for some reason, libevent has no typedef for callback */
-typedef void (*sbuf_libevent_cb)(int, short, void *);
+			  SBufEvent evtype,
+			  struct MBuf *mbuf);
 
 struct SBufIO {
-	int (*sbufio_recv)(SBuf *sbuf, void *buf, unsigned int len);
-	int (*sbufio_send)(SBuf *sbuf, const void *data, unsigned int len);
+	ssize_t (*sbufio_recv)(SBuf *sbuf, void *buf, size_t len);
+	ssize_t (*sbufio_send)(SBuf *sbuf, const void *data, size_t len);
 	int (*sbufio_close)(SBuf *sbuf);
 };
 
@@ -78,6 +77,9 @@ struct SBuf {
 	int sock;		/* fd for this socket */
 
 	unsigned pkt_remain;	/* total packet length remaining */
+	unsigned skip_remain;	/* the amount of data that still needs to be skipped before doing the pkt_action */
+	struct MBuf extra_packets;	/* extra packets that pgbouncer inserts into the packet stream */
+	bool extra_packet_queue_after;	/* if packets should be queued after the current packet that's being put on the queue */
 
 	sbuf_cb_t proto_cb;	/* protocol callback */
 
@@ -94,9 +96,24 @@ struct SBuf {
 
 void sbuf_init(SBuf *sbuf, sbuf_cb_t proto_fn);
 bool sbuf_accept(SBuf *sbuf, int read_sock, bool is_unix)  _MUSTCHECK;
-bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, int sa_len, int timeout_sec)  _MUSTCHECK;
+bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, socklen_t sa_len, time_t timeout_sec)  _MUSTCHECK;
 
-void sbuf_tls_setup(void);
+/*
+ * client_accept_sslmode is the currently applied sslmode that is used to
+ * accept client connections. This is usually the same as
+ * cf_client_tls_sslmode, except when changing the TLS configuration failed for
+ * some reason (e.g. cert file not found). In this exceptional case,
+ * cf_client_tls_sslmode will be the new sslmode, which is not actually
+ * applied. And client_accept_sslmode is the still applied previous version. So
+ * usually you should use this variable over cf_client_tls_sslmode.
+ */
+extern int client_accept_sslmode;
+/*
+ * Same as client_accept_sslmode, but for server connections.
+ */
+extern int server_connect_sslmode;
+
+bool sbuf_tls_setup(void);
 bool sbuf_tls_accept(SBuf *sbuf)  _MUSTCHECK;
 bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)  _MUSTCHECK;
 
@@ -104,15 +121,20 @@ bool sbuf_pause(SBuf *sbuf) _MUSTCHECK;
 void sbuf_continue(SBuf *sbuf);
 bool sbuf_close(SBuf *sbuf) _MUSTCHECK;
 
+bool sbuf_flush(SBuf *sbuf) _MUSTCHECK;
+
 /* proto_fn can use those functions to order behaviour */
 void sbuf_prepare_send(SBuf *sbuf, SBuf *dst, unsigned amount);
 void sbuf_prepare_skip(SBuf *sbuf, unsigned amount);
+void sbuf_prepare_skip_then_send_leftover(SBuf *sbuf, SBuf *dst, unsigned skip_amount, unsigned total_amount);
 void sbuf_prepare_fetch(SBuf *sbuf, unsigned amount);
+bool sbuf_queue_packet(SBuf *sbuf, SBuf *dst, PktBuf *pkt) _MUSTCHECK;
+bool sbuf_queue_full_packet(SBuf *sbuf, SBuf *dst, PktHdr *pkt) _MUSTCHECK;
 
-bool sbuf_answer(SBuf *sbuf, const void *buf, unsigned len)  _MUSTCHECK;
+bool sbuf_answer(SBuf *sbuf, const void *buf, size_t len)  _MUSTCHECK;
 
-bool sbuf_continue_with_callback(SBuf *sbuf, sbuf_libevent_cb cb)  _MUSTCHECK;
-bool sbuf_use_callback_once(SBuf *sbuf, short ev, sbuf_libevent_cb user_cb) _MUSTCHECK;
+bool sbuf_continue_with_callback(SBuf *sbuf, event_callback_fn cb)  _MUSTCHECK;
+bool sbuf_use_callback_once(SBuf *sbuf, short ev, event_callback_fn user_cb) _MUSTCHECK;
 
 /*
  * Returns true if SBuf is has no data buffered
@@ -132,12 +154,12 @@ static inline bool sbuf_is_closed(SBuf *sbuf)
  * Lowlevel operations.
  */
 
-static inline int sbuf_op_recv(SBuf *sbuf, void *buf, unsigned int len)
+static inline ssize_t sbuf_op_recv(SBuf *sbuf, void *buf, size_t len)
 {
 	return sbuf->ops->sbufio_recv(sbuf, buf, len);
 }
 
-static inline int sbuf_op_send(SBuf *sbuf, const void *buf, unsigned int len)
+static inline ssize_t sbuf_op_send(SBuf *sbuf, const void *buf, size_t len)
 {
 	return sbuf->ops->sbufio_send(sbuf, buf, len);
 }

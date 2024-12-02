@@ -528,6 +528,43 @@ def test_auth_query_works_with_configured_users(bouncer):
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+def test_auth_query_logs_server_error(
+    bouncer,
+):
+    """
+    Check that when the auth_query response has an error, pgbouncer logs
+    the error message provided by postgres.
+    """
+
+    config = f"""
+        [databases]
+        postgres = auth_query='SELECT usename, passwd FROM not_pg_shadow where usename = $1'\
+            host={bouncer.pg.host} port={bouncer.pg.port}
+        [pgbouncer]
+        auth_query = SELECT 1
+        auth_user = pswcheck
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = postgres
+    """
+
+    with bouncer.log_contains('"not_pg_shadow" does not exist'):
+        with bouncer.run_with_config(config):
+            with pytest.raises(psycopg.OperationalError, match="bouncer config error"):
+                bouncer.sql(
+                    query="select version()",
+                    user="stats",
+                    password="stats",
+                    dbname="postgres",
+                )
+
+
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
 @pytest.mark.md5
 def test_auth_dbname_works_fine(
     bouncer,

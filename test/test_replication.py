@@ -31,6 +31,26 @@ def test_logical_rep(bouncer):
     bouncer.sql("IDENTIFY_SYSTEM", **connect_args)
 
 
+def test_logical_rep_auth_query(bouncer):
+    connect_args = {
+        "dbname": "pauthz",
+        "replication": "database",
+        "user": "pswcheck_not_in_auth_file",
+        "application_name": "abc",
+        "options": "-c enable_seqscan=off",
+    }
+    # Starting in PG10 you can do other commands over logical rep connections
+    if PG_MAJOR_VERSION >= 10:
+        bouncer.test(**connect_args)
+        assert bouncer.sql_value("SHOW application_name", **connect_args) == "abc"
+        assert bouncer.sql_value("SHOW enable_seqscan", **connect_args) == "off"
+    bouncer.sql("IDENTIFY_SYSTEM", **connect_args)
+    # Do a normal connection to the same pool, to ensure that that doesn't
+    # break anything
+    bouncer.test(dbname="user_passthrough", user="postgres")
+    bouncer.sql("IDENTIFY_SYSTEM", **connect_args)
+
+
 def test_logical_rep_unprivileged(bouncer):
     if PG_MAJOR_VERSION < 10:
         expected_log = "no pg_hba.conf entry for replication connection"

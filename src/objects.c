@@ -2192,11 +2192,17 @@ found:
 		return;
 	}
 
+	server = main_client->link;
+
+	if (server->setting_vars) {
+		disconnect_client(req, false, "ignoring cancel request for server that is setting vars");
+		return;
+	}
+
 	/*
 	 * Link the cancel request and the server on which the query is being
 	 * cancelled in a many-to-one way.
 	 */
-	server = main_client->link;
 	req->canceled_server = server;
 	statlist_append(&server->canceling_clients, &req->cancel_head);
 

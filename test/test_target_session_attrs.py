@@ -9,6 +9,12 @@ if PG_MAJOR_VERSION < 14:
     )
 
 
+@pytest.fixture(autouse=True)
+def setup_test_target_session_attrs(bouncer):
+    bouncer.admin(f"set server_login_retry=1")
+    bouncer.admin(f"set client_login_timeout=5")
+
+
 def test_target_session_attrs_primary_first(bouncer, replica):
     with bouncer.log_contains(r"127.0.0.1:\d+ new connection to server", 1):
         bouncer.test(dbname="primary_first")

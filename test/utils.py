@@ -818,7 +818,7 @@ class Postgres(QueryRunner):
         with self.hba_path.open(mode="w") as pghba:
             if USE_UNIX_SOCKETS:
                 pghba.write(f"local {dbname}   {user}                {auth_type}\n")
-            pghba.write(f"hostnossl  {dbname}   {user}  127.0.0.1/32  {auth_type}\n")
+            pghba.write(f"hostnossl  {dbname}   {user}  127.0.0.1/30  {auth_type}\n")
             pghba.write(f"hostnossl  {dbname}   {user}  ::1/128       {auth_type}\n")
             pghba.write(old_contents)
 
@@ -827,7 +827,7 @@ class Postgres(QueryRunner):
         with self.hba_path.open() as pghba:
             old_contents = pghba.read()
         with self.hba_path.open(mode="w") as pghba:
-            pghba.write(f"hostssl  {dbname}   {user}  127.0.0.1/32  {auth_type}\n")
+            pghba.write(f"hostssl  {dbname}   {user}  127.0.0.1/30  {auth_type}\n")
             pghba.write(f"hostssl  {dbname}   {user}  ::1/128       {auth_type}\n")
             pghba.write(old_contents)
 

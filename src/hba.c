@@ -444,7 +444,8 @@ static bool parse_addr(struct HBAAddress *haddress, const char *addr)
 	} else if (inet_pton(AF_INET, addr, haddress->addr)) {
 		haddress->family = AF_INET;
 	} else {
-		return false;
+		/* Assume hostname */
+		haddress->hostname = strdup(addr);
 	}
 	return true;
 }
@@ -716,30 +717,35 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 			log_warning("hba line %d: failed to parse address - %s", linenr, addr);
 			goto failed;
 		}
-
-		if (nmask) {
-			if (!parse_nmask(&rule->address, nmask)) {
-				log_warning("hba line %d: invalid mask", linenr);
-				goto failed;
+		if (!rule->address.hostname) {
+			/* IP */
+			if (nmask) {
+				if (!parse_nmask(&rule->address, nmask)) {
+					log_warning("hba line %d: invalid mask", linenr);
+					goto failed;
+				}
+				next_token(tp);
+			} else {
+				next_token(tp);
+				if (!expect(tp, TOK_IDENT, &mask)) {
+					log_warning("hba line %d: did not find mask", linenr);
+					goto failed;
+				}
+				if (!inet_pton(rule->address.family, mask, rule->address.mask)) {
+					log_warning("hba line %d: failed to parse mask: %s", linenr, mask);
+					goto failed;
+				}
+				next_token(tp);
 			}
-			next_token(tp);
+			if (bad_mask(&rule->address)) {
+				char buf1[128], buf2[128];
+				log_warning("address does not match mask in %s line #%d: %s / %s", parent_filename, linenr,
+					    inet_ntop(rule->address.family, rule->address.addr, buf1, sizeof buf1),
+					    inet_ntop(rule->address.family, rule->address.mask, buf2, sizeof buf2));
+			}
 		} else {
+			/* hostname */
 			next_token(tp);
-			if (!expect(tp, TOK_IDENT, &mask)) {
-				log_warning("hba line %d: did not find mask", linenr);
-				goto failed;
-			}
-			if (!inet_pton(rule->address.family, mask, rule->address.mask)) {
-				log_warning("hba line %d: failed to parse mask: %s", linenr, mask);
-				goto failed;
-			}
-			next_token(tp);
-		}
-		if (bad_mask(&rule->address)) {
-			char buf1[128], buf2[128];
-			log_warning("address does not match mask in %s line #%d: %s / %s", parent_filename, linenr,
-				    inet_ntop(rule->address.family, rule->address.addr, buf1, sizeof buf1),
-				    inet_ntop(rule->address.family, rule->address.mask, buf2, sizeof buf2));
 		}
 	}
 
@@ -917,6 +923,16 @@ static bool name_match(struct HBAName *hname, const char *name, unsigned int nam
 	return false;
 }
 
+static bool match_inet4_host(const struct sockaddr_in *haddress, PgAddr *addr)
+{
+	const uint32_t *src, *hba;
+	if (pga_family(addr) != AF_INET)
+		return false;
+	hba = (uint32_t *)&haddress->sin_addr.s_addr;
+	src = (uint32_t *)&addr->sin.sin_addr.s_addr;
+	return hba[0] == src[0];
+}
+
 static bool match_inet4(const struct HBAAddress *haddress, PgAddr *addr)
 {
 	const uint32_t *src, *base, *mask;
@@ -926,6 +942,16 @@ static bool match_inet4(const struct HBAAddress *haddress, PgAddr *addr)
 	base = (uint32_t *)haddress->addr;
 	mask = (uint32_t *)haddress->mask;
 	return (src[0] & mask[0]) == base[0];
+}
+
+static bool match_inet6_host(const struct sockaddr_in6 *haddress, PgAddr *addr)
+{
+	const uint32_t *src, *hba;
+	if (pga_family(addr) != AF_INET6)
+		return false;
+	src = (uint32_t *)addr->sin6.sin6_addr.s6_addr;
+	hba = (uint32_t *)haddress->sin6_addr.s6_addr;
+	return src[0] == hba[0];
 }
 
 static bool match_inet6(const struct HBAAddress *haddress, PgAddr *addr)
@@ -940,17 +966,50 @@ static bool match_inet6(const struct HBAAddress *haddress, PgAddr *addr)
 	       (src[2] & mask[2]) == base[2] && (src[3] & mask[3]) == base[3];
 }
 
+
 static bool address_match(const struct HBAAddress *haddress, PgAddr *addr)
 {
+	struct addrinfo *gai_result, *gai;
+	int ret;
+	bool found;
+
 	if (haddress->flags & ADDRESS_ALL)
 		return true;
-	switch (haddress->family) {
-	case AF_INET:
-		return match_inet4(haddress, addr);
-	case AF_INET6:
-		return match_inet6(haddress, addr);
-	default:
-		return false;
+	if (!haddress->hostname) {
+		/* match IP address */
+		switch (haddress->family) {
+		case AF_INET:
+			return match_inet4(haddress, addr);
+		case AF_INET6:
+			return match_inet6(haddress, addr);
+		default:
+			return false;
+		}
+	} else {
+		/* match DNS name */
+		ret = getaddrinfo(haddress->hostname, NULL, NULL, &gai_result);
+		if (ret != 0) {
+			return false;
+		}
+
+		found = false;
+		for (gai = gai_result; gai; gai = gai->ai_next) {
+			if (gai->ai_addr->sa_family == addr->sa.sa_family) {
+				if (gai->ai_addr->sa_family == AF_INET) {
+					if (match_inet4_host((struct sockaddr_in *) gai->ai_addr, addr)) {
+						found = true;
+						break;
+					}
+				} else if (gai->ai_addr->sa_family == AF_INET6) {
+					if (match_inet6_host((struct sockaddr_in6 *) gai->ai_addr, addr)) {
+						found = true;
+						break;
+					}
+				}
+			}
+		}
+
+		return found;
 	}
 }
 

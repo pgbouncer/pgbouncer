@@ -1,7 +1,7 @@
 import getpass
+import os
 import socket
 import subprocess
-import os
 
 import psycopg
 import pytest
@@ -15,13 +15,13 @@ KADMIN_PASSWORD = "root"
 KEYTAB_FILEPATH = "/tmp/pgbouncer.keytab"
 
 if "KEYTAB_FILEPATH" in os.environ:
-  KEYTAB_FILEPATH = os.environ["KEYTAB_FILEPATH"]
+    KEYTAB_FILEPATH = os.environ["KEYTAB_FILEPATH"]
 
 if "REALM" in os.environ:
-  REALM = os.environ["REALM"]
+    REALM = os.environ["REALM"]
 
 if "KADMIN_PASSWORD" in os.environ:
-  KADMIN_PASSWORD = os.environ["KADMIN_PASSWORD"]
+    KADMIN_PASSWORD = os.environ["KADMIN_PASSWORD"]
 
 KADMIN_PRINCIPAL_FULL = f"{getpass.getuser()}@{REALM}"
 USER_SWAPPED_CASE = f"{getpass.getuser().swapcase()}@{REALM}"

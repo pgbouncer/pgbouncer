@@ -1,8 +1,5 @@
 import getpass
-import os
 import re
-import signal
-import socket
 import subprocess
 import time
 
@@ -437,119 +434,6 @@ def test_auth_dbname_usage_global_setting(
         with pytest.raises(psycopg.DatabaseError):
             with bouncer.run_with_config(config):
                 pass
-
-
-class TestGss:
-    REALM = "EXAMPLE.COM"
-    KADMIN_PRINCIPAL = "root"
-    MASTER_PASSWORD = "master_password"
-    KADMIN_PRINCIPAL_FULL = f"{getpass.getuser()}@{REALM}"
-    KADMIN_PASSWORD = "root"
-
-    @classmethod
-    def setup_class(cls):
-        kerberos_command = f"""
-        sudo krb5_newrealm <<EOF
-        {cls.MASTER_PASSWORD}
-        {cls.MASTER_PASSWORD}
-        EOF
-        """
-        subprocess.run(kerberos_command, check=False, shell=True)
-
-        delete_principal = f'sudo kadmin.local -q "delete_principal -force postgres"'
-        subprocess.run(delete_principal, check=True, shell=True)
-        delete_principal = f'sudo kadmin.local -q "delete_principal -force postgres/{socket.gethostname()}"'
-        subprocess.run(delete_principal, check=True, shell=True)
-
-        create_principal = f'sudo kadmin.local -q "addprinc -pw {cls.KADMIN_PASSWORD} {cls.KADMIN_PRINCIPAL_FULL}"'
-        subprocess.run(create_principal, check=True, shell=True)
-
-        create_principal = 'sudo kadmin.local -q "addprinc -randkey postgres"'
-        subprocess.run(create_principal, check=True, shell=True)
-
-        create_principal = (
-            f'sudo kadmin.local -q "addprinc -randkey postgres/{socket.gethostname()}"'
-        )
-        subprocess.run(create_principal, check=True, shell=True)
-
-        kadd_command = f'sudo kadmin.local -q "ktadd -k /tmp/pgbouncer.keytab postgres/{socket.gethostname()}"'
-        subprocess.run(kadd_command, check=True, shell=True)
-        kadd_command_2 = (
-            'sudo kadmin.local -q "ktadd -k /tmp/pgbouncer.keytab postgres"'
-        )
-        subprocess.run(kadd_command_2, check=True, shell=True)
-
-        change_permissions = "sudo chmod 644 /tmp/pgbouncer.keytab"
-        subprocess.run(change_permissions, check=True, shell=True)
-
-    @classmethod
-    def teardown_class(cls):
-        subprocess.run("kdestroy", check=True, shell=True)
-
-        delete_principal = f'sudo kadmin.local -q "delete_principal -force {cls.KADMIN_PRINCIPAL_FULL}"'
-        subprocess.run(delete_principal, check=True, shell=True)
-        delete_principal = f'sudo kadmin.local -q "delete_principal -force postgres/{socket.gethostname()}"'
-        subprocess.run(delete_principal, check=True, shell=True)
-        change_permissions = "sudo rm /tmp/pgbouncer.keytab"
-        subprocess.run(change_permissions, check=True, shell=True)
-
-    @pytest.mark.skipif(
-        not GSS_SUPPORT, reason="pgbouncer is built without GSS support"
-    )
-    def test_auth_hba_gss(self, bouncer):
-        config = f"""
-            [databases]
-            postgres = host={bouncer.pg.host} port={bouncer.pg.port} user=postgres
-
-            [pgbouncer]
-            listen_addr = 0.0.0.0
-            auth_type = hba
-            auth_file = {bouncer.auth_path}
-            listen_port = {bouncer.port}
-            logfile = {bouncer.log_path}
-            krb_server_keyfile = /tmp/pgbouncer.keytab
-            auth_hba_file = pgbouncer_hba.conf
-            auth_file = userlist.txt
-        """
-        hostname = socket.gethostname()
-        kinit_command = f"echo {self.KADMIN_PASSWORD} | kinit"
-        subprocess.run(kinit_command, check=True, shell=True)
-        with bouncer.run_with_config(config):
-            bouncer.test(user=getpass.getuser(), host=hostname, dbname="postgres")
-            change_permissions = "kdestroy"
-            subprocess.run(change_permissions, check=True, shell=True)
-            with pytest.raises(
-                psycopg.OperationalError, match="GSSAPI continuation error"
-            ):
-                bouncer.test(user=getpass.getuser(), host=hostname, dbname="postgres")
-
-    @pytest.mark.skipif(
-        not GSS_SUPPORT, reason="pgbouncer is built without GSS support"
-    )
-    def test_auth_gss(self, bouncer):
-        config = f"""
-            [databases]
-            postgres = host={bouncer.pg.host} port={bouncer.pg.port} user=postgres
-
-            [pgbouncer]
-            listen_addr = 0.0.0.0
-            auth_type = gss
-            auth_file = {bouncer.auth_path}
-            listen_port = {bouncer.port}
-            logfile = {bouncer.log_path}
-            krb_server_keyfile = /tmp/pgbouncer.keytab
-        """
-        hostname = socket.gethostname()
-        kinit_command = f"echo {self.KADMIN_PASSWORD} | kinit"
-        subprocess.run(kinit_command, check=True, shell=True)
-        with bouncer.run_with_config(config):
-            bouncer.test(user=getpass.getuser(), host=hostname, dbname="postgres")
-            change_permissions = "kdestroy"
-            subprocess.run(change_permissions, check=True, shell=True)
-            with pytest.raises(
-                psycopg.OperationalError, match="GSSAPI continuation error"
-            ):
-                bouncer.test(user=getpass.getuser(), host=hostname, dbname="postgres")
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")

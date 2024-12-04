@@ -43,9 +43,12 @@ struct gss_auth_request {
 	 * See the comment for remote_addr.
 	 *
 	 */
-	// TODO Probably dont need
+	char gss_parameters[MAX_GSS_CONFIG];
+	int param_pos;
 	char username[MAX_USERNAME];
 	gss_ctx_id_t *context;
+	bool include_realm;
+	char *krb_realm;
 	OM_uint32 *flags;
 };
 
@@ -83,6 +86,148 @@ static bool is_valid_socket(const struct gss_auth_request *request);
 static void * gss_auth_worker(void *arg);
 static void gss_auth_finish(struct gss_auth_request *request);
 static bool gss_check_passwd(struct gss_auth_request *request);
+static bool get_key_value(char **p, char **key, char **value);
+
+#define reset_ptr(ptr, name) ptr->name = NULL
+#define gss_parameter_dup(ptr, name, src_str) \
+	do {                                           \
+		(ptr)->name = (ptr)->gss_parameters + (ptr)->param_pos; \
+		safe_strcpy((ptr)->name, src_str, sizeof((ptr)->gss_parameters) - (ptr)->param_pos); \
+		(ptr)->param_pos += strlen(src_str) + 1;      \
+		if ((ptr)->param_pos >= MAX_GSS_CONFIG) {    \
+			log_warning("The parameters are longer than MAX_GSS_CONFIG:%d", MAX_GSS_CONFIG); \
+			return false; \
+		} \
+	} while (0)
+
+
+static void free_gss_parameters(struct gss_auth_request *request)
+{
+	memset(request->gss_parameters, 0, MAX_GSS_CONFIG);
+	request->param_pos = 0;
+	reset_ptr(request, krb_realm);
+
+	request->include_realm = 0;
+}
+static bool get_key_value(char **p, char **key, char **value)
+{
+	char *start, *name, *val;
+	char *name_copy = NULL;
+	char *val_copy = NULL;
+
+	start = *p;
+	while (*start && isspace(*start))
+		++start;/* skip space */
+	if (*start == ',')
+		++start;/* skip ',' */
+	while (*start && isspace(*start))
+		++start;/* skip space */
+
+	/* Parse key */
+	if (*start == '"') {
+		start++;
+		name = start;
+		name_copy = start;
+		while (*start) {
+			if (*start == '"' && *(start + 1) == '"') {
+				*name_copy++ = '"';
+				start += 2;
+			} else if (*start == '"') {
+				*name_copy = '\0';
+				start++;
+				break;
+			} else {
+				*name_copy++ = *start++;
+			}
+		}
+		if ((!*start) || (*start != '='))
+			return false;	/* Only key, stop scan */
+	} else {
+		name = start;
+		name_copy = start;
+		while ((*start) && (*start != '=')) {
+			*name_copy++ = *start++;
+		}
+		if ((!*start) || (*start != '='))
+			return false;	/* Only key, stop scan */
+		*name_copy = '\0';
+	}
+
+	start++;// skip '='
+	if (isspace(*start)) {
+		/* Not allow insert space after '=' */
+		return false;
+	}
+
+	/* Parse value */
+	if (*start == '"') {
+		start++;
+		val = start;
+		val_copy = start;
+		while (*start) {
+			if (*start == '"' && *(start + 1) == '"') {
+				*val_copy++ = '"';
+				start += 2;
+			} else if (*start == '"') {
+				*val_copy++ = '\0';
+				start++;
+				break;
+			} else {
+				*val_copy++ = *start++;
+			}
+		}
+	} else {
+		val = start;
+		val_copy = start;
+		while (*start && !(isspace(*start) || *start == ',')) {
+			*val_copy++ = *start++;
+		}
+		if (*val_copy != '\0') {
+			*val_copy = '\0';
+			start++;
+		}
+	}
+	if (*name == '\0' || *val == '\0') {
+		return false;	/* No key or no value */
+	}
+
+	*p = start;
+	*key = name;
+	*value = val;
+	return true;
+}
+
+static void ignore_space_from_end(char *parameter)
+{
+	int length = strlen(parameter);
+	while (length > 0 && isspace(parameter[length - 1])) {
+		parameter[length - 1] = '\0';
+		length--;
+	}
+	return;
+}
+static bool initialize_gss_parameters(struct gss_auth_request *request, char *parameter)
+{
+	char *key, *value;
+	char *p = parameter;
+
+	/* There maybe \n at the end of parameter */
+	ignore_space_from_end(parameter);
+	request->include_realm = true;
+	while (get_key_value(&p, &key, &value)) {
+		if (strcmp(key, "include_realm") == 0) {
+			if (strcmp(value, "0") == 0)
+				request->include_realm = false;
+		} else if (strcmp(key, "krb_realm") == 0) {
+			gss_parameter_dup(request, krb_realm, value);
+		} else {
+			log_warning("invalid GSS key parameter: \"%s\"", key);
+			return false;
+		}
+	}
+
+	return true;
+}
 
 /*
  * Initialize GSS subsystem.
@@ -156,6 +301,9 @@ void gss_auth_begin(PgSocket *client, uint8_t *token, uint32_t token_length)
 // safe_strcpy(request->password, passwd, MAX_PASSWORD);
 	request->context = &client->gss.ctx;
 	request->flags = &client->gss.flags;
+
+	free_gss_parameters(request);
+
 	gss_first_free_slot = next_free_slot;
 
 	pthread_mutex_unlock(&gss_queue_tail_mutex);
@@ -248,14 +396,18 @@ static bool gss_check_passwd(struct gss_auth_request *request)
 	gss_name_t user_name;
 	OM_uint32 maj_stat, min_stat, acc_sec_min_stat, lmin_s;
 	gss_buffer_desc gbuf;
-	gss_cred_id_t server_credentials;
+	gss_cred_id_t server_credentials, delegated_creds;
 	char *princ;
 
-	if (!cf_krb_server_keyfile) {
-		log_debug("No cf_krb_server_keyfile specified in config");
+	if (!initialize_gss_parameters(request, request->client->gss_parameters)) {
 		return false;
 	}
-	setenv("KRB5_KTNAME", cf_krb_server_keyfile, 1);
+
+	if (!cf_auth_krb_server_keyfile) {
+		log_debug("No cf_auth_krb_server_keyfile specified in config");
+		return false;
+	}
+	setenv("KRB5_KTNAME", cf_auth_krb_server_keyfile, 1);
 	if (GSS_INITIAL == request->client->gss.state) {
 		*(request->context) = GSS_C_NO_CONTEXT;
 	}
@@ -265,6 +417,8 @@ static bool gss_check_passwd(struct gss_auth_request *request)
 
 	log_debug("Received GSSAPI token.");
 	server_credentials = GSS_C_NO_CREDENTIAL;
+	delegated_creds = GSS_C_NO_CREDENTIAL;
+
 	/* Accept the context. */
 	maj_stat = gss_accept_sec_context(&acc_sec_min_stat,
 					  request->context,
@@ -276,7 +430,7 @@ static bool gss_check_passwd(struct gss_auth_request *request)
 					  &send_tok,
 					  request->flags,
 					  NULL,
-					  NULL);
+					  cf_auth_gss_accept_delegation ? &delegated_creds : NULL);
 
 	log_debug("Evaluation of GSSAPI token");
 
@@ -348,9 +502,7 @@ static bool gss_check_passwd(struct gss_auth_request *request)
 
 	princ = valloc(gbuf.length + 1);
 	memcpy(princ, gbuf.value, gbuf.length);
-	princ[gbuf.length] = '\0';
 	gss_release_buffer(&lmin_s, &gbuf);
-	log_debug("princ %s", princ);
 
 	if (GSS_S_COMPLETE != gss_release_name(&min_stat, &user_name)) {
 		log_warning("gss_release_name_failed");	/* Just for the info */
@@ -359,13 +511,35 @@ static bool gss_check_passwd(struct gss_auth_request *request)
 
 	if (strchr(princ, '@')) {
 		char *cp = strchr(princ, '@');
-		*cp = '\0';
+		if (!request->include_realm)
+			*cp = '\0';
 		cp++;
+		if (request->krb_realm != NULL && strlen(request->krb_realm)) {
+			if (cf_auth_krb_caseins_users == 0) {
+				if (strcmp(cp, request->krb_realm) != 0) {
+					log_warning("gss_name_mismatch");	/* Just for the info */
+					return false;
+				}
+			} else {
+				if (strcasecmp(cp, request->krb_realm) != 0) {
+					log_warning("gss_name_mismatch");	/* Just for the info */
+					return false;
+				}
+			}
+		}
 	}
-	if (strcmp(princ, request->username) != 0) {
-		log_warning("gss_name_mismatch");	/* Just for the info */
-		return false;
+	if (cf_auth_krb_caseins_users == 0) {
+		if (strcmp(princ, request->username) != 0) {
+			log_warning("gss_name_mismatch");	/* Just for the info */
+			return false;
+		}
+	} else {
+		if (strcasecmp(princ, request->username) != 0) {
+			log_warning("gss_name_mismatch");	/* Just for the info */
+			return false;
+		}
 	}
+
 	return true;
 }
 

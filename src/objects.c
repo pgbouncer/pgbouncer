@@ -46,6 +46,14 @@ struct AATree user_tree;
 struct AATree pam_user_tree;
 
 /*
+ * All GSS users are kept here. We need to differentiate two user
+ * lists to avoid user clashing for different authentication types,
+ * and because gss_user_tree is closer to PgDatabase.user_tree in
+ * logic.
+ */
+struct AATree gss_user_tree;
+
+/*
  * The global prepared statement cache, which deduplicates prepared statements
  * sent by the clients statements by storing every unique prepared statement
  * only once.
@@ -569,6 +577,33 @@ PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const c
 	safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
 	credentials->dynamic_passwd = true;
 
+	return credentials;
+}
+
+/* Add GSS user. The logic is same as in add_dynamic_credentials */
+PgCredentials *add_gss_credentials(const char *name)
+{
+	PgCredentials *credentials = NULL;
+	struct AANode *node;
+
+	node = aatree_search(&gss_user_tree, (uintptr_t)name);
+	credentials = node ? container_of(node, PgCredentials, tree_node) : NULL;
+
+	if (credentials == NULL) {
+		credentials = slab_alloc(credentials_cache);
+		if (!credentials)
+			return NULL;
+
+		safe_strcpy(credentials->name, name, sizeof(credentials->name));
+
+		credentials->global_user = find_or_add_new_global_user(name, NULL);
+		if (!credentials->global_user) {
+			slab_free(credentials_cache, credentials);
+			return NULL;
+		}
+
+		aatree_insert(&gss_user_tree, (uintptr_t)credentials->name, &credentials->tree_node);
+	}
 	return credentials;
 }
 

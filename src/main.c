@@ -126,6 +126,11 @@ char *cf_auth_ldap_options;
 char *cf_auth_user;
 char *cf_auth_query;
 char *cf_auth_dbname;
+char *cf_auth_krb_server_keyfile;
+int cf_auth_krb_caseins_users;
+int cf_auth_gss_accept_delegation;
+char *cf_auth_gss_parameter;
+
 char *cf_track_extra_parameters;
 
 int cf_max_client_conn;
@@ -204,7 +209,6 @@ char *cf_server_tls_key_file;
 char *cf_server_tls_ciphers;
 char *cf_server_tls13_ciphers;
 
-char *cf_krb_server_keyfile;
 
 int cf_max_prepared_statements;
 
@@ -274,6 +278,10 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("auth_query", CF_STR, cf_auth_query, 0, "SELECT rolname, CASE WHEN rolvaliduntil < now() THEN NULL ELSE rolpassword END FROM pg_authid WHERE rolname=$1 AND rolcanlogin"),
 	CF_ABS("auth_type", CF_LOOKUP(auth_type_map), cf_auth_type, 0, "md5"),
 	CF_ABS("auth_user", CF_STR, cf_auth_user, 0, NULL),
+	CF_ABS("auth_krb_server_keyfile", CF_STR, cf_auth_krb_server_keyfile, 0, ""),
+	CF_ABS("auth_krb_caseins_users", CF_INT, cf_auth_krb_caseins_users, 0, 0),
+	CF_ABS("auth_gss_accept_delegation", CF_INT, cf_auth_gss_accept_delegation, 0, 0),
+	CF_ABS("auth_gss_parameter", CF_STR, cf_auth_gss_parameter, 0, ""),
 	CF_ABS("autodb_idle_timeout", CF_TIME_USEC, cf_autodb_idle_timeout, 0, "3600"),
 	CF_ABS("cancel_wait_timeout", CF_TIME_USEC, cf_cancel_wait_timeout, 0, "10"),
 	CF_ABS("client_idle_timeout", CF_TIME_USEC, cf_client_idle_timeout, 0, "0"),
@@ -338,7 +346,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("server_tls_ca_file", CF_STR, cf_server_tls_ca_file, 0, ""),
 	CF_ABS("server_tls_cert_file", CF_STR, cf_server_tls_cert_file, 0, ""),
 	CF_ABS("server_tls_ciphers", CF_STR, cf_server_tls_ciphers, 0, "default"),
-	CF_ABS("krb_server_keyfile", CF_STR, cf_krb_server_keyfile, 0, ""),
+
 	CF_ABS("server_tls_key_file", CF_STR, cf_server_tls_key_file, 0, ""),
 	CF_ABS("server_tls_protocols", CF_STR, cf_server_tls_protocols, 0, "secure"),
 	CF_ABS("server_tls_sslmode", CF_LOOKUP(sslmode_map), cf_server_tls_sslmode, 0, "prefer"),
@@ -998,6 +1006,7 @@ static void cleanup(void)
 	xfree(&cf_auth_ldap_options);
 	xfree(&cf_auth_query);
 	xfree(&cf_auth_user);
+	xfree(&cf_auth_krb_server_keyfile);
 	xfree(&cf_server_reset_query);
 	xfree(&cf_server_check_query);
 	xfree(&cf_ignore_startup_params);

@@ -167,6 +167,7 @@ void init_objects(void)
 {
 	aatree_init(&user_tree, global_user_node_cmp, NULL);
 	aatree_init(&pam_user_tree, credentials_node_cmp, NULL);
+	aatree_init(&gss_user_tree, credentials_node_cmp, NULL);
 	user_cache = slab_create("user_cache", sizeof(PgGlobalUser), 0, NULL, USUAL_ALLOC);
 	credentials_cache = slab_create("credentials_cache", sizeof(PgCredentials), 0, NULL, USUAL_ALLOC);
 	db_cache = slab_create("db_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
@@ -2721,6 +2722,7 @@ void objects_cleanup(void)
 	memset(&database_list, 0, sizeof database_list);
 	memset(&pool_list, 0, sizeof pool_list);
 	memset(&pam_user_tree, 0, sizeof pam_user_tree);
+	memset(&gss_user_tree, 0, sizeof pam_user_tree);
 	memset(&user_tree, 0, sizeof user_tree);
 	memset(&autodatabase_idle_list, 0, sizeof autodatabase_idle_list);
 

@@ -1,6 +1,7 @@
 import getpass
 import socket
 import subprocess
+import os
 
 import psycopg
 import pytest
@@ -10,10 +11,19 @@ from .utils import GSS_SUPPORT
 REALM = "EXAMPLE.COM"
 KADMIN_PRINCIPAL = "root"
 MASTER_PASSWORD = "master_password"
-KADMIN_PRINCIPAL_FULL = f"{getpass.getuser()}@{REALM}"
 KADMIN_PASSWORD = "root"
 KEYTAB_FILEPATH = "/tmp/pgbouncer.keytab"
 
+if "KEYTAB_FILEPATH" in os.environ:
+  KEYTAB_FILEPATH = os.environ["KEYTAB_FILEPATH"]
+
+if "REALM" in os.environ:
+  REALM = os.environ["REALM"]
+
+if "KADMIN_PASSWORD" in os.environ:
+  KADMIN_PASSWORD = os.environ["KADMIN_PASSWORD"]
+
+KADMIN_PRINCIPAL_FULL = f"{getpass.getuser()}@{REALM}"
 USER_SWAPPED_CASE = f"{getpass.getuser().swapcase()}@{REALM}"
 REALM_SWAPPED_CASE = f"{getpass.getuser()}@{REALM.swapcase()}"
 

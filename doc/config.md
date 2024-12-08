@@ -470,7 +470,7 @@ hba
 pam
 :   PAM is used to authenticate users, `auth_file` is ignored. This method is not
     compatible with databases using the `auth_user` option. The service name reported to
-    PAM is "pgbouncer". `pam` is not supported in the HBA configuration file.
+    PAM is "pgbouncer".
 
 ### auth_hba_file
 
@@ -1567,7 +1567,7 @@ The file follows the format of the PostgreSQL `pg_hba.conf` file
 * User name field: Supports `all`, `@file`, multiple names.  Not supported: `+groupname`.
 * Address field: Supports `all`, IPv4, IPv6.  Not supported: `samehost`, `samenet`, DNS names, domain prefixes.
 * Auth-method field: Only methods supported by PgBouncer's `auth_type`
-  are supported, plus `peer` and `reject`, but except `any` and `pam`, which only work globally.
+  are supported, plus `peer` and `reject`, but except `any`, which only works globally.
 * User name map (`map=`) parameter is supported when `auth_type` is `cert` or `peer`.
 
 ## Ident map file format

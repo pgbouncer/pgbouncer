@@ -23,6 +23,7 @@ def test_message_fixture(bouncer, pg):
 
 
 @pytest.mark.skipif("FREEBSD", reason="FreeBSD error reporting broken")
+@pytest.mark.skipif("WINDOWS", reason="Windows error reporting broken")
 def test_message(test_message_fixture):
     bouncer, pg = test_message_fixture
     test_user = "test_error_message_user"

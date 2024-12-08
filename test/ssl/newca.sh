@@ -30,7 +30,7 @@ days=10240
 run openssl ecparam -name prime256v1 -genkey -out "$name/ca.key"
 
 # self-signed cert
-run_req -new -x509 -days $days -key "$name/ca.key" -out "$name/ca.crt" -- "$@"
+run_req -new -x509 -days $days -key "$name/ca.key" -out "$name/ca.crt" -addext basicConstraints=critical,CA:TRUE,pathlen:1 -- "$@"
 
 
 cat > "$name"/config.ini <<EOF

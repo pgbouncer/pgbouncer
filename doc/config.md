@@ -1423,6 +1423,8 @@ primary
 standby
 :   server must be in hot standby
 
+Not supported: `prefer-standby`.
+
 Default: `any`
 
 ### max_db_connections

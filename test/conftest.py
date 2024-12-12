@@ -19,6 +19,7 @@ from .utils import (
     sudo,
 )
 
+
 def add_qdisc():
     if not LINUX or not USE_SUDO:
         return

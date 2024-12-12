@@ -9,6 +9,7 @@ from .utils import (
     LDAP_SUPPORT,
     LINUX,
     LONG_PASSWORD,
+    MACOS,
     PG_SUPPORTS_SCRAM,
     TEST_DIR,
     TLS_SUPPORT,
@@ -20,12 +21,6 @@ from .utils import (
     run,
     sudo,
 )
-
-MACOS = False
-
-if platform.system() == "Darwin":
-    MACOS = True
-
 
 def add_qdisc():
     if not LINUX or not USE_SUDO:

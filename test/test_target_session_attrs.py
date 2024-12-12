@@ -1,12 +1,21 @@
 import psycopg
 import pytest
 
-from .utils import PG_MAJOR_VERSION, Bouncer
+from .utils import MACOS, PG_MAJOR_VERSION, USE_SUDO, Bouncer
 
 if PG_MAJOR_VERSION < 14:
     pytest.skip(
         "target_session_attrs only supported on PG 14+", allow_module_level=True
     )
+
+
+@pytest.fixture(autouse=True)
+def skip_if_macos_and_no_sudo():
+    # The replica Postgres instance needs to bind to another IPv4 address
+    if MACOS and not USE_SUDO:
+        pytest.skip("localhost only binds to 127.0.0.1/32 by default on MACOS")
+    else:
+        yield
 
 
 @pytest.fixture(autouse=True)

@@ -1177,11 +1177,43 @@ def test_ldap_auth(bouncer_with_openldap):
         )
     bouncer_with_openldap.admin("reload")
     bouncer_with_openldap.test(user="ldapuser1", password="secret1")
-    # 8 test "use ldaps in LDAP URLs"
+    # 8 test ldaps
+    # 8.1 test "search filters in LDAP URLs"
     with open(hba_conf_file, "w") as f:
         f.write(
             f"host all ldapuser1 0.0.0.0/0 ldap "
             f'ldapurl="ldaps://127.0.0.1:{openldap.ldaps_port}/dc=example,dc=net??sub?(|(uid=$username)(mail=$username))"'
+        )
+    bouncer_with_openldap.admin("reload")
+    bouncer_with_openldap.test(user="ldapuser1", password="secret1")
+    # 8.2 test "simple bind"
+    with open(hba_conf_file, "w") as f:
+        f.write(
+            "host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 "
+            f'ldapport={openldap.ldaps_port} ldapprefix="uid=" '
+            f'ldapsuffix=",dc=example,dc=net" ldaptls=1\n'
+        )
+    bouncer_with_openldap.admin("reload")
+    bouncer_with_openldap.test(user="ldapuser1", password="secret1")
+    # 8.3 test "search+bind"
+    with open(hba_conf_file, "w") as f:
+        f.write(
+            f'host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 ldapport={openldap.ldaps_port} ldapbasedn="dc=example,dc=net" ldaptls=1'
+        )
+    bouncer_with_openldap.admin("reload")
+    bouncer_with_openldap.test(user="ldapuser1", password="secret1")
+    # 8.4 test "LDAP URLs"
+    with open(hba_conf_file, "w") as f:
+        f.write(
+            f'host all ldapuser1 0.0.0.0/0 ldap ldapurl="ldaps://127.0.0.1:{openldap.ldaps_port}/dc=example,dc=net?uid?sub"'
+        )
+    bouncer_with_openldap.admin("reload")
+    bouncer_with_openldap.test(user="ldapuser1", password="secret1")
+    # 8.5 test "search filters in LDAP URLs"
+    with open(hba_conf_file, "w") as f:
+        f.write(
+            f"host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 ldapport={openldap.ldaps_port} "
+            f'ldapbasedn="dc=example,dc=net" ldapsearchfilter="uid=$username" ldaptls=1'
         )
     bouncer_with_openldap.admin("reload")
     bouncer_with_openldap.test(user="ldapuser1", password="secret1")

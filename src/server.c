@@ -267,10 +267,10 @@ bool valid_target_session_attrs(PgSocket *server)
 	bool transaction_read_only = default_transaction_read_only && strcmp(default_transaction_read_only->str, "on") == 0;
 
 	return (target == TARGET_SESSION_ANY) ||
-	       (target == TARGET_SESSION_READWRITE && !transaction_read_only) ||
-	       (target == TARGET_SESSION_READONLY && transaction_read_only) ||
-	       (target == TARGET_SESSION_PRIMARY && !hot_standby) ||
-	       (target == TARGET_SESSION_STANDBY && hot_standby);
+		(target == TARGET_SESSION_READWRITE && !transaction_read_only) ||
+		(target == TARGET_SESSION_READONLY && transaction_read_only) ||
+		(target == TARGET_SESSION_PRIMARY && !hot_standby) ||
+		(target == TARGET_SESSION_STANDBY && hot_standby);
 }
 
 /*

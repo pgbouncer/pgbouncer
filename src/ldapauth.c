@@ -774,6 +774,8 @@ static bool check_ldap_auth(struct ldap_auth_request *request)
 			request->ldapport = LDAPS_PORT;
 		else
 			request->ldapport = LDAP_PORT;
+	} else if (request->ldapport == LDAP_PORT && request->ldaptls) {
+		request->ldapport = LDAPS_PORT;
 	}
 
 	if (request->password[0] == '\0') {

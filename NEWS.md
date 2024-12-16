@@ -3,6 +3,18 @@ PgBouncer changelog
 
 PgBouncer 1.23.x
 ----------------
+**2024-08-02 - PgBouncer 1.23.1 - "Everything is put back in order"**
+
+- Fixes
+  * Fix a possible segmentation fault after PgBouncer reloads its configuration.
+    (#1105) (bug introduced in 1.23.0)
+  * Fix all known put_in_order crashes. (#1120) (new crashes were introduced in
+    1.23.0)
+  * Add missing files to release tarball that are required for testing. (#1124)
+    (missing files were introduced in 1.23.0)
+[#1105]: https://github.com/pgbouncer/pgbouncer/pull/1105
+[#1120]: https://github.com/pgbouncer/pgbouncer/pull/1120
+[#1124]: https://github.com/pgbouncer/pgbouncer/pull/1124
 
 **2024-07-03  -  PgBouncer 1.23.0  -  "Into the new beginnings"**
 

@@ -526,6 +526,7 @@ static PgGlobalUser *add_new_global_user(const char *name, const char *passwd)
 	aatree_insert(&user_tree, (uintptr_t)user->credentials.name, &user->credentials.tree_node);
 	user->pool_mode = POOL_INHERIT;
 	user->pool_size = -1;
+	user->res_pool_size = -1;
 
 	return update_global_user_passwd(user, passwd);
 }

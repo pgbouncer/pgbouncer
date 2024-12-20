@@ -523,8 +523,7 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 			load_balance_hosts_str = cf_get_lookup(&load_balance_hosts_lookup);
 
 		target_session_attrs_lookup.value_p = &db->target_session_attrs;
-		if (db->target_session_attrs != TARGET_SESSION_ANY)
-			target_session_attrs_str = cf_get_lookup(&target_session_attrs_lookup);
+		target_session_attrs_str = cf_get_lookup(&target_session_attrs_lookup);
 
 		pktbuf_write_DataRow(buf, "ssissiiiisssiiiiii",
 				     db->name, db->host, db->port,
@@ -953,8 +952,7 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 
 		target_session_attrs_str = NULL;
 		target_session_attrs_lookup.value_p = &pool->db->target_session_attrs;
-		if (pool->db->target_session_attrs != TARGET_SESSION_ANY)
-			target_session_attrs_str = cf_get_lookup(&target_session_attrs_lookup);
+		target_session_attrs_str = cf_get_lookup(&target_session_attrs_lookup);
 
 		pktbuf_write_DataRow(buf, "ssiiiiiiiiiiiiisss",
 				     pool->db->name, pool->user_credentials->name,

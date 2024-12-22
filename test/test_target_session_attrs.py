@@ -24,6 +24,14 @@ def setup_test_target_session_attrs(bouncer):
     bouncer.admin(f"set client_login_timeout=5")
 
 
+@pytest.fixture
+def bouncer_transaction_read_only(bouncer):
+    bouncer.pg.psql("ALTER DATABASE p0 SET default_transaction_read_only=on")
+    yield bouncer
+    bouncer.pg.psql("ALTER DATABASE p0 SET default_transaction_read_only=off")
+
+
+
 def test_target_session_attrs_primary_first(bouncer, replica):
     with bouncer.log_contains(r"127.0.0.1:\d+ new connection to server", 1):
         bouncer.test(dbname="primary_first")
@@ -64,14 +72,14 @@ def test_target_session_attrs_readonly_second(bouncer, replica):
 
 
 def test_target_session_attrs_readonly_primary_in_transaction_read_only_first(
-    bouncer, replica
+    bouncer_transaction_read_only, replica
 ):
-    bouncer.pg.psql("ALTER DATABASE p0 SET default_transaction_read_only=on")
-    with bouncer.log_contains(
+    bouncer_transaction_read_only.pg.psql("ALTER DATABASE p0 SET default_transaction_read_only=on")
+    with bouncer_transaction_read_only.log_contains(
         r"127.0.0.1:\d+ closing because: server does not satisfy target_session_attrs",
         times=0,
     ):
-        bouncer.test(dbname="readonly_second")
+        bouncer_transaction_read_only.test(dbname="readonly_second")
 
 
 def test_target_session_attrs_readwrite_first(bouncer, replica):

@@ -133,6 +133,7 @@ int cf_max_user_client_connections;
 char *cf_server_reset_query;
 int cf_server_reset_query_always;
 char *cf_server_check_query;
+int cf_disable_server_check;
 usec_t cf_server_check_delay;
 int cf_server_fast_close;
 int cf_server_round_robin;
@@ -299,7 +300,8 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("resolv_conf", CF_STR, cf_resolv_conf, CF_NO_RELOAD, ""),
 	CF_ABS("sbuf_loopcnt", CF_INT, cf_sbuf_loopcnt, 0, "5"),
 	CF_ABS("server_check_delay", CF_TIME_USEC, cf_server_check_delay, 0, "30"),
-	CF_ABS("server_check_query", CF_STR, cf_server_check_query, 0, "select 1"),
+	CF_ABS("server_check_query", CF_STR, cf_server_check_query, 0, ""),
+	CF_ABS("disable_server_check", CF_INT, cf_disable_server_check, 0, "0"),
 	CF_ABS("server_connect_timeout", CF_TIME_USEC, cf_server_connect_timeout, 0, "15"),
 	CF_ABS("server_fast_close", CF_INT, cf_server_fast_close, 0, "0"),
 	CF_ABS("server_idle_timeout", CF_TIME_USEC, cf_server_idle_timeout, 0, "600"),

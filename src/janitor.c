@@ -148,7 +148,7 @@ static void launch_recheck(PgPool *pool)
 	}
 
 	/* is the check needed? */
-	if (q == NULL || q[0] == 0) {
+	if (cf_disable_server_check) {
 		need_check = false;
 	} else if (cf_server_check_delay > 0) {
 		usec_t now = get_cached_time();
@@ -503,7 +503,7 @@ static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle
 			}
 		} else if (cf_pause_mode == P_PAUSE) {
 			disconnect_server(server, true, "pause mode");
-		} else if (idle_test && *cf_server_check_query) {
+		} else if (idle_test && !cf_disable_server_check) {
 			if (idle > cf_server_check_delay)
 				change_server_state(server, SV_USED);
 		}

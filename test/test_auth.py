@@ -384,8 +384,9 @@ def test_auth_dbname_usage_global_setting(
     with bouncer.log_contains(
         'cannot use the reserved "pgbouncer" database as an auth_dbname', 1
     ):
-        with bouncer.run_with_config(config):
-            pass
+        with pytest.raises(psycopg.DatabaseError):
+            with bouncer.run_with_config(config):
+                pass
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")

@@ -1248,8 +1248,8 @@ Only enforced if at least one of the following is true:
 
 ### reserve_pool_size
 
-Set additional connections for this database. If not set, `reserve_pool_size` is
-used.
+Set additional connections for this database. If not set, the global `reserve_pool_size`
+is used.
 
 ### connect_query
 

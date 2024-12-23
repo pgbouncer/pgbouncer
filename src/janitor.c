@@ -522,15 +522,17 @@ static void check_pool_size(PgPool *pool)
 
 	Assert(pool_pool_size(pool) >= 0);
 
-	while (many > 0) {
-		server = first_socket(&pool->used_server_list);
-		if (!server)
-			server = first_socket(&pool->idle_server_list);
-		if (!server)
-			break;
-		disconnect_server(server, true, "too many servers in the pool");
-		many--;
-		cur--;
+	if (pool_pool_size(pool) > 0) {
+		while (many > 0) {
+			server = first_socket(&pool->used_server_list);
+			if (!server)
+				server = first_socket(&pool->idle_server_list);
+			if (!server)
+				break;
+			disconnect_server(server, true, "too many servers in the pool");
+			many--;
+			cur--;
+		}
 	}
 
 	/* launch extra connections to satisfy min_pool_size */

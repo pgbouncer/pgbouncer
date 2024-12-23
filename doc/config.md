@@ -1246,7 +1246,7 @@ Only enforced if at least one of the following is true:
 * there is at least one client connected to the pool
 
 
-### reserve_pool
+### reserve_pool_size
 
 Set additional connections for this database. If not set, `reserve_pool_size` is
 used.

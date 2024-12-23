@@ -9,11 +9,6 @@ from .utils import MACOS, PG_MAJOR_VERSION, TEST_DIR, TLS_SUPPORT, WINDOWS, Boun
 if not TLS_SUPPORT:
     pytest.skip(allow_module_level=True)
 
-# Windows and MacOS TLS tests are currently broken for some strange reason.
-# Make CI pass for now by ignoring these tests.
-if WINDOWS or MACOS:
-    pytest.skip(allow_module_level=True)
-
 # XXX: These test use psql to connect using sslmode=verify-full instead of
 # using psycopg. The reason for this is that psycopg has a bug on Apple
 # silicon when enabling SSL: https://github.com/psycopg/psycopg/discussions/270

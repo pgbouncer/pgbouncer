@@ -1,4 +1,5 @@
 import asyncio
+import os
 import re
 
 import psycopg
@@ -430,6 +431,27 @@ def test_max_user_client_connections_negative(
 
     for conn in conns:
         conn.close()
+
+
+def test_user_client_count_db_connect_fail(pg, bouncer) -> None:
+    test_user = "maxedout3"
+    test_dbname = "user_passthrough"
+
+    pg.nossl_access(dbname="p0", auth_type="reject", user=test_user)
+    pg.ssl_access(dbname="p0", auth_type="reject", user=test_user)
+    pg.reload()
+
+    users = bouncer.admin("SHOW USERS", row_factory=dict_row)
+    user = next(user for user in users if user["name"] == test_user)
+    assert user["current_client_connections"] == 0
+
+    connect_args = {"dbname": test_dbname, "user": test_user}
+    with pytest.raises(psycopg.OperationalError):
+        _ = bouncer.conn(**connect_args)
+
+    users = bouncer.admin("SHOW USERS", row_factory=dict_row)
+    user = next(user for user in users if user["name"] == test_user)
+    assert user["current_client_connections"] == 0
 
 
 def test_min_pool_size_with_lower_max_user_connections(bouncer):

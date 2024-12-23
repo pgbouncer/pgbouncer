@@ -1428,14 +1428,6 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
  */
 void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 {
-	if (client->db && client->contributes_db_client_count)
-		client->db->client_connection_count--;
-
-	if (client->login_user_credentials) {
-		if (client->login_user_credentials->global_user && client->user_connection_counted) {
-			client->login_user_credentials->global_user->client_connection_count--;
-		}
-	}
 	if (reason) {
 		char buf[128];
 		va_list ap;
@@ -1461,6 +1453,15 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
 void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlstate, const char *reason)
 {
 	usec_t now = get_cached_time();
+
+	if (client->db && client->contributes_db_client_count)
+		client->db->client_connection_count--;
+
+	if (client->login_user_credentials) {
+		if (client->login_user_credentials->global_user && client->user_connection_counted) {
+			client->login_user_credentials->global_user->client_connection_count--;
+		}
+	}
 
 	if (cf_log_disconnections && reason) {
 		slog_info(client, "closing because: %s (age=%" PRIu64 "s)", reason,
@@ -1895,30 +1896,32 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed)
 	}
 
 	/* is it allowed to add servers? */
-	if (max >= pool_pool_size(pool) && pool->welcome_msg_ready) {
-		/* should we use reserve pool? */
-		PgSocket *c = first_socket(&pool->waiting_client_list);
-		if (cf_res_pool_timeout && pool_res_pool_size(pool)) {
-			usec_t now = get_cached_time();
-			if (c && (now - c->request_time) >= cf_res_pool_timeout) {
-				if (max < pool_pool_size(pool) + pool_res_pool_size(pool)) {
-					slog_warning(c, "taking connection from reserve_pool");
-					goto allow_new;
+	if (pool_pool_size(pool) > 0) {
+		if (max >= pool_pool_size(pool) && pool->welcome_msg_ready) {
+			/* should we use reserve pool? */
+			PgSocket *c = first_socket(&pool->waiting_client_list);
+			if (cf_res_pool_timeout && pool_res_pool_size(pool)) {
+				usec_t now = get_cached_time();
+				if (c && (now - c->request_time) >= cf_res_pool_timeout) {
+					if (max < pool_pool_size(pool) + pool_res_pool_size(pool)) {
+						slog_warning(c, "taking connection from reserve_pool");
+						goto allow_new;
+					}
 				}
 			}
-		}
 
-		if (c && c->replication && !sending_auth_query(c)) {
-			while (evict_if_needed && pool_pool_size(pool) >= max) {
-				if (!evict_pool_connection(pool))
-					break;
+			if (c && c->replication && !sending_auth_query(c)) {
+				while (evict_if_needed && pool_pool_size(pool) >= max) {
+					if (!evict_pool_connection(pool))
+						break;
+				}
+				if (pool_pool_size(pool) < max)
+					goto allow_new;
 			}
-			if (pool_pool_size(pool) < max)
-				goto allow_new;
+			log_debug("launch_new_connection: pool full (%d >= %d)",
+				  max, pool_pool_size(pool));
+			return;
 		}
-		log_debug("launch_new_connection: pool full (%d >= %d)",
-			  max, pool_pool_size(pool));
-		return;
 	}
 
 allow_new:
@@ -2192,11 +2195,17 @@ found:
 		return;
 	}
 
+	server = main_client->link;
+
+	if (server->setting_vars) {
+		disconnect_client(req, false, "ignoring cancel request for server that is setting vars");
+		return;
+	}
+
 	/*
 	 * Link the cancel request and the server on which the query is being
 	 * cancelled in a many-to-one way.
 	 */
-	server = main_client->link;
 	req->canceled_server = server;
 	statlist_append(&server->canceling_clients, &req->cancel_head);
 

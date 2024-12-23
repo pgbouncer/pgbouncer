@@ -900,7 +900,7 @@ static inline char *cstr_skip_ws(char *p)
 }
 
 
-void load_config(void);
+bool load_config(void);
 
 
 bool set_config_param(const char *key, const char *val);

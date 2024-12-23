@@ -532,7 +532,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 			}
 		} else if (strcmp("pool_size", key) == 0) {
 			pool_size = atoi(val);
-		} else if (strcmp("reserve_pool", key) == 0) {
+		} else if (strcmp("reserve_pool_size", key) == 0) {
 			res_pool_size = atoi(val);
 		} else if (strcmp("max_user_connections", key) == 0) {
 			max_user_connections = atoi(val);

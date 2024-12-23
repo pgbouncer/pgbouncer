@@ -604,7 +604,7 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	PktBuf *buf = pktbuf_dynamic(256);
 	struct CfValue cv;
 	char pool_size_str[12] = "";
-	char reserve_pool_str[12] = "";
+	char res_pool_size_str[12] = "";
 	const char *pool_mode_str;
 
 	if (!buf) {
@@ -614,14 +614,14 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	cv.extra = pool_mode_map;
 
 	pktbuf_write_RowDescription(
-		buf, "ssssiiii", "name", "pool_size", "reserve_pool", "pool_mode", "max_user_connections", "current_connections",
+		buf, "ssssiiii", "name", "pool_size", "reserve_pool_size", "pool_mode", "max_user_connections", "current_connections",
 		"max_user_client_connections", "current_client_connections");
 	statlist_for_each(item, &user_list) {
 		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
 		if (user->pool_size >= 0)
 			snprintf(pool_size_str, sizeof(pool_size_str), "%9d", user->pool_size);
 		if (user->res_pool_size >= 0)
-			snprintf(reserve_pool_str, sizeof(reserve_pool_str), "%9d", user->res_pool_size);
+			snprintf(res_pool_size_str, sizeof(res_pool_size_str), "%9d", user->res_pool_size);
 		pool_mode_str = NULL;
 
 		cv.value_p = &user->pool_mode;
@@ -630,7 +630,7 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 
 		pktbuf_write_DataRow(buf, "ssssiiii", user->credentials.name,
 				     pool_size_str,
-				     reserve_pool_str,
+				     res_pool_size_str,
 				     pool_mode_str,
 				     user_max_connections(user),
 				     user->connection_count,

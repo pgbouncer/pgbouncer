@@ -194,8 +194,10 @@ lint:
 	flake8
 
 format-check: uncrustify
-	black --check .
-	isort --check .
+	black --check --diff .
+	isort --check --diff .
+
+Co-authored-by: Brian Cosgrove <bcosgrove@paypal.com>
 	./uncrustify -c uncrustify.cfg --check include/*.h src/*.c -L WARN
 
 format: uncrustify

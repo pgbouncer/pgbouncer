@@ -516,6 +516,7 @@ async def test_user_reserve_pool_size(pg, bouncer):
         assert pg.connection_count(dbname="p0", users=("respoolsize1",)) == 1
         await asyncio.sleep(8)
         assert pg.connection_count(dbname="p0", users=("respoolsize1",)) == 3
+        await result
 
 
 @pytest.mark.asyncio

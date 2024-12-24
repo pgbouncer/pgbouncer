@@ -501,6 +501,25 @@ async def test_reserve_pool_size(pg, bouncer):
 
 
 @pytest.mark.asyncio
+async def test_user_reserve_pool_size(pg, bouncer):
+    bouncer.admin("set reserve_pool_timeout = 2")
+
+    # Disable tls to get more consistent timings
+    bouncer.admin("set server_tls_sslmode = disable")
+
+    with bouncer.log_contains("taking connection from reserve_pool", times=2):
+        # respoolsize1 user has a pool_size of 1 and reserve_pool_size of 2
+        # this means 1 connection should happen immediately while 2 out of
+        # the 3 remaining connections happen after reserve_pool_timeout
+        result = bouncer.asleep(10, dbname="p0a", user="respoolsize1", times=4)
+        await asyncio.sleep(1)
+        assert pg.connection_count(dbname="p0", users=("respoolsize1",)) == 1
+        await asyncio.sleep(8)
+        assert pg.connection_count(dbname="p0", users=("respoolsize1",)) == 3
+        await result
+
+
+@pytest.mark.asyncio
 async def test_database_reserve_pool_size(pg, bouncer):
     bouncer.admin("set reserve_pool_timeout = 2")
 
@@ -508,7 +527,7 @@ async def test_database_reserve_pool_size(pg, bouncer):
     bouncer.admin("set server_tls_sslmode = disable")
 
     with bouncer.log_contains("taking connection from reserve_pool", times=2):
-        # p0a db has a pool_size of 2 and reserve_pool_size of 2
+        # p0 db has a pool_size of 2 and reserve_pool_size of 2
         # this means 2 connections should happen immediately while 2 out of
         # the 3 remaining connections happen after reserve_pool_timeout
         result = bouncer.asleep(10, dbname="p0", user="bouncer", times=5)

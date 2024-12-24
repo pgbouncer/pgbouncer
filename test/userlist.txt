@@ -9,6 +9,7 @@
 "maxedout4" ""
 "maxedout5" ""
 "poolsize1" ""
+"respoolsize1" ""
 "bouncer" "zzzz"
 ;the following pairs of passwords are "foo" and "bar"
 

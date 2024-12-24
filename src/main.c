@@ -433,10 +433,11 @@ static bool requires_auth_file(int auth_type)
 }
 
 /* config loading, tries to be tolerant to errors */
-void load_config(void)
+bool load_config(void)
 {
 	static bool loaded = false;
-	bool ok;
+	bool load_file_ok;
+	bool ok = true;
 	any_user_level_timeout_set = false;
 
 	any_user_level_client_timeout_set = false;
@@ -445,18 +446,20 @@ void load_config(void)
 	set_peers_dead(true);
 
 	/* actual loading */
-	ok = cf_load_file(&main_config, cf_config_file);
-	if (ok) {
+	load_file_ok = cf_load_file(&main_config, cf_config_file);
+	if (load_file_ok) {
 		/* load users if needed */
 		if (requires_auth_file(cf_auth_type))
 			loader_users_check();
 		loaded = true;
 	} else if (!loaded) {
+		ok = false;
 		die("cannot load config file");
 	} else {
 		log_warning("config file loading failed");
 		/* if ini file missing, don't kill anybody */
 		set_dbs_dead(false);
+		ok = false;
 	}
 
 	if (cf_auth_type == AUTH_TYPE_HBA) {
@@ -487,6 +490,8 @@ void load_config(void)
 	/* reopen logfile */
 	if (main_config.loaded)
 		reset_logging();
+
+	return ok;
 }
 
 /*

@@ -521,15 +521,15 @@ async def test_user_reserve_pool_size(pg, bouncer):
 
 @pytest.mark.asyncio
 async def test_database_reserve_pool_size(pg, bouncer):
-        # p0a db has a pool_size of 2 and reserve_pool_size of 2
-        # this means 2 connections should happen immediately while 2 out of
-        # the 3 remaining connections happen after reserve_pool_timeout
-        result = bouncer.asleep(10, dbname="p0", user="bouncer", times=5)
-        await asyncio.sleep(1)
-        assert pg.connection_count(dbname="p0", users=("bouncer",)) == 2
-        await asyncio.sleep(8)
-        assert pg.connection_count(dbname="p0", users=("bouncer",)) == 4
-        await result
+    # p0a db has a pool_size of 2 and reserve_pool_size of 2
+    # this means 2 connections should happen immediately while 2 out of
+    # the 3 remaining connections happen after reserve_pool_timeout
+    result = bouncer.asleep(10, dbname="p0", user="bouncer", times=5)
+    await asyncio.sleep(1)
+    assert pg.connection_count(dbname="p0", users=("bouncer",)) == 2
+    await asyncio.sleep(8)
+    assert pg.connection_count(dbname="p0", users=("bouncer",)) == 4
+    await result
 
 
 @pytest.mark.asyncio

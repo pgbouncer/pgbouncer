@@ -644,18 +644,15 @@ How long to keep released connections available for immediate re-use, without ru
 
 Default: 30.0
 
-### disable_server_check
-
-Disable sending of `server_check_query` to check if the server connection is
-alive.
-
-Default: 0
-
 ### server_check_query
 
 Simple do-nothing query to check if the server connection is alive.
 
-Default: ``
+If an empty string, then sanity checking is disabled.
+
+If `<empty>` then send empty query as sanity check.
+
+Default: `select 1`
 
 ### server_fast_close
 

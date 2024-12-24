@@ -148,7 +148,7 @@ static void launch_recheck(PgPool *pool)
 	}
 
 	/* is the check needed? */
-	if (cf_disable_server_check) {
+	if (q == NULL || q[0] == 0) {
 		need_check = false;
 	} else if (cf_server_check_delay > 0) {
 		usec_t now = get_cached_time();
@@ -160,7 +160,10 @@ static void launch_recheck(PgPool *pool)
 		/* send test query, wait for result */
 		slog_debug(server, "P: checking: %s", q);
 		change_server_state(server, SV_TESTED);
-		SEND_generic(res, server, PqMsg_Query, "s", q);
+		if (strcmpeq(q, "<empty>"))
+			SEND_generic(res, server, PqMsg_Query, "s", "");
+		else
+			SEND_generic(res, server, PqMsg_Query, "s", q);
 		if (!res)
 			disconnect_server(server, false, "test query failed");
 	} else {
@@ -503,7 +506,7 @@ static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle
 			}
 		} else if (cf_pause_mode == P_PAUSE) {
 			disconnect_server(server, true, "pause mode");
-		} else if (idle_test && !cf_disable_server_check) {
+		} else if (idle_test && *cf_server_check_query) {
 			if (idle > cf_server_check_delay)
 				change_server_state(server, SV_USED);
 		}

@@ -337,6 +337,9 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		} else if (strcmp("min_pool_size", key) == 0) {
 			min_pool_size = atoi(val);
 		} else if (strcmp("reserve_pool", key) == 0) {
+			/* We continue supporting this option for backwards compatibility */
+			res_pool_size = atoi(val);
+		} else if (strcmp("reserve_pool_size", key) == 0) {
 			res_pool_size = atoi(val);
 		} else if (strcmp("max_db_connections", key) == 0) {
 			max_db_connections = atoi(val);

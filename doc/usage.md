@@ -598,7 +598,7 @@ pool_size
 min_pool_size
 :   Minimum number of server connections.
 
-reserve_pool
+reserve_pool_size
 :   Maximum number of additional connections for this database.
 
 server_lifetime

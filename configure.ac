@@ -1,7 +1,7 @@
 dnl Process this file with autoconf to produce a configure script.
 
 AC_INIT([PgBouncer],
-        [1.23.1],
+         [m4_esyscmd([./version_script.sh])],
         [https://github.com/pgbouncer/pgbouncer/issues], [],
         [https://www.pgbouncer.org/])
 AC_CONFIG_SRCDIR(src/janitor.c)

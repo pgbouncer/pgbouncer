@@ -499,7 +499,7 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 
 	pktbuf_write_RowDescription(buf, "ssissiiiissiiiiii",
 				    "name", "host", "port",
-				    "database", "force_user", "pool_size", "min_pool_size", "reserve_pool",
+				    "database", "force_user", "pool_size", "min_pool_size", "reserve_pool_size",
 				    "server_lifetime", "pool_mode", "load_balance_hosts", "max_connections",
 				    "current_connections", "max_client_connections", "current_client_connections",
 				    "paused", "disabled");
@@ -1580,7 +1580,7 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		     "\tENABLE <db>\n"
 		     "\tRECONNECT [<db>]\n"
 		     "\tKILL <db>\n"
-		     "\tKILL_CLIENT <client_ptr>\n"
+		     "\tKILL_CLIENT <client_id>\n"
 		     "\tSUSPEND\n"
 		     "\tSHUTDOWN\n"
 		     "\tSHUTDOWN WAIT_FOR_SERVERS|WAIT_FOR_CLIENTS\n"

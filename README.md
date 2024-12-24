@@ -72,6 +72,13 @@ To enable PAM authentication, `./configure` has a flag `--with-pam`
 (default value is no).  When compiled with PAM support, a new global
 authentication type `pam` is available to validate users through PAM.
 
+LDAP authentication
+------------------
+
+To enable LDAP authentication, `./configure` has a flag `--with-ldap`
+(default value is no).  When compiled with LDAP support, a new global
+authentication type `ldap` is available to validate users through LDAP.
+
 systemd integration
 -------------------
 

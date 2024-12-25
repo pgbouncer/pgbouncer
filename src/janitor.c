@@ -160,7 +160,7 @@ static void launch_recheck(PgPool *pool)
 		/* send test query, wait for result */
 		slog_debug(server, "P: checking: %s", q);
 		change_server_state(server, SV_TESTED);
-		if (strcmpeq(q, "<empty>"))
+		if (empty_server_check_query)
 			SEND_generic(res, server, PqMsg_Query, "s", "");
 		else
 			SEND_generic(res, server, PqMsg_Query, "s", q);

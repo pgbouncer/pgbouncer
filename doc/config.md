@@ -652,7 +652,7 @@ If an empty string, then sanity checking is disabled.
 
 If `<empty>` then send empty query as sanity check.
 
-Default: `select 1`
+Default: `<empty>`
 
 ### server_fast_close
 

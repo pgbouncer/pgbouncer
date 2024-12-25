@@ -715,6 +715,17 @@ class Postgres(QueryRunner):
             if HAVE_IPV6_LOCALHOST:
                 pgconf.write("listen_addresses='127.0.0.1,::1'\n")
 
+    def init_from(self, pg):
+        cmd = f"pg_basebackup --host={pg.host} --port={pg.port} --pgdata={self.pgdata} "
+        cmd = (
+            cmd
+            + "--username=postgres --checkpoint=fast --no-sync --write-recovery-conf"
+        )
+        run(
+            cmd,
+            stdout=subprocess.DEVNULL,
+        )
+
     def pgctl(self, command, **kwargs):
         run(f"pg_ctl -w --pgdata {self.pgdata} {command}", **kwargs)
 
@@ -725,7 +736,12 @@ class Postgres(QueryRunner):
 
     def start(self):
         try:
-            self.pgctl(f'-o "-p {self.port}" -l {self.log_path} start')
+            if re.search("127.0.0.1", self.host) and HAVE_IPV6_LOCALHOST:
+                self.pgctl(f'-o "-p {self.port}" -l {self.log_path} start')
+            else:
+                self.pgctl(
+                    f"-o \" -k '' -h {self.host} -p {self.port}\" -l {self.log_path} start"
+                )
         except Exception:
             print("\n\nPG_LOG\n")
             with self.log_path.open() as f:
@@ -763,7 +779,7 @@ class Postgres(QueryRunner):
         with self.hba_path.open(mode="w") as pghba:
             if USE_UNIX_SOCKETS:
                 pghba.write(f"local {dbname}   {user}                {auth_type}\n")
-            pghba.write(f"hostnossl  {dbname}   {user}  127.0.0.1/32  {auth_type}\n")
+            pghba.write(f"hostnossl  {dbname}   {user}  127.0.0.1/8   {auth_type}\n")
             pghba.write(f"hostnossl  {dbname}   {user}  ::1/128       {auth_type}\n")
             pghba.write(old_contents)
 
@@ -772,7 +788,7 @@ class Postgres(QueryRunner):
         with self.hba_path.open() as pghba:
             old_contents = pghba.read()
         with self.hba_path.open(mode="w") as pghba:
-            pghba.write(f"hostssl  {dbname}   {user}  127.0.0.1/32  {auth_type}\n")
+            pghba.write(f"hostssl  {dbname}   {user}  127.0.0.1/8   {auth_type}\n")
             pghba.write(f"hostssl  {dbname}   {user}  ::1/128       {auth_type}\n")
             pghba.write(old_contents)
 

@@ -1,4 +1,5 @@
 import os
+import platform
 import shutil
 
 import filelock
@@ -7,6 +8,7 @@ import pytest
 from .utils import (
     LINUX,
     LONG_PASSWORD,
+    MACOS,
     PG_SUPPORTS_SCRAM,
     TEST_DIR,
     TLS_SUPPORT,
@@ -170,6 +172,22 @@ def pg(tmp_path_factory, cert_dir):
     yield pg
 
     pg.cleanup()
+
+
+@pytest.fixture(scope="session")
+def replica(pg, tmp_path_factory):
+    """Starts a new Postgres replica db that is shared for tests in this process"""
+    if MACOS:
+        sudo("ifconfig lo0 alias 127.0.0.2 netmask 0xff000000")
+    replica = Postgres(tmp_path_factory.getbasetemp() / "pgdata_replica")
+    replica.host = "127.0.0.2"
+    replica.port = pg.port
+    replica.init_from(pg)
+    replica.start()
+
+    yield replica
+
+    replica.cleanup()
 
 
 @pytest.mark.asyncio

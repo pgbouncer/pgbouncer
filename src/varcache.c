@@ -88,7 +88,7 @@ static void init_var_lookup_from_config(const char *cf_track_extra_parameters, i
 
 void init_var_lookup(const char *cf_track_extra_parameters)
 {
-	const char *names[] = { "DateStyle", "client_encoding", "TimeZone", "standard_conforming_strings", "application_name", NULL };
+	const char *names[] = { "DateStyle", "client_encoding", "TimeZone", "standard_conforming_strings", "application_name", "in_hot_standby", "default_transaction_read_only", NULL };
 	int idx = 0;
 
 	struct var_lookup *lookup = NULL;
@@ -257,6 +257,8 @@ void varcache_apply_startup(PktBuf *pkt, PgSocket *client)
 	HASH_ITER(hh, lookup_map, lk, tmp) {
 		struct PStr *val = get_value(&client->vars, lk);
 		if (!val)
+			continue;
+		if (strcmp(lk->name, "in_hot_standby") == 0 || strcmp(lk->name, "default_transaction_read_only") == 0)
 			continue;
 
 		slog_debug(client, "varcache_apply_startup: %s=%s", lk->name, val->str);

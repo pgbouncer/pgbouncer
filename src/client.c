@@ -600,6 +600,8 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 
 			slog_info(client, "no such user: %s", username);
 			client->login_user_credentials = calloc(1, sizeof(*client->login_user_credentials));
+
+			client->login_user_credentials->global_user = find_or_add_new_global_user(username, NULL);
 			if (!check_db_connection_count(client))
 				return false;
 			client->login_user_credentials->mock_auth = true;

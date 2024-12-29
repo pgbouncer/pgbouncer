@@ -21,6 +21,7 @@
  */
 
 #include "bouncer.h"
+#include "multithread.h"
 
 #include <usual/netdb.h>
 #include <usual/safeio.h>
@@ -34,7 +35,7 @@ struct ListenSocket {
 	PgAddr addr;
 };
 
-static STATLIST(sock_list);
+
 
 /* hints for getaddrinfo(listen_addr) */
 static const struct addrinfo hints = {
@@ -66,8 +67,8 @@ void cleanup_sockets(void)
 	/* avoid cleanup if exit() while suspended */
 	if (cf_pause_mode == P_SUSPEND)
 		return;
-
-	while ((el = statlist_pop(&sock_list)) != NULL) {
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+	while ((el = statlist_pop(&(this_thread->sock_list))) != NULL) {
 		ls = container_of(el, struct ListenSocket, node);
 		if (event_del(&ls->ev) < 0) {
 			log_warning("cleanup_sockets, event_del: %s", strerror(errno));
@@ -81,7 +82,8 @@ void cleanup_sockets(void)
 			snprintf(buf, sizeof(buf), "%s/.s.PGSQL.%d", cf_unix_socket_dir, cf_listen_port);
 			unlink(buf);
 		}
-		statlist_remove(&sock_list, &ls->node);
+		Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+		statlist_remove(&(this_thread->sock_list), &ls->node);
 		free(ls);
 	}
 }
@@ -133,7 +135,7 @@ static bool add_listen(int af, const struct sockaddr *sa, int salen)
 	 * the socket option in that case, but this area is fairly
 	 * unportable, so perhaps better to avoid it.)
 	 */
-	if (af != AF_UNIX && cf_so_reuseport) {
+	if (af != AF_UNIX) {
 #if defined(SO_REUSEPORT_LB)
 		int val = 1;
 		errpos = "setsockopt/SO_REUSEPORT_LB";
@@ -193,7 +195,8 @@ static bool add_listen(int af, const struct sockaddr *sa, int salen)
 	}
 
 	log_info("listening on %s", sa2str(sa, buf, sizeof(buf)));
-	statlist_append(&sock_list, &ls->node);
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+	statlist_append(&(this_thread->sock_list), &ls->node);
 	return true;
 
 failed:
@@ -215,9 +218,11 @@ static void create_unix_socket(const char *socket_dir, int listen_port)
 
 	/* fill sockaddr struct */
 	memset(&un, 0, sizeof(un));
+	int thread_id =  ((Thread*)pthread_getspecific(thread_pointer))->thread_id;
+
 	un.sun_family = AF_UNIX;
 	snprintf(un.sun_path, sizeof(un.sun_path),
-		 "%s/.s.PGSQL.%d", socket_dir, listen_port);
+		 "%s/.s.PGSQL.%d%d", socket_dir, listen_port, thread_id);
 	if (socket_dir[0] == '@') {
 		/*
 		 * By convention, for abstract Unix sockets, only the
@@ -290,7 +295,8 @@ void pooler_tune_accept(bool on)
 {
 	struct List *el;
 	struct ListenSocket *ls;
-	statlist_for_each(el, &sock_list) {
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+	statlist_for_each(el, &(this_thread->sock_list)) {
 		ls = container_of(el, struct ListenSocket, node);
 		if (!pga_is_unix(&ls->addr))
 			tune_accept(ls->fd, on);
@@ -360,7 +366,8 @@ loop:
 		 * wait a bit, hope that admin resolves somehow
 		 */
 		log_error("accept() failed: %s", strerror(errno));
-		evtimer_assign(&ev_err, pgb_event_base, err_wait_func, NULL);
+		struct event_base * base = (struct event_base *)pthread_getspecific(event_base_key);
+		evtimer_assign(&ev_err, base, err_wait_func, NULL);
 		safe_evtimer_add(&ev_err, &err_timeout);
 		suspend_pooler();
 		return;
@@ -410,7 +417,8 @@ bool use_pooler_socket(int sock, bool is_unix)
 		pga_copy(&ls->addr, (struct sockaddr *)&ss);
 	}
 	log_info("got pooler socket: %s", pga_str(&ls->addr, buf, sizeof(buf)));
-	statlist_append(&sock_list, &ls->node);
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+	statlist_append(&(this_thread->sock_list), &ls->node);
 	return true;
 }
 
@@ -418,9 +426,10 @@ void suspend_pooler(void)
 {
 	struct List *el;
 	struct ListenSocket *ls;
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
 
 	need_active = false;
-	statlist_for_each(el, &sock_list) {
+	statlist_for_each(el, &(this_thread->sock_list)) {
 		ls = container_of(el, struct ListenSocket, node);
 		if (!ls->active)
 			continue;
@@ -437,13 +446,15 @@ void resume_pooler(void)
 {
 	struct List *el;
 	struct ListenSocket *ls;
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
 
 	need_active = true;
-	statlist_for_each(el, &sock_list) {
+	statlist_for_each(el, &(this_thread->sock_list)) {
 		ls = container_of(el, struct ListenSocket, node);
 		if (ls->active)
 			continue;
-		event_assign(&ls->ev, pgb_event_base, ls->fd, EV_READ | EV_PERSIST, pool_accept, ls);
+		struct event_base * base = (struct event_base *)pthread_getspecific(event_base_key);
+		event_assign(&ls->ev, base, ls->fd, EV_READ | EV_PERSIST, pool_accept, ls);
 		if (event_add(&ls->ev, NULL) < 0) {
 			log_warning("event_add failed: %s", strerror(errno));
 			return;
@@ -503,7 +514,7 @@ static bool parse_addr(void *arg, const char *addr)
 void pooler_setup(void)
 {
 	int n;
-
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
 	n = sd_listen_fds(0);
 	if (n > 0) {
 		if (cf_listen_addr && *cf_listen_addr)
@@ -539,7 +550,8 @@ void pooler_setup(void)
 			if (!ok)
 				die("failed to set up socket passed from service manager (fd %d)", fd);
 			log_info("socket passed from service manager (fd %d)", fd);
-			statlist_append(&sock_list, &ls->node);
+			
+			statlist_append(&(this_thread->sock_list), &ls->node);
 		}
 	} else {
 		bool ok;
@@ -555,14 +567,14 @@ void pooler_setup(void)
 		if (!ok)
 			die("failed to parse listen_addr list: %s", cf_listen_addr);
 
-		if (!listen_addr_empty && !statlist_count(&sock_list))
+		if (!listen_addr_empty && !statlist_count(&(this_thread->sock_list)))
 			die("failed to listen on any address in listen_addr list: %s", cf_listen_addr);
 
 		if (cf_unix_socket_dir && *cf_unix_socket_dir)
 			create_unix_socket(cf_unix_socket_dir, cf_listen_port);
 	}
 
-	if (!statlist_count(&sock_list))
+	if (!statlist_count(&(this_thread->sock_list)))
 		die("nowhere to listen on");
 
 	resume_pooler();
@@ -574,7 +586,8 @@ bool for_each_pooler_fd(pooler_cb cbfunc, void *arg)
 	struct ListenSocket *ls;
 	bool ok;
 
-	statlist_for_each(el, &sock_list) {
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+	statlist_for_each(el, &(this_thread->sock_list)) {
 		ls = container_of(el, struct ListenSocket, node);
 		ok = cbfunc(arg, ls->fd, &ls->addr);
 		if (!ok)

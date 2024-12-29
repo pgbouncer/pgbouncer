@@ -17,8 +17,8 @@
  */
 
 #include "bouncer.h"
+#include "multithread.h"
 
-static struct event ev_stats;
 static usec_t old_stamp, new_stamp;
 
 static void reset_stats(PgStats *stat)
@@ -427,7 +427,10 @@ void stats_setup(void)
 	old_stamp = new_stamp - USEC;
 
 	/* launch stats */
-	event_assign(&ev_stats, pgb_event_base, -1, EV_PERSIST, refresh_stats, NULL);
-	if (event_add(&ev_stats, &period) < 0)
+	struct event_base * base = (struct event_base *)pthread_getspecific(event_base_key);
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+
+	event_assign(&(this_thread->ev_stats), base, -1, EV_PERSIST, refresh_stats, NULL);
+	if (event_add(&(this_thread->ev_stats), &period) < 0)
 		log_warning("event_add failed: %s", strerror(errno));
 }

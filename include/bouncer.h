@@ -31,7 +31,7 @@
 
 #include <event2/event.h>
 #include <event2/event_struct.h>
-
+#include <pthread.h>
 /*
  * By default uthash exits the program when an allocation fails. But for some
  * of our hashmap usecases we don't want that. Luckily you can install your own
@@ -907,3 +907,7 @@ void load_config(void);
 bool set_config_param(const char *key, const char *val);
 void config_for_each(void (*param_cb)(void *arg, const char *name, const char *val, const char *defval, bool reloadable),
 		     void *arg);
+
+pthread_key_t event_base_key;
+pthread_key_t thread_pointer;
+

@@ -21,12 +21,13 @@
  */
 
 #include "bouncer.h"
+#include "multithread.h"
 
 #include <usual/slab.h>
 
 /* do full maintenance 3x per second */
 static struct timeval full_maint_period = {0, USEC / 3};
-static struct event full_maint_ev;
+
 extern bool any_user_level_server_timeout_set;
 extern bool any_user_level_client_timeout_set;
 
@@ -789,14 +790,16 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	if (cf_shutdown == SHUTDOWN_WAIT_FOR_SERVERS && get_active_server_count() == 0) {
 		log_info("server connections dropped, exiting");
 		cf_shutdown = SHUTDOWN_IMMEDIATE;
-		event_base_loopbreak(pgb_event_base);
+		struct event_base * base = (struct event_base *)pthread_getspecific(event_base_key);
+		event_base_loopbreak(base);
 		return;
 	}
 
 	if (cf_shutdown == SHUTDOWN_WAIT_FOR_CLIENTS && get_active_client_count() == 0) {
 		log_info("client connections dropped, exiting");
 		cf_shutdown = SHUTDOWN_IMMEDIATE;
-		event_base_loopbreak(pgb_event_base);
+		struct event_base * base = (struct event_base *)pthread_getspecific(event_base_key);
+		event_base_loopbreak(base);
 		return;
 	}
 
@@ -807,8 +810,11 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 void janitor_setup(void)
 {
 	/* launch maintenance */
-	event_assign(&full_maint_ev, pgb_event_base, -1, EV_PERSIST, do_full_maint, NULL);
-	if (event_add(&full_maint_ev, &full_maint_period) < 0)
+	struct event_base * base = (struct event_base *)pthread_getspecific(event_base_key);
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+
+	event_assign(&(this_thread->full_maint_ev), base, -1, EV_PERSIST, do_full_maint, NULL);
+	if (event_add(&(this_thread->full_maint_ev), &full_maint_period) < 0)
 		log_warning("event_add failed: %s", strerror(errno));
 }
 

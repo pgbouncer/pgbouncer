@@ -42,14 +42,18 @@ typedef struct Thread {
     int thread_id;
     struct event full_maint_ev;
     struct event ev_stats;
-
+    struct event ev_handle_request;
+    int pipefd[2];
 } Thread;
 
+typedef struct ClientRequest {
+    int fd;
+    bool is_unix;
+} ClientRequest;
 
 Thread threads[THREAD_NUM];
-// pthread_t workers[THREAD_NUM];
-// struct event_base * thread_bases[THREAD_NUM];
+extern int next_thread;
 
-
+void signal_setup(struct event_base * base);
 void start_threads();
 void clean_threads();

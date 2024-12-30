@@ -22,6 +22,7 @@
 
 #include "bouncer.h"
 #include "scram.h"
+#include "multithread.h"
 
 #include <usual/err.h>
 #include <usual/safeio.h>
@@ -1347,7 +1348,8 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 	reason = buf;
 
 	if (cf_log_disconnections) {
-		slog_info(server, "closing because: %s (age=%" PRIu64 "s)", reason,
+		Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+		slog_info(server, "[Thread %ld]closing because: %s (age=%" PRIu64 "s)", this_thread->thread_id, reason,
 			  (now - server->connect_time) / USEC);
 	}
 
@@ -1465,7 +1467,8 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 	}
 
 	if (cf_log_disconnections && reason) {
-		slog_info(client, "closing because: %s (age=%" PRIu64 "s)", reason,
+		Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+		slog_info(client, "[Thread %ld] closing because: %s (age=%" PRIu64 "s)", this_thread->thread_id, reason,
 			  (now - client->connect_time) / USEC);
 	}
 

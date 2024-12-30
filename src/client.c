@@ -21,6 +21,7 @@
  */
 
 #include "bouncer.h"
+#include "multithread.h"
 #include "pam.h"
 #include "scram.h"
 #include "common/builtins.h"
@@ -346,17 +347,19 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	}
 
 	if (cf_log_connections) {
+		Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
 		if (client->sbuf.tls) {
 			char infobuf[96] = "";
 			tls_get_connection_info(client->sbuf.tls, infobuf, sizeof infobuf);
-			slog_info(client, "login attempt: db=%s user=%s tls=%s replication=%s",
+			slog_info(client, "[Thread %ld] login attempt: db=%s user=%s tls=%s replication=%s",
+				  this_thread->thread_id,
 				  client->db->name,
 				  client->login_user_credentials->name,
 				  infobuf,
 				  replication_type_parameters[client->replication]);
 		} else {
-			slog_info(client, "login attempt: db=%s user=%s tls=no replication=%s",
-				  client->db->name, client->login_user_credentials->name,
+			slog_info(client, "[Thread %ld] login attempt: db=%s user=%s tls=no replication=%s",
+				  this_thread->thread_id, client->db->name, client->login_user_credentials->name,
 				  replication_type_parameters[client->replication]);
 		}
 	}

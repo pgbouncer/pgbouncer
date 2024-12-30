@@ -1,6 +1,8 @@
 #include <multithread.h>
 #include <bouncer.h>
+#include <pooler.h>
 
+int next_thread = 0;
 
 void handle_sigterm(evutil_socket_t sock, short flags, void *arg)
 {
@@ -18,7 +20,6 @@ void handle_sigterm(evutil_socket_t sock, short flags, void *arg)
 	cf_shutdown = SHUTDOWN_WAIT_FOR_CLIENTS;
 	cleanup_sockets();
 }
-
 
 
 static void handle_sigint(evutil_socket_t sock, short flags, void *arg)
@@ -124,7 +125,7 @@ static void handle_sighup(int sock, short flags, void *arg)
 #endif
 
 
-static void signal_setup(void)
+void signal_setup(struct event_base * base)
 {
 	int err;
 
@@ -139,8 +140,6 @@ static void signal_setup(void)
 		fatal_perror("sigprocmask");
 
 	/* install handlers */
-	void * base_ptr =  pthread_getspecific(event_base_key);
-	struct event_base * base = (struct event_base *)base_ptr;
 
 	evsignal_assign(&ev_sigusr1, base, SIGUSR1, handle_sigusr1, NULL);
 	err = evsignal_add(&ev_sigusr1, NULL);
@@ -188,9 +187,8 @@ void* worker_func(void* arg){
 
     pthread_setspecific(event_base_key, base);
 
-    pooler_setup();
-
-	signal_setup();
+    thread_pooler_setup();
+	signal_setup(base);
 	janitor_setup();
 	stats_setup();
 
@@ -221,9 +219,18 @@ void start_threads(){
     pthread_key_create(&event_base_key, event_base_destructor);
     pthread_key_create(&thread_pointer, NULL);
 
+	
     for(int i=0;i<THREAD_NUM;i++){
         threads[i].thread_id = i;
+		if (pipe(threads[i].pipefd) < 0) {
+            die("Thread %ld init failed",i);
+        }
+		int flags = fcntl(threads[i].pipefd[1], F_GETFL, 0);
+		if (fcntl(threads[i].pipefd[1], F_SETFL, flags | O_NONBLOCK) < 0) {
+			die("set pipe flag failed");
+		}
         statlist_init(&threads[i].sock_list, NULL);
         pthread_create(&threads[i].worker, NULL, worker_func, &threads[i]);
     }
+	// TODO wait until threads ready
 }

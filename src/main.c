@@ -687,21 +687,21 @@ static void main_loop_once(void)
 {
 	int err;
 
-	reset_time_cache();
+	// reset_time_cache();
 
 	err = event_base_loop(pgb_event_base, EVLOOP_ONCE);
 	if (err < 0) {
 		if (errno != EINTR)
 			log_warning("event_loop failed: %s", strerror(errno));
 	}
-	pam_poll();
-	per_loop_maint();
-	reuse_just_freed_objects();
-	rescue_timers();
-	per_loop_pooler_maint();
+	// pam_poll();
+	// per_loop_maint();
+	// reuse_just_freed_objects();
+	// rescue_timers();
+	// per_loop_pooler_maint();
 
-	if (adns)
-		adns_per_loop(adns);
+	// if (adns)
+	// 	adns_per_loop(adns);
 }
 
 static void takeover_part1(void)
@@ -970,11 +970,16 @@ int main(int argc, char *argv[])
 		 tls_backend_version());
 
 	sd_notify(0, "READY=1");
-
+	signal_setup(pgb_event_base);
 	start_threads();
-
+	pooler_setup();
 	void* retval = NULL;
     
+	/* main loop */
+	while (cf_shutdown != SHUTDOWN_IMMEDIATE)
+		main_loop_once();
+
+
 	for(int i=0;i<THREAD_NUM;i++){
 		printf("waiting for %ld",threads[i].worker);
 		int ret = pthread_join(threads[i].worker, &retval);
@@ -992,9 +997,6 @@ int main(int argc, char *argv[])
 	if (retval) {
 		free(retval); 
 	}
-	// /* main loop */
-	// while (cf_shutdown != SHUTDOWN_IMMEDIATE)
-	// 	main_loop_once();
 
 	return 0;
 }

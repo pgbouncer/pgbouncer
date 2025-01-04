@@ -524,9 +524,10 @@ struct PgCredentials {
 struct PgGlobalUser {
 	PgCredentials credentials;	/* needs to be first for AAtree */
 	struct List head;	/* used to attach user to list */
-	struct List pool_list;		/* list of pools where pool->user == this user */
+	struct List pool_list;	/* list of pools where pool->user == this user */
 	int pool_mode;
-	int pool_size;				/* max server connections in one pool */
+	int pool_size;	/* max server connections in one pool */
+	int res_pool_size;	/* max additional server connections in one pool */
 
 	usec_t idle_transaction_timeout;	/* how long a user is allowed to stay idle in transaction before being killed */
 	usec_t query_timeout;	/* how long a users query is allowed to run before beign killed */

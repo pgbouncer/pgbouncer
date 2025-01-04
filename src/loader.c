@@ -502,6 +502,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	struct CfValue cv;
 	int pool_mode = POOL_INHERIT;
 	int pool_size = -1;
+	int res_pool_size = -1;
 	int max_user_connections = -1;
 	usec_t idle_transaction_timeout = 0;
 	usec_t query_timeout = 0;
@@ -534,6 +535,8 @@ bool parse_user(void *base, const char *name, const char *connstr)
 			}
 		} else if (strcmp("pool_size", key) == 0) {
 			pool_size = atoi(val);
+		} else if (strcmp("reserve_pool_size", key) == 0) {
+			res_pool_size = atoi(val);
 		} else if (strcmp("max_user_connections", key) == 0) {
 			max_user_connections = atoi(val);
 		} else if (strcmp("idle_transaction_timeout", key) == 0) {
@@ -561,6 +564,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 
 	user->pool_mode = pool_mode;
 	user->pool_size = pool_size;
+	user->res_pool_size = res_pool_size;
 	user->max_user_connections = max_user_connections;
 	user->idle_transaction_timeout = idle_transaction_timeout;
 	user->query_timeout = query_timeout;

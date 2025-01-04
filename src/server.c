@@ -310,10 +310,13 @@ int database_min_pool_size(PgDatabase *db)
 
 int pool_res_pool_size(PgPool *pool)
 {
-	if (pool->db->res_pool_size < 0)
-		return cf_res_pool_size;
-	else
+	int user_res_pool_size = pool->user_credentials ? pool->user_credentials->global_user->res_pool_size : -1;
+	if (user_res_pool_size >= 0)
+		return user_res_pool_size;
+	else if (pool->db->res_pool_size >= 0)
 		return pool->db->res_pool_size;
+	else
+		return cf_res_pool_size;
 }
 
 int database_max_client_connections(PgDatabase *db)

@@ -1338,6 +1338,11 @@ messages to the client, but neither will it accept any provided password.
 Set the maximum size of pools for all connections from this user.  If not set,
 the database or `default_pool_size` is used.
 
+### reserve_pool_size
+
+Set the number of additional connections to allow to a pool for this user. If
+not set, the database configuration or the global `reserve_pool_size` is used.
+
 ### pool_mode
 
 Set the pool mode to be used for all connections from this user. If not set, the

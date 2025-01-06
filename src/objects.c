@@ -29,11 +29,8 @@
 #include <usual/slab.h>
 
 /* those items will be allocated as needed, never freed */
-STATLIST(user_list);
 STATLIST(database_list);
-STATLIST(pool_list);
 STATLIST(peer_list);
-STATLIST(peer_pool_list);
 
 /* All locally defined users (in auth_file) are kept here. */
 struct AATree user_tree;
@@ -53,12 +50,6 @@ struct AATree pam_user_tree;
  */
 PgPreparedStatement *prepared_statements = NULL;
 
-/*
- * client and server objects will be pre-allocated
- * they are always in either active or free lists
- * in addition to others.
- */
-STATLIST(login_client_list);
 
 struct Slab *server_cache;
 struct Slab *client_cache;
@@ -221,7 +212,7 @@ static void server_free(PgSocket *server)
 void change_client_state(PgSocket *client, SocketState newstate)
 {
 	PgPool *pool = client->pool;
-
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
 	/* remove from old location */
 	switch (client->state) {
 	case CL_FREE:
@@ -232,7 +223,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	case CL_LOGIN:
 		if (newstate == CL_WAITING)
 			newstate = CL_WAITING_LOGIN;
-		statlist_remove(&login_client_list, &client->head);
+		statlist_remove(&(this_thread->login_client_list), &client->head);
 		break;
 	case CL_WAITING_LOGIN:
 		if (newstate == CL_ACTIVE)
@@ -265,7 +256,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 		statlist_append(&justfree_client_list, &client->head);
 		break;
 	case CL_LOGIN:
-		statlist_append(&login_client_list, &client->head);
+		statlist_append(&(this_thread->login_client_list), &client->head);
 		break;
 	case CL_WAITING:
 	case CL_WAITING_LOGIN:
@@ -522,7 +513,8 @@ static PgGlobalUser *add_new_global_user(const char *name, const char *passwd)
 	list_init(&user->head);
 	list_init(&user->pool_list);
 	safe_strcpy(user->credentials.name, name, sizeof(user->credentials.name));
-	put_in_order(&user->head, &user_list, cmp_user);
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+	put_in_order(&user->head, &(this_thread->user_list), cmp_user);
 
 	aatree_insert(&user_tree, (uintptr_t)user->credentials.name, &user->credentials.tree_node);
 	user->pool_mode = POOL_INHERIT;
@@ -725,8 +717,10 @@ static PgPool *new_pool(PgDatabase *db, PgCredentials *user_credentials)
 	list_append(&user_credentials->global_user->pool_list, &pool->map_head);
 
 	/* keep pools in db/user order to make stats faster */
-	put_in_order(&pool->head, &pool_list, cmp_pool);
-
+	int thread_id;
+	FOR_EACH_THREAD(thread_id){
+		put_in_order(&pool->head, &(threads[thread_id].pool_list), cmp_pool);
+	}
 	return pool;
 }
 
@@ -758,8 +752,10 @@ static PgPool *new_peer_pool(PgDatabase *db)
 	statlist_init(&pool->active_cancel_server_list, "active_cancel_server_list");
 
 	/* keep pools in peer_id order to make stats faster */
-	put_in_order(&pool->head, &peer_pool_list, cmp_peer_pool);
-
+	int thread_id;
+	FOR_EACH_THREAD(thread_id){
+		put_in_order(&pool->head, &(threads[thread_id].peer_pool_list), cmp_peer_pool);
+	}
 	return pool;
 }
 /* find pool object, create if needed */
@@ -1349,7 +1345,7 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 
 	if (cf_log_disconnections) {
 		Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
-		slog_info(server, "[Thread %ld]closing because: %s (age=%" PRIu64 "s)", this_thread->thread_id, reason,
+		slog_info(server, "[Thread %d]closing because: %s (age=%" PRIu64 "s)", this_thread->thread_id, reason,
 			  (now - server->connect_time) / USEC);
 	}
 
@@ -1468,7 +1464,7 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 
 	if (cf_log_disconnections && reason) {
 		Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
-		slog_info(client, "[Thread %ld] closing because: %s (age=%" PRIu64 "s)", this_thread->thread_id, reason,
+		slog_info(client, "[Thread %d] closing because: %s (age=%" PRIu64 "s)", this_thread->thread_id, reason,
 			  (now - client->connect_time) / USEC);
 	}
 
@@ -1771,16 +1767,18 @@ bool evict_connection(PgDatabase *db)
 	struct List *item;
 	PgPool *pool;
 	PgSocket *oldest_connection = NULL;
-
-	statlist_for_each(item, &pool_list) {
-		pool = container_of(item, PgPool, head);
-		if (pool->db != db)
-			continue;
-		oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->idle_server_list));
-		/* only evict testing connections if nobody's waiting */
-		if (statlist_empty(&pool->waiting_client_list)) {
-			oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->used_server_list));
-			oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->tested_server_list));
+	int thread_id;
+	FOR_EACH_THREAD(thread_id){
+		statlist_for_each(item, &(threads[thread_id].pool_list)) {
+			pool = container_of(item, PgPool, head);
+			if (pool->db != db)
+				continue;
+			oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->idle_server_list));
+			/* only evict testing connections if nobody's waiting */
+			if (statlist_empty(&pool->waiting_client_list)) {
+				oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->used_server_list));
+				oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->tested_server_list));
+			}
 		}
 	}
 
@@ -1813,15 +1811,18 @@ bool evict_user_connection(PgCredentials *user_credentials)
 	PgPool *pool;
 	PgSocket *oldest_connection = NULL;
 
-	statlist_for_each(item, &pool_list) {
-		pool = container_of(item, PgPool, head);
-		if (pool->user_credentials != user_credentials)
-			continue;
-		oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->idle_server_list));
-		/* only evict testing connections if nobody's waiting */
-		if (statlist_empty(&pool->waiting_client_list)) {
-			oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->used_server_list));
-			oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->tested_server_list));
+	int thread_id;
+	FOR_EACH_THREAD(thread_id){
+		statlist_for_each(item, &(threads[thread_id].pool_list)) {
+			pool = container_of(item, PgPool, head);
+			if (pool->user_credentials != user_credentials)
+				continue;
+			oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->idle_server_list));
+			/* only evict testing connections if nobody's waiting */
+			if (statlist_empty(&pool->waiting_client_list)) {
+				oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->used_server_list));
+				oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->tested_server_list));
+			}
 		}
 	}
 
@@ -2152,20 +2153,23 @@ void accept_cancel_request(PgSocket *req)
 
 
 	/* find the client that has the same cancel_key as this request */
-	statlist_for_each(pitem, &pool_list) {
-		pool = container_of(pitem, PgPool, head);
-		statlist_for_each(citem, &pool->active_client_list) {
-			client = container_of(citem, PgSocket, head);
-			if (memcmp(client->cancel_key, req->cancel_key, 8) == 0) {
-				main_client = client;
-				goto found;
+	int thread_id;
+	FOR_EACH_THREAD(thread_id){
+		statlist_for_each(pitem, &(threads[thread_id].pool_list)) {
+			pool = container_of(pitem, PgPool, head);
+			statlist_for_each(citem, &pool->active_client_list) {
+				client = container_of(citem, PgSocket, head);
+				if (memcmp(client->cancel_key, req->cancel_key, 8) == 0) {
+					main_client = client;
+					goto found;
+				}
 			}
-		}
-		statlist_for_each(citem, &pool->waiting_client_list) {
-			client = container_of(citem, PgSocket, head);
-			if (memcmp(client->cancel_key, req->cancel_key, 8) == 0) {
-				main_client = client;
-				goto found;
+			statlist_for_each(citem, &pool->waiting_client_list) {
+				client = container_of(citem, PgSocket, head);
+				if (memcmp(client->cancel_key, req->cancel_key, 8) == 0) {
+					main_client = client;
+					goto found;
+				}
 			}
 		}
 	}
@@ -2530,11 +2534,13 @@ void tag_database_dirty(PgDatabase *db)
 {
 	struct List *item;
 	PgPool *pool;
-
-	statlist_for_each(item, &pool_list) {
-		pool = container_of(item, PgPool, head);
-		if (pool->db == db)
-			tag_pool_dirty(pool);
+	int thread_id;
+	FOR_EACH_THREAD(thread_id){
+		statlist_for_each(item, &(threads[thread_id].pool_list)) {
+			pool = container_of(item, PgPool, head);
+			if (pool->db == db)
+				tag_pool_dirty(pool);
+		}
 	}
 }
 
@@ -2560,10 +2566,13 @@ void tag_autodb_dirty(void)
 	/*
 	 * reload pools
 	 */
-	statlist_for_each(item, &pool_list) {
-		pool = container_of(item, PgPool, head);
-		if (pool->db->db_auto)
-			tag_pool_dirty(pool);
+	int thread_id;
+	FOR_EACH_THREAD(thread_id){
+		statlist_for_each(item, &(threads[thread_id].pool_list)) {
+			pool = container_of(item, PgPool, head);
+			if (pool->db->db_auto)
+				tag_pool_dirty(pool);
+		}
 	}
 }
 
@@ -2582,11 +2591,13 @@ void tag_host_addr_dirty(const char *host, const struct sockaddr *sa)
 
 	memset(&addr, 0, sizeof(addr));
 	pga_copy(&addr, sa);
-
-	statlist_for_each(item, &pool_list) {
-		pool = container_of(item, PgPool, head);
-		if (pool->db->host && strcmp(host, pool->db->host) == 0) {
-			for_each_server_filtered(pool, tag_dirty, server_remote_addr_filter, &addr);
+	int thread_id;
+	FOR_EACH_THREAD(thread_id){
+	statlist_for_each(item, &(threads[thread_id].pool_list)) {
+			pool = container_of(item, PgPool, head);
+			if (pool->db->host && strcmp(host, pool->db->host) == 0) {
+				for_each_server_filtered(pool, tag_dirty, server_remote_addr_filter, &addr);
+			}
 		}
 	}
 }
@@ -2655,13 +2666,16 @@ void objects_cleanup(void)
 		client_free(client);
 	}
 
-	memset(&login_client_list, 0, sizeof login_client_list);
-	memset(&user_list, 0, sizeof user_list);
-	memset(&database_list, 0, sizeof database_list);
-	memset(&pool_list, 0, sizeof pool_list);
-	memset(&pam_user_tree, 0, sizeof pam_user_tree);
-	memset(&user_tree, 0, sizeof user_tree);
-	memset(&autodatabase_idle_list, 0, sizeof autodatabase_idle_list);
+	for(int i=0;i<THREAD_NUM;i++){
+		memset(&(threads[i].login_client_list), 0, sizeof (threads[i].login_client_list));
+		memset(&(threads[i].user_list), 0, sizeof (threads[i].user_list));
+		memset(&database_list, 0, sizeof (database_list));
+		memset(&(threads[i].pool_list), 0, sizeof (threads[i].pool_list));
+		memset(&pam_user_tree, 0, sizeof (pam_user_tree));
+		memset(&(user_tree), 0, sizeof user_tree);
+		memset(&(autodatabase_idle_list), 0, sizeof (autodatabase_idle_list));
+	}
+
 
 	slab_destroy(server_cache);
 	server_cache = NULL;

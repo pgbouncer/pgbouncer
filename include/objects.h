@@ -16,14 +16,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-extern struct StatList user_list;
 extern struct AATree user_tree;
-extern struct StatList pool_list;
-extern struct StatList peer_pool_list;
 extern struct StatList database_list;
 extern struct StatList peer_list;
 extern struct StatList autodatabase_idle_list;
-extern struct StatList login_client_list;
 extern struct Slab *client_cache;
 extern struct Slab *server_cache;
 extern struct Slab *db_cache;

@@ -26,6 +26,7 @@
  */
 
 #include "bouncer.h"
+#include "multithread.h"
 
 #include <usual/safeio.h>
 
@@ -206,22 +207,24 @@ static void takeover_postprocess_fds(void)
 	struct List *item, *item2;
 	PgSocket *client;
 	PgPool *pool;
-
-	statlist_for_each(item, &pool_list) {
-		pool = container_of(item, PgPool, head);
-		if (pool->db->admin)
-			continue;
-		statlist_for_each(item2, &pool->active_client_list) {
-			client = container_of(item2, PgSocket, head);
-			if (client->suspended && client->tmp_sk_linkfd)
-				takeover_create_link(pool, client);
+	int thread_id;
+	FOR_EACH_THREAD(thread_id){
+		statlist_for_each(item, &(threads[thread_id].pool_list)) {
+			pool = container_of(item, PgPool, head);
+			if (pool->db->admin)
+				continue;
+			statlist_for_each(item2, &pool->active_client_list) {
+				client = container_of(item2, PgSocket, head);
+				if (client->suspended && client->tmp_sk_linkfd)
+					takeover_create_link(pool, client);
+			}
 		}
-	}
-	statlist_for_each(item, &pool_list) {
-		pool = container_of(item, PgPool, head);
-		takeover_clean_socket_list(&pool->active_client_list);
-		takeover_clean_socket_list(&pool->active_server_list);
-		takeover_clean_socket_list(&pool->idle_server_list);
+		statlist_for_each(item, &(threads[thread_id].pool_list)) {
+			pool = container_of(item, PgPool, head);
+			takeover_clean_socket_list(&pool->active_client_list);
+			takeover_clean_socket_list(&pool->active_server_list);
+			takeover_clean_socket_list(&pool->idle_server_list);
+		}
 	}
 }
 

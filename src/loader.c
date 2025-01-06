@@ -22,6 +22,7 @@
 
 #include "bouncer.h"
 #include "usual/time.h"
+#include "multithread.h"
 
 #include <usual/fileutil.h>
 #include <usual/string.h>
@@ -673,10 +674,11 @@ bool loader_users_check(void)
 static void disable_users(void)
 {
 	struct List *item;
-
-	statlist_for_each(item, &user_list) {
-		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
-		user->credentials.passwd[0] = 0;
+	for(int i=0;i<THREAD_NUM;i++){
+		statlist_for_each(item, &(threads[i].user_list)) {
+			PgGlobalUser *user = container_of(item, PgGlobalUser, head);
+			user->credentials.passwd[0] = 0;
+		}
 	}
 }
 

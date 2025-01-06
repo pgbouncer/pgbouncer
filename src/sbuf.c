@@ -25,6 +25,7 @@
  */
 
 #include "bouncer.h"
+#include "multithread.h"
 
 #include <usual/safeio.h>
 #include <usual/slab.h>
@@ -1343,9 +1344,12 @@ bool sbuf_tls_setup(void)
 	if ((server_connect_conf || new_server_connect_conf) && tls_change_requires_reconnect(new_server_connect_conf)) {
 		struct List *item;
 		PgPool *pool;
-		statlist_for_each(item, &pool_list) {
-			pool = container_of(item, PgPool, head);
-			tag_pool_dirty(pool);
+		int thread_id;
+		FOR_EACH_THREAD(thread_id){
+			statlist_for_each(item, &(threads[thread_id].pool_list)) {
+				pool = container_of(item, PgPool, head);
+				tag_pool_dirty(pool);
+			}
 		}
 	}
 

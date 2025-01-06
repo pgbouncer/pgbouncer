@@ -215,22 +215,36 @@ static void event_base_destructor(void* base_ptr) {
     }
 }
 
-void start_threads(){
-    pthread_key_create(&event_base_key, event_base_destructor);
-    pthread_key_create(&thread_pointer, NULL);
-
+void init_thread(int thread_id){
+	threads[thread_id].thread_id = thread_id;
+	if (pipe(threads[thread_id].pipefd) < 0) {
+		die("Thread %ld init failed",thread_id);
+	}
+	int flags = fcntl(threads[thread_id].pipefd[1], F_GETFL, 0);
+	if (fcntl(threads[thread_id].pipefd[1], F_SETFL, flags | O_NONBLOCK) < 0) {
+		die("set pipe flag failed");
+	}
+	statlist_init(&threads[thread_id].sock_list, NULL);
+	statlist_init(&threads[thread_id].user_list, NULL);
+	statlist_init(&threads[thread_id].pool_list, NULL);
+	statlist_init(&threads[thread_id].peer_pool_list, NULL);
 	
-    for(int i=0;i<THREAD_NUM;i++){
-        threads[i].thread_id = i;
-		if (pipe(threads[i].pipefd) < 0) {
-            die("Thread %ld init failed",i);
-        }
-		int flags = fcntl(threads[i].pipefd[1], F_GETFL, 0);
-		if (fcntl(threads[i].pipefd[1], F_SETFL, flags | O_NONBLOCK) < 0) {
-			die("set pipe flag failed");
-		}
-        statlist_init(&threads[i].sock_list, NULL);
-        pthread_create(&threads[i].worker, NULL, worker_func, &threads[i]);
-    }
+}
+
+void start_threads(){
+	pthread_key_create(&event_base_key, event_base_destructor);
+    pthread_key_create(&thread_pointer, NULL);
+	int thread_id;
+	FOR_EACH_THREAD(thread_id){	
+		pthread_create(&threads[thread_id].worker, NULL, worker_func, &threads[thread_id]);
+	}
 	// TODO wait until threads ready
+	
+}
+
+void init_threads(){
+	printf(" init_threads");
+	for(int i=0;i<THREAD_NUM;i++){
+		init_thread(i);
+	}
 }

@@ -370,6 +370,7 @@ loop:
 	log_info("new fd from accept=%d", fd);
 
 	struct ClientRequest client_request = {fd,is_unix};
+	// FIXME non-block pipe strategy
 	ssize_t n = write(threads[next_thread].pipefd[1], &client_request, sizeof(client_request));
 	if (n <= 0) {
 		log_error("failed to write to pipe");

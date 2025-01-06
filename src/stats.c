@@ -363,18 +363,19 @@ static void refresh_stats(evutil_socket_t s, short flags, void *arg)
 
 	old_stamp = new_stamp;
 	new_stamp = get_cached_time();
+	int thread_id;
+	FOR_EACH_THREAD(thread_id){
+		statlist_for_each(item, &(threads[thread_id].pool_list)) {
+			pool = container_of(item, PgPool, head);
+			pool->older_stats = pool->newer_stats;
+			pool->newer_stats = pool->stats;
 
-	statlist_for_each(item, &pool_list) {
-		pool = container_of(item, PgPool, head);
-		pool->older_stats = pool->newer_stats;
-		pool->newer_stats = pool->stats;
-
-		if (cf_log_stats) {
-			stat_add(&cur_total, &pool->stats);
-			stat_add(&old_total, &pool->older_stats);
+			if (cf_log_stats) {
+				stat_add(&cur_total, &pool->stats);
+				stat_add(&old_total, &pool->older_stats);
+			}
 		}
 	}
-
 	calc_average(&avg, &cur_total, &old_total);
 
 	if (cf_log_stats) {

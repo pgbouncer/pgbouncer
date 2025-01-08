@@ -446,7 +446,9 @@ def test_user_client_count_db_connect_fail(pg, bouncer) -> None:
     assert user["current_client_connections"] == 0
 
     connect_args = {"dbname": test_dbname, "user": test_user}
-    with pytest.raises(psycopg.OperationalError):
+    with pytest.raises(
+        psycopg.OperationalError, match="pg_hba.conf rejects connection"
+    ):
         _ = bouncer.conn(**connect_args)
 
     users = bouncer.admin("SHOW USERS", row_factory=dict_row)
@@ -454,8 +456,8 @@ def test_user_client_count_db_connect_fail(pg, bouncer) -> None:
     assert user["current_client_connections"] == 0
 
 
-def test_user_client_count_db_connect_fail_2(pg, bouncer) -> None:
-    test_user = "maxedout6"
+def test_user_client_count_db_connect_fail_2(bouncer) -> None:
+    test_user = "pswcheck_not_in_auth_file"
     test_dbname = "user_passthrough"
 
     users = bouncer.admin("SHOW USERS", row_factory=dict_row)
@@ -463,12 +465,27 @@ def test_user_client_count_db_connect_fail_2(pg, bouncer) -> None:
     assert user["current_client_connections"] == 0
 
     connect_args = {"dbname": test_dbname, "user": test_user}
-    with pytest.raises(psycopg.OperationalError):
+    with pytest.raises(psycopg.OperationalError, match="authentication failed"):
         _ = bouncer.conn(**connect_args)
 
     users = bouncer.admin("SHOW USERS", row_factory=dict_row)
     user = next(user for user in users if user["name"] == test_user)
     assert user["current_client_connections"] == 0
+
+
+def test_user_client_count_db_connect_fail_3(bouncer) -> None:
+    test_user = "non_existent_user"
+    test_dbname = "user_passthrough"
+
+    users = bouncer.admin("SHOW USERS", row_factory=dict_row)
+    assert len([user for user in users if user["name"] == test_user]) == 0
+
+    connect_args = {"dbname": test_dbname, "user": test_user}
+    with pytest.raises(psycopg.OperationalError, match="authentication failed"):
+        _ = bouncer.conn(**connect_args)
+
+    users = bouncer.admin("SHOW USERS", row_factory=dict_row)
+    assert len([user for user in users if user["name"] == test_user]) == 0
 
 
 def test_min_pool_size_with_lower_max_user_connections(bouncer):

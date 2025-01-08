@@ -311,6 +311,20 @@ def test_user_level_idle_client_timeout_override(bouncer):
                     cur.execute("SELECT 1")
 
 
+def test_transaction_timeout(bouncer):
+    bouncer.admin(f"set pool_mode=transaction")
+    bouncer.admin(f"set transaction_timeout=2")
+
+    with bouncer.transaction() as cur:
+        with bouncer.log_contains(r"transaction timeout"):
+            time.sleep(3)
+            with pytest.raises(
+                psycopg.OperationalError,
+                match=r"server closed the connection unexpectedly|Software caused connection abort",
+            ):
+                cur.execute("select 1")
+
+
 def test_idle_transaction_timeout(bouncer):
     bouncer.admin(f"set pool_mode=transaction")
     bouncer.admin(f"set idle_transaction_timeout=2")

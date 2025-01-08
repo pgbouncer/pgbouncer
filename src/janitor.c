@@ -579,9 +579,9 @@ static void pool_server_maint(PgPool *pool)
 	}
 
 	/* handle query_timeout and idle_transaction_timeout */
-	if (cf_query_timeout > 0 || cf_idle_transaction_timeout > 0 || any_user_level_timeout_set) {
+	if (cf_query_timeout > 0 || cf_idle_transaction_timeout > 0 || cf_transaction_timeout > 0 || any_user_level_timeout_set) {
 		statlist_for_each_safe(item, &pool->active_server_list, tmp) {
-			usec_t age_client, age_server;
+			usec_t age_client, age_server, age_transaction;
 			usec_t effective_query_timeout;
 			usec_t effective_idle_transaction_timeout;
 			usec_t user_query_timeout;
@@ -602,6 +602,7 @@ static void pool_server_maint(PgPool *pool)
 			 */
 			age_client = now - server->link->request_time;
 			age_server = now - server->request_time;
+			age_transaction = now - server->xact_start;
 
 			user_idle_transaction_timeout = server->login_user_credentials->global_user->idle_transaction_timeout;
 			user_query_timeout = server->login_user_credentials->global_user->query_timeout;
@@ -621,6 +622,9 @@ static void pool_server_maint(PgPool *pool)
 				   server->idle_tx &&
 				   age_server > effective_idle_transaction_timeout) {
 				disconnect_server(server, true, "idle transaction timeout");
+			} else if (cf_transaction_timeout > 0 &&
+				   age_transaction > cf_transaction_timeout) {
+				disconnect_server(server, true, "transaction timeout");
 			}
 		}
 	}

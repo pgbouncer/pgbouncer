@@ -529,6 +529,7 @@ struct PgGlobalUser {
 	int pool_size;	/* max server connections in one pool */
 	int res_pool_size;	/* max additional server connections in one pool */
 
+	usec_t transaction_timeout;	/* how long a user is allowed to stay in transaction before being killed */
 	usec_t idle_transaction_timeout;	/* how long a user is allowed to stay idle in transaction before being killed */
 	usec_t query_timeout;	/* how long a users query is allowed to run before beign killed */
 	usec_t client_idle_timeout;	/* how long is user allowed to idly connect to pgbouncer */

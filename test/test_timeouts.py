@@ -311,9 +311,39 @@ def test_user_level_idle_client_timeout_override(bouncer):
                     cur.execute("SELECT 1")
 
 
+def test_transaction_timeout_user(bouncer):
+    config = f"""
+        [databases]
+        postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+
+        [pgbouncer]
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = trust
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        pool_mode = session
+
+        [users]
+        puser1 = pool_mode=transaction transaction_timeout=2
+    """
+
+    # while configured to be in statement pooling mode
+    with bouncer.run_with_config(config):
+        with bouncer.transaction(dbname="postgres", user="puser1") as cur:
+            with bouncer.log_contains(r"transaction timeout"):
+                time.sleep(3)
+                with pytest.raises(
+                    psycopg.OperationalError,
+                    match=r"server closed the connection unexpectedly|Software caused connection abort",
+                ):
+                    cur.execute("select 1")
+
+
 def test_transaction_timeout(bouncer):
-    bouncer.admin(f"set pool_mode=transaction")
-    bouncer.admin(f"set transaction_timeout=2")
+    bouncer.admin("set pool_mode=transaction")
+    bouncer.admin("set transaction_timeout=2")
 
     with bouncer.transaction() as cur:
         with bouncer.log_contains(r"transaction timeout"):

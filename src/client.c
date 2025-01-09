@@ -490,6 +490,7 @@ bool check_user_connection_count(PgSocket *client)
 
 bool set_pool(PgSocket *client, const char *dbname, const char *username, const char *password, bool takeover)
 {
+	PgGlobalUser *global_user;
 	Assert((password && takeover) || (!password && !takeover));
 
 	/* find database */
@@ -601,9 +602,13 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			slog_info(client, "no such user: %s", username);
 			client->login_user_credentials = calloc(1, sizeof(*client->login_user_credentials));
 
-			client->login_user_credentials->global_user = find_or_add_new_global_user(username, NULL);
+			global_user = find_global_user(username);
+			if (global_user)
+				client->login_user_credentials->global_user = global_user;
+
 			if (!check_db_connection_count(client))
 				return false;
+
 			client->login_user_credentials->mock_auth = true;
 			safe_strcpy(client->login_user_credentials->name, username, sizeof(client->login_user_credentials->name));
 			if (!check_user_connection_count(client)) {

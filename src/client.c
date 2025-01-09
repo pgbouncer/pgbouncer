@@ -1018,6 +1018,7 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 		if (!res) {
 			pktbuf_free(buf);
 			disconnect_client(client, false, "unable to send protocol negotiation packet");
+			return false;
 		}
 	}
 

@@ -101,3 +101,13 @@ def test_target_session_attrs_any_primary_first(bouncer, replica):
 def test_target_session_attrs_any_primary_second(bouncer, replica):
     with bouncer.log_contains(r"127.0.0.2:\d+ new connection to server", 1):
         bouncer.test(dbname="any_primary_second")
+
+
+@pytest.mark.asyncio
+async def test_target_session_attrs_with_readonly_vars(bouncer, replica):
+    with bouncer.log_contains(r'ERROR varcache_apply failed: ERROR: parameter "in_hot_standby" cannot be changed', 0):
+        try:
+            # Execute two concurrent sleeps to force two backend connections.
+            await bouncer.asleep(dbname="multiple_hosts", duration=0.5, times=2)
+        except psycopg.OperationalError:
+            pytest.fail("Unexpected error connecting to pgbouncer with multiple hosts")

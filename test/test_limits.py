@@ -485,6 +485,9 @@ def test_user_client_count_db_connect_fail_3(bouncer) -> None:
         _ = bouncer.conn(**connect_args)
 
     users = bouncer.admin("SHOW USERS", row_factory=dict_row)
+    # We don't expect non-existent users which cannot authentiticate to show up
+    # in the stats at all. This would just pollute the output with people
+    # making typos or attackers trying random user accounts.
     assert len([user for user in users if user["name"] == test_user]) == 0
 
 

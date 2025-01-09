@@ -490,7 +490,6 @@ bool check_user_connection_count(PgSocket *client)
 
 bool set_pool(PgSocket *client, const char *dbname, const char *username, const char *password, bool takeover)
 {
-	PgGlobalUser *global_user;
 	Assert((password && takeover) || (!password && !takeover));
 
 	/* find database */
@@ -564,6 +563,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			return false;
 
 		if (!client->login_user_credentials || client->login_user_credentials->dynamic_passwd) {
+			PgGlobalUser *global_user;
 			/*
 			 * If the login user specified by the client
 			 * does not exist or if it has no entry in auth_file,
@@ -602,6 +602,14 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			slog_info(client, "no such user: %s", username);
 			client->login_user_credentials = calloc(1, sizeof(*client->login_user_credentials));
 
+			/*
+			 * For users that we are already tracking, we want to
+			 * track this correctly as a connection count. But for
+			 * users that we don't know about at all, we don't want
+			 * to create a new global user. That's why we use
+			 * find_global_user instead of
+			 * find_or_add_new_global_user.
+			 */
 			global_user = find_global_user(username);
 			if (global_user)
 				client->login_user_credentials->global_user = global_user;

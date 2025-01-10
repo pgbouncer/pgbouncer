@@ -991,6 +991,13 @@ it will be disconnected.  [seconds]
 
 Default: 0.0 (disabled)
 
+### transaction_timeout
+
+If a client has been in "in transaction" state longer,
+it will be disconnected.  [seconds]
+
+Default: 0.0 (disabled)
+
 ### suspend_timeout
 
 How long to wait for buffer flush during `SUSPEND` or reboot (`-R`).

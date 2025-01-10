@@ -7,6 +7,7 @@
  */
 
 #include "bouncer.h"
+#include "multithread.h"
 
 #include <usual/crypto/csrandom.h>
 #include <usual/hashtab-impl.h>
@@ -103,7 +104,8 @@ static PgClientPreparedStatement *create_client_prepared_statement(char const *n
  */
 static PgServerPreparedStatement *create_server_prepared_statement(PgPreparedStatement *ps)
 {
-	PgServerPreparedStatement *server_ps = slab_alloc(server_prepared_statement_cache);
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+	PgServerPreparedStatement *server_ps = slab_alloc(this_thread->server_prepared_statement_cache);
 	if (server_ps == NULL)
 		return NULL;
 
@@ -190,7 +192,9 @@ void free_server_prepared_statement(PgServerPreparedStatement *server_ps)
 		HASH_DEL(prepared_statements, server_ps->ps);
 		free(server_ps->ps);
 	}
-	slab_free(server_prepared_statement_cache, server_ps);
+
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+	slab_free(this_thread->server_prepared_statement_cache, server_ps);
 }
 
 /*

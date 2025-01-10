@@ -19,19 +19,11 @@
 extern struct AATree user_tree;
 extern struct StatList database_list;
 extern struct StatList peer_list;
-extern struct StatList autodatabase_idle_list;
-extern struct Slab *client_cache;
-extern struct Slab *server_cache;
 extern struct Slab *db_cache;
 extern struct Slab *peer_cache;
-extern struct Slab *peer_pool_cache;
-extern struct Slab *pool_cache;
-extern struct Slab *user_cache;
+extern struct StatList autodatabase_idle_list;
 extern struct Slab *credentials_cache;
-extern struct Slab *iobuf_cache;
 extern struct Slab *outstanding_request_cache;
-extern struct Slab *var_list_cache;
-extern struct Slab *server_prepared_statement_cache;
 extern PgPreparedStatement *prepared_statements;
 
 extern unsigned long long int last_pgsocket_id;

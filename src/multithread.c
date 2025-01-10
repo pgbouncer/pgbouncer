@@ -243,7 +243,7 @@ void start_threads(){
 }
 
 void init_threads(){
-	printf(" init_threads");
+	printf("init_threads \n");
 	for(int i=0;i<THREAD_NUM;i++){
 		init_thread(i);
 	}

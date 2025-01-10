@@ -830,7 +830,7 @@ void janitor_setup(void)
 		log_warning("event_add failed: %s", strerror(errno));
 }
 
-void kill_pool(struct StatList* pool_list, PgPool *pool)
+void kill_pool(PgPool *pool, int thread_id)
 {
 	const char *reason = "database removed";
 
@@ -851,13 +851,13 @@ void kill_pool(struct StatList* pool_list, PgPool *pool)
 	pktbuf_free(pool->welcome_msg);
 
 	list_del(&pool->map_head);
-	statlist_remove(pool_list, &pool->head);
+	statlist_remove(&threads[thread_id].pool_list, &pool->head);
 	varcache_clean(&pool->orig_vars);
-	slab_free(var_list_cache, pool->orig_vars.var_list);
-	slab_free(pool_cache, pool);
+	slab_free(&threads[thread_id].var_list_cache, pool->orig_vars.var_list);
+	slab_free(&threads[thread_id].pool_cache, pool);
 }
 
-void kill_peer_pool(struct StatList* peer_pool_list, PgPool *pool)
+void kill_peer_pool(PgPool *pool, int thread_id)
 {
 	const char *reason = "peer removed";
 
@@ -869,10 +869,10 @@ void kill_peer_pool(struct StatList* peer_pool_list, PgPool *pool)
 	pktbuf_free(pool->welcome_msg);
 
 	list_del(&pool->map_head);
-	statlist_remove(&peer_pool_list, &pool->head);
+	statlist_remove(&threads[thread_id].peer_pool_list, &pool->head);
 	varcache_clean(&pool->orig_vars);
-	slab_free(var_list_cache, pool->orig_vars.var_list);
-	slab_free(peer_pool_cache, pool);
+	slab_free(&threads[thread_id].var_list_cache, pool->orig_vars.var_list);
+	slab_free(&threads[thread_id].pool_cache, pool);
 }
 
 
@@ -888,7 +888,7 @@ void kill_database(PgDatabase *db)
 		statlist_for_each_safe(item, &(threads[thread_id].pool_list), tmp) {
 			pool = container_of(item, PgPool, head);
 			if (pool->db == db)
-				kill_pool(&(threads[thread_id].pool_list), pool);
+				kill_pool(&pool, thread_id);
 		}
 	}
 

@@ -28,6 +28,8 @@
 #include <usual/safeio.h>
 #include <usual/slab.h>
 
+#define MAX_SLAB_NAME 64
+
 /* those items will be allocated as needed, never freed */
 STATLIST(database_list);
 STATLIST(peer_list);
@@ -50,19 +52,10 @@ struct AATree pam_user_tree;
  */
 PgPreparedStatement *prepared_statements = NULL;
 
-
-struct Slab *server_cache;
-struct Slab *client_cache;
 struct Slab *db_cache;
 struct Slab *peer_cache;
-struct Slab *peer_pool_cache;
-struct Slab *pool_cache;
-struct Slab *user_cache;
 struct Slab *credentials_cache;
-struct Slab *iobuf_cache;
 struct Slab *outstanding_request_cache;
-struct Slab *var_list_cache;
-struct Slab *server_prepared_statement_cache;
 unsigned long long int last_pgsocket_id;
 
 /*
@@ -85,13 +78,21 @@ const char *replication_type_parameters[] = {
 /* fast way to get number of active clients */
 int get_active_client_count(void)
 {
-	return slab_active_count(client_cache);
+	int total_count_from_all_threads = 0;
+	for (int i = 0; i < THREAD_NUM; i++) {
+		total_count_from_all_threads += slab_active_count(threads[i].client_cache);
+	}
+	return total_count_from_all_threads;
 }
 
 /* fast way to get number of active servers */
 int get_active_server_count(void)
 {
-	return slab_active_count(server_cache);
+	int total_count_from_all_threads = 0;
+	for (int i = 0; i < THREAD_NUM; i++) {
+		total_count_from_all_threads += slab_active_count(threads[i].server_cache);
+	}
+	return total_count_from_all_threads;
 }
 
 static void construct_client(void *obj)
@@ -100,7 +101,9 @@ static void construct_client(void *obj)
 	memset(client, 0, sizeof(PgSocket));
 	list_init(&client->head);
 	sbuf_init(&client->sbuf, client_proto);
-	client->vars.var_list = slab_alloc(var_list_cache);
+
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+	client->vars.var_list = slab_alloc(this_thread->var_list_cache);
 	client->state = CL_FREE;
 	client->client_prepared_statements = NULL;
 
@@ -110,11 +113,12 @@ static void construct_client(void *obj)
 static void construct_server(void *obj)
 {
 	PgSocket *server = obj;
-
 	memset(server, 0, sizeof(PgSocket));
 	list_init(&server->head);
 	sbuf_init(&server->sbuf, server_proto);
-	server->vars.var_list = slab_alloc(var_list_cache);
+
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+	server->vars.var_list = slab_alloc(this_thread->var_list_cache);
 	server->state = SV_FREE;
 	server->server_prepared_statements = NULL;
 	statlist_init(&server->outstanding_requests, "outstanding_requests");
@@ -150,15 +154,37 @@ void init_objects(void)
 {
 	aatree_init(&user_tree, global_user_node_cmp, NULL);
 	aatree_init(&pam_user_tree, credentials_node_cmp, NULL);
-	user_cache = slab_create("user_cache", sizeof(PgGlobalUser), 0, NULL, USUAL_ALLOC);
+
+	printf("init_objects");
+	for (int i = 0; i < THREAD_NUM; i++) {		
+        char pool_cache_name[MAX_SLAB_NAME];
+		char peer_pool_cache_name[MAX_SLAB_NAME];
+		char user_cache_name[MAX_SLAB_NAME];
+		
+		snprintf(pool_cache_name, MAX_SLAB_NAME, "pool_cache_thread_%d", i);
+		snprintf(peer_pool_cache_name, MAX_SLAB_NAME, "peer_pool_cache_thread_%d", i);
+		snprintf(user_cache_name, MAX_SLAB_NAME, "user_cache_thread_%d", i);
+
+		threads[i].pool_cache = slab_create(pool_cache_name, sizeof(PgPool), 0, NULL, USUAL_ALLOC);
+		threads[i].peer_pool_cache = slab_create(peer_pool_cache_name, sizeof(PgPool), 0, NULL, USUAL_ALLOC);
+		threads[i].user_cache = slab_create(user_cache_name, sizeof(PgGlobalUser), 0, NULL, USUAL_ALLOC);
+
+		if (!threads[i].pool_cache)
+			fatal("cannot create initial pool_cache");
+
+		if (!threads[i].peer_pool_cache)
+			fatal("cannot create initial peer_pool_cache");
+
+		if (!threads[i].user_cache)
+			fatal("cannot create initial user_cache");
+	}
+
 	credentials_cache = slab_create("credentials_cache", sizeof(PgCredentials), 0, NULL, USUAL_ALLOC);
 	db_cache = slab_create("db_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
 	peer_cache = slab_create("peer_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
-	peer_pool_cache = slab_create("peer_pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
-	pool_cache = slab_create("pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
 	outstanding_request_cache = slab_create("outstanding_request_cache", sizeof(OutstandingRequest), 0, NULL, USUAL_ALLOC);
 
-	if (!user_cache || !db_cache || !peer_cache || !peer_pool_cache || !pool_cache)
+	if (!db_cache || !peer_cache)
 		fatal("cannot create initial caches");
 }
 
@@ -171,20 +197,37 @@ static void do_iobuf_reset(void *arg)
 /* initialization after config loading */
 void init_caches(void)
 {
-	server_cache = slab_create("server_cache", sizeof(PgSocket), 0, construct_server, USUAL_ALLOC);
-	client_cache = slab_create("client_cache", sizeof(PgSocket), 0, construct_client, USUAL_ALLOC);
-	iobuf_cache = slab_create("iobuf_cache", IOBUF_SIZE, 0, do_iobuf_reset, USUAL_ALLOC);
-	var_list_cache = slab_create("var_list_cache", sizeof(struct PStr *) * get_num_var_cached(), 0, NULL, USUAL_ALLOC);
-	server_prepared_statement_cache = slab_create("server_prepared_statement_cache", sizeof(PgServerPreparedStatement), 0, NULL, USUAL_ALLOC);
+	printf("init_caches");
+
+	for (int i = 0; i < THREAD_NUM; i++) {
+        char server_cache_name[MAX_SLAB_NAME];
+        char client_cache_name[MAX_SLAB_NAME];
+        char iobuf_cache_name[MAX_SLAB_NAME];
+        char var_list_cache_name[MAX_SLAB_NAME];
+        char server_prepared_statement_cache_name[MAX_SLAB_NAME];
+
+        snprintf(server_cache_name, MAX_SLAB_NAME, "server_cache_thread_%d", i);
+        snprintf(client_cache_name, MAX_SLAB_NAME, "client_cache_thread_%d", i);
+        snprintf(iobuf_cache_name, MAX_SLAB_NAME, "iobuf_cache_thread_%d", i);
+        snprintf(var_list_cache_name, MAX_SLAB_NAME, "var_list_cache_thread_%d", i);
+        snprintf(server_prepared_statement_cache_name, MAX_SLAB_NAME, "server_prepared_statement_cache_thread_%d", i);
+
+		threads[i].server_cache = slab_create(server_cache_name, sizeof(PgSocket), 0, construct_server, USUAL_ALLOC);
+		threads[i].client_cache = slab_create(client_cache_name, sizeof(PgSocket), 0, construct_client, USUAL_ALLOC);
+		threads[i].iobuf_cache = slab_create(iobuf_cache_name, IOBUF_SIZE, 0, do_iobuf_reset, USUAL_ALLOC);
+		threads[i].var_list_cache = slab_create(var_list_cache_name, sizeof(struct PStr *) * get_num_var_cached(), 0, NULL, USUAL_ALLOC);
+		threads[i].server_prepared_statement_cache = slab_create(server_prepared_statement_cache_name, sizeof(PgServerPreparedStatement), 0, NULL, USUAL_ALLOC);
+	}
 }
 
 /* free all memory related to the given client */
 static void client_free(PgSocket *client)
 {
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
 	free_client_prepared_statements(client);
 	varcache_clean(&client->vars);
-	slab_free(var_list_cache, client->vars.var_list);
-	slab_free(client_cache, client);
+	slab_free(this_thread->var_list_cache, client->vars.var_list);
+	slab_free(this_thread->client_cache, client);
 }
 
 /* free all memory related to the given server */
@@ -201,10 +244,11 @@ static void server_free(PgSocket *server)
 		slab_free(outstanding_request_cache, request);
 	}
 
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
 	free_server_prepared_statements(server);
 	varcache_clean(&server->vars);
-	slab_free(var_list_cache, server->vars.var_list);
-	slab_free(server_cache, server);
+	slab_free(this_thread->var_list_cache, server->vars.var_list);
+	slab_free(this_thread->server_cache, server);
 }
 
 
@@ -503,7 +547,8 @@ PgGlobalUser *update_global_user_passwd(PgGlobalUser *user, const char *passwd)
 
 static PgGlobalUser *add_new_global_user(const char *name, const char *passwd)
 {
-	PgGlobalUser *user = slab_alloc(user_cache);
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+	PgGlobalUser *user = slab_alloc(this_thread->user_cache);
 
 	if (!user)
 		return NULL;
@@ -513,7 +558,6 @@ static PgGlobalUser *add_new_global_user(const char *name, const char *passwd)
 	list_init(&user->head);
 	list_init(&user->pool_list);
 	safe_strcpy(user->credentials.name, name, sizeof(user->credentials.name));
-	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
 	put_in_order(&user->head, &(this_thread->user_list), cmp_user);
 
 	aatree_insert(&user_tree, (uintptr_t)user->credentials.name, &user->credentials.tree_node);
@@ -691,13 +735,14 @@ static PgPool *new_pool(PgDatabase *db, PgCredentials *user_credentials)
 {
 	PgPool *pool;
 
-	pool = slab_alloc(pool_cache);
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+	pool = slab_alloc(this_thread->pool_cache);
 	if (!pool)
 		return NULL;
 
 	list_init(&pool->head);
 	list_init(&pool->map_head);
-	pool->orig_vars.var_list = slab_alloc(var_list_cache);
+	pool->orig_vars.var_list = slab_alloc(this_thread->var_list_cache);
 
 	pool->user_credentials = user_credentials;
 	pool->db = db;
@@ -736,13 +781,14 @@ static PgPool *new_peer_pool(PgDatabase *db)
 {
 	PgPool *pool;
 
-	pool = slab_alloc(peer_pool_cache);
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+	pool = slab_alloc(this_thread->peer_pool_cache);
 	if (!pool)
 		return NULL;
 
 	list_init(&pool->head);
 	list_init(&pool->map_head);
-	pool->orig_vars.var_list = slab_alloc(var_list_cache);
+	pool->orig_vars.var_list = slab_alloc(this_thread->var_list_cache);
 
 	pool->db = db;
 
@@ -1895,6 +1941,8 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed)
 	 * this works just fine, because we only ever open a single connection at
 	 * once (see top of this function).
 	 */
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+
 	if (!statlist_empty(&pool->waiting_cancel_req_list) && max < (2 * pool_pool_size(pool))) {
 		log_debug("launch_new_connection: bypass pool limitations for cancel request");
 		goto force_new;
@@ -1962,7 +2010,7 @@ allow_new:
 
 force_new:
 	/* get free conn object */
-	server = slab_alloc(server_cache);
+	server = slab_alloc(this_thread->server_cache);
 	if (!server) {
 		log_debug("launch_new_connection: no memory");
 		return;
@@ -1988,8 +2036,10 @@ PgSocket *accept_client(int sock, bool is_unix)
 	bool res;
 	PgSocket *client;
 
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+
 	/* get free PgSocket */
-	client = slab_alloc(client_cache);
+	client = slab_alloc(this_thread->client_cache);
 	if (!client) {
 		log_warning("cannot allocate client struct");
 		safe_close(sock);
@@ -2389,7 +2439,8 @@ bool use_server_socket(int fd, PgAddr *addr,
 	if (!pool)
 		return false;
 
-	server = slab_alloc(server_cache);
+	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+	server = slab_alloc(this_thread->server_cache);
 	if (!server)
 		return false;
 
@@ -2674,31 +2725,31 @@ void objects_cleanup(void)
 		memset(&pam_user_tree, 0, sizeof (pam_user_tree));
 		memset(&(user_tree), 0, sizeof user_tree);
 		memset(&(autodatabase_idle_list), 0, sizeof (autodatabase_idle_list));
+
+		slab_destroy(threads[i].server_cache);
+		threads[i].server_cache = NULL;
+		slab_destroy(threads[i].client_cache);
+		threads[i].client_cache = NULL;
+		slab_destroy(threads[i].peer_pool_cache);
+		threads[i].peer_pool_cache = NULL;
+		slab_destroy(threads[i].pool_cache);
+		threads[i].pool_cache = NULL;
+		slab_destroy(threads[i].user_cache);
+		threads[i].user_cache = NULL;
+		slab_destroy(threads[i].iobuf_cache);
+		threads[i].iobuf_cache = NULL;
+		slab_destroy(threads[i].var_list_cache);
+		threads[i].var_list_cache = NULL;
+		slab_destroy(threads[i].server_prepared_statement_cache);
+		threads[i].server_prepared_statement_cache = NULL;
 	}
 
-
-	slab_destroy(server_cache);
-	server_cache = NULL;
-	slab_destroy(client_cache);
-	client_cache = NULL;
 	slab_destroy(db_cache);
 	db_cache = NULL;
 	slab_destroy(peer_cache);
 	peer_cache = NULL;
-	slab_destroy(peer_pool_cache);
-	peer_pool_cache = NULL;
-	slab_destroy(pool_cache);
-	pool_cache = NULL;
-	slab_destroy(user_cache);
-	user_cache = NULL;
 	slab_destroy(credentials_cache);
 	credentials_cache = NULL;
-	slab_destroy(iobuf_cache);
-	iobuf_cache = NULL;
 	slab_destroy(outstanding_request_cache);
 	outstanding_request_cache = NULL;
-	slab_destroy(var_list_cache);
-	var_list_cache = NULL;
-	slab_destroy(server_prepared_statement_cache);
-	server_prepared_statement_cache = NULL;
 }

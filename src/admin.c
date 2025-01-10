@@ -591,22 +591,30 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 	int total_login_clients = 0;
 	int total_pool_list = 0;
 	int total_peer_pool_list = 0;
+	int total_free_clients = 0;
+	int total_used_clients = 0;
+	int total_free_servers = 0;
+	int total_used_servers = 0;
 	int thread_id;
 	FOR_EACH_THREAD(thread_id){
 		total_users += statlist_count(&(threads[thread_id].user_list));
 		total_login_clients += statlist_count(&(threads[thread_id].login_client_list));
 		total_pool_list += statlist_count(&(threads[thread_id].pool_list));
 		total_peer_pool_list += statlist_count(&(threads[thread_id].peer_pool_list));
+		total_free_clients += slab_free_count(&(threads[thread_id].client_cache));
+		total_used_clients += slab_active_count(&(threads[thread_id].client_cache));
+		total_free_servers += slab_free_count(&(threads[thread_id].server_cache));
+		total_used_servers += slab_active_count(&(threads[thread_id].server_cache));
 	}
 	SENDLIST("users", total_users);
 	SENDLIST("peers", statlist_count(&peer_list));
 	SENDLIST("pools", total_pool_list);
 	SENDLIST("peer_pools", total_peer_pool_list);
-	SENDLIST("free_clients", slab_free_count(client_cache));
-	SENDLIST("used_clients", slab_active_count(client_cache));
+	SENDLIST("free_clients", total_free_clients);
+	SENDLIST("used_clients", total_used_clients);
 	SENDLIST("login_clients", total_login_clients);
-	SENDLIST("free_servers", slab_free_count(server_cache));
-	SENDLIST("used_servers", slab_active_count(server_cache));
+	SENDLIST("free_servers", total_free_servers);
+	SENDLIST("used_servers", total_used_servers);
 	{
 		int names, zones, qry, pend;
 		adns_info(adns, &names, &zones, &qry, &pend);
@@ -1517,7 +1525,7 @@ static bool admin_cmd_kill(PgSocket *admin, const char *arg)
 		statlist_for_each_safe(item, &(threads[thread_id].pool_list), tmp) {
 			pool = container_of(item, PgPool, head);
 			if (pool->db == db)
-				kill_pool(&(threads[thread_id].pool_list), pool);
+				kill_pool(pool, thread_id);
 		}
 	}
 

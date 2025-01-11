@@ -218,7 +218,9 @@ bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
 	HASH_ITER(hh, lookup_map, lk, tmp) {
 		sval = get_value(&server->vars, lk);
 		cval = get_value(&client->vars, lk);
-		changes += apply_var(pkt, lk->name, cval, sval);
+		if (lk->name && !strcmpeq(lk->name, "in_hot_standby")) {
+			changes += apply_var(pkt, lk->name, cval, sval);
+		}
 	}
 
 	*changes_p = changes > 0;

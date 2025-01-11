@@ -105,7 +105,10 @@ def test_target_session_attrs_any_primary_second(bouncer, replica):
 
 @pytest.mark.asyncio
 async def test_target_session_attrs_with_readonly_vars(bouncer, replica):
-    with bouncer.log_contains(r'ERROR varcache_apply failed: ERROR: parameter "in_hot_standby" cannot be changed', 0):
+    with bouncer.log_contains(
+        r'ERROR varcache_apply failed: ERROR: parameter "in_hot_standby" cannot be changed',
+        0,
+    ):
         try:
             # Execute two concurrent sleeps to force two backend connections.
             await bouncer.asleep(dbname="multiple_hosts", duration=0.5, times=2)

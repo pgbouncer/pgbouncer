@@ -329,7 +329,7 @@ async def test_already_paused_client_during_wait_for_servers_shutdown(bouncer):
         # start the request before the shutdown
         task = asyncio.ensure_future(cur2.execute("SELECT 1"))
         # We wait for one second so that the client goes to CL_WAITING state
-        done, pending = await asyncio.wait([task], timeout=1)
+        done, pending = await asyncio.wait([task], timeout=3)
         assert done == set()
         assert pending == {task}
         bouncer.admin("SHUTDOWN WAIT_FOR_SERVERS")

@@ -767,6 +767,19 @@ class Postgres(QueryRunner):
             cmd,
             stdout=subprocess.DEVNULL,
         )
+        if USE_UNIX_SOCKETS:
+            # If there are multiple Postgres processes we need to make the path to the
+            # replica socket distinct from that of the writer.
+            #
+            # Thanks to the portlock the Postgres writer sockets are unique in
+            # /tmp/.s.PGSQL.nnnn, this "namespaces" the replica sockets to
+            # /tmp/replica/.s.PGSQL.nnnn
+            replica_socket_dir = Path(gettempdir()) / "replica"
+            replica_socket_dir.mkdir
+            with self.conf_path.open(mode="a") as pgconf:
+                pgconf.write(
+                    f"unix_socket_directories = '#{replica_socket_dir}'" + "\n"
+                )
 
     def pgctl(self, command, **kwargs):
         run(f"pg_ctl -w --pgdata {self.pgdata} {command}", **kwargs)

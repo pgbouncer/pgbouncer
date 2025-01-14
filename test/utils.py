@@ -793,6 +793,10 @@ class Postgres(QueryRunner):
         try:
             if re.search("127.0.0.1", self.host) and HAVE_IPV6_LOCALHOST:
                 self.pgctl(f'-o "-p {self.port}" -l {self.log_path} start')
+            elif WINDOWS:
+                self.pgctl(
+                    f'-o " -k . -h {self.host} -p {self.port}" -l {self.log_path} start'
+                )
             else:
                 self.pgctl(
                     f"-o \" -k '' -h {self.host} -p {self.port}\" -l {self.log_path} start"

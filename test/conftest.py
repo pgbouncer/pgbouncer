@@ -6,6 +6,7 @@ import filelock
 import pytest
 
 from .utils import (
+    BSD,
     LDAP_SUPPORT,
     LINUX,
     LONG_PASSWORD,
@@ -184,7 +185,7 @@ def pg(tmp_path_factory, cert_dir):
 @pytest.fixture(scope="session")
 def replica(pg, tmp_path_factory):
     """Starts a new Postgres replica db that is shared for tests in this process"""
-    if MACOS:
+    if MACOS or BSD:
         sudo("ifconfig lo0 alias 127.0.0.2 netmask 0xff000000")
     replica = Postgres(tmp_path_factory.getbasetemp() / "pgdata_replica")
     replica.host = "127.0.0.2"

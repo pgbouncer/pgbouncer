@@ -144,12 +144,16 @@ def test_client_id(bouncer) -> None:
                 initial_id + i,
             ] == [client["id"] for client in clients]
 
-def test_client_states(bouncer):
 
+def test_client_states(bouncer):
     conn_1 = bouncer.conn(dbname="p3x", user="clientstate")
-    
+
     clients = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)
-    client_id = [client for client in clients if client["database"] == "p3x" and client["user"] == "clientstate"][0]["state"]
+    client_id = [
+        client
+        for client in clients
+        if client["database"] == "p3x" and client["user"] == "clientstate"
+    ][0]["state"]
     assert client_id == "idle"
 
     cur_1 = conn_1.cursor()
@@ -174,7 +178,11 @@ def test_client_states(bouncer):
     time.sleep(1)
 
     clients = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)
-    client_id = [client for client in clients if client["database"] == "p3x" and client["user"] == "clientstate"][0]["state"]
+    client_id = [
+        client
+        for client in clients
+        if client["database"] == "p3x" and client["user"] == "clientstate"
+    ][0]["state"]
     assert client_id == "waiting"
 
     bouncer.admin("RESUME p3x")
@@ -187,7 +195,11 @@ def test_client_states(bouncer):
     cur_1.execute("BEGIN; SELECT pg_sleep(5);")
 
     clients = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)
-    client_id = [client for client in clients if client["database"] == "p3x" and client["user"] == "clientstate"][0]["state"]
+    client_id = [
+        client
+        for client in clients
+        if client["database"] == "p3x" and client["user"] == "clientstate"
+    ][0]["state"]
     assert client_id == "active"
 
     # Rollback/commit to end the long-running transaction
@@ -196,6 +208,7 @@ def test_client_states(bouncer):
     # Cleanup
     cur_1.close()
     conn_1.close()
+
 
 def test_kill_client_nonexisting(bouncer):
     # Connect to client as user A

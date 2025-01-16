@@ -141,6 +141,7 @@ def pg(tmp_path_factory, cert_dir):
     pg.sql("create user maxedout5;")
     pg.sql("create user poolsize1;")
     pg.sql("create user respoolsize1;")
+    pg.sql("create user clientstate;")
     pg.sql("create user test_error_message_user;")
     pg.sql(f"create user longpass with password '{LONG_PASSWORD}';")
     pg.sql("create user stats password 'stats';")

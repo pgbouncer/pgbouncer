@@ -1635,7 +1635,10 @@ Example of a secure function for `auth_query`:
         WHERE usename = i_username INTO uname, phash;
         RETURN;
     END;
-    $$ LANGUAGE plpgsql SECURITY DEFINER;
+    $$ LANGUAGE plpgsql
+       SECURITY DEFINER
+       -- Set a secure search_path: trusted schema(s), then 'pg_temp'.
+       SET search_path = pg_catalog, pg_temp;
     REVOKE ALL ON FUNCTION pgbouncer.user_lookup(text) FROM public, pgbouncer;
     GRANT EXECUTE ON FUNCTION pgbouncer.user_lookup(text) TO pgbouncer;
 

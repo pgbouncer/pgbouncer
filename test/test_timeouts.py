@@ -347,8 +347,8 @@ def test_transaction_timeout_user(bouncer):
     # while configured to be in statement pooling mode
     with bouncer.run_with_config(config):
         with bouncer.transaction(dbname="postgres", user="puser1") as cur:
+            cur.execute("")
             with bouncer.log_contains(r"transaction timeout"):
-                cur.execute("")
                 time.sleep(7)
                 with pytest.raises(
                     psycopg.OperationalError,
@@ -377,8 +377,8 @@ def test_transaction_timeout(bouncer):
     bouncer.admin("SET transaction_timeout=6")
 
     with bouncer.transaction() as cur:
+        cur.execute("")
         with bouncer.log_contains(r"transaction timeout"):
-            cur.execute("")
             time.sleep(7)
             with pytest.raises(
                 psycopg.OperationalError,

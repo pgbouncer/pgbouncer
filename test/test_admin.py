@@ -19,15 +19,15 @@ def test_reload_error(bouncer):
     [pgbouncer]
     listen_addr = {bouncer.host}
     listen_port = {bouncer.port}
-    auth_type = {{auth_type}}
+    auth_type = trust
     admin_users = pgbouncer
     logfile = {bouncer.log_path}
     auth_file = {bouncer.auth_path}
     pool_mode = session
-    server_lifetime = 0
+    server_lifetime = {{server_lifetime}}
     """
-    good_config = config.format(auth_type="trust")
-    bad_config = config.format(auth_type="non_existant_auth_type")
+    good_config = config.format(server_lifetime=0)
+    bad_config = config.format(server_lifetime="invalid_server_lifetime")
     with bouncer.run_with_config(good_config):
         with bouncer.ini_path.open("w") as f:
             f.write(bad_config)

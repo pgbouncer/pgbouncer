@@ -1371,6 +1371,12 @@ Set the maximum number of seconds that a user can have an idle transaction open.
 If set this timeout overides the server level idle_transaction_timeout
 described above.
 
+### transaction_timeout
+
+Set the maximum number of seconds that a user can have a transaction open.
+If set this timeout overides the server level transaction_timeout
+described above.
+
 ### client_idle_timeout
 
 Set the maximum amount of time in seconds that a client is allowed to idly connect to

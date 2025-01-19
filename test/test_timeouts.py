@@ -311,17 +311,58 @@ def test_user_level_idle_client_timeout_override(bouncer):
                     cur.execute("SELECT 1")
 
 
+def test_transaction_timeout_user_overide_global(bouncer):
+    """
+    Test user level transaction timeout correctly overrides global setting.
+
+    Procedure:
+        - Start pgbouncer with config that has
+          user level transaction timeout of 2 seconds for user psuser1
+          and a global level setting of 10 seconds
+        - Start transaction with user puser1
+        - Wait 1 second
+        - Test that empty query works
+        - Wait 2 seconds
+        - Test that empty query raises psycopg.OperationalError
+    """
+    config = f"""
+        [databases]
+        postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+
+        [pgbouncer]
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = trust
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        transaction_timeout=10
+        pool_mode = session
+
+        [users]
+        puser1 = pool_mode=transaction transaction_timeout=2
+    """
+
+    with bouncer.run_with_config(config):
+        with bouncer.transaction(dbname="postgres", user="puser1") as cur:
+            time.sleep(1)
+            cur.execute("")
+            with bouncer.log_contains(r"transaction timeout"):
+                time.sleep(2)
+                with pytest.raises(
+                    psycopg.OperationalError,
+                    match=r"server closed the connection unexpectedly|Software caused connection abort",
+                ):
+                    cur.execute("")
+
+
 def test_transaction_timeout_user(bouncer):
     """
     Test user level transaction timeout.
 
-    Note that 6 seconds was chosen in this test because
-    bouncer.transaction seems to time out at lower timeout
-    values for valgrind pipeline.
-
     Procedure:
         - Start pgbouncer with config that has
-          user level transaction timeout of 6 seconds for user psuser1.
+          user level transaction timeout of 2 seconds for user psuser1.
         - Start transaction with user puser1
         - Wait 1 second
         - Test that empty query works

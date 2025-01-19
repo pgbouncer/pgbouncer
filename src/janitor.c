@@ -604,7 +604,7 @@ static void pool_server_maint(PgPool *pool)
 			 */
 			age_client = now - server->link->request_time;
 			age_server = now - server->request_time;
-			age_transaction = now - server->xact_start;
+			age_transaction = now - server->link->xact_start;
 
 			user_idle_transaction_timeout = server->login_user_credentials->global_user->idle_transaction_timeout;
 			user_transaction_timeout = server->login_user_credentials->global_user->transaction_timeout;

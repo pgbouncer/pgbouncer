@@ -323,8 +323,9 @@ def test_transaction_timeout_user(bouncer):
         - Start pgbouncer with config that has
           user level transaction timeout of 6 seconds for user psuser1.
         - Start transaction with user puser1
+        - Wait 1 second
         - Test that empty query works
-        - Wait 7 seconds
+        - Wait 2 seconds
         - Test that empty query raises psycopg.OperationalError
     """
     config = f"""
@@ -341,15 +342,15 @@ def test_transaction_timeout_user(bouncer):
         pool_mode = session
 
         [users]
-        puser1 = pool_mode=transaction transaction_timeout=6
+        puser1 = pool_mode=transaction transaction_timeout=2
     """
 
-    # while configured to be in statement pooling mode
     with bouncer.run_with_config(config):
         with bouncer.transaction(dbname="postgres", user="puser1") as cur:
+            time.sleep(1)
             cur.execute("")
             with bouncer.log_contains(r"transaction timeout"):
-                time.sleep(7)
+                time.sleep(2)
                 with pytest.raises(
                     psycopg.OperationalError,
                     match=r"server closed the connection unexpectedly|Software caused connection abort",
@@ -361,25 +362,23 @@ def test_transaction_timeout(bouncer):
     """
     Test pgbouncer level transaction timeout.
 
-    Note that 6 seconds was chosen in this test because
-    bouncer.transaction seems to time out at lower timeout
-    values for valgrind pipeline.
-
     Procedure:
         - Set pool_mode=transaction in admin console (default is statement)
-        - Set transaction_timeout=6
+        - Set transaction_timeout=2
         - start transaction.
+        - Wait one second
         - Execute empty query. Test that no error is raised
-        - Wait 7 seconds
+        - Wait 2 seconds
         - Execute emtpty query. Test that psycopg.OperationalError is raised
     """
     bouncer.admin("SET pool_mode=transaction")
-    bouncer.admin("SET transaction_timeout=6")
+    bouncer.admin("SET transaction_timeout=2")
 
     with bouncer.transaction() as cur:
+        time.sleep(1)
         cur.execute("")
         with bouncer.log_contains(r"transaction timeout"):
-            time.sleep(7)
+            time.sleep(2)
             with pytest.raises(
                 psycopg.OperationalError,
                 match=r"server closed the connection unexpectedly|Software caused connection abort",

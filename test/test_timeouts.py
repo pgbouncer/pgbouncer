@@ -366,13 +366,15 @@ def test_transaction_timeout(bouncer):
     values for valgrind pipeline.
 
     Procedure:
-        - Set transaction_timeout=6 in admin console.
+        - Set pool_mode=transaction in admin console (default is statement)
+        - Set transaction_timeout=6
         - start transaction.
         - Execute empty query. Test that no error is raised
         - Wait 7 seconds
         - Execute emtpty query. Test that psycopg.OperationalError is raised
     """
-    bouncer.admin("set transaction_timeout=6")
+    bouncer.admin("SET pool_mode=transaction")
+    bouncer.admin("SET transaction_timeout=6")
 
     with bouncer.transaction() as cur:
         with bouncer.log_contains(r"transaction timeout"):

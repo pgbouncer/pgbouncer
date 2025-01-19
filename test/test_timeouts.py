@@ -312,6 +312,21 @@ def test_user_level_idle_client_timeout_override(bouncer):
 
 
 def test_transaction_timeout_user(bouncer):
+    """
+    Test user level transaction timeout.
+
+    Note that 6 seconds was chosen in this test because
+    bouncer.transaction seems to time out at lower timeout
+    values for valgrind pipeline.
+
+    Procedure:
+        - Start pgbouncer with config that has
+          user level transaction timeout of 6 seconds for user psuser1.
+        - Start transaction with user puser1
+        - Test that empty query works
+        - Wait 7 seconds
+        - Test that empty query raises psycopg.OperationalError
+    """
     config = f"""
         [databases]
         postgres = host={bouncer.pg.host} port={bouncer.pg.port}
@@ -333,6 +348,7 @@ def test_transaction_timeout_user(bouncer):
     with bouncer.run_with_config(config):
         with bouncer.transaction(dbname="postgres", user="puser1") as cur:
             with bouncer.log_contains(r"transaction timeout"):
+                cur.execute("")
                 time.sleep(7)
                 with pytest.raises(
                     psycopg.OperationalError,
@@ -342,11 +358,25 @@ def test_transaction_timeout_user(bouncer):
 
 
 def test_transaction_timeout(bouncer):
-    bouncer.admin("set pool_mode=transaction")
+    """
+    Test pgbouncer level transaction timeout.
+
+    Note that 6 seconds was chosen in this test because
+    bouncer.transaction seems to time out at lower timeout
+    values for valgrind pipeline.
+
+    Procedure:
+        - Set transaction_timeout=6 in admin console.
+        - start transaction.
+        - Execute empty query. Test that no error is raised
+        - Wait 7 seconds
+        - Execute emtpty query. Test that psycopg.OperationalError is raised
+    """
     bouncer.admin("set transaction_timeout=6")
 
     with bouncer.transaction() as cur:
         with bouncer.log_contains(r"transaction timeout"):
+            cur.execute("")
             time.sleep(7)
             with pytest.raises(
                 psycopg.OperationalError,

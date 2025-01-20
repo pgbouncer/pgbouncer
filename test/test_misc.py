@@ -35,7 +35,6 @@ def test_server_check_query_default(pg, bouncer):
             with pg.log_contains(" LOG:  statement: \n"):
                 new_pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
 
-
     assert new_pid == pid
     pg.configure(config="log_statement = 'none'")
 

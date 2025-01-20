@@ -438,7 +438,7 @@ void load_config(void)
 {
 	static bool loaded = false;
 	bool ok;
-	const char *q = cf_server_check_query;
+	const char *q;
 	any_user_level_timeout_set = false;
 	empty_server_check_query = false;
 	any_user_level_client_timeout_set = false;
@@ -461,7 +461,7 @@ void load_config(void)
 		set_dbs_dead(false);
 	}
 
-
+	q = cf_server_check_query;
 	if (strcmpeq(q, "<empty>"))
 		empty_server_check_query = true;
 

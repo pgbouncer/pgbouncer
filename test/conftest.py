@@ -188,10 +188,9 @@ async def proxy(pg, tmp_path):
 
 @pytest.mark.asyncio
 @pytest.fixture
-async def bouncer(pg, proxy, tmp_path):
+async def bouncer(pg, tmp_path):
     """Starts a new PgBouncer process"""
-    bouncer = Bouncer(
-        pg, tmp_path / "bouncer", proxy)
+    bouncer = Bouncer(pg, tmp_path / "bouncer")
 
     await bouncer.start()
 

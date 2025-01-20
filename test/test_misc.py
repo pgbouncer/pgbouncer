@@ -8,10 +8,86 @@ import pytest
 from .utils import HAVE_IPV6_LOCALHOST, PG_MAJOR_VERSION, PKT_BUF_SIZE, WINDOWS
 
 
-def test_server_check_query_default(pg, bouncer, proxy):
+@pytest.mark.skipif("not LINUX", reason="socat proxy only available on linux")
+def test_server_check_query_default_negative(pg, bouncer, proxy):
     config = f"""
     [databases]
-    postgres = host={bouncer.proxy.host} port={bouncer.proxy.port}
+    postgres = host={proxy.host} port={proxy.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    auth_type = trust
+    admin_users = pgbouncer
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    auth_dbname = postgres
+    pool_mode = transaction
+    server_check_delay = 0
+    """
+    pg.configure(config="log_statement = 'all'")
+    pg.reload()
+
+    with bouncer.run_with_config(config):
+        with bouncer.cur(dbname="postgres", user="puser1") as cur:
+            pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
+
+        proxy.stop()
+        pg.sql(f"SELECT pg_terminate_backend({pid});")
+        proxy.start()
+
+        with bouncer.cur(dbname="postgres", user="puser1") as cur:
+            with pg.log_contains(" LOG:  statement: \n", times=0):
+                new_pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
+
+    assert new_pid != pid
+    pg.configure(config="log_statement = 'none'")
+
+
+@pytest.mark.skipif("not LINUX", reason="socat proxy only available on linux")
+def test_server_check_query_negative(pg, bouncer, proxy):
+    config = f"""
+    [databases]
+    postgres = host={proxy.host} port={proxy.port} pool_size=1
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    auth_type = trust
+    admin_users = pgbouncer
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    auth_dbname = postgres
+    pool_mode = transaction
+    server_check_query = SELECT 2
+    server_check_delay = 0
+    """
+    pg.configure(config="log_statement = 'all'")
+    pg.reload()
+
+    with bouncer.run_with_config(config):
+        with bouncer.cur(dbname="postgres", user="puser1") as cur:
+            pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
+
+        proxy.stop()
+        pg.sql(f"SELECT pg_terminate_backend({pid});")
+        proxy.start()
+
+        with bouncer.cur(dbname="postgres", user="puser1") as cur:
+            with pg.log_contains(" LOG:  statement: SELECT 2\n", times=0):
+                new_pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
+
+    assert new_pid != pid
+    pg.configure(config="log_statement = 'none'")
+
+
+def test_server_check_query_default(
+    pg,
+    bouncer,
+):
+    config = f"""
+    [databases]
+    postgres = host={pg.host} port={pg.port}
 
     [pgbouncer]
     listen_addr = {bouncer.host}
@@ -32,7 +108,7 @@ def test_server_check_query_default(pg, bouncer, proxy):
             pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
 
         with bouncer.cur(dbname="postgres", user="puser1") as cur:
-            with pg.log_contains(" LOG:  statement: \n"):
+            with pg.log_contains(" LOG:  statement: \n", times=1):
                 new_pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
 
     assert new_pid == pid
@@ -64,7 +140,7 @@ def test_server_check_query(pg, bouncer):
             pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
 
         with bouncer.cur(dbname="postgres", user="puser1") as cur:
-            with pg.log_contains(" LOG:  statement: SELECT 2"):
+            with pg.log_contains(" LOG:  statement: SELECT 2\n", times=1):
                 new_pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
 
     assert new_pid == pid

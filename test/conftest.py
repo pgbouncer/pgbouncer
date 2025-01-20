@@ -12,8 +12,8 @@ from .utils import (
     TLS_SUPPORT,
     USE_SUDO,
     Bouncer,
-    Proxy,
     Postgres,
+    Proxy,
     run,
     sudo,
 )

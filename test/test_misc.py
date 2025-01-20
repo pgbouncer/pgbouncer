@@ -8,10 +8,10 @@ import pytest
 from .utils import HAVE_IPV6_LOCALHOST, PG_MAJOR_VERSION, PKT_BUF_SIZE, WINDOWS
 
 
-def test_server_check_query_default(pg, bouncer):
+def test_server_check_query_default(pg, bouncer, proxy):
     config = f"""
     [databases]
-    postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+    postgres = host={bouncer.proxy.host} port={bouncer.proxy.port}
 
     [pgbouncer]
     listen_addr = {bouncer.host}

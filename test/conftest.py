@@ -12,6 +12,7 @@ from .utils import (
     TLS_SUPPORT,
     USE_SUDO,
     Bouncer,
+    Proxy,
     Postgres,
     run,
     sudo,
@@ -174,9 +175,23 @@ def pg(tmp_path_factory, cert_dir):
 
 @pytest.mark.asyncio
 @pytest.fixture
-async def bouncer(pg, tmp_path):
+async def proxy(pg, tmp_path):
+    """Starts a new proxy process"""
+    proxy = Proxy(pg)
+
+    proxy.start()
+
+    yield proxy
+
+    proxy.cleanup()
+
+
+@pytest.mark.asyncio
+@pytest.fixture
+async def bouncer(pg, proxy, tmp_path):
     """Starts a new PgBouncer process"""
-    bouncer = Bouncer(pg, tmp_path / "bouncer")
+    bouncer = Bouncer(
+        pg, tmp_path / "bouncer", proxy)
 
     await bouncer.start()
 

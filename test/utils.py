@@ -654,6 +654,39 @@ class QueryRunner:
         )
 
 
+class Proxy(QueryRunner):
+    def __init__(self, pg):
+        self.port_lock = PortLock()
+        super().__init__("127.0.0.1", self.port_lock.port)
+        self.connections = {}
+        self.pg = pg
+        self.cursors = {}
+        self.restarted = False
+        self.process: typing.Optional[subprocess.Popen] = None
+
+    def start(self):
+        command = [
+            "socat",
+            f"tcp-listen:{self.port_lock.port},reuseaddr,fork",
+            f"tcp:localhost:{self.pg.port_lock.port}"
+        ]
+        self.process = subprocess.Popen(
+            command, close_fds=True
+        )
+
+    def stop(self):
+        self.process.terminate()
+
+    def cleanup(self):
+        self.stop()
+        self.port_lock.release()
+
+    def restart(self):
+        self.restarted = True
+        self.stop()
+        self.start()
+
+
 class Postgres(QueryRunner):
     def __init__(self, pgdata):
         self.port_lock = PortLock()
@@ -860,6 +893,7 @@ class Bouncer(QueryRunner):
         self,
         pg: Postgres,
         config_dir: Path,
+        proxy: Proxy,
         base_ini_path=BOUNCER_INI,
         base_auth_path=BOUNCER_AUTH,
         port=None,
@@ -880,6 +914,7 @@ class Bouncer(QueryRunner):
         self.auth_path = self.config_dir / "userlist.txt"
         self.default_db = "p0"
         self.pg = pg
+        self.proxy = proxy
 
         if USE_UNIX_SOCKETS:
             if LINUX:
@@ -910,7 +945,7 @@ class Bouncer(QueryRunner):
 
         with open(base_ini_path) as base_ini:
             with self.ini_path.open("w") as ini:
-                ini.write(base_ini.read().replace("port=6666", f"port={pg.port}"))
+                ini.write(base_ini.read().replace("port=6666", f"port={pg.port}").replace("port=6667", f"port={proxy.port}"))
                 ini.write("\n")
                 ini.write(f"logfile = {self.log_path}\n")
                 ini.write(f"auth_file = {self.auth_path}\n")

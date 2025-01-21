@@ -10,6 +10,17 @@ from .utils import HAVE_IPV6_LOCALHOST, LINUX, PG_MAJOR_VERSION, PKT_BUF_SIZE, W
 
 @pytest.mark.skipif("not LINUX", reason="socat proxy only available on linux")
 def test_server_check_query_default_negative(pg, bouncer, proxy):
+    """
+    Test that default server check query correctly spots bad connection.
+
+    Bad connection is created by simulating a network failure by proxying
+    postgres behind socat. The socat process is killed right before the
+    postgres process is terminated, after this socat is started again.
+
+    The expectation is that the health check query will not show up
+    in the postgres log, a new connection with a new pid will be granted
+    to the client without any exception being raised.
+    """
     config = f"""
     [databases]
     postgres = host={proxy.host} port={proxy.port}
@@ -46,6 +57,17 @@ def test_server_check_query_default_negative(pg, bouncer, proxy):
 
 @pytest.mark.skipif("not LINUX", reason="socat proxy only available on linux")
 def test_server_check_query_negative(pg, bouncer, proxy):
+    """
+    Test that a custom server check query correctly spots bad connection.
+
+    Bad connection is created by simulating a network failure by proxying
+    postgres behind socat. The socat process is killed right before the
+    postgres process is terminated, after this socat is started again.
+
+    The expectation is that the health check query will not show up
+    in the postgres log, a new connection with a new pid will be granted
+    to the client without any exception being raised.
+    """
     config = f"""
     [databases]
     postgres = host={proxy.host} port={proxy.port} pool_size=1
@@ -85,6 +107,15 @@ def test_server_check_query_default(
     pg,
     bouncer,
 ):
+    """
+    Test that a default server check query correctly checks for a bad connection.
+
+    In this case there will be no bad connection.
+
+    The expectation is that the health check query will show up
+    in the postgres log once, the previously used postgres process will be
+    provided to the user as validated by the pid.
+    """
     config = f"""
     [databases]
     postgres = host={pg.host} port={pg.port}
@@ -116,6 +147,15 @@ def test_server_check_query_default(
 
 
 def test_server_check_query(pg, bouncer):
+    """
+    Test that a custom server check query correctly checks for a bad connection.
+
+    In this case there will be no bad connection.
+
+    The expectation is that the health check query will show up
+    in the postgres log once, the previously used postgres process will be
+    provided to the user as validated by the pid.
+    """
     config = f"""
     [databases]
     postgres = host={bouncer.pg.host} port={bouncer.pg.port} pool_size=1

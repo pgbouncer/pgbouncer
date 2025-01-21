@@ -271,7 +271,8 @@ async def test_repeated_sigterm(bouncer):
         bouncer.sigterm()
         await bouncer.wait_for_exit()
         with pytest.raises(
-            psycopg.OperationalError, match="server closed the connection unexpectedly"
+            psycopg.OperationalError,
+            match="database removed|server closed the connection unexpectedly",
         ):
             cur.execute("SELECT 1")
         assert not bouncer.running()
@@ -298,7 +299,8 @@ async def test_repeated_sigint(bouncer):
         bouncer.sigint()
         await bouncer.wait_for_exit()
         with pytest.raises(
-            psycopg.OperationalError, match="server closed the connection unexpectedly"
+            psycopg.OperationalError,
+            match="database removed|server closed the connection unexpectedly",
         ):
             cur.execute("SELECT 1")
         assert not bouncer.running()

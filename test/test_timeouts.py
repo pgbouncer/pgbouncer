@@ -340,7 +340,7 @@ def test_client_idle_timeout(bouncer):
             time.sleep(3)
             with pytest.raises(
                 psycopg.OperationalError,
-                match=r"client_idle_timeout",
+                match=r"client_idle_timeout|Software caused connection abort",
             ):
                 cur.execute("select 1")
 

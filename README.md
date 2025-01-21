@@ -18,6 +18,7 @@ PgBouncer depends on few things to get compiled:
 * [OpenSSL] 1.0.1+ for TLS support
 * (optional) [c-ares] as alternative to Libevent's evdns
 * (optional) PAM libraries
+* (optional) LDAP libraries
 
 [GNU Make]: https://www.gnu.org/software/make/
 [Libevent]: http://libevent.org/

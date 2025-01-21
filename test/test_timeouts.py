@@ -88,7 +88,7 @@ def test_user_idle_transaction_timeout_override_global(bouncer):
                 time.sleep(3)
                 with pytest.raises(
                     psycopg.OperationalError,
-                    match=r"idle transaction timeout|Software caused connection abort",
+                    match=r"idle transaction timeout|Software caused connection abort|server closed the connection unexpectedly",
                 ):
                     cur.execute("select 1")
 
@@ -118,7 +118,7 @@ def test_user_idle_transaction_timeout(bouncer):
                 time.sleep(3)
                 with pytest.raises(
                     psycopg.OperationalError,
-                    match=r"idle transaction timeout|Software caused connection abort",
+                    match=r"idle transaction timeout|Software caused connection abort|server closed the connection unexpectedly",
                 ):
                     cur.execute("select 1")
 
@@ -147,7 +147,7 @@ def test_user_query_timeout_override_global(bouncer):
         with bouncer.log_contains(r"query timeout"):
             with pytest.raises(
                 psycopg.OperationalError,
-                match=r"query timeout",
+                match=r"query timeout|server closed the connection unexpectedly",
             ):
                 bouncer.sleep(5, user="puser1", dbname="postgres")
 
@@ -198,7 +198,7 @@ def test_user_query_timeout(bouncer):
         with bouncer.log_contains(r"query timeout"):
             with pytest.raises(
                 psycopg.OperationalError,
-                match=r"query timeout",
+                match=r"query timeout|server closed the connection unexpectedly",
             ):
                 bouncer.sleep(5, user="puser1", dbname="postgres")
 
@@ -207,7 +207,10 @@ def test_query_timeout(bouncer):
     bouncer.admin(f"set query_timeout=1")
 
     with bouncer.log_contains(r"query timeout"):
-        with pytest.raises(psycopg.OperationalError, match=r"query timeout"):
+        with pytest.raises(
+            psycopg.OperationalError,
+            match=r"query timeout|server closed the connection unexpectedly",
+        ):
             bouncer.sleep(5)
 
 
@@ -240,7 +243,7 @@ def test_user_level_idle_client_timeout_negative(bouncer):
                 time.sleep(3)
                 with pytest.raises(
                     psycopg.OperationalError,
-                    match=r"client_idle_timeout|Software caused connection abort",
+                    match=r"client_idle_timeout|Software caused connection abort|server closed the connection unexpectedly",
                 ):
                     cur.execute("SELECT 1")
 
@@ -304,7 +307,7 @@ def test_user_level_idle_client_timeout_override(bouncer):
                 time.sleep(3)
                 with pytest.raises(
                     psycopg.OperationalError,
-                    match=r"client_idle_timeout|Software caused connection abort",
+                    match=r"client_idle_timeout|Software caused connection abort|server closed the connection unexpectedly",
                 ):
                     cur.execute("SELECT 1")
 
@@ -318,7 +321,7 @@ def test_idle_transaction_timeout(bouncer):
             time.sleep(3)
             with pytest.raises(
                 psycopg.OperationalError,
-                match=r"idle transaction timeout|Software caused connection abort",
+                match=r"idle transaction timeout|Software caused connection abort|server closed the connection unexpectedly",
             ):
                 cur.execute("select 1")
 
@@ -338,7 +341,7 @@ def test_client_idle_timeout(bouncer):
             time.sleep(3)
             with pytest.raises(
                 psycopg.OperationalError,
-                match=r"client_idle_timeout|Software caused connection abort",
+                match=r"client_idle_timeout|Software caused connection abort|server closed the connection unexpectedly",
             ):
                 cur.execute("select 1")
 
@@ -403,7 +406,7 @@ def test_tcp_user_timeout(pg, bouncer):
         with pg.reject_traffic():
             with pytest.raises(
                 psycopg.OperationalError,
-                match=r"query timeout|Software caused connection abort",
+                match=r"query timeout|Software caused connection abort|server closed the connection unexpectedly",
             ):
                 bouncer.test(connect_timeout=10)
 

@@ -207,9 +207,7 @@ def test_query_timeout(bouncer):
     bouncer.admin(f"set query_timeout=1")
 
     with bouncer.log_contains(r"query timeout"):
-        with pytest.raises(
-            psycopg.OperationalError, match=r"query timeout"
-        ):
+        with pytest.raises(psycopg.OperationalError, match=r"query timeout"):
             bouncer.sleep(5)
 
 

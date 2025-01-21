@@ -28,7 +28,7 @@ def test_fast_close(bouncer):
 
             with pytest.raises(
                 psycopg.OperationalError,
-                match=r"server closed the connection unexpectedly|Software caused connection abort",
+                match=r"database configuration changed|Software caused connection abort",
             ):
                 cur.execute("select 1")
 

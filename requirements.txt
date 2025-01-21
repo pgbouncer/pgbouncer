@@ -2,6 +2,6 @@ pytest
 pytest-asyncio
 pytest-timeout
 pytest-xdist
-psycopg==3.2.3
+psycopg==3.2.4
 filelock
 contextlib2; python_version < "3.7"

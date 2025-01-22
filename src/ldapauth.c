@@ -614,9 +614,7 @@ static bool InitializeLDAPConnection(struct ldap_auth_request *request, LDAP **l
 	struct timeval ts;
 
 	scheme = request->ldapscheme;
-	if (request->ldaptls)
-		scheme = "ldaps";
-	else if (scheme == NULL)
+	if (scheme == NULL)
 		scheme = "ldap";
 	/*
 	 * OpenLDAP provides a non-standard extension ldap_initialize() that takes
@@ -726,6 +724,15 @@ static bool InitializeLDAPConnection(struct ldap_auth_request *request, LDAP **l
 		return false;
 	}
 
+	if (request->ldaptls) {
+		if ((r = ldap_start_tls_s(*ldap, NULL, NULL)) != LDAP_SUCCESS) {
+			log_warning("could not start LDAP TLS session: %s, server: %s, port: %d",
+				    ldap_err2string(r), request->ldapserver, request->ldapport);
+			ldap_unbind(*ldap);
+			return false;
+		}
+	}
+
 	return true;
 }
 /* Placeholders recognized by format_search_filter.  For now just one. */
@@ -769,13 +776,11 @@ static bool check_ldap_auth(struct ldap_auth_request *request)
 	}
 
 	if (request->ldapport == 0) {
-		if (((request->ldapscheme != NULL &&
-		      strcmp(request->ldapscheme, "ldaps") == 0)) || (request->ldaptls))
+		if (request->ldapscheme != NULL &&
+		    strcmp(request->ldapscheme, "ldaps") == 0)
 			request->ldapport = LDAPS_PORT;
 		else
 			request->ldapport = LDAP_PORT;
-	} else if (request->ldapport == LDAP_PORT && request->ldaptls) {
-		request->ldapport = LDAPS_PORT;
 	}
 
 	if (request->password[0] == '\0') {

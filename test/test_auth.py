@@ -1217,6 +1217,43 @@ def test_ldap_auth(bouncer_with_openldap):
         )
     bouncer_with_openldap.admin("reload")
     bouncer_with_openldap.test(user="ldapuser1", password="secret1")
+    # 8.6 test ldaps with normal ldap port, connection failed
+    with open(hba_conf_file, "w") as f:
+        f.write(
+            f"host all ldapuser1 0.0.0.0/0 ldap "
+            f'ldapurl="ldaps://127.0.0.1:{openldap.ldap_port}/dc=example,dc=net??sub?(|(uid=$username)(mail=$username))"'
+        )
+    bouncer_with_openldap.admin("reload")
+    with pytest.raises(psycopg.OperationalError, match="connection failed"):
+        bouncer_with_openldap.test(user="ldapuser1", password="secret1")
+    # 8.7 test ldap with ldaptls=1 with ldap ssl port, connection failed, compared with 8.2
+    with open(hba_conf_file, "w") as f:
+        f.write(
+            "host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 "
+            f'ldapport={openldap.ldaps_port} ldapprefix="uid=" '
+            f'ldapsuffix=",dc=example,dc=net" ldaptls=1\n'
+        )
+    bouncer_with_openldap.admin("reload")
+    with pytest.raises(psycopg.OperationalError, match="connection failed"):
+        bouncer_with_openldap.test(user="ldapuser1", password="secret1")
+    # 8.8 test ldap with ldaps:// and ldaptls=1 both set with ldap port, connection failed
+    with open(hba_conf_file, "w") as f:
+        f.write(
+            f"host all ldapuser1 0.0.0.0/0 ldap "
+            f'ldapurl="ldaps://127.0.0.1:{openldap.ldaps_port}/dc=example,dc=net??sub?(|(uid=$username)(mail=$username))" ldaptls=1'
+        )
+    bouncer_with_openldap.admin("reload")
+    with pytest.raises(psycopg.OperationalError, match="connection failed"):
+        bouncer_with_openldap.test(user="ldapuser1", password="secret1")
+    # 8.9 test ldap with ldaps:// and ldaptls=1 both set with ldap ssl port, connection failed
+    with open(hba_conf_file, "w") as f:
+        f.write(
+            f"host all ldapuser1 0.0.0.0/0 ldap "
+            f'ldapurl="ldaps://127.0.0.1:{openldap.ldap_port}/dc=example,dc=net??sub?(|(uid=$username)(mail=$username))" ldaptls=1'
+        )
+    bouncer_with_openldap.admin("reload")
+    with pytest.raises(psycopg.OperationalError, match="connection failed"):
+        bouncer_with_openldap.test(user="ldapuser1", password="secret1")
     # 9 test "hba format"
     with open(hba_conf_file, "w") as f:
         f.write(

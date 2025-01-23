@@ -1190,7 +1190,7 @@ def test_ldap_auth(bouncer_with_openldap):
     with open(hba_conf_file, "w") as f:
         f.write(
             "host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 "
-            f'ldapport={openldap.ldaps_port} ldapprefix="uid=" '
+            f'ldapport={openldap.ldap_port} ldapprefix="uid=" '
             f'ldapsuffix=",dc=example,dc=net" ldaptls=1\n'
         )
     bouncer_with_openldap.admin("reload")
@@ -1198,7 +1198,7 @@ def test_ldap_auth(bouncer_with_openldap):
     # 8.3 test "search+bind"
     with open(hba_conf_file, "w") as f:
         f.write(
-            f'host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 ldapport={openldap.ldaps_port} ldapbasedn="dc=example,dc=net" ldaptls=1'
+            f'host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 ldapport={openldap.ldap_port} ldapbasedn="dc=example,dc=net" ldaptls=1'
         )
     bouncer_with_openldap.admin("reload")
     bouncer_with_openldap.test(user="ldapuser1", password="secret1")
@@ -1212,7 +1212,7 @@ def test_ldap_auth(bouncer_with_openldap):
     # 8.5 test "search filters in LDAP URLs"
     with open(hba_conf_file, "w") as f:
         f.write(
-            f"host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 ldapport={openldap.ldaps_port} "
+            f"host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 ldapport={openldap.ldap_port} "
             f'ldapbasedn="dc=example,dc=net" ldapsearchfilter="uid=$username" ldaptls=1'
         )
     bouncer_with_openldap.admin("reload")

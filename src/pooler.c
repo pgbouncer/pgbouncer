@@ -35,6 +35,7 @@ struct ListenSocket {
 };
 
 static STATLIST(sock_list);
+static STATLIST(sock_list_shutdown);
 
 /* hints for getaddrinfo(listen_addr) */
 static const struct addrinfo hints = {
@@ -69,6 +70,29 @@ void cleanup_sockets(void)
 
 	while ((el = statlist_pop(&sock_list)) != NULL) {
 		ls = container_of(el, struct ListenSocket, node);
+		if (pga_is_unix(&ls->addr) && cf_unix_socket_dir[0] != '@') {
+			statlist_append(&sock_list_shutdown, &ls->node);
+			// statlist_remove(&sock_list, &ls->node);
+			continue;
+		}
+		if (event_del(&ls->ev) < 0) {
+			log_warning("cleanup_sockets, event_del: %s", strerror(errno));
+		}
+		if (ls->fd > 0) {
+			safe_close(ls->fd);
+			ls->fd = 0;
+		}
+		statlist_remove(&sock_list, &ls->node);
+		free(ls);
+	}
+}
+
+void cleanup_sockets_unix(void)
+{
+	struct ListenSocket *ls;
+	struct List *el;
+	while ((el = statlist_pop(&sock_list_shutdown)) != NULL) {
+		ls = container_of(el, struct ListenSocket, node);
 		if (event_del(&ls->ev) < 0) {
 			log_warning("cleanup_sockets, event_del: %s", strerror(errno));
 		}
@@ -80,8 +104,9 @@ void cleanup_sockets(void)
 			char buf[sizeof(struct sockaddr_un) + 20];
 			snprintf(buf, sizeof(buf), "%s/.s.PGSQL.%d", cf_unix_socket_dir, cf_listen_port);
 			unlink(buf);
+			statlist_remove(&sock_list_shutdown, &ls->node);
 		}
-		statlist_remove(&sock_list, &ls->node);
+		statlist_remove(&sock_list_shutdown, &ls->node);
 		free(ls);
 	}
 }
@@ -575,6 +600,12 @@ bool for_each_pooler_fd(pooler_cb cbfunc, void *arg)
 	bool ok;
 
 	statlist_for_each(el, &sock_list) {
+		ls = container_of(el, struct ListenSocket, node);
+		ok = cbfunc(arg, ls->fd, &ls->addr);
+		if (!ok)
+			return false;
+	}
+	statlist_for_each(el, &sock_list_shutdown) {
 		ls = container_of(el, struct ListenSocket, node);
 		ok = cbfunc(arg, ls->fd, &ls->addr);
 		if (!ok)

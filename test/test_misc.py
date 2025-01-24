@@ -5,7 +5,13 @@ import time
 import psycopg
 import pytest
 
-from .utils import HAVE_IPV6_LOCALHOST, PG_MAJOR_VERSION, PKT_BUF_SIZE, WINDOWS
+from .utils import (
+    HAVE_IPV6_LOCALHOST,
+    PG_MAJOR_VERSION,
+    PKT_BUF_SIZE,
+    USE_UNIX_SOCKETS,
+    WINDOWS,
+)
 
 
 def test_connect_query(bouncer):
@@ -339,6 +345,29 @@ async def test_already_paused_client_during_wait_for_servers_shutdown(bouncer):
         with bouncer.log_contains(r"closing because: server shutting down"):
             with pytest.raises(psycopg.OperationalError):
                 await task
+
+
+@pytest.mark.skipif(
+    "not USE_UNIX_SOCKETS", reason="This test does not apply to non unix sockets"
+)
+def test_shutdown_wait_for_clients(bouncer):
+    """
+    Test that after issu
+    """
+    with bouncer.cur() as cur, bouncer.admin_runner.cur():
+        cur.execute("SELECT 1")
+        bouncer.admin("SHUTDOWN WAIT_FOR_CLIENTS")
+
+        time.sleep(2)
+        bouncer.sql(query=";", host=bouncer.config_dir)
+        with pytest.raises(psycopg.errors.OperationalError):
+            bouncer.sql(query=";", host="127.0.0.1")
+
+    # Wait for janitor to close unix socket
+    time.sleep(2)
+
+    with pytest.raises(psycopg.errors.OperationalError):
+        bouncer.sql(query=";", host=bouncer.config_dir)
 
 
 def test_resume_during_shutdown(bouncer):

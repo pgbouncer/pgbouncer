@@ -23,6 +23,7 @@ void suspend_pooler(void);
 void per_loop_pooler_maint(void);
 void pooler_tune_accept(bool on);
 void cleanup_sockets(void);
+void cleanup_sockets_unix(void);
 
 typedef bool (*pooler_cb)(void *arg, int fd, const PgAddr *addr);
 bool for_each_pooler_fd(pooler_cb cb, void *arg);

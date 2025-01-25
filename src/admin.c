@@ -1850,7 +1850,9 @@ void admin_setup(void)
 	if (!db)
 		die("no memory for admin database");
 
-	db->port = cf_listen_port;
+	// TODO select first port
+	// db->port = cf_listen_port;
+	db->port = 6432;
 	db->pool_size = 2;
 	db->admin = true;
 	db->pool_mode = POOL_STMT;

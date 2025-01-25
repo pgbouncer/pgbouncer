@@ -138,7 +138,8 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 
 	/* fill address */
 	if (strcmp(saddr, "unix") == 0) {
-		pga_set(&addr, AF_UNIX, cf_listen_port);
+		// pga_set(&addr, AF_UNIX, cf_listen_port);
+		pga_set(&addr, AF_UNIX, 6432);
 	} else {
 		if (!pga_pton(&addr, saddr, port))
 			fatal("failed to convert address: %s", saddr);

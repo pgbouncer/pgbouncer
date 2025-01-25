@@ -78,7 +78,8 @@ void cleanup_sockets(void)
 		}
 		if (pga_is_unix(&ls->addr) && cf_unix_socket_dir[0] != '@') {
 			char buf[sizeof(struct sockaddr_un) + 20];
-			snprintf(buf, sizeof(buf), "%s/.s.PGSQL.%d", cf_unix_socket_dir, cf_listen_port);
+			// snprintf(buf, sizeof(buf), "%s/.s.PGSQL.%d", cf_unix_socket_dir, cf_listen_port);
+			snprintf(buf, sizeof(buf), "%s/.s.PGSQL.%d", cf_unix_socket_dir, 6432);
 			unlink(buf);
 		}
 		statlist_remove(&sock_list, &ls->node);
@@ -176,7 +177,8 @@ static bool add_listen(int af, const struct sockaddr *sa, int salen)
 	list_init(&ls->node);
 	ls->fd = sock;
 	if (sa->sa_family == AF_UNIX) {
-		pga_set(&ls->addr, AF_UNIX, cf_listen_port);
+		// pga_set(&ls->addr, AF_UNIX, cf_listen_port);
+		pga_set(&ls->addr, AF_UNIX, 6432);
 	} else {
 		pga_copy(&ls->addr, sa);
 	}
@@ -397,7 +399,8 @@ bool use_pooler_socket(int sock, bool is_unix)
 		return false;
 	ls->fd = sock;
 	if (is_unix) {
-		pga_set(&ls->addr, AF_UNIX, cf_listen_port);
+		// pga_set(&ls->addr, AF_UNIX, cf_listen_port);
+		pga_set(&ls->addr, AF_UNIX, 6432);
 	} else {
 		struct sockaddr_storage ss;
 		socklen_t len = sizeof(ss);
@@ -475,12 +478,14 @@ static bool parse_addr(void *arg, const char *addr)
 
 	if (strcmp(addr, "*") == 0)
 		addr = NULL;
-	snprintf(service, sizeof(service), "%d", cf_listen_port);
+	// snprintf(service, sizeof(service), "%d", cf_listen_port);
+	snprintf(service, sizeof(service), "%d", 6432);
 
 	res = getaddrinfo(addr, service, &hints, &gaires);
 	if (res != 0) {
 		die("getaddrinfo('%s', '%d') = %s [%d]", addr ? addr : "*",
-		    cf_listen_port, gai_strerror(res), res);
+		    6432, gai_strerror(res), res);
+		    //cf_listen_port, gai_strerror(res), res);
 	}
 
 	for (ai = gaires; ai; ai = ai->ai_next) {
@@ -497,6 +502,13 @@ static bool parse_addr(void *arg, const char *addr)
 
 	freeaddrinfo(gaires);
 	return true;
+}
+
+static bool create_unix_sockets(void *arg, const char *s)
+{
+	int port = atoi(s);
+	create_unix_socket(cf_unix_socket_dir, port);
+        return 1;
 }
 
 /* listen on socket - should happen after all other initializations */
@@ -559,7 +571,9 @@ void pooler_setup(void)
 			die("failed to listen on any address in listen_addr list: %s", cf_listen_addr);
 
 		if (cf_unix_socket_dir && *cf_unix_socket_dir)
-			create_unix_socket(cf_unix_socket_dir, cf_listen_port);
+		    if (!parse_word_list(cf_listen_port, create_unix_sockets, NULL))
+			die("failed to parse cf_listen_port in config %s", cf_listen_port);
+
 	}
 
 	if (!statlist_count(&sock_list))
@@ -567,6 +581,7 @@ void pooler_setup(void)
 
 	resume_pooler();
 }
+
 
 bool for_each_pooler_fd(pooler_cb cbfunc, void *arg)
 {

@@ -85,7 +85,7 @@ static char *global_username;
 char *cf_config_file;
 
 char *cf_listen_addr;
-int cf_listen_port;
+char *cf_listen_port;
 int cf_listen_backlog;
 char *cf_unix_socket_dir;
 int cf_unix_socket_mode;
@@ -273,7 +273,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("job_name", CF_STR, cf_jobname, CF_NO_RELOAD, "pgbouncer"),
 	CF_ABS("listen_addr", CF_STR, cf_listen_addr, CF_NO_RELOAD, ""),
 	CF_ABS("listen_backlog", CF_INT, cf_listen_backlog, CF_NO_RELOAD, "128"),
-	CF_ABS("listen_port", CF_INT, cf_listen_port, CF_NO_RELOAD, "6432"),
+	CF_ABS("listen_port", CF_STR, cf_listen_port, CF_NO_RELOAD, "6432"),
 	CF_ABS("log_connections", CF_INT, cf_log_connections, 0, "1"),
 	CF_ABS("log_disconnections", CF_INT, cf_log_disconnections, 0, "1"),
 	CF_ABS("log_pooler_errors", CF_INT, cf_log_pooler_errors, 0, "1"),
@@ -832,7 +832,8 @@ static bool check_old_process_unix(void)
 	memset(&sa_un, 0, len);
 	sa_un.sun_family = domain;
 	snprintf(sa_un.sun_path, sizeof(sa_un.sun_path),
-		 "%s/.s.PGSQL.%d", cf_unix_socket_dir, cf_listen_port);
+		 "%s/.s.PGSQL.%d", cf_unix_socket_dir, 6432);
+	//	 "%s/.s.PGSQL.%d", cf_unix_socket_dir, cf_listen_port);
 
 	fd = socket(domain, SOCK_STREAM, 0);
 	if (fd < 0)

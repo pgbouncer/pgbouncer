@@ -282,7 +282,8 @@ void fill_remote_addr(PgSocket *sk, int fd, bool is_unix)
 		uid_t uid = 0;
 		gid_t gid = 0;
 		pid_t pid = 0;
-		pga_set(dst, AF_UNIX, cf_listen_port);
+		// pga_set(dst, AF_UNIX, cf_listen_port);
+		pga_set(dst, AF_UNIX, 6432);
 		if (getpeercreds(fd, &uid, &gid, &pid) >= 0) {
 			log_noise("unix peer uid: %d", (int)uid);
 		} else if (errno != ENOSYS) {
@@ -311,7 +312,8 @@ void fill_local_addr(PgSocket *sk, int fd, bool is_unix)
 	int err;
 
 	if (is_unix) {
-		pga_set(dst, AF_UNIX, cf_listen_port);
+		// pga_set(dst, AF_UNIX, cf_listen_port);
+		pga_set(dst, AF_UNIX, 6432);
 		dst->scred.uid = geteuid();
 		dst->scred.pid = getpid();
 	} else {

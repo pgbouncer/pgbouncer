@@ -839,15 +839,18 @@ static bool check_old_process_unix(void)
 	socklen_t len = sizeof(sa_un);
 	int domain = AF_UNIX;
 	int res, fd;
+	char *strport = NULL;
 
 	if (!cf_unix_socket_dir || !*cf_unix_socket_dir || sd_listen_fds(0) > 0)
 		return false;
 
 	memset(&sa_un, 0, len);
 	sa_un.sun_family = domain;
+
+	strport = strlist_pop(listen_port_list);
 	snprintf(sa_un.sun_path, sizeof(sa_un.sun_path),
-		 "%s/.s.PGSQL.%d", cf_unix_socket_dir, 6432);
-	//	 "%s/.s.PGSQL.%d", cf_unix_socket_dir, cf_listen_port);
+		 "%s/.s.PGSQL.%d", cf_unix_socket_dir, atoi(strport));
+	strlist_append(listen_port_list, strport);
 
 	fd = socket(domain, SOCK_STREAM, 0);
 	if (fd < 0)

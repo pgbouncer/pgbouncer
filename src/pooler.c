@@ -575,9 +575,6 @@ void pooler_setup(void)
 		    if (!ok)
 			 die("failed to create sockets");
 		}
-		    // if (!parse_word_list(cf_listen_port, create_unix_sockets, NULL))
-		    //	die("failed to parse cf_listen_port in config %s", cf_listen_port);
-
 	}
 
 	if (!statlist_count(&sock_list))

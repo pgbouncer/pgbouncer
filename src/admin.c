@@ -1844,15 +1844,18 @@ void admin_setup(void)
 	PgGlobalUser *user;
 	PktBuf *msg;
 	int res;
+	char *strport = NULL;
 
 	/* fake database */
 	db = add_database("pgbouncer");
 	if (!db)
 		die("no memory for admin database");
 
-	// TODO select first port
-	// db->port = cf_listen_port;
-	db->port = 6432;
+	// TODO select actual port?
+	strport = strlist_pop(listen_port_list);
+	db->port = atoi(strport);
+	strlist_append(listen_port_list, strport);
+
 	db->pool_size = 2;
 	db->admin = true;
 	db->pool_mode = POOL_STMT;

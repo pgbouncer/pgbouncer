@@ -570,9 +570,13 @@ void pooler_setup(void)
 		if (!listen_addr_empty && !statlist_count(&sock_list))
 			die("failed to listen on any address in listen_addr list: %s", cf_listen_addr);
 
-		if (cf_unix_socket_dir && *cf_unix_socket_dir)
-		    if (!parse_word_list(cf_listen_port, create_unix_sockets, NULL))
-			die("failed to parse cf_listen_port in config %s", cf_listen_port);
+		if (cf_unix_socket_dir && *cf_unix_socket_dir){
+		    ok = strlist_foreach(listen_port_list, create_unix_sockets, NULL);
+		    if (!ok)
+			 die("failed to create sockets");
+		}
+		    // if (!parse_word_list(cf_listen_port, create_unix_sockets, NULL))
+		    //	die("failed to parse cf_listen_port in config %s", cf_listen_port);
 
 	}
 

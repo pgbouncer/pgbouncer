@@ -86,6 +86,7 @@ char *cf_config_file;
 
 char *cf_listen_addr;
 char *cf_listen_port;
+struct StrList *listen_port_list;
 int cf_listen_backlog;
 char *cf_unix_socket_dir;
 int cf_unix_socket_mode;
@@ -432,6 +433,11 @@ static bool requires_auth_file(int auth_type)
 	return auth_type >= AUTH_TYPE_TRUST;
 }
 
+static bool sl_add(void *arg, const char *s)
+{
+	return strlist_append(arg, s);
+}
+
 /* config loading, tries to be tolerant to errors */
 void load_config(void)
 {
@@ -446,6 +452,14 @@ void load_config(void)
 
 	/* actual loading */
 	ok = cf_load_file(&main_config, cf_config_file);
+	if (listen_port_list){
+		strlist_free(listen_port_list);
+		listen_port_list = NULL;
+	}
+	listen_port_list = strlist_new(NULL);
+	if (!parse_word_list(cf_listen_port, sl_add, listen_port_list))
+		die("failed to parse listen_port in config %s", cf_listen_port);
+
 	if (ok) {
 		/* load users if needed */
 		if (requires_auth_file(cf_auth_type))

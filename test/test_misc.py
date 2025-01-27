@@ -12,9 +12,10 @@ def test_multi_ports(bouncer):
     bouncer.sql(";", port=bouncer.port)
     bouncer.sql(";", port=bouncer.second_port_lock.port)
 
-    # TODO Test unix sockets
     bouncer.sql(";", port=bouncer.port, host=bouncer.config_dir)
     bouncer.sql(";", port=bouncer.second_port_lock.port, host=bouncer.config_dir)
+
+    # TODO test that after shutdown sockets cleaned up
 
 
 def test_connect_query(bouncer):

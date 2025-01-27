@@ -1,6 +1,7 @@
 import asyncio
 import re
 import time
+import pathlib
 
 import psycopg
 import pytest
@@ -12,11 +13,26 @@ def test_multi_ports(bouncer):
     bouncer.sql(";", port=bouncer.port)
     bouncer.sql(";", port=bouncer.second_port_lock.port)
 
+    assert pathlib.Path(f"{bouncer.config_dir}/.s.PGSQL.{bouncer.port}").exists()
+    assert pathlib.Path(f"{bouncer.config_dir}/.s.PGSQL.{bouncer.second_port_lock.port}").exists()
+
     bouncer.sql(";", port=bouncer.port, host=bouncer.config_dir)
     bouncer.sql(";", port=bouncer.second_port_lock.port, host=bouncer.config_dir)
 
-    # TODO test that after shutdown sockets cleaned up
+    bouncer.admin("SHUTDOWN wait_for_clients")
 
+    with pytest.raises(psycopg.OperationalError):
+        bouncer.sql(";", port=bouncer.port)
+    with pytest.raises(psycopg.OperationalError):
+        bouncer.sql(";", port=bouncer.second_port_lock.port)
+
+    with pytest.raises(psycopg.OperationalError):
+        bouncer.sql(";", port=bouncer.port, host=bouncer.config_dir)
+    with pytest.raises(psycopg.OperationalError):
+        bouncer.sql(";", port=bouncer.second_port_lock.port, host=bouncer.config_dir)
+
+    assert not pathlib.Path(f"{bouncer.config_dir}/.s.PGSQL.{bouncer.port}").exists()
+    assert not pathlib.Path(f"{bouncer.config_dir}/.s.PGSQL.{bouncer.second_port_lock.port}").exists()
 
 def test_connect_query(bouncer):
     # The p8 database definition in test.ini has some GUC settings

@@ -8,6 +8,15 @@ import pytest
 from .utils import HAVE_IPV6_LOCALHOST, PG_MAJOR_VERSION, PKT_BUF_SIZE, WINDOWS
 
 
+def test_multi_ports(bouncer):
+    bouncer.sql(";", port=bouncer.port)
+    bouncer.sql(";", port=bouncer.second_port_lock.port)
+
+    # TODO Test unix sockets
+    bouncer.sql(";", port=bouncer.port, host=bouncer.config_dir)
+    bouncer.sql(";", port=bouncer.second_port_lock.port, host=bouncer.config_dir)
+
+
 def test_connect_query(bouncer):
     # The p8 database definition in test.ini has some GUC settings
     # in connect_query.  Check that they get set.  (The particular

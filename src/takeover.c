@@ -140,7 +140,7 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	/* fill address */
 	if (strcmp(saddr, "unix") == 0) {
 		strport = strlist_pop(listen_port_list);
-		pga_set(&addr, AF_UNIX, itoi(strport));
+		pga_set(&addr, AF_UNIX, atoi(strport));
 		strlist_append(listen_port_list, strport);
 	} else {
 		if (!pga_pton(&addr, saddr, port))

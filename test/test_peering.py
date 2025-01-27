@@ -18,9 +18,9 @@ async def peers(pg, tmp_path):
     peers: Dict[int, Bouncer] = {}
     peers[1] = Bouncer(pg, tmp_path / "bouncer1")
 
-    peers[2] = Bouncer(pg, tmp_path / "bouncer2", port=peers[1].port)
+    peers[2] = Bouncer(pg, tmp_path / "bouncer2", peers[1].port)
 
-    peers[3] = Bouncer(pg, tmp_path / "bouncer3", port=peers[1].port)
+    peers[3] = Bouncer(pg, tmp_path / "bouncer3", peers[1].port)
 
     for own_index, bouncer in peers.items():
         with bouncer.ini_path.open("a") as f:

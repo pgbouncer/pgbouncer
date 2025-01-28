@@ -187,7 +187,6 @@ static bool add_listen(int af, const struct sockaddr *sa, int salen, int listen_
 	list_init(&ls->node);
 	ls->fd = sock;
 	if (sa->sa_family == AF_UNIX) {
-		// pga_set(&ls->addr, AF_UNIX, cf_listen_port);
 		pga_set(&ls->addr, AF_UNIX, listen_port);
 	} else {
 		pga_copy(&ls->addr, sa);
@@ -400,6 +399,7 @@ bool use_pooler_socket(int sock, bool is_unix)
 	struct ListenSocket *ls;
 	int res;
 	char buf[PGADDR_BUF];
+	char *strport = NULL;
 
 	if (!tune_socket(sock, is_unix))
 		return false;
@@ -409,8 +409,9 @@ bool use_pooler_socket(int sock, bool is_unix)
 		return false;
 	ls->fd = sock;
 	if (is_unix) {
-		// pga_set(&ls->addr, AF_UNIX, cf_listen_port);
-		pga_set(&ls->addr, AF_UNIX, 6432);
+		strport = strlist_pop(listen_port_list);
+		pga_set(&ls->addr, AF_UNIX, atoi(strport));
+		strlist_append(listen_port_list, strport);
 	} else {
 		struct sockaddr_storage ss;
 		socklen_t len = sizeof(ss);
@@ -490,8 +491,7 @@ static bool parse_addr(void *port, const char *addr)
 
 	if (strcmp(addr, "*") == 0)
 		addr = NULL;
-	// snprintf(service, sizeof(service), "%d", cf_listen_port);
-	// snprintf(service, sizeof(service), "%d", 6432);
+
 	snprintf(service, sizeof(service), "%d", listen_port);
 
 	res = getaddrinfo(addr, service, &hints, &gaires);

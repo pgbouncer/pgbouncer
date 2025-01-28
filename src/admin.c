@@ -1851,7 +1851,7 @@ void admin_setup(void)
 	if (!db)
 		die("no memory for admin database");
 
-	// TODO select actual port?
+	/* choose first port to assign to admin database */
 	strport = strlist_pop(listen_port_list);
 	db->port = atoi(strport);
 	strlist_append(listen_port_list, strport);

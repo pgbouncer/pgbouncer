@@ -58,16 +58,17 @@ static struct timeval err_timeout = {5, 0};
 static void tune_accept(int sock, bool on);
 
 
-static bool cleanup_sockets_port(void *arg, const char *s)
+/* atexit() cleanup func */
+void cleanup_sockets(void)
 {
 	struct ListenSocket *ls;
 	struct List *el;
 
-	int port = atoi(s);
+	int port;
 
 	/* avoid cleanup if exit() while suspended */
 	if (cf_pause_mode == P_SUSPEND)
-		return true;
+		return;
 
 	while ((el = statlist_pop(&sock_list)) != NULL) {
 		ls = container_of(el, struct ListenSocket, node);
@@ -80,6 +81,7 @@ static bool cleanup_sockets_port(void *arg, const char *s)
 		}
 		if (pga_is_unix(&ls->addr) && cf_unix_socket_dir[0] != '@') {
 			char buf[sizeof(struct sockaddr_un) + 20];
+			port = ntohs(ls->addr.sin.sin_port);
 			snprintf(buf, sizeof(buf), "%s/.s.PGSQL.%d", cf_unix_socket_dir, port);
 			unlink(buf);
 		}
@@ -87,15 +89,9 @@ static bool cleanup_sockets_port(void *arg, const char *s)
 		free(ls);
 	}
 
-	return true;
+	return;
 }
 
-/* atexit() cleanup func */
-void cleanup_sockets(void)
-{
-	strlist_foreach(listen_port_list, cleanup_sockets_port, NULL);
-
-}
 
 /*
  * initialize another listening socket.

@@ -116,3 +116,54 @@ def test_cancel_race(bouncer):
     finally:
         conn1.close()
         conn2.close()
+
+
+
+def test_cancel_on_wait(bouncer):
+    bouncer.admin("set default_pool_size=1")
+    bouncer.admin("set log_pooler_errors=1")
+    conn1 = bouncer.conn(dbname="p1")
+    cur1 = conn1.cursor()
+    conn2 = bouncer.conn(dbname="p1")
+    cur2 = conn2.cursor()
+    try:
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            q1 = pool.submit(cur1.execute, "select pg_sleep(5)")
+            q2 = pool.submit(cur2.execute, "select pg_sleep(5)")
+            time.sleep(1)
+
+            cancel = pool.submit(conn2.cancel)
+            cancel.result()
+            bouncer.print_logs()
+
+            with pytest.raises(
+                Exception, match="Cancelled waiting query"
+            ):
+                q2.result()
+            q1.result()
+    finally:
+        conn1.close()
+        conn2.close()
+        
+        
+def test_cancel_on_wait_with_pause(bouncer):
+    conn = bouncer.conn(dbname="p1")
+    cur = conn.cursor()
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            bouncer.admin("pause p1")
+            q = pool.submit(cur.execute, "select pg_sleep(5)")
+            time.sleep(1)
+
+            cancel = pool.submit(conn.cancel)
+            cancel.result()
+            bouncer.print_logs()
+
+            with pytest.raises(
+                Exception, match="Cancelled waiting query"
+            ):
+                q.result()
+    finally:
+        conn.close()
+        bouncer.admin("resume p1")
+        

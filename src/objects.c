@@ -2120,6 +2120,7 @@ void accept_cancel_request(PgSocket *req)
 	PgPool *pool = NULL;
 	PgSocket *server = NULL, *client, *main_client = NULL;
 	bool peering_enabled = false;
+	bool waiting_client = false;
 
 	Assert(req->state == CL_LOGIN);
 
@@ -2162,6 +2163,7 @@ void accept_cancel_request(PgSocket *req)
 			client = container_of(citem, PgSocket, head);
 			if (memcmp(client->cancel_key, req->cancel_key, 8) == 0) {
 				main_client = client;
+				waiting_client = true;
 				goto found;
 			}
 		}
@@ -2188,9 +2190,14 @@ found:
 	/*
 	 * The client is not linked to a server, which means that no query is
 	 * running that can be cancelled. This likely means the query finished by
-	 * itself before the cancel request arived to pgbouncer.
+	 * itself before the cancel request arived to pgbouncer or it is for a waiting client.
 	 */
 	if (!main_client->link) {
+		
+		if (waiting_client){
+			main_client->wait_for_cancel = true;
+			activate_client(main_client);
+		}
 		disconnect_client(req, false, "cancel request for idle client");
 
 		return;

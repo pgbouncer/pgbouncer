@@ -200,15 +200,14 @@ static void per_loop_activate(PgPool *pool)
 		}
 
 		if (client->state == CL_WAITING
-			&& client->queued_user_notified == 0
-			&& (age / USEC) > cf_client_queue_notify_seconds
-			&& cf_client_queue_notify_seconds > 0) {
-
+		    && client->queued_user_notified == 0
+		    && (age / USEC) > cf_client_queue_notify_seconds
+		    && cf_client_queue_notify_seconds > 0) {
 			buf = pktbuf_dynamic(256);
 			pktbuf_write_Notice(
 				buf,
 				"No server connection available in postgres backend, client being queued"
-			);
+				);
 			pktbuf_write_CommandComplete(buf, "QUEUED");
 			res = pktbuf_send_queued(buf, client);
 			if (!res)

@@ -668,7 +668,7 @@ struct PgSocket {
 
 	bool suspended : 1;		/* client/server: if the socket is suspended */
 
-	bool queued_user_notified: 1;  /* client: whether user has been alerted that it is queued */
+	bool queued_user_notified : 1;	/* client: whether user has been alerted that it is queued */
 
 	bool admin_user : 1;		/* console client: has admin rights */
 	bool own_user : 1;		/* console client: client with same uid on unix socket */

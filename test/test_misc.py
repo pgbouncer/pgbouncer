@@ -1,7 +1,8 @@
 import asyncio
 import re
-import time
 import threading
+import time
+
 import psycopg
 import pytest
 
@@ -27,27 +28,29 @@ async def test_notify_queue(bouncer):
     puser1 = max_user_connections=1
     """
     notices_received = []
+
     def log_notice(diag):
         notices_received.append(diag.message_primary)
-
 
     with bouncer.run_with_config(config):
 
         sleep_future = bouncer.asql(
-            "SELECT pg_sleep(6)",
-            dbname="postgres",
-            user="puser1")
-        _, sleep_future = await asyncio.wait(
-            [sleep_future], timeout=1)
+            "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
+        )
+        _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
 
-        conn_2: psycopg.AsyncConnection = await bouncer.aconn(dbname="postgres", user="puser1")
+        conn_2: psycopg.AsyncConnection = await bouncer.aconn(
+            dbname="postgres", user="puser1"
+        )
         conn_2.add_notice_handler(log_notice)
         curr = await conn_2.execute("select 1;")
         curr.fetchall()
         conn_2.close()
 
     assert len(notices_received) == 1
-    expected_message = "No server connection available in postgres backend, client being queued"
+    expected_message = (
+        "No server connection available in postgres backend, client being queued"
+    )
     assert expected_message == notices_received[0]
 
 

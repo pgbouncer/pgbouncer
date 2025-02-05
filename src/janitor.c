@@ -208,7 +208,6 @@ static void per_loop_activate(PgPool *pool)
 				buf,
 				"No server connection available in postgres backend, client being queued"
 				);
-			pktbuf_write_CommandComplete(buf, "QUEUED");
 			res = pktbuf_send_queued(buf, client);
 			if (!res)
 				log_warning("Queue warning failed");

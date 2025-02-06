@@ -118,7 +118,7 @@ def test_cancel_race(bouncer):
         conn2.close()
 
 
-
+# Checks that pgbouncer handles cancel requests for waiting client
 def test_cancel_on_wait(bouncer):
     bouncer.admin("set default_pool_size=1")
     bouncer.admin("set log_pooler_errors=1")
@@ -136,16 +136,15 @@ def test_cancel_on_wait(bouncer):
             cancel.result()
             bouncer.print_logs()
 
-            with pytest.raises(
-                Exception, match="Cancelled waiting query"
-            ):
+            with pytest.raises(Exception, match="Cancelled waiting query"):
                 q2.result()
             q1.result()
     finally:
         conn1.close()
         conn2.close()
-        
-        
+
+
+# Checks that pgbouncer handles cancel requests for waiting client due to pause
 def test_cancel_on_wait_with_pause(bouncer):
     conn = bouncer.conn(dbname="p1")
     cur = conn.cursor()
@@ -159,11 +158,8 @@ def test_cancel_on_wait_with_pause(bouncer):
             cancel.result()
             bouncer.print_logs()
 
-            with pytest.raises(
-                Exception, match="Cancelled waiting query"
-            ):
+            with pytest.raises(Exception, match="Cancelled waiting query"):
                 q.result()
     finally:
         conn.close()
         bouncer.admin("resume p1")
-        

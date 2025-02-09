@@ -32,6 +32,7 @@ struct var_lookup {
 	const char *name;		/* key (string is WITHIN the structure) */
 	int idx;
 	UT_hash_handle hh;		/* makes this structure hashable */
+	bool readonly;
 };
 
 static struct var_lookup *lookup_map;
@@ -51,6 +52,11 @@ static bool sl_add(void *arg, const char *s)
 int get_num_var_cached(void)
 {
 	return num_var_cached;
+}
+
+static bool readonly_var(const char *name)
+{
+	return strcmpeq(name, "in_hot_standby");
 }
 
 static void init_var_lookup_from_config(const char *cf_track_extra_parameters, int *num_vars)
@@ -76,6 +82,7 @@ static void init_var_lookup_from_config(const char *cf_track_extra_parameters, i
 
 		lookup = (struct var_lookup *)malloc(sizeof *lookup);
 		lookup->name = strdup(var_name);
+		lookup->readonly = readonly_var(lookup->name);
 
 		lookup->idx = (*num_vars)++;
 		HASH_ADD_KEYPTR(hh, lookup_map, lookup->name, strlen(lookup->name), lookup);
@@ -88,7 +95,7 @@ static void init_var_lookup_from_config(const char *cf_track_extra_parameters, i
 
 void init_var_lookup(const char *cf_track_extra_parameters)
 {
-	const char *names[] = { "DateStyle", "client_encoding", "TimeZone", "standard_conforming_strings", "application_name", NULL };
+	const char *names[] = { "DateStyle", "client_encoding", "TimeZone", "standard_conforming_strings", "application_name", "in_hot_standby", "default_transaction_read_only", NULL };
 	int idx = 0;
 
 	struct var_lookup *lookup = NULL;
@@ -97,6 +104,8 @@ void init_var_lookup(const char *cf_track_extra_parameters)
 	for (; names[idx]; idx++) {
 		lookup = (struct var_lookup *)malloc(sizeof *lookup);
 		lookup->name = names[idx];
+		lookup->readonly = readonly_var(lookup->name);
+
 		lookup->idx = idx;
 		HASH_ADD_KEYPTR(hh, lookup_map, lookup->name, strlen(lookup->name), lookup);
 	}
@@ -218,7 +227,9 @@ bool varcache_apply(PgSocket *server, PgSocket *client, bool *changes_p)
 	HASH_ITER(hh, lookup_map, lk, tmp) {
 		sval = get_value(&server->vars, lk);
 		cval = get_value(&client->vars, lk);
-		changes += apply_var(pkt, lk->name, cval, sval);
+		if (!lk->readonly) {
+			changes += apply_var(pkt, lk->name, cval, sval);
+		}
 	}
 
 	*changes_p = changes > 0;
@@ -257,6 +268,8 @@ void varcache_apply_startup(PktBuf *pkt, PgSocket *client)
 	HASH_ITER(hh, lookup_map, lk, tmp) {
 		struct PStr *val = get_value(&client->vars, lk);
 		if (!val)
+			continue;
+		if (strcmp(lk->name, "in_hot_standby") == 0 || strcmp(lk->name, "default_transaction_read_only") == 0)
 			continue;
 
 		slog_debug(client, "varcache_apply_startup: %s=%s", lk->name, val->str);

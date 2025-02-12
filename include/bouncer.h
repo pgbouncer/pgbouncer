@@ -665,7 +665,7 @@ struct PgSocket {
 	bool wait_for_user_conn : 1;	/* client: waiting for auth_conn server connection */
 	bool wait_for_user : 1;		/* client: waiting for auth_conn query results */
 	bool wait_for_auth : 1;		/* client: waiting for external auth (PAM) to be completed */
-	bool wait_for_cancel : 1; 	/* client: waiting for cancel action(Cancel requests on waiting clients) to be completed */
+	bool wait_for_cancel : 1;	/* client: waiting for cancel action(Cancel requests on waiting clients) to be completed */
 
 	bool suspended : 1;		/* client/server: if the socket is suspended */
 

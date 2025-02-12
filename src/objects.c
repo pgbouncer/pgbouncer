@@ -2193,8 +2193,7 @@ found:
 	 * itself before the cancel request arived to pgbouncer or it is for a waiting client.
 	 */
 	if (!main_client->link) {
-		
-		if (waiting_client){
+		if (waiting_client) {
 			main_client->wait_for_cancel = true;
 			activate_client(main_client);
 		}

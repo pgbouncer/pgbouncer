@@ -129,6 +129,7 @@ def test_cancel_on_wait(bouncer):
     try:
         with ThreadPoolExecutor(max_workers=3) as pool:
             q1 = pool.submit(cur1.execute, "select pg_sleep(5)")
+            time.sleep(1)
             q2 = pool.submit(cur2.execute, "select pg_sleep(5)")
             time.sleep(1)
 

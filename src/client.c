@@ -154,7 +154,7 @@ static bool send_client_authreq(PgSocket *client)
 		SEND_generic(res, client, PqMsg_AuthenticationRequest, "iss", AUTH_REQ_SASL, "SCRAM-SHA-256", "");
 #ifdef HAVE_GSS
 	} else if (auth_type == AUTH_TYPE_GSS) {
-		SEND_generic(res, client, 'R', "i", AUTH_REQ_GSS);
+		SEND_generic(res, client, PqMsg_AuthenticationRequest, "i", AUTH_REQ_GSS);
 #endif
 	} else {
 		return false;

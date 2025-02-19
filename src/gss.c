@@ -35,6 +35,8 @@ struct gss_auth_request {
 
 	/* The request status, one of the GSS_STATUS_* constants */
 	int status;
+	/* Protect status from main thread reading and worker thread writing at the same time */
+	pthread_mutex_t mutex;
 
 	uint8_t *token;
 	uint32_t token_length;
@@ -84,9 +86,11 @@ struct gss_auth_request gss_auth_queue[GSS_REQUEST_QUEUE_SIZE];
 /* Forward declarations */
 static bool is_valid_socket(const struct gss_auth_request *request);
 static void * gss_auth_worker(void *arg);
-static void gss_auth_finish(struct gss_auth_request *request);
+static void gss_auth_finish(struct gss_auth_request *request, int status);
 static bool gss_check_passwd(struct gss_auth_request *request);
 static bool get_key_value(char **p, char **key, char **value);
+static int get_request_status(struct gss_auth_request *request);
+static void set_request_status(struct gss_auth_request *request, int status);
 
 #define reset_ptr(ptr, name) ptr->name = NULL
 #define gss_parameter_dup(ptr, name, src_str) \
@@ -295,7 +299,7 @@ void gss_auth_begin(PgSocket *client, uint8_t *token, uint32_t token_length)
 
 	request->client = client;
 	request->connect_time = client->connect_time;
-	request->status = GSS_STATUS_IN_PROGRESS;
+	request->status = GSS_STATUS_IN_PROGRESS; /* This is protected by gss_queue_tail_mutex */
 	memcpy(&request->remote_addr, &client->remote_addr, sizeof(client->remote_addr));
 	safe_strcpy(request->username, client->login_user_credentials->name, MAX_USERNAME);
 // safe_strcpy(request->password, passwd, MAX_PASSWORD);
@@ -310,6 +314,23 @@ void gss_auth_begin(PgSocket *client, uint8_t *token, uint32_t token_length)
 	pthread_mutex_unlock(&gss_queue_tail_mutex);
 }
 
+static int get_request_status(struct gss_auth_request *request)
+{
+	int rc = 0;
+
+	pthread_mutex_lock(&request->mutex);
+	rc = request->status;
+	pthread_mutex_unlock(&request->mutex);
+	return rc;
+}
+
+static void set_request_status(struct gss_auth_request *request, int status)
+{
+	pthread_mutex_lock(&request->mutex);
+	request->status = status;
+	pthread_mutex_unlock(&request->mutex);
+}
+
 /*
  * Checks for completed auth requests, returns amount of requests handled.
  * The function is called only from the main thread.
@@ -318,11 +339,13 @@ int gss_poll(void)
 {
 	struct gss_auth_request *request;
 	int count = 0;
+	int status = 0;
 
 	while (gss_first_taken_slot != gss_first_free_slot) {
 		request = &gss_auth_queue[gss_first_taken_slot];
 
-		if (request->status == GSS_STATUS_IN_PROGRESS) {
+		status = get_request_status(request);
+		if (status == GSS_STATUS_IN_PROGRESS) {
 			/* When still-in-progress slot is found there is no need to continue
 			 * the loop since all further requests will be in progress too.
 			 */
@@ -330,7 +353,7 @@ int gss_poll(void)
 		}
 
 		if (is_valid_socket(request)) {
-			gss_auth_finish(request);
+			gss_auth_finish(request, status);
 		}
 
 		count++;
@@ -348,6 +371,7 @@ static void * gss_auth_worker(void *arg)
 {
 	int current_slot = gss_first_taken_slot;
 	struct gss_auth_request *request;
+	int request_status = 0;
 
 	while (true) {
 		/* Wait for new data in the queue */
@@ -372,17 +396,18 @@ static void * gss_auth_worker(void *arg)
 		 */
 		if (!is_valid_socket(request)) {
 			log_debug("gss_auth_worker(): invalid socket in slot %d", current_slot);
-			request->status = GSS_STATUS_FAILED;
+			request_status = GSS_STATUS_FAILED;
 			continue;
 		}
 
 		if (gss_check_passwd(request)) {
-			request->status = GSS_STATUS_SUCCESS;
+			request_status = GSS_STATUS_SUCCESS;
 		} else {
-			request->status = GSS_STATUS_FAILED;
+			request_status = GSS_STATUS_FAILED;
 		}
+		set_request_status(request, request_status);
 
-		log_debug("gss_auth_worker(): authentication completed, status=%d", request->status);
+		log_debug("gss_auth_worker(): authentication completed, status=%d", request_status);
 	}
 
 	return NULL;
@@ -559,10 +584,10 @@ static bool is_valid_socket(const struct gss_auth_request *request)
  * Finishes the handshake after successful or unsuccessful authentication.
  * The function is only called from the main thread.
  */
-static void gss_auth_finish(struct gss_auth_request *request)
+static void gss_auth_finish(struct gss_auth_request *request, int status)
 {
 	PgSocket *client = request->client;
-	bool authenticated = (request->status == GSS_STATUS_SUCCESS);
+	bool authenticated = (status == GSS_STATUS_SUCCESS);
 
 	if (authenticated) {
 		sbuf_continue(&client->sbuf);

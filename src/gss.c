@@ -306,8 +306,8 @@ void gss_auth_begin(PgSocket *client, uint8_t *token, uint32_t token_length)
 
 	gss_first_free_slot = next_free_slot;
 
-	pthread_mutex_unlock(&gss_queue_tail_mutex);
 	pthread_cond_signal(&gss_data_available);
+	pthread_mutex_unlock(&gss_queue_tail_mutex);
 }
 
 /*

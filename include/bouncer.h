@@ -185,12 +185,19 @@ extern int cf_sbuf_len;
 #include "hba.h"
 #include "messages.h"
 #include "pam.h"
+#include "gss.h"
 #include "prepare.h"
 
 #ifndef WIN32
 #define DEFAULT_UNIX_SOCKET_DIR "/tmp"
 #else
 #define DEFAULT_UNIX_SOCKET_DIR ""
+#endif
+
+#ifdef HAVE_GSS
+#include <gssapi/gssapi.h>
+#include <gssapi/gssapi_ext.h>
+#include <gssapi/gssapi_krb5.h>
 #endif
 
 /*
@@ -215,6 +222,11 @@ extern int cf_sbuf_len;
  */
 #define MAX_PASSWORD    2048
 
+#ifdef HAVE_GSS
+/* Hope this length is long enough for gss config line */
+#define MAX_GSS_CONFIG 1024
+#endif
+
 /*
  * Symbols for authentication type settings (auth_type, hba).
  */
@@ -227,6 +239,8 @@ enum auth_type {
 	AUTH_TYPE_HBA,
 	AUTH_TYPE_PAM,
 	AUTH_TYPE_SCRAM_SHA_256,
+	AUTH_TYPE_GSS,
+	AUTH_TYPE_CONT_GSS,
 	AUTH_TYPE_PEER,
 	AUTH_TYPE_REJECT,
 };
@@ -664,7 +678,7 @@ struct PgSocket {
 	bool wait_for_welcome : 1;	/* client: no server yet in pool, cannot send welcome msg */
 	bool wait_for_user_conn : 1;	/* client: waiting for auth_conn server connection */
 	bool wait_for_user : 1;		/* client: waiting for auth_conn query results */
-	bool wait_for_auth : 1;		/* client: waiting for external auth (PAM) to be completed */
+	bool wait_for_auth : 1;		/* client: waiting for external auth (PAM/GSS) to be completed */
 
 	bool suspended : 1;		/* client/server: if the socket is suspended */
 
@@ -713,6 +727,25 @@ struct PgSocket {
 		uint8_t StoredKey[32];
 		uint8_t ServerKey[32];
 	} scram_state;
+
+#ifdef HAVE_GSS
+	struct GSSState {
+		enum {
+			GSS_INITIAL,
+			GSS_CONTINUE,
+			GSS_DONE
+		} state;
+		gss_cred_id_t server_credentials;
+		gss_cred_id_t delegated_credentials;
+		gss_buffer_desc outbuf;	/* GSSAPI output token buffer */
+		gss_cred_id_t cred;	/* GSSAPI connection cred's */
+		gss_ctx_id_t ctx;	/* GSSAPI connection context */
+		gss_name_t name;/* GSSAPI client name */
+		gss_buffer_desc client_name;	/* Tempoary */
+		OM_uint32 flags;
+	} gss;
+	char gss_parameters[MAX_GSS_CONFIG];
+#endif
 
 	VarCache vars;		/* state of interesting server parameters */
 
@@ -809,6 +842,10 @@ extern char *cf_auth_query;
 extern char *cf_auth_user;
 extern char *cf_auth_hba_file;
 extern char *cf_auth_dbname;
+extern char *cf_auth_krb_server_keyfile;
+extern int cf_auth_krb_caseins_users;
+extern int cf_auth_gss_accept_delegation;
+extern char *cf_auth_gss_parameter;
 
 extern char *cf_pidfile;
 

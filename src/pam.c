@@ -185,19 +185,19 @@ void pam_auth_begin(PgSocket *client, const char *passwd)
 
 static int get_request_status(struct gss_auth_request *request)
 {
-        int rc = 0;
+	int rc = 0;
 
-        pthread_mutex_lock(&request->mutex);
-        rc = request->status;
-        pthread_mutex_unlock(&request->mutex);
-        return rc;
+	pthread_mutex_lock(&request->mutex);
+	rc = request->status;
+	pthread_mutex_unlock(&request->mutex);
+	return rc;
 }
 
 static void set_request_status(struct gss_auth_request *request, int status)
 {
-        pthread_mutex_lock(&request->mutex);
-        request->status = status;
-        pthread_mutex_unlock(&request->mutex);
+	pthread_mutex_lock(&request->mutex);
+	request->status = status;
+	pthread_mutex_unlock(&request->mutex);
 }
 
 

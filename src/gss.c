@@ -299,7 +299,7 @@ void gss_auth_begin(PgSocket *client, uint8_t *token, uint32_t token_length)
 
 	request->client = client;
 	request->connect_time = client->connect_time;
-	request->status = GSS_STATUS_IN_PROGRESS; /* This is protected by gss_queue_tail_mutex */
+	request->status = GSS_STATUS_IN_PROGRESS;	/* This is protected by gss_queue_tail_mutex */
 	memcpy(&request->remote_addr, &client->remote_addr, sizeof(client->remote_addr));
 	safe_strcpy(request->username, client->login_user_credentials->name, MAX_USERNAME);
 // safe_strcpy(request->password, passwd, MAX_PASSWORD);
@@ -388,17 +388,6 @@ static void * gss_auth_worker(void *arg)
 		/* We have at least one request in the queue */
 		request = &gss_auth_queue[current_slot];
 		current_slot = (current_slot + 1) % GSS_REQUEST_QUEUE_SIZE;
-
-		/* If the socket is already in the wrong state or reused then ignore it.
-		 * This check is not safe and should not be trusted (the socket state
-		 * might change exactly after it), but it helps to quickly filter out invalid
-		 * sockets and thus save some time.
-		 */
-		if (!is_valid_socket(request)) {
-			log_debug("gss_auth_worker(): invalid socket in slot %d", current_slot);
-			request_status = GSS_STATUS_FAILED;
-			continue;
-		}
 
 		if (gss_check_passwd(request)) {
 			request_status = GSS_STATUS_SUCCESS;

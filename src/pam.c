@@ -60,6 +60,8 @@ struct pam_auth_request {
 
 	/* The request status, one of the PAM_STATUS_* constants */
 	int status;
+	/* Protect status from main thread reading and worker thread writing at the same time */
+	pthread_mutex_t mutex;
 
 	/* The username (same as in client->login_user_credentials->name).
 	 * See the comment for remote_addr.
@@ -171,7 +173,7 @@ void pam_auth_begin(PgSocket *client, const char *passwd)
 
 	request->client = client;
 	request->connect_time = client->connect_time;
-	request->status = PAM_STATUS_IN_PROGRESS;	/* This is protected by gss_queue_tail_mutex */
+	request->status = PAM_STATUS_IN_PROGRESS;	/* This is protected by pam_queue_tail_mutex */
 	memcpy(&request->remote_addr, &client->remote_addr, sizeof(client->remote_addr));
 	safe_strcpy(request->username, client->login_user_credentials->name, MAX_USERNAME);
 	safe_strcpy(request->password, passwd, MAX_PASSWORD);
@@ -183,7 +185,7 @@ void pam_auth_begin(PgSocket *client, const char *passwd)
 }
 
 
-static int get_request_status(struct gss_auth_request *request)
+static int get_request_status(struct pam_auth_request *request)
 {
 	int rc = 0;
 
@@ -193,7 +195,7 @@ static int get_request_status(struct gss_auth_request *request)
 	return rc;
 }
 
-static void set_request_status(struct gss_auth_request *request, int status)
+static void set_request_status(struct pam_auth_request *request, int status)
 {
 	pthread_mutex_lock(&request->mutex);
 	request->status = status;

@@ -1,7 +1,7 @@
 dnl Process this file with autoconf to produce a configure script.
 
 AC_INIT([PgBouncer],
-        [1.24.0],
+        [1.25devel],
         [https://github.com/pgbouncer/pgbouncer/issues], [],
         [https://www.pgbouncer.org/])
 AC_CONFIG_SRCDIR(src/janitor.c)
@@ -165,7 +165,7 @@ AC_USUAL_DEBUG
 AC_USUAL_CASSERT
 AC_USUAL_WERROR
 
-PACKAGE_VERSION_4B=`echo "${PACKAGE_VERSION}.0" | sed -e 's/\./,/g'`
+PACKAGE_VERSION_4B=`echo "${PACKAGE_VERSION}.0" | sed -e 's/\./,/g' -e 's/devel//'`
 AC_DEFINE_UNQUOTED(PACKAGE_VERSION_4B, [$PACKAGE_VERSION_4B],
                    [Define to the version of this package for Windows resource file (1,2,3,4).])dnl
 

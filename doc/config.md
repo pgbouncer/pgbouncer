@@ -1390,10 +1390,7 @@ TCP load balancer.  Cancellation requests are sent over different TCP
 connections than the query they are cancelling, so a TCP load balancer might
 send the cancellation request connection to a different process than the one
 that it was meant for.  By peering them these cancellation requests eventually
-end up at the right process. A more in-depth explanation is provided in this
-[recording of a conference talk][cancel-problem-video].
-
-[cancel-problem-video]: https://www.youtube.com/watch?v=M585FfbboNA
+end up at the right process.
 
 The section contains key=value lines like
 
@@ -1628,7 +1625,10 @@ Example of a secure function for `auth_query`:
         WHERE usename = i_username INTO uname, phash;
         RETURN;
     END;
-    $$ LANGUAGE plpgsql SECURITY DEFINER;
+    $$ LANGUAGE plpgsql
+       SECURITY DEFINER
+       -- Set a secure search_path: trusted schema(s), then 'pg_temp'.
+       SET search_path = pg_catalog, pg_temp;
     REVOKE ALL ON FUNCTION pgbouncer.user_lookup(text) FROM public, pgbouncer;
     GRANT EXECUTE ON FUNCTION pgbouncer.user_lookup(text) TO pgbouncer;
 

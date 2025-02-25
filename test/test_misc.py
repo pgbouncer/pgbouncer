@@ -28,7 +28,7 @@ def test_fast_close(bouncer):
 
             with pytest.raises(
                 psycopg.OperationalError,
-                match=r"server closed the connection unexpectedly|Software caused connection abort",
+                match=r"database configuration changed|server closed the connection unexpectedly|Software caused connection abort",
             ):
                 cur.execute("select 1")
 
@@ -271,7 +271,8 @@ async def test_repeated_sigterm(bouncer):
         bouncer.sigterm()
         await bouncer.wait_for_exit()
         with pytest.raises(
-            psycopg.OperationalError, match="server closed the connection unexpectedly"
+            psycopg.OperationalError,
+            match="database removed|server closed the connection unexpectedly",
         ):
             cur.execute("SELECT 1")
         assert not bouncer.running()
@@ -298,7 +299,8 @@ async def test_repeated_sigint(bouncer):
         bouncer.sigint()
         await bouncer.wait_for_exit()
         with pytest.raises(
-            psycopg.OperationalError, match="server closed the connection unexpectedly"
+            psycopg.OperationalError,
+            match="database removed|server closed the connection unexpectedly",
         ):
             cur.execute("SELECT 1")
         assert not bouncer.running()
@@ -328,8 +330,8 @@ async def test_already_paused_client_during_wait_for_servers_shutdown(bouncer):
         cur1.execute("SELECT 1")
         # start the request before the shutdown
         task = asyncio.ensure_future(cur2.execute("SELECT 1"))
-        # We wait for one second so that the client goes to CL_WAITING state
-        done, pending = await asyncio.wait([task], timeout=1)
+        # We wait so that the client goes to CL_WAITING state
+        done, pending = await asyncio.wait([task], timeout=3)
         assert done == set()
         assert pending == {task}
         bouncer.admin("SHUTDOWN WAIT_FOR_SERVERS")

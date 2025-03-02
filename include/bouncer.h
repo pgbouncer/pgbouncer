@@ -306,6 +306,7 @@ int pga_cmp_addr(const PgAddr *a, const PgAddr *b);
  * Stats, kept per-pool.
  */
 struct PgStats {
+	uint64_t server_closed_count;
 	uint64_t server_assignment_count;
 	uint64_t xact_count;
 	uint64_t query_count;
@@ -314,6 +315,7 @@ struct PgStats {
 	usec_t xact_time;	/* total transaction time in us */
 	usec_t query_time;	/* total query time in us */
 	usec_t wait_time;	/* total time clients had to wait */
+	usec_t server_lifetime; /* total lifetime of servers */
 
 	/* stats for prepared statements */
 	uint64_t ps_server_parse_count;

@@ -315,7 +315,7 @@ struct PgStats {
 	usec_t xact_time;	/* total transaction time in us */
 	usec_t query_time;	/* total query time in us */
 	usec_t wait_time;	/* total time clients had to wait */
-	usec_t server_lifetime; /* total lifetime of servers */
+	usec_t server_lifetime;	/* total lifetime of servers */
 
 	/* stats for prepared statements */
 	uint64_t ps_server_parse_count;

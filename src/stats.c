@@ -160,7 +160,7 @@ bool admin_database_stats(PgSocket *client, struct StatList *pool_list)
 				    "avg_recv", "avg_sent",
 				    "avg_xact_time", "avg_query_time",
 				    "avg_wait_time", "avg_server_lifetime",
-					"avg_client_parse_count",
+				    "avg_client_parse_count",
 				    "avg_server_parse_count", "avg_bind_count");
 	statlist_for_each(item, pool_list) {
 		pool = container_of(item, PgPool, head);
@@ -261,7 +261,7 @@ static void write_stats_averages(PktBuf *buf, PgStats *stat, PgStats *old, char 
 			     avg.client_bytes, avg.server_bytes,
 			     avg.xact_time, avg.query_time,
 			     avg.wait_time, avg.server_lifetime,
-				 avg.ps_client_parse_count,
+			     avg.ps_client_parse_count,
 			     avg.ps_server_parse_count, avg.ps_bind_count);
 }
 

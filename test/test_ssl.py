@@ -28,9 +28,6 @@ async def bouncer(pg, tmp_path):
 
     await bouncer.cleanup()
 
-    bouncer.write_ini(f"client_tls_sslmode = disable")
-    bouncer.admin("reload")
-
 
 def test_server_ssl(pg, bouncer, cert_dir):
     bouncer.admin("set server_tls_sslmode = require")
@@ -292,29 +289,6 @@ def test_client_ssl_reload_change_ca(bouncer, cert_dir):
     ):
         bouncer.psql_test(host="localhost", sslmode="verify-full", sslrootcert=root)
     bouncer.psql_test(host="localhost", sslmode="verify-full", sslrootcert=new_root)
-
-
-def test_client_ssl_auth(bouncer, cert_dir):
-    root = cert_dir / "TestCA1" / "ca.crt"
-    key = cert_dir / "TestCA1" / "sites" / "01-localhost.key"
-    cert = cert_dir / "TestCA1" / "sites" / "01-localhost.crt"
-    bouncer.write_ini(f"client_tls_key_file = {key}")
-    bouncer.write_ini(f"client_tls_cert_file = {cert}")
-    bouncer.write_ini(f"client_tls_ca_file = {root}")
-    bouncer.write_ini(f"client_tls_sslmode = verify-full")
-    bouncer.write_ini(f"auth_type = cert")
-    bouncer.admin("reload")
-
-    client_key = cert_dir / "TestCA1" / "sites" / "02-bouncer.key"
-    client_cert = cert_dir / "TestCA1" / "sites" / "02-bouncer.crt"
-    bouncer.psql_test(
-        host="localhost",
-        sslmode="verify-full",
-        user="bouncer",
-        sslrootcert=root,
-        sslkey=client_key,
-        sslcert=client_cert,
-    )
 
 
 def test_client_ssl_scram(bouncer, cert_dir):

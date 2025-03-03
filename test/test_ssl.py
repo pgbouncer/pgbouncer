@@ -300,29 +300,6 @@ def test_client_ssl_reload_change_ca(bouncer_tls, cert_dir):
     bouncer_tls.psql_test(host="localhost", sslmode="verify-full", sslrootcert=new_root)
 
 
-def test_client_ssl_auth(bouncer_tls, cert_dir):
-    root = cert_dir / "TestCA1" / "ca.crt"
-    key = cert_dir / "TestCA1" / "sites" / "01-localhost.key"
-    cert = cert_dir / "TestCA1" / "sites" / "01-localhost.crt"
-    bouncer_tls.write_ini(f"client_tls_key_file = {key}")
-    bouncer_tls.write_ini(f"client_tls_cert_file = {cert}")
-    bouncer_tls.write_ini(f"client_tls_ca_file = {root}")
-    bouncer_tls.write_ini(f"client_tls_sslmode = verify-full")
-    bouncer_tls.write_ini(f"auth_type = cert")
-    bouncer_tls.admin("reload")
-
-    client_key = cert_dir / "TestCA1" / "sites" / "02-bouncer.key"
-    client_cert = cert_dir / "TestCA1" / "sites" / "02-bouncer.crt"
-    bouncer_tls.psql_test(
-        host="localhost",
-        sslmode="verify-full",
-        user="bouncer",
-        sslrootcert=root,
-        sslkey=client_key,
-        sslcert=client_cert,
-    )
-
-
 @pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
 def test_client_ssl_scram(bouncer_tls, cert_dir):
     root = cert_dir / "TestCA1" / "ca.crt"

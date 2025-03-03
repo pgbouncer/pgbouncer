@@ -28,6 +28,9 @@ async def bouncer(pg, tmp_path):
 
     await bouncer.cleanup()
 
+    bouncer.write_ini(f"client_tls_sslmode = disable")
+    bouncer.admin("reload")
+
 
 def test_server_ssl(pg, bouncer, cert_dir):
     bouncer.admin("set server_tls_sslmode = require")
@@ -243,8 +246,6 @@ def test_client_ssl_sighup_change_ca(bouncer, cert_dir):
     ):
         bouncer.psql_test(host="localhost", sslmode="verify-full", sslrootcert=root)
     bouncer.psql_test(host="localhost", sslmode="verify-full", sslrootcert=new_root)
-    bouncer.write_ini(f"client_tls_sslmode = disable")
-    bouncer.admin("reload")
 
 
 def test_client_ssl_reload_enable_disable(bouncer, cert_dir):
@@ -264,7 +265,7 @@ def test_client_ssl_reload_enable_disable(bouncer, cert_dir):
     bouncer.test(sslmode="disable")
 
 
-def test_client_ssl_reload_change_ca(pg, bouncer, cert_dir):
+def test_client_ssl_reload_change_ca(bouncer, cert_dir):
     root = cert_dir / "TestCA1" / "ca.crt"
     key = cert_dir / "TestCA1" / "sites" / "01-localhost.key"
     cert = cert_dir / "TestCA1" / "sites" / "01-localhost.crt"
@@ -289,11 +290,9 @@ def test_client_ssl_reload_change_ca(pg, bouncer, cert_dir):
     ):
         bouncer.psql_test(host="localhost", sslmode="verify-full", sslrootcert=root)
     bouncer.psql_test(host="localhost", sslmode="verify-full", sslrootcert=new_root)
-    bouncer.write_ini(f"client_tls_sslmode = disable")
-    pg.reload()
 
 
-def test_client_ssl_auth(pg, bouncer, cert_dir):
+def test_client_ssl_auth(bouncer, cert_dir):
     root = cert_dir / "TestCA1" / "ca.crt"
     key = cert_dir / "TestCA1" / "sites" / "01-localhost.key"
     cert = cert_dir / "TestCA1" / "sites" / "01-localhost.crt"
@@ -314,11 +313,9 @@ def test_client_ssl_auth(pg, bouncer, cert_dir):
         sslkey=client_key,
         sslcert=client_cert,
     )
-    bouncer.write_ini(f"client_tls_sslmode = disable")
-    pg.reload()
 
 
-def test_client_ssl_scram(pg, bouncer, cert_dir):
+def test_client_ssl_scram(bouncer, cert_dir):
     root = cert_dir / "TestCA1" / "ca.crt"
     key = cert_dir / "TestCA1" / "sites" / "01-localhost.key"
     cert = cert_dir / "TestCA1" / "sites" / "01-localhost.crt"
@@ -336,8 +333,6 @@ def test_client_ssl_scram(pg, bouncer, cert_dir):
         sslmode="verify-full",
         sslrootcert=root,
     )
-    bouncer.write_ini(f"client_tls_sslmode = disable")
-    pg.reload()
 
 
 def test_ssl_replication(pg, bouncer, cert_dir):
@@ -376,8 +371,6 @@ def test_ssl_replication(pg, bouncer, cert_dir):
     # physical rep
     connect_args["replication"] = "true"
     bouncer.psql("IDENTIFY_SYSTEM", **connect_args)
-    bouncer.write_ini(f"client_tls_sslmode = disable")
-    pg.reload()
 
 
 def test_servers_no_disconnect_on_reload_with_no_tls_change(bouncer, pg, cert_dir):

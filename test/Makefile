@@ -8,7 +8,6 @@ USUAL_DIR = ../lib
 SUBLOC = test
 DIST_SUBDIRS = ssl
 
-
 noinst_PROGRAMS = hba_test
 hba_test_CPPFLAGS = -I../include $(LIBEVENT_CFLAGS)
 hba_test_LDADD = $(LIBEVENT_LIBS) $(TLS_LIBS)

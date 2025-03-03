@@ -321,8 +321,6 @@ def test_client_ssl_auth(bouncer_tls, cert_dir):
         sslkey=client_key,
         sslcert=client_cert,
     )
-    bouncer.write_ini(f"client_tls_sslmode = disable")
-    pg.reload()
 
 
 @pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
@@ -344,8 +342,6 @@ def test_client_ssl_scram(bouncer_tls, cert_dir):
         sslmode="verify-full",
         sslrootcert=root,
     )
-    bouncer.write_ini(f"client_tls_sslmode = disable")
-    pg.reload()
 
 
 def test_ssl_replication(pg, bouncer_tls, cert_dir):

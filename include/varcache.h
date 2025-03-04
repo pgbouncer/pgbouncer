@@ -6,6 +6,8 @@ enum VarCacheIdx {
 	VTimeZone,
 	VStdStr,
 	VAppName,
+	VInHotStandby,
+	VDefaultTransactionReadOnly,
 	NumVars
 };
 

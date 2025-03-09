@@ -1393,7 +1393,7 @@ that it was meant for.  By peering them these cancellation requests eventually
 end up at the right process. A more in-depth explanation is provided in this
 [recording of a conference talk][cancel-problem-video].
 
-[cancel-problem-video]: https://www.youtube.com/watch?v=M585FfbboNA
+[cancel-problem-video]: https://www.youtube.com/watch?v=X-nCHcZ6vQU
 
 The section contains key=value lines like
 

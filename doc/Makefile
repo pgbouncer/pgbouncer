@@ -21,6 +21,7 @@ export PACKAGE_VERSION
 
 pgbouncer.%: pgbouncer_%.md
 	$(PANDOC) -s -t man -o $@ $<
+	rm $<
 
 pgbouncer_1.md: filter.py frag-usage-man.md usage.md
 	$(PYTHON) $^ >$@

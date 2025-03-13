@@ -210,7 +210,7 @@ static void per_loop_activate(PgPool *pool)
 				);
 			res = pktbuf_send_queued(buf, client);
 			if (!res)
-				log_warning("Queue warning failed");
+				log_warning("Sending queue warning failed");
 			client->queued_user_notified = 1;
 		}
 

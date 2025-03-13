@@ -1390,7 +1390,10 @@ TCP load balancer.  Cancellation requests are sent over different TCP
 connections than the query they are cancelling, so a TCP load balancer might
 send the cancellation request connection to a different process than the one
 that it was meant for.  By peering them these cancellation requests eventually
-end up at the right process.
+end up at the right process. A more in-depth explanation is provided in this
+[recording of a conference talk][cancel-problem-video].
+
+[cancel-problem-video]: https://www.youtube.com/watch?v=X-nCHcZ6vQU
 
 The section contains key=value lines like
 

@@ -1159,7 +1159,7 @@ static bool admin_cmd_reload(PgSocket *admin, const char *arg)
 	if (ok)
 		return admin_ready(admin, "RELOAD");
 	else
-		return send_pooler_error(admin, true, "01000", false, "RELOAD failed, see logs for additional details");
+		return send_pooler_error(admin, true, "F0000", false, "RELOAD failed, see logs for additional details");
 }
 
 /* Command: SHUTDOWN */

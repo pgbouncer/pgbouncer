@@ -1227,7 +1227,7 @@ static bool setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
 			tls_config_verify_client(conf);
 		} else if (sslmode == SSLMODE_VERIFY_CA) {
 			tls_config_verify_client(conf);
-		} else {
+		} else if (*cafile) {
 			tls_config_verify_client_optional(conf);
 		}
 	}

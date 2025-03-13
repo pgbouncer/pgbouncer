@@ -784,7 +784,7 @@ queued.
 
 A value of 0 disables this notification message.
 
-Default: 0
+Default: 5
 
 ## TLS settings
 

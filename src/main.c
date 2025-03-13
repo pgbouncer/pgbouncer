@@ -329,7 +329,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("tcp_keepalive", CF_INT, cf_tcp_keepalive, 0, "1"),
 	CF_ABS("tcp_keepcnt", CF_INT, cf_tcp_keepcnt, 0, "0"),
 	CF_ABS("tcp_keepidle", CF_INT, cf_tcp_keepidle, 0, "0"),
-	CF_ABS("client_queue_notify_seconds", CF_INT, cf_client_queue_notify_seconds, 0, "0"),
+	CF_ABS("client_queue_notify_seconds", CF_INT, cf_client_queue_notify_seconds, 0, "5"),
 	CF_ABS("tcp_keepintvl", CF_INT, cf_tcp_keepintvl, 0, "0"),
 	CF_ABS("tcp_socket_buffer", CF_INT, cf_tcp_socket_buffer, 0, "0"),
 	CF_ABS("tcp_user_timeout", CF_INT, cf_tcp_user_timeout, 0, "0"),

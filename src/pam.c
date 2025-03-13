@@ -200,7 +200,6 @@ static void set_request_status(struct gss_auth_request *request, int status)
 	pthread_mutex_unlock(&request->mutex);
 }
 
-
 /*
  * Checks for completed auth requests, returns amount of requests handled.
  * The function is called only from the main thread.

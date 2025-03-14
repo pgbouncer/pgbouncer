@@ -6,7 +6,34 @@ import time
 import psycopg
 import pytest
 
-from .utils import HAVE_IPV6_LOCALHOST, PG_MAJOR_VERSION, PKT_BUF_SIZE, WINDOWS
+from .utils import HAVE_IPV6_LOCALHOST, PG_MAJOR_VERSION, PKT_BUF_SIZE, WINDOWS, PG_SUPPORTS_SCRAM
+
+
+@pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
+def test_scram_server(bouncer):
+    config = f"""
+    [databases]
+    p6 = port=6666 host=127.0.0.1 dbname=p6 user=scramuser1 password=foo max_db_connections=0
+    postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_type = scram-sha-256
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    pool_mode = session
+    client_queue_notify_seconds = 1
+
+    [users]
+    puser1 = max_user_connections = 1
+    """
+    with bouncer.run_with_config(config):
+        # good password from ini
+        bouncer.test(
+                dbname="p6", password="foo",
+                user="scramuser1")
 
 
 async def test_notify_queue(bouncer):

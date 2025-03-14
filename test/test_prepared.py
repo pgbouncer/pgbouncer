@@ -417,9 +417,14 @@ def test_prepared_failed_prepare_pipeline(bouncer):
         with conn.pipeline() as p, conn.cursor() as cur:
             cur.execute("SELECT 1", prepare=True)
             cur.execute("SELECT * FROM doesnotexistyet", prepare=True)
-            cur.execute("SELECT 2", prepare=True)
             with pytest.raises(psycopg.errors.UndefinedTable):
-                p.sync()
+                # Either of these two commands might fail due to timing
+                # differences, usually it's the sync. If the execute fails we
+                # still want it to sync though.
+                try:
+                    cur.execute("SELECT 2", prepare=True)
+                finally:
+                    p.sync()
             cur.execute("SELECT 1", prepare=True)
             p.sync()
             cur.execute("SELECT 2", prepare=True)

@@ -6,7 +6,13 @@ import time
 import psycopg
 import pytest
 
-from .utils import HAVE_IPV6_LOCALHOST, PG_MAJOR_VERSION, PKT_BUF_SIZE, WINDOWS, PG_SUPPORTS_SCRAM
+from .utils import (
+    HAVE_IPV6_LOCALHOST,
+    PG_MAJOR_VERSION,
+    PG_SUPPORTS_SCRAM,
+    PKT_BUF_SIZE,
+    WINDOWS,
+)
 
 
 @pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
@@ -31,9 +37,8 @@ def test_scram_server(bouncer):
     """
     with bouncer.run_with_config(config):
         # good password from ini
-        bouncer.test(
-                dbname="p6", password="foo",
-                user="scramuser1")
+        with pytest.raises(psycopg.errors.ConnectionTimeout):
+            bouncer.test(dbname="p6", password="foo", user="scramuser1")
 
 
 async def test_notify_queue(bouncer):

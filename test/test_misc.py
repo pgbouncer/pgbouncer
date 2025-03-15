@@ -15,8 +15,9 @@ from .utils import (
 )
 
 
+@pytest.mark.parametrize("test_auth_type", ["scram-sha-256", "trust"])
 @pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
-def test_scram_server(bouncer):
+def test_scram_server(bouncer, test_auth_type):
     config = f"""
     [databases]
     p6 = port=6666 host=127.0.0.1 dbname=p6 user=scramuser1 password=foo max_db_connections=0
@@ -25,7 +26,7 @@ def test_scram_server(bouncer):
     [pgbouncer]
     listen_addr = {bouncer.host}
     admin_users = pgbouncer
-    auth_type = scram-sha-256
+    auth_type = {test_auth_type}
     auth_file = {bouncer.auth_path}
     listen_port = {bouncer.port}
     logfile = {bouncer.log_path}

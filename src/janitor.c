@@ -21,7 +21,6 @@
  */
 
 #include "bouncer.h"
-#include "scram.h"
 
 #include <usual/slab.h>
 
@@ -202,7 +201,7 @@ static void per_loop_activate(PgPool *pool)
 
 		if (client->state == CL_WAITING
 		    && client->queued_user_notified == 0
-		    && get_password_type(client->login_user_credentials->passwd) != PASSWORD_TYPE_SCRAM_SHA_256
+		    && client->welcome_sent
 		    && (age / USEC) > cf_client_queue_notify_seconds
 		    && cf_client_queue_notify_seconds > 0) {
 			buf = pktbuf_dynamic(256);

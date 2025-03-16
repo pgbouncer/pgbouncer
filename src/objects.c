@@ -2054,6 +2054,7 @@ bool finish_client_login(PgSocket *client)
 	if (!welcome_client(client))
 		return false;
 
+	client->welcome_sent = true;
 	slog_debug(client, "logged in");
 
 	return true;

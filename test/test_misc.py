@@ -39,11 +39,10 @@ def test_scram_server(bouncer, test_auth_type):
     with bouncer.run_with_config(config):
         # good password from ini
         with pytest.raises(psycopg.errors.ConnectionTimeout):
-            if test_auth_type == 'trust':
+            if test_auth_type == "trust":
                 bouncer.test(dbname="p6")
             else:
                 bouncer.test(dbname="p6", password="foo", user="scramuser1")
-
 
 
 async def test_notify_queue(bouncer):

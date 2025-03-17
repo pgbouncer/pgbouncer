@@ -177,7 +177,6 @@ static void per_loop_activate(PgPool *pool)
 	struct List *item, *tmp;
 	PgSocket *client;
 	int sv_tested, sv_used;
-	usec_t now = get_cached_time();
 
 	/* if there is a cancel request waiting, open a new connection */
 	if (!statlist_empty(&pool->waiting_cancel_req_list)) {
@@ -189,21 +188,15 @@ static void per_loop_activate(PgPool *pool)
 	sv_tested = statlist_count(&pool->tested_server_list);
 	sv_used = statlist_count(&pool->used_server_list);
 	statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
-		usec_t age;
 		PktBuf *buf;
 		bool res;
 		client = container_of(item, PgSocket, head);
-		if (client->query_start == 0) {
-			age = now - client->request_time;
-		} else {
-			age = now - client->query_start;
-		}
 
 		if (client->state == CL_WAITING
-		    && client->queued_user_notified == 0
+		    && client->sent_wait_notification == 0
 		    && client->welcome_sent
-		    && (age / USEC) > cf_client_queue_notify_seconds
-		    && cf_client_queue_notify_seconds > 0) {
+		    && client->request_time > cf_query_wait_notify
+		    && cf_query_wait_notify > 0) {
 			buf = pktbuf_dynamic(256);
 			pktbuf_write_Notice(
 				buf,
@@ -212,7 +205,7 @@ static void per_loop_activate(PgPool *pool)
 			res = pktbuf_send_queued(buf, client);
 			if (!res)
 				log_warning("Sending queue warning failed");
-			client->queued_user_notified = 1;
+			client->sent_wait_notification = 1;
 		}
 
 		if (client->replication) {

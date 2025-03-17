@@ -662,14 +662,14 @@ struct PgSocket {
 	bool copy_mode : 1;		/* server: in copy stream, ignores any Sync packets until CopyDone or CopyFail */
 
 	bool wait_for_welcome : 1;	/* client: no server yet in pool, cannot send welcome msg */
-	bool welcome_sent : 1;
+	bool welcome_sent : 1;          /* client: client has been sent the welcome msg */
 	bool wait_for_user_conn : 1;	/* client: waiting for auth_conn server connection */
 	bool wait_for_user : 1;		/* client: waiting for auth_conn query results */
 	bool wait_for_auth : 1;		/* client: waiting for external auth (PAM) to be completed */
 
 	bool suspended : 1;		/* client/server: if the socket is suspended */
 
-	bool queued_user_notified : 1;	/* client: whether user has been alerted that it is queued */
+	bool sent_wait_notification: 1;	/* client: whether client has been alerted that it is queued */
 
 	bool admin_user : 1;		/* console client: has admin rights */
 	bool own_user : 1;		/* console client: client with same uid on unix socket */
@@ -755,7 +755,7 @@ struct PgSocket {
 
 /* main.c */
 extern int cf_daemon;
-extern long unsigned int cf_client_queue_notify_seconds;
+extern long unsigned int cf_query_wait_notify;
 extern char *cf_config_file;
 extern char *cf_jobname;
 

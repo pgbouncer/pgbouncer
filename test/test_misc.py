@@ -31,7 +31,7 @@ def test_scram_server(bouncer, test_auth_type):
     listen_port = {bouncer.port}
     logfile = {bouncer.log_path}
     pool_mode = session
-    client_queue_notify_seconds = 1
+    query_wait_notify = 1
 
     [users]
     puser1 = max_user_connections = 1
@@ -58,7 +58,7 @@ async def test_notify_queue(bouncer):
     listen_port = {bouncer.port}
     logfile = {bouncer.log_path}
     pool_mode = session
-    client_queue_notify_seconds = 2
+    query_wait_notify = 2
 
     [users]
     puser1 = max_user_connections=1

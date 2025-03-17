@@ -238,7 +238,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 			newstate = CL_LOGIN;
 	/* fallthrough */
 	case CL_WAITING:
-		client->queued_user_notified = 0;
+		client->sent_wait_notification = 0;
 		statlist_remove(&pool->waiting_client_list, &client->head);
 		break;
 	case CL_ACTIVE:

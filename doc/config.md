@@ -776,11 +776,11 @@ syntax and directives.
 
 Default: empty (use operating system defaults)
 
-### client_queue_notify_seconds
+### query_wait_notify
 
-The number of seconds that a client will be queued for before
+Time that a client will be queued for before
 pgbouncer sends a notification message that they are being
-queued.
+queued. [seconds]
 
 A value of 0 disables this notification message.
 

@@ -195,7 +195,7 @@ static void per_loop_activate(PgPool *pool)
 		if (client->state == CL_WAITING
 		    && client->sent_wait_notification == 0
 		    && client->welcome_sent
-		    && client->request_time > cf_query_wait_notify
+		    && ((get_cached_time() - client->wait_start) / USEC) > cf_query_wait_notify
 		    && cf_query_wait_notify > 0) {
 			buf = pktbuf_dynamic(256);
 			pktbuf_write_Notice(

@@ -33,7 +33,7 @@ def test_reload_error(bouncer):
             f.write(bad_config)
 
         with pytest.raises(
-            psycopg.errors.DatabaseError,
+            psycopg.errors.ConfigFileError,
             match=r"RELOAD failed, see logs for additional details",
         ):
             bouncer.admin("RELOAD")

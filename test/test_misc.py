@@ -18,6 +18,9 @@ from .utils import (
 @pytest.mark.parametrize("test_auth_type", ["scram-sha-256", "trust"])
 @pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
 def test_scram_server(bouncer, test_auth_type):
+    """
+    Test that query_wait_notify setting plays nicely with scram-sha-256 authentication.
+    """
     config = f"""
     [databases]
     p6 = port=6666 host=127.0.0.1 dbname=p6 user=scramuser1 password=foo max_db_connections=0
@@ -45,7 +48,68 @@ def test_scram_server(bouncer, test_auth_type):
                 bouncer.test(dbname="p6", password="foo", user="scramuser1")
 
 
+async def test_notify_queue_negative(bouncer):
+    """
+    Test that wait notification will not occur when query_wait_notify
+    is set to longer than the client will be waiting in the queue for.
+    """
+    config = f"""
+    [databases]
+    postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_type = trust
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    pool_mode = statement
+    query_wait_notify = 8
+
+    [users]
+    puser1 = max_user_connections=1
+    """
+    notices_received = []
+
+    def log_notice(diag):
+        notices_received.append(diag.message_primary)
+
+    with bouncer.run_with_config(config):
+
+        sleep_future = bouncer.asql(
+            "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
+        )
+        _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
+
+        conn_2: psycopg.AsyncConnection = await bouncer.aconn(
+            dbname="postgres", user="puser1"
+        )
+        conn_2.add_notice_handler(log_notice)
+        curr = await conn_2.execute("select 1;")
+        curr.fetchall()
+
+        assert len(notices_received) == 0
+
+        sleep_future = bouncer.asql(
+            "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
+        )
+        _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
+
+        curr = await conn_2.execute("select 1;")
+        curr.fetchall()
+        assert len(notices_received) == 0
+
+        conn_2.close()
+
+
 async def test_notify_queue(bouncer):
+    """
+    Test that client is notified when they are waiting for longer
+    than query_wait_notify seconds. Also tests that the notification
+    is correctly sent if they are waiting in a second time during the
+    same connection.
+    """
     config = f"""
     [databases]
     postgres = host={bouncer.pg.host} port={bouncer.pg.port}

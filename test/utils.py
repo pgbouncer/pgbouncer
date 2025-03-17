@@ -655,6 +655,37 @@ class QueryRunner:
         )
 
 
+class Proxy(QueryRunner):
+    def __init__(self, pg):
+        self.port_lock = PortLock()
+        super().__init__("127.0.0.1", self.port_lock.port)
+        self.connections = {}
+        self.pg = pg
+        self.cursors = {}
+        self.restarted = False
+        self.process: typing.Optional[subprocess.Popen] = None
+
+    def start(self):
+        command = [
+            "socat",
+            f"tcp-listen:{self.port_lock.port},reuseaddr,fork",
+            f"tcp:localhost:{self.pg.port_lock.port}",
+        ]
+        self.process = subprocess.Popen(" ".join(command), shell=True)
+
+    def stop(self):
+        self.process.kill()
+
+    def cleanup(self):
+        self.stop()
+        self.port_lock.release()
+
+    def restart(self):
+        self.restarted = True
+        self.stop()
+        self.start()
+
+
 class Postgres(QueryRunner):
     def __init__(self, pgdata):
         self.port_lock = PortLock()

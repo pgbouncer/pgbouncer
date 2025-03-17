@@ -1367,6 +1367,32 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	PreparedStatementAction ps_action = PS_IGNORE;
 	PgClosePacket close_packet;
 
+
+	if (client->wait_for_cancel) {
+		switch (pkt->type) {
+		case PqMsg_Query:
+		case PqMsg_FunctionCall:
+		case PqMsg_Sync:
+			client->query_start = 0;
+			client->xact_start = 0;
+			client->wait_for_cancel = false;
+			break;
+		default:
+			return false;
+			break;
+		}
+
+		sbuf_prepare_skip(sbuf, pkt->len);
+
+		if (!send_pooler_error(client, true, NULL, false, "Cancelled waiting query")) {
+			disconnect_client(client, false, "Failed to cancel waiting query");
+			return false;
+		}
+
+		return true;
+	}
+
+
 	switch (pkt->type) {
 	/* one-packet queries */
 	case PqMsg_Query:

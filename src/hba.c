@@ -228,10 +228,24 @@ static enum TokType next_token(struct TokParser *p)
 	return p->cur_tok;
 }
 
+static void eat_all(struct TokParser *p)
+{
+	p->cur_tok = TOK_EOL;
+}
+
 static bool eat(struct TokParser *p, enum TokType ttype)
 {
 	if (p->cur_tok == ttype) {
 		next_token(p);
+		return true;
+	}
+	return false;
+}
+
+/* Do not get next token, just check value */
+static bool check_kw(struct TokParser *p, const char *kw)
+{
+	if (p->cur_tok == TOK_IDENT && strcmp(kw, p->cur_tok_str) == 0) {
 		return true;
 	}
 	return false;
@@ -434,6 +448,7 @@ static void rule_free(struct HBARule *rule)
 {
 	strset_free(rule->db_name.name_set);
 	strset_free(rule->user_name.name_set);
+	free(rule->auth_options);
 	free(rule);
 }
 
@@ -757,9 +772,19 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 		rule->rule_method = AUTH_TYPE_CERT;
 	} else if (eat_kw(tp, "scram-sha-256")) {
 		rule->rule_method = AUTH_TYPE_SCRAM_SHA_256;
+	} else if (check_kw(tp, "ldap")) {
+		rule->rule_method = AUTH_TYPE_LDAP;
 	} else {
 		log_warning("hba line %d: unsupported method: buf=%s", linenr, tp->buf);
 		goto failed;
+	}
+
+	if (rule->rule_method == AUTH_TYPE_LDAP) {
+		if ((rule->auth_options = strdup(tp->pos)) == NULL) {
+			log_warning("hba line %d: cannot get auth_options: buf=%s", linenr, tp->pos);
+			goto failed;
+		}
+		eat_all(tp);
 	}
 
 	if (!parse_map_definition(rule, ident, tp, linenr)) {

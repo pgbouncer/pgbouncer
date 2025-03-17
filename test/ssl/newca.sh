@@ -32,7 +32,7 @@ run openssl ecparam -name prime256v1 -genkey -out "$name/ca.key"
 # self-signed cert
 # the -addext option is not required for old OpenSSL versions
 openssl_version=`openssl version | awk '{print $2}'`
-if expr "X$openssl_version" : 'X1.0.*' >/dev/null; then
+if expr "X$openssl_version" : 'X1.*.*' >/dev/null; then
   run_req -new -x509 -days $days -key "$name/ca.key" -out "$name/ca.crt" -- "$@"
 else
   run_req -new -x509 -days $days -key "$name/ca.key" -out "$name/ca.crt" -addext basicConstraints=critical,CA:TRUE,pathlen:1 -- "$@"

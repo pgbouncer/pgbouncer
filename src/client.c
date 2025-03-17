@@ -535,7 +535,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 
 		if (!check_user_connection_count(client))
 			return false;
-	} else if (client->client_auth_type == AUTH_TYPE_PAM) {
+	} else if (cf_auth_type == AUTH_TYPE_PAM) {
 		if (client->db->auth_user_credentials) {
 			slog_error(client, "PAM can't be used together with database authentication");
 			disconnect_client(client, true, "bouncer config error");

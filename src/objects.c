@@ -238,6 +238,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 			newstate = CL_LOGIN;
 	/* fallthrough */
 	case CL_WAITING:
+		client->sent_wait_notification = 0;
 		statlist_remove(&pool->waiting_client_list, &client->head);
 		break;
 	case CL_ACTIVE:
@@ -2053,6 +2054,7 @@ bool finish_client_login(PgSocket *client)
 	if (!welcome_client(client))
 		return false;
 
+	client->welcome_sent = true;
 	slog_debug(client, "logged in");
 
 	return true;

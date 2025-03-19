@@ -36,7 +36,7 @@ BOUNCER_INI = TEST_DIR / "test.ini"
 BOUNCER_AUTH = TEST_DIR / "userlist.txt"
 BOUNCER_PID = TEST_DIR / "test.pid"
 BOUNCER_PORT = 6667
-BOUNCER_EXE = TEST_DIR / "../pgbouncer"
+BOUNCER_EXE = os.environ.get('BOUNCER_EXE', TEST_DIR / "../pgbouncer")
 NEW_CA_SCRIPT = TEST_DIR / "ssl" / "newca.sh"
 NEW_SITE_SCRIPT = TEST_DIR / "ssl" / "newsite.sh"
 ENABLE_VALGRIND = bool(os.environ.get("ENABLE_VALGRIND"))
@@ -164,11 +164,13 @@ PG_SUPPORTS_SCRAM = PG_MAJOR_VERSION >= 10
 LIBPQ_SUPPORTS_PIPELINING = psycopg.pq.version() >= 140000
 
 
+# FIXME
 def get_tls_support():
-    with open("../config.mak", encoding="utf-8") as f:
-        match = re.search(r"tls_support = (\w+)", f.read())
-        assert match is not None
-        return match.group(1) == "yes"
+    return True
+#    with open("../config.mak", encoding="utf-8") as f:
+#        match = re.search(r"tls_support = (\w+)", f.read())
+#        assert match is not None
+#       return match.group(1) == "yes"
 
 
 TLS_SUPPORT = get_tls_support()

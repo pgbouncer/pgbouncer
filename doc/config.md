@@ -470,7 +470,7 @@ hba
 pam
 :   PAM is used to authenticate users, `auth_file` is ignored. This method is not
     compatible with databases using the `auth_user` option. The service name reported to
-    PAM is "pgbouncer".
+    PAM is "pgbouncer". `pam` is not supported in the HBA configuration file.
 
 ### auth_hba_file
 
@@ -1403,7 +1403,10 @@ TCP load balancer.  Cancellation requests are sent over different TCP
 connections than the query they are cancelling, so a TCP load balancer might
 send the cancellation request connection to a different process than the one
 that it was meant for.  By peering them these cancellation requests eventually
-end up at the right process.
+end up at the right process. A more in-depth explanation is provided in this
+[recording of a conference talk][cancel-problem-video].
+
+[cancel-problem-video]: https://www.youtube.com/watch?v=X-nCHcZ6vQU
 
 The section contains key=value lines like
 
@@ -1582,7 +1585,7 @@ The file follows the format of the PostgreSQL `pg_hba.conf` file
 * User name field: Supports `all`, `@file`, multiple names.  Not supported: `+groupname`.
 * Address field: Supports `all`, IPv4, IPv6.  Not supported: `samehost`, `samenet`, DNS names, domain prefixes.
 * Auth-method field: Only methods supported by PgBouncer's `auth_type`
-  are supported, plus `peer` and `reject`, but except `any`, which only works globally.
+  are supported, plus `peer` and `reject`, but except `any` and `pam`, which only work globally.
 * User name map (`map=`) parameter is supported when `auth_type` is `cert` or `peer`.
 
 ## Ident map file format

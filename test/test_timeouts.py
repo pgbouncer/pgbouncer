@@ -352,7 +352,7 @@ def test_transaction_timeout_user_overide_global(bouncer):
                 time.sleep(2)
                 with pytest.raises(
                     psycopg.OperationalError,
-                    match=r"server closed the connection unexpectedly|Software caused connection abort",
+                    match=r"transaction timeout",
                 ):
                     cur.execute("")
 
@@ -395,7 +395,7 @@ def test_transaction_timeout_user(bouncer):
                 time.sleep(2)
                 with pytest.raises(
                     psycopg.OperationalError,
-                    match=r"server closed the connection unexpectedly|Software caused connection abort",
+                    match=r"transaction timeout",
                 ):
                     cur.execute("")
 
@@ -423,7 +423,7 @@ def test_transaction_timeout(bouncer):
             time.sleep(2)
             with pytest.raises(
                 psycopg.OperationalError,
-                match=r"server closed the connection unexpectedly|Software caused connection abort",
+                match=r"transaction timeout",
             ):
                 cur.execute("")
 

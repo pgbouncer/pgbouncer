@@ -4,6 +4,36 @@ PgBouncer changelog
 PgBouncer 1.24.x
 ----------------
 
+**2025-04-16  -  PgBouncer 1.24.1  -  "CVE-2025-2291 VALID UNTIL yesterday"**
+
+- Security
+  * Fix CVE-2025-2291: Previously PgBouncer did not take into account the VALID
+    UNTIL of a user password when querying for password hashes using its
+    auth_query. So if PgBouncer is used as a transparent proxy in front of
+    Postgres it could allow passwords that had already expired. To solve this
+    issue the default auth_query and the examples of custom auth_query functions
+    in the documentation have been changed to take VALID UNTIL into account. If
+    you are using a custom auth_query you should update that accordingly. If
+    you are using the default auth_query, you can either update to PgBouncer
+    1.24.1 or change your config to use the new default auth_query on a
+    previous release of PgBouncer.
+
+- Fixes
+  * Fix PAM support by reverting `pam` authentication support in HBA file. ([#1291]) (bug introduced in 1.24.0)
+  * Fix bug when decrementing user connection count. This was included in the tag of 1.24.0 on GitHub, but the release tarball did not contain this fix.  ([#1238]) (bug introduced in 1.24.0)
+  * Add `test_load_balance_hosts.py` to the tarball. ([#1282])
+  * Fix issues with tests to allow them to be run by Debian packagers. ([#1266], [#1250])
+
+- Docs
+  * Update `auth_query` example to set a safe `search_path`. ([#1245])
+
+[#1238]: https://github.com/pgbouncer/pgbouncer/pull/1238
+[#1291]: https://github.com/pgbouncer/pgbouncer/pull/1291
+[#1282]: https://github.com/pgbouncer/pgbouncer/pull/1282
+[#1266]: https://github.com/pgbouncer/pgbouncer/pull/1266
+[#1250]: https://github.com/pgbouncer/pgbouncer/pull/1250
+[#1245]: https://github.com/pgbouncer/pgbouncer/pull/1245
+
 **2025-01-10  -  PgBouncer 1.24.0  -  "New year, new bouncer"**
 
 - Features

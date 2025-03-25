@@ -544,6 +544,19 @@ static bool check_if_need_ldap_authentication(PgSocket *client, const char *dbna
 }
 #endif
 
+#ifdef HAVE_GSS
+static bool check_if_need_gss_authentication(PgSocket *client, const char *dbname, const char *username)
+{
+	if (cf_auth_type == AUTH_TYPE_HBA) {
+		struct HBARule *rule = hba_eval(parsed_hba, &client->remote_addr, !!client->sbuf.tls,
+						REPLICATION_NONE, dbname, username);
+		if (rule != NULL && rule->rule_method == AUTH_TYPE_GSS)
+			return true;
+	}
+	return false;
+}
+#endif
+
 bool set_pool(PgSocket *client, const char *dbname, const char *username, const char *password, bool takeover)
 {
 	Assert((password && takeover) || (!password && !takeover));
@@ -628,8 +641,18 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			return false;
 		}
 #ifdef HAVE_GSS
-	} else if (cf_auth_type == AUTH_TYPE_GSS) {
-		client->login_user_credentials = add_gss_credentials(username);
+	} else if (check_if_need_gss_authentication(client, dbname, username) || cf_auth_type == AUTH_TYPE_GSS) {
+		client->login_user_credentials = find_or_add_new_global_credentials(username, NULL);
+		if (!check_db_connection_count(client))
+			return false;
+		if (!client->login_user_credentials) {
+			slog_error(client, "set_pool(): failed to allocate new PAM user");
+			disconnect_client(client, true, "bouncer resources exhaustion");
+			return false;
+		}
+		if (!check_user_connection_count(client)) {
+			return false;
+		}
 #endif
 	} else {
 		client->login_user_credentials = find_global_credentials(username);

@@ -200,11 +200,6 @@ extern int cf_sbuf_len;
 #define DEFAULT_UNIX_SOCKET_DIR ""
 #endif
 
-#ifdef HAVE_GSS
-#include <gssapi/gssapi.h>
-#include <gssapi/gssapi_ext.h>
-#include <gssapi/gssapi_krb5.h>
-#endif
 
 /*
  * To avoid allocations, we use static buffers.
@@ -769,24 +764,7 @@ struct PgSocket {
 	char ldap_options[MAX_LDAP_CONFIG];
 #endif
 
-#ifdef HAVE_GSS
-	struct GSSState {
-		enum {
-			GSS_INITIAL,
-			GSS_CONTINUE,
-			GSS_DONE
-		} state;
-		gss_cred_id_t server_credentials;
-		gss_cred_id_t delegated_credentials;
-		gss_buffer_desc outbuf;	/* GSSAPI output token buffer */
-		gss_cred_id_t cred;	/* GSSAPI connection cred's */
-		gss_ctx_id_t ctx;	/* GSSAPI connection context */
-		gss_name_t name;/* GSSAPI client name */
-		gss_buffer_desc client_name;	/* Tempoary */
-		OM_uint32 flags;
-	} gss;
 	char gss_parameters[MAX_GSS_CONFIG];
-#endif
 
 	VarCache vars;		/* state of interesting server parameters */
 

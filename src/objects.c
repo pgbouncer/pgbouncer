@@ -46,14 +46,6 @@ struct AATree user_tree;
 struct AATree pam_user_tree;
 
 /*
- * All GSS users are kept here. We need to differentiate two user
- * lists to avoid user clashing for different authentication types,
- * and because gss_user_tree is closer to PgDatabase.user_tree in
- * logic.
- */
-struct AATree gss_user_tree;
-
-/*
  * The global prepared statement cache, which deduplicates prepared statements
  * sent by the clients statements by storing every unique prepared statement
  * only once.
@@ -167,7 +159,6 @@ void init_objects(void)
 {
 	aatree_init(&user_tree, global_user_node_cmp, NULL);
 	aatree_init(&pam_user_tree, credentials_node_cmp, NULL);
-	aatree_init(&gss_user_tree, credentials_node_cmp, NULL);
 	user_cache = slab_create("user_cache", sizeof(PgGlobalUser), 0, NULL, USUAL_ALLOC);
 	credentials_cache = slab_create("credentials_cache", sizeof(PgCredentials), 0, NULL, USUAL_ALLOC);
 	db_cache = slab_create("db_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
@@ -578,33 +569,6 @@ PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const c
 	safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
 	credentials->dynamic_passwd = true;
 
-	return credentials;
-}
-
-/* Add GSS user. The logic is same as in add_dynamic_credentials */
-PgCredentials *add_gss_credentials(const char *name)
-{
-	PgCredentials *credentials = NULL;
-	struct AANode *node;
-
-	node = aatree_search(&gss_user_tree, (uintptr_t)name);
-	credentials = node ? container_of(node, PgCredentials, tree_node) : NULL;
-
-	if (credentials == NULL) {
-		credentials = slab_alloc(credentials_cache);
-		if (!credentials)
-			return NULL;
-
-		safe_strcpy(credentials->name, name, sizeof(credentials->name));
-
-		credentials->global_user = find_or_add_new_global_user(name, NULL);
-		if (!credentials->global_user) {
-			slab_free(credentials_cache, credentials);
-			return NULL;
-		}
-
-		aatree_insert(&gss_user_tree, (uintptr_t)credentials->name, &credentials->tree_node);
-	}
 	return credentials;
 }
 
@@ -2722,7 +2686,6 @@ void objects_cleanup(void)
 	memset(&database_list, 0, sizeof database_list);
 	memset(&pool_list, 0, sizeof pool_list);
 	memset(&pam_user_tree, 0, sizeof pam_user_tree);
-	memset(&gss_user_tree, 0, sizeof pam_user_tree);
 	memset(&user_tree, 0, sizeof user_tree);
 	memset(&autodatabase_idle_list, 0, sizeof autodatabase_idle_list);
 

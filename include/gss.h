@@ -21,6 +21,12 @@
  * GSS support.
  */
 
+#ifdef HAVE_GSS
+#include <gssapi/gssapi.h>
+#include <gssapi/gssapi_ext.h>
+#include <gssapi/gssapi_krb5.h>
+#endif
+
 /* Name of the service to be passed to GSS */
 #define PGBOUNCER_GSS_SERVICE "pgbouncer"
 

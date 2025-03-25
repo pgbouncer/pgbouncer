@@ -41,17 +41,24 @@ struct gss_auth_request {
 	uint8_t *token;
 	uint32_t token_length;
 
+	enum {
+		GSS_INITIAL,
+		GSS_CONTINUE,
+		GSS_DONE
+	} gss_state;
+
 	/* The username (same as in client->login_user_credentials->name).
 	 * See the comment for remote_addr.
 	 *
 	 */
+	gss_name_t gss_name;	/* GSSAPI client name */
 	char gss_parameters[MAX_GSS_CONFIG];
 	int param_pos;
 	char username[MAX_USERNAME];
-	gss_ctx_id_t *context;
+	gss_ctx_id_t context;
 	bool include_realm;
 	char *krb_realm;
-	OM_uint32 *flags;
+	OM_uint32 flags;
 };
 
 /*
@@ -87,7 +94,8 @@ struct gss_auth_request gss_auth_queue[GSS_REQUEST_QUEUE_SIZE];
 static bool is_valid_socket(const struct gss_auth_request *request);
 static void * gss_auth_worker(void *arg);
 static void gss_auth_finish(struct gss_auth_request *request, int status);
-static bool gss_check_passwd(struct gss_auth_request *request);
+static bool gss_recvauth(struct gss_auth_request *request);
+static bool gss_checkauth(struct gss_auth_request *request);
 static bool get_key_value(char **p, char **key, char **value);
 static int get_request_status(struct gss_auth_request *request);
 static void set_request_status(struct gss_auth_request *request, int status);
@@ -210,6 +218,7 @@ static void ignore_space_from_end(char *parameter)
 	}
 	return;
 }
+
 static bool initialize_gss_parameters(struct gss_auth_request *request, char *parameter)
 {
 	char *key, *value;
@@ -303,8 +312,6 @@ void gss_auth_begin(PgSocket *client, uint8_t *token, uint32_t token_length)
 	memcpy(&request->remote_addr, &client->remote_addr, sizeof(client->remote_addr));
 	safe_strcpy(request->username, client->login_user_credentials->name, MAX_USERNAME);
 // safe_strcpy(request->password, passwd, MAX_PASSWORD);
-	request->context = &client->gss.ctx;
-	request->flags = &client->gss.flags;
 
 	free_gss_parameters(request);
 
@@ -389,7 +396,7 @@ static void * gss_auth_worker(void *arg)
 		request = &gss_auth_queue[current_slot];
 		current_slot = (current_slot + 1) % GSS_REQUEST_QUEUE_SIZE;
 
-		if (gss_check_passwd(request)) {
+		if (gss_recvauth(request)) {
 			request_status = GSS_STATUS_SUCCESS;
 		} else {
 			request_status = GSS_STATUS_FAILED;
@@ -403,15 +410,14 @@ static void * gss_auth_worker(void *arg)
 }
 
 
-// TODO Change name, this function does not actually check password
-static bool gss_check_passwd(struct gss_auth_request *request)
+static bool gss_recvauth(struct gss_auth_request *request)
 {
 	gss_buffer_desc send_tok;
-	gss_name_t user_name;
-	OM_uint32 maj_stat, min_stat, acc_sec_min_stat, lmin_s;
+	OM_uint32 maj_stat,
+		  min_stat,
+		  lmin_s;
 	gss_buffer_desc gbuf;
 	gss_cred_id_t server_credentials, delegated_creds;
-	char *princ;
 
 	if (!initialize_gss_parameters(request, request->client->gss_parameters)) {
 		return false;
@@ -422,8 +428,8 @@ static bool gss_check_passwd(struct gss_auth_request *request)
 		return false;
 	}
 	setenv("KRB5_KTNAME", cf_auth_krb_server_keyfile, 1);
-	if (GSS_INITIAL == request->client->gss.state) {
-		*(request->context) = GSS_C_NO_CONTEXT;
+	if (GSS_INITIAL == request->gss_state) {
+		request->context = GSS_C_NO_CONTEXT;
 	}
 
 	gbuf.length = request->token_length;
@@ -434,36 +440,29 @@ static bool gss_check_passwd(struct gss_auth_request *request)
 	delegated_creds = GSS_C_NO_CREDENTIAL;
 
 	/* Accept the context. */
-	maj_stat = gss_accept_sec_context(&acc_sec_min_stat,
-					  request->context,
+	maj_stat = gss_accept_sec_context(&min_stat,
+					  &request->context,
 					  server_credentials,
 					  &gbuf,
 					  GSS_C_NO_CHANNEL_BINDINGS,
-					  &user_name,
+					  &request->gss_name,
 					  NULL,
 					  &send_tok,
-					  request->flags,
+					  &request->flags,
 					  NULL,
 					  cf_auth_gss_accept_delegation ? &delegated_creds : NULL);
-
-	log_debug("Evaluation of GSSAPI token");
 
 	log_debug("gss_accept_sec_context major: %u, "
 		  "minor: %u, outlen: %u, outflags: %x",
 		  maj_stat, min_stat,
-		  (unsigned int) send_tok.length, *request->flags);
-
-	if (GSS_S_COMPLETE != maj_stat) {
-		return false;
-	}
+		  (unsigned int) send_tok.length, request->flags);
 
 	/* Send back token to the client, if expected to do so. */
-	if (0 != send_tok.length) {
+	if (send_tok.length != 0) {
 		PktBuf _buf;
-		int res;
 		uint8_t _data[512];
 
-		log_debug("Acknowledged and returing token to client");
+		log_debug("sending GSS response token of length %u", (unsigned int) send_tok.length);
 
 		/* Construct a custom response with the token */
 		pktbuf_static(&_buf, _data, sizeof(_data));
@@ -472,88 +471,88 @@ static bool gss_check_passwd(struct gss_auth_request *request)
 		pktbuf_put_uint32(&_buf, AUTH_REQ_GSS_CONT);
 		pktbuf_put_bytes(&_buf, send_tok.value, send_tok.length);
 
-		if (false == (res = pktbuf_send_immediate(&_buf, request->client))) {
+		if (!pktbuf_send_immediate(&_buf, request->client)) {
+			gss_release_buffer(&lmin_s, &send_tok);
+			log_debug("Failed to send gss token to client");
 			return false;
 		}
+		gss_release_buffer(&lmin_s, &send_tok);
 	}
 
-	if ((GSS_S_COMPLETE != maj_stat) && (GSS_S_CONTINUE_NEEDED != maj_stat)) {
-		log_debug("No content");
-		gss_delete_sec_context(&min_stat, request->context, GSS_C_NO_BUFFER);
+	if (maj_stat != GSS_S_COMPLETE && maj_stat != GSS_S_CONTINUE_NEEDED) {
+		gss_delete_sec_context(&lmin_s, &request->context, GSS_C_NO_BUFFER);
+		log_debug("accepting GSS security context failed major: %u, minor: %u",
+			  maj_stat, min_stat);
 		return false;
 	}
 
-	if (GSS_S_CONTINUE_NEEDED == maj_stat) {
-		request->client->gss.state = GSS_CONTINUE;
-		log_debug("Will run GSSAPI continuation in another pass later");
-	} else {
-		request->client->gss.state = GSS_DONE;
-
-		if (*request->flags & GSS_C_DELEG_FLAG)
-			log_debug("context flag: GSS_C_DELEG_FLAG");
-		if (*request->flags & GSS_C_MUTUAL_FLAG)
-			log_debug("context flag: GSS_C_MUTUAL_FLAG");
-		if (*request->flags & GSS_C_REPLAY_FLAG)
-			log_debug("context flag: GSS_C_REPLAY_FLAG");
-		if (*request->flags & GSS_C_SEQUENCE_FLAG)
-			log_debug("context flag: GSS_C_SEQUENCE_FLAG");
-		if (*request->flags & GSS_C_CONF_FLAG)
-			log_debug("context flag: GSS_C_CONF_FLAG");
-		if (*request->flags & GSS_C_INTEG_FLAG) {
-			log_debug("context flag: GSS_C_INTEG_FLAG");
-		} else {
-			log_debug("No delegated credentials.");	/* Just for the info */
-		}
+	if (maj_stat == GSS_S_CONTINUE_NEEDED) {
+		request->gss_state = GSS_CONTINUE;
+		log_debug("GSS continue needed");
 	}
 
+	if (server_credentials != GSS_C_NO_CREDENTIAL) {
+		/*
+		 * Release service principal credentials
+		 */
+		gss_release_cred(&min_stat, &server_credentials);
+	}
 
-	maj_stat = gss_display_name(&min_stat, user_name, &gbuf, NULL);
+	return gss_checkauth(request);
+}
+
+static bool gss_checkauth(struct gss_auth_request *request)
+{
+	int ret;
+	OM_uint32 maj_stat,
+		  min_stat,
+		  lmin_s;
+	gss_buffer_desc gbuf;
+	char *princ;
+
+	maj_stat = gss_display_name(&min_stat, request->gss_name, &gbuf, NULL);
 
 	if (maj_stat != GSS_S_COMPLETE) {
-		log_warning("gss_release_name_failed");	/* Just for the info */
+		log_warning("retrieving GSS user name failed major: %u, minor: %u", maj_stat, min_stat);
 		return false;
 	}
 
-	princ = valloc(gbuf.length + 1);
+	princ = malloc(gbuf.length + 1);
 	memcpy(princ, gbuf.value, gbuf.length);
 	gss_release_buffer(&lmin_s, &gbuf);
 
-	if (GSS_S_COMPLETE != gss_release_name(&min_stat, &user_name)) {
-		log_warning("gss_release_name_failed");	/* Just for the info */
-		return false;
-	}
-
 	if (strchr(princ, '@')) {
 		char *cp = strchr(princ, '@');
+
 		if (!request->include_realm)
 			*cp = '\0';
 		cp++;
+
 		if (request->krb_realm != NULL && strlen(request->krb_realm)) {
-			if (cf_auth_krb_caseins_users == 0) {
-				if (strcmp(cp, request->krb_realm) != 0) {
-					log_warning("gss_name_mismatch");	/* Just for the info */
-					return false;
-				}
+			if (cf_auth_krb_caseins_users) {
+				ret = strcasecmp(cp, request->krb_realm);
 			} else {
-				if (strcasecmp(cp, request->krb_realm) != 0) {
-					log_warning("gss_name_mismatch");	/* Just for the info */
-					return false;
-				}
+				ret = strcmp(cp, request->krb_realm);
+			}
+
+			if (ret) {
+				log_warning("GSSAPI realm (%s) and configured realm (%s) don't match", cp, request->krb_realm);
+				free(princ);
+				return false;
 			}
 		}
 	}
 	if (cf_auth_krb_caseins_users == 0) {
-		if (strcmp(princ, request->username) != 0) {
-			log_warning("gss_name_mismatch");	/* Just for the info */
-			return false;
-		}
+		ret = strcmp(princ, request->username);
 	} else {
-		if (strcasecmp(princ, request->username) != 0) {
-			log_warning("gss_name_mismatch");	/* Just for the info */
-			return false;
-		}
+		ret = strcasecmp(princ, request->username);
 	}
-
+	if (ret) {
+		log_warning("provided user name (%s) and authenticated user name (%s) do not match", request->username, princ);
+		free(princ);
+		return false;
+	}
+	free(princ);
 	return true;
 }
 

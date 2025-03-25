@@ -764,7 +764,9 @@ struct PgSocket {
 	char ldap_options[MAX_LDAP_CONFIG];
 #endif
 
+#ifdef HAVE_GSS
 	char gss_parameters[MAX_GSS_CONFIG];
+#endif
 
 	VarCache vars;		/* state of interesting server parameters */
 

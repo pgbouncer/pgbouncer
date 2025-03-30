@@ -39,7 +39,9 @@ def setup_module(module):
 
     delete_principal = f'sudo kadmin.local -q "delete_principal -force postgres"'
     subprocess.run(delete_principal, check=True, shell=True)
-    delete_principal = f'sudo kadmin.local -q "delete_principal -force postgres/127.0.0.1"'
+    delete_principal = (
+        f'sudo kadmin.local -q "delete_principal -force postgres/127.0.0.1"'
+    )
     subprocess.run(delete_principal, check=True, shell=True)
 
     create_principal = (
@@ -50,12 +52,12 @@ def setup_module(module):
     create_principal = 'sudo kadmin.local -q "addprinc -randkey postgres"'
     subprocess.run(create_principal, check=True, shell=True)
 
-    create_principal = (
-        f'sudo kadmin.local -q "addprinc -randkey postgres/127.0.0.1"'
-    )
+    create_principal = f'sudo kadmin.local -q "addprinc -randkey postgres/127.0.0.1"'
     subprocess.run(create_principal, check=True, shell=True)
 
-    kadd_command = f'sudo kadmin.local -q "ktadd -k /tmp/pgbouncer.keytab postgres/127.0.0.1"'
+    kadd_command = (
+        f'sudo kadmin.local -q "ktadd -k /tmp/pgbouncer.keytab postgres/127.0.0.1"'
+    )
     subprocess.run(kadd_command, check=True, shell=True)
     kadd_command_2 = 'sudo kadmin.local -q "ktadd -k /tmp/pgbouncer.keytab postgres"'
     subprocess.run(kadd_command_2, check=True, shell=True)
@@ -71,7 +73,9 @@ def teardown_module(module):
         f'sudo kadmin.local -q "delete_principal -force {KADMIN_PRINCIPAL_FULL}"'
     )
     subprocess.run(delete_principal, check=True, shell=True)
-    delete_principal = f'sudo kadmin.local -q "delete_principal -force postgres/127.0.0.1"'
+    delete_principal = (
+        f'sudo kadmin.local -q "delete_principal -force postgres/127.0.0.1"'
+    )
     subprocess.run(delete_principal, check=True, shell=True)
     change_permissions = "sudo rm /tmp/pgbouncer.keytab"
     subprocess.run(change_permissions, check=True, shell=True)

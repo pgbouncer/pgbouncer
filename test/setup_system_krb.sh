@@ -16,6 +16,9 @@ MASTER_PASSWORD="master_password"
 
 echo "
 [libdefaults]
+        dns_lookup_realm = false
+        dns_lookup_kdc = false
+        forwardable = false
         default_realm = ${REALM}
         rdns = false
 

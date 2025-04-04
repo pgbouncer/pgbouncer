@@ -235,6 +235,9 @@ def cleanup_test_leftovers(*nodes):
     for node in nodes:
         node.cleanup_users()
 
+    for node in nodes:
+        node.reset_ini()
+
 
 class PortLock:
     def __init__(self):
@@ -988,6 +991,9 @@ class Bouncer(QueryRunner):
                 ini.write(f"listen_port = {self.port}\n")
 
                 ini.flush()
+            
+        with self.ini_path.open("r") as ini:
+            self.original_ini_contents = ini.read()
 
     def base_command(self):
         """returns the basecommand that is used to run PgBouncer
@@ -1187,6 +1193,16 @@ class Bouncer(QueryRunner):
         """
         with self.ini_path.open("a") as f:
             f.write(config + "\n")
+
+    def reset_ini(self):
+        """Resets the PgBouncer config contents to their original state
+
+        Used to undo all config changes. To apply these changes PgBouncer
+        still needs to be reloaded or restarted. To reload in a cross platform
+        way you need can use admin("reload").
+        """
+        with self.ini_path.open("w") as f:
+            f.write(self.original_ini_contents)
 
     @contextmanager
     def log_contains(self, re_string, times=None):

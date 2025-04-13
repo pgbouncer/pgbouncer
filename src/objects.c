@@ -1694,7 +1694,9 @@ static void dns_connect(struct PgSocket *server)
 		host = db->host;
 	}
 
-	server->host = xstrdup(host);
+	if (host) {
+		server->host = xstrdup(host);
+	}
 
 	if (!host || host[0] == '/' || host[0] == '@') {
 		const char *unix_dir;

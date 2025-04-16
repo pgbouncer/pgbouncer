@@ -731,7 +731,7 @@ static bool handle_sslchar(PgSocket *server, struct MBuf *data)
 
 	if (schar == 'S') {
 		slog_noise(server, "launching tls");
-		ok = sbuf_tls_connect(&server->sbuf, server->pool->db->host);
+		ok = sbuf_tls_connect(&server->sbuf, server->host);
 	} else if (server_connect_sslmode >= SSLMODE_REQUIRE) {
 		disconnect_server(server, false, "server refused SSL");
 		return false;

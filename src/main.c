@@ -134,6 +134,7 @@ int cf_max_user_client_connections;
 char *cf_server_reset_query;
 int cf_server_reset_query_always;
 char *cf_server_check_query;
+bool empty_server_check_query;
 usec_t cf_server_check_delay;
 int cf_server_fast_close;
 int cf_server_round_robin;
@@ -249,7 +250,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("auth_file", CF_STR, cf_auth_file, 0, NULL),
 	CF_ABS("auth_hba_file", CF_STR, cf_auth_hba_file, 0, ""),
 	CF_ABS("auth_ident_file", CF_STR, cf_auth_ident_file, 0, NULL),
-	CF_ABS("auth_query", CF_STR, cf_auth_query, 0, "SELECT usename, passwd FROM pg_shadow WHERE usename=$1"),
+	CF_ABS("auth_query", CF_STR, cf_auth_query, 0, "SELECT rolname, CASE WHEN rolvaliduntil < now() THEN NULL ELSE rolpassword END FROM pg_authid WHERE rolname=$1 AND rolcanlogin"),
 	CF_ABS("auth_type", CF_LOOKUP(auth_type_map), cf_auth_type, 0, "md5"),
 	CF_ABS("auth_user", CF_STR, cf_auth_user, 0, NULL),
 	CF_ABS("autodb_idle_timeout", CF_TIME_USEC, cf_autodb_idle_timeout, 0, "3600"),
@@ -300,7 +301,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("resolv_conf", CF_STR, cf_resolv_conf, CF_NO_RELOAD, ""),
 	CF_ABS("sbuf_loopcnt", CF_INT, cf_sbuf_loopcnt, 0, "5"),
 	CF_ABS("server_check_delay", CF_TIME_USEC, cf_server_check_delay, 0, "30"),
-	CF_ABS("server_check_query", CF_STR, cf_server_check_query, 0, "select 1"),
+	CF_ABS("server_check_query", CF_STR, cf_server_check_query, 0, "<empty>"),
 	CF_ABS("server_connect_timeout", CF_TIME_USEC, cf_server_connect_timeout, 0, "15"),
 	CF_ABS("server_fast_close", CF_INT, cf_server_fast_close, 0, "0"),
 	CF_ABS("server_idle_timeout", CF_TIME_USEC, cf_server_idle_timeout, 0, "600"),
@@ -439,8 +440,9 @@ void load_config(void)
 {
 	static bool loaded = false;
 	bool ok;
+	const char *q;
 	any_user_level_timeout_set = false;
-
+	empty_server_check_query = false;
 	any_user_level_client_timeout_set = false;
 
 	set_dbs_dead(true);
@@ -460,6 +462,10 @@ void load_config(void)
 		/* if ini file missing, don't kill anybody */
 		set_dbs_dead(false);
 	}
+
+	q = cf_server_check_query;
+	if (strcmpeq(q, "<empty>"))
+		empty_server_check_query = true;
 
 	if (cf_auth_type == AUTH_TYPE_HBA) {
 		struct Ident *ident;

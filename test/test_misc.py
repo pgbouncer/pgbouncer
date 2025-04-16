@@ -8,6 +8,7 @@ import pytest
 
 from .utils import (
     HAVE_IPV6_LOCALHOST,
+    LINUX,
     PG_MAJOR_VERSION,
     PG_SUPPORTS_SCRAM,
     PKT_BUF_SIZE,
@@ -342,7 +343,7 @@ def test_server_check_query(pg, bouncer):
 
     assert new_pid == pid
     pg.configure(config="log_statement = 'none'")
-    
+
 
 def test_connect_query(bouncer):
     # The p8 database definition in test.ini has some GUC settings

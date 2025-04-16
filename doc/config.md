@@ -650,7 +650,9 @@ Simple do-nothing query to check if the server connection is alive.
 
 If an empty string, then sanity checking is disabled.
 
-Default: `select 1`
+If `<empty>` then send empty query as sanity check.
+
+Default: `<empty>`
 
 ### server_fast_close
 

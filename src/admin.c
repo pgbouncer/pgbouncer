@@ -1138,6 +1138,7 @@ static bool admin_show_config(PgSocket *admin, const char *arg)
 /* Command: RELOAD */
 static bool admin_cmd_reload(PgSocket *admin, const char *arg)
 {
+	bool ok = true;
 	if (arg && *arg)
 		return syntax_error(admin);
 
@@ -1145,10 +1146,21 @@ static bool admin_cmd_reload(PgSocket *admin, const char *arg)
 		return admin_error(admin, "admin access needed");
 
 	log_info("RELOAD command issued");
-	load_config();
-	if (!sbuf_tls_setup())
+
+	if (!load_config()) {
+		ok = false;
+		log_error("RELOAD Failed, see logs for more details");
+	}
+
+	if (!sbuf_tls_setup()) {
+		ok = false;
 		log_error("TLS configuration could not be reloaded, keeping old configuration");
-	return admin_ready(admin, "RELOAD");
+	}
+
+	if (ok)
+		return admin_ready(admin, "RELOAD");
+	else
+		return send_pooler_error(admin, true, "F0000", false, "RELOAD failed, see logs for additional details");
 }
 
 /* Command: SHUTDOWN */

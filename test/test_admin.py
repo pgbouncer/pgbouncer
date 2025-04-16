@@ -1,3 +1,4 @@
+import threading
 import time
 
 import psycopg
@@ -175,6 +176,71 @@ def test_client_id(bouncer) -> None:
             assert [
                 initial_id + i,
             ] == [client["id"] for client in clients]
+
+
+def test_client_states(bouncer):
+    conn_1 = bouncer.conn(dbname="p3x", user="clientstate")
+
+    clients = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)
+    client_id = [
+        client
+        for client in clients
+        if client["database"] == "p3x" and client["user"] == "clientstate"
+    ][0]["state"]
+    assert client_id == "idle"
+
+    cur_1 = conn_1.cursor()
+
+    bouncer.admin("PAUSE p3x")
+
+    # Give a moment for the query to hit the pause
+    time.sleep(1)
+
+    # We'll run a query in a separate thread to simulate blocking/waiting
+    def run_blocked_query():
+        # This query will attempt to run but the DB is paused
+        cur_1.execute("SELECT pg_sleep(5)")
+        # If the DB is never resumed, this call will block until test times out
+        # Once the DB is resumed, it should succeed
+        cur_1.fetchone()
+
+    thread = threading.Thread(target=run_blocked_query)
+    thread.start()
+
+    # Give the thread a moment to attempt the query
+    time.sleep(1)
+
+    clients = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)
+    client_id = [
+        client
+        for client in clients
+        if client["database"] == "p3x" and client["user"] == "clientstate"
+    ][0]["state"]
+    assert client_id == "waiting"
+
+    bouncer.admin("RESUME p3x")
+
+    # Wait for the thread to finish the blocked query
+    thread.join(timeout=10)
+    # Confirm the query eventually completes
+    assert not thread.is_alive(), "Expected the blocked query thread to finish"
+
+    cur_1.execute("BEGIN; SELECT pg_sleep(5);")
+
+    clients = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)
+    client_id = [
+        client
+        for client in clients
+        if client["database"] == "p3x" and client["user"] == "clientstate"
+    ][0]["state"]
+    assert client_id == "active"
+
+    # Rollback/commit to end the long-running transaction
+    cur_1.execute("ROLLBACK")
+
+    # Cleanup
+    cur_1.close()
+    conn_1.close()
 
 
 def test_kill_client_nonexisting(bouncer):

@@ -13,6 +13,7 @@ from .utils import (
     USE_SUDO,
     Bouncer,
     Postgres,
+    Proxy,
     run,
     sudo,
 )
@@ -141,6 +142,7 @@ def pg(tmp_path_factory, cert_dir):
     pg.sql("create user maxedout5;")
     pg.sql("create user poolsize1;")
     pg.sql("create user respoolsize1;")
+    pg.sql("create user clientstate;")
     pg.sql("create user test_error_message_user;")
     pg.sql(f"create user longpass with password '{LONG_PASSWORD}';")
     pg.sql("create user stats password 'stats';")
@@ -170,6 +172,19 @@ def pg(tmp_path_factory, cert_dir):
     yield pg
 
     pg.cleanup()
+
+
+@pytest.mark.asyncio
+@pytest.fixture
+async def proxy(pg, tmp_path):
+    """Starts a new proxy process"""
+    proxy = Proxy(pg)
+
+    proxy.start()
+
+    yield proxy
+
+    proxy.cleanup()
 
 
 @pytest.mark.asyncio

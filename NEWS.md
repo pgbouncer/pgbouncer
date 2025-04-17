@@ -1,6 +1,116 @@
 PgBouncer changelog
 ===================
 
+PgBouncer 1.24.x
+----------------
+
+**2025-04-16  -  PgBouncer 1.24.1  -  "CVE-2025-2291 VALID UNTIL yesterday"**
+
+- Security
+  * Fix CVE-2025-2291: Previously PgBouncer did not take into account the VALID
+    UNTIL of a user password when querying for password hashes using its
+    auth_query. So if PgBouncer is used as a transparent proxy in front of
+    Postgres it could allow passwords that had already expired. To solve this
+    issue the default auth_query and the examples of custom auth_query functions
+    in the documentation have been changed to take VALID UNTIL into account. If
+    you are using a custom auth_query you should update that accordingly. If
+    you are using the default auth_query, you can either update to PgBouncer
+    1.24.1 or change your config to use the new default auth_query on a
+    previous release of PgBouncer.
+
+- Fixes
+  * Fix PAM support by reverting `pam` authentication support in HBA file. ([#1291]) (bug introduced in 1.24.0)
+  * Fix bug when decrementing user connection count. This was included in the tag of 1.24.0 on GitHub, but the release tarball did not contain this fix.  ([#1238]) (bug introduced in 1.24.0)
+  * Add `test_load_balance_hosts.py` to the tarball. ([#1282])
+  * Fix issues with tests to allow them to be run by Debian packagers. ([#1266], [#1250])
+
+- Docs
+  * Update `auth_query` example to set a safe `search_path`. ([#1245])
+
+[#1238]: https://github.com/pgbouncer/pgbouncer/pull/1238
+[#1291]: https://github.com/pgbouncer/pgbouncer/pull/1291
+[#1282]: https://github.com/pgbouncer/pgbouncer/pull/1282
+[#1266]: https://github.com/pgbouncer/pgbouncer/pull/1266
+[#1250]: https://github.com/pgbouncer/pgbouncer/pull/1250
+[#1245]: https://github.com/pgbouncer/pgbouncer/pull/1245
+
+**2025-01-10  -  PgBouncer 1.24.0  -  "New year, new bouncer"**
+
+- Features
+  * Add support for `Type=notify-reload` for systemd. This requires systemd
+    version 253 or later. ([#1148])
+  * Add `KILL_CLIENT` command to the admin console. This allows terminating a
+    client connection by force. ([#1147])
+  * Add `max_user_client_connections` setting, both globally and at the user level. ([#1137])
+  * Add `max_db_client_connections` setting, both globally and at the database level. ([#1138])
+  * Add `current_client_connections` counter to `SHOW USERS` and `SHOW DATABASES` output. ([#1137], [#1138])
+  * Add `load_balance_hosts` parameter, to support **not** load balancing between hosts. ([#736])
+  * Expose prepared statement usage counters in `SHOW STATS`. ([#1192])
+  * Add `client_idle_timeout` setting. ([#1189])
+  * Add user level `query_timeout` and `reserve_pool_size`. ([#1180], [#1228])
+  * Enable `pam` authentication support in HBA file. ([#326])
+
+- Changes
+  * Don't recycle connections on RELOAD if TLS config is unchanged. Previously
+    if you had TLS connections they would all be recycled on RELOAD, which could
+    cause a temporary but serious performance degradation. Now this only
+    happens when the TLS settings are actually changed. ([#1157])
+  * Enable prepared statement support by default, `max_prepared_statements` is
+    now set to 200 by default. This change in defaultls should only impact
+    clients that actually use prepared statements. If you do use prepared
+    statements it's recommended to read about the limitations of the prepared
+    statement support in [our documentation][prepared-docs] ([#1144])
+  * Sockets/clients/servers can now be identified by a unique ID in the admin
+    output. Previously they could be identified by their pointer, but these
+    would often be reused by new clients after disconnect. ([#1172])
+  * Clearer error for empty pidfile. ([#1195])
+  * Return original error to client in case of `server_login_retry` failure. ([#1152])
+  * Log original server error in case of error from `auth_query`. ([#1187])
+  * Setting `default_pool_size` to 0 means unlimited size. ([#1227])
+  * Change the name of the `reserve_pool` setting for databases, to
+    `reserve_pool_size`. The previous name is still an alias for the new name.
+    ([#1232])
+
+- Fixes
+  * Handle various unlikely error cases better, such as OOM errors. These could
+    previously cause crashes or memory leaks. ([#1108], [#1101], [#1099], [#1169], [#1202])
+  * Correct default value for `server_tls_sslmode` in sample config file. ([#1133])
+  * Remove mention in docs of invalid alias for `server_tls_protocols`. ([#1155])
+  * Fix bug when using `auth_query` and replication connections together. This
+    bug would cause connection failures in such setups. ([#1166])
+  * Ignore client cancel requests while PgBouncer is configuring server setting. ([#298])
+
+[prepared-docs]: https://www.pgbouncer.org/config.html#max_prepared_statements
+
+[#1148]: https://github.com/pgbouncer/pgbouncer/pull/1148
+[#1147]: https://github.com/pgbouncer/pgbouncer/pull/1147
+[#1137]: https://github.com/pgbouncer/pgbouncer/pull/1137
+[#1138]: https://github.com/pgbouncer/pgbouncer/pull/1138
+[#736]: https://github.com/pgbouncer/pgbouncer/pull/736
+[#1192]: https://github.com/pgbouncer/pgbouncer/pull/1192
+[#1189]: https://github.com/pgbouncer/pgbouncer/pull/1189
+[#1180]: https://github.com/pgbouncer/pgbouncer/pull/1180
+[#1228]: https://github.com/pgbouncer/pgbouncer/pull/1228
+[#326]: https://github.com/pgbouncer/pgbouncer/pull/326
+[#1157]: https://github.com/pgbouncer/pgbouncer/pull/1157
+[#1144]: https://github.com/pgbouncer/pgbouncer/pull/1144
+[#1172]: https://github.com/pgbouncer/pgbouncer/pull/1172
+[#1195]: https://github.com/pgbouncer/pgbouncer/pull/1195
+[#1152]: https://github.com/pgbouncer/pgbouncer/pull/1152
+[#1187]: https://github.com/pgbouncer/pgbouncer/pull/1187
+[#1227]: https://github.com/pgbouncer/pgbouncer/pull/1227
+[#1232]: https://github.com/pgbouncer/pgbouncer/pull/1232
+[#1108]: https://github.com/pgbouncer/pgbouncer/pull/1108
+[#1101]: https://github.com/pgbouncer/pgbouncer/pull/1101
+[#1099]: https://github.com/pgbouncer/pgbouncer/pull/1099
+[#1169]: https://github.com/pgbouncer/pgbouncer/pull/1169
+[#1202]: https://github.com/pgbouncer/pgbouncer/pull/1202
+[#1133]: https://github.com/pgbouncer/pgbouncer/pull/1133
+[#1155]: https://github.com/pgbouncer/pgbouncer/pull/1155
+[#1166]: https://github.com/pgbouncer/pgbouncer/pull/1166
+[#298]: https://github.com/pgbouncer/pgbouncer/pull/298
+
+
 PgBouncer 1.23.x
 ----------------
 

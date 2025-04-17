@@ -54,7 +54,7 @@ def test_message(test_message_fixture):
 
 
 @pytest.mark.md5
-def test_auth_user(bouncer):
+def test_auth_user(pg, bouncer):
     bouncer.default_db = "authdb"
     bouncer.admin(f"set auth_type='md5'")
     bouncer.test(user="someuser", password="anypasswd")
@@ -66,6 +66,16 @@ def test_auth_user(bouncer):
         psycopg.OperationalError, match="(SASL|password) authentication failed"
     ):
         bouncer.test(user="someuser", password="badpasswd")
+
+    pg.sql("ALTER USER someuser VALID UNTIL '1999-01-01'")
+
+    with pytest.raises(
+        psycopg.OperationalError, match="password authentication failed"
+    ):
+        bouncer.test(user="someuser", password="anypasswd")
+
+    pg.sql("ALTER USER someuser VALID UNTIL 'infinity'")
+    bouncer.test(user="someuser", password="anypasswd")
 
 
 @pytest.mark.md5
@@ -384,8 +394,9 @@ def test_auth_dbname_usage_global_setting(
     with bouncer.log_contains(
         'cannot use the reserved "pgbouncer" database as an auth_dbname', 1
     ):
-        with bouncer.run_with_config(config):
-            pass
+        with pytest.raises(psycopg.DatabaseError):
+            with bouncer.run_with_config(config):
+                pass
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")

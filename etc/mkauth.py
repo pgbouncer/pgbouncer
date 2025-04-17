@@ -20,7 +20,9 @@ except IOError:
 # create new file data
 db = psycopg2.connect(sys.argv[2])
 curs = db.cursor()
-curs.execute("select usename, passwd from pg_shadow order by 1")
+curs.execute(
+    "SELECT rolname, CASE WHEN rolvaliduntil < pg_catalog.now() THEN NULL ELSE rolpassword END FROM pg_authid WHERE rolcanlogin order by 1"
+)
 lines = []
 for user, psw in curs.fetchall():
     user = user.replace('"', '""')

@@ -693,6 +693,8 @@ struct PgSocket {
 	PgAddr remote_addr;	/* ip:port for remote endpoint */
 	PgAddr local_addr;	/* ip:port for local endpoint */
 
+	char *host;
+
 	union {
 		struct DNSToken *dns_token;	/* ongoing request */
 		PgDatabase *db;			/* cache db while doing auth query */
@@ -784,6 +786,7 @@ extern usec_t cf_server_idle_timeout;
 extern char *cf_server_reset_query;
 extern int cf_server_reset_query_always;
 extern char *cf_server_check_query;
+extern bool empty_server_check_query;
 extern usec_t cf_server_check_delay;
 extern int cf_server_fast_close;
 extern usec_t cf_server_connect_timeout;
@@ -901,7 +904,7 @@ static inline char *cstr_skip_ws(char *p)
 }
 
 
-void load_config(void);
+bool load_config(void);
 
 
 bool set_config_param(const char *key, const char *val);

@@ -143,9 +143,10 @@ PG_MAJOR_VERSION = get_pg_major_version()
 
 def get_max_password_length():
     with open("../include/bouncer.h", encoding="utf-8") as f:
-        match = re.search(r"#define MAX_PASSWORD\s+([0-9])", f.read())
+        match = re.search(r"#define MAX_PASSWORD\s+([0-9].*)", f.read())
         assert match is not None
         max_password_length = int(match.group(1))
+        assert max_password_length >= 996
 
     if max_password_length > 996 and PG_MAJOR_VERSION < 14:
         return 996
@@ -154,7 +155,7 @@ def get_max_password_length():
 
 PKT_BUF_SIZE = 4096
 MAX_PASSWORD_LENGTH = get_max_password_length()
-LONG_PASSWORD = "a" * MAX_PASSWORD_LENGTH
+LONG_PASSWORD = "a" * (MAX_PASSWORD_LENGTH - 1)
 
 PG_SUPPORTS_SCRAM = PG_MAJOR_VERSION >= 10
 
@@ -652,6 +653,37 @@ class QueryRunner:
             ["psql", conninfo],
             silent=True,
         )
+
+
+class Proxy(QueryRunner):
+    def __init__(self, pg):
+        self.port_lock = PortLock()
+        super().__init__("127.0.0.1", self.port_lock.port)
+        self.connections = {}
+        self.pg = pg
+        self.cursors = {}
+        self.restarted = False
+        self.process: typing.Optional[subprocess.Popen] = None
+
+    def start(self):
+        command = [
+            "socat",
+            f"tcp-listen:{self.port_lock.port},reuseaddr,fork",
+            f"tcp:localhost:{self.pg.port_lock.port}",
+        ]
+        self.process = subprocess.Popen(" ".join(command), shell=True)
+
+    def stop(self):
+        self.process.kill()
+
+    def cleanup(self):
+        self.stop()
+        self.port_lock.release()
+
+    def restart(self):
+        self.restarted = True
+        self.stop()
+        self.start()
 
 
 class Postgres(QueryRunner):

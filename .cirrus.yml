@@ -63,7 +63,7 @@ task:
     - curl https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
     - echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main $PGVERSION" | tee /etc/apt/sources.list.d/pgdg.list
     - apt-get update
-    - pkgs="autoconf automake ca-certificates cpio libc-ares-dev libevent-dev libpam0g-dev libssl-dev libsystemd-dev libtool make pandoc postgresql-$PGVERSION pkg-config python3 python3-pip python3-venv sudo iptables"
+    - pkgs="autoconf automake ca-certificates cpio libc-ares-dev libevent-dev libpam0g-dev libssl-dev libsystemd-dev libtool make pandoc postgresql-$PGVERSION pkg-config python3 python3-pip python3-venv sudo iptables socat"
     - case $CC in clang) pkgs="$pkgs clang";; esac
     - if [ x"$ENABLE_VALGRIND" = x"yes" ]; then pkgs="$pkgs valgrind"; fi
     - if [ x"$use_scan_build" = x"yes" ]; then pkgs="$pkgs clang-tools"; fi
@@ -157,12 +157,12 @@ task:
 task:
   name: FreeBSD
   freebsd_instance:
-    image_family: freebsd-14-1
+    image_family: freebsd-14-2
   env:
     HAVE_IPV6_LOCALHOST: yes
     USE_SUDO: true
   setup_script:
-    - pkg install -y autoconf automake bash gmake hs-pandoc libevent libtool pkgconf postgresql12-server postgresql12-contrib python devel/py-pip sudo
+    - pkg install -y autoconf automake bash gmake hs-pandoc libevent libtool pkgconf postgresql${PGVERSION}-server postgresql${PGVERSION}-contrib python devel/py-pip sudo
     - pip install -r requirements.txt
     - kldload pf
     - echo 'anchor "pgbouncer_test/*"' >> /etc/pf.conf

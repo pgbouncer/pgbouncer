@@ -454,7 +454,7 @@ void ldap_auth_begin(PgSocket *client, const char *passwd)
 	 * then block until one is available.
 	 */
 	if (next_free_slot == ldap_first_taken_slot)
-		slog_debug(client, "LDAP queue is full, waiting");
+		slog_warning(client, "LDAP queue is full, waiting");
 
 	while (next_free_slot == ldap_first_taken_slot) {
 		if (ldap_poll() == 0) {

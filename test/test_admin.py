@@ -8,6 +8,38 @@ from psycopg.rows import dict_row
 from .utils import capture, run
 
 
+def test_reload_error(bouncer):
+    """
+    Test that admin console correctly raises error during RELOAD
+    when invalid value set for auth_type.
+    """
+    config = f"""
+    [databases]
+    p1 = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    listen_port = {bouncer.port}
+    auth_type = trust
+    admin_users = pgbouncer
+    logfile = {bouncer.log_path}
+    auth_file = {bouncer.auth_path}
+    pool_mode = session
+    server_lifetime = {{server_lifetime}}
+    """
+    good_config = config.format(server_lifetime=0)
+    bad_config = config.format(server_lifetime="invalid_server_lifetime")
+    with bouncer.run_with_config(good_config):
+        with bouncer.ini_path.open("w") as f:
+            f.write(bad_config)
+
+        with pytest.raises(
+            psycopg.errors.ConfigFileError,
+            match=r"RELOAD failed, see logs for additional details",
+        ):
+            bouncer.admin("RELOAD")
+
+
 def test_show(bouncer):
     show_items = [
         "clients",

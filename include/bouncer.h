@@ -696,6 +696,8 @@ struct PgSocket {
 	PgAddr remote_addr;	/* ip:port for remote endpoint */
 	PgAddr local_addr;	/* ip:port for local endpoint */
 
+	char *host;
+
 	union {
 		struct DNSToken *dns_token;	/* ongoing request */
 		PgDatabase *db;			/* cache db while doing auth query */
@@ -905,7 +907,7 @@ static inline char *cstr_skip_ws(char *p)
 }
 
 
-void load_config(void);
+bool load_config(void);
 
 
 bool set_config_param(const char *key, const char *val);

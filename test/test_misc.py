@@ -16,11 +16,15 @@ from .utils import (
 )
 
 
-@pytest.mark.parametrize("test_auth_type", ["scram-sha-256", "trust"])
+@pytest.mark.parametrize("test_auth_type", ["trust"] if WINDOWS else ["trust", "scram-sha-256"])
 @pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
 def test_scram_server(bouncer, test_auth_type):
     """
     Test that query_wait_notify setting plays nicely with scram-sha-256 authentication.
+
+    Please note that this test does not work when using scram-sha-256 test_auth_type on
+    windows. This is because windows does not allow socket connections which would allow
+    connection to the admin console to reload without a password.
     """
     config = f"""
     [databases]

@@ -16,7 +16,9 @@ from .utils import (
 )
 
 
-@pytest.mark.parametrize("test_auth_type", ["trust"] if WINDOWS else ["trust", "scram-sha-256"])
+@pytest.mark.parametrize(
+    "test_auth_type", ["trust"] if WINDOWS else ["trust", "scram-sha-256"]
+)
 @pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
 def test_scram_server(bouncer, test_auth_type):
     """

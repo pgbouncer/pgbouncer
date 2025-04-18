@@ -161,6 +161,7 @@ usec_t cf_cancel_wait_timeout;
 usec_t cf_client_idle_timeout;
 usec_t cf_client_login_timeout;
 usec_t cf_idle_transaction_timeout;
+usec_t cf_transaction_timeout;
 usec_t cf_suspend_timeout;
 
 usec_t g_suspend_start;
@@ -275,6 +276,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("dns_nxdomain_ttl", CF_TIME_USEC, cf_dns_nxdomain_ttl, 0, "15"),
 	CF_ABS("dns_zone_check_period", CF_TIME_USEC, cf_dns_zone_check_period, 0, "0"),
 	CF_ABS("idle_transaction_timeout", CF_TIME_USEC, cf_idle_transaction_timeout, 0, "0"),
+	CF_ABS("transaction_timeout", CF_TIME_USEC, cf_transaction_timeout, 0, "0"),
 	CF_ABS("ignore_startup_parameters", CF_STR, cf_ignore_startup_params, 0, ""),
 	CF_ABS("job_name", CF_STR, cf_jobname, CF_NO_RELOAD, "pgbouncer"),
 	CF_ABS("listen_addr", CF_STR, cf_listen_addr, CF_NO_RELOAD, ""),

@@ -1012,6 +1012,13 @@ it will be disconnected.  [seconds]
 
 Default: 0.0 (disabled)
 
+### transaction_timeout
+
+If a client has been in "in transaction" state longer,
+it will be disconnected.  [seconds]
+
+Default: 0.0 (disabled)
+
 ### suspend_timeout
 
 How long to wait for buffer flush during `SUSPEND` or reboot (`-R`).
@@ -1383,6 +1390,12 @@ If set this timeout overrides the server level query_timeout described above.
 
 Set the maximum number of seconds that a user can have an idle transaction open.
 If set this timeout overides the server level idle_transaction_timeout
+described above.
+
+### transaction_timeout
+
+Set the maximum number of seconds that a user can have a transaction open.
+If set this timeout overides the server level transaction_timeout
 described above.
 
 ### client_idle_timeout

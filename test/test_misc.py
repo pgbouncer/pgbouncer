@@ -10,26 +10,26 @@ from .utils import HAVE_IPV6_LOCALHOST, PG_MAJOR_VERSION, PKT_BUF_SIZE, WINDOWS
 
 
 def test_multi_ports(bouncer):
-    bouncer.sql(";", port=bouncer.port)
-    bouncer.sql(";", port=bouncer.second_port_lock.port)
+    bouncer.test(port=bouncer.port)
+    bouncer.test(port=bouncer.second_port_lock.port)
 
     assert pathlib.Path(f"{bouncer.config_dir}/.s.PGSQL.{bouncer.port}").exists()
     assert pathlib.Path(f"{bouncer.config_dir}/.s.PGSQL.{bouncer.second_port_lock.port}").exists()
 
-    bouncer.sql(";", port=bouncer.port, host=bouncer.config_dir)
-    bouncer.sql(";", port=bouncer.second_port_lock.port, host=bouncer.config_dir)
+    bouncer.test(port=bouncer.port, host=bouncer.config_dir)
+    bouncer.test(port=bouncer.second_port_lock.port, host=bouncer.config_dir)
 
     bouncer.admin("SHUTDOWN wait_for_clients")
 
     with pytest.raises(psycopg.OperationalError):
-        bouncer.sql(";", port=bouncer.port)
+        bouncer.test(port=bouncer.port)
     with pytest.raises(psycopg.OperationalError):
-        bouncer.sql(";", port=bouncer.second_port_lock.port)
+        bouncer.test(port=bouncer.second_port_lock.port)
 
     with pytest.raises(psycopg.OperationalError):
-        bouncer.sql(";", port=bouncer.port, host=bouncer.config_dir)
+        bouncer.test(port=bouncer.port, host=bouncer.config_dir)
     with pytest.raises(psycopg.OperationalError):
-        bouncer.sql(";", port=bouncer.second_port_lock.port, host=bouncer.config_dir)
+        bouncer.test(port=bouncer.second_port_lock.port, host=bouncer.config_dir)
 
     assert not pathlib.Path(f"{bouncer.config_dir}/.s.PGSQL.{bouncer.port}").exists()
     assert not pathlib.Path(f"{bouncer.config_dir}/.s.PGSQL.{bouncer.second_port_lock.port}").exists()

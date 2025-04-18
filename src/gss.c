@@ -290,7 +290,7 @@ void gss_auth_begin(PgSocket *client, uint8_t *token, uint32_t token_length)
 	 * then block until one is available.
 	 */
 	if (next_free_slot == gss_first_taken_slot)
-		slog_debug(client, "GSS queue is full, waiting");
+		slog_warning(client, "GSS queue is full, waiting");
 
 	while (next_free_slot == gss_first_taken_slot) {
 		if (gss_poll() == 0) {

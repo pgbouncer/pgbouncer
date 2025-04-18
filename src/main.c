@@ -114,6 +114,7 @@ int cf_tcp_user_timeout;
 int cf_auth_type = AUTH_TYPE_MD5;
 char *cf_auth_file;
 char *cf_auth_hba_file;
+char *cf_auth_ldap_parameter;
 char *cf_auth_ident_file;
 char *cf_auth_user;
 char *cf_auth_query;
@@ -160,6 +161,7 @@ usec_t cf_cancel_wait_timeout;
 usec_t cf_client_idle_timeout;
 usec_t cf_client_login_timeout;
 usec_t cf_idle_transaction_timeout;
+usec_t cf_transaction_timeout;
 usec_t cf_suspend_timeout;
 
 usec_t g_suspend_start;
@@ -212,6 +214,9 @@ static const struct CfLookup auth_type_map[] = {
 #ifdef HAVE_PAM
 	{ "pam", AUTH_TYPE_PAM },
 #endif
+#ifdef HAVE_LDAP
+	{ "ldap", AUTH_TYPE_LDAP },
+#endif
 	{ "scram-sha-256", AUTH_TYPE_SCRAM_SHA_256 },
 	{ NULL }
 };
@@ -252,6 +257,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("auth_query", CF_STR, cf_auth_query, 0, "SELECT rolname, CASE WHEN rolvaliduntil < now() THEN NULL ELSE rolpassword END FROM pg_authid WHERE rolname=$1 AND rolcanlogin"),
 	CF_ABS("auth_type", CF_LOOKUP(auth_type_map), cf_auth_type, 0, "md5"),
 	CF_ABS("auth_user", CF_STR, cf_auth_user, 0, NULL),
+	CF_ABS("auth_ldap_parameter", CF_STR, cf_auth_ldap_parameter, 0, NULL),
 	CF_ABS("autodb_idle_timeout", CF_TIME_USEC, cf_autodb_idle_timeout, 0, "3600"),
 	CF_ABS("client_idle_timeout", CF_TIME_USEC, cf_client_idle_timeout, 0, "0"),
 	CF_ABS("client_login_timeout", CF_TIME_USEC, cf_client_login_timeout, 0, "60"),
@@ -270,6 +276,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("dns_nxdomain_ttl", CF_TIME_USEC, cf_dns_nxdomain_ttl, 0, "15"),
 	CF_ABS("dns_zone_check_period", CF_TIME_USEC, cf_dns_zone_check_period, 0, "0"),
 	CF_ABS("idle_transaction_timeout", CF_TIME_USEC, cf_idle_transaction_timeout, 0, "0"),
+	CF_ABS("transaction_timeout", CF_TIME_USEC, cf_transaction_timeout, 0, "0"),
 	CF_ABS("ignore_startup_parameters", CF_STR, cf_ignore_startup_params, 0, ""),
 	CF_ABS("job_name", CF_STR, cf_jobname, CF_NO_RELOAD, "pgbouncer"),
 	CF_ABS("listen_addr", CF_STR, cf_listen_addr, CF_NO_RELOAD, ""),
@@ -868,6 +875,7 @@ static void main_loop_once(void)
 			log_warning("event_loop failed: %s", strerror(errno));
 	}
 	pam_poll();
+	ldap_poll();
 	per_loop_maint();
 	reuse_just_freed_objects();
 	rescue_timers();
@@ -965,6 +973,7 @@ static void cleanup(void)
 	xfree(&cf_auth_ident_file);
 	xfree(&cf_auth_dbname);
 	xfree(&cf_auth_hba_file);
+	xfree(&cf_auth_ldap_parameter);
 	xfree(&cf_auth_query);
 	xfree(&cf_auth_user);
 	xfree(&cf_server_reset_query);
@@ -1133,6 +1142,7 @@ int main(int argc, char *argv[])
 	stats_setup();
 
 	pam_init();
+	auth_ldap_init();
 
 	if (did_takeover) {
 		takeover_finish();

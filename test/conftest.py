@@ -5,6 +5,7 @@ import filelock
 import pytest
 
 from .utils import (
+    LDAP_SUPPORT,
     LINUX,
     LONG_PASSWORD,
     PG_SUPPORTS_SCRAM,
@@ -12,6 +13,7 @@ from .utils import (
     TLS_SUPPORT,
     USE_SUDO,
     Bouncer,
+    OpenLDAP,
     Postgres,
     Proxy,
     run,
@@ -129,6 +131,9 @@ def pg(tmp_path_factory, cert_dir):
     for i in range(8):
         pg.sql(f"create database p{i}")
 
+    if LDAP_SUPPORT:
+        pg.sql("create user ldapuser1 login password 'secret1'")
+
     pg.sql("create database unconfigured_auth_database")
     pg.sql("create user bouncer")
 
@@ -197,6 +202,23 @@ async def bouncer(pg, tmp_path):
 
     yield bouncer
 
+    await bouncer.cleanup()
+
+
+@pytest.mark.asyncio
+@pytest.fixture
+async def bouncer_with_openldap(pg, tmp_path, monkeypatch):
+    """Starts a new PgBouncer process"""
+    bouncer = Bouncer(pg, tmp_path / "bouncer")
+    ldap = OpenLDAP(tmp_path)
+    bouncer.ldap = ldap
+    monkeypatch.setenv("LDAPCONF", str(tmp_path / "ldap/ldap.conf"))
+    ldap.startup()
+    await bouncer.start()
+
+    yield bouncer
+
+    ldap.cleanup()
     await bouncer.cleanup()
 
 

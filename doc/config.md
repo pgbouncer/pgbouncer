@@ -472,6 +472,25 @@ pam
     compatible with databases using the `auth_user` option. The service name reported to
     PAM is "pgbouncer". `pam` is not supported in the HBA configuration file.
 
+ldap
+:   LDAP is used to authenticate users with ldap server(OpenLDAP on Linux or AD on Windows).
+In order to use ldap, `auth_type` needs to be set to `hba`. The value of
+`auth_hba_file` has also to be set. And the content of the `auth_hba_file` could be
+the same format like `pg_hba.conf` in Postgres.
+Otherwise, you can set `auth_type` directly to `ldap`. If `auth_type` is set to `ldap`, the
+`auth_ldap_parameter` has also to be set.
+
+### auth_ldap_parameter
+This value is the global ldap parameter if `auth_type` is set to `ldap`. The value would be 
+similar to the ldap line in pg_hba.conf. If no `auth_ldap_parameter` is set, then ldap 
+authentication will fail. However, the value only contains the parameter after the 'ldap' 
+keyword in the hba line. For example, if the hba line looks like this:
+```conf
+host all ldapuser1 0.0.0.0/0 ldap ldapurl="ldap://127.0.0.1:12345/dc=example,dc=net?uid?sub"`. 
+```
+The corresponding value of `auth_ldap_parameter` would be 
+`ldapurl="ldap://127.0.0.1:12345/dc=example,dc=net?uid?sub"`
+
 ### auth_hba_file
 
 HBA configuration file to use when `auth_type` is `hba`. See
@@ -499,12 +518,12 @@ Default: not set
 ### auth_user
 
 If `auth_user` is set, then any user not specified in `auth_file` will be
-queried through the `auth_query` query from pg_shadow in the database,
+queried through the `auth_query` query from `pg_authid` in the database,
 using `auth_user`. The password of `auth_user` will be taken from `auth_file`.
 (If the `auth_user` does not require a password then it does not need
 to be defined in `auth_file`.)
 
-Direct access to pg_shadow requires admin rights.  It's preferable to
+Direct access to `pg_authid` requires admin rights.  It's preferable to
 use a non-superuser that calls a SECURITY DEFINER function instead.
 
 Default: not set
@@ -513,13 +532,13 @@ Default: not set
 
 Query to load user's password from database.
 
-Direct access to pg_shadow requires admin rights.  It's preferable to
+Direct access to `pg_authid` requires admin rights.  It's preferable to
 use a non-superuser that calls a SECURITY DEFINER function instead.
 
 Note that the query is run inside the target database.  So if a function
 is used, it needs to be installed into each database.
 
-Default: `SELECT usename, passwd FROM pg_shadow WHERE usename=$1`
+Default: `SELECT rolname, CASE WHEN rolvaliduntil < now() THEN NULL ELSE rolpassword END FROM pg_authid WHERE rolname=$1 AND rolcanlogin`
 
 ### auth_dbname
 
@@ -650,7 +669,9 @@ Simple do-nothing query to check if the server connection is alive.
 
 If an empty string, then sanity checking is disabled.
 
-Default: `select 1`
+If `<empty>` then send empty query as sanity check.
+
+Default: `<empty>`
 
 ### server_fast_close
 
@@ -1536,7 +1557,7 @@ credentials.
 The authentication file can be written by hand, but it's also useful
 to generate it from some other list of users and passwords.  See
 `./etc/mkauth.py` for a sample script to generate the authentication
-file from the `pg_shadow` system table.  Alternatively, use
+file from the `pg_authid` system table.  Alternatively, use
 `auth_query` instead of `auth_file` to avoid having to maintain a
 separate authentication file.
 
@@ -1637,8 +1658,10 @@ Example of a secure function for `auth_query`:
     CREATE OR REPLACE FUNCTION pgbouncer.user_lookup(in i_username text, out uname text, out phash text)
     RETURNS record AS $$
     BEGIN
-        SELECT usename, passwd FROM pg_catalog.pg_shadow
-        WHERE usename = i_username INTO uname, phash;
+        SELECT rolname, CASE WHEN rolvaliduntil < now() THEN NULL ELSE rolpassword END
+        FROM pg_authid
+        WHERE rolname=i_username AND rolcanlogin
+        INTO uname, phash;
         RETURN;
     END;
     $$ LANGUAGE plpgsql

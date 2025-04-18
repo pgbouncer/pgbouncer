@@ -42,6 +42,7 @@ NEW_SITE_SCRIPT = TEST_DIR / "ssl" / "newsite.sh"
 ENABLE_VALGRIND = bool(os.environ.get("ENABLE_VALGRIND"))
 HAVE_IPV6_LOCALHOST = bool(os.environ.get("HAVE_IPV6_LOCALHOST"))
 USE_SUDO = bool(os.environ.get("USE_SUDO"))
+START_OPENLDAP_SCRIPT = TEST_DIR / "start_openldap_server.sh"
 
 # The tests require that psql can connect to the PgBouncer admin
 # console.  On platforms that have getpeereid(), this works by
@@ -173,6 +174,15 @@ def get_tls_support():
 
 TLS_SUPPORT = get_tls_support()
 
+
+def get_ldap_support():
+    with open("../config.mak", encoding="utf-8") as f:
+        match = re.search(r"ldap_support = (\w+)", f.read())
+        assert match is not None
+        return match.group(1) == "yes"
+
+
+LDAP_SUPPORT = get_ldap_support()
 
 # this is out of ephemeral port range for many systems hence
 # it is a lower change that it will conflict with "in-use" ports
@@ -653,6 +663,37 @@ class QueryRunner:
             ["psql", conninfo],
             silent=True,
         )
+
+
+class Proxy(QueryRunner):
+    def __init__(self, pg):
+        self.port_lock = PortLock()
+        super().__init__("127.0.0.1", self.port_lock.port)
+        self.connections = {}
+        self.pg = pg
+        self.cursors = {}
+        self.restarted = False
+        self.process: typing.Optional[subprocess.Popen] = None
+
+    def start(self):
+        command = [
+            "socat",
+            f"tcp-listen:{self.port_lock.port},reuseaddr,fork",
+            f"tcp:localhost:{self.pg.port_lock.port}",
+        ]
+        self.process = subprocess.Popen(" ".join(command), shell=True)
+
+    def stop(self):
+        self.process.kill()
+
+    def cleanup(self):
+        self.stop()
+        self.port_lock.release()
+
+    def restart(self):
+        self.restarted = True
+        self.stop()
+        self.start()
 
 
 class Postgres(QueryRunner):
@@ -1169,3 +1210,34 @@ class Bouncer(QueryRunner):
             with self.ini_path.open("w") as f:
                 f.write(config_old)
             self.admin("RELOAD")
+
+
+class OpenLDAP:
+    def __init__(self, config_dir):
+        self.ldap_port_lock = PortLock()
+        self.ldaps_port_lock = PortLock()
+        self.config_dir = config_dir
+        self.slapd_pid_file = self.config_dir / "ldap" / "slapd.pid"
+
+    def startup(self):
+        run(
+            f"{START_OPENLDAP_SCRIPT} {self.config_dir} {self.ldap_port_lock.port} {self.ldaps_port_lock.port}"
+        )
+
+    @property
+    def ldap_port(self):
+        return self.ldap_port_lock.port
+
+    @property
+    def ldaps_port(self):
+        return self.ldaps_port_lock.port
+
+    def stop(self):
+        with self.slapd_pid_file.open("r") as pid_file:
+            pid = pid_file.read()
+        os.kill(int(pid), signal.SIGTERM)
+
+    def cleanup(self):
+        self.stop()
+        self.ldap_port_lock.release()
+        self.ldaps_port_lock.release()

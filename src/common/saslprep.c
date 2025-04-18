@@ -35,7 +35,7 @@
  * Limit on how large password's we will try to process.  A password
  * larger than this will be treated the same as out-of-memory.
  */
-#define MAX_PASSWORD_LENGTH		1024
+#define MAX_PASSWORD_LENGTH		2048
 
 /*
  * In backend, we will use palloc/pfree.  In frontend, use malloc, and

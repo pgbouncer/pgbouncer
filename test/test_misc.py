@@ -534,22 +534,24 @@ async def test_already_paused_client_during_wait_for_servers_shutdown(bouncer):
 )
 def test_shutdown_wait_for_clients(bouncer):
     """
-    Test that after issu
+    Test that after issuing `SHUTDOWN WAIT_FOR_CLIENTS` pgbouncer
+    is no longer accessible via 127.0.0.1 but is still accessible
+    on UNIX socket until the last client leaves the pgbouncer instance.
     """
     with bouncer.cur() as cur, bouncer.admin_runner.cur():
         cur.execute("SELECT 1")
         bouncer.admin("SHUTDOWN WAIT_FOR_CLIENTS")
 
         time.sleep(2)
-        bouncer.sql(query=";", host=bouncer.config_dir)
+        bouncer.test(host=bouncer.config_dir)
         with pytest.raises(psycopg.errors.OperationalError):
-            bouncer.sql(query=";", host="127.0.0.1")
+            bouncer.test(host="127.0.0.1")
 
     # Wait for janitor to close unix socket
     time.sleep(2)
 
     with pytest.raises(psycopg.errors.OperationalError):
-        bouncer.sql(query=";", host=bouncer.config_dir)
+        bouncer.test(host=bouncer.config_dir)
 
 
 def test_resume_during_shutdown(bouncer):

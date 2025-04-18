@@ -87,7 +87,7 @@ void cleanup_sockets(void)
 	}
 }
 
-void cleanup_sockets_unix(void)
+void cleanup_unix_sockets(void)
 {
 	struct ListenSocket *ls;
 	struct List *el;

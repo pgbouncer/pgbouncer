@@ -208,7 +208,7 @@ static void per_loop_activate(PgPool *pool)
 			res = pktbuf_send_queued(buf, client);
 			if (!res)
 				log_warning("Sending queue warning failed");
-			client->sent_wait_notification = 1;
+			client->sent_wait_notification = true;
 		}
 
 		if (client->replication) {

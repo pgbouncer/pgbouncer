@@ -433,15 +433,15 @@ class QueryRunner:
 
     def test(self, **kwargs):
         """Test if you can connect"""
-        return self.sql("select 1", **kwargs)
+        return self.sql(";", **kwargs)
 
     def atest(self, **kwargs):
         """Test if you can connect asynchronously"""
-        return self.asql("select 1", **kwargs)
+        return self.asql(";", **kwargs)
 
     def psql_test(self, **kwargs):
         """Test if you can connect with psql instead of psycopg"""
-        return self.psql("select 1", **kwargs)
+        return self.psql(";", **kwargs)
 
     @contextmanager
     def enable_firewall(self):

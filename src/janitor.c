@@ -196,7 +196,7 @@ static void per_loop_activate(PgPool *pool)
 		client = container_of(item, PgSocket, head);
 
 		if (client->state == CL_WAITING
-		    && client->sent_wait_notification
+		    && !client->sent_wait_notification
 		    && client->welcome_sent
 		    && ((get_cached_time() - client->wait_start) / USEC) > cf_query_wait_notify
 		    && cf_query_wait_notify > 0) {

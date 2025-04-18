@@ -57,7 +57,6 @@ static struct timeval err_timeout = {5, 0};
 
 static void tune_accept(int sock, bool on);
 
-
 /* atexit() cleanup func */
 void cleanup_sockets(void)
 {
@@ -91,7 +90,6 @@ void cleanup_sockets(void)
 
 	return;
 }
-
 
 /*
  * initialize another listening socket.
@@ -596,7 +594,6 @@ void pooler_setup(void)
 
 	resume_pooler();
 }
-
 
 bool for_each_pooler_fd(pooler_cb cbfunc, void *arg)
 {

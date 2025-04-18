@@ -186,6 +186,7 @@ extern int cf_sbuf_len;
 #include "messages.h"
 #include "pam.h"
 #include "prepare.h"
+#include "ldapauth.h"
 
 #ifndef WIN32
 #define DEFAULT_UNIX_SOCKET_DIR "/tmp"
@@ -215,6 +216,11 @@ extern int cf_sbuf_len;
  */
 #define MAX_PASSWORD    2048
 
+#ifdef HAVE_LDAP
+/* Hope this length is long enough for ldap config line */
+#define MAX_LDAP_CONFIG 1024
+#endif
+
 /*
  * Symbols for authentication type settings (auth_type, hba).
  */
@@ -229,6 +235,7 @@ enum auth_type {
 	AUTH_TYPE_SCRAM_SHA_256,
 	AUTH_TYPE_PEER,
 	AUTH_TYPE_REJECT,
+	AUTH_TYPE_LDAP,
 };
 
 /* type codes for weird pkts */
@@ -529,6 +536,7 @@ struct PgGlobalUser {
 	int pool_size;	/* max server connections in one pool */
 	int res_pool_size;	/* max additional server connections in one pool */
 
+	usec_t transaction_timeout;	/* how long a user is allowed to stay in transaction before being killed */
 	usec_t idle_transaction_timeout;	/* how long a user is allowed to stay idle in transaction before being killed */
 	usec_t query_timeout;	/* how long a users query is allowed to run before beign killed */
 	usec_t client_idle_timeout;	/* how long is user allowed to idly connect to pgbouncer */
@@ -665,7 +673,7 @@ struct PgSocket {
 	bool welcome_sent : 1;		/* client: client has been sent the welcome msg */
 	bool wait_for_user_conn : 1;	/* client: waiting for auth_conn server connection */
 	bool wait_for_user : 1;		/* client: waiting for auth_conn query results */
-	bool wait_for_auth : 1;		/* client: waiting for external auth (PAM) to be completed */
+	bool wait_for_auth : 1;		/* client: waiting for external auth (PAM/LDAP) to be completed */
 
 	bool suspended : 1;		/* client/server: if the socket is suspended */
 
@@ -718,6 +726,9 @@ struct PgSocket {
 		uint8_t StoredKey[32];
 		uint8_t ServerKey[32];
 	} scram_state;
+#ifdef HAVE_LDAP
+	char ldap_parameters[MAX_LDAP_CONFIG];
+#endif
 
 	VarCache vars;		/* state of interesting server parameters */
 
@@ -800,6 +811,7 @@ extern usec_t cf_cancel_wait_timeout;
 extern usec_t cf_client_idle_timeout;
 extern usec_t cf_client_login_timeout;
 extern usec_t cf_idle_transaction_timeout;
+extern usec_t cf_transaction_timeout;
 extern bool any_user_level_timeout_set;
 extern bool any_user_level_client_timeout_set;
 extern int cf_server_round_robin;
@@ -815,6 +827,7 @@ extern char *cf_auth_query;
 extern char *cf_auth_user;
 extern char *cf_auth_hba_file;
 extern char *cf_auth_dbname;
+extern char *cf_auth_ldap_parameter;
 
 extern char *cf_pidfile;
 

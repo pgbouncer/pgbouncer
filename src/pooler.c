@@ -70,9 +70,8 @@ void cleanup_tcp_sockets(void)
 
 	while ((el = statlist_pop(&sock_list)) != NULL) {
 		ls = container_of(el, struct ListenSocket, node);
-		if (pga_is_unix(&ls->addr) && cf_unix_socket_dir[0] != '@') {
+		if (pga_is_unix(&ls->addr)) {
 			statlist_append(&sock_list_shutdown, &ls->node);
-			// statlist_remove(&sock_list, &ls->node);
 			continue;
 		}
 		if (event_del(&ls->ev) < 0) {
@@ -104,7 +103,6 @@ void cleanup_unix_sockets(void)
 			char buf[sizeof(struct sockaddr_un) + 20];
 			snprintf(buf, sizeof(buf), "%s/.s.PGSQL.%d", cf_unix_socket_dir, cf_listen_port);
 			unlink(buf);
-			statlist_remove(&sock_list_shutdown, &ls->node);
 		}
 		statlist_remove(&sock_list_shutdown, &ls->node);
 		free(ls);

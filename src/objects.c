@@ -2033,6 +2033,11 @@ bool finish_client_login(PgSocket *client)
 		return false;
 	}
 
+	if (cf_shutdown && strcmp("pgbouncer", client->db->name)) {
+		disconnect_client(client, true, "pooler is shutting down");
+		return false;
+	}
+
 	switch (client->state) {
 	case CL_LOGIN:
 		change_client_state(client, CL_ACTIVE);

@@ -543,7 +543,12 @@ def test_shutdown_wait_for_clients(bouncer):
         bouncer.admin("SHUTDOWN WAIT_FOR_CLIENTS")
 
         time.sleep(2)
-        bouncer.test(host=bouncer.config_dir)
+
+        with pytest.raises(psycopg.errors.OperationalError):
+            bouncer.test(host=bouncer.config_dir)
+
+        bouncer.admin("SHOW VERSION", host=bouncer.config_dir)
+
         with pytest.raises(psycopg.errors.OperationalError):
             bouncer.test(host="127.0.0.1")
 

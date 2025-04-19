@@ -835,7 +835,8 @@ Stop accepting new connections and shutdown after all servers are released.
 This is basically the same as issuing **PAUSE** and **SHUTDOWN**, except that
 this also stops accepting new connections while waiting for the **PAUSE** as
 well as eagerly disconnecting clients that are waiting to receive a server
-connection.
+connection. Please note that UNIX sockets will remain open during the shutdown
+but will only accept connections to the pgbouncer admin console.
 
 #### SHUTDOWN WAIT_FOR_CLIENTS
 

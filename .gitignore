@@ -16,11 +16,13 @@
 /test/hba_test
 /test/log
 /test/pgdata/
+/test/pgdata-standby/
 /test/test.log
 /test/test.pid
 /test/ssl/log
 /test/ssl/tmp/
 /test/ssl/pgdata/
+/test/ssl/pgdata-standby/
 /test/ssl/test.log
 /test/ssl/test.pid
 /test/ssl/TestCA[1-9]/

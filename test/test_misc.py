@@ -539,7 +539,7 @@ def test_shutdown_wait_for_clients(bouncer):
     on UNIX socket until the last client leaves the pgbouncer instance.
     """
     with bouncer.cur() as cur, bouncer.admin_runner.cur():
-        cur.execute("SELECT 1")
+        cur.execute(";")
         bouncer.admin("SHUTDOWN WAIT_FOR_CLIENTS")
 
         time.sleep(2)

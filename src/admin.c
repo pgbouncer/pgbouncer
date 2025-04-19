@@ -1200,7 +1200,7 @@ static bool admin_cmd_shutdown(PgSocket *admin, const char *arg)
 		} else {
 			log_info("SHUTDOWN WAIT_FOR_CLIENTS command issued");
 		}
-		cleanup_sockets();
+		cleanup_tcp_sockets();
 		return admin_ready(admin, "SHUTDOWN");
 	}
 }

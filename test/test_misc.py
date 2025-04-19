@@ -189,14 +189,17 @@ def test_server_check_query(pg, bouncer):
 
 
 def test_multi_ports(bouncer):
+
     bouncer.test(port=bouncer.port)
     bouncer.test(port=bouncer.second_port_lock.port)
 
-    assert pathlib.Path(f"{bouncer.config_dir}/.s.PGSQL.{bouncer.port}").exists()
-    assert pathlib.Path(f"{bouncer.config_dir}/.s.PGSQL.{bouncer.second_port_lock.port}").exists()
+    socket_directory = bouncer.config_dir if LINUX else "/tmp"
 
-    bouncer.test(port=bouncer.port, host=bouncer.config_dir)
-    bouncer.test(port=bouncer.second_port_lock.port, host=bouncer.config_dir)
+    assert pathlib.Path(f"{socket_directory}/.s.PGSQL.{bouncer.port}").exists()
+    assert pathlib.Path(f"{socket_directory}/.s.PGSQL.{bouncer.second_port_lock.port}").exists()
+
+    bouncer.test(port=bouncer.port, host=socket_directory)
+    bouncer.test(port=bouncer.second_port_lock.port, host=socket_directory)
 
     bouncer.admin("SHUTDOWN wait_for_clients")
 
@@ -206,12 +209,12 @@ def test_multi_ports(bouncer):
         bouncer.test(port=bouncer.second_port_lock.port)
 
     with pytest.raises(psycopg.OperationalError):
-        bouncer.test(port=bouncer.port, host=bouncer.config_dir)
+        bouncer.test(port=bouncer.port, host=socket_directory)
     with pytest.raises(psycopg.OperationalError):
-        bouncer.test(port=bouncer.second_port_lock.port, host=bouncer.config_dir)
+        bouncer.test(port=bouncer.second_port_lock.port, host=socket_directory)
 
-    assert not pathlib.Path(f"{bouncer.config_dir}/.s.PGSQL.{bouncer.port}").exists()
-    assert not pathlib.Path(f"{bouncer.config_dir}/.s.PGSQL.{bouncer.second_port_lock.port}").exists()
+    assert not pathlib.Path(f"{socket_directory}/.s.PGSQL.{bouncer.port}").exists()
+    assert not pathlib.Path(f"{socket_directory}/.s.PGSQL.{bouncer.second_port_lock.port}").exists()
 
 def test_connect_query(bouncer):
     # The p8 database definition in test.ini has some GUC settings

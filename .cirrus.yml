@@ -12,7 +12,7 @@ task:
     - container:
         image: ubuntu:22.04
       env:
-        configure_args: '--with-cares --with-pam'
+        configure_args: '--with-cares --with-pam --with-ldap'
     - container:
         image: ubuntu:22.04
       env:
@@ -63,11 +63,12 @@ task:
     - curl https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
     - echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main $PGVERSION" | tee /etc/apt/sources.list.d/pgdg.list
     - apt-get update
-    - pkgs="autoconf automake ca-certificates cpio libc-ares-dev libevent-dev libpam0g-dev libssl-dev libsystemd-dev libtool make pandoc postgresql-$PGVERSION pkg-config python3 python3-pip python3-venv sudo iptables"
+    - pkgs="autoconf automake ca-certificates cpio libc-ares-dev libevent-dev libpam0g-dev libssl-dev libsystemd-dev libtool make pandoc postgresql-$PGVERSION pkg-config python3 python3-pip python3-venv sudo iptables socat"
     - case $CC in clang) pkgs="$pkgs clang";; esac
     - if [ x"$ENABLE_VALGRIND" = x"yes" ]; then pkgs="$pkgs valgrind"; fi
     - if [ x"$use_scan_build" = x"yes" ]; then pkgs="$pkgs clang-tools"; fi
     - apt-get -y install $pkgs
+    - apt-get -y install libldap-dev slapd ldap-utils
     - python3 -m venv /venv
     - /venv/bin/pip install -r requirements.txt
     - useradd user
@@ -157,7 +158,7 @@ task:
 task:
   name: FreeBSD
   freebsd_instance:
-    image_family: freebsd-14-1
+    image_family: freebsd-14-2
   env:
     HAVE_IPV6_LOCALHOST: yes
     USE_SUDO: true

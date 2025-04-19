@@ -311,6 +311,10 @@ def test_describe_non_existent_prepared_statement(bouncer):
 
 # libpq before PG17 does not support sending Close messages
 @pytest.mark.skipif("psycopg.pq.version() < 170000")
+@pytest.mark.skipif(
+    "psycopg.__version__ < '3.2.0'",
+    reason="Debian oldstable doesn't support a version of psycopg with 'close_prepared' support",
+)
 def test_close_prepared_statement(bouncer):
     with bouncer.conn() as conn:
         result = conn.pgconn.prepare(b"test", b"SELECT 1")
@@ -338,8 +342,9 @@ def test_statement_name_longer_than_pkt_buf(bouncer):
         assert result.status == pq.ExecStatus.TUPLES_OK
         assert result.get_value(0, 0) == b"abc"
 
-        if psycopg.pq.version() >= 170000:
+        if psycopg.pq.version() >= 170000 and psycopg.__version__ >= "3.2.0":
             # libpq before PG17 does not support sending Close messages
+            # Debian oldstable does not package psycopg with 'close_prepared'
             result = conn.pgconn.close_prepared(name)
             assert result.status == pq.ExecStatus.COMMAND_OK
             # Ensure that the close was successful
@@ -412,9 +417,14 @@ def test_prepared_failed_prepare_pipeline(bouncer):
         with conn.pipeline() as p, conn.cursor() as cur:
             cur.execute("SELECT 1", prepare=True)
             cur.execute("SELECT * FROM doesnotexistyet", prepare=True)
-            cur.execute("SELECT 2", prepare=True)
             with pytest.raises(psycopg.errors.UndefinedTable):
-                p.sync()
+                # Either of these two commands might fail due to timing
+                # differences, usually it's the sync. If the execute fails we
+                # still want it to sync though.
+                try:
+                    cur.execute("SELECT 2", prepare=True)
+                finally:
+                    p.sync()
             cur.execute("SELECT 1", prepare=True)
             p.sync()
             cur.execute("SELECT 2", prepare=True)

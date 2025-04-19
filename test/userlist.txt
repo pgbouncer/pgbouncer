@@ -10,6 +10,7 @@
 "maxedout5" ""
 "poolsize1" ""
 "respoolsize1" ""
+"clientstate" ""
 "bouncer" "zzzz"
 ;the following pairs of passwords are "foo" and "bar"
 

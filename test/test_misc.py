@@ -6,7 +6,186 @@ import pathlib
 import psycopg
 import pytest
 
-from .utils import HAVE_IPV6_LOCALHOST, PG_MAJOR_VERSION, PKT_BUF_SIZE, WINDOWS
+from .utils import HAVE_IPV6_LOCALHOST, LINUX, PG_MAJOR_VERSION, PKT_BUF_SIZE, WINDOWS
+
+
+@pytest.mark.skipif("not LINUX", reason="socat proxy only available on linux")
+def test_server_check_query_default_negative(pg, bouncer, proxy):
+    """
+    Test that default server check query correctly spots bad connection.
+
+    Bad connection is created by simulating a network failure by proxying
+    postgres behind socat. The socat process is killed right before the
+    postgres process is terminated, after this socat is started again.
+
+    The expectation is that the health check query will not show up
+    in the postgres log, a new connection with a new pid will be granted
+    to the client without any exception being raised.
+    """
+    config = f"""
+    [databases]
+    postgres = host={proxy.host} port={proxy.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    auth_type = trust
+    admin_users = pgbouncer
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    auth_dbname = postgres
+    pool_mode = transaction
+    server_check_delay = 0
+    """
+    pg.configure(config="log_statement = 'all'")
+    pg.reload()
+
+    with bouncer.run_with_config(config):
+        with bouncer.cur(dbname="postgres", user="puser1") as cur:
+            pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
+
+        proxy.stop()
+        pg.sql(f"SELECT pg_terminate_backend({pid});")
+        proxy.start()
+
+        with bouncer.cur(dbname="postgres", user="puser1") as cur:
+            with pg.log_contains(" LOG:  statement: \n", times=0):
+                new_pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
+
+    assert new_pid != pid
+    pg.configure(config="log_statement = 'none'")
+
+
+@pytest.mark.skipif("not LINUX", reason="socat proxy only available on linux")
+def test_server_check_query_negative(pg, bouncer, proxy):
+    """
+    Test that a custom server check query correctly spots bad connection.
+
+    Bad connection is created by simulating a network failure by proxying
+    postgres behind socat. The socat process is killed right before the
+    postgres process is terminated, after this socat is started again.
+
+    The expectation is that the health check query will not show up
+    in the postgres log, a new connection with a new pid will be granted
+    to the client without any exception being raised.
+    """
+    config = f"""
+    [databases]
+    postgres = host={proxy.host} port={proxy.port} pool_size=1
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    auth_type = trust
+    admin_users = pgbouncer
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    auth_dbname = postgres
+    pool_mode = transaction
+    server_check_query = SELECT 2
+    server_check_delay = 0
+    """
+    pg.configure(config="log_statement = 'all'")
+    pg.reload()
+
+    with bouncer.run_with_config(config):
+        with bouncer.cur(dbname="postgres", user="puser1") as cur:
+            pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
+
+        proxy.stop()
+        pg.sql(f"SELECT pg_terminate_backend({pid});")
+        proxy.start()
+
+        with bouncer.cur(dbname="postgres", user="puser1") as cur:
+            with pg.log_contains(" LOG:  statement: SELECT 2\n", times=0):
+                new_pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
+
+    assert new_pid != pid
+    pg.configure(config="log_statement = 'none'")
+
+
+def test_server_check_query_default(
+    pg,
+    bouncer,
+):
+    """
+    Test that a default server check query correctly checks for a bad connection.
+
+    In this case there will be no bad connection.
+
+    The expectation is that the health check query will show up
+    in the postgres log once, the previously used postgres process will be
+    provided to the user as validated by the pid.
+    """
+    config = f"""
+    [databases]
+    postgres = host={pg.host} port={pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    auth_type = trust
+    admin_users = pgbouncer
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    auth_dbname = postgres
+    pool_mode = transaction
+    server_check_delay = 0
+    """
+    pg.configure(config="log_statement = 'all'")
+    pg.reload()
+
+    with bouncer.run_with_config(config):
+        with bouncer.cur(dbname="postgres", user="puser1") as cur:
+            pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
+
+        with bouncer.cur(dbname="postgres", user="puser1") as cur:
+            with pg.log_contains(" LOG:  statement: \n", times=1):
+                new_pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
+
+    assert new_pid == pid
+    pg.configure(config="log_statement = 'none'")
+
+
+def test_server_check_query(pg, bouncer):
+    """
+    Test that a custom server check query correctly checks for a bad connection.
+
+    In this case there will be no bad connection.
+
+    The expectation is that the health check query will show up
+    in the postgres log once, the previously used postgres process will be
+    provided to the user as validated by the pid.
+    """
+    config = f"""
+    [databases]
+    postgres = host={bouncer.pg.host} port={bouncer.pg.port} pool_size=1
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    auth_type = trust
+    admin_users = pgbouncer
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    auth_dbname = postgres
+    pool_mode = transaction
+    server_check_query = SELECT 2
+    server_check_delay = 0
+    """
+    pg.configure(config="log_statement = 'all'")
+    pg.reload()
+
+    with bouncer.run_with_config(config):
+        with bouncer.cur(dbname="postgres", user="puser1") as cur:
+            pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
+
+        with bouncer.cur(dbname="postgres", user="puser1") as cur:
+            with pg.log_contains(" LOG:  statement: SELECT 2\n", times=1):
+                new_pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
+
+    assert new_pid == pid
+    pg.configure(config="log_statement = 'none'")
 
 
 def test_multi_ports(bouncer):
@@ -54,7 +233,7 @@ def test_fast_close(bouncer):
 
             with pytest.raises(
                 psycopg.OperationalError,
-                match=r"server closed the connection unexpectedly|Software caused connection abort",
+                match=r"database configuration changed|server closed the connection unexpectedly|Software caused connection abort",
             ):
                 cur.execute("select 1")
 
@@ -297,7 +476,8 @@ async def test_repeated_sigterm(bouncer):
         bouncer.sigterm()
         await bouncer.wait_for_exit()
         with pytest.raises(
-            psycopg.OperationalError, match="server closed the connection unexpectedly"
+            psycopg.OperationalError,
+            match="database removed|server closed the connection unexpectedly",
         ):
             cur.execute("SELECT 1")
         assert not bouncer.running()
@@ -324,7 +504,8 @@ async def test_repeated_sigint(bouncer):
         bouncer.sigint()
         await bouncer.wait_for_exit()
         with pytest.raises(
-            psycopg.OperationalError, match="server closed the connection unexpectedly"
+            psycopg.OperationalError,
+            match="database removed|server closed the connection unexpectedly",
         ):
             cur.execute("SELECT 1")
         assert not bouncer.running()

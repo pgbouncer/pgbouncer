@@ -554,7 +554,6 @@ def test_shutdown_wait_for_servers(bouncer):
 
         time.sleep(2)
 
-
         with pytest.raises(psycopg.errors.OperationalError):
             bouncer.test(host=bouncer.config_dir)
 

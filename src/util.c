@@ -276,7 +276,6 @@ void fill_remote_addr(PgSocket *sk, int fd, bool is_unix, int port)
 {
 	PgAddr *dst = &sk->remote_addr;
 	socklen_t len = sizeof(PgAddr);
-	char *strport = NULL;
 	int err;
 
 	if (is_unix) {
@@ -312,7 +311,6 @@ void fill_local_addr(PgSocket *sk, int fd, bool is_unix, int port)
 	PgAddr *dst = &sk->local_addr;
 	socklen_t len = sizeof(PgAddr);
 	int err;
-	char *strport = NULL;
 
 	if (is_unix) {
 		// TODO Replace with actual?

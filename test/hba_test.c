@@ -17,7 +17,6 @@ int cf_tcp_keepalive;
 int cf_tcp_user_timeout;
 int cf_tcp_socket_buffer;
 char *cf_listen_port;
-struct StrList *listen_port_list;
 
 static const char *method2string(int method)
 {

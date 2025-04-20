@@ -774,7 +774,6 @@ extern int cf_unix_socket_mode;
 extern char *cf_unix_socket_group;
 extern char *cf_listen_addr;
 extern char *cf_listen_port;
-extern struct StrList *listen_port_list;
 extern int cf_listen_backlog;
 extern int cf_peer_id;
 

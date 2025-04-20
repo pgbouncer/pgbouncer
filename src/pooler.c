@@ -393,7 +393,6 @@ bool use_pooler_socket(int sock, bool is_unix)
 	struct ListenSocket *ls;
 	int res;
 	char buf[PGADDR_BUF];
-	char *strport = NULL;
 
 	if (!tune_socket(sock, is_unix))
 		return false;
@@ -403,9 +402,7 @@ bool use_pooler_socket(int sock, bool is_unix)
 		return false;
 	ls->fd = sock;
 	if (is_unix) {
-		strport = strlist_pop(listen_port_list);
-		pga_set(&ls->addr, AF_UNIX, atoi(strport));
-		strlist_append(listen_port_list, strport);
+		pga_set(&ls->addr, AF_UNIX, atoi(strtok(cf_listen_port, ",")));
 	} else {
 		struct sockaddr_storage ss;
 		socklen_t len = sizeof(ss);
@@ -568,7 +565,6 @@ void pooler_setup(void)
 			statlist_append(&sock_list, &ls->node);
 		}
 	} else {
-		bool ok;
 		static bool init_done = false;
 
 		if (!init_done) {
@@ -577,14 +573,15 @@ void pooler_setup(void)
 			init_done = true;
 		}
 
-		strlist_foreach(listen_port_list, create_listen_ports, NULL);
+		if (!parse_word_list(cf_listen_port, create_listen_ports, NULL))
+			die("failed to parse cf_listen_port list: %s", cf_listen_port);
+
 
 		if (!listen_addr_empty && !statlist_count(&sock_list))
 			die("failed to listen on any address in listen_addr list: %s", cf_listen_addr);
 
 		if (cf_unix_socket_dir && *cf_unix_socket_dir) {
-			ok = strlist_foreach(listen_port_list, create_unix_sockets, NULL);
-			if (!ok)
+			if (!parse_word_list(cf_listen_port, create_unix_sockets, NULL))
 				die("failed to create sockets");
 		}
 	}

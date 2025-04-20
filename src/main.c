@@ -86,7 +86,6 @@ char *cf_config_file;
 
 char *cf_listen_addr;
 char *cf_listen_port;
-struct StrList *listen_port_list;
 int cf_listen_backlog;
 char *cf_unix_socket_dir;
 int cf_unix_socket_mode;
@@ -441,11 +440,6 @@ static bool requires_auth_file(int auth_type)
 	return auth_type >= AUTH_TYPE_TRUST;
 }
 
-static bool sl_add(void *arg, const char *s)
-{
-	return strlist_append(arg, s);
-}
-
 /* config loading, tries to be tolerant to errors */
 bool load_config(void)
 {
@@ -463,13 +457,6 @@ bool load_config(void)
 
 	/* actual loading */
 	load_file_ok = cf_load_file(&main_config, cf_config_file);
-	if (listen_port_list) {
-		strlist_free(listen_port_list);
-		listen_port_list = NULL;
-	}
-	listen_port_list = strlist_new(NULL);
-	if (!parse_word_list(cf_listen_port, sl_add, listen_port_list))
-		die("failed to parse listen_port in config %s", cf_listen_port);
 
 	if (load_file_ok) {
 		/* load users if needed */
@@ -858,7 +845,6 @@ static bool check_old_process_unix(void)
 	socklen_t len = sizeof(sa_un);
 	int domain = AF_UNIX;
 	int res, fd;
-	char *strport = NULL;
 
 	if (!cf_unix_socket_dir || !*cf_unix_socket_dir || sd_listen_fds(0) > 0)
 		return false;
@@ -866,10 +852,8 @@ static bool check_old_process_unix(void)
 	memset(&sa_un, 0, len);
 	sa_un.sun_family = domain;
 
-	strport = strlist_pop(listen_port_list);
 	snprintf(sa_un.sun_path, sizeof(sa_un.sun_path),
-		 "%s/.s.PGSQL.%d", cf_unix_socket_dir, atoi(strport));
-	strlist_append(listen_port_list, strport);
+		 "%s/.s.PGSQL.%d", cf_unix_socket_dir, atoi(strtok(cf_listen_port, ",")));
 
 	fd = socket(domain, SOCK_STREAM, 0);
 	if (fd < 0)

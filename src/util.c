@@ -318,7 +318,6 @@ void fill_local_addr(PgSocket *sk, int fd, bool is_unix)
 	char *strport = NULL;
 
 	if (is_unix) {
-
 		// TODO Replace with actual?
 		strport = strlist_pop(listen_port_list);
 		pga_set(dst, AF_UNIX, atoi(strport));

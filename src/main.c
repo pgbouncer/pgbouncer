@@ -463,7 +463,7 @@ bool load_config(void)
 
 	/* actual loading */
 	load_file_ok = cf_load_file(&main_config, cf_config_file);
-	if (listen_port_list){
+	if (listen_port_list) {
 		strlist_free(listen_port_list);
 		listen_port_list = NULL;
 	}

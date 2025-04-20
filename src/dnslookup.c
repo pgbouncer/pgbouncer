@@ -29,7 +29,7 @@
 #include <event2/dns.h>
 #define addrinfo evutil_addrinfo
 #define freeaddrinfo evutil_freeaddrinfo
-#endif /* USE_EVDNS */
+#endif	/* USE_EVDNS */
 
 #ifdef USE_CARES
 #define CARES_NO_DEPRECATED
@@ -203,9 +203,9 @@ failed:
 	return NULL;
 }
 
-#endif /* USE_CARES */
+#endif	/* USE_CARES */
 
-#endif /* custom addrinfo */
+#endif	/* custom addrinfo */
 
 
 /*
@@ -335,7 +335,7 @@ static void impl_release(struct DNSContext *ctx)
 	}
 }
 
-#endif /* USE_GETADDRINFO_A */
+#endif	/* USE_GETADDRINFO_A */
 
 
 /*
@@ -411,7 +411,7 @@ static void impl_release(struct DNSContext *ctx)
 	evdns_base_free(dns, 0);
 }
 
-#endif /* USE_EVDNS */
+#endif	/* USE_EVDNS */
 
 
 /*
@@ -736,7 +736,7 @@ static int impl_query_soa_serial(struct DNSContext *ctx, const char *zonename)
 	return 0;
 }
 
-#endif /* USE_CARES */
+#endif	/* USE_CARES */
 
 
 /*

@@ -933,7 +933,7 @@ static bool check_ldap_auth(struct ldap_auth_request *request)
 	return true;
 }
 
-#else /* !HAVE_LDAP */
+#else	/* !HAVE_LDAP */
 
 /* If LDAP is not supported then this dummy functions is used which always rejects passwords */
 

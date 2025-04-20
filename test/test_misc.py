@@ -4,6 +4,7 @@ import time
 import pathlib
 
 import psycopg
+from psycopg.rows import dict_row
 import pytest
 
 from .utils import HAVE_IPV6_LOCALHOST, LINUX, PG_MAJOR_VERSION, PKT_BUF_SIZE, WINDOWS
@@ -196,10 +197,34 @@ def test_multi_ports(bouncer):
     socket_directory = bouncer.config_dir if LINUX else "/tmp"
 
     assert pathlib.Path(f"{socket_directory}/.s.PGSQL.{bouncer.port}").exists()
-    assert pathlib.Path(f"{socket_directory}/.s.PGSQL.{bouncer.second_port_lock.port}").exists()
+    assert pathlib.Path(
+        f"{socket_directory}/.s.PGSQL.{bouncer.second_port_lock.port}"
+    ).exists()
 
     bouncer.test(port=bouncer.port, host=socket_directory)
     bouncer.test(port=bouncer.second_port_lock.port, host=socket_directory)
+
+    # with bouncer.cur(
+    #     dbname="pgbouncer",
+    #     user="pgbouncer",
+    #     host=socket_directory,
+    #     port=bouncer.port,
+    #     row_factory=dict_row,
+    # ) as admin_cursor:
+    #     admin_cursor.execute("SHOW CLIENTS")
+    #     servers = admin_cursor.fetchall()
+    #     assert servers[0]["port"] == bouncer.port
+
+    # with bouncer.cur(
+    #     dbname="pgbouncer",
+    #     user="pgbouncer",
+    #     port=bouncer.second_port_lock.port,
+    #     host=socket_directory,
+    #     row_factory=dict_row,
+    # ) as admin_cursor:
+    #     admin_cursor.execute("SHOW CLIENTS")
+    #     servers = admin_cursor.fetchall()
+    #     assert servers[0]["port"] == bouncer.second_port_lock.port
 
     bouncer.admin("SHUTDOWN wait_for_clients")
 
@@ -214,7 +239,10 @@ def test_multi_ports(bouncer):
         bouncer.test(port=bouncer.second_port_lock.port, host=socket_directory)
 
     assert not pathlib.Path(f"{socket_directory}/.s.PGSQL.{bouncer.port}").exists()
-    assert not pathlib.Path(f"{socket_directory}/.s.PGSQL.{bouncer.second_port_lock.port}").exists()
+    assert not pathlib.Path(
+        f"{socket_directory}/.s.PGSQL.{bouncer.second_port_lock.port}"
+    ).exists()
+
 
 def test_connect_query(bouncer):
     # The p8 database definition in test.ini has some GUC settings

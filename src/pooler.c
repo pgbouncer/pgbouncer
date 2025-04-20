@@ -514,7 +514,7 @@ static bool create_unix_sockets(void *arg, const char *s)
 {
 	int port = atoi(s);
 	create_unix_socket(cf_unix_socket_dir, port);
-        return true;
+	return true;
 }
 
 static bool create_listen_ports(void *arg, const char *s)
@@ -577,15 +577,15 @@ void pooler_setup(void)
 			init_done = true;
 		}
 
-	        strlist_foreach(listen_port_list, create_listen_ports, NULL);
+		strlist_foreach(listen_port_list, create_listen_ports, NULL);
 
 		if (!listen_addr_empty && !statlist_count(&sock_list))
 			die("failed to listen on any address in listen_addr list: %s", cf_listen_addr);
 
-		if (cf_unix_socket_dir && *cf_unix_socket_dir){
-		    ok = strlist_foreach(listen_port_list, create_unix_sockets, NULL);
-		    if (!ok)
-			 die("failed to create sockets");
+		if (cf_unix_socket_dir && *cf_unix_socket_dir) {
+			ok = strlist_foreach(listen_port_list, create_unix_sockets, NULL);
+			if (!ok)
+				die("failed to create sockets");
 		}
 	}
 

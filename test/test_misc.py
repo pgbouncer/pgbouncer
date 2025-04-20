@@ -1,11 +1,11 @@
 import asyncio
+import pathlib
 import re
 import time
-import pathlib
 
 import psycopg
-from psycopg.rows import dict_row
 import pytest
+from psycopg.rows import dict_row
 
 from .utils import HAVE_IPV6_LOCALHOST, LINUX, PG_MAJOR_VERSION, PKT_BUF_SIZE, WINDOWS
 

@@ -7,7 +7,14 @@ import psycopg
 import pytest
 from psycopg.rows import dict_row
 
-from .utils import HAVE_IPV6_LOCALHOST, LINUX, PG_MAJOR_VERSION, PKT_BUF_SIZE, WINDOWS
+from .utils import (
+    USE_UNIX_SOCKETS,
+    HAVE_IPV6_LOCALHOST,
+    LINUX,
+    PG_MAJOR_VERSION,
+    PKT_BUF_SIZE,
+    WINDOWS,
+)
 
 
 @pytest.mark.skipif("not LINUX", reason="socat proxy only available on linux")
@@ -189,6 +196,9 @@ def test_server_check_query(pg, bouncer):
     pg.configure(config="log_statement = 'none'")
 
 
+@pytest.mark.skipif(
+    "not USE_UNIX_SOCKETS", reason="Test tests presence and deletion of UNIX sockets"
+)
 def test_multi_ports(bouncer):
 
     bouncer.test(port=bouncer.port)

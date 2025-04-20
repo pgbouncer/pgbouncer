@@ -272,7 +272,7 @@ loop:
 	return true;
 }
 
-void fill_remote_addr(PgSocket *sk, int fd, bool is_unix)
+void fill_remote_addr(PgSocket *sk, int fd, bool is_unix, int port)
 {
 	PgAddr *dst = &sk->remote_addr;
 	socklen_t len = sizeof(PgAddr);
@@ -284,10 +284,7 @@ void fill_remote_addr(PgSocket *sk, int fd, bool is_unix)
 		gid_t gid = 0;
 		pid_t pid = 0;
 
-		// TODO Change to actual port?
-		strport = strlist_pop(listen_port_list);
-		pga_set(dst, AF_UNIX, atoi(strport));
-		strlist_append(listen_port_list, strport);
+		pga_set(dst, AF_UNIX, port);
 
 		if (getpeercreds(fd, &uid, &gid, &pid) >= 0) {
 			log_noise("unix peer uid: %d", (int)uid);
@@ -310,7 +307,7 @@ void fill_remote_addr(PgSocket *sk, int fd, bool is_unix)
 	}
 }
 
-void fill_local_addr(PgSocket *sk, int fd, bool is_unix)
+void fill_local_addr(PgSocket *sk, int fd, bool is_unix, int port)
 {
 	PgAddr *dst = &sk->local_addr;
 	socklen_t len = sizeof(PgAddr);
@@ -319,9 +316,7 @@ void fill_local_addr(PgSocket *sk, int fd, bool is_unix)
 
 	if (is_unix) {
 		// TODO Replace with actual?
-		strport = strlist_pop(listen_port_list);
-		pga_set(dst, AF_UNIX, atoi(strport));
-		strlist_append(listen_port_list, strport);
+		pga_set(dst, AF_UNIX, port);
 
 		dst->scred.uid = geteuid();
 		dst->scred.pid = getpid();

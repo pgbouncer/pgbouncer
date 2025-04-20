@@ -373,9 +373,9 @@ loop:
 
 	log_noise("new fd from accept=%d", fd);
 	if (is_unix) {
-		client = accept_client(fd, true);
+		client = accept_client(fd, true, htons(ls->addr.sin6.sin6_port));
 	} else {
-		client = accept_client(fd, false);
+		client = accept_client(fd, false, htons(ls->addr.sin6.sin6_port));
 	}
 
 	if (client)

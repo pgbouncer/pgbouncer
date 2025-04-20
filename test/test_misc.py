@@ -204,27 +204,27 @@ def test_multi_ports(bouncer):
     bouncer.test(port=bouncer.port, host=socket_directory)
     bouncer.test(port=bouncer.second_port_lock.port, host=socket_directory)
 
-    # with bouncer.cur(
-    #     dbname="pgbouncer",
-    #     user="pgbouncer",
-    #     host=socket_directory,
-    #     port=bouncer.port,
-    #     row_factory=dict_row,
-    # ) as admin_cursor:
-    #     admin_cursor.execute("SHOW CLIENTS")
-    #     servers = admin_cursor.fetchall()
-    #     assert servers[0]["port"] == bouncer.port
+    with bouncer.cur(
+        dbname="pgbouncer",
+        user="pgbouncer",
+        host=socket_directory,
+        port=bouncer.port,
+        row_factory=dict_row,
+    ) as admin_cursor:
+        admin_cursor.execute("SHOW CLIENTS")
+        servers = admin_cursor.fetchall()
+        assert servers[0]["port"] == bouncer.port
 
-    # with bouncer.cur(
-    #     dbname="pgbouncer",
-    #     user="pgbouncer",
-    #     port=bouncer.second_port_lock.port,
-    #     host=socket_directory,
-    #     row_factory=dict_row,
-    # ) as admin_cursor:
-    #     admin_cursor.execute("SHOW CLIENTS")
-    #     servers = admin_cursor.fetchall()
-    #     assert servers[0]["port"] == bouncer.second_port_lock.port
+    with bouncer.cur(
+        dbname="pgbouncer",
+        user="pgbouncer",
+        port=bouncer.second_port_lock.port,
+        host=socket_directory,
+        row_factory=dict_row,
+    ) as admin_cursor:
+        admin_cursor.execute("SHOW CLIENTS")
+        servers = admin_cursor.fetchall()
+        assert servers[0]["port"] == bouncer.second_port_lock.port
 
     bouncer.admin("SHUTDOWN wait_for_clients")
 

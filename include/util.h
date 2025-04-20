@@ -50,8 +50,8 @@ bool tune_socket(int sock, bool is_unix) _MUSTCHECK;
 
 bool strlist_contains(const char *liststr, const char *str);
 
-void fill_remote_addr(PgSocket *sk, int fd, bool is_unix);
-void fill_local_addr(PgSocket *sk, int fd, bool is_unix);
+void fill_remote_addr(PgSocket *sk, int fd, bool is_unix, int port);
+void fill_local_addr(PgSocket *sk, int fd, bool is_unix, int port);
 
 
 void rescue_timers(void);

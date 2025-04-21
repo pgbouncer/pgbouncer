@@ -845,6 +845,7 @@ static bool check_old_process_unix(void)
 	socklen_t len = sizeof(sa_un);
 	int domain = AF_UNIX;
 	int res, fd;
+	char *p;
 
 	if (!cf_unix_socket_dir || !*cf_unix_socket_dir || sd_listen_fds(0) > 0)
 		return false;
@@ -852,8 +853,11 @@ static bool check_old_process_unix(void)
 	memset(&sa_un, 0, len);
 	sa_un.sun_family = domain;
 
+	p = malloc(sizeof(cf_listen_port));
+	safe_strcpy(p, cf_listen_port, sizeof(p));
 	snprintf(sa_un.sun_path, sizeof(sa_un.sun_path),
-		 "%s/.s.PGSQL.%d", cf_unix_socket_dir, atoi(strtok(cf_listen_port, ",")));
+		 "%s/.s.PGSQL.%d", cf_unix_socket_dir, atoi(strtok(p, ",")));
+	free(p);
 
 	fd = socket(domain, SOCK_STREAM, 0);
 	if (fd < 0)

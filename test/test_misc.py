@@ -8,11 +8,11 @@ import pytest
 from psycopg.rows import dict_row
 
 from .utils import (
-    USE_UNIX_SOCKETS,
     HAVE_IPV6_LOCALHOST,
     LINUX,
     PG_MAJOR_VERSION,
     PKT_BUF_SIZE,
+    USE_UNIX_SOCKETS,
     WINDOWS,
 )
 

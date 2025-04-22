@@ -311,7 +311,6 @@ void gss_auth_begin(PgSocket *client, uint8_t *token, uint32_t token_length)
 	request->status = GSS_STATUS_IN_PROGRESS;	/* This is protected by gss_queue_tail_mutex */
 	memcpy(&request->remote_addr, &client->remote_addr, sizeof(client->remote_addr));
 	safe_strcpy(request->username, client->login_user_credentials->name, MAX_USERNAME);
-// safe_strcpy(request->password, passwd, MAX_PASSWORD);
 
 	free_gss_parameters(request);
 

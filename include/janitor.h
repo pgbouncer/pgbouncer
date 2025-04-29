@@ -25,3 +25,4 @@ void kill_pool(PgPool *pool);
 void kill_peer_pool(PgPool *pool);
 void kill_database(PgDatabase *db);
 void kill_peer(PgDatabase *db);
+void cleanup_inactive_users(void);

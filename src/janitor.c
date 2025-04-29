@@ -309,6 +309,7 @@ static int per_loop_wait_close(PgPool *pool)
 	return count;
 }
 
+
 /*
  * this function is called for each event loop.
  */
@@ -327,6 +328,7 @@ void per_loop_maint(void)
 		if (stime >= cf_suspend_timeout)
 			force_suspend = true;
 	}
+
 
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
@@ -797,6 +799,7 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	}
 
 	cleanup_inactive_autodatabases();
+	cleanup_inactive_users();
 
 	cleanup_client_logins();
 
@@ -948,4 +951,48 @@ void config_postprocess(void)
 			continue;
 		}
 	}
+}
+
+
+/*
+ * Tear down *only* those pools belonging to a user which
+ * (a) last_login_time is >1h ago
+ * (b) have zero active clients in *all* their pools
+ */
+void
+cleanup_inactive_users(void)
+{
+    struct List    *item, *tmp;
+    PgGlobalUser   *user;
+    usec_t          now       = get_cached_time();
+    const usec_t    THRESHOLD = 3600;
+
+    /* iterate over every global user */
+    statlist_for_each_safe(item, &user_list, tmp) {
+	user = container_of(item, PgGlobalUser, head);
+
+	/* not stale yet? skip */
+	if (now - user->last_login_time <= THRESHOLD)
+	    continue;
+
+	/* does any pool still have active clients? */
+	struct List *pitem;
+	PgPool      *pool;
+	bool         has_active = false;
+	list_for_each(pitem, &user->pool_list) {
+	    pool = container_of(pitem, PgPool, map_head);
+	    if (pool_client_count(pool) > 0) {
+		has_active = true;
+		break;
+	    }
+	}
+	if (has_active)
+	    continue;
+
+	/* otherwise: kill *all* their pools */
+	list_for_each_safe(pitem, &user->pool_list, tmp) {
+	    pool = container_of(pitem, PgPool, map_head);
+	    kill_pool(pool);
+	}
+    }
 }

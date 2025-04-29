@@ -524,7 +524,7 @@ static PgGlobalUser *add_new_global_user(const char *name, const char *passwd)
 	list_init(&user->pool_list);
 	safe_strcpy(user->credentials.name, name, sizeof(user->credentials.name));
 	put_in_order(&user->head, &user_list, cmp_user);
-
+	user->last_login_time = get_cached_time();
 	aatree_insert(&user_tree, (uintptr_t)user->credentials.name, &user->credentials.tree_node);
 	user->pool_mode = POOL_INHERIT;
 	user->pool_size = -1;
@@ -837,6 +837,9 @@ void activate_client(PgSocket *client)
 
 	slog_debug(client, "activate_client");
 	change_client_state(client, CL_ACTIVE);
+	/* mark this global user as “just used” */
+	client->pool->user_credentials->global_user->last_login_time = get_cached_time();
+
 	sbuf_continue(&client->sbuf);
 }
 

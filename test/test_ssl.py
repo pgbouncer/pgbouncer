@@ -128,6 +128,8 @@ def test_server_ssl_verify(pg, bouncer, cert_dir):
     bouncer.admin(f"set server_tls_ca_file = '{root}'")
     bouncer.test()
 
+    bouncer.psql_test(dbname="hostlistsslverify")
+
 
 def test_server_ssl_auth(pg, bouncer, cert_dir):
     bouncer.admin("set server_tls_sslmode = 'verify-full'")

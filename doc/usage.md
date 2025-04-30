@@ -377,7 +377,8 @@ replication
 :   If client connection uses replication. Can be **none**, **logical** or **physical**.
 
 state
-:   State of the client connection, one of **active**, **waiting**,
+:   State of the client connection, one of **active** (Client connections that are linked to server connections),
+    **idle** (Client connections with no queries waiting to be processed), **waiting**,
     **active_cancel_req**, or **waiting_cancel_req**.
 
 addr

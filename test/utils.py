@@ -344,7 +344,7 @@ class QueryRunner:
             try:
                 return cur.fetchall()
             except psycopg.ProgrammingError as e:
-                if "the last operation didn't produce a result" == str(e):
+                if "the last operation didn't produce records" in str(e):
                     return None
                 raise
 

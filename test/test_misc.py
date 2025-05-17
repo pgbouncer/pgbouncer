@@ -1,7 +1,7 @@
 import asyncio
 import re
-import time
 import threading
+import time
 
 import psycopg
 import pytest

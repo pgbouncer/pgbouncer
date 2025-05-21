@@ -1,11 +1,20 @@
 import asyncio
+import pathlib
 import re
 import time
 
 import psycopg
 import pytest
+from psycopg.rows import dict_row
 
-from .utils import HAVE_IPV6_LOCALHOST, LINUX, PG_MAJOR_VERSION, PKT_BUF_SIZE, WINDOWS
+from .utils import (
+    HAVE_IPV6_LOCALHOST,
+    LINUX,
+    PG_MAJOR_VERSION,
+    PKT_BUF_SIZE,
+    USE_UNIX_SOCKETS,
+    WINDOWS,
+)
 
 
 @pytest.mark.skipif("not LINUX", reason="socat proxy only available on linux")
@@ -185,6 +194,64 @@ def test_server_check_query(pg, bouncer):
 
     assert new_pid == pid
     pg.configure(config="log_statement = 'none'")
+
+
+@pytest.mark.skipif(
+    "not USE_UNIX_SOCKETS", reason="Test tests presence and deletion of UNIX sockets"
+)
+def test_multi_ports(bouncer):
+
+    bouncer.test(port=bouncer.port)
+    bouncer.test(port=bouncer.second_port_lock.port)
+
+    socket_directory = bouncer.config_dir if LINUX else "/tmp"
+
+    assert pathlib.Path(f"{socket_directory}/.s.PGSQL.{bouncer.port}").exists()
+    assert pathlib.Path(
+        f"{socket_directory}/.s.PGSQL.{bouncer.second_port_lock.port}"
+    ).exists()
+
+    bouncer.test(port=bouncer.port, host=socket_directory)
+    bouncer.test(port=bouncer.second_port_lock.port, host=socket_directory)
+
+    with bouncer.cur(
+        dbname="pgbouncer",
+        user="pgbouncer",
+        host=socket_directory,
+        port=bouncer.port,
+        row_factory=dict_row,
+    ) as admin_cursor:
+        admin_cursor.execute("SHOW CLIENTS")
+        servers = admin_cursor.fetchall()
+        assert servers[0]["port"] == bouncer.port
+
+    with bouncer.cur(
+        dbname="pgbouncer",
+        user="pgbouncer",
+        port=bouncer.second_port_lock.port,
+        host=socket_directory,
+        row_factory=dict_row,
+    ) as admin_cursor:
+        admin_cursor.execute("SHOW CLIENTS")
+        servers = admin_cursor.fetchall()
+        assert servers[0]["port"] == bouncer.second_port_lock.port
+
+    bouncer.admin("SHUTDOWN wait_for_clients")
+
+    with pytest.raises(psycopg.OperationalError):
+        bouncer.test(port=bouncer.port)
+    with pytest.raises(psycopg.OperationalError):
+        bouncer.test(port=bouncer.second_port_lock.port)
+
+    with pytest.raises(psycopg.OperationalError):
+        bouncer.test(port=bouncer.port, host=socket_directory)
+    with pytest.raises(psycopg.OperationalError):
+        bouncer.test(port=bouncer.second_port_lock.port, host=socket_directory)
+
+    assert not pathlib.Path(f"{socket_directory}/.s.PGSQL.{bouncer.port}").exists()
+    assert not pathlib.Path(
+        f"{socket_directory}/.s.PGSQL.{bouncer.second_port_lock.port}"
+    ).exists()
 
 
 def test_connect_query(bouncer):

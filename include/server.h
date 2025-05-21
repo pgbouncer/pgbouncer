@@ -30,3 +30,4 @@ int database_max_connections(PgDatabase *db) _MUSTCHECK;
 int database_max_client_connections(PgDatabase *db) _MUSTCHECK;
 int user_max_connections(PgGlobalUser *user) _MUSTCHECK;
 int user_client_max_connections(PgGlobalUser *user) _MUSTCHECK;
+bool valid_target_session_attrs(PgSocket *server) _MUSTCHECK;

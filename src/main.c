@@ -244,6 +244,15 @@ const struct CfLookup load_balance_hosts_map[] = {
 	{ NULL }
 };
 
+const struct CfLookup target_session_attrs_map[] = {
+	{ "any", TARGET_SESSION_ANY },
+	{ "read-write", TARGET_SESSION_READWRITE },
+	{ "read-only", TARGET_SESSION_READONLY },
+	{ "primary", TARGET_SESSION_PRIMARY },
+	{ "standby", TARGET_SESSION_STANDBY },
+	{ NULL }
+};
+
 /*
  * Add new parameters in alphabetical order. This order is used by SHOW CONFIG.
  */

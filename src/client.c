@@ -22,6 +22,7 @@
 
 #include "bouncer.h"
 #include "pam.h"
+#include "gss.h"
 #include "scram.h"
 #include "common/builtins.h"
 
@@ -151,6 +152,10 @@ static bool send_client_authreq(PgSocket *client)
 		SEND_generic(res, client, PqMsg_AuthenticationRequest, "i", AUTH_REQ_PASSWORD);
 	} else if (auth_type == AUTH_TYPE_SCRAM_SHA_256) {
 		SEND_generic(res, client, PqMsg_AuthenticationRequest, "iss", AUTH_REQ_SASL, "SCRAM-SHA-256", "");
+#ifdef HAVE_GSS
+	} else if (auth_type == AUTH_TYPE_GSS) {
+		SEND_generic(res, client, PqMsg_AuthenticationRequest, "i", AUTH_REQ_GSS);
+#endif
 	} else {
 		return false;
 	}
@@ -373,6 +378,17 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		return finish_client_login(client);
 
 	auth = cf_auth_type;
+#ifdef HAVE_GSS
+	if (auth == AUTH_TYPE_GSS) {
+		if (cf_auth_gss_parameter == NULL) {
+			disconnect_client(client, true, "auth_gss_parameter is null");
+			return false;
+		} else {
+			snprintf(client->gss_parameters, MAX_GSS_CONFIG, "%s", cf_auth_gss_parameter);
+			slog_noise(client, "The value of cf_auth_gss_parameter is %s", cf_auth_gss_parameter);
+		}
+	} else
+#endif
 #ifdef HAVE_LDAP
 	if (auth == AUTH_TYPE_LDAP) {
 		if (cf_auth_ldap_parameter == NULL) {
@@ -399,6 +415,10 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		}
 
 		auth = rule->rule_method;
+#ifdef HAVE_GSS
+		if (auth == AUTH_TYPE_GSS)
+			snprintf(client->gss_parameters, MAX_GSS_CONFIG, "%s", rule->auth_options);
+#endif
 #ifdef HAVE_LDAP
 		if (auth == AUTH_TYPE_LDAP) {
 			snprintf(client->ldap_parameters, MAX_LDAP_CONFIG, "%s", rule->auth_options);
@@ -437,6 +457,9 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	case AUTH_TYPE_PAM:
 	case AUTH_TYPE_LDAP:
 	case AUTH_TYPE_SCRAM_SHA_256:
+#ifdef HAVE_GSS
+	case AUTH_TYPE_GSS:
+#endif
 		ok = send_client_authreq(client);
 		break;
 	case AUTH_TYPE_CERT:
@@ -523,6 +546,19 @@ static bool check_if_need_ldap_authentication(PgSocket *client, const char *dbna
 }
 #endif
 
+#ifdef HAVE_GSS
+static bool check_if_need_gss_authentication(PgSocket *client, const char *dbname, const char *username)
+{
+	if (cf_auth_type == AUTH_TYPE_HBA) {
+		struct HBARule *rule = hba_eval(parsed_hba, &client->remote_addr, !!client->sbuf.tls,
+						REPLICATION_NONE, dbname, username);
+		if (rule != NULL && rule->rule_method == AUTH_TYPE_GSS)
+			return true;
+	}
+	return false;
+}
+#endif
+
 bool set_pool(PgSocket *client, const char *dbname, const char *username, const char *password, bool takeover)
 {
 	Assert((password && takeover) || (!password && !takeover));
@@ -588,6 +624,20 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 		if (!check_user_connection_count(client)) {
 			return false;
 		}
+#ifdef HAVE_GSS
+	} else if (check_if_need_gss_authentication(client, dbname, username) || cf_auth_type == AUTH_TYPE_GSS) {
+		client->login_user_credentials = find_or_add_new_global_credentials(username, NULL);
+		if (!check_db_connection_count(client))
+			return false;
+		if (!client->login_user_credentials) {
+			slog_error(client, "set_pool(): failed to allocate new PAM user");
+			disconnect_client(client, true, "bouncer resources exhaustion");
+			return false;
+		}
+		if (!check_user_connection_count(client)) {
+			return false;
+		}
+#endif
 #ifdef HAVE_LDAP
 	} else if (check_if_need_ldap_authentication(client, dbname, username) || cf_auth_type == AUTH_TYPE_LDAP) {
 		if (client->db->auth_user_credentials) {
@@ -1359,6 +1409,25 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 					return false;
 				}
 			}
+		} else if (client->client_auth_type == AUTH_TYPE_GSS) {
+			uint8_t *token;
+			uint32_t length;
+
+			length = mbuf_avail_for_read(&pkt->data);
+			/*
+			 * Get the token that the client sends as part of the context
+			 * initialization process.
+			 */
+			if (!mbuf_get_bytes(&pkt->data, length, (const uint8_t **)&token)) {
+				log_debug("Unable to get %d bytes", length);
+				return false;
+			}
+			if (!sbuf_pause(&client->sbuf)) {
+				disconnect_client(client, true, "pause failed");
+				return false;
+			}
+			gss_auth_begin(client, token, length);
+			return false;
 		} else {
 			/* process as PasswordMessage */
 			ok = mbuf_get_string(&pkt->data, &passwd);

@@ -158,7 +158,7 @@ void pam_auth_begin(PgSocket *client, const char *passwd)
 	 * then block until one is available.
 	 */
 	if (next_free_slot == pam_first_taken_slot)
-		slog_debug(client, "PAM queue is full, waiting");
+		slog_warning(client, "PAM queue is full, waiting");
 
 	while (next_free_slot == pam_first_taken_slot) {
 		if (pam_poll() == 0) {

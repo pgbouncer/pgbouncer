@@ -125,6 +125,7 @@ static void construct_server(void *obj)
 	server->vars.var_list = slab_alloc(var_list_cache);
 	server->state = SV_FREE;
 	server->server_prepared_statements = NULL;
+	server->host = NULL;
 	statlist_init(&server->outstanding_requests, "outstanding_requests");
 
 	server->id = ++last_pgsocket_id;
@@ -210,6 +211,7 @@ static void server_free(PgSocket *server)
 	}
 
 	free_server_prepared_statements(server);
+	free(server->host);
 	varcache_clean(&server->vars);
 	slab_free(var_list_cache, server->vars.var_list);
 	slab_free(server_cache, server);
@@ -1690,6 +1692,10 @@ static void dns_connect(struct PgSocket *server)
 			server->pool->rrcounter++;
 	} else {
 		host = db->host;
+	}
+
+	if (host) {
+		server->host = xstrdup(host);
 	}
 
 	if (!host || host[0] == '/' || host[0] == '@') {

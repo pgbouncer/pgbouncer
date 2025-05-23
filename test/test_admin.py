@@ -249,6 +249,28 @@ def test_client_states(bouncer):
     conn_1.close()
 
 
+def test_kill_all(bouncer: Bouncer):
+    # Connect to client as user A
+    conn_1 = bouncer.conn(dbname="p0", user="maxedout")
+
+    # Connect to client as user B
+    conn_2 = bouncer.conn(dbname="p3x", user="maxedout")
+
+    # Validate count
+    clients = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)
+    assert len(clients) == 3
+
+    # Issue kill command
+    bouncer.admin(f"KILL")
+
+    # Validate count
+    clients = bouncer.admin("SHOW CLIENTS")
+    assert len(clients) == 1
+
+    conn_1.close()
+    conn_2.close()
+
+
 def test_kill_db(bouncer: Bouncer):
     # Connect to client as user A
     conn_1 = bouncer.conn(dbname="p0", user="maxedout")

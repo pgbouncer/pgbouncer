@@ -287,6 +287,28 @@ def test_kill_db_nonexisting(bouncer: "Bouncer"):
     conn_1.close()
 
 
+def test_kill_all(bouncer: "Bouncer"):
+    # Connect to client as user A to first database
+    conn_1 = bouncer.conn(dbname="p0", user="maxedout")
+
+    # Connect to client as user B to second database
+    conn_2 = bouncer.conn(dbname="p1", user="maxedout")
+
+    # Validate count
+    clients = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)
+    assert len(clients) == 3
+
+    # Issue kill command
+    bouncer.admin("KILL")
+
+    # Validate count
+    clients = bouncer.admin("SHOW CLIENTS")
+    assert len(clients) == 1
+
+    conn_1.close()
+    conn_2.close()
+
+
 def test_kill_client_nonexisting(bouncer):
     # Connect to client as user A
     conn_1 = bouncer.conn(dbname="p0", user="maxedout")

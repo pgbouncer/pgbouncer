@@ -1,11 +1,175 @@
 import asyncio
 import re
+import threading
 import time
 
 import psycopg
 import pytest
 
-from .utils import HAVE_IPV6_LOCALHOST, LINUX, PG_MAJOR_VERSION, PKT_BUF_SIZE, WINDOWS
+from .utils import (
+    HAVE_IPV6_LOCALHOST,
+    LINUX,
+    PG_MAJOR_VERSION,
+    PG_SUPPORTS_SCRAM,
+    PKT_BUF_SIZE,
+    WINDOWS,
+)
+
+
+@pytest.mark.parametrize(
+    "test_auth_type", ["trust"] if WINDOWS else ["trust", "scram-sha-256"]
+)
+@pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
+def test_scram_server(bouncer, test_auth_type):
+    """
+    Test that query_wait_notify setting plays nicely with scram-sha-256 authentication.
+
+    Please note that this test does not work when using scram-sha-256 test_auth_type on
+    windows. This is because windows does not allow socket connections which would allow
+    connection to the admin console to reload without a password.
+    """
+    config = f"""
+    [databases]
+    p6 = port=6666 host=127.0.0.1 dbname=p6 user=scramuser1 password=foo max_db_connections=0
+    postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_type = {test_auth_type}
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    pool_mode = session
+    query_wait_notify = 1
+
+    [users]
+    puser1 = max_user_connections = 1
+    """
+    with bouncer.run_with_config(config):
+        # good password from ini
+        with pytest.raises(psycopg.errors.ConnectionTimeout):
+            if test_auth_type == "trust":
+                bouncer.test(dbname="p6")
+            else:
+                bouncer.test(dbname="p6", password="foo", user="scramuser1")
+
+
+async def test_notify_queue_negative(bouncer):
+    """
+    Test that wait notification will not occur when query_wait_notify
+    is set to longer than the client will be waiting in the queue for.
+    """
+    config = f"""
+    [databases]
+    postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_type = trust
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    pool_mode = statement
+    query_wait_notify = 8
+
+    [users]
+    puser1 = max_user_connections=1
+    """
+    notices_received = []
+
+    def log_notice(diag):
+        notices_received.append(diag.message_primary)
+
+    with bouncer.run_with_config(config):
+
+        sleep_future = bouncer.asql(
+            "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
+        )
+        _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
+
+        conn_2: psycopg.AsyncConnection = await bouncer.aconn(
+            dbname="postgres", user="puser1"
+        )
+        conn_2.add_notice_handler(log_notice)
+        curr = await conn_2.execute("select 1;")
+        curr.fetchall()
+
+        assert len(notices_received) == 0
+
+        sleep_future = bouncer.asql(
+            "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
+        )
+        _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
+
+        curr = await conn_2.execute("select 1;")
+        curr.fetchall()
+        assert len(notices_received) == 0
+
+        conn_2.close()
+
+
+async def test_notify_queue(bouncer):
+    """
+    Test that client is notified when they are waiting for longer
+    than query_wait_notify seconds. Also tests that the notification
+    is correctly sent if they are waiting in a second time during the
+    same connection.
+    """
+    config = f"""
+    [databases]
+    postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_type = trust
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    pool_mode = statement
+    query_wait_notify = 2
+
+    [users]
+    puser1 = max_user_connections=1
+    """
+    notices_received = []
+
+    def log_notice(diag):
+        notices_received.append(diag.message_primary)
+
+    with bouncer.run_with_config(config):
+
+        sleep_future = bouncer.asql(
+            "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
+        )
+        _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
+
+        conn_2: psycopg.AsyncConnection = await bouncer.aconn(
+            dbname="postgres", user="puser1"
+        )
+        conn_2.add_notice_handler(log_notice)
+        curr = await conn_2.execute("select 1;")
+        curr.fetchall()
+
+        assert len(notices_received) == 1
+        expected_message = (
+            "No server connection available in postgres backend, client being queued"
+        )
+        assert expected_message == notices_received[0]
+
+        sleep_future = bouncer.asql(
+            "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
+        )
+        _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
+
+        curr = await conn_2.execute("select 1;")
+        curr.fetchall()
+        assert len(notices_received) == 2
+        assert expected_message == notices_received[1]
+
+        conn_2.close()
 
 
 @pytest.mark.skipif("not LINUX", reason="socat proxy only available on linux")

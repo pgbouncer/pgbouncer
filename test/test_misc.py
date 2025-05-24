@@ -12,6 +12,7 @@ from .utils import (
     PG_MAJOR_VERSION,
     PG_SUPPORTS_SCRAM,
     PKT_BUF_SIZE,
+    USE_UNIX_SOCKETS,
     WINDOWS,
 )
 
@@ -684,6 +685,78 @@ async def test_already_paused_client_during_wait_for_servers_shutdown(bouncer):
         with bouncer.log_contains(r"closing because: server shutting down"):
             with pytest.raises(psycopg.OperationalError):
                 await task
+
+
+@pytest.mark.skipif(
+    "not USE_UNIX_SOCKETS", reason="This test does not apply to non unix sockets"
+)
+def test_shutdown_wait_for_servers(bouncer):
+    """
+    Test that after issuing `SHUTDOWN WAIT_FOR_SERVERS` pgbouncer
+    is no longer accessible via 127.0.0.1 but is still accessible
+    on UNIX socket until the last client leaves the pgbouncer instance.
+    """
+
+    socket_directory = bouncer.config_dir if LINUX else "/tmp"
+    with bouncer.cur() as cur, bouncer.admin_runner.cur():
+
+        def run_blocked_query():
+            cur.execute("SELECT pg_sleep(5)")
+            cur.fetchone()
+
+        thread = threading.Thread(target=run_blocked_query)
+        thread.start()
+
+        bouncer.admin("SHUTDOWN WAIT_FOR_SERVERS")
+
+        time.sleep(2)
+
+        with pytest.raises(psycopg.errors.OperationalError):
+            bouncer.test(host=bouncer.config_dir)
+
+        bouncer.admin("SHOW VERSION", host=socket_directory)
+
+        with pytest.raises(psycopg.errors.OperationalError):
+            bouncer.test(host="127.0.0.1")
+
+        thread.join(timeout=10)
+
+    # Wait for janitor to close unix socket
+    time.sleep(2)
+
+    with pytest.raises(psycopg.errors.OperationalError):
+        bouncer.test(host=socket_directory)
+
+
+@pytest.mark.skipif(
+    "not USE_UNIX_SOCKETS", reason="This test does not apply to non unix sockets"
+)
+def test_shutdown_wait_for_clients(bouncer):
+    """
+    Test that after issuing `SHUTDOWN WAIT_FOR_CLIENTS` pgbouncer
+    is no longer accessible via 127.0.0.1 but is still accessible
+    on UNIX socket until the last client leaves the pgbouncer instance.
+    """
+    socket_directory = bouncer.config_dir if LINUX else "/tmp"
+    with bouncer.cur() as cur, bouncer.admin_runner.cur():
+        cur.execute(";")
+        bouncer.admin("SHUTDOWN WAIT_FOR_CLIENTS")
+
+        time.sleep(2)
+
+        with pytest.raises(psycopg.errors.OperationalError):
+            bouncer.test(host=bouncer.config_dir)
+
+        bouncer.admin("SHOW VERSION", host=socket_directory)
+
+        with pytest.raises(psycopg.errors.OperationalError):
+            bouncer.test(host="127.0.0.1")
+
+    # Wait for janitor to close unix socket
+    time.sleep(2)
+
+    with pytest.raises(psycopg.errors.OperationalError):
+        bouncer.test(host=socket_directory)
 
 
 def test_resume_during_shutdown(bouncer):

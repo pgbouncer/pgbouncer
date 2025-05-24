@@ -89,6 +89,10 @@ void cleanup_unix_sockets(void)
 {
 	struct ListenSocket *ls;
 	struct List *el, *tmp_l;
+
+	if (cf_pause_mode == P_SUSPEND)
+		return;
+
 	statlist_for_each_safe(el, &sock_list, tmp_l) {
 		ls = container_of(el, struct ListenSocket, node);
 		if (event_del(&ls->ev) < 0) {

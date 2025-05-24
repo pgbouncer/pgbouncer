@@ -171,7 +171,6 @@ async def test_notify_queue(bouncer):
         assert expected_message == notices_received[1]
 
         conn_2.close()
->>>>>>> origin/master
 
 
 @pytest.mark.skipif("not LINUX", reason="socat proxy only available on linux")

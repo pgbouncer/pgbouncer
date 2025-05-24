@@ -191,7 +191,26 @@ static void per_loop_activate(PgPool *pool)
 	sv_tested = statlist_count(&pool->tested_server_list);
 	sv_used = statlist_count(&pool->used_server_list);
 	statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
+		PktBuf *buf;
+		bool res;
 		client = container_of(item, PgSocket, head);
+
+		if (client->state == CL_WAITING
+		    && !client->sent_wait_notification
+		    && client->welcome_sent
+		    && ((get_cached_time() - client->wait_start) / USEC) > cf_query_wait_notify
+		    && cf_query_wait_notify > 0) {
+			buf = pktbuf_dynamic(256);
+			pktbuf_write_Notice(
+				buf,
+				"No server connection available in postgres backend, client being queued"
+				);
+			res = pktbuf_send_queued(buf, client);
+			if (!res)
+				log_warning("Sending queue warning failed");
+			client->sent_wait_notification = true;
+		}
+
 		if (client->replication) {
 			/*
 			 * For replication connections we always launch

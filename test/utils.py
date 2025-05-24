@@ -341,12 +341,13 @@ class QueryRunner:
         """
         with self.cur(**kwargs) as cur:
             cur.execute(query, params=params)
-            try:
-                return cur.fetchall()
-            except psycopg.ProgrammingError as e:
-                if "the last operation didn't produce a result" == str(e):
-                    return None
-                raise
+            if cur.pgresult and cur.pgresult.status in [
+                psycopg.pq.ExecStatus.COMMAND_OK,
+                psycopg.pq.ExecStatus.EMPTY_QUERY,
+            ]:
+                return None
+
+            return cur.fetchall()
 
     def sql_value(self, query, params=None, **kwargs):
         """Run an SQL query that returns a single cell and return this value
@@ -373,12 +374,13 @@ class QueryRunner:
     ) -> typing.Optional[typing.List[typing.Any]]:
         async with self.acur(**kwargs) as cur:
             await cur.execute(query, params=params)
-            try:
-                return await cur.fetchall()
-            except psycopg.ProgrammingError as e:
-                if "the last operation didn't produce a result" == str(e):
-                    return None
-                raise
+            if cur.pgresult and cur.pgresult.status in [
+                psycopg.pq.ExecStatus.COMMAND_OK,
+                psycopg.pq.ExecStatus.EMPTY_QUERY,
+            ]:
+                return None
+
+            return await cur.fetchall()
 
     def psql(self, query, **kwargs):
         """Run an SQL query using psql instead of psycopg
@@ -433,15 +435,15 @@ class QueryRunner:
 
     def test(self, **kwargs):
         """Test if you can connect"""
-        return self.sql("select 1", **kwargs)
+        return self.sql(";", **kwargs)
 
     def atest(self, **kwargs):
         """Test if you can connect asynchronously"""
-        return self.asql("select 1", **kwargs)
+        return self.asql(";", **kwargs)
 
     def psql_test(self, **kwargs):
         """Test if you can connect with psql instead of psycopg"""
-        return self.psql("select 1", **kwargs)
+        return self.psql(";", **kwargs)
 
     @contextmanager
     def enable_firewall(self):

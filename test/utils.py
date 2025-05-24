@@ -341,7 +341,10 @@ class QueryRunner:
         """
         with self.cur(**kwargs) as cur:
             cur.execute(query, params=params)
-            if cur.pgresult and cur.pgresult.status == psycopg.pq.ExecStatus.COMMAND_OK:
+            if cur.pgresult and cur.pgresult.status in [
+                psycopg.pq.ExecStatus.COMMAND_OK,
+                psycopg.pq.ExecStatus.EMPTY_QUERY,
+            ]:
                 return None
 
             return cur.fetchall()
@@ -371,7 +374,10 @@ class QueryRunner:
     ) -> typing.Optional[typing.List[typing.Any]]:
         async with self.acur(**kwargs) as cur:
             await cur.execute(query, params=params)
-            if cur.pgresult and cur.pgresult.status == psycopg.pq.ExecStatus.COMMAND_OK:
+            if cur.pgresult and cur.pgresult.status in [
+                psycopg.pq.ExecStatus.COMMAND_OK,
+                psycopg.pq.ExecStatus.EMPTY_QUERY,
+            ]:
                 return None
 
             return await cur.fetchall()

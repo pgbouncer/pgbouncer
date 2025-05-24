@@ -84,6 +84,7 @@ void cleanup_tcp_sockets(void)
 	}
 }
 
+/* atexit() cleanup func */
 void cleanup_unix_sockets(void)
 {
 	struct ListenSocket *ls;
@@ -569,6 +570,7 @@ void pooler_setup(void)
 		if (!init_done) {
 			/* remove socket on shutdown */
 			atexit(cleanup_tcp_sockets);
+			atexit(cleanup_unix_sockets);
 			init_done = true;
 		}
 

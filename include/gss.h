@@ -32,7 +32,7 @@
 
 /*
  * Defines how many authentication requests can be placed to the waiting queue.
- * When the queue is full calls to pam_auth_begin() will block until there is
+ * When the queue is full calls to gss_auth_begin() will block until there is
  * free space in the queue.
  */
 #define GSS_REQUEST_QUEUE_SIZE 20

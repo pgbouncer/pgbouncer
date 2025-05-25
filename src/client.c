@@ -646,7 +646,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 		if (!check_db_connection_count(client))
 			return false;
 		if (!client->login_user_credentials) {
-			slog_error(client, "set_pool(): failed to allocate new PAM user");
+			slog_error(client, "set_pool(): failed to allocate new GSS user");
 			disconnect_client(client, true, "bouncer resources exhaustion");
 			return false;
 		}

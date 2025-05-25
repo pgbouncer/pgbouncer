@@ -488,6 +488,7 @@ static bool gss_recvauth(struct gss_auth_request *request)
 	if (maj_stat == GSS_S_CONTINUE_NEEDED) {
 		request->gss_state = GSS_CONTINUE;
 		log_debug("GSS continue needed");
+		return false;
 	}
 
 	if (server_credentials != GSS_C_NO_CREDENTIAL) {

@@ -533,7 +533,7 @@ static void handle_sigterm(evutil_socket_t sock, short flags, void *arg)
 	if (cf_pause_mode == P_SUSPEND)
 		die("suspend was in progress, going down immediately");
 	cf_shutdown = SHUTDOWN_WAIT_FOR_CLIENTS;
-	cleanup_sockets();
+	cleanup_tcp_sockets();
 }
 
 static void handle_sigint(evutil_socket_t sock, short flags, void *arg)
@@ -551,7 +551,7 @@ static void handle_sigint(evutil_socket_t sock, short flags, void *arg)
 		die("suspend was in progress, going down immediately");
 	cf_pause_mode = P_PAUSE;
 	cf_shutdown = SHUTDOWN_WAIT_FOR_SERVERS;
-	cleanup_sockets();
+	cleanup_tcp_sockets();
 }
 
 #ifndef WIN32

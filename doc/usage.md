@@ -835,12 +835,15 @@ Stop accepting new connections and shutdown after all servers are released.
 This is basically the same as issuing **PAUSE** and **SHUTDOWN**, except that
 this also stops accepting new connections while waiting for the **PAUSE** as
 well as eagerly disconnecting clients that are waiting to receive a server
-connection.
+connection. Please note that UNIX sockets will remain open during the shutdown
+but will only accept connections to the pgbouncer admin console.
 
 #### SHUTDOWN WAIT_FOR_CLIENTS
 
 Stop accepting new connections and shutdown the process once all existing
-clients have disconnected. This command can be used to do zero-downtime rolling
+clients have disconnected. Please note that UNIX sockets will remain open
+during the shutdown but will only accept connections to the pgbouncer
+admin console. This command can be used to do zero-downtime rolling
 restart of two PgBouncer processes using the following procedure:
 
 1. Have two or more PgBouncer processes running on the same port using

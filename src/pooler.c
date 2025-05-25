@@ -58,16 +58,42 @@ static struct timeval err_timeout = {5, 0};
 static void tune_accept(int sock, bool on);
 
 /* atexit() cleanup func */
-void cleanup_sockets(void)
+void cleanup_tcp_sockets(void)
 {
 	struct ListenSocket *ls;
-	struct List *el;
+	struct List *el, *tmp_l;
 
 	/* avoid cleanup if exit() while suspended */
 	if (cf_pause_mode == P_SUSPEND)
 		return;
 
-	while ((el = statlist_pop(&sock_list)) != NULL) {
+	statlist_for_each_safe(el, &sock_list, tmp_l) {
+		ls = container_of(el, struct ListenSocket, node);
+		if (pga_is_unix(&ls->addr)) {
+			continue;
+		}
+		if (event_del(&ls->ev) < 0) {
+			log_warning("cleanup_sockets, event_del: %s", strerror(errno));
+		}
+		if (ls->fd > 0) {
+			safe_close(ls->fd);
+			ls->fd = 0;
+		}
+		statlist_remove(&sock_list, el);
+		free(ls);
+	}
+}
+
+/* atexit() cleanup func */
+void cleanup_unix_sockets(void)
+{
+	struct ListenSocket *ls;
+	struct List *el, *tmp_l;
+
+	if (cf_pause_mode == P_SUSPEND)
+		return;
+
+	statlist_for_each_safe(el, &sock_list, tmp_l) {
 		ls = container_of(el, struct ListenSocket, node);
 		if (event_del(&ls->ev) < 0) {
 			log_warning("cleanup_sockets, event_del: %s", strerror(errno));
@@ -81,7 +107,7 @@ void cleanup_sockets(void)
 			snprintf(buf, sizeof(buf), "%s/.s.PGSQL.%d", cf_unix_socket_dir, cf_listen_port);
 			unlink(buf);
 		}
-		statlist_remove(&sock_list, &ls->node);
+		statlist_remove(&sock_list, el);
 		free(ls);
 	}
 }
@@ -547,7 +573,8 @@ void pooler_setup(void)
 
 		if (!init_done) {
 			/* remove socket on shutdown */
-			atexit(cleanup_sockets);
+			atexit(cleanup_tcp_sockets);
+			atexit(cleanup_unix_sockets);
 			init_done = true;
 		}
 

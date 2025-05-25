@@ -517,7 +517,7 @@ static bool gss_checkauth(struct gss_auth_request *request)
 		return false;
 	}
 
-	princ = calloc(gbuf.length + 1);
+	princ = calloc(0, gbuf.length + 1);
 	memcpy(princ, gbuf.value, gbuf.length);
 	gss_release_buffer(&lmin_s, &gbuf);
 

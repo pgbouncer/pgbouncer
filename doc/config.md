@@ -799,6 +799,15 @@ syntax and directives.
 
 Default: empty (use operating system defaults)
 
+### query_wait_notify
+
+Time that a client will be queued for before
+pgbouncer sends a notification message that they are being
+queued. [seconds]
+
+A value of 0 disables this notification message.
+
+Default: 5
 
 ## TLS settings
 

@@ -77,6 +77,7 @@ struct Ident *parsed_ident;
  * configuration storage
  */
 
+long unsigned int cf_query_wait_notify;
 int cf_daemon;
 int cf_pause_mode = P_NONE;
 int cf_shutdown = SHUTDOWN_NONE;
@@ -336,6 +337,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("tcp_keepalive", CF_INT, cf_tcp_keepalive, 0, "1"),
 	CF_ABS("tcp_keepcnt", CF_INT, cf_tcp_keepcnt, 0, "0"),
 	CF_ABS("tcp_keepidle", CF_INT, cf_tcp_keepidle, 0, "0"),
+	CF_ABS("query_wait_notify", CF_INT, cf_query_wait_notify, 0, "5"),
 	CF_ABS("tcp_keepintvl", CF_INT, cf_tcp_keepintvl, 0, "0"),
 	CF_ABS("tcp_socket_buffer", CF_INT, cf_tcp_socket_buffer, 0, "0"),
 	CF_ABS("tcp_user_timeout", CF_INT, cf_tcp_user_timeout, 0, "0"),
@@ -532,7 +534,7 @@ static void handle_sigterm(evutil_socket_t sock, short flags, void *arg)
 	if (cf_pause_mode == P_SUSPEND)
 		die("suspend was in progress, going down immediately");
 	cf_shutdown = SHUTDOWN_WAIT_FOR_CLIENTS;
-	cleanup_sockets();
+	cleanup_tcp_sockets();
 }
 
 static void handle_sigint(evutil_socket_t sock, short flags, void *arg)
@@ -550,7 +552,7 @@ static void handle_sigint(evutil_socket_t sock, short flags, void *arg)
 		die("suspend was in progress, going down immediately");
 	cf_pause_mode = P_PAUSE;
 	cf_shutdown = SHUTDOWN_WAIT_FOR_SERVERS;
-	cleanup_sockets();
+	cleanup_tcp_sockets();
 }
 
 #ifndef WIN32

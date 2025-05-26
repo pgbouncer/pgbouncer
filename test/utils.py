@@ -341,7 +341,10 @@ class QueryRunner:
         """
         with self.cur(**kwargs) as cur:
             cur.execute(query, params=params)
-            if cur.pgresult and cur.pgresult.status == psycopg.pq.ExecStatus.COMMAND_OK:
+            if cur.pgresult and cur.pgresult.status in [
+                psycopg.pq.ExecStatus.COMMAND_OK,
+                psycopg.pq.ExecStatus.EMPTY_QUERY,
+            ]:
                 return None
 
             return cur.fetchall()
@@ -371,7 +374,10 @@ class QueryRunner:
     ) -> typing.Optional[typing.List[typing.Any]]:
         async with self.acur(**kwargs) as cur:
             await cur.execute(query, params=params)
-            if cur.pgresult and cur.pgresult.status == psycopg.pq.ExecStatus.COMMAND_OK:
+            if cur.pgresult and cur.pgresult.status in [
+                psycopg.pq.ExecStatus.COMMAND_OK,
+                psycopg.pq.ExecStatus.EMPTY_QUERY,
+            ]:
                 return None
 
             return await cur.fetchall()
@@ -429,15 +435,15 @@ class QueryRunner:
 
     def test(self, **kwargs):
         """Test if you can connect"""
-        return self.sql("select 1", **kwargs)
+        return self.sql(";", **kwargs)
 
     def atest(self, **kwargs):
         """Test if you can connect asynchronously"""
-        return self.asql("select 1", **kwargs)
+        return self.asql(";", **kwargs)
 
     def psql_test(self, **kwargs):
         """Test if you can connect with psql instead of psycopg"""
-        return self.psql("select 1", **kwargs)
+        return self.psql(";", **kwargs)
 
     @contextmanager
     def enable_firewall(self):

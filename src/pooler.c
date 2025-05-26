@@ -63,7 +63,6 @@ void cleanup_sockets(void)
 	struct ListenSocket *ls;
 	struct List *el;
 
-	int port;
 
 	/* avoid cleanup if exit() while suspended */
 	if (cf_pause_mode == P_SUSPEND)
@@ -79,6 +78,8 @@ void cleanup_sockets(void)
 			ls->fd = 0;
 		}
 		if (pga_is_unix(&ls->addr) && cf_unix_socket_dir[0] != '@') {
+			int port;
+
 			char buf[sizeof(struct sockaddr_un) + 20];
 			port = ntohs(ls->addr.sin.sin_port);
 			snprintf(buf, sizeof(buf), "%s/.s.PGSQL.%d", cf_unix_socket_dir, port);

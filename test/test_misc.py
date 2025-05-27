@@ -406,6 +406,9 @@ def test_multi_ports(bouncer):
     with pytest.raises(psycopg.OperationalError):
         bouncer.test(port=bouncer.second_port_lock.port, host=socket_directory)
 
+    # Wait for socket files to delete
+    time.sleep(1)
+
     assert not pathlib.Path(f"{socket_directory}/.s.PGSQL.{bouncer.port}").exists()
     assert not pathlib.Path(
         f"{socket_directory}/.s.PGSQL.{bouncer.second_port_lock.port}"

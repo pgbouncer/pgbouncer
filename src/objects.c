@@ -2414,8 +2414,8 @@ bool use_server_socket(int fd, PgAddr *addr,
 	statlist_init(&server->canceling_clients, "canceling_clients");
 
 	// TODO Validate if correct port is being used here
-	fill_remote_addr(server, fd, pga_is_unix(addr), pg_port(addr));
-	fill_local_addr(server, fd, pga_is_unix(addr), pg_port(addr));
+	fill_remote_addr(server, fd, pga_is_unix(addr), pga_port(addr));
+	fill_local_addr(server, fd, pga_is_unix(addr), pga_port(addr));
 
 	if (linkfd) {
 		server->ready = false;

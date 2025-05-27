@@ -154,8 +154,8 @@ def test_server_id(bouncer, timeout) -> None:
                 conn_2 = bouncer.conn(dbname="p1")
                 # CHECKPOINT_001: ++base_id
                 curr = conn_2.cursor()
-                # CHECKPOINT_002: ++base_id (?)
                 time.sleep(timeout)
+                # CHECKPOINT_002: ++base_id (?)
                 _ = curr.execute("SELECT 1")
                 time.sleep(2)
                 # CHECKPOINT_003: ++base_id

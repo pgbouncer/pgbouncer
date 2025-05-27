@@ -125,7 +125,7 @@ g_test_server_id__timeouts = [0, 1, 2]
     ids=["timeout_{}".format(x) for x in g_test_server_id__timeouts],
 )
 def test_server_id(bouncer, timeout) -> None:
-    """Test that PgSocket id is assigned as expected for servers."""
+    """Test that server id is assigned as expected for servers."""
     assert timeout >= 0
     config = f"""
     [databases]

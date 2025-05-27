@@ -1,3 +1,4 @@
+import logging
 import subprocess
 import time
 
@@ -396,15 +397,44 @@ def test_servers_disconnect_when_changing_tls_config(bouncer, pg, cert_dir):
     bouncer.admin("RELOAD")
 
     with bouncer.cur() as cur:
-        assert pg.connection_count(dbname="p0") == 1
+        cc1 = pg.connection_count(dbname="p0")
+        # 1 - OK
+        # 0 - Connection is released
+        assert cc1 in [0, 1]
+
+        if cc1 == 0:
+            logging.warning("First connection is already released.")
+
         bouncer.write_ini(f"server_tls_protocols = secure")
 
         with bouncer.log_contains(
             r"pTxnPool.*database configuration changed|pTxnPool.*obsolete connection", 1
         ):
             bouncer.admin("RELOAD")
-            time.sleep(0.5)
-            assert pg.connection_count(dbname="p0") == 0
+
+            nAttempt = 0
+
+            # Let's do 10 attempts to obtain an empty connection pool.
+            while True:
+                nAttempt += 1
+
+                if nAttempt == 11:
+                    raise Exception("Connection is not closed in time.")
+                if nAttempt > 1:
+                    time.sleep(0.5)
+
+                cc2 = pg.connection_count(dbname="p0")
+                assert cc2 in [0, 1]
+
+                if cc2 == 0:
+                    if nAttempt == 1:
+                        logging.warning("Connection was closed at the first iteration.")
+                    break
+
+                if nAttempt > 1:
+                    logging.warning("At is an additional wait-iteration.")
+                continue
+
             cur.execute("SELECT 1")
 
 

@@ -856,7 +856,7 @@ static bool check_old_process_unix(void)
 	sa_un.sun_family = domain;
 
 	p = malloc(strlen(cf_listen_port));
-	safe_strcpy(p, cf_listen_port, strlen(p));
+	safe_strcpy(p, cf_listen_port, sizeof(p));
 	snprintf(sa_un.sun_path, sizeof(sa_un.sun_path),
 		 "%s/.s.PGSQL.%d", cf_unix_socket_dir, atoi(strtok(p, ",")));
 	free(p);

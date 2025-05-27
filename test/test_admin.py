@@ -159,30 +159,30 @@ def test_server_id(bouncer, timeout) -> None:
                 _ = curr.execute("SELECT 1")
                 time.sleep(2)
                 # CHECKPOINT_003: ++base_id
-                clients = admin_cursor.execute("SHOW SERVERS").fetchall()
+                servers = admin_cursor.execute("SHOW SERVERS").fetchall()
                 # We expected here ID of admin connection
-                client_ids = [client["id"] for client in clients]
+                server_ids = [client["id"] for client in servers]
 
-                if len(client_ids) == 0:
-                    raise Exception("No connection IDs were gotten!")
+                if len(server_ids) == 0:
+                    raise Exception("No servers were gotten!")
 
-                if len(client_ids) == 1:
+                if len(server_ids) == 1:
                     # It is OK. This is admin connection ID.
-                    client_id = client_ids[0]
+                    server_id = server_ids[0]
                     expected_id1 = base_id + 2  # It is fine
                     expected_id2 = base_id + 3  # It is possible
 
                     slow_machine = False
-                    if client_id == expected_id1:
+                    if server_id == expected_id1:
                         slow_machine = timeout > 0
                         base_id = expected_id1
-                    elif client_id == expected_id2:
+                    elif server_id == expected_id2:
                         slow_machine = timeout == 0
                         base_id = expected_id2
                     else:
                         raise Exception(
-                            "Unexpected client IDs: {}. We expected {} or {}.".format(
-                                client_id,
+                            "Unexpected server ID: {}. We expected {} or {}.".format(
+                                server_id,
                                 expected_id1,
                                 expected_id2,
                             )
@@ -190,13 +190,13 @@ def test_server_id(bouncer, timeout) -> None:
 
                     if slow_machine:
                         logging.warning(
-                            "Client ID is {}. Slow machine.".format(client_id)
+                            "Server ID is {}. Slow machine.".format(server_id)
                         )
                     else:
-                        logging.info("Client ID is {}".format(client_id))
+                        logging.info("Server ID is {}".format(server_id))
                 else:
-                    # Is it "one user connection" + "one admin connection"?
-                    raise Exception("Bad connection IDs: {}".format(client_ids))
+                    # Is it "one user connection" + "one admin connection" ?
+                    raise Exception("Bad server IDs: {}".format(server_ids))
 
                 conn_2.close()
                 time.sleep(2)

@@ -651,7 +651,7 @@ static bool handle_connect(PgSocket *server)
 	char buf[PGADDR_BUF + 32];
 	bool is_unix = pga_is_unix(&server->remote_addr);
 
-	fill_local_addr(server, sbuf_socket(&server->sbuf), is_unix, 0);
+	fill_local_addr(server, sbuf_socket(&server->sbuf), is_unix, pga_port(&server->local_addr));
 
 	if (cf_log_connections) {
 		if (pga_is_unix(&server->remote_addr)) {

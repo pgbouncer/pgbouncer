@@ -313,7 +313,6 @@ void fill_local_addr(PgSocket *sk, int fd, bool is_unix, int port)
 	int err;
 
 	if (is_unix) {
-		// TODO Replace with actual?
 		pga_set(dst, AF_UNIX, port);
 
 		dst->scred.uid = geteuid();

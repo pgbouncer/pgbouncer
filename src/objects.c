@@ -2332,7 +2332,8 @@ bool use_client_socket(int fd, PgAddr *addr,
 		credentials->has_scram_keys = true;
 	}
 
-	client = accept_client(fd, pga_is_unix(addr), 0);
+	// TODO Validate if this should be local or remote address
+	client = accept_client(fd, pga_is_unix(addr), pga_port(addr));
 	if (client == NULL)
 		return false;
 	client->suspended = true;
@@ -2412,8 +2413,9 @@ bool use_server_socket(int fd, PgAddr *addr,
 	server->query_start = 0;
 	statlist_init(&server->canceling_clients, "canceling_clients");
 
-	fill_remote_addr(server, fd, pga_is_unix(addr), 0);
-	fill_local_addr(server, fd, pga_is_unix(addr), 0);
+	// TODO Validate if correct port is being used here
+	fill_remote_addr(server, fd, pga_is_unix(addr), pg_port(addr));
+	fill_local_addr(server, fd, pga_is_unix(addr), pg_port(addr));
 
 	if (linkfd) {
 		server->ready = false;

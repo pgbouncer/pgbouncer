@@ -424,7 +424,6 @@ def test_servers_disconnect_when_changing_tls_config(bouncer, pg, cert_dir):
                 assert cc2 in [0, 1]
                 if cc2 == 0:
                     break
-                continue  # for
 
             cur.execute("SELECT 1")
 

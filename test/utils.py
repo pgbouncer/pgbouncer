@@ -169,7 +169,6 @@ def wait_until(
             time.sleep(interval_remaining)
 
         yield
-        continue  # while True
 
     raise TimeoutError(error_message + " in time")
 

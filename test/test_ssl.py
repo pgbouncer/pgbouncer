@@ -400,14 +400,13 @@ def test_servers_no_disconnect_on_reload_with_no_tls_change(bouncer, pg, cert_di
 
 def test_servers_disconnect_when_changing_tls_config(bouncer, pg, cert_dir):
     bouncer.default_db = "pTxnPool"
+    bouncer.write_ini("server_lifetime = 2147483647")
+    bouncer.write_ini("server_idle_timeout = 2147483647")
     bouncer.write_ini(f"server_tls_protocols = tlsv1.0")
     bouncer.admin("RELOAD")
 
     with bouncer.cur() as cur:
-        cc1 = pg.connection_count(dbname="p0")
-        # 1 - OK
-        # 0 - It is a slow machine or this test is debugged
-        assert cc1 in [0, 1]
+        assert pg.connection_count(dbname="p0") == 1
         bouncer.write_ini(f"server_tls_protocols = secure")
 
         with bouncer.log_contains(

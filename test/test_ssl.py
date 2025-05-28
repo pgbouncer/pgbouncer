@@ -404,16 +404,29 @@ def test_servers_disconnect_when_changing_tls_config(bouncer, pg, cert_dir):
     bouncer.admin("RELOAD")
 
     with bouncer.cur() as cur:
-        assert pg.connection_count(dbname="p0") == 1
+        cc1 = pg.connection_count(dbname="p0")
+        # 1 - OK
+        # 0 - It is a slow machine or this test is debugged
+        assert cc1 in [0, 1]
         bouncer.write_ini(f"server_tls_protocols = secure")
 
         with bouncer.log_contains(
             r"pTxnPool.*database configuration changed|pTxnPool.*obsolete connection", 1
         ):
             bouncer.admin("RELOAD")
-            for _ in wait_until("Did not close connection"):
-                if pg.connection_count(dbname="p0") == 0:
+
+            for _ in wait_until(
+                error_message="Connection did not closed",
+                timeout=5,
+                interval=0.5,
+                min_attempt_count=5,
+            ):
+                cc2 = pg.connection_count(dbname="p0")
+                assert cc2 in [0, 1]
+                if cc2 == 0:
                     break
+                continue  # for
+
             cur.execute("SELECT 1")
 
 

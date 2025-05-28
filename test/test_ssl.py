@@ -402,12 +402,12 @@ def test_servers_disconnect_when_changing_tls_config(bouncer, pg, cert_dir):
     bouncer.default_db = "pTxnPool"
     bouncer.write_ini("server_lifetime = 2147483647")
     bouncer.write_ini("server_idle_timeout = 2147483647")
-    bouncer.write_ini(f"server_tls_protocols = tlsv1.0")
+    bouncer.write_ini("server_tls_protocols = tlsv1.0")
     bouncer.admin("RELOAD")
 
     with bouncer.cur() as cur:
         assert pg.connection_count(dbname="p0") == 1
-        bouncer.write_ini(f"server_tls_protocols = secure")
+        bouncer.write_ini("server_tls_protocols = secure")
 
         with bouncer.log_contains(
             r"pTxnPool.*database configuration changed|pTxnPool.*obsolete connection", 1

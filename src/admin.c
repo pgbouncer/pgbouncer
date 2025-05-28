@@ -603,8 +603,6 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	struct List *item;
 	PktBuf *buf = pktbuf_dynamic(256);
 	struct CfValue cv;
-	char pool_size_str[12] = "";
-	char res_pool_size_str[12] = "";
 	const char *pool_mode_str;
 
 	if (!buf) {
@@ -618,6 +616,8 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 		"max_user_client_connections", "current_client_connections");
 	statlist_for_each(item, &user_list) {
 		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
+		char pool_size_str[12] = "";
+		char res_pool_size_str[12] = "";
 		if (user->pool_size >= 0)
 			snprintf(pool_size_str, sizeof(pool_size_str), "%9d", user->pool_size);
 		if (user->res_pool_size >= 0)

@@ -132,6 +132,24 @@ def capture(command, *args, stdout=subprocess.PIPE, encoding="utf-8", **kwargs):
     return run(command, *args, stdout=stdout, encoding=encoding, **kwargs).stdout
 
 
+def wait_until(error_message="Did not complete", timeout=5, interval=0.1):
+    """
+    Loop until the timeout is reached. If the timeout is reached, raise an
+    exception with the given error message.
+    """
+    start = time.time()
+    end = start + timeout
+    last_printed_progress = start
+    while time.time() < end:
+        if timeout > 5 and time.time() - last_printed_progress > 5:
+            last_printed_progress = time.time()
+            print(f"{error_message} in {time.time() - start} seconds - will retry")
+        yield
+        time.sleep(interval)
+
+    raise TimeoutError(error_message + " in time")
+
+
 def get_pg_major_version():
     full_version_string = capture("initdb --version", silent=True)
     major_version_string = re.search("[0-9]+", full_version_string)

@@ -25,6 +25,7 @@ task:
     - container:
         image: ubuntu:22.04
       env:
+        configure_args: '--with-gss'
         ENABLE_VALGRIND: yes
         CFLAGS: -O0 -g
         PGVERSION: 17

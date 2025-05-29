@@ -145,7 +145,7 @@ def wait_until(error_message="Did not complete", timeout=5, interval=0.1):
     yield
     attempt = 1
 
-    while end_ts <= time.monotonic():
+    while end_ts > time.monotonic():
         if timeout > 5 and time.monotonic() - last_printed_progress > 5:
             last_printed_progress = time.monotonic()
             print(

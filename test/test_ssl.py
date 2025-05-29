@@ -400,11 +400,6 @@ def test_servers_no_disconnect_on_reload_with_no_tls_change(bouncer, pg, cert_di
 
 def test_servers_disconnect_when_changing_tls_config(bouncer, pg, cert_dir):
     bouncer.default_db = "pTxnPool"
-    # This values of lifetime/idle_timeout lock the connections
-    # in a pool and allow our test to work stably on the slow machines or
-    # under debugger.
-    bouncer.write_ini("server_lifetime = 2147483647")
-    bouncer.write_ini("server_idle_timeout = 2147483647")
     bouncer.write_ini("server_tls_protocols = tlsv1.0")
     bouncer.admin("RELOAD")
 

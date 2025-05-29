@@ -132,9 +132,7 @@ def capture(command, *args, stdout=subprocess.PIPE, encoding="utf-8", **kwargs):
     return run(command, *args, stdout=stdout, encoding=encoding, **kwargs).stdout
 
 
-def wait_until(
-    error_message="Did not complete", timeout=5, interval=0.1, min_attempt_count=5
-):
+def wait_until(error_message="Did not complete", timeout=5, interval=0.1):
     """
     Loop until the timeout is reached. If the timeout is reached, raise an
     exception with the given error message.
@@ -142,33 +140,25 @@ def wait_until(
     start_ts = time.monotonic()
     end_ts = start_ts + timeout
     last_printed_progress = start_ts
-    attempt = 0
-    while True:
-        attempt += 1
+    last_iteration_ts = start_ts
 
-        if attempt <= min_attempt_count:
-            pass
-        elif end_ts <= time.monotonic():
-            break
+    yield
+    attempt = 1
 
+    while end_ts <= time.monotonic():
         if timeout > 5 and time.monotonic() - last_printed_progress > 5:
             last_printed_progress = time.monotonic()
-            msg = (
-                f"{error_message} in {time.monotonic() - start_ts} seconds - will retry"
+            print(
+                f"{error_message} in {time.monotonic() - start_ts} seconds and {attempt} attempts - will retry"
             )
 
-            if attempt <= min_attempt_count:
-                msg += f" (attempt {attempt}/{min_attempt_count})"
-            else:
-                msg += f" (attempt {attempt}))"
-
-            print(msg)
-
-        if attempt > 1:
-            interval_remaining = min(interval, end_ts - min(end_ts, time.monotonic()))
+        interval_remaining = last_iteration_ts + interval - time.monotonic()
+        if interval_remaining > 0:
             time.sleep(interval_remaining)
 
+        last_iteration_ts = time.monotonic()
         yield
+        attempt += 1
 
     raise TimeoutError(error_message + " in time")
 

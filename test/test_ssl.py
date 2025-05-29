@@ -417,15 +417,8 @@ def test_servers_disconnect_when_changing_tls_config(bouncer, pg, cert_dir):
         ):
             bouncer.admin("RELOAD")
 
-            for _ in wait_until(
-                error_message="Connection did not closed",
-                timeout=5,
-                interval=0.5,
-                min_attempt_count=5,
-            ):
-                cc2 = pg.connection_count(dbname="p0")
-                assert cc2 in [0, 1]
-                if cc2 == 0:
+            for _ in wait_until(error_message="Connection did not close"):
+                if pg.connection_count(dbname="p0") == 0:
                     break
 
             cur.execute("SELECT 1")

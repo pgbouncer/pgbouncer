@@ -139,11 +139,9 @@ def test_socket_id(bouncer, timeout) -> None:
                     ]
                 )
 
-                if socket_ids == expected_ids1:
-                    # OK
+                if socket_ids == expected_ids1:  # OK
                     base_id = base_id + 2
-                elif socket_ids == expected_ids2:
-                    # OK
+                elif socket_ids == expected_ids2:  # OK (slow)
                     base_id = base_id + 3
                 else:
                     raise Exception(

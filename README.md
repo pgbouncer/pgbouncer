@@ -91,8 +91,8 @@ you are using systemd 253 or later) as well as socket activation.  See
 Building from Git
 -----------------
 
-Building PgBouncer from Git requires that you fetch the libusual and
-uthash submodules and generate the header and configuration files before
+Building PgBouncer from Git requires that you fetch the libusual
+submodule and generate the header and configuration files before
 you can run `configure`:
 
 	$ git clone https://github.com/pgbouncer/pgbouncer.git

@@ -1,0 +1,126 @@
+
+. ./libtemo.sh || exit 1
+
+test_start
+
+title Use installed libusual with autoconf and antimake.
+
+longmsg <<-MSG
+	Install libusual and link against it.
+MSG
+
+title2 Build libusual
+
+usual_clone libusual
+
+run cd libusual
+
+runq ./autogen.sh
+runq './configure --disable-shared --prefix=`pwd`/../inst'
+runq make
+runq make install
+run cd ..
+
+title2 Build our own code
+
+msg Now we prepare our own code.
+
+msg First, this is the source file:
+cat_file prog.c <<"EOF"
+	#include <stdio.h>
+	#include <string.h>
+	#include <usual/hashing/crc32.h>
+
+	int main(void)
+	{
+		const char *data = "CECSFXX";
+		uint32_t crc;
+
+		crc = calc_crc32(data, strlen(data), 0);
+		printf("crc: %08x\n", crc);
+		return 0;
+	}
+EOF
+
+msg Autoconf setup
+
+cat_file autogen.sh <<"EOF"
+	# use prepared autgen logic
+	../../std-autogen.sh ../../..
+
+	# fetch Antimake template from libusual
+	cp ../../antimake.mk antimake.mk.in
+EOF
+
+cat_file extra.mk.in <<"EOF"
+	USUAL_ANTIMAKE = @USUAL_ANTIMAKE@
+	USUAL_CFLAGS = @USUAL_CFLAGS@
+	USUAL_LIBS = @USUAL_LIBS@
+EOF
+
+cat_file configure.ac <<"EOF"
+	AC_INIT([achello], [0.1], [https://libusual.github.com])
+	AC_CONFIG_HEADER([config.h])
+	AC_CONFIG_SRCDIR([prog.c])
+	AC_PREREQ([2.59])
+
+	AC_USUAL_INIT
+	AC_USUAL_PROGRAM_CHECK
+
+	PKG_CHECK_MODULES(USUAL, libusual)
+	_PKG_CONFIG([USUAL_ANTIMAKE], [variable=antimake], [libusual])
+	AC_SUBST([USUAL_ANTIMAKE])
+
+	AC_OUTPUT([antimake.mk extra.mk])
+EOF
+
+msg Here is the source that needs to be linked with libusual:
+
+cat_file prog.c <<"EOF"
+	#include <usual/hashing/crc32.h>
+	#include <stdio.h>
+	#include <string.h>
+
+	int main(void)
+	{
+		const char *data = "CECSFXX";
+		uint32_t crc;
+
+		crc = calc_crc32(data, strlen(data), 0);
+		printf("crc: %08x\n", crc);
+		return 0;
+	}
+EOF
+
+msg Antimake based Makefile
+
+cat_file Makefile <<"EOF"
+	# the automake-style build description for 'prog'
+	noinst_PROGRAMS = prog
+	prog_SOURCES = prog.c
+	prog_CPPFLAGS = $(USUAL_CFLAGS)
+	prog_LDADD = $(USUAL_LIBS)
+
+	# clean configured files
+	DISTCLEANFILES = config.status config.log extra.mk antimake.mk config.h
+
+	# clean generated files
+	MAINTAINERCLEANFILES = configure config.guess config.sub install-sh \
+			antimake.mk.in extra.mk.in config.h.in
+	EXTRA_DIST = Makefile $(MAINTAINERCLEANFILES)
+
+	# launch Antimake
+	include extra.mk
+	include antimake.mk
+EOF
+
+msg Build the project
+runq sh ./autogen.sh
+runq 'PKG_CONFIG_PATH=`pwd`/inst/lib/pkgconfig ./configure'
+run make
+run ls
+run ./prog
+run make am-show-distfiles
+run make maintainer-clean
+run ls
+msg Done!

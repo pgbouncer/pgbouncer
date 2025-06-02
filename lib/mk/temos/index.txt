@@ -1,0 +1,31 @@
+= Libusual/Antimake Build Demos =
+
+Here are few demos showing how to use both Libusual and Antimake
+in various scenarios.  If you wonder why there is so many of them,
+the reason is that these demos are also used as regressions tests
+for various functionality.  (Thus, 'temos')
+
+They are ordered in ascending complexity, so pick first one if you
+want simplest overview.
+
+== Reference Documentation ==
+
+- link:antimake.html[AntiMake documentation]
+
+== Using Antimake ==
+
+- link:antimake1.html[antimake1] - Project without subdirs
+- link:antimake2.html[antimake2] - Recursive subdirectories (SUBDIRS)
+- link:antimake3.html[antimake3] - Non-recursive subdirectories (EMBED_SUBDIRS)
+- link:antimake4.html[antimake4] - Using Autoconf.
+- link:antimake5.html[antimake5] - Shared libraries with Autoconf.
+- link:antimake6.html[antimake5] - Subdir stress test.
+
+== Using libusual ==
+
+- link:libusual1.html[libusual1] - Local libusual: Linking against libusual.a with plain Make
+- link:libusual2.html[libusual2] - Local libusual: Embedding libusual modules with/witout Antimake
+- link:libusual3.html[libusual3] - Local libusual: Using top-level autoconf with Antimake
+- link:libusual4.html[libusual4] - Installed libusual: Plain make
+- link:libusual5.html[libusual5] - Installed libusual: Antimake
+- link:libusual6.html[libusual6] - Installed libusual: Autoconf

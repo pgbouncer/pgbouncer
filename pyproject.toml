@@ -30,12 +30,7 @@ norecursedirs = [
     'venv',
     'src',
     'lib',
-    'uthash',
 ]
 
 [tool.isort]
 profile = 'black'
-skip = 'uthash'
-
-[tool.black]
-extend-exclude = 'uthash'

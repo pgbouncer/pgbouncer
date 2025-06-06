@@ -1,0 +1,157 @@
+
+. ./libtemo.sh || exit 1
+
+test_start
+
+title Test Antimake SUBDIRS
+
+longmsg <<-"MSG"
+	Antimake variable `SUBDIRS` list names of directories that the Make
+	needs to recurse into.  Each of them contains stand-alone Makefile
+	that directs building in that subdirs.
+
+	- Plus: you can call 'make' while being in subdir to build only local targets.
+	- Minus: dependencies between subdirs do not work.
+MSG
+
+title2 Setup source tree
+
+msg Setup directories, install Antimake
+
+run mkdir -p lib1/sublib lib2
+run cp ../../antimake.mk .
+
+msg Prepare sources
+
+cat_file api.h <<"EOF"
+	void func1(void);
+	void func2(void);
+	void func3(void);
+EOF
+
+cat_file main.c <<"EOF"
+	#include <stdio.h>
+	#include "api.h"
+
+	int main(void)
+	{
+		func1();
+		func2();
+		func3();
+		printf("main\n");
+		return 0;
+	}
+EOF
+
+cat_file lib1/func1.c <<"EOF"
+	#include <stdio.h>
+	#include "api.h"
+
+	void func1(void)
+	{
+		printf("func1\n");
+	}
+EOF
+
+cat_file lib1/sublib/func2.c <<"EOF"
+	#include <stdio.h>
+	#include "api.h"
+
+	void func2(void)
+	{
+		printf("func2\n");
+	}
+EOF
+
+cat_file lib2/func3.c <<"EOF"
+	#include <stdio.h>
+	#include "api.h"
+
+	void func3(void)
+	{
+		printf("func3\n");
+	}
+EOF
+
+msg Prepare Makefiles
+
+cat_file Makefile <<"EOF"
+	PACKAGE_NAME = test-subdirs
+	PACKAGE_VERSION = 1.0
+
+	SUBDIRS = lib1 lib2
+
+	bin_PROGRAMS = prog
+	prog_SOURCES = main.c
+	prog_LDADD = lib1/func1.a lib1/sublib/func2.a lib2/func3.a
+
+	EXTRA_DIST = Makefile antimake.mk
+
+	include antimake.mk
+EOF
+
+cat_file lib1/Makefile <<"EOF"
+	SUBLOC = lib1
+	SUBDIRS = sublib
+
+	noinst_LIBRARIES = func1.a
+	func1_a_SOURCES = func1.c
+	func1_a_CPPFLAGS = -I..
+
+	EXTRA_DIST = Makefile
+
+	include ../antimake.mk
+EOF
+
+cat_file lib1/sublib/Makefile <<"EOF"
+	SUBLOC = lib1/sublib
+
+	noinst_LIBRARIES = func2.a
+	func2_a_SOURCES = func2.c
+	func2_a_CPPFLAGS = -I../..
+
+	EXTRA_DIST = Makefile
+
+	include ../../antimake.mk
+EOF
+
+cat_file lib2/Makefile <<"EOF"
+	SUBLOC = lib2
+
+	noinst_LIBRARIES = func3.a
+	func3_a_SOURCES = func3.c
+	func3_a_CPPFLAGS = -I$(top_srcdir)
+
+	EXTRA_DIST = Makefile
+
+	include ../antimake.mk
+EOF
+
+title2 Building
+
+msg Build the project
+
+run make
+run ls
+run ./prog
+
+msg We can now install it:
+run make install DESTDIR=./inst
+run ls ./inst/usr/local/bin
+
+msg Now we can create package that can be given to others.
+run make dist
+run ls
+run 'tar tzf test-subdirs-1.0.tar.gz | sort'
+
+msg Clean the tree
+run make clean
+run ls
+
+msg Test O=
+run mkdir -p build
+run make O=build
+run ls
+run ls build
+
+msg Done!

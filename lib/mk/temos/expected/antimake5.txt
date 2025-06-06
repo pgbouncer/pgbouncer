@@ -1,0 +1,193 @@
+
+= Shared libraries and autoconf =
+
+
+Autoconf setup
+
+.File: autogen.sh
+[source,shell]
+-----------------------------------
+../../std-autogen.sh ../../..
+
+# fetch Antimake template from libusual
+cp ../../antimake.mk antimake.mk.in
+-----------------------------------
+.File: configure.ac
+[source,autoconf]
+-----------------------------------
+AC_INIT([actest], [0.1])
+AC_CONFIG_SRCDIR([prog.c])
+AC_PREREQ([2.59])
+
+LT_INIT
+AC_USUAL_INIT
+
+AC_USUAL_PROGRAM_CHECK
+
+AC_OUTPUT([antimake.mk])
+-----------------------------------
+
+Here are the source files:
+
+.File: prog.c
+[source,c]
+-----------------------------------
+void func1(void);
+int main(void)
+{
+	func1();
+	return 0;
+}
+-----------------------------------
+.File: func.c
+[source,c]
+-----------------------------------
+#include <stdio.h>
+
+void func1(void);
+void func1(void)
+{
+	printf("hello from func1\n");
+}
+-----------------------------------
+
+Antimake based Makefile
+
+.File: Makefile
+[source,makefile]
+-----------------------------------
+lib_LTLIBRARIES = libtemo.la
+libtemo_la_SOURCES = func.c
+libtemo_la_LDFLAGS = -version-info 3:0:2
+
+bin_PROGRAMS = prog
+prog_SOURCES = prog.c
+prog_LDADD = libtemo.la
+
+# clean configured files
+DISTCLEANFILES = \
+	config.status \
+	config.log \
+	antimake.mk \
+	libtool
+
+# clean generated files
+MAINTAINERCLEANFILES = \
+	configure \
+	config.guess \
+	config.sub \
+	install-sh \
+	antimake.mk.in \
+	ltmain.sh
+
+EXTRA_DIST = \
+	Makefile \
+	$(MAINTAINERCLEANFILES)
+
+# launch Antimake
+include antimake.mk
+-----------------------------------
+
+Build the project
+
+---------------------------------
+$ sh ./autogen.sh
+[...]
+$ ./configure
+[...]
+$ make
+     CC       prog.c
+     CC       func.c
+     CCLD     libtemo.la
+     CCLD     prog
+$ ls
+Makefile	autogen.sh    config.status  configure.ac  libtemo.la  prog
+antimake.mk	config.guess  config.sub     func.c	   libtool     prog.c
+antimake.mk.in	config.log    configure      install-sh    ltmain.sh
+$ ./prog
+hello from func1
+---------------------------------
+
+Create distribution package
+
+---------------------------------
+$ make dist
+     CHECK    dist-gzip
+     MKDIR    actest-0.1
+     COPY     actest-0.1
+     PACK     actest-0.1.tar.gz
+$ tar tzf actest-0.1.tar.gz | sort
+actest-0.1/
+actest-0.1/Makefile
+actest-0.1/antimake.mk.in
+actest-0.1/config.guess
+actest-0.1/config.sub
+actest-0.1/configure
+actest-0.1/func.c
+actest-0.1/install-sh
+actest-0.1/ltmain.sh
+actest-0.1/prog.c
+---------------------------------
+
+Test installation
+
+---------------------------------
+$ make install DESTDIR=/tmp/test-inst
+     INSTALL  prog /tmp/test-inst/usr/local/bin
+     INSTALL  libtemo.la /tmp/test-inst/usr/local/lib
+libtool: install: warning: remember to run `libtool --finish /usr/local/lib'
+$ ls
+Makefile	   autogen.sh	  config.sub	install-sh  prog
+actest-0.1.tar.gz  config.guess   configure	libtemo.la  prog.c
+antimake.mk	   config.log	  configure.ac	libtool
+antimake.mk.in	   config.status  func.c	ltmain.sh
+$ find /tmp/test-inst | sort
+/tmp/test-inst
+/tmp/test-inst/usr
+/tmp/test-inst/usr/local
+/tmp/test-inst/usr/local/bin
+/tmp/test-inst/usr/local/bin/prog
+/tmp/test-inst/usr/local/lib
+/tmp/test-inst/usr/local/lib/libtemo.a
+/tmp/test-inst/usr/local/lib/libtemo.la
+/tmp/test-inst/usr/local/lib/libtemo.so
+/tmp/test-inst/usr/local/lib/libtemo.so.1
+/tmp/test-inst/usr/local/lib/libtemo.so.1.2.0
+$ rm -rf /tmp/test-inst
+---------------------------------
+
+Test the distribution package and separate build dir
+
+---------------------------------
+$ mkdir -p test
+$ cd test
+$ tar xf ../actest-0.1.tar.gz
+$ mkdir build
+$ cd build
+$ ../actest-0.1/configure
+[...]
+$ make
+     CC       ../actest-0.1/prog.c
+     CC       ../actest-0.1/func.c
+     CCLD     libtemo.la
+     CCLD     prog
+$ ls
+Makefile  antimake.mk  config.log  config.status  libtemo.la  libtool  prog
+$ ./prog
+hello from func1
+$ cd ../..
+---------------------------------
+
+Clean up
+
+---------------------------------
+$ make maintainer-clean
+     CLEAN    prog
+     CLEAN    libtemo.la
+     MAINTAINERCLEAN maintainer-clean
+$ ls
+Makefile  actest-0.1.tar.gz  autogen.sh  configure.ac  func.c  prog.c  test
+---------------------------------
+
+Done
+

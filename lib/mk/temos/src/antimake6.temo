@@ -1,0 +1,241 @@
+
+. ./libtemo.sh || exit 1
+
+test_start
+
+title Antimake stress-test
+
+msg Autoconf setup
+
+cat_file autogen.sh <<"EOF"
+	../../std-autogen.sh ../../..
+
+	# fetch Antimake template from libusual
+	make -f ../../antimake.mk show-config > build.mk.in
+	echo 'include $(abs_top_srcdir)/antimake.mk' >> build.mk.in
+	ln -sf ../../antimake.mk .
+	ln -sf ../../amext-cxx.mk .
+EOF
+
+cat_file configure.ac <<"EOF"
+	AC_INIT([actest], [0.1])
+	AC_CONFIG_SRCDIR([esub/prog.c])
+	AC_PREREQ([2.59])
+	AC_USUAL_INIT
+	LT_INIT
+	AC_USUAL_PROGRAM_CHECK
+	AC_PROG_CXX
+	AC_OUTPUT([build.mk])
+EOF
+
+msg Here are the source files:
+
+longmsg <<"EOF"
+	-------------
+	./prog.c
+	./cpptest.cpp
+	./sub/func1.c
+	./sub/esub/func2,c
+	./sub/sub/func3.c
+	./esub/func4.c
+	./esub/esub/func5.c
+	./esub/sub/func6.c
+	-------------
+EOF
+
+run mkdir -p sub/esub sub/sub esub/esub esub/sub
+
+cat_file esub/prog.c <<"EOF"
+	#include "func1.h"
+	#include "func2.h"
+	#include "func3.h"
+	#include "func4.h"
+	#include "func5.h"
+	#include "func6.h"
+	#include <stdio.h>
+	int main(void)
+	{
+		printf("%s\n", __FILE__);
+		func1();
+		func2();
+		func3();
+		func4();
+		func5();
+		func6();
+		return 0;
+	}
+EOF
+
+cat_file cpptest.cpp <<"EOF"
+	#include <iostream>
+
+	using namespace std;
+	int main(void)
+	{
+		cout << "Hello" << endl;
+		return 0;
+	}
+EOF
+
+cat_file sub/func1.c <<"EOF"
+	#include <stdio.h>
+	#include "func1.h"
+	void func1(void)
+	{
+		printf("%s\n", __FILE__);
+	}
+EOF
+
+cat_file sub/func1.h <<"EOF"
+	void func1(void);
+EOF
+
+run 'sed s/1/2/ sub/func1.c > sub/esub/func2.c'
+run 'sed s/1/2/ sub/func1.h > sub/esub/func2.h'
+run 'sed s/1/3/ sub/func1.c > sub/sub/func3.c'
+run 'sed s/1/3/ sub/func1.h > sub/sub/func3.h'
+run 'sed s/1/4/ sub/func1.c > esub/func4.c'
+run 'sed s/1/4/ sub/func1.h > esub/func4.h'
+run 'sed s/1/5/ sub/func1.c > esub/sub/func5.c'
+run 'sed s/1/5/ sub/func1.h > esub/sub/func5.h'
+run 'sed s/1/6/ sub/func1.c > esub/esub/func6.c'
+run 'sed s/1/6/ sub/func1.h > esub/esub/func6.h'
+
+msg Now fill makefiles
+
+cat_file Makefile <<"EOF"
+	SUBDIRS = sub
+	EMBED_SUBDIRS = esub
+	AM_FEATURES = cxx
+
+	override WFLAGS = -Wall
+
+	EXTRA_DIST = Makefile antimake.mk amext-cxx.mk $(MAINTAINERCLEANFILES)
+
+	# clean configured files
+	DISTCLEANFILES = \
+		config.status \
+		config.log \
+		libtool
+
+	# clean generated files
+	MAINTAINERCLEANFILES = \
+		configure \
+		config.guess \
+		config.sub \
+		install-sh \
+		build.mk.in \
+		ltmain.sh
+
+	noinst_PROGRAMS = cpptest
+	cpptest_SOURCES = cpptest.cpp
+
+	# launch Antimake
+	include build.mk
+EOF
+
+cat_file sub/Makefile <<"EOF"
+	SUBLOC = sub
+	SUBDIRS = sub
+	EMBED_SUBDIRS = esub
+
+	noinst_LIBRARIES = libfunc1.a
+	libfunc1_a_SOURCES = func1.c func1.h
+
+	EXTRA_DIST = Makefile
+	include ../build.mk
+EOF
+
+cat_file sub/sub/Makefile <<"EOF"
+	SUBLOC = sub/sub
+	EXTRA_DIST = Makefile
+	noinst_LIBRARIES = libfunc3.a
+	libfunc3_a_SOURCES = func3.c func3.h
+
+	include ../../build.mk
+EOF
+
+cat_file sub/esub/Makefile.am <<"EOF"
+	noinst_LIBRARIES = libfunc2.a
+	libfunc2_a_SOURCES = func2.c func2.h
+	EXTRA_DIST = Makefile.am
+EOF
+
+cat_file esub/Makefile.am <<"EOF"
+	SUBDIRS = sub
+	EMBED_SUBDIRS = esub
+	EXTRA_DIST = Makefile.am
+
+	noinst_LIBRARIES = libfunc4.a
+	libfunc4_a_SOURCES = func4.c func4.h
+
+	noinst_PROGRAMS = prog
+	prog_SOURCES = prog.c
+	prog_LDFLAGS = -L../sub -L../sub/esub -L.  -Lsub
+	prog_LDADD = \
+		-lfunc1 \
+		-lfunc2 \
+		$(topdir)/sub/sub/libfunc3.a \
+		-lfunc4 \
+		-lfunc5 \
+		esub/libfunc6.a
+
+	prog_CFLAGS = -I../sub
+	prog_CPPFLAGS = \
+		-I../sub/esub \
+		-I$(topdir)/sub/sub \
+		-I. \
+		-Iesub \
+		-I./sub
+
+EOF
+
+cat_file esub/sub/Makefile <<"EOF"
+	SUBLOC = esub/sub
+	EXTRA_DIST = Makefile
+	noinst_LIBRARIES = libfunc5.a
+	libfunc5_a_SOURCES = func5.c func5.h
+	include ../../build.mk
+EOF
+
+cat_file esub/esub/Makefile.am <<"EOF"
+	EXTRA_DIST = Makefile.am
+	noinst_LIBRARIES = libfunc6.a
+	libfunc6_a_SOURCES = func6.c func6.h
+EOF
+
+msg Build the project
+runq sh ./autogen.sh
+runq ./configure
+#run make esub/prog
+run make
+run ls
+run ./esub/prog
+
+msg Create distribution package
+run make dist
+run 'tar tzf actest-0.1.tar.gz | sort'
+
+msg Test installation
+run 'make install DESTDIR=`pwd`/inst'
+run ls
+run 'find inst | sort'
+
+msg Test the distribution package and separate build dir
+run mkdir -p test
+run cd test
+run tar xf ../actest-0.1.tar.gz
+run mkdir build
+run cd build
+runq ../actest-0.1/configure
+run make
+run ls
+run make esub/prog
+run ./esub/prog
+run cd ../..
+
+msg Clean up
+run make maintainer-clean
+run ls
+
+msg Done

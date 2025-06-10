@@ -199,7 +199,7 @@ format-check: uncrustify
 	git diff-tree --check `git hash-object -t tree /dev/null` HEAD
 	black --check --diff .
 	isort --check --diff .
-	./uncrustify -c uncrustify.cfg --check include/*.h src/*.c -L WARN
+	./uncrustify -c uncrustify.cfg --check include/*.h src/*.c test/*.c -L WARN
 
 format: uncrustify
 	$(MAKE) format-c
@@ -210,7 +210,7 @@ format-python: uncrustify
 	isort .
 
 format-c: uncrustify
-	./uncrustify -c uncrustify.cfg --replace --no-backup include/*.h src/*.c -L WARN
+	./uncrustify -c uncrustify.cfg --replace --no-backup include/*.h src/*.c test/*.c -L WARN
 
 UNCRUSTIFY_VERSION=0.77.1
 

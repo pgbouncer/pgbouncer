@@ -196,6 +196,7 @@ lint:
 	flake8
 
 format-check: uncrustify
+	git diff-tree --check `git hash-object -t tree /dev/null` HEAD
 	black --check --diff .
 	isort --check --diff .
 	./uncrustify -c uncrustify.cfg --check include/*.h src/*.c -L WARN

@@ -90,14 +90,13 @@ static int hba_test_eval(struct HBA *hba, char *ln, int linenr)
 	rule = hba_eval(hba, &pgaddr, !!tls, replication, db, user);
 
 	if (!rule) {
-	       if (strcmp("reject", exp) == 0) {
-		       	res = 0;
-	       } else {
+		if (strcmp("reject", exp) == 0) {
+			res = 0;
+		} else {
 			log_warning("FAIL on line %d: No rule for user=%s db=%s addr=%s",
-                            linenr, user, db, addr);
+				    linenr, user, db, addr);
 			res = 1;
-	       }
-
+		}
 	} else {
 		if (strcmp(method2string(rule->rule_method), exp) == 0) {
 			res = 0;

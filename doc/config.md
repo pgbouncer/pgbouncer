@@ -481,14 +481,15 @@ Otherwise, you can set `auth_type` directly to `ldap`. If `auth_type` is set to 
 `auth_ldap_parameter` has also to be set.
 
 ### auth_ldap_parameter
-This value is the global ldap parameter if `auth_type` is set to `ldap`. The value would be 
-similar to the ldap line in pg_hba.conf. If no `auth_ldap_parameter` is set, then ldap 
-authentication will fail. However, the value only contains the parameter after the 'ldap' 
+
+This value is the global ldap parameter if `auth_type` is set to `ldap`. The value would be
+similar to the ldap line in pg_hba.conf. If no `auth_ldap_parameter` is set, then ldap
+authentication will fail. However, the value only contains the parameter after the 'ldap'
 keyword in the hba line. For example, if the hba line looks like this:
 ```conf
-host all ldapuser1 0.0.0.0/0 ldap ldapurl="ldap://127.0.0.1:12345/dc=example,dc=net?uid?sub"`. 
+host all ldapuser1 0.0.0.0/0 ldap ldapurl="ldap://127.0.0.1:12345/dc=example,dc=net?uid?sub"`.
 ```
-The corresponding value of `auth_ldap_parameter` would be 
+The corresponding value of `auth_ldap_parameter` would be
 `ldapurl="ldap://127.0.0.1:12345/dc=example,dc=net?uid?sub"`
 
 ### auth_hba_file

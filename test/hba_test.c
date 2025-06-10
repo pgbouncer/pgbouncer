@@ -63,7 +63,7 @@ static char *get_token(char **ln_p)
 
 static int hba_test_eval(struct HBA *hba, char *ln, int linenr)
 {
-	const char *addr=NULL, *user=NULL, *db=NULL, *modifier=NULL, *exp=NULL;
+	const char *addr = NULL, *user = NULL, *db = NULL, *modifier = NULL, *exp = NULL;
 	PgAddr pgaddr;
 	struct HBARule *rule;
 	int res = 0;
@@ -78,7 +78,7 @@ static int hba_test_eval(struct HBA *hba, char *ln, int linenr)
 	addr = get_token(&ln);
 	modifier = get_token(&ln);
 	tls = strcmpeq(modifier, "tls");
-	replication = strcmpeq(modifier, "replication") ?  REPLICATION_PHYSICAL : REPLICATION_NONE;
+	replication = strcmpeq(modifier, "replication") ? REPLICATION_PHYSICAL : REPLICATION_NONE;
 	if (!exp)
 		return 0;
 	if (!db || !user)
@@ -102,7 +102,7 @@ static int hba_test_eval(struct HBA *hba, char *ln, int linenr)
 			res = 0;
 		} else {
 			log_warning("FAIL on line %d: expected '%s' got '%s' - user=%s db=%s addr=%s",
-			    linenr, exp, method2string(rule->rule_method), user, db, addr);
+				    linenr, exp, method2string(rule->rule_method), user, db, addr);
 			res = 1;
 		}
 	}
@@ -132,8 +132,8 @@ static void hba_test(void)
 		len = getline(&ln, &lnbuf, f);
 		if (len < 0)
 			break;
-		if (len && ln[len-1] == '\n')
-			ln[len-1] = 0;
+		if (len && ln[len - 1] == '\n')
+			ln[len - 1] = 0;
 		nfailed += hba_test_eval(hba, ln, linenr);
 	}
 	free(ln);

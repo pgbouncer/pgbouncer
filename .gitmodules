@@ -1,6 +1,0 @@
-[submodule "lib"]
-	path = lib
-	url = https://github.com/libusual/libusual.git
-[submodule "uthash"]
-	path = uthash
-	url = https://github.com/troydhanson/uthash.git

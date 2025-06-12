@@ -20,6 +20,7 @@
  * core structures
  */
 
+#include "common/scram-common.h"
 #include "system.h"
 
 #include <usual/cfparser.h>
@@ -516,6 +517,12 @@ struct PgCredentials {
 	 * settings and connection count tracking.
 	 */
 	PgGlobalUser *global_user;
+
+	int iterations;
+	char *salt;	/* base64-encoded */
+	uint8_t StoredKey[SCRAM_KEY_LEN];
+	uint8_t ServerKey[SCRAM_KEY_LEN];
+	bool adhoc_scram_secrets_cached;
 };
 
 /*

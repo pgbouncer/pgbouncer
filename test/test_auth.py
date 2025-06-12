@@ -310,6 +310,19 @@ def test_scram_both(bouncer):
     bouncer.test(dbname="p62", user="scramuser1", password="foo")
 
 
+@pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
+def test_scram_both_reauthentication_using_cache(bouncer):
+    bouncer.admin(f"set auth_type='scram-sha-256'")
+
+    # Make multiple connections to exercise the SCRAM secrets cache logic
+    for _ in range(1, 10):
+        # plain-text password in userlist.txt
+        bouncer.test(dbname="p61", user="scramuser3", password="baz")
+
+        # SCRAM password in userlist.txt
+        bouncer.test(dbname="p62", user="scramuser1", password="foo")
+
+
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
 def test_auth_dbname_usage(
     bouncer,

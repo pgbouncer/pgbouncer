@@ -760,7 +760,7 @@ static bool build_adhoc_scram_secret(const char *plain_password, ScramState *scr
 
 	scram_state->adhoc = true;
 
-	scram_state->iterations = SCRAM_DEFAULT_ITERATIONS;
+	scram_state->iterations = cf_scram_iterations;
 
 	encoded_len = pg_b64_enc_len(sizeof(saltbuf));
 	scram_state->salt = malloc(encoded_len + 1);
@@ -824,7 +824,7 @@ static bool build_mock_scram_secret(const char *username, ScramState *scram_stat
 	uint8_t saltbuf[SCRAM_DEFAULT_SALT_LEN];
 	int encoded_len;
 
-	scram_state->iterations = SCRAM_DEFAULT_ITERATIONS;
+	scram_state->iterations = cf_scram_iterations;
 
 	scram_mock_salt(username, saltbuf);
 	encoded_len = pg_b64_enc_len(sizeof(saltbuf));

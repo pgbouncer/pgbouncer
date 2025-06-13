@@ -262,7 +262,7 @@ task:
     image: ubuntu:22.04
   setup_script:
     - apt-get update
-    - apt-get install -y python3 python3-pip cmake curl
+    - apt-get install -y python3 python3-pip cmake curl git
     - pip install -r dev_requirements.txt
   build_script:
     - touch config.mak # Fake that configure has run

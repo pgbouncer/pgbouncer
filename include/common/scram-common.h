@@ -45,7 +45,7 @@
  * Default number of iterations when generating secret.  Should be at least
  * 4096 per RFC 7677.
  */
-#define SCRAM_DEFAULT_ITERATIONS	4096
+#define SCRAM_DEFAULT_ITERATIONS	256
 
 /*
  * Context data for HMAC used in SCRAM authentication.

@@ -208,7 +208,7 @@ scram_build_secret(const char *salt, int saltlen, int iterations,
 	int			encoded_result;
 
 	if (iterations <= 0)
-		iterations = SCRAM_DEFAULT_ITERATIONS;
+		iterations = cf_scram_iterations;
 
 	/* Calculate StoredKey and ServerKey */
 	scram_SaltedPassword(password, salt, saltlen, iterations,

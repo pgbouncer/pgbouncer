@@ -22,6 +22,8 @@
 
 #include <usual/crypto/sha256.h>
 
+extern int cf_scram_iterations;
+
 void free_scram_state(ScramState *scram_state);
 
 typedef enum PasswordType {

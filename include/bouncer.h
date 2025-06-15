@@ -41,7 +41,7 @@
  * in C files where we want to handle allocation failures differently.
  */
 #define HASH_NONFATAL_OOM 1
-#include "uthash.h"
+#include "common/uthash.h"
 #undef uthash_nonfatal_oom
 #define uthash_nonfatal_oom(elt) fatal("out of memory")
 

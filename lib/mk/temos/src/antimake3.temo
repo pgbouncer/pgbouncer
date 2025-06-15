@@ -1,0 +1,195 @@
+
+. ./libtemo.sh || exit 1
+
+test_start
+
+title Test Antimake EMBED_SUBDIRS
+
+longmsg <<-"MSG"
+	Antimake variable `EMBED_SUBDIRS` list names of directories that
+	contains Makefile fragmants that are to be embedded into current
+	Makefile.
+
+	- Plus: Proper dependencies, work well with parallel Make.
+	- Minus: Cannot go into subdir and run make there.
+	- Minus: Fragments are not stand-alone, so need some care when writing.
+MSG
+
+title2 Intro to EMBED_SUBDIRS
+
+longmsg <<-"MSG"
+	To better understand what EMBED_SUBDIRS does, let\'s start with simple
+	case - single Makefile that references files under subdir:
+MSG
+
+run mkdir -p src
+run cp ../../antimake.mk .
+
+cat_file Makefile <<"EOF"
+	bin_PROGRAMS = src/myprog
+	src_myprog_SOURCES = src/myprog.c
+	include antimake.mk
+EOF
+
+
+cat_file src/myprog.c <<"EOF"
+	#include <stdio.h>
+
+	int main(void)
+	{
+		printf("myprog\n");
+		return 0;
+	}
+EOF
+
+run make
+run ./src/myprog
+run make clean
+
+longmsg <<"MSG"
+	Now you can put the lines that reference files under `src/`
+	also into `src` and include that from top-level Makefile:
+MSG
+
+cat_file src/Makefile.inc <<"EOF"
+	bin_PROGRAMS = src/myprog
+	src_myprog_SOURCES = src/myprog.c
+EOF
+
+cat_file Makefile <<"EOF"
+	include src/Makefile.inc
+	include antimake.mk
+EOF
+
+run make
+run ./src/myprog
+
+longmsg <<"MSG"
+	This works but the problem is that although the Makefile is local,
+	it still sees files from top-Makefile-level.  So that is what `EMBED_SUBDIRS`
+	helps with - it allows using local filenames in Makefile fragment,
+	and it converts them to top-level filenames when including.  It knows
+	only few type of variables it needs to convert:
+
+	- target filenames in primares lists (*_PROGRAMS, *_LIBRARIES, etc)
+	- target_SOURCES: foo_SOURCES -> sub_dir_foo_SOURCES with filename conversion
+	- other target variables: `foo_*` -> `sub_dir_foo_*` without filename conversion
+	- EXTRA_DIST, CLEANFILES, DISTCLEANFILES, MAINTAINERCLEANFILES
+
+	Any other variables stay untouched, and obviously they can mess up top-level variables.
+	So the included Makefile should be as clean as possible.
+MSG
+
+
+title2 Setup source tree for EMBED_SUBDIRS
+
+msg Setup directories, install Antimake
+
+run mkdir -p lib1/sublib lib2
+run cp ../../antimake.mk .
+
+msg Prepare sources
+
+cat_file main.c <<"EOF"
+	#include <stdio.h>
+
+	void func1(void);
+	void func2(void);
+	void func3(void);
+
+	int main(void)
+	{
+		func1();
+		func2();
+		func3();
+		printf("main\n");
+		return 0;
+	}
+EOF
+
+cat_file lib1/func1.c <<"EOF"
+	#include <stdio.h>
+
+	void func1(void)
+	{
+		printf("func1\n");
+	}
+EOF
+
+cat_file lib1/sublib/func2.c <<"EOF"
+	#include <stdio.h>
+
+	void func2(void)
+	{
+		printf("func2\n");
+	}
+EOF
+
+cat_file lib2/func3.c <<"EOF"
+	#include <stdio.h>
+
+	void func3(void)
+	{
+		printf("func3\n");
+	}
+EOF
+
+msg Prepare Makefiles
+
+cat_file Makefile <<"EOF"
+	PACKAGE_NAME = test-subdirs
+	PACKAGE_VERSION = 1.0
+
+	EMBED_SUBDIRS = lib1 lib1/sublib lib2
+
+	bin_PROGRAMS = prog
+	prog_SOURCES = main.c
+	prog_LDADD = lib1/func1.a lib1/sublib/func2.a lib2/func3.a
+
+	EXTRA_DIST = Makefile antimake.mk
+
+	include antimake.mk
+EOF
+
+cat_file lib1/Makefile.am <<"EOF"
+	noinst_LIBRARIES = func1.a
+	func1_a_SOURCES = func1.c
+
+	EXTRA_DIST = Makefile.am
+EOF
+
+cat_file lib1/sublib/Makefile.am <<"EOF"
+	noinst_LIBRARIES = func2.a
+	func2_a_SOURCES = func2.c
+	EXTRA_DIST = Makefile.am
+EOF
+
+cat_file lib2/Makefile.am <<"EOF"
+	noinst_LIBRARIES = func3.a
+	func3_a_SOURCES = func3.c
+
+	EXTRA_DIST = Makefile.am
+EOF
+
+title2 Building
+
+msg Build the project
+
+run make
+run ls
+run ./prog
+
+msg We can now install it:
+run make install prefix=/opt DESTDIR=./inst
+run ls ./inst/opt/bin
+
+msg Now we can create package that can be given to others.
+run make dist
+run ls
+run 'tar tzf test-subdirs-1.0.tar.gz | sort'
+
+msg Clean the tree
+run make clean
+run ls
+
+msg Done!

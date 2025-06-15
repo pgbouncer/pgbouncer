@@ -1,0 +1,132 @@
+
+= Using Antimake with autoconf =
+
+
+Autoconf setup
+
+.File: autogen.sh
+[source,shell]
+-----------------------------------
+../../std-autogen.sh ../../..
+
+# fetch Antimake template from libusual
+cp ../../antimake.mk antimake.mk.in
+-----------------------------------
+.File: configure.ac
+[source,autoconf]
+-----------------------------------
+AC_INIT([actest], [0.1])
+AC_CONFIG_SRCDIR([prog.c])
+AC_PREREQ([2.59])
+
+AC_USUAL_INIT
+AC_USUAL_PROGRAM_CHECK
+
+AC_OUTPUT([antimake.mk])
+-----------------------------------
+
+Here is the source we want to build:
+
+.File: prog.c
+[source,c]
+-----------------------------------
+#include <stdio.h>
+#include <string.h>
+
+int main(void)
+{
+	printf("hello\n");
+	return 0;
+}
+-----------------------------------
+
+Antimake based Makefile
+
+.File: Makefile
+[source,makefile]
+-----------------------------------
+# the automake-style build description for 'prog'
+noinst_PROGRAMS = prog
+prog_SOURCES = prog.c
+
+EXTRA_DIST = Makefile $(MAINTAINERCLEANFILES)
+
+# clean configured files
+DISTCLEANFILES = config.status config.log antimake.mk
+
+# clean generated files
+MAINTAINERCLEANFILES = configure config.guess config.sub install-sh antimake.mk.in
+
+# launch Antimake
+include antimake.mk
+-----------------------------------
+
+Build the project
+
+---------------------------------
+$ sh ./autogen.sh
+[...]
+$ ./configure
+[...]
+$ make
+     CC       prog.c
+     CCLD     prog
+$ ls
+Makefile	autogen.sh    config.status  configure.ac  prog.c
+antimake.mk	config.guess  config.sub     install-sh
+antimake.mk.in	config.log    configure      prog
+$ ./prog
+hello
+---------------------------------
+
+Create distribution package
+
+---------------------------------
+$ make dist
+     CHECK    dist-gzip
+     MKDIR    actest-0.1
+     COPY     actest-0.1
+     PACK     actest-0.1.tar.gz
+$ tar tzf actest-0.1.tar.gz | sort
+actest-0.1/
+actest-0.1/Makefile
+actest-0.1/antimake.mk.in
+actest-0.1/config.guess
+actest-0.1/config.sub
+actest-0.1/configure
+actest-0.1/install-sh
+actest-0.1/prog.c
+---------------------------------
+
+Test the distribution package and separate build dir
+
+---------------------------------
+$ mkdir -p test
+$ cd test
+$ tar xf ../actest-0.1.tar.gz
+$ mkdir build
+$ cd build
+$ ../actest-0.1/configure
+[...]
+$ make
+     CC       ../actest-0.1/prog.c
+     CCLD     prog
+$ ls
+Makefile  antimake.mk  config.log  config.status  prog
+$ ./prog
+hello
+$ cd ../..
+---------------------------------
+
+Clean up
+
+---------------------------------
+$ make maintainer-clean
+     CLEAN    prog
+     MAINTAINERCLEAN maintainer-clean
+$ ls
+Makefile  actest-0.1.tar.gz  autogen.sh  configure.ac  prog.c  test
+---------------------------------
+
+Done
+

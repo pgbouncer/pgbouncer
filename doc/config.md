@@ -426,6 +426,11 @@ the error go away.
 
 Default: 200
 
+### scram_iterations
+
+The number of computational iterations to be performed when encrypting a password using SCRAM-SHA-256. A higher number of iterations provides additional protection against brute-force attacks on stored passwords, but makes authentication slower.
+
+Default: 4096
 
 ## Authentication settings
 

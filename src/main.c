@@ -39,6 +39,12 @@
 #include <sys/resource.h>
 #endif
 
+/*
+ * Default number of iterations when generating secret.  Should be at least
+ * 4096 per RFC 7677.
+ */
+#define SCRAM_DEFAULT_ITERATIONS        "4096"
+
 static void usage(const char *exe)
 {
 	printf("%s is a connection pooler for PostgreSQL.\n\n", exe);
@@ -198,6 +204,8 @@ char *cf_server_tls_ciphers;
 
 int cf_max_prepared_statements;
 
+int cf_scram_iterations;
+
 /*
  * config file description
  */
@@ -293,6 +301,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("max_db_client_connections", CF_INT, cf_max_db_client_connections, 0, "0"),
 	CF_ABS("max_packet_size", CF_UINT, cf_max_packet_size, 0, "2147483647"),
 	CF_ABS("max_prepared_statements", CF_INT, cf_max_prepared_statements, 0, "200"),
+	CF_ABS("scram_iterations", CF_INT, cf_scram_iterations, 0, SCRAM_DEFAULT_ITERATIONS),
 	CF_ABS("max_user_connections", CF_INT, cf_max_user_connections, 0, "0"),
 	CF_ABS("max_user_client_connections", CF_INT, cf_max_user_client_connections, 0, "0"),
 	CF_ABS("min_pool_size", CF_INT, cf_min_pool_size, 0, "0"),

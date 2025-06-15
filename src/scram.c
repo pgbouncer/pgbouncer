@@ -841,7 +841,7 @@ failed:
 	return false;
 }
 
-char *build_server_first_message(ScramState *scram_state, const char *username, const char *stored_secret)
+char *build_server_first_message(ScramState *scram_state, PgCredentials *user, const char *stored_secret)
 {
 	uint8_t raw_nonce[SCRAM_RAW_NONCE_LEN + 1];
 	int encoded_len;
@@ -849,7 +849,7 @@ char *build_server_first_message(ScramState *scram_state, const char *username, 
 	char *result;
 
 	if (!stored_secret) {
-		if (!build_mock_scram_secret(username, scram_state))
+		if (!build_mock_scram_secret(user->name, scram_state))
 			goto failed;
 	} else {
 		switch (get_password_type(stored_secret)) {
@@ -862,8 +862,21 @@ char *build_server_first_message(ScramState *scram_state, const char *username, 
 				goto failed;
 			break;
 		case PASSWORD_TYPE_PLAINTEXT:
-			if (!build_adhoc_scram_secret(stored_secret, scram_state))
-				goto failed;
+			if (user->adhoc_scram_secrets_cached) {
+				scram_state->iterations = user->iterations;
+				scram_state->salt = strdup(user->salt);
+				memcpy(scram_state->StoredKey, user->StoredKey, sizeof(user->StoredKey));
+				memcpy(scram_state->ServerKey, user->ServerKey, sizeof(user->ServerKey));
+			} else {
+				if (!build_adhoc_scram_secret(stored_secret, scram_state))
+					goto failed;
+
+				user->iterations = scram_state->iterations;
+				user->salt = strdup(scram_state->salt);
+				memcpy(user->StoredKey, scram_state->StoredKey, sizeof(scram_state->StoredKey));
+				memcpy(user->ServerKey, scram_state->ServerKey, sizeof(scram_state->ServerKey));
+				user->adhoc_scram_secrets_cached = true;
+			}
 			break;
 		default:
 			/* shouldn't get here */

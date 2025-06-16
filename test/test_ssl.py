@@ -400,20 +400,22 @@ def test_servers_no_disconnect_on_reload_with_no_tls_change(bouncer, pg, cert_di
 
 def test_servers_disconnect_when_changing_tls_config(bouncer, pg, cert_dir):
     bouncer.default_db = "pTxnPool"
-    bouncer.write_ini(f"server_tls_protocols = tlsv1.0")
+    bouncer.write_ini("server_tls_protocols = tlsv1.0")
     bouncer.admin("RELOAD")
 
     with bouncer.cur() as cur:
         assert pg.connection_count(dbname="p0") == 1
-        bouncer.write_ini(f"server_tls_protocols = secure")
+        bouncer.write_ini("server_tls_protocols = secure")
 
         with bouncer.log_contains(
             r"pTxnPool.*database configuration changed|pTxnPool.*obsolete connection", 1
         ):
             bouncer.admin("RELOAD")
-            for _ in wait_until("Did not close connection"):
+
+            for _ in wait_until(error_message="Connection did not close"):
                 if pg.connection_count(dbname="p0") == 0:
                     break
+
             cur.execute("SELECT 1")
 
 

@@ -125,6 +125,7 @@ static void construct_server(void *obj)
 	server->vars.var_list = slab_alloc(var_list_cache);
 	server->state = SV_FREE;
 	server->server_prepared_statements = NULL;
+	server->host = NULL;
 	statlist_init(&server->outstanding_requests, "outstanding_requests");
 
 	server->id = ++last_pgsocket_id;
@@ -210,6 +211,7 @@ static void server_free(PgSocket *server)
 	}
 
 	free_server_prepared_statements(server);
+	free(server->host);
 	varcache_clean(&server->vars);
 	slab_free(var_list_cache, server->vars.var_list);
 	slab_free(server_cache, server);
@@ -238,6 +240,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 			newstate = CL_LOGIN;
 	/* fallthrough */
 	case CL_WAITING:
+		client->sent_wait_notification = false;
 		statlist_remove(&pool->waiting_client_list, &client->head);
 		break;
 	case CL_ACTIVE:
@@ -1692,6 +1695,10 @@ static void dns_connect(struct PgSocket *server)
 		host = db->host;
 	}
 
+	if (host) {
+		server->host = xstrdup(host);
+	}
+
 	if (!host || host[0] == '/' || host[0] == '@') {
 		const char *unix_dir;
 
@@ -2027,6 +2034,11 @@ bool finish_client_login(PgSocket *client)
 		return false;
 	}
 
+	if (cf_shutdown && strcmp("pgbouncer", client->db->name)) {
+		disconnect_client(client, true, "pooler is shutting down");
+		return false;
+	}
+
 	switch (client->state) {
 	case CL_LOGIN:
 		change_client_state(client, CL_ACTIVE);
@@ -2053,6 +2065,7 @@ bool finish_client_login(PgSocket *client)
 	if (!welcome_client(client))
 		return false;
 
+	client->welcome_sent = true;
 	slog_debug(client, "logged in");
 
 	return true;

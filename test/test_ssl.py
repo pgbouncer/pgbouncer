@@ -4,7 +4,15 @@ import time
 import psycopg
 import pytest
 
-from .utils import MACOS, PG_MAJOR_VERSION, TEST_DIR, TLS_SUPPORT, WINDOWS, Bouncer
+from .utils import (
+    MACOS,
+    PG_MAJOR_VERSION,
+    TEST_DIR,
+    TLS_SUPPORT,
+    WINDOWS,
+    Bouncer,
+    wait_until,
+)
 
 if not TLS_SUPPORT:
     pytest.skip(allow_module_level=True)
@@ -127,6 +135,8 @@ def test_server_ssl_verify(pg, bouncer, cert_dir):
             bouncer.test(connect_timeout=4)
     bouncer.admin(f"set server_tls_ca_file = '{root}'")
     bouncer.test()
+
+    bouncer.psql_test(dbname="hostlistsslverify")
 
 
 def test_server_ssl_auth(pg, bouncer, cert_dir):
@@ -401,8 +411,9 @@ def test_servers_disconnect_when_changing_tls_config(bouncer, pg, cert_dir):
             r"pTxnPool.*database configuration changed|pTxnPool.*obsolete connection", 1
         ):
             bouncer.admin("RELOAD")
-            time.sleep(0.5)
-            assert pg.connection_count(dbname="p0") == 0
+            for _ in wait_until("Did not close connection"):
+                if pg.connection_count(dbname="p0") == 0:
+                    break
             cur.execute("SELECT 1")
 
 

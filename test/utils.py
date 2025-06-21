@@ -42,6 +42,7 @@ NEW_SITE_SCRIPT = TEST_DIR / "ssl" / "newsite.sh"
 ENABLE_VALGRIND = bool(os.environ.get("ENABLE_VALGRIND"))
 HAVE_IPV6_LOCALHOST = bool(os.environ.get("HAVE_IPV6_LOCALHOST"))
 USE_SUDO = bool(os.environ.get("USE_SUDO"))
+START_OPENLDAP_SCRIPT = TEST_DIR / "start_openldap_server.sh"
 
 # The tests require that psql can connect to the PgBouncer admin
 # console.  On platforms that have getpeereid(), this works by
@@ -131,6 +132,24 @@ def capture(command, *args, stdout=subprocess.PIPE, encoding="utf-8", **kwargs):
     return run(command, *args, stdout=stdout, encoding=encoding, **kwargs).stdout
 
 
+def wait_until(error_message="Did not complete", timeout=5, interval=0.1):
+    """
+    Loop until the timeout is reached. If the timeout is reached, raise an
+    exception with the given error message.
+    """
+    start = time.time()
+    end = start + timeout
+    last_printed_progress = start
+    while time.time() < end:
+        if timeout > 5 and time.time() - last_printed_progress > 5:
+            last_printed_progress = time.time()
+            print(f"{error_message} in {time.time() - start} seconds - will retry")
+        yield
+        time.sleep(interval)
+
+    raise TimeoutError(error_message + " in time")
+
+
 def get_pg_major_version():
     full_version_string = capture("initdb --version", silent=True)
     major_version_string = re.search("[0-9]+", full_version_string)
@@ -173,6 +192,15 @@ def get_tls_support():
 
 TLS_SUPPORT = get_tls_support()
 
+
+def get_ldap_support():
+    with open("../config.mak", encoding="utf-8") as f:
+        match = re.search(r"ldap_support = (\w+)", f.read())
+        assert match is not None
+        return match.group(1) == "yes"
+
+
+LDAP_SUPPORT = get_ldap_support()
 
 # this is out of ephemeral port range for many systems hence
 # it is a lower change that it will conflict with "in-use" ports
@@ -331,12 +359,13 @@ class QueryRunner:
         """
         with self.cur(**kwargs) as cur:
             cur.execute(query, params=params)
-            try:
-                return cur.fetchall()
-            except psycopg.ProgrammingError as e:
-                if "the last operation didn't produce a result" == str(e):
-                    return None
-                raise
+            if cur.pgresult and cur.pgresult.status in [
+                psycopg.pq.ExecStatus.COMMAND_OK,
+                psycopg.pq.ExecStatus.EMPTY_QUERY,
+            ]:
+                return None
+
+            return cur.fetchall()
 
     def sql_value(self, query, params=None, **kwargs):
         """Run an SQL query that returns a single cell and return this value
@@ -363,12 +392,13 @@ class QueryRunner:
     ) -> typing.Optional[typing.List[typing.Any]]:
         async with self.acur(**kwargs) as cur:
             await cur.execute(query, params=params)
-            try:
-                return await cur.fetchall()
-            except psycopg.ProgrammingError as e:
-                if "the last operation didn't produce a result" == str(e):
-                    return None
-                raise
+            if cur.pgresult and cur.pgresult.status in [
+                psycopg.pq.ExecStatus.COMMAND_OK,
+                psycopg.pq.ExecStatus.EMPTY_QUERY,
+            ]:
+                return None
+
+            return await cur.fetchall()
 
     def psql(self, query, **kwargs):
         """Run an SQL query using psql instead of psycopg
@@ -423,15 +453,15 @@ class QueryRunner:
 
     def test(self, **kwargs):
         """Test if you can connect"""
-        return self.sql("select 1", **kwargs)
+        return self.sql(";", **kwargs)
 
     def atest(self, **kwargs):
         """Test if you can connect asynchronously"""
-        return self.asql("select 1", **kwargs)
+        return self.asql(";", **kwargs)
 
     def psql_test(self, **kwargs):
         """Test if you can connect with psql instead of psycopg"""
-        return self.psql("select 1", **kwargs)
+        return self.psql(";", **kwargs)
 
     @contextmanager
     def enable_firewall(self):
@@ -653,6 +683,37 @@ class QueryRunner:
             ["psql", conninfo],
             silent=True,
         )
+
+
+class Proxy(QueryRunner):
+    def __init__(self, pg):
+        self.port_lock = PortLock()
+        super().__init__("127.0.0.1", self.port_lock.port)
+        self.connections = {}
+        self.pg = pg
+        self.cursors = {}
+        self.restarted = False
+        self.process: typing.Optional[subprocess.Popen] = None
+
+    def start(self):
+        command = [
+            "socat",
+            f"tcp-listen:{self.port_lock.port},reuseaddr,fork",
+            f"tcp:localhost:{self.pg.port_lock.port}",
+        ]
+        self.process = subprocess.Popen(" ".join(command), shell=True)
+
+    def stop(self):
+        self.process.kill()
+
+    def cleanup(self):
+        self.stop()
+        self.port_lock.release()
+
+    def restart(self):
+        self.restarted = True
+        self.stop()
+        self.start()
 
 
 class Postgres(QueryRunner):
@@ -1169,3 +1230,34 @@ class Bouncer(QueryRunner):
             with self.ini_path.open("w") as f:
                 f.write(config_old)
             self.admin("RELOAD")
+
+
+class OpenLDAP:
+    def __init__(self, config_dir):
+        self.ldap_port_lock = PortLock()
+        self.ldaps_port_lock = PortLock()
+        self.config_dir = config_dir
+        self.slapd_pid_file = self.config_dir / "ldap" / "slapd.pid"
+
+    def startup(self):
+        run(
+            f"{START_OPENLDAP_SCRIPT} {self.config_dir} {self.ldap_port_lock.port} {self.ldaps_port_lock.port}"
+        )
+
+    @property
+    def ldap_port(self):
+        return self.ldap_port_lock.port
+
+    @property
+    def ldaps_port(self):
+        return self.ldaps_port_lock.port
+
+    def stop(self):
+        with self.slapd_pid_file.open("r") as pid_file:
+            pid = pid_file.read()
+        os.kill(int(pid), signal.SIGTERM)
+
+    def cleanup(self):
+        self.stop()
+        self.ldap_port_lock.release()
+        self.ldaps_port_lock.release()

@@ -160,7 +160,10 @@ static void launch_recheck(PgPool *pool)
 		/* send test query, wait for result */
 		slog_debug(server, "P: checking: %s", q);
 		change_server_state(server, SV_TESTED);
-		SEND_generic(res, server, PqMsg_Query, "s", q);
+		if (empty_server_check_query)
+			SEND_generic(res, server, PqMsg_Query, "s", "\0");
+		else
+			SEND_generic(res, server, PqMsg_Query, "s", q);
 		if (!res)
 			disconnect_server(server, false, "test query failed");
 	} else {
@@ -188,7 +191,26 @@ static void per_loop_activate(PgPool *pool)
 	sv_tested = statlist_count(&pool->tested_server_list);
 	sv_used = statlist_count(&pool->used_server_list);
 	statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
+		PktBuf *buf;
+		bool res;
 		client = container_of(item, PgSocket, head);
+
+		if (client->state == CL_WAITING
+		    && !client->sent_wait_notification
+		    && client->welcome_sent
+		    && ((get_cached_time() - client->wait_start) / USEC) > cf_query_wait_notify
+		    && cf_query_wait_notify > 0) {
+			buf = pktbuf_dynamic(256);
+			pktbuf_write_Notice(
+				buf,
+				"No server connection available in postgres backend, client being queued"
+				);
+			res = pktbuf_send_queued(buf, client);
+			if (!res)
+				log_warning("Sending queue warning failed");
+			client->sent_wait_notification = true;
+		}
+
 		if (client->replication) {
 			/*
 			 * For replication connections we always launch
@@ -579,13 +601,15 @@ static void pool_server_maint(PgPool *pool)
 	}
 
 	/* handle query_timeout and idle_transaction_timeout */
-	if (cf_query_timeout > 0 || cf_idle_transaction_timeout > 0 || any_user_level_timeout_set) {
+	if (cf_query_timeout > 0 || cf_idle_transaction_timeout > 0 || cf_transaction_timeout > 0 || any_user_level_timeout_set) {
 		statlist_for_each_safe(item, &pool->active_server_list, tmp) {
-			usec_t age_client, age_server;
+			usec_t age_client, age_server, age_transaction;
 			usec_t effective_query_timeout;
 			usec_t effective_idle_transaction_timeout;
 			usec_t user_query_timeout;
 			usec_t user_idle_transaction_timeout;
+			usec_t user_transaction_timeout;
+			usec_t effective_transaction_timeout;
 
 			server = container_of(item, PgSocket, head);
 			Assert(server->state == SV_ACTIVE);
@@ -602,12 +626,15 @@ static void pool_server_maint(PgPool *pool)
 			 */
 			age_client = now - server->link->request_time;
 			age_server = now - server->request_time;
+			age_transaction = now - server->link->xact_start;
 
 			user_idle_transaction_timeout = server->login_user_credentials->global_user->idle_transaction_timeout;
+			user_transaction_timeout = server->login_user_credentials->global_user->transaction_timeout;
 			user_query_timeout = server->login_user_credentials->global_user->query_timeout;
 
 			effective_idle_transaction_timeout = cf_idle_transaction_timeout;
 			effective_query_timeout = cf_query_timeout;
+			effective_transaction_timeout = cf_transaction_timeout;
 
 			if (user_idle_transaction_timeout > 0)
 				effective_idle_transaction_timeout = user_idle_transaction_timeout;
@@ -615,12 +642,18 @@ static void pool_server_maint(PgPool *pool)
 			if (user_query_timeout > 0)
 				effective_query_timeout = user_query_timeout;
 
+			if (user_transaction_timeout > 0)
+				effective_transaction_timeout = user_transaction_timeout;
+
 			if (effective_query_timeout > 0 && age_client > effective_query_timeout) {
 				disconnect_server(server, true, "query timeout");
 			} else if (effective_idle_transaction_timeout > 0 &&
 				   server->idle_tx &&
 				   age_server > effective_idle_transaction_timeout) {
 				disconnect_server(server, true, "idle transaction timeout");
+			} else if (effective_transaction_timeout > 0 &&
+				   age_transaction > effective_transaction_timeout) {
+				disconnect_server(server, true, "transaction timeout");
 			}
 		}
 	}
@@ -789,6 +822,7 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	if (cf_shutdown == SHUTDOWN_WAIT_FOR_SERVERS && get_active_server_count() == 0) {
 		log_info("server connections dropped, exiting");
 		cf_shutdown = SHUTDOWN_IMMEDIATE;
+		cleanup_unix_sockets();
 		event_base_loopbreak(pgb_event_base);
 		return;
 	}
@@ -796,6 +830,7 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	if (cf_shutdown == SHUTDOWN_WAIT_FOR_CLIENTS && get_active_client_count() == 0) {
 		log_info("client connections dropped, exiting");
 		cf_shutdown = SHUTDOWN_IMMEDIATE;
+		cleanup_unix_sockets();
 		event_base_loopbreak(pgb_event_base);
 		return;
 	}

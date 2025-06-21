@@ -14,6 +14,7 @@ pgbouncer_SOURCES = \
 	src/main.c \
 	src/objects.c \
 	src/pam.c \
+	src/ldapauth.c \
 	src/pktbuf.c \
 	src/pooler.c \
 	src/proto.c \
@@ -44,6 +45,7 @@ pgbouncer_SOURCES = \
 	include/messages.h \
 	include/objects.h \
 	include/pam.h \
+	include/ldapauth.h \
 	include/pktbuf.h \
 	include/pooler.h \
 	include/proto.h \
@@ -69,7 +71,7 @@ pgbouncer_SOURCES = \
 	include/common/uthash_lowercase.h
 
 UTHASH = uthash
-pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(LIBEVENT_CFLAGS) $(TLS_CPPFLAGS)
+pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(LIBEVENT_CFLAGS) $(TLS_CPPFLAGS) $(LDAP_CFLAGS)
 pgbouncer_CPPFLAGS += -I$(UTHASH)/src
 
 # include libusual sources directly
@@ -194,9 +196,10 @@ lint:
 	flake8
 
 format-check: uncrustify
+	git diff-tree --check `git hash-object -t tree /dev/null` HEAD
 	black --check --diff .
 	isort --check --diff .
-	./uncrustify -c uncrustify.cfg --check include/*.h src/*.c -L WARN
+	./uncrustify -c uncrustify.cfg --check include/*.h src/*.c test/*.c -L WARN
 
 format: uncrustify
 	$(MAKE) format-c
@@ -207,7 +210,7 @@ format-python: uncrustify
 	isort .
 
 format-c: uncrustify
-	./uncrustify -c uncrustify.cfg --replace --no-backup include/*.h src/*.c -L WARN
+	./uncrustify -c uncrustify.cfg --replace --no-backup include/*.h src/*.c test/*.c -L WARN
 
 UNCRUSTIFY_VERSION=0.77.1
 

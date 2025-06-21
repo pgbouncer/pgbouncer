@@ -426,6 +426,11 @@ the error go away.
 
 Default: 200
 
+### scram_iterations
+
+The number of computational iterations to be performed when encrypting a password using SCRAM-SHA-256. A higher number of iterations provides additional protection against brute-force attacks on stored passwords, but makes authentication slower.
+
+Default: 4096
 
 ## Authentication settings
 
@@ -471,6 +476,26 @@ pam
 :   PAM is used to authenticate users, `auth_file` is ignored. This method is not
     compatible with databases using the `auth_user` option. The service name reported to
     PAM is "pgbouncer". `pam` is not supported in the HBA configuration file.
+
+ldap
+:   LDAP is used to authenticate users with ldap server(OpenLDAP on Linux or AD on Windows).
+In order to use ldap, `auth_type` needs to be set to `hba`. The value of
+`auth_hba_file` has also to be set. And the content of the `auth_hba_file` could be
+the same format like `pg_hba.conf` in Postgres.
+Otherwise, you can set `auth_type` directly to `ldap`. If `auth_type` is set to `ldap`, the
+`auth_ldap_parameter` has also to be set.
+
+### auth_ldap_parameter
+
+This value is the global ldap parameter if `auth_type` is set to `ldap`. The value would be
+similar to the ldap line in pg_hba.conf. If no `auth_ldap_parameter` is set, then ldap
+authentication will fail. However, the value only contains the parameter after the 'ldap'
+keyword in the hba line. For example, if the hba line looks like this:
+```conf
+host all ldapuser1 0.0.0.0/0 ldap ldapurl="ldap://127.0.0.1:12345/dc=example,dc=net?uid?sub"`.
+```
+The corresponding value of `auth_ldap_parameter` would be
+`ldapurl="ldap://127.0.0.1:12345/dc=example,dc=net?uid?sub"`
 
 ### auth_hba_file
 
@@ -650,7 +675,9 @@ Simple do-nothing query to check if the server connection is alive.
 
 If an empty string, then sanity checking is disabled.
 
-Default: `select 1`
+If `<empty>` then send empty query as sanity check.
+
+Default: `<empty>`
 
 ### server_fast_close
 
@@ -776,6 +803,15 @@ syntax and directives.
 
 Default: empty (use operating system defaults)
 
+### query_wait_notify
+
+Time that a client will be queued for before
+pgbouncer sends a notification message that they are being
+queued. [seconds]
+
+A value of 0 disables this notification message.
+
+Default: 5
 
 ## TLS settings
 
@@ -987,6 +1023,13 @@ Default: 0.0 (disabled)
 ### idle_transaction_timeout
 
 If a client has been in "idle in transaction" state longer,
+it will be disconnected.  [seconds]
+
+Default: 0.0 (disabled)
+
+### transaction_timeout
+
+If a client has been in "in transaction" state longer,
 it will be disconnected.  [seconds]
 
 Default: 0.0 (disabled)
@@ -1362,6 +1405,12 @@ If set this timeout overrides the server level query_timeout described above.
 
 Set the maximum number of seconds that a user can have an idle transaction open.
 If set this timeout overides the server level idle_transaction_timeout
+described above.
+
+### transaction_timeout
+
+Set the maximum number of seconds that a user can have a transaction open.
+If set this timeout overides the server level transaction_timeout
 described above.
 
 ### client_idle_timeout

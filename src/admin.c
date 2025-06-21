@@ -44,6 +44,11 @@
 #define SET_KEY 1
 #define SET_VAL 4
 
+/* configuration sections */
+#define PGBOUNCER_SECT "pgbouncer"
+#define USERS_SECT "users"
+#define POOLS_SECT "pools"
+
 typedef bool (*cmd_func_t)(PgSocket *admin, const char *arg);
 struct cmd_lookup {
 	const char *word;
@@ -62,10 +67,20 @@ static const char cmd_set_word_rx[] =
 static const char cmd_set_str_rx[] =
 	"^" WS0 "set" WS1 WORD WS0 "(=|to)" WS0 STRING WS0 "(;" WS0 ")?$";
 
+/* SET USER with parameters */
+static const char cmd_set_user_rx[] =
+	"^" WS0 "set" WS1 "user" WS1 WORD WS0 "(=|to)" WS0 STRING WS0 "(;" WS0 ")?$";
+
+/* SET POOL with parameters */
+static const char cmd_set_pool_rx[] =
+	"^" WS0 "set" WS1 "pool" WS1 WORD WS0 "(=|to)" WS0 STRING WS0 "(;" WS0 ")?$";
+
 /* compiled regexes */
 static regex_t rc_cmd;
 static regex_t rc_set_word;
 static regex_t rc_set_str;
+static regex_t rc_set_user;
+static regex_t rc_set_pool;
 
 static PgPool *admin_pool;
 
@@ -77,6 +92,8 @@ void admin_cleanup(void)
 	regfree(&rc_cmd);
 	regfree(&rc_set_str);
 	regfree(&rc_set_word);
+	regfree(&rc_set_user);
+	regfree(&rc_set_pool);
 	admin_pool = NULL;
 }
 
@@ -227,8 +244,8 @@ static bool fake_set(PgSocket *admin, const char *key, const char *val)
 	return got;
 }
 
-/* Command: SET key = val; */
-static bool admin_set(PgSocket *admin, const char *key, const char *val)
+/* Command: SET [USER|POOL] key = val; */
+static bool admin_set(PgSocket *admin, const char *sect, const char *key, const char *val)
 {
 	char tmp[512];
 	bool ok;
@@ -237,7 +254,7 @@ static bool admin_set(PgSocket *admin, const char *key, const char *val)
 		return true;
 
 	if (admin->admin_user) {
-		ok = set_config_param(key, val);
+		ok = set_config_param(sect, key, val);
 		if (ok) {
 			PktBuf *buf = pktbuf_dynamic(256);
 			if (!buf) {
@@ -256,6 +273,7 @@ static bool admin_set(PgSocket *admin, const char *key, const char *val)
 		return admin_error(admin, "admin access needed");
 	}
 }
+
 
 /* send a row with sendmsg, optionally attaching a fd */
 static bool send_one_fd(PgSocket *admin,
@@ -1565,6 +1583,8 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		     "\tSHOW DNS_HOSTS|DNS_ZONES\n"
 		     "\tSHOW STATS|STATS_TOTALS|STATS_AVERAGES|TOTALS\n"
 		     "\tSET key = arg\n"
+		     "\tSET USER username = 'param=value'\n"
+		     "\tSET POOL database.username = 'param=value'\n"
 		     "\tRELOAD\n"
 		     "\tPAUSE [<db>]\n"
 		     "\tRESUME [<db>]\n"
@@ -1698,7 +1718,7 @@ static bool admin_parse_query(PgSocket *admin, const char *q)
 		ok = copy_arg(q, grp, SET_VAL, val, sizeof(val), '\'');
 		if (!ok)
 			goto failed;
-		res = admin_set(admin, arg, val);
+		res = admin_set(admin, PGBOUNCER_SECT, arg, val);
 	} else if (regexec(&rc_set_word, q, MAX_GROUPS, grp, 0) == 0) {
 		ok = copy_arg(q, grp, SET_KEY, arg, sizeof(arg), '"');
 		if (!ok || !arg[0])
@@ -1706,7 +1726,23 @@ static bool admin_parse_query(PgSocket *admin, const char *q)
 		ok = copy_arg(q, grp, SET_VAL, val, sizeof(val), '"');
 		if (!ok)
 			goto failed;
-		res = admin_set(admin, arg, val);
+		res = admin_set(admin, PGBOUNCER_SECT, arg, val);
+	} else if (regexec(&rc_set_user, q, MAX_GROUPS, grp, 0) == 0) {
+		ok = copy_arg(q, grp, SET_KEY, arg, sizeof(arg), '"');
+		if (!ok || !arg[0])
+			goto failed;
+		ok = copy_arg(q, grp, SET_VAL, val, sizeof(val), '\'');
+		if (!ok)
+			goto failed;
+		res = admin_set(admin, USERS_SECT, arg, val);
+	} else if (regexec(&rc_set_pool, q, MAX_GROUPS, grp, 0) == 0) {
+		ok = copy_arg(q, grp, SET_KEY, arg, sizeof(arg), '"');
+		if (!ok || !arg[0])
+			goto failed;
+		ok = copy_arg(q, grp, SET_VAL, val, sizeof(val), '\'');
+		if (!ok)
+			goto failed;
+		res = admin_set(admin, POOLS_SECT, arg, val);
 	} else {
 		res = syntax_error(admin);
 	}
@@ -1906,6 +1942,12 @@ void admin_setup(void)
 	res = regcomp(&rc_set_str, cmd_set_str_rx, REG_EXTENDED | REG_ICASE);
 	if (res != 0)
 		fatal("set/str regex compilation error");
+	res = regcomp(&rc_set_user, cmd_set_user_rx, REG_EXTENDED | REG_ICASE);
+	if (res != 0)
+		fatal("set/user regex compilation error");
+	res = regcomp(&rc_set_pool, cmd_set_pool_rx, REG_EXTENDED | REG_ICASE);
+	if (res != 0)
+		fatal("set/pool regex compilation error");
 }
 
 void admin_pause_done(void)

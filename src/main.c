@@ -365,9 +365,9 @@ static const struct CfSect config_sects [] = {
 
 static struct CfContext main_config = { config_sects, };
 
-bool set_config_param(const char *key, const char *val)
+bool set_config_param(const char *sect, const char *key, const char *val)
 {
-	return cf_set(&main_config, "pgbouncer", key, val);
+	return cf_set(&main_config, sect, key, val);
 }
 
 void config_for_each(void (*param_cb)(void *arg, const char *name, const char *val, const char *defval, bool reloadable),

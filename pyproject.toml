@@ -35,7 +35,7 @@ norecursedirs = [
 
 [tool.isort]
 profile = 'black'
-skip = 'lib,uthash'
+skip = 'uthash'
 
 [tool.black]
-extend-exclude = 'lib|uthash'
+extend-exclude = 'uthash'

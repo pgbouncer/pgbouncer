@@ -195,11 +195,15 @@ doc/pgbouncer.1 doc/pgbouncer.5:
 lint:
 	flake8
 
+UNCRUSTIFY_FILES = include/*.h src/*.c test/*.c \
+		lib/test/*.c lib/usual/*.c lib/usual/crypto/*.c lib/usual/hashing/*.c lib/usual/tls/*.c \
+		lib/test/*.h lib/usual/*.h lib/usual/crypto/*.h lib/usual/hashing/*.h lib/usual/tls/*.h
+
 format-check: uncrustify
 	git diff-tree --check `git hash-object -t tree /dev/null` HEAD
 	black --check --diff .
 	isort --check --diff .
-	./uncrustify -c uncrustify.cfg --check include/*.h src/*.c test/*.c -L WARN
+	./uncrustify -c uncrustify.cfg --check -L WARN $(UNCRUSTIFY_FILES)
 
 format: uncrustify
 	$(MAKE) format-c
@@ -210,7 +214,7 @@ format-python: uncrustify
 	isort .
 
 format-c: uncrustify
-	./uncrustify -c uncrustify.cfg --replace --no-backup include/*.h src/*.c test/*.c -L WARN
+	./uncrustify -c uncrustify.cfg --replace --no-backup -L WARN $(UNCRUSTIFY_FILES)
 
 UNCRUSTIFY_VERSION=0.77.1
 

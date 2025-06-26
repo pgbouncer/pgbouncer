@@ -1,0 +1,119 @@
+
+= Using Autoconf and embedded libusual =
+
+
+
+
+== Fetch libusual ==
+
+
+Here we close libusual repo, but do not configure nor build it.
+
+---------------------------------
+$ git clone git://github.com/libusual/libusual.git lib
+Cloning into 'lib'...
+---------------------------------
+
+Autoconf setup
+
+.File: autogen.sh
+[source,shell]
+-----------------------------------
+# use prepared autgen logic
+./lib/mk/std-autogen.sh ./lib
+
+# fetch Antimake template from libusual
+cp lib/mk/antimake.mk antimake.mk.in
+-----------------------------------
+.File: configure.ac
+[source,autoconf]
+-----------------------------------
+AC_INIT([achello], [0.1], [https://libusual.github.com])
+AC_CONFIG_SRCDIR([prog.c])
+AC_CONFIG_HEADER([lib/usual/config.h])
+AC_PREREQ([2.59])
+
+AC_USUAL_PORT_CHECK
+AC_USUAL_PROGRAM_CHECK
+AC_USUAL_HEADER_CHECK
+AC_USUAL_TYPE_CHECK
+AC_USUAL_FUNCTION_CHECK
+
+AC_OUTPUT([antimake.mk])
+-----------------------------------
+
+Here is the source that needs to be linked with libusual:
+
+.File: prog.c
+[source,c]
+-----------------------------------
+#include <usual/hashing/crc32.h>
+#include <stdio.h>
+#include <string.h>
+
+int main(void)
+{
+	const char *data = "CECSFXX";
+	uint32_t crc;
+
+	crc = calc_crc32(data, strlen(data), 0);
+	printf("crc: %08x\n", crc);
+	return 0;
+}
+-----------------------------------
+
+Antimake based Makefile
+
+.File: Makefile
+[source,makefile]
+-----------------------------------
+# the automake-style build description for 'prog'
+noinst_PROGRAMS = prog
+prog_SOURCES = prog.c
+
+# location of configured libusual
+USUAL_DIR = lib
+
+# mention that 'prog' wants embedded libusual
+prog_EMBED_LIBUSUAL = 1
+AM_FEATURES = libusual
+
+# clean configured files
+DISTCLEANFILES = config.status config.log \
+		antimake.mk $(USUAL_DIR)/usual/config.h
+
+# clean generated files
+MAINTAINERCLEANFILES = configure config.guess config.sub install-sh \
+		antimake.mk.in $(USUAL_DIR)/usual/config.h.in
+
+# launch Antimake
+include $(USUAL_DIR)/mk/antimake.mk
+-----------------------------------
+
+Build the project
+
+---------------------------------
+$ sh ./autogen.sh
+[...]
+$ ./configure
+[...]
+$ make
+     CC       prog.c
+     CC       lib/usual/base.c
+     CC       lib/usual/hashing/crc32.c
+     CCLD     prog
+$ ls
+Makefile	autogen.sh    config.status  configure.ac  prog
+antimake.mk	config.guess  config.sub     install-sh    prog.c
+antimake.mk.in	config.log    configure      lib
+$ ./prog
+crc: 12345678
+$ make maintainer-clean
+     CLEAN    prog
+     MAINTAINERCLEAN maintainer-clean
+$ ls
+Makefile  autogen.sh  configure.ac  lib  prog.c
+---------------------------------
+
+Done
+

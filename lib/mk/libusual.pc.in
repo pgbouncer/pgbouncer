@@ -1,0 +1,13 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+datarootdir=@datarootdir@
+pkgdatadir=@pkgdatadir@
+antimake=@pkgdatadir@/antimake.mk
+
+Name: libusual
+Description: Usual utility library for C
+Version: @PACKAGE_VERSION@
+Cflags: -I${includedir}
+Libs: -L${libdir} -lusual

@@ -809,3 +809,107 @@ def test_issue_1104(bouncer):
 
         with bouncer.run_with_config(config):
             bouncer.admin("RELOAD")
+
+def test_connection_reuse(pg, bouncer):
+    config = f"""
+    [databases]
+    p0 = host={pg.host} port={pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    auth_type = trust
+    admin_users = pgbouncer
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    auth_dbname = postgres
+    pool_mode = session
+    server_check_delay = 0
+    """
+    pg.configure(config="log_statement = 'all'")
+    pg.reload()
+
+    with bouncer.run_with_config(config):
+        conn1: psycopg.Connection = bouncer.conn()
+        cur1 = conn1.cursor()
+
+        pid = cur1.execute("SELECT pg_backend_pid()")
+        pid = pid.fetchall()
+        pid = pid[0][0]
+
+        data = cur1.execute("SELECT * FROM generate_series(1, 10);")
+        data.fetchone()
+
+        cur1.close()
+        conn1.close()
+
+        conn2 = bouncer.conn()
+        cur2 = conn2.cursor()
+        new_pid = cur2.execute("SELECT pg_backend_pid()")
+        new_pid = new_pid.fetchall()
+        new_pid = new_pid[0][0]
+
+        cur2.close()
+        conn2.close()
+
+        assert pid == new_pid
+
+def test_drain_connection(pg, bouncer):
+
+    def query_sleep(cursor):
+        cursor.execute("SELECT pg_sleep(2);")
+        cursor.fetchone()
+
+    config = f"""
+    [databases]
+    p0 = host={pg.host} port={pg.port} min_pool_size=1 pool_size=1 max_db_connections=1
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    auth_type = trust
+    admin_users = pgbouncer
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    auth_dbname = postgres
+    pool_mode = session
+    server_check_delay = 0
+    """
+    pg.configure(config="log_statement = 'all'")
+    pg.reload()
+
+    with bouncer.run_with_config(config):
+        conn1: psycopg.Connection = bouncer.conn()
+        cur1 = conn1.cursor()
+
+        pid = cur1.execute("SELECT pg_backend_pid()")
+        pid = pid.fetchall()
+        pid = pid[0][0]
+
+        conn2 = bouncer.conn()
+        cur2 = conn2.cursor()
+
+        t1 = threading.Thread(target=query_sleep, args=(cur1,))
+        t2 = threading.Thread(target=query_sleep, args=(cur2,))
+        t1.start()
+        t2.start()
+
+        time.sleep(1)
+
+        cur1.close()
+        conn1.close()
+        cur2.close()
+        conn2.close()
+        t1.join()
+        t2.join()
+
+        conn3 = bouncer.conn()
+        cur3 = conn3.cursor()
+        new_pid = cur3.execute("SELECT pg_backend_pid()")
+        new_pid = new_pid.fetchall()
+        new_pid = new_pid[0][0]
+
+        cur3.close()
+        conn3.close()
+
+        assert pid == new_pid

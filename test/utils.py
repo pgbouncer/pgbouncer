@@ -137,15 +137,28 @@ def wait_until(error_message="Did not complete", timeout=5, interval=0.1):
     Loop until the timeout is reached. If the timeout is reached, raise an
     exception with the given error message.
     """
-    start = time.time()
-    end = start + timeout
-    last_printed_progress = start
-    while time.time() < end:
-        if timeout > 5 and time.time() - last_printed_progress > 5:
-            last_printed_progress = time.time()
-            print(f"{error_message} in {time.time() - start} seconds - will retry")
+    start_ts = time.monotonic()
+    end_ts = start_ts + timeout
+    last_printed_progress = start_ts
+    last_iteration_ts = start_ts
+
+    yield
+    attempt = 1
+
+    while end_ts > time.monotonic():
+        if timeout > 5 and time.monotonic() - last_printed_progress > 5:
+            last_printed_progress = time.monotonic()
+            print(
+                f"{error_message} in {time.monotonic() - start_ts} seconds and {attempt} attempts - will retry"
+            )
+
+        interval_remaining = last_iteration_ts + interval - time.monotonic()
+        if interval_remaining > 0:
+            time.sleep(interval_remaining)
+
+        last_iteration_ts = time.monotonic()
         yield
-        time.sleep(interval)
+        attempt += 1
 
     raise TimeoutError(error_message + " in time")
 

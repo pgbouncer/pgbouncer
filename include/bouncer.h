@@ -20,6 +20,7 @@
  * core structures
  */
 
+#include "common/scram-common.h"
 #include "system.h"
 
 #include <usual/cfparser.h>
@@ -505,9 +506,6 @@ struct PgCredentials {
 	struct AANode tree_node;	/* used to attach user to tree */
 	char name[MAX_USERNAME];
 	char passwd[MAX_PASSWORD];
-	uint8_t scram_ClientKey[32];
-	uint8_t scram_ServerKey[32];
-	bool has_scram_keys;		/* true if the above two are valid */
 	bool mock_auth;			/* not a real user, only for mock auth */
 	bool dynamic_passwd;		/* does the password need to be refreshed every use */
 
@@ -516,6 +514,22 @@ struct PgCredentials {
 	 * settings and connection count tracking.
 	 */
 	PgGlobalUser *global_user;
+
+	/* scram keys used for pass-though and adhoc auth caching */
+	uint8_t scram_ClientKey[32];
+	uint8_t scram_ServerKey[32];
+	uint8_t scram_StoredKey[SCRAM_KEY_LEN];
+	int scram_Iiterations;
+	char *scram_SaltKey;	/* base64-encoded */
+
+	/* true if ClientKey and ServerKey are valid and scram pass-though is in use. */
+	bool use_scram_keys;
+
+	/*
+	 * true if ServerKey, StoredKey, Salt and Iterations is cached for
+	 * adhoc scram authentication.
+	 */
+	bool adhoc_scram_secrets_cached;
 };
 
 /*

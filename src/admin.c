@@ -358,7 +358,7 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	if (cf_auth_type == AUTH_TYPE_PAM && !find_global_user(sk->login_user_credentials->name))
 		password = sk->login_user_credentials->passwd;
 
-	if (sk->pool && sk->pool->user_credentials && sk->pool->user_credentials->has_scram_keys)
+	if (sk->pool && sk->pool->user_credentials && sk->pool->user_credentials->use_scram_keys)
 		send_scram_keys = true;
 
 	return send_one_fd(admin, sbuf_socket(&sk->sbuf),

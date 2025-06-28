@@ -1,0 +1,437 @@
+
+= Antimake stress-test =
+
+
+Autoconf setup
+
+.File: autogen.sh
+[source,shell]
+-----------------------------------
+../../std-autogen.sh ../../..
+
+# fetch Antimake template from libusual
+make -f ../../antimake.mk show-config > build.mk.in
+echo 'include $(abs_top_srcdir)/antimake.mk' >> build.mk.in
+ln -sf ../../antimake.mk .
+ln -sf ../../amext-cxx.mk .
+-----------------------------------
+.File: configure.ac
+[source,autoconf]
+-----------------------------------
+AC_INIT([actest], [0.1])
+AC_CONFIG_SRCDIR([esub/prog.c])
+AC_PREREQ([2.59])
+AC_USUAL_INIT
+LT_INIT
+AC_USUAL_PROGRAM_CHECK
+AC_PROG_CXX
+AC_OUTPUT([build.mk])
+-----------------------------------
+
+Here are the source files:
+
+
+-------------
+./prog.c
+./cpptest.cpp
+./sub/func1.c
+./sub/esub/func2,c
+./sub/sub/func3.c
+./esub/func4.c
+./esub/esub/func5.c
+./esub/sub/func6.c
+-------------
+
+---------------------------------
+$ mkdir -p sub/esub sub/sub esub/esub esub/sub
+---------------------------------
+.File: esub/prog.c
+[source,c]
+-----------------------------------
+#include "func1.h"
+#include "func2.h"
+#include "func3.h"
+#include "func4.h"
+#include "func5.h"
+#include "func6.h"
+#include <stdio.h>
+int main(void)
+{
+	printf("%s\n", __FILE__);
+	func1();
+	func2();
+	func3();
+	func4();
+	func5();
+	func6();
+	return 0;
+}
+-----------------------------------
+.File: cpptest.cpp
+-----------------------------------
+#include <iostream>
+
+using namespace std;
+int main(void)
+{
+	cout << "Hello" << endl;
+	return 0;
+}
+-----------------------------------
+.File: sub/func1.c
+[source,c]
+-----------------------------------
+#include <stdio.h>
+#include "func1.h"
+void func1(void)
+{
+	printf("%s\n", __FILE__);
+}
+-----------------------------------
+.File: sub/func1.h
+[source,c]
+-----------------------------------
+void func1(void);
+-----------------------------------
+---------------------------------
+$ sed s/1/2/ sub/func1.c > sub/esub/func2.c
+$ sed s/1/2/ sub/func1.h > sub/esub/func2.h
+$ sed s/1/3/ sub/func1.c > sub/sub/func3.c
+$ sed s/1/3/ sub/func1.h > sub/sub/func3.h
+$ sed s/1/4/ sub/func1.c > esub/func4.c
+$ sed s/1/4/ sub/func1.h > esub/func4.h
+$ sed s/1/5/ sub/func1.c > esub/sub/func5.c
+$ sed s/1/5/ sub/func1.h > esub/sub/func5.h
+$ sed s/1/6/ sub/func1.c > esub/esub/func6.c
+$ sed s/1/6/ sub/func1.h > esub/esub/func6.h
+---------------------------------
+
+Now fill makefiles
+
+.File: Makefile
+[source,makefile]
+-----------------------------------
+SUBDIRS = sub
+EMBED_SUBDIRS = esub
+AM_FEATURES = cxx
+
+override WFLAGS = -Wall
+
+EXTRA_DIST = Makefile antimake.mk amext-cxx.mk $(MAINTAINERCLEANFILES)
+
+# clean configured files
+DISTCLEANFILES = \
+	config.status \
+	config.log \
+	libtool
+
+# clean generated files
+MAINTAINERCLEANFILES = \
+	configure \
+	config.guess \
+	config.sub \
+	install-sh \
+	build.mk.in \
+	ltmain.sh
+
+noinst_PROGRAMS = cpptest
+cpptest_SOURCES = cpptest.cpp
+
+# launch Antimake
+include build.mk
+-----------------------------------
+.File: sub/Makefile
+[source,makefile]
+-----------------------------------
+SUBLOC = sub
+SUBDIRS = sub
+EMBED_SUBDIRS = esub
+
+noinst_LIBRARIES = libfunc1.a
+libfunc1_a_SOURCES = func1.c func1.h
+
+EXTRA_DIST = Makefile
+include ../build.mk
+-----------------------------------
+.File: sub/sub/Makefile
+[source,makefile]
+-----------------------------------
+SUBLOC = sub/sub
+EXTRA_DIST = Makefile
+noinst_LIBRARIES = libfunc3.a
+libfunc3_a_SOURCES = func3.c func3.h
+
+include ../../build.mk
+-----------------------------------
+.File: sub/esub/Makefile.am
+-----------------------------------
+noinst_LIBRARIES = libfunc2.a
+libfunc2_a_SOURCES = func2.c func2.h
+EXTRA_DIST = Makefile.am
+-----------------------------------
+.File: esub/Makefile.am
+-----------------------------------
+SUBDIRS = sub
+EMBED_SUBDIRS = esub
+EXTRA_DIST = Makefile.am
+
+noinst_LIBRARIES = libfunc4.a
+libfunc4_a_SOURCES = func4.c func4.h
+
+noinst_PROGRAMS = prog
+prog_SOURCES = prog.c
+prog_LDFLAGS = -L../sub -L../sub/esub -L.  -Lsub
+prog_LDADD = \
+	-lfunc1 \
+	-lfunc2 \
+	$(topdir)/sub/sub/libfunc3.a \
+	-lfunc4 \
+	-lfunc5 \
+	esub/libfunc6.a
+
+prog_CFLAGS = -I../sub
+prog_CPPFLAGS = \
+	-I../sub/esub \
+	-I$(topdir)/sub/sub \
+	-I. \
+	-Iesub \
+	-I./sub
+
+-----------------------------------
+.File: esub/sub/Makefile
+[source,makefile]
+-----------------------------------
+SUBLOC = esub/sub
+EXTRA_DIST = Makefile
+noinst_LIBRARIES = libfunc5.a
+libfunc5_a_SOURCES = func5.c func5.h
+include ../../build.mk
+-----------------------------------
+.File: esub/esub/Makefile.am
+-----------------------------------
+EXTRA_DIST = Makefile.am
+noinst_LIBRARIES = libfunc6.a
+libfunc6_a_SOURCES = func6.c func6.h
+-----------------------------------
+
+Build the project
+
+---------------------------------
+$ sh ./autogen.sh
+[...]
+$ ./configure
+[...]
+$ make
+     -->      sub
+     -->      sub/sub
+     CC       func3.c
+     AR       libfunc3.a
+     RANLIB   libfunc3.a
+     <--      sub/sub
+     CC       func1.c
+     AR       libfunc1.a
+     RANLIB   libfunc1.a
+     CC       esub/func2.c
+     AR       esub/libfunc2.a
+     RANLIB   esub/libfunc2.a
+     <--      sub
+     -->      esub/sub
+     CC       func5.c
+     AR       libfunc5.a
+     RANLIB   libfunc5.a
+     <--      esub/sub
+     CC       esub/func4.c
+     AR       esub/libfunc4.a
+     RANLIB   esub/libfunc4.a
+     CC       esub/esub/func6.c
+     AR       esub/esub/libfunc6.a
+     RANLIB   esub/esub/libfunc6.a
+     CXX      cpptest.cpp
+     CXXLD    cpptest
+     CC       esub/prog.c
+     CCLD     esub/prog
+$ ls
+Makefile      build.mk	    config.status  cpptest	libtool
+amext-cxx.mk  build.mk.in   config.sub	   cpptest.cpp	ltmain.sh
+antimake.mk   config.guess  configure	   esub		sub
+autogen.sh    config.log    configure.ac   install-sh
+$ ./esub/prog
+esub/prog.c
+func1.c
+esub/func2.c
+func3.c
+esub/func4.c
+func5.c
+esub/esub/func6.c
+---------------------------------
+
+Create distribution package
+
+---------------------------------
+$ make dist
+     CHECK    dist-gzip
+     MKDIR    actest-0.1
+     COPY     actest-0.1
+     PACK     actest-0.1.tar.gz
+$ tar tzf actest-0.1.tar.gz | sort
+actest-0.1/
+actest-0.1/Makefile
+actest-0.1/amext-cxx.mk
+actest-0.1/antimake.mk
+actest-0.1/build.mk.in
+actest-0.1/config.guess
+actest-0.1/config.sub
+actest-0.1/configure
+actest-0.1/cpptest.cpp
+actest-0.1/esub/
+actest-0.1/esub/Makefile.am
+actest-0.1/esub/esub/
+actest-0.1/esub/esub/Makefile.am
+actest-0.1/esub/esub/func6.c
+actest-0.1/esub/esub/func6.h
+actest-0.1/esub/func4.c
+actest-0.1/esub/func4.h
+actest-0.1/esub/prog.c
+actest-0.1/esub/sub/
+actest-0.1/esub/sub/Makefile
+actest-0.1/esub/sub/func5.c
+actest-0.1/esub/sub/func5.h
+actest-0.1/install-sh
+actest-0.1/ltmain.sh
+actest-0.1/sub/
+actest-0.1/sub/Makefile
+actest-0.1/sub/esub/
+actest-0.1/sub/esub/Makefile.am
+actest-0.1/sub/esub/func2.c
+actest-0.1/sub/esub/func2.h
+actest-0.1/sub/func1.c
+actest-0.1/sub/func1.h
+actest-0.1/sub/sub/
+actest-0.1/sub/sub/Makefile
+actest-0.1/sub/sub/func3.c
+actest-0.1/sub/sub/func3.h
+---------------------------------
+
+Test installation
+
+---------------------------------
+$ make install DESTDIR=`pwd`/inst
+     -->      sub
+     -->      sub/sub
+make[2]: Nothing to be done for `install'.
+     <--      sub/sub
+     <--      sub
+     -->      esub/sub
+make[1]: Nothing to be done for `install'.
+     <--      esub/sub
+$ ls
+Makefile	   autogen.sh	 config.log	configure.ac  install-sh
+actest-0.1.tar.gz  build.mk	 config.status	cpptest       libtool
+amext-cxx.mk	   build.mk.in	 config.sub	cpptest.cpp   ltmain.sh
+antimake.mk	   config.guess  configure	esub	      sub
+$ find inst | sort
+find: `inst': No such file or directory
+---------------------------------
+
+Test the distribution package and separate build dir
+
+---------------------------------
+$ mkdir -p test
+$ cd test
+$ tar xf ../actest-0.1.tar.gz
+$ mkdir build
+$ cd build
+$ ../actest-0.1/configure
+[...]
+$ make
+     MKDIR    Create sub
+     -->      sub
+     MKDIR    Create sub/sub
+     -->      sub/sub
+     CC       ../../../actest-0.1/sub/sub/func3.c
+     AR       libfunc3.a
+     RANLIB   libfunc3.a
+     <--      sub/sub
+     CC       ../../actest-0.1/sub/func1.c
+     AR       libfunc1.a
+     RANLIB   libfunc1.a
+     CC       ../../actest-0.1/sub/esub/func2.c
+     AR       esub/libfunc2.a
+     RANLIB   esub/libfunc2.a
+     <--      sub
+     MKDIR    Create esub/sub
+     -->      esub/sub
+     CC       ../../../actest-0.1/esub/sub/func5.c
+     AR       libfunc5.a
+     RANLIB   libfunc5.a
+     <--      esub/sub
+     CC       ../actest-0.1/esub/func4.c
+     AR       esub/libfunc4.a
+     RANLIB   esub/libfunc4.a
+     CC       ../actest-0.1/esub/esub/func6.c
+     AR       esub/esub/libfunc6.a
+     RANLIB   esub/esub/libfunc6.a
+     CXX      ../actest-0.1/cpptest.cpp
+     CXXLD    cpptest
+     CC       ../actest-0.1/esub/prog.c
+     CCLD     esub/prog
+$ ls
+Makefile  build.mk  config.log	config.status  cpptest	esub  libtool  sub
+$ make esub/prog
+make: `esub/prog' is up to date.
+$ ./esub/prog
+../actest-0.1/esub/prog.c
+../../actest-0.1/sub/func1.c
+../../actest-0.1/sub/esub/func2.c
+../../../actest-0.1/sub/sub/func3.c
+../actest-0.1/esub/func4.c
+../../../actest-0.1/esub/sub/func5.c
+../actest-0.1/esub/esub/func6.c
+$ cd ../..
+---------------------------------
+
+Clean up
+
+---------------------------------
+$ make maintainer-clean
+     -->      sub
+     -->      sub/sub
+     CLEAN    libfunc3.a
+     <--      sub/sub
+     CLEAN    libfunc1.a
+     CLEAN    esub/libfunc2.a
+     CLEAN    clean
+     <--      sub
+     -->      esub/sub
+     CLEAN    libfunc5.a
+     <--      esub/sub
+     CLEAN    esub/libfunc4.a
+     CLEAN    esub/esub/libfunc6.a
+     CLEAN    cpptest
+     CLEAN    esub/prog
+     CLEAN    clean
+     -->      sub
+     -->      sub/sub
+     CLEAN    libfunc3.a
+     <--      sub/sub
+     CLEAN    libfunc1.a
+     CLEAN    esub/libfunc2.a
+     CLEAN    clean
+     -->      sub/sub
+     CLEAN    libfunc3.a
+     MAINTAINERCLEAN maintainer-clean
+     <--      sub/sub
+     MAINTAINERCLEAN maintainer-clean
+     <--      sub
+     -->      esub/sub
+     CLEAN    libfunc5.a
+     MAINTAINERCLEAN maintainer-clean
+     <--      esub/sub
+     MAINTAINERCLEAN maintainer-clean
+$ ls
+Makefile	   amext-cxx.mk  autogen.sh  configure.ac  esub  test
+actest-0.1.tar.gz  antimake.mk	 build.mk    cpptest.cpp   sub
+---------------------------------
+
+Done
+

@@ -1,0 +1,6 @@
+*.[ch]				whitespace=indent-with-non-tab
+mk/temos/expected/*.txt		whitespace=-blank-at-eof
+usual/pgutil_kwlookup.h		-whitespace
+
+# uncrustify artifacts
+usual/crypto/keccak.c		whitespace=-indent-with-non-tab

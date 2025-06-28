@@ -68,11 +68,10 @@ pgbouncer_SOURCES = \
 	include/common/unicode_combining_table.h \
 	include/common/unicode_norm.h \
 	include/common/unicode_norm_table.h \
+	include/common/uthash.h \
 	include/common/uthash_lowercase.h
 
-UTHASH = uthash
 pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(LIBEVENT_CFLAGS) $(TLS_CPPFLAGS) $(LDAP_CFLAGS)
-pgbouncer_CPPFLAGS += -I$(UTHASH)/src
 
 # include libusual sources directly
 AM_FEATURES = libusual
@@ -97,8 +96,7 @@ EXTRA_DIST = AUTHORS COPYRIGHT Makefile config.mak.in config.sub config.guess \
 	     install-sh autogen.sh configure configure.ac \
 	     etc/mkauth.py etc/optscan.sh etc/example.debian.init.sh \
 	     win32/Makefile \
-	     $(LIBUSUAL_DIST) \
-	     $(UTHASH_DIST) \
+	     $(LIBUSUAL_DIST)
 
 # libusual files (FIXME: list should be provided by libusual...)
 LIBUSUAL_DIST = $(filter-out %/config.h, $(sort $(wildcard \
@@ -111,9 +109,6 @@ LIBUSUAL_DIST = $(filter-out %/config.h, $(sort $(wildcard \
 		lib/mk/install-sh lib/mk/std-autogen.sh \
 		lib/README lib/COPYRIGHT \
 		lib/find_modules.sh )))
-
-UTHASH_DIST = $(UTHASH)/src/uthash.h \
-              $(UTHASH)/LICENSE
 
 pgbouncer_LDFLAGS := $(TLS_LDFLAGS)
 pgbouncer_LDADD := $(CARES_LIBS) $(LIBEVENT_LIBS) $(TLS_LIBS) $(LIBS)
@@ -195,11 +190,15 @@ doc/pgbouncer.1 doc/pgbouncer.5:
 lint:
 	flake8
 
+UNCRUSTIFY_FILES = include/*.h src/*.c test/*.c \
+		lib/test/*.c lib/usual/*.c lib/usual/crypto/*.c lib/usual/hashing/*.c lib/usual/tls/*.c \
+		lib/test/*.h lib/usual/*.h lib/usual/crypto/*.h lib/usual/hashing/*.h lib/usual/tls/*.h
+
 format-check: uncrustify
 	git diff-tree --check `git hash-object -t tree /dev/null` HEAD
 	black --check --diff .
 	isort --check --diff .
-	./uncrustify -c uncrustify.cfg --check include/*.h src/*.c test/*.c -L WARN
+	./uncrustify -c uncrustify.cfg --check -L WARN $(UNCRUSTIFY_FILES)
 
 format: uncrustify
 	$(MAKE) format-c
@@ -210,7 +209,7 @@ format-python: uncrustify
 	isort .
 
 format-c: uncrustify
-	./uncrustify -c uncrustify.cfg --replace --no-backup include/*.h src/*.c test/*.c -L WARN
+	./uncrustify -c uncrustify.cfg --replace --no-backup -L WARN $(UNCRUSTIFY_FILES)
 
 UNCRUSTIFY_VERSION=0.77.1
 

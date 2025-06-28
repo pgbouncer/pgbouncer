@@ -1,5 +1,4 @@
 env:
-  CIRRUS_CLONE_SUBMODULES: true
   DEBIAN_FRONTEND: noninteractive
   LANG: C
   PGVERSION: 16

@@ -99,6 +99,7 @@ int cf_unix_socket_mode;
 char *cf_unix_socket_group;
 int cf_peer_id;
 
+int cf_drain_stale_connections;
 int cf_pool_mode = POOL_SESSION;
 
 /* sbuf config */
@@ -284,6 +285,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("dns_max_ttl", CF_TIME_USEC, cf_dns_max_ttl, 0, "15"),
 	CF_ABS("dns_nxdomain_ttl", CF_TIME_USEC, cf_dns_nxdomain_ttl, 0, "15"),
 	CF_ABS("dns_zone_check_period", CF_TIME_USEC, cf_dns_zone_check_period, 0, "0"),
+	CF_ABS("drain_stale_connections", CF_INT, cf_drain_stale_connections, 0, "0"),
 	CF_ABS("idle_transaction_timeout", CF_TIME_USEC, cf_idle_transaction_timeout, 0, "0"),
 	CF_ABS("transaction_timeout", CF_TIME_USEC, cf_transaction_timeout, 0, "0"),
 	CF_ABS("ignore_startup_parameters", CF_STR, cf_ignore_startup_params, 0, ""),

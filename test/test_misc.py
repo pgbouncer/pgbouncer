@@ -868,6 +868,7 @@ def test_drain_connection(pg, bouncer):
     listen_addr = {bouncer.host}
     auth_type = trust
     admin_users = pgbouncer
+    drain_stale_connections = 1
     auth_file = {bouncer.auth_path}
     listen_port = {bouncer.port}
     logfile = {bouncer.log_path}

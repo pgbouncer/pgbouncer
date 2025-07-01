@@ -1491,7 +1491,11 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 				 * make the error message more
 				 * precise and less scary.
 				 */
-				disconnect_server(server, true, "client disconnect while server was not ready");
+				if (!cf_drain_stale_connections) {
+					disconnect_server(server, true, "client disconnect while server was not ready");
+				} else {
+					disconnect_server(server, true, "would drain - client disconnect while server was not ready");
+				}
 			} else if (statlist_count(&server->outstanding_requests) > 0) {
 				server->link = NULL;
 				client->link = NULL;
@@ -1502,12 +1506,20 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 				 * we need to close the client connection
 				 * immediately.
 				 */
-				disconnect_server(server, true, "client disconnected with query in progress");
+				if (!cf_drain_stale_connections) {
+					disconnect_server(server, true, "client disconnected with query in progress");
+				} else {
+					disconnect_server(server, true, "would drain - client disconnected with query in progress");
+				}
 			} else if (!sbuf_is_empty(&server->sbuf)) {
 				/* ->ready may be set before all is sent */
 				server->link = NULL;
 				client->link = NULL;
-				disconnect_server(server, true, "client disconnect before everything was sent to the server");
+				if (!cf_drain_stale_connections) {
+					disconnect_server(server, true, "client disconnect before everything was sent to the server");
+				} else {
+					disconnect_server(server, true, "would drain - client disconnect before everything was sent to the server");
+				}
 			} else {
 				/* retval does not matter here */
 				release_server(server);

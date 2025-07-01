@@ -780,6 +780,7 @@ extern int cf_listen_port;
 extern int cf_listen_backlog;
 extern int cf_peer_id;
 
+extern int cf_drain_stale_connections;
 extern int cf_pool_mode;
 extern int cf_max_client_conn;
 extern int cf_default_pool_size;

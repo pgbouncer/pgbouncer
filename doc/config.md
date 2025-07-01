@@ -1300,6 +1300,12 @@ Query to be executed after a connection is established, but before
 allowing the connection to be used by any clients. If the query raises errors,
 they are logged but ignored otherwise.
 
+### drain_stale_connections
+
+Instead of disposing of the server connection if an active connection goes away and recreating it, instead try to drain the connection for reuse. Might be useful for highly transactional workloads.
+
+Default: `false`
+
 ### pool_mode
 
 Set the pool mode specific to this database. If not set,

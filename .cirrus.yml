@@ -60,7 +60,7 @@ task:
     - curl https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
     - echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main $PGVERSION" | tee /etc/apt/sources.list.d/pgdg.list
     - apt-get update
-    - pkgs="autoconf automake ca-certificates cpio iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev libtool make pandoc postgresql-$PGVERSION pkg-config python3 python3-pip python3-venv slapd socat sudo"
+    - pkgs="autoconf automake ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev libtool make pandoc postgresql-$PGVERSION pkg-config python3 python3-pip python3-venv slapd socat sudo"
     - case $CC in clang) pkgs="$pkgs clang";; esac
     - if [ x"$ENABLE_VALGRIND" = x"yes" ]; then pkgs="$pkgs valgrind"; fi
     - if [ x"$use_scan_build" = x"yes" ]; then pkgs="$pkgs clang-tools"; fi
@@ -79,13 +79,11 @@ task:
   install_script:
     - make -j4 install
   dist_script:
-    - make -j4 dist
+    - su user -c "make dist"
     - PACKAGE_VERSION=$(sed -n 's/PACKAGE_VERSION = //p' config.mak)
-    - tar -x -v -f pgbouncer-${PACKAGE_VERSION}.tar.gz
-    - cd pgbouncer-${PACKAGE_VERSION}/
-    - ./configure --prefix=$HOME/install2 --enable-werror --without-cares $configure_args
-    - make -j4
-    - make -j4 install
+    - su user -c "tar -x -v -f pgbouncer-${PACKAGE_VERSION}.tar.gz"
+    - su user -c "cd pgbouncer-${PACKAGE_VERSION}/ && ./configure --prefix=$HOME/install2 --enable-werror --without-cares $configure_args && make -j4"
+    - cd pgbouncer-${PACKAGE_VERSION}/ && make -j4 install
   tarball_artifacts:
     path: "pgbouncer-*.tar.gz"
   always:

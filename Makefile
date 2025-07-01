@@ -90,26 +90,6 @@ DISTCLEANFILES = config.mak config.status lib/usual/config.h config.log
 DIST_SUBDIRS = doc test
 dist_man_MANS = doc/pgbouncer.1 doc/pgbouncer.5
 
-# files in tgz
-EXTRA_DIST = AUTHORS COPYRIGHT Makefile config.mak.in config.sub config.guess \
-	     pyproject.toml requirements.txt \
-	     install-sh autogen.sh configure configure.ac \
-	     etc/mkauth.py etc/optscan.sh etc/example.debian.init.sh \
-	     win32/Makefile \
-	     $(LIBUSUAL_DIST)
-
-# libusual files (FIXME: list should be provided by libusual...)
-LIBUSUAL_DIST = $(filter-out %/config.h, $(sort $(wildcard \
-		lib/usual/*.[chg] \
-		lib/usual/*/*.[ch] \
-		lib/m4/*.m4 \
-		lib/usual/config.h.in \
-		lib/mk/*.mk \
-		lib/mk/antimake.mk lib/mk/antimake.txt \
-		lib/mk/install-sh lib/mk/std-autogen.sh \
-		lib/README lib/COPYRIGHT \
-		lib/find_modules.sh )))
-
 pgbouncer_LDFLAGS := $(TLS_LDFLAGS)
 pgbouncer_LDADD := $(CARES_LIBS) $(LIBEVENT_LIBS) $(TLS_LIBS) $(LIBS)
 LIBS :=
@@ -141,6 +121,9 @@ AM_LANG_RC_LINK = false
 # now load antimake
 #
 
+# disable dist target from antimake
+AM_DIST_DEFAULT =
+
 USUAL_DIR = lib
 
 abs_top_srcdir ?= $(CURDIR)
@@ -149,6 +132,26 @@ include $(abs_top_srcdir)/lib/mk/antimake.mk
 config.mak:
 	@echo "Please run ./configure"
 	@exit 1
+
+#
+# dist
+# (adapted from PostgreSQL)
+#
+
+distdir = $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)
+PG_GIT_REVISION = HEAD
+GIT = git
+
+EXTRA_DIST = config.guess config.sub configure install-sh lib/usual/config.h.in
+
+dist: $(distdir).tar.gz
+
+$(PACKAGE_TARNAME)-$(PACKAGE_VERSION).tar.gz:
+	$(GIT) -C $(srcdir) -c core.autocrlf=false archive --format tar.gz -9 --prefix $(distdir)/ $(PG_GIT_REVISION) -o $(abs_top_builddir)/$@ $(foreach file,$(EXTRA_DIST),--prefix $(distdir)/$(dir $(file)) --add-file=$(file)) --prefix $(distdir)/
+
+#
+# test
+#
 
 PYTEST = $(shell command -v pytest || echo '$(PYTHON) -m pytest')
 

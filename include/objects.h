@@ -58,6 +58,7 @@ bool finish_client_login(PgSocket *client)      _MUSTCHECK;
 bool check_fast_fail(PgSocket *client)          _MUSTCHECK;
 
 PgSocket *accept_client(int sock, bool is_unix) _MUSTCHECK;
+void drain_server(PgSocket *server, const char *reason, ...) _PRINTF(2, 3);
 void disconnect_server(PgSocket *server, bool notify, const char *reason, ...) _PRINTF(3, 4);
 void disconnect_client(PgSocket *client, bool notify, const char *reason, ...) _PRINTF(3, 4);
 void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlstate, const char *reason);

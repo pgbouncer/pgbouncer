@@ -1325,6 +1325,27 @@ static void unlink_server(PgSocket *server, const char *reason)
 		disconnect_client(client, true, "bouncer config error");
 }
 
+/* Drain the server connection if the client is active and goes away */
+void drain_server(PgSocket *server, const char *reason, ...) {
+	va_list ap;
+	char buf[128];
+	if (!server || server->state == SV_FREE || server->state == SV_JUSTFREE) {
+		return;
+	}
+
+
+	va_start(ap, reason);
+	vsnprintf(buf, sizeof(buf), reason, ap);
+	va_end(ap);
+	reason = buf;
+	slog_info(server, "draining server connection because: %s", reason);
+
+	server->state = SV_BEING_CANCELED;
+	sbuf_drain(&server->sbuf);
+
+	release_server(server);
+}
+
 /*
  * close server connection
  *
@@ -1494,7 +1515,7 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 				if (!cf_drain_stale_connections) {
 					disconnect_server(server, true, "client disconnect while server was not ready");
 				} else {
-					disconnect_server(server, true, "would drain - client disconnect while server was not ready");
+					drain_server(server, "client disconnect while server was not ready");
 				}
 			} else if (statlist_count(&server->outstanding_requests) > 0) {
 				server->link = NULL;
@@ -1509,7 +1530,7 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 				if (!cf_drain_stale_connections) {
 					disconnect_server(server, true, "client disconnected with query in progress");
 				} else {
-					disconnect_server(server, true, "would drain - client disconnected with query in progress");
+					drain_server(server, "client disconnected with query in progress");
 				}
 			} else if (!sbuf_is_empty(&server->sbuf)) {
 				/* ->ready may be set before all is sent */
@@ -1518,7 +1539,7 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 				if (!cf_drain_stale_connections) {
 					disconnect_server(server, true, "client disconnect before everything was sent to the server");
 				} else {
-					disconnect_server(server, true, "would drain - client disconnect before everything was sent to the server");
+					drain_server(server, "client disconnect before everything was sent to the server");
 				}
 			} else {
 				/* retval does not matter here */

@@ -1341,8 +1341,16 @@ void drain_server(PgSocket *server, const char *reason, ...) {
 	slog_info(server, "draining server connection because: %s", reason);
 
 	server->state = SV_BEING_CANCELED;
-	sbuf_drain(&server->sbuf);
-
+	if (!clear_outstanding_requests_until(server, (char[]) {PqMsg_Sync, '\0'})) {
+		/*
+		 * If we fail to clear the outstanding requests, we have to
+		 * disconnect the server immediately. This is because we cannot
+		 * guarantee that the server will not send responses to the client
+		 * after we have drained the connection.
+		 */
+		disconnect_server(server, true, "drain failed to clear outstanding requests");
+		return;
+	}
 	release_server(server);
 }
 

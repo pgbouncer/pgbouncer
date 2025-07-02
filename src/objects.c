@@ -1351,7 +1351,7 @@ void drain_server(PgSocket *server, const char *reason, ...) {
 		disconnect_server(server, true, "drain failed to clear outstanding requests");
 		return;
 	}
-	release_server(server);
+	disconnect_server(server, false, "drain server successful");
 }
 
 /*

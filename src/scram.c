@@ -482,7 +482,7 @@ static bool calculate_client_proof(ScramState *scram_state,
 	uint8_t ClientSignature[SCRAM_KEY_LEN];
 	scram_HMAC_ctx ctx;
 
-	if (credentials->has_scram_keys) {
+	if (credentials->use_scram_keys) {
 		memcpy(ClientKey, credentials->scram_ClientKey, SCRAM_KEY_LEN);
 	} else
 	{
@@ -539,7 +539,7 @@ bool verify_server_signature(ScramState *scram_state, const PgCredentials *crede
 	uint8_t ServerKey[SCRAM_KEY_LEN];
 	scram_HMAC_ctx ctx;
 
-	if (credentials->has_scram_keys)
+	if (credentials->use_scram_keys)
 		memcpy(ServerKey, credentials->scram_ServerKey, SCRAM_KEY_LEN);
 	else
 		scram_ServerKey(scram_state->SaltedPassword, ServerKey);
@@ -841,7 +841,7 @@ failed:
 	return false;
 }
 
-char *build_server_first_message(ScramState *scram_state, const char *username, const char *stored_secret)
+char *build_server_first_message(ScramState *scram_state, PgCredentials *user, const char *stored_secret)
 {
 	uint8_t raw_nonce[SCRAM_RAW_NONCE_LEN + 1];
 	int encoded_len;
@@ -849,25 +849,40 @@ char *build_server_first_message(ScramState *scram_state, const char *username, 
 	char *result;
 
 	if (!stored_secret) {
-		if (!build_mock_scram_secret(username, scram_state))
+		if (!build_mock_scram_secret(user->name, scram_state))
 			goto failed;
 	} else {
-		switch (get_password_type(stored_secret)) {
-		case PASSWORD_TYPE_SCRAM_SHA_256:
-			if (!parse_scram_secret(stored_secret,
-						&scram_state->iterations,
-						&scram_state->salt,
-						scram_state->StoredKey,
-						scram_state->ServerKey))
+		if (user->adhoc_scram_secrets_cached) {
+			scram_state->iterations = user->scram_Iiterations;
+			scram_state->salt = strdup(user->scram_SaltKey);
+			memcpy(scram_state->StoredKey, user->scram_StoredKey, sizeof(user->scram_StoredKey));
+			memcpy(scram_state->ServerKey, user->scram_ServerKey, sizeof(user->scram_ServerKey));
+		} else {
+			switch (get_password_type(stored_secret)) {
+			case PASSWORD_TYPE_SCRAM_SHA_256:
+				if (!parse_scram_secret(stored_secret,
+							&scram_state->iterations,
+							&scram_state->salt,
+							scram_state->StoredKey,
+							scram_state->ServerKey))
+					goto failed;
+				break;
+			case PASSWORD_TYPE_PLAINTEXT:
+				if (!build_adhoc_scram_secret(stored_secret, scram_state))
+					goto failed;
+				break;
+			default:
+				/* shouldn't get here */
 				goto failed;
-			break;
-		case PASSWORD_TYPE_PLAINTEXT:
-			if (!build_adhoc_scram_secret(stored_secret, scram_state))
-				goto failed;
-			break;
-		default:
-			/* shouldn't get here */
-			goto failed;
+			}
+
+			if (!user->dynamic_passwd) {
+				user->scram_Iiterations = scram_state->iterations;
+				user->scram_SaltKey = strdup(scram_state->salt);
+				memcpy(user->scram_StoredKey, scram_state->StoredKey, sizeof(scram_state->StoredKey));
+				memcpy(user->scram_ServerKey, scram_state->ServerKey, sizeof(scram_state->ServerKey));
+				user->adhoc_scram_secrets_cached = true;
+			}
 		}
 	}
 

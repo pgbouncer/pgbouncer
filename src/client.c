@@ -1127,7 +1127,7 @@ static bool scram_client_first(PgSocket *client, uint32_t datalen, const uint8_t
 		}
 	}
 
-	if (!build_server_first_message(&client->scram_state, user->name, user->mock_auth ? NULL : user->passwd))
+	if (!build_server_first_message(&client->scram_state, user, user->mock_auth ? NULL : user->passwd))
 		goto failed;
 	slog_debug(client, "SCRAM server-first-message = \"%s\"", client->scram_state.server_first_message);
 
@@ -1348,7 +1348,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 						memcpy(client->pool->user_credentials->scram_ServerKey,
 						       client->scram_state.ServerKey,
 						       sizeof(client->scram_state.ServerKey));
-						client->pool->user_credentials->has_scram_keys = true;
+						client->pool->user_credentials->use_scram_keys = true;
 					}
 
 					free_scram_state(&client->scram_state);

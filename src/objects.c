@@ -2329,7 +2329,7 @@ bool use_client_socket(int fd, PgAddr *addr,
 
 		memcpy(credentials->scram_ClientKey, scram_client_key, sizeof(credentials->scram_ClientKey));
 		memcpy(credentials->scram_ServerKey, scram_server_key, sizeof(credentials->scram_ServerKey));
-		credentials->has_scram_keys = true;
+		credentials->use_scram_keys = true;
 	}
 
 	client = accept_client(fd, pga_is_unix(addr));
@@ -2664,6 +2664,9 @@ void objects_cleanup(void)
 		PgSocket *client = container_of(item, PgSocket, head);
 		client_free(client);
 	}
+
+	/* Cleanup cached scram keys stored with PgCredentials */
+	clear_user_tree_cached_scram_keys(&user_tree);
 
 	memset(&login_client_list, 0, sizeof login_client_list);
 	memset(&user_list, 0, sizeof user_list);

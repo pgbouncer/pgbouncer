@@ -245,23 +245,6 @@ void sbuf_continue(SBuf *sbuf)
 	sbuf_main_loop(sbuf, do_recv);
 }
 
-void sbuf_drain(SBuf *sbuf) {
-	/*
-	 * This is used to drain the socket, so we can close it
-	 * without waiting for the next event loop.
-	 */
-	AssertActive(sbuf);
-	Assert(sbuf->wait_type == W_RECV);
-
-	if (event_del(&sbuf->ev) < 0) {
-		log_warning("event_del: %s", strerror(errno));
-		return;
-	}
-	sbuf->wait_type = W_NONE;
-
-	sbuf_main_loop(sbuf, SKIP_RECV);
-}
-
 /*
  * Resume from pause and give socket over to external
  * callback function.

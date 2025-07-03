@@ -873,7 +873,7 @@ def test_drain_connection(pg, bouncer):
     listen_port = {bouncer.port}
     logfile = {bouncer.log_path}
     auth_dbname = postgres
-    pool_mode = session
+    pool_mode = transaction
     server_check_delay = 0
     """
     pg.configure(config="log_statement = 'all'")

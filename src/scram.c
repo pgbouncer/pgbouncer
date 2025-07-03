@@ -236,6 +236,9 @@ static bool parse_scram_secret(const char *secret, int *iterations, char **salt,
 
 	decoded_len = pg_b64_dec_len(strlen(serverkey_str));
 	decoded_server_buf = malloc(decoded_len);
+	if (!decoded_server_buf)
+		goto invalid_secret;
+
 	decoded_len = pg_b64_decode(serverkey_str, strlen(serverkey_str),
 				    decoded_server_buf, decoded_len);
 	if (decoded_len != SCRAM_KEY_LEN)

@@ -445,3 +445,21 @@ def test_servers_disconnect_when_changing_sslmode(bouncer_tls, pg, cert_dir):
         ):
             bouncer_tls.admin("RELOAD")
             cur.execute("SELECT 1")
+
+
+def test_client_ssl_set_ciphers_for_tls_v1_3(bouncer_tls, cert_dir):
+    root = cert_dir / "TestCA1" / "ca.crt"
+    key = cert_dir / "TestCA1" / "sites" / "01-localhost.key"
+    cert = cert_dir / "TestCA1" / "sites" / "01-localhost.crt"
+    bouncer_tls.write_ini(f"client_tls_key_file = {key}")
+    bouncer_tls.write_ini(f"client_tls_cert_file = {cert}")
+    bouncer_tls.write_ini(f"client_tls_ca_file = {root}")
+    bouncer_tls.write_ini(f"client_tls_sslmode = require")
+
+    bouncer_tls.write_ini("client_tls_protocols=tlsv1.3")
+    bouncer_tls.write_ini("client_tls13_ciphers=TLS_CHACHA20_POLY1305_SHA256")
+
+    bouncer_tls.admin("reload")
+
+    with bouncer_tls.log_contains(r"tls=TLSv1.3/TLS_CHACHA20_POLY1305_SHA256"):
+        bouncer_tls.psql_test(host="localhost", sslmode="require")

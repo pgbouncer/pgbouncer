@@ -784,6 +784,12 @@ bool tls_keypair_list_equal(struct tls_keypair *tkp1, struct tls_keypair *tkp2)
 
 bool tls_config_equal(struct tls_config *tc1, struct tls_config *tc2)
 {
+	if (tc1 == NULL && tc2 == NULL)
+		return true;
+	if (tc1 == NULL && tc2 != NULL)
+		return false;
+	if (tc1 != NULL && tc2 == NULL)
+		return false;
 	if (!strcmpeq(tc1->ca_file, tc2->ca_file))
 		return false;
 	if (!strcmpeq(tc1->ca_path, tc2->ca_path))

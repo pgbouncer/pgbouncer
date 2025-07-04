@@ -321,6 +321,9 @@ void change_server_state(PgSocket *server, SocketState newstate)
 	case SV_ACTIVE_CANCEL:
 		statlist_remove(&pool->active_cancel_server_list, &server->head);
 		break;
+	case SV_DRAIN:
+		statlist_remove(&pool->drain_server_list, &server->head);
+		break;
 	default:
 		fatal("bad old server state: %d", server->state);
 	}
@@ -362,6 +365,9 @@ void change_server_state(PgSocket *server, SocketState newstate)
 		break;
 	case SV_ACTIVE_CANCEL:
 		statlist_append(&pool->active_cancel_server_list, &server->head);
+		break;
+	case SV_DRAIN:
+		statlist_append(&pool->drain_server_list, &server->head);
 		break;
 	default:
 		fatal("bad server state: %d", server->state);
@@ -723,6 +729,7 @@ static PgPool *new_pool(PgDatabase *db, PgCredentials *user_credentials)
 	statlist_init(&pool->active_cancel_req_list, "active_cancel_req_list");
 	statlist_init(&pool->active_cancel_server_list, "active_cancel_server_list");
 	statlist_init(&pool->being_canceled_server_list, "being_canceled_server_list");
+	statlist_init(&pool->drain_server_list, "draining_server_list");
 
 	list_append(&user_credentials->global_user->pool_list, &pool->map_head);
 
@@ -1204,6 +1211,7 @@ bool release_server(PgSocket *server)
 	/* remove from old list */
 	switch (server->state) {
 	case SV_BEING_CANCELED:
+	case SV_DRAIN:
 	case SV_ACTIVE:
 		if (server->link) {
 			server->link->link = NULL;
@@ -1328,11 +1336,11 @@ static void unlink_server(PgSocket *server, const char *reason)
 /* Drain the server connection if the client is active and goes away */
 void drain_server(PgSocket *server, const char *reason, ...) {
 	va_list ap;
+	PgSocket *client;
 	char buf[128];
 	if (!server || server->state == SV_FREE || server->state == SV_JUSTFREE) {
 		return;
 	}
-
 
 	va_start(ap, reason);
 	vsnprintf(buf, sizeof(buf), reason, ap);
@@ -1340,8 +1348,14 @@ void drain_server(PgSocket *server, const char *reason, ...) {
 	reason = buf;
 	slog_info(server, "draining server connection because: %s", reason);
 
-	server->state = SV_BEING_CANCELED;
-	if (!clear_outstanding_requests_until(server, (char[]) {PqMsg_Sync, '\0'})) {
+	if (server->link) {
+		client = server->link;
+		client->link = NULL;
+	}
+
+	server->link = NULL;
+	change_server_state(server, SV_DRAIN);
+	if (!clear_outstanding_requests_until(server, (char[]) {'\0'})) {
 		/*
 		 * If we fail to clear the outstanding requests, we have to
 		 * disconnect the server immediately. This is because we cannot
@@ -1385,6 +1399,7 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 
 	switch (server->state) {
 	case SV_ACTIVE_CANCEL:
+	case SV_DRAIN:
 	case SV_ACTIVE:
 		unlink_server(server, reason);
 		break;

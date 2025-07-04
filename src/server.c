@@ -632,10 +632,13 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			}
 		}
 	} else {
-		if (server->state != SV_TESTED) {
+		if (server->state != SV_TESTED && server->state != SV_DRAIN) {
 			slog_warning(server,
 				     "got packet '%c' from server when not linked",
 				     pkt_desc(pkt));
+		} else if (server->state == SV_DRAIN) {
+			slog_info(server, "server connection draining, ignoring packet '%c'",
+				  pkt_desc(pkt));
 		}
 		sbuf_prepare_skip(sbuf, pkt->len);
 	}
@@ -801,6 +804,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		case SV_ACTIVE:
 		case SV_ACTIVE_CANCEL:
 		case SV_BEING_CANCELED:
+		case SV_DRAIN:
 		case SV_IDLE:
 			res = handle_server_work(server, &pkt);
 			break;
@@ -850,6 +854,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			switch (server->state) {
 			case SV_ACTIVE:
 			case SV_ACTIVE_CANCEL:
+			case SV_DRAIN:
 			case SV_TESTED:
 				/* keep link if client expects more responses */
 				if (server->link) {

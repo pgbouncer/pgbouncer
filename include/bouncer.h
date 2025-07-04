@@ -80,7 +80,8 @@ enum SocketState {
 	SV_ACTIVE,		/* pool->active_server_list */
 	SV_ACTIVE_CANCEL,	/* pool->active_cancel_server_list */
 	SV_USED,		/* pool->used_server_list */
-	SV_TESTED		/* pool->tested_server_list */
+	SV_TESTED,		/* pool->tested_server_list */
+	SV_DRAIN
 };
 
 enum PauseMode {
@@ -441,6 +442,13 @@ struct PgPool {
 	 * launch_new_connection spawns them.
 	 */
 	struct StatList new_server_list;
+
+	/* 
+	 * Servers that are in the process of being drained. This is a special
+	 * state that is used when the server connection is being closed due to
+	 * client disconnection and we want to try and reuse the connection.
+	 */
+	struct StatList drain_server_list;
 
 	PgStats stats;
 	PgStats newer_stats;

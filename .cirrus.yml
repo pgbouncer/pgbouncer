@@ -6,8 +6,9 @@ env:
 task:
   name: Linux (Debian/Ubuntu)
   matrix:
-    # - container:
-    #     image: ubuntu:20.04
+    - container:
+        image: ubuntu:22.04
+      trigger_type: manual
     - container:
         image: ubuntu:22.04
       env:
@@ -16,46 +17,43 @@ task:
         image: ubuntu:22.04
       env:
         configure_args: '--without-openssl'
-    # - container:
-    #     image: ubuntu:20.04
-    #   env:
-    #     configure_args: '--disable-evdns'
-    # - container:
-    #     image: ubuntu:20.04
-    #   env:
-    #     CC: clang
-    # - container:
-    #     image: ubuntu:20.04
-    #   env:
-    #     CFLAGS: -fno-sanitize-recover=all -fsanitize=undefined -fsanitize-address-use-after-scope -fno-sanitize=shift
+    - container:
+        image: ubuntu:22.04
+      env:
+        configure_args: '--disable-evdns'
+      trigger_type: manual
+    - container:
+        image: ubuntu:22.04
+      env:
+        CFLAGS: -fno-sanitize-recover=all -fsanitize=undefined -fsanitize-address-use-after-scope -fno-sanitize=shift
+      trigger_type: manual
     - container:
         image: ubuntu:22.04
       env:
         ENABLE_VALGRIND: yes
         CFLAGS: -O0 -g
         PGVERSION: 17
-    # - container:
-    #     image: ubuntu:20.04
-    #   env:
-    #     ENABLE_VALGRIND: yes
-    #     CFLAGS: -O0 -g
-    #     PGVERSION: 9.6
-    # - container:
-    #     image: ubuntu:20.04
-    #   env:
-    #     use_scan_build: yes
-    # - arm_container:
-    #     image: ubuntu:20.04
-    # - container:
-    #     image: ubuntu:22.04
-    # - container:
-    #     image: debian:stable
-    #   env:
-    #     PGVERSION: 13
-    # - container:
-    #     image: debian:oldstable
-    #   env:
-    #     PGVERSION: 11
+    - container:
+        image: ubuntu:22.04
+      env:
+        use_scan_build: yes
+      trigger_type: manual
+    - arm_container:
+        image: ubuntu:22.04
+      trigger_type: manual
+    - container:
+        image: ubuntu:24.04
+      trigger_type: manual
+    - container:
+        image: debian:bookworm
+      env:
+        PGVERSION: 15
+      trigger_type: manual
+    - container:
+        image: debian:bullseye
+      env:
+        PGVERSION: 13
+      trigger_type: manual
   setup_script:
     - apt-get update
     - apt-get -y install curl gnupg lsb-release

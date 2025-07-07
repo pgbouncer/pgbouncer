@@ -9,7 +9,7 @@ else
 	ldap_schema_dir='/etc/openldap/schema'
 fi
 if [ ! -e $slapd ];then
-	return 77
+	exit 77
 fi
 
 

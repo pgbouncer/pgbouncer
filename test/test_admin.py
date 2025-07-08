@@ -39,6 +39,34 @@ def test_reload_error(bouncer):
         ):
             bouncer.admin("RELOAD")
 
+def test_show_user(bouncer):
+    """
+    Test that admin console correctly raises error during RELOAD
+    when invalid value set for auth_type.
+    """
+    config = f"""
+    [databases]
+    p1 = host={bouncer.pg.host} port={bouncer.pg.port}
+ 
+    [pgbouncer]
+    auth_file = {bouncer.auth_path}
+    auth_type = trust
+    auth_user = postgres
+    listen_addr = {bouncer.host}
+    listen_port = {bouncer.port}
+    admin_users = pgbouncer
+    pool_mode = session
+ 
+    [users]
+    test1 = pool_size=1 reserve_pool_size=1
+    test2 =
+    """
+
+    with bouncer.run_with_config(config):
+        users = bouncer.admin(f"SHOW USERS", row_factory=dict_row)
+        users = [user for user in users if user["name"] in ["test1", "test2"]]
+        assert [1, None] == [int(user["pool_size"].strip()) for user in users]
+        assert [1, None] == [int(user["res_pool_size"].strip()) for user in users]
 
 def test_show(bouncer):
     show_items = [

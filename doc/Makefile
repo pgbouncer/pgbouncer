@@ -4,10 +4,6 @@ manpages = pgbouncer.1 pgbouncer.5
 
 dist_man_MANS = $(manpages)
 
-EXTRA_DIST = config.md usage.md Makefile $(manpages) \
-	     frag-config-man.md frag-usage-man.md \
-	     filter.py
-
 CLEANFILES = pgbouncer_1.md pgbouncer_5.md
 
 # make maintainer-clean removes those

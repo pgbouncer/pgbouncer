@@ -457,9 +457,22 @@ int tls_configure_ssl(struct tls *ctx)
 		    strcasecmp(ctx->config->ciphers, "fast") != 0) {
 			if (SSL_CTX_set_cipher_list(ctx->ssl_ctx,
 						    ctx->config->ciphers) != 1) {
-				tls_set_errorx(ctx, "failed to set ciphers");
+				tls_set_errorx(ctx, "failed to set the TLSv1.2 ciphers list");
 				goto err;
 			}
+		}
+	}
+
+	/*
+	 * Set up the allowed cipher suites for TLSv1.3. If the value is an empty
+	 * string or NULL we leave the allowed suites to be the OpenSSL default value.
+	 */
+	if (ctx->config->protocols & TLS_PROTOCOL_TLSv1_3 &&
+	    ctx->config->cipher_suites != NULL &&
+	    strlen(ctx->config->cipher_suites) > 0) {
+		if (SSL_CTX_set_ciphersuites(ctx->ssl_ctx, ctx->config->cipher_suites) != 1) {
+			tls_set_errorx(ctx, "failed to set the TLSv1.3 cipher suites");
+			goto err;
 		}
 	}
 	SSL_CTX_set_info_callback(ctx->ssl_ctx, tls_info_callback);

@@ -85,7 +85,7 @@ int tls_config_set_cert_file(struct tls_config *_config,
 			     const char *_cert_file);
 int tls_config_set_cert_mem(struct tls_config *_config, const uint8_t *_cert,
 			    size_t _len);
-int tls_config_set_ciphers(struct tls_config *_config, const char *_ciphers);
+int tls_config_set_ciphers(struct tls_config *_config, const char *_ciphers, const char *_cipher_suites);
 int tls_config_set_dheparams(struct tls_config *_config, const char *_params);
 int tls_config_set_ecdhecurve(struct tls_config *_config, const char *_name);
 int tls_config_set_key_file(struct tls_config *_config, const char *_key_file);

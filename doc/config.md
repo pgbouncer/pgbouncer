@@ -891,6 +891,22 @@ version 1.3 connections.
 
 Default: `default`
 
+### client_tls13_ciphers
+
+Allowed TLS v1.3 ciphers. When empty it will use the value of
+`client_tls_ciphers`. Allowed values:
+
+- TLS_AES_256_GCM_SHA384
+- TLS_CHACHA20_POLY1305_SHA256
+- TLS_AES_128_GCM_SHA256
+- TLS_AES_128_CCM_8_SHA256
+- TLS_AES_128_CCM_SHA256
+
+Only connections using TLS version 1.3 and higher are affected. For version 1.2
+and lower see `client_tls_ciphers`.
+
+Default: `<empty>`
+
 ### client_tls_ecdhcurve
 
 Elliptic Curve name to use for ECDH key exchanges.
@@ -974,6 +990,22 @@ is currently no setting that controls the cipher choices used by TLS
 version 1.3 connections.
 
 Default: `default`
+
+### server_tls13_ciphers
+
+Allowed TLS v1.3 ciphers. When empty it will use the value of
+`server_tls_ciphers`. Allowed values:
+
+- TLS_AES_256_GCM_SHA384
+- TLS_CHACHA20_POLY1305_SHA256
+- TLS_AES_128_GCM_SHA256
+- TLS_AES_128_CCM_8_SHA256
+- TLS_AES_128_CCM_SHA256
+
+Only connections using TLS version 1.3 and higher are affected. For version 1.2
+and lower see `client_tls_ciphers`.
+
+Default: `<empty>`
 
 
 ## Dangerous timeouts

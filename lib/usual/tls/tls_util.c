@@ -186,7 +186,10 @@ ssize_t tls_get_connection_info(struct tls *ctx, char *buf, size_t buflen)
 
 	if (conn != NULL) {
 		proto = SSL_get_version(conn);
-		cipher = SSL_get_cipher(conn);
+		if (strcmp(proto, "TLSv1.3") == 0)
+			cipher = SSL_get_cipher_list(conn, 0);
+		else
+			cipher = SSL_get_cipher(conn);
 		ciph_obj = SSL_get_current_cipher(conn);
 
 #ifdef SSL_get_server_tmp_key

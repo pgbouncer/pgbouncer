@@ -126,7 +126,7 @@ struct tls_config *tls_config_new(void)
 		goto err;
 	if (tls_config_set_ecdhecurve(config, "auto") != 0)
 		goto err;
-	if (tls_config_set_ciphers(config, "secure") != 0)
+	if (tls_config_set_ciphers(config, "secure", NULL) != 0)
 		goto err;
 
 	tls_config_set_protocols(config, TLS_PROTOCOLS_DEFAULT);
@@ -264,9 +264,19 @@ int tls_config_set_cert_mem(struct tls_config *config, const uint8_t *cert,
 	return tls_keypair_set_cert_mem(config->keypair, cert, len);
 }
 
-int tls_config_set_ciphers(struct tls_config *config, const char *ciphers)
+int tls_config_set_ciphers(struct tls_config *config, const char *ciphers, const char *cipher_suites)
 {
 	SSL_CTX *ssl_ctx = NULL;
+
+	/*
+	 * Set up the allowed cipher suites for TLSv1.3. If the value is an empty
+	 * string or NULL we leave the allowed suites to be the OpenSSL default value.
+	 */
+	if (config->protocols & TLS_PROTOCOL_TLSv1_3 &&
+	    (cipher_suites != NULL && strlen(cipher_suites) > 0)) {
+		if (set_string(&config->cipher_suites, cipher_suites) != 0)
+			return -1;
+	}
 
 	/*
 	 * obsolete outdated keywords, turn them to default.
@@ -292,7 +302,7 @@ int tls_config_set_ciphers(struct tls_config *config, const char *ciphers)
 		goto fail;
 	}
 	if (SSL_CTX_set_cipher_list(ssl_ctx, ciphers) != 1) {
-		tls_config_set_errorx(config, "no ciphers for '%s'", ciphers);
+		tls_config_set_errorx(config, "no ciphers of TLSv1.2 for '%s'", ciphers);
 		goto fail;
 	}
 

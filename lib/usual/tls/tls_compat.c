@@ -477,7 +477,7 @@ int tls_config_set_cert_mem(struct tls_config *_config, const uint8_t *_cert, si
 {
 	return -1;
 }
-int tls_config_set_ciphers(struct tls_config *_config, const char *_ciphers)
+int tls_config_set_ciphers(struct tls_config *config, const char *ciphers, const char *cipher_suites)
 {
 	return -1;
 }

@@ -879,6 +879,7 @@ extern char *cf_client_tls_ca_file;
 extern char *cf_client_tls_cert_file;
 extern char *cf_client_tls_key_file;
 extern char *cf_client_tls_ciphers;
+extern char *cf_client_tls13_ciphers;
 extern char *cf_client_tls_dheparams;
 extern char *cf_client_tls_ecdhecurve;
 
@@ -888,6 +889,7 @@ extern char *cf_server_tls_ca_file;
 extern char *cf_server_tls_cert_file;
 extern char *cf_server_tls_key_file;
 extern char *cf_server_tls_ciphers;
+extern char *cf_server_tls13_ciphers;
 
 extern int cf_max_prepared_statements;
 

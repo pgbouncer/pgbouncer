@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
 		errx(1, "tls_config_new");
 
 	tls_config_set_protocols(conf, TLS_PROTOCOLS_ALL);
-	tls_config_set_ciphers(conf, "fast");
+	tls_config_set_ciphers(conf, "fast", NULL);
 
 	ctx = tls_client();
 	if (!ctx)

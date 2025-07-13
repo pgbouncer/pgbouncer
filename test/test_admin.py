@@ -5,7 +5,7 @@ import psycopg
 import pytest
 from psycopg.rows import dict_row
 
-from .utils import capture, run
+from .utils import Bouncer, capture, run
 
 
 def test_reload_error(bouncer):
@@ -240,6 +240,50 @@ def test_client_states(bouncer):
 
     # Cleanup
     cur_1.close()
+    conn_1.close()
+
+
+def test_kill_db(bouncer: "Bouncer"):
+    # Connect to client as user A
+    conn_1 = bouncer.conn(dbname="p0", user="maxedout")
+
+    # Connect to client as user B
+    conn_2 = bouncer.conn(dbname="p0", user="maxedout")
+
+    # Validate count
+    clients = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)
+    assert len(clients) == 3
+
+    # Issue kill command
+    bouncer.admin("KILL p0")
+
+    # Validate count
+    clients = bouncer.admin("SHOW CLIENTS")
+    assert len(clients) == 1
+
+    conn_1.close()
+    conn_2.close()
+
+
+def test_kill_db_nonexisting(bouncer: "Bouncer"):
+    # Connect to client as user A
+    conn_1 = bouncer.conn(dbname="p0", user="maxedout")
+
+    # Validate count
+    clients = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)
+    assert len(clients) == 2
+
+    # Issue kill command
+    with pytest.raises(
+        psycopg.errors.ProtocolViolation,
+        match=r"no such database: dne",
+    ):
+        clients = bouncer.admin("KILL dne")
+
+    # Validate count
+    clients = bouncer.admin("SHOW CLIENTS")
+    assert len(clients) == 2
+
     conn_1.close()
 
 

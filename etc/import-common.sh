@@ -29,8 +29,8 @@ src/include/common/unicode_norm_table.h
 src/include/common/cryptohash.h
 src/include/common/hmac.h
 src/include/mb/pg_wchar.h
-src/include/utils/ascii.h
 src/include/port/simd.h
+src/include/utils/ascii.h
 '
 
 common_src='

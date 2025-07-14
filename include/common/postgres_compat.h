@@ -6,7 +6,6 @@
 
 /* from c.h */
 
-#include <string.h>
 #include <usual/base.h>
 #include <usual/ctype.h>
 #include <usual/string.h>

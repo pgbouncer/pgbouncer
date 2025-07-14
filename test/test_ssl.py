@@ -463,3 +463,11 @@ def test_client_ssl_set_ciphers_for_tls_v1_3(bouncer_tls, cert_dir):
 
     with bouncer_tls.log_contains(r"tls=TLSv1.3/TLS_CHACHA20_POLY1305_SHA256"):
         bouncer_tls.psql_test(host="localhost", sslmode="require")
+
+    bouncer_tls.admin("set client_tls13_ciphers='TLS_AES_256_GCM_SHA384'")
+
+    with bouncer_tls.log_contains(r"tls=TLSv1.3/TLS_AES_256_GCM_SHA384"):
+        bouncer_tls.psql_test(host="localhost", sslmode="require")
+
+    with bouncer_tls.log_contains(r"failed to set the TLSv1.3 cipher suites"):
+        bouncer_tls.admin(f"set client_tls13_ciphers = 'unknown'")

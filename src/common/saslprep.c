@@ -19,17 +19,18 @@
  *
  *-------------------------------------------------------------------------
  */
-#ifndef FRONTEND
-#include "postgres.h"
-#include "utils/memutils.h"
-#else
-#include "postgres_fe.h"
-#endif
+// #ifndef FRONTEND
+// #include "postgres.h"
+// #include "utils/memutils.h"
+// #else
+// #include "postgres_fe.h"
+// #endif
+#include "system.h"
+#include "common/postgres_compat.h"
 
 #include "common/saslprep.h"
-#include "common/string.h"
 #include "common/unicode_norm.h"
-#include "mb/pg_wchar.h"
+#include "common/pg_wchar.h"
 
 /*
  * In backend, we will use palloc/pfree.  In frontend, use malloc, and
@@ -962,6 +963,22 @@ static const pg_wchar LCat_codepoint_ranges[] =
 /* End of stringprep tables */
 
 
+/*
+ * pg_is_ascii -- Check if string is made only of ASCII characters
+ */
+static bool
+pg_is_ascii(const char *str)
+{
+	while (*str)
+	{
+		if (IS_HIGHBIT_SET(*str))
+			return false;
+		str++;
+	}
+	return true;
+}
+
+
 /* Is the given Unicode codepoint in the given table of ranges? */
 #define IS_CODE_IN_TABLE(code, map) is_code_in_table(code, map, lengthof(map))
 
@@ -1080,8 +1097,8 @@ pg_saslprep(const char *input, char **output)
 	input_size = pg_utf8_string_len(input);
 	if (input_size < 0)
 		return SASLPREP_INVALID_UTF8;
-	if (input_size >= MaxAllocSize / sizeof(pg_wchar))
-		goto oom;
+	// if (input_size >= MaxAllocSize / sizeof(pg_wchar))
+	// 	goto oom;
 
 	input_chars = ALLOC((input_size + 1) * sizeof(pg_wchar));
 	if (!input_chars)

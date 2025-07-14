@@ -518,7 +518,7 @@ struct PgCredentials {
 	/* scram keys used for pass-though and adhoc auth caching */
 	uint8_t scram_ClientKey[32];
 	uint8_t scram_ServerKey[32];
-	uint8_t scram_StoredKey[SCRAM_KEY_LEN];
+	uint8_t scram_StoredKey[SCRAM_MAX_KEY_LEN];
 	int scram_Iiterations;
 	char *scram_SaltKey;	/* base64-encoded */
 

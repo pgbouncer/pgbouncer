@@ -10,12 +10,14 @@
  *
  *-------------------------------------------------------------------------
  */
-#include "c.h"
+//#include "c.h"
+#include "system.h"
+#include "common/postgres_compat.h"
 
 #include <limits.h>
 
-#include "mb/pg_wchar.h"
-#include "utils/ascii.h"
+#include "common/pg_wchar.h"
+#include "common/ascii.h"
 
 
 /*

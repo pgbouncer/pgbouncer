@@ -15,18 +15,20 @@
  *-------------------------------------------------------------------------
  */
 
-#ifndef FRONTEND
-#include "postgres.h"
-#else
-#include "postgres_fe.h"
-#endif
+//#ifndef FRONTEND
+//#include "postgres.h"
+//#else
+//#include "postgres_fe.h"
+//#endif
+#include "system.h"
+#include "common/postgres_compat.h"
 
 #include <sys/param.h>
 
 #include "common/cryptohash.h"
-#include "md5_int.h"
-#include "sha1_int.h"
-#include "sha2_int.h"
+#include "common/md5_int.h"
+#include "common/sha1_int.h"
+#include "common/sha2_int.h"
 
 /*
  * In backend, use palloc/pfree to ease the error handling.  In frontend,

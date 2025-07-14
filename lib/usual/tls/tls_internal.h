@@ -53,7 +53,8 @@ struct tls_config {
 	const char *ca_path;
 	char *ca_mem;
 	size_t ca_len;
-	const char *ciphers;
+	const char *ciphers;	/* For TLS v1.2 or older */
+	const char *cipher_suites;	/* For TLS v1.3 */
 	int ciphers_server;
 	int dheparams;
 	int ecdhecurve;

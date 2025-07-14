@@ -161,6 +161,7 @@ void tls_config_free(struct tls_config *config)
 	free((char *)config->ca_mem);
 	free((char *)config->ca_path);
 	free((char *)config->ciphers);
+	free((char *)config->cipher_suites);
 
 	free(config);
 }
@@ -264,6 +265,7 @@ int tls_config_set_cert_mem(struct tls_config *config, const uint8_t *cert,
 	return tls_keypair_set_cert_mem(config->keypair, cert, len);
 }
 
+/*  Configure ciphers for TLS v1.2 and lower */
 int tls_config_set_ciphers(struct tls_config *config, const char *ciphers)
 {
 	SSL_CTX *ssl_ctx = NULL;
@@ -303,6 +305,21 @@ fail:
 	SSL_CTX_free(ssl_ctx);
 	return -1;
 }
+
+/*  Configure ciphers for TLS v1.3 */
+int tls_config_set_ciphers_v13(struct tls_config *config, const char *ciphers)
+{
+	/*
+	 * Set up the allowed cipher suites for TLSv1.3. If the value is an empty
+	 * string or NULL we leave the allowed suites to be the OpenSSL default value.
+	 */
+	if (config->protocols & TLS_PROTOCOL_TLSv1_3 &&
+	    (ciphers != NULL && strlen(ciphers) > 0))
+		return set_string(&config->cipher_suites, ciphers);
+
+	return 0;
+}
+
 
 int tls_config_set_dheparams(struct tls_config *config, const char *params)
 {

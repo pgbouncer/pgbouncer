@@ -192,6 +192,7 @@ char *cf_client_tls_ca_file;
 char *cf_client_tls_cert_file;
 char *cf_client_tls_key_file;
 char *cf_client_tls_ciphers;
+char *cf_client_tls13_ciphers;
 char *cf_client_tls_dheparams;
 char *cf_client_tls_ecdhecurve;
 
@@ -201,6 +202,7 @@ char *cf_server_tls_ca_file;
 char *cf_server_tls_cert_file;
 char *cf_server_tls_key_file;
 char *cf_server_tls_ciphers;
+char *cf_server_tls13_ciphers;
 
 int cf_max_prepared_statements;
 
@@ -273,6 +275,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("client_tls_ca_file", CF_STR, cf_client_tls_ca_file, 0, ""),
 	CF_ABS("client_tls_cert_file", CF_STR, cf_client_tls_cert_file, 0, ""),
 	CF_ABS("client_tls_ciphers", CF_STR, cf_client_tls_ciphers, 0, "default"),
+	CF_ABS("client_tls13_ciphers", CF_STR, cf_client_tls13_ciphers, 0, NULL),
 	CF_ABS("client_tls_dheparams", CF_STR, cf_client_tls_dheparams, 0, "auto"),
 	CF_ABS("client_tls_ecdhcurve", CF_STR, cf_client_tls_ecdhecurve, 0, "auto"),
 	CF_ABS("client_tls_key_file", CF_STR, cf_client_tls_key_file, 0, ""),
@@ -329,6 +332,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("server_tls_ca_file", CF_STR, cf_server_tls_ca_file, 0, ""),
 	CF_ABS("server_tls_cert_file", CF_STR, cf_server_tls_cert_file, 0, ""),
 	CF_ABS("server_tls_ciphers", CF_STR, cf_server_tls_ciphers, 0, "default"),
+	CF_ABS("server_tls13_ciphers", CF_STR, cf_server_tls13_ciphers, 0, NULL),
 	CF_ABS("server_tls_key_file", CF_STR, cf_server_tls_key_file, 0, ""),
 	CF_ABS("server_tls_protocols", CF_STR, cf_server_tls_protocols, 0, "secure"),
 	CF_ABS("server_tls_sslmode", CF_LOOKUP(sslmode_map), cf_server_tls_sslmode, 0, "prefer"),
@@ -999,6 +1003,7 @@ static void cleanup(void)
 	xfree(&cf_client_tls_cert_file);
 	xfree(&cf_client_tls_key_file);
 	xfree(&cf_client_tls_ciphers);
+	xfree(&cf_client_tls13_ciphers);
 	xfree(&cf_client_tls_dheparams);
 	xfree(&cf_client_tls_ecdhecurve);
 	xfree(&cf_server_tls_protocols);
@@ -1006,6 +1011,7 @@ static void cleanup(void)
 	xfree(&cf_server_tls_cert_file);
 	xfree(&cf_server_tls_key_file);
 	xfree(&cf_server_tls_ciphers);
+	xfree(&cf_server_tls13_ciphers);
 
 	xfree((char **)&cf_logfile);
 	xfree((char **)&cf_syslog_ident);

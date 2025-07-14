@@ -220,6 +220,8 @@ static const char *create_worker(struct Worker **w_p, int is_server, ...)
 			w->show = v;
 		} else if (!strncmp(k, "ciphers=", klen)) {
 			err = tls_config_set_ciphers(w->config, v);
+		} else if (!strncmp(k, "ciphers13=", klen)) {
+			err = tls_config_set_ciphers_v13(w->config, v);
 		} else if (!strncmp(k, "host=", klen)) {
 			w->hostname = v;
 		} else if (!strncmp(k, "noverifycert=", klen)) {
@@ -455,7 +457,7 @@ static const char *done_handshake(struct Worker *w)
 		return emsg;
 
 	if (w->show) {
-		if (strcmp(w->show, "ciphers") == 0) {
+		if (strcmp(w->show, "ciphers") == 0 || strcmp(w->show, "ciphers13") == 0) {
 			tls_get_connection_info(w->ctx, w->showbuf, sizeof w->showbuf);
 		} else if (strcmp(w->show, "peer-cert") == 0) {
 			struct tls_cert *cert = NULL;
@@ -833,6 +835,46 @@ static void test_set_mem(void *z)
 end:    ;
 }
 
+static void test_cipher_tlsv12(void *z)
+{
+	struct Worker *server = NULL, *client = NULL;
+
+	tt_assert(tls_init() == 0);
+
+	str_check(create_worker(&server, true,
+				"protocols=tlsv1.2",
+				"ciphers=AES128+SHA256",
+				"show=ciphers",
+				SERVER1, NULL), "OK");
+	str_check(create_worker(&client, false, CA1,
+				"protocols=tlsv1.2",
+				"host=server1.com",
+				NULL), "OK");
+	str_check(run_case(client, server),
+		  "TLSv1.2/ECDHE-ECDSA-AES128-SHA256/ECDH=X25519");
+end:    ;
+}
+
+static void test_cipher_tlsv13(void *z)
+{
+	struct Worker *server = NULL, *client = NULL;
+
+	tt_assert(tls_init() == 0);
+
+	str_check(create_worker(&server, true,
+				"protocols=tlsv1.3",
+				"ciphers13=TLS_CHACHA20_POLY1305_SHA256",
+				"show=ciphers13",
+				SERVER1, NULL), "OK");
+	str_check(create_worker(&client, false, CA1,
+				"protocols=tlsv1.3",
+				"host=server1.com",
+				NULL), "OK");
+	str_check(run_case(client, server),
+		  "TLSv1.3/TLS_CHACHA20_POLY1305_SHA256");
+end:    ;
+}
+
 static void test_cipher_nego(void *z)
 {
 	struct Worker *server = NULL, *client = NULL;
@@ -1099,6 +1141,8 @@ struct testcase_t tls_tests[] = {
 	{ "clientcert", test_clientcert },
 	{ "fingerprint", test_fingerprint },
 	{ "set-mem", test_set_mem },
+	{ "cipher-tlsv12", test_cipher_tlsv12 },
+	{ "cipher-tlsv13", test_cipher_tlsv13 },
 	{ "cipher-nego", test_cipher_nego },
 	{ "cert-info", test_cert_info },
 	{ "tls_config_equal", test_tls_config_equal },

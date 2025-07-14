@@ -1337,6 +1337,8 @@ static void unlink_server(PgSocket *server, const char *reason)
 void drain_server(PgSocket *server, const char *reason, ...) {
 	va_list ap;
 	PgSocket *client;
+	OutstandingRequest *request;
+	struct List *el, *tmp_l;
 	char buf[128];
 	if (!server || server->state == SV_FREE || server->state == SV_JUSTFREE) {
 		return;
@@ -1355,17 +1357,31 @@ void drain_server(PgSocket *server, const char *reason, ...) {
 
 	server->link = NULL;
 	change_server_state(server, SV_DRAIN);
+
+	slog_noise(server, "drain server outstanding count: %d", statlist_count(&server->outstanding_requests));
+
+	// Mirrors statement ready packet
 	if (!clear_outstanding_requests_until(server, (char[]) {'\0'})) {
 		/*
-		 * If we fail to clear the outstanding requests, we have to
-		 * disconnect the server immediately. This is because we cannot
-		 * guarantee that the server will not send responses to the client
-		 * after we have drained the connection.
-		 */
+		* If we fail to clear the outstanding requests, we have to
+		* disconnect the server immediately. This is because we cannot
+		* guarantee that the server will not send responses to the client
+		* after we have drained the connection.
+		*/
 		disconnect_server(server, true, "drain failed to clear outstanding requests");
 		return;
 	}
-	disconnect_server(server, false, "drain server successful");
+	
+	// Free outstanding requests on this server
+	statlist_for_each_safe(el, &server->outstanding_requests, tmp_l) {
+		request = container_of(el, OutstandingRequest, node);
+		statlist_remove(&server->canceling_clients, el);
+		if (request->server_ps)
+			free_server_prepared_statement(request->server_ps);
+		slab_free(outstanding_request_cache, request);
+	}
+	server->ready = true;
+	release_server(server);
 }
 
 /*

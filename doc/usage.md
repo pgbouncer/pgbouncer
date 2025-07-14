@@ -797,9 +797,10 @@ recommended instead.  To close server connections without waiting (for
 example, in emergency failover rather than gradual switchover
 scenarios), also consider **KILL**.
 
-#### KILL db
+#### KILL [db]
 
-Immediately drop all client and server connections on given database.
+Immediately drop all client and server connections on the given database or all
+databases, excluding the admin database.
 
 New client connections to a killed database will wait until **RESUME**
 is called.

@@ -1452,7 +1452,6 @@ static bool admin_cmd_kill_client(PgSocket *admin, const char *arg)
 static bool admin_cmd_kill(PgSocket *admin, const char *arg)
 {
 	struct List *item, *tmp;
-	PgDatabase *db;
 	PgPool *pool;
 
 	if (!admin->admin_user)
@@ -1461,21 +1460,34 @@ static bool admin_cmd_kill(PgSocket *admin, const char *arg)
 	if (cf_pause_mode)
 		return admin_error(admin, "already suspended/paused");
 
-	if (!arg[0])
-		return admin_error(admin, "a database is required");
+	if (!arg[0]) {
+		log_info("KILL command issued");
 
-	log_info("KILL '%s' command issued", arg);
-	db = find_or_register_database(admin, arg);
-	if (db == NULL)
-		return admin_error(admin, "no such database: %s", arg);
-	if (db == admin->pool->db)
-		return admin_error(admin, "cannot kill admin db: %s", arg);
+		statlist_for_each_safe(item, &pool_list, tmp) {
+			pool = container_of(item, PgPool, head);
+			if (pool->db->admin)
+				continue;
 
-	db->db_paused = true;
-	statlist_for_each_safe(item, &pool_list, tmp) {
-		pool = container_of(item, PgPool, head);
-		if (pool->db == db)
+			pool->db->db_paused = true;
 			kill_pool(pool);
+		}
+	} else {
+		PgDatabase *db;
+
+		log_info("KILL '%s' command issued", arg);
+
+		db = find_or_register_database(admin, arg);
+		if (db == NULL)
+			return admin_error(admin, "no such database: %s", arg);
+		if (db == admin->pool->db)
+			return admin_error(admin, "cannot kill admin db: %s", arg);
+
+		db->db_paused = true;
+		statlist_for_each_safe(item, &pool_list, tmp) {
+			pool = container_of(item, PgPool, head);
+			if (pool->db == db)
+				kill_pool(pool);
+		}
 	}
 
 	return admin_ready(admin, "KILL");
@@ -1584,7 +1596,7 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		     "\tDISABLE <db>\n"
 		     "\tENABLE <db>\n"
 		     "\tRECONNECT [<db>]\n"
-		     "\tKILL <db>\n"
+		     "\tKILL [<db>]\n"
 		     "\tKILL_CLIENT <client_id>\n"
 		     "\tSUSPEND\n"
 		     "\tSHUTDOWN\n"

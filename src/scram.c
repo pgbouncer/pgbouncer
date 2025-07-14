@@ -29,7 +29,7 @@
 
 static bool calculate_client_proof(ScramState *scram_state,
 				   const PgCredentials *credentials,
-				   const char *salt,
+				   const uint8_t *salt,
 				   int saltlen,
 				   int iterations,
 				   const char *client_final_message_without_proof,
@@ -174,9 +174,9 @@ static bool parse_scram_secret(const char *secret, int *iterations, char **salt,
 	char *storedkey_str;
 	char *serverkey_str;
 	int decoded_len;
-	char *decoded_salt_buf;
-	char *decoded_stored_buf = NULL;
-	char *decoded_server_buf = NULL;
+	uint8_t *decoded_salt_buf;
+	uint8_t *decoded_stored_buf = NULL;
+	uint8_t *decoded_server_buf = NULL;
 
 	/*
 	 * The secret is of form:
@@ -301,7 +301,7 @@ char *build_client_first_message(ScramState *scram_state)
 	scram_state->client_nonce = malloc(encoded_len + 1);
 	if (scram_state->client_nonce == NULL)
 		goto failed;
-	encoded_len = pg_b64_encode((char *) raw_nonce, SCRAM_RAW_NONCE_LEN, scram_state->client_nonce, encoded_len);
+	encoded_len = pg_b64_encode(raw_nonce, SCRAM_RAW_NONCE_LEN, scram_state->client_nonce, encoded_len);
 	if (encoded_len < 0)
 		goto failed;
 	scram_state->client_nonce[encoded_len] = '\0';
@@ -344,13 +344,13 @@ char *build_client_final_message(ScramState *scram_state,
 		goto failed;
 
 	if (!calculate_client_proof(scram_state, credentials,
-				    salt, saltlen, iterations, buf,
+				    (uint8_t*) salt, saltlen, iterations, buf,
 				    client_proof))
 		goto failed;
 
 	len = strlcat(buf, ",p=", sizeof(buf));
 	enclen = pg_b64_enc_len(sizeof(client_proof));
-	enclen = pg_b64_encode((char *) client_proof,
+	enclen = pg_b64_encode(client_proof,
 			       SCRAM_SHA_256_KEY_LEN,
 			       buf + len, enclen);
 	if (enclen < 0)
@@ -368,7 +368,7 @@ bool read_server_first_message(PgSocket *server, char *input,
 {
 	char *server_nonce;
 	char *encoded_salt;
-	char *salt = NULL;
+	uint8_t *salt = NULL;
 	int saltlen;
 	char *iterations_str;
 	char *endptr;
@@ -419,7 +419,7 @@ bool read_server_first_message(PgSocket *server, char *input,
 	}
 
 	*server_nonce_p = server_nonce;
-	*salt_p = salt;
+	*salt_p = (char*)salt;
 	*saltlen_p = saltlen;
 	*iterations_p = iterations;
 	return true;
@@ -431,7 +431,7 @@ failed:
 bool read_server_final_message(PgSocket *server, char *input, char *ServerSignature)
 {
 	char *encoded_server_signature;
-	char *decoded_server_signature = NULL;
+	uint8_t *decoded_server_signature = NULL;
 	int server_signature_len;
 
 	if (*input == 'e') {
@@ -472,7 +472,7 @@ failed:
 
 static bool calculate_client_proof(ScramState *scram_state,
 				   const PgCredentials *credentials,
-				   const char *salt,
+				   const uint8_t *salt,
 				   int saltlen,
 				   int iterations,
 				   const char *client_final_message_without_proof,
@@ -675,7 +675,7 @@ bool read_client_final_message(PgSocket *client, const uint8_t *raw_input, char 
 	char *proof_start;
 	char *value;
 	char *encoded_proof;
-	char *proof = NULL;
+	uint8_t *proof = NULL;
 	int prooflen;
 
 	/*
@@ -735,7 +735,7 @@ bool read_client_final_message(PgSocket *client, const uint8_t *raw_input, char 
 	client->scram_state.client_final_message_without_proof[proof_start - input_start] = '\0';
 
 	*client_final_nonce_p = client_final_nonce;
-	*proof_p = proof;
+	*proof_p = (char*)proof;
 	return true;
 failed:
 	free(proof);
@@ -751,7 +751,7 @@ static bool build_adhoc_scram_secret(const char *plain_password, ScramState *scr
 	const char *password;
 	char *prep_password;
 	pg_saslprep_rc rc;
-	char saltbuf[SCRAM_DEFAULT_SALT_LEN];
+	uint8_t saltbuf[SCRAM_DEFAULT_SALT_LEN];
 	int encoded_len;
 	uint8_t salted_password[SCRAM_SHA_256_KEY_LEN];
 	const char *errstr = NULL;
@@ -764,7 +764,7 @@ static bool build_adhoc_scram_secret(const char *plain_password, ScramState *scr
 	else
 		password = plain_password;
 
-	get_random_bytes((uint8_t *) saltbuf, sizeof(saltbuf));
+	get_random_bytes(saltbuf, sizeof(saltbuf));
 
 	scram_state->adhoc = true;
 
@@ -839,7 +839,7 @@ static bool build_mock_scram_secret(const char *username, ScramState *scram_stat
 	scram_state->salt = malloc(encoded_len + 1);
 	if (!scram_state->salt)
 		goto failed;
-	encoded_len = pg_b64_encode((char *) saltbuf, sizeof(saltbuf), scram_state->salt, encoded_len);
+	encoded_len = pg_b64_encode(saltbuf, sizeof(saltbuf), scram_state->salt, encoded_len);
 	if (encoded_len < 0)
 		goto failed;
 	scram_state->salt[encoded_len] = '\0';
@@ -899,7 +899,7 @@ char *build_server_first_message(ScramState *scram_state, PgCredentials *user, c
 	scram_state->server_nonce = malloc(encoded_len + 1);
 	if (scram_state->server_nonce == NULL)
 		goto failed;
-	encoded_len = pg_b64_encode((char *) raw_nonce, SCRAM_RAW_NONCE_LEN, scram_state->server_nonce, encoded_len);
+	encoded_len = pg_b64_encode(raw_nonce, SCRAM_RAW_NONCE_LEN, scram_state->server_nonce, encoded_len);
 	if (encoded_len < 0)
 		goto failed;
 	scram_state->server_nonce[encoded_len] = '\0';
@@ -955,7 +955,7 @@ static char *compute_server_signature(ScramState *state)
 	server_signature_base64 = malloc(siglen + 1);
 	if (!server_signature_base64)
 		return NULL;
-	siglen = pg_b64_encode((const char *) ServerSignature,
+	siglen = pg_b64_encode(ServerSignature,
 			       SCRAM_SHA_256_KEY_LEN, server_signature_base64, siglen);
 	if (siglen < 0) {
 		free(server_signature_base64);
@@ -1061,7 +1061,7 @@ bool scram_verify_plain_password(PgSocket *client,
 				 const char *secret)
 {
 	char *encoded_salt = NULL;
-	char *salt = NULL;
+	uint8_t *salt = NULL;
 	int saltlen;
 	int iterations;
 	uint8_t salted_password[SCRAM_SHA_256_KEY_LEN];

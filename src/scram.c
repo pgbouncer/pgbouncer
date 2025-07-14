@@ -344,7 +344,7 @@ char *build_client_final_message(ScramState *scram_state,
 		goto failed;
 
 	if (!calculate_client_proof(scram_state, credentials,
-				    (uint8_t*) salt, saltlen, iterations, buf,
+				    (uint8_t *) salt, saltlen, iterations, buf,
 				    client_proof))
 		goto failed;
 
@@ -419,7 +419,7 @@ bool read_server_first_message(PgSocket *server, char *input,
 	}
 
 	*server_nonce_p = server_nonce;
-	*salt_p = (char*)salt;
+	*salt_p = (char *)salt;
 	*saltlen_p = saltlen;
 	*iterations_p = iterations;
 	return true;
@@ -503,14 +503,14 @@ static bool calculate_client_proof(ScramState *scram_state,
 		if (scram_state->SaltedPassword == NULL)
 			goto failed;
 		scram_SaltedPassword(prep_password,
-				   PG_SHA256, SCRAM_SHA_256_KEY_LEN,
+				     PG_SHA256, SCRAM_SHA_256_KEY_LEN,
 				     salt,
 				     saltlen,
 				     iterations,
 				     scram_state->SaltedPassword,
-					 &errstr);
+				     &errstr);
 
-		scram_ClientKey(scram_state->SaltedPassword, PG_SHA256, SCRAM_SHA_256_KEY_LEN,ClientKey, &errstr);
+		scram_ClientKey(scram_state->SaltedPassword, PG_SHA256, SCRAM_SHA_256_KEY_LEN, ClientKey, &errstr);
 	}
 
 	scram_H(ClientKey, PG_SHA256, SCRAM_SHA_256_KEY_LEN, StoredKey, &errstr);
@@ -549,7 +549,7 @@ bool verify_server_signature(ScramState *scram_state, const PgCredentials *crede
 	if (credentials->use_scram_keys)
 		memcpy(ServerKey, credentials->scram_ServerKey, SCRAM_SHA_256_KEY_LEN);
 	else
-		scram_ServerKey(scram_state->SaltedPassword, PG_SHA256, SCRAM_SHA_256_KEY_LEN,ServerKey, &errstr);
+		scram_ServerKey(scram_state->SaltedPassword, PG_SHA256, SCRAM_SHA_256_KEY_LEN, ServerKey, &errstr);
 
 	scram_HMAC_init(&ctx, ServerKey, SCRAM_SHA_256_KEY_LEN);
 	scram_HMAC_update(&ctx,
@@ -735,7 +735,7 @@ bool read_client_final_message(PgSocket *client, const uint8_t *raw_input, char 
 	client->scram_state.client_final_message_without_proof[proof_start - input_start] = '\0';
 
 	*client_final_nonce_p = client_final_nonce;
-	*proof_p = (char*)proof;
+	*proof_p = (char *)proof;
 	return true;
 failed:
 	free(proof);

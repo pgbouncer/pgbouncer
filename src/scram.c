@@ -29,7 +29,7 @@
 
 static bool calculate_client_proof(ScramState *scram_state,
 				   const PgCredentials *credentials,
-				   const char *salt,
+				   const uint8_t *salt,
 				   int saltlen,
 				   int iterations,
 				   const char *client_final_message_without_proof,
@@ -174,9 +174,9 @@ static bool parse_scram_secret(const char *secret, int *iterations, char **salt,
 	char *storedkey_str;
 	char *serverkey_str;
 	int decoded_len;
-	char *decoded_salt_buf;
-	char *decoded_stored_buf = NULL;
-	char *decoded_server_buf = NULL;
+	uint8_t *decoded_salt_buf;
+	uint8_t *decoded_stored_buf = NULL;
+	uint8_t *decoded_server_buf = NULL;
 
 	/*
 	 * The secret is of form:
@@ -230,9 +230,9 @@ static bool parse_scram_secret(const char *secret, int *iterations, char **salt,
 	if (!decoded_stored_buf)
 		goto invalid_secret;
 	decoded_len = pg_b64_decode(storedkey_str, strlen(storedkey_str), decoded_stored_buf, decoded_len);
-	if (decoded_len != SCRAM_KEY_LEN)
+	if (decoded_len != SCRAM_SHA_256_KEY_LEN)
 		goto invalid_secret;
-	memcpy(stored_key, decoded_stored_buf, SCRAM_KEY_LEN);
+	memcpy(stored_key, decoded_stored_buf, SCRAM_SHA_256_KEY_LEN);
 
 	decoded_len = pg_b64_dec_len(strlen(serverkey_str));
 	decoded_server_buf = malloc(decoded_len);
@@ -241,9 +241,9 @@ static bool parse_scram_secret(const char *secret, int *iterations, char **salt,
 
 	decoded_len = pg_b64_decode(serverkey_str, strlen(serverkey_str),
 				    decoded_server_buf, decoded_len);
-	if (decoded_len != SCRAM_KEY_LEN)
+	if (decoded_len != SCRAM_SHA_256_KEY_LEN)
 		goto invalid_secret;
-	memcpy(server_key, decoded_server_buf, SCRAM_KEY_LEN);
+	memcpy(server_key, decoded_server_buf, SCRAM_SHA_256_KEY_LEN);
 
 	free(decoded_stored_buf);
 	free(decoded_server_buf);
@@ -268,8 +268,8 @@ PasswordType get_password_type(const char *shadow_pass)
 {
 	char *encoded_salt = NULL;
 	int iterations;
-	uint8_t stored_key[SCRAM_KEY_LEN];
-	uint8_t server_key[SCRAM_KEY_LEN];
+	uint8_t stored_key[SCRAM_SHA_256_KEY_LEN];
+	uint8_t server_key[SCRAM_SHA_256_KEY_LEN];
 
 	if (strncmp(shadow_pass, "md5", 3) == 0 &&
 	    strlen(shadow_pass) == MD5_PASSWD_LEN &&
@@ -301,7 +301,7 @@ char *build_client_first_message(ScramState *scram_state)
 	scram_state->client_nonce = malloc(encoded_len + 1);
 	if (scram_state->client_nonce == NULL)
 		goto failed;
-	encoded_len = pg_b64_encode((char *) raw_nonce, SCRAM_RAW_NONCE_LEN, scram_state->client_nonce, encoded_len);
+	encoded_len = pg_b64_encode(raw_nonce, SCRAM_RAW_NONCE_LEN, scram_state->client_nonce, encoded_len);
 	if (encoded_len < 0)
 		goto failed;
 	scram_state->client_nonce[encoded_len] = '\0';
@@ -334,7 +334,7 @@ char *build_client_final_message(ScramState *scram_state,
 {
 	char buf[512];
 	size_t len;
-	uint8_t client_proof[SCRAM_KEY_LEN];
+	uint8_t client_proof[SCRAM_SHA_256_KEY_LEN];
 	int enclen;
 
 	snprintf(buf, sizeof(buf), "c=biws,r=%s", server_nonce);
@@ -344,14 +344,14 @@ char *build_client_final_message(ScramState *scram_state,
 		goto failed;
 
 	if (!calculate_client_proof(scram_state, credentials,
-				    salt, saltlen, iterations, buf,
+				    (uint8_t *) salt, saltlen, iterations, buf,
 				    client_proof))
 		goto failed;
 
 	len = strlcat(buf, ",p=", sizeof(buf));
 	enclen = pg_b64_enc_len(sizeof(client_proof));
-	enclen = pg_b64_encode((char *) client_proof,
-			       SCRAM_KEY_LEN,
+	enclen = pg_b64_encode(client_proof,
+			       SCRAM_SHA_256_KEY_LEN,
 			       buf + len, enclen);
 	if (enclen < 0)
 		goto failed;
@@ -368,7 +368,7 @@ bool read_server_first_message(PgSocket *server, char *input,
 {
 	char *server_nonce;
 	char *encoded_salt;
-	char *salt = NULL;
+	uint8_t *salt = NULL;
 	int saltlen;
 	char *iterations_str;
 	char *endptr;
@@ -419,7 +419,7 @@ bool read_server_first_message(PgSocket *server, char *input,
 	}
 
 	*server_nonce_p = server_nonce;
-	*salt_p = salt;
+	*salt_p = (char *)salt;
 	*saltlen_p = saltlen;
 	*iterations_p = iterations;
 	return true;
@@ -431,7 +431,7 @@ failed:
 bool read_server_final_message(PgSocket *server, char *input, char *ServerSignature)
 {
 	char *encoded_server_signature;
-	char *decoded_server_signature = NULL;
+	uint8_t *decoded_server_signature = NULL;
 	int server_signature_len;
 
 	if (*input == 'e') {
@@ -457,11 +457,11 @@ bool read_server_final_message(PgSocket *server, char *input, char *ServerSignat
 					     strlen(encoded_server_signature),
 					     decoded_server_signature,
 					     server_signature_len);
-	if (server_signature_len != SCRAM_KEY_LEN) {
+	if (server_signature_len != SCRAM_SHA_256_KEY_LEN) {
 		slog_error(server, "malformed SCRAM message (malformed server signature)");
 		goto failed;
 	}
-	memcpy(ServerSignature, decoded_server_signature, SCRAM_KEY_LEN);
+	memcpy(ServerSignature, decoded_server_signature, SCRAM_SHA_256_KEY_LEN);
 
 	free(decoded_server_signature);
 	return true;
@@ -472,7 +472,7 @@ failed:
 
 static bool calculate_client_proof(ScramState *scram_state,
 				   const PgCredentials *credentials,
-				   const char *salt,
+				   const uint8_t *salt,
 				   int saltlen,
 				   int iterations,
 				   const char *client_final_message_without_proof,
@@ -480,13 +480,14 @@ static bool calculate_client_proof(ScramState *scram_state,
 {
 	pg_saslprep_rc rc;
 	char *prep_password = NULL;
-	uint8_t StoredKey[SCRAM_KEY_LEN];
-	uint8_t ClientKey[SCRAM_KEY_LEN];
-	uint8_t ClientSignature[SCRAM_KEY_LEN];
+	uint8_t StoredKey[SCRAM_SHA_256_KEY_LEN];
+	uint8_t ClientKey[SCRAM_SHA_256_KEY_LEN];
+	uint8_t ClientSignature[SCRAM_SHA_256_KEY_LEN];
 	scram_HMAC_ctx ctx;
+	const char *errstr = NULL;
 
 	if (credentials->use_scram_keys) {
-		memcpy(ClientKey, credentials->scram_ClientKey, SCRAM_KEY_LEN);
+		memcpy(ClientKey, credentials->scram_ClientKey, SCRAM_SHA_256_KEY_LEN);
 	} else
 	{
 		rc = pg_saslprep(credentials->passwd, &prep_password);
@@ -498,21 +499,23 @@ static bool calculate_client_proof(ScramState *scram_state,
 				return false;
 		}
 
-		scram_state->SaltedPassword = malloc(SCRAM_KEY_LEN);
+		scram_state->SaltedPassword = malloc(SCRAM_SHA_256_KEY_LEN);
 		if (scram_state->SaltedPassword == NULL)
 			goto failed;
 		scram_SaltedPassword(prep_password,
+				     PG_SHA256, SCRAM_SHA_256_KEY_LEN,
 				     salt,
 				     saltlen,
 				     iterations,
-				     scram_state->SaltedPassword);
+				     scram_state->SaltedPassword,
+				     &errstr);
 
-		scram_ClientKey(scram_state->SaltedPassword, ClientKey);
+		scram_ClientKey(scram_state->SaltedPassword, PG_SHA256, SCRAM_SHA_256_KEY_LEN, ClientKey, &errstr);
 	}
 
-	scram_H(ClientKey, SCRAM_KEY_LEN, StoredKey);
+	scram_H(ClientKey, PG_SHA256, SCRAM_SHA_256_KEY_LEN, StoredKey, &errstr);
 
-	scram_HMAC_init(&ctx, StoredKey, SCRAM_KEY_LEN);
+	scram_HMAC_init(&ctx, StoredKey, SCRAM_SHA_256_KEY_LEN);
 	scram_HMAC_update(&ctx,
 			  scram_state->client_first_message_bare,
 			  strlen(scram_state->client_first_message_bare));
@@ -526,7 +529,7 @@ static bool calculate_client_proof(ScramState *scram_state,
 			  strlen(client_final_message_without_proof));
 	scram_HMAC_final(ClientSignature, &ctx);
 
-	for (int i = 0; i < SCRAM_KEY_LEN; i++)
+	for (int i = 0; i < SCRAM_SHA_256_KEY_LEN; i++)
 		result[i] = ClientKey[i] ^ ClientSignature[i];
 
 	free(prep_password);
@@ -538,16 +541,17 @@ failed:
 
 bool verify_server_signature(ScramState *scram_state, const PgCredentials *credentials, const char *ServerSignature)
 {
-	uint8_t expected_ServerSignature[SCRAM_KEY_LEN];
-	uint8_t ServerKey[SCRAM_KEY_LEN];
+	uint8_t expected_ServerSignature[SCRAM_SHA_256_KEY_LEN];
+	uint8_t ServerKey[SCRAM_SHA_256_KEY_LEN];
 	scram_HMAC_ctx ctx;
+	const char *errstr = NULL;
 
 	if (credentials->use_scram_keys)
-		memcpy(ServerKey, credentials->scram_ServerKey, SCRAM_KEY_LEN);
+		memcpy(ServerKey, credentials->scram_ServerKey, SCRAM_SHA_256_KEY_LEN);
 	else
-		scram_ServerKey(scram_state->SaltedPassword, ServerKey);
+		scram_ServerKey(scram_state->SaltedPassword, PG_SHA256, SCRAM_SHA_256_KEY_LEN, ServerKey, &errstr);
 
-	scram_HMAC_init(&ctx, ServerKey, SCRAM_KEY_LEN);
+	scram_HMAC_init(&ctx, ServerKey, SCRAM_SHA_256_KEY_LEN);
 	scram_HMAC_update(&ctx,
 			  scram_state->client_first_message_bare,
 			  strlen(scram_state->client_first_message_bare));
@@ -561,7 +565,7 @@ bool verify_server_signature(ScramState *scram_state, const PgCredentials *crede
 			  strlen(scram_state->client_final_message_without_proof));
 	scram_HMAC_final(expected_ServerSignature, &ctx);
 
-	if (memcmp(expected_ServerSignature, ServerSignature, SCRAM_KEY_LEN) != 0)
+	if (memcmp(expected_ServerSignature, ServerSignature, SCRAM_SHA_256_KEY_LEN) != 0)
 		return false;
 
 	return true;
@@ -671,7 +675,7 @@ bool read_client_final_message(PgSocket *client, const uint8_t *raw_input, char 
 	char *proof_start;
 	char *value;
 	char *encoded_proof;
-	char *proof = NULL;
+	uint8_t *proof = NULL;
 	int prooflen;
 
 	/*
@@ -714,7 +718,7 @@ bool read_client_final_message(PgSocket *client, const uint8_t *raw_input, char 
 	prooflen = pg_b64_decode(encoded_proof,
 				 strlen(encoded_proof),
 				 proof, prooflen);
-	if (prooflen != SCRAM_KEY_LEN) {
+	if (prooflen != SCRAM_SHA_256_KEY_LEN) {
 		slog_error(client, "malformed SCRAM message (malformed proof in client-final-message)");
 		goto failed;
 	}
@@ -731,7 +735,7 @@ bool read_client_final_message(PgSocket *client, const uint8_t *raw_input, char 
 	client->scram_state.client_final_message_without_proof[proof_start - input_start] = '\0';
 
 	*client_final_nonce_p = client_final_nonce;
-	*proof_p = proof;
+	*proof_p = (char *)proof;
 	return true;
 failed:
 	free(proof);
@@ -747,9 +751,10 @@ static bool build_adhoc_scram_secret(const char *plain_password, ScramState *scr
 	const char *password;
 	char *prep_password;
 	pg_saslprep_rc rc;
-	char saltbuf[SCRAM_DEFAULT_SALT_LEN];
+	uint8_t saltbuf[SCRAM_DEFAULT_SALT_LEN];
 	int encoded_len;
-	uint8_t salted_password[SCRAM_KEY_LEN];
+	uint8_t salted_password[SCRAM_SHA_256_KEY_LEN];
+	const char *errstr = NULL;
 
 	rc = pg_saslprep(plain_password, &prep_password);
 	if (rc == SASLPREP_OOM)
@@ -759,7 +764,7 @@ static bool build_adhoc_scram_secret(const char *plain_password, ScramState *scr
 	else
 		password = plain_password;
 
-	get_random_bytes((uint8_t *) saltbuf, sizeof(saltbuf));
+	get_random_bytes(saltbuf, sizeof(saltbuf));
 
 	scram_state->adhoc = true;
 
@@ -775,12 +780,12 @@ static bool build_adhoc_scram_secret(const char *plain_password, ScramState *scr
 	scram_state->salt[encoded_len] = '\0';
 
 	/* Calculate StoredKey and ServerKey */
-	scram_SaltedPassword(password, saltbuf, sizeof(saltbuf),
+	scram_SaltedPassword(password, PG_SHA256, SCRAM_SHA_256_KEY_LEN, saltbuf, sizeof(saltbuf),
 			     scram_state->iterations,
-			     salted_password);
-	scram_ClientKey(salted_password, scram_state->StoredKey);
-	scram_H(scram_state->StoredKey, SCRAM_KEY_LEN, scram_state->StoredKey);
-	scram_ServerKey(salted_password, scram_state->ServerKey);
+			     salted_password, &errstr);
+	scram_ClientKey(salted_password, PG_SHA256, SCRAM_SHA_256_KEY_LEN, scram_state->StoredKey, &errstr);
+	scram_H(scram_state->StoredKey, PG_SHA256, SCRAM_SHA_256_KEY_LEN, scram_state->StoredKey, &errstr);
+	scram_ServerKey(salted_password, PG_SHA256, SCRAM_SHA_256_KEY_LEN, scram_state->ServerKey, &errstr);
 
 	free(prep_password);
 	return true;
@@ -834,7 +839,7 @@ static bool build_mock_scram_secret(const char *username, ScramState *scram_stat
 	scram_state->salt = malloc(encoded_len + 1);
 	if (!scram_state->salt)
 		goto failed;
-	encoded_len = pg_b64_encode((char *) saltbuf, sizeof(saltbuf), scram_state->salt, encoded_len);
+	encoded_len = pg_b64_encode(saltbuf, sizeof(saltbuf), scram_state->salt, encoded_len);
 	if (encoded_len < 0)
 		goto failed;
 	scram_state->salt[encoded_len] = '\0';
@@ -894,7 +899,7 @@ char *build_server_first_message(ScramState *scram_state, PgCredentials *user, c
 	scram_state->server_nonce = malloc(encoded_len + 1);
 	if (scram_state->server_nonce == NULL)
 		goto failed;
-	encoded_len = pg_b64_encode((char *) raw_nonce, SCRAM_RAW_NONCE_LEN, scram_state->server_nonce, encoded_len);
+	encoded_len = pg_b64_encode(raw_nonce, SCRAM_RAW_NONCE_LEN, scram_state->server_nonce, encoded_len);
 	if (encoded_len < 0)
 		goto failed;
 	scram_state->server_nonce[encoded_len] = '\0';
@@ -926,13 +931,13 @@ failed:
 
 static char *compute_server_signature(ScramState *state)
 {
-	uint8_t ServerSignature[SCRAM_KEY_LEN];
+	uint8_t ServerSignature[SCRAM_SHA_256_KEY_LEN];
 	char *server_signature_base64;
 	int siglen;
 	scram_HMAC_ctx ctx;
 
 	/* calculate ServerSignature */
-	scram_HMAC_init(&ctx, state->ServerKey, SCRAM_KEY_LEN);
+	scram_HMAC_init(&ctx, state->ServerKey, SCRAM_SHA_256_KEY_LEN);
 	scram_HMAC_update(&ctx,
 			  state->client_first_message_bare,
 			  strlen(state->client_first_message_bare));
@@ -946,12 +951,12 @@ static char *compute_server_signature(ScramState *state)
 			  strlen(state->client_final_message_without_proof));
 	scram_HMAC_final(ServerSignature, &ctx);
 
-	siglen = pg_b64_enc_len(SCRAM_KEY_LEN);
+	siglen = pg_b64_enc_len(SCRAM_SHA_256_KEY_LEN);
 	server_signature_base64 = malloc(siglen + 1);
 	if (!server_signature_base64)
 		return NULL;
-	siglen = pg_b64_encode((const char *) ServerSignature,
-			       SCRAM_KEY_LEN, server_signature_base64, siglen);
+	siglen = pg_b64_encode(ServerSignature,
+			       SCRAM_SHA_256_KEY_LEN, server_signature_base64, siglen);
 	if (siglen < 0) {
 		free(server_signature_base64);
 		return NULL;
@@ -1012,13 +1017,14 @@ bool verify_final_nonce(const ScramState *scram_state, const char *client_final_
 
 bool verify_client_proof(ScramState *state, const char *ClientProof)
 {
-	uint8_t ClientSignature[SCRAM_KEY_LEN];
-	uint8_t client_StoredKey[SCRAM_KEY_LEN];
+	uint8_t ClientSignature[SCRAM_SHA_256_KEY_LEN];
+	uint8_t client_StoredKey[SCRAM_SHA_256_KEY_LEN];
 	scram_HMAC_ctx ctx;
 	int i;
+	const char *errstr = NULL;
 
 	/* calculate ClientSignature */
-	scram_HMAC_init(&ctx, state->StoredKey, SCRAM_KEY_LEN);
+	scram_HMAC_init(&ctx, state->StoredKey, SCRAM_SHA_256_KEY_LEN);
 	scram_HMAC_update(&ctx,
 			  state->client_first_message_bare,
 			  strlen(state->client_first_message_bare));
@@ -1033,13 +1039,13 @@ bool verify_client_proof(ScramState *state, const char *ClientProof)
 	scram_HMAC_final(ClientSignature, &ctx);
 
 	/* Extract the ClientKey that the client calculated from the proof */
-	for (i = 0; i < SCRAM_KEY_LEN; i++)
+	for (i = 0; i < SCRAM_SHA_256_KEY_LEN; i++)
 		state->ClientKey[i] = ClientProof[i] ^ ClientSignature[i];
 
 	/* Hash it one more time, and compare with StoredKey */
-	scram_H(state->ClientKey, SCRAM_KEY_LEN, client_StoredKey);
+	scram_H(state->ClientKey, PG_SHA256, SCRAM_SHA_256_KEY_LEN, client_StoredKey, &errstr);
 
-	if (memcmp(client_StoredKey, state->StoredKey, SCRAM_KEY_LEN) != 0)
+	if (memcmp(client_StoredKey, state->StoredKey, SCRAM_SHA_256_KEY_LEN) != 0)
 		return false;
 
 	return true;
@@ -1055,16 +1061,17 @@ bool scram_verify_plain_password(PgSocket *client,
 				 const char *secret)
 {
 	char *encoded_salt = NULL;
-	char *salt = NULL;
+	uint8_t *salt = NULL;
 	int saltlen;
 	int iterations;
-	uint8_t salted_password[SCRAM_KEY_LEN];
-	uint8_t stored_key[SCRAM_KEY_LEN];
-	uint8_t server_key[SCRAM_KEY_LEN];
-	uint8_t computed_key[SCRAM_KEY_LEN];
+	uint8_t salted_password[SCRAM_SHA_256_KEY_LEN];
+	uint8_t stored_key[SCRAM_SHA_256_KEY_LEN];
+	uint8_t server_key[SCRAM_SHA_256_KEY_LEN];
+	uint8_t computed_key[SCRAM_SHA_256_KEY_LEN];
 	char *prep_password = NULL;
 	pg_saslprep_rc rc;
 	bool result = false;
+	const char *errstr = NULL;
 
 	if (!parse_scram_secret(secret, &iterations, &encoded_salt,
 				stored_key, server_key)) {
@@ -1089,14 +1096,14 @@ bool scram_verify_plain_password(PgSocket *client,
 		password = prep_password;
 
 	/* Compute Server Key based on the user-supplied plaintext password */
-	scram_SaltedPassword(password, salt, saltlen, iterations, salted_password);
-	scram_ServerKey(salted_password, computed_key);
+	scram_SaltedPassword(password, PG_SHA256, SCRAM_SHA_256_KEY_LEN, salt, saltlen, iterations, salted_password, &errstr);
+	scram_ServerKey(salted_password, PG_SHA256, SCRAM_SHA_256_KEY_LEN, computed_key, &errstr);
 
 	/*
 	 * Compare the secret's Server Key with the one computed from the
 	 * user-supplied password.
 	 */
-	result = memcmp(computed_key, server_key, SCRAM_KEY_LEN) == 0;
+	result = memcmp(computed_key, server_key, SCRAM_SHA_256_KEY_LEN) == 0;
 
 failed:
 	free(encoded_salt);

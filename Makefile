@@ -63,6 +63,7 @@ pgbouncer_SOURCES = \
 	include/takeover.h \
 	include/util.h \
 	include/varcache.h \
+	include/common/ascii.h \
 	include/common/base64.h \
 	include/common/builtins.h \
 	include/common/cryptohash.h \
@@ -78,8 +79,9 @@ pgbouncer_SOURCES = \
 	include/common/sha1_int.h \
 	include/common/sha2.h \
 	include/common/sha2_int.h \
-	include/common/unicode_combining_table.h \
+	include/common/simd.h \
 	include/common/unicode_east_asian_fw_table.h \
+	include/common/unicode_nonspacing_table.h \
 	include/common/unicode_norm.h \
 	include/common/unicode_norm_table.h \
 	include/common/uthash.h \

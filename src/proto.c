@@ -425,10 +425,6 @@ static bool login_scram_sha_256_cont(PgSocket *server, unsigned datalen, const u
 	PgCredentials *credentials = get_srv_psw(server);
 	char *ibuf = NULL;
 	char *input;
-	char *server_nonce;
-	int saltlen;
-	char *salt = NULL;
-	int iterations;
 	bool res;
 	char *client_final_message = NULL;
 
@@ -450,15 +446,11 @@ static bool login_scram_sha_256_cont(PgSocket *server, unsigned datalen, const u
 
 	input = ibuf;
 	slog_debug(server, "SCRAM server-first-message = \"%s\"", input);
-	if (!read_server_first_message(server, input,
-				       &server_nonce, &salt, &saltlen, &iterations))
+	if (!read_server_first_message(server, input))
 		goto failed;
 
 	client_final_message = build_client_final_message(&server->scram_state,
-							  credentials, server_nonce,
-							  salt, saltlen, iterations);
-
-	free(salt);
+							  credentials);
 	free(ibuf);
 
 	slog_debug(server, "SCRAM client-final-message = \"%s\"", client_final_message);
@@ -468,7 +460,6 @@ static bool login_scram_sha_256_cont(PgSocket *server, unsigned datalen, const u
 	free(client_final_message);
 	return res;
 failed:
-	free(salt);
 	free(ibuf);
 	free(client_final_message);
 	return false;
@@ -480,6 +471,8 @@ static bool login_scram_sha_256_final(PgSocket *server, unsigned datalen, const 
 	char *ibuf = NULL;
 	char *input;
 	char ServerSignature[SHA256_DIGEST_LENGTH];
+	bool match = false;
+	const char *errstr;
 
 	if (!server->scram_state.server_first_message) {
 		slog_error(server, "protocol error: AuthenticationSASLFinal without prior AuthenticationSASLContinue");
@@ -497,7 +490,13 @@ static bool login_scram_sha_256_final(PgSocket *server, unsigned datalen, const 
 	if (!read_server_final_message(server, input, ServerSignature))
 		goto failed;
 
-	if (!verify_server_signature(&server->scram_state, credentials, ServerSignature)) {
+	if (!verify_server_signature(&server->scram_state, credentials, ServerSignature, &match, &errstr)) {
+		slog_error(server, "scram validation falied: %s", errstr);
+		kill_pool_logins(server->pool, NULL, "server login failed: failed to verify server signature");
+		goto failed;
+	}
+
+	if (!match) {
 		slog_error(server, "invalid server signature");
 		kill_pool_logins(server->pool, NULL, "server login failed: invalid server signature");
 		goto failed;

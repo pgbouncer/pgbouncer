@@ -1334,12 +1334,14 @@ static void unlink_server(PgSocket *server, const char *reason)
 }
 
 /* Drain the server connection if the client is active and goes away */
-void drain_server(PgSocket *server, const char *reason, ...) {
+void drain_server(PgSocket *server, const char *reason, ...) 
+{
 	va_list ap;
 	PgSocket *client;
-	OutstandingRequest *request;
-	struct List *el, *tmp_l;
+	//OutstandingRequest *request;
+	//struct List *el, *tmp_l;
 	char buf[128];
+	int loopcnt = 0;
 	if (!server || server->state == SV_FREE || server->state == SV_JUSTFREE) {
 		return;
 	}
@@ -1358,30 +1360,31 @@ void drain_server(PgSocket *server, const char *reason, ...) {
 	server->link = NULL;
 	change_server_state(server, SV_DRAIN);
 
-	slog_noise(server, "drain server outstanding count: %d", statlist_count(&server->outstanding_requests));
+	slog_info(server, "drain server outstanding before count: %d", statlist_count(&server->outstanding_requests));
 
-	// Mirrors statement ready packet
-	if (!clear_outstanding_requests_until(server, (char[]) {'\0'})) {
-		/*
-		* If we fail to clear the outstanding requests, we have to
-		* disconnect the server immediately. This is because we cannot
-		* guarantee that the server will not send responses to the client
-		* after we have drained the connection.
-		*/
+	// Call sbuf_continue until we switch to the next state
+	sbuf_continue(&server->sbuf);
+
+	slog_info(server, "drain server outstanding before after count: %d, state: %d", statlist_count(&server->outstanding_requests), server->state);
+	if (server-> state == SV_DRAIN || !server->ready) {
+		// If we're still in drain after attempting to read, we need to 
+		// Kill the server connection
 		disconnect_server(server, true, "drain failed to clear outstanding requests");
 		return;
 	}
+	slog_info(server, "about to exit drain");
+
+	// // Mirrors statement ready packet
+	// if (!clear_outstanding_requests_until(server, (char[]) {PqMsg_ReadyForQuery, '\0'})) {
+
+	// 	// Try to determine if the server is ready
+	// 	disconnect_server(server, true, "drain failed to clear outstanding requests");
+	// 	return;
+
+	// }
 	
-	// Free outstanding requests on this server
-	statlist_for_each_safe(el, &server->outstanding_requests, tmp_l) {
-		request = container_of(el, OutstandingRequest, node);
-		statlist_remove(&server->canceling_clients, el);
-		if (request->server_ps)
-			free_server_prepared_statement(request->server_ps);
-		slab_free(outstanding_request_cache, request);
-	}
-	server->ready = true;
-	release_server(server);
+	
+	//release_server(server);
 }
 
 /*

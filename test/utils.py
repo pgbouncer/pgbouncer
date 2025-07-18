@@ -191,6 +191,7 @@ def get_tls_support():
 
 
 TLS_SUPPORT = get_tls_support()
+DIRECT_TLS_SUPPORT = TLS_SUPPORT and PG_MAJOR_VERSION >= 17
 
 
 def get_ldap_support():

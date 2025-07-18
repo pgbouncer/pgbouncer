@@ -46,6 +46,11 @@ struct tls_keypair {
 	size_t key_len;
 };
 
+struct tls_alpn_config {
+	const unsigned char *protocols;
+	size_t protocols_len;
+};
+
 struct tls_config {
 	struct tls_error error;
 
@@ -68,6 +73,7 @@ struct tls_config {
 	int verify_depth;
 	int verify_name;
 	int verify_time;
+	struct tls_alpn_config *alpn_config;
 };
 
 struct tls_conninfo {
@@ -180,5 +186,10 @@ int asn1_time_parse(const char *, size_t, struct tm *, int);
 struct tls_keypair * tls_keypair_new(void);
 int tls_keypair_set_cert_file(struct tls_keypair *keypair, const char *cert_file);
 bool tls_keypair_list_equal(struct tls_keypair *tkp1, struct tls_keypair *tkp2);
+
+struct tls_alpn_config * tls_alpn_config_new(void);
+void tls_alpn_config_set_protocols(struct tls_config *config,
+				   const unsigned char *protocols,
+				   size_t len);
 
 #endif /* HEADER_TLS_INTERNAL_H */

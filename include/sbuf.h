@@ -56,6 +56,7 @@ typedef bool (*sbuf_cb_t)(SBuf *sbuf,
 			  struct MBuf *mbuf);
 
 struct SBufIO {
+	ssize_t (*sbufio_peek)(SBuf *sbuf, void *buf, size_t len);
 	ssize_t (*sbufio_recv)(SBuf *sbuf, void *buf, size_t len);
 	ssize_t (*sbufio_send)(SBuf *sbuf, const void *data, size_t len);
 	int (*sbufio_close)(SBuf *sbuf);
@@ -153,6 +154,11 @@ static inline bool sbuf_is_closed(SBuf *sbuf)
 /*
  * Lowlevel operations.
  */
+
+static inline ssize_t sbuf_op_peek(SBuf *sbuf, void *buf, size_t len)
+{
+	return sbuf->ops->sbufio_peek(sbuf, buf, len);
+}
 
 static inline ssize_t sbuf_op_recv(SBuf *sbuf, void *buf, size_t len)
 {

@@ -1580,7 +1580,6 @@ static void sbuf_tls_startup_cb(evutil_socket_t fd, short flags, void *_sbuf)
 	ssize_t got;
 	SBuf *sbuf = _sbuf;
 	PgSocket *client = container_of(sbuf, PgSocket, sbuf);
-	sbuf->wait_type = W_NONE;
 	got = sbuf_op_peek(sbuf, peek_byte, 1);
 	if (got <= 0) {
 		/* eof from socket */
@@ -1589,6 +1588,7 @@ static void sbuf_tls_startup_cb(evutil_socket_t fd, short flags, void *_sbuf)
 		return;
 	}
 
+	sbuf->wait_type = W_RECV;
 	if (peek_byte[0] != 0x16) {
 		/* Not a SSL handshake message, fallback to main loop */
 		sbuf_continue(sbuf);

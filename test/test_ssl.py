@@ -5,6 +5,7 @@ import psycopg
 import pytest
 
 from .utils import (
+    DIRECT_TLS_SUPPORT,
     MACOS,
     PG_MAJOR_VERSION,
     TEST_DIR,
@@ -471,3 +472,17 @@ def test_client_ssl_set_ciphers_for_tls_v1_3(bouncer_tls, cert_dir):
 
     with bouncer_tls.log_contains(r"failed to set the TLSv1.3 cipher suites"):
         bouncer_tls.admin(f"set client_tls13_ciphers = 'unknown'")
+
+
+@pytest.mark.skipif(
+    "not DIRECT_TLS_SUPPORT", reason="Direct TLS is introduced in PG 17"
+)
+def test_client_direct_ssl(bouncer, cert_dir):
+    root = cert_dir / "TestCA1" / "ca.crt"
+    key = cert_dir / "TestCA1" / "sites" / "01-localhost.key"
+    cert = cert_dir / "TestCA1" / "sites" / "01-localhost.crt"
+    bouncer.admin(f"set client_tls_key_file = '{key}'")
+    bouncer.admin(f"set client_tls_cert_file = '{cert}'")
+    bouncer.admin(f"set client_tls_ca_file = '{root}'")
+    bouncer.admin("set client_tls_sslmode = require")
+    bouncer.psql_test(host="localhost", sslmode="require", sslnegotiation="direct")

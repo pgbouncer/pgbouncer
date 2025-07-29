@@ -81,6 +81,7 @@ static bool sbuf_call_proto(SBuf *sbuf, int event) /* _MUSTCHECK */;
 static bool sbuf_actual_recv(SBuf *sbuf, size_t len)  _MUSTCHECK;
 static bool sbuf_after_connect_check(SBuf *sbuf)  _MUSTCHECK;
 static bool handle_tls_handshake(SBuf *sbuf) _MUSTCHECK;
+static bool sbuf_send_pending_extra_packets(SBuf *sbuf) _MUSTCHECK;
 
 /* regular I/O */
 static ssize_t raw_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len);
@@ -151,6 +152,7 @@ failed:
 /* need to connect() to get a socket */
 bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, socklen_t sa_len, time_t timeout_sec)
 {
+	log_info("sbuf connect called");
 	int res, sock;
 	struct timeval timeout;
 	char buf[128];
@@ -245,6 +247,8 @@ void sbuf_continue(SBuf *sbuf)
 	sbuf_main_loop(sbuf, do_recv);
 }
 
+
+
 /*
  * Resume from pause and give socket over to external
  * callback function.
@@ -322,6 +326,84 @@ bool sbuf_close(SBuf *sbuf)
 	}
 	mbuf_free(&sbuf->extra_packets);
 	return true;
+}
+
+bool sbuf_reset(SBuf *sbuf) 
+{
+	//if (sbuf->wait_type) {
+	//	Assert(sbuf->sock);
+	//	/* event_del() acts funny occasionally, debug it */
+	//	errno = 0;
+	//	if (event_del(&sbuf->ev) < 0) {
+	//		if (errno) {
+	//			log_warning("event_del: %s", strerror(errno));
+	//		} else {
+	//			log_warning("event_del: libevent error");
+	//		}
+	//		/* we can retry whole sbuf_close() if needed */
+	//		/* if (errno == ENOMEM) return false; */
+	//	}
+	//}
+	//sbuf_op_close(sbuf);
+	//sbuf->dst = NULL;
+	// Set Destination iobuf to -1 to indicate that we don't have a destination
+
+	slog_info(sbuf, "sbuf_reset: resetting SBuf %p", sbuf);
+	struct MBuf *extra_packets = &sbuf->extra_packets;
+	bool res = true;
+	//sbuf->dst->sock = -1;
+	//res = sbuf_process_pending(sbuf);
+	slog_info(sbuf, "sbuf_reset: sbuf_process_pending returned %d", res);
+
+	/*
+	while(1) {
+		if (mbuf_avail_for_read(extra_packets)) {
+			slog_info(sbuf, "sbuf_reset: extra packets available, processing them");
+			if (sbuf->extra_packet_queue_after) {
+				if (!sbuf_send_pending_iobuf(sbuf)) {
+					log_info("sbuf_process_pending failed to send all pending data");
+					return false;
+				}
+			}
+
+			if (!sbuf_send_pending_extra_packets(sbuf)) {
+				log_info("sbuf_process_pending ended early because of not being able to send the queued extra packets");
+				return false;
+			}
+			/*
+			* To avoid frequent allocations we try to reuse the
+			* extra_packets MBuf. But if it has grown to more than
+			* 4 times pkt_buf, we free it to avoid wasting memory.
+			* Otherwise one huge packet can cause a lot of memory
+			* to stay allocated for the lifetime of the
+			* connection. The most common case where this might
+			* occur is a huge query in a prepared statement.
+			*
+			* We use 4 times pkt_buf as an arbitrary but
+			* reosanable limit.
+			if (extra_packets->alloc_len > (unsigned) cf_sbuf_len * 4) {
+				mbuf_free(extra_packets);
+			} else {
+				mbuf_rewind_writer(extra_packets);
+			}
+		}
+
+		avail = iobuf_amount_parse(io);
+		if (avail == 0 || (full && avail <= SBUF_SMALL_PKT))
+			break;
+	}*/
+	
+	// After clearing extra packets, set dst to NULL
+	sbuf->pkt_remain = 0;
+	sbuf->sock = 0;
+	sbuf->pkt_action = sbuf->wait_type = 0;
+	if (sbuf->io) {
+		slab_free(iobuf_cache, sbuf->io);
+		sbuf->io = NULL;
+	}
+	mbuf_free(&sbuf->extra_packets);
+	return true;
+
 }
 
 /* proto_fn tells to send some bytes to socket */
@@ -636,7 +718,7 @@ static bool sbuf_send_pending_iobuf(SBuf *sbuf)
 
 	AssertActive(sbuf);
 	Assert(sbuf->dst || iobuf_amount_pending(io) == 0);
-	log_noise("sbuf_send_pending_iobuf");
+	log_info("sbuf_send_pending_iobuf");
 
 try_more:
 	/* how much data is available for sending */
@@ -739,7 +821,7 @@ static bool sbuf_process_pending(SBuf *sbuf)
 	struct MBuf *extra_packets = &sbuf->extra_packets;
 	bool full = iobuf_amount_recv(io) <= 0;
 	int loop_number = 0;
-	log_noise("sbuf_process_pending: start");
+	log_info("sbuf_process_pending: start");
 
 	while (1) {
 		/*
@@ -781,7 +863,7 @@ static bool sbuf_process_pending(SBuf *sbuf)
 
 		AssertActive(sbuf);
 		loop_number++;
-		log_noise("sbuf_process_pending: loop %d", loop_number);
+		log_info("sbuf_process_pending: loop %d", loop_number);
 
 		/*
 		 * Enough for now?

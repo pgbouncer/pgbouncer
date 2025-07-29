@@ -120,6 +120,7 @@ bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)  _MUSTCHECK;
 bool sbuf_pause(SBuf *sbuf) _MUSTCHECK;
 void sbuf_continue(SBuf *sbuf);
 bool sbuf_close(SBuf *sbuf) _MUSTCHECK;
+bool sbuf_reset(SBuf *sbuf) _MUSTCHECK;
 
 bool sbuf_flush(SBuf *sbuf) _MUSTCHECK;
 

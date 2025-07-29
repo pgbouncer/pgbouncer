@@ -823,6 +823,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		res = handle_connect(server);
 		break;
 	case SBUF_EV_FLUSH:
+		slog_info(server, "handle sbuf flush, state: %d, ready: %d", server->state, server->ready);
 		res = true;
 		if (!server->ready)
 			break;

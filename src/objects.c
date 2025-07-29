@@ -291,6 +291,8 @@ void change_client_state(PgSocket *client, SocketState newstate)
 /* state change means moving between lists */
 void change_server_state(PgSocket *server, SocketState newstate)
 {
+	if(newstate == SV_TESTED) 
+		slog_info(server, "change_server_state: changing state to SV_TESTED from state %d", server->state);
 	PgPool *pool = server->pool;
 
 	/* remove from old location */
@@ -901,6 +903,7 @@ bool check_fast_fail(PgSocket *client)
 /* link if found, otherwise put into wait queue */
 bool find_server(PgSocket *client)
 {
+	slog_info(client, "find_server started");
 	PgPool *pool = client->pool;
 	PgSocket *server;
 	bool res;
@@ -959,7 +962,7 @@ bool find_server(PgSocket *client)
 
 	/* link or send to waiters list */
 	if (server) {
-		slog_noise(client, "linking client to S-%p", server);
+		slog_info(client, "linking client to S-%p", server);
 		client->link = server;
 		server->link = client;
 		server->pool->stats.server_assignment_count++;
@@ -1202,6 +1205,7 @@ bool life_over(PgSocket *server)
 /* connecting/active -> idle, unlink if needed */
 bool release_server(PgSocket *server)
 {
+	slog_info(server, "release server old_state %d", server->state);
 	PgPool *pool = server->pool;
 	SocketState newstate = SV_IDLE;
 	struct List *cancel_item, *tmp;
@@ -1338,10 +1342,12 @@ void drain_server(PgSocket *server, const char *reason, ...)
 {
 	va_list ap;
 	PgSocket *client;
-	//OutstandingRequest *request;
-	//struct List *el, *tmp_l;
+	OutstandingRequest *request;
+	struct List *el, *tmp_l;
 	char buf[128];
-	int loopcnt = 0;
+	bool res;
+	SBuf *sbuf = &server->sbuf;
+	bool sbuf_empty = sbuf_is_empty(sbuf);
 	if (!server || server->state == SV_FREE || server->state == SV_JUSTFREE) {
 		return;
 	}
@@ -1358,33 +1364,57 @@ void drain_server(PgSocket *server, const char *reason, ...)
 	}
 
 	server->link = NULL;
+	server->ready = true;
 	change_server_state(server, SV_DRAIN);
 
 	slog_info(server, "drain server outstanding before count: %d", statlist_count(&server->outstanding_requests));
 
-	// Call sbuf_continue until we switch to the next state
-	sbuf_continue(&server->sbuf);
+	//// Call sbuf_continue until we switch to the next state
+	//sbuf_continue(sbuf);
+	//if (server->state == SV_DRAIN || !server->ready) {
+	//	// If we're still in drain after attempting to read, we need to
+	//	// Kill the server connection
+	//	disconnect_server(server, true, "drain failed to clear outstanding requests");
+	//	return;
+	//}
 
-	slog_info(server, "drain server outstanding before after count: %d, state: %d", statlist_count(&server->outstanding_requests), server->state);
-	if (server-> state == SV_DRAIN || !server->ready) {
-		// If we're still in drain after attempting to read, we need to 
-		// Kill the server connection
+
+	slog_info(server, "drain_server: before wait is sbuf empty %d and wait_state %d and packets_remaining %d", sbuf_empty, sbuf->wait_type, sbuf->pkt_remain);
+	//res = sbuf_reset(sbuf);
+	slog_info(server, "drain_server: after wait is sbuf empty %d and wait state %d and packets_remaining %d and res %d", sbuf_empty, sbuf->wait_type, sbuf->pkt_remain, res);
+
+	// Mirrors statement ready packet
+	if (!clear_outstanding_requests_until(server, (char[]) {'\0'})) {
+
+		// Try to determine if the server is ready
 		disconnect_server(server, true, "drain failed to clear outstanding requests");
 		return;
+
 	}
+	// Free remaining outstanding requests on this server
+       	statlist_for_each_safe(el, &server->outstanding_requests, tmp_l) {
+        	request = container_of(el, OutstandingRequest, node);
+		slog_info(server, "drain_server: removing outstanding request %c, action %d", request->type, request->action);
+                statlist_remove(&server->canceling_clients, el);
+                if (request->server_ps) {
+			slog_info(server, "drain_server: freeing server prepared statement %s", request->server_ps->ps->stmt_name);
+                        free_server_prepared_statement(request->server_ps);
+
+		}
+                slab_free(outstanding_request_cache, request);
+       	}
+
+	
+	
+
+	//sbuf->extra_packet_queue_after = true; // Set this to true to see what happens
 	slog_info(server, "about to exit drain");
 
-	// // Mirrors statement ready packet
-	// if (!clear_outstanding_requests_until(server, (char[]) {PqMsg_ReadyForQuery, '\0'})) {
-
-	// 	// Try to determine if the server is ready
-	// 	disconnect_server(server, true, "drain failed to clear outstanding requests");
-	// 	return;
-
-	// }
 	
-	
-	//release_server(server);
+
+	res = release_server(server);
+	slog_info(server, "drain_server: release_server returned %d", res);
+
 }
 
 /*

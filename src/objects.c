@@ -1378,10 +1378,8 @@ void drain_server(PgSocket *server, const char *reason, ...)
 	//	return;
 	//}
 
-
 	slog_info(server, "drain_server: before wait is sbuf empty %d and wait_state %d and packets_remaining %d", sbuf_empty, sbuf->wait_type, sbuf->pkt_remain);
-	//res = sbuf_reset(sbuf);
-	slog_info(server, "drain_server: after wait is sbuf empty %d and wait state %d and packets_remaining %d and res %d", sbuf_empty, sbuf->wait_type, sbuf->pkt_remain, res);
+
 
 	// Mirrors statement ready packet
 	if (!clear_outstanding_requests_until(server, (char[]) {'\0'})) {
@@ -1404,6 +1402,8 @@ void drain_server(PgSocket *server, const char *reason, ...)
                 slab_free(outstanding_request_cache, request);
        	}
 
+	res = sbuf_reset(sbuf);
+	slog_info(server, "drain_server: after wait is sbuf empty %d and wait state %d and packets_remaining %d and res %d", sbuf_empty, sbuf->wait_type, sbuf->pkt_remain, res);
 	
 	
 
@@ -1412,7 +1412,7 @@ void drain_server(PgSocket *server, const char *reason, ...)
 
 	
 
-	res = release_server(server);
+	//res = release_server(server);
 	slog_info(server, "drain_server: release_server returned %d", res);
 
 }

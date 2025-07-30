@@ -68,6 +68,7 @@ enum WaitType {
 } while (0)
 
 /* declare static stuff */
+static bool allocate_iobuf(SBuf *sbuf) _MUSTCHECK;
 static bool sbuf_queue_send(SBuf *sbuf) _MUSTCHECK;
 static bool sbuf_send_pending_iobuf(SBuf *sbuf) _MUSTCHECK;
 static bool sbuf_process_pending(SBuf *sbuf) _MUSTCHECK;
@@ -76,6 +77,7 @@ static void sbuf_recv_cb(evutil_socket_t sock, short flags, void *arg);
 static void sbuf_send_cb(evutil_socket_t sock, short flags, void *arg);
 static void sbuf_try_resync(SBuf *sbuf, bool release);
 static bool sbuf_wait_for_data(SBuf *sbuf) _MUSTCHECK;
+static bool sbuf_wait_for_data_forced(SBuf *sbuf) _MUSTCHECK;
 static void sbuf_main_loop(SBuf *sbuf, bool skip_recv);
 static bool sbuf_call_proto(SBuf *sbuf, int event) /* _MUSTCHECK */;
 static bool sbuf_actual_recv(SBuf *sbuf, size_t len)  _MUSTCHECK;
@@ -330,6 +332,7 @@ bool sbuf_close(SBuf *sbuf)
 
 bool sbuf_reset(SBuf *sbuf) 
 {
+	//log_info("sbuf_reset called");
 	//if (sbuf->wait_type) {
 	//	Assert(sbuf->sock);
 	//	/* event_del() acts funny occasionally, debug it */
@@ -348,54 +351,56 @@ bool sbuf_reset(SBuf *sbuf)
 	//sbuf->dst = NULL;
 	// Set Destination iobuf to -1 to indicate that we don't have a destination
 
-	slog_info(sbuf, "sbuf_reset: resetting SBuf %p", sbuf);
-	struct MBuf *extra_packets = &sbuf->extra_packets;
-	bool res = true;
-	//sbuf->dst->sock = -1;
-	//res = sbuf_process_pending(sbuf);
-	slog_info(sbuf, "sbuf_reset: sbuf_process_pending returned %d", res);
-
-	/*
-	while(1) {
-		if (mbuf_avail_for_read(extra_packets)) {
-			slog_info(sbuf, "sbuf_reset: extra packets available, processing them");
-			if (sbuf->extra_packet_queue_after) {
-				if (!sbuf_send_pending_iobuf(sbuf)) {
-					log_info("sbuf_process_pending failed to send all pending data");
-					return false;
-				}
-			}
-
-			if (!sbuf_send_pending_extra_packets(sbuf)) {
-				log_info("sbuf_process_pending ended early because of not being able to send the queued extra packets");
-				return false;
-			}
-			/*
-			* To avoid frequent allocations we try to reuse the
-			* extra_packets MBuf. But if it has grown to more than
-			* 4 times pkt_buf, we free it to avoid wasting memory.
-			* Otherwise one huge packet can cause a lot of memory
-			* to stay allocated for the lifetime of the
-			* connection. The most common case where this might
-			* occur is a huge query in a prepared statement.
-			*
-			* We use 4 times pkt_buf as an arbitrary but
-			* reosanable limit.
-			if (extra_packets->alloc_len > (unsigned) cf_sbuf_len * 4) {
-				mbuf_free(extra_packets);
-			} else {
-				mbuf_rewind_writer(extra_packets);
-			}
-		}
-
-		avail = iobuf_amount_parse(io);
-		if (avail == 0 || (full && avail <= SBUF_SMALL_PKT))
-			break;
-	}*/
+	//slog_info(sbuf, "sbuf_reset: resetting SBuf");
+	//struct MBuf *extra_packets = &sbuf->extra_packets;
+	bool res;
+	unsigned free, ok;
+	sbuf->dst->sock = -1;
+	sbuf_wait_for_data_forced(sbuf);
+	sbuf_main_loop(sbuf, DO_RECV);
+	////slog_info(sbuf, "sbuf_reset: sbuf_process_pending returned %d", res);
 	
+	//if (sbuf->io) {
+	//	iobuf_reset(sbuf->io);
+	//} else {
+	//	if(!allocate_iobuf(sbuf)) {
+	//		slog_info(sbuf, "sbuf_reset: allocate_iobuf failed, sbuf->io is NULL");
+	//		return false;
+	//	}
+
+	//}
+	//free = iobuf_amount_recv(sbuf->io);
+	//log_info("sbuf_reset: free space in iobuf is %d", free);
+	//if (free > 0) {
+	//	/* now fetch the data */
+	//	ok = sbuf_actual_recv(sbuf, free);
+	//	if (!ok) {
+	//		slog_info(sbuf, "sbuf_reset: sbuf_actual_recv failed, returning false");
+	//		return false;
+	//	}
+	//}
+	//res = sbuf_process_pending(sbuf);
+	/*
+	* To avoid frequent allocations we try to reuse the
+	* extra_packets MBuf. But if it has grown to more than
+	* 4 times pkt_buf, we free it to avoid wasting memory.
+	* Otherwise one huge packet can cause a lot of memory
+	* to stay allocated for the lifetime of the
+	* connection. The most common case where this might
+	* occur is a huge query in a prepared statement.
+	*
+	* We use 4 times pkt_buf as an arbitrary but
+	* reosanable limit.
+	*/
+	//if (extra_packets->alloc_len > (unsigned) cf_sbuf_len * 4) {
+	//	mbuf_free(extra_packets);
+	//} else {
+	//	mbuf_rewind_writer(extra_packets);
+	//}
+
 	// After clearing extra packets, set dst to NULL
+	sbuf->dst = NULL;
 	sbuf->pkt_remain = 0;
-	sbuf->sock = 0;
 	sbuf->pkt_action = sbuf->wait_type = 0;
 	if (sbuf->io) {
 		slab_free(iobuf_cache, sbuf->io);
@@ -874,6 +879,7 @@ static bool sbuf_process_pending(SBuf *sbuf)
 		 * then still notify about partial packet by returning false.
 		 */
 		avail = iobuf_amount_parse(io);
+		log_info("sbuf_process_pending: loop %d, avail %d", loop_number, avail);
 		if (avail == 0 || (full && avail <= SBUF_SMALL_PKT))
 			break;
 

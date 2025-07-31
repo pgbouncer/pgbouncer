@@ -487,7 +487,7 @@ def test_options_startup_param(bouncer):
     assert (
         bouncer.sql_value(
             "SHOW datestyle",
-            options="-c timezone=Portugal  -c    datestyle=German,\\ YMD",
+            options="-c timezone=Europe/Lisbon  -c    datestyle=German,\\ YMD",
         )
         == "German, YMD"
     )
@@ -495,31 +495,33 @@ def test_options_startup_param(bouncer):
     assert (
         bouncer.sql_value(
             "SHOW timezone",
-            options="-c timezone=Portugal  -c    datestyle=German,\\ YMD",
+            options="-c timezone=Europe/Lisbon  -c    datestyle=German,\\ YMD",
         )
-        == "Portugal"
-    )
-
-    assert (
-        bouncer.sql_value(
-            "SHOW timezone", options="-ctimezone=Portugal  -cdatestyle=German,\\ YMD"
-        )
-        == "Portugal"
-    )
-
-    assert (
-        bouncer.sql_value(
-            "SHOW timezone", options="--timezone=Portugal  --datestyle=German,\\ YMD"
-        )
-        == "Portugal"
+        == "Europe/Lisbon"
     )
 
     assert (
         bouncer.sql_value(
             "SHOW timezone",
-            options="-c t\\imezone=\\P\\o\\r\\t\\ugal  -c    dat\\estyle\\=\\Ge\\rman,\\ YMD",
+            options="-ctimezone=Europe/Lisbon  -cdatestyle=German,\\ YMD",
         )
-        == "Portugal"
+        == "Europe/Lisbon"
+    )
+
+    assert (
+        bouncer.sql_value(
+            "SHOW timezone",
+            options="--timezone=Europe/Lisbon  --datestyle=German,\\ YMD",
+        )
+        == "Europe/Lisbon"
+    )
+
+    assert (
+        bouncer.sql_value(
+            "SHOW timezone",
+            options="-c t\\imezone=\\E\\u\\r\\o\\pe/Lisbon  -c    dat\\estyle\\=\\Ge\\rman,\\ YMD",
+        )
+        == "Europe/Lisbon"
     )
 
     # extra_float_digits is in ignore_startup_parameters so setting it has no
@@ -562,9 +564,10 @@ def test_options_startup_param(bouncer):
     # and configure any values in it that we support
     assert (
         bouncer.sql_value(
-            "SHOW timezone", options="-ctimezone=Portugal  -cdatestyle=German,\\ YMD"
+            "SHOW timezone",
+            options="-ctimezone=Europe/Lisbon  -cdatestyle=German,\\ YMD",
         )
-        == "Portugal"
+        == "Europe/Lisbon"
     )
 
 

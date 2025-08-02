@@ -50,6 +50,46 @@ struct tls *tls_server_conn(struct tls *ctx)
 	return (conn_ctx);
 }
 
+int
+alpn_cb(SSL *ssl, const unsigned char **out, unsigned char *outlen,
+	const unsigned char *in, unsigned int inlen, void *userdata);
+
+/*
+ * Server callback for ALPN negotiation.
+ *
+ * The protocol strings should be registered at:
+ * https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml#alpn-protocol-ids
+ *
+ * c.f. https://www.openssl.org/docs/manmaster/man3/SSL_CTX_set_alpn_select_cb.html
+ */
+int alpn_cb(SSL *ssl, const unsigned char **out, unsigned char *outlen,
+	    const unsigned char *in, unsigned int inlen, void *userdata)
+{
+	int retval;
+	struct tls_alpn_config *data;
+	size_t protocols_len;
+
+	Assert(userdata != NULL);
+	Assert(out != NULL);
+	Assert(outlen != NULL);
+	Assert(in != NULL);
+
+	data = (struct tls_alpn_config *) userdata;
+	protocols_len = data->protocols_len;
+	retval = SSL_select_next_proto((unsigned char **) out, outlen,
+				       data->protocols, protocols_len,
+				       in, inlen);
+
+	if (*out == NULL || *outlen > protocols_len || *outlen <= 0)
+		return SSL_TLSEXT_ERR_NOACK;
+	if (retval == OPENSSL_NPN_NO_OVERLAP)
+		return SSL_TLSEXT_ERR_NOACK;
+	if (retval != OPENSSL_NPN_NEGOTIATED)
+		return SSL_TLSEXT_ERR_NOACK;
+
+	return SSL_TLSEXT_ERR_OK;
+}
+
 int tls_configure_server(struct tls *ctx)
 {
 	EC_KEY *ecdh_key;
@@ -59,6 +99,9 @@ int tls_configure_server(struct tls *ctx)
 	if ((ctx->ssl_ctx = SSL_CTX_new(SSLv23_server_method())) == NULL) {
 		tls_set_errorx(ctx, "ssl context failure");
 		goto err;
+	}
+	if (ctx->config->alpn_config) {
+		SSL_CTX_set_alpn_select_cb(ctx->ssl_ctx, alpn_cb, (void *)ctx->config->alpn_config);
 	}
 
 	if (tls_configure_ssl(ctx) != 0)

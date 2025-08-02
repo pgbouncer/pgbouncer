@@ -101,6 +101,9 @@ int tls_config_set_ocsp_stapling_file(struct tls_config *_config, const char *_b
 int tls_config_set_ocsp_stapling_mem(struct tls_config *_config, const uint8_t *_blob, size_t _len);
 void tls_config_set_protocols(struct tls_config *_config, uint32_t _protocols);
 void tls_config_set_verify_depth(struct tls_config *_config, int _verify_depth);
+void tls_config_set_alpn_protocols(struct tls_config *_config,
+				   const unsigned char *_protocols,
+				   size_t _protocols_len);
 
 void tls_config_prefer_ciphers_client(struct tls_config *_config);
 void tls_config_prefer_ciphers_server(struct tls_config *_config);

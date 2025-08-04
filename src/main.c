@@ -460,7 +460,7 @@ bool load_config(void)
 {
 	static bool loaded = false;
 	bool load_file_ok;
-	bool ok = true;
+	bool ok;
 	const char *q;
 
 	any_user_level_timeout_set = false;
@@ -477,8 +477,8 @@ bool load_config(void)
 		if (requires_auth_file(cf_auth_type))
 			loader_users_check();
 		loaded = true;
+		ok = true;
 	} else if (!loaded) {
-		ok = false;
 		die("cannot load config file");
 	} else {
 		log_warning("config file loading failed");

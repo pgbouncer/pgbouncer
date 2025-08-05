@@ -69,14 +69,7 @@ dnl
 AC_DEFUN([AC_USUAL_PROGRAM_CHECK], [
 AC_PROG_CC_STDC
 AC_PROG_CPP
-dnl Check if compiler supports __func__
-AC_CACHE_CHECK([whether compiler supports __func__], pgac_cv_funcname_func,
-  [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <stdio.h>]], [[printf("%s\n", __func__);]])],
-    [pgac_cv_funcname_func=yes], [pgac_cv_funcname_func=no])])
-if test x"$pgac_cv_funcname_func" = xyes ; then
-  AC_DEFINE(HAVE_FUNCNAME__FUNC, 1,
-    [Define to 1 if your compiler understands __func__.])
-fi
+
 dnl Check if linker supports -Wl,--as-needed
 if test "$GCC" = "yes"; then
   old_LDFLAGS="$LDFLAGS"

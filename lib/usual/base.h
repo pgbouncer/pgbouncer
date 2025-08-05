@@ -46,9 +46,7 @@
 #endif
 #include <stddef.h>
 #include <stdint.h>
-#ifdef HAVE_INTTYPES_H
 #include <inttypes.h>
-#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>

@@ -59,12 +59,6 @@
 /* Define to `int' if <sys/types.h> doesn't define. */
 #define gid_t int
 
-/* Define to `__inline__' or `__inline' if that's what the C compiler
-   calls it, or to nothing if 'inline' is not supported under any name.  */
-#ifndef __cplusplus
-#define inline __inline
-#endif
-
 /* Define to `int' if <sys/types.h> does not define. */
 #define pid_t int
 

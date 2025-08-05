@@ -117,11 +117,6 @@
 #define CONCAT4(a, b, c, d)    _CONCAT4_(a, b, c, d)
 #define _CONCAT4_(a, b, c, d)  a ## b ## c ## d
 
-/** Pre-processor macro for current function name.  */
-#ifndef HAVE_FUNCNAME__FUNC
-#define __func__ __FUNCTION__
-#endif
-
 /**
  * @name Compiler checks, mainly for internal usage.
  *

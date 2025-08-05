@@ -35,11 +35,8 @@ dnl Checks for typedefs, structures, and compiler characteristics.
 AC_USUAL_TYPE_CHECK
 
 dnl autoconf 2.59 does not have UINT macros nor docdir
-m4_ifdef([AC_TYPE_UINT8_T], [
-  AC_TYPE_UINT8_T
-  AC_TYPE_UINT32_T
-  AC_TYPE_UINT64_T
-], [
+m4_ifdef([AC_TYPE_UINT8_T], [],
+[
   datarootdir='${prefix}/share'
   docdir='${datarootdir}/doc/${PACKAGE_TARNAME}'
   AC_SUBST(datarootdir)

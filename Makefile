@@ -27,8 +27,6 @@ pgbouncer_SOURCES = \
 	src/takeover.c \
 	src/util.c \
 	src/varcache.c \
-	src/common/md5.c \
-	src/common/sha1.c \
 	src/common/sha2.c \
 	src/common/base64.c \
 	src/common/bool.c \
@@ -68,15 +66,11 @@ pgbouncer_SOURCES = \
 	include/common/builtins.h \
 	include/common/cryptohash.h \
 	include/common/hmac.h \
-	include/common/md5.h \
-	include/common/md5_int.h \
 	include/common/pg_wchar.h \
 	include/common/postgres_compat.h \
 	include/common/protocol.h \
 	include/common/saslprep.h \
 	include/common/scram-common.h \
-	include/common/sha1.h \
-	include/common/sha1_int.h \
 	include/common/sha2.h \
 	include/common/sha2_int.h \
 	include/common/simd.h \

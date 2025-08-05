@@ -58,12 +58,7 @@
 #include <unistd.h>
 #endif
 
-#ifdef HAVE_STDBOOL_H
 #include <stdbool.h>
-#else
-/* we really want bool type */
-typedef enum { true = 1, false = 0 } bool;
-#endif
 
 #ifdef WIN32
 #include <usual/base_win32.h>

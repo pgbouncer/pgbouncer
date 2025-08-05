@@ -185,7 +185,7 @@ dnl
 dnl  AC_USUAL_HEADER_CHECK:  Basic headers
 dnl
 AC_DEFUN([AC_USUAL_HEADER_CHECK], [
-AC_CHECK_HEADERS([inttypes.h stdbool.h unistd.h sys/time.h])
+AC_CHECK_HEADERS([inttypes.h unistd.h sys/time.h])
 AC_CHECK_HEADERS([sys/socket.h poll.h sys/un.h])
 AC_CHECK_HEADERS([arpa/inet.h netinet/in.h netinet/tcp.h])
 AC_CHECK_HEADERS([sys/param.h sys/uio.h pwd.h grp.h])

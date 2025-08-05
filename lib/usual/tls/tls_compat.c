@@ -481,6 +481,10 @@ int tls_config_set_ciphers(struct tls_config *_config, const char *_ciphers)
 {
 	return -1;
 }
+int tls_config_set_ciphers_v13(struct tls_config *_config, const char *_ciphers)
+{
+	return -1;
+}
 int tls_config_set_dheparams(struct tls_config *_config, const char *_params)
 {
 	return -1;

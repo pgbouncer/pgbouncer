@@ -243,7 +243,7 @@ static bool admin_set(PgSocket *admin, const char *key, const char *val)
 			if (!buf) {
 				return admin_error(admin, "no mem");
 			}
-			if (strstr(key, "_tls_") != NULL) {
+			if (strstr(key, "_tls_") != NULL || strstr(key, "_tls13_") != NULL) {
 				if (!sbuf_tls_setup())
 					pktbuf_write_Notice(buf, "TLS settings could not be applied, still using old configuration");
 			}

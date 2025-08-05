@@ -20,7 +20,6 @@
  * core structures
  */
 
-#include "common/scram-common.h"
 #include "system.h"
 
 #include <usual/cfparser.h>
@@ -518,7 +517,7 @@ struct PgCredentials {
 	/* scram keys used for pass-though and adhoc auth caching */
 	uint8_t scram_ClientKey[32];
 	uint8_t scram_ServerKey[32];
-	uint8_t scram_StoredKey[SCRAM_MAX_KEY_LEN];
+	uint8_t scram_StoredKey[32];
 	int scram_Iiterations;
 	char *scram_SaltKey;	/* base64-encoded */
 
@@ -879,6 +878,7 @@ extern char *cf_client_tls_ca_file;
 extern char *cf_client_tls_cert_file;
 extern char *cf_client_tls_key_file;
 extern char *cf_client_tls_ciphers;
+extern char *cf_client_tls13_ciphers;
 extern char *cf_client_tls_dheparams;
 extern char *cf_client_tls_ecdhecurve;
 
@@ -888,6 +888,7 @@ extern char *cf_server_tls_ca_file;
 extern char *cf_server_tls_cert_file;
 extern char *cf_server_tls_key_file;
 extern char *cf_server_tls_ciphers;
+extern char *cf_server_tls13_ciphers;
 
 extern int cf_max_prepared_statements;
 

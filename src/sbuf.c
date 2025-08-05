@@ -1152,7 +1152,7 @@ int server_connect_sslmode;
  */
 
 static bool setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
-		      const char *protocols, const char *ciphers,
+		      const char *protocols, const char *ciphers, const char *ciphers13,
 		      const char *keyfile, const char *certfile, const char *cafile,
 		      const char *dheparams, const char *ecdhecurve,
 		      bool does_connect)
@@ -1171,6 +1171,13 @@ static bool setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
 		err = tls_config_set_ciphers(conf, ciphers);
 		if (err) {
 			log_error("invalid %s_ciphers: %s", pfx, ciphers);
+			return false;
+		}
+	}
+	if (ciphers13 != NULL) {
+		err = tls_config_set_ciphers_v13(conf, ciphers13);
+		if (err) {
+			log_error("invalid %s_ciphers: %s", pfx, ciphers13);
 			return false;
 		}
 	}
@@ -1298,7 +1305,7 @@ bool sbuf_tls_setup(void)
 		}
 
 		if (!setup_tls(new_server_connect_conf, "server_tls", cf_server_tls_sslmode,
-			       cf_server_tls_protocols, cf_server_tls_ciphers,
+			       cf_server_tls_protocols, cf_server_tls_ciphers, cf_server_tls13_ciphers,
 			       cf_server_tls_key_file, cf_server_tls_cert_file,
 			       cf_server_tls_ca_file, "", "", true))
 			goto failed;
@@ -1312,7 +1319,7 @@ bool sbuf_tls_setup(void)
 		}
 
 		if (!setup_tls(new_client_accept_conf, "client_tls", cf_client_tls_sslmode,
-			       cf_client_tls_protocols, cf_client_tls_ciphers,
+			       cf_client_tls_protocols, cf_client_tls_ciphers, cf_client_tls13_ciphers,
 			       cf_client_tls_key_file, cf_client_tls_cert_file,
 			       cf_client_tls_ca_file, cf_client_tls_dheparams,
 			       cf_client_tls_ecdhecurve, false))

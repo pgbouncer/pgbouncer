@@ -74,11 +74,6 @@ typedef enum { true = 1, false = 0 } bool;
 #define DLLIMPORT
 #endif
 
-/** give offset of a field inside struct */
-#ifndef offsetof
-#define offsetof(type, field) ((unsigned long)&(((type *)0)->field))
-#endif
-
 /** given pointer to field inside struct, return pointer to struct */
 #ifndef container_of
 #define container_of(ptr, type, field) ((type *)((char *)(ptr) - offsetof(type, field)))

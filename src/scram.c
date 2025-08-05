@@ -22,6 +22,7 @@
 
 #include "bouncer.h"
 #include "scram.h"
+#include "common/postgres_compat.h"
 #include "common/base64.h"
 #include "common/saslprep.h"
 #include "common/scram-common.h"

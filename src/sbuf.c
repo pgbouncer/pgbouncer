@@ -1483,7 +1483,7 @@ bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
 
 static ssize_t tls_sbufio_peek(struct SBuf *sbuf, void *buf, size_t len)
 {
-	Assert(0); // This function is unused.
+	Assert(0);	// This function is unused.
 	return -1;
 }
 

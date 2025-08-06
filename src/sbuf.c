@@ -1633,7 +1633,7 @@ static bool handle_tls_handshake(SBuf *sbuf)
 	return false;
 }
 
-static bool handle_tls_startup(SBuf *sbuf, bool is_unix)
+static bool handle_possible_direct_tls_startup(SBuf *sbuf, bool is_unix)
 {
 	return true;
 }

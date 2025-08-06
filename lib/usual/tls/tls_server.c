@@ -50,10 +50,6 @@ struct tls *tls_server_conn(struct tls *ctx)
 	return (conn_ctx);
 }
 
-int
-alpn_cb(SSL *ssl, const unsigned char **out, unsigned char *outlen,
-	const unsigned char *in, unsigned int inlen, void *userdata);
-
 #define PG_ALPN_PROTOCOL_VECTOR { 10, 'p', 'o', 's', 't', 'g', 'r', 'e', 's', 'q', 'l' }
 static const unsigned char alpn_protos[] = PG_ALPN_PROTOCOL_VECTOR;
 
@@ -68,8 +64,8 @@ static const unsigned char alpn_protos[] = PG_ALPN_PROTOCOL_VECTOR;
  *
  * c.f. https://www.openssl.org/docs/manmaster/man3/SSL_CTX_set_alpn_select_cb.html
  */
-int alpn_cb(SSL *ssl, const unsigned char **out, unsigned char *outlen,
-	    const unsigned char *in, unsigned int inlen, void *userdata)
+static int alpn_cb(SSL *ssl, const unsigned char **out, unsigned char *outlen,
+		   const unsigned char *in, unsigned int inlen, void *userdata)
 {
 	int retval;
 

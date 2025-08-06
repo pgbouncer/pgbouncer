@@ -82,7 +82,7 @@ static bool sbuf_call_proto(SBuf *sbuf, int event) /* _MUSTCHECK */;
 static bool sbuf_actual_recv(SBuf *sbuf, size_t len)  _MUSTCHECK;
 static bool sbuf_after_connect_check(SBuf *sbuf)  _MUSTCHECK;
 static bool handle_tls_handshake(SBuf *sbuf) _MUSTCHECK;
-static bool handle_tls_startup(SBuf *sbuf, bool is_unix) _MUSTCHECK;
+static bool handle_possible_direct_tls_startup(SBuf *sbuf, bool is_unix) _MUSTCHECK;
 
 /* regular I/O */
 static ssize_t raw_sbufio_peek(struct SBuf *sbuf, void *buf, size_t len);
@@ -109,7 +109,7 @@ static const SBufIO tls_sbufio_ops = {
 	tls_sbufio_close
 };
 static void sbuf_tls_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
-static void sbuf_tls_startup_cb(evutil_socket_t fd, short flags, void *_sbuf);
+static void sbuf_possible_direct_tls_startup_cb(evutil_socket_t fd, short flags, void *_sbuf);
 #endif
 
 /*
@@ -142,7 +142,7 @@ bool sbuf_accept(SBuf *sbuf, int sock, bool is_unix)
 		res = sbuf_wait_for_data(sbuf);
 		if (!res)
 			goto failed;
-		if (!handle_tls_startup(sbuf, is_unix))
+		if (!handle_possible_direct_tls_startup(sbuf, is_unix))
 			goto failed;
 		/* socket should already have some data (linux only) */
 		if (sbuf->wait_type == W_RECV && cf_tcp_defer_accept && !is_unix) {
@@ -1562,15 +1562,15 @@ void sbuf_cleanup(void)
 	client_accept_base = NULL;
 }
 
-static bool handle_tls_startup(SBuf *sbuf, bool is_unix)
+static bool handle_possible_direct_tls_startup(SBuf *sbuf, bool is_unix)
 {
 	if (client_accept_sslmode == SSLMODE_DISABLED || is_unix) {
 		return true;
 	}
-	return sbuf_use_callback_once(sbuf, EV_READ, sbuf_tls_startup_cb);
+	return sbuf_use_callback_once(sbuf, EV_READ, sbuf_possible_direct_tls_startup_cb);
 }
 
-static void sbuf_tls_startup_cb(evutil_socket_t fd, short flags, void *_sbuf)
+static void sbuf_possible_direct_tls_startup_cb(evutil_socket_t fd, short flags, void *_sbuf)
 {
 	uint8_t peek_byte[1];
 	ssize_t got;

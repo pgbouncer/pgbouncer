@@ -16,7 +16,6 @@
 #include "common/postgres_compat.h"
 #include "common/cryptohash.h"
 #include "common/sha2_int.h"
-#include "usual/crypto/sha256.h"
 
 /* Name of SCRAM mechanisms per IANA */
 #define SCRAM_SHA_256_NAME "SCRAM-SHA-256"

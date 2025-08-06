@@ -21,7 +21,6 @@
 #include "system.h"
 #include "common/postgres_compat.h"
 
-#include "usual/crypto/sha256.h"
 #include "usual/endian.h"
 
 #include "common/base64.h"

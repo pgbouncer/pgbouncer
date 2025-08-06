@@ -20,7 +20,6 @@
  * SCRAM support
  */
 
-#include <usual/crypto/sha256.h>
 
 extern int cf_scram_iterations;
 

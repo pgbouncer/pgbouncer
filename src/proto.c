@@ -470,7 +470,7 @@ static bool login_scram_sha_256_final(PgSocket *server, unsigned datalen, const 
 	PgCredentials *credentials = get_srv_psw(server);
 	char *ibuf = NULL;
 	char *input;
-	char ServerSignature[SHA256_DIGEST_LENGTH];
+	char ServerSignature[PG_SHA256_DIGEST_LENGTH];
 	bool match = false;
 	const char *errstr;
 

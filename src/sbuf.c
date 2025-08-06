@@ -25,11 +25,11 @@
  */
 
 #include "bouncer.h"
-#include "usual/tls/tls.h"
 
 #include <usual/safeio.h>
 #include <usual/slab.h>
 #include <usual/mbuf.h>
+#include <usual/tls/tls.h>
 
 #ifdef USUAL_LIBSSL_FOR_TLS
 #define USE_TLS
@@ -1160,9 +1160,6 @@ int client_accept_sslmode;
 static struct tls_config *server_connect_conf;
 int server_connect_sslmode;
 
-#define PG_ALPN_PROTOCOL_VECTOR { 10, 'p', 'o', 's', 't', 'g', 'r', 'e', 's', 'q', 'l' }
-static const unsigned char alpn_protos[] = PG_ALPN_PROTOCOL_VECTOR;
-
 /*
  * TLS setup
  */
@@ -1253,7 +1250,6 @@ static bool setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
 		} else {
 			tls_config_verify_client_optional(conf);
 		}
-		tls_config_set_alpn_protocols(conf, alpn_protos, sizeof(alpn_protos));
 	}
 
 	return true;
@@ -1487,7 +1483,7 @@ bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
 
 static ssize_t tls_sbufio_peek(struct SBuf *sbuf, void *buf, size_t len)
 {
-	/* unused */
+	Assert(0); // This function is unused.
 	return -1;
 }
 

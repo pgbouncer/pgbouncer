@@ -54,11 +54,17 @@ int
 alpn_cb(SSL *ssl, const unsigned char **out, unsigned char *outlen,
 	const unsigned char *in, unsigned int inlen, void *userdata);
 
+#define PG_ALPN_PROTOCOL_VECTOR { 10, 'p', 'o', 's', 't', 'g', 'r', 'e', 's', 'q', 'l' }
+static const unsigned char alpn_protos[] = PG_ALPN_PROTOCOL_VECTOR;
+
 /*
  * Server callback for ALPN negotiation.
  *
- * The protocol strings should be registered at:
- * https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml#alpn-protocol-ids
+ * This callback is based on
+ * https://github.com/postgres/postgres/blob/b5c53b403c93393c3725558294cbf4dbfb575e42/src/backend/libpq/be-secure-openssl.c#L1327-L1370
+ *
+ * The only difference is userdata is not passed in by the caller (it's
+ * unused here).
  *
  * c.f. https://www.openssl.org/docs/manmaster/man3/SSL_CTX_set_alpn_select_cb.html
  */
@@ -66,28 +72,27 @@ int alpn_cb(SSL *ssl, const unsigned char **out, unsigned char *outlen,
 	    const unsigned char *in, unsigned int inlen, void *userdata)
 {
 	int retval;
-	struct tls_alpn_config *data;
-	size_t protocols_len;
 
-	Assert(userdata != NULL);
 	Assert(out != NULL);
 	Assert(outlen != NULL);
 	Assert(in != NULL);
 
-	data = (struct tls_alpn_config *) userdata;
-	protocols_len = data->protocols_len;
 	retval = SSL_select_next_proto((unsigned char **) out, outlen,
-				       data->protocols, protocols_len,
+				       alpn_protos, sizeof(alpn_protos),
 				       in, inlen);
 
-	if (*out == NULL || *outlen > protocols_len || *outlen <= 0)
-		return SSL_TLSEXT_ERR_NOACK;
-	if (retval == OPENSSL_NPN_NO_OVERLAP)
-		return SSL_TLSEXT_ERR_NOACK;
-	if (retval != OPENSSL_NPN_NEGOTIATED)
+	if (*out == NULL || *outlen > sizeof(alpn_protos) || *outlen <= 0)
 		return SSL_TLSEXT_ERR_NOACK;
 
-	return SSL_TLSEXT_ERR_OK;
+	if (retval == OPENSSL_NPN_NEGOTIATED) {
+		return SSL_TLSEXT_ERR_OK;
+	} else {
+		/*
+		 * The client doesn't support our protocol.  Reject the connection
+		 * with TLS "no_application_protocol" alert, per RFC 7301.
+		 */
+		return SSL_TLSEXT_ERR_ALERT_FATAL;
+	}
 }
 
 int tls_configure_server(struct tls *ctx)
@@ -100,9 +105,7 @@ int tls_configure_server(struct tls *ctx)
 		tls_set_errorx(ctx, "ssl context failure");
 		goto err;
 	}
-	if (ctx->config->alpn_config) {
-		SSL_CTX_set_alpn_select_cb(ctx->ssl_ctx, alpn_cb, (void *)ctx->config->alpn_config);
-	}
+	SSL_CTX_set_alpn_select_cb(ctx->ssl_ctx, alpn_cb, NULL);
 
 	if (tls_configure_ssl(ctx) != 0)
 		goto err;

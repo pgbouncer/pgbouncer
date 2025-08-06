@@ -107,27 +107,6 @@ static void tls_keypair_free(struct tls_keypair *keypair)
 	free(keypair);
 }
 
-struct tls_alpn_config *tls_alpn_config_new(void)
-{
-	return calloc(1, sizeof(struct tls_alpn_config));
-}
-
-void tls_alpn_config_set_protocols(struct tls_config *config,
-				   const unsigned char *protocols,
-				   size_t len)
-{
-	config->alpn_config->protocols = protocols;
-	config->alpn_config->protocols_len = len;
-}
-
-static void tls_alpn_config_free(struct tls_alpn_config *alpn_config)
-{
-	if (alpn_config == NULL)
-		return;
-
-	free(alpn_config);
-}
-
 struct tls_config *tls_config_new(void)
 {
 	struct tls_config *config;
@@ -136,9 +115,6 @@ struct tls_config *tls_config_new(void)
 		return (NULL);
 
 	if ((config->keypair = tls_keypair_new()) == NULL)
-		goto err;
-
-	if ((config->alpn_config = tls_alpn_config_new()) == NULL)
 		goto err;
 
 	/*
@@ -178,8 +154,6 @@ void tls_config_free(struct tls_config *config)
 		nkp = kp->next;
 		tls_keypair_free(kp);
 	}
-
-	tls_alpn_config_free((config->alpn_config));
 
 	free(config->error.msg);
 
@@ -440,13 +414,6 @@ void tls_config_set_protocols(struct tls_config *config, uint32_t protocols)
 void tls_config_set_verify_depth(struct tls_config *config, int verify_depth)
 {
 	config->verify_depth = verify_depth;
-}
-
-void tls_config_set_alpn_protocols(struct tls_config *config,
-				   const unsigned char *protocols,
-				   size_t len)
-{
-	tls_alpn_config_set_protocols(config, protocols, len);
 }
 
 void tls_config_prefer_ciphers_client(struct tls_config *config)

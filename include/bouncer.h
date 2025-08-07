@@ -739,11 +739,9 @@ struct PgSocket {
 		pg_cryptohash_type hash_type;
 		int key_length;
 
-		/* Salt fields (stored in binary form, base64-encoded on the fly when needed) */
+		/* Client-side fields (when PgBouncer connects to PostgreSQL) */
 		uint8_t *salt;	/* binary salt */
 		int saltlen;	/* length of salt */
-
-		/* Client-side fields (when PgBouncer connects to PostgreSQL) */
 		uint8_t *SaltedPassword;
 
 		/* Server-side fields (when clients connect to PgBouncer) */

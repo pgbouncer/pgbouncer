@@ -367,68 +367,62 @@ bool read_server_first_message(PgSocket *server, char *input)
 	ScramState *state = &server->scram_state;
 	char *server_nonce;
 	char *encoded_salt;
-	uint8_t *salt = NULL;
-	int saltlen;
+	int decoded_salt_len;
 	char *iterations_str;
 	char *endptr;
 	int iterations;
 
 	state->server_first_message = strdup(input);
 	if (state->server_first_message == NULL)
-		goto failed;
+		return false;
 
 	server_nonce = read_attr_value(server, &input, 'r');
 	if (server_nonce == NULL)
-		goto failed;
+		return false;
 
 	if (strlen(server_nonce) < strlen(state->client_nonce) ||
 	    memcmp(server_nonce, state->client_nonce, strlen(state->client_nonce)) != 0) {
 		slog_error(server, "invalid SCRAM response (nonce mismatch)");
-		goto failed;
+		return false;
 	}
 
 	state->server_nonce = strdup(server_nonce);
 	if (state->server_nonce == NULL)
-		goto failed;
+		return false;
 
 	encoded_salt = read_attr_value(server, &input, 's');
 	if (encoded_salt == NULL)
-		goto failed;
+		return false;
 
-	saltlen = pg_b64_dec_len(strlen(encoded_salt));
-	salt = malloc(saltlen);
-	if (salt == NULL)
-		goto failed;
-	saltlen = pg_b64_decode(encoded_salt,
+	decoded_salt_len = pg_b64_dec_len(strlen(encoded_salt));
+	state->salt = malloc(decoded_salt_len);
+	if (state->salt == NULL)
+		return false;
+	state->saltlen = pg_b64_decode(encoded_salt,
 				strlen(encoded_salt),
-				salt, saltlen);
-	if (saltlen < 0) {
+				state->salt, decoded_salt_len);
+	if (decoded_salt_len < 0) {
 		slog_error(server, "malformed SCRAM message (invalid salt)");
-		goto failed;
+		return false;
 	}
-	state->salt = salt;
-	state->saltlen = saltlen;
 
 	iterations_str = read_attr_value(server, &input, 'i');
 	if (iterations_str == NULL)
-		goto failed;
+		return false;
 
 	iterations = strtol(iterations_str, &endptr, 10);
 	if (*endptr != '\0' || iterations < 1) {
 		slog_error(server, "malformed SCRAM message (invalid iteration count)");
-		goto failed;
+		return false;
 	}
 	state->iterations = iterations;
 
 	if (*input != '\0') {
 		slog_error(server, "malformed SCRAM message (garbage at end of server-first-message)");
-		goto failed;
+		return false;
 	}
 
 	return true;
-failed:
-	free(salt);
-	return false;
 }
 
 bool read_server_final_message(PgSocket *server, char *input, char *ServerSignature)

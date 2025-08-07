@@ -38,7 +38,7 @@ PasswordType get_password_type(const char *shadow_pass);
  */
 
 char *build_client_first_message(ScramState *state);
-char *build_client_final_message(ScramState *state,
+char *build_client_final_message(PgSocket *server,
 				 const PgCredentials *credentials);
 
 bool read_server_first_message(PgSocket *server, char *input);

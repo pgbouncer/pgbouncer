@@ -29,10 +29,10 @@
 #include "common/hmac.h"
 
 
-static bool calculate_client_proof(ScramState *state,
+static bool calculate_client_proof(PgSocket *server,
 				   const PgCredentials *credentials,
 				   const char *client_final_message_without_proof,
-				   uint8_t *result, const char **errstr);
+				   uint8_t *result);
 
 
 /*
@@ -328,14 +328,14 @@ failed:
 	return NULL;
 }
 
-char *build_client_final_message(ScramState *state,
+char *build_client_final_message(PgSocket *server,
 				 const PgCredentials *credentials)
 {
+	ScramState *state = &server->scram_state;
 	char buf[512];
 	size_t len;
 	uint8_t client_proof[SCRAM_SHA_256_KEY_LEN];
 	int enclen;
-	const char *errstr;
 
 	snprintf(buf, sizeof(buf), "c=biws,r=%s", state->server_nonce);
 
@@ -343,8 +343,8 @@ char *build_client_final_message(ScramState *state,
 	if (state->client_final_message_without_proof == NULL)
 		goto failed;
 
-	if (!calculate_client_proof(state, credentials, buf,
-				    client_proof, &errstr))
+	if (!calculate_client_proof(server, credentials, buf,
+				    client_proof))
 		goto failed;
 
 	len = strlcat(buf, ",p=", sizeof(buf));
@@ -473,11 +473,12 @@ failed:
 	return false;
 }
 
-static bool calculate_client_proof(ScramState *state,
+static bool calculate_client_proof(PgSocket *server,
 				   const PgCredentials *credentials,
 				   const char *client_final_message_without_proof,
-				   uint8_t *result, const char **errstr)
+				   uint8_t *result)
 {
+	ScramState *state = &server->scram_state;
 	pg_saslprep_rc rc;
 	char *prep_password = NULL;
 	uint8 StoredKey[SCRAM_MAX_KEY_LEN];
@@ -485,10 +486,11 @@ static bool calculate_client_proof(ScramState *state,
 	uint8 ClientSignature[SCRAM_MAX_KEY_LEN];
 	int i;
 	pg_hmac_ctx *ctx;
+	const char *errstr = NULL;
 
 	ctx = pg_hmac_create(state->hash_type);
 	if (ctx == NULL) {
-		*errstr = pg_hmac_error(NULL);	/* returns OOM */
+		slog_error(server, "HMAC context creation failed: %s", pg_hmac_error(NULL));
 		return false;
 	}
 
@@ -514,16 +516,17 @@ static bool calculate_client_proof(ScramState *state,
 		if (scram_SaltedPassword(prep_password, state->hash_type,
 					 state->key_length, state->salt, state->saltlen,
 					 state->iterations, state->SaltedPassword,
-					 errstr) < 0 ||
+					 &errstr) < 0 ||
 		    scram_ClientKey(state->SaltedPassword, state->hash_type,
-				    state->key_length, ClientKey, errstr) < 0) {
-			/* errstr is already filled here */
+				    state->key_length, ClientKey, &errstr) < 0) {
+			slog_error(server, "SCRAM key derivation failed: %s", errstr);
 			pg_hmac_free(ctx);
 			return false;
 		}
 	}
 
-	if (scram_H(ClientKey, state->hash_type, state->key_length, StoredKey, errstr) < 0) {
+	if (scram_H(ClientKey, state->hash_type, state->key_length, StoredKey, &errstr) < 0) {
+		slog_error(server, "SCRAM hash computation failed: %s", errstr);
 		goto failed;
 	}
 
@@ -540,7 +543,7 @@ static bool calculate_client_proof(ScramState *state,
 			   (uint8 *) client_final_message_without_proof,
 			   strlen(client_final_message_without_proof)) < 0 ||
 	    pg_hmac_final(ctx, ClientSignature, state->key_length) < 0) {
-		*errstr = pg_hmac_error(ctx);
+		slog_error(server, "HMAC computation failed: %s", pg_hmac_error(ctx));
 		goto failed;
 	}
 

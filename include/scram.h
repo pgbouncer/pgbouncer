@@ -23,7 +23,7 @@
 
 extern int cf_scram_iterations;
 
-void free_scram_state(ScramState *scram_state);
+void free_scram_state(ScramState *state);
 
 typedef enum PasswordType {
 	PASSWORD_TYPE_PLAINTEXT = 0,
@@ -37,37 +37,34 @@ PasswordType get_password_type(const char *shadow_pass);
  * Functions for communicating as a client with the server
  */
 
-char *build_client_first_message(ScramState *scram_state);
-char *build_client_final_message(ScramState *scram_state,
+char *build_client_first_message(ScramState *state);
+char *build_client_final_message(ScramState *state,
 				 const PgCredentials *credentials);
 
 bool read_server_first_message(PgSocket *server, char *input);
 bool read_server_final_message(PgSocket *server, char *input, char *ServerSignature);
 
-bool verify_server_signature(ScramState *scram_state, const PgCredentials *credentials, const char *ServerSignature, bool *match, const char **errstr);
+bool verify_server_signature(ScramState *state, const PgCredentials *credentials, const char *ServerSignature, bool *match, const char **errstr);
 
 
 /*
  * Functions for communicating as a server to the client
  */
 
-bool read_client_first_message(PgSocket *client, char *input,
-			       char *cbind_flag_p,
-			       char **client_first_message_bare_p,
-			       char **client_nonce_p);
+bool read_client_first_message(PgSocket *client, char *input);
 
 bool read_client_final_message(PgSocket *client, const uint8_t *raw_input, char *input,
 			       const char **client_final_nonce_p,
 			       char **proof_p);
 
-char *build_server_first_message(ScramState *scram_state,
+char *build_server_first_message(ScramState *state,
 				 PgCredentials *user, const char *stored_secret);
 
-char *build_server_final_message(PgSocket *client, ScramState *scram_state);
+char *build_server_final_message(PgSocket *client);
 
-bool verify_final_nonce(const ScramState *scram_state, const char *client_final_nonce);
+bool verify_final_nonce(const ScramState *state, const char *client_final_nonce);
 
-bool verify_client_proof(PgSocket *client, ScramState *state, const char *ClientProof);
+bool verify_client_proof(PgSocket *client, const char *ClientProof);
 
 bool scram_verify_plain_password(PgSocket *client,
 				 const char *username, const char *password,

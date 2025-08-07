@@ -29,6 +29,7 @@
 #include <usual/safeio.h>
 #include <usual/slab.h>
 #include <usual/mbuf.h>
+#include <usual/tls/tls.h>
 
 #ifdef USUAL_LIBSSL_FOR_TLS
 #define USE_TLS
@@ -81,12 +82,15 @@ static bool sbuf_call_proto(SBuf *sbuf, int event) /* _MUSTCHECK */;
 static bool sbuf_actual_recv(SBuf *sbuf, size_t len)  _MUSTCHECK;
 static bool sbuf_after_connect_check(SBuf *sbuf)  _MUSTCHECK;
 static bool handle_tls_handshake(SBuf *sbuf) _MUSTCHECK;
+static bool handle_possible_direct_tls_startup(SBuf *sbuf, bool is_unix) _MUSTCHECK;
 
 /* regular I/O */
+static ssize_t raw_sbufio_peek(struct SBuf *sbuf, void *buf, size_t len);
 static ssize_t raw_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len);
 static ssize_t raw_sbufio_send(struct SBuf *sbuf, const void *data, size_t len);
 static int raw_sbufio_close(struct SBuf *sbuf);
 static const SBufIO raw_sbufio_ops = {
+	raw_sbufio_peek,
 	raw_sbufio_recv,
 	raw_sbufio_send,
 	raw_sbufio_close
@@ -94,15 +98,18 @@ static const SBufIO raw_sbufio_ops = {
 
 /* I/O over TLS */
 #ifdef USE_TLS
+static ssize_t tls_sbufio_peek(struct SBuf *sbuf, void *buf, size_t len);
 static ssize_t tls_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len);
 static ssize_t tls_sbufio_send(struct SBuf *sbuf, const void *data, size_t len);
 static int tls_sbufio_close(struct SBuf *sbuf);
 static const SBufIO tls_sbufio_ops = {
+	tls_sbufio_peek,
 	tls_sbufio_recv,
 	tls_sbufio_send,
 	tls_sbufio_close
 };
 static void sbuf_tls_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
+static void sbuf_possible_direct_tls_startup_cb(evutil_socket_t fd, short flags, void *_sbuf);
 #endif
 
 /*
@@ -135,8 +142,10 @@ bool sbuf_accept(SBuf *sbuf, int sock, bool is_unix)
 		res = sbuf_wait_for_data(sbuf);
 		if (!res)
 			goto failed;
+		if (!handle_possible_direct_tls_startup(sbuf, is_unix))
+			goto failed;
 		/* socket should already have some data (linux only) */
-		if (cf_tcp_defer_accept && !is_unix) {
+		if (sbuf->wait_type == W_RECV && cf_tcp_defer_accept && !is_unix) {
 			sbuf_main_loop(sbuf, DO_RECV);
 			if (!sbuf->sock)
 				return false;
@@ -1110,6 +1119,11 @@ bool sbuf_answer(SBuf *sbuf, const void *buf, size_t len)
  * Standard IO ops.
  */
 
+static ssize_t raw_sbufio_peek(struct SBuf *sbuf, void *buf, size_t len)
+{
+	return safe_recv(sbuf->sock, buf, len, 0x02);
+}
+
 static ssize_t raw_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len)
 {
 	return safe_recv(sbuf->sock, dst, len, 0);
@@ -1145,7 +1159,6 @@ static struct tls_config *client_accept_conf;
 int client_accept_sslmode;
 static struct tls_config *server_connect_conf;
 int server_connect_sslmode;
-
 
 /*
  * TLS setup
@@ -1468,6 +1481,12 @@ bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
  * TLS IO ops.
  */
 
+static ssize_t tls_sbufio_peek(struct SBuf *sbuf, void *buf, size_t len)
+{
+	Assert(0);	// This function is unused.
+	return -1;
+}
+
 static ssize_t tls_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len)
 {
 	ssize_t out = 0;
@@ -1543,6 +1562,50 @@ void sbuf_cleanup(void)
 	client_accept_base = NULL;
 }
 
+static bool handle_possible_direct_tls_startup(SBuf *sbuf, bool is_unix)
+{
+	if (client_accept_sslmode == SSLMODE_DISABLED || is_unix) {
+		return true;
+	}
+	return sbuf_use_callback_once(sbuf, EV_READ, sbuf_possible_direct_tls_startup_cb);
+}
+
+static void sbuf_possible_direct_tls_startup_cb(evutil_socket_t fd, short flags, void *_sbuf)
+{
+	uint8_t peek_byte[1];
+	ssize_t got;
+	SBuf *sbuf = _sbuf;
+	PgSocket *client = container_of(sbuf, PgSocket, sbuf);
+	sbuf->wait_type = W_RECV;
+	got = sbuf_op_peek(sbuf, peek_byte, 1);
+	if (got <= 0) {
+		/* eof from socket */
+		log_warning("TLS startup peek received EOF.");
+		sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
+		return;
+	}
+
+	if (peek_byte[0] != 0x16) {
+		/* Not a SSL handshake message, fallback to main loop */
+		sbuf_continue(sbuf);
+		return;
+	}
+	/*
+	 * First byte indicates standard SSL handshake message
+	 *
+	 * (It can't be a Postgres startup length because in network byte order
+	 * that would be a startup packet hundreds of megabytes long)
+	 */
+	log_noise("Starting TLS handshake");
+	if (!sbuf_tls_accept(sbuf)) {
+		disconnect_client(client, false, "failed to accept SSL");
+		return;
+	}
+	sbuf->pkt_action = SBUF_TLS_IN_HANDSHAKE;
+	if (!handle_tls_handshake(sbuf))
+		sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
+}
+
 #else
 
 int client_accept_sslmode = SSLMODE_DISABLED;
@@ -1568,6 +1631,11 @@ void sbuf_cleanup(void)
 static bool handle_tls_handshake(SBuf *sbuf)
 {
 	return false;
+}
+
+static bool handle_possible_direct_tls_startup(SBuf *sbuf, bool is_unix)
+{
+	return true;
 }
 
 #endif

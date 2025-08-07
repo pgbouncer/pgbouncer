@@ -64,10 +64,6 @@ typedef struct
 	uint8		k_opad[SHA256_HMAC_B];
 } scram_HMAC_ctx;
 
-extern void scram_HMAC_init(scram_HMAC_ctx *ctx, const uint8 *key, int keylen);
-extern void scram_HMAC_update(scram_HMAC_ctx *ctx, const char *str, int slen);
-extern void scram_HMAC_final(uint8 *result, scram_HMAC_ctx *ctx);
-
 extern int	scram_SaltedPassword(const char *password,
 								 pg_cryptohash_type hash_type, int key_length,
 								 const uint8 *salt, int saltlen, int iterations,

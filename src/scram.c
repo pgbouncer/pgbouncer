@@ -559,16 +559,18 @@ failed:
 	return false;
 }
 
-bool verify_server_signature(ScramState *state, const PgCredentials *credentials, const char *ServerSignature, bool *match, const char **errstr)
+bool verify_server_signature(PgSocket *server, const PgCredentials *credentials, const char *ServerSignature, bool *match)
 {
+	ScramState *state = &server->scram_state;
 	uint8 expected_ServerSignature[SCRAM_MAX_KEY_LEN];
 	uint8 ServerKey[SCRAM_MAX_KEY_LEN];
 	pg_hmac_ctx *ctx;
+	const char *errstr = NULL;
 
 
 	ctx = pg_hmac_create(state->hash_type);
 	if (ctx == NULL) {
-		*errstr = pg_hmac_error(NULL);	/* returns OOM */
+		slog_error(server, "HMAC context creation failed: %s", pg_hmac_error(NULL));
 		return false;
 	}
 
@@ -577,8 +579,8 @@ bool verify_server_signature(ScramState *state, const PgCredentials *credentials
 	} else
 	{
 		if (scram_ServerKey(state->SaltedPassword, state->hash_type,
-				    state->key_length, ServerKey, errstr) < 0) {
-			/* errstr is filled already */
+				    state->key_length, ServerKey, &errstr) < 0) {
+			slog_error(server, "SCRAM server key derivation failed: %s", errstr);
 			pg_hmac_free(ctx);
 			return false;
 		}
@@ -599,7 +601,7 @@ bool verify_server_signature(ScramState *state, const PgCredentials *credentials
 			   strlen(state->client_final_message_without_proof)) < 0 ||
 	    pg_hmac_final(ctx, expected_ServerSignature,
 			  state->key_length) < 0) {
-		*errstr = pg_hmac_error(ctx);
+		slog_error(server, "HMAC server signature computation failed: %s", pg_hmac_error(ctx));
 		pg_hmac_free(ctx);
 		return false;
 	}

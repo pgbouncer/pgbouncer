@@ -44,7 +44,7 @@ char *build_client_final_message(PgSocket *server,
 bool read_server_first_message(PgSocket *server, char *input);
 bool read_server_final_message(PgSocket *server, char *input, char *ServerSignature);
 
-bool verify_server_signature(ScramState *state, const PgCredentials *credentials, const char *ServerSignature, bool *match, const char **errstr);
+bool verify_server_signature(PgSocket *server, const PgCredentials *credentials, const char *ServerSignature, bool *match);
 
 
 /*

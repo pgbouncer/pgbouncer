@@ -472,7 +472,6 @@ static bool login_scram_sha_256_final(PgSocket *server, unsigned datalen, const 
 	char *input;
 	char ServerSignature[PG_SHA256_DIGEST_LENGTH];
 	bool match = false;
-	const char *errstr;
 
 	if (!server->scram_state.server_first_message) {
 		slog_error(server, "protocol error: AuthenticationSASLFinal without prior AuthenticationSASLContinue");
@@ -490,8 +489,7 @@ static bool login_scram_sha_256_final(PgSocket *server, unsigned datalen, const 
 	if (!read_server_final_message(server, input, ServerSignature))
 		goto failed;
 
-	if (!verify_server_signature(&server->scram_state, credentials, ServerSignature, &match, &errstr)) {
-		slog_error(server, "scram validation falied: %s", errstr);
+	if (!verify_server_signature(server, credentials, ServerSignature, &match)) {
 		kill_pool_logins(server->pool, NULL, "server login failed: failed to verify server signature");
 		goto failed;
 	}

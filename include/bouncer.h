@@ -183,10 +183,10 @@ extern int cf_sbuf_len;
 #include "takeover.h"
 #include "janitor.h"
 #include "hba.h"
+#include "ldapauth.h"
 #include "messages.h"
 #include "pam.h"
 #include "prepare.h"
-#include "ldapauth.h"
 
 #ifndef WIN32
 #define DEFAULT_UNIX_SOCKET_DIR "/tmp"
@@ -231,11 +231,11 @@ enum auth_type {
 	AUTH_TYPE_MD5,
 	AUTH_TYPE_CERT,
 	AUTH_TYPE_HBA,
+	AUTH_TYPE_LDAP,
 	AUTH_TYPE_PAM,
 	AUTH_TYPE_SCRAM_SHA_256,
 	AUTH_TYPE_PEER,
 	AUTH_TYPE_REJECT,
-	AUTH_TYPE_LDAP,
 };
 
 /* type codes for weird pkts */

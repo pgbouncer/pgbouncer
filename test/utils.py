@@ -183,6 +183,16 @@ PG_SUPPORTS_SCRAM = PG_MAJOR_VERSION >= 10
 LIBPQ_SUPPORTS_PIPELINING = psycopg.pq.version() >= 140000
 
 
+def get_ldap_support():
+    with open("../config.mak", encoding="utf-8") as f:
+        match = re.search(r"ldap_support = (\w+)", f.read())
+        assert match is not None
+        return match.group(1) == "yes"
+
+
+LDAP_SUPPORT = get_ldap_support()
+
+
 def get_tls_support():
     with open("../config.mak", encoding="utf-8") as f:
         match = re.search(r"tls_support = (\w+)", f.read())
@@ -193,15 +203,6 @@ def get_tls_support():
 TLS_SUPPORT = get_tls_support()
 DIRECT_TLS_SUPPORT = TLS_SUPPORT and PG_MAJOR_VERSION >= 17
 
-
-def get_ldap_support():
-    with open("../config.mak", encoding="utf-8") as f:
-        match = re.search(r"ldap_support = (\w+)", f.read())
-        assert match is not None
-        return match.group(1) == "yes"
-
-
-LDAP_SUPPORT = get_ldap_support()
 
 # this is out of ephemeral port range for many systems hence
 # it is a lower change that it will conflict with "in-use" ports

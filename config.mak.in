@@ -61,7 +61,6 @@ LIBEVENT_LIBS = @LIBEVENT_LIBS@
 TLS_CPPFLAGS = @TLS_CPPFLAGS@
 TLS_LDFLAGS = @TLS_LDFLAGS@
 TLS_LIBS = @TLS_LIBS@
-LDAP_CFLAGS = @LDAP_CFLAGS@
 
 PANDOC = @PANDOC@
 PYTHON = @PYTHON@
@@ -70,7 +69,7 @@ DLLTOOL = @DLLTOOL@
 WINDRES = @WINDRES@
 
 enable_debug = @enable_debug@
-tls_support = @tls_support@
 ldap_support = @ldap_support@
+tls_support = @tls_support@
 
 host_cpu = @host_cpu@

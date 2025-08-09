@@ -25,6 +25,7 @@
 #ifdef HAVE_LDAP
 
 #include <pthread.h>
+#define LDAP_DEPRECATED 1
 #include <ldap.h>
 
 /* The request is waiting in the queue or being authenticated */

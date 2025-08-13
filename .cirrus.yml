@@ -99,7 +99,7 @@ task:
       - image: rockylinux:9
       - image: rockylinux:8
   setup_script:
-    - yum -y install autoconf automake diffutils file iptables libevent-devel libtool make openssl-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip sudo systemd-devel wget
+    - yum -y install autoconf automake diffutils file iptables libevent-devel libtool make openssl-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip socat sudo systemd-devel wget
     - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
     - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
     - pip3 install -r requirements.txt
@@ -127,7 +127,7 @@ task:
       - image: alpine:latest
   setup_script:
     - apk update
-    - apk add autoconf automake bash build-base iptables libevent-dev libtool openssl openssl-dev pkgconf postgresql postgresql-contrib python3 py3-pip sudo wget
+    - apk add autoconf automake bash build-base iptables libevent-dev libtool openssl openssl-dev pkgconf postgresql postgresql-contrib python3 py3-pip socat sudo wget
     - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
     - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
     - python3 -m venv /venv

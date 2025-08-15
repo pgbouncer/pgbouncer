@@ -24,7 +24,6 @@ if not TLS_SUPPORT:
 
 
 # replace regular bouncer fixture with one that uses the special SSL config
-@pytest.mark.asyncio
 @pytest.fixture
 async def bouncer_tls(pg, tmp_path):
     bouncer_tls = Bouncer(

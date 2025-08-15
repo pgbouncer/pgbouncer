@@ -424,7 +424,6 @@ def test_track_extra_parameters(bouncer):
                 assert result2[0] == test_expected[key][1]
 
 
-@pytest.mark.asyncio
 async def test_wait_close(bouncer):
     with bouncer.cur(dbname="p3") as cur:
         cur.execute("select 1")
@@ -459,7 +458,6 @@ def test_auto_database(bouncer):
 # localhost configured.  Therefore, this test is skipped by default
 # and needs to be enabled explicitly by setting HAVE_IPV6_LOCALHOST to
 # non-empty.
-@pytest.mark.asyncio
 @pytest.mark.skipif("not HAVE_IPV6_LOCALHOST")
 async def test_host_list(bouncer):
     with bouncer.log_contains(r"new connection to server \(from 127.0.0.1", times=1):
@@ -472,7 +470,6 @@ async def test_host_list(bouncer):
 # connections are made.  But the test is useful to get some test
 # coverage (valgrind etc.) of the host list code on systems without
 # IPv6 enabled.
-@pytest.mark.asyncio
 async def test_host_list_dummy(bouncer):
     with bouncer.log_contains(r"new connection to server \(from 127.0.0.1", times=2):
         await bouncer.asleep(1, dbname="hostlist2", times=2)

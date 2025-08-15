@@ -12,7 +12,6 @@ if not LINUX:
     pytest.skip(allow_module_level=True, reason="peering tests require so_reuseport")
 
 
-@pytest.mark.asyncio
 @pytest.fixture
 async def peers(pg, tmp_path):
     peers: Dict[int, Bouncer] = {}

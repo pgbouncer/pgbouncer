@@ -179,7 +179,6 @@ def pg(tmp_path_factory, cert_dir):
     pg.cleanup()
 
 
-@pytest.mark.asyncio
 @pytest.fixture
 async def proxy(pg, tmp_path):
     """Starts a new proxy process"""
@@ -192,7 +191,6 @@ async def proxy(pg, tmp_path):
     proxy.cleanup()
 
 
-@pytest.mark.asyncio
 @pytest.fixture
 async def bouncer(pg, tmp_path):
     """Starts a new PgBouncer process"""
@@ -205,7 +203,6 @@ async def bouncer(pg, tmp_path):
     await bouncer.cleanup()
 
 
-@pytest.mark.asyncio
 @pytest.fixture
 async def bouncer_with_openldap(pg, tmp_path, monkeypatch):
     """Starts a new PgBouncer process"""

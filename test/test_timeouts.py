@@ -462,7 +462,6 @@ def test_client_idle_timeout(bouncer):
                 cur.execute("select 1")
 
 
-@pytest.mark.asyncio
 async def test_server_login_retry(pg, bouncer):
     bouncer.admin(f"set query_timeout=10")
     bouncer.admin(f"set server_login_retry=3")
@@ -528,7 +527,6 @@ def test_tcp_user_timeout(pg, bouncer):
 
 
 @pytest.mark.skipif("not USE_SUDO")
-@pytest.mark.asyncio
 async def test_server_check_delay(pg, bouncer):
     bouncer.admin("set server_check_delay=2")
     bouncer.admin("set server_login_retry=3")

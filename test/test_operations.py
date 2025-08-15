@@ -7,7 +7,6 @@ import pytest
 from .utils import PG_SUPPORTS_SCRAM, WINDOWS
 
 
-@pytest.mark.asyncio
 @pytest.mark.skipif("WINDOWS", reason="gets stuck for some reason during takeover")
 async def test_online_restart(bouncer):
     for _ in range(5):
@@ -19,7 +18,6 @@ async def test_online_restart(bouncer):
         await task
 
 
-@pytest.mark.asyncio
 async def test_pause_resume(bouncer):
     task = bouncer.asleep(0.1, times=50, sequentially=True, connect_timeout=30)
 
@@ -32,7 +30,6 @@ async def test_pause_resume(bouncer):
     await task
 
 
-@pytest.mark.asyncio
 async def test_suspend_resume(bouncer):
     task = bouncer.asleep(0.1, times=50, sequentially=True)
 
@@ -59,7 +56,6 @@ def test_enable_disable(bouncer):
     bouncer.test()
 
 
-@pytest.mark.asyncio
 async def test_database_restart(pg, bouncer):
     bouncer.admin("set server_login_retry=1")
     bouncer.test()
@@ -112,7 +108,6 @@ def test_reconnect(bouncer):
     assert pid1 != pid2
 
 
-@pytest.mark.asyncio
 @pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
 @pytest.mark.skipif("WINDOWS", reason="gets stuck for some reason during takeover")
 async def test_scram_takeover(bouncer):

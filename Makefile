@@ -156,13 +156,14 @@ $(PACKAGE_TARNAME)-$(PACKAGE_VERSION).tar.gz:
 PYTEST = $(shell command -v pytest || echo '$(PYTHON) -m pytest')
 
 CONCURRENCY = auto
+PYTEST_FLAGS = -r s
 
 check: all
 	etc/optscan.sh
 	if [ $(CONCURRENCY) = 1 ]; then \
-		PYTHONIOENCODING=utf8 $(PYTEST); \
+		PYTHONIOENCODING=utf8 $(PYTEST) $(PYTEST_FLAGS); \
 	else \
-		PYTHONIOENCODING=utf8 $(PYTEST) -n $(CONCURRENCY); \
+		PYTHONIOENCODING=utf8 $(PYTEST) -n $(CONCURRENCY) $(PYTEST_FLAGS); \
 	fi
 	$(MAKE) -C test check
 

@@ -214,7 +214,7 @@ extern int cf_sbuf_len;
  * Some cloud services use very long generated passwords, so give it
  * plenty of room.
  */
-#define MAX_PASSWORD    2048
+#define MAX_PASSWORD    65535
 
 #ifdef HAVE_LDAP
 /* Hope this length is long enough for ldap config line */

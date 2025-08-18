@@ -63,6 +63,7 @@ void cleanup_tcp_sockets(void)
 	struct ListenSocket *ls;
 	struct List *el, *tmp_l;
 
+
 	/* avoid cleanup if exit() while suspended */
 	if (cf_pause_mode == P_SUSPEND)
 		return;
@@ -103,19 +104,24 @@ void cleanup_unix_sockets(void)
 			ls->fd = 0;
 		}
 		if (pga_is_unix(&ls->addr) && cf_unix_socket_dir[0] != '@') {
+			int port;
+
 			char buf[sizeof(struct sockaddr_un) + 20];
-			snprintf(buf, sizeof(buf), "%s/.s.PGSQL.%d", cf_unix_socket_dir, cf_listen_port);
+			port = ntohs(ls->addr.sin.sin_port);
+			snprintf(buf, sizeof(buf), "%s/.s.PGSQL.%d", cf_unix_socket_dir, port);
 			unlink(buf);
 		}
 		statlist_remove(&sock_list, el);
 		free(ls);
 	}
+
+	return;
 }
 
 /*
  * initialize another listening socket.
  */
-static bool add_listen(int af, const struct sockaddr *sa, int salen)
+static bool add_listen(int af, const struct sockaddr *sa, int salen, int listen_port)
 {
 	struct ListenSocket *ls;
 	int sock, res;
@@ -202,7 +208,7 @@ static bool add_listen(int af, const struct sockaddr *sa, int salen)
 	list_init(&ls->node);
 	ls->fd = sock;
 	if (sa->sa_family == AF_UNIX) {
-		pga_set(&ls->addr, AF_UNIX, cf_listen_port);
+		pga_set(&ls->addr, AF_UNIX, listen_port);
 	} else {
 		pga_copy(&ls->addr, sa);
 	}
@@ -277,7 +283,7 @@ static void create_unix_socket(const char *socket_dir, int listen_port)
 	 * The exact directory is already listed in a warning created by
 	 * add_listen, so we don't show it here again.
 	 */
-	if (!add_listen(AF_UNIX, (const struct sockaddr *)&un, addrlen))
+	if (!add_listen(AF_UNIX, (const struct sockaddr *)&un, addrlen, listen_port))
 		die("failed to create unix socket");
 }
 
@@ -394,9 +400,9 @@ loop:
 
 	log_noise("new fd from accept=%d", fd);
 	if (is_unix) {
-		client = accept_client(fd, true);
+		client = accept_client(fd, true, htons(ls->addr.sin6.sin6_port));
 	} else {
-		client = accept_client(fd, false);
+		client = accept_client(fd, false, htons(ls->addr.sin6.sin6_port));
 	}
 
 	if (client)
@@ -423,7 +429,7 @@ bool use_pooler_socket(int sock, bool is_unix)
 		return false;
 	ls->fd = sock;
 	if (is_unix) {
-		pga_set(&ls->addr, AF_UNIX, cf_listen_port);
+		pga_set(&ls->addr, AF_UNIX, atoi(strtok(cf_listen_port, ",")));
 	} else {
 		struct sockaddr_storage ss;
 		socklen_t len = sizeof(ss);
@@ -488,12 +494,14 @@ void per_loop_pooler_maint(void)
 		suspend_pooler();
 }
 
-static bool parse_addr(void *arg, const char *addr)
+static bool parse_addr(void *port, const char *addr)
 {
 	int res;
 	char service[64];
 	struct addrinfo *ai, *gaires = NULL;
+	int listen_port;
 
+	listen_port = *((int *) port);
 	if (!*addr)
 		return true;
 
@@ -501,12 +509,13 @@ static bool parse_addr(void *arg, const char *addr)
 
 	if (strcmp(addr, "*") == 0)
 		addr = NULL;
-	snprintf(service, sizeof(service), "%d", cf_listen_port);
+
+	snprintf(service, sizeof(service), "%d", listen_port);
 
 	res = getaddrinfo(addr, service, &hints, &gaires);
 	if (res != 0) {
 		die("getaddrinfo('%s', '%d') = %s [%d]", addr ? addr : "*",
-		    cf_listen_port, gai_strerror(res), res);
+		    listen_port, gai_strerror(res), res);
 	}
 
 	for (ai = gaires; ai; ai = ai->ai_next) {
@@ -518,10 +527,25 @@ static bool parse_addr(void *arg, const char *addr)
 		 * families and other weird stuff. If no address at all
 		 * can be listened on though, we do fail hard later.
 		 */
-		add_listen(ai->ai_family, ai->ai_addr, ai->ai_addrlen);
+		add_listen(ai->ai_family, ai->ai_addr, ai->ai_addrlen, listen_port);
 	}
 
 	freeaddrinfo(gaires);
+	return true;
+}
+
+static bool create_unix_sockets(void *arg, const char *s)
+{
+	int port = atoi(s);
+	create_unix_socket(cf_unix_socket_dir, port);
+	return true;
+}
+
+static bool create_listen_ports(void *arg, const char *s)
+{
+	int port = atoi(s);
+	if (!parse_word_list(cf_listen_addr, parse_addr, &port))
+		die("failed to parse listen_addr list: %s", cf_listen_addr);
 	return true;
 }
 
@@ -568,7 +592,6 @@ void pooler_setup(void)
 			statlist_append(&sock_list, &ls->node);
 		}
 	} else {
-		bool ok;
 		static bool init_done = false;
 
 		if (!init_done) {
@@ -578,15 +601,17 @@ void pooler_setup(void)
 			init_done = true;
 		}
 
-		ok = parse_word_list(cf_listen_addr, parse_addr, NULL);
-		if (!ok)
-			die("failed to parse listen_addr list: %s", cf_listen_addr);
+		if (!parse_word_list(cf_listen_port, create_listen_ports, NULL))
+			die("failed to parse cf_listen_port list: %s", cf_listen_port);
+
 
 		if (!listen_addr_empty && !statlist_count(&sock_list))
 			die("failed to listen on any address in listen_addr list: %s", cf_listen_addr);
 
-		if (cf_unix_socket_dir && *cf_unix_socket_dir)
-			create_unix_socket(cf_unix_socket_dir, cf_listen_port);
+		if (cf_unix_socket_dir && *cf_unix_socket_dir) {
+			if (!parse_word_list(cf_listen_port, create_unix_sockets, NULL))
+				die("failed to create sockets");
+		}
 	}
 
 	if (!statlist_count(&sock_list))

@@ -99,7 +99,7 @@ task:
       - image: rockylinux:9
       - image: rockylinux:8
   setup_script:
-    - yum -y install autoconf automake diffutils file iptables libevent-devel libtool make openssl-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip socat sudo systemd-devel wget
+    - yum -y install autoconf automake diffutils file iptables libevent-devel libpq-devel libtool make openssl-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip socat sudo systemd-devel wget
     - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
     - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
     - if grep -q -F 'release 9' /etc/redhat-release; then yum -y install python-unversioned-command; else yum -y install python39 python39-pip && alternatives --set python /usr/bin/python3.9; fi

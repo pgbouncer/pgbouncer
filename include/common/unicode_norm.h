@@ -5,7 +5,7 @@
  *
  * These definitions are used by both frontend and backend code.
  *
- * Copyright (c) 2017-2020, PostgreSQL Global Development Group
+ * Copyright (c) 2017-2025, PostgreSQL Global Development Group
  *
  * src/include/common/unicode_norm.h
  *
@@ -14,8 +14,7 @@
 #ifndef UNICODE_NORM_H
 #define UNICODE_NORM_H
 
-#include "common/postgres_compat.h"
-#include "common/pg_wchar.h"
+#include "mb/pg_wchar.h"
 
 typedef enum
 {

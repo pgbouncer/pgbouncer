@@ -1110,10 +1110,7 @@ static bool scram_client_first(PgSocket *client, uint32_t datalen, const uint8_t
 
 	input = ibuf;
 	slog_debug(client, "SCRAM client-first-message = \"%s\"", input);
-	if (!read_client_first_message(client, input,
-				       &client->scram_state.cbind_flag,
-				       &client->scram_state.client_first_message_bare,
-				       &client->scram_state.client_nonce))
+	if (!read_client_first_message(client, input))
 		goto failed;
 
 	if (!user->mock_auth) {
@@ -1173,13 +1170,13 @@ static bool scram_client_final(PgSocket *client, uint32_t datalen, const uint8_t
 		goto failed;
 	}
 
-	if (!verify_client_proof(&client->scram_state, proof)
+	if (!verify_client_proof(client, proof)
 	    || !client->login_user_credentials) {
 		slog_error(client, "password authentication failed");
 		goto failed;
 	}
 
-	server_final_message = build_server_final_message(&client->scram_state);
+	server_final_message = build_server_final_message(client);
 	if (!server_final_message)
 		goto failed;
 	slog_debug(client, "SCRAM server-final-message = \"%s\"", server_final_message);

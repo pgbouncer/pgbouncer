@@ -8,6 +8,7 @@ from .utils import (
     DIRECT_TLS_SUPPORT,
     MACOS,
     PG_MAJOR_VERSION,
+    PG_SUPPORTS_SCRAM,
     TEST_DIR,
     TLS_SUPPORT,
     WINDOWS,
@@ -322,6 +323,7 @@ def test_client_ssl_auth(bouncer_tls, cert_dir):
     )
 
 
+@pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
 def test_client_ssl_scram(bouncer_tls, cert_dir):
     root = cert_dir / "TestCA1" / "ca.crt"
     key = cert_dir / "TestCA1" / "sites" / "01-localhost.key"

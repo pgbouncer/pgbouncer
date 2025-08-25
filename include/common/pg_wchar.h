@@ -361,12 +361,12 @@ typedef struct pg_enc2name
 #endif
 } pg_enc2name;
 
-extern PGDLLIMPORT const pg_enc2name pg_enc2name_tbl[];
+extern const pg_enc2name pg_enc2name_tbl[];
 
 /*
  * Encoding names for gettext
  */
-extern PGDLLIMPORT const char *pg_enc2gettext_tbl[];
+extern const char *pg_enc2gettext_tbl[];
 
 /*
  * pg_wchar stuff
@@ -402,7 +402,7 @@ typedef struct
 	int			maxmblen;		/* max bytes for a char in this encoding */
 } pg_wchar_tbl;
 
-extern PGDLLIMPORT const pg_wchar_tbl pg_wchar_table[];
+extern const pg_wchar_tbl pg_wchar_table[];
 
 /*
  * Data structures for conversions between UTF-8 and other encodings

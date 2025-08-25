@@ -11,7 +11,7 @@
 #ifndef _ASCII_H_
 #define _ASCII_H_
 
-#include "port/simd.h"
+#include "common/simd.h"
 
 extern void ascii_safe_strlcpy(char *dest, const char *src, size_t destsiz);
 

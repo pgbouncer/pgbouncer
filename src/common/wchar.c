@@ -10,12 +10,16 @@
  *
  *-------------------------------------------------------------------------
  */
-#include "c.h"
+#include "common/postgres_compat.h"
+
+#ifdef __GNUC__
+  #pragma GCC diagnostic ignored "-Wsign-compare"
+#endif
 
 #include <limits.h>
 
-#include "mb/pg_wchar.h"
-#include "utils/ascii.h"
+#include "common/pg_wchar.h"
+#include "common/ascii.h"
 
 
 /*

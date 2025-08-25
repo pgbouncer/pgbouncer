@@ -12,10 +12,10 @@
  *
  *-------------------------------------------------------------------------
  */
-#ifndef FRONTEND
-#include "postgres.h"
-#else
-#include "postgres_fe.h"
+#include "common/postgres_compat.h"
+
+#ifdef __GNUC__
+  #pragma GCC diagnostic ignored "-Wsign-compare"
 #endif
 
 #include "common/unicode_norm.h"

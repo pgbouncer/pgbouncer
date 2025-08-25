@@ -37,8 +37,6 @@
 #include "common/cryptohash.h"
 #undef uint8
 
-#define SCRAM_MAX_KEY_LEN 32
-
 /*
  * By default uthash exits the program when an allocation fails. But for some
  * of our hashmap usecases we don't want that. Luckily you can install your own
@@ -522,9 +520,9 @@ struct PgCredentials {
 	PgGlobalUser *global_user;
 
 	/* scram keys used for pass-though and adhoc auth caching */
-	uint8_t scram_ClientKey[SCRAM_MAX_KEY_LEN];
-	uint8_t scram_ServerKey[SCRAM_MAX_KEY_LEN];
-	uint8_t scram_StoredKey[SCRAM_MAX_KEY_LEN];
+	uint8_t scram_ClientKey[32];
+	uint8_t scram_ServerKey[32];
+	uint8_t scram_StoredKey[32];
 	int scram_Iiterations;
 	char *scram_SaltKey;	/* base64-encoded */
 
@@ -751,9 +749,9 @@ struct PgSocket {
 		char cbind_flag;
 		bool adhoc;	/* SCRAM data made up from plain-text password */
 		char *encoded_salt;	/* base64-encoded salt for server messages */
-		uint8_t ClientKey[SCRAM_MAX_KEY_LEN];
-		uint8_t StoredKey[SCRAM_MAX_KEY_LEN];
-		uint8_t ServerKey[SCRAM_MAX_KEY_LEN];
+		uint8_t ClientKey[32];
+		uint8_t StoredKey[32];
+		uint8_t ServerKey[32];
 	} scram_state;
 #ifdef HAVE_LDAP
 	char ldap_parameters[MAX_LDAP_CONFIG];

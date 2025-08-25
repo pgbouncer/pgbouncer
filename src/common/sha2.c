@@ -51,13 +51,9 @@
  */
 
 
-#ifndef FRONTEND
-#include "postgres.h"
-#else
-#include "postgres_fe.h"
-#endif
+#include "common/postgres_compat.h"
 
-#include "sha2_int.h"
+#include "common/sha2_int.h"
 
 /*
  * In backend, use palloc/pfree to ease the error handling.  In frontend,

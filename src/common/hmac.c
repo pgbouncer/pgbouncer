@@ -14,16 +14,10 @@
  *-------------------------------------------------------------------------
  */
 
-#ifndef FRONTEND
-#include "postgres.h"
-#else
-#include "postgres_fe.h"
-#endif
+#include "common/postgres_compat.h"
 
 #include "common/cryptohash.h"
 #include "common/hmac.h"
-#include "common/md5.h"
-#include "common/sha1.h"
 #include "common/sha2.h"
 
 /*
@@ -92,14 +86,6 @@ pg_hmac_create(pg_cryptohash_type type)
 	 */
 	switch (type)
 	{
-		case PG_MD5:
-			ctx->digest_size = MD5_DIGEST_LENGTH;
-			ctx->block_size = MD5_BLOCK_SIZE;
-			break;
-		case PG_SHA1:
-			ctx->digest_size = SHA1_DIGEST_LENGTH;
-			ctx->block_size = SHA1_BLOCK_SIZE;
-			break;
 		case PG_SHA224:
 			ctx->digest_size = PG_SHA224_DIGEST_LENGTH;
 			ctx->block_size = PG_SHA224_BLOCK_LENGTH;

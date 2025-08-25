@@ -12,11 +12,7 @@
  *
  *-------------------------------------------------------------------------
  */
-#ifndef FRONTEND
-#include "postgres.h"
-#else
-#include "postgres_fe.h"
-#endif
+#include "common/postgres_compat.h"
 
 #include "common/unicode_norm.h"
 #ifndef FRONTEND

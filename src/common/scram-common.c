@@ -13,19 +13,11 @@
  *
  *-------------------------------------------------------------------------
  */
-#ifndef FRONTEND
-#include "postgres.h"
-#else
-#include "postgres_fe.h"
-#endif
+#include "common/postgres_compat.h"
 
 #include "common/base64.h"
 #include "common/hmac.h"
 #include "common/scram-common.h"
-#ifndef FRONTEND
-#include "miscadmin.h"
-#endif
-#include "port/pg_bswap.h"
 
 /*
  * Calculate SaltedPassword.

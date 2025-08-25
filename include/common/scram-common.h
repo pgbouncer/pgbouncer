@@ -13,6 +13,7 @@
 #ifndef SCRAM_COMMON_H
 #define SCRAM_COMMON_H
 
+#include "common/postgres_compat.h"
 #include "common/cryptohash.h"
 #include "common/sha2.h"
 

@@ -12,30 +12,24 @@
  *	  http://www.ietf.org/rfc/rfc4013.txt
  *
  *
- * Portions Copyright (c) 2017-2020, PostgreSQL Global Development Group
+ * Portions Copyright (c) 2017-2025, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
  *	  src/common/saslprep.c
  *
  *-------------------------------------------------------------------------
  */
-//#ifndef FRONTEND
-//#include "postgres.h"
-//#else
-//#include "postgres_fe.h"
-//#endif
-#include "system.h"
-#include "common/postgres_compat.h"
+#ifndef FRONTEND
+#include "postgres.h"
+#include "utils/memutils.h"
+#else
+#include "postgres_fe.h"
+#endif
 
 #include "common/saslprep.h"
+#include "common/string.h"
 #include "common/unicode_norm.h"
-#include "common/pg_wchar.h"
-
-/*
- * Limit on how large password's we will try to process.  A password
- * larger than this will be treated the same as out-of-memory.
- */
-#define MAX_PASSWORD_LENGTH		2048
+#include "mb/pg_wchar.h"
 
 /*
  * In backend, we will use palloc/pfree.  In frontend, use malloc, and
@@ -55,7 +49,6 @@
 static int	codepoint_range_cmp(const void *a, const void *b);
 static bool is_code_in_table(pg_wchar code, const pg_wchar *map, int mapsize);
 static int	pg_utf8_string_len(const char *source);
-static bool pg_is_ascii_string(const char *p);
 
 /*
  * Stringprep Mapping Tables.
@@ -1012,34 +1005,21 @@ pg_utf8_string_len(const char *source)
 	const unsigned char *p = (const unsigned char *) source;
 	int			l;
 	int			num_chars = 0;
+	size_t		len = strlen(source);
 
-	while (*p)
+	while (len)
 	{
 		l = pg_utf_mblen(p);
 
-		if (!pg_utf8_islegal(p, l))
+		if (len < l || !pg_utf8_islegal(p, l))
 			return -1;
 
 		p += l;
+		len -= l;
 		num_chars++;
 	}
 
 	return num_chars;
-}
-
-/*
- * Returns true if the input string is pure ASCII.
- */
-static bool
-pg_is_ascii_string(const char *p)
-{
-	while (*p)
-	{
-		if (IS_HIGHBIT_SET(*p))
-			return false;
-		p++;
-	}
-	return true;
 }
 
 
@@ -1080,23 +1060,11 @@ pg_saslprep(const char *input, char **output)
 	/* Ensure we return *output as NULL on failure */
 	*output = NULL;
 
-	/* Check that the password isn't stupendously long */
-	if (strlen(input) > MAX_PASSWORD_LENGTH)
-	{
-#ifndef FRONTEND
-		ereport(ERROR,
-				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-				 errmsg("password too long")));
-#else
-		return SASLPREP_OOM;
-#endif
-	}
-
 	/*
 	 * Quick check if the input is pure ASCII.  An ASCII string requires no
 	 * further processing.
 	 */
-	if (pg_is_ascii_string(input))
+	if (pg_is_ascii(input))
 	{
 		*output = STRDUP(input);
 		if (!(*output))
@@ -1112,6 +1080,8 @@ pg_saslprep(const char *input, char **output)
 	input_size = pg_utf8_string_len(input);
 	if (input_size < 0)
 		return SASLPREP_INVALID_UTF8;
+	if (input_size >= MaxAllocSize / sizeof(pg_wchar))
+		goto oom;
 
 	input_chars = ALLOC((input_size + 1) * sizeof(pg_wchar));
 	if (!input_chars)

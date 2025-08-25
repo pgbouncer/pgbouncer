@@ -102,11 +102,11 @@ task:
     - container:
         image: rockylinux:8
   setup_script:
-    - yum -y install autoconf automake diffutils file iptables libevent-devel libpq-devel libtool make openssl-devel pam-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip socat sudo systemd-devel wget
-    - case $configure_args in *with-cares*) yum -y install c-ares-devel; esac
+    - dnf -y install autoconf automake diffutils file iptables libevent-devel libpq-devel libtool make openssl-devel pam-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip socat sudo systemd-devel wget
+    - case $configure_args in *with-cares*) dnf -y install c-ares-devel; esac
     - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
     - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
-    - if grep -q -F 'release 9' /etc/redhat-release; then yum -y install python-unversioned-command; else yum -y install python39 python39-pip && alternatives --set python /usr/bin/python3.9; fi
+    - if grep -q -F 'release 9' /etc/redhat-release; then dnf -y install python-unversioned-command; else dnf -y install python39 python39-pip && alternatives --set python /usr/bin/python3.9; fi
     - python -m pip install -r requirements.txt
     - useradd user
     - chown -R user .

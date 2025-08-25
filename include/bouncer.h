@@ -32,6 +32,10 @@
 #include <event2/event.h>
 #include <event2/event_struct.h>
 
+#include "common/postgres_compat.h"
+#include "common/cryptohash.h"
+#include "common/scram-common.h"
+
 /*
  * By default uthash exits the program when an allocation fails. But for some
  * of our hashmap usecases we don't want that. Luckily you can install your own
@@ -515,9 +519,9 @@ struct PgCredentials {
 	PgGlobalUser *global_user;
 
 	/* scram keys used for pass-though and adhoc auth caching */
-	uint8_t scram_ClientKey[32];
-	uint8_t scram_ServerKey[32];
-	uint8_t scram_StoredKey[32];
+	uint8_t scram_ClientKey[SCRAM_MAX_KEY_LEN];
+	uint8_t scram_ServerKey[SCRAM_MAX_KEY_LEN];
+	uint8_t scram_StoredKey[SCRAM_MAX_KEY_LEN];
 	int scram_Iiterations;
 	char *scram_SaltKey;	/* base64-encoded */
 
@@ -725,19 +729,28 @@ struct PgSocket {
 	};
 
 	struct ScramState {
+		/* Common fields used in both client and server roles */
 		char *client_nonce;
 		char *client_first_message_bare;
 		char *client_final_message_without_proof;
 		char *server_nonce;
 		char *server_first_message;
+		int iterations;
+		pg_cryptohash_type hash_type;
+		int key_length;
+
+		/* Client-side fields (when PgBouncer connects to PostgreSQL) */
+		uint8_t *salt;	/* binary salt */
+		int saltlen;	/* length of salt */
 		uint8_t *SaltedPassword;
+
+		/* Server-side fields (when clients connect to PgBouncer) */
 		char cbind_flag;
 		bool adhoc;	/* SCRAM data made up from plain-text password */
-		int iterations;
-		char *salt;	/* base64-encoded */
-		uint8_t ClientKey[32];	/* SHA256_DIGEST_LENGTH */
-		uint8_t StoredKey[32];
-		uint8_t ServerKey[32];
+		char *encoded_salt;	/* base64-encoded salt for server messages */
+		uint8_t ClientKey[SCRAM_MAX_KEY_LEN];
+		uint8_t StoredKey[SCRAM_MAX_KEY_LEN];
+		uint8_t ServerKey[SCRAM_MAX_KEY_LEN];
 	} scram_state;
 #ifdef HAVE_LDAP
 	char ldap_parameters[MAX_LDAP_CONFIG];

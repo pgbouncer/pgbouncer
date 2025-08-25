@@ -99,7 +99,7 @@ if test x"$GCC" = xyes; then
   good_CFLAGS="$CFLAGS"
   flags="-Wall -Wextra"
   # turn off noise from Wextra
-  flags="$flags -Wno-unused-parameter -Wno-missing-field-initializers"
+  flags="$flags -Wno-unused-parameter -Wno-sign-compare -Wno-missing-field-initializers"
   # Wextra does not turn those on?
   flags="$flags -Wmissing-prototypes -Wpointer-arith -Wendif-labels"
   flags="$flags -Wdeclaration-after-statement -Wold-style-definition"

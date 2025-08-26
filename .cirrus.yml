@@ -102,7 +102,9 @@ task:
     - container:
         image: rockylinux:8
   setup_script:
-    - dnf -y install autoconf automake diffutils file iptables libevent-devel libpq-devel libtool make openssl-devel pam-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip socat sudo systemd-devel wget
+    - dnf -y install 'dnf-command(config-manager)'
+    - if grep -q -F 'release 9' /etc/redhat-release; then dnf config-manager --set-enabled "plus"; else dnf config-manager --set-enabled "powertools"; fi
+    - dnf -y install autoconf automake diffutils file iptables libevent-devel libpq-devel libtool make openldap-clients openldap-devel openldap-servers openssl-devel pam-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip socat sudo systemd-devel wget
     - case $configure_args in *with-cares*) dnf -y install c-ares-devel; esac
     - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
     - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
@@ -113,7 +115,7 @@ task:
     - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
   build_script:
     - su user -c "./autogen.sh"
-    - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror --with-pam --with-systemd $configure_args"
+    - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror --with-ldap --with-pam --with-systemd $configure_args"
     - su user -c "make -j4"
   test_script:
     - su user -c "make -j4 check CONCURRENCY=4"

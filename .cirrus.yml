@@ -163,7 +163,7 @@ task:
     HAVE_IPV6_LOCALHOST: yes
     USE_SUDO: true
   setup_script:
-    - pkg install -y autoconf automake bash gmake hs-pandoc libevent libtool pkgconf postgresql${PGVERSION}-server postgresql${PGVERSION}-contrib python devel/py-pip sudo
+    - pkg install -y autoconf automake bash gmake hs-pandoc libevent libtool openldap25-client openldap25-server pkgconf postgresql${PGVERSION}-server postgresql${PGVERSION}-contrib python devel/py-pip sudo
     - pip install -r requirements.txt
     - kldload pf
     - echo 'anchor "pgbouncer_test/*"' >> /etc/pf.conf
@@ -178,7 +178,7 @@ task:
     M4: /usr/local/bin/gm4
   build_script:
     - su user -c "./autogen.sh"
-    - su user -c "./configure --prefix=$HOME/install --enable-werror"
+    - su user -c "./configure --prefix=$HOME/install --enable-werror --with-ldap"
     - su user -c "gmake -j4"
   test_script:
     - su user -c "gmake -j4 check CONCURRENCY=4"

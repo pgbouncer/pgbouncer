@@ -1387,7 +1387,7 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 			unlink_server(server, reason);
 		break;
 	default:
-		fatal("bad server state: %d", server->state);
+		fatal("bad server state: %d, %s", server->state, reason);
 	}
 
 	Assert(server->link == NULL);
@@ -1567,7 +1567,7 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 		}
 		break;
 	default:
-		fatal("bad client state: %d", client->state);
+		fatal("bad client state: %d, %s", client->state, reason);
 	}
 
 	/* send reason to client */

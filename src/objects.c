@@ -1567,7 +1567,7 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 		}
 		break;
 	default:
-		fatal("bad client state: %d, %s", client->state, reason);
+		fatal("bad client state: %d, %s", client->state, reason ? reason : "NULL");
 	}
 
 	/* send reason to client */

@@ -1128,7 +1128,6 @@ def test_auth_user_at_db_level_with_same_forced_user(bouncer):
                 cur.execute("select 1")
 
 
-@pytest.mark.skipif("MACOS", reason="OpenLDAP on OSX is difficult")
 @pytest.mark.skipif("WINDOWS", reason="We do not expect to support ldap on Windows")
 @pytest.mark.skipif(not LDAP_SUPPORT, reason="pgbouncer is built without LDAP support")
 def test_ldap_auth(bouncer_with_openldap):

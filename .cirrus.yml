@@ -134,7 +134,7 @@ task:
       - image: alpine:latest
   setup_script:
     - apk update
-    - apk add autoconf automake bash build-base c-ares-dev iptables libevent-dev libtool openssl openssl-dev pkgconf postgresql postgresql-contrib python3 py3-pip socat sudo wget
+    - apk add autoconf automake bash build-base c-ares-dev iptables libevent-dev libtool openldap openldap-clients openldap-dev openssl openssl-dev pkgconf postgresql postgresql-contrib python3 py3-pip socat sudo wget
     - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
     - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
     - python3 -m venv /venv
@@ -144,7 +144,7 @@ task:
     - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
   build_script:
     - su user -c "./autogen.sh"
-    - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror --with-cares"
+    - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror --with-cares --with-ldap"
     - su user -c "make -j4"
   test_script:
     - source /venv/bin/activate && su user -c "make -j4 check CONCURRENCY=4"

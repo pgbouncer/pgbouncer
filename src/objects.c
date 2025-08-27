@@ -1527,6 +1527,8 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 			PgSocket *server = client->link;
 			server->link = NULL;
 			client->link = NULL;
+			/* notify disconnect_server() that connect did not fail */
+			server->ready = true;
 			disconnect_server(server, false, "client gave up on cancel request, so we also give up forwarding to server");
 		}
 		/*
@@ -2238,7 +2240,7 @@ found:
 	launch_new_connection(pool, /* evict_if_needed= */ true);
 }
 
-bool forward_cancel_request(PgSocket *server)
+void forward_cancel_request(PgSocket *server)
 {
 	bool res;
 	PgSocket *req = first_socket(&server->pool->waiting_cancel_req_list);
@@ -2246,6 +2248,9 @@ bool forward_cancel_request(PgSocket *server)
 
 	Assert(req != NULL && req->state == CL_WAITING_CANCEL);
 	Assert(server->state == SV_LOGIN);
+
+	server->link = req;
+	req->link = server;
 
 	if (!forwarding_to_peer) {
 		/*
@@ -2258,12 +2263,9 @@ bool forward_cancel_request(PgSocket *server)
 		 */
 		if (!req->canceled_server) {
 			disconnect_client(req, false, "not sending cancel request for client that is now idle");
-			return false;
+			return;
 		}
 	}
-
-	server->link = req;
-	req->link = server;
 
 	if (forwarding_to_peer) {
 		SEND_CancelRequest(res, server, req->cancel_key);
@@ -2273,11 +2275,14 @@ bool forward_cancel_request(PgSocket *server)
 	if (!res) {
 		slog_warning(req, "sending cancel request failed: %s", strerror(errno));
 		disconnect_client(req, false, "failed to send cancel request");
-		return false;
+		return;
 	}
 	slog_debug(req, "started sending cancel request");
+
 	change_client_state(req, CL_ACTIVE_CANCEL);
-	return true;
+	change_server_state(server, SV_ACTIVE_CANCEL);
+	sbuf_continue(&server->sbuf);
+	return;
 }
 
 bool use_client_socket(int fd, PgAddr *addr,

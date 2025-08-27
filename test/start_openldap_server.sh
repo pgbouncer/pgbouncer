@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-for file in '/usr/sbin/slapd' '/usr/local/libexec/slapd'; do
+for file in '/usr/sbin/slapd' '/usr/local/libexec/slapd' '/opt/homebrew/opt/openldap/libexec/slapd' '/usr/local/opt/openldap/libexec/slapd' '/opt/local/libexec/slapd'; do
 	if [ -e "$file" ]; then
 		slapd=$file
 	fi
@@ -10,7 +10,7 @@ if [ -z "$slapd" ]; then
 	exit 77
 fi
 
-for dir in '/etc/ldap/schema' '/etc/openldap/schema' '/usr/local/etc/openldap/schema'; do
+for dir in '/etc/ldap/schema' '/etc/openldap/schema' '/usr/local/etc/openldap/schema' '/opt/homebrew/etc/openldap/schema' '/opt/local/etc/openldap/schema'; do
 	if [ -d "$dir" ]; then
 		ldap_schema_dir=$dir
 	fi

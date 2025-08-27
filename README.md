@@ -130,6 +130,8 @@ If cross-compiling from Unix:
 
 	$ ./configure --host=i586-mingw32msvc
 
+The LDAP build option is currently not supported on Windows.
+
 Running on Windows
 ------------------
 

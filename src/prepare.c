@@ -8,7 +8,6 @@
 
 #include "bouncer.h"
 
-#include <usual/crypto/csrandom.h>
 #include <usual/hashtab-impl.h>
 #include <usual/slab.h>
 

@@ -127,6 +127,38 @@ long SSL_CTX_set_dh_auto(SSL_CTX *ctx, int onoff)
 
 static EC_KEY *ecdh_cache;
 
+#if defined(OPENSSL_VERSION_NUMBER) && OPENSSL_VERSION_NUMBER >= 0x30000000L
+
+#include <openssl/param_build.h> 
+/* Returns 1 and sets *nid if successful, 0 otherwise (OpenSSL 3+) */
+int get_ecdh_curve_nid(EVP_PKEY *pk, int *nid)
+{
+	OSSL_PARAM params[2];
+	int curve_nid = NID_undef;
+	params[0] = OSSL_PARAM_construct_int("curve", &curve_nid);
+	params[1] = OSSL_PARAM_construct_end();
+	if (EVP_PKEY_get_params(pk, params) == 1 && curve_nid != NID_undef) {
+		*nid = curve_nid;
+		return 1;
+	}
+	return 0;
+}
+#else
+/* Returns 1 and sets *nid if successful, 0 otherwise (OpenSSL < 3) */
+int get_ecdh_curve_nid(EVP_PKEY *pk, int *nid)
+{
+	const EC_KEY *ecdh = EVP_PKEY_get0_EC_KEY(pk);
+	if (ecdh) {
+		const EC_GROUP *eg = EC_KEY_get0_group(ecdh);
+		if (eg) {
+			*nid = EC_GROUP_get_curve_name(eg);
+			return 1;
+		}
+	}
+	return 0;
+}
+#endif
+
 #ifdef USE_LIBSSL_OLD
 static EC_KEY *ecdh_auto_cb(SSL *ssl, int is_export, int keylength)
 {
@@ -138,6 +170,7 @@ static EC_KEY *ecdh_auto_cb(SSL *ssl, int is_export, int keylength)
 
 	/* pick curve from EC key */
 	pk = SSL_get_privatekey(ssl);
+
 	if (pk && EVP_PKEY_id(pk) == EVP_PKEY_EC) {
 		ec = EVP_PKEY_get1_EC_KEY(pk);
 		if (ec) {

@@ -14,6 +14,10 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
+#include <stdbool.h>
+
+bool get_ecdh_curve_nid(EVP_PKEY *pk, int *nid);
+
 /* OpenSSL 1.1+ has hidden struct fields */
 #if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
 

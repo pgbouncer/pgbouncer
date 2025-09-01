@@ -129,7 +129,7 @@ static EC_KEY *ecdh_cache;
 
 #if defined(OPENSSL_VERSION_NUMBER) && OPENSSL_VERSION_NUMBER >= 0x30000000L
 
-#include <openssl/param_build.h> 
+#include <openssl/param_build.h>
 /* Returns 1 and sets *nid if successful, 0 otherwise (OpenSSL 3+) */
 int get_ecdh_curve_nid(EVP_PKEY *pk, int *nid)
 {

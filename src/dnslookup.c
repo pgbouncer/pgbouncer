@@ -17,6 +17,7 @@
  */
 
 #include "bouncer.h"
+#include "multithread.h"
 
 #include <usual/netdb.h>
 #include <usual/socket.h>
@@ -85,6 +86,8 @@ struct DNSRequest {
 	struct addrinfo *oldres;
 
 	usec_t res_ttl;
+
+	int thread_id;
 };
 
 /* zone name serial */
@@ -286,7 +289,7 @@ static bool impl_init(struct DNSContext *ctx)
 	return true;
 }
 
-static void impl_launch_query(struct DNSRequest *req)
+static void impl_launch_query(struct DNSRequest *req, int thread_id)
 {
 	static const struct addrinfo hints = { .ai_socktype = SOCK_STREAM };
 
@@ -758,6 +761,7 @@ loop:
 	el = list_pop(&req->ucb_list);
 	if (!el)
 		return;
+
 	ucb = container_of(el, struct DNSToken, node);
 
 	/* launch callback */
@@ -767,7 +771,6 @@ loop:
 		     ai ? ai->ai_addr : NULL,
 		     ai ? ai->ai_addrlen : 0);
 	free(ucb);
-
 	/* scroll req list */
 	if (ai) {
 		req->current = ai->ai_next;
@@ -847,13 +850,12 @@ void adns_free_context(struct DNSContext *ctx)
 	}
 }
 
-struct DNSToken *adns_resolve(struct DNSContext *ctx, const char *name, adns_callback_f cb_func, void *cb_arg)
+struct DNSToken *adns_resolve(struct DNSContext *ctx, const char *name, adns_callback_f cb_func, void *cb_arg, int thread_id)
 {
 	int namelen = strlen(name);
 	struct DNSRequest *req;
 	struct DNSToken *ucb;
 	struct AANode *node;
-
 	/* setup actual lookup */
 	node = aatree_search(&ctx->req_tree, (uintptr_t)name);
 	if (node) {
@@ -874,12 +876,14 @@ struct DNSToken *adns_resolve(struct DNSContext *ctx, const char *name, adns_cal
 		list_init(&req->znode);
 		aatree_insert(&ctx->req_tree, (uintptr_t)req->name, &req->node);
 
+		if(req){
+			req->thread_id = thread_id;
+		}
 		zone_register(ctx, req);
 
 		ctx->active++;
 		impl_launch_query(req);
 	}
-
 	/* remember user callback */
 	ucb = calloc(1, sizeof(*ucb));
 	if (!ucb)
@@ -891,7 +895,7 @@ struct DNSToken *adns_resolve(struct DNSContext *ctx, const char *name, adns_cal
 
 	/* if already have final result, report it */
 	if (req->done) {
-		if (req->res_ttl < get_cached_time()) {
+		if (req->res_ttl < get_multithread_time_with_id(thread_id)) {
 			log_noise("dns: ttl over: %s", req->name);
 			req_reset(req);
 			ctx->active++;
@@ -964,11 +968,11 @@ static void got_result_gai(int result, struct addrinfo *res, void *arg)
 				ai = ai->ai_next;
 			}
 		}
-		req->res_ttl = get_cached_time() + cf_dns_max_ttl;
+		req->res_ttl = get_multithread_time_with_id(req->thread_id) + cf_dns_max_ttl;
 	} else {
 		/* lookup failed */
 		log_warning("DNS lookup failed: %s: result=%d", req->name, result);
-		req->res_ttl = get_cached_time() + cf_dns_nxdomain_ttl;
+		req->res_ttl = get_multithread_time_with_id(req->thread_id) + cf_dns_nxdomain_ttl;
 	}
 
 	req->done = true;

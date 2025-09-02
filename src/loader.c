@@ -22,6 +22,7 @@
 
 #include "bouncer.h"
 #include "usual/time.h"
+#include "multithread.h"
 
 #include <usual/fileutil.h>
 #include <usual/string.h>
@@ -243,8 +244,22 @@ fail:
 	free(host);
 	return false;
 }
+
+bool parse_database_multithread(void *base, const char *name, const char *connstr){
+	bool res = true;
+
+	if (!multithread_mode) {
+		return parse_database(base, name, connstr, -1);
+	}
+
+	FOR_EACH_THREAD(thread_id){
+		res &= parse_database(base, name, connstr, thread_id);
+	}
+	return res;
+}
+
 /* fill PgDatabase from connstr */
-bool parse_database(void *base, const char *name, const char *connstr)
+bool parse_database(void *base, const char *name, const char *connstr, int thread_id)
 {
 	char *p, *key, *val;
 	PktBuf *msg;
@@ -370,12 +385,11 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		}
 	}
 
-	db = add_database(name);
+	db = add_database(name, thread_id);
 	if (!db) {
 		log_error("cannot create database, no memory?");
 		goto fail;
 	}
-
 	/* tag the db as alive */
 	db->db_dead = false;
 	/* assuming not an autodb */
@@ -480,11 +494,12 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			log_warning("db setup failed, trying to continue");
 	} else if (db->forced_user_credentials) {
 		log_warning("losing forced user not supported,"
-			    " keeping old setting");
+				" keeping old setting");
 	}
 
 	/* remember dbname */
 	db->dbname = (char *)msg->buf + dbname_ofs;
+
 
 	free(tmp_connstr);
 	return true;
@@ -559,8 +574,15 @@ bool parse_user(void *base, const char *name, const char *connstr)
 			goto fail;
 		}
 	}
+	user = NULL;
+	if(multithread_mode){
+		FOR_EACH_THREAD(thread_id){
+			user = find_or_add_new_global_user(name, "");
+		}
+	}else{
+		user = find_or_add_new_global_user(name, "");
+	}
 
-	user = find_or_add_new_global_user(name, "");
 	if (!user) {
 		log_error("cannot create user, no memory?");
 		goto fail;
@@ -685,10 +707,18 @@ bool loader_users_check(void)
 static void disable_users(void)
 {
 	struct List *item;
-
-	statlist_for_each(item, &user_list) {
-		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
-		user->credentials.passwd[0] = 0;
+	if (multithread_mode)
+	{
+		// TODO(beihao): implement
+		statlist_for_each(item, &user_list) {
+			PgGlobalUser *user = container_of(item, PgGlobalUser, head);
+			user->credentials.passwd[0] = 0;
+		}
+	}else{
+		statlist_for_each(item, &user_list) {
+			PgGlobalUser *user = container_of(item, PgGlobalUser, head);
+			user->credentials.passwd[0] = 0;
+		}
 	}
 }
 
@@ -700,7 +730,6 @@ bool load_auth_file(const char *fn)
 	/* No file to load? */
 	if (fn == NULL)
 		return false;
-
 	buf = load_file(fn, NULL);
 	if (buf == NULL) {
 		log_error("could not open auth_file %s: %s", fn, strerror(errno));
@@ -709,7 +738,6 @@ bool load_auth_file(const char *fn)
 
 	log_debug("loading auth_file: \"%s\"", fn);
 	disable_users();
-
 	p = buf;
 	while (*p) {
 		/* skip whitespace and empty lines */
@@ -758,13 +786,10 @@ bool load_auth_file(const char *fn)
 		}
 		*p++ = 0;	/* tag password end */
 
-		/* send them away */
 		unquote_add_authfile_user(user, password);
-
 		/* skip rest of the line */
 		while (*p && *p != '\n') p++;
 	}
 	free(buf);
-
 	return true;
 }

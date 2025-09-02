@@ -27,6 +27,7 @@ pgbouncer_SOURCES = \
 	src/takeover.c \
 	src/util.c \
 	src/varcache.c \
+	src/multithread.c \
 	src/common/base64.c \
 	src/common/bool.c \
 	src/common/pgstrcasecmp.c \
@@ -58,6 +59,7 @@ pgbouncer_SOURCES = \
 	include/takeover.h \
 	include/util.h \
 	include/varcache.h \
+	include/multithread.h \
 	include/common/base64.h \
 	include/common/builtins.h \
 	include/common/pg_wchar.h \

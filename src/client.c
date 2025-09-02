@@ -21,6 +21,7 @@
  */
 
 #include "bouncer.h"
+#include "multithread.h"
 #include "pam.h"
 #include "scram.h"
 #include "common/builtins.h"
@@ -349,15 +350,29 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		if (client->sbuf.tls) {
 			char infobuf[96] = "";
 			tls_get_connection_info(client->sbuf.tls, infobuf, sizeof infobuf);
-			slog_info(client, "login attempt: db=%s user=%s tls=%s replication=%s",
-				  client->db->name,
-				  client->login_user_credentials->name,
-				  infobuf,
-				  replication_type_parameters[client->replication]);
+			if(multithread_mode){
+				slog_info(client, "[Thread %d] login attempt: db=%s user=%s tls=%s replication=%s",
+					client->sbuf.thread_id,
+					client->db->name,
+					client->login_user_credentials->name,
+					infobuf,
+					replication_type_parameters[client->replication]);
+			}else{
+				slog_info(client, "login attempt: db=%s user=%s tls=%s replication=%s",
+					client->db->name,
+					client->login_user_credentials->name,
+					infobuf,
+					replication_type_parameters[client->replication]);
+			}
 		} else {
-			slog_info(client, "login attempt: db=%s user=%s tls=no replication=%s",
-				  client->db->name, client->login_user_credentials->name,
+			if(multithread_mode){
+				slog_info(client, "[Thread %d] login attempt: db=%s user=%s tls=no replication=%s",
+				  client->sbuf.thread_id, client->db->name, client->login_user_credentials->name,
 				  replication_type_parameters[client->replication]);
+			}else{
+				slog_info(client, "login attempt: db=%s user=%s tls=no replication=%s", client->db->name, client->login_user_credentials->name,
+				  replication_type_parameters[client->replication]);
+			}
 		}
 	}
 
@@ -689,7 +704,6 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
 	const char *username, *password;
 	PgCredentials credentials;
 	PgSocket *server = client->link;
-
 	switch (pkt->type) {
 	case PqMsg_RowDescription:
 		if (!mbuf_get_uint16be(&pkt->data, &columns)) {
@@ -861,6 +875,7 @@ static bool set_startup_options(PgSocket *client, const char *options)
 	char arg_buf[400];
 	struct MBuf arg;
 	const char *position = options;
+	int thread_id = client->sbuf.thread_id;
 
 	if (client->replication) {
 		/*
@@ -921,7 +936,7 @@ static bool set_startup_options(PgSocket *client, const char *options)
 
 		key_string = (const char *) arg.data;
 		value_string = (const char *) equals + 1;
-		if (varcache_set(&client->vars, key_string, value_string)) {
+		if (varcache_set(&client->vars, key_string, value_string, thread_id)) {
 			slog_debug(client, "got var from options: %s=%s", key_string, value_string);
 		} else if (strlist_contains(cf_ignore_startup_params, key_string) || strlist_contains(cf_ignore_startup_params, "options")) {
 			slog_debug(client, "ignoring startup parameter from options: %s=%s", key_string, value_string);
@@ -945,6 +960,7 @@ static void set_appname(PgSocket *client, const char *app_name)
 {
 	char buf[400], abuf[300];
 	const char *details;
+	int thread_id = client->sbuf.thread_id;
 
 	if (cf_application_name_add_host) {
 		/* give app a name */
@@ -958,7 +974,7 @@ static void set_appname(PgSocket *client, const char *app_name)
 	}
 	if (app_name) {
 		slog_debug(client, "using application_name: %s", app_name);
-		varcache_set(&client->vars, "application_name", app_name);
+		varcache_set(&client->vars, "application_name", app_name, thread_id);
 	}
 }
 
@@ -989,7 +1005,7 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 	struct MBuf unsupported_protocol_extensions;
 	int unsupported_protocol_extensions_count = 0;
 	unsigned original_read_pos = pkt->data.read_pos;
-
+	int thread_id = client->sbuf.thread_id;
 	mbuf_init_dynamic(&unsupported_protocol_extensions);
 
 	/*
@@ -1040,7 +1056,7 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 			unsupported_protocol_extensions_count++;
 			if (!mbuf_write(&unsupported_protocol_extensions, key, strlen(key) + 1))
 				return false;
-		} else if (varcache_set(&client->vars, key, val)) {
+		} else if (varcache_set(&client->vars, key, val, thread_id)) {
 			slog_debug(client, "got var: %s=%s", key, val);
 		} else if (strlist_contains(cf_ignore_startup_params, key)) {
 			slog_debug(client, "ignoring startup parameter: %s=%s", key, val);
@@ -1065,8 +1081,8 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 
 	/* check if limit allows, don't limit admin db
 	   nb: new incoming conn will be attached to PgSocket, thus
-	   get_active_client_count() counts it */
-	if (get_active_client_count() > cf_max_client_conn) {
+	   get_total_active_client_count() counts it */
+	if (get_total_active_client_count() > cf_max_client_conn) {
 		if (strcmp(dbname, "pgbouncer") != 0) {
 			disconnect_client(client, true, "no more connections allowed (max_client_conn)");
 			return false;
@@ -1206,6 +1222,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 	const uint8_t *key;
 	bool ok;
 	bool is_unix = pga_is_unix(&client->remote_addr);
+	int thread_id = client->sbuf.thread_id;
 
 	SBuf *sbuf = &client->sbuf;
 
@@ -1418,7 +1435,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 	if (client->packet_cb_state.flag != CB_HANDLE_COMPLETE_PACKET) {
 		sbuf_prepare_skip(sbuf, pkt->len);
 	}
-	client->request_time = get_cached_time();
+	client->request_time = get_multithread_time_with_id(thread_id);
 	return true;
 }
 
@@ -1589,7 +1606,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	/* update stats */
 	if (!client->query_start) {
 		client->pool->stats.query_count++;
-		client->query_start = get_cached_time();
+		client->query_start = get_multithread_time_with_id(client->sbuf.thread_id);
 	}
 
 	/* remember timestamp of the first query in a transaction */
@@ -1704,7 +1721,7 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 	bool res = false;
 	PgSocket *client = container_of(sbuf, PgSocket, sbuf);
 	PktHdr pkt;
-
+	int thread_id = sbuf->thread_id;
 
 	Assert(!is_server_socket(client));
 	Assert(client->sbuf.sock);
@@ -1763,7 +1780,7 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			return false;
 		}
 
-		client->request_time = get_cached_time();
+		client->request_time = get_multithread_time_with_id(thread_id);
 		if (expect_startup_packet(client)) {
 			res = handle_client_startup(client, &pkt);
 		} else {

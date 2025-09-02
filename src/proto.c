@@ -22,7 +22,7 @@
 
 #include "bouncer.h"
 #include "scram.h"
-
+#include "multithread.h"
 /*
  * parse protocol header from struct MBuf
  */
@@ -215,6 +215,7 @@ void log_server_error(const char *note, PktHdr *pkt)
 bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 {
 	PktBuf *msg = pool->welcome_msg;
+	int thread_id = pool->thread_id;
 
 	if (pool->welcome_msg_ready)
 		return true;
@@ -231,7 +232,7 @@ bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 		pktbuf_write_AuthenticationOk(msg);
 
 	/* if not stored in ->orig_vars, write full packet */
-	if (!varcache_set(&pool->orig_vars, key, val))
+	if (!varcache_set(&pool->orig_vars, key, val, thread_id))
 		pktbuf_write_ParameterStatus(msg, key, val);
 
 	return !msg->failed;

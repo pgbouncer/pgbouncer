@@ -16,6 +16,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+extern struct ThreadSafeStatList thread_safe_user_list;
 extern struct StatList user_list;
 extern struct AATree user_tree;
 extern struct StatList pool_list;
@@ -30,6 +31,8 @@ extern struct Slab *db_cache;
 extern struct Slab *peer_cache;
 extern struct Slab *peer_pool_cache;
 extern struct Slab *pool_cache;
+extern struct ThreadSafeSlab *thread_safe_user_cache;
+extern struct ThreadSafeSlab *thread_safe_credentials_cache;
 extern struct Slab *user_cache;
 extern struct Slab *credentials_cache;
 extern struct Slab *iobuf_cache;
@@ -37,20 +40,22 @@ extern struct Slab *outstanding_request_cache;
 extern struct Slab *var_list_cache;
 extern struct Slab *server_prepared_statement_cache;
 extern PgPreparedStatement *prepared_statements;
+extern SpinLock prepared_statements_spinlock_;
 
+// FIXME support for multithreads?
 extern unsigned long long int last_pgsocket_id;
 
 PgDatabase *find_peer(int peer_id);
-PgDatabase *find_database(const char *name);
+PgDatabase *find_database(const char *name, int thread_id);
 PgDatabase *find_or_register_database(PgSocket *connection, const char *name);
-PgGlobalUser *find_global_user(const char *name);
-PgCredentials *find_global_credentials(const char *name);
+PgGlobalUser *find_global_user(const char *name, int thread_id);
+PgCredentials *find_global_credentials(const char *name, int thread_id);
 PgPool *get_pool(PgDatabase *db, PgCredentials *user_credentials);
 PgPool *get_peer_pool(PgDatabase *);
 PgSocket *compare_connections_by_time(PgSocket *lhs, PgSocket *rhs);
 bool evict_connection(PgDatabase *db)           _MUSTCHECK;
 bool evict_pool_connection(PgPool *pool)        _MUSTCHECK;
-bool evict_user_connection(PgCredentials *user_credentials)        _MUSTCHECK;
+bool evict_user_connection(PgCredentials *user_credentials, int thread_id)        _MUSTCHECK;
 bool find_server(PgSocket *client)              _MUSTCHECK;
 bool life_over(PgSocket *server);
 bool release_server(PgSocket *server) /* _MUSTCHECK */;
@@ -63,8 +68,8 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...) _
 void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlstate, const char *reason);
 
 PgDatabase * add_peer(const char *name, int peer_id) _MUSTCHECK;
-PgDatabase * add_database(const char *name) _MUSTCHECK;
-PgDatabase *register_auto_database(const char *name);
+PgDatabase * add_database(const char *name, int thread_id) _MUSTCHECK;
+PgDatabase *register_auto_database(const char *name, int thread_id);
 PgCredentials * add_dynamic_credentials(PgDatabase *db, const char *name, const char *passwd) _MUSTCHECK;
 PgCredentials * force_user_credentials(PgDatabase *db, const char *username, const char *passwd) _MUSTCHECK;
 bool add_outstanding_request(PgSocket *client, char type, ResponseAction action) _MUSTCHECK;
@@ -73,10 +78,10 @@ bool clear_outstanding_requests_until(PgSocket *server, const char types[]) _MUS
 bool queue_fake_response(PgSocket *client, char request_type) _MUSTCHECK;
 
 PgGlobalUser * update_global_user_passwd(PgGlobalUser *user, const char *passwd) _MUSTCHECK;
-PgGlobalUser * find_or_add_new_global_user(const char *name, const char *passwd) _MUSTCHECK;
-PgCredentials * find_or_add_new_global_credentials(const char *name, const char *passwd) _MUSTCHECK;
+PgGlobalUser * find_or_add_new_global_user(const char *name, const char *passwd, int thread_id) _MUSTCHECK;
+PgCredentials * find_or_add_new_global_credentials(const char *name, const char *passwd, int thread_id) _MUSTCHECK;
 
-PgCredentials * add_pam_credentials(const char *name, const char *passwd) _MUSTCHECK;
+PgCredentials * add_pam_credentials(const char *name, const char *passwd, int thread_id) _MUSTCHECK;
 
 void accept_cancel_request(PgSocket *req);
 bool forward_cancel_request(PgSocket *server);
@@ -87,20 +92,22 @@ bool use_client_socket(int fd, PgAddr *addr, const char *dbname, const char *use
 		       const char *client_end, const char *std_string, const char *datestyle, const char *timezone,
 		       const char *password,
 		       const char *scram_client_key, int scram_client_key_len,
-		       const char *scram_server_key, int scram_server_key_len) _MUSTCHECK;
+		       const char *scram_server_key, int scram_server_key_len, int thread_id) _MUSTCHECK;
 bool use_server_socket(int fd, PgAddr *addr, const char *dbname, const char *username, uint64_t ckey, int oldfd, int linkfd,
 		       const char *client_end, const char *std_string, const char *datestyle, const char *timezone,
 		       const char *password,
 		       const char *scram_client_key, int scram_client_key_len,
-		       const char *scram_server_key, int scram_server_key_len) _MUSTCHECK;
+		       const char *scram_server_key, int scram_server_key_len, int thread_id) _MUSTCHECK;
 
 void activate_client(PgSocket *client);
 
 void change_client_state(PgSocket *client, SocketState newstate);
 void change_server_state(PgSocket *server, SocketState newstate);
 
-int get_active_client_count(void);
-int get_active_server_count(void);
+int get_active_client_count(int thread_id);
+int get_active_server_count(int thread_id);
+
+int get_total_active_client_count(void);
 
 void tag_pool_dirty(PgPool *pool);
 void tag_database_dirty(PgDatabase *db);
@@ -108,10 +115,12 @@ void tag_autodb_dirty(void);
 void tag_host_addr_dirty(const char *host, const struct sockaddr *sa);
 void for_each_server(PgPool *pool, void (*func)(PgSocket *sk));
 
-void reuse_just_freed_objects(void);
+void reuse_just_freed_objects(int thread_id);
 
 void init_objects(void);
+void init_objects_multithread(void);
 
 void init_caches(void);
+void init_caches_multithread(void);
 
 void objects_cleanup(void);

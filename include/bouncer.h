@@ -19,7 +19,8 @@
 /*
  * core structures
  */
-
+#ifndef BOUNCER_H
+#define BOUNCER_H
 #include "system.h"
 
 #include <usual/cfparser.h>
@@ -28,10 +29,11 @@
 #include <usual/statlist.h>
 #include <usual/aatree.h>
 #include <usual/socket.h>
+#include <usual/spinlock.h>
 
 #include <event2/event.h>
 #include <event2/event_struct.h>
-
+#include <pthread.h>
 /*
  * By default uthash exits the program when an allocation fails. But for some
  * of our hashmap usecases we don't want that. Luckily you can install your own
@@ -462,6 +464,8 @@ struct PgPool {
 	bool welcome_msg_ready : 1;
 
 	uint16_t rrcounter;		/* round-robin counter */
+
+	int thread_id;		/* thread this pool lives in */
 };
 
 /*
@@ -610,6 +614,8 @@ struct PgDatabase {
 	int client_connection_count;	/* total client connections for this database */
 
 	struct AATree user_tree;	/* users that have been queried on this database */
+
+	int thread_id;		/* thread this database lives in */
 };
 
 enum ResponseAction {
@@ -892,12 +898,16 @@ extern char *cf_server_tls13_ciphers;
 
 extern int cf_max_prepared_statements;
 
+extern int arg_thread_number;
+extern bool multithread_mode;
+
 extern const struct CfLookup pool_mode_map[];
 extern const struct CfLookup load_balance_hosts_map[];
 
 extern usec_t g_suspend_start;
 
 extern struct DNSContext *adns;
+extern SpinLock adns_lock;
 extern struct HBA *parsed_hba;
 
 static inline PgSocket * _MUSTCHECK pop_socket(struct StatList *slist)
@@ -941,3 +951,15 @@ bool load_config(void);
 bool set_config_param(const char *key, const char *val);
 void config_for_each(void (*param_cb)(void *arg, const char *name, const char *val, const char *defval, bool reloadable),
 		     void *arg);
+
+extern pthread_key_t event_base_key;
+extern pthread_key_t thread_pointer;
+
+
+extern int client_count;
+extern SpinLock client_count_lock;
+
+extern int total_active_count;
+extern SpinLock total_active_count_lock;
+
+#endif /* BOUNCER_H */

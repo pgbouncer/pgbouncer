@@ -91,6 +91,8 @@ struct SBuf {
 	const SBufIO *ops;	/* normal vs. TLS */
 	struct tls *tls;	/* TLS context */
 	const char *tls_host;	/* target hostname */
+
+	int thread_id;	/* thread handling this SBuf */
 };
 
 #define sbuf_socket(sbuf) ((sbuf)->sock)

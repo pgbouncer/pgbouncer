@@ -22,6 +22,7 @@
 
 #include "bouncer.h"
 #include "usual/time.h"
+#include "multithread.h"
 
 #include <usual/fileutil.h>
 #include <usual/string.h>
@@ -243,8 +244,22 @@ fail:
 	free(host);
 	return false;
 }
+
+bool parse_database_multithread(void *base, const char *name, const char *connstr){
+	bool res = true;
+
+	if (!multithread_mode) {
+		return parse_database(base, name, connstr, -1);
+	}
+
+	FOR_EACH_THREAD(thread_id){
+		res &= parse_database(base, name, connstr, thread_id);
+	}
+	return res;
+}
+
 /* fill PgDatabase from connstr */
-bool parse_database(void *base, const char *name, const char *connstr)
+bool parse_database(void *base, const char *name, const char *connstr, int thread_id)
 {
 	char *p, *key, *val;
 	PktBuf *msg;
@@ -370,12 +385,11 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		}
 	}
 
-	db = add_database(name);
+	db = add_database(name, thread_id);
 	if (!db) {
 		log_error("cannot create database, no memory?");
 		goto fail;
 	}
-
 	/* tag the db as alive */
 	db->db_dead = false;
 	/* assuming not an autodb */
@@ -467,7 +481,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	}
 
 	if (auth_username != NULL) {
-		db->auth_user_credentials = find_or_add_new_global_credentials(auth_username, "");
+		db->auth_user_credentials = find_or_add_new_global_credentials(auth_username, "", thread_id);
 		if (!db->auth_user_credentials)
 			goto fail;
 	} else if (db->auth_user_credentials) {
@@ -480,11 +494,12 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			log_warning("db setup failed, trying to continue");
 	} else if (db->forced_user_credentials) {
 		log_warning("losing forced user not supported,"
-			    " keeping old setting");
+				" keeping old setting");
 	}
 
 	/* remember dbname */
 	db->dbname = (char *)msg->buf + dbname_ofs;
+
 
 	free(tmp_connstr);
 	return true;
@@ -559,8 +574,15 @@ bool parse_user(void *base, const char *name, const char *connstr)
 			goto fail;
 		}
 	}
+	user = NULL;
+	if(multithread_mode){
+		FOR_EACH_THREAD(thread_id){
+			user = find_or_add_new_global_user(name, "", thread_id);
+		}
+	}else{
+		user = find_or_add_new_global_user(name, "", -1);
+	}
 
-	user = find_or_add_new_global_user(name, "");
 	if (!user) {
 		log_error("cannot create user, no memory?");
 		goto fail;
@@ -626,22 +648,45 @@ static void unquote_add_authfile_user(const char *username, const char *password
 	copy_quoted(real_user, username, sizeof(real_user));
 	copy_quoted(real_passwd, password, sizeof(real_passwd));
 
-	user = find_or_add_new_global_user(real_user, real_passwd);
-	if (!user) {
-		log_warning("cannot create user, no memory");
-		return;
-	}
-	if (strcmp(user->credentials.passwd, real_passwd) != 0) {
-		user = update_global_user_passwd(user, real_passwd);
-	}
+	if(multithread_mode){
+		FOR_EACH_THREAD(thread_id){
+			user = find_or_add_new_global_user(real_user, real_passwd, thread_id);
+			if (!user) {
+				log_warning("cannot create user, no memory");
+				return;
+			}
+			if (strcmp(user->credentials.passwd, real_passwd) != 0) {
+				user = update_global_user_passwd(user, real_passwd);
+			}
 
-	user->credentials.dynamic_passwd = false;
+			user->credentials.dynamic_passwd = false;
 
-	/* Clear cached adhoc scram secrets since the user may have changed the password. */
-	if (user->credentials.scram_SaltKey != NULL) {
-		free(user->credentials.scram_SaltKey);
-		user->credentials.scram_SaltKey = NULL;
-		user->credentials.adhoc_scram_secrets_cached = false;
+			/* Clear cached adhoc scram secrets since the user may have changed the password. */
+			if (user->credentials.scram_SaltKey != NULL) {
+				free(user->credentials.scram_SaltKey);
+				user->credentials.scram_SaltKey = NULL;
+				user->credentials.adhoc_scram_secrets_cached = false;
+			}
+		}
+	}else{
+		user = find_or_add_new_global_user(real_user, real_passwd, -1);
+		if (!user) {
+			log_warning("cannot create user, no memory");
+			return;
+		}
+
+		if (strcmp(user->credentials.passwd, real_passwd) != 0) {
+			user = update_global_user_passwd(user, real_passwd);
+		}
+
+		user->credentials.dynamic_passwd = false;
+
+		/* Clear cached adhoc scram secrets since the user may have changed the password. */
+		if (user->credentials.scram_SaltKey != NULL) {
+			free(user->credentials.scram_SaltKey);
+			user->credentials.scram_SaltKey = NULL;
+			user->credentials.adhoc_scram_secrets_cached = false;
+		}
 	}
 }
 
@@ -685,10 +730,18 @@ bool loader_users_check(void)
 static void disable_users(void)
 {
 	struct List *item;
-
-	statlist_for_each(item, &user_list) {
-		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
-		user->credentials.passwd[0] = 0;
+	if (multithread_mode)
+	{
+		// TODO(beihao): implement
+		statlist_for_each(item, &user_list) {
+			PgGlobalUser *user = container_of(item, PgGlobalUser, head);
+			user->credentials.passwd[0] = 0;
+		}
+	}else{
+		statlist_for_each(item, &user_list) {
+			PgGlobalUser *user = container_of(item, PgGlobalUser, head);
+			user->credentials.passwd[0] = 0;
+		}
 	}
 }
 
@@ -700,7 +753,6 @@ bool load_auth_file(const char *fn)
 	/* No file to load? */
 	if (fn == NULL)
 		return false;
-
 	buf = load_file(fn, NULL);
 	if (buf == NULL) {
 		log_error("could not open auth_file %s: %s", fn, strerror(errno));
@@ -709,7 +761,6 @@ bool load_auth_file(const char *fn)
 
 	log_debug("loading auth_file: \"%s\"", fn);
 	disable_users();
-
 	p = buf;
 	while (*p) {
 		/* skip whitespace and empty lines */
@@ -758,13 +809,10 @@ bool load_auth_file(const char *fn)
 		}
 		*p++ = 0;	/* tag password end */
 
-		/* send them away */
 		unquote_add_authfile_user(user, password);
-
 		/* skip rest of the line */
 		while (*p && *p != '\n') p++;
 	}
 	free(buf);
-
 	return true;
 }

@@ -56,9 +56,8 @@ task:
       trigger_type: manual
   setup_script:
     - apt-get update
-    - apt-get -y install curl gnupg lsb-release
-    - curl https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
-    - echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main $PGVERSION" | tee /etc/apt/sources.list.d/pgdg.list
+    - apt-get -y install gnupg postgresql-common
+    - /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
     - apt-get update
     - pkgs="autoconf automake ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev libtool make pandoc pkg-config postgresql-$PGVERSION python3 python3-pip python3-venv slapd socat sudo"
     - case $CC in clang) pkgs="$pkgs clang";; esac

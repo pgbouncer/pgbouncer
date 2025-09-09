@@ -56,14 +56,14 @@ task:
       trigger_type: manual
   setup_script:
     - apt-get update
-    - apt-get -y install gnupg postgresql-common
+    - apt-get -y --no-install-recommends install gnupg postgresql-common
     - /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
     - apt-get update
     - pkgs="autoconf automake ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev libtool make pandoc pkg-config postgresql-$PGVERSION python3 python3-pip python3-venv slapd socat sudo"
     - case $CC in clang) pkgs="$pkgs clang";; esac
     - if [ x"$ENABLE_VALGRIND" = x"yes" ]; then pkgs="$pkgs valgrind"; fi
     - if [ x"$use_scan_build" = x"yes" ]; then pkgs="$pkgs clang-tools"; fi
-    - apt-get -y install $pkgs
+    - apt-get -y --no-install-recommends install $pkgs
     - python3 -m venv /venv
     - /venv/bin/pip install -r requirements.txt
     - useradd user
@@ -261,7 +261,7 @@ task:
     image: ubuntu:22.04
   setup_script:
     - apt-get update
-    - apt-get install -y python3 python3-pip cmake curl git
+    - apt-get install -y --no-install-recommends python3 python3-pip cmake curl gcc g++ git make
     - pip install -r dev_requirements.txt
   build_script:
     - touch config.mak # Fake that configure has run

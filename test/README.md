@@ -6,21 +6,21 @@ Tests
 To be able to run most of the tests you need to install a few python tools.  To
 do so, you should run the following from the root of the repository:
 
-```bash
+```sh
 pip3 install --user -r requirements.txt
 ```
 
 This will install the packages globally on your system, if you don't want to do
 that (or if tests are still not working after executing the above command) you can use a
 [virtual environment][1] instead:
-```bash
+```sh
 # create a virtual environment (only needed once)
 python3 -m venv env
 
 # activate the environment. You will need to activate this environment in
 # your shell every time you want to run the tests. (so it's needed once per
 # shell).
-source env/bin/activate
+. env/bin/activate
 
 # Install the dependencies (only needed once, or whenever extra dependencies
 # get added to requirements.txt)
@@ -55,7 +55,7 @@ This test is run by `make check`.
 You can review the pytest docs on how to run tests with pytest, but the most
 common commands that you'll want to use are:
 
-```bash
+```sh
 # Run all tests in parallel
 pytest -n auto
 

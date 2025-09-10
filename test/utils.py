@@ -485,7 +485,7 @@ class QueryRunner:
                 assert match is not None
                 fw_token = match.group(1)
             sudo(
-                'bash -c "'
+                'sh -c "'
                 f"echo 'anchor \\\"port_{self.port}\\\"'"
                 f' | pfctl -a pgbouncer_test -f -"'
             )
@@ -509,7 +509,7 @@ class QueryRunner:
                 )
             elif BSD:
                 sudo(
-                    "bash -c '"
+                    "sh -c '"
                     f'echo "block drop out proto tcp from any to {self.host} port {self.port}"'
                     f"| pfctl -a pgbouncer_test/port_{self.port} -f -'"
                 )
@@ -544,7 +544,7 @@ class QueryRunner:
                 )
             elif BSD:
                 sudo(
-                    "bash -c '"
+                    "sh -c '"
                     f'echo "block return-rst out out proto tcp from any to {self.host} port {self.port}"'
                     f"| pfctl -a pgbouncer_test/port_{self.port} -f -'"
                 )

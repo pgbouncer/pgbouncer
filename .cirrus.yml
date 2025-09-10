@@ -133,7 +133,7 @@ task:
       - image: alpine:latest
   setup_script:
     - apk update
-    - apk add autoconf automake bash build-base c-ares-dev iptables libevent-dev libtool openldap openldap-clients openldap-dev openssl openssl-dev pkgconf postgresql postgresql-contrib python3 py3-pip socat sudo wget
+    - apk add autoconf automake build-base c-ares-dev iptables libevent-dev libtool openldap openldap-clients openldap-dev openssl openssl-dev pkgconf postgresql postgresql-contrib python3 py3-pip socat sudo wget
     - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
     - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
     - python3 -m venv /venv
@@ -162,7 +162,7 @@ task:
     HAVE_IPV6_LOCALHOST: yes
     USE_SUDO: true
   setup_script:
-    - pkg install -y autoconf automake bash gmake hs-pandoc libevent libtool openldap25-client openldap25-server pkgconf postgresql${PGVERSION}-server postgresql${PGVERSION}-contrib python devel/py-pip sudo
+    - pkg install -y autoconf automake gmake hs-pandoc libevent libtool openldap25-client openldap25-server pkgconf postgresql${PGVERSION}-server postgresql${PGVERSION}-contrib python devel/py-pip sudo
     - pip install -r requirements.txt
     - kldload pf
     - echo 'anchor "pgbouncer_test/*"' >> /etc/pf.conf
@@ -199,7 +199,7 @@ task:
     LDFLAGS: -L/opt/homebrew/opt/openldap/lib -L/opt/homebrew/opt/openssl@3/lib
     PATH: /opt/homebrew/opt/postgresql@${PGVERSION}/bin:$PATH
   setup_script:
-    - brew install autoconf automake bash libevent libtool openldap openssl pandoc pkg-config postgresql@${PGVERSION}
+    - brew install autoconf automake libevent libtool openldap openssl pandoc pkg-config postgresql@${PGVERSION}
     - python3 -m venv venv
     - venv/bin/pip install -r requirements.txt
     - echo 'anchor "pgbouncer_test/*"' | sudo tee -a /etc/pf.conf

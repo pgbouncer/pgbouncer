@@ -16,12 +16,7 @@ task:
     - container:
         image: ubuntu:22.04
       env:
-        configure_args: '--without-openssl'
-    - container:
-        image: ubuntu:22.04
-      env:
-        configure_args: '--disable-evdns'
-      trigger_type: manual
+        configure_args: '--disable-evdns --without-openssl'
     - container:
         image: ubuntu:22.04
       env:

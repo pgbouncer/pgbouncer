@@ -426,19 +426,6 @@ static bool set_defer_accept(struct CfValue *cv, const char *val)
 	return ok;
 }
 
-static void set_db_dead_cb(struct List *item, void *ctx) {
-	PgDatabase *db;
-	bool flag;
-
-	db = container_of(item, PgDatabase, head);
-	flag = *(bool *)ctx;
-
-	if (db->admin)
-		return;
-	if (db->db_auto)
-		return;
-	db->db_dead = flag;
-}
 
 static void set_dbs_dead(bool flag)
 {
@@ -446,7 +433,14 @@ static void set_dbs_dead(bool flag)
 	PgDatabase *db;
 	if(multithread_mode){
 		FOR_EACH_THREAD(thread_id){
-			thread_safe_statlist_iterate(&(threads[thread_id].database_list), set_db_dead_cb, &flag);
+			THREAD_SAFE_STATLIST_EACH(&(threads[thread_id].database_list), item, {
+				db = container_of(item, PgDatabase, head);
+				if (db->admin)
+					continue;
+				if (db->db_auto)
+					continue;
+				db->db_dead = flag;
+			});
 		}
 	}else{
 		statlist_for_each(item, &database_list) {
@@ -677,24 +671,6 @@ static void write_pidfile(void)
 	atexit(remove_pidfile);
 }
 
-static void count_fd_cb(struct List *item, void *ctx) {
-    PgDatabase *db;
-	int *fd_cnt;
-	int total_users;
-	struct {
-        int *fd_cnt;
-        int total_users;
-    } *data;
-
-	db = container_of(item, PgDatabase, head);
-	data = ctx;
-	fd_cnt = data->fd_cnt;
-	total_users = data->total_users;
-    if (db->forced_user_credentials)
-        *fd_cnt += (db->pool_size >= 0 ? db->pool_size : cf_default_pool_size);
-	else
-		*fd_cnt += (db->pool_size >= 0 ? db->pool_size : cf_default_pool_size) * total_users;
-}
 
 /* just print out max files, in the future may warn if something is off */
 static void check_limits(void)
@@ -705,23 +681,17 @@ static void check_limits(void)
 	PgDatabase *db;
 	struct rlimit lim;
 	int total_users;
-	struct {
-		int *fd_count;
-		int total_users;
-	} ctx;
 
 	fd_count = cf_max_client_conn + 10;
 	total_users = 0;
 
 	if(multithread_mode){
-		// TODO(beihao): implement`
-		total_users = statlist_count(&user_list);
+		FOR_EACH_THREAD(thread_id){
+			total_users += statlist_count(&threads[thread_id].user_list);
+		}
 	} else {
 		total_users = statlist_count(&user_list);
 	}
-
-	ctx.fd_count = &fd_count;
-	ctx.total_users = total_users;
 
 	log_noise("event: %d, SBuf: %d, PgSocket: %d, IOBuf: %d",
 		  (int)sizeof(struct event), (int)sizeof(SBuf),
@@ -737,7 +707,13 @@ static void check_limits(void)
 	/* calculate theoretical max, +10 is just in case */
 	if(multithread_mode){
 		FOR_EACH_THREAD(thread_id){
-			thread_safe_statlist_iterate(&(threads[thread_id].database_list), count_fd_cb, &ctx);
+			THREAD_SAFE_STATLIST_EACH(&threads[thread_id].database_list, item, {
+				db = container_of(item, PgDatabase, head);
+    				if (db->forced_user_credentials)
+        				fd_count += (db->pool_size >= 0 ? db->pool_size : cf_default_pool_size);
+				else
+					fd_count += (db->pool_size >= 0 ? db->pool_size : cf_default_pool_size) * total_users;
+			});
 		}
 	} else {
 		statlist_for_each(item, &database_list) {
@@ -1081,7 +1057,7 @@ int main(int argc, char *argv[])
 	srandom(time(NULL) ^ getpid());
 	if (!(pgb_event_base = event_base_new()))
 		die("event_base_new() failed");
-    dns_setup();
+    	dns_setup();
 	signal_setup(pgb_event_base, &signal_event);
 	stats_setup();
 

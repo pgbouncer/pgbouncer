@@ -89,6 +89,7 @@ static void count_elements(struct List *item, void *ctx) {
 static void test_thread_safe_statlist_iteration(void *p) {
     struct ThreadSafeStatList ts_list;
     struct List node1, node2, node3;
+    struct List *item;
     int element_count;
 
     thread_safe_statlist_init(&ts_list, "test_list_iteration", false);
@@ -102,11 +103,12 @@ static void test_thread_safe_statlist_iteration(void *p) {
     thread_safe_statlist_append(&ts_list, &node3);
 
     element_count = 0;
-    thread_safe_statlist_iterate(&ts_list, count_elements, &element_count);
+    THREAD_SAFE_STATLIST_EACH(&ts_list, item, { element_count++;});
+
     str_check(element_count == 3 ? "OK" : "FAIL", "OK");
 
     element_count = 0;
-    thread_safe_statlist_iterate_reverse(&ts_list, count_elements, &element_count);
+    THREAD_SAFE_STATLIST_REVERSE_EACH(&ts_list, item, { element_count++;});
     str_check(element_count == 3 ? "OK" : "FAIL", "OK");
 
 end:;

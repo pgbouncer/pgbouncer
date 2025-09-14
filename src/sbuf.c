@@ -1305,10 +1305,6 @@ static bool tls_change_requires_reconnect(struct tls_config *new_server_connect_
 	}
 }
 
-static void tls_setup_cb(struct List *item, void *ctx) {
-	PgPool *pool = container_of(item, PgPool, head);
-	tag_pool_dirty(pool);
-}
 
 bool sbuf_tls_setup(void)
 {
@@ -1400,7 +1396,10 @@ bool sbuf_tls_setup(void)
 		PgPool *pool;
 		if(multithread_mode){
 			FOR_EACH_THREAD(thread_id){
-				thread_safe_statlist_iterate(&(threads[thread_id].pool_list), tls_setup_cb, NULL);
+				THREAD_SAFE_STATLIST_EACH(&(threads[thread_id].pool_list), item, {
+					pool = container_of(item, PgPool, head);
+					tag_pool_dirty(pool);
+				});
 			}
 		}else{
 			statlist_for_each(item, &pool_list) {

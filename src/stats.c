@@ -152,16 +152,12 @@ static void write_stats(PktBuf *buf, PgStats *stat, PgStats *old, char *dbname, 
 	}
 }
 
-static bool admin_database_stats_internal(PgSocket *client, struct StatList *pool_list, void *ctx, int thread_id, void (*write_func)(PktBuf *, PgStats *, PgStats *, char *, int))
+static bool admin_database_stats_internal(PgSocket *client, struct StatList *pool_list, PktBuf *buf, int thread_id, void (*write_func)(PktBuf *, PgStats *, PgStats *, char *, int))
 {
 	PgPool *pool;
 	struct List *item;
 	PgDatabase *cur_db = NULL;
 	PgStats st_db, old_db;
-	
-	struct {
-		PktBuf *buf;
-	} *data = ctx;
 
 	reset_stats(&st_db);
 	reset_stats(&old_db);
@@ -173,7 +169,7 @@ static bool admin_database_stats_internal(PgSocket *client, struct StatList *poo
 			cur_db = pool->db;
 
 		if (pool->db != cur_db) {
-			write_func(data->buf, &st_db, &old_db, cur_db->name, thread_id);
+			write_func(buf, &st_db, &old_db, cur_db->name, thread_id);
 			cur_db = pool->db;
 			reset_stats(&st_db);
 			reset_stats(&old_db);
@@ -184,7 +180,7 @@ static bool admin_database_stats_internal(PgSocket *client, struct StatList *poo
 	}
 
 	if (cur_db) {
-		write_func(data->buf, &st_db, &old_db, cur_db->name, thread_id);
+		write_func(buf, &st_db, &old_db, cur_db->name, thread_id);
 	}
 
 	return true;
@@ -193,9 +189,6 @@ static bool admin_database_stats_internal(PgSocket *client, struct StatList *poo
 bool admin_database_stats(PgSocket *client)
 {
 	PktBuf *buf;
-	struct {
-		PktBuf *buf;
-	} data;
 
 	buf = pktbuf_dynamic(512);
 	if (!buf) {
@@ -233,16 +226,14 @@ bool admin_database_stats(PgSocket *client)
 					    "avg_server_parse_count", "avg_bind_count");
 	}
 
-	data.buf = buf;
-
 	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id) {
 			lock_and_pause_thread(thread_id);
-			admin_database_stats_internal(client, (struct StatList *)&threads[thread_id].pool_list, &data, thread_id, write_stats);
+			admin_database_stats_internal(client, (struct StatList *)&threads[thread_id].pool_list, buf, thread_id, write_stats);
 			unlock_and_resume_thread(thread_id);
 		}
 	} else {
-		admin_database_stats_internal(client, &pool_list, &data, -1, write_stats);
+		admin_database_stats_internal(client, &pool_list, buf, -1, write_stats);
 	}
 	admin_flush(client, buf, "SHOW");
 
@@ -273,10 +264,6 @@ static void write_stats_totals(PktBuf *buf, PgStats *stat, PgStats *old, char *d
 bool admin_database_stats_totals(PgSocket *client)
 {
 	PktBuf *buf;
-	struct {
-		PktBuf *buf;
-	} data;
-
 	buf = pktbuf_dynamic(512);
 	if (!buf) {
 		admin_error(client, "no mem");
@@ -301,17 +288,15 @@ bool admin_database_stats_totals(PgSocket *client)
 					    "server_parse_count", "bind_count");
 	}
 
-	data.buf = buf;
-
 	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id) {
 			lock_and_pause_thread(thread_id);
-			admin_database_stats_internal(client, (struct StatList *)&threads[thread_id].pool_list, &data, thread_id, write_stats_totals);
+			admin_database_stats_internal(client, (struct StatList *)&threads[thread_id].pool_list, buf, thread_id, write_stats_totals);
 			unlock_and_resume_thread(thread_id);
 		}
 	} else {
-		admin_database_stats_internal(client, &pool_list, &data, -1, write_stats_totals);
-	}	
+		admin_database_stats_internal(client, &pool_list, buf, -1, write_stats_totals);
+	}
 	admin_flush(client, buf, "SHOW");
 
 	return true;
@@ -343,10 +328,6 @@ static void write_stats_averages(PktBuf *buf, PgStats *stat, PgStats *old, char 
 bool admin_database_stats_averages(PgSocket *client)
 {
 	PktBuf *buf;
-	struct {
-		PktBuf *buf;
-	} data;
-
 	buf = pktbuf_dynamic(512);
 	if (!buf) {
 		admin_error(client, "no mem");
@@ -371,16 +352,14 @@ bool admin_database_stats_averages(PgSocket *client)
 					    "avg_server_parse_count", "avg_bind_count");
 	}
 
-	data.buf = buf;
-
 	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id) {
 			lock_and_pause_thread(thread_id);
-			admin_database_stats_internal(client, (struct StatList *)&threads[thread_id].pool_list, &data, thread_id, write_stats_averages);
+			admin_database_stats_internal(client, (struct StatList *)&threads[thread_id].pool_list, buf, thread_id, write_stats_averages);
 			unlock_and_resume_thread(thread_id);
-		}		
+		}
 	} else {
-		admin_database_stats_internal(client, &pool_list, &data, -1, write_stats_averages);
+		admin_database_stats_internal(client, &pool_list, buf, -1, write_stats_averages);
 	}
 	admin_flush(client, buf, "SHOW");
 
@@ -455,37 +434,23 @@ bool show_stat_totals(PgSocket *client)
 	return true;
 }
 
-static void multithread_stats_callback(struct List *item, void * arg)
-{
-	struct {
-		PgStats* old_total;
-		PgStats* cur_total;
-	} *data = arg;
-
-	PgPool *pool = container_of(item, PgPool, head);
-	pool->older_stats = pool->newer_stats;
-	pool->newer_stats = pool->stats;
-
-	stat_add(data->cur_total, &pool->stats);
-	stat_add(data->old_total, &pool->older_stats);
-}
 
 static void multithread_stats(evutil_socket_t s, short flags, void *arg){
 	int thread_id;
 	PgStats old_total, cur_total;
-	struct {
-		PgStats* old_total;
-		PgStats* cur_total;
-	} data;
-	
+	struct List *item;
+
 	thread_id = get_current_thread_id(multithread_mode);
 	reset_stats(&old_total);
 	reset_stats(&cur_total);
 
-	data.old_total = &old_total;
-	data.cur_total = &cur_total;
-	thread_safe_statlist_iterate(&(threads[thread_id].pool_list), multithread_stats_callback, &data);
-	// TODO: macro?
+	THREAD_SAFE_STATLIST_EACH(&threads[thread_id].pool_list, item, {
+		PgPool *pool = container_of(item, PgPool, head);
+		pool->older_stats = pool->newer_stats;
+		pool->newer_stats = pool->stats;
+		stat_add(&cur_total, &pool->stats);
+		stat_add(&old_total, &pool->older_stats);
+	});
 
 	stat_diff(&cur_total, &old_total);
 	spin_lock_acquire(&(threads[thread_id].cur_stat_lock));
@@ -581,7 +546,7 @@ static void refresh_stats(evutil_socket_t s, short flags, void *arg)
 			stat_add(&old_total, &pool->older_stats);
 		}
 	}
-	
+
 	calc_average(&avg, &cur_total, &old_total, get_cached_time());
 
 	if (cf_log_stats) {
@@ -643,12 +608,12 @@ void stats_setup(void)
 	struct timeval period = { cf_stats_period, 0 };
 	new_stamp = get_cached_time();
 	old_stamp = new_stamp - USEC;
-	
+
 	/* Initialize multithread old stats */
 	if(multithread_mode){
 		reset_stats(&multithread_old_total);
 	}
-	
+
 	/* launch stats */
 	if(multithread_mode){
 		event_assign(&ev_stats, pgb_event_base, -1, EV_PERSIST, multithread_collect_stats, NULL);

@@ -566,41 +566,23 @@ static int cmp_database(struct List *i1, struct List *i2)
 	return strcmp(db1->name, db2->name);
 }
 
-static void thread_safe_put_in_order_cb(struct List *item, void *ctx) {
-	int res;
-	struct {
-		struct List *newitem;
-		bool *found;
-		int (*cmpfn)(struct List *, struct List *);
-		struct ThreadSafeStatList *list;
-	} *data;
-	data = ctx;
-
-	if (*data->found)
-		return;
-
-	res = data->cmpfn(item, data->newitem);
-	if (res == 0) {
-		fatal("thread_safe_put_in_order_cb: found existing elem");
-	} else if (res > 0) {
-		statlist_put_before(&(data->list->list), data->newitem, item);
-		*data->found = true;
-		return;
-	}
-}
 
 static void thread_safe_put_in_order(struct List *newitem, struct ThreadSafeStatList *list,
 			 int (*cmpfn)(struct List *, struct List *))
 {
-	bool found = false;
-	struct {
-		struct List *newitem;
-		bool *found;
-		int (*cmpfn)(struct List *, struct List *);
-		struct ThreadSafeStatList *list;
-	} data = {newitem, &found, cmpfn, list};
-	thread_safe_statlist_iterate(list, thread_safe_put_in_order_cb, &data);
-	if (!found) {
+	struct List *item;
+	bool inserted = false;
+	THREAD_SAFE_STATLIST_EACH(list, item, {
+		int res = cmpfn(item, newitem);
+		if (res == 0) {
+			fatal("thread_safe_put_in_order: found existing elem");
+		} else if (res > 0) {
+			statlist_put_before(&(list->list), newitem, item);
+			inserted = true;
+			break;
+		}
+	});
+	if (!inserted) {
 		thread_safe_statlist_append(list, newitem);
 	}
 }
@@ -834,16 +816,6 @@ PgDatabase *find_peer(int peer_id)
 	return NULL;
 }
 
-static void find_database_cb(struct List *item, void *ctx) {
-	PgDatabase *db = container_of(item, PgDatabase, head);
-	struct {
-		const char *name;
-		PgDatabase **db;
-	} *data = ctx;
-	if (strcmp(db->name, data->name) == 0) {
-		*(data->db) = db;
-	}
-}
 
 /* find an existing database */
 PgDatabase *find_database(const char *name, int thread_id)
@@ -855,13 +827,16 @@ PgDatabase *find_database(const char *name, int thread_id)
 	struct StatList* autodatabase_idle_list_ = GET_MULTITHREAD_PTR(autodatabase_idle_list, thread_id);
 
 	if (multithread_mode) {
-		struct {
-			const char *name;
-			PgDatabase **db;
-		} data = {name, &db};
+		bool found = false;
+		THREAD_SAFE_STATLIST_EACH((struct ThreadSafeStatList *)database_list_, item,{
+			db = container_of(item, PgDatabase, head);
+			if (strcmp(db->name, name) == 0){
+				found = true;
+				break;
+			}
+		});
 
-		thread_safe_statlist_iterate((struct ThreadSafeStatList *)database_list_, find_database_cb, &data);
-		if (db != NULL && strcmp(db->name, name) == 0)
+		if(found)
 			return db;
 
 		statlist_for_each_safe(item, autodatabase_idle_list_, tmp) {
@@ -2075,16 +2050,6 @@ static void evict_pool_connection_with_old_connection(PgPool *pool, PgSocket **o
 	}
 }
 
-static void evict_connection_cb(struct List *item, void *ctx){
-	PgPool *pool = container_of(item, PgPool, head);
-	struct {
-		PgSocket *oldest_connection;
-		PgDatabase *db;
-	} *data = ctx;
-	if (pool->db->name != data->db->name)
-		return;
-	evict_pool_connection_with_old_connection(pool, &data->oldest_connection);
-}
 
 /* evict the single most idle connection from among all pools to make room in the db */
 bool evict_connection(PgDatabase *db)
@@ -2094,11 +2059,12 @@ bool evict_connection(PgDatabase *db)
 	PgPool *pool;
 	PgSocket *oldest_connection = NULL;
 	if(multithread_mode){
-		struct {
-			PgSocket *oldest_connection;
-			PgDatabase *db;
-		} data = {oldest_connection, db};
-		thread_safe_statlist_iterate(&(threads[thread_id].pool_list), evict_connection_cb, &data);
+		THREAD_SAFE_STATLIST_EACH(&threads[thread_id].pool_list, item, {
+			pool = container_of(item, PgPool, head);
+			if (pool->db->name != db->name)
+				continue;
+			evict_pool_connection_with_old_connection(pool, &oldest_connection);
+		});
 	}else{
 		statlist_for_each(item, &pool_list) {
 			pool = container_of(item, PgPool, head);
@@ -2129,16 +2095,6 @@ bool evict_pool_connection(PgPool *pool)
 	return false;
 }
 
-static void evict_user_connection_cb(struct List *item, void *ctx){
-	PgPool *pool = container_of(item, PgPool, head);
-	struct {
-		PgSocket *oldest_connection;
-		PgCredentials *user_credentials;
-	} *data = ctx;
-	if (pool->user_credentials != data->user_credentials)
-		return;
-	evict_pool_connection_with_old_connection(pool, &data->oldest_connection);
-}
 
 /* evict the single most idle connection from among all pools to make room in the user */
 bool evict_user_connection(PgCredentials *user_credentials, int thread_id)
@@ -2148,11 +2104,12 @@ bool evict_user_connection(PgCredentials *user_credentials, int thread_id)
 	PgSocket *oldest_connection = NULL;
 
 	if(multithread_mode){
-		struct {
-			PgSocket *oldest_connection;
-			PgCredentials *user_credentials;
-		} data = {oldest_connection, user_credentials};
-		thread_safe_statlist_iterate(&(threads[thread_id].pool_list), evict_user_connection_cb, &data);
+		THREAD_SAFE_STATLIST_EACH(&threads[thread_id].pool_list, item, {
+			pool = container_of(item, PgPool, head);
+			if (pool->user_credentials != user_credentials)
+				continue;
+			evict_pool_connection_with_old_connection(pool, &oldest_connection);
+		});
 	} else {
 		statlist_for_each(item, &pool_list) {
 			pool = container_of(item, PgPool, head);
@@ -2465,32 +2422,6 @@ static void accept_cancel_request_for_peer(int peer_id, PgSocket *req)
 }
 
 
-static void accept_cancel_request_cb(struct List *item, void *ctx){
-	PgPool *pool = container_of(item, PgPool, head);
-	struct {
-		PgSocket *req;
-		PgSocket *main_client;
-	} *data = ctx;
-
-	struct List *citem;
-	PgSocket *client;
-
-	statlist_for_each(citem, &pool->active_client_list) {
-		client = container_of(citem, PgSocket, head);
-		if (memcmp(client->cancel_key, data->req->cancel_key, 8) == 0) {
-			data->main_client = client;
-			return;
-		}
-	}
-	statlist_for_each(citem, &pool->waiting_client_list) {
-		client = container_of(citem, PgSocket, head);
-		if (memcmp(client->cancel_key, data->req->cancel_key, 8) == 0) {
-			data->main_client = client;
-			return;
-		}
-	}
-}
-
 /*
  * Accepts a cancellation request, which will eventual cancel the query running
  * on the client that matches req->client_key
@@ -2532,11 +2463,32 @@ void accept_cancel_request(PgSocket *req)
 	/* find the client that has the same cancel_key as this request */
 	if(multithread_mode){
 		FOR_EACH_THREAD(thread_id){
-			struct {
-				PgSocket *req;
-				PgSocket *main_client;
-			} data = {req, main_client};
-			thread_safe_statlist_iterate(&(threads[thread_id].pool_list), accept_cancel_request_cb, &data);
+			bool found = false;
+			THREAD_SAFE_STATLIST_EACH(&threads[thread_id].pool_list, pitem, {
+				pool = container_of(pitem, PgPool, head);
+				statlist_for_each(citem, &pool->active_client_list) {
+					client = container_of(citem, PgSocket, head);
+					if (memcmp(client->cancel_key, req->cancel_key, 8) == 0) {
+						main_client = client;
+						found = true;
+						break;
+					}
+				}
+				if(found)
+					break;
+				statlist_for_each(citem, &pool->waiting_client_list) {
+					client = container_of(citem, PgSocket, head);
+					if (memcmp(client->cancel_key, req->cancel_key, 8) == 0) {
+						main_client = client;
+						found = true;
+						break;
+					}
+				}
+				if(found)
+					break;
+			});
+			if(found)
+				goto found;
 		}
 	}else{
 		statlist_for_each(pitem, &pool_list) {
@@ -2923,13 +2875,6 @@ void tag_pool_dirty(PgPool *pool)
 }
 
 
-static void tag_pool_dirty_cb(struct List *item, void *ctx) {
-	PgPool *pool = container_of(item, PgPool, head);
-	PgDatabase *db = ctx;
-	if (pool->db == db)
-		tag_pool_dirty(pool);
-}
-
 // Not thread safe. Pause the thread before calling this function.
 void tag_database_dirty(PgDatabase *db)
 {
@@ -2938,7 +2883,11 @@ void tag_database_dirty(PgDatabase *db)
 	int thread_id = db->thread_id;
 
 	if(thread_id != -1){
-		thread_safe_statlist_iterate(&threads[thread_id].pool_list, tag_pool_dirty_cb, db);
+		THREAD_SAFE_STATLIST_EACH( &(threads[thread_id].database_list), item,{
+			PgPool *pool = container_of(item, PgPool, head);
+			if (pool->db == db)
+				tag_pool_dirty(pool);
+		});
 	}else{
 		statlist_for_each(item, &pool_list) {
 			pool = container_of(item, PgPool, head);
@@ -2948,22 +2897,6 @@ void tag_database_dirty(PgDatabase *db)
 	}
 }
 
-static void tag_autodb_dirty_cb(struct List *item, void *ctx) {
-    PgDatabase *db = container_of(item, PgDatabase, head);
-	int thread_id = *(int *)ctx;
-    if (db->db_auto)
-		register_auto_database(db->name, thread_id);
-}
-
-static void tag_autodb_dirty_pool_cb(struct List *item, void *ctx) {
-	PgPool *pool = container_of(item, PgPool, head);
-	struct {
-		PgDatabase *db;
-		int thread_id;
-	} *data = ctx;
-	if (pool->db == data->db)
-		tag_pool_dirty(pool);
-}
 
 void tag_autodb_dirty(void)
 {
@@ -2976,7 +2909,11 @@ void tag_autodb_dirty(void)
 	 */
 	if(multithread_mode){
 		FOR_EACH_THREAD(thread_id){
-			thread_safe_statlist_iterate(&(threads[thread_id].database_list), tag_autodb_dirty_cb, &thread_id);
+			THREAD_SAFE_STATLIST_EACH( &(threads[thread_id].database_list), item,{
+				db = container_of(item, PgDatabase, head);
+				if (db->db_auto)
+					register_auto_database(db->name, thread_id);
+			});
 		}
 		FOR_EACH_THREAD(thread_id){
 			statlist_for_each_safe(item, &autodatabase_idle_list, tmp) {
@@ -2990,13 +2927,11 @@ void tag_autodb_dirty(void)
 		* reload pools
 		*/
 		FOR_EACH_THREAD(thread_id){
-			struct {
-				PgDatabase *db;
-				int thread_id;
-			} data;
-			data.db = db;
-			data.thread_id = thread_id;
-			thread_safe_statlist_iterate(&(threads[thread_id].pool_list), tag_autodb_dirty_pool_cb, &data);
+			THREAD_SAFE_STATLIST_EACH( &(threads[thread_id].pool_list), item,{
+				pool = container_of(item, PgPool, head);
+				if (pool->db->db_auto)
+					tag_pool_dirty(pool);
+			});
 		}
 	} else {
 		statlist_for_each(item, &database_list) {
@@ -3028,17 +2963,6 @@ static bool server_remote_addr_filter(PgSocket *sk, void *arg)
 	return (pga_cmp_addr(&sk->remote_addr, addr) == 0);
 }
 
-static void tag_host_addr_dirty_cb(struct List *item, void *ctx) {
-	PgPool *pool = container_of(item, PgPool, head);
-	struct {
-		const char *host;
-		PgAddr *addr;
-	} *data = ctx;
-	if (pool->db->host && strcmp(data->host, pool->db->host) == 0) {
-		for_each_server_filtered(pool, tag_dirty, server_remote_addr_filter, data->addr);
-	}
-}
-
 void tag_host_addr_dirty(const char *host, const struct sockaddr *sa)
 {
 	struct List *item;
@@ -3049,11 +2973,12 @@ void tag_host_addr_dirty(const char *host, const struct sockaddr *sa)
 	pga_copy(&addr, sa);
 	if (multithread_mode){
 		FOR_EACH_THREAD(thread_id){
-			struct {
-				const char *host;
-				PgAddr *addr;
-			} data = {host, &addr};
-			thread_safe_statlist_iterate(&(threads[thread_id].pool_list), tag_host_addr_dirty_cb, &data);
+			THREAD_SAFE_STATLIST_EACH( &(threads[thread_id].pool_list), item,{
+				pool = container_of(item, PgPool, head);
+				if (pool->db->host && strcmp(host, pool->db->host) == 0) {
+					for_each_server_filtered(pool, tag_dirty, server_remote_addr_filter, &addr);
+				}
+			});
 		}
 	}else{
 		statlist_for_each(item, &pool_list) {

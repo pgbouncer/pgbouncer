@@ -137,6 +137,8 @@ typedef struct Thread {
 
 	struct PktBuf *temp_pktbuf;
 
+	struct PgPool *admin_pool;
+
 	int cf_shutdown;
 	int cf_pause_mode;  /* Thread-local pause mode */
 	bool pause_ready;   /* Thread ready for pause response */

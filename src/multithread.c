@@ -382,24 +382,24 @@ static void worker_signal_setup(struct event_base * base, int thread_id)
 void* worker_func(void* arg)
 {
 	int err;
-    Thread * this_thread = (Thread*) arg;
+    	Thread * this_thread = (Thread*) arg;
 	struct event_base *base = event_base_new();
-    pthread_setspecific(thread_pointer, this_thread);
+    	pthread_setspecific(thread_pointer, this_thread);
 
-    if (!base) {
-        fprintf(stderr, "[Thread %d] Failed to create event_base.\n", this_thread->thread_id);
-        die("event_base_new() failed");
-    }
+	if (!base) {
+		fprintf(stderr, "[Thread %d] Failed to create event_base.\n", this_thread->thread_id);
+		die("event_base_new() failed");
+	}
 
-    pthread_setspecific(event_base_key, base);
+    	pthread_setspecific(event_base_key, base);
 	this_thread->base = base;
 
-    thread_pooler_setup();
+    	thread_pooler_setup();
 	worker_signal_setup(base, this_thread->thread_id);
 	janitor_setup();
 	multithread_stats_setup();
 
-    while(this_thread->cf_shutdown != SHUTDOWN_IMMEDIATE){
+    	while(this_thread->cf_shutdown != SHUTDOWN_IMMEDIATE){
 		if(this_thread->thread_metadata.thread_status == THREAD_REQUEST_PAUSE){
 			// confirm pause request
 			this_thread->thread_metadata.thread_status = THREAD_PAUSED;
@@ -410,18 +410,18 @@ void* worker_func(void* arg)
 			continue;
 		}
 
-        multithread_reset_time_cache();
-        err = event_base_loop(base, EVLOOP_ONCE);
-        if (err < 0) {
-            if (errno != EINTR)
-                log_warning("event_loop failed: %s", strerror(errno));
-        }
-        per_loop_maint();
-        reuse_just_freed_objects(this_thread->thread_id);
-        rescue_timers();
-        per_loop_pooler_maint();
-    }
-    return NULL;
+		multithread_reset_time_cache();
+		err = event_base_loop(base, EVLOOP_ONCE);
+		if (err < 0) {
+		if (errno != EINTR)
+			log_warning("event_loop failed: %s", strerror(errno));
+		}
+		per_loop_maint();
+		reuse_just_freed_objects(this_thread->thread_id);
+		rescue_timers();
+		per_loop_pooler_maint();
+    	}
+    	return NULL;
 }
 
 static void event_base_destructor(void* base_ptr) {
@@ -444,7 +444,6 @@ void init_thread(int thread_id){
 	statlist_init(&(threads[thread_id].autodatabase_idle_list), NULL);
 	statlist_init(&(threads[thread_id].justfree_client_list), NULL);
 	statlist_init(&(threads[thread_id].justfree_server_list), NULL);
-	statlist_init(&(threads[thread_id].user_list), NULL);
 	threads[thread_id].vpool = NULL;
 	threads[thread_id].cf_shutdown = SHUTDOWN_NONE;
 	threads[thread_id].cf_pause_mode = P_NONE;
@@ -458,7 +457,7 @@ void init_thread(int thread_id){
 
 void start_threads(void){
 	pthread_key_create(&event_base_key, event_base_destructor);
-    pthread_key_create(&thread_pointer, NULL);
+    	pthread_key_create(&thread_pointer, NULL);
 
 	FOR_EACH_THREAD(thread_id){
 		pthread_create(&threads[thread_id].worker, NULL, worker_func, &threads[thread_id]);
@@ -471,7 +470,7 @@ void init_threads(void){
 	log_info("allocating %d threads.", arg_thread_number);
 	threads = calloc(arg_thread_number, sizeof(Thread));
 	spin_lock_init(&prepared_statements_spinlock_);
-
+	
 	FOR_EACH_THREAD(thread_id){
 		init_thread(thread_id);
 	}

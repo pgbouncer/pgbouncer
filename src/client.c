@@ -503,7 +503,9 @@ bool check_user_connection_count(PgSocket *client)
 		return true;
 
 	if (!client->user_connection_counted) {
-		client->login_user_credentials->global_user->client_connection_count++;
+		MULTITHREAD_VISIT(true, &client->login_user_credentials->global_user->lock, {
+			client->login_user_credentials->global_user->client_connection_count++;
+		});
 		client->user_connection_counted = 1;
 	}
 
@@ -511,7 +513,9 @@ bool check_user_connection_count(PgSocket *client)
 		return true;
 	}
 
-	max_user_client_connections = user_client_max_connections(client->login_user_credentials->global_user);
+	MULTITHREAD_VISIT(true, &client->login_user_credentials->global_user->lock, {
+		max_user_client_connections = user_client_max_connections(client->login_user_credentials->global_user);
+	});
 	if (max_user_client_connections == 0)
 		return true;
 
@@ -611,7 +615,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			return false;
 		}
 		/* Password will be set after successful authentication when not in takeover mode */
-		client->login_user_credentials = add_pam_credentials(username, password, client->sbuf.thread_id);
+		client->login_user_credentials = add_pam_credentials(username, password);
 		if (!check_db_connection_count(client))
 			return false;
 		if (!client->login_user_credentials) {
@@ -623,7 +627,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			return false;
 		}
 	} else {
-		client->login_user_credentials = find_global_credentials(username, client->sbuf.thread_id);
+		client->login_user_credentials = find_global_credentials(username);
 
 		if (!check_db_connection_count(client))
 			return false;
@@ -641,7 +645,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			 * see if the global auth_user is set and use that.
 			 */
 			if (!client->db->auth_user_credentials && cf_auth_user) {
-				client->db->auth_user_credentials = find_or_add_new_global_credentials(cf_auth_user, "", client->sbuf.thread_id);
+				client->db->auth_user_credentials = find_or_add_new_global_credentials(cf_auth_user, "");
 				if (client->db->auth_user_credentials == NULL) {
 					slog_error(client, "set_pool(): failed to allocate a new global credentials");
 					disconnect_client(client, true, "bouncer resources exhaustion");
@@ -679,7 +683,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			 * find_global_user instead of
 			 * find_or_add_new_global_user.
 			 */
-			global_user = find_global_user(username, client->sbuf.thread_id);
+			global_user = find_global_user(username);
 			if (global_user)
 				client->login_user_credentials->global_user = global_user;
 

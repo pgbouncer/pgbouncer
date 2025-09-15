@@ -104,11 +104,15 @@ static inline void thread_safe_statlist_put_after(struct ThreadSafeStatList *lis
 #define THREAD_SAFE_STATLIST_EACH(list_ptr, item, BODY) 		\
     do {								\
 	struct List* tmp;						\
-        spin_lock_acquire(&(list_ptr)->lock); 				\
+	if(multithread_mode){						\
+       		spin_lock_acquire(&(list_ptr)->lock); 			\
+	}								\
         statlist_for_each_safe(item, &(list_ptr)->list, tmp) { 		\
             BODY 							\
-        } 								\
-        spin_lock_release(&(list_ptr)->lock); 				\
+        }								\
+	if(multithread_mode){						\
+        	spin_lock_release(&(list_ptr)->lock); 			\
+	}								\
     } while (0)
 
 #define THREAD_SAFE_STATLIST_REVERSE_EACH(list_ptr, item, BODY) 	\

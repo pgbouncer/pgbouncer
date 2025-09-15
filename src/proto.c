@@ -331,7 +331,7 @@ static PgCredentials *get_srv_psw(PgSocket *server)
 
 	/* if forced user without password, use userlist psw */
 	if (!credentials->passwd[0] && db->forced_user_credentials) {
-		PgCredentials *c2 = find_global_credentials(credentials->name, db->thread_id);
+		PgCredentials *c2 = find_global_credentials(credentials->name);
 		if (c2)
 			return c2;
 	}

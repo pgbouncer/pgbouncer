@@ -683,15 +683,8 @@ static void check_limits(void)
 	int total_users;
 
 	fd_count = cf_max_client_conn + 10;
-	total_users = 0;
 
-	if(multithread_mode){
-		FOR_EACH_THREAD(thread_id){
-			total_users += statlist_count(&threads[thread_id].user_list);
-		}
-	} else {
-		total_users = statlist_count(&user_list);
-	}
+	total_users = thread_safe_statlist_count(&thread_safe_user_list);
 
 	log_noise("event: %d, SBuf: %d, PgSocket: %d, IOBuf: %d",
 		  (int)sizeof(struct event), (int)sizeof(SBuf),

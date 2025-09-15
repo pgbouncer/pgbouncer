@@ -17,7 +17,6 @@
  */
 
 extern struct ThreadSafeStatList thread_safe_user_list;
-extern struct StatList user_list;
 extern struct AATree user_tree;
 extern struct StatList pool_list;
 extern struct StatList peer_pool_list;
@@ -33,8 +32,6 @@ extern struct Slab *peer_pool_cache;
 extern struct Slab *pool_cache;
 extern struct ThreadSafeSlab *thread_safe_user_cache;
 extern struct ThreadSafeSlab *thread_safe_credentials_cache;
-extern struct Slab *user_cache;
-extern struct Slab *credentials_cache;
 extern struct Slab *iobuf_cache;
 extern struct Slab *outstanding_request_cache;
 extern struct Slab *var_list_cache;
@@ -48,8 +45,8 @@ extern unsigned long long int last_pgsocket_id;
 PgDatabase *find_peer(int peer_id);
 PgDatabase *find_database(const char *name, int thread_id);
 PgDatabase *find_or_register_database(PgSocket *connection, const char *name);
-PgGlobalUser *find_global_user(const char *name, int thread_id);
-PgCredentials *find_global_credentials(const char *name, int thread_id);
+PgGlobalUser *find_global_user(const char *name);
+PgCredentials *find_global_credentials(const char *name);
 PgPool *get_pool(PgDatabase *db, PgCredentials *user_credentials);
 PgPool *get_peer_pool(PgDatabase *);
 PgSocket *compare_connections_by_time(PgSocket *lhs, PgSocket *rhs);
@@ -78,10 +75,10 @@ bool clear_outstanding_requests_until(PgSocket *server, const char types[]) _MUS
 bool queue_fake_response(PgSocket *client, char request_type) _MUSTCHECK;
 
 PgGlobalUser * update_global_user_passwd(PgGlobalUser *user, const char *passwd) _MUSTCHECK;
-PgGlobalUser * find_or_add_new_global_user(const char *name, const char *passwd, int thread_id) _MUSTCHECK;
-PgCredentials * find_or_add_new_global_credentials(const char *name, const char *passwd, int thread_id) _MUSTCHECK;
+PgGlobalUser * find_or_add_new_global_user(const char *name, const char *passwd) _MUSTCHECK;
+PgCredentials * find_or_add_new_global_credentials(const char *name, const char *passwd) _MUSTCHECK;
 
-PgCredentials * add_pam_credentials(const char *name, const char *passwd, int thread_id) _MUSTCHECK;
+PgCredentials * add_pam_credentials(const char *name, const char *passwd) _MUSTCHECK;
 
 void accept_cancel_request(PgSocket *req);
 bool forward_cancel_request(PgSocket *server);

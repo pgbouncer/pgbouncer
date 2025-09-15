@@ -28,11 +28,12 @@
 #include <usual/safeio.h>
 #include <usual/slab.h>
 #include <usual/slab_ts.h>
+#include <usual/statlist_ts.h>
 
 #define MAX_SLAB_NAME 64
 
 /* those items will be allocated as needed, never freed */
-STATLIST(user_list);
+struct ThreadSafeStatList thread_safe_user_list;
 STATLIST(database_list);
 STATLIST(pool_list);
 STATLIST(peer_list);
@@ -40,6 +41,7 @@ STATLIST(peer_pool_list);
 
 /* All locally defined users (in auth_file) are kept here. */
 struct AATree user_tree;
+SpinLock user_tree_lock;
 
 /*
  * All PAM users are kept here. We need to differentiate two user
@@ -48,6 +50,12 @@ struct AATree user_tree;
  * logic.
  */
 struct AATree pam_user_tree;
+SpinLock pam_user_tree_lock;
+
+/*
+ * Lock around user critical sections to protect consecutive lookup and insert operations.
+ */
+SpinLock user_lock;
 
 /*
  * The global prepared statement cache, which deduplicates prepared statements
@@ -71,8 +79,6 @@ struct Slab *db_cache;
 struct Slab *peer_cache;
 struct Slab *peer_pool_cache;
 struct Slab *pool_cache;
-struct Slab *user_cache;
-struct Slab *credentials_cache;
 struct ThreadSafeSlab *thread_safe_user_cache;
 struct ThreadSafeSlab *thread_safe_credentials_cache;
 struct Slab *iobuf_cache;
@@ -119,7 +125,7 @@ int get_total_active_client_count(void)
 	int total_count_from_all_threads;
 	if(!multithread_mode)
 		return slab_active_count(client_cache);
-	MULTITHREAD_VISIT(multithread_mode, &client_count_lock, {total_count_from_all_threads = client_count;});
+	MULTITHREAD_VISIT(multithread_mode, &client_count_lock, { total_count_from_all_threads = client_count; });
 	return total_count_from_all_threads;
 }
 
@@ -184,31 +190,35 @@ static int credentials_node_cmp(uintptr_t userptr, struct AANode *node)
 static void credentials_node_release(struct AANode *node, void *arg)
 {
 	PgCredentials *user = container_of(node, PgCredentials, tree_node);
-	if(multithread_mode){
-		thread_safe_slab_free(thread_safe_credentials_cache, user);
-	} else {
-		slab_free(credentials_cache, user);
-	}
+	thread_safe_slab_free(thread_safe_credentials_cache, user);
 }
 
 /* initialization before config loading */
 void init_objects(void)
 {
+	thread_safe_statlist_init(&thread_safe_user_list, "thread_safe_user_list", true);
+	aatree_init(&user_tree, global_user_node_cmp, NULL);
+	aatree_init(&pam_user_tree, credentials_node_cmp, NULL);
+	spin_lock_init(&user_tree_lock);
+	spin_lock_init(&pam_user_tree_lock);
+	spin_lock_init(&user_lock);
+	thread_safe_user_cache = thread_safe_slab_create("thread_safe_user_cache", sizeof(PgGlobalUser), 0, NULL, USUAL_ALLOC, true);
+	thread_safe_credentials_cache = thread_safe_slab_create("thread_safe_credentials_cache", sizeof(PgCredentials), 0, NULL, USUAL_ALLOC, true);
+	if(!thread_safe_credentials_cache)
+		fatal("cannot create initial caches");
+
 	if(multithread_mode){
 		init_objects_multithread();
 		return;
 	}
-	aatree_init(&user_tree, global_user_node_cmp, NULL);
-	aatree_init(&pam_user_tree, credentials_node_cmp, NULL);
-	user_cache = slab_create("user_cache", sizeof(PgGlobalUser), 0, NULL, USUAL_ALLOC);
-	credentials_cache = slab_create("credentials_cache", sizeof(PgCredentials), 0, NULL, USUAL_ALLOC);
+
 	db_cache = slab_create("db_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
 	peer_cache = slab_create("peer_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
 	peer_pool_cache = slab_create("peer_pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
 	pool_cache = slab_create("pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
 	outstanding_request_cache = slab_create("outstanding_request_cache", sizeof(OutstandingRequest), 0, NULL, USUAL_ALLOC);
 
-	if (!user_cache || !db_cache || !peer_cache || !peer_pool_cache || !pool_cache)
+	if (!db_cache || !peer_cache || !peer_pool_cache || !pool_cache)
 		fatal("cannot create initial caches");
 }
 
@@ -220,25 +230,16 @@ void init_objects_multithread(void)
 		char peer_pool_cache_name[MAX_SLAB_NAME];
 		char db_cache_name[MAX_SLAB_NAME];
 		char outstanding_request_cache_name[MAX_SLAB_NAME];
-		char user_cache_name[MAX_SLAB_NAME];
-		char credentials_cache_name[MAX_SLAB_NAME];
 
 		snprintf(pool_cache_name, MAX_SLAB_NAME, "pool_cache_t%d", thread_id);
 		snprintf(peer_pool_cache_name, MAX_SLAB_NAME, "peer_pool_cache_t%d", thread_id);
 		snprintf(db_cache_name, MAX_SLAB_NAME, "db_cache_t%d", thread_id);
 		snprintf(outstanding_request_cache_name, MAX_SLAB_NAME, "outstanding_request_cache_t%d", thread_id);
-		snprintf(user_cache_name, MAX_SLAB_NAME, "user_cache_t%d", thread_id);
-		snprintf(credentials_cache_name, MAX_SLAB_NAME, "credentials_cache_t%d", thread_id);
-
-		aatree_init(&(threads[thread_id].user_tree), global_user_node_cmp, NULL);
-		aatree_init(&(threads[thread_id].pam_user_tree), credentials_node_cmp, NULL);
 
 		threads[thread_id].pool_cache = slab_create(pool_cache_name, sizeof(PgPool), 0, NULL, USUAL_ALLOC);
 		threads[thread_id].peer_pool_cache = slab_create(peer_pool_cache_name, sizeof(PgPool), 0, NULL, USUAL_ALLOC);
 		threads[thread_id].db_cache = slab_create(db_cache_name, sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
 		threads[thread_id].outstanding_request_cache = slab_create(outstanding_request_cache_name, sizeof(OutstandingRequest), 0, NULL, USUAL_ALLOC);
-		threads[thread_id].user_cache = slab_create(user_cache_name, sizeof(PgGlobalUser), 0, NULL, USUAL_ALLOC);
-		threads[thread_id].credentials_cache = slab_create(credentials_cache_name, sizeof(PgCredentials), 0, NULL, USUAL_ALLOC);
 
 		if (!threads[thread_id].pool_cache)
 			fatal("cannot create initial pool_cache");
@@ -251,12 +252,6 @@ void init_objects_multithread(void)
 
 		if (!threads[thread_id].outstanding_request_cache)
 			fatal("cannot create initial outstanding_request_cache");
-
-		if (!threads[thread_id].user_cache)
-			fatal("cannot create initial user_cache");
-
-		if (!threads[thread_id].credentials_cache)
-			fatal("cannot create initial credentials_cache");
 	}
 
 	// ??
@@ -572,6 +567,9 @@ static void thread_safe_put_in_order(struct List *newitem, struct ThreadSafeStat
 {
 	struct List *item;
 	bool inserted = false;
+	/* acquire the lock of the list and release after appending
+	to prevent multithread appending at the same time*/
+
 	THREAD_SAFE_STATLIST_EACH(list, item, {
 		int res = cmpfn(item, newitem);
 		if (res == 0) {
@@ -678,30 +676,31 @@ PgGlobalUser *update_global_user_passwd(PgGlobalUser *user, const char *passwd)
 {
 	Assert(user);
 	passwd = passwd ? passwd : "";
-	safe_strcpy(user->credentials.passwd, passwd, sizeof(user->credentials.passwd));
-	user->credentials.dynamic_passwd = strlen(passwd) == 0;
+	MULTITHREAD_VISIT(true, &user->lock,
+		{
+			safe_strcpy(user->credentials.passwd, passwd, sizeof(user->credentials.passwd));
+			user->credentials.dynamic_passwd = strlen(passwd) == 0;
+		});
 	return user;
 }
 
-static PgGlobalUser *add_new_global_user(const char *name, const char *passwd, int thread_id)
+static PgGlobalUser *add_new_global_user(const char *name, const char *passwd)
 {
-	struct Slab * user_cache_ptr = GET_MULTITHREAD_CACHE_PTR(user_cache, thread_id);
-	struct StatList* user_list_ptr = GET_MULTITHREAD_PTR(user_list, thread_id);
-	struct AATree* user_tree_ptr = GET_MULTITHREAD_PTR(user_tree, thread_id);
-	PgGlobalUser *user;
-
-	user = slab_alloc(user_cache_ptr);
+	PgGlobalUser *user = thread_safe_slab_alloc(thread_safe_user_cache);
 
 	if (!user)
 		return NULL;
-
+	spin_lock_init(&user->lock);
 	user->credentials.global_user = user;
 
 	list_init(&user->head);
 	list_init(&user->pool_list);
 	safe_strcpy(user->credentials.name, name, sizeof(user->credentials.name));
-	put_in_order(&user->head, user_list_ptr, cmp_user);
-	aatree_insert(user_tree_ptr, (uintptr_t)user->credentials.name, &user->credentials.tree_node);
+	thread_safe_put_in_order(&user->head, &thread_safe_user_list, cmp_user);
+
+	MULTITHREAD_VISIT(true, &user_tree_lock,
+		{ aatree_insert(&user_tree, (uintptr_t)user->credentials.name, &user->credentials.tree_node); });
+
 	user->pool_mode = POOL_INHERIT;
 	user->pool_size = -1;
 	user->res_pool_size = -1;
@@ -722,62 +721,60 @@ PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const c
 	 * Dynamic credentials are stored in an aatree that's specific to the
 	 * database. So we cannot use find_global_user() here.
 	 */
-	node = aatree_search(&db->user_tree, (uintptr_t)name);
-	credentials = node ? container_of(node, PgCredentials, tree_node) : NULL;
+	MULTITHREAD_VISIT(true, &user_lock, {
+		node = aatree_search(&db->user_tree, (uintptr_t)name);
+		credentials = node ? container_of(node, PgCredentials, tree_node) : NULL;
 
-	if (credentials == NULL) {
+		if (credentials == NULL) {
 
-		struct Slab * credentials_cache_ptr = GET_MULTITHREAD_CACHE_PTR(credentials_cache, db->thread_id);
+			credentials = thread_safe_slab_alloc(thread_safe_credentials_cache);
+			if (!credentials)
+				return NULL;
 
-		credentials = slab_alloc(credentials_cache_ptr);
-		if (!credentials)
-			return NULL;
+			safe_strcpy(credentials->name, name, sizeof(credentials->name));
 
-		safe_strcpy(credentials->name, name, sizeof(credentials->name));
+			credentials->global_user = find_or_add_new_global_user(name, NULL);
+			if (!credentials->global_user) {
+				thread_safe_slab_free(thread_safe_credentials_cache, credentials);
+				return NULL;
+			}
 
-		credentials->global_user = find_or_add_new_global_user(name, NULL, db->thread_id);
-		if (!credentials->global_user) {
-			slab_free(credentials_cache_ptr, credentials);
-			return NULL;
+			aatree_insert(&db->user_tree, (uintptr_t)credentials->name, &credentials->tree_node);
 		}
 
-		aatree_insert(&db->user_tree, (uintptr_t)credentials->name, &credentials->tree_node);
-	}
-
-	safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
-	credentials->dynamic_passwd = true;
-
+		safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
+		credentials->dynamic_passwd = true;
+	});
 	return credentials;
 }
 
 /* Add PAM user. The logic is same as in add_dynamic_credentials */
-PgCredentials *add_pam_credentials(const char *name, const char *passwd, int thread_id)
+PgCredentials *add_pam_credentials(const char *name, const char *passwd)
 {
 	PgCredentials *credentials = NULL;
 	struct AANode *node;
-	struct AATree* pam_user_tree_ptr = GET_MULTITHREAD_PTR(pam_user_tree, thread_id);
+	MULTITHREAD_VISIT(true, &user_lock, {
+		node = aatree_search(&pam_user_tree, (uintptr_t)name);
+		credentials = node ? container_of(node, PgCredentials, tree_node) : NULL;
 
-	node = aatree_search(pam_user_tree_ptr, (uintptr_t)name);
-	credentials = node ? container_of(node, PgCredentials, tree_node) : NULL;
+		if (credentials == NULL) {
+			credentials = thread_safe_slab_alloc(thread_safe_credentials_cache);
+			if (!credentials)
+				return NULL;
 
-	if (credentials == NULL) {
-		struct Slab * credentials_cache_ptr = GET_MULTITHREAD_CACHE_PTR(credentials_cache, thread_id);
-		credentials = slab_alloc(credentials_cache);
-		if (!credentials)
-			return NULL;
+			safe_strcpy(credentials->name, name, sizeof(credentials->name));
 
-		safe_strcpy(credentials->name, name, sizeof(credentials->name));
+			credentials->global_user = find_or_add_new_global_user(name, NULL);
+			if (!credentials->global_user) {
+				thread_safe_slab_free(thread_safe_credentials_cache, credentials);
+				return NULL;
+			}
 
-		credentials->global_user = find_or_add_new_global_user(name, NULL, thread_id);
-		if (!credentials->global_user) {
-			slab_free(credentials_cache_ptr, credentials);
-			return NULL;
+			aatree_insert(&pam_user_tree, (uintptr_t)credentials->name, &credentials->tree_node);
 		}
-
-		aatree_insert(&pam_user_tree, (uintptr_t)credentials->name, &credentials->tree_node);
-	}
-	if (passwd)
-		safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
+		if (passwd)
+			safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
+	});
 	return credentials;
 }
 
@@ -786,14 +783,13 @@ PgCredentials *force_user_credentials(PgDatabase *db, const char *name, const ch
 {
 	PgCredentials *credentials = db->forced_user_credentials;
 	if (!credentials) {
-		struct Slab * credentials_cache_ptr = GET_MULTITHREAD_CACHE_PTR(credentials_cache, db->thread_id);
-		credentials = slab_alloc(credentials_cache_ptr);
+		credentials = thread_safe_slab_alloc(thread_safe_credentials_cache);
 		if (!credentials)
 			return NULL;
 
-		credentials->global_user = find_or_add_new_global_user(name, NULL, db->thread_id);
+		credentials->global_user = find_or_add_new_global_user(name, NULL);
 		if (!credentials->global_user) {
-			slab_free(credentials_cache_ptr, credentials);
+			thread_safe_slab_free(thread_safe_credentials_cache, credentials);
 			return NULL;
 		}
 	}
@@ -891,20 +887,19 @@ PgDatabase *find_or_register_database(PgSocket *connection, const char *name)
 }
 
 /* find existing user */
-PgGlobalUser *find_global_user(const char *name, int thread_id)
+PgGlobalUser *find_global_user(const char *name)
 {
-	struct AATree* user_tree_ptr = GET_MULTITHREAD_PTR(user_tree, thread_id);
 	PgGlobalUser *user = NULL;
 	struct AANode *node;
-	node = aatree_search(user_tree_ptr, (uintptr_t)name);
+	MULTITHREAD_VISIT(true, &user_tree_lock, { node = aatree_search(&user_tree, (uintptr_t)name); });
 	/* we use the tree_node in the embedded PgCredentials struct */
 	user = node ? (PgGlobalUser *) container_of(node, PgCredentials, tree_node) : NULL;
 	return user;
 }
 
-PgCredentials *find_global_credentials(const char *name, int thread_id)
+PgCredentials *find_global_credentials(const char *name)
 {
-	PgGlobalUser *user = find_global_user(name, thread_id);
+	PgGlobalUser *user = find_global_user(name);
 	if (!user)
 		return NULL;
 	return &user->credentials;
@@ -943,7 +938,9 @@ static PgPool *new_pool(PgDatabase *db, PgCredentials *user_credentials)
 	statlist_init(&pool->active_cancel_server_list, "active_cancel_server_list");
 	statlist_init(&pool->being_canceled_server_list, "being_canceled_server_list");
 
-	list_append(&user_credentials->global_user->pool_list, &pool->map_head);
+	MULTITHREAD_VISIT(multithread_mode, &user_credentials->global_user->lock, {
+		list_append(&user_credentials->global_user->pool_list, &pool->map_head);
+	});
 
 	/* keep pools in db/user order to make stats faster */
 
@@ -1004,16 +1001,21 @@ PgPool *get_pool(PgDatabase *db, PgCredentials *user_credentials)
 {
 	struct List *item;
 	PgPool *pool;
-
+	bool found = false;
 	if (!db || !user_credentials)
 		return NULL;
 
-	list_for_each(item, &user_credentials->global_user->pool_list) {
-		pool = container_of(item, PgPool, map_head);
-		if (pool->db->name == db->name)
-			return pool;
-	}
-
+	MULTITHREAD_VISIT(true, &user_credentials->global_user->lock, {
+		list_for_each(item, &user_credentials->global_user->pool_list) {
+			pool = container_of(item, PgPool, map_head);
+			if (pool->db->name == db->name){
+				found = true;
+				break;
+			}
+		}
+	});
+	if(found)
+		return pool;
 	return new_pool(db, user_credentials);
 }
 
@@ -1261,20 +1263,23 @@ bool queue_fake_response(PgSocket *client, char request_type)
 }
 
 /* Find an existing global user or add a new global user */
-PgGlobalUser *find_or_add_new_global_user(const char *name, const char *passwd, int thread_id)
+PgGlobalUser *find_or_add_new_global_user(const char *name, const char *passwd)
 {
-	PgGlobalUser *user = find_global_user(name, thread_id);
+	PgGlobalUser *user = NULL;
+	MULTITHREAD_VISIT(multithread_mode, &user_lock, {
+		user = find_global_user(name);
 
-	if (!user)
-		user = add_new_global_user(name, passwd, thread_id);
+		if (!user)
+			user = add_new_global_user(name, passwd);
+	});
 
 	return user;
 }
 
 /* Find an existing global credentials or add a new global credentials */
-PgCredentials *find_or_add_new_global_credentials(const char *name, const char *passwd, int thread_id)
+PgCredentials *find_or_add_new_global_credentials(const char *name, const char *passwd)
 {
-	PgGlobalUser *user = find_or_add_new_global_user(name, passwd, thread_id);
+	PgGlobalUser *user = find_or_add_new_global_user(name, passwd);
 
 	if (!user)
 		return NULL;
@@ -1680,8 +1685,11 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 	free_scram_state(&server->scram_state);
 
 	server->pool->db->connection_count--;
-	if (server->pool->user_credentials)
-		server->pool->user_credentials->global_user->connection_count--;
+	if (server->pool->user_credentials){
+		MULTITHREAD_VISIT(multithread_mode, &server->pool->user_credentials->global_user->lock, {
+			server->pool->user_credentials->global_user->connection_count--;
+		});
+	}
 
 	change_server_state(server, SV_JUSTFREE);
 	if (!sbuf_close(&server->sbuf))
@@ -1731,7 +1739,9 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 
 	if (client->login_user_credentials) {
 		if (client->login_user_credentials->global_user && client->user_connection_counted) {
-			client->login_user_credentials->global_user->client_connection_count--;
+			MULTITHREAD_VISIT(multithread_mode, &client->login_user_credentials->global_user->lock,{
+				client->login_user_credentials->global_user->client_connection_count--;
+			});
 		}
 	}
 
@@ -2273,9 +2283,13 @@ force_new:
 	statlist_init(&server->canceling_clients, "canceling_clients");
 	pool->last_connect_time = get_multithread_time_with_id(thread_id);
 	change_server_state(server, SV_LOGIN);
+	// TODO: global db counter
 	pool->db->connection_count++;
-	if (pool->user_credentials)
-		pool->user_credentials->global_user->connection_count++;
+	if (pool->user_credentials){
+		MULTITHREAD_VISIT(true, &pool->user_credentials->global_user->lock, {
+			pool->user_credentials->global_user->connection_count++;
+		});
+	}
 
 	dns_connect(server);
 }
@@ -2652,7 +2666,7 @@ bool use_client_socket(int fd, PgAddr *addr,
 			log_error("SCRAM key data received for PAM user");
 			return false;
 		}
-		credentials = find_global_credentials(username, thread_id);
+		credentials = find_global_credentials(username);
 		if (!credentials && db->auth_user_credentials)
 			credentials = add_dynamic_credentials(db, username, password);
 
@@ -2720,9 +2734,9 @@ bool use_server_socket(int fd, PgAddr *addr,
 	if (db->forced_user_credentials) {
 		credentials = db->forced_user_credentials;
 	} else if (cf_auth_type == AUTH_TYPE_PAM) {
-		credentials = add_pam_credentials(username, password, thread_id);
+		credentials = add_pam_credentials(username, password);
 	} else {
-		credentials = find_global_credentials(username, thread_id);
+		credentials = find_global_credentials(username);
 	}
 	if (!credentials && db->auth_user_credentials)
 		credentials = add_dynamic_credentials(db, username, password);
@@ -3070,7 +3084,7 @@ void objects_cleanup(void)
 	clear_user_tree_cached_scram_keys(&user_tree);
 
 	memset(&login_client_list, 0, sizeof login_client_list);
-	memset(&user_list, 0, sizeof user_list);
+	memset(&thread_safe_user_list, 0, sizeof thread_safe_user_list);
 	memset(&database_list, 0, sizeof database_list);
 	memset(&pool_list, 0, sizeof pool_list);
 	memset(&pam_user_tree, 0, sizeof pam_user_tree);
@@ -3089,10 +3103,10 @@ void objects_cleanup(void)
 	peer_pool_cache = NULL;
 	slab_destroy(pool_cache);
 	pool_cache = NULL;
-	slab_destroy(user_cache);
-	user_cache = NULL;
-	slab_destroy(credentials_cache);
-	credentials_cache = NULL;
+	thread_safe_slab_destroy(thread_safe_user_cache);
+	thread_safe_user_cache = NULL;
+	thread_safe_slab_destroy(thread_safe_credentials_cache);
+	thread_safe_credentials_cache = NULL;
 	slab_destroy(iobuf_cache);
 	iobuf_cache = NULL;
 	slab_destroy(outstanding_request_cache);

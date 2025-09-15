@@ -383,37 +383,14 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk, int thread_id)
 		return false;
 
 	if (sk->pool && sk->pool->db->auth_user_credentials && sk->login_user_credentials){
-		if 	(multithread_mode){
-			bool user_found = true;
-			FOR_EACH_THREAD(thread_id){
-				if(!find_global_user(sk->login_user_credentials->name, thread_id)){
-					user_found = false;
-				}
-			}
-			if(!user_found)
-				password = sk->login_user_credentials->passwd;
-		} else {
-			if (!find_global_user(sk->login_user_credentials->name, -1))
-				password = sk->login_user_credentials->passwd;
-		}
+		if (!find_global_user(sk->login_user_credentials->name))
+			password = sk->login_user_credentials->passwd;
 	}
 
 	/* PAM requires passwords as well since they are not stored externally */
 	if (cf_auth_type == AUTH_TYPE_PAM ){
-		// FIXME wrong user searching
-		if (multithread_mode){
-			bool user_found = true;
-			FOR_EACH_THREAD(thread_id){
-				if(!find_global_user(sk->login_user_credentials->name, thread_id)){
-					user_found = false;
-				}
-			}
-			if(!user_found)
-				password = sk->login_user_credentials->passwd;
-		} else {
-			if (!find_global_user(sk->login_user_credentials->name, -1))
-				password = sk->login_user_credentials->passwd;
-		}
+		if (!find_global_user(sk->login_user_credentials->name))
+			password = sk->login_user_credentials->passwd;
 	}
 
 	if (sk->pool && sk->pool->user_credentials && sk->pool->user_credentials->use_scram_keys)
@@ -755,7 +732,7 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 	}
 
 	SENDLIST("databases", total_database_count);
-	SENDLIST("users", statlist_count(&user_list));
+	SENDLIST("users", thread_safe_statlist_count(&thread_safe_user_list));
 	SENDLIST("peers", statlist_count(&peer_list));
 	SENDLIST("pools", total_pool_list);
 	SENDLIST("peer_pools", total_peer_pool_list);
@@ -794,7 +771,7 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	pktbuf_write_RowDescription(
 		buf, "ssssiiii", "name", "pool_size", "reserve_pool_size", "pool_mode", "max_user_connections", "current_connections",
 		"max_user_client_connections", "current_client_connections");
-	statlist_for_each(item, &user_list) {
+	THREAD_SAFE_STATLIST_EACH(&thread_safe_user_list, item, {
 		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
 		if (user->pool_size >= 0)
 			snprintf(pool_size_str, sizeof(pool_size_str), "%9d", user->pool_size);
@@ -815,7 +792,7 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 				     user_client_max_connections(user),
 				     user->client_connection_count
 				     );
-	}
+	});
 	admin_flush(admin, buf, "SHOW");
 	return true;
 }
@@ -2615,7 +2592,7 @@ void admin_setup(int thread_id)
 	}
 
 	/* find an existing user or create a new fake user with disabled password */
-	user = find_or_add_new_global_user("pgbouncer", "", thread_id);
+	user = find_or_add_new_global_user("pgbouncer", "");
 	if (!user) {
 		die("cannot create admin user?");
 	}

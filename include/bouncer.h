@@ -547,6 +547,7 @@ struct PgCredentials {
  */
 struct PgGlobalUser {
 	PgCredentials credentials;	/* needs to be first for AAtree */
+	SpinLock lock;		/* lock for updating user state */
 	struct List head;	/* used to attach user to list */
 	struct List pool_list;	/* list of pools where pool->user == this user */
 	int pool_mode;
@@ -774,6 +775,14 @@ struct PgSocket {
 	SBuf sbuf;		/* stream buffer, must be last */
 };
 
+typedef struct ConnectionLimit{
+	SpinLock lock;
+	int limit;
+	int current_count;
+	char *name;
+	UT_hash_handle hh;
+} ConnectionLimit;
+
 #define RAW_IOBUF_SIZE  offsetof(IOBuf, buf)
 #define IOBUF_SIZE      (RAW_IOBUF_SIZE + cf_sbuf_len)
 
@@ -909,6 +918,9 @@ extern usec_t g_suspend_start;
 extern struct DNSContext *adns;
 extern SpinLock adns_lock;
 extern struct HBA *parsed_hba;
+
+extern ConnectionLimit* db_connection_limits;
+extern SpinLock db_connection_limits_lock;
 
 static inline PgSocket * _MUSTCHECK pop_socket(struct StatList *slist)
 {

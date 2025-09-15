@@ -481,7 +481,7 @@ bool parse_database(void *base, const char *name, const char *connstr, int threa
 	}
 
 	if (auth_username != NULL) {
-		db->auth_user_credentials = find_or_add_new_global_credentials(auth_username, "", thread_id);
+		db->auth_user_credentials = find_or_add_new_global_credentials(auth_username, "");
 		if (!db->auth_user_credentials)
 			goto fail;
 	} else if (db->auth_user_credentials) {
@@ -574,14 +574,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 			goto fail;
 		}
 	}
-	user = NULL;
-	if(multithread_mode){
-		FOR_EACH_THREAD(thread_id){
-			user = find_or_add_new_global_user(name, "", thread_id);
-		}
-	}else{
-		user = find_or_add_new_global_user(name, "", -1);
-	}
+	user = find_or_add_new_global_user(name, "");
 
 	if (!user) {
 		log_error("cannot create user, no memory?");
@@ -648,45 +641,23 @@ static void unquote_add_authfile_user(const char *username, const char *password
 	copy_quoted(real_user, username, sizeof(real_user));
 	copy_quoted(real_passwd, password, sizeof(real_passwd));
 
-	if(multithread_mode){
-		FOR_EACH_THREAD(thread_id){
-			user = find_or_add_new_global_user(real_user, real_passwd, thread_id);
-			if (!user) {
-				log_warning("cannot create user, no memory");
-				return;
-			}
-			if (strcmp(user->credentials.passwd, real_passwd) != 0) {
-				user = update_global_user_passwd(user, real_passwd);
-			}
+	user = find_or_add_new_global_user(real_user, real_passwd);
+	if (!user) {
+		log_warning("cannot create user, no memory");
+		return;
+	}
 
-			user->credentials.dynamic_passwd = false;
+	if (strcmp(user->credentials.passwd, real_passwd) != 0) {
+		user = update_global_user_passwd(user, real_passwd);
+	}
 
-			/* Clear cached adhoc scram secrets since the user may have changed the password. */
-			if (user->credentials.scram_SaltKey != NULL) {
-				free(user->credentials.scram_SaltKey);
-				user->credentials.scram_SaltKey = NULL;
-				user->credentials.adhoc_scram_secrets_cached = false;
-			}
-		}
-	}else{
-		user = find_or_add_new_global_user(real_user, real_passwd, -1);
-		if (!user) {
-			log_warning("cannot create user, no memory");
-			return;
-		}
+	user->credentials.dynamic_passwd = false;
 
-		if (strcmp(user->credentials.passwd, real_passwd) != 0) {
-			user = update_global_user_passwd(user, real_passwd);
-		}
-
-		user->credentials.dynamic_passwd = false;
-
-		/* Clear cached adhoc scram secrets since the user may have changed the password. */
-		if (user->credentials.scram_SaltKey != NULL) {
-			free(user->credentials.scram_SaltKey);
-			user->credentials.scram_SaltKey = NULL;
-			user->credentials.adhoc_scram_secrets_cached = false;
-		}
+	/* Clear cached adhoc scram secrets since the user may have changed the password. */
+	if (user->credentials.scram_SaltKey != NULL) {
+		free(user->credentials.scram_SaltKey);
+		user->credentials.scram_SaltKey = NULL;
+		user->credentials.adhoc_scram_secrets_cached = false;
 	}
 }
 
@@ -730,19 +701,11 @@ bool loader_users_check(void)
 static void disable_users(void)
 {
 	struct List *item;
-	if (multithread_mode)
-	{
-		// TODO(beihao): implement
-		statlist_for_each(item, &user_list) {
-			PgGlobalUser *user = container_of(item, PgGlobalUser, head);
-			user->credentials.passwd[0] = 0;
-		}
-	}else{
-		statlist_for_each(item, &user_list) {
-			PgGlobalUser *user = container_of(item, PgGlobalUser, head);
-			user->credentials.passwd[0] = 0;
-		}
-	}
+	THREAD_SAFE_STATLIST_EACH(&thread_safe_user_list, item, {
+		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
+		user->credentials.passwd[0] = 0;
+	});
+
 }
 
 /* load list of users from auth_file */

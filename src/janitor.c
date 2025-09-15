@@ -1247,11 +1247,7 @@ void kill_database(PgDatabase *db)
 	free(db->host);
 
 	if (db->forced_user_credentials) {
-		if(multithread_mode){
-			thread_safe_slab_free(thread_safe_credentials_cache, db->forced_user_credentials);
-		} else {
-			slab_free(credentials_cache, db->forced_user_credentials);
-		}
+		thread_safe_slab_free(thread_safe_credentials_cache, db->forced_user_credentials);
 	}
 	free(db->connect_query);
 	if (db->inactive_time) {

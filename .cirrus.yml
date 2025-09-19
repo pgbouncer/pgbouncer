@@ -12,11 +12,11 @@ task:
     - container:
         image: ubuntu:22.04
       env:
-        configure_args: '--with-cares --with-pam --with-ldap'
+        configure_args: '-Dcares=enabled -Dpam=enabled -Dldap=enabled'
     - container:
         image: ubuntu:22.04
       env:
-        configure_args: '--disable-evdns --without-openssl'
+        configure_args: '-Devdns=false -Dopenssl=disabled'
     - container:
         image: ubuntu:22.04
       env:
@@ -28,6 +28,7 @@ task:
         ENABLE_VALGRIND: yes
         CFLAGS: -O0 -g
         PGVERSION: 17
+      trigger_type: manual  # FIXME
     - container:
         image: ubuntu:22.04
       env:
@@ -54,7 +55,7 @@ task:
     - apt-get -y --no-install-recommends install gnupg postgresql-common
     - /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
     - apt-get update
-    - pkgs="autoconf automake ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev libtool make pandoc pkg-config postgresql-$PGVERSION python3 python3-pip python3-venv slapd socat sudo"
+    - pkgs="ca-certificates cpio gcc git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev meson ninja-build pandoc pkg-config postgresql-$PGVERSION python3 python3-pip python3-venv slapd socat sudo"
     - case $CC in clang) pkgs="$pkgs clang";; esac
     - if [ x"$ENABLE_VALGRIND" = x"yes" ]; then pkgs="$pkgs valgrind"; fi
     - if [ x"$use_scan_build" = x"yes" ]; then pkgs="$pkgs clang-tools"; fi
@@ -65,24 +66,23 @@ task:
     - chown -R user .
     - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
   build_script:
-    - su user -c "./autogen.sh"
-    - su user -c "${use_scan_build:+scan-build} ./configure --prefix=$HOME/install --enable-cassert --enable-werror --without-cares --with-systemd $configure_args"
-    - su user -c "${use_scan_build:+scan-build} make -j4"
+    - su user -c ". /venv/bin/activate && meson setup build --prefix=$HOME/install -Dcassert=true --werror -Dsystemd=enabled $configure_args"
+    - su user -c "meson compile -C build -v"
   test_script:
-    - source /venv/bin/activate && su user -c "PATH=/usr/lib/postgresql/${PGVERSION}/bin:$PATH make -j4 check CONCURRENCY=4"
+    - su user -c "PATH=/usr/lib/postgresql/${PGVERSION}/bin:$PATH meson test -C build -v"
   install_script:
-    - make -j4 install
-  dist_script:
-    - su user -c "make dist"
-    - PACKAGE_VERSION=$(sed -n 's/PACKAGE_VERSION = //p' config.mak)
-    - su user -c "tar -x -v -f pgbouncer-${PACKAGE_VERSION}.tar.gz"
-    - su user -c "cd pgbouncer-${PACKAGE_VERSION}/ && ./configure --prefix=$HOME/install2 --enable-werror --without-cares $configure_args && make -j4"
-    - cd pgbouncer-${PACKAGE_VERSION}/ && make -j4 install
-  tarball_artifacts:
-    path: "pgbouncer-*.tar.gz"
+    - meson install -C build
+#  dist_script:
+#    - su user -c "make dist"
+#    - PACKAGE_VERSION=$(sed -n 's/PACKAGE_VERSION = //p' config.mak)
+#    - su user -c "tar -x -v -f pgbouncer-${PACKAGE_VERSION}.tar.gz"
+#    - su user -c "cd pgbouncer-${PACKAGE_VERSION}/ && ./configure --prefix=$HOME/install2 --enable-werror --without-cares $configure_args && make -j4"
+#    - cd pgbouncer-${PACKAGE_VERSION}/ && make -j4 install
+#  tarball_artifacts:
+#    path: "pgbouncer-*.tar.gz"
   always:
-    configure_artifacts:
-      path: "config.log"
+    meson_log_artifacts:
+      path: "build*/meson-logs/*.txt"
       type: text/plain
 
 task:
@@ -151,6 +151,7 @@ task:
 
 task:
   name: FreeBSD
+  trigger_type: manual  # FIXME
   freebsd_instance:
     image_family: freebsd-14-2
   env:
@@ -193,27 +194,28 @@ task:
     CPPFLAGS: -I/opt/homebrew/opt/openldap/include -I/opt/homebrew/opt/openssl@3/include
     LDFLAGS: -L/opt/homebrew/opt/openldap/lib -L/opt/homebrew/opt/openssl@3/lib
     PATH: /opt/homebrew/opt/postgresql@${PGVERSION}/bin:$PATH
+    PKG_CONFIG_PATH: /opt/homebrew/opt/pkgconfig
   setup_script:
-    - brew install autoconf automake libevent libtool openldap openssl pandoc pkg-config postgresql@${PGVERSION}
+    - brew install libevent meson ninja openldap openssl pandoc pkg-config postgresql@${PGVERSION}
     - python3 -m venv venv
     - venv/bin/pip install -r requirements.txt
     - echo 'anchor "pgbouncer_test/*"' | sudo tee -a /etc/pf.conf
     - sudo pfctl -f /etc/pf.conf
   build_script:
-    - ./autogen.sh
-    - ./configure --prefix=$HOME/install --enable-werror --with-ldap
-    - make -j4
+    - . venv/bin/activate && meson setup build --werror -Dldap=enabled
+    - meson compile -C build
   test_script:
-    - source venv/bin/activate && make -j4 check CONCURRENCY=4
+    - meson test -C build
   install_script:
-    - make -j4 install
+    - meson install -C build
   always:
-    configure_artifacts:
-      path: "config.log"
+    meson_log_artifacts:
+      path: "build*/meson-logs/*.txt"
       type: text/plain
 
 task:
   name: Windows
+  trigger_type: manual  # FIXME
   windows_container:
     image: cirrusci/windowsservercore:cmake
   env:

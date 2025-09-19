@@ -332,10 +332,17 @@ int database_max_client_connections(PgDatabase *db)
 
 int database_max_connections(PgDatabase *db)
 {
-	if (db->max_db_connections <= 0)
+	int limit = -1;
+	if(multithread_mode){
+		limit = multithread_get_limit_count(db->name, db_connection_limits, &db_connection_limits_lock);
+	}else{
+		limit = db->max_db_connections;
+	}
+
+	if (limit <= 0)
 		return cf_max_db_connections;
 	else
-		return db->max_db_connections;
+		return limit;
 }
 
 int user_max_connections(PgGlobalUser *user)

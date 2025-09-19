@@ -1591,6 +1591,26 @@ static void unlink_server(PgSocket *server, const char *reason)
 		disconnect_client(client, true, "bouncer config error");
 }
 
+static void increase_db_connection_count(PgDatabase *db)
+{
+	if(multithread_mode){
+		if(!multithread_increase_limit_count(db->name, db_connection_limits, &db_connection_limits_lock)){
+			fatal("increase_db_connection_count failed");
+		}
+	}else{
+		db->connection_count++;
+	}
+}
+
+static void decrease_db_connection_count(PgDatabase *db)
+{
+	if(multithread_mode){
+		multithread_decrease_limit_count(db->name, db_connection_limits, &db_connection_limits_lock);
+	}else{
+		db->connection_count--;
+	}
+}
+
 /*
  * close server connection
  *
@@ -1684,7 +1704,7 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 
 	free_scram_state(&server->scram_state);
 
-	server->pool->db->connection_count--;
+	decrease_db_connection_count(server->pool->db);
 	if (server->pool->user_credentials){
 		MULTITHREAD_VISIT(multithread_mode, &server->pool->user_credentials->global_user->lock, {
 			server->pool->user_credentials->global_user->connection_count--;
@@ -2091,6 +2111,15 @@ bool evict_connection(PgDatabase *db)
 	return false;
 }
 
+static int get_current_db_connection_count(PgDatabase *db)
+{
+	if(multithread_mode){
+		return multithread_get_limit_count(db->name, db_client_connection_limits, &db_connection_limits_lock);
+	}else{
+		return db->connection_count;
+	}
+}
+
 /* evict the oldest idle connection from the pool */
 bool evict_pool_connection(PgPool *pool)
 {
@@ -2241,12 +2270,15 @@ allow_new:
 	max = database_max_connections(pool->db);
 	if (max > 0) {
 		/* try to evict unused connections first */
-		while (evict_if_needed && pool->db->connection_count >= max) {
+		int current_conn_count = get_current_db_connection_count(pool->db);
+		while (evict_if_needed && current_conn_count >= max) {
 			if (!evict_connection(pool->db)) {
 				break;
 			}
+			current_conn_count = get_current_db_connection_count(pool->db);
 		}
-		if (pool->db->connection_count >= max) {
+
+		if (current_conn_count >= max) {
 			log_debug("launch_new_connection: database '%s' full (%d >= %d)",
 				  pool->db->name, pool->db->connection_count, max);
 			return;
@@ -2283,8 +2315,7 @@ force_new:
 	statlist_init(&server->canceling_clients, "canceling_clients");
 	pool->last_connect_time = get_multithread_time_with_id(thread_id);
 	change_server_state(server, SV_LOGIN);
-	// TODO: global db counter
-	pool->db->connection_count++;
+	increase_db_connection_count(pool->db);
 	if (pool->user_credentials){
 		MULTITHREAD_VISIT(true, &pool->user_credentials->global_user->lock, {
 			pool->user_credentials->global_user->connection_count++;
@@ -2755,7 +2786,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 	if (!res)
 		return false;
 
-	db->connection_count++;
+	increase_db_connection_count(db);
 
 	server->suspended = true;
 	server->pool = pool;

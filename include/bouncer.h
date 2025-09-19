@@ -776,10 +776,9 @@ struct PgSocket {
 };
 
 typedef struct ConnectionLimit{
-	SpinLock lock;
+	char* name;
 	int limit;
 	int current_count;
-	char *name;
 	UT_hash_handle hh;
 } ConnectionLimit;
 
@@ -919,8 +918,11 @@ extern struct DNSContext *adns;
 extern SpinLock adns_lock;
 extern struct HBA *parsed_hba;
 
-extern ConnectionLimit* db_connection_limits;
+extern ConnectionLimit *db_connection_limits;
 extern SpinLock db_connection_limits_lock;
+
+extern ConnectionLimit *db_client_connection_limits;
+extern SpinLock db_client_connection_limits_lock;
 
 static inline PgSocket * _MUSTCHECK pop_socket(struct StatList *slist)
 {

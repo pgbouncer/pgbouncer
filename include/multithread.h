@@ -168,3 +168,11 @@ int get_current_thread_id(const bool multithread_mode);
 usec_t get_multithread_time_with_id(int thread_id);
 
 void multithread_reset_time_cache(void);
+
+bool multithread_limits_init(ConnectionLimit** limit, SpinLock* lock);
+int multhread_get_limit(const char* name, ConnectionLimit* limits, SpinLock* lock);
+int multithread_get_limit_count(const char* name, ConnectionLimit* limits, SpinLock* lock);
+bool multithread_increase_limit_count(const char* name, ConnectionLimit* limits, SpinLock* lock);
+void multithread_decrease_limit_count(const char* name, ConnectionLimit* limits, SpinLock* lock);
+bool multithread_check_limit_count(const char* name, ConnectionLimit* limits, SpinLock* lock);
+void multithread_free_limits(ConnectionLimit* limits);

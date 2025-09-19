@@ -18,6 +18,12 @@ SpinLock client_count_lock;
 int total_active_count = 0;  /* Total active count across all threads */
 SpinLock total_active_count_lock;
 
+ConnectionLimit* db_connection_limits;
+SpinLock db_connection_limits_lock;
+
+ConnectionLimit* db_client_connection_limits;
+SpinLock db_client_connection_limits_lock;
+
 static void signal_threads(int signal_pipe[2]){
 	if(!multithread_mode){
 		return;
@@ -470,7 +476,9 @@ void init_threads(void){
 	log_info("allocating %d threads.", arg_thread_number);
 	threads = calloc(arg_thread_number, sizeof(Thread));
 	spin_lock_init(&prepared_statements_spinlock_);
-	
+	multithread_limits_init(&db_connection_limits, &db_connection_limits_lock);
+	multithread_limits_init(&db_client_connection_limits, &db_client_connection_limits_lock);
+
 	FOR_EACH_THREAD(thread_id){
 		init_thread(thread_id);
 	}
@@ -562,4 +570,123 @@ void multithread_reset_time_cache(void)
 		return;
 	}
 	threads[thread_id].multithread_time_cache = 0;
+}
+
+
+bool multithread_limits_init(ConnectionLimit** limit, SpinLock* lock){
+	if(!multithread_mode){
+		return true;
+    	}
+	*limit = NULL;
+    	spin_lock_init(lock);
+    	return true;
+}
+
+
+int multithread_get_limit_count(const char* name, ConnectionLimit* limits, SpinLock* lock){
+	ConnectionLimit* limit_entry = NULL;
+	if(!multithread_mode){
+		return -1;
+    	}
+    	spin_lock_acquire(lock);
+    	HASH_FIND_STR(limits, name, limit_entry);
+    	if(limit_entry){
+		int count = limit_entry->current_count;
+		spin_lock_release(lock);
+		return count;
+	}
+	spin_lock_release(lock);
+	return -1;
+}
+
+int multhread_get_limit(const char* name, ConnectionLimit* limits, SpinLock* lock){
+	ConnectionLimit* limit_entry = NULL;
+	if(!multithread_mode){
+		return -1;
+    	}
+    	spin_lock_acquire(lock);
+    	HASH_FIND_STR(limits, name, limit_entry);
+	// release lock early becuase limit is not expected to change
+	spin_lock_release(lock);
+
+    	if(limit_entry){
+		int limit = limit_entry->limit;
+		return limit;
+	}
+	return -1;
+}
+
+bool multithread_increase_limit_count(const char* name, ConnectionLimit* limits, SpinLock* lock){
+	ConnectionLimit* limit_entry = NULL;
+	if(!multithread_mode){
+		return true;
+    	}
+    	spin_lock_acquire(lock);
+    	HASH_FIND_STR(limits, name, limit_entry);
+    	if(limit_entry){
+		limit_entry->current_count++;
+		spin_lock_release(lock);
+		return true;
+	}
+	limit_entry = (ConnectionLimit*)malloc(sizeof(ConnectionLimit));
+	if(!limit_entry){
+		spin_lock_release(lock);
+		return false;
+	}
+	memset(limit_entry, 0, sizeof(ConnectionLimit));
+	limit_entry->name = strdup(name);
+	limit_entry->current_count = 1;
+	HASH_ADD_KEYPTR(hh, limits, name, strlen(name), limit_entry);
+	spin_lock_release(lock);
+	return true;
+}
+
+
+void multithread_decrease_limit_count(const char* name, ConnectionLimit* limits, SpinLock* lock){
+	ConnectionLimit* limit_entry = NULL;
+	if(!multithread_mode){
+		return;
+    	}
+    	spin_lock_acquire(lock);
+    	HASH_FIND_STR(limits, name, limit_entry);
+    	if(limit_entry){
+		limit_entry->current_count--;
+		spin_lock_release(lock);
+		return;
+	}
+	spin_lock_release(lock);
+	return;
+}
+
+bool multithread_check_limit_count(const char* name, ConnectionLimit* limits, SpinLock* lock){
+	ConnectionLimit* limit_entry = NULL;
+	if(!multithread_mode){
+		return true;
+    	}
+    	spin_lock_acquire(lock);
+    	HASH_FIND_STR(limits, name, limit_entry);
+    	if(limit_entry){
+		if(limit_entry->current_count >= limit_entry->limit){
+			spin_lock_release(lock);
+			return false;
+		}
+		spin_lock_release(lock);
+		return true;
+	}
+	spin_lock_release(lock);
+	return true;
+}
+
+
+void multithread_free_limits(ConnectionLimit* limits){
+	ConnectionLimit *entry, *tmp;
+	if(!multithread_mode){
+		return;
+    	}
+	HASH_ITER(hh, limits, entry, tmp) {
+	    HASH_DEL(limits, entry);
+	    free(entry->name);
+	    free(entry);
+	}
+	limits = NULL;
 }

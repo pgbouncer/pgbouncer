@@ -814,7 +814,7 @@ static void dns_setup(void)
 	if (!adns)
 		die("dns setup failed");
 	if(multithread_mode){
-		spin_lock_init(&adns_lock);
+		spin_lock_init(&adns_lock, true);
 	}
 }
 

@@ -467,24 +467,37 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	return ok;
 }
 
+static int get_client_connection_count(PgDatabase *db){
+	if(multithread_mode){
+		return multithread_get_limit_count(db->name, &db_client_connection_limits, &db_client_connection_limits_lock);
+	}else{
+		return db->connection_count;
+	}
+}
+
 bool check_db_connection_count(PgSocket *client)
 {
+	int max_client_connections;
+	int client_connection_count;
+
 	if (!client->contributes_db_client_count) {
 		client->contributes_db_client_count = true;
 		client->db->client_connection_count++;
+		multithread_increase_limit_count(client->db->name, &db_client_connection_limits, &db_client_connection_limits_lock);
 	}
-
-	if (database_max_client_connections(client->db) <= 0)
+	max_client_connections = database_max_client_connections(client->db);
+	if (max_client_connections <= 0)
 		return true;
 
-	if (client->db->client_connection_count <= database_max_client_connections(client->db))
+	client_connection_count = get_client_connection_count(client->db);
+	if (client->db->client_connection_count <= max_client_connections)
 		return true;
 
 	if (client->db->admin && strlist_contains(cf_admin_users, client->login_user_credentials->name))
 		return true;
 
 	log_debug("set_pool: db '%s' full (%d >= %d)",
-		  client->db->name, client->db->client_connection_count, client->db->max_db_client_connections);
+		  client->db->name, client_connection_count, max_client_connections);
 	disconnect_client(client, true, "client connections exceeded (max_db_client_connections)");
 
 	return false;
@@ -503,7 +516,7 @@ bool check_user_connection_count(PgSocket *client)
 		return true;
 
 	if (!client->user_connection_counted) {
-		MULTITHREAD_VISIT(true, &client->login_user_credentials->global_user->lock, {
+		MULTITHREAD_VISIT(multithread_mode, &client->login_user_credentials->global_user->lock, {
 			client->login_user_credentials->global_user->client_connection_count++;
 		});
 		client->user_connection_counted = 1;
@@ -513,13 +526,14 @@ bool check_user_connection_count(PgSocket *client)
 		return true;
 	}
 
-	MULTITHREAD_VISIT(true, &client->login_user_credentials->global_user->lock, {
+	MULTITHREAD_VISIT(multithread_mode, &client->login_user_credentials->global_user->lock, {
 		max_user_client_connections = user_client_max_connections(client->login_user_credentials->global_user);
 	});
 	if (max_user_client_connections == 0)
 		return true;
-
-	client_connection_count = client->login_user_credentials->global_user->client_connection_count;
+	MULTITHREAD_VISIT(multithread_mode, &client->login_user_credentials->global_user->lock, {
+		client_connection_count = client->login_user_credentials->global_user->client_connection_count;
+	});
 	if (client_connection_count <= max_user_client_connections)
 		return true;
 

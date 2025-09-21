@@ -323,10 +323,16 @@ int pool_res_pool_size(PgPool *pool)
 
 int database_max_client_connections(PgDatabase *db)
 {
-	if (db->max_db_client_connections <= 0)
+	int max_db_client_connections;
+	if(multithread_mode){
+		max_db_client_connections = multithread_get_limit(db->name, &db_client_connection_limits, &db_client_connection_limits_lock);
+	}else{
+		max_db_client_connections = db->max_db_client_connections;
+	}
+	if (max_db_client_connections <= 0)
 		return cf_max_db_client_connections;
 	else
-		return db->max_db_client_connections;
+		return max_db_client_connections;
 }
 
 
@@ -334,7 +340,7 @@ int database_max_connections(PgDatabase *db)
 {
 	int limit = -1;
 	if(multithread_mode){
-		limit = multithread_get_limit_count(db->name, db_connection_limits, &db_connection_limits_lock);
+		limit = multithread_get_limit(db->name, &db_connection_limits, &db_connection_limits_lock);
 	}else{
 		limit = db->max_db_connections;
 	}

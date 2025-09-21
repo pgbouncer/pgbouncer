@@ -52,11 +52,11 @@ static bool uthash_alloc_failed;
 #define MULTITHREAD_HASH_OP(op) 													\
 	do {																			\
 		if(multithread_mode){														\
-			spin_lock_acquire(&prepared_statements_spinlock_);						\
+			spin_lock_acquire(&prepared_statements_lock);						\
 		}																			\
 		op;																			\
 		if(multithread_mode){														\
-			spin_lock_release(&prepared_statements_spinlock_);						\
+			spin_lock_release(&prepared_statements_lock);						\
 		}																			\
 	} while(0)
 

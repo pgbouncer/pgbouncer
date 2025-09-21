@@ -37,7 +37,7 @@ extern struct Slab *outstanding_request_cache;
 extern struct Slab *var_list_cache;
 extern struct Slab *server_prepared_statement_cache;
 extern PgPreparedStatement *prepared_statements;
-extern SpinLock prepared_statements_spinlock_;
+extern SpinLock prepared_statements_lock;
 
 // FIXME support for multithreads?
 extern unsigned long long int last_pgsocket_id;

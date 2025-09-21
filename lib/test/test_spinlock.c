@@ -88,8 +88,7 @@ static void *recursive_thread_function(void *arg)
 static void test_spin_lock_recursive(void *p)
 {
     pthread_t threads[NUM_RECURSIVE_THREADS];
-    spin_lock_init(&recursive_lock);
-    set_recursive(&recursive_lock, true);
+    spin_lock_init(&recursive_lock, true);
     for (int i = 0; i < NUM_RECURSIVE_THREADS; i++) {
         pthread_create(&threads[i], NULL, recursive_thread_function, NULL);
     }

@@ -17,8 +17,7 @@ struct ThreadSafeStatList {
 /** Initialize ThreadSafeStatList head */
 static inline void thread_safe_statlist_init(struct ThreadSafeStatList *list, const char *name, bool enable_recursive_lock) {
     statlist_init(&list->list, name);
-    spin_lock_init(&list->lock);
-    set_recursive(&list->lock, enable_recursive_lock);
+    spin_lock_init(&list->lock, enable_recursive_lock);
 }
 
 /** Add to the start of the list */

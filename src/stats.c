@@ -598,7 +598,7 @@ void multithread_stats_setup(void){
 	struct event_base * base;
 	base = (struct event_base *)pthread_getspecific(event_base_key);
 	thread_id = get_current_thread_id(multithread_mode);
-	spin_lock_init(&(threads[thread_id].cur_stat_lock));
+	spin_lock_init(&(threads[thread_id].cur_stat_lock), true);
 	event_assign(&threads[thread_id].ev_stats, base, -1, EV_PERSIST, multithread_stats, NULL);
 	if (event_add(&threads[thread_id].ev_stats, &worker_stats_period) < 0)
 		log_warning("event_add failed: %s", strerror(errno));

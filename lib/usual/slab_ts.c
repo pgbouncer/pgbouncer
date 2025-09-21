@@ -57,8 +57,7 @@ struct ThreadSafeSlab *thread_safe_slab_create(const char *name, unsigned obj_si
 
     list_init(&ts_slab->head);
     init_thread_safe_slab_and_store_in_list(ts_slab, name, obj_size, align, init_func, cx);
-    spin_lock_init(&ts_slab->lock);
-    set_recursive(&ts_slab->lock, enable_recursive_lock);
+    spin_lock_init(&ts_slab->lock, enable_recursive_lock);
     return ts_slab;
 }
 

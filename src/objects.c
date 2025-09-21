@@ -64,7 +64,7 @@ SpinLock user_lock;
  */
 PgPreparedStatement *prepared_statements = NULL;
 
-SpinLock prepared_statements_spinlock_;
+SpinLock prepared_statements_lock;
 
 /*
  * client and server objects will be pre-allocated
@@ -199,9 +199,9 @@ void init_objects(void)
 	thread_safe_statlist_init(&thread_safe_user_list, "thread_safe_user_list", true);
 	aatree_init(&user_tree, global_user_node_cmp, NULL);
 	aatree_init(&pam_user_tree, credentials_node_cmp, NULL);
-	spin_lock_init(&user_tree_lock);
-	spin_lock_init(&pam_user_tree_lock);
-	spin_lock_init(&user_lock);
+	spin_lock_init(&user_tree_lock, true);
+	spin_lock_init(&pam_user_tree_lock, true);
+	spin_lock_init(&user_lock, true);
 	thread_safe_user_cache = thread_safe_slab_create("thread_safe_user_cache", sizeof(PgGlobalUser), 0, NULL, USUAL_ALLOC, true);
 	thread_safe_credentials_cache = thread_safe_slab_create("thread_safe_credentials_cache", sizeof(PgCredentials), 0, NULL, USUAL_ALLOC, true);
 	if(!thread_safe_credentials_cache)
@@ -261,8 +261,8 @@ void init_objects_multithread(void)
 		fatal("cannot create initial peer_cache");
 
 
-	spin_lock_init(&client_count_lock);
-	spin_lock_init(&total_active_count_lock);
+	spin_lock_init(&client_count_lock, true);
+	spin_lock_init(&total_active_count_lock, true);
 }
 
 static void do_iobuf_reset(void *arg)
@@ -690,7 +690,7 @@ static PgGlobalUser *add_new_global_user(const char *name, const char *passwd)
 
 	if (!user)
 		return NULL;
-	spin_lock_init(&user->lock);
+	spin_lock_init(&user->lock, true);
 	user->credentials.global_user = user;
 
 	list_init(&user->head);
@@ -1593,22 +1593,16 @@ static void unlink_server(PgSocket *server, const char *reason)
 
 static void increase_db_connection_count(PgDatabase *db)
 {
-	if(multithread_mode){
-		if(!multithread_increase_limit_count(db->name, db_connection_limits, &db_connection_limits_lock)){
-			fatal("increase_db_connection_count failed");
-		}
-	}else{
-		db->connection_count++;
-	}
+	multithread_increase_limit_count(db->name, &db_connection_limits, &db_connection_limits_lock);
+	db->connection_count++;
+
 }
 
 static void decrease_db_connection_count(PgDatabase *db)
 {
-	if(multithread_mode){
-		multithread_decrease_limit_count(db->name, db_connection_limits, &db_connection_limits_lock);
-	}else{
-		db->connection_count--;
-	}
+	multithread_decrease_limit_count(db->name, &db_connection_limits, &db_connection_limits_lock);
+	db->connection_count--;
+
 }
 
 /*
@@ -1754,8 +1748,10 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 	int thread_id = client->sbuf.thread_id;
 	usec_t now = get_multithread_time_with_id(thread_id);
 
-	if (client->db && client->contributes_db_client_count)
+	if (client->db && client->contributes_db_client_count){
+		multithread_decrease_limit_count(client->db->name, &db_client_connection_limits, &db_client_connection_limits_lock);
 		client->db->client_connection_count--;
+	}
 
 	if (client->login_user_credentials) {
 		if (client->login_user_credentials->global_user && client->user_connection_counted) {
@@ -2114,7 +2110,7 @@ bool evict_connection(PgDatabase *db)
 static int get_current_db_connection_count(PgDatabase *db)
 {
 	if(multithread_mode){
-		return multithread_get_limit_count(db->name, db_client_connection_limits, &db_connection_limits_lock);
+		return multithread_get_limit_count(db->name, &db_connection_limits, &db_connection_limits_lock);
 	}else{
 		return db->connection_count;
 	}
@@ -2180,6 +2176,7 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed)
 	int max;
 	struct Slab *server_cache_ptr = NULL;
 	int thread_id = pool->thread_id;
+	int user_conn_count;
 
 	log_debug("launch_new_connection: start");
 	/*
@@ -2272,6 +2269,8 @@ allow_new:
 		/* try to evict unused connections first */
 		int current_conn_count = get_current_db_connection_count(pool->db);
 		while (evict_if_needed && current_conn_count >= max) {
+			log_error("launch_new_connection: database '%s' full (%d >= %d), trying to evict",
+				  pool->db->name, current_conn_count, max);
 			if (!evict_connection(pool->db)) {
 				break;
 			}
@@ -2279,8 +2278,8 @@ allow_new:
 		}
 
 		if (current_conn_count >= max) {
-			log_debug("launch_new_connection: database '%s' full (%d >= %d)",
-				  pool->db->name, pool->db->connection_count, max);
+			log_error("launch_new_connection: database '%s' full (%d >= %d)",
+				  pool->db->name, current_conn_count, max);
 			return;
 		}
 	}
@@ -2288,14 +2287,24 @@ allow_new:
 	max = user_max_connections(pool->user_credentials->global_user);
 	if (max > 0) {
 		/* try to evict unused connection first */
-		while (evict_if_needed && pool->user_credentials->global_user->connection_count >= max) {
+		MULTITHREAD_VISIT(true, &pool->user_credentials->global_user->lock, {
+			user_conn_count = pool->user_credentials->global_user->connection_count;
+		});
+		/* possible starvation */
+		while (evict_if_needed && user_conn_count >= max) {
+			log_error("launch_new_connection: user '%s' full (%d >= %d), trying to evict",
+				  pool->user_credentials->name, user_conn_count, max);
 			if (!evict_user_connection(pool->user_credentials, thread_id)) {
 				break;
 			}
+			MULTITHREAD_VISIT(true, &pool->user_credentials->global_user->lock, {
+				user_conn_count = pool->user_credentials->global_user->connection_count;
+			});
 		}
-		if (pool->user_credentials->global_user->connection_count >= max) {
+
+		if (user_conn_count >= max) {
 			log_debug("launch_new_connection: user '%s' full (%d >= %d)",
-				  pool->user_credentials->name, pool->user_credentials->global_user->connection_count, max);
+				  pool->user_credentials->name, user_conn_count, max);
 			return;
 		}
 	}

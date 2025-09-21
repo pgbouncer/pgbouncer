@@ -32,9 +32,8 @@ typedef struct {
 } SpinLock;
 
 bool spin_lock_owns(SpinLock *lock);
-void spin_lock_init(SpinLock *lock);
+void spin_lock_init(SpinLock *lock, bool recursive);
 void spin_lock_acquire(SpinLock *lock);
 void spin_lock_release(SpinLock *lock);
-void set_recursive(SpinLock *lock, bool recursive);
 
 #endif /* _SPIN_LOCK_H_ */

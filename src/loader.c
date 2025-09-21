@@ -500,6 +500,10 @@ bool parse_database(void *base, const char *name, const char *connstr, int threa
 	/* remember dbname */
 	db->dbname = (char *)msg->buf + dbname_ofs;
 
+	if(multithread_mode){
+		multithread_set_limit(db->dbname, &db_connection_limits, &db_connection_limits_lock, max_db_connections);
+		multithread_set_limit(db->dbname, &db_client_connection_limits, &db_client_connection_limits_lock, max_db_client_connections);
+	}
 
 	free(tmp_connstr);
 	return true;

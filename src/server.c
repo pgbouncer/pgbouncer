@@ -277,7 +277,10 @@ int probably_wrong_pool_pool_mode(PgPool *pool)
 
 int pool_pool_size(PgPool *pool)
 {
-	int user_pool_size = pool->user_credentials ? pool->user_credentials->global_user->pool_size : -1;
+	int user_pool_size;
+	MULTITHREAD_VISIT(multithread_mode, &user_lock,{
+		user_pool_size = pool->user_credentials ? pool->user_credentials->global_user->pool_size : -1;
+	});
 	if (user_pool_size >= 0)
 		return user_pool_size;
 	else if (pool->db->pool_size >= 0)

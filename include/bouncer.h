@@ -924,6 +924,8 @@ extern SpinLock db_connection_limits_lock;
 extern ConnectionLimit *db_client_connection_limits;
 extern SpinLock db_client_connection_limits_lock;
 
+extern SpinLock user_lock;
+
 static inline PgSocket * _MUSTCHECK pop_socket(struct StatList *slist)
 {
 	struct List *item = statlist_pop(slist);

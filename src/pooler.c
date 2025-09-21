@@ -565,15 +565,20 @@ static bool parse_addr(void *arg, const char *addr)
 }
 
 void thread_pooler_setup(void){
-	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
-	struct event_base * base = (struct event_base *)pthread_getspecific(event_base_key);
+	int thread_id = get_current_thread_id(multithread_mode);
+	struct event_base * base = threads[thread_id].base;
+	threads[thread_id].handle_request_event_args.arg = NULL;
+	threads[thread_id].handle_request_event_args.func = handle_request;
+	threads[thread_id].handle_request_event_args.thread_id = thread_id;
+	threads[thread_id].handle_request_event_args.persistent = true;
+	event_assign(&(threads[thread_id].ev_handle_request),
+			base,
+			threads[thread_id].pipefd[0],
+			EV_READ | EV_PERSIST,
+			multithread_event_wrapper,
+			&threads[thread_id].handle_request_event_args);
 
-	event_assign(&(this_thread->ev_handle_request), base,
-									this_thread->pipefd[0],
-									EV_READ | EV_PERSIST,
-									handle_request,
-									NULL);
-	event_add(&(this_thread->ev_handle_request), NULL);
+	event_add(&(threads[thread_id].ev_handle_request), NULL);
 
 }
 

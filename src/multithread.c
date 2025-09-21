@@ -150,10 +150,10 @@ static void handle_sigusr1(int sock, short flags, void *arg)
 		if (multithread_mode) {
 			/* Set pause mode on all threads */
 			FOR_EACH_THREAD(thread_id) {
-				lock_and_pause_thread(thread_id);
+				lock_thread(thread_id);
 				threads[thread_id].cf_pause_mode = P_PAUSE;
 				threads[thread_id].active_count = 0;
-				unlock_and_resume_thread(thread_id);
+				unlock_thread(thread_id);
 			}
 			MULTITHREAD_VISIT(multithread_mode, &total_active_count_lock, {
 				total_active_count = 0;
@@ -177,13 +177,13 @@ static void handle_sigusr2(int sock, short flags, void *arg)
 			if (multithread_mode) {
 				/* Reset pause mode on all threads */
 				FOR_EACH_THREAD(thread_id) {
-					lock_and_pause_thread(thread_id);
+					lock_thread(thread_id);
 					threads[thread_id].cf_pause_mode = P_NONE;
 					threads[thread_id].pause_ready = false;
 					threads[thread_id].wait_close_ready = false;
 					threads[thread_id].partial_pause = false;
 					threads[thread_id].active_count = 0;
-					unlock_and_resume_thread(thread_id);
+					unlock_thread(thread_id);
 				}
 				MULTITHREAD_VISIT(multithread_mode, &total_active_count_lock, {
 					total_active_count = 0;
@@ -197,13 +197,13 @@ static void handle_sigusr2(int sock, short flags, void *arg)
 			if (multithread_mode) {
 				/* Reset pause mode on all threads */
 				FOR_EACH_THREAD(thread_id) {
-					lock_and_pause_thread(thread_id);
+					lock_thread(thread_id);
 					threads[thread_id].cf_pause_mode = P_NONE;
 					threads[thread_id].pause_ready = false;
 					threads[thread_id].wait_close_ready = false;
 					threads[thread_id].partial_pause = false;
 					threads[thread_id].active_count = 0;
-					unlock_and_resume_thread(thread_id);
+					unlock_thread(thread_id);
 				}
 				MULTITHREAD_VISIT(multithread_mode, &total_active_count_lock, {
 					total_active_count = 0;
@@ -405,16 +405,6 @@ void* worker_func(void* arg)
 	janitor_setup();
 
     	while(this_thread->cf_shutdown != SHUTDOWN_IMMEDIATE){
-		if(this_thread->thread_metadata.thread_status == THREAD_REQUEST_PAUSE){
-			// confirm pause request
-			this_thread->thread_metadata.thread_status = THREAD_PAUSED;
-		}
-
-		if(this_thread->thread_metadata.thread_status == THREAD_PAUSED){
-			usleep(THREAD_PAUSE_SEC*USEC);
-			continue;
-		}
-
 		multithread_reset_time_cache();
 		err = event_base_loop(base, EVLOOP_ONCE);
 		if (err < 0) {
@@ -456,8 +446,7 @@ void init_thread(int thread_id){
 	threads[thread_id].wait_close_ready = false;
 	threads[thread_id].partial_pause = false;
 	threads[thread_id].active_count = 0;
-	threads[thread_id].thread_metadata.thread_status = THREAD_RUNNING;
-	spin_lock_init(&(threads[thread_id].thread_metadata.thread_lock), true);
+	spin_lock_init(&(threads[thread_id].thread_lock), true);
 }
 
 void start_threads(void){
@@ -503,45 +492,32 @@ int wait_threads(void){
 	}
 	return 0;
 }
-void request_pause_thread(int thread_id){
-	threads[thread_id].thread_metadata.thread_status = THREAD_REQUEST_PAUSE;
-}
 
-bool thread_paused(int thread_id){
-	return threads[thread_id].thread_metadata.thread_status == THREAD_PAUSED;
-}
 
-void resume_thread(int thread_id){
-	threads[thread_id].thread_metadata.thread_status = THREAD_RUNNING;
+void multithread_event_wrapper(evutil_socket_t sock, short flags, void *arg){
+	MultithreadEventArgs* event_args = (MultithreadEventArgs*) arg;
+
+	if (multithread_mode) {
+		spin_lock_acquire(&(threads[event_args->thread_id].thread_lock));
+	}
+
+	event_args->func(sock, flags, event_args->arg);
+
+	if (multithread_mode) {
+		spin_lock_release(&(threads[event_args->thread_id].thread_lock));
+	}
+
+	if (!event_args->persistent)
+		free(event_args);
 }
 
 void lock_thread(int thread_id){
-	spin_lock_acquire(&(threads[thread_id].thread_metadata.thread_lock));
+	spin_lock_acquire(&(threads[thread_id].thread_lock));
 }
 
 void unlock_thread(int thread_id){
-	spin_lock_release(&(threads[thread_id].thread_metadata.thread_lock));
+	spin_lock_release(&(threads[thread_id].thread_lock));
 }
-
-void lock_and_pause_thread(int thread_id){
-	if(thread_id == get_current_thread_id(multithread_mode)){
-		return;
-	}
-	lock_thread(thread_id);
-	request_pause_thread(thread_id);
-	while(!thread_paused(thread_id)){
-		usleep(0.05*USEC);
-	}
-}
-
-void unlock_and_resume_thread(int thread_id){
-	if(thread_id == get_current_thread_id(multithread_mode)){
-		return;
-	}
-	resume_thread(thread_id);
-	unlock_thread(thread_id);
-}
-
 
 inline int get_current_thread_id(const bool multithread_mode){
 	Thread* this_thread;

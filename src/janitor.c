@@ -115,7 +115,7 @@ static void resume_sockets(void)
 	PgPool *pool;
 	if(multithread_mode){
 		FOR_EACH_THREAD(thread_id){
-			lock_and_pause_thread(thread_id);
+			lock_thread(thread_id);
 			THREAD_SAFE_STATLIST_EACH(&threads[thread_id].pool_list, item, {
 				pool = container_of(item, PgPool, head);
 				if (pool->db->admin)
@@ -125,7 +125,7 @@ static void resume_sockets(void)
 				resume_socket_list(&pool->idle_server_list);
 				resume_socket_list(&pool->used_server_list);
 			});
-			lock_and_pause_thread(thread_id);
+			lock_thread(thread_id);
 		}
 	}else{
 		statlist_for_each(item, &pool_list) {
@@ -1141,15 +1141,17 @@ void janitor_setup(void)
 		struct event_base * base = (struct event_base *)pthread_getspecific(event_base_key);
 		int thread_id = get_current_thread_id(multithread_mode);
 		struct event* full_maint_ev_ptr = &(threads[thread_id].full_maint_ev);
-
-		event_assign(full_maint_ev_ptr, base, -1, EV_PERSIST, do_full_maint, NULL);
-		if (event_add(full_maint_ev_ptr, &full_maint_period) < 0)
-			log_warning("event_add failed: %s", strerror(errno));
+		threads[thread_id].do_full_maint_event_args.thread_id = thread_id;
+		threads[thread_id].do_full_maint_event_args.func = do_full_maint;
+		threads[thread_id].do_full_maint_event_args.arg = NULL;
+		threads[thread_id].do_full_maint_event_args.persistent = true;
+		event_assign(full_maint_ev_ptr, base, -1, EV_PERSIST, multithread_event_wrapper, &threads[thread_id].do_full_maint_event_args);
 	}else{
 		event_assign(&full_maint_ev, pgb_event_base, -1, EV_PERSIST, do_full_maint, NULL);
-		if (event_add(&full_maint_ev, &full_maint_period) < 0)
-			log_warning("event_add failed: %s", strerror(errno));
 	}
+
+	if (event_add(&full_maint_ev, &full_maint_period) < 0)
+		log_warning("event_add failed: %s", strerror(errno));
 
 }
 

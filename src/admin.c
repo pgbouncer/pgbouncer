@@ -1045,7 +1045,7 @@ static bool admin_show_servers(PgSocket *admin, const char *arg)
 	socket_header(buf, false);
 	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id){
-			lock_and_pause_thread(thread_id);
+			lock_thread(thread_id);
 			THREAD_SAFE_STATLIST_EACH(&(threads[thread_id].pool_list), item, {
 				pool = container_of(item, PgPool, head);
 				show_server_list(buf, pool, thread_id, false);
@@ -1055,8 +1055,7 @@ static bool admin_show_servers(PgSocket *admin, const char *arg)
 				show_socket_list(buf, &pool->new_server_list, thread_id, "new", false);
 				show_socket_list(buf, &pool->active_cancel_server_list, thread_id, "active_cancel", false);
 			});
-
-			unlock_and_resume_thread(thread_id);
+			unlock_thread(thread_id);
 		}
 	} else {
 		statlist_for_each(item, &pool_list) {
@@ -1156,13 +1155,13 @@ static bool admin_show_active_sockets(PgSocket *admin, const char *arg)
 	socket_header(buf, true);
 	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id){
-			lock_and_pause_thread(thread_id);
+			lock_thread(thread_id);
 			THREAD_SAFE_STATLIST_EACH(&(threads[thread_id].pool_list), item, {
 				pool = container_of(item, PgPool, head);
 				show_active_socket_list_internal(buf, pool, thread_id);
 			});
 			show_active_socket_list(buf, &(threads[thread_id].login_client_list), thread_id, "cl_login");
-			unlock_and_resume_thread(thread_id);
+			unlock_thread(thread_id);
 		}
 	} else {
 		statlist_for_each(item, &pool_list) {
@@ -1573,13 +1572,13 @@ static void full_resume(void)
 	if (multithread_mode) {
 		/* Reset pause mode on all threads */
 		FOR_EACH_THREAD(thread_id) {
-			lock_and_pause_thread(thread_id);
+			lock_thread(thread_id);
 			threads[thread_id].cf_pause_mode = P_NONE;
 			threads[thread_id].pause_ready = false;
 			threads[thread_id].wait_close_ready = false;
 			threads[thread_id].partial_pause = false;
 			threads[thread_id].active_count = 0;
-			unlock_and_resume_thread(thread_id);
+			unlock_thread(thread_id);
 		}
 		MULTITHREAD_VISIT(multithread_mode, &total_active_count_lock, {
 			total_active_count = 0;
@@ -1614,9 +1613,9 @@ static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 
 			/* First pass: check if database exists and was paused */
 			FOR_EACH_THREAD(thread_id){
-				lock_and_pause_thread(thread_id);
+				lock_thread(thread_id);
 				db = find_database(arg, thread_id);
-				unlock_and_resume_thread(thread_id);
+				unlock_thread(thread_id);
 				if (db != NULL) {
 					found = true;
 					if (db->db_paused) {
@@ -1635,9 +1634,9 @@ static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 
 			/* Second pass: resume the database on all threads */
 			FOR_EACH_THREAD(thread_id){
-				lock_and_pause_thread(thread_id);
+				lock_thread(thread_id);
 				db = find_or_register_database(admin, arg);
-				unlock_and_resume_thread(thread_id);
+				unlock_thread(thread_id);
 				if (db != NULL && db->db_paused) {
 					db->db_paused = false;
 				}
@@ -1674,9 +1673,9 @@ static bool admin_cmd_suspend(PgSocket *admin, const char *arg)
 	if (multithread_mode) {
 		/* Set pause mode on all threads */
 		FOR_EACH_THREAD(thread_id) {
-			lock_and_pause_thread(thread_id);
+			lock_thread(thread_id);
 			threads[thread_id].cf_pause_mode = P_SUSPEND;
-			unlock_and_resume_thread(thread_id);
+			unlock_thread(thread_id);
 		}
 	}
 	cf_pause_mode = P_SUSPEND;
@@ -1702,9 +1701,9 @@ static bool admin_cmd_pause(PgSocket *admin, const char *arg)
 		if (multithread_mode) {
 			/* Set pause mode on all threads */
 			FOR_EACH_THREAD(thread_id) {
-				lock_and_pause_thread(thread_id);
+				lock_thread(thread_id);
 				threads[thread_id].cf_pause_mode = P_PAUSE;
-				unlock_and_resume_thread(thread_id);
+				unlock_thread(thread_id);
 			}
 		}
 		cf_pause_mode = P_PAUSE;
@@ -1716,10 +1715,10 @@ static bool admin_cmd_pause(PgSocket *admin, const char *arg)
 			bool paused = true;
 			bool found  = false;
 			FOR_EACH_THREAD(thread_id){
-				lock_and_pause_thread(thread_id);
+				lock_thread(thread_id);
 				admin->sbuf.thread_id = thread_id;
 				db = find_or_register_database(admin, arg);
-				unlock_and_resume_thread(thread_id);
+				unlock_thread(thread_id);
 				if (db == NULL)
 					continue;
 				found = true;
@@ -1766,14 +1765,14 @@ static bool admin_cmd_reconnect(PgSocket *admin, const char *arg)
 		log_info("RECONNECT command issued");
 		if (multithread_mode) {
 			FOR_EACH_THREAD(thread_id){
-				lock_and_pause_thread(thread_id);
+				lock_thread(thread_id);
 				THREAD_SAFE_STATLIST_EACH(&(threads[thread_id].pool_list), item, {
 					pool = container_of(item, PgPool, head);
 					if (pool->db->admin)
 						continue;
 					tag_database_dirty(pool->db);
 				});
-				unlock_and_resume_thread(thread_id);
+				unlock_thread(thread_id);
 			}
 		} else {
 			statlist_for_each(item, &pool_list) {
@@ -1790,20 +1789,20 @@ static bool admin_cmd_reconnect(PgSocket *admin, const char *arg)
 		if (multithread_mode) {
 			bool found  = false;
 			FOR_EACH_THREAD(thread_id){
-				lock_and_pause_thread(thread_id);
+				lock_thread(thread_id);
 				admin->sbuf.thread_id = thread_id;
 				db = find_or_register_database(admin, arg);
 				if(!db){
-					unlock_and_resume_thread(thread_id);
+					unlock_thread(thread_id);
 					continue;
 				}
 				if (db == admin->pool->db){
-					unlock_and_resume_thread(thread_id);
+					unlock_thread(thread_id);
 					return admin_error(admin, "cannot reconnect admin db: %s", arg);
 				}
 				found = true;
 				tag_database_dirty(db);
-				unlock_and_resume_thread(thread_id);
+				unlock_thread(thread_id);
 			}
 			if(!found)
 				return admin_error(admin, "no such database: %s", arg);
@@ -1837,10 +1836,10 @@ static bool admin_cmd_disable_internal(PgSocket *admin, const char *arg, bool di
 	if (multithread_mode) {
 		bool found = false;
 		FOR_EACH_THREAD(thread_id){
-			lock_and_pause_thread(thread_id);
+			lock_thread(thread_id);
 			admin->sbuf.thread_id = thread_id;
 			db = find_or_register_database(admin, arg);
-			unlock_and_resume_thread(thread_id);
+			unlock_thread(thread_id);
 
 			if (db->admin) {
 				if(disable)
@@ -1941,12 +1940,12 @@ static PgSocket* find_client_global(unsigned long long int target_id)
 
 	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id){
-			lock_and_pause_thread(thread_id);
+			lock_thread(thread_id);
 			THREAD_SAFE_STATLIST_EACH((&threads[thread_id].pool_list), item, {
 				pool = container_of(item, PgPool, head);
 				kill_client = find_client_global_pool(pool, target_id);
 				if (kill_client != NULL){
-					unlock_and_resume_thread(thread_id);
+					unlock_thread(thread_id);
 					return kill_client;
 					break;
 				}
@@ -1955,11 +1954,11 @@ static PgSocket* find_client_global(unsigned long long int target_id)
 				pool = container_of(item, PgPool, head);
 				kill_client = find_client_global_peer_pool(pool, target_id);
 				if (kill_client != NULL){
-					unlock_and_resume_thread(thread_id);
+					unlock_thread(thread_id);
 					return kill_client;
 				}
 			});
-			unlock_and_resume_thread(thread_id);
+			unlock_thread(thread_id);
 		}
 	} else {
 		statlist_for_each(item, &pool_list) {
@@ -2002,11 +2001,11 @@ static bool admin_cmd_kill_client(PgSocket *admin, const char *arg)
 	}
 
 
-	lock_and_pause_thread(kill_client->sbuf.thread_id);
+	lock_thread(kill_client->sbuf.thread_id);
 
 	disconnect_client(kill_client, true, "admin forced disconnect");
 
-	unlock_and_resume_thread(kill_client->sbuf.thread_id);
+	unlock_thread(kill_client->sbuf.thread_id);
 	return admin_ready(admin, "KILL_CLIENT");
 }
 
@@ -2018,16 +2017,16 @@ static bool kill_database_pools_in_thread(int thread_id, const char *db_name, Pg
 	struct List *item;
 	bool found = false;
 
-	lock_and_pause_thread(thread_id);
+	lock_thread(thread_id);
 	admin->sbuf.thread_id = thread_id;
 	db = find_or_register_database(admin, db_name);
 	if (!db) {
-		unlock_and_resume_thread(thread_id);
+		unlock_thread(thread_id);
 		return false;
 	}
 
 	if (db == admin->pool->db) {
-		unlock_and_resume_thread(thread_id);
+		unlock_thread(thread_id);
 		return false;
 	}
 
@@ -2039,7 +2038,7 @@ static bool kill_database_pools_in_thread(int thread_id, const char *db_name, Pg
 			kill_pool(pool);
 		}
 	});
-	unlock_and_resume_thread(thread_id);
+	unlock_thread(thread_id);
 	return found;
 }
 
@@ -2083,7 +2082,7 @@ static bool admin_cmd_kill(PgSocket *admin, const char *arg)
 
 		if (multithread_mode) {
 			FOR_EACH_THREAD(thread_id) {
-				lock_and_pause_thread(thread_id);
+				lock_thread(thread_id);
 				THREAD_SAFE_STATLIST_EACH(&(threads[thread_id].pool_list), item, {
 					PgPool *pool = container_of(item, PgPool, head);
 					if (pool->db->admin)
@@ -2091,7 +2090,7 @@ static bool admin_cmd_kill(PgSocket *admin, const char *arg)
 					pool->db->db_paused = true;
 					kill_pool(pool);
 				});
-				unlock_and_resume_thread(thread_id);
+				unlock_thread(thread_id);
 			}
 		} else {
 			statlist_for_each_safe(item, &pool_list, tmp) {
@@ -2184,10 +2183,10 @@ static bool admin_cmd_wait_close(PgSocket *admin, const char *arg)
 			bool found = false;
 			bool wait = false;
 			FOR_EACH_THREAD(thread_id){
-				lock_and_pause_thread(thread_id);
+				lock_thread(thread_id);
 				admin->sbuf.thread_id = thread_id;
 				db = find_or_register_database(admin, arg);
-				unlock_and_resume_thread(thread_id);
+				unlock_thread(thread_id);
 				if(!db){
 					continue;
 				}

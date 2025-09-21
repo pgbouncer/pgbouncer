@@ -164,6 +164,14 @@ typedef struct ScramState ScramState;
 typedef struct PgPreparedStatement PgPreparedStatement;
 typedef enum ResponseAction ResponseAction;
 typedef enum ReplicationType ReplicationType;
+typedef struct MultithreadEventArgs {
+	event_callback_fn func;
+	void *arg;
+	int thread_id;
+	bool persistent;
+} MultithreadEventArgs;
+
+typedef struct ConnectionLimit ConnectionLimit;
 
 extern int cf_sbuf_len;
 
@@ -775,12 +783,13 @@ struct PgSocket {
 	SBuf sbuf;		/* stream buffer, must be last */
 };
 
-typedef struct ConnectionLimit{
+struct ConnectionLimit{
 	char* name;
 	int limit;
 	int current_count;
 	UT_hash_handle hh;
-} ConnectionLimit;
+};
+
 
 #define RAW_IOBUF_SIZE  offsetof(IOBuf, buf)
 #define IOBUF_SIZE      (RAW_IOBUF_SIZE + cf_sbuf_len)

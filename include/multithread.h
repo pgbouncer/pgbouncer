@@ -74,21 +74,9 @@ typedef struct WorkersignalEvents{
 
 } WorkersignalEvents;
 
-enum ThreadStatus{
-    THREAD_RUNNING,         // resumed
-    THREAD_REQUEST_PAUSE,   // request sent but not paused
-    THREAD_PAUSED,          // thread confirms paused
-};
-
-typedef struct ThreadMetadata{
-    enum ThreadStatus thread_status;
-    SpinLock thread_lock;
-} ThreadMetadata;
-
-#define THREAD_PAUSE_SEC 0.5
 
 typedef struct Thread {
-	ThreadMetadata thread_metadata;
+	SpinLock thread_lock;
     	pthread_t worker;
     	struct event_base *base;
     	int thread_id;
@@ -136,6 +124,9 @@ typedef struct Thread {
 	unsigned int seq;
 
 	usec_t multithread_time_cache;
+
+	MultithreadEventArgs do_full_maint_event_args;
+	MultithreadEventArgs handle_request_event_args;
 } Thread;
 
 typedef struct ClientRequest {
@@ -157,14 +148,15 @@ bool thread_paused(int thread_id);
 void resume_thread(int thread_id);
 void lock_thread(int thread_id);
 void unlock_thread(int thread_id);
-void lock_and_pause_thread(int thread_id);
-void unlock_and_resume_thread(int thread_id);
 
 int get_current_thread_id(const bool multithread_mode);
 
 usec_t get_multithread_time_with_id(int thread_id);
 
 void multithread_reset_time_cache(void);
+
+void multithread_event_wrapper(evutil_socket_t sock, short flags, void *arg);
+
 
 bool multithread_limits_init(ConnectionLimit** limit, SpinLock* lock);
 void multithread_set_limit(const char* name, ConnectionLimit** limits, SpinLock* lock, int limit);

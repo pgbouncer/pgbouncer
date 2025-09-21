@@ -212,9 +212,9 @@ bool admin_database_stats(PgSocket *client)
 
 	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id) {
-			lock_and_pause_thread(thread_id);
+			lock_thread(thread_id);
 			admin_database_stats_internal(client, (struct StatList *)&threads[thread_id].pool_list, buf, thread_id, write_stats);
-			unlock_and_resume_thread(thread_id);
+			unlock_thread(thread_id);
 		}
 	} else {
 		admin_database_stats_internal(client, &pool_list, buf, -1, write_stats);
@@ -274,9 +274,9 @@ bool admin_database_stats_totals(PgSocket *client)
 
 	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id) {
-			lock_and_pause_thread(thread_id);
+			lock_thread(thread_id);
 			admin_database_stats_internal(client, (struct StatList *)&threads[thread_id].pool_list, buf, thread_id, write_stats_totals);
-			unlock_and_resume_thread(thread_id);
+			unlock_thread(thread_id);
 		}
 	} else {
 		admin_database_stats_internal(client, &pool_list, buf, -1, write_stats_totals);
@@ -338,9 +338,9 @@ bool admin_database_stats_averages(PgSocket *client)
 
 	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id) {
-			lock_and_pause_thread(thread_id);
+			lock_thread(thread_id);
 			admin_database_stats_internal(client, (struct StatList *)&threads[thread_id].pool_list, buf, thread_id, write_stats_averages);
-			unlock_and_resume_thread(thread_id);
+			unlock_thread(thread_id);
 		}
 	} else {
 		admin_database_stats_internal(client, &pool_list, buf, -1, write_stats_averages);

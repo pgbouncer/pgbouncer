@@ -21,7 +21,6 @@
 
 static struct event ev_stats;
 static usec_t old_stamp, new_stamp;
-static PgStats multithread_old_total;
 
 static void reset_stats(PgStats *stat)
 {
@@ -39,21 +38,6 @@ static void reset_stats(PgStats *stat)
 	stat->ps_bind_count = 0;
 }
 
-static void stat_diff(PgStats *total, PgStats *stat)
-{
-	total->server_bytes -= stat->server_bytes;
-	total->client_bytes -= stat->client_bytes;
-	total->server_assignment_count -= stat->server_assignment_count;
-	total->query_count -= stat->query_count;
-	total->query_time -= stat->query_time;
-	total->xact_count -= stat->xact_count;
-	total->xact_time -= stat->xact_time;
-	total->wait_time -= stat->wait_time;
-
-	total->ps_client_parse_count -= stat->ps_client_parse_count;
-	total->ps_server_parse_count -= stat->ps_server_parse_count;
-	total->ps_bind_count -= stat->ps_bind_count;
-}
 
 static void stat_add(PgStats *total, PgStats *stat)
 {
@@ -384,13 +368,11 @@ bool show_stat_totals(PgSocket *client)
 
 	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id) {
-			lock_and_pause_thread(thread_id);
-			statlist_for_each(item, (struct StatList *)&threads[thread_id].pool_list) {
+			THREAD_SAFE_STATLIST_EACH(&threads[thread_id].pool_list, item, {
 				pool = container_of(item, PgPool, head);
 				stat_add(&st_total, &pool->stats);
 				stat_add(&old_total, &pool->older_stats);
-			}
-			unlock_and_resume_thread(thread_id);
+			});
 		}
 	} else {
 		statlist_for_each(item, &pool_list) {
@@ -400,7 +382,7 @@ bool show_stat_totals(PgSocket *client)
 		}
 	}
 
-	calc_average(&avg, &st_total, &old_total, get_multithread_time_with_id(-1));
+	calc_average(&avg, &st_total, &old_total, get_cached_time());
 
 	pktbuf_write_RowDescription(buf, "sN", "name", "value");
 
@@ -435,98 +417,12 @@ bool show_stat_totals(PgSocket *client)
 }
 
 
-static void multithread_stats(evutil_socket_t s, short flags, void *arg){
-	int thread_id;
-	PgStats old_total, cur_total;
-	struct List *item;
-
-	thread_id = get_current_thread_id(multithread_mode);
-	reset_stats(&old_total);
-	reset_stats(&cur_total);
-
-	THREAD_SAFE_STATLIST_EACH(&threads[thread_id].pool_list, item, {
-		PgPool *pool = container_of(item, PgPool, head);
-		pool->older_stats = pool->newer_stats;
-		pool->newer_stats = pool->stats;
-		stat_add(&cur_total, &pool->stats);
-		stat_add(&old_total, &pool->older_stats);
-	});
-
-	stat_diff(&cur_total, &old_total);
-	spin_lock_acquire(&(threads[thread_id].cur_stat_lock));
-	stat_add(&(threads[thread_id].cur_stat),&cur_total);
-	spin_lock_release(&(threads[thread_id].cur_stat_lock));
-}
-
-static void multithread_collect_stats(evutil_socket_t s, short flags, void *arg){
-	PgStats cur_total, old_total;
-	PgStats avg;
-
-	reset_stats(&old_total);
-	reset_stats(&cur_total);
-
-	FOR_EACH_THREAD(thread_id){
-		spin_lock_acquire(&(threads[thread_id].cur_stat_lock));
-		stat_add(&cur_total, &(threads[thread_id].cur_stat));
-		reset_stats(&(threads[thread_id].cur_stat));
-		spin_lock_release(&(threads[thread_id].cur_stat_lock));
-	}
-
-	old_stamp = new_stamp;
-	// use global time rather than per-thread time
-	new_stamp = get_cached_time();
-
-	calc_average(&avg, &cur_total, &old_total, get_cached_time());
-
-	if (cf_log_stats) {
-		log_info(
-			"stats: %" PRIu64 " xacts/s,"
-			" %" PRIu64 " queries/s,"
-			" %" PRIu64 " client parses/s,"
-			" %" PRIu64 " server parses/s,"
-			" %" PRIu64 " binds/s,"
-			" in %" PRIu64 " B/s,"
-			" out %" PRIu64 " B/s,"
-			" xact %" PRIu64 " us,"
-			" query %" PRIu64 " us,"
-			" wait %" PRIu64 " us",
-			avg.xact_count,
-			avg.query_count,
-			avg.ps_client_parse_count,
-			avg.ps_server_parse_count,
-			avg.ps_bind_count,
-			avg.client_bytes, avg.server_bytes,
-			avg.xact_time, avg.query_time,
-			avg.wait_time);
-	}
-	sd_notifyf(0,
-		"STATUS=stats: %" PRIu64 " xacts/s,"
-		" %" PRIu64 " queries/s,"
-		" %" PRIu64 " client parses/s,"
-		" %" PRIu64 " server parses/s,"
-		" %" PRIu64 " binds/s,"
-		" in %" PRIu64 " B/s,"
-		" out %" PRIu64 " B/s,"
-		" xact %" PRIu64 " μs,"
-		" query %" PRIu64 " μs,"
-		" wait %" PRIu64 " μs",
-		avg.xact_count,
-		avg.query_count,
-		avg.ps_client_parse_count,
-		avg.ps_server_parse_count,
-		avg.ps_bind_count,
-		avg.client_bytes, avg.server_bytes,
-		avg.xact_time, avg.query_time,
-		avg.wait_time);
-}
-
 static void refresh_stats(evutil_socket_t s, short flags, void *arg)
 {
 	struct List *item;
 	PgPool *pool;
 	PgStats old_total, cur_total;
 	PgStats avg;
-	struct StatList* pool_list_ptr = NULL;
 
 	reset_stats(&old_total);
 	reset_stats(&cur_total);
@@ -534,16 +430,26 @@ static void refresh_stats(evutil_socket_t s, short flags, void *arg)
 	old_stamp = new_stamp;
 	new_stamp = get_cached_time();
 
+	if(multithread_mode){
+		FOR_EACH_THREAD(thread_id) {
+			THREAD_SAFE_STATLIST_EACH(&threads[thread_id].pool_list, item, {
+				pool = container_of(item, PgPool, head);
+				pool->older_stats = pool->newer_stats;
+				pool->newer_stats = pool->stats;
+				stat_add(&cur_total, &pool->stats);
+				stat_add(&old_total, &pool->older_stats);
+			});
+		}
+	}else{
+		statlist_for_each(item, &pool_list) {
+			pool = container_of(item, PgPool, head);
+			pool->older_stats = pool->newer_stats;
+			pool->newer_stats = pool->stats;
 
-	pool_list_ptr = &pool_list;
-	statlist_for_each(item, pool_list_ptr) {
-		pool = container_of(item, PgPool, head);
-		pool->older_stats = pool->newer_stats;
-		pool->newer_stats = pool->stats;
-
-		if (cf_log_stats) {
-			stat_add(&cur_total, &pool->stats);
-			stat_add(&old_total, &pool->older_stats);
+			if (cf_log_stats) {
+				stat_add(&cur_total, &pool->stats);
+				stat_add(&old_total, &pool->older_stats);
+			}
 		}
 	}
 
@@ -592,36 +498,16 @@ static void refresh_stats(evutil_socket_t s, short flags, void *arg)
 		avg.wait_time);
 
 }
-void multithread_stats_setup(void){
-	int thread_id;
-	struct timeval worker_stats_period = { cf_stats_period/10, 0 };
-	struct event_base * base;
-	base = (struct event_base *)pthread_getspecific(event_base_key);
-	thread_id = get_current_thread_id(multithread_mode);
-	spin_lock_init(&(threads[thread_id].cur_stat_lock), true);
-	event_assign(&threads[thread_id].ev_stats, base, -1, EV_PERSIST, multithread_stats, NULL);
-	if (event_add(&threads[thread_id].ev_stats, &worker_stats_period) < 0)
-		log_warning("event_add failed: %s", strerror(errno));
-}
+
+
 void stats_setup(void)
 {
 	struct timeval period = { cf_stats_period, 0 };
 	new_stamp = get_cached_time();
 	old_stamp = new_stamp - USEC;
 
-	/* Initialize multithread old stats */
-	if(multithread_mode){
-		reset_stats(&multithread_old_total);
-	}
-
 	/* launch stats */
-	if(multithread_mode){
-		event_assign(&ev_stats, pgb_event_base, -1, EV_PERSIST, multithread_collect_stats, NULL);
-		if (event_add(&ev_stats, &period) < 0)
-			log_warning("event_add failed: %s", strerror(errno));
-	} else {
-		event_assign(&ev_stats, pgb_event_base, -1, EV_PERSIST, refresh_stats, NULL);
-		if (event_add(&ev_stats, &period) < 0)
-			log_warning("event_add failed: %s", strerror(errno));
-	}
+	event_assign(&ev_stats, pgb_event_base, -1, EV_PERSIST, refresh_stats, NULL);
+	if (event_add(&ev_stats, &period) < 0)
+		log_warning("event_add failed: %s", strerror(errno));
 }

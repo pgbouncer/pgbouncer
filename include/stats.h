@@ -17,7 +17,6 @@
  */
 
 void stats_setup(void);
-void multithread_stats_setup(void);
 
 bool admin_database_stats(PgSocket *client)  _MUSTCHECK;
 bool admin_database_stats_totals(PgSocket *client)  _MUSTCHECK;

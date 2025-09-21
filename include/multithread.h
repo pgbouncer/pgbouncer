@@ -135,9 +135,6 @@ typedef struct Thread {
 
 	unsigned int seq;
 
-	PgStats cur_stat;
-	SpinLock cur_stat_lock;
-
 	usec_t multithread_time_cache;
 } Thread;
 

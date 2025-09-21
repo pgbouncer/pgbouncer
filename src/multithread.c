@@ -403,7 +403,6 @@ void* worker_func(void* arg)
     	thread_pooler_setup();
 	worker_signal_setup(base, this_thread->thread_id);
 	janitor_setup();
-	multithread_stats_setup();
 
     	while(this_thread->cf_shutdown != SHUTDOWN_IMMEDIATE){
 		if(this_thread->thread_metadata.thread_status == THREAD_REQUEST_PAUSE){

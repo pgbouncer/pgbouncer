@@ -2560,7 +2560,7 @@ bool admin_post_login(PgSocket *client)
 }
 
 /* init special database and query parsing */
-void admin_setup(int thread_id)
+void admin_setup(void)
 {
 	PgDatabase *db;
 	PgPool *pool;
@@ -2568,7 +2568,14 @@ void admin_setup(int thread_id)
 	PktBuf *msg;
 
 	/* fake database */
-	db = add_database("pgbouncer", thread_id);
+	if(multithread_mode){
+		FOR_EACH_THREAD(thread_id){
+			db = add_database("pgbouncer", thread_id);
+		}
+	}else{
+		db = add_database("pgbouncer", -1);
+	}
+
 	if (!db)
 		die("no memory for admin database");
 	db->port = cf_listen_port;
@@ -2587,7 +2594,9 @@ void admin_setup(int thread_id)
 	if (!multithread_mode) {
 		admin_pool = pool;
 	}else{
-		threads[thread_id].admin_pool = pool;
+		FOR_EACH_THREAD(thread_id){
+			threads[thread_id].admin_pool = pool;
+		}
 	}
 
 	/* find an existing user or create a new fake user with disabled password */

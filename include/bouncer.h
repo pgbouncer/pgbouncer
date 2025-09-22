@@ -21,6 +21,7 @@
  */
 #ifndef BOUNCER_H
 #define BOUNCER_H
+
 #include "system.h"
 
 #include <usual/cfparser.h>
@@ -28,12 +29,13 @@
 #include <usual/list.h>
 #include <usual/statlist.h>
 #include <usual/aatree.h>
+#include <usual/pthread.h>
 #include <usual/socket.h>
 #include <usual/spinlock.h>
 
 #include <event2/event.h>
 #include <event2/event_struct.h>
-#include <pthread.h>
+
 /*
  * By default uthash exits the program when an allocation fails. But for some
  * of our hashmap usecases we don't want that. Luckily you can install your own
@@ -979,7 +981,6 @@ void config_for_each(void (*param_cb)(void *arg, const char *name, const char *v
 
 extern pthread_key_t event_base_key;
 extern pthread_key_t thread_pointer;
-
 
 extern int client_count;
 extern SpinLock client_count_lock;

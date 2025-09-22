@@ -55,7 +55,6 @@ usec_t get_cached_time(void);
 
 usec_t get_cached_time_from_ptr(usec_t* time_cache_ptr);
 
-
 /** Forget cached system time, next call will fill it. */
 void reset_time_cache(void);
 

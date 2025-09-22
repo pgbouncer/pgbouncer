@@ -720,6 +720,7 @@ bool load_auth_file(const char *fn)
 	/* No file to load? */
 	if (fn == NULL)
 		return false;
+
 	buf = load_file(fn, NULL);
 	if (buf == NULL) {
 		log_error("could not open auth_file %s: %s", fn, strerror(errno));
@@ -776,10 +777,13 @@ bool load_auth_file(const char *fn)
 		}
 		*p++ = 0;	/* tag password end */
 
+		/* send them away */
 		unquote_add_authfile_user(user, password);
+
 		/* skip rest of the line */
 		while (*p && *p != '\n') p++;
 	}
 	free(buf);
+
 	return true;
 }

@@ -1,11 +1,12 @@
+#include <usual/aatree.h>
+#include <usual/pthread.h>
+#include <usual/spinlock.h>
 #include <usual/statlist.h>
 #include <usual/statlist_ts.h>
-#include <usual/aatree.h>
-#include <usual/spinlock.h>
 #include <usual/time.h>
+
 #include "bouncer.h"
 
-#include <pthread.h>
 #include <event2/event.h>
 #include <event2/event_struct.h>
 

@@ -1138,21 +1138,24 @@ void janitor_setup(void)
 {
 	/* launch maintenance */
 	if(multithread_mode){
-		struct event_base * base = (struct event_base *)pthread_getspecific(event_base_key);
 		int thread_id = get_current_thread_id(multithread_mode);
-		struct event* full_maint_ev_ptr = &(threads[thread_id].full_maint_ev);
 		threads[thread_id].do_full_maint_event_args.thread_id = thread_id;
 		threads[thread_id].do_full_maint_event_args.func = do_full_maint;
 		threads[thread_id].do_full_maint_event_args.arg = NULL;
 		threads[thread_id].do_full_maint_event_args.persistent = true;
-		event_assign(full_maint_ev_ptr, base, -1, EV_PERSIST, multithread_event_wrapper, &threads[thread_id].do_full_maint_event_args);
+		event_assign(&(threads[thread_id].full_maint_ev),
+				threads[thread_id].base,
+				-1,
+				EV_PERSIST,
+				multithread_event_wrapper,
+				&threads[thread_id].do_full_maint_event_args);
+		if (event_add(&threads[thread_id].full_maint_ev, &full_maint_period) < 0)
+			log_warning("event_add failed: %s", strerror(errno));
 	}else{
 		event_assign(&full_maint_ev, pgb_event_base, -1, EV_PERSIST, do_full_maint, NULL);
+		if (event_add(&full_maint_ev, &full_maint_period) < 0)
+			log_warning("event_add failed: %s", strerror(errno));
 	}
-
-	if (event_add(&full_maint_ev, &full_maint_period) < 0)
-		log_warning("event_add failed: %s", strerror(errno));
-
 }
 
 void kill_pool(PgPool *pool)

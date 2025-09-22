@@ -1237,13 +1237,13 @@ void kill_database(PgDatabase *db)
 	if(multithread_mode){
 		THREAD_SAFE_STATLIST_EACH(&(threads[thread_id].pool_list), item, {
 			pool = container_of(item, PgPool, head);
-			if (pool->db->name == db->name)
+			if (pool->db == db)
 				kill_pool(pool);
 		});
 	} else {
 		statlist_for_each_safe(item, &pool_list, tmp) {
 			pool = container_of(item, PgPool, head);
-			if (pool->db->name == db->name)
+			if (pool->db == db)
 				kill_pool(pool);
 		}
 	}

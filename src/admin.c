@@ -2559,22 +2559,14 @@ bool admin_post_login(PgSocket *client)
 	return false;
 }
 
-/* init special database and query parsing */
-void admin_setup(void)
-{
+static void admin_setup_per_thread(int thread_id){
 	PgDatabase *db;
 	PgPool *pool;
 	PgGlobalUser *user;
 	PktBuf *msg;
 
 	/* fake database */
-	if(multithread_mode){
-		FOR_EACH_THREAD(thread_id){
-			db = add_database("pgbouncer", thread_id);
-		}
-	}else{
-		db = add_database("pgbouncer", -1);
-	}
+	db = add_database("pgbouncer", thread_id);
 
 	if (!db)
 		die("no memory for admin database");
@@ -2590,13 +2582,10 @@ void admin_setup(void)
 	if (!pool)
 		die("cannot create admin pool?");
 
-	/* In single-thread mode, set the global admin_pool */
 	if (!multithread_mode) {
 		admin_pool = pool;
 	}else{
-		FOR_EACH_THREAD(thread_id){
-			threads[thread_id].admin_pool = pool;
-		}
+		threads[thread_id].admin_pool = pool;
 	}
 
 	/* find an existing user or create a new fake user with disabled password */
@@ -2632,6 +2621,18 @@ void admin_setup(void)
 	db->dbname = "pgbouncer";
 	pktbuf_put_string(msg, db->dbname);
 
+}
+
+/* init special database and query parsing */
+void admin_setup(void)
+{
+	if(multithread_mode){
+		FOR_EACH_THREAD(thread_id){
+			admin_setup_per_thread(thread_id);
+		}
+	}else{
+		admin_setup_per_thread(-1);
+	}
 }
 
 // only init once to avoid memory leak

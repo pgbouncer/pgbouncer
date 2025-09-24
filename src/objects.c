@@ -2177,6 +2177,7 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed)
 	struct Slab *server_cache_ptr = NULL;
 	int thread_id = pool->thread_id;
 	int user_conn_count;
+	server_cache_ptr = GET_MULTITHREAD_CACHE_PTR(server_cache, thread_id);
 
 	log_debug("launch_new_connection: start");
 	/*
@@ -2226,9 +2227,6 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed)
 	 * this works just fine, because we only ever open a single connection at
 	 * once (see top of this function).
 	 */
-
-	server_cache_ptr = GET_MULTITHREAD_CACHE_PTR(server_cache, thread_id);
-
 	if (!statlist_empty(&pool->waiting_cancel_req_list) && max < (2 * pool_pool_size(pool))) {
 		log_debug("launch_new_connection: bypass pool limitations for cancel request");
 		goto force_new;
@@ -2269,8 +2267,6 @@ allow_new:
 		/* try to evict unused connections first */
 		int current_conn_count = get_current_db_connection_count(pool->db);
 		while (evict_if_needed && current_conn_count >= max) {
-			log_error("launch_new_connection: database '%s' full (%d >= %d), trying to evict",
-				  pool->db->name, current_conn_count, max);
 			if (!evict_connection(pool->db)) {
 				break;
 			}
@@ -2278,8 +2274,6 @@ allow_new:
 		}
 
 		if (current_conn_count >= max) {
-			log_error("launch_new_connection: database '%s' full (%d >= %d)",
-				  pool->db->name, current_conn_count, max);
 			return;
 		}
 	}

@@ -145,19 +145,19 @@ static int count_db_active(PgDatabase *db)
     int cnt = 0;
     int thread_id = db->thread_id;
 
-    if (thread_id!=-1) {
-        THREAD_SAFE_STATLIST_EACH(&(threads[thread_id].pool_list), item, {
-	    pool = container_of(item, PgPool, head);
-	    if (pool->db->name == db->name)
-		cnt += pool_server_count(pool);
-	});
-    } else {
-        statlist_for_each(item, &pool_list) {
-            pool = container_of(item, PgPool, head);
-            if (pool->db->name == db->name)
-                cnt += pool_server_count(pool);
-        }
-    }
+	if (thread_id!=-1) {
+		THREAD_SAFE_STATLIST_EACH(&(threads[thread_id].pool_list), item, {
+			pool = container_of(item, PgPool, head);
+			if (pool->db->name == db->name)
+				cnt += pool_server_count(pool);
+		});
+	} else {
+		statlist_for_each(item, &pool_list) {
+			pool = container_of(item, PgPool, head);
+			if (pool->db->name == db->name)
+				cnt += pool_server_count(pool);
+		}
+	}
 
     return cnt;
 }
@@ -564,47 +564,47 @@ static void show_one_database(int thread_id, PgDatabase *db, PktBuf *buf, struct
     load_balance_hosts_str = NULL;
     cv->value_p = &db->pool_mode;
     load_balance_hosts_lookup->value_p = &db->load_balance_hosts;
-    if (db->pool_mode != POOL_INHERIT)
-        pool_mode_str = cf_get_lookup(cv);
+	if (db->pool_mode != POOL_INHERIT)
+		pool_mode_str = cf_get_lookup(cv);
 
-    if (db->host && strchr(db->host, ','))
-        load_balance_hosts_str = cf_get_lookup(load_balance_hosts_lookup);
+	if (db->host && strchr(db->host, ','))
+		load_balance_hosts_str = cf_get_lookup(load_balance_hosts_lookup);
 
-    if (multithread_mode) {
-        pktbuf_write_DataRow(buf, "ississiiiissiiiiii",
-                    thread_id, db->name,
-                    db->host, db->port,
-                    db->dbname, f_user,
-                    db->pool_size >= 0 ? db->pool_size : cf_default_pool_size,
-                    db->min_pool_size >= 0 ? db->min_pool_size : cf_min_pool_size,
-                    db->res_pool_size >= 0 ? db->res_pool_size : cf_res_pool_size,
-                    server_lifetime_secs,
-                    pool_mode_str,
-                    load_balance_hosts_str,
-                    database_max_connections(db),
-                    db->connection_count,
-                    database_max_client_connections(db),
-                    db->client_connection_count,
-                    db->db_paused,
-                    db->db_disabled);
-    } else {
-        pktbuf_write_DataRow(buf, "ssissiiiissiiiiii",
-                    db->name,
-                    db->host, db->port,
-                    db->dbname, f_user,
-                    db->pool_size >= 0 ? db->pool_size : cf_default_pool_size,
-                    db->min_pool_size >= 0 ? db->min_pool_size : cf_min_pool_size,
-                    db->res_pool_size >= 0 ? db->res_pool_size : cf_res_pool_size,
-                    server_lifetime_secs,
-                    pool_mode_str,
-                    load_balance_hosts_str,
-                    database_max_connections(db),
-                    db->connection_count,
-                    database_max_client_connections(db),
-                    db->client_connection_count,
-                    db->db_paused,
-                    db->db_disabled);
-    }
+	if (multithread_mode) {
+		pktbuf_write_DataRow(buf, "ississiiiissiiiiii",
+				thread_id, db->name,
+				db->host, db->port,
+				db->dbname, f_user,
+				db->pool_size >= 0 ? db->pool_size : cf_default_pool_size,
+				db->min_pool_size >= 0 ? db->min_pool_size : cf_min_pool_size,
+				db->res_pool_size >= 0 ? db->res_pool_size : cf_res_pool_size,
+				server_lifetime_secs,
+				pool_mode_str,
+				load_balance_hosts_str,
+				database_max_connections(db),
+				db->connection_count,
+				database_max_client_connections(db),
+				db->client_connection_count,
+				db->db_paused,
+				db->db_disabled);
+	} else {
+		pktbuf_write_DataRow(buf, "ssissiiiissiiiiii",
+				db->name,
+				db->host, db->port,
+				db->dbname, f_user,
+				db->pool_size >= 0 ? db->pool_size : cf_default_pool_size,
+				db->min_pool_size >= 0 ? db->min_pool_size : cf_min_pool_size,
+				db->res_pool_size >= 0 ? db->res_pool_size : cf_res_pool_size,
+				server_lifetime_secs,
+				pool_mode_str,
+				load_balance_hosts_str,
+				database_max_connections(db),
+				db->connection_count,
+				database_max_client_connections(db),
+				db->client_connection_count,
+				db->db_paused,
+				db->db_disabled);
+	}
 }
 
 
@@ -619,26 +619,26 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
     cv.extra = pool_mode_map;
     load_balance_hosts_lookup.extra = load_balance_hosts_map;
     buf = pktbuf_dynamic(256);
-    if (!buf) {
-        admin_error(admin, "no mem");
-        return true;
-    }
+	if (!buf) {
+		admin_error(admin, "no mem");
+		return true;
+	}
 
-    if (multithread_mode) {
-        pktbuf_write_RowDescription(buf, "ississiiiissiiiiii",
-                        "thread_id", "name", "host", "port",
-                        "database", "force_user", "pool_size", "min_pool_size", "reserve_pool_size",
-                        "server_lifetime", "pool_mode", "load_balance_hosts", "max_connections",
-                        "current_connections", "max_client_connections", "current_client_connections",
-                        "paused", "disabled");
-    } else {
-        pktbuf_write_RowDescription(buf, "ssissiiiissiiiiii",
-                        "name", "host", "port",
-                        "database", "force_user", "pool_size", "min_pool_size", "reserve_pool_size",
-                        "server_lifetime", "pool_mode", "load_balance_hosts", "max_connections",
-                        "current_connections", "max_client_connections", "current_client_connections",
-                        "paused", "disabled");
-    }
+	if (multithread_mode) {
+		pktbuf_write_RowDescription(buf, "ississiiiissiiiiii",
+				"thread_id", "name", "host", "port",
+				"database", "force_user", "pool_size", "min_pool_size", "reserve_pool_size",
+				"server_lifetime", "pool_mode", "load_balance_hosts", "max_connections",
+				"current_connections", "max_client_connections", "current_client_connections",
+				"paused", "disabled");
+	} else {
+		pktbuf_write_RowDescription(buf, "ssissiiiissiiiiii",
+				"name", "host", "port",
+				"database", "force_user", "pool_size", "min_pool_size", "reserve_pool_size",
+				"server_lifetime", "pool_mode", "load_balance_hosts", "max_connections",
+				"current_connections", "max_client_connections", "current_client_connections",
+				"paused", "disabled");
+	}
 
 	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id){

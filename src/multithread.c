@@ -388,23 +388,23 @@ static void worker_signal_setup(struct event_base * base, int thread_id)
 void* worker_func(void* arg)
 {
 	int err;
-    	Thread * this_thread = (Thread*) arg;
+	Thread * this_thread = (Thread*) arg;
 	struct event_base *base = event_base_new();
-    	pthread_setspecific(thread_pointer, this_thread);
+	pthread_setspecific(thread_pointer, this_thread);
 
 	if (!base) {
 		fprintf(stderr, "[Thread %d] Failed to create event_base.\n", this_thread->thread_id);
 		die("event_base_new() failed");
 	}
 
-    	pthread_setspecific(event_base_key, base);
+	pthread_setspecific(event_base_key, base);
 	this_thread->base = base;
 
-    	thread_pooler_setup();
+	thread_pooler_setup();
 	worker_signal_setup(base, this_thread->thread_id);
 	janitor_setup();
 
-    	while(this_thread->cf_shutdown != SHUTDOWN_IMMEDIATE){
+	while(this_thread->cf_shutdown != SHUTDOWN_IMMEDIATE){
 		multithread_reset_time_cache();
 		err = event_base_loop(base, EVLOOP_ONCE);
 		if (err < 0) {
@@ -415,14 +415,14 @@ void* worker_func(void* arg)
 		reuse_just_freed_objects(this_thread->thread_id);
 		rescue_timers();
 		per_loop_pooler_maint();
-    	}
-    	return NULL;
+	}
+	return NULL;
 }
 
 static void event_base_destructor(void* base_ptr) {
-    if (base_ptr) {
-        event_base_free((struct event_base*)base_ptr);
-    }
+	if (base_ptr) {
+		event_base_free((struct event_base*)base_ptr);
+	}
 }
 
 void init_thread(int thread_id){
@@ -451,7 +451,7 @@ void init_thread(int thread_id){
 
 void start_threads(void){
 	pthread_key_create(&event_base_key, event_base_destructor);
-    	pthread_key_create(&thread_pointer, NULL);
+	pthread_key_create(&thread_pointer, NULL);
 
 	FOR_EACH_THREAD(thread_id){
 		pthread_create(&threads[thread_id].worker, NULL, worker_func, &threads[thread_id]);
@@ -551,10 +551,10 @@ void multithread_reset_time_cache(void)
 bool multithread_limits_init(ConnectionLimit** limit, SpinLock* lock){
 	if(!multithread_mode){
 		return true;
-    	}
+	}
 	*limit = NULL;
-    	spin_lock_init(lock, true);
-    	return true;
+	spin_lock_init(lock, true);
+	return true;
 }
 
 
@@ -562,10 +562,10 @@ int multithread_get_limit_count(const char* name, ConnectionLimit** limits, Spin
 	ConnectionLimit* limit_entry = NULL;
 	if(!multithread_mode){
 		return -1;
-    	}
-    	spin_lock_acquire(lock);
-    	HASH_FIND_STR(*limits, name, limit_entry);
-    	if(limit_entry){
+	}
+	spin_lock_acquire(lock);
+	HASH_FIND_STR(*limits, name, limit_entry);
+	if(limit_entry){
 		int count = limit_entry->current_count;
 		spin_lock_release(lock);
 		return count;
@@ -578,13 +578,13 @@ int multithread_get_limit(const char* name, ConnectionLimit** limits, SpinLock* 
 	ConnectionLimit* limit_entry = NULL;
 	if(!multithread_mode){
 		return -1;
-    	}
-    	spin_lock_acquire(lock);
-    	HASH_FIND_STR(*limits, name, limit_entry);
+	}
+	spin_lock_acquire(lock);
+	HASH_FIND_STR(*limits, name, limit_entry);
 	// release lock early becuase limit is not expected to change
 	spin_lock_release(lock);
 
-    	if(limit_entry){
+	if(limit_entry){
 		int limit = limit_entry->limit;
 		return limit;
 	}
@@ -597,8 +597,8 @@ void multithread_set_limit(const char* name, ConnectionLimit** limits, SpinLock*
 		return;
 	}
 	spin_lock_acquire(lock);
-    	HASH_FIND_STR(*limits, name, limit_entry);
-    	if(limit_entry){
+	HASH_FIND_STR(*limits, name, limit_entry);
+	if(limit_entry){
 		limit_entry->limit = limit;
 	}else{
 		limit_entry = (ConnectionLimit*)malloc(sizeof(ConnectionLimit));
@@ -619,10 +619,10 @@ void multithread_increase_limit_count(const char* name, ConnectionLimit** limits
 	ConnectionLimit* limit_entry = NULL;
 	if(!multithread_mode){
 		return;
-    	}
-    	spin_lock_acquire(lock);
-    	HASH_FIND_STR(*limits, name, limit_entry);
-    	if(!limit_entry){
+	}
+	spin_lock_acquire(lock);
+	HASH_FIND_STR(*limits, name, limit_entry);
+	if(!limit_entry){
 		multithread_set_limit(name, limits, lock, -1);
 		HASH_FIND_STR(*limits, name, limit_entry);
 	}
@@ -635,10 +635,10 @@ void multithread_decrease_limit_count(const char* name, ConnectionLimit** limits
 	ConnectionLimit* limit_entry = NULL;
 	if(!multithread_mode){
 		return;
-    	}
-    	spin_lock_acquire(lock);
-    	HASH_FIND_STR(*limits, name, limit_entry);
-    	if(limit_entry){
+	}
+	spin_lock_acquire(lock);
+	HASH_FIND_STR(*limits, name, limit_entry);
+	if(limit_entry){
 		limit_entry->current_count--;
 		spin_lock_release(lock);
 		return;
@@ -653,10 +653,10 @@ bool multithread_check_limit_count(const char* name, ConnectionLimit** limits, S
 	ConnectionLimit* limit_entry = NULL;
 	if(!multithread_mode){
 		return true;
-    	}
-    	spin_lock_acquire(lock);
-    	HASH_FIND_STR(*limits, name, limit_entry);
-    	if(limit_entry){
+	}
+	spin_lock_acquire(lock);
+	HASH_FIND_STR(*limits, name, limit_entry);
+	if(limit_entry){
 		if(limit_entry->current_count >= limit_entry->limit){
 			spin_lock_release(lock);
 			return false;
@@ -675,7 +675,7 @@ void multithread_free_limits(ConnectionLimit** limits){
 	ConnectionLimit *entry, *tmp;
 	if(!multithread_mode){
 		return;
-    	}
+	}
 	HASH_ITER(hh, *limits, entry, tmp) {
 	    HASH_DEL(*limits, entry);
 	    free(entry->name);

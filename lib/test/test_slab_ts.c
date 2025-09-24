@@ -32,10 +32,10 @@ end:;
 }
 
 static void stats_callback(void *arg,
-                           const char *slab_name,
-                           unsigned size,
-                           unsigned free_count,
-                           unsigned total_count)
+			   const char *slab_name,
+			   unsigned size,
+			   unsigned free_count,
+			   unsigned total_count)
 {
     int *callback_count = (int *)arg;
     (*callback_count)++;
@@ -43,10 +43,10 @@ static void stats_callback(void *arg,
 
 static void *thread_worker(void *arg) {
     struct ThreadSafeSlab *ts_slab = (struct ThreadSafeSlab *)arg;
-    for (int i = 0; i < NUM_ALLOCATIONS; i++) {
-        void *obj = thread_safe_slab_alloc(ts_slab);
-        thread_safe_slab_free(ts_slab, obj);
-    }
+	for (int i = 0; i < NUM_ALLOCATIONS; i++) {
+		void *obj = thread_safe_slab_alloc(ts_slab);
+		thread_safe_slab_free(ts_slab, obj);
+	}
     return NULL;
 }
 
@@ -59,13 +59,13 @@ static void test_slab_multithreaded(void *p) {
     ts_slab = thread_safe_slab_create("test_slab_mt", sizeof(int), 0, NULL, NULL, false);
     tt_assert(ts_slab != NULL);
 
-    for (int i = 0; i < NUM_THREADS; i++) {
-        pthread_create(&threads[i], NULL, thread_worker, ts_slab);
-    }
+	for (int i = 0; i < NUM_THREADS; i++) {
+		pthread_create(&threads[i], NULL, thread_worker, ts_slab);
+	}
 
-    for (int i = 0; i < NUM_THREADS; i++) {
-        pthread_join(threads[i], NULL);
-    }
+	for (int i = 0; i < NUM_THREADS; i++) {
+		pthread_join(threads[i], NULL);
+	}
 
     thread_safe_slab_stats(stats_callback, &call_count);
     tt_assert(call_count == 1);

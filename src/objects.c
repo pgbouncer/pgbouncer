@@ -226,7 +226,7 @@ void init_objects(void)
 void init_objects_multithread(void)
 {
 	FOR_EACH_THREAD(thread_id){
-        	char pool_cache_name[MAX_SLAB_NAME];
+		char pool_cache_name[MAX_SLAB_NAME];
 		char peer_pool_cache_name[MAX_SLAB_NAME];
 		char db_cache_name[MAX_SLAB_NAME];
 		char outstanding_request_cache_name[MAX_SLAB_NAME];

@@ -78,9 +78,9 @@ typedef struct WorkersignalEvents{
 
 typedef struct Thread {
 	SpinLock thread_lock;
-    	pthread_t worker;
-    	struct event_base *base;
-    	int thread_id;
+	pthread_t worker;
+	struct event_base *base;
+	int thread_id;
 	struct event full_maint_ev;
 	struct event ev_stats;
 	struct event ev_handle_request;

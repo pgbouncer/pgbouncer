@@ -441,9 +441,9 @@ static void handle_request(evutil_socket_t fd, short event, void* arg){
 		log_error("Failed to read from pipe");
 		return;
 	}
-    if (client_request.fd < 0) {
-        return;
-    }
+	if (client_request.fd < 0) {
+		return;
+	}
 	accept_client_handler(client_request.is_unix, client_request.fd);
 }
 

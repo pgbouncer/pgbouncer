@@ -149,9 +149,9 @@ static PgPreparedStatement *get_prepared_statement(PgParsePacket *pkt, bool *fou
 	MULTITHREAD_VISIT(multithread_mode, &prepared_statements_lock,{
 		HASH_ADD(hh,
 			prepared_statements,
-		 	query_and_parameters,
-		 	ps->query_and_parameters_len,
-		 	ps);
+			query_and_parameters,
+			ps->query_and_parameters_len,
+			ps);
 	});
 	if (uthash_alloc_failed) {
 		uthash_alloc_failed = false;

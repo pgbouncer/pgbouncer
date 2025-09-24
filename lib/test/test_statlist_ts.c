@@ -46,15 +46,15 @@ end:;
 static struct ThreadSafeStatList ts_list;
 
 static void *thread_worker(void *arg) {
-    for (int i = 0; i < NUM_ITERATIONS; i++) {
-        struct List *popped_node;
-        struct List *node = malloc(sizeof(struct List));
-        if (!node) continue;
-        list_init(node);
-        thread_safe_statlist_append(&ts_list, node);
-        popped_node = thread_safe_statlist_pop(&ts_list);
-        if (popped_node) free(popped_node);
-    }
+	for (int i = 0; i < NUM_ITERATIONS; i++) {
+		struct List *popped_node;
+		struct List *node = malloc(sizeof(struct List));
+		if (!node) continue;
+		list_init(node);
+		thread_safe_statlist_append(&ts_list, node);
+		popped_node = thread_safe_statlist_pop(&ts_list);
+		if (popped_node) free(popped_node);
+	}
     return NULL;
 }
 
@@ -63,13 +63,13 @@ static void test_thread_safe_statlist_multithreaded(void *p) {
     thread_safe_statlist_init(&ts_list, "test_list", false);
     srand(time(NULL));
 
-    for (int i = 0; i < NUM_THREADS; i++) {
-        pthread_create(&threads[i], NULL, thread_worker, NULL);
-    }
+	for (int i = 0; i < NUM_THREADS; i++) {
+		pthread_create(&threads[i], NULL, thread_worker, NULL);
+	}
 
-    for (int i = 0; i < NUM_THREADS; i++) {
-        pthread_join(threads[i], NULL);
-    }
+	for (int i = 0; i < NUM_THREADS; i++) {
+		pthread_join(threads[i], NULL);
+	}
 
     spin_lock_acquire(&ts_list.lock);
     str_check(statlist_count(&ts_list.list) == 0 ? "OK" : "FAIL", "OK");

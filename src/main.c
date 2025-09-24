@@ -702,8 +702,8 @@ static void check_limits(void)
 		FOR_EACH_THREAD(thread_id){
 			THREAD_SAFE_STATLIST_EACH(&threads[thread_id].database_list, item, {
 				db = container_of(item, PgDatabase, head);
-    				if (db->forced_user_credentials)
-        				fd_count += (db->pool_size >= 0 ? db->pool_size : cf_default_pool_size);
+				if (db->forced_user_credentials)
+					fd_count += (db->pool_size >= 0 ? db->pool_size : cf_default_pool_size);
 				else
 					fd_count += (db->pool_size >= 0 ? db->pool_size : cf_default_pool_size) * total_users;
 			});
@@ -1044,7 +1044,7 @@ int main(int argc, char *argv[])
 	srandom(time(NULL) ^ getpid());
 	if (!(pgb_event_base = event_base_new()))
 		die("event_base_new() failed");
-    	dns_setup();
+	dns_setup();
 	signal_setup(pgb_event_base, &signal_event);
 	stats_setup();
 

@@ -13,7 +13,7 @@ struct ThreadSafeSlab;
 
 /* Create a new thread-safe slab context */
 struct ThreadSafeSlab *thread_safe_slab_create(const char *name, unsigned obj_size, unsigned align,
-                                               slab_init_fn init_func, CxMem *cx, bool enable_recursive_lock);
+					       slab_init_fn init_func, CxMem *cx, bool enable_recursive_lock);
 
 /* Destroy a thread-safe slab context */
 void thread_safe_slab_destroy(struct ThreadSafeSlab *ts_slab);

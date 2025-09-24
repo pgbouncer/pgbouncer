@@ -4,8 +4,9 @@
 
 /* fill struct contents */
 void init_slab(struct Slab *slab, const char *name, unsigned obj_size,
-		      unsigned align, slab_init_fn init_func,
-		      CxMem *cx) {
+	       unsigned align, slab_init_fn init_func,
+	       CxMem *cx)
+{
 	unsigned slen = strlen(name);
 
 	list_init(&slab->head);

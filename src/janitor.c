@@ -113,13 +113,13 @@ static void resume_sockets(void)
 {
 	struct List *item;
 	PgPool *pool;
-	if(multithread_mode){
+	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id){
 			lock_thread(thread_id);
 			THREAD_SAFE_STATLIST_EACH(&threads[thread_id].pool_list, item, {
 				pool = container_of(item, PgPool, head);
 				if (pool->db->admin)
-					continue;;
+					continue; ;
 				resume_socket_list(&pool->active_client_list);
 				resume_socket_list(&pool->active_server_list);
 				resume_socket_list(&pool->idle_server_list);
@@ -127,7 +127,7 @@ static void resume_sockets(void)
 			});
 			lock_thread(thread_id);
 		}
-	}else{
+	} else {
 		statlist_for_each(item, &pool_list) {
 			pool = container_of(item, PgPool, head);
 			if (pool->db->admin)
@@ -138,7 +138,6 @@ static void resume_sockets(void)
 			resume_socket_list(&pool->used_server_list);
 		}
 	}
-
 }
 /* resume pools and listen sockets */
 void resume_all(void)
@@ -358,8 +357,8 @@ void per_loop_maint(void)
 {
 	struct List *item;
 	PgPool *pool;
-	void* pool_list_ptr;
-	struct StatList* login_client_list_;
+	void *pool_list_ptr;
+	struct StatList *login_client_list_;
 	int thread_pause_mode;
 	int active_count = 0;
 	int waiting_count = 0;
@@ -376,26 +375,26 @@ void per_loop_maint(void)
 
 	pool_list_ptr = GET_MULTITHREAD_PTR(pool_list, thread_id);
 
-	if(multithread_mode){
-		THREAD_SAFE_STATLIST_EACH((struct ThreadSafeStatList*)pool_list_ptr, item, {
+	if (multithread_mode) {
+		THREAD_SAFE_STATLIST_EACH((struct ThreadSafeStatList *)pool_list_ptr, item, {
 			pool = container_of(item, PgPool, head);
 			if (pool->db->admin)
 				continue;
 			switch (cf_pause_mode) {
-			case P_NONE:
-				if (pool->db->db_paused) {
-					partial_pause = true;
+				case P_NONE:
+					if (pool->db->db_paused) {
+						partial_pause = true;
+						active_count += per_loop_pause(pool);
+					} else {
+						per_loop_activate(pool);
+					}
+					break;
+				case P_PAUSE:
 					active_count += per_loop_pause(pool);
-				} else {
-					per_loop_activate(pool);
-				}
-				break;
-			case P_PAUSE:
-				active_count += per_loop_pause(pool);
-				break;
-			case P_SUSPEND:
-				active_count += per_loop_suspend(pool, force_suspend);
-				break;
+					break;
+				case P_SUSPEND:
+					active_count += per_loop_suspend(pool, force_suspend);
+					break;
 			}
 
 			if (pool->db->db_wait_close) {
@@ -407,7 +406,7 @@ void per_loop_maint(void)
 		/* Store partial_pause state in thread structure */
 		threads[thread_id].partial_pause = partial_pause;
 	} else {
-		statlist_for_each(item, (struct StatList*)pool_list_ptr) {
+		statlist_for_each(item, (struct StatList *)pool_list_ptr) {
 			pool = container_of(item, PgPool, head);
 			if (pool->db->admin)
 				continue;
@@ -593,7 +592,7 @@ static void pool_client_maint(PgPool *pool)
 	/* force timeouts for waiting queries */
 	if (cf_query_timeout > 0 || cf_query_wait_timeout > 0) {
 		statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
-			int* cf_shutdown_ptr;
+			int *cf_shutdown_ptr;
 			client = container_of(item, PgSocket, head);
 
 			Assert(client->state == CL_WAITING || client->state == CL_WAITING_LOGIN);
@@ -604,7 +603,7 @@ static void pool_client_maint(PgPool *pool)
 				age = now - client->query_start;
 			}
 
-			if(multithread_mode){
+			if (multithread_mode) {
 				cf_shutdown_ptr = &(threads[thread_id].cf_shutdown);
 			} else {
 				cf_shutdown_ptr = &cf_shutdown;
@@ -690,7 +689,7 @@ static void check_unused_servers(PgPool *pool, struct StatList *slist, bool idle
 			disconnect_server(server, true, "SV_USED server got dirty");
 		} else if (cf_server_idle_timeout > 0 && idle > cf_server_idle_timeout
 			   && (pool_min_pool_size(pool) == 0 || pool_connected_server_count(pool) > pool_min_pool_size(pool))) {
-				disconnect_server(server, true, "server idle timeout");
+			disconnect_server(server, true, "server idle timeout");
 		} else if (age >= server_lifetime) {
 			if (life_over(server)) {
 				disconnect_server(server, true, "server lifetime over");
@@ -887,13 +886,13 @@ static void cleanup_client_logins(int thread_id)
 	struct List *item, *tmp;
 	PgSocket *client;
 	usec_t age;
-	struct StatList* login_client_list_ptr;
+	struct StatList *login_client_list_ptr;
 	usec_t now = get_multithread_time_with_id(thread_id);
 
 	if (cf_client_login_timeout <= 0)
 		return;
 	login_client_list_ptr = &login_client_list;
-	if(multithread_mode){
+	if (multithread_mode) {
 		login_client_list_ptr = &(threads[thread_id].login_client_list);
 	}
 	statlist_for_each_safe(item, login_client_list_ptr, tmp) {
@@ -904,7 +903,8 @@ static void cleanup_client_logins(int thread_id)
 	}
 }
 
-static void cleanup_inactive_autodatabases_internal(PgDatabase *db, usec_t now){
+static void cleanup_inactive_autodatabases_internal(PgDatabase *db, usec_t now)
+{
 	usec_t age;
 	if (db->db_paused)
 		return;
@@ -919,7 +919,7 @@ static void cleanup_inactive_autodatabases(int thread_id)
 	PgDatabase *db;
 	struct List *item, *tmp;
 	usec_t now = get_multithread_time_with_id(thread_id);
-	struct StatList* autodatabase_idle_list_ptr_;
+	struct StatList *autodatabase_idle_list_ptr_;
 
 	if (cf_autodb_idle_timeout <= 0)
 		return;
@@ -927,16 +927,16 @@ static void cleanup_inactive_autodatabases(int thread_id)
 	autodatabase_idle_list_ptr_ = GET_MULTITHREAD_PTR(autodatabase_idle_list, thread_id);
 
 	/* now kill the old ones */
-	statlist_for_each_safe(item, (struct StatList*)autodatabase_idle_list_ptr_, tmp) {
+	statlist_for_each_safe(item, (struct StatList *)autodatabase_idle_list_ptr_, tmp) {
 		db = container_of(item, PgDatabase, head);
 		cleanup_inactive_autodatabases_internal(db, now);
 	}
-
 }
 
 
-static void clean_pool_internal(PgPool *pool, void* ctx){
-	int seq = *(unsigned int*)ctx;
+static void clean_pool_internal(PgPool *pool, void *ctx)
+{
+	int seq = *(unsigned int *)ctx;
 	if (pool->db->admin)
 		return;
 	pool_server_maint(pool);
@@ -956,19 +956,19 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	struct List *item, *tmp;
 	PgPool *pool;
 	PgDatabase *db;
-	void* peer_pool_list_ptr;
-	void* database_list_ptr;
-	void* pool_list_ptr;
-	struct StatList* autodatabase_idle_list_ptr;
+	void *peer_pool_list_ptr;
+	void *database_list_ptr;
+	void *pool_list_ptr;
+	struct StatList *autodatabase_idle_list_ptr;
 	int thread_id = get_current_thread_id(multithread_mode);
 
 	static unsigned int seq;
-	unsigned int* seq_ptr = &seq;
+	unsigned int *seq_ptr = &seq;
 
-	if(multithread_mode){
+	if (multithread_mode) {
 		seq_ptr = &(threads[thread_id].seq);
 	}
-	(*seq_ptr) ++;
+	(*seq_ptr)++;
 
 	/*
 	 * Avoid doing anything that may surprise other pgbouncer.
@@ -992,7 +992,7 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	peer_pool_list_ptr = GET_MULTITHREAD_PTR(peer_pool_list, thread_id);
 	database_list_ptr = GET_MULTITHREAD_PTR(database_list, thread_id);
 	pool_list_ptr = GET_MULTITHREAD_PTR(pool_list, thread_id);
-	autodatabase_idle_list_ptr = (struct StatList*)GET_MULTITHREAD_PTR(autodatabase_idle_list, thread_id);
+	autodatabase_idle_list_ptr = (struct StatList *)GET_MULTITHREAD_PTR(autodatabase_idle_list, thread_id);
 
 	/*
 	 * Creating new pools to enable `min_pool_size` enforcement even if
@@ -1006,15 +1006,15 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	 * the risk of creating connections in unexpected ways, where there are
 	 * many users.
 	   _	 */
-	if(multithread_mode){
-		THREAD_SAFE_STATLIST_EACH((struct ThreadSafeStatList*)database_list_ptr, item, {
+	if (multithread_mode) {
+		THREAD_SAFE_STATLIST_EACH((struct ThreadSafeStatList *)database_list_ptr, item, {
 			PgDatabase *db = container_of(item, PgDatabase, head);
 			if (database_min_pool_size(db) > 0 && db->forced_user_credentials != NULL) {
 				get_pool(db, db->forced_user_credentials);
 			}
 		});
 	} else {
-		statlist_for_each_safe(item, (struct StatList*)database_list_ptr, tmp) {
+		statlist_for_each_safe(item, (struct StatList *)database_list_ptr, tmp) {
 			db = container_of(item, PgDatabase, head);
 			if (database_min_pool_size(db) > 0 && db->forced_user_credentials != NULL) {
 				get_pool(db, db->forced_user_credentials);
@@ -1022,22 +1022,22 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 		}
 	}
 
-	if (multithread_mode){
-		THREAD_SAFE_STATLIST_EACH((struct ThreadSafeStatList*)pool_list_ptr, item, {
+	if (multithread_mode) {
+		THREAD_SAFE_STATLIST_EACH((struct ThreadSafeStatList *)pool_list_ptr, item, {
 			pool = container_of(item, PgPool, head);
 			clean_pool_internal(pool, seq_ptr);
 		});
-		THREAD_SAFE_STATLIST_EACH((struct ThreadSafeStatList*)peer_pool_list_ptr, item, {
+		THREAD_SAFE_STATLIST_EACH((struct ThreadSafeStatList *)peer_pool_list_ptr, item, {
 			pool = container_of(item, PgPool, head);
 			peer_pool_server_maint(pool);
 			peer_pool_client_maint(pool);
 		});
 	} else {
-		statlist_for_each_safe(item, (struct StatList*)pool_list_ptr, tmp) {
+		statlist_for_each_safe(item, (struct StatList *)pool_list_ptr, tmp) {
 			pool = container_of(item, PgPool, head);
 			clean_pool_internal(pool, seq_ptr);
 		}
-		statlist_for_each_safe(item, (struct StatList*)peer_pool_list_ptr, tmp) {
+		statlist_for_each_safe(item, (struct StatList *)peer_pool_list_ptr, tmp) {
 			pool = container_of(item, PgPool, head);
 			peer_pool_server_maint(pool);
 			peer_pool_client_maint(pool);
@@ -1045,25 +1045,25 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	}
 
 	/* find inactive autodbs */
-	if(multithread_mode){
-		THREAD_SAFE_STATLIST_EACH((struct ThreadSafeStatList*)database_list_ptr, item, {
+	if (multithread_mode) {
+		THREAD_SAFE_STATLIST_EACH((struct ThreadSafeStatList *)database_list_ptr, item, {
 			db = container_of(item, PgDatabase, head);
 			if (db->db_auto && db->inactive_time == 0) {
 				if (db->active_stamp == *seq_ptr)
 					continue;
 				db->inactive_time = get_multithread_time_with_id(thread_id);
-				statlist_remove((struct StatList*)database_list_ptr, &db->head);
+				statlist_remove((struct StatList *)database_list_ptr, &db->head);
 				statlist_append(autodatabase_idle_list_ptr, &db->head);
 			}
 		});
 	} else {
-		statlist_for_each_safe(item, (struct StatList*)database_list_ptr, tmp) {
+		statlist_for_each_safe(item, (struct StatList *)database_list_ptr, tmp) {
 			db = container_of(item, PgDatabase, head);
 			if (db->db_auto && db->inactive_time == 0) {
 				if (db->active_stamp == *seq_ptr)
 					continue;
 				db->inactive_time = get_cached_time();
-				statlist_remove((struct StatList*)database_list_ptr, &db->head);
+				statlist_remove((struct StatList *)database_list_ptr, &db->head);
 				statlist_append(autodatabase_idle_list_ptr, &db->head);
 			}
 		}
@@ -1073,10 +1073,10 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 
 	cleanup_client_logins(thread_id);
 
-	if(multithread_mode){
-		Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+	if (multithread_mode) {
+		Thread *this_thread = (Thread *) pthread_getspecific(thread_pointer);
 		if (this_thread->cf_shutdown == SHUTDOWN_WAIT_FOR_SERVERS && get_active_server_count(thread_id) == 0) {
-			struct event_base * base;
+			struct event_base *base;
 			log_info("[Thread %d] server connections dropped, exiting", thread_id);
 			this_thread->cf_shutdown = SHUTDOWN_IMMEDIATE;
 			base = (struct event_base *)pthread_getspecific(event_base_key);
@@ -1085,14 +1085,14 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 		}
 
 		if (this_thread->cf_shutdown == SHUTDOWN_WAIT_FOR_CLIENTS && get_active_client_count(thread_id) == 0) {
-			struct event_base * base;
+			struct event_base *base;
 			log_info("[Thread %d] client connections dropped, exiting", thread_id);
 			this_thread->cf_shutdown = SHUTDOWN_IMMEDIATE;
 			base = (struct event_base *)pthread_getspecific(event_base_key);
 			event_base_loopbreak(base);
 			return;
 		}
-	}else{
+	} else {
 		if (cf_shutdown == SHUTDOWN_WAIT_FOR_SERVERS && get_active_server_count(-1) == 0) {
 			log_info("server connections dropped, exiting");
 			cf_shutdown = SHUTDOWN_IMMEDIATE;
@@ -1110,15 +1110,16 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 		}
 	}
 
-	if(!multithread_mode)
+	if (!multithread_mode)
 		adns_zone_cache_maint(adns);
 }
 
-static void multithread_main_thread_full_maint(evutil_socket_t sock, short flags, void *arg){
+static void multithread_main_thread_full_maint(evutil_socket_t sock, short flags, void *arg)
+{
 	MULTITHREAD_VISIT(multithread_mode, &adns_lock, adns_zone_cache_maint(adns));
 
 	FOR_EACH_THREAD(thread_id){
-		if(threads[thread_id].cf_shutdown != SHUTDOWN_IMMEDIATE){
+		if (threads[thread_id].cf_shutdown != SHUTDOWN_IMMEDIATE) {
 			return;
 		}
 	}
@@ -1127,31 +1128,32 @@ static void multithread_main_thread_full_maint(evutil_socket_t sock, short flags
 	event_base_loopbreak(pgb_event_base);
 }
 
-void main_thread_janitor_setup(void){
+void main_thread_janitor_setup(void)
+{
 	event_assign(&full_maint_ev, pgb_event_base, -1, EV_PERSIST, multithread_main_thread_full_maint, NULL);
-			if (event_add(&full_maint_ev, &full_maint_period) < 0)
-				log_warning("event_add failed: %s", strerror(errno));
+	if (event_add(&full_maint_ev, &full_maint_period) < 0)
+		log_warning("event_add failed: %s", strerror(errno));
 }
 
 /* first-time initialization */
 void janitor_setup(void)
 {
 	/* launch maintenance */
-	if(multithread_mode){
+	if (multithread_mode) {
 		int thread_id = get_current_thread_id(multithread_mode);
 		threads[thread_id].do_full_maint_event_args.thread_id = thread_id;
 		threads[thread_id].do_full_maint_event_args.func = do_full_maint;
 		threads[thread_id].do_full_maint_event_args.arg = NULL;
 		threads[thread_id].do_full_maint_event_args.persistent = true;
 		event_assign(&(threads[thread_id].full_maint_ev),
-				threads[thread_id].base,
-				-1,
-				EV_PERSIST,
-				multithread_event_wrapper,
-				&threads[thread_id].do_full_maint_event_args);
+			     threads[thread_id].base,
+			     -1,
+			     EV_PERSIST,
+			     multithread_event_wrapper,
+			     &threads[thread_id].do_full_maint_event_args);
 		if (event_add(&threads[thread_id].full_maint_ev, &full_maint_period) < 0)
 			log_warning("event_add failed: %s", strerror(errno));
-	}else{
+	} else {
 		event_assign(&full_maint_ev, pgb_event_base, -1, EV_PERSIST, do_full_maint, NULL);
 		if (event_add(&full_maint_ev, &full_maint_period) < 0)
 			log_warning("event_add failed: %s", strerror(errno));
@@ -1180,12 +1182,12 @@ void kill_pool(PgPool *pool)
 	pktbuf_free(pool->welcome_msg);
 
 	list_del(&pool->map_head);
-	if(multithread_mode){
+	if (multithread_mode) {
 		thread_safe_statlist_remove(&(threads[thread_id].pool_list), &pool->head);
 		varcache_clean(&pool->orig_vars);
 		slab_free(threads[thread_id].var_list_cache, pool->orig_vars.var_list);
 		slab_free(threads[thread_id].pool_cache, pool);
-	}else{
+	} else {
 		statlist_remove(&pool_list, &pool->head);
 		varcache_clean(&pool->orig_vars);
 		slab_free(var_list_cache, pool->orig_vars.var_list);
@@ -1205,12 +1207,12 @@ void kill_peer_pool(PgPool *pool)
 	pktbuf_free(pool->welcome_msg);
 
 	list_del(&pool->map_head);
-	if(thread_id != -1){
+	if (thread_id != -1) {
 		thread_safe_statlist_remove(&(threads[thread_id].peer_pool_list), &pool->head);
 		varcache_clean(&pool->orig_vars);
 		slab_free(threads[thread_id].var_list_cache, pool->orig_vars.var_list);
 		slab_free(threads[thread_id].pool_cache, pool);
-	}else{
+	} else {
 		statlist_remove(&peer_pool_list, &pool->head);
 		varcache_clean(&pool->orig_vars);
 		slab_free(var_list_cache, pool->orig_vars.var_list);
@@ -1225,16 +1227,16 @@ void kill_database(PgDatabase *db)
 	struct List *item, *tmp;
 	int thread_id = db->thread_id;
 
-	void* autodatabase_idle_list_ptr = GET_MULTITHREAD_PTR(autodatabase_idle_list, thread_id);
-	void* database_list_ptr = GET_MULTITHREAD_PTR(database_list, thread_id);
-	struct Slab* db_cache_ptr = db_cache;
-	if(thread_id != -1){
+	void *autodatabase_idle_list_ptr = GET_MULTITHREAD_PTR(autodatabase_idle_list, thread_id);
+	void *database_list_ptr = GET_MULTITHREAD_PTR(database_list, thread_id);
+	struct Slab *db_cache_ptr = db_cache;
+	if (thread_id != -1) {
 		db_cache_ptr = threads[thread_id].db_cache;
 	}
 
 	log_warning("dropping database '%s' as it does not exist anymore or inactive auto-database", db->name);
 
-	if(multithread_mode){
+	if (multithread_mode) {
 		THREAD_SAFE_STATLIST_EACH(&(threads[thread_id].pool_list), item, {
 			pool = container_of(item, PgPool, head);
 			if (pool->db == db)
@@ -1256,13 +1258,13 @@ void kill_database(PgDatabase *db)
 	}
 	free(db->connect_query);
 	if (db->inactive_time) {
-		if(multithread_mode){
+		if (multithread_mode) {
 			thread_safe_statlist_remove((struct ThreadSafeStatList *)autodatabase_idle_list_ptr, &db->head);
 		} else {
 			statlist_remove((struct StatList *)autodatabase_idle_list_ptr, &db->head);
 		}
 	} else {
-		if(multithread_mode){
+		if (multithread_mode) {
 			thread_safe_statlist_remove((struct ThreadSafeStatList *)database_list_ptr, &db->head);
 		} else {
 			statlist_remove((struct StatList *)database_list_ptr, &db->head);
@@ -1291,13 +1293,13 @@ void kill_peer(PgDatabase *db)
 
 	log_warning("dropping peer %s as it does not exist anymore", db->name);
 
-	if(thread_id != -1){
+	if (thread_id != -1) {
 		THREAD_SAFE_STATLIST_EACH(&threads[thread_id].peer_pool_list, item, {
 			pool = container_of(item, PgPool, head);
 			if (pool->db->name == db->name)
 				kill_peer_pool(pool);
 		});
-	}else{
+	} else {
 		statlist_for_each_safe(item, &peer_pool_list, tmp) {
 			pool = container_of(item, PgPool, head);
 			if (pool->db->name == db->name)
@@ -1317,7 +1319,7 @@ void config_postprocess(void)
 	struct List *item, *tmp;
 	PgDatabase *db;
 
-	if(multithread_mode){
+	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id){
 			statlist_for_each_safe(item, &database_list, tmp) {
 				db = container_of(item, PgDatabase, head);
@@ -1335,7 +1337,7 @@ void config_postprocess(void)
 				}
 			}
 		}
-	}else{
+	} else {
 		statlist_for_each_safe(item, &database_list, tmp) {
 			db = container_of(item, PgDatabase, head);
 			if (db->db_dead) {

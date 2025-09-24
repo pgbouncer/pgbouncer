@@ -5,7 +5,7 @@
 
 static void handle_sigterm_main(evutil_socket_t sock, short flags, void *arg);
 static void handle_sigterm(evutil_socket_t sock, short flags, void *arg);
-static void* worker_func(void* arg);
+static void * worker_func(void *arg);
 static void init_thread(int thread_id);
 
 int next_thread = 0;
@@ -15,20 +15,21 @@ pthread_key_t thread_pointer;
 Thread *threads;
 int client_count = 0;
 SpinLock client_count_lock;
-int total_active_count = 0;  /* Total active count across all threads */
+int total_active_count = 0;	/* Total active count across all threads */
 SpinLock total_active_count_lock;
 
-ConnectionLimit* db_connection_limits;
+ConnectionLimit *db_connection_limits;
 SpinLock db_connection_limits_lock;
 
-ConnectionLimit* db_client_connection_limits;
+ConnectionLimit *db_client_connection_limits;
 SpinLock db_client_connection_limits_lock;
 
-static void signal_threads(int signal_pipe[2]){
-	if(!multithread_mode){
+static void signal_threads(int signal_pipe[2])
+{
+	if (!multithread_mode) {
 		return;
 	}
-	if(write(signal_pipe[1], "x", 1) == -1){
+	if (write(signal_pipe[1], "x", 1) == -1) {
 		log_error("Failed to write to pipe");
 		return;
 	}
@@ -49,7 +50,7 @@ void handle_sigterm_main(evutil_socket_t sock, short flags, void *arg)
 		die("suspend was in progress, going down immediately");
 	cf_shutdown = SHUTDOWN_WAIT_FOR_CLIENTS;
 	cleanup_tcp_sockets();
-	if(multithread_mode){
+	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id){
 			signal_threads(threads[thread_id].worker_signal_events.pipe_sigterm);
 		}
@@ -58,9 +59,9 @@ void handle_sigterm_main(evutil_socket_t sock, short flags, void *arg)
 
 void handle_sigterm(evutil_socket_t sock, short flags, void *arg)
 {
-	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+	Thread *this_thread = (Thread *) pthread_getspecific(thread_pointer);
 	char buf[1];
-	if(read(threads[this_thread->thread_id].worker_signal_events.pipe_sigterm[0], buf, sizeof(buf)) == -1){
+	if (read(threads[this_thread->thread_id].worker_signal_events.pipe_sigterm[0], buf, sizeof(buf)) == -1) {
 		log_error("[Thread %d] read SIGTERM pipe failure.", this_thread->thread_id);
 		return;
 	}
@@ -89,7 +90,7 @@ static void handle_sigint_main(evutil_socket_t sock, short flags, void *arg)
 	cf_pause_mode = P_PAUSE;
 	cf_shutdown = SHUTDOWN_WAIT_FOR_SERVERS;
 	cleanup_tcp_sockets();
-	if(multithread_mode){
+	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id){
 			signal_threads(threads[thread_id].worker_signal_events.pipe_sigint);
 		}
@@ -99,9 +100,9 @@ static void handle_sigint_main(evutil_socket_t sock, short flags, void *arg)
 
 static void handle_sigint(evutil_socket_t sock, short flags, void *arg)
 {
-	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+	Thread *this_thread = (Thread *) pthread_getspecific(thread_pointer);
 	char buf[1];
-	if(read(threads[this_thread->thread_id].worker_signal_events.pipe_sigint[0], buf, sizeof(buf)) == -1){
+	if (read(threads[this_thread->thread_id].worker_signal_events.pipe_sigint[0], buf, sizeof(buf)) == -1) {
 		log_error("[Thread %d] read SIGINT pipe failure.", this_thread->thread_id);
 		return;
 	}
@@ -120,7 +121,7 @@ static void handle_sigquit_main(evutil_socket_t sock, short flags, void *arg)
 {
 	log_info("got SIGQUIT, fast exit");
 	/* pidfile cleanup happens via atexit() */
-	if(multithread_mode){
+	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id){
 			signal_threads(threads[thread_id].worker_signal_events.pipe_sigquit);
 		}
@@ -133,9 +134,9 @@ static void handle_sigquit_main(evutil_socket_t sock, short flags, void *arg)
 
 static void handle_sigquit_worker(evutil_socket_t sock, short flags, void *arg)
 {
-	Thread* this_thread = (Thread*) pthread_getspecific(thread_pointer);
+	Thread *this_thread = (Thread *) pthread_getspecific(thread_pointer);
 	char buf[1];
-	if(read(threads[this_thread->thread_id].worker_signal_events.pipe_sigquit[0], buf, sizeof(buf)) == -1){
+	if (read(threads[this_thread->thread_id].worker_signal_events.pipe_sigquit[0], buf, sizeof(buf)) == -1) {
 		log_error("[Thread %d] read SIGQUIT pipe failure.", this_thread->thread_id);
 		return;
 	}
@@ -171,44 +172,44 @@ static void handle_sigusr2(int sock, short flags, void *arg)
 		log_info("got SIGUSR2 while shutting down, ignoring");
 		return;
 	}
-			switch (cf_pause_mode) {
-			case P_SUSPEND:
-			log_info("got SIGUSR2, continuing from SUSPEND");
-			if (multithread_mode) {
-				/* Reset pause mode on all threads */
-				FOR_EACH_THREAD(thread_id) {
-					lock_thread(thread_id);
-					threads[thread_id].cf_pause_mode = P_NONE;
-					threads[thread_id].pause_ready = false;
-					threads[thread_id].wait_close_ready = false;
-					threads[thread_id].partial_pause = false;
-					threads[thread_id].active_count = 0;
-					unlock_thread(thread_id);
-				}
-				MULTITHREAD_VISIT(multithread_mode, &total_active_count_lock, {
-					total_active_count = 0;
-				});
+	switch (cf_pause_mode) {
+	case P_SUSPEND:
+		log_info("got SIGUSR2, continuing from SUSPEND");
+		if (multithread_mode) {
+			/* Reset pause mode on all threads */
+			FOR_EACH_THREAD(thread_id) {
+				lock_thread(thread_id);
+				threads[thread_id].cf_pause_mode = P_NONE;
+				threads[thread_id].pause_ready = false;
+				threads[thread_id].wait_close_ready = false;
+				threads[thread_id].partial_pause = false;
+				threads[thread_id].active_count = 0;
+				unlock_thread(thread_id);
 			}
+			MULTITHREAD_VISIT(multithread_mode, &total_active_count_lock, {
+				total_active_count = 0;
+			});
+		}
 		resume_all();
 		cf_pause_mode = P_NONE;
 		break;
-			case P_PAUSE:
-			log_info("got SIGUSR2, continuing from PAUSE");
-			if (multithread_mode) {
-				/* Reset pause mode on all threads */
-				FOR_EACH_THREAD(thread_id) {
-					lock_thread(thread_id);
-					threads[thread_id].cf_pause_mode = P_NONE;
-					threads[thread_id].pause_ready = false;
-					threads[thread_id].wait_close_ready = false;
-					threads[thread_id].partial_pause = false;
-					threads[thread_id].active_count = 0;
-					unlock_thread(thread_id);
-				}
-				MULTITHREAD_VISIT(multithread_mode, &total_active_count_lock, {
-					total_active_count = 0;
-				});
+	case P_PAUSE:
+		log_info("got SIGUSR2, continuing from PAUSE");
+		if (multithread_mode) {
+			/* Reset pause mode on all threads */
+			FOR_EACH_THREAD(thread_id) {
+				lock_thread(thread_id);
+				threads[thread_id].cf_pause_mode = P_NONE;
+				threads[thread_id].pause_ready = false;
+				threads[thread_id].wait_close_ready = false;
+				threads[thread_id].partial_pause = false;
+				threads[thread_id].active_count = 0;
+				unlock_thread(thread_id);
 			}
+			MULTITHREAD_VISIT(multithread_mode, &total_active_count_lock, {
+				total_active_count = 0;
+			});
+		}
 		cf_pause_mode = P_NONE;
 		break;
 	case P_NONE:
@@ -237,7 +238,7 @@ static void notify_reloading(void)
 static void handle_sighup(int sock, short flags, void *arg)
 {
 	log_info("got SIGHUP, re-reading config");
-	if(multithread_mode){
+	if (multithread_mode) {
 		log_warning("Pgbouncer doesn't support reloading configs in multithread mode");
 		return;
 	}
@@ -246,7 +247,7 @@ static void handle_sighup(int sock, short flags, void *arg)
 	if (!sbuf_tls_setup())
 		log_error("TLS configuration could not be reloaded, keeping old configuration");
 	sd_notify(0, "READY=1");
-	if(multithread_mode){
+	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id){
 			signal_threads(threads[thread_id].worker_signal_events.pipe_sighup);
 		}
@@ -255,7 +256,7 @@ static void handle_sighup(int sock, short flags, void *arg)
 #endif
 
 
-void signal_setup(struct event_base * base, struct SignalEvent* signal_event)
+void signal_setup(struct event_base *base, struct SignalEvent *signal_event)
 {
 	int err;
 
@@ -302,42 +303,42 @@ void signal_setup(struct event_base * base, struct SignalEvent* signal_event)
 	if (err < 0)
 		fatal_perror("evsignal_add");
 
-	if(multithread_mode){
+	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id){
 			err = pipe(threads[thread_id].worker_signal_events.pipe_sigint);
-			if(err < 0)
+			if (err < 0)
 				fatal_perror("multithread signal pipe");
 			evutil_make_socket_nonblocking(threads[thread_id].worker_signal_events.pipe_sigint[0]);
 			evutil_make_socket_nonblocking(threads[thread_id].worker_signal_events.pipe_sigint[1]);
 
 			err = pipe(threads[thread_id].worker_signal_events.pipe_sigterm);
-			if(err < 0)
+			if (err < 0)
 				fatal_perror("multithread signal pipe");
 			evutil_make_socket_nonblocking(threads[thread_id].worker_signal_events.pipe_sigterm[0]);
 			evutil_make_socket_nonblocking(threads[thread_id].worker_signal_events.pipe_sigterm[1]);
 
 #ifndef WIN32
 			err = pipe(threads[thread_id].worker_signal_events.pipe_sigusr1);
-			if(err < 0)
+			if (err < 0)
 				fatal_perror("multithread signal pipe");
 			evutil_make_socket_nonblocking(threads[thread_id].worker_signal_events.pipe_sigusr1[0]);
 			evutil_make_socket_nonblocking(threads[thread_id].worker_signal_events.pipe_sigusr1[1]);
 
 
 			err = pipe(threads[thread_id].worker_signal_events.pipe_sigusr2);
-			if(err < 0)
+			if (err < 0)
 				fatal_perror("multithread signal pipe");
 			evutil_make_socket_nonblocking(threads[thread_id].worker_signal_events.pipe_sigusr2[0]);
 			evutil_make_socket_nonblocking(threads[thread_id].worker_signal_events.pipe_sigusr2[1]);
 
 			err = pipe(threads[thread_id].worker_signal_events.pipe_sighup);
-			if(err < 0)
+			if (err < 0)
 				fatal_perror("multithread signal pipe");
 			evutil_make_socket_nonblocking(threads[thread_id].worker_signal_events.pipe_sighup[0]);
 			evutil_make_socket_nonblocking(threads[thread_id].worker_signal_events.pipe_sighup[1]);
 
 			err = pipe(threads[thread_id].worker_signal_events.pipe_sigquit);
-			if(err < 0)
+			if (err < 0)
 				fatal_perror("multithread signal pipe");
 			evutil_make_socket_nonblocking(threads[thread_id].worker_signal_events.pipe_sigquit[0]);
 			evutil_make_socket_nonblocking(threads[thread_id].worker_signal_events.pipe_sigquit[1]);
@@ -347,48 +348,48 @@ void signal_setup(struct event_base * base, struct SignalEvent* signal_event)
 }
 
 
-static void worker_signal_setup(struct event_base * base, int thread_id)
+static void worker_signal_setup(struct event_base *base, int thread_id)
 {
 	int err;
 #ifndef WIN32
 
 	threads[thread_id].worker_signal_events.ev_sigusr1 = event_new(base, threads[thread_id].worker_signal_events.pipe_sigusr1[0], EV_READ | EV_PERSIST, handle_sigusr1, base);
-    err = event_add(threads[thread_id].worker_signal_events.ev_sigusr1, NULL);
+	err = event_add(threads[thread_id].worker_signal_events.ev_sigusr1, NULL);
 	if (err < 0)
 		fatal_perror("multithread signal event add");
 
 	threads[thread_id].worker_signal_events.ev_sigusr2 = event_new(base, threads[thread_id].worker_signal_events.pipe_sigusr2[0], EV_READ | EV_PERSIST, handle_sigusr2, base);
-    err = event_add(threads[thread_id].worker_signal_events.ev_sigusr2, NULL);
+	err = event_add(threads[thread_id].worker_signal_events.ev_sigusr2, NULL);
 	if (err < 0)
 		fatal_perror("multithread signal event add");
 
 	threads[thread_id].worker_signal_events.ev_sighup = event_new(base, threads[thread_id].worker_signal_events.pipe_sighup[0], EV_READ | EV_PERSIST, handle_sighup, base);
-    err = event_add(threads[thread_id].worker_signal_events.ev_sighup, NULL);
+	err = event_add(threads[thread_id].worker_signal_events.ev_sighup, NULL);
 	if (err < 0)
 		fatal_perror("multithread signal event add");
 
 	threads[thread_id].worker_signal_events.ev_sigquit = event_new(base, threads[thread_id].worker_signal_events.pipe_sigquit[0], EV_READ | EV_PERSIST, handle_sigquit_worker, base);
-    err = event_add(threads[thread_id].worker_signal_events.ev_sigquit, NULL);
+	err = event_add(threads[thread_id].worker_signal_events.ev_sigquit, NULL);
 	if (err < 0)
 		fatal_perror("multithread signal event add");
 #endif
 
 	threads[thread_id].worker_signal_events.ev_sigterm = event_new(base, threads[thread_id].worker_signal_events.pipe_sigterm[0], EV_READ | EV_PERSIST, handle_sigterm, base);
-    err = event_add(threads[thread_id].worker_signal_events.ev_sigterm, NULL);
+	err = event_add(threads[thread_id].worker_signal_events.ev_sigterm, NULL);
 	if (err < 0)
 		fatal_perror("multithread signal event add");
 
 
 	threads[thread_id].worker_signal_events.ev_sigint = event_new(base, threads[thread_id].worker_signal_events.pipe_sigint[0], EV_READ | EV_PERSIST, handle_sigint, base);
-    err = event_add(threads[thread_id].worker_signal_events.ev_sigint, NULL);
+	err = event_add(threads[thread_id].worker_signal_events.ev_sigint, NULL);
 	if (err < 0)
 		fatal_perror("multithread signal event add");
 }
 
-void* worker_func(void* arg)
+void * worker_func(void *arg)
 {
 	int err;
-	Thread * this_thread = (Thread*) arg;
+	Thread *this_thread = (Thread *) arg;
 	struct event_base *base = event_base_new();
 	pthread_setspecific(thread_pointer, this_thread);
 
@@ -404,12 +405,12 @@ void* worker_func(void* arg)
 	worker_signal_setup(base, this_thread->thread_id);
 	janitor_setup();
 
-	while(this_thread->cf_shutdown != SHUTDOWN_IMMEDIATE){
+	while (this_thread->cf_shutdown != SHUTDOWN_IMMEDIATE) {
 		multithread_reset_time_cache();
 		err = event_base_loop(base, EVLOOP_ONCE);
 		if (err < 0) {
-		if (errno != EINTR)
-			log_warning("event_loop failed: %s", strerror(errno));
+			if (errno != EINTR)
+				log_warning("event_loop failed: %s", strerror(errno));
 		}
 		per_loop_maint();
 		reuse_just_freed_objects(this_thread->thread_id);
@@ -419,16 +420,18 @@ void* worker_func(void* arg)
 	return NULL;
 }
 
-static void event_base_destructor(void* base_ptr) {
+static void event_base_destructor(void *base_ptr)
+{
 	if (base_ptr) {
-		event_base_free((struct event_base*)base_ptr);
+		event_base_free((struct event_base *)base_ptr);
 	}
 }
 
-void init_thread(int thread_id){
+void init_thread(int thread_id)
+{
 	threads[thread_id].thread_id = thread_id;
 	if (pipe(threads[thread_id].pipefd) < 0) {
-		die("Thread %d init failed",thread_id);
+		die("Thread %d init failed", thread_id);
 	}
 	evutil_make_socket_nonblocking(threads[thread_id].pipefd[0]);
 	evutil_make_socket_nonblocking(threads[thread_id].pipefd[1]);
@@ -449,7 +452,8 @@ void init_thread(int thread_id){
 	spin_lock_init(&(threads[thread_id].thread_lock), true);
 }
 
-void start_threads(void){
+void start_threads(void)
+{
 	pthread_key_create(&event_base_key, event_base_destructor);
 	pthread_key_create(&thread_pointer, NULL);
 
@@ -458,8 +462,9 @@ void start_threads(void){
 	}
 }
 
-void init_threads(void){
-	if(arg_thread_number < 1)
+void init_threads(void)
+{
+	if (arg_thread_number < 1)
 		return;
 	log_info("allocating %d threads.", arg_thread_number);
 	threads = calloc(arg_thread_number, sizeof(Thread));
@@ -472,17 +477,18 @@ void init_threads(void){
 	}
 }
 
-int wait_threads(void){
-	void* retval = NULL;
+int wait_threads(void)
+{
+	void *retval = NULL;
 	FOR_EACH_THREAD(tmp_thread_id){
 		int ret = pthread_join(threads[tmp_thread_id].worker, &retval);
-		 if (ret != 0) {
+		if (ret != 0) {
 			log_error("pthread_join failed, err=%d\n", ret);
 			return 1;
 		}
 
 		if (retval) {
-			long result = *((long*)retval);
+			long result = *((long *)retval);
 			log_error("[%d] Thread returned %ld\n", tmp_thread_id, result);
 		}
 	}
@@ -494,8 +500,9 @@ int wait_threads(void){
 }
 
 
-void multithread_event_wrapper(evutil_socket_t sock, short flags, void *arg){
-	MultithreadEventArgs* event_args = (MultithreadEventArgs*) arg;
+void multithread_event_wrapper(evutil_socket_t sock, short flags, void *arg)
+{
+	MultithreadEventArgs *event_args = (MultithreadEventArgs *) arg;
 
 	if (multithread_mode) {
 		spin_lock_acquire(&(threads[event_args->thread_id].thread_lock));
@@ -511,25 +518,29 @@ void multithread_event_wrapper(evutil_socket_t sock, short flags, void *arg){
 		free(event_args);
 }
 
-void lock_thread(int thread_id){
+void lock_thread(int thread_id)
+{
 	spin_lock_acquire(&(threads[thread_id].thread_lock));
 }
 
-void unlock_thread(int thread_id){
+void unlock_thread(int thread_id)
+{
 	spin_lock_release(&(threads[thread_id].thread_lock));
 }
 
-inline int get_current_thread_id(const bool multithread_mode){
-	Thread* this_thread;
-    if(!multithread_mode){
+inline int get_current_thread_id(const bool multithread_mode)
+{
+	Thread *this_thread;
+	if (!multithread_mode) {
 		return -1;
 	}
-	this_thread = (Thread*) pthread_getspecific(thread_pointer);
+	this_thread = (Thread *) pthread_getspecific(thread_pointer);
 	return this_thread->thread_id;
 }
 
-usec_t get_multithread_time_with_id(int thread_id){
-	if(!multithread_mode || thread_id < 0){
+usec_t get_multithread_time_with_id(int thread_id)
+{
+	if (!multithread_mode || thread_id < 0) {
 		return get_cached_time();
 	}
 	return get_cached_time_from_ptr(&threads[thread_id].multithread_time_cache);
@@ -538,7 +549,7 @@ usec_t get_multithread_time_with_id(int thread_id){
 void multithread_reset_time_cache(void)
 {
 	int thread_id;
-	if(!multithread_mode)
+	if (!multithread_mode)
 		return;
 	thread_id = get_current_thread_id(multithread_mode);
 	if (thread_id < 0) {
@@ -548,8 +559,9 @@ void multithread_reset_time_cache(void)
 }
 
 
-bool multithread_limits_init(ConnectionLimit** limit, SpinLock* lock){
-	if(!multithread_mode){
+bool multithread_limits_init(ConnectionLimit **limit, SpinLock *lock)
+{
+	if (!multithread_mode) {
 		return true;
 	}
 	*limit = NULL;
@@ -558,14 +570,15 @@ bool multithread_limits_init(ConnectionLimit** limit, SpinLock* lock){
 }
 
 
-int multithread_get_limit_count(const char* name, ConnectionLimit** limits, SpinLock* lock){
-	ConnectionLimit* limit_entry = NULL;
-	if(!multithread_mode){
+int multithread_get_limit_count(const char *name, ConnectionLimit **limits, SpinLock *lock)
+{
+	ConnectionLimit *limit_entry = NULL;
+	if (!multithread_mode) {
 		return -1;
 	}
 	spin_lock_acquire(lock);
 	HASH_FIND_STR(*limits, name, limit_entry);
-	if(limit_entry){
+	if (limit_entry) {
 		int count = limit_entry->current_count;
 		spin_lock_release(lock);
 		return count;
@@ -574,9 +587,10 @@ int multithread_get_limit_count(const char* name, ConnectionLimit** limits, Spin
 	return -1;
 }
 
-int multithread_get_limit(const char* name, ConnectionLimit** limits, SpinLock* lock){
-	ConnectionLimit* limit_entry = NULL;
-	if(!multithread_mode){
+int multithread_get_limit(const char *name, ConnectionLimit **limits, SpinLock *lock)
+{
+	ConnectionLimit *limit_entry = NULL;
+	if (!multithread_mode) {
 		return -1;
 	}
 	spin_lock_acquire(lock);
@@ -584,25 +598,26 @@ int multithread_get_limit(const char* name, ConnectionLimit** limits, SpinLock* 
 	// release lock early becuase limit is not expected to change
 	spin_lock_release(lock);
 
-	if(limit_entry){
+	if (limit_entry) {
 		int limit = limit_entry->limit;
 		return limit;
 	}
 	return -1;
 }
 
-void multithread_set_limit(const char* name, ConnectionLimit** limits, SpinLock* lock, int limit){
-	ConnectionLimit* limit_entry = NULL;
-	if(!multithread_mode){
+void multithread_set_limit(const char *name, ConnectionLimit **limits, SpinLock *lock, int limit)
+{
+	ConnectionLimit *limit_entry = NULL;
+	if (!multithread_mode) {
 		return;
 	}
 	spin_lock_acquire(lock);
 	HASH_FIND_STR(*limits, name, limit_entry);
-	if(limit_entry){
+	if (limit_entry) {
 		limit_entry->limit = limit;
-	}else{
-		limit_entry = (ConnectionLimit*)malloc(sizeof(ConnectionLimit));
-		if(!limit_entry){
+	} else {
+		limit_entry = (ConnectionLimit *)malloc(sizeof(ConnectionLimit));
+		if (!limit_entry) {
 			spin_lock_release(lock);
 			return;
 		}
@@ -615,14 +630,15 @@ void multithread_set_limit(const char* name, ConnectionLimit** limits, SpinLock*
 	spin_lock_release(lock);
 }
 
-void multithread_increase_limit_count(const char* name, ConnectionLimit** limits, SpinLock* lock){
-	ConnectionLimit* limit_entry = NULL;
-	if(!multithread_mode){
+void multithread_increase_limit_count(const char *name, ConnectionLimit **limits, SpinLock *lock)
+{
+	ConnectionLimit *limit_entry = NULL;
+	if (!multithread_mode) {
 		return;
 	}
 	spin_lock_acquire(lock);
 	HASH_FIND_STR(*limits, name, limit_entry);
-	if(!limit_entry){
+	if (!limit_entry) {
 		multithread_set_limit(name, limits, lock, -1);
 		HASH_FIND_STR(*limits, name, limit_entry);
 	}
@@ -631,39 +647,41 @@ void multithread_increase_limit_count(const char* name, ConnectionLimit** limits
 }
 
 
-void multithread_decrease_limit_count(const char* name, ConnectionLimit** limits, SpinLock* lock){
-	ConnectionLimit* limit_entry = NULL;
-	if(!multithread_mode){
+void multithread_decrease_limit_count(const char *name, ConnectionLimit **limits, SpinLock *lock)
+{
+	ConnectionLimit *limit_entry = NULL;
+	if (!multithread_mode) {
 		return;
 	}
 	spin_lock_acquire(lock);
 	HASH_FIND_STR(*limits, name, limit_entry);
-	if(limit_entry){
+	if (limit_entry) {
 		limit_entry->current_count--;
 		spin_lock_release(lock);
 		return;
-	}else{
+	} else {
 		fatal("Limit entry not found for %s", name);
 	}
 	spin_lock_release(lock);
 	return;
 }
 
-bool multithread_check_limit_count(const char* name, ConnectionLimit** limits, SpinLock* lock){
-	ConnectionLimit* limit_entry = NULL;
-	if(!multithread_mode){
+bool multithread_check_limit_count(const char *name, ConnectionLimit **limits, SpinLock *lock)
+{
+	ConnectionLimit *limit_entry = NULL;
+	if (!multithread_mode) {
 		return true;
 	}
 	spin_lock_acquire(lock);
 	HASH_FIND_STR(*limits, name, limit_entry);
-	if(limit_entry){
-		if(limit_entry->current_count >= limit_entry->limit){
+	if (limit_entry) {
+		if (limit_entry->current_count >= limit_entry->limit) {
 			spin_lock_release(lock);
 			return false;
 		}
 		spin_lock_release(lock);
 		return true;
-	}else{
+	} else {
 		fatal("Limit entry not found for %s", name);
 	}
 	spin_lock_release(lock);
@@ -671,15 +689,16 @@ bool multithread_check_limit_count(const char* name, ConnectionLimit** limits, S
 }
 
 
-void multithread_free_limits(ConnectionLimit** limits){
+void multithread_free_limits(ConnectionLimit **limits)
+{
 	ConnectionLimit *entry, *tmp;
-	if(!multithread_mode){
+	if (!multithread_mode) {
 		return;
 	}
 	HASH_ITER(hh, *limits, entry, tmp) {
-	    HASH_DEL(*limits, entry);
-	    free(entry->name);
-	    free(entry);
+		HASH_DEL(*limits, entry);
+		free(entry->name);
+		free(entry);
 	}
 	*limits = NULL;
 }

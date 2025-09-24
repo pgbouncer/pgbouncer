@@ -107,7 +107,7 @@ static PgServerPreparedStatement *create_server_prepared_statement(PgPreparedSta
 {
 	PgServerPreparedStatement *server_ps;
 	struct Slab *server_prepared_statement_cache_ = NULL;
-	if(multithread_mode){
+	if (multithread_mode) {
 		int thread_id = get_current_thread_id(multithread_mode);
 		server_prepared_statement_cache_ = threads[thread_id].server_prepared_statement_cache;
 	} else {
@@ -130,12 +130,12 @@ static PgServerPreparedStatement *create_server_prepared_statement(PgPreparedSta
 static PgPreparedStatement *get_prepared_statement(PgParsePacket *pkt, bool *found)
 {
 	PgPreparedStatement *ps = NULL;
-	MULTITHREAD_VISIT(multithread_mode, &prepared_statements_lock,{
+	MULTITHREAD_VISIT(multithread_mode, &prepared_statements_lock, {
 		HASH_FIND(hh,
-		prepared_statements,
-		pkt->query_and_parameters,
-		pkt->query_and_parameters_len,
-		ps);
+			  prepared_statements,
+			  pkt->query_and_parameters,
+			  pkt->query_and_parameters_len,
+			  ps);
 	});
 	if (ps != NULL) {
 		*found = true;
@@ -146,12 +146,12 @@ static PgPreparedStatement *get_prepared_statement(PgParsePacket *pkt, bool *fou
 	if (ps == NULL)
 		return NULL;
 
-	MULTITHREAD_VISIT(multithread_mode, &prepared_statements_lock,{
+	MULTITHREAD_VISIT(multithread_mode, &prepared_statements_lock, {
 		HASH_ADD(hh,
-			prepared_statements,
-			query_and_parameters,
-			ps->query_and_parameters_len,
-			ps);
+			 prepared_statements,
+			 query_and_parameters,
+			 ps->query_and_parameters_len,
+			 ps);
 	});
 	if (uthash_alloc_failed) {
 		uthash_alloc_failed = false;
@@ -201,7 +201,7 @@ void free_server_prepared_statement(PgServerPreparedStatement *server_ps)
 	if (server_ps == NULL)
 		return;
 	if (--server_ps->ps->use_count == 0) {
-		MULTITHREAD_VISIT(multithread_mode, &prepared_statements_lock,{
+		MULTITHREAD_VISIT(multithread_mode, &prepared_statements_lock, {
 			HASH_DEL(prepared_statements, server_ps->ps);
 		});
 		free(server_ps->ps);
@@ -662,13 +662,13 @@ bool handle_describe_command(PgSocket *client, PktHdr *pkt)
 	QUEUE_DescribeStmt(res, client, server, ps->stmt_name);
 	return res;
 oom:
-	disconnect_client(client, true,"out of memory");
+	disconnect_client(client, true, "out of memory");
 	/*
 	 * We also disconnect the server, because we probably messed with its state
 	 * at this prepared statement state at this point. And rolling that back is
 	 * hard.
 	 */
-	disconnect_server(client->link, true,"out of memory");
+	disconnect_server(client->link, true, "out of memory");
 	return false;
 }
 

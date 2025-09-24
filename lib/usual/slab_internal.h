@@ -6,8 +6,8 @@
 #include <usual/spinlock.h>
 
 /*
-* Store for pre-initialized objects of one type.
-*/
+ * Store for pre-initialized objects of one type.
+ */
 struct Slab {
 	struct List head;
 	struct StatList freelist;
@@ -15,7 +15,7 @@ struct Slab {
 	char name[32];
 	unsigned final_size;
 	unsigned total_count;
-	slab_init_fn  init_func;
+	slab_init_fn init_func;
 	CxMem *cx;
 };
 
@@ -28,8 +28,8 @@ struct SlabFrag {
 
 
 void init_slab(struct Slab *slab, const char *name, unsigned obj_size,
-		      unsigned align, slab_init_fn init_func,
-		      CxMem *cx);
+	       unsigned align, slab_init_fn init_func,
+	       CxMem *cx);
 
 void slab_destroy_internal(struct Slab *slab);
 

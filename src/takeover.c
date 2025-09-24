@@ -209,7 +209,7 @@ static void takeover_postprocess_fds(void)
 	struct List *item, *item2;
 	PgSocket *client;
 	PgPool *pool;
-	if(multithread_mode){
+	if (multithread_mode) {
 		log_error("takeover_postprocess_fds: multithread mode not supported");
 		return;
 	}
@@ -367,7 +367,7 @@ void takeover_init(void)
 {
 	PgDatabase *db;
 	PgPool *pool = NULL;
-	if(multithread_mode){
+	if (multithread_mode) {
 		log_error("takeover_init: multithread mode not supported");
 		return;
 	}

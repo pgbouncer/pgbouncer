@@ -84,7 +84,7 @@ usec_t get_cached_time(void)
 }
 
 /* read cached time from ptr*/
-usec_t get_cached_time_from_ptr(usec_t* time_cache_ptr)
+usec_t get_cached_time_from_ptr(usec_t *time_cache_ptr)
 {
 	if (!(*time_cache_ptr))
 		*time_cache_ptr = get_time_usec();

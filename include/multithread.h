@@ -23,56 +23,54 @@
 	(multithread_mode ? (threads[thread_id].name) : (name))
 
 
-#define MULTITHREAD_VISIT(multithread_mode, lock, func) 		        \
-	do { 											                    \
-		if (multithread_mode) { 					                    \
-			spin_lock_acquire(lock); 			                        \
-			func; 									                    \
-			spin_lock_release(lock); 			                        \
-		} else { 									                    \
-			func; 									                    \
+#define MULTITHREAD_VISIT(multithread_mode, lock, func)                         \
+	do {                                                                                                        \
+		if (multithread_mode) {                                                             \
+			spin_lock_acquire(lock);                                                \
+			func;                                                                                       \
+			spin_lock_release(lock);                                                \
+		} else {                                                                                            \
+			func;                                                                                       \
 		}                                                               \
 	} while (0)
 
 
-typedef struct SignalEvent{
-    /*
- * signal handling.
- *
- * handle_* functions are not actual signal handlers but called from
- * event_loop() so they have no restrictions what they can do.
- */
- struct event ev_sigterm;
- struct event ev_sigint;
+typedef struct SignalEvent {
+	/*
+	 * signal handling.
+	 *
+	 * handle_* functions are not actual signal handlers but called from
+	 * event_loop() so they have no restrictions what they can do.
+	 */
+	struct event ev_sigterm;
+	struct event ev_sigint;
 
 #ifndef WIN32
 
- struct event ev_sigquit;
- struct event ev_sigusr1;
- struct event ev_sigusr2;
- struct event ev_sighup;
+	struct event ev_sigquit;
+	struct event ev_sigusr1;
+	struct event ev_sigusr2;
+	struct event ev_sighup;
 #endif
 } SignalEvent;
 
 
-typedef struct WorkersignalEvents{
-
-    int pipe_sigterm[2];
-    int pipe_sigint[2];
-    struct event* ev_sigterm;
-    struct event* ev_sigint;
+typedef struct WorkersignalEvents {
+	int pipe_sigterm[2];
+	int pipe_sigint[2];
+	struct event *ev_sigterm;
+	struct event *ev_sigint;
 
 #ifndef WIN32
-    int pipe_sigquit[2];
-    int pipe_sigusr1[2];
-    int pipe_sigusr2[2];
-    int pipe_sighup[2];
-    struct event* ev_sigquit;
-    struct event* ev_sigusr1;
-    struct event* ev_sigusr2;
-    struct event* ev_sighup;
+	int pipe_sigquit[2];
+	int pipe_sigusr1[2];
+	int pipe_sigusr2[2];
+	int pipe_sighup[2];
+	struct event *ev_sigquit;
+	struct event *ev_sigusr1;
+	struct event *ev_sigusr2;
+	struct event *ev_sighup;
 #endif
-
 } WorkersignalEvents;
 
 
@@ -102,10 +100,10 @@ typedef struct Thread {
 	struct Slab *outstanding_request_cache;
 
 	/*
-	* libevent may still report events when event_del()
-	* is called from somewhere else.  So hide just freed
-	* PgSockets for one loop.
-	*/
+	 * libevent may still report events when event_del()
+	 * is called from somewhere else.  So hide just freed
+	 * PgSockets for one loop.
+	 */
 	struct StatList justfree_client_list;
 	struct StatList justfree_server_list;
 
@@ -116,11 +114,11 @@ typedef struct Thread {
 	struct PgPool *admin_pool;
 
 	int cf_shutdown;
-	int cf_pause_mode;  /* Thread-local pause mode */
-	bool pause_ready;   /* Thread ready for pause response */
-	bool wait_close_ready; /* Thread ready for wait_close response */
-	bool partial_pause; /* Thread has database-specific pauses */
-	int active_count;   /* Thread-local active count for pause/suspend */
+	int cf_pause_mode;	/* Thread-local pause mode */
+	bool pause_ready;	/* Thread ready for pause response */
+	bool wait_close_ready;	/* Thread ready for wait_close response */
+	bool partial_pause;	/* Thread has database-specific pauses */
+	int active_count;	/* Thread-local active count for pause/suspend */
 
 	unsigned int seq;
 
@@ -131,15 +129,15 @@ typedef struct Thread {
 } Thread;
 
 typedef struct ClientRequest {
-    int fd;
-    bool is_unix;
+	int fd;
+	bool is_unix;
 } ClientRequest;
 
 
 extern Thread *threads;
 extern int next_thread;
 
-void signal_setup(struct event_base * base, struct SignalEvent* signal_event);
+void signal_setup(struct event_base *base, struct SignalEvent *signal_event);
 void start_threads(void);
 void init_threads(void);
 int wait_threads(void);
@@ -159,11 +157,11 @@ void multithread_reset_time_cache(void);
 void multithread_event_wrapper(evutil_socket_t sock, short flags, void *arg);
 
 
-bool multithread_limits_init(ConnectionLimit** limit, SpinLock* lock);
-void multithread_set_limit(const char* name, ConnectionLimit** limits, SpinLock* lock, int limit);
-int multithread_get_limit(const char* name, ConnectionLimit** limits, SpinLock* lock);
-int multithread_get_limit_count(const char* name, ConnectionLimit** limits, SpinLock* lock);
-void multithread_increase_limit_count(const char* name, ConnectionLimit** limits, SpinLock* lock);
-void multithread_decrease_limit_count(const char* name, ConnectionLimit** limits, SpinLock* lock);
-bool multithread_check_limit_count(const char* name, ConnectionLimit** limits, SpinLock* lock);
-void multithread_free_limits(ConnectionLimit** limits);
+bool multithread_limits_init(ConnectionLimit **limit, SpinLock *lock);
+void multithread_set_limit(const char *name, ConnectionLimit **limits, SpinLock *lock, int limit);
+int multithread_get_limit(const char *name, ConnectionLimit **limits, SpinLock *lock);
+int multithread_get_limit_count(const char *name, ConnectionLimit **limits, SpinLock *lock);
+void multithread_increase_limit_count(const char *name, ConnectionLimit **limits, SpinLock *lock);
+void multithread_decrease_limit_count(const char *name, ConnectionLimit **limits, SpinLock *lock);
+bool multithread_check_limit_count(const char *name, ConnectionLimit **limits, SpinLock *lock);
+void multithread_free_limits(ConnectionLimit **limits);

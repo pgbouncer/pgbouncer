@@ -350,28 +350,28 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		if (client->sbuf.tls) {
 			char infobuf[96] = "";
 			tls_get_connection_info(client->sbuf.tls, infobuf, sizeof infobuf);
-			if(multithread_mode){
+			if (multithread_mode) {
 				slog_info(client, "[Thread %d] login attempt: db=%s user=%s tls=%s replication=%s",
-					client->sbuf.thread_id,
-					client->db->name,
-					client->login_user_credentials->name,
-					infobuf,
-					replication_type_parameters[client->replication]);
-			}else{
+					  client->sbuf.thread_id,
+					  client->db->name,
+					  client->login_user_credentials->name,
+					  infobuf,
+					  replication_type_parameters[client->replication]);
+			} else {
 				slog_info(client, "login attempt: db=%s user=%s tls=%s replication=%s",
-					client->db->name,
-					client->login_user_credentials->name,
-					infobuf,
-					replication_type_parameters[client->replication]);
+					  client->db->name,
+					  client->login_user_credentials->name,
+					  infobuf,
+					  replication_type_parameters[client->replication]);
 			}
 		} else {
-			if(multithread_mode){
+			if (multithread_mode) {
 				slog_info(client, "[Thread %d] login attempt: db=%s user=%s tls=no replication=%s",
-				  client->sbuf.thread_id, client->db->name, client->login_user_credentials->name,
-				  replication_type_parameters[client->replication]);
-			}else{
+					  client->sbuf.thread_id, client->db->name, client->login_user_credentials->name,
+					  replication_type_parameters[client->replication]);
+			} else {
 				slog_info(client, "login attempt: db=%s user=%s tls=no replication=%s", client->db->name, client->login_user_credentials->name,
-				  replication_type_parameters[client->replication]);
+					  replication_type_parameters[client->replication]);
 			}
 		}
 	}
@@ -467,10 +467,11 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	return ok;
 }
 
-static int get_client_connection_count(PgDatabase *db){
-	if(multithread_mode){
+static int get_client_connection_count(PgDatabase *db)
+{
+	if (multithread_mode) {
 		return multithread_get_limit_count(db->name, &db_client_connection_limits, &db_client_connection_limits_lock);
-	}else{
+	} else {
 		return db->connection_count;
 	}
 }

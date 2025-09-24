@@ -98,9 +98,9 @@ void cleanup_unix_sockets(void)
 	statlist_for_each_safe(el, &sock_list, tmp_l) {
 		ls = container_of(el, struct ListenSocket, node);
 		if (event_del(&ls->ev) < 0) {
-			if(multithread_mode){
+			if (multithread_mode) {
 				log_warning("[Thread %d] cleanup_sockets: event_del failed: %s", get_current_thread_id(multithread_mode), strerror(errno));
-			}else{
+			} else {
 				log_warning("cleanup_sockets, event_del: %s", strerror(errno));
 			}
 		}
@@ -360,7 +360,8 @@ static const char *conninfo(const PgSocket *sk)
 	}
 }
 
-static void accept_client_handler(bool is_unix, int fd){
+static void accept_client_handler(bool is_unix, int fd)
+{
 	PgSocket *client;
 	if (is_unix) {
 		client = accept_client(fd, true);
@@ -414,7 +415,7 @@ loop:
 	client_request.fd = fd;
 	client_request.is_unix = is_unix;
 
-	if(multithread_mode){
+	if (multithread_mode) {
 		// FIXME non-block pipe strategy
 		ssize_t n = write(threads[next_thread].pipefd[1], &client_request, sizeof(client_request));
 		if (n <= 0) {
@@ -425,7 +426,7 @@ loop:
 		// TODO optimize this round-robin!
 		next_thread++;
 		next_thread %= arg_thread_number;
-	}else{
+	} else {
 		accept_client_handler(is_unix, fd);
 	}
 	/*
@@ -435,9 +436,10 @@ loop:
 	goto loop;
 }
 
-static void handle_request(evutil_socket_t fd, short event, void* arg){
+static void handle_request(evutil_socket_t fd, short event, void *arg)
+{
 	struct ClientRequest client_request;
-	if(read(fd, &client_request, sizeof(client_request)) == -1){
+	if (read(fd, &client_request, sizeof(client_request)) == -1) {
 		log_error("Failed to read from pipe");
 		return;
 	}
@@ -564,22 +566,22 @@ static bool parse_addr(void *arg, const char *addr)
 	return true;
 }
 
-void thread_pooler_setup(void){
+void thread_pooler_setup(void)
+{
 	int thread_id = get_current_thread_id(multithread_mode);
-	struct event_base * base = threads[thread_id].base;
+	struct event_base *base = threads[thread_id].base;
 	threads[thread_id].handle_request_event_args.arg = NULL;
 	threads[thread_id].handle_request_event_args.func = handle_request;
 	threads[thread_id].handle_request_event_args.thread_id = thread_id;
 	threads[thread_id].handle_request_event_args.persistent = true;
 	event_assign(&(threads[thread_id].ev_handle_request),
-			base,
-			threads[thread_id].pipefd[0],
-			EV_READ | EV_PERSIST,
-			multithread_event_wrapper,
-			&threads[thread_id].handle_request_event_args);
+		     base,
+		     threads[thread_id].pipefd[0],
+		     EV_READ | EV_PERSIST,
+		     multithread_event_wrapper,
+		     &threads[thread_id].handle_request_event_args);
 
 	event_add(&(threads[thread_id].ev_handle_request), NULL);
-
 }
 
 /* listen on socket - should happen after all other initializations */

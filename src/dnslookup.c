@@ -876,7 +876,7 @@ struct DNSToken *adns_resolve(struct DNSContext *ctx, const char *name, adns_cal
 		list_init(&req->znode);
 		aatree_insert(&ctx->req_tree, (uintptr_t)req->name, &req->node);
 
-		if(req){
+		if (req) {
 			req->thread_id = thread_id;
 		}
 		zone_register(ctx, req);

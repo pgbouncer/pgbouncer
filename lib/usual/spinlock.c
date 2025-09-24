@@ -6,7 +6,8 @@
 
 #define SPIN_LOCK_INITIALIZED 1
 
-bool spin_lock_owns(SpinLock *lock){
+bool spin_lock_owns(SpinLock *lock)
+{
 #ifdef WIN32
 	volatile DWORD self;
 #else
@@ -18,18 +19,19 @@ bool spin_lock_owns(SpinLock *lock){
 
 	self = GET_THREAD_ID();
 
-	return THREAD_ID_EQUALS(lock->lock_word,self);
+	return THREAD_ID_EQUALS(lock->lock_word, self);
 }
 
-void spin_lock_init(SpinLock *lock, bool recursive) {
-	memset((void*)&(lock->lock_word), 0, sizeof(lock->lock_word));
+void spin_lock_init(SpinLock *lock, bool recursive)
+{
+	memset((void *)&(lock->lock_word), 0, sizeof(lock->lock_word));
 	lock->count = 0;
 	lock->initialized = SPIN_LOCK_INITIALIZED;
 	lock->enable_recursive = recursive;
 }
 
-void spin_lock_acquire(SpinLock *lock) {
-
+void spin_lock_acquire(SpinLock *lock)
+{
 	if (lock->initialized != SPIN_LOCK_INITIALIZED)
 		fatal("Attempt to acquire an uninitialized lock!");
 
@@ -53,8 +55,8 @@ void spin_lock_acquire(SpinLock *lock) {
 	lock->lock_word = GET_THREAD_ID();
 }
 
-void spin_lock_release(SpinLock *lock) {
-
+void spin_lock_release(SpinLock *lock)
+{
 	if (lock->initialized != SPIN_LOCK_INITIALIZED)
 		fatal("Attempt to release an uninitialized lock!");
 
@@ -63,7 +65,7 @@ void spin_lock_release(SpinLock *lock) {
 	}
 
 	if (lock->count > 1) {
-		lock->count --;
+		lock->count--;
 		return;
 	}
 

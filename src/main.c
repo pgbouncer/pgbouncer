@@ -431,7 +431,7 @@ static void set_dbs_dead(bool flag)
 {
 	struct List *item;
 	PgDatabase *db;
-	if(multithread_mode){
+	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id){
 			THREAD_SAFE_STATLIST_EACH(&(threads[thread_id].database_list), item, {
 				db = container_of(item, PgDatabase, head);
@@ -442,7 +442,7 @@ static void set_dbs_dead(bool flag)
 				db->db_dead = flag;
 			});
 		}
-	}else{
+	} else {
 		statlist_for_each(item, &database_list) {
 			db = container_of(item, PgDatabase, head);
 			if (db->admin)
@@ -698,7 +698,7 @@ static void check_limits(void)
 	}
 
 	/* calculate theoretical max, +10 is just in case */
-	if(multithread_mode){
+	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id){
 			THREAD_SAFE_STATLIST_EACH(&threads[thread_id].database_list, item, {
 				db = container_of(item, PgDatabase, head);
@@ -759,7 +759,7 @@ static void main_loop_once(void)
 			log_warning("event_loop failed: %s", strerror(errno));
 	}
 
-	if(!multithread_mode){
+	if (!multithread_mode) {
 		ldap_poll();
 		pam_poll();
 		per_loop_maint();
@@ -767,7 +767,7 @@ static void main_loop_once(void)
 		rescue_timers();
 		per_loop_pooler_maint();
 	}
-	if (adns){
+	if (adns) {
 		MULTITHREAD_VISIT(multithread_mode, &adns_lock, adns_per_loop(adns));
 	}
 
@@ -813,7 +813,7 @@ static void dns_setup(void)
 	adns = adns_create_context();
 	if (!adns)
 		die("dns setup failed");
-	if(multithread_mode){
+	if (multithread_mode) {
 		spin_lock_init(&adns_lock, true);
 	}
 }
@@ -955,7 +955,7 @@ int main(int argc, char *argv[])
 		case 'T':
 			arg_thread_number = atoi(optarg);
 			multithread_mode = true;
-			if(arg_thread_number < 1){
+			if (arg_thread_number < 1) {
 				fprintf(stderr, "invalid thread number: %d", arg_thread_number);
 				exit(1);
 			}
@@ -982,7 +982,7 @@ int main(int argc, char *argv[])
 	 */
 	atexit(cleanup);
 #endif
-	if(multithread_mode)
+	if (multithread_mode)
 		init_threads();
 
 	init_objects();
@@ -1011,7 +1011,7 @@ int main(int argc, char *argv[])
 
 	if (cf_reboot) {
 		log_warning("Online restart is deprecated, use so_reuseport instead");
-		if(multithread_mode){
+		if (multithread_mode) {
 			die("Multithread mode doean't support reboot.");
 		}
 		if (check_old_process_unix()) {
@@ -1048,9 +1048,9 @@ int main(int argc, char *argv[])
 	signal_setup(pgb_event_base, &signal_event);
 	stats_setup();
 
-	if(!multithread_mode){
+	if (!multithread_mode) {
 		janitor_setup();
-	}else{
+	} else {
 		main_thread_janitor_setup();
 	}
 	auth_ldap_init();
@@ -1068,7 +1068,7 @@ int main(int argc, char *argv[])
 		 tls_backend_version());
 
 	sd_notify(0, "READY=1");
-	if(multithread_mode)
+	if (multithread_mode)
 		start_threads();
 
 	/* main loop */
@@ -1076,7 +1076,7 @@ int main(int argc, char *argv[])
 		main_loop_once();
 
 
-	if(multithread_mode)
+	if (multithread_mode)
 		return wait_threads();
 
 	return 0;

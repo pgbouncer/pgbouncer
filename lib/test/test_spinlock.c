@@ -7,16 +7,16 @@
  */
 static void test_spin_lock_basic(void *p)
 {
-    SpinLock lock;
-    spin_lock_init(&lock);
+	SpinLock lock;
+	spin_lock_init(&lock);
 
-    spin_lock_acquire(&lock);
-    int_check(lock.count, 1);
+	spin_lock_acquire(&lock);
+	int_check(lock.count, 1);
 
-    spin_lock_release(&lock);
-    int_check(lock.count, 0);
+	spin_lock_release(&lock);
+	int_check(lock.count, 0);
 
-end:;
+end:    ;
 }
 
 /*
@@ -35,13 +35,13 @@ static void *thread_function(void *arg)
 		shared_counter++;
 		spin_lock_release(&shared_lock);
 	}
-    return NULL;
+	return NULL;
 }
 
 static void test_spin_lock_multithreaded(void *p)
 {
-    pthread_t threads[NUM_THREADS];
-    spin_lock_init(&shared_lock);
+	pthread_t threads[NUM_THREADS];
+	spin_lock_init(&shared_lock);
 
 	for (int i = 0; i < NUM_THREADS; i++) {
 		pthread_create(&threads[i], NULL, thread_function, NULL);
@@ -51,8 +51,8 @@ static void test_spin_lock_multithreaded(void *p)
 		pthread_join(threads[i], NULL);
 	}
 
-    int_check(shared_counter, NUM_THREADS * NUM_ITERATIONS);
-end:;
+	int_check(shared_counter, NUM_THREADS * NUM_ITERATIONS);
+end:    ;
 }
 
 /*
@@ -82,13 +82,13 @@ static void *recursive_thread_function(void *arg)
 			spin_lock_release(&recursive_lock);
 		}
 	}
-    return NULL;
+	return NULL;
 }
 
 static void test_spin_lock_recursive(void *p)
 {
-    pthread_t threads[NUM_RECURSIVE_THREADS];
-    spin_lock_init(&recursive_lock, true);
+	pthread_t threads[NUM_RECURSIVE_THREADS];
+	spin_lock_init(&recursive_lock, true);
 	for (int i = 0; i < NUM_RECURSIVE_THREADS; i++) {
 		pthread_create(&threads[i], NULL, recursive_thread_function, NULL);
 	}
@@ -97,8 +97,8 @@ static void test_spin_lock_recursive(void *p)
 		pthread_join(threads[i], NULL);
 	}
 
-    int_check(recursive_counter, NUM_RECURSIVE_THREADS * NUM_RECURSIVE_ITERATIONS);
-end:;
+	int_check(recursive_counter, NUM_RECURSIVE_THREADS * NUM_RECURSIVE_ITERATIONS);
+end:    ;
 }
 
 
@@ -106,8 +106,8 @@ end:;
  * Describe test cases
  */
 struct testcase_t spinlock_tests[] = {
-    { "basic", test_spin_lock_basic },
-    { "multithread", test_spin_lock_multithreaded },
-    { "recursive", test_spin_lock_recursive },
-    END_OF_TESTCASES
+	{ "basic", test_spin_lock_basic },
+	{ "multithread", test_spin_lock_multithreaded },
+	{ "recursive", test_spin_lock_recursive },
+	END_OF_TESTCASES
 };

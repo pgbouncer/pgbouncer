@@ -785,8 +785,8 @@ struct PgSocket {
 	SBuf sbuf;		/* stream buffer, must be last */
 };
 
-struct ConnectionLimit{
-	char* name;
+struct ConnectionLimit {
+	char *name;
 	int limit;
 	int current_count;
 	UT_hash_handle hh;

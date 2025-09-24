@@ -113,8 +113,8 @@ bool varcache_set(VarCache *cache, const char *key, const char *value, int threa
 	struct PStr *pstr = NULL;
 	struct StrPool *pool;
 	struct StrPool **vpool_ = &vpool;
-	if(multithread_mode){
-		vpool_  = &(threads[thread_id].vpool);
+	if (multithread_mode) {
+		vpool_ = &(threads[thread_id].vpool);
 	}
 	if (!(*vpool_)) {
 		(*vpool_) = strpool_create(USUAL_ALLOC);
@@ -308,12 +308,12 @@ void varcache_add_params(PktBuf *pkt, VarCache *vars)
 
 void varcache_deinit(void)
 {
-	if(multithread_mode){
+	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id){
 			strpool_free(threads[thread_id].vpool);
 			threads[thread_id].vpool = NULL;
 		}
-	}else{
+	} else {
 		strpool_free(vpool);
 		vpool = NULL;
 	}

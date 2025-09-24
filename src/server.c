@@ -278,7 +278,7 @@ int probably_wrong_pool_pool_mode(PgPool *pool)
 int pool_pool_size(PgPool *pool)
 {
 	int user_pool_size;
-	MULTITHREAD_VISIT(multithread_mode, &user_lock,{
+	MULTITHREAD_VISIT(multithread_mode, &user_lock, {
 		user_pool_size = pool->user_credentials ? pool->user_credentials->global_user->pool_size : -1;
 	});
 	if (user_pool_size >= 0)
@@ -327,9 +327,9 @@ int pool_res_pool_size(PgPool *pool)
 int database_max_client_connections(PgDatabase *db)
 {
 	int max_db_client_connections;
-	if(multithread_mode){
+	if (multithread_mode) {
 		max_db_client_connections = multithread_get_limit(db->name, &db_client_connection_limits, &db_client_connection_limits_lock);
-	}else{
+	} else {
 		max_db_client_connections = db->max_db_client_connections;
 	}
 	if (max_db_client_connections <= 0)
@@ -342,9 +342,9 @@ int database_max_client_connections(PgDatabase *db)
 int database_max_connections(PgDatabase *db)
 {
 	int limit = -1;
-	if(multithread_mode){
+	if (multithread_mode) {
 		limit = multithread_get_limit(db->name, &db_connection_limits, &db_connection_limits_lock);
-	}else{
+	} else {
 		limit = db->max_db_connections;
 	}
 
@@ -386,7 +386,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 
 	Assert(!server->pool->db->admin);
 
-	if(multithread_mode){
+	if (multithread_mode) {
 		outstanding_request_cache_ = threads[thread_id].outstanding_request_cache;
 	} else {
 		outstanding_request_cache_ = outstanding_request_cache;
@@ -650,8 +650,8 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 					 * correct way out: Simply disconnecting the involved
 					 * client and server.
 					 */
-					disconnect_client(client, true,"out of memory");
-					disconnect_server(client->link, true,"out of memory");
+					disconnect_client(client, true, "out of memory");
+					disconnect_server(client->link, true, "out of memory");
 					return false;
 				}
 				slab_free(outstanding_request_cache_, request);
@@ -741,7 +741,7 @@ static bool handle_sslchar(PgSocket *server, struct MBuf *data)
 
 	ok = mbuf_get_byte(data, &schar);
 	if (!ok || (schar != 'S' && schar != 'N')) {
-		disconnect_server(server, false,"bad sslreq answer");
+		disconnect_server(server, false, "bad sslreq answer");
 		return false;
 	}
 	/*
@@ -751,7 +751,7 @@ static bool handle_sslchar(PgSocket *server, struct MBuf *data)
 	 * injected by a man-in-the-middle.
 	 */
 	if (mbuf_avail_for_read(data) != 0) {
-		disconnect_server(server, false,"received unencrypted data after SSL response");
+		disconnect_server(server, false, "received unencrypted data after SSL response");
 		return false;
 	}
 
@@ -759,7 +759,7 @@ static bool handle_sslchar(PgSocket *server, struct MBuf *data)
 		slog_noise(server, "launching tls");
 		ok = sbuf_tls_connect(&server->sbuf, server->host);
 	} else if (server_connect_sslmode >= SSLMODE_REQUIRE) {
-		disconnect_server(server, false,"server refused SSL");
+		disconnect_server(server, false, "server refused SSL");
 		return false;
 	} else {
 		/* proceed with non-TLS connection */
@@ -769,7 +769,7 @@ static bool handle_sslchar(PgSocket *server, struct MBuf *data)
 	if (ok) {
 		sbuf_prepare_skip(&server->sbuf, 1);
 	} else {
-		disconnect_server(server, false,"sslreq processing failed");
+		disconnect_server(server, false, "sslreq processing failed");
 	}
 	return ok;
 }

@@ -245,7 +245,8 @@ fail:
 	return false;
 }
 
-bool parse_database_multithread(void *base, const char *name, const char *connstr){
+bool parse_database_multithread(void *base, const char *name, const char *connstr)
+{
 	bool res = true;
 
 	if (!multithread_mode) {
@@ -494,13 +495,13 @@ bool parse_database(void *base, const char *name, const char *connstr, int threa
 			log_warning("db setup failed, trying to continue");
 	} else if (db->forced_user_credentials) {
 		log_warning("losing forced user not supported,"
-				" keeping old setting");
+			    " keeping old setting");
 	}
 
 	/* remember dbname */
 	db->dbname = (char *)msg->buf + dbname_ofs;
 
-	if(multithread_mode){
+	if (multithread_mode) {
 		multithread_set_limit(db->dbname, &db_connection_limits, &db_connection_limits_lock, max_db_connections);
 		multithread_set_limit(db->dbname, &db_client_connection_limits, &db_client_connection_limits_lock, max_db_client_connections);
 	}
@@ -709,7 +710,6 @@ static void disable_users(void)
 		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
 		user->credentials.passwd[0] = 0;
 	});
-
 }
 
 /* load list of users from auth_file */

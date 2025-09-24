@@ -69,7 +69,6 @@ void thread_safe_slab_destroy(struct ThreadSafeSlab *ts_slab)
 
     ts_slab_list_remove(ts_slab);
     slab_destroy_internal(ts_slab->slab);
-    cx_free(ts_slab->slab->cx, ts_slab);
 }
 
 /* allocate one object from the slab */

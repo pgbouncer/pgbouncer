@@ -673,13 +673,13 @@ static bool admin_show_peers(PgSocket *admin, const char *arg)
 
 	pktbuf_write_RowDescription(buf, "isii",
 				    "peer_id", "host", "port", "pool_size");
-	statlist_for_each(item, &peer_list) {
+	THREAD_SAFE_STATLIST_EACH(&peer_list, item, {
 		peer = container_of(item, PgDatabase, head);
 
 		pktbuf_write_DataRow(buf, "isii",
 				     peer->peer_id, peer->host, peer->port,
 				     peer->pool_size >= 0 ? peer->pool_size : cf_default_pool_size);
-	}
+	});
 	admin_flush(admin, buf, "SHOW");
 	return true;
 }
@@ -734,7 +734,7 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 
 	SENDLIST("databases", total_database_count);
 	SENDLIST("users", thread_safe_statlist_count(&thread_safe_user_list));
-	SENDLIST("peers", statlist_count(&peer_list));
+	SENDLIST("peers", thread_safe_statlist_count(&peer_list));
 	SENDLIST("pools", total_pool_list);
 	SENDLIST("peer_pools", total_peer_pool_list);
 	SENDLIST("free_clients", total_free_clients);
@@ -957,7 +957,7 @@ static void show_socket_list(PktBuf *buf, struct StatList *list, int thread_id, 
 	}
 }
 
-static void show_client(PktBuf *buf, struct StatList *pool_list_ptr, struct StatList *peer_pool_list_ptr, int thread_id)
+static void show_client(PktBuf *buf, struct StatList *pool_list_ptr, struct ThreadSafeStatList *peer_pool_list_ptr, int thread_id)
 {
 	struct List *item;
 	PgPool *pool;
@@ -970,12 +970,12 @@ static void show_client(PktBuf *buf, struct StatList *pool_list_ptr, struct Stat
 		show_socket_list(buf, &pool->waiting_cancel_req_list, thread_id, "waiting_cancel_req", false);
 	}
 
-	statlist_for_each(item, peer_pool_list_ptr) {
+	THREAD_SAFE_STATLIST_EACH(peer_pool_list_ptr, item, {
 		pool = container_of(item, PgPool, head);
 
 		show_socket_list(buf, &pool->active_cancel_req_list, thread_id, "active_cancel_req", false);
 		show_socket_list(buf, &pool->waiting_cancel_req_list, thread_id, "waiting_cancel_req", false);
-	}
+	});
 }
 
 
@@ -1950,7 +1950,6 @@ static PgSocket * find_client_global(unsigned long long int target_id)
 
 	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id){
-			lock_thread(thread_id);
 			THREAD_SAFE_STATLIST_EACH((&threads[thread_id].pool_list), item, {
 				pool = container_of(item, PgPool, head);
 				kill_client = find_client_global_pool(pool, target_id);
@@ -1968,7 +1967,6 @@ static PgSocket * find_client_global(unsigned long long int target_id)
 					return kill_client;
 				}
 			});
-			unlock_thread(thread_id);
 		}
 	} else {
 		statlist_for_each(item, &pool_list) {

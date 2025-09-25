@@ -125,6 +125,40 @@ static inline void thread_safe_statlist_put_after(struct ThreadSafeStatList *lis
 		}                                                               \
 	} while (0)
 
+#define THREAD_SAFE_STATLIST_EACH(list_ptr, item, BODY)                 \
+	do {                                                                \
+		struct List *tmp;                                               \
+		if (multithread_mode) {                                           \
+			spin_lock_acquire(&(list_ptr)->lock);                   \
+		}                                                               \
+		statlist_for_each_safe(item, &(list_ptr)->list, tmp) {          \
+			BODY                                                    \
+		}                                                               \
+		if (multithread_mode) {                                           \
+			spin_lock_release(&(list_ptr)->lock);                   \
+		}                                                               \
+	} while (0)
+
+#define THREAD_SAFE_STATLIST_EACH_BY_NAME(list_name, thread_id, item, BODY)		\
+	do {									\
+		struct List *tmp;					       	\
+		struct StatList *list_ptr;					\
+		if(multithread_mode) {						\
+			list_ptr = &threads[thread_id].list_name.list;		\
+		} else {							\
+			list_ptr = &list_name;					\
+		}								\
+		if (multithread_mode) {						\
+			spin_lock_acquire(&(threads[thread_id].list_name.lock));	\
+		}                                                               \
+		statlist_for_each_safe(item, list_ptr, tmp) {          		\
+			BODY                                                    \
+		}                                                               \
+		if (multithread_mode) {                                         \
+			spin_lock_release(&(threads[thread_id].list_name.lock));  \
+		}                                                               \
+	} while (0)
+
 #define THREAD_SAFE_STATLIST_REVERSE_EACH(list_ptr, item, BODY)         \
 	do {                                                                \
 		struct List *tmp;                                               \

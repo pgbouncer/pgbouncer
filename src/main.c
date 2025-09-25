@@ -459,10 +459,10 @@ static void set_peers_dead(bool flag)
 	struct List *item;
 	PgDatabase *db;
 
-	statlist_for_each(item, &peer_list) {
+	THREAD_SAFE_STATLIST_EACH(&peer_list, item, {
 		db = container_of(item, PgDatabase, head);
 		db->db_dead = flag;
-	}
+	});
 }
 
 /* Tells if the specified auth type requires data from the auth file. */

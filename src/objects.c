@@ -36,7 +36,7 @@
 struct ThreadSafeStatList thread_safe_user_list;
 STATLIST(database_list);
 STATLIST(pool_list);
-STATLIST(peer_list);
+struct ThreadSafeStatList peer_list;
 STATLIST(peer_pool_list);
 
 /* All locally defined users (in auth_file) are kept here. */
@@ -76,7 +76,7 @@ STATLIST(login_client_list);
 struct Slab *server_cache;
 struct Slab *client_cache;
 struct Slab *db_cache;
-struct Slab *peer_cache;
+struct ThreadSafeSlab *thread_safe_peer_cache;
 struct Slab *peer_pool_cache;
 struct Slab *pool_cache;
 struct ThreadSafeSlab *thread_safe_user_cache;
@@ -197,6 +197,7 @@ static void credentials_node_release(struct AANode *node, void *arg)
 void init_objects(void)
 {
 	thread_safe_statlist_init(&thread_safe_user_list, "thread_safe_user_list", true);
+	thread_safe_statlist_init(&peer_list, "peer_list", true);
 	aatree_init(&user_tree, global_user_node_cmp, NULL);
 	aatree_init(&pam_user_tree, credentials_node_cmp, NULL);
 	spin_lock_init(&user_tree_lock, true);
@@ -204,7 +205,9 @@ void init_objects(void)
 	spin_lock_init(&user_lock, true);
 	thread_safe_user_cache = thread_safe_slab_create("thread_safe_user_cache", sizeof(PgGlobalUser), 0, NULL, USUAL_ALLOC, true);
 	thread_safe_credentials_cache = thread_safe_slab_create("thread_safe_credentials_cache", sizeof(PgCredentials), 0, NULL, USUAL_ALLOC, true);
-	if (!thread_safe_credentials_cache)
+	thread_safe_peer_cache = thread_safe_slab_create("thread_safe_peer_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC, true);
+
+	if (!thread_safe_credentials_cache || !thread_safe_peer_cache || !thread_safe_user_cache)
 		fatal("cannot create initial caches");
 
 	if (multithread_mode) {
@@ -213,12 +216,11 @@ void init_objects(void)
 	}
 
 	db_cache = slab_create("db_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
-	peer_cache = slab_create("peer_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
 	peer_pool_cache = slab_create("peer_pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
 	pool_cache = slab_create("pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
 	outstanding_request_cache = slab_create("outstanding_request_cache", sizeof(OutstandingRequest), 0, NULL, USUAL_ALLOC);
 
-	if (!db_cache || !peer_cache || !peer_pool_cache || !pool_cache)
+	if (!db_cache || !peer_pool_cache || !pool_cache)
 		fatal("cannot create initial caches");
 }
 
@@ -253,13 +255,6 @@ void init_objects_multithread(void)
 		if (!threads[thread_id].outstanding_request_cache)
 			fatal("cannot create initial outstanding_request_cache");
 	}
-
-	// ??
-	peer_cache = slab_create("peer_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
-
-	if (!peer_cache)
-		fatal("cannot create initial peer_cache");
-
 
 	spin_lock_init(&client_count_lock, true);
 	spin_lock_init(&total_active_count_lock, true);
@@ -611,13 +606,13 @@ PgDatabase *add_peer(const char *name, int peer_id)
 
 	/* create new object if needed */
 	if (peer == NULL) {
-		peer = slab_alloc(peer_cache);
+		peer = thread_safe_slab_alloc(thread_safe_peer_cache);
 		if (!peer)
 			return NULL;
 
 		list_init(&peer->head);
 		peer->peer_id = peer_id;
-		put_in_order(&peer->head, &peer_list, cmp_peer);
+		thread_safe_put_in_order(&peer->head, &peer_list, cmp_peer);
 	}
 
 	return peer;
@@ -803,11 +798,11 @@ PgDatabase *find_peer(int peer_id)
 {
 	struct List *item;
 	PgDatabase *peer;
-	statlist_for_each(item, &peer_list) {
+	THREAD_SAFE_STATLIST_EACH(&peer_list, item, {
 		peer = container_of(item, PgDatabase, head);
 		if (peer->peer_id == peer_id)
 			return peer;
-	}
+	});
 	return NULL;
 }
 
@@ -992,6 +987,8 @@ static PgPool *new_peer_pool(PgDatabase *db)
 	} else {
 		put_in_order(&pool->head, peer_pool_list_ptr, cmp_peer_pool);
 	}
+
+	pool->thread_id = thread_id;
 
 	return pool;
 }
@@ -3096,10 +3093,10 @@ void objects_cleanup(void)
 		db = container_of(item, PgDatabase, head);
 		kill_database(db);
 	}
-	statlist_for_each_safe(item, &peer_list, tmp) {
+	THREAD_SAFE_STATLIST_EACH(&peer_list, item, {
 		PgDatabase *peer = container_of(item, PgDatabase, head);
 		kill_peer(peer);
-	}
+	});
 
 	statlist_for_each_safe(item, &justfree_server_list, tmp) {
 		PgSocket *server = container_of(item, PgSocket, head);
@@ -3128,8 +3125,8 @@ void objects_cleanup(void)
 	client_cache = NULL;
 	slab_destroy(db_cache);
 	db_cache = NULL;
-	slab_destroy(peer_cache);
-	peer_cache = NULL;
+	thread_safe_slab_destroy(thread_safe_peer_cache);
+	thread_safe_peer_cache = NULL;
 	slab_destroy(peer_pool_cache);
 	peer_pool_cache = NULL;
 	slab_destroy(pool_cache);

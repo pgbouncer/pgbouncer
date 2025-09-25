@@ -908,7 +908,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			slog_noise(server, "SSL established: %s", infobuf);
 		}
 
-		server->request_time = get_current_thread_id(thread_id);
+		server->request_time = get_multithread_time_with_id(thread_id);
 		res = send_startup_packet(server);
 		if (res)
 			sbuf_continue(&server->sbuf);

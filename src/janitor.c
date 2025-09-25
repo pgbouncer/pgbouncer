@@ -1288,28 +1288,20 @@ void kill_database(PgDatabase *db)
 void kill_peer(PgDatabase *db)
 {
 	PgPool *pool;
-	struct List *item, *tmp;
+	struct List *item;
 	int thread_id = db->thread_id;
 
 	log_warning("dropping peer %s as it does not exist anymore", db->name);
 
-	if (thread_id != -1) {
-		THREAD_SAFE_STATLIST_EACH(&threads[thread_id].peer_pool_list, item, {
-			pool = container_of(item, PgPool, head);
-			if (pool->db->name == db->name)
-				kill_peer_pool(pool);
-		});
-	} else {
-		statlist_for_each_safe(item, &peer_pool_list, tmp) {
-			pool = container_of(item, PgPool, head);
-			if (pool->db->name == db->name)
-				kill_peer_pool(pool);
-		}
-	}
+	THREAD_SAFE_STATLIST_EACH_BY_NAME(peer_pool_list, thread_id, item, {
+		pool = container_of(item, PgPool, head);
+		if (pool->db->name == db->name)
+			kill_peer_pool(pool);
+	});
 	free(db->host);
 
-	statlist_remove(&peer_list, &db->head);
-	slab_free(peer_cache, db);
+	thread_safe_statlist_remove(&peer_list, &db->head);
+	thread_safe_slab_free(thread_safe_peer_cache, db);
 }
 
 /* as [pgbouncer] section can be loaded after databases,
@@ -1329,13 +1321,13 @@ void config_postprocess(void)
 				}
 			}
 
-			statlist_for_each_safe(item, &peer_list, tmp) {
+			THREAD_SAFE_STATLIST_EACH(&peer_list, item, {
 				db = container_of(item, PgDatabase, head);
 				if (db->db_dead) {
 					kill_peer(db);
 					continue;
 				}
-			}
+			});
 		}
 	} else {
 		statlist_for_each_safe(item, &database_list, tmp) {
@@ -1346,13 +1338,13 @@ void config_postprocess(void)
 			}
 		}
 
-		statlist_for_each_safe(item, &peer_list, tmp) {
+		THREAD_SAFE_STATLIST_EACH(&peer_list, item, {
 			db = container_of(item, PgDatabase, head);
 			if (db->db_dead) {
 				kill_peer(db);
 				continue;
 			}
-		}
+		});
 	}
 }
 

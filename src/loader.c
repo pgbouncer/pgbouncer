@@ -241,6 +241,7 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 	});
 
 	free(tmp_connstr);
+	free(host);
 	return true;
 fail:
 	free(tmp_connstr);

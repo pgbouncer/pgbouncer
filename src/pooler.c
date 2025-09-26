@@ -165,7 +165,7 @@ static bool add_listen(int af, const struct sockaddr *sa, int salen)
 	 * the socket option in that case, but this area is fairly
 	 * unportable, so perhaps better to avoid it.)
 	 */
-	if (af != AF_UNIX) {
+	if (af != AF_UNIX && cf_so_reuseport) {
 #if defined(SO_REUSEPORT_LB)
 		int val = 1;
 		errpos = "setsockopt/SO_REUSEPORT_LB";

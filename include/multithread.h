@@ -15,6 +15,18 @@
 	     (id) < arg_thread_number;  \
 	     (id)++)
 
+#define THREAD_ITERATE(id, func)	\
+	do{			\
+		if(multithread_mode){	\
+			for(int id=0;id<arg_thread_number;id++){	\
+				func;	\
+			}	\
+		}	\
+		else{	\
+			int id = -1;	\
+			func;	\
+		}	\
+	}while(0)
 
 #define GET_MULTITHREAD_PTR(name, thread_id) \
 	(multithread_mode ? (void *)&(threads[thread_id].name) : (void *)&name)
@@ -34,6 +46,20 @@
 		}                                                               \
 	} while (0)
 
+#define THREAD_SAFE_STATLIST_EACH_BY_NAME(list_name, thread_id, item, BODY)		\
+	do {									\
+		struct List *tmp;					       	\
+		struct ThreadSafeStatList *list_ptr = GET_MULTITHREAD_PTR(list_name, thread_id);	\
+		if (multithread_mode) {						\
+			spin_lock_acquire(&list_ptr->lock);	\
+		}                                                               \
+		statlist_for_each_safe(item, &list_ptr->list, tmp) {          		\
+			BODY                                                    \
+		}                                                               \
+		if (multithread_mode) {                                         \
+			spin_lock_release(&list_ptr->lock);  \
+		}                                                               \
+	} while (0)
 
 typedef struct SignalEvent {
 	/*
@@ -86,12 +112,14 @@ typedef struct Thread {
 	struct StatList login_client_list;
 	struct ThreadSafeStatList pool_list;
 	struct ThreadSafeStatList peer_pool_list;
+	struct ThreadSafeStatList peer_list;
 	struct WorkersignalEvents worker_signal_events;
 	struct ThreadSafeStatList database_list;
 	struct StatList autodatabase_idle_list;
 	struct Slab *client_cache;
 	struct Slab *server_cache;
 	struct Slab *pool_cache;
+	struct Slab *peer_cache;
 	struct Slab *peer_pool_cache;
 	struct Slab *db_cache;
 	struct Slab *var_list_cache;

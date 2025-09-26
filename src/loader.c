@@ -223,19 +223,22 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 		goto fail;
 	}
 
-	peer = add_peer(name, peer_id);
-	if (!peer) {
-		log_error("cannot create peer, no memory?");
-		goto fail;
-	}
+	THREAD_ITERATE(thread_id, {
+		peer = add_peer(name, peer_id, thread_id);
+		if (!peer) {
+			log_error("cannot create peer, no memory?");
+			goto fail;
+		}
 
-	/* tag the peer as alive */
-	peer->db_dead = false;
+		/* tag the peer as alive */
+		peer->db_dead = false;
 
-	free(peer->host);
-	peer->host = host;
-	peer->port = port;
-	peer->pool_size = pool_size;
+		free(peer->host);
+		peer->host = strdup(host);
+		peer->port = port;
+		peer->pool_size = pool_size;
+		peer->thread_id = thread_id;
+	});
 
 	free(tmp_connstr);
 	return true;

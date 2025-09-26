@@ -673,13 +673,26 @@ static bool admin_show_peers(PgSocket *admin, const char *arg)
 
 	pktbuf_write_RowDescription(buf, "isii",
 				    "peer_id", "host", "port", "pool_size");
-	THREAD_SAFE_STATLIST_EACH(&peer_list, item, {
-		peer = container_of(item, PgDatabase, head);
+	if(multithread_mode){
+		FOR_EACH_THREAD(thread_id){
+			THREAD_SAFE_STATLIST_EACH(&(threads[thread_id].peer_list), item, {
+				peer = container_of(item, PgDatabase, head);
 
-		pktbuf_write_DataRow(buf, "isii",
-				     peer->peer_id, peer->host, peer->port,
-				     peer->pool_size >= 0 ? peer->pool_size : cf_default_pool_size);
-	});
+				pktbuf_write_DataRow(buf, "iisii",
+						     thread_id,
+						     peer->peer_id, peer->host, peer->port,
+						     peer->pool_size >= 0 ? peer->pool_size : cf_default_pool_size);
+			});
+		}
+	}else{
+		THREAD_SAFE_STATLIST_EACH(&peer_list, item, {
+			peer = container_of(item, PgDatabase, head);
+
+			pktbuf_write_DataRow(buf, "isii",
+					peer->peer_id, peer->host, peer->port,
+					peer->pool_size >= 0 ? peer->pool_size : cf_default_pool_size);
+		});
+	}
 	admin_flush(admin, buf, "SHOW");
 	return true;
 }
@@ -688,10 +701,9 @@ static bool admin_show_peers(PgSocket *admin, const char *arg)
 /* Command: SHOW LISTS */
 static bool admin_show_lists(PgSocket *admin, const char *arg)
 {
-	int total_database_count, total_pool_list, total_peer_pool_list;
+	int total_database_count, total_pool_list, total_peer_pool_list, total_peer_list;
 	int total_free_clients, total_used_clients, total_login_clients;
 	int total_free_servers, total_used_servers;
-	int names, zones, qry, pend;
 
 	PktBuf *buf = pktbuf_dynamic(256);
 	if (!buf) {
@@ -703,6 +715,7 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 
 	total_database_count = 0;
 	total_pool_list = 0;
+	total_peer_list = 0;
 	total_peer_pool_list = 0;
 	total_free_clients = 0;
 	total_used_clients = 0;
@@ -714,6 +727,7 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 		FOR_EACH_THREAD(thread_id){
 			total_database_count += thread_safe_statlist_count(&(threads[thread_id].database_list));
 			total_pool_list += thread_safe_statlist_count(&(threads[thread_id].pool_list));
+			total_peer_list += thread_safe_statlist_count(&(threads[thread_id].peer_list));
 			total_peer_pool_list += thread_safe_statlist_count(&(threads[thread_id].peer_pool_list));
 			total_free_clients += slab_free_count(threads[thread_id].client_cache);
 			total_used_clients += slab_active_count(threads[thread_id].client_cache);
@@ -724,7 +738,8 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 	} else {
 		total_database_count = statlist_count(&database_list);
 		total_pool_list = statlist_count(&pool_list);
-		total_peer_pool_list = statlist_count(&peer_pool_list);
+		total_peer_list = thread_safe_statlist_count(&peer_list);
+		total_peer_pool_list = thread_safe_statlist_count(&peer_pool_list);
 		total_free_clients = slab_free_count(client_cache);
 		total_used_clients = slab_active_count(client_cache);
 		total_login_clients = statlist_count(&login_client_list);
@@ -734,7 +749,7 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 
 	SENDLIST("databases", total_database_count);
 	SENDLIST("users", thread_safe_statlist_count(&thread_safe_user_list));
-	SENDLIST("peers", thread_safe_statlist_count(&peer_list));
+	SENDLIST("peers", total_peer_list);
 	SENDLIST("pools", total_pool_list);
 	SENDLIST("peer_pools", total_peer_pool_list);
 	SENDLIST("free_clients", total_free_clients);
@@ -743,6 +758,7 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 	SENDLIST("free_servers", total_free_servers);
 	SENDLIST("used_servers", total_used_servers);
 	{
+		int names, zones, qry, pend;
 		MULTITHREAD_VISIT(multithread_mode, &adns_lock, adns_info(adns, &names, &zones, &qry, &pend));
 		SENDLIST("dns_names", names);
 		SENDLIST("dns_zones", zones);
@@ -957,7 +973,7 @@ static void show_socket_list(PktBuf *buf, struct StatList *list, int thread_id, 
 	}
 }
 
-static void show_client(PktBuf *buf, struct StatList *pool_list_ptr, struct ThreadSafeStatList *peer_pool_list_ptr, int thread_id)
+static void show_client(PktBuf *buf, struct StatList *pool_list_ptr, struct ThreadSafeStatList * peer_pool_list_ptr, int thread_id)
 {
 	struct List *item;
 	PgPool *pool;
@@ -1014,7 +1030,7 @@ static bool admin_show_clients(PgSocket *admin, const char *arg)
 			show_client_multithread(buf, &threads[thread_id].pool_list, &threads[thread_id].peer_pool_list);
 		}
 	} else {
-		show_client(buf, &pool_list, &peer_list, -1);
+		show_client(buf, &pool_list, &peer_pool_list, -1);
 	}
 
 	admin_flush(admin, buf, "SHOW");
@@ -1067,11 +1083,11 @@ static bool admin_show_servers(PgSocket *admin, const char *arg)
 			show_server_list(buf, pool, -1, false);
 		}
 
-		statlist_for_each(item, &peer_pool_list) {
+		THREAD_SAFE_STATLIST_EACH(&peer_pool_list, item, {
 			pool = container_of(item, PgPool, head);
 			show_socket_list(buf, &pool->new_server_list, -1, "new", false);
 			show_socket_list(buf, &pool->active_cancel_server_list, -1, "active_cancel", false);
-		}
+		});
 	}
 	admin_flush(admin, buf, "SHOW");
 	return true;
@@ -1344,7 +1360,7 @@ static bool admin_show_peer_pools(PgSocket *admin, const char *arg)
 			});
 		}
 	} else {
-		statlist_for_each(item, &peer_pool_list) {
+		THREAD_SAFE_STATLIST_EACH(&peer_pool_list, item, {
 			pool = container_of(item, PgPool, head);
 			pktbuf_write_DataRow(buf, "iiiii",
 					     pool->db->peer_id,
@@ -1352,7 +1368,7 @@ static bool admin_show_peer_pools(PgSocket *admin, const char *arg)
 					     statlist_count(&pool->waiting_cancel_req_list),
 					     statlist_count(&pool->active_cancel_server_list),
 					     statlist_count(&pool->new_server_list));
-		}
+		});
 	}
 	admin_flush(admin, buf, "SHOW");
 	return true;
@@ -1976,13 +1992,13 @@ static PgSocket * find_client_global(unsigned long long int target_id)
 				return kill_client;
 			}
 		}
-		statlist_for_each(item, &peer_pool_list) {
+		THREAD_SAFE_STATLIST_EACH(&peer_pool_list, item, {
 			pool = container_of(item, PgPool, head);
 			kill_client = find_client_global_peer_pool(pool, target_id);
 			if (kill_client != NULL) {
 				return kill_client;
 			}
-		}
+		});
 	}
 	return kill_client;
 }

@@ -19,7 +19,7 @@
 extern struct ThreadSafeStatList thread_safe_user_list;
 extern struct AATree user_tree;
 extern struct StatList pool_list;
-extern struct StatList peer_pool_list;
+extern struct ThreadSafeStatList peer_pool_list;
 extern struct StatList database_list;
 extern struct ThreadSafeStatList peer_list;
 extern struct StatList autodatabase_idle_list;
@@ -27,7 +27,7 @@ extern struct StatList login_client_list;
 extern struct Slab *client_cache;
 extern struct Slab *server_cache;
 extern struct Slab *db_cache;
-extern struct ThreadSafeSlab *thread_safe_peer_cache;
+extern struct Slab *peer_cache;
 extern struct Slab *peer_pool_cache;
 extern struct Slab *pool_cache;
 extern struct ThreadSafeSlab *thread_safe_user_cache;
@@ -42,7 +42,7 @@ extern SpinLock prepared_statements_lock;
 // FIXME support for multithreads?
 extern unsigned long long int last_pgsocket_id;
 
-PgDatabase *find_peer(int peer_id);
+PgDatabase *find_peer(int peer_id, int thread_id);
 PgDatabase *find_database(const char *name, int thread_id);
 PgDatabase *find_or_register_database(PgSocket *connection, const char *name);
 PgGlobalUser *find_global_user(const char *name);
@@ -64,7 +64,7 @@ void disconnect_server(PgSocket *server, bool notify, const char *reason, ...) _
 void disconnect_client(PgSocket *client, bool notify, const char *reason, ...) _PRINTF(3, 4);
 void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlstate, const char *reason);
 
-PgDatabase * add_peer(const char *name, int peer_id) _MUSTCHECK;
+PgDatabase * add_peer(const char *name, int peer_id, int thread_id) _MUSTCHECK;
 PgDatabase * add_database(const char *name, int thread_id) _MUSTCHECK;
 PgDatabase *register_auto_database(const char *name, int thread_id);
 PgCredentials * add_dynamic_credentials(PgDatabase *db, const char *name, const char *passwd) _MUSTCHECK;

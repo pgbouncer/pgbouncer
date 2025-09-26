@@ -956,7 +956,7 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	struct List *item, *tmp;
 	PgPool *pool;
 	PgDatabase *db;
-	void *peer_pool_list_ptr;
+	struct ThreadSafeStatList *peer_pool_list_ptr;
 	void *database_list_ptr;
 	void *pool_list_ptr;
 	struct StatList *autodatabase_idle_list_ptr;
@@ -1027,22 +1027,19 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 			pool = container_of(item, PgPool, head);
 			clean_pool_internal(pool, seq_ptr);
 		});
-		THREAD_SAFE_STATLIST_EACH((struct ThreadSafeStatList *)peer_pool_list_ptr, item, {
-			pool = container_of(item, PgPool, head);
-			peer_pool_server_maint(pool);
-			peer_pool_client_maint(pool);
-		});
+
 	} else {
 		statlist_for_each_safe(item, (struct StatList *)pool_list_ptr, tmp) {
 			pool = container_of(item, PgPool, head);
 			clean_pool_internal(pool, seq_ptr);
 		}
-		statlist_for_each_safe(item, (struct StatList *)peer_pool_list_ptr, tmp) {
-			pool = container_of(item, PgPool, head);
-			peer_pool_server_maint(pool);
-			peer_pool_client_maint(pool);
-		}
 	}
+
+	THREAD_SAFE_STATLIST_EACH((struct ThreadSafeStatList *)peer_pool_list_ptr, item, {
+		pool = container_of(item, PgPool, head);
+		peer_pool_server_maint(pool);
+		peer_pool_client_maint(pool);
+	});
 
 	/* find inactive autodbs */
 	if (multithread_mode) {
@@ -1213,7 +1210,7 @@ void kill_peer_pool(PgPool *pool)
 		slab_free(threads[thread_id].var_list_cache, pool->orig_vars.var_list);
 		slab_free(threads[thread_id].pool_cache, pool);
 	} else {
-		statlist_remove(&peer_pool_list, &pool->head);
+		thread_safe_statlist_remove(&peer_pool_list, &pool->head);
 		varcache_clean(&pool->orig_vars);
 		slab_free(var_list_cache, pool->orig_vars.var_list);
 		slab_free(pool_cache, pool);
@@ -1301,7 +1298,7 @@ void kill_peer(PgDatabase *db)
 	free(db->host);
 
 	thread_safe_statlist_remove(&peer_list, &db->head);
-	thread_safe_slab_free(thread_safe_peer_cache, db);
+	slab_free(peer_cache, db);
 }
 
 /* as [pgbouncer] section can be loaded after databases,

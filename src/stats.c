@@ -105,35 +105,19 @@ static void write_stats(PktBuf *buf, PgStats *stat, PgStats *old, char *dbname, 
 {
 	PgStats avg;
 	calc_average(&avg, stat, old, get_multithread_time_with_id(thread_id));
-	if (multithread_mode) {
-		pktbuf_write_DataRow(buf, "sNNNNNNNNNNNNNNNNNNNNNNN", dbname, thread_id,
-				     stat->server_assignment_count,
-				     stat->xact_count, stat->query_count,
-				     stat->client_bytes, stat->server_bytes,
-				     stat->xact_time, stat->query_time,
-				     stat->wait_time, stat->ps_client_parse_count,
-				     stat->ps_server_parse_count, stat->ps_bind_count,
-				     avg.server_assignment_count,
-				     avg.xact_count, avg.query_count,
-				     avg.client_bytes, avg.server_bytes,
-				     avg.xact_time, avg.query_time,
-				     avg.wait_time, avg.ps_client_parse_count,
-				     avg.ps_server_parse_count, avg.ps_bind_count);
-	} else {
-		pktbuf_write_DataRow(buf, "sNNNNNNNNNNNNNNNNNNNNNN", dbname,
-				     stat->server_assignment_count,
-				     stat->xact_count, stat->query_count,
-				     stat->client_bytes, stat->server_bytes,
-				     stat->xact_time, stat->query_time,
-				     stat->wait_time, stat->ps_client_parse_count,
-				     stat->ps_server_parse_count, stat->ps_bind_count,
-				     avg.server_assignment_count,
-				     avg.xact_count, avg.query_count,
-				     avg.client_bytes, avg.server_bytes,
-				     avg.xact_time, avg.query_time,
-				     avg.wait_time, avg.ps_client_parse_count,
-				     avg.ps_server_parse_count, avg.ps_bind_count);
-	}
+	pktbuf_write_DataRow(buf, "sINNNNNNNNNNNNNNNNNNNNNN", dbname, multithread_mode ? thread_id : -1,
+			     stat->server_assignment_count,
+			     stat->xact_count, stat->query_count,
+			     stat->client_bytes, stat->server_bytes,
+			     stat->xact_time, stat->query_time,
+			     stat->wait_time, stat->ps_client_parse_count,
+			     stat->ps_server_parse_count, stat->ps_bind_count,
+			     avg.server_assignment_count,
+			     avg.xact_count, avg.query_count,
+			     avg.client_bytes, avg.server_bytes,
+			     avg.xact_time, avg.query_time,
+			     avg.wait_time, avg.ps_client_parse_count,
+			     avg.ps_server_parse_count, avg.ps_bind_count);
 }
 
 static bool admin_database_stats_internal(PgSocket *client, struct StatList *pool_list, PktBuf *buf, int thread_id, void (*write_func)(PktBuf *, PgStats *, PgStats *, char *, int))
@@ -180,35 +164,19 @@ bool admin_database_stats(PgSocket *client)
 		return true;
 	}
 
-	if (multithread_mode) {
-		pktbuf_write_RowDescription(buf, "sNNNNNNNNNNNNNNNNNNNNNNN", "database", "thread_id",
-					    "total_server_assignment_count",
-					    "total_xact_count", "total_query_count",
-					    "total_received", "total_sent",
-					    "total_xact_time", "total_query_time",
-					    "total_wait_time", "total_client_parse_count",
-					    "total_server_parse_count", "total_bind_count",
-					    "avg_server_assignment_count",
-					    "avg_xact_count", "avg_query_count",
-					    "avg_recv", "avg_sent",
-					    "avg_xact_time", "avg_query_time",
-					    "avg_wait_time", "avg_client_parse_count",
-					    "avg_server_parse_count", "avg_bind_count");
-	} else {
-		pktbuf_write_RowDescription(buf, "sNNNNNNNNNNNNNNNNNNNNNN", "database",
-					    "total_server_assignment_count",
-					    "total_xact_count", "total_query_count",
-					    "total_received", "total_sent",
-					    "total_xact_time", "total_query_time",
-					    "total_wait_time", "total_client_parse_count",
-					    "total_server_parse_count", "total_bind_count",
-					    "avg_server_assignment_count",
-					    "avg_xact_count", "avg_query_count",
-					    "avg_recv", "avg_sent",
-					    "avg_xact_time", "avg_query_time",
-					    "avg_wait_time", "avg_client_parse_count",
-					    "avg_server_parse_count", "avg_bind_count");
-	}
+	pktbuf_write_RowDescription(buf, "sINNNNNNNNNNNNNNNNNNNNNN", "database", "thread_id",
+				    "total_server_assignment_count",
+				    "total_xact_count", "total_query_count",
+				    "total_received", "total_sent",
+				    "total_xact_time", "total_query_time",
+				    "total_wait_time", "total_client_parse_count",
+				    "total_server_parse_count", "total_bind_count",
+				    "avg_server_assignment_count",
+				    "avg_xact_count", "avg_query_count",
+				    "avg_recv", "avg_sent",
+				    "avg_xact_time", "avg_query_time",
+				    "avg_wait_time", "avg_client_parse_count",
+				    "avg_server_parse_count", "avg_bind_count");
 
 	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id) {
@@ -226,23 +194,13 @@ bool admin_database_stats(PgSocket *client)
 
 static void write_stats_totals(PktBuf *buf, PgStats *stat, PgStats *old, char *dbname, int thread_id)
 {
-	if (multithread_mode) {
-		pktbuf_write_DataRow(buf, "sNNNNNNNNNNNN", dbname, thread_id,
-				     stat->server_assignment_count,
-				     stat->xact_count, stat->query_count,
-				     stat->client_bytes, stat->server_bytes,
-				     stat->xact_time, stat->query_time,
-				     stat->wait_time, stat->ps_client_parse_count,
-				     stat->ps_server_parse_count, stat->ps_bind_count);
-	} else {
-		pktbuf_write_DataRow(buf, "sNNNNNNNNNNN", dbname,
-				     stat->server_assignment_count,
-				     stat->xact_count, stat->query_count,
-				     stat->client_bytes, stat->server_bytes,
-				     stat->xact_time, stat->query_time,
-				     stat->wait_time, stat->ps_client_parse_count,
-				     stat->ps_server_parse_count, stat->ps_bind_count);
-	}
+	pktbuf_write_DataRow(buf, "sINNNNNNNNNNN", dbname, multithread_mode ? thread_id : -1,
+			     stat->server_assignment_count,
+			     stat->xact_count, stat->query_count,
+			     stat->client_bytes, stat->server_bytes,
+			     stat->xact_time, stat->query_time,
+			     stat->wait_time, stat->ps_client_parse_count,
+			     stat->ps_server_parse_count, stat->ps_bind_count);
 }
 
 bool admin_database_stats_totals(PgSocket *client)
@@ -254,23 +212,13 @@ bool admin_database_stats_totals(PgSocket *client)
 		return true;
 	}
 
-	if (multithread_mode) {
-		pktbuf_write_RowDescription(buf, "sNNNNNNNNNNNN", "database", "thread_id",
-					    "server_assignment_count",
-					    "xact_count", "query_count",
-					    "bytes_received", "bytes_sent",
-					    "xact_time", "query_time",
-					    "wait_time", "client_parse_count",
-					    "server_parse_count", "bind_count");
-	} else {
-		pktbuf_write_RowDescription(buf, "sNNNNNNNNNNN", "database",
-					    "server_assignment_count",
-					    "xact_count", "query_count",
-					    "bytes_received", "bytes_sent",
-					    "xact_time", "query_time",
-					    "wait_time", "client_parse_count",
-					    "server_parse_count", "bind_count");
-	}
+	pktbuf_write_RowDescription(buf, "sINNNNNNNNNNN", "database", "thread_id",
+				    "server_assignment_count",
+				    "xact_count", "query_count",
+				    "bytes_received", "bytes_sent",
+				    "xact_time", "query_time",
+				    "wait_time", "client_parse_count",
+				    "server_parse_count", "bind_count");
 
 	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id) {
@@ -290,23 +238,13 @@ static void write_stats_averages(PktBuf *buf, PgStats *stat, PgStats *old, char 
 {
 	PgStats avg;
 	calc_average(&avg, stat, old, get_multithread_time_with_id(thread_id));
-	if (multithread_mode) {
-		pktbuf_write_DataRow(buf, "sNNNNNNNNNNNN", dbname, thread_id,
-				     avg.server_assignment_count,
-				     avg.xact_count, avg.query_count,
-				     avg.client_bytes, avg.server_bytes,
-				     avg.xact_time, avg.query_time,
-				     avg.wait_time, avg.ps_client_parse_count,
-				     avg.ps_server_parse_count, avg.ps_bind_count);
-	} else {
-		pktbuf_write_DataRow(buf, "sNNNNNNNNNNN", dbname,
-				     avg.server_assignment_count,
-				     avg.xact_count, avg.query_count,
-				     avg.client_bytes, avg.server_bytes,
-				     avg.xact_time, avg.query_time,
-				     avg.wait_time, avg.ps_client_parse_count,
-				     avg.ps_server_parse_count, avg.ps_bind_count);
-	}
+	pktbuf_write_DataRow(buf, "sINNNNNNNNNNN", dbname, multithread_mode ? thread_id : -1,
+			     avg.server_assignment_count,
+			     avg.xact_count, avg.query_count,
+			     avg.client_bytes, avg.server_bytes,
+			     avg.xact_time, avg.query_time,
+			     avg.wait_time, avg.ps_client_parse_count,
+			     avg.ps_server_parse_count, avg.ps_bind_count);
 }
 
 bool admin_database_stats_averages(PgSocket *client)
@@ -318,23 +256,13 @@ bool admin_database_stats_averages(PgSocket *client)
 		return true;
 	}
 
-	if (multithread_mode) {
-		pktbuf_write_RowDescription(buf, "sNNNNNNNNNNNN", "database", "thread_id",
-					    "server_assignment_count",
-					    "xact_count", "query_count",
-					    "bytes_received", "bytes_sent",
-					    "xact_time", "query_time",
-					    "wait_time", "avg_client_parse_count",
-					    "avg_server_parse_count", "avg_bind_count");
-	} else {
-		pktbuf_write_RowDescription(buf, "sNNNNNNNNNNN", "database",
-					    "server_assignment_count",
-					    "xact_count", "query_count",
-					    "bytes_received", "bytes_sent",
-					    "xact_time", "query_time",
-					    "wait_time", "avg_client_parse_count",
-					    "avg_server_parse_count", "avg_bind_count");
-	}
+	pktbuf_write_RowDescription(buf, "sINNNNNNNNNNN", "database", "thread_id",
+				    "server_assignment_count",
+				    "xact_count", "query_count",
+				    "bytes_received", "bytes_sent",
+				    "xact_time", "query_time",
+				    "wait_time", "avg_client_parse_count",
+				    "avg_server_parse_count", "avg_bind_count");
 
 	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id) {

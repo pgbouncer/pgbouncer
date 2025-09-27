@@ -343,6 +343,7 @@ void pktbuf_finish_packet(PktBuf *buf)
  * c - char/byte
  * h - uint16
  * i - uint32
+ * I - nullable uint32 (NULL when -1)
  * q - uint64
  * s - Cstring
  * b - bytes
@@ -394,6 +395,7 @@ void pktbuf_write_generic(PktBuf *buf, int type, const char *pktdesc, ...)
 /* send resultset column info
  * tupdesc keys:
  * 'i' - int4
+ * 'I' - nullable int4 (NULL when -1)
  * 'q' - int8
  * 's' - string to text
  * 'b' - bytes to bytea
@@ -429,6 +431,9 @@ void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...)
 		} else if (tupdesc[i] == 'i') {
 			pktbuf_put_uint32(buf, INT4OID);
 			pktbuf_put_uint16(buf, 4);
+		} else if (tupdesc[i] == 'I') {
+			pktbuf_put_uint32(buf, INT4OID);
+			pktbuf_put_uint16(buf, 4);
 		} else if (tupdesc[i] == 'q') {
 			pktbuf_put_uint32(buf, INT8OID);
 			pktbuf_put_uint16(buf, 8);
@@ -455,6 +460,7 @@ void pktbuf_write_RowDescription(PktBuf *buf, const char *tupdesc, ...)
  *
  * tupdesc keys:
  * 'i' - int4
+ * 'I' - nullable int4 (NULL when -1)
  * 'q' - int8
  * 's' - string to text
  * 'b' - bytes to bytea
@@ -477,6 +483,14 @@ void pktbuf_write_DataRow(PktBuf *buf, const char *tupdesc, ...)
 		if (tupdesc[i] == 'i') {
 			snprintf(tmp, sizeof(tmp), "%d", va_arg(ap, int));
 			val = tmp;
+		} else if (tupdesc[i] == 'I') {
+			int int_val = va_arg(ap, int);
+			if (int_val == -1) {
+				val = NULL;  /* NULL */
+			} else {
+				snprintf(tmp, sizeof(tmp), "%d", int_val);
+				val = tmp;
+			}
 		} else if (tupdesc[i] == 'q' || tupdesc[i] == 'N') {
 			snprintf(tmp, sizeof(tmp), "%" PRIu64, va_arg(ap, uint64_t));
 			val = tmp;

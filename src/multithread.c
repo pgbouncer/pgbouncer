@@ -386,6 +386,13 @@ static void worker_signal_setup(struct event_base *base, int thread_id)
 		fatal_perror("multithread signal event add");
 }
 
+/* 
+ * WORKER THREAD MAIN FUNCTION:
+ * Each worker thread runs this function, which:
+ * 1. Sets up its own event loop and thread-local storage
+ * 2. Initializes thread-specific events (e.g. signals, janitor)
+ * 3. Performs periodic maintenance tasks
+ */
 void * worker_func(void *arg)
 {
 	int err;
@@ -401,10 +408,12 @@ void * worker_func(void *arg)
 	pthread_setspecific(event_base_key, base);
 	this_thread->base = base;
 
-	thread_pooler_setup();
-	worker_signal_setup(base, this_thread->thread_id);
-	janitor_setup();
+	/* Initialize thread-specific events */
+	thread_pooler_setup();		/* Set up connection handling for this thread */
+	worker_signal_setup(base, this_thread->thread_id);	/* Set up signal handling */
+	janitor_setup();		/* Set up maintenance tasks */
 
+	/* Main event loop: process events until shutdown */
 	while (this_thread->cf_shutdown != SHUTDOWN_IMMEDIATE) {
 		multithread_reset_time_cache();
 		err = event_base_loop(base, EVLOOP_ONCE);
@@ -412,6 +421,7 @@ void * worker_func(void *arg)
 			if (errno != EINTR)
 				log_warning("event_loop failed: %s", strerror(errno));
 		}
+		/* Perform periodic maintenance tasks */
 		per_loop_maint();
 		reuse_just_freed_objects(this_thread->thread_id);
 		rescue_timers();

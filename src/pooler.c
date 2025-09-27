@@ -416,6 +416,12 @@ loop:
 	client_request.is_unix = is_unix;
 
 	if (multithread_mode) {
+		/* 
+		 * MULTITHREAD CONNECTION DISTRIBUTION:
+		 * New client connections are distributed round-robin across worker threads.
+		 * The main thread writes connection details to a pipe, and the target worker
+		 * thread reads from the pipe to handle the connection.
+		 */
 		// FIXME non-block pipe strategy
 		ssize_t n = write(threads[next_thread].pipefd[1], &client_request, sizeof(client_request));
 		if (n <= 0) {
@@ -427,6 +433,7 @@ loop:
 		next_thread++;
 		next_thread %= arg_thread_number;
 	} else {
+		/* Single-threaded mode: handle connection directly */
 		accept_client_handler(is_unix, fd);
 	}
 	/*

@@ -1,3 +1,28 @@
+/*
+ * PgBouncer - Lightweight connection pooler for PostgreSQL.
+ *
+ * Copyright (c) 2007-2009  Marko Kreen, Skype Technologies OÜ
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+/*
+ * This header provides the core multithreading infrastructure for pgbouncer,
+ * enabling it to handle multiple client connections concurrently across multiple
+ * worker threads. It includes thread-local storage and caching mechanisms, along 
+ * with operations for managing threads and thread-safe data structures.
+ */
+
 #include <usual/aatree.h>
 #include <usual/pthread.h>
 #include <usual/spinlock.h>
@@ -10,11 +35,13 @@
 #include <event2/event.h>
 #include <event2/event_struct.h>
 
+/* Iterate over all threads */
 #define FOR_EACH_THREAD(id)         \
 	for (int id = 0;                \
 	     (id) < arg_thread_number;  \
 	     (id)++)
 
+/* Execute function on all threads (multithread) or main thread (single-thread) */
 #define THREAD_ITERATE(id, func)	\
 	do{			\
 		if(multithread_mode){	\
@@ -61,6 +88,7 @@
 		}                                                               \
 	} while (0)
 
+/* Main thread signal handlers that receive OS signals and forward them to worker threads */
 typedef struct SignalEvent {
 	/*
 	 * signal handling.
@@ -100,6 +128,7 @@ typedef struct WorkersignalEvents {
 } WorkersignalEvents;
 
 
+/* Per-thread data structure containing all thread-local state */
 typedef struct Thread {
 	SpinLock thread_lock;
 	pthread_t worker;
@@ -108,7 +137,7 @@ typedef struct Thread {
 	struct event full_maint_ev;
 	struct event ev_stats;
 	struct event ev_handle_request;
-	int pipefd[2];
+	int pipefd[2];		/* Pipe for receiving new client connections from main thread */
 	struct StatList login_client_list;
 	struct ThreadSafeStatList pool_list;
 	struct ThreadSafeStatList peer_pool_list;

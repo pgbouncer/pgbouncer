@@ -846,12 +846,13 @@ static void socket_row(PktBuf *buf, PgSocket *sk, int thread_id, const char *sta
 		replication = "physical";
 
 	pktbuf_write_DataRow(buf, debug ? SKF_DBG : SKF_STD,
-			     multithread_mode ? thread_id : -1,
+			     multithread_mode ? thread_id : 0,
 			     is_server_socket(sk) ? "S" : "C",
 			     sk->login_user_credentials ? sk->login_user_credentials->name : "(nouser)",
 			     sk->pool && !sk->pool->db->peer_id ? sk->pool->db->name : "(nodb)",
 			     replication,
-			     state, r_addr, pga_port(&sk->remote_addr),
+			     (!sk->link && strcmp(state, "active") == 0) ? "idle" : state,
+			     r_addr, pga_port(&sk->remote_addr),
 			     l_addr, pga_port(&sk->local_addr),
 			     sk->connect_time,
 			     sk->request_time,

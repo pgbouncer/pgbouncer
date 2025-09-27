@@ -179,10 +179,7 @@ static void pktbuf_send_func(evutil_socket_t fd, short flags, void *arg)
 		if (multithread_mode) {
 			MultithreadEventArgs *sbuf_ev_args = malloc(sizeof(MultithreadEventArgs));
 			base = (struct event_base *)pthread_getspecific(event_base_key);
-			sbuf_ev_args->arg = buf;
-			sbuf_ev_args->func = pktbuf_send_func;
-			sbuf_ev_args->thread_id = buf->queued_dst->sbuf.thread_id;
-			sbuf_ev_args->persistent = false;
+			setup_multithread_event_args(sbuf_ev_args, buf, pktbuf_send_func, buf->queued_dst->sbuf.thread_id, false);
 			event_assign(buf->ev, base, fd, EV_WRITE, multithread_event_wrapper, sbuf_ev_args);
 		} else {
 			event_assign(buf->ev, base, fd, EV_WRITE, pktbuf_send_func, buf);

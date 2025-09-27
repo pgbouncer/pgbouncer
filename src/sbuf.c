@@ -113,11 +113,6 @@ static void sbuf_tls_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
 static void sbuf_possible_direct_tls_startup_cb(evutil_socket_t fd, short flags, void *_sbuf);
 #endif
 
-/* Helper function to set up multithread event arguments for SBuf */
-static void setup_multithread_event_args(MultithreadEventArgs *args, SBuf *sbuf, event_callback_fn func)
-{
-	setup_multithread_event_args_general(args, sbuf, func, sbuf->thread_id);
-}
 
 /*
  *********************************
@@ -209,10 +204,7 @@ bool sbuf_connect(SBuf *sbuf, const struct sockaddr *sa, socklen_t sa_len, time_
 				return false;
 			}
 			base = threads[sbuf->thread_id].base;
-			sbuf_ev_args->arg = sbuf;
-			sbuf_ev_args->func = sbuf_connect_cb;
-			sbuf_ev_args->thread_id = sbuf->thread_id;
-			sbuf_ev_args->persistent = false;
+			setup_multithread_event_args(sbuf_ev_args, sbuf, sbuf_connect_cb, sbuf->thread_id, false);
 			event_assign(&sbuf->ev, base, sock, EV_WRITE, multithread_event_wrapper, sbuf_ev_args);
 		} else {
 			event_assign(&sbuf->ev, base, sock, EV_WRITE, sbuf_connect_cb, sbuf);
@@ -291,7 +283,7 @@ bool sbuf_continue_with_callback(SBuf *sbuf, event_callback_fn user_cb)
 
 	if (multithread_mode) {
 		base = threads[sbuf->thread_id].base;
-		setup_multithread_event_args(&sbuf->continue_event_args, sbuf, user_cb);
+		setup_multithread_event_args(&sbuf->continue_event_args, sbuf, user_cb, sbuf->thread_id, true);
 		event_assign(&sbuf->ev, base, sbuf->sock, EV_READ | EV_PERSIST,
 			     multithread_event_wrapper, &sbuf->continue_event_args);
 	} else {
@@ -327,10 +319,7 @@ bool sbuf_use_callback_once(SBuf *sbuf, short ev, event_callback_fn user_cb)
 	if (multithread_mode) {
 		MultithreadEventArgs *sbuf_ev_args = malloc(sizeof(MultithreadEventArgs));
 		base = (struct event_base *)pthread_getspecific(event_base_key);
-		sbuf_ev_args->arg = sbuf;
-		sbuf_ev_args->func = user_cb;
-		sbuf_ev_args->thread_id = sbuf->thread_id;
-		sbuf_ev_args->persistent = false;
+		setup_multithread_event_args(sbuf_ev_args, sbuf, user_cb, sbuf->thread_id, false);
 		event_assign(&sbuf->ev, base, sbuf->sock, ev, multithread_event_wrapper, sbuf_ev_args);
 	} else {
 		event_assign(&sbuf->ev, base, sbuf->sock, ev, user_cb, sbuf);
@@ -565,7 +554,7 @@ static bool sbuf_wait_for_data(SBuf *sbuf)
 	struct event_base *base = pgb_event_base;
 	if (multithread_mode) {
 		base = (struct event_base *)pthread_getspecific(event_base_key);
-		setup_multithread_event_args(&sbuf->wait_for_data_event_args, sbuf, sbuf_recv_cb);
+		setup_multithread_event_args(&sbuf->wait_for_data_event_args, sbuf, sbuf_recv_cb, sbuf->thread_id, true);
 		event_assign(&sbuf->ev, base, sbuf->sock, EV_READ | EV_PERSIST, multithread_event_wrapper, &sbuf->wait_for_data_event_args);
 	} else {
 		event_assign(&sbuf->ev, base, sbuf->sock, EV_READ | EV_PERSIST, sbuf_recv_cb, sbuf);
@@ -609,10 +598,7 @@ static bool sbuf_wait_for_data_forced(SBuf *sbuf)
 	if (multithread_mode) {
 		MultithreadEventArgs *sbuf_ev_args = malloc(sizeof(MultithreadEventArgs));
 		base = (struct event_base *)pthread_getspecific(event_base_key);
-		sbuf_ev_args->arg = sbuf;
-		sbuf_ev_args->func = sbuf_recv_forced_cb;
-		sbuf_ev_args->thread_id = sbuf->thread_id;
-		sbuf_ev_args->persistent = false;
+		setup_multithread_event_args(sbuf_ev_args, sbuf, sbuf_recv_forced_cb, sbuf->thread_id, false);
 		event_assign(&sbuf->ev, base, sbuf->sock, EV_READ, multithread_event_wrapper, sbuf_ev_args);
 	} else {
 		event_assign(&sbuf->ev, base, sbuf->sock, EV_READ, sbuf_recv_forced_cb, sbuf);
@@ -675,10 +661,7 @@ static bool sbuf_queue_send(SBuf *sbuf)
 	if (multithread_mode) {
 		MultithreadEventArgs *sbuf_ev_args = malloc(sizeof(MultithreadEventArgs));
 		base = threads[sbuf->thread_id].base;
-		sbuf_ev_args->arg = sbuf;
-		sbuf_ev_args->func = sbuf_send_cb;
-		sbuf_ev_args->thread_id = sbuf->thread_id;
-		sbuf_ev_args->persistent = false;
+		setup_multithread_event_args(sbuf_ev_args, sbuf, sbuf_send_cb, sbuf->thread_id, false);
 		event_assign(&sbuf->ev, base, sbuf->dst->sock, EV_WRITE, multithread_event_wrapper, sbuf_ev_args);
 	} else {
 		event_assign(&sbuf->ev, base, sbuf->dst->sock, EV_WRITE, sbuf_send_cb, sbuf);

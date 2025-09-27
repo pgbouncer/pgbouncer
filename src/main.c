@@ -356,6 +356,8 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("tcp_keepalive", CF_INT, cf_tcp_keepalive, 0, "1"),
 	CF_ABS("tcp_keepcnt", CF_INT, cf_tcp_keepcnt, 0, "0"),
 	CF_ABS("tcp_keepidle", CF_INT, cf_tcp_keepidle, 0, "0"),
+	/* A placeholder to guarantee CF_NO_RELOAD */
+	CF_ABS("thread_number", CF_INT, arg_thread_number, CF_NO_RELOAD, "0"),
 	CF_ABS("query_wait_notify", CF_INT, cf_query_wait_notify, 0, "5"),
 	CF_ABS("tcp_keepintvl", CF_INT, cf_tcp_keepintvl, 0, "0"),
 	CF_ABS("tcp_socket_buffer", CF_INT, cf_tcp_socket_buffer, 0, "0"),
@@ -392,7 +394,31 @@ static const struct CfSect config_sects [] = {
 	}
 };
 
+static bool fake_set_key(void *base, const char *key, const char *val) {
+    return true;
+}
+
+static const struct CfSect multithread_config_sects [] = {
+	{
+		.sect_name = "pgbouncer",
+		.key_list = bouncer_params,
+	}, {
+		.sect_name = "databases",
+		.set_key = fake_set_key
+	}, {
+		.sect_name = "users",
+		.set_key = fake_set_key
+	}, {
+		.sect_name = "peers",
+		.set_key = fake_set_key
+	}, {
+		.sect_name = NULL,
+	}
+};
+
 static struct CfContext main_config = { config_sects, };
+
+static struct CfContext multithread_config = { multithread_config_sects, };
 
 bool set_config_param(const char *key, const char *val)
 {
@@ -952,14 +978,6 @@ int main(int argc, char *argv[])
 		case 'h':
 			usage(argv[0]);
 			break;
-		case 'T':
-			arg_thread_number = atoi(optarg);
-			multithread_mode = true;
-			if (arg_thread_number < 1) {
-				fprintf(stderr, "invalid thread number: %d", arg_thread_number);
-				exit(1);
-			}
-			break;
 		default:
 			fprintf(stderr, "Try \"%s --help\" for more information.\n", argv[0]);
 			exit(1);
@@ -982,8 +1000,19 @@ int main(int argc, char *argv[])
 	 */
 	atexit(cleanup);
 #endif
-	if (multithread_mode)
-		init_threads();
+
+	{
+		/* load pgbouncer section first*/
+		int load_file_ok = cf_load_file(&multithread_config, cf_config_file);
+		if(!load_file_ok)
+			die("cannot load pgbouncer config");
+		if(arg_thread_number <= 0) {
+			multithread_mode = false;
+		} else {
+			multithread_mode = true;
+			init_threads();
+		}
+	}
 
 	init_objects();
 	load_config();

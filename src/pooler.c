@@ -577,10 +577,7 @@ void thread_pooler_setup(void)
 {
 	int thread_id = get_current_thread_id(multithread_mode);
 	struct event_base *base = threads[thread_id].base;
-	threads[thread_id].handle_request_event_args.arg = NULL;
-	threads[thread_id].handle_request_event_args.func = handle_request;
-	threads[thread_id].handle_request_event_args.thread_id = thread_id;
-	threads[thread_id].handle_request_event_args.persistent = true;
+	setup_multithread_event_args_general(&threads[thread_id].handle_request_event_args, NULL, handle_request, thread_id);
 	event_assign(&(threads[thread_id].ev_handle_request),
 		     base,
 		     threads[thread_id].pipefd[0],

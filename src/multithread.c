@@ -712,3 +712,12 @@ void multithread_free_limits(ConnectionLimit **limits)
 	}
 	*limits = NULL;
 }
+
+/* Helper function to set up multithread event arguments */
+void setup_multithread_event_args_general(MultithreadEventArgs *args, void *arg, event_callback_fn func, int thread_id)
+{
+	args->arg = arg;
+	args->func = func;
+	args->thread_id = thread_id;
+	args->persistent = true;
+}

@@ -222,3 +222,6 @@ void multithread_increase_limit_count(const char *name, ConnectionLimit **limits
 void multithread_decrease_limit_count(const char *name, ConnectionLimit **limits, SpinLock *lock);
 bool multithread_check_limit_count(const char *name, ConnectionLimit **limits, SpinLock *lock);
 void multithread_free_limits(ConnectionLimit **limits);
+
+/* Helper function to set up multithread event arguments */
+void setup_multithread_event_args_general(MultithreadEventArgs *args, void *arg, event_callback_fn func, int thread_id);

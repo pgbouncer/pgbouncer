@@ -1138,10 +1138,7 @@ void janitor_setup(void)
 	/* launch maintenance */
 	if (multithread_mode) {
 		int thread_id = get_current_thread_id(multithread_mode);
-		threads[thread_id].do_full_maint_event_args.thread_id = thread_id;
-		threads[thread_id].do_full_maint_event_args.func = do_full_maint;
-		threads[thread_id].do_full_maint_event_args.arg = NULL;
-		threads[thread_id].do_full_maint_event_args.persistent = true;
+		setup_multithread_event_args_general(&threads[thread_id].do_full_maint_event_args, NULL, do_full_maint, thread_id);
 		event_assign(&(threads[thread_id].full_maint_ev),
 			     threads[thread_id].base,
 			     -1,

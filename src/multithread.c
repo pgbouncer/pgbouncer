@@ -238,20 +238,18 @@ static void notify_reloading(void)
 static void handle_sighup(int sock, short flags, void *arg)
 {
 	log_info("got SIGHUP, re-reading config");
-	if (multithread_mode) {
-		log_warning("Pgbouncer doesn't support reloading configs in multithread mode");
-		return;
-	}
+
+	MULTITHREAD_ONLY_ITERATE(thread_id, {
+		lock_thread(thread_id);
+	});
 	notify_reloading();
 	load_config();
 	if (!sbuf_tls_setup())
 		log_error("TLS configuration could not be reloaded, keeping old configuration");
 	sd_notify(0, "READY=1");
-	if (multithread_mode) {
-		FOR_EACH_THREAD(thread_id){
-			signal_threads(threads[thread_id].worker_signal_events.pipe_sighup);
-		}
-	}
+	MULTITHREAD_ONLY_ITERATE(thread_id, {
+		unlock_thread(thread_id);
+	});
 }
 #endif
 
@@ -331,12 +329,6 @@ void signal_setup(struct event_base *base, struct SignalEvent *signal_event)
 			evutil_make_socket_nonblocking(threads[thread_id].worker_signal_events.pipe_sigusr2[0]);
 			evutil_make_socket_nonblocking(threads[thread_id].worker_signal_events.pipe_sigusr2[1]);
 
-			err = pipe(threads[thread_id].worker_signal_events.pipe_sighup);
-			if (err < 0)
-				fatal_perror("multithread signal pipe");
-			evutil_make_socket_nonblocking(threads[thread_id].worker_signal_events.pipe_sighup[0]);
-			evutil_make_socket_nonblocking(threads[thread_id].worker_signal_events.pipe_sighup[1]);
-
 			err = pipe(threads[thread_id].worker_signal_events.pipe_sigquit);
 			if (err < 0)
 				fatal_perror("multithread signal pipe");
@@ -363,11 +355,6 @@ static void worker_signal_setup(struct event_base *base, int thread_id)
 	if (err < 0)
 		fatal_perror("multithread signal event add");
 
-	threads[thread_id].worker_signal_events.ev_sighup = event_new(base, threads[thread_id].worker_signal_events.pipe_sighup[0], EV_READ | EV_PERSIST, handle_sighup, base);
-	err = event_add(threads[thread_id].worker_signal_events.ev_sighup, NULL);
-	if (err < 0)
-		fatal_perror("multithread signal event add");
-
 	threads[thread_id].worker_signal_events.ev_sigquit = event_new(base, threads[thread_id].worker_signal_events.pipe_sigquit[0], EV_READ | EV_PERSIST, handle_sigquit_worker, base);
 	err = event_add(threads[thread_id].worker_signal_events.ev_sigquit, NULL);
 	if (err < 0)
@@ -386,7 +373,7 @@ static void worker_signal_setup(struct event_base *base, int thread_id)
 		fatal_perror("multithread signal event add");
 }
 
-/* 
+/*
  * WORKER THREAD MAIN FUNCTION:
  * Each worker thread runs this function, which:
  * 1. Sets up its own event loop and thread-local storage

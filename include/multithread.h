@@ -19,7 +19,7 @@
 /*
  * This header provides the core multithreading infrastructure for pgbouncer,
  * enabling it to handle multiple client connections concurrently across multiple
- * worker threads. It includes thread-local storage and caching mechanisms, along 
+ * worker threads. It includes thread-local storage and caching mechanisms, along
  * with operations for managing threads and thread-safe data structures.
  */
 
@@ -40,6 +40,15 @@
 	for (int id = 0;                \
 	     (id) < arg_thread_number;  \
 	     (id)++)
+
+#define MULTITHREAD_ONLY_ITERATE(id, func)	\
+	do{			\
+		if(multithread_mode){	\
+			for(int id=0;id<arg_thread_number;id++){	\
+				func;	\
+			}	\
+		}	\
+	}while(0)
 
 /* Execute function on all threads (multithread) or main thread (single-thread) */
 #define THREAD_ITERATE(id, func)	\
@@ -119,11 +128,9 @@ typedef struct WorkersignalEvents {
 	int pipe_sigquit[2];
 	int pipe_sigusr1[2];
 	int pipe_sigusr2[2];
-	int pipe_sighup[2];
 	struct event *ev_sigquit;
 	struct event *ev_sigusr1;
 	struct event *ev_sigusr2;
-	struct event *ev_sighup;
 #endif
 } WorkersignalEvents;
 

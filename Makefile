@@ -13,6 +13,7 @@ pgbouncer_SOURCES = \
 	src/loader.c \
 	src/messages.c \
 	src/main.c \
+	src/multithread.c \
 	src/objects.c \
 	src/pam.c \
 	src/pktbuf.c \
@@ -48,6 +49,7 @@ pgbouncer_SOURCES = \
 	include/ldapauth.h \
 	include/loader.h \
 	include/messages.h \
+	include/multithread.h \
 	include/objects.h \
 	include/pam.h \
 	include/pktbuf.h \

@@ -21,6 +21,7 @@
  */
 
 #include "bouncer.h"
+#include "multithread.h"
 
 #include <usual/netdb.h>
 #include <usual/safeio.h>
@@ -35,6 +36,7 @@ struct ListenSocket {
 };
 
 static STATLIST(sock_list);
+
 
 /* hints for getaddrinfo(listen_addr) */
 static const struct addrinfo hints = {
@@ -96,7 +98,11 @@ void cleanup_unix_sockets(void)
 	statlist_for_each_safe(el, &sock_list, tmp_l) {
 		ls = container_of(el, struct ListenSocket, node);
 		if (event_del(&ls->ev) < 0) {
-			log_warning("cleanup_sockets, event_del: %s", strerror(errno));
+			if (multithread_mode) {
+				log_warning("[Thread %d] cleanup_sockets: event_del failed: %s", get_current_thread_id(multithread_mode), strerror(errno));
+			} else {
+				log_warning("cleanup_sockets, event_del: %s", strerror(errno));
+			}
 		}
 		if (ls->fd > 0) {
 			safe_close(ls->fd);
@@ -241,6 +247,7 @@ static void create_unix_socket(const char *socket_dir, int listen_port)
 
 	/* fill sockaddr struct */
 	memset(&un, 0, sizeof(un));
+
 	un.sun_family = AF_UNIX;
 	snprintf(un.sun_path, sizeof(un.sun_path),
 		 "%s/.s.PGSQL.%d", socket_dir, listen_port);
@@ -353,12 +360,25 @@ static const char *conninfo(const PgSocket *sk)
 	}
 }
 
+static void accept_client_handler(bool is_unix, int fd)
+{
+	PgSocket *client;
+	if (is_unix) {
+		client = accept_client(fd, true);
+	} else {
+		client = accept_client(fd, false);
+	}
+
+	if (client)
+		slog_debug(client, "P: got connection: %s", conninfo(client));
+}
+
 /* got new connection, associate it with client struct */
 static void pool_accept(evutil_socket_t sock, short flags, void *arg)
 {
 	struct ListenSocket *ls = arg;
+	struct ClientRequest client_request = {0};
 	int fd;
-	PgSocket *client;
 	union {
 		struct sockaddr_in in;
 		struct sockaddr_in6 in6;
@@ -391,23 +411,49 @@ loop:
 		suspend_pooler();
 		return;
 	}
-
 	log_noise("new fd from accept=%d", fd);
-	if (is_unix) {
-		client = accept_client(fd, true);
+	client_request.fd = fd;
+	client_request.is_unix = is_unix;
+
+	if (multithread_mode) {
+		/*
+		 * MULTITHREAD CONNECTION DISTRIBUTION:
+		 * New client connections are distributed round-robin across worker threads.
+		 * The main thread writes connection details to a pipe, and the target worker
+		 * thread reads from the pipe to handle the connection.
+		 */
+		ssize_t n = write(threads[next_thread].pipefd[1], &client_request, sizeof(client_request));
+		if (n <= 0) {
+			log_error("failed to write to pipe");
+			close(fd);
+		}
+
+		next_thread++;
+		next_thread %= arg_thread_number;
 	} else {
-		client = accept_client(fd, false);
+		/* Single-threaded mode: handle connection directly */
+		accept_client_handler(is_unix, fd);
 	}
-
-	if (client)
-		slog_debug(client, "P: got connection: %s", conninfo(client));
-
 	/*
 	 * there may be several clients waiting,
 	 * avoid context switch by looping
 	 */
 	goto loop;
 }
+
+static void handle_request(evutil_socket_t fd, short event, void *arg)
+{
+	struct ClientRequest client_request;
+	if (read(fd, &client_request, sizeof(client_request)) == -1) {
+		log_error("Failed to read from pipe");
+		return;
+	}
+	if (client_request.fd < 0) {
+		return;
+	}
+	accept_client_handler(client_request.is_unix, client_request.fd);
+}
+
 
 bool use_pooler_socket(int sock, bool is_unix)
 {
@@ -525,11 +571,25 @@ static bool parse_addr(void *arg, const char *addr)
 	return true;
 }
 
+void thread_pooler_setup(void)
+{
+	int thread_id = get_current_thread_id(multithread_mode);
+	struct event_base *base = threads[thread_id].base;
+	setup_multithread_event_args(&threads[thread_id].handle_request_event_args, NULL, handle_request, true, &threads[thread_id].thread_lock);
+	event_assign(&(threads[thread_id].ev_handle_request),
+		     base,
+		     threads[thread_id].pipefd[0],
+		     EV_READ | EV_PERSIST,
+		     multithread_event_wrapper,
+		     &threads[thread_id].handle_request_event_args);
+
+	event_add(&(threads[thread_id].ev_handle_request), NULL);
+}
+
 /* listen on socket - should happen after all other initializations */
 void pooler_setup(void)
 {
 	int n;
-
 	n = sd_listen_fds(0);
 	if (n > 0) {
 		if (cf_listen_addr && *cf_listen_addr)
@@ -565,6 +625,7 @@ void pooler_setup(void)
 			if (!ok)
 				die("failed to set up socket passed from service manager (fd %d)", fd);
 			log_info("socket passed from service manager (fd %d)", fd);
+
 			statlist_append(&sock_list, &ls->node);
 		}
 	} else {

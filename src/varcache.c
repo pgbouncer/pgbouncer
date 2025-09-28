@@ -21,6 +21,7 @@
  */
 
 #include "bouncer.h"
+#include "multithread.h"
 
 #include <usual/pgutil.h>
 #include <usual/string.h>
@@ -106,16 +107,21 @@ void init_var_lookup(const char *cf_track_extra_parameters)
 	num_var_cached = idx;
 }
 
-bool varcache_set(VarCache *cache, const char *key, const char *value)
+bool varcache_set(VarCache *cache, const char *key, const char *value, int thread_id)
 {
 	const struct var_lookup *lk = NULL;
 	struct PStr *pstr = NULL;
-
-	if (!vpool) {
-		vpool = strpool_create(USUAL_ALLOC);
-		if (!vpool)
+	struct StrPool *pool;
+	struct StrPool **vpool_ = &vpool;
+	if (multithread_mode) {
+		vpool_ = &(threads[thread_id].vpool);
+	}
+	if (!(*vpool_)) {
+		(*vpool_) = strpool_create(USUAL_ALLOC);
+		if (!(*vpool_))
 			return false;
 	}
+	pool = *vpool_;
 
 	HASH_FIND_STR(lookup_map, key, lk);
 
@@ -131,7 +137,7 @@ bool varcache_set(VarCache *cache, const char *key, const char *value)
 		return false;
 
 	/* set new value */
-	pstr = strpool_get(vpool, value, strlen(value));
+	pstr = strpool_get(pool, value, strlen(value));
 	if (!pstr)
 		return false;
 	cache->var_list[lk->idx] = pstr;
@@ -302,6 +308,13 @@ void varcache_add_params(PktBuf *pkt, VarCache *vars)
 
 void varcache_deinit(void)
 {
-	strpool_free(vpool);
-	vpool = NULL;
+	if (multithread_mode) {
+		FOR_EACH_THREAD(thread_id){
+			strpool_free(threads[thread_id].vpool);
+			threads[thread_id].vpool = NULL;
+		}
+	} else {
+		strpool_free(vpool);
+		vpool = NULL;
+	}
 }

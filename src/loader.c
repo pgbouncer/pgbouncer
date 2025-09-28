@@ -22,6 +22,7 @@
 
 #include "bouncer.h"
 #include "usual/time.h"
+#include "multithread.h"
 
 #include <usual/fileutil.h>
 #include <usual/string.h>
@@ -222,29 +223,48 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 		goto fail;
 	}
 
-	peer = add_peer(name, peer_id);
-	if (!peer) {
-		log_error("cannot create peer, no memory?");
-		goto fail;
-	}
+	THREAD_ITERATE(thread_id, {
+		peer = add_peer(name, peer_id, thread_id);
+		if (!peer) {
+			log_error("cannot create peer, no memory?");
+			goto fail;
+		}
 
-	/* tag the peer as alive */
-	peer->db_dead = false;
+		/* tag the peer as alive */
+		peer->db_dead = false;
 
-	free(peer->host);
-	peer->host = host;
-	peer->port = port;
-	peer->pool_size = pool_size;
+		free(peer->host);
+		peer->host = strdup(host);
+		peer->port = port;
+		peer->pool_size = pool_size;
+		peer->thread_id = thread_id;
+	});
 
 	free(tmp_connstr);
+	free(host);
 	return true;
 fail:
 	free(tmp_connstr);
 	free(host);
 	return false;
 }
+
+bool parse_database_multithread(void *base, const char *name, const char *connstr)
+{
+	bool res = true;
+
+	if (!multithread_mode) {
+		return parse_database(base, name, connstr, -1);
+	}
+
+	FOR_EACH_THREAD(thread_id){
+		res &= parse_database(base, name, connstr, thread_id);
+	}
+	return res;
+}
+
 /* fill PgDatabase from connstr */
-bool parse_database(void *base, const char *name, const char *connstr)
+bool parse_database(void *base, const char *name, const char *connstr, int thread_id)
 {
 	char *p, *key, *val;
 	PktBuf *msg;
@@ -370,12 +390,11 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		}
 	}
 
-	db = add_database(name);
+	db = add_database(name, thread_id);
 	if (!db) {
 		log_error("cannot create database, no memory?");
 		goto fail;
 	}
-
 	/* tag the db as alive */
 	db->db_dead = false;
 	/* assuming not an autodb */
@@ -486,6 +505,11 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	/* remember dbname */
 	db->dbname = (char *)msg->buf + dbname_ofs;
 
+	if (multithread_mode) {
+		multithread_set_limit(db->dbname, &db_connection_limits, &db_connection_limits_lock, max_db_connections);
+		multithread_set_limit(db->dbname, &db_client_connection_limits, &db_client_connection_limits_lock, max_db_client_connections);
+	}
+
 	free(tmp_connstr);
 	return true;
 fail:
@@ -559,8 +583,8 @@ bool parse_user(void *base, const char *name, const char *connstr)
 			goto fail;
 		}
 	}
-
 	user = find_or_add_new_global_user(name, "");
+
 	if (!user) {
 		log_error("cannot create user, no memory?");
 		goto fail;
@@ -631,6 +655,7 @@ static void unquote_add_authfile_user(const char *username, const char *password
 		log_warning("cannot create user, no memory");
 		return;
 	}
+
 	if (strcmp(user->credentials.passwd, real_passwd) != 0) {
 		user = update_global_user_passwd(user, real_passwd);
 	}
@@ -685,11 +710,10 @@ bool loader_users_check(void)
 static void disable_users(void)
 {
 	struct List *item;
-
-	statlist_for_each(item, &user_list) {
+	THREAD_SAFE_STATLIST_EACH(&thread_safe_user_list, item, {
 		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
 		user->credentials.passwd[0] = 0;
-	}
+	});
 }
 
 /* load list of users from auth_file */
@@ -709,7 +733,6 @@ bool load_auth_file(const char *fn)
 
 	log_debug("loading auth_file: \"%s\"", fn);
 	disable_users();
-
 	p = buf;
 	while (*p) {
 		/* skip whitespace and empty lines */

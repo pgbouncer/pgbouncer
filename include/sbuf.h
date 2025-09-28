@@ -17,7 +17,7 @@
  */
 
 #include <usual/mbuf.h>
-
+#include "bouncer.h"
 /*
  * event types for protocol handler
  */
@@ -91,6 +91,11 @@ struct SBuf {
 	const SBufIO *ops;	/* normal vs. TLS */
 	struct tls *tls;	/* TLS context */
 	const char *tls_host;	/* target hostname */
+
+	int thread_id;	/* thread handling this SBuf */
+
+	MultithreadEventArgs continue_event_args;	/* MultithreadEventArgs for continue */
+	MultithreadEventArgs wait_for_data_event_args;	/* MultithreadEventArgs for wait_for_data */
 };
 
 #define sbuf_socket(sbuf) ((sbuf)->sock)

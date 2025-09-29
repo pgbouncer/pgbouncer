@@ -7,6 +7,7 @@
  */
 
 #include "bouncer.h"
+#include "multithread.h"
 
 #include <usual/hashtab-impl.h>
 #include <usual/slab.h>
@@ -45,6 +46,7 @@ static bool uthash_alloc_failed;
 	HASH_FIND(hh, head, findint, sizeof(uint64_t), out)
 #define HASH_ADD_UINT64(head, intfield, add) \
 	HASH_ADD(hh, head, intfield, sizeof(uint64_t), add)
+
 
 /*
  * Benchmarking showed that HASH_BER is one of the fastest hash functions for our
@@ -102,7 +104,15 @@ static PgClientPreparedStatement *create_client_prepared_statement(char const *n
  */
 static PgServerPreparedStatement *create_server_prepared_statement(PgPreparedStatement *ps)
 {
-	PgServerPreparedStatement *server_ps = slab_alloc(server_prepared_statement_cache);
+	PgServerPreparedStatement *server_ps;
+	struct Slab *server_prepared_statement_cache_ = NULL;
+	if (multithread_mode) {
+		int thread_id = get_current_thread_id(multithread_mode);
+		server_prepared_statement_cache_ = threads[thread_id].server_prepared_statement_cache;
+	} else {
+		server_prepared_statement_cache_ = server_prepared_statement_cache;
+	}
+	server_ps = slab_alloc(server_prepared_statement_cache_);
 	if (server_ps == NULL)
 		return NULL;
 
@@ -119,11 +129,13 @@ static PgServerPreparedStatement *create_server_prepared_statement(PgPreparedSta
 static PgPreparedStatement *get_prepared_statement(PgParsePacket *pkt, bool *found)
 {
 	PgPreparedStatement *ps = NULL;
-	HASH_FIND(hh,
-		  prepared_statements,
-		  pkt->query_and_parameters,
-		  pkt->query_and_parameters_len,
-		  ps);
+	MULTITHREAD_VISIT(&prepared_statements_lock, {
+		HASH_FIND(hh,
+			  prepared_statements,
+			  pkt->query_and_parameters,
+			  pkt->query_and_parameters_len,
+			  ps);
+	});
 	if (ps != NULL) {
 		*found = true;
 		return ps;
@@ -133,11 +145,13 @@ static PgPreparedStatement *get_prepared_statement(PgParsePacket *pkt, bool *fou
 	if (ps == NULL)
 		return NULL;
 
-	HASH_ADD(hh,
-		 prepared_statements,
-		 query_and_parameters,
-		 ps->query_and_parameters_len,
-		 ps);
+	MULTITHREAD_VISIT(&prepared_statements_lock, {
+		HASH_ADD(hh,
+			 prepared_statements,
+			 query_and_parameters,
+			 ps->query_and_parameters_len,
+			 ps);
+	});
 	if (uthash_alloc_failed) {
 		uthash_alloc_failed = false;
 		free(ps);
@@ -186,7 +200,9 @@ void free_server_prepared_statement(PgServerPreparedStatement *server_ps)
 	if (server_ps == NULL)
 		return;
 	if (--server_ps->ps->use_count == 0) {
-		HASH_DEL(prepared_statements, server_ps->ps);
+		MULTITHREAD_VISIT(&prepared_statements_lock, {
+			HASH_DEL(prepared_statements, server_ps->ps);
+		});
 		free(server_ps->ps);
 	}
 	slab_free(server_prepared_statement_cache, server_ps);

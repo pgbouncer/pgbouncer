@@ -16,10 +16,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+void main_thread_janitor_setup(void);
 void janitor_setup(void);
 void config_postprocess(void);
 void resume_all(void);
 void per_loop_maint(void);
+void per_loop_admin_condition_maint(void);
 bool suspend_socket(PgSocket *sk, bool force)  _MUSTCHECK;
 void kill_pool(PgPool *pool);
 void kill_peer_pool(PgPool *pool);

@@ -48,7 +48,7 @@ void pktbuf_free(PktBuf *buf);
 
 void pktbuf_reset(struct PktBuf *pkt);
 struct PktBuf *pktbuf_temp(void);
-
+struct PktBuf *global_pktbuf_temp(void);
 
 /*
  * sending

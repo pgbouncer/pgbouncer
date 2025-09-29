@@ -24,6 +24,7 @@
 
 #include <io.h>
 #include <process.h>
+#include <fcntl.h>
 
 #ifndef ECONNABORTED
 #define ECONNABORTED WSAECONNABORTED
@@ -63,6 +64,7 @@
 #define setuid(x) (-1)
 #define fork() (errno = ENOSYS, -1)
 #define geteuid() getuid()
+#define pipe(fds) _pipe(fds, 65536, _O_BINARY)
 static inline int setgroups(int ngroups, const gid_t *gidsets)
 {
 	errno = EINVAL; return -1;

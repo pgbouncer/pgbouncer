@@ -1188,6 +1188,12 @@ This is currently only supported on Linux.
 
 Default: 0
 
+### thread_number
+
+Pgbouncer will run in multithread mode if `thread_number` is greater than 0.
+
+Default: 0
+
 
 ## Section [databases]
 

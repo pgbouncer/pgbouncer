@@ -21,7 +21,7 @@
  */
 
 #include "bouncer.h"
-
+#include "multithread.h"
 
 /*
  * PostgreSQL type OIDs for result sets
@@ -96,7 +96,7 @@ void pktbuf_static(PktBuf *buf, uint8_t *data, int len)
 	buf->fixed_buf = true;
 }
 
-struct PktBuf *pktbuf_temp(void)
+struct PktBuf *global_pktbuf_temp(void)
 {
 	if (!temp_pktbuf)
 		temp_pktbuf = pktbuf_dynamic(512);
@@ -106,10 +106,33 @@ struct PktBuf *pktbuf_temp(void)
 	return temp_pktbuf;
 }
 
+struct PktBuf *pktbuf_temp(void)
+{
+	PktBuf **temp_pktbuf_ = &temp_pktbuf;
+	if (multithread_mode) {
+		int thread_id = get_current_thread_id(multithread_mode);
+		temp_pktbuf_ = &(threads[thread_id].temp_pktbuf);
+	}
+
+	if (!(*temp_pktbuf_))
+		(*temp_pktbuf_) = pktbuf_dynamic(512);
+	if (!(*temp_pktbuf_))
+		die("out of memory");
+	pktbuf_reset((*temp_pktbuf_));
+	return (*temp_pktbuf_);
+}
+
 void pktbuf_cleanup(void)
 {
 	pktbuf_free_internal(temp_pktbuf);
 	temp_pktbuf = NULL;
+	if (multithread_mode) {
+		FOR_EACH_THREAD(thread_id){
+			pktbuf_free_internal(threads[thread_id].temp_pktbuf);
+		}
+	} else {
+		pktbuf_free_internal(temp_pktbuf);
+	}
 }
 
 bool pktbuf_send_immediate(PktBuf *buf, PgSocket *sk)
@@ -152,7 +175,15 @@ static void pktbuf_send_func(evutil_socket_t fd, short flags, void *arg)
 	buf->send_pos += res;
 
 	if (buf->send_pos < buf->write_pos) {
-		event_assign(buf->ev, pgb_event_base, fd, EV_WRITE, pktbuf_send_func, buf);
+		struct event_base *base = pgb_event_base;
+		if (multithread_mode) {
+			MultithreadEventArgs *sbuf_ev_args = malloc(sizeof(MultithreadEventArgs));
+			base = threads[sbuf->thread_id].base;
+			setup_multithread_event_args(sbuf_ev_args, buf, pktbuf_send_func, false, &threads[sbuf->thread_id].thread_lock);
+			event_assign(buf->ev, base, fd, EV_WRITE, multithread_event_wrapper, sbuf_ev_args);
+		} else {
+			event_assign(buf->ev, base, fd, EV_WRITE, pktbuf_send_func, buf);
+		}
 		res = event_add(buf->ev, NULL);
 		if (res < 0) {
 			log_error("pktbuf_send_func: %s", strerror(errno));

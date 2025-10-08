@@ -147,7 +147,8 @@ Default: 0 (disabled)
 
 ### reserve_pool_size
 
-How many additional connections to allow to a pool (see `reserve_pool_timeout`). 0 disables.
+How many additional connections to allow to a pool (see
+`reserve_pool_timeout`). 0 disables.
 
 Default: 0 (disabled)
 
@@ -213,8 +214,11 @@ Default: 0 (unlimited)
 
 ### max_user_client_connections
 
-Do not allow more than this many client connections per user
-(regardless of database). This value should be set to a number higher than max_user_connections. This difference between max_user_connections and max_user_client_connections can be conceptualized as the number the max size of the queue for the user.
+Do not allow more than this many client connections per user (regardless of
+database). This value should be set to a number higher than
+max_user_connections. This difference between max_user_connections and
+max_user_client_connections can be conceptualized as the number the max size of
+the queue for the user.
 
 This can also be set per user in the `[users]` section.
 
@@ -222,31 +226,32 @@ Default: 0 (unlimited)
 
 ### server_round_robin
 
-By default, PgBouncer reuses server connections in LIFO (last-in, first-out) manner,
-so that few connections get the most load.  This gives best performance if you have
-a single server serving a database.  But if there is a round-robin
-system behind a database address (TCP, DNS, or host list), then it is
-better if PgBouncer also uses connections in that manner, thus
-achieving uniform load.
+By default, PgBouncer reuses server connections in LIFO (last-in, first-out)
+manner, so that few connections get the most load.  This gives best performance
+if you have a single server serving a database.  But if there is a round-robin
+system behind a database address (TCP, DNS, or host list), then it is better if
+PgBouncer also uses connections in that manner, thus achieving uniform load.
 
 Default: 0
 
 ### track_extra_parameters
 
-By default, PgBouncer tracks `client_encoding`, `datestyle`, `timezone`, `standard_conforming_strings`
-and `application_name` parameters per client. To allow other parameters to be tracked, they can be
-specified here, so that PgBouncer knows that they should be maintained in the client variable cache
-and restored in the server whenever the client becomes active.
+By default, PgBouncer tracks `client_encoding`, `datestyle`, `timezone`,
+`standard_conforming_strings` and `application_name` parameters per client. To
+allow other parameters to be tracked, they can be specified here, so that
+PgBouncer knows that they should be maintained in the client variable cache and
+restored in the server whenever the client becomes active.
 
 If you need to specify multiple values, use a comma-separated list (e.g.
 `default_transaction_read_only, IntervalStyle`)
 
-Note: Most parameters cannot be tracked this way. The only parameters that can be tracked are ones that
-Postgres reports to the client. Postgres has
+Note: Most parameters cannot be tracked this way. The only parameters that can
+be tracked are ones that Postgres reports to the client. Postgres has
 [an official list of parameters that it reports to the client](https://www.postgresql.org/docs/15/protocol-flow.html#PROTOCOL-ASYNC).
-Postgres extensions can change this list though, they can add parameters themselves that they also report,
-and they can start reporting already existing parameters that Postgres does not report.
-Notably Citus 12.0+ causes Postgres to also report `search_path`.
+Postgres extensions can change this list though, they can add parameters
+themselves that they also report, and they can start reporting already existing
+parameters that Postgres does not report.  Notably Citus 12.0+ causes Postgres
+to also report `search_path`.
 
 The Postgres protocol allows specifying parameters settings, both directly as a
 parameter in the startup packet, or inside the [`options` startup
@@ -260,9 +265,10 @@ Default: IntervalStyle
 ### ignore_startup_parameters
 
 By default, PgBouncer allows only parameters it can keep track of in startup
-packets: `client_encoding`, `datestyle`, `timezone` and `standard_conforming_strings`.
-All others parameters will raise an error.  To allow others parameters, they can be
-specified here, so that PgBouncer knows that they are handled by the admin and it can ignore them.
+packets: `client_encoding`, `datestyle`, `timezone` and
+`standard_conforming_strings`.  All others parameters will raise an error.  To
+allow others parameters, they can be specified here, so that PgBouncer knows
+that they are handled by the admin and it can ignore them.
 
 If you need to specify multiple values, use a comma-separated list (e.g.
 `options,extra_float_digits`)
@@ -282,7 +288,7 @@ Default: empty
 ### peer_id
 The peer id used to identify this PgBouncer process in a group of PgBouncer
 processes that are peered together. The `peer_id` value should be unique within
-a group of peered PgBouncer processes. When set to 0 pgbouncer peering is
+a group of peered PgBouncer processes. When set to 0 PgBouncer peering is
 disabled. See the docs for the `[peers]` section for more information. The
 maximum value that can be used for the `peer_id` is 16383.
 
@@ -290,19 +296,20 @@ Default: 0
 
 ### disable_pqexec
 
-Disable the Simple Query protocol (PQexec).  Unlike the Extended Query protocol, Simple Query
-allows multiple queries in one packet, which allows some classes of SQL-injection
-attacks.  Disabling it can improve security.  Obviously, this means only clients that
-exclusively use the Extended Query protocol will stay working.
+Disable the Simple Query protocol (PQexec).  Unlike the Extended Query
+protocol, Simple Query allows multiple queries in one packet, which allows some
+classes of SQL-injection attacks.  Disabling it can improve security.
+Obviously, this means only clients that exclusively use the Extended Query
+protocol will stay working.
 
 Default: 0
 
 ### application_name_add_host
 
-Add the client host address and port to the application name setting set on connection start.
-This helps in identifying the source of bad queries etc.  This logic applies
-only at the start of a connection.  If `application_name` is later changed with `SET`,
-PgBouncer does not change it again.
+Add the client host address and port to the application name setting set on
+connection start.  This helps in identifying the source of bad queries etc.
+This logic applies only at the start of a connection.  If `application_name` is
+later changed with `SET`, PgBouncer does not change it again.
 
 Default: 0
 
@@ -347,7 +354,7 @@ same internal name. PgBouncer only prepares the statement on the actual
 PostgreSQL server using the internal name (so not the name provided by the
 client). PgBouncer keeps track of the name that the client gave to each
 prepared statement. It then rewrites each command that uses a prepared
-statement to by replacing the client side name with the the internal name (e.g.
+statement to by replacing the client side name with the internal name (e.g.
 replacing `my_prepared_statement` with `PGBOUNCER_123`) before forwarding that
 command to the server. More importantly, if the prepared statement that the
 client wants to execute is not yet prepared on the server (e.g. because a
@@ -428,7 +435,10 @@ Default: 200
 
 ### scram_iterations
 
-The number of computational iterations to be performed when encrypting a password using SCRAM-SHA-256. A higher number of iterations provides additional protection against brute-force attacks on stored passwords, but makes authentication slower.
+The number of computational iterations to be performed when encrypting a
+password using SCRAM-SHA-256. A higher number of iterations provides additional
+protection against brute-force attacks on stored passwords, but makes
+authentication slower.
 
 Default: 4096
 
@@ -469,7 +479,7 @@ any
 hba
 :   The actual authentication type is loaded from `auth_hba_file`.  This allows different
     authentication methods for different access paths, for example: connections
-    over Unix socket use the `peer` auth method, connections over TCP
+    over Unix socket use the `peer` authentication method, connections over TCP
     must use TLS.
 
 pam
@@ -478,7 +488,7 @@ pam
     PAM is "pgbouncer". `pam` is not supported in the HBA configuration file.
 
 ldap
-:   LDAP is used to authenticate users with ldap server(OpenLDAP on Linux or AD on Windows).
+:   LDAP is used to authenticate users with ldap server (OpenLDAP on Linux or AD on Windows).
 In order to use ldap, `auth_type` needs to be set to `hba`. The value of
 `auth_hba_file` has also to be set. And the content of the `auth_hba_file` could be
 the same format like `pg_hba.conf` in Postgres.
@@ -487,10 +497,11 @@ Otherwise, you can set `auth_type` directly to `ldap`. If `auth_type` is set to 
 
 ### auth_ldap_parameter
 
-This value is the global ldap parameter if `auth_type` is set to `ldap`. The value would be
-similar to the ldap line in pg_hba.conf. If no `auth_ldap_parameter` is set, then ldap
-authentication will fail. However, the value only contains the parameter after the 'ldap'
-keyword in the hba line. For example, if the hba line looks like this:
+This value is the global ldap parameter if `auth_type` is set to `ldap`. The
+value would be similar to the ldap line in pg_hba.conf. If no
+`auth_ldap_parameter` is set, then ldap authentication will fail. However, the
+value only contains the parameter after the 'ldap' keyword in the HBA line. For
+example, if the HBA line looks like this:
 ```conf
 host all ldapuser1 0.0.0.0/0 ldap ldapurl="ldap://127.0.0.1:12345/dc=example,dc=net?uid?sub"`.
 ```
@@ -635,16 +646,17 @@ Query sent to server on connection release, before making it
 available to other clients.  At that moment no transaction is in
 progress, so the value should not include `ABORT` or `ROLLBACK`.
 
-The query is supposed to clean any changes made to the database session
-so that the next client gets the connection in a well-defined state.  The default is
-`DISCARD ALL`, which cleans everything, but that leaves the next client
-no pre-cached state.  It can be made lighter, e.g. `DEALLOCATE ALL`
-to just drop prepared statements, if the application does not break when
-some state is kept around.
+The query is supposed to clean any changes made to the database session so that
+the next client gets the connection in a well-defined state.  The default is
+`DISCARD ALL`, which cleans everything, but that leaves the next client no
+pre-cached state.  It can be made lighter, e.g. `DEALLOCATE ALL` to just drop
+prepared statements, if the application does not break when some state is kept
+around.
 
-When transaction pooling is used, the `server_reset_query` is not used,
-because in that mode, clients must not use any session-based features, since each transaction
-ends up in a different connection and thus gets a different session state.
+When transaction pooling is used, the `server_reset_query` is not used, because
+in that mode, clients must not use any session-based features, since each
+transaction ends up in a different connection and thus gets a different session
+state.
 
 Default: `DISCARD ALL`
 
@@ -655,10 +667,10 @@ setting is off (default), the `server_reset_query` will be run only in pools
 that are in sessions-pooling mode.  Connections in transaction-pooling mode
 should not have any need for a reset query.
 
-This setting is for working around broken setups that run applications that use session features
-over a transaction-pooled PgBouncer.  It changes non-deterministic breakage
-to deterministic breakage: Clients always lose their state after each
-transaction.
+This setting is for working around broken setups that run applications that use
+session features over a transaction-pooled PgBouncer.  It changes
+non-deterministic breakage to deterministic breakage: Clients always lose their
+state after each transaction.
 
 Default: 0
 
@@ -806,7 +818,7 @@ Default: empty (use operating system defaults)
 ### query_wait_notify
 
 Time that a client will be queued for before
-pgbouncer sends a notification message that they are being
+PgBouncer sends a notification message that they are being
 queued. [seconds]
 
 A value of 0 disables this notification message.
@@ -831,7 +843,7 @@ TLS mode to use for connections from clients.  TLS connections
 are disabled by default.  When enabled, `client_tls_key_file`
 and `client_tls_cert_file` must be also configured to set up
 the key and certificate PgBouncer uses to accept client connections.
-The most common certificate file format usable by PgBouncer is pem.
+The most common certificate file format usable by PgBouncer is PEM.
 
 disable
 :   Plain TCP.  If client requests TLS, it's ignored.  Default.
@@ -1094,7 +1106,8 @@ Default: 2147483647
 ### listen_backlog
 
 Backlog argument for listen(2).  Determines how many new unanswered connection
-attempts are kept in the queue.  When the queue is full, further new connections are dropped.
+attempts are kept in the queue.  When the queue is full, further new
+connections are dropped.
 
 Default: 128
 
@@ -1298,7 +1311,8 @@ Override of the global `auth_user` setting, if specified.
 
 ### auth_query
 
-Override of the global `auth_query` setting, if specified. The entire SQL statement needs to be enclosed in single quotes.
+Override of the global `auth_query` setting, if specified. The entire SQL
+statement needs to be enclosed in single quotes.
 
 ### auth_dbname
 
@@ -1324,7 +1338,7 @@ Only enforced if at least one of the following is true:
 ### reserve_pool_size
 
 Set additional connections for this database. If not set, the global `reserve_pool_size`
-is used. For backwards compatibilty reasons `reserve_pool` is an alias for this option.
+is used. For backwards compatibility reasons `reserve_pool` is an alias for this option.
 
 ### connect_query
 
@@ -1362,13 +1376,14 @@ Default: `round-robin`
 
 ### max_db_connections
 
-Configure a database-wide maximum of server connections (i.e. all pools within the database will
-not have more than this many server connections).
+Configure a database-wide maximum of server connections (i.e. all pools within
+the database will not have more than this many server connections).
 
 ### max_db_client_connections
 
-Configure a database-wide client connection maximum. Should be used in conjunction with max_client_conn
-to limit the number of connections that PgBouncer is allowed to accept.
+Configure a database-wide client connection maximum. Should be used in
+conjunction with max_client_conn to limit the number of connections that
+PgBouncer is allowed to accept.
 
 ### server_lifetime
 
@@ -1403,9 +1418,9 @@ Example:
 Only a few settings are available here.
 
 Note that when `auth_file` is configured, if a user is defined in this section
-but not listed in `auth_file`, pgBouncer will attempt to use `auth_query` to
+but not listed in `auth_file`, PgBouncer will attempt to use `auth_query` to
 find a password for that user if `auth_user` is set. If `auth_user` is not set,
-pgBouncer will pretend the user exists and fail to return "no such user"
+PgBouncer will pretend the user exists and fail to return "no such user"
 messages to the client, but neither will it accept any provided password.
 
 ### pool_size
@@ -1436,25 +1451,27 @@ If set this timeout overrides the server level query_timeout described above.
 ### idle_transaction_timeout
 
 Set the maximum number of seconds that a user can have an idle transaction open.
-If set this timeout overides the server level idle_transaction_timeout
+If set this timeout overrides the server level idle_transaction_timeout
 described above.
 
 ### transaction_timeout
 
 Set the maximum number of seconds that a user can have a transaction open.
-If set this timeout overides the server level transaction_timeout
+If set this timeout overrides the server level transaction_timeout
 described above.
 
 ### client_idle_timeout
 
 Set the maximum amount of time in seconds that a client is allowed to idly connect to
-the pgbouncer instance. If set this timeout overrides the server level client_idle_timeout
+the PgBouncer instance. If set this timeout overrides the server level client_idle_timeout
 described above.
 
-Please note that this is a potentially dangeous timeout.
+Please note that this is a potentially dangerous timeout.
 
 ### max_user_client_connections
-Configure a maximum for the user of client connections. This is the user equivalent ofthe max_client_conn setting.
+
+Configure a maximum for the user of client connections. This is the user
+equivalent of the max_client_conn setting.
 
 
 ## Section [peers]
@@ -1667,7 +1684,7 @@ The file format is a simplified variation of the PostgreSQL ident map file
 * Supported lines are only of the form `map-name system-username database-username`.
 * There is no support for including file/directory.
 * System-username field: Not supported: regular expressions.
-* Database-username field: Supports `all` or a single postgres user name. Not supported: `+groupname`, regular expressions.
+* Database-username field: Supports `all` or a single Postgres user name. Not supported: `+groupname`, regular expressions.
 
 ## Examples
 

@@ -1277,7 +1277,7 @@ def test_ldap_auth(bouncer_with_openldap):
     # 10 test ldap auth_type
     bouncer_with_openldap.write_ini(f"auth_type = ldap")
     bouncer_with_openldap.write_ini(
-        f'auth_ldap_parameter = ldapurl="ldap://127.0.0.1:{openldap.ldap_port}/dc=example,dc=net?uid?sub"'
+        f'ldap_options = ldapurl="ldap://127.0.0.1:{openldap.ldap_port}/dc=example,dc=net?uid?sub"'
     )
     bouncer_with_openldap.admin("reload")
     bouncer_with_openldap.test(user="ldapuser1", password="secret1")

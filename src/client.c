@@ -375,12 +375,12 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	auth = cf_auth_type;
 #ifdef HAVE_LDAP
 	if (auth == AUTH_TYPE_LDAP) {
-		if (cf_auth_ldap_parameter == NULL) {
-			disconnect_client(client, true, "auth_ldap_parameter is null");
+		if (cf_ldap_options == NULL) {
+			disconnect_client(client, true, "ldap_options is null");
 			return false;
 		} else {
-			snprintf(client->ldap_parameters, MAX_LDAP_CONFIG, "%s", cf_auth_ldap_parameter);
-			slog_noise(client, "The value of cf_auth_ldap_parameter is %s", cf_auth_ldap_parameter);
+			snprintf(client->ldap_parameters, MAX_LDAP_CONFIG, "%s", cf_ldap_options);
+			slog_noise(client, "The value of cf_ldap_options is %s", cf_ldap_options);
 		}
 	} else
 #endif

@@ -73,9 +73,9 @@ struct ldap_auth_request {
 	/* password we should check for validity together with the socket's username */
 	char password[MAX_PASSWORD];
 
-	char ldap_parameters[MAX_LDAP_CONFIG];
-	int param_pos;
-	/* ldap specific parameters */
+	char ldap_options[MAX_LDAP_CONFIG];
+	int option_pos;
+	/* LDAP specific options */
 	bool ldaptls;
 	char *ldapscheme;
 	char *ldapserver;
@@ -124,11 +124,11 @@ pthread_cond_t ldap_data_available;
 static void *ldap_auth_worker(void *arg);
 static bool is_valid_socket(const struct ldap_auth_request *request);
 static void ldap_auth_finish(struct ldap_auth_request *request, int status);
-static void free_ldap_parameters(struct ldap_auth_request *request);
-static bool validate_ldap_parameters(struct ldap_auth_request *request);
+static void free_ldap_options(struct ldap_auth_request *request);
+static bool validate_ldap_options(struct ldap_auth_request *request);
 static bool parse_ldapurl(struct ldap_auth_request *request, char *val);
 static bool get_key_value(char **p, char **key, char **value);
-static bool initialize_ldap_parameters(struct ldap_auth_request *request, char *parameter);
+static bool initialize_ldap_options(struct ldap_auth_request *request, char *option);
 static bool InitializeLDAPConnection(struct ldap_auth_request *request, LDAP **ldap);
 static void format_search_filter(char *filter, int length, const char *pattern, const char *user_name);
 static bool check_ldap_auth(struct ldap_auth_request *request);
@@ -186,21 +186,21 @@ static void set_request_status(struct ldap_auth_request *request, int status)
 }
 
 #define reset_ptr(ptr, name) ptr->name = NULL
-#define ldap_parameter_dup(ptr, name, src_str) \
+#define ldap_option_dup(ptr, name, src_str) \
 	do {                                           \
-		(ptr)->name = (ptr)->ldap_parameters + (ptr)->param_pos; \
-		safe_strcpy((ptr)->name, src_str, sizeof((ptr)->ldap_parameters) - (ptr)->param_pos); \
-		(ptr)->param_pos += strlen(src_str) + 1;      \
-		if ((ptr)->param_pos >= MAX_LDAP_CONFIG) {    \
-			log_warning("The parameters are longer than MAX_LDAP_CONFIG:%d", MAX_LDAP_CONFIG); \
+		(ptr)->name = (ptr)->ldap_options + (ptr)->option_pos; \
+		safe_strcpy((ptr)->name, src_str, sizeof((ptr)->ldap_options) - (ptr)->option_pos); \
+		(ptr)->option_pos += strlen(src_str) + 1;      \
+		if ((ptr)->option_pos >= MAX_LDAP_CONFIG) {    \
+			log_warning("The LDAP options are longer than MAX_LDAP_CONFIG: %d", MAX_LDAP_CONFIG); \
 			return false; \
 		} \
 	} while (0)
 
-static void free_ldap_parameters(struct ldap_auth_request *request)
+static void free_ldap_options(struct ldap_auth_request *request)
 {
-	memset(request->ldap_parameters, 0, MAX_LDAP_CONFIG);
-	request->param_pos = 0;
+	memset(request->ldap_options, 0, MAX_LDAP_CONFIG);
+	request->option_pos = 0;
 	reset_ptr(request, ldapserver);
 	reset_ptr(request, ldapbinddn);
 	reset_ptr(request, ldapsearchattribute);
@@ -214,13 +214,13 @@ static void free_ldap_parameters(struct ldap_auth_request *request)
 	request->ldapscope = 0;
 }
 
-static bool validate_ldap_parameters(struct ldap_auth_request *request)
+static bool validate_ldap_options(struct ldap_auth_request *request)
 {
 	/*
 	 * LDAP can operate in two modes: either with a direct bind, using
 	 * ldapprefix and ldapsuffix, or using a search+bind, using
 	 * ldapbasedn, ldapbinddn, ldapbindpasswd and ldapsearchattribute.
-	 * Disallow mixing these parameters.
+	 * Disallow mixing these set of options.
 	 */
 	if (request->ldapprefix || request->ldapsuffix) {
 		if (request->ldapbasedn ||
@@ -266,18 +266,18 @@ static bool parse_ldapurl(struct ldap_auth_request *request, char *val)
 		return false;
 	}
 	if (urldata->lud_scheme)
-		ldap_parameter_dup(request, ldapscheme, urldata->lud_scheme);
+		ldap_option_dup(request, ldapscheme, urldata->lud_scheme);
 
 	if (urldata->lud_host)
-		ldap_parameter_dup(request, ldapserver, urldata->lud_host);
+		ldap_option_dup(request, ldapserver, urldata->lud_host);
 	request->ldapport = urldata->lud_port;
 	if (urldata->lud_dn)
-		ldap_parameter_dup(request, ldapbasedn, urldata->lud_dn);
+		ldap_option_dup(request, ldapbasedn, urldata->lud_dn);
 	if (urldata->lud_attrs)
-		ldap_parameter_dup(request, ldapsearchattribute, urldata->lud_attrs[0]);/* only use first one */
+		ldap_option_dup(request, ldapsearchattribute, urldata->lud_attrs[0]);	/* only use first one */
 	request->ldapscope = urldata->lud_scope;
 	if (urldata->lud_filter)
-		ldap_parameter_dup(request, ldapsearchfilter, urldata->lud_filter);
+		ldap_option_dup(request, ldapsearchfilter, urldata->lud_filter);
 	ldap_free_urldesc(urldata);
 	return true;
 }
@@ -369,23 +369,23 @@ static bool get_key_value(char **p, char **key, char **value)
 	*value = val;
 	return true;
 }
-static void ignore_space_from_end(char *parameter)
+static void ignore_space_from_end(char *option)
 {
-	int length = strlen(parameter);
-	while (length > 0 && isspace(parameter[length - 1])) {
-		parameter[length - 1] = '\0';
+	int length = strlen(option);
+	while (length > 0 && isspace(option[length - 1])) {
+		option[length - 1] = '\0';
 		length--;
 	}
 	return;
 }
 
-static bool initialize_ldap_parameters(struct ldap_auth_request *request, char *parameter)
+static bool initialize_ldap_options(struct ldap_auth_request *request, char *option)
 {
 	char *key, *value;
-	char *p = parameter;
+	char *p = option;
 
-	/* There maybe \n at the end of parameter */
-	ignore_space_from_end(parameter);
+	/* There maybe \n at the end of option */
+	ignore_space_from_end(option);
 	request->ldapscope = LDAP_SCOPE_SUBTREE;
 	while (get_key_value(&p, &key, &value)) {
 		if (strcmp(key, "ldaptls") == 0) {
@@ -398,7 +398,7 @@ static bool initialize_ldap_parameters(struct ldap_auth_request *request, char *
 				log_warning("invalid ldapscheme value: \"%s\"", value);
 				return false;
 			}
-			ldap_parameter_dup(request, ldapscheme, value);
+			ldap_option_dup(request, ldapscheme, value);
 		} else if (strcmp(key, "ldapport") == 0) {
 			request->ldapport = atoi(value);
 			if (request->ldapport == 0) {
@@ -406,31 +406,31 @@ static bool initialize_ldap_parameters(struct ldap_auth_request *request, char *
 				return false;
 			}
 		} else if (strcmp(key, "ldapserver") == 0) {
-			ldap_parameter_dup(request, ldapserver, value);
+			ldap_option_dup(request, ldapserver, value);
 		} else if (strcmp(key, "ldapbinddn") == 0) {
-			ldap_parameter_dup(request, ldapbinddn, value);
+			ldap_option_dup(request, ldapbinddn, value);
 		} else if (strcmp(key, "ldapsearchattribute") == 0) {
-			ldap_parameter_dup(request, ldapsearchattribute, value);
+			ldap_option_dup(request, ldapsearchattribute, value);
 		} else if (strcmp(key, "ldapsearchfilter") == 0) {
-			ldap_parameter_dup(request, ldapsearchfilter, value);
+			ldap_option_dup(request, ldapsearchfilter, value);
 		} else if (strcmp(key, "ldapbasedn") == 0) {
-			ldap_parameter_dup(request, ldapbasedn, value);
+			ldap_option_dup(request, ldapbasedn, value);
 		} else if (strcmp(key, "ldapbindpasswd") == 0) {
-			ldap_parameter_dup(request, ldapbindpasswd, value);
+			ldap_option_dup(request, ldapbindpasswd, value);
 		} else if (strcmp(key, "ldapprefix") == 0) {
-			ldap_parameter_dup(request, ldapprefix, value);
+			ldap_option_dup(request, ldapprefix, value);
 		} else if (strcmp(key, "ldapsuffix") == 0) {
-			ldap_parameter_dup(request, ldapsuffix, value);
+			ldap_option_dup(request, ldapsuffix, value);
 		} else if (strcmp(key, "ldapurl") == 0) {
 			if (!parse_ldapurl(request, value))
 				return false;
 		} else {
-			log_warning("invalid LDAP key parameter: \"%s\"", key);
+			log_warning("invalid LDAP option: \"%s\"", key);
 			return false;
 		}
 	}
 
-	return validate_ldap_parameters(request);
+	return validate_ldap_options(request);
 }
 
 /*
@@ -474,8 +474,8 @@ void ldap_auth_begin(PgSocket *client, const char *passwd)
 	memcpy(&request->remote_addr, &client->remote_addr, sizeof(client->remote_addr));
 	safe_strcpy(request->username, client->login_user_credentials->name, MAX_USERNAME);
 	safe_strcpy(request->password, passwd, MAX_PASSWORD);
-	/* Reset value of ldap parameters */
-	free_ldap_parameters(request);
+	/* Reset value of LDAP options */
+	free_ldap_options(request);
 
 	ldap_first_free_slot = next_free_slot;
 
@@ -767,7 +767,7 @@ static bool check_ldap_auth(struct ldap_auth_request *request)
 	int r;
 	char fulluser[LDAP_LONG_LENGTH];
 
-	if (!initialize_ldap_parameters(request, request->client->ldap_parameters)) {
+	if (!initialize_ldap_options(request, request->client->ldap_options)) {
 		return false;
 	}
 	if ((!request->ldapserver || request->ldapserver[0] == '\0') &&

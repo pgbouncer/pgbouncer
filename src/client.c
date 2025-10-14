@@ -379,7 +379,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 			disconnect_client(client, true, "ldap_options is null");
 			return false;
 		} else {
-			snprintf(client->ldap_parameters, MAX_LDAP_CONFIG, "%s", cf_ldap_options);
+			snprintf(client->ldap_options, MAX_LDAP_CONFIG, "%s", cf_ldap_options);
 			slog_noise(client, "The value of cf_ldap_options is %s", cf_ldap_options);
 		}
 	} else
@@ -401,7 +401,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		auth = rule->rule_method;
 #ifdef HAVE_LDAP
 		if (auth == AUTH_TYPE_LDAP) {
-			snprintf(client->ldap_parameters, MAX_LDAP_CONFIG, "%s", rule->auth_options);
+			snprintf(client->ldap_options, MAX_LDAP_CONFIG, "%s", rule->auth_options);
 		}
 #endif
 		slog_noise(client, "HBA Line %d is matched", rule->hba_linenr);

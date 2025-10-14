@@ -754,7 +754,7 @@ struct PgSocket {
 		uint8_t ServerKey[32];
 	} scram_state;
 #ifdef HAVE_LDAP
-	char ldap_parameters[MAX_LDAP_CONFIG];
+	char ldap_options[MAX_LDAP_CONFIG];
 #endif
 
 	VarCache vars;		/* state of interesting server parameters */

@@ -754,7 +754,7 @@ struct PgSocket {
 		uint8_t ServerKey[32];
 	} scram_state;
 #ifdef HAVE_LDAP
-	char ldap_parameters[MAX_LDAP_CONFIG];
+	char ldap_options[MAX_LDAP_CONFIG];
 #endif
 
 	VarCache vars;		/* state of interesting server parameters */
@@ -854,7 +854,7 @@ extern char *cf_auth_query;
 extern char *cf_auth_user;
 extern char *cf_auth_hba_file;
 extern char *cf_auth_dbname;
-extern char *cf_auth_ldap_parameter;
+extern char *cf_ldap_options;
 
 extern char *cf_pidfile;
 

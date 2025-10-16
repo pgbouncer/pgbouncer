@@ -1050,6 +1050,13 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 			return false;
 		}
 	}
+
+	/* ran out of bytes before seeing a terminator, or got a double \0 before the end */
+	if (!ok || mbuf_avail_for_read(&pkt->data) != 0) {
+		disconnect_client(client, true, "invalid startup packet layout: expected terminator as last byte");
+		return false;
+	}
+
 	if (!username || !username[0]) {
 		disconnect_client(client, true, "no username supplied");
 		return false;

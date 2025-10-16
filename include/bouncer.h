@@ -914,14 +914,6 @@ extern usec_t g_suspend_start;
 extern struct DNSContext *adns;
 extern struct HBA *parsed_hba;
 
-static inline PgSocket * _MUSTCHECK pop_socket(struct StatList *slist)
-{
-	struct List *item = statlist_pop(slist);
-	if (item == NULL)
-		return NULL;
-	return container_of(item, PgSocket, head);
-}
-
 static inline PgSocket *first_socket(struct StatList *slist)
 {
 	if (statlist_empty(slist))

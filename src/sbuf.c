@@ -666,6 +666,8 @@ try_more:
 		io->done_pos += res;
 	} else if (res < 0) {
 		if (errno == EAGAIN) {
+			log_info("sbuf_send_pending_iobuf: send() is stalled on dst=%d avail=%d",
+				 sbuf->dst->sock, avail);
 			if (!sbuf_queue_send(sbuf)) {
 				/* drop if queue failed */
 				sbuf_call_proto(sbuf, SBUF_EV_SEND_FAILED);

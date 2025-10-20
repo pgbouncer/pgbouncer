@@ -1988,7 +1988,7 @@ force_new:
 }
 
 /* new client connection attempt */
-PgSocket *accept_client(int sock, bool is_unix)
+PgSocket *accept_client(int sock, bool is_unix, int local_port)
 {
 	bool res;
 	PgSocket *client;
@@ -2005,8 +2005,8 @@ PgSocket *accept_client(int sock, bool is_unix)
 	client->query_start = 0;
 
 	/* FIXME: take local and remote address from pool_accept() */
-	fill_remote_addr(client, sock, is_unix);
-	fill_local_addr(client, sock, is_unix);
+	fill_remote_addr(client, sock, is_unix, local_port);
+	fill_local_addr(client, sock, is_unix, local_port);
 
 	change_client_state(client, CL_LOGIN);
 
@@ -2337,7 +2337,8 @@ bool use_client_socket(int fd, PgAddr *addr,
 		credentials->use_scram_keys = true;
 	}
 
-	client = accept_client(fd, pga_is_unix(addr));
+	// TODO Validate if this should be local or remote address
+	client = accept_client(fd, pga_is_unix(addr), pga_port(addr));
 	if (client == NULL)
 		return false;
 	client->suspended = true;
@@ -2417,8 +2418,9 @@ bool use_server_socket(int fd, PgAddr *addr,
 	server->query_start = 0;
 	statlist_init(&server->canceling_clients, "canceling_clients");
 
-	fill_remote_addr(server, fd, pga_is_unix(addr));
-	fill_local_addr(server, fd, pga_is_unix(addr));
+	// TODO Validate if correct port is being used here
+	fill_remote_addr(server, fd, pga_is_unix(addr), pga_port(addr));
+	fill_local_addr(server, fd, pga_is_unix(addr), pga_port(addr));
 
 	if (linkfd) {
 		server->ready = false;

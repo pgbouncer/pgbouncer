@@ -1,3 +1,4 @@
+import logging
 import threading
 import time
 
@@ -72,8 +73,17 @@ def test_show(bouncer):
         bouncer.admin(f"SHOW {item}")
 
 
-def test_socket_id(bouncer) -> None:
+g_test_socket_id__timeouts = [0, 1, 2]
+
+
+@pytest.mark.parametrize(
+    "timeout",
+    g_test_socket_id__timeouts,
+    ids=["timeout_{}".format(x) for x in g_test_socket_id__timeouts],
+)
+def test_socket_id(bouncer, timeout) -> None:
     """Test that PgSocket id is assigned as expected for sockets."""
+    assert timeout >= 0
     config = f"""
     [databases]
     p1 = host={bouncer.pg.host} port={bouncer.pg.port}
@@ -96,21 +106,52 @@ def test_socket_id(bouncer) -> None:
             admin_cursor.execute("SHOW SOCKETS")
             servers = admin_cursor.fetchall()
             initial_id = max([i["id"] for i in servers])
+            base_id = initial_id
 
             for i in range(1, 4):
+                logging.info("----------- Step #{}".format(i))
+                # CHECKPOINT_001: new connection
                 conn_2 = bouncer.conn(dbname="p1")
                 curr = conn_2.cursor()
+                time.sleep(timeout)
+                # CHECKPOINT_002: new connection (?)
                 _ = curr.execute("SELECT 1")
                 time.sleep(2)
-                clients = admin_cursor.execute("SHOW SOCKETS").fetchall()
-                assert len(clients) == 3
-                assert set(
+                # CHECKPOINT_002: new connection
+                sockets = admin_cursor.execute("SHOW SOCKETS").fetchall()
+                assert len(sockets) == 3
+                socket_ids = set([socket["id"] for socket in sockets])
+                assert len(socket_ids) == 3
+
+                expected_ids1 = set(
                     [
                         initial_id,
-                        initial_id + i * 2 - 1,
-                        initial_id + i * 2,
+                        base_id + 1,
+                        base_id + 2,
                     ]
-                ) == set([client["id"] for client in clients])
+                )
+
+                expected_ids2 = set(
+                    [
+                        initial_id,
+                        base_id + 1,
+                        base_id + 3,
+                    ]
+                )
+
+                if socket_ids == expected_ids1:  # OK
+                    base_id = base_id + 2
+                elif socket_ids == expected_ids2:  # OK (slow)
+                    base_id = base_id + 3
+                else:
+                    raise Exception(
+                        "Unexpected ids: {}. Expected ids: {} or {}.".format(
+                            socket_ids, expected_ids1, expected_ids2
+                        )
+                    )
+
+                logging.info("Socket ids are {}.".format(socket_ids))
+
                 conn_2.close()
                 time.sleep(2)
 

@@ -187,7 +187,10 @@ total_query_count
 :   Total number of SQL commands pooled by **pgbouncer**.
 
 total_server_assignment_count
-:   Total times a server was assigned to a client
+:   Total times a server was assigned to a client.
+
+total_server_closed_count
+:   Total times a server connection was closed.
 
 total_received
 :   Total volume in bytes of network traffic received by **pgbouncer**.
@@ -207,6 +210,10 @@ total_query_time
 total_wait_time
 :   Time spent by clients waiting for a server, in microseconds. Updated
     when a client connection is assigned a backend connection.
+
+total_server_lifetime
+:   Total age of server connections, in microseconds. Updated when a
+    server connection is disconnected.
 
 total_client_parse_count
 :   Total number of prepared statements created by clients. Only applicable
@@ -247,6 +254,11 @@ avg_wait_time
 :   Time spent by clients waiting for a server, in microseconds (average
     of the wait times for clients assigned a backend during the current
     `stats_period`).
+
+avg_server_lifetime
+:   Average age of server connections, in microseconds (average
+    of the server lifetimes for servers disconnected during the current
+    `stats_period`).   
 
 avg_client_parse_count
 :   Average number of prepared statements created by clients. Only applicable

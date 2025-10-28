@@ -228,8 +228,7 @@ static bool validate_ldap_options(struct ldap_auth_request *request)
 		    request->ldapbindpasswd ||
 		    request->ldapsearchattribute ||
 		    request->ldapsearchfilter) {
-			log_warning("cannot use ldapbasedn, ldapbinddn, ldapbindpasswd, "
-				    "ldapsearchattribute, ldapsearchfilter, or ldapurl together with ldapprefix");
+			log_warning("cannot mix options for simple bind and search+bind modes");
 			return false;
 		}
 	} else if (!request->ldapbasedn) {

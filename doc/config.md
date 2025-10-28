@@ -482,18 +482,16 @@ hba
     over Unix socket use the `peer` authentication method, connections over TCP
     must use TLS.
 
+ldap
+:   Users are authenticated against an LDAP server, like in PostgreSQL
+    (see <https://www.postgresql.org/docs/current/auth-ldap.html> for
+    details).  The LDAP connection options are configured using the
+    setting `ldap_options`, or alternatively in the `auth_hba_file`.
+
 pam
 :   PAM is used to authenticate users, `auth_file` is ignored. This method is not
     compatible with databases using the `auth_user` option. The service name reported to
     PAM is "pgbouncer". `pam` is not supported in the HBA configuration file.
-
-ldap
-:   LDAP is used to authenticate users with ldap server (OpenLDAP on Linux or AD on Windows).
-In order to use ldap, `auth_type` needs to be set to `hba`. The value of
-`auth_hba_file` has also to be set. And the content of the `auth_hba_file` could be
-the same format like `pg_hba.conf` in Postgres.
-Otherwise, you can set `auth_type` directly to `ldap`. If `auth_type` is set to `ldap`, the
-`ldap_options` has also to be set.
 
 ### auth_hba_file
 
@@ -552,16 +550,10 @@ specified.
 
 ### ldap_options
 
-This value is the global ldap parameter if `auth_type` is set to `ldap`. The
-value would be similar to the ldap line in pg_hba.conf. If no `ldap_options` is
-set, then ldap authentication will fail. However, the value only contains the
-parameter after the 'ldap' keyword in the HBA line. For example, if the HBA
-line looks like this:
-```conf
-host all ldapuser1 0.0.0.0/0 ldap ldapurl="ldap://127.0.0.1:12345/dc=example,dc=net?uid?sub"`.
-```
-The corresponding value of `ldap_options` would be
-`ldapurl="ldap://127.0.0.1:12345/dc=example,dc=net?uid?sub"`
+LDAP connection options to use if `auth_type` is `ldap`.  (Not used if
+authentication is configured via `auth_hba_file`.)  Example:
+
+    ldap_options = ldapurl="ldap://127.0.0.1:12345/dc=example,dc=net?uid?sub"
 
 ## Log settings
 

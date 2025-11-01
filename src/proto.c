@@ -215,10 +215,28 @@ void log_server_error(const char *note, PktHdr *pkt)
 /* add another server parameter packet to cache */
 bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 {
+	if (pool->welcome_msg_ready)
+		return true;
+
+	/* if not stored in ->orig_vars, add to welcome vars */
+	if (!varcache_set(&pool->orig_vars, key, val)) {
+		welcome_vars_set(&pool->welcome_vars, key, val, false);
+	}
+
+	return true;
+}
+
+bool build_welcome_message(PgPool *pool)
+{
 	PktBuf *msg = pool->welcome_msg;
 
 	if (pool->welcome_msg_ready)
 		return true;
+
+	if (msg) {
+		pktbuf_free(msg);
+		msg = NULL;
+	}
 
 	if (!msg) {
 		msg = pktbuf_dynamic(128);
@@ -227,24 +245,26 @@ bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 		pool->welcome_msg = msg;
 	}
 
-	/* first packet must be AuthOk */
-	if (msg->write_pos == 0)
-		pktbuf_write_AuthenticationOk(msg);
+	pktbuf_write_AuthenticationOk(msg);
 
-	/* if not stored in ->orig_vars, write full packet */
-	if (!varcache_set(&pool->orig_vars, key, val))
-		pktbuf_write_ParameterStatus(msg, key, val);
+	pool->welcome_msg_vars_offset = msg->write_pos;
+	welcome_vars_add_params(msg, pool->welcome_vars);
 
 	return !msg->failed;
 }
 
 /* all parameters processed */
-void finish_welcome_msg(PgSocket *server)
+bool finish_welcome_msg(PgSocket *server)
 {
 	PgPool *pool = server->pool;
 	if (pool->welcome_msg_ready)
-		return;
+		return true;
+
+	if (!build_welcome_message(server->pool))
+		return false;
+
 	pool->welcome_msg_ready = true;
+	return true;
 }
 
 bool welcome_client(PgSocket *client)
@@ -259,6 +279,12 @@ bool welcome_client(PgSocket *client)
 	/* copy prepared stuff around */
 	msg = pktbuf_temp();
 	pktbuf_put_bytes(msg, pmsg->buf, pmsg->write_pos);
+	client->welcome_msg = pktbuf_dynamic(128);
+	if (!client->welcome_msg) {
+		disconnect_client(client, true, "failed to allocate welcome message");
+		return false;
+	}
+	pktbuf_put_bytes(client->welcome_msg, pmsg->buf + pool->welcome_msg_vars_offset, pmsg->write_pos - pool->welcome_msg_vars_offset);
 
 	/* fill vars */
 	varcache_fill_unset(&pool->orig_vars, client);

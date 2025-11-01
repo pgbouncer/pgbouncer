@@ -854,7 +854,7 @@ extern char *cf_auth_query;
 extern char *cf_auth_user;
 extern char *cf_auth_hba_file;
 extern char *cf_auth_dbname;
-extern char *cf_ldap_options;
+extern char *cf_auth_ldap_options;
 
 extern char *cf_pidfile;
 

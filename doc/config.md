@@ -486,7 +486,7 @@ ldap
 :   Users are authenticated against an LDAP server, like in PostgreSQL
     (see <https://www.postgresql.org/docs/current/auth-ldap.html> for
     details).  The LDAP connection options are configured using the
-    setting `ldap_options`, or alternatively in the `auth_hba_file`.
+    setting `auth_ldap_options`, or alternatively in the `auth_hba_file`.
 
 pam
 :   PAM is used to authenticate users, `auth_file` is ignored. This method is not
@@ -548,12 +548,12 @@ Database name in the `[database]` section to be used for authentication purposes
 option can be either global or overridden in the connection string if this parameter is
 specified.
 
-### ldap_options
+### auth_ldap_options
 
 LDAP connection options to use if `auth_type` is `ldap`.  (Not used if
 authentication is configured via `auth_hba_file`.)  Example:
 
-    ldap_options = ldapurl="ldap://127.0.0.1:12345/dc=example,dc=net?uid?sub"
+    auth_ldap_options = ldapurl="ldap://127.0.0.1:12345/dc=example,dc=net?uid?sub"
 
 ## Log settings
 

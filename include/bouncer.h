@@ -565,7 +565,7 @@ struct PgGlobalUser {
 	PgCredentials credentials;	/* needs to be first for AAtree */
 	SpinLock lock;		/* lock for updating user state */
 	struct List head;	/* used to attach user to list */
-	struct List pool_list;	/* list of pools where pool->user == this user, in multithread mode, pools from all threads are tracked */
+	struct List *pool_list;	/* list of pools where pool->user == this user, in multithread mode, pools from all threads are tracked */
 	int pool_mode;
 	int pool_size;	/* max server connections in one pool */
 	int res_pool_size;	/* max additional server connections in one pool */
@@ -631,8 +631,6 @@ struct PgDatabase {
 	int client_connection_count;	/* total client connections for this database */
 
 	struct AATree user_tree;	/* users that have been queried on this database */
-
-	int thread_id;		/* thread this database lives in */
 };
 
 enum ResponseAction {

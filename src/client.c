@@ -184,7 +184,7 @@ static void start_auth_query(PgSocket *client, const char *username)
 	PgDatabase *auth_db = prepare_auth_database(client);
 	if (!auth_db)
 		return;
-	client->pool = get_pool(auth_db, client->db->auth_user_credentials);
+	client->pool = get_pool(auth_db, client->db->auth_user_credentials, client->sbuf.thread_id);
 	if (!client->pool) {
 		disconnect_client(client, true, "no memory for authentication pool");
 		return;
@@ -339,7 +339,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		else
 			pool_user_credentials = client->login_user_credentials;
 
-		client->pool = get_pool(client->db, pool_user_credentials);
+		client->pool = get_pool(client->db, pool_user_credentials, client->sbuf.thread_id);
 		if (!client->pool) {
 			disconnect_client(client, true, "no memory for pool");
 			return false;

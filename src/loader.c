@@ -223,22 +223,19 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 		goto fail;
 	}
 
-	THREAD_ITERATE(thread_id, {
-		peer = add_peer(name, peer_id, thread_id);
-		if (!peer) {
-			log_error("cannot create peer, no memory?");
-			goto fail;
-		}
+	peer = add_peer(name, peer_id);
+	if (!peer) {
+		log_error("cannot create peer, no memory?");
+		goto fail;
+	}
 
-		/* tag the peer as alive */
-		peer->db_dead = false;
+	/* tag the peer as alive */
+	peer->db_dead = false;
 
-		free(peer->host);
-		peer->host = strdup(host);
-		peer->port = port;
-		peer->pool_size = pool_size;
-		peer->thread_id = thread_id;
-	});
+	free(peer->host);
+	peer->host = strdup(host);
+	peer->port = port;
+	peer->pool_size = pool_size;
 
 	free(tmp_connstr);
 	free(host);
@@ -249,22 +246,8 @@ fail:
 	return false;
 }
 
-bool parse_database_multithread(void *base, const char *name, const char *connstr)
-{
-	bool res = true;
-
-	if (!multithread_mode) {
-		return parse_database(base, name, connstr, -1);
-	}
-
-	FOR_EACH_THREAD(thread_id){
-		res &= parse_database(base, name, connstr, thread_id);
-	}
-	return res;
-}
-
 /* fill PgDatabase from connstr */
-bool parse_database(void *base, const char *name, const char *connstr, int thread_id)
+bool parse_database(void *base, const char *name, const char *connstr)
 {
 	char *p, *key, *val;
 	PktBuf *msg;
@@ -390,7 +373,7 @@ bool parse_database(void *base, const char *name, const char *connstr, int threa
 		}
 	}
 
-	db = add_database(name, thread_id);
+	db = add_database(name);
 	if (!db) {
 		log_error("cannot create database, no memory?");
 		goto fail;

@@ -67,7 +67,7 @@
 #define GET_MULTITHREAD_PTR(name, thread_id) \
 	(multithread_mode ? (void *)&(threads[thread_id].name) : (void *)&name)
 
-#define GET_MULTITHREAD_CACHE_PTR(name, thread_id) \
+#define GET_MULTITHREAD_TYPE_PTR(name, thread_id) \
 	(multithread_mode ? (threads[thread_id].name) : (name))
 
 
@@ -150,14 +150,11 @@ typedef struct Thread {
 	struct ThreadSafeStatList peer_pool_list;
 	struct ThreadSafeStatList peer_list;
 	struct WorkersignalEvents worker_signal_events;
-	struct ThreadSafeStatList database_list;
-	struct StatList autodatabase_idle_list;
 	struct Slab *client_cache;
 	struct Slab *server_cache;
 	struct Slab *pool_cache;
 	struct Slab *peer_cache;
 	struct Slab *peer_pool_cache;
-	struct Slab *db_cache;
 	struct Slab *var_list_cache;
 	struct Slab *iobuf_cache;
 	struct Slab *server_prepared_statement_cache;

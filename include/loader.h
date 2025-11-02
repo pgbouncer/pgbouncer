@@ -17,7 +17,7 @@
  */
 
 /* connstring parsing */
-bool parse_database(void *base, const char *name, const char *connstr, int thread_id) _MUSTCHECK;
+bool parse_database(void *base, const char *name, const char *connstr) _MUSTCHECK;
 bool parse_database_multithread(void *base, const char *name, const char *connstr) _MUSTCHECK;
 bool parse_peer(void *base, const char *name, const char *connstr) _MUSTCHECK;
 

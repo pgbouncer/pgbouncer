@@ -435,8 +435,6 @@ void init_thread(int thread_id)
 	thread_safe_statlist_init(&(threads[thread_id].pool_list), NULL, true);
 	thread_safe_statlist_init(&(threads[thread_id].peer_pool_list), NULL, true);
 	statlist_init(&(threads[thread_id].login_client_list), NULL);
-	thread_safe_statlist_init(&(threads[thread_id].database_list), NULL, true);
-	statlist_init(&(threads[thread_id].autodatabase_idle_list), NULL);
 	statlist_init(&(threads[thread_id].justfree_client_list), NULL);
 	statlist_init(&(threads[thread_id].justfree_server_list), NULL);
 	threads[thread_id].vpool = NULL;

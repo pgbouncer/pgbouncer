@@ -120,19 +120,11 @@ static int count_paused_databases(void)
 	struct List *item;
 	PgDatabase *db;
 	int cnt = 0;
-	if (multithread_mode) {
-		FOR_EACH_THREAD(thread_id){
-			THREAD_SAFE_STATLIST_EACH(&threads[thread_id].database_list, item, {
-				db = container_of(item, PgDatabase, head);
-				cnt += db->db_paused;
-			});
-		}
-	} else {
-		statlist_for_each(item, &database_list) {
-			db = container_of(item, PgDatabase, head);
-			cnt += db->db_paused;
-		}
-	}
+	THREAD_SAFE_STATLIST_EACH(&database_list, item, {
+		db = container_of(item, PgDatabase, head);
+		cnt += db->db_paused;
+	});
+
 	return cnt;
 }
 
@@ -143,15 +135,14 @@ static int count_db_active(PgDatabase *db)
 	struct List *item;
 	PgPool *pool;
 	int cnt = 0;
-	int thread_id = db->thread_id;
-	struct ThreadSafeStatList *pool_list_ptr = GET_MULTITHREAD_PTR(pool_list, thread_id);
-
-	THREAD_SAFE_STATLIST_EACH(pool_list_ptr, item, {
-		pool = container_of(item, PgPool, head);
-		if (pool->db->name == db->name)
-			cnt += pool_server_count(pool);
+	THREAD_ITERATE(thread_id, {
+		struct ThreadSafeStatList *pool_list_ptr = GET_MULTITHREAD_PTR(pool_list, thread_id);
+		THREAD_SAFE_STATLIST_EACH(pool_list_ptr, item, {
+			pool = container_of(item, PgPool, head);
+			if (pool->db->name == db->name)
+				cnt += pool_server_count(pool);
+		});
 	});
-
 	return cnt;
 }
 
@@ -516,7 +507,7 @@ static bool admin_show_fds(PgSocket *admin, const char *arg)
 	return res;
 }
 
-static void show_one_database(int thread_id, PgDatabase *db, PktBuf *buf, struct CfValue *cv, struct CfValue *load_balance_hosts_lookup)
+static void show_one_database(PgDatabase *db, PktBuf *buf, struct CfValue *cv, struct CfValue *load_balance_hosts_lookup)
 {
 	usec_t server_lifetime_secs;
 	const char *f_user;
@@ -535,7 +526,7 @@ static void show_one_database(int thread_id, PgDatabase *db, PktBuf *buf, struct
 	if (db->host && strchr(db->host, ','))
 		load_balance_hosts_str = cf_get_lookup(load_balance_hosts_lookup);
 
-	pktbuf_write_DataRow(buf, "ssissiiiissiiiiiii",
+	pktbuf_write_DataRow(buf, "ssissiiiissiiiiii",
 			     db->name, db->host, db->port,
 			     db->dbname, f_user,
 			     db->pool_size >= 0 ? db->pool_size : cf_default_pool_size,
@@ -549,8 +540,7 @@ static void show_one_database(int thread_id, PgDatabase *db, PktBuf *buf, struct
 			     database_max_client_connections(db),
 			     db->client_connection_count,
 			     db->db_paused,
-			     db->db_disabled,
-			     multithread_mode ? thread_id : 0);
+			     db->db_disabled);
 }
 
 
@@ -570,26 +560,19 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "ssissiiiissiiiiiii",
+	pktbuf_write_RowDescription(buf, "ssissiiiissiiiiii",
 				    "name", "host", "port",
 				    "database", "force_user", "pool_size", "min_pool_size", "reserve_pool_size",
 				    "server_lifetime", "pool_mode", "load_balance_hosts", "max_connections",
 				    "current_connections", "max_client_connections", "current_client_connections",
-				    "paused", "disabled", "thread_id");
+				    "paused", "disabled");
 
-	if (multithread_mode) {
-		FOR_EACH_THREAD(thread_id){
-			THREAD_SAFE_STATLIST_EACH(&(threads[thread_id].database_list), item, {
-				PgDatabase *db = container_of(item, PgDatabase, head);
-				show_one_database(thread_id, db, buf, &cv, &load_balance_hosts_lookup);
-			});
-		}
-	} else {
-		statlist_for_each(item, &database_list) {
-			PgDatabase *db = container_of(item, PgDatabase, head);
-			show_one_database(-1, db, buf, &cv, &load_balance_hosts_lookup);
-		}
-	}
+
+	THREAD_SAFE_STATLIST_EACH(&database_list, item, {
+		PgDatabase *db = container_of(item, PgDatabase, head);
+		show_one_database(db, buf, &cv, &load_balance_hosts_lookup);
+	});
+
 	admin_flush(admin, buf, "SHOW");
 	return true;
 }
@@ -637,7 +620,7 @@ static bool admin_show_peers(PgSocket *admin, const char *arg)
 /* Command: SHOW LISTS */
 static bool admin_show_lists(PgSocket *admin, const char *arg)
 {
-	int total_database_count, total_pool_list, total_peer_pool_list, total_peer_list;
+	int total_pool_list, total_peer_pool_list, total_peer_list;
 	int total_free_clients, total_used_clients, total_login_clients;
 	int total_free_servers, total_used_servers;
 
@@ -649,7 +632,6 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 	pktbuf_write_RowDescription(buf, "si", "list", "items");
 #define SENDLIST(name, size) pktbuf_write_DataRow(buf, "si", (name), (size))
 
-	total_database_count = 0;
 	total_pool_list = 0;
 	total_peer_list = 0;
 	total_peer_pool_list = 0;
@@ -661,7 +643,6 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 
 	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id){
-			total_database_count += thread_safe_statlist_count(&(threads[thread_id].database_list));
 			total_pool_list += thread_safe_statlist_count(&(threads[thread_id].pool_list));
 			total_peer_list += thread_safe_statlist_count(&(threads[thread_id].peer_list));
 			total_peer_pool_list += thread_safe_statlist_count(&(threads[thread_id].peer_pool_list));
@@ -672,7 +653,6 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 			total_used_servers += slab_active_count(threads[thread_id].server_cache);
 		}
 	} else {
-		total_database_count = statlist_count(&database_list);
 		total_pool_list = thread_safe_statlist_count(&pool_list);
 		total_peer_list = thread_safe_statlist_count(&peer_list);
 		total_peer_pool_list = thread_safe_statlist_count(&peer_pool_list);
@@ -683,7 +663,7 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 		total_used_servers = slab_active_count(server_cache);
 	}
 
-	SENDLIST("databases", total_database_count);
+	SENDLIST("databases", thread_safe_statlist_count(&database_list));
 	SENDLIST("users", thread_safe_statlist_count(&thread_safe_user_list));
 	SENDLIST("peers", total_peer_list);
 	SENDLIST("pools", total_pool_list);
@@ -1438,34 +1418,12 @@ static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 	} else {
 		PgDatabase *db = NULL;
 		log_info("RESUME '%s' command issued", arg);
-		if (multithread_mode) {
-			bool found = false;
-			bool not_paused = true;
-
-			/* First pass: check if database exists and was paused */
-			FOR_EACH_THREAD(thread_id){
-				db = find_database(arg, thread_id);
-				if (db != NULL) {
-					found = true;
-					/* check if paused db exists */
-					not_paused &= !db->db_paused;
-					db->db_paused = false;
-				}
-			}
-
-			if (!found)
-				return admin_error(admin, "no such database: %s", arg);
-
-			if (not_paused)
-				return admin_error(admin, "database %s is not paused", arg);
-		} else {
-			db = find_database(arg, -1);
-			if (db == NULL)
-				return admin_error(admin, "no such database: %s", arg);
-			if (!db->db_paused)
-				return admin_error(admin, "database %s is not paused", arg);
-			db->db_paused = false;
-		}
+		db = find_database(arg);
+		if (db == NULL)
+			return admin_error(admin, "no such database: %s", arg);
+		if (!db->db_paused)
+			return admin_error(admin, "database %s is not paused", arg);
+		db->db_paused = false;
 	}
 	return admin_ready(admin, "RESUME");
 }
@@ -1528,41 +1486,16 @@ static bool admin_cmd_pause(PgSocket *admin, const char *arg)
 	} else {
 		PgDatabase *db;
 		log_info("PAUSE '%s' command issued", arg);
-		if (multithread_mode) {
-			bool paused = true;
-			bool found = false;
-			FOR_EACH_THREAD(thread_id){
-				lock_thread(thread_id);
-				admin->sbuf.thread_id = thread_id;
-				db = find_or_register_database(admin, arg);
-				unlock_thread(thread_id);
-				if (db == NULL)
-					continue;
-				found = true;
-				if (db->name == admin->pool->db->name)
-					return admin_error(admin, "cannot pause admin db: %s", arg);
-				db->db_paused = true;
-				if (count_db_active(db) > 0) {
-					admin->wait_for_response = true;
-					paused = false;
-				}
-			}
-			if (!found)
-				return admin_error(admin, "no such database: %s", arg);
-			if (paused)
-				return admin_ready(admin, "PAUSE");
-		} else {
-			db = find_or_register_database(admin, arg);
-			if (db == NULL)
-				return admin_error(admin, "no such database: %s", arg);
-			if (db == admin->pool->db)
-				return admin_error(admin, "cannot pause admin db: %s", arg);
-			db->db_paused = true;
-			if (count_db_active(db) > 0)
-				admin->wait_for_response = true;
-			else
-				return admin_ready(admin, "PAUSE");
-		}
+		db = find_or_register_database(admin, arg);
+		if (db == NULL)
+			return admin_error(admin, "no such database: %s", arg);
+		if (db == admin->pool->db)
+			return admin_error(admin, "cannot pause admin db: %s", arg);
+		db->db_paused = true;
+		if (count_db_active(db) > 0)
+			admin->wait_for_response = true;
+		else
+			return admin_ready(admin, "PAUSE");
 	}
 
 	return true;
@@ -2340,7 +2273,8 @@ bool admin_post_login(PgSocket *client)
 	return false;
 }
 
-static void admin_setup_per_thread(int thread_id)
+/* init special database and query parsing */
+void admin_setup(void)
 {
 	PgDatabase *db;
 	PgPool *pool;
@@ -2348,7 +2282,7 @@ static void admin_setup_per_thread(int thread_id)
 	PktBuf *msg;
 
 	/* fake database */
-	db = add_database("pgbouncer", thread_id);
+	db = add_database("pgbouncer");
 
 	if (!db)
 		die("no memory for admin database");
@@ -2360,15 +2294,18 @@ static void admin_setup_per_thread(int thread_id)
 		die("no mem on startup - cannot alloc pgbouncer user");
 
 	/* fake pool */
-	pool = get_pool(db, db->forced_user_credentials);
-	if (!pool)
-		die("cannot create admin pool?");
+	THREAD_ITERATE(thread_id, {
+		pool = get_pool(db, db->forced_user_credentials, thread_id);
+		if (!pool)
+			die("cannot create admin pool?");
 
-	if (!multithread_mode) {
-		admin_pool = pool;
-	} else {
-		threads[thread_id].admin_pool = pool;
-	}
+		if (!multithread_mode) {
+			admin_pool = pool;
+		} else {
+			threads[thread_id].admin_pool = pool;
+		}
+	});
+
 
 	/* find an existing user or create a new fake user with disabled password */
 	user = find_or_add_new_global_user("pgbouncer", "");
@@ -2392,8 +2329,11 @@ static void admin_setup_per_thread(int thread_id)
 	if (msg->failed)
 		die("admin welcome failed");
 
-	pool->welcome_msg = msg;
-	pool->welcome_msg_ready = true;
+	THREAD_ITERATE(thread_id, {
+		GET_MULTITHREAD_TYPE_PTR(admin_pool, thread_id)->welcome_msg = msg;
+		GET_MULTITHREAD_TYPE_PTR(admin_pool, thread_id)->welcome_msg_ready = true;
+	});
+
 
 	msg = pktbuf_dynamic(128);
 	if (!msg)
@@ -2402,18 +2342,6 @@ static void admin_setup_per_thread(int thread_id)
 	pktbuf_put_string(msg, "database");
 	db->dbname = "pgbouncer";
 	pktbuf_put_string(msg, db->dbname);
-}
-
-/* init special database and query parsing */
-void admin_setup(void)
-{
-	if (multithread_mode) {
-		FOR_EACH_THREAD(thread_id){
-			admin_setup_per_thread(thread_id);
-		}
-	} else {
-		admin_setup_per_thread(-1);
-	}
 }
 
 // only init once to avoid memory leak

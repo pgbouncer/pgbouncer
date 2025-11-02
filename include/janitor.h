@@ -26,5 +26,5 @@ bool suspend_socket(PgSocket *sk, bool force)  _MUSTCHECK;
 void kill_pool(PgPool *pool);
 void kill_peer_pool(PgPool *pool);
 void kill_database(PgDatabase *db);
-void kill_peer(PgDatabase *db);
+void kill_peer(PgDatabase *db, int thread_id);
 void clear_user_tree_cached_scram_keys(struct AATree *tree);

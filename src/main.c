@@ -381,7 +381,7 @@ static const struct CfSect config_sects [] = {
 		.key_list = bouncer_params,
 	}, {
 		.sect_name = "databases",
-		.set_key = parse_database_multithread,
+		.set_key = parse_database,
 	}, {
 		.sect_name = "users",
 		.set_key = parse_user,
@@ -457,27 +457,14 @@ static void set_dbs_dead(bool flag)
 {
 	struct List *item;
 	PgDatabase *db;
-	if (multithread_mode) {
-		FOR_EACH_THREAD(thread_id){
-			THREAD_SAFE_STATLIST_EACH(&(threads[thread_id].database_list), item, {
-				db = container_of(item, PgDatabase, head);
-				if (db->admin)
-					continue;
-				if (db->db_auto)
-					continue;
-				db->db_dead = flag;
-			});
-		}
-	} else {
-		statlist_for_each(item, &database_list) {
-			db = container_of(item, PgDatabase, head);
-			if (db->admin)
-				continue;
-			if (db->db_auto)
-				continue;
-			db->db_dead = flag;
-		}
-	}
+	THREAD_SAFE_STATLIST_EACH(&database_list, item, {
+		db = container_of(item, PgDatabase, head);
+		if (db->admin)
+			continue;
+		if (db->db_auto)
+			continue;
+		db->db_dead = flag;
+	});
 }
 
 static void set_peers_dead(bool flag)
@@ -724,25 +711,13 @@ static void check_limits(void)
 	}
 
 	/* calculate theoretical max, +10 is just in case */
-	if (multithread_mode) {
-		FOR_EACH_THREAD(thread_id){
-			THREAD_SAFE_STATLIST_EACH(&threads[thread_id].database_list, item, {
-				db = container_of(item, PgDatabase, head);
-				if (db->forced_user_credentials)
-					fd_count += (db->pool_size >= 0 ? db->pool_size : cf_default_pool_size);
-				else
-					fd_count += (db->pool_size >= 0 ? db->pool_size : cf_default_pool_size) * total_users;
-			});
-		}
-	} else {
-		statlist_for_each(item, &database_list) {
-			db = container_of(item, PgDatabase, head);
-			if (db->forced_user_credentials)
-				fd_count += (db->pool_size >= 0 ? db->pool_size : cf_default_pool_size);
-			else
-				fd_count += (db->pool_size >= 0 ? db->pool_size : cf_default_pool_size) * total_users;
-		}
-	}
+	THREAD_SAFE_STATLIST_EACH(&database_list, item, {
+		db = container_of(item, PgDatabase, head);
+		if (db->forced_user_credentials)
+			fd_count += (db->pool_size >= 0 ? db->pool_size : cf_default_pool_size);
+		else
+			fd_count += (db->pool_size >= 0 ? db->pool_size : cf_default_pool_size) * total_users;
+	});
 
 	log_info("kernel file descriptor limit: %d (hard: %d); max_client_conn: %d, max expected fd use: %d",
 		 (int)lim.rlim_cur, (int)lim.rlim_max, cf_max_client_conn, fd_count);

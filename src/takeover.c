@@ -372,9 +372,9 @@ void takeover_init(void)
 		return;
 	}
 
-	db = find_database("pgbouncer", -1);
+	db = find_database("pgbouncer");
 	if (db)
-		pool = get_pool(db, db->forced_user_credentials);
+		pool = get_pool(db, db->forced_user_credentials, -1);
 
 	if (!pool)
 		fatal("no admin pool?");

@@ -1150,6 +1150,64 @@ def test_auth_user_at_db_level_with_same_forced_user(bouncer):
                 cur.execute("select 1")
 
 
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+def test_auth_query_no_set_commands(bouncer, pg):
+    """
+    Test that SET commands from client variables are not sent over the
+    auth_query connection. This prevents unauthenticated clients from
+    potentially affecting the auth_query execution via track_extra_parameters.
+    """
+    # Create a custom auth query that will fail if search_path is set incorrectly
+    # We'll use a function that checks current_setting('search_path')
+    pg.sql(
+        """
+        CREATE OR REPLACE FUNCTION auth_check_search_path(username TEXT)
+        RETURNS TABLE(usename name, passwd text) AS $$
+        BEGIN
+            -- This auth query will fail if search_path contains 'malicious_schema'
+            IF current_setting('search_path') LIKE '%malicious_schema%' THEN
+                RAISE EXCEPTION 'malicious search_path detected in auth query';
+            END IF;
+            RETURN QUERY SELECT u.usename, u.passwd FROM pg_shadow u WHERE u.usename = username;
+        END;
+        $$ LANGUAGE plpgsql SECURITY DEFINER;
+    """
+    )
+
+    config = f"""
+        [databases]
+        postgres = host={bouncer.pg.host} port={bouncer.pg.port} auth_query='SELECT * FROM auth_check_search_path($1)'
+        [pgbouncer]
+        auth_query = SELECT * FROM auth_check_search_path($1)
+        auth_user = pswcheck
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = postgres
+        track_extra_parameters = search_path
+    """
+
+    try:
+        with bouncer.run_with_config(config):
+            # Connect with a malicious search_path in the startup parameters
+            # With the fix, this should succeed because SET commands are not sent
+            # over the auth_query connection
+            # Without the fix, this would cause the auth query to fail
+            bouncer.sql(
+                query="SELECT 1",
+                user="stats",
+                password="stats",
+                dbname="postgres",
+                options="-c search_path=malicious_schema,public",
+            )
+    finally:
+        pg.sql("DROP FUNCTION IF EXISTS auth_check_search_path(TEXT)")
+
+
 @pytest.mark.skipif("WINDOWS", reason="We do not expect to support ldap on Windows")
 @pytest.mark.skipif(not LDAP_SUPPORT, reason="pgbouncer is built without LDAP support")
 def test_ldap_auth(bouncer_with_openldap):

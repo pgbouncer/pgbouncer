@@ -941,8 +941,16 @@ bool find_server(PgSocket *client)
 	}
 	Assert(!server || server->state == SV_IDLE);
 
-	/* send var changes */
-	if (server) {
+	/*
+	 * Send var changes. However, Don't send SET commands over a connection
+	 * that runs the auth_query query. Since the user is not authenticated,
+	 * it might have security implications if a susceptible GUC is set in
+	 * track_extra_parameters (e.g.  search_path). In general, it also just
+	 * isn't necessary, to do so for the auth_query. Connections for the
+	 * auth_query should be isolated connections from the actual
+	 * connections, e.g. they also use a completely different user.
+	 */
+	if (server && !sending_auth_query(client)) {
 		res = varcache_apply(server, client, &varchange);
 		if (!res) {
 			disconnect_server(server, true, "var change failed");

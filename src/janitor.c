@@ -603,7 +603,7 @@ static void pool_server_maint(PgPool *pool)
 	/* handle query_timeout and idle_transaction_timeout */
 	if (cf_query_timeout > 0 || cf_idle_transaction_timeout > 0 || cf_transaction_timeout > 0 || any_user_level_timeout_set) {
 		statlist_for_each_safe(item, &pool->active_server_list, tmp) {
-			usec_t age_client, age_server, age_transaction;
+			usec_t age_query, age_server, age_transaction;
 			usec_t effective_query_timeout;
 			usec_t effective_idle_transaction_timeout;
 			usec_t user_query_timeout;
@@ -618,13 +618,13 @@ static void pool_server_maint(PgPool *pool)
 
 			/*
 			 * Note the different age calculations:
-			 * query_timeout counts from the last request
-			 * of the client (the client started the
-			 * query), idle_transaction_timeout counts
-			 * from the last request of the server (the
-			 * server sent the idle information).
+			 * query_timeout counts from when the query started
+			 * (only applies when a query is actually running),
+			 * idle_transaction_timeout counts from the last
+			 * request of the server (the server sent the idle
+			 * information).
 			 */
-			age_client = now - server->link->request_time;
+			age_query = (server->link->query_start != 0) ? now - server->link->query_start : 0;
 			age_server = now - server->request_time;
 			age_transaction = now - server->link->xact_start;
 
@@ -645,7 +645,7 @@ static void pool_server_maint(PgPool *pool)
 			if (user_transaction_timeout > 0)
 				effective_transaction_timeout = user_transaction_timeout;
 
-			if (effective_query_timeout > 0 && age_client > effective_query_timeout) {
+			if (effective_query_timeout > 0 && age_query > 0 && age_query > effective_query_timeout) {
 				disconnect_server(server, true, "query timeout");
 			} else if (effective_idle_transaction_timeout > 0 &&
 				   server->idle_tx &&

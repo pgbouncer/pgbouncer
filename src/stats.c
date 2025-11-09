@@ -25,6 +25,7 @@ static void reset_stats(PgStats *stat)
 {
 	stat->server_bytes = 0;
 	stat->client_bytes = 0;
+	stat->client_connect_count = 0;
 	stat->server_assignment_count = 0;
 	stat->query_count = 0;
 	stat->query_time = 0;
@@ -41,6 +42,7 @@ static void stat_add(PgStats *total, PgStats *stat)
 {
 	total->server_bytes += stat->server_bytes;
 	total->client_bytes += stat->client_bytes;
+	total->client_connect_count += stat->client_connect_count;
 	total->server_assignment_count += stat->server_assignment_count;
 	total->query_count += stat->query_count;
 	total->query_time += stat->query_time;
@@ -55,6 +57,7 @@ static void stat_add(PgStats *total, PgStats *stat)
 
 static void calc_average(PgStats *avg, PgStats *cur, PgStats *old)
 {
+	uint64_t client_connect_count;
 	uint64_t server_assignment_count;
 	uint64_t query_count;
 	uint64_t xact_count;
@@ -71,10 +74,12 @@ static void calc_average(PgStats *avg, PgStats *cur, PgStats *old)
 
 	query_count = cur->query_count - old->query_count;
 	xact_count = cur->xact_count - old->xact_count;
+	client_connect_count = cur->client_connect_count - old->client_connect_count;
 	server_assignment_count = cur->server_assignment_count - old->server_assignment_count;
 
 	avg->query_count = USEC * query_count / dur;
 	avg->xact_count = USEC * xact_count / dur;
+	avg->client_connect_count = USEC * client_connect_count / dur;
 	avg->server_assignment_count = USEC * server_assignment_count / dur;
 
 	avg->client_bytes = USEC * (cur->client_bytes - old->client_bytes) / dur;
@@ -102,13 +107,15 @@ static void write_stats(PktBuf *buf, PgStats *stat, PgStats *old, char *dbname)
 {
 	PgStats avg;
 	calc_average(&avg, stat, old);
-	pktbuf_write_DataRow(buf, "sNNNNNNNNNNNNNNNNNNNNNN", dbname,
+	pktbuf_write_DataRow(buf, "sNNNNNNNNNNNNNNNNNNNNNNNN", dbname,
+			     stat->client_connect_count,
 			     stat->server_assignment_count,
 			     stat->xact_count, stat->query_count,
 			     stat->client_bytes, stat->server_bytes,
 			     stat->xact_time, stat->query_time,
 			     stat->wait_time, stat->ps_client_parse_count,
 			     stat->ps_server_parse_count, stat->ps_bind_count,
+			     avg.client_connect_count,
 			     avg.server_assignment_count,
 			     avg.xact_count, avg.query_count,
 			     avg.client_bytes, avg.server_bytes,
@@ -134,13 +141,15 @@ bool admin_database_stats(PgSocket *client, struct StatList *pool_list)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "sNNNNNNNNNNNNNNNNNNNNNN", "database",
+	pktbuf_write_RowDescription(buf, "sNNNNNNNNNNNNNNNNNNNNNNNN", "database",
+				    "total_client_connect_count",
 				    "total_server_assignment_count",
 				    "total_xact_count", "total_query_count",
 				    "total_received", "total_sent",
 				    "total_xact_time", "total_query_time",
 				    "total_wait_time", "total_client_parse_count",
 				    "total_server_parse_count", "total_bind_count",
+				    "avg_client_connect_count",
 				    "avg_server_assignment_count",
 				    "avg_xact_count", "avg_query_count",
 				    "avg_recv", "avg_sent",
@@ -174,7 +183,8 @@ bool admin_database_stats(PgSocket *client, struct StatList *pool_list)
 
 static void write_stats_totals(PktBuf *buf, PgStats *stat, PgStats *old, char *dbname)
 {
-	pktbuf_write_DataRow(buf, "sNNNNNNNNNNN", dbname,
+	pktbuf_write_DataRow(buf, "sNNNNNNNNNNNN", dbname,
+			     stat->client_connect_count,
 			     stat->server_assignment_count,
 			     stat->xact_count, stat->query_count,
 			     stat->client_bytes, stat->server_bytes,
@@ -200,7 +210,8 @@ bool admin_database_stats_totals(PgSocket *client, struct StatList *pool_list)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "sNNNNNNNNNNN", "database",
+	pktbuf_write_RowDescription(buf, "sNNNNNNNNNNNN", "database",
+				    "client_connect_count",
 				    "server_assignment_count",
 				    "xact_count", "query_count",
 				    "bytes_received", "bytes_sent",
@@ -236,7 +247,8 @@ static void write_stats_averages(PktBuf *buf, PgStats *stat, PgStats *old, char 
 {
 	PgStats avg;
 	calc_average(&avg, stat, old);
-	pktbuf_write_DataRow(buf, "sNNNNNNNNNNN", dbname,
+	pktbuf_write_DataRow(buf, "sNNNNNNNNNNNN", dbname,
+			     avg.client_connect_count,
 			     avg.server_assignment_count,
 			     avg.xact_count, avg.query_count,
 			     avg.client_bytes, avg.server_bytes,
@@ -262,7 +274,8 @@ bool admin_database_stats_averages(PgSocket *client, struct StatList *pool_list)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "sNNNNNNNNNNN", "database",
+	pktbuf_write_RowDescription(buf, "sNNNNNNNNNNNN", "database",
+				    "client_connect_count",
 				    "server_assignment_count",
 				    "xact_count", "query_count",
 				    "bytes_received", "bytes_sent",
@@ -324,6 +337,7 @@ bool show_stat_totals(PgSocket *client, struct StatList *pool_list)
 #define WTOTAL(name) pktbuf_write_DataRow(buf, "sN", "total_" #name, st_total.name)
 #define WAVG(name) pktbuf_write_DataRow(buf, "sN", "avg_" #name, avg.name)
 
+	WTOTAL(client_connect_count);
 	WTOTAL(server_assignment_count);
 	WTOTAL(xact_count);
 	WTOTAL(query_count);
@@ -335,6 +349,7 @@ bool show_stat_totals(PgSocket *client, struct StatList *pool_list)
 	WTOTAL(ps_client_parse_count);
 	WTOTAL(ps_server_parse_count);
 	WTOTAL(ps_bind_count);
+	WAVG(client_connect_count);
 	WAVG(server_assignment_count);
 	WAVG(xact_count);
 	WAVG(query_count);

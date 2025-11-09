@@ -409,9 +409,11 @@ def test_show_stats(bouncer):
     p3_stats = next(s for s in stats if s["database"] == "p3")
     assert p3_stats is not None
     # 5 connection attempts (and thus assignments)
+    assert p3_stats["total_client_connect_count"] == 5
     assert p3_stats["total_server_assignment_count"] == 5
     # 4 autocommit queries + 2 transactions
     assert p3_stats["total_xact_count"] == 6
+
     # 11 SELECT 1 + 2 times COMMIT and ROLLBACK
     assert p3_stats["total_query_count"] == 15
 
@@ -419,6 +421,7 @@ def test_show_stats(bouncer):
     p3_stats = next(s for s in stats if s["database"] == "p3")
     assert p3_stats is not None
     # 5 connection attempts (and thus assignments)
+    assert p3_stats["client_connect_count"] == 5
     assert p3_stats["server_assignment_count"] == 5
     # 4 autocommit queries + 2 transactions
     assert p3_stats["xact_count"] == 6

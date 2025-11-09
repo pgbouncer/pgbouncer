@@ -186,6 +186,9 @@ total_xact_count
 total_query_count
 :   Total number of SQL commands pooled by **pgbouncer**.
 
+total_client_connect_count
+:   Total times that a client connected to a pool
+
 total_server_assignment_count
 :   Total times a server was assigned to a client
 
@@ -226,6 +229,10 @@ avg_xact_count
 
 avg_query_count
 :   Average queries per second in last stat period.
+
+avg_client_connect_count
+:   Average number of times a client connected to a pol per second in the
+    last stat period.
 
 avg_server_assignment_count
 :   Average number of times a server as assigned to a client per second in the

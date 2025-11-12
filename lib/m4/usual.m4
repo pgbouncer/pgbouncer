@@ -67,7 +67,7 @@ dnl
 dnl AC_USUAL_PROGRAM_CHECK:  Simple C environment: CC, CPP, INSTALL
 dnl
 AC_DEFUN([AC_USUAL_PROGRAM_CHECK], [
-AC_PROG_CC_STDC
+AC_PROG_CC
 AC_PROG_CPP
 
 dnl Check if linker supports -Wl,--as-needed

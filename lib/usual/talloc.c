@@ -87,7 +87,7 @@ struct TLimit {
  */
 
 static void log_to_stderr(const char *message);
-static void do_abort(const char *fmt, ...) _NORETURN;
+_NORETURN static void do_abort(const char *fmt, ...);
 static void do_log(const char *fmt, ...);
 static void do_dbg(const char *fmt, ...);
 static int ref_destructor(void *ptr);

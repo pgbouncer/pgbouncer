@@ -235,11 +235,7 @@
 #endif
 
 /** Indicates that function never returns */
-#if _COMPILER_GNUC(4, 0) || __has_attribute(noreturn)
-#define _NORETURN __attribute__((noreturn))
-#else
-#define _NORETURN
-#endif
+#define _NORETURN _Noreturn
 
 /** Hint for compiler that expression (x) is likely to be true */
 #if _COMPILER_GNUC(4, 0) || __has_builtin(__builtin_expect)

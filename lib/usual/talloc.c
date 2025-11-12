@@ -21,9 +21,6 @@
 #include <usual/cxextra.h>
 #include <usual/list.h>
 #include <usual/bits.h>
-#ifndef HAVE_STRNLEN
-#include <usual/string.h>	/* needed for compat strnlen prototype  */
-#endif
 
 #include <string.h>
 

@@ -6,7 +6,7 @@ AC_INIT([PgBouncer],
         [https://www.pgbouncer.org/])
 AC_CONFIG_SRCDIR(src/janitor.c)
 AC_CONFIG_HEADERS([lib/usual/config.h])
-AC_PREREQ([2.59])
+AC_PREREQ([2.70])
 
 dnl basic init
 AC_USUAL_INIT

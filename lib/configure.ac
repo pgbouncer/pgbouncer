@@ -3,7 +3,7 @@ dnl Process this file with autoconf to produce a configure script.
 AC_INIT([libusual],[1.0],[https://libusual.github.io])
 AC_CONFIG_SRCDIR(usual/base.h)
 AC_CONFIG_HEADERS([usual/config.h])
-AC_PREREQ([2.59])
+AC_PREREQ([2.70])
 
 AC_USUAL_INIT
 

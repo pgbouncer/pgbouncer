@@ -1580,7 +1580,6 @@ static void sbuf_possible_direct_tls_startup_cb(evutil_socket_t fd, short flags,
 	got = sbuf_op_peek(sbuf, peek_byte, 1);
 	if (got <= 0) {
 		/* eof from socket */
-		log_warning("TLS startup peek received EOF.");
 		sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
 		return;
 	}

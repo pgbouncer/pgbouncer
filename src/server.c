@@ -55,6 +55,15 @@ static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 	if (startup) {
 		if (!add_welcome_parameter(server->pool, key, val))
 			goto failed_store;
+	} else if (!varcache_get(&server->pool->orig_vars, key, NULL)) {
+		/* If the value is not in the original vars, we do need to update the welcome message */
+		if (welcome_vars_set(&server->pool->welcome_vars, key, val, true)) {
+			slog_debug(server, "S: value changed for %s to '%s'", key, val);
+			/* rebuild welcome message */
+			server->pool->welcome_msg_ready = false;
+			if (!finish_welcome_msg(server))
+				goto failed_store;
+		}
 	}
 
 	return true;
@@ -208,7 +217,11 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 		server->ready = true;
 
 		/* got all params */
-		finish_welcome_msg(server);
+		res = finish_welcome_msg(server);
+		if (!res) {
+			disconnect_server(server, false, "finish_welcome_msg failed");
+			break;
+		}
 
 		/* need to notify sbuf if server was closed */
 		res = release_server(server);
@@ -815,6 +828,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		res = true;
 		if (!server->ready)
 			break;
+
 
 		if (server->setting_vars) {
 			PgSocket *client = server->link;

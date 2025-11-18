@@ -494,11 +494,11 @@ static bool calculate_client_proof(PgSocket *server,
 	{
 		rc = pg_saslprep(credentials->passwd, &prep_password);
 		if (rc == SASLPREP_OOM)
-			return false;
+			goto failed;
 		if (rc != SASLPREP_SUCCESS) {
 			prep_password = strdup(credentials->passwd);
 			if (!prep_password)
-				return false;
+				goto failed;
 		}
 		state->SaltedPassword = malloc(SCRAM_SHA_256_KEY_LEN);
 		if (state->SaltedPassword == NULL)
@@ -514,8 +514,7 @@ static bool calculate_client_proof(PgSocket *server,
 		    scram_ClientKey(state->SaltedPassword, state->hash_type,
 				    state->key_length, ClientKey, &errstr) < 0) {
 			slog_error(server, "SCRAM key derivation failed: %s", errstr);
-			pg_hmac_free(ctx);
-			return false;
+			goto failed;
 		}
 	}
 

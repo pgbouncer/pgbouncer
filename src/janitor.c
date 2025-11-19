@@ -201,6 +201,9 @@ static void per_loop_activate(PgPool *pool)
 		    && ((get_cached_time() - client->wait_start) / USEC) > cf_query_wait_notify
 		    && cf_query_wait_notify > 0) {
 			buf = pktbuf_dynamic(256);
+			if (!buf)
+				die("out of memory");
+
 			pktbuf_write_Notice(
 				buf,
 				"No server connection available in postgres backend, client being queued"

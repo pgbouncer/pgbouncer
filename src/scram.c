@@ -395,16 +395,16 @@ bool read_server_first_message(PgSocket *server, char *input)
 		return false;
 
 	decoded_salt_len = pg_b64_dec_len(strlen(encoded_salt));
+	if (decoded_salt_len < 0) {
+		slog_error(server, "malformed SCRAM message (invalid salt)");
+		return false;
+	}
 	state->salt = malloc(decoded_salt_len);
 	if (state->salt == NULL)
 		return false;
 	state->saltlen = pg_b64_decode(encoded_salt,
 				       strlen(encoded_salt),
 				       state->salt, decoded_salt_len);
-	if (decoded_salt_len < 0) {
-		slog_error(server, "malformed SCRAM message (invalid salt)");
-		return false;
-	}
 
 	iterations_str = read_attr_value(server, &input, 'i');
 	if (iterations_str == NULL)

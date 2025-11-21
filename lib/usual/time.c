@@ -129,40 +129,6 @@ int gettimeofday(struct timeval *tp, void *tzp)
 
 #endif /* !HAVE_GETTIMEOFDAY */
 
-#ifndef HAVE_LOCALTIME_R
-
-struct tm *localtime_r(const time_t *tp, struct tm *result)
-{
-	ULARGE_INTEGER utc;
-	FILETIME ft_utc;
-	SYSTEMTIME st_utc, st_local;
-
-	/* convert time_t to FILETIME */
-	utc.QuadPart = (*tp + UNIX_EPOCH) * FT_SEC;
-	ft_utc.dwLowDateTime = utc.LowPart;
-	ft_utc.dwHighDateTime = utc.HighPart;
-
-	/* split to parts and get local time */
-	if (!FileTimeToSystemTime(&ft_utc, &st_utc))
-		return NULL;
-	if (!SystemTimeToTzSpecificLocalTime(NULL, &st_utc, &st_local))
-		return NULL;
-
-	/* fill struct tm */
-	result->tm_sec = st_local.wSecond;
-	result->tm_min = st_local.wMinute;
-	result->tm_hour = st_local.wHour;
-	result->tm_mday = st_local.wDay;
-	result->tm_mon = st_local.wMonth - 1;
-	result->tm_year = st_local.wYear - 1900;
-	result->tm_wday = st_local.wDayOfWeek;
-	result->tm_yday = 0;
-	result->tm_isdst = -1;
-	return result;
-}
-
-#endif /* !HAVE_LOCALTIME_R */
-
 #ifndef HAVE_GETRUSAGE
 
 int getrusage(int who, struct rusage *r_usage)

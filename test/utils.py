@@ -414,7 +414,7 @@ class QueryRunner:
         self.set_default_connection_options(kwargs)
         connect_options = " ".join([f"{k}={v}" for k, v in kwargs.items()])
 
-        run(["psql", f"port={self.port} {connect_options}", "-c", query], shell=False)
+        run(["psql", "-X", f"port={self.port} {connect_options}", "-c", query], shell=False)
 
     @contextmanager
     def transaction(self, **kwargs):
@@ -685,7 +685,7 @@ class QueryRunner:
     def psql_debug(self, **kwargs):
         conninfo = self.make_conninfo(**kwargs)
         run(
-            ["psql", conninfo],
+            ["psql", "-X", conninfo],
             silent=True,
         )
 

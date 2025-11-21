@@ -222,9 +222,9 @@ task:
     HAVE_IPV6_LOCALHOST: yes
   matrix:
     - env:
-        MSYSTEM: MINGW64
+        MSYSTEM: UCRT64
     # - env:
-    #     MSYSTEM: MINGW32
+    #     MSYSTEM: MINGW64
   setup_script:
     - choco install -y --no-progress msys2
     - sh -l -c "pacman --noconfirm -S --needed base-devel ${MINGW_PACKAGE_PREFIX}-gcc ${MINGW_PACKAGE_PREFIX}-libevent ${MINGW_PACKAGE_PREFIX}-openssl ${MINGW_PACKAGE_PREFIX}-postgresql autoconf automake libtool pkg-config ${MINGW_PACKAGE_PREFIX}-python ${MINGW_PACKAGE_PREFIX}-python-pip zip"

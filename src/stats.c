@@ -122,7 +122,7 @@ static void write_stats(PktBuf *buf, PgStats *stat, PgStats *old, char *dbname)
 			     avg.wait_time, avg.ps_client_parse_count,
 			     avg.ps_server_parse_count, avg.ps_bind_count,
 			     avg.client_connect_count
-);
+			     );
 }
 
 bool admin_database_stats(PgSocket *client, struct StatList *pool_list)
@@ -157,7 +157,7 @@ bool admin_database_stats(PgSocket *client, struct StatList *pool_list)
 				    "avg_wait_time", "avg_client_parse_count",
 				    "avg_server_parse_count", "avg_bind_count",
 				    "avg_client_connect_count"
-);
+				    );
 	statlist_for_each(item, pool_list) {
 		pool = container_of(item, PgPool, head);
 

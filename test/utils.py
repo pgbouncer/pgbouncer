@@ -688,7 +688,7 @@ class QueryRunner:
     def psql_debug(self, **kwargs):
         conninfo = self.make_conninfo(**kwargs)
         run(
-            ["psql", "-X", conninfo],
+            ["psql", conninfo],
             silent=True,
         )
 

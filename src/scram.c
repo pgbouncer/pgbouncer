@@ -485,7 +485,7 @@ static bool calculate_client_proof(PgSocket *server,
 	ctx = pg_hmac_create(state->hash_type);
 	if (ctx == NULL) {
 		slog_error(server, "HMAC context creation failed: %s", pg_hmac_error(NULL));
-		return false;
+		goto failed;
 	}
 
 	if (credentials->use_scram_keys) {

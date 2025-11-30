@@ -323,6 +323,28 @@ def test_scram_both_reauthentication_using_cache(bouncer):
         bouncer.test(dbname="p62", user="scramuser1", password="foo")
 
 
+@pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
+def test_scram_cached_adhoc_secrets_after_reconnect(bouncer):
+    """
+    Regression test for issue #1418.
+
+    Tests that cached adhoc SCRAM secrets work correctly when server connections
+    are recycled. Uses plaintext password in userlist.txt with SCRAM auth to both
+    pgbouncer and PostgreSQL.
+    """
+    bouncer.admin(f"set auth_type='scram-sha-256'")
+    bouncer.admin(f"set pool_mode='transaction'")
+
+    # First connection - caches adhoc secrets
+    bouncer.test(dbname="p62", user="scramuser3", password="baz")
+
+    # Kill server connections to force reconnection
+    bouncer.admin("reconnect")
+
+    # Second connection - reuses cached secrets and reconnects to server
+    bouncer.test(dbname="p62", user="scramuser3", password="baz")
+
+
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
 def test_auth_dbname_usage(
     bouncer,

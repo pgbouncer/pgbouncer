@@ -401,7 +401,7 @@ bool read_server_first_message(PgSocket *server, char *input)
 	state->saltlen = pg_b64_decode(encoded_salt,
 				       strlen(encoded_salt),
 				       state->salt, decoded_salt_len);
-	if (decoded_salt_len < 0) {
+	if (state->saltlen < 0) {
 		slog_error(server, "malformed SCRAM message (invalid salt)");
 		return false;
 	}

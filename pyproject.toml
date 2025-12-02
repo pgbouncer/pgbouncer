@@ -21,5 +21,11 @@ norecursedirs = [
     'lib',
 ]
 
+filterwarnings = [
+    'error',
+    # To ignore certain warnings use the syntax described here:
+    # https://docs.pytest.org/en/latest/how-to/capture-warnings.html#controlling-warnings
+]
+
 [tool.isort]
 profile = 'black'

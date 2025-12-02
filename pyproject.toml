@@ -25,7 +25,8 @@ filterwarnings = [
     'error',
     # Ignore psycopg close warnings. In some tests we don't close all opened
     # connections manually. This is no problem in practice. They get cleaned up
-    # at the end of the test anyway.
+    # at the end of the test run anyway. It's only a few sockets and a bit of
+    # memory that does not get cleaned up before process exit.
     'ignore:.*psycopg.Connection.*was deleted while still open.*:ResourceWarning'
     # To ignore other warnings use the syntax described here:
     # https://docs.pytest.org/en/latest/how-to/capture-warnings.html#controlling-warnings

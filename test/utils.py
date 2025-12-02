@@ -709,7 +709,12 @@ class Proxy(QueryRunner):
         self.process = subprocess.Popen(" ".join(command), shell=True)
 
     def stop(self):
+        if self.process is None:
+            return
+
         self.process.kill()
+        self.process.wait()
+        self.process = None
 
     def cleanup(self):
         self.stop()

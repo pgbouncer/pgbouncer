@@ -23,7 +23,11 @@ norecursedirs = [
 
 filterwarnings = [
     'error',
-    # To ignore certain warnings use the syntax described here:
+    # Ignore psycopg close warnings. In some tests we don't close all opened
+    # connections manually. This is no problem in practice. They get cleaned up
+    # at the end of the test anyway.
+    'ignore:connection.*psycopg.Connection.*was deleted while still open.*:ResourceWarning'
+    # To ignore other warnings use the syntax described here:
     # https://docs.pytest.org/en/latest/how-to/capture-warnings.html#controlling-warnings
 ]
 

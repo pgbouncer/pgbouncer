@@ -942,6 +942,8 @@ class Bouncer(QueryRunner):
             self.port_lock = PortLock()
             super().__init__("127.0.0.1", self.port_lock.port)
 
+        self.second_port_lock = PortLock()
+
         self.process: typing.Optional[subprocess.Popen] = None
         self.aprocess: typing.Optional[asyncio.subprocess.Process] = None
         config_dir.mkdir()
@@ -995,7 +997,7 @@ class Bouncer(QueryRunner):
                     ini.write(f"admin_users = pgbouncer\n")
                 else:
                     ini.write(f"unix_socket_dir = {self.admin_host}\n")
-                ini.write(f"listen_port = {self.port}\n")
+                ini.write(f"listen_port = {self.port},{self.second_port_lock.port}\n")
 
                 ini.flush()
 

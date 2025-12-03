@@ -36,7 +36,7 @@ BOUNCER_INI = TEST_DIR / "test.ini"
 BOUNCER_AUTH = TEST_DIR / "userlist.txt"
 BOUNCER_PID = TEST_DIR / "test.pid"
 BOUNCER_PORT = 6667
-BOUNCER_EXE = TEST_DIR / "../pgbouncer"
+BOUNCER_EXE = os.environ.get("BOUNCER_EXE", TEST_DIR / "../pgbouncer")
 NEW_CA_SCRIPT = TEST_DIR / "ssl" / "newca.sh"
 NEW_SITE_SCRIPT = TEST_DIR / "ssl" / "newsite.sh"
 ENABLE_VALGRIND = bool(os.environ.get("ENABLE_VALGRIND"))
@@ -184,6 +184,8 @@ LIBPQ_SUPPORTS_PIPELINING = psycopg.pq.version() >= 140000
 
 
 def get_ldap_support():
+    if "TEST_USE_LDAP" in os.environ:
+        return bool(os.environ["TEST_USE_LDAP"])
     with open("../config.mak", encoding="utf-8") as f:
         match = re.search(r"ldap_support = (\w+)", f.read())
         assert match is not None
@@ -194,6 +196,8 @@ LDAP_SUPPORT = get_ldap_support()
 
 
 def get_tls_support():
+    if "TEST_USE_TLS" in os.environ:
+        return bool(os.environ["TEST_USE_TLS"])
     with open("../config.mak", encoding="utf-8") as f:
         match = re.search(r"tls_support = (\w+)", f.read())
         assert match is not None

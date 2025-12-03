@@ -188,6 +188,7 @@ static void start_auth_query(PgSocket *client, const char *username)
 		disconnect_client(client, true, "no memory for authentication pool");
 		return;
 	}
+	client->pool->stats.client_connect_count += 1;
 	client->wait_for_user_conn = true;
 	if (!find_server(client)) {
 		return;
@@ -343,6 +344,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 			disconnect_client(client, true, "no memory for pool");
 			return false;
 		}
+		client->pool->stats.client_connect_count += 1;
 	}
 
 	if (cf_log_connections) {

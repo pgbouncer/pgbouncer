@@ -318,6 +318,7 @@ int pga_cmp_addr(const PgAddr *a, const PgAddr *b);
  * Stats, kept per-pool.
  */
 struct PgStats {
+	uint64_t client_connect_count;
 	uint64_t server_assignment_count;
 	uint64_t xact_count;
 	uint64_t query_count;

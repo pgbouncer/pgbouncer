@@ -67,15 +67,6 @@ int gettimeofday(struct timeval *tp, void *tzp);
 #endif
 
 
-#ifndef HAVE_LOCALTIME_R
-#define localtime_r(t, r) usual_localtime_r(t, r)
-
-/** Compat: localtime_r() */
-struct tm *localtime_r(const time_t *tp, struct tm *result);
-
-#endif
-
-
 #ifndef HAVE_USLEEP
 #define usleep(x) usual_usleep(x)
 

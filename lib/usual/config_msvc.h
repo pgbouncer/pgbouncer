@@ -62,13 +62,6 @@
 /* Define to `int' if <sys/types.h> does not define. */
 #define pid_t int
 
-/* Define to the equivalent of the C99 'restrict' keyword, or to
-   nothing if this is not supported.  Do not define if restrict is
-   supported directly.  */
-#ifndef restrict
-#define restrict
-#endif
-
 /* Define to `int' if <sys/types.h> doesn't define. */
 #define uid_t int
 

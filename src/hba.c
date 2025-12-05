@@ -681,10 +681,12 @@ failed:
 
 static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *tp, int linenr, const char *parent_filename)
 {
-	const char *addr = NULL, *mask = NULL;
+	const char *addr = NULL, *mask = NULL, *includef = NULL;
 	enum RuleType rtype;
 	char *nmask = NULL;
 	struct HBARule *rule = NULL;
+	char *fn = NULL;
+	FILE *f;
 
 	if (eat_kw(tp, "local")) {
 		rtype = RULE_LOCAL;
@@ -694,6 +696,10 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 		rtype = RULE_HOSTSSL;
 	} else if (eat_kw(tp, "hostnossl")) {
 		rtype = RULE_HOSTNOSSL;
+	} else if (eat_kw(tp, "include")) {
+		rtype = RULE_INCLUDEFILE;
+	} else if (eat_kw(tp, "include_if_exists")) {
+		rtype = RULE_INCLUDEFILEIFEXISTS;
 	} else if (eat(tp, TOK_EOL)) {
 		return true;
 	} else {
@@ -707,6 +713,33 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 		return false;
 	}
 	rule->rule_type = rtype;
+
+	if (rtype == RULE_INCLUDEFILE || rtype == RULE_INCLUDEFILEIFEXISTS){
+	    if (!expect(tp, TOK_IDENT, &includef)) {
+		log_warning("hba line %d: expected filename", linenr);
+		goto failed;
+	    }
+	    fn = path_join_dirname(parent_filename, includef);
+	    if (!fn) {
+		log_warning("hba line %d: invalid filepath %s",linenr, tp->buf);
+		return false;
+	    }
+
+		f = fopen(fn, "r");
+		if (!f && rtype == RULE_INCLUDEFILEIFEXISTS) {
+			free(fn);
+			return true;
+		} else if (!f) {
+			log_warning("hba line %d: invalid file %s",linenr, fn);
+			free(fn);
+			goto failed;
+		}
+		fclose(f);
+		// parse rules out of included file
+		hba_load_extended_rules(fn, ident, hba);
+		free(fn);
+		return true;
+	}
 
 	if (!parse_names(&rule->db_name, tp, true, parent_filename))
 		goto failed;
@@ -777,6 +810,8 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 		rule->rule_method = AUTH_TYPE_CERT;
 	} else if (eat_kw(tp, "scram-sha-256")) {
 		rule->rule_method = AUTH_TYPE_SCRAM_SHA_256;
+	} else if (eat_kw(tp, "pam")) {
+		rule->rule_method = AUTH_TYPE_PAM;
 	} else if (check_kw(tp, "ldap")) {
 		rule->rule_method = AUTH_TYPE_LDAP;
 	} else {
@@ -861,8 +896,10 @@ out:
 		fclose(f);
 	return ident;
 }
-
-struct HBA *hba_load_rules(const char *fn, struct Ident *ident)
+struct HBA *hba_load_rules(const char *fn, struct Ident *ident){
+	return hba_load_extended_rules(fn, ident, NULL);
+}
+struct HBA *hba_load_extended_rules(const char *fn, struct Ident *ident, struct HBA *current_hba)
 {
 	struct HBA *hba = NULL;
 	FILE *f = NULL;
@@ -874,11 +911,15 @@ struct HBA *hba_load_rules(const char *fn, struct Ident *ident)
 
 	init_parser(&tp);
 
-	hba = malloc(sizeof *hba);
-	if (!hba)
-		goto out;
+	if(current_hba)
+		hba = current_hba;
+	else {
+		hba = malloc(sizeof *hba);
+		if (!hba)
+			goto out;
 
-	list_init(&hba->rules);
+		list_init(&hba->rules);
+	}
 
 	f = fopen(fn, "r");
 	if (!f) {

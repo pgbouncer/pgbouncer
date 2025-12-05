@@ -438,13 +438,13 @@ int tls_asn1_parse_time(struct tls *ctx, const ASN1_TIME *asn1time, time_t *dst)
 	*dst = 0;
 	if (!asn1time)
 		return 0;
-	if (asn1time->type != V_ASN1_GENERALIZEDTIME &&
-	    asn1time->type != V_ASN1_UTCTIME) {
-		tls_set_errorx(ctx, "Invalid time object type: %d", asn1time->type);
+	if (ASN1_STRING_type(asn1time) != V_ASN1_GENERALIZEDTIME &&
+	    ASN1_STRING_type(asn1time) != V_ASN1_UTCTIME) {
+		tls_set_errorx(ctx, "Invalid time object type: %d", ASN1_STRING_type(asn1time));
 		return -1;
 	}
 
-	res = asn1_time_parse((char *)asn1time->data, asn1time->length, &tm, 0);
+	res = asn1_time_parse((const char *)ASN1_STRING_get0_data(asn1time), ASN1_STRING_length(asn1time), &tm, 0);
 	if (res == -1) {
 		tls_set_errorx(ctx, "Invalid asn1 time");
 		return -1;

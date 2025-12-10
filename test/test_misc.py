@@ -809,3 +809,16 @@ def test_issue_1104(bouncer):
 
         with bouncer.run_with_config(config):
             bouncer.admin("RELOAD")
+
+
+def test_server_login_large_packets(bouncer_small_pktbuf):
+    """Test that server login works when packets exceed the small pkt_buf.
+
+    This tests the fix for handling large packets during server login phase
+    (handle_server_startup). By using a tiny pkt_buf, normal server login
+    packets like ParameterStatus may exceed the buffer and trigger dynamic
+    packet buffering.
+    """
+    # Simply connecting exercises the server login path
+    # The server sends ParameterStatus, BackendKeyData, ReadyForQuery etc.
+    bouncer_small_pktbuf.test()

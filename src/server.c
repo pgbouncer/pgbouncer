@@ -124,8 +124,26 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 	const uint8_t *ckey;
 
 	if (incomplete_pkt(pkt)) {
-		disconnect_server(server, true, "partial pkt in login phase");
-		return false;
+		if (pkt->len > (unsigned) cf_sbuf_len) {
+			/*
+			 * We need to handle the complete packet, but it is too
+			 * large to fit into our sbuf buffer size (determined
+			 * by the pkt_buf config). So now we need to fetch the
+			 * whole packet using our dynamically sized packet
+			 * buffering logic.
+			 */
+			server->packet_cb_state.flag = CB_WANT_COMPLETE_PACKET;
+			sbuf_prepare_fetch(sbuf, pkt->len);
+			return true;
+		} else {
+			/*
+			 * We need to handle the complete packet, but it fits
+			 * in our sbuf buffer, so we can simply return false to
+			 * indicate to sbuf to retry once it has received more
+			 * data
+			 */
+			return false;
+		}
 	}
 
 	/* ignore most that happens during connect_query */
@@ -235,8 +253,9 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 		break;
 	}
 
-	if (res)
+	if (res && server->packet_cb_state.flag != CB_HANDLE_COMPLETE_PACKET) {
 		sbuf_prepare_skip(sbuf, pkt->len);
+	}
 
 	return res;
 }
@@ -862,8 +881,69 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		}
 		break;
 	case SBUF_EV_PKT_CALLBACK:
-		slog_warning(server, "SBUF_EV_PKT_CALLBACK with state=%d", server->state);
+	{
+		bool first = false;
+		if (server->packet_cb_state.pkt.type == 0) {
+			first = true;
+			if (!get_header(data, &server->packet_cb_state.pkt)) {
+				disconnect_server(server, true, "bad packet header");
+				return false;
+			}
+			mbuf_rewind_reader(data);
+		}
+
+		switch (server->packet_cb_state.flag) {
+		case CB_WANT_COMPLETE_PACKET:
+			if (first) {
+				slog_debug(server,
+					   "buffering complete packet, pkt='%c' len=%d incomplete=%s available=%d",
+					   pkt_desc(&server->packet_cb_state.pkt),
+					   server->packet_cb_state.pkt.len,
+					   incomplete_pkt(&server->packet_cb_state.pkt) ? "true" : "false",
+					   mbuf_avail_for_read(data));
+
+				mbuf_init_dynamic(&server->packet_cb_state.pkt.data);
+				if (!mbuf_make_room(&server->packet_cb_state.pkt.data, server->packet_cb_state.pkt.len))
+					return false;
+			}
+
+			if (!mbuf_write_raw_mbuf(&server->packet_cb_state.pkt.data, data))
+				return false;
+
+			if (sbuf->pkt_remain != mbuf_avail_for_read(data)) {
+				/*
+				 * We wrote the partial packet to our temporary buffer. So
+				 * we "handled" it and want to receive more data.
+				 */
+				res = true;
+				break;
+			}
+
+			/*
+			 * We wrote the full packet into memory. Change the callback state
+			 * to indicate that. If anything fails while handling this packet
+			 * we'll continue from the current state in the callback state
+			 * machine.
+			 */
+			server->packet_cb_state.flag = CB_HANDLE_COMPLETE_PACKET;
+		/* fallthrough */
+		case CB_HANDLE_COMPLETE_PACKET:
+			pkt_rewind_v3(&server->packet_cb_state.pkt);
+			if (server->state == SV_LOGIN)
+				res = handle_server_startup(server, &server->packet_cb_state.pkt);
+			else
+				res = handle_server_work(server, &server->packet_cb_state.pkt);
+			if (!res)
+				return false;
+			server->packet_cb_state.flag = CB_NONE;
+			free_header(&server->packet_cb_state.pkt);
+			break;
+		default:
+			disconnect_server(server, true, "BUG: unknown packet callback flag");
+			break;
+		}
 		break;
+	}
 	case SBUF_EV_TLS_READY:
 		Assert(server->state == SV_LOGIN);
 

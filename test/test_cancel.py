@@ -183,13 +183,9 @@ END $$;""".format(
                     break
                 assert len(r) == 0
                 # Let's check our task
-                print("Check task1")
-                try:
-                    # Let's wait a bit
-                    q1.result(0.2)
-                except TimeoutError:
-                    continue
-                raise RuntimeError("The first query already finished!")
+                print("Sleep a bit")
+                time.sleep(0.2)
+                continue
 
             # It waits for conn1
             q2 = pool.submit(

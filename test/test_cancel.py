@@ -179,7 +179,12 @@ END $$;""".format(
                     assert r[0][0] == 2
                     break
                 assert len(r) == 0
-                continue
+                # Let's check our task
+                try:
+                    q1.result(0)
+                except TimeoutError:
+                    continue
+                raise RuntimeError("The first query already finished!")
 
             # Will waits for conn1
             q2 = pool.submit(

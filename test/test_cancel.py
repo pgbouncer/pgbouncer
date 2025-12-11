@@ -116,3 +116,99 @@ def test_cancel_race(bouncer):
     finally:
         conn1.close()
         conn2.close()
+
+
+def test_cancel_race_v2(bouncer):
+    # Make sure only one query can run at the same time so that its ensured
+    # that both clients will use the same server connection.
+
+    # Idea: we will use dblink and native SQL features to syncronization.
+
+    bouncer.admin("set default_pool_size=1")
+    bouncer.admin("set server_idle_timeout=2")
+    bouncer.admin("set verbose=1")
+
+    conn0 = None
+    conn1 = None
+    conn2 = None
+
+    try:
+        cn0_str = "host={} port={} dbname={} user={}".format(
+            bouncer.pg.host,
+            bouncer.pg.port,
+            bouncer.default_db,
+            bouncer.default_user,
+        )
+
+        conn0 = psycopg.connect(cn0_str, autocommit=True)
+        conn1 = bouncer.conn()
+        cur1 = conn1.cursor()
+        conn2 = bouncer.conn()
+        cur2 = conn2.cursor()
+
+        sql1 = """DO $$
+BEGIN
+    /* LOCK CONN2 */
+    UPDATE test_cancel_race_v2 SET data='aaa' WHERE id=1;
+    /* SIGNAL */
+    PERFORM dblink_exec('{}', 'INSERT INTO test_cancel_race_v2 (id) VALUES (2);');
+    PERFORM pg_sleep(60);
+END $$;""".format(
+            cn0_str
+        )
+
+        with ThreadPoolExecutor(max_workers=100) as pool:
+            conn1_dbuser = conn1.execute("SELECT CURRENT_USER;").fetchall()[0][0]
+            conn1.execute(
+                "CREATE TABLE test_cancel_race_v2 (id INTEGER, data VARCHAR(32));"
+            )
+            conn1.execute("INSERT INTO test_cancel_race_v2 (id) VALUES (1);")
+            conn0.execute("CREATE EXTENSION dblink SCHEMA public;")
+
+            # It eenables an usage of dblink for the currect user
+            conn0.execute("ALTER ROLE {} WITH SUPERUSER;".format(conn1_dbuser))
+
+            q1 = pool.submit(cur1.execute, sql1)
+
+            # Waits for signal from conn1
+            while True:
+                r = cur2.execute(
+                    "select id from test_cancel_race_v2 where id=2;"
+                ).fetchall()
+                if len(r) == 1:
+                    assert r[0][0] == 2
+                    break
+                assert len(r) == 0
+                continue
+
+            # Will waits for conn1
+            q2 = pool.submit(
+                cur2.execute, "UPDATE test_cancel_race_v2 SET data='bbb' WHERE id=1;"
+            )
+
+            cancels = [pool.submit(conn1.cancel) for _ in range(100)]
+
+            # Spam many concurrent cancel requests to try and with the goal of
+            # triggering race conditions
+            for c in cancels:
+                c.result()
+
+            with pytest.raises(
+                psycopg.errors.QueryCanceled, match="due to user request"
+            ):
+                q1.result()
+            q2.result()
+
+            r = cur2.execute(
+                "select data from test_cancel_race_v2 where id=1;"
+            ).fetchall()
+            assert r == [("bbb",)]
+
+            bouncer.print_logs()
+    finally:
+        if conn0 is not None:
+            conn0.close()
+        if conn1 is not None:
+            conn1.close()
+        if conn2 is not None:
+            conn2.close()

@@ -183,6 +183,8 @@ END $$;""".format(
                 try:
                     q1.result(0)
                 except TimeoutError:
+                    # Let's wait a bit
+                    time.sleep(0.2)
                     continue
                 raise RuntimeError("The first query already finished!")
 

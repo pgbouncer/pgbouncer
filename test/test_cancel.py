@@ -160,7 +160,9 @@ END $$;""".format(
         with ThreadPoolExecutor(max_workers=100) as pool:
             conn1_dbuser = conn1.execute("SELECT CURRENT_USER;").fetchall()[0][0]
             conn1.execute(
-                "CREATE TABLE test_cancel_race_v2 (id INTEGER, data VARCHAR(32));"
+                "CREATE TABLE test_cancel_race_v2\n"
+                "(id INTEGER NOT NULL PRIMARY KEY,\n"
+                "data VARCHAR(32));"
             )
             conn1.execute("INSERT INTO test_cancel_race_v2 (id) VALUES (1);")
             conn0.execute("CREATE EXTENSION dblink SCHEMA public;")

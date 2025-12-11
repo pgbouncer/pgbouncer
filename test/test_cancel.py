@@ -165,13 +165,14 @@ END $$;""".format(
             conn1.execute("INSERT INTO test_cancel_race_v2 (id) VALUES (1);")
             conn0.execute("CREATE EXTENSION dblink SCHEMA public;")
 
-            # It eenables an usage of dblink for the currect user
+            # It enables an usage of dblink for the currect user
             conn0.execute("ALTER ROLE {} WITH SUPERUSER;".format(conn1_dbuser))
 
+            print("Run task1 on conn1")
             q1 = pool.submit(cur1.execute, sql1)
 
-            # Waits for signal from conn1
             while True:
+                print("Waits for signal from conn1")
                 r = cur2.execute(
                     "select id from test_cancel_race_v2 where id=2;"
                 ).fetchall()
@@ -181,29 +182,33 @@ END $$;""".format(
                 assert len(r) == 0
                 # Let's check our task
                 try:
-                    q1.result(0)
-                except TimeoutError:
                     # Let's wait a bit
-                    time.sleep(0.2)
+                    q1.result(0.2)
+                except TimeoutError:
                     continue
                 raise RuntimeError("The first query already finished!")
 
-            # Will waits for conn1
+            # It waits for conn1
             q2 = pool.submit(
                 cur2.execute, "UPDATE test_cancel_race_v2 SET data='bbb' WHERE id=1;"
             )
 
+            print("Run cancels")
             cancels = [pool.submit(conn1.cancel) for _ in range(100)]
 
             # Spam many concurrent cancel requests to try and with the goal of
             # triggering race conditions
+            print("Wait for cancels")
             for c in cancels:
                 c.result()
 
+            print("Check task1")
             with pytest.raises(
                 psycopg.errors.QueryCanceled, match="due to user request"
             ):
                 q1.result()
+
+            print("Check task2")
             q2.result()
 
             r = cur2.execute(

@@ -557,6 +557,8 @@ struct PgGlobalUser {
 	usec_t transaction_timeout;	/* how long a user is allowed to stay in transaction before being killed */
 	usec_t idle_transaction_timeout;	/* how long a user is allowed to stay idle in transaction before being killed */
 	usec_t query_timeout;	/* how long a users query is allowed to run before beign killed */
+	usec_t query_wait_timeout;	/* how long a users query is allowed to wait in queue before beign killed */
+	bool query_wait_timeout_set;	/* whether or not a query_wait_timeout has been set for the user */
 	usec_t client_idle_timeout;	/* how long is user allowed to idly connect to pgbouncer */
 	int max_user_connections;	/* how many server connections are allowed */
 	int max_user_client_connections;	/* how many client connections are allowed */

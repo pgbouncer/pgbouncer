@@ -408,6 +408,7 @@ static void pool_client_maint(PgPool *pool)
 	PgGlobalUser *user;
 	usec_t age;
 	usec_t effective_client_idle_timeout;
+	usec_t effective_query_wait_timeout;
 
 	/* force client_idle_timeout */
 	if (cf_client_idle_timeout > 0 || any_user_level_client_timeout_set) {
@@ -430,7 +431,7 @@ static void pool_client_maint(PgPool *pool)
 
 
 	/* force timeouts for waiting queries */
-	if (cf_query_timeout > 0 || cf_query_wait_timeout > 0) {
+	if (cf_query_timeout > 0 || cf_query_wait_timeout > 0 || any_user_level_client_timeout_set) {
 		statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
 			client = container_of(item, PgSocket, head);
 			Assert(client->state == CL_WAITING || client->state == CL_WAITING_LOGIN);
@@ -441,11 +442,16 @@ static void pool_client_maint(PgPool *pool)
 				age = now - client->query_start;
 			}
 
+			user = client->login_user_credentials->global_user;
+			effective_query_wait_timeout = cf_query_wait_timeout;
+			if (user->query_wait_timeout_set)
+				effective_query_wait_timeout = user->query_wait_timeout;
+
 			if (cf_shutdown == SHUTDOWN_WAIT_FOR_SERVERS) {
 				disconnect_client(client, true, "server shutting down");
 			} else if (cf_query_timeout > 0 && age > cf_query_timeout) {
 				disconnect_client(client, true, "query_timeout");
-			} else if (cf_query_wait_timeout > 0 && age > cf_query_wait_timeout) {
+			} else if (effective_query_wait_timeout > 0 && age > effective_query_wait_timeout) {
 				disconnect_client(client, true, "query_wait_timeout");
 			}
 		}

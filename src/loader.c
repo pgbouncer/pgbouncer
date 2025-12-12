@@ -507,6 +507,8 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	usec_t idle_transaction_timeout = 0;
 	usec_t transaction_timeout = 0;
 	usec_t query_timeout = 0;
+	usec_t query_wait_timeout = 0;
+	bool query_wait_timeout_set = false;
 	usec_t client_idle_timeout = 0;
 	int max_user_client_connections = -1;
 
@@ -549,6 +551,10 @@ bool parse_user(void *base, const char *name, const char *connstr)
 		} else if (strcmp("query_timeout", key) == 0) {
 			any_user_level_timeout_set = true;
 			query_timeout = atoi(val) * USEC;
+		} else if (strcmp("query_wait_timeout", key) == 0) {
+			any_user_level_timeout_set = true;
+			query_wait_timeout_set = true;
+			query_wait_timeout = atoi(val) * USEC;
 		} else if (strcmp("client_idle_timeout", key) == 0) {
 			any_user_level_client_timeout_set = true;
 			client_idle_timeout = atoi(val) * USEC;
@@ -573,6 +579,8 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	user->idle_transaction_timeout = idle_transaction_timeout;
 	user->transaction_timeout = transaction_timeout;
 	user->query_timeout = query_timeout;
+	user->query_wait_timeout = query_wait_timeout;
+	user->query_wait_timeout_set = query_wait_timeout_set;
 	user->client_idle_timeout = client_idle_timeout;
 	user->max_user_client_connections = max_user_client_connections;
 

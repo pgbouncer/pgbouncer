@@ -1,5 +1,6 @@
 import asyncio
 import platform
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -7,6 +8,85 @@ import psycopg
 import pytest
 
 from .utils import USE_SUDO
+
+
+@pytest.mark.parametrize(
+    ("pgboncer_config"),
+    [
+        """
+            [databases]
+            postgres = host={bouncer.pg.host} port={bouncer.pg.port} pool_size=1
+
+            [pgbouncer]
+            listen_addr = {bouncer.host}
+            admin_users = pgbouncer
+            auth_type = trust
+            auth_file = {bouncer.auth_path}
+            listen_port = {bouncer.port}
+            logfile = {bouncer.log_path}
+            pool_mode = transaction
+            query_wait_timeout=200
+
+            [users]
+            puser1 = query_wait_timeout=2
+            """,
+        """
+            [databases]
+            postgres = host={bouncer.pg.host} port={bouncer.pg.port} pool_size=1
+
+            [pgbouncer]
+            listen_addr = {bouncer.host}
+            admin_users = pgbouncer
+            auth_type = trust
+            auth_file = {bouncer.auth_path}
+            listen_port = {bouncer.port}
+            logfile = {bouncer.log_path}
+            pool_mode = transaction
+
+            [users]
+            puser1 = query_wait_timeout=2
+            """,
+        """
+            [databases]
+            postgres = host={bouncer.pg.host} port={bouncer.pg.port} pool_size=1
+
+            [pgbouncer]
+            listen_addr = {bouncer.host}
+            admin_users = pgbouncer
+            auth_type = trust
+            auth_file = {bouncer.auth_path}
+            listen_port = {bouncer.port}
+            logfile = {bouncer.log_path}
+            pool_mode = transaction
+            query_wait_timeout = 2
+            """,
+    ],
+)
+async def test_query_wait_timeout(bouncer, pgboncer_config):
+    """
+    Test of query_wait_timeout. Assumes config is running in transaction pool_mode.
+
+    Specifically tests that pgbouncer will correctly:
+    1. kill a query that has been waiting for longer than query_wait_timeout
+    2. not kill a query that is waiting, but for less than query_wait_timeout
+    """
+    config = pgboncer_config.format(bouncer=bouncer)
+    bouncer.default_db = "postgres"
+    bouncer.default_user = "puser1"
+
+    with bouncer.run_with_config(config):
+
+        conn_1_fut = bouncer.asleep(3)
+        await asyncio.sleep(0.1)
+
+        with pytest.raises(psycopg.OperationalError, match=r"query_wait_timeout"):
+            bouncer.test()
+        await conn_1_fut
+
+        conn_1_fut = bouncer.asleep(1)
+        await asyncio.sleep(0.1)
+        bouncer.test()
+        await conn_1_fut
 
 
 def test_server_lifetime(pg, bouncer):

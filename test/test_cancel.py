@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import psycopg
 import pytest
+import sys
 
 
 def test_cancel(bouncer):
@@ -186,12 +187,28 @@ END $$;""".format(
                     assert r[0][0] == 2
                     break
                 assert len(r) == 0
-                # Let's check our task
+
+                pyver = sys.version_info
+                assert pyver is not None
+
+                # ATTENTION.
+                # Py 3.9.6 does not respect timeout for Future.result(...)
+                if pyver >= (3, 10):
+                    print("Check task1")
+                    try:
+                        q1.result(timeout=0.2)
+                    except TimeoutError:
+                        continue
+                    raise RuntimeError("Task1 already finished!")
+
+                # It is OLD python.
+                # Future.result does not respect timeout
                 print("Sleep a bit")
-                time.sleep(0.2)
+                time.sleep(seconds=0.2)
                 continue
 
             # It waits for conn1
+            print("Run task2 on conn2")
             q2 = pool.submit(
                 cur2.execute, "UPDATE test_cancel_race_v2 SET data='bbb' WHERE id=1;"
             )

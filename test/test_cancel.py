@@ -148,10 +148,11 @@ def test_cancel_race_v2(bouncer):
 
         sql1 = """DO $$
 BEGIN
-    /* LOCK CONN2 */
+    /* It locks conn2 */
     UPDATE test_cancel_race_v2 SET data='aaa' WHERE id=1;
-    /* SIGNAL */
+    /* It is a signal "we are within server" in an autonomous transaction */
     PERFORM dblink_exec('{}', 'INSERT INTO test_cancel_race_v2 (id) VALUES (2);');
+    /* Cancel signal is waited */
     PERFORM pg_sleep(60);
 END $$;""".format(
             cn0_str
@@ -176,7 +177,7 @@ END $$;""".format(
             while True:
                 print("Waits for signal from conn1")
                 r = cur2.execute(
-                    "select id from test_cancel_race_v2 where id=2;"
+                    "SELECT id FROM test_cancel_race_v2 WHERE id=2;"
                 ).fetchall()
                 if len(r) == 1:
                     assert r[0][0] == 2
@@ -211,7 +212,7 @@ END $$;""".format(
             q2.result()
 
             r = cur2.execute(
-                "select data from test_cancel_race_v2 where id=1;"
+                "SELECT data FROM test_cancel_race_v2 WHERE id=1;"
             ).fetchall()
             assert r == [("bbb",)]
 

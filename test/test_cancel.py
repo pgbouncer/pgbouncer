@@ -124,26 +124,27 @@ def test_cancel_race_v2(bouncer):
 
     # Idea: we will use dblink and native SQL features to syncronization.
 
-    bouncer.admin("set default_pool_size=1")
+    # bouncer.admin("set default_pool_size=10")
     bouncer.admin("set server_idle_timeout=2")
     bouncer.admin("set verbose=1")
 
-    conn0 = None
     conn1 = None
     conn2 = None
 
+    test_dbname = "user_passthrough2"
+    test_user = "postgres"
+
     try:
         cn0_str = "host={} port={} dbname={} user={}".format(
-            bouncer.pg.host,
-            bouncer.pg.port,
-            "p0",
-            "postgres",
+            bouncer.host,
+            bouncer.port,
+            test_dbname,
+            test_user,
         )
 
-        conn0 = psycopg.connect(cn0_str, autocommit=True)
-        conn1 = bouncer.conn(dbname="p0p")
+        conn1 = bouncer.conn(dbname=test_dbname, user=test_user)
         cur1 = conn1.cursor()
-        conn2 = bouncer.conn(dbname="p0p")
+        conn2 = bouncer.conn(dbname=test_dbname, user=test_user)
         cur2 = conn2.cursor()
 
         sql1 = """DO $$
@@ -165,7 +166,7 @@ END $$;""".format(
                 "data VARCHAR(32));"
             )
             conn1.execute("INSERT INTO test_cancel_race_v2 (id) VALUES (1);")
-            conn0.execute("CREATE EXTENSION dblink SCHEMA public;")
+            conn1.execute("CREATE EXTENSION dblink SCHEMA public;")
 
             print("Run task1 on conn1")
             q1 = pool.submit(cur1.execute, sql1)
@@ -187,7 +188,7 @@ END $$;""".format(
 
                 print("Sleep a bit")
                 time.sleep(0.2)
-                break
+                continue
 
             # It waits for conn1
             print("Run task2 on conn2")
@@ -220,8 +221,6 @@ END $$;""".format(
 
             bouncer.print_logs()
     finally:
-        if conn0 is not None:
-            conn0.close()
         if conn1 is not None:
             conn1.close()
         if conn2 is not None:

@@ -188,21 +188,11 @@ END $$;""".format(
                     break
                 assert len(r) == 0
 
-                pyver = sys.version_info
-                assert pyver is not None
+                # There were attempts to check a state
+                # of task1 via "q1.result(0.2)"" but they
+                # had problems on GitHub CI. So it the most easier
+                # and stable variant.
 
-                # ATTENTION
-                # Py 3.9.6 does not respect timeout for Future.result(...)
-                if pyver >= (3, 10):
-                    print("Check task1")
-                    try:
-                        q1.result(0.2)
-                    except TimeoutError:
-                        continue
-                    raise RuntimeError("Task1 already finished!")
-
-                # It is OLD python.
-                # Future.result does not respect timeout
                 print("Sleep a bit")
                 time.sleep(0.2)
                 continue

@@ -140,6 +140,11 @@ def test_cancel_race_v2(bouncer):
             bouncer.default_user,
         )
 
+        if bouncer.default_password is not None:
+            cn0_str += "password={}".format(
+                bouncer.default_password
+            )
+
         conn0 = psycopg.connect(cn0_str, autocommit=True)
         conn1 = bouncer.conn()
         cur1 = conn1.cursor()

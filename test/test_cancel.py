@@ -191,12 +191,12 @@ END $$;""".format(
                 pyver = sys.version_info
                 assert pyver is not None
 
-                # ATTENTION.
+                # ATTENTION
                 # Py 3.9.6 does not respect timeout for Future.result(...)
                 if pyver >= (3, 10):
                     print("Check task1")
                     try:
-                        q1.result(timeout=0.2)
+                        q1.result(0.2)
                     except TimeoutError:
                         continue
                     raise RuntimeError("Task1 already finished!")
@@ -204,7 +204,7 @@ END $$;""".format(
                 # It is OLD python.
                 # Future.result does not respect timeout
                 print("Sleep a bit")
-                time.sleep(seconds=0.2)
+                time.sleep(0.2)
                 continue
 
             # It waits for conn1

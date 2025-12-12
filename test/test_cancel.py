@@ -1,4 +1,3 @@
-import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 

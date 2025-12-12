@@ -136,17 +136,14 @@ def test_cancel_race_v2(bouncer):
         cn0_str = "host={} port={} dbname={} user={}".format(
             bouncer.pg.host,
             bouncer.pg.port,
-            bouncer.default_db,
-            bouncer.default_user,
+            "p0",
+            "postgres",
         )
 
-        if bouncer.default_password is not None:
-            cn0_str += "password={}".format(bouncer.default_password)
-
         conn0 = psycopg.connect(cn0_str, autocommit=True)
-        conn1 = bouncer.conn()
+        conn1 = bouncer.conn(dbname="p0p")
         cur1 = conn1.cursor()
-        conn2 = bouncer.conn()
+        conn2 = bouncer.conn(dbname="p0p")
         cur2 = conn2.cursor()
 
         sql1 = """DO $$
@@ -162,7 +159,6 @@ END $$;""".format(
         )
 
         with ThreadPoolExecutor(max_workers=100) as pool:
-            conn1_dbuser = conn1.execute("SELECT CURRENT_USER;").fetchall()[0][0]
             conn1.execute(
                 "CREATE TABLE test_cancel_race_v2\n"
                 "(id INTEGER NOT NULL PRIMARY KEY,\n"
@@ -170,9 +166,6 @@ END $$;""".format(
             )
             conn1.execute("INSERT INTO test_cancel_race_v2 (id) VALUES (1);")
             conn0.execute("CREATE EXTENSION dblink SCHEMA public;")
-
-            # It enables an usage of dblink for the currect user
-            conn0.execute("ALTER ROLE {} WITH SUPERUSER;".format(conn1_dbuser))
 
             print("Run task1 on conn1")
             q1 = pool.submit(cur1.execute, sql1)
@@ -194,7 +187,7 @@ END $$;""".format(
 
                 print("Sleep a bit")
                 time.sleep(0.2)
-                continue
+                break
 
             # It waits for conn1
             print("Run task2 on conn2")

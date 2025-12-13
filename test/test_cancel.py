@@ -4,6 +4,8 @@ from concurrent.futures import ThreadPoolExecutor
 import psycopg
 import pytest
 
+from .utils import wait_until
+
 
 def test_cancel(bouncer):
     with bouncer.cur(dbname="p3") as cur:
@@ -171,23 +173,15 @@ END $$;""".format(
             print("Run task1 on conn1")
             q1 = pool.submit(cur1.execute, sql1)
 
-            while True:
+            for _ in wait_until(
+                "Did not get signal from conn1", timeout=60, interval=0.2
+            ):
                 print("Waits for signal from conn1")
                 r = cur2.execute(
                     "SELECT id FROM test_cancel_race_v2 WHERE id=2;"
                 ).fetchall()
                 if len(r) == 1:
-                    assert r[0][0] == 2
                     break
-                assert len(r) == 0
-
-                # There were attempts to check a state
-                # of task1 via "q1.result(0.2)"" but they
-                # had problems on GitHub CI. So it the most easier
-                # and stable variant.
-
-                print("Sleep a bit")
-                time.sleep(0.2)
                 continue
 
             # It waits for conn1

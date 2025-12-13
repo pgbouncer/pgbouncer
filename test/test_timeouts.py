@@ -11,70 +11,46 @@ from .utils import USE_SUDO
 
 
 @pytest.mark.parametrize(
-    ("pgboncer_config"),
+    ("global_query_wait_timeout", "user_query_wait_timeout"),
     [
-        """
-            [databases]
-            postgres = host={bouncer.pg.host} port={bouncer.pg.port} pool_size=1
-
-            [pgbouncer]
-            listen_addr = {bouncer.host}
-            admin_users = pgbouncer
-            auth_type = trust
-            auth_file = {bouncer.auth_path}
-            listen_port = {bouncer.port}
-            logfile = {bouncer.log_path}
-            pool_mode = transaction
-            query_wait_timeout=200
-
-            [users]
-            puser1 = query_wait_timeout=2
-            """,
-        """
-            [databases]
-            postgres = host={bouncer.pg.host} port={bouncer.pg.port} pool_size=1
-
-            [pgbouncer]
-            listen_addr = {bouncer.host}
-            admin_users = pgbouncer
-            auth_type = trust
-            auth_file = {bouncer.auth_path}
-            listen_port = {bouncer.port}
-            logfile = {bouncer.log_path}
-            pool_mode = transaction
-
-            [users]
-            puser1 = query_wait_timeout=2
-            """,
-        """
-            [databases]
-            postgres = host={bouncer.pg.host} port={bouncer.pg.port} pool_size=1
-
-            [pgbouncer]
-            listen_addr = {bouncer.host}
-            admin_users = pgbouncer
-            auth_type = trust
-            auth_file = {bouncer.auth_path}
-            listen_port = {bouncer.port}
-            logfile = {bouncer.log_path}
-            pool_mode = transaction
-            query_wait_timeout = 2
-            """,
+        (2, None),
+        (None, 2),
+        (200, 2),
     ],
 )
-async def test_query_wait_timeout(bouncer, pgboncer_config):
+async def test_query_wait_timeout(
+    bouncer, global_query_wait_timeout: int, user_query_wait_timeout: int ):
     """
-    Test of query_wait_timeout. Assumes config is running in transaction pool_mode.
+    Test of query_wait_timeout. Assumes that the effective timeout supplied is 2.
 
     Specifically tests that pgbouncer will correctly:
-    1. kill a query that has been waiting for longer than query_wait_timeout
-    2. not kill a query that is waiting, but for less than query_wait_timeout
+    1. kill a query that has been waiting for longer than effective query_wait_timeout
+    2. not kill a query that is waiting, but for less than effective query_wait_timeout
     """
-    config = pgboncer_config.format(bouncer=bouncer)
+    pgbouncer_ini = f"""
+    [databases]
+    postgres = host={bouncer.pg.host} port={bouncer.pg.port} pool_size=1
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_type = trust
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    pool_mode = transaction
+    """
+    if global_query_wait_timeout is not None:
+        pgbouncer_ini += f"\nquery_wait_timeout={global_query_wait_timeout}"
+
+    if user_query_wait_timeout is not None:
+        pgbouncer_ini += f"\n[users]"
+        pgbouncer_ini += f"\npuser1 = query_wait_timeout={user_query_wait_timeout}"
+
     bouncer.default_db = "postgres"
     bouncer.default_user = "puser1"
 
-    with bouncer.run_with_config(config):
+    with bouncer.run_with_config(pgbouncer_ini):
 
         conn_1_fut = bouncer.asleep(3)
         await asyncio.sleep(0.1)

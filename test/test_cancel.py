@@ -168,7 +168,7 @@ END $$;""".format(
                 "data VARCHAR(32));"
             )
             conn1.execute("INSERT INTO test_cancel_race_v2 (id) VALUES (1);")
-            conn1.execute("CREATE EXTENSION dblink SCHEMA public;")
+            conn1.execute("CREATE EXTENSION IF NOT EXISTS dblink SCHEMA public;")
 
             print("Run task1 on conn1")
             q1 = pool.submit(cur1.execute, sql1)

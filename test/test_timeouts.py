@@ -19,7 +19,8 @@ from .utils import USE_SUDO
     ],
 )
 async def test_query_wait_timeout(
-    bouncer, global_query_wait_timeout: int, user_query_wait_timeout: int ):
+    bouncer, global_query_wait_timeout: int, user_query_wait_timeout: int
+):
     """
     Test of query_wait_timeout. Assumes that the effective timeout supplied is 2.
 

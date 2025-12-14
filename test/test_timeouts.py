@@ -11,15 +11,17 @@ from .utils import USE_SUDO
 
 
 @pytest.mark.parametrize(
-    ("global_query_wait_timeout", "user_query_wait_timeout"),
+    ("global_query_wait_timeout", "user_query_wait_timeout", "db_query_wait_timeout"),
     [
-        (2, None),
-        (None, 2),
-        (200, 2),
+        (2, None, None),
+        (None, 2, None),
+        (200, 2, None),
+        (None, None, 2),
+        (200, None, 2),
     ],
 )
 async def test_query_wait_timeout(
-    bouncer, global_query_wait_timeout: int, user_query_wait_timeout: int
+    bouncer, global_query_wait_timeout: int, user_query_wait_timeout: int, db_query_wait_timeout: int
 ):
     """
     Test of query_wait_timeout. Assumes that the effective timeout supplied is 2.
@@ -28,9 +30,14 @@ async def test_query_wait_timeout(
     1. kill a query that has been waiting for longer than effective query_wait_timeout
     2. not kill a query that is waiting, but for less than effective query_wait_timeout
     """
+
+    db_query_wait_timeout_clause = ""
+    if db_query_wait_timeout:
+        db_query_wait_timeout_clause += f"query_wait_timeout={db_query_wait_timeout}"
+
     pgbouncer_ini = f"""
     [databases]
-    postgres = host={bouncer.pg.host} port={bouncer.pg.port} pool_size=1
+    postgres = host={bouncer.pg.host} port={bouncer.pg.port} pool_size=1 {db_query_wait_timeout_clause}
 
     [pgbouncer]
     listen_addr = {bouncer.host}

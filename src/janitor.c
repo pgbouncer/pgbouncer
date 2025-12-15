@@ -443,15 +443,18 @@ static void pool_client_maint(PgPool *pool)
 				age = now - client->query_start;
 			}
 
-			user = client->login_user_credentials->global_user;
 			db = client->db;
 
 			effective_query_wait_timeout = cf_query_wait_timeout;
 			if (db->query_wait_timeout_set)
 				effective_query_wait_timeout = db->query_wait_timeout;
 
-			if (user->query_wait_timeout_set)
-				effective_query_wait_timeout = user->query_wait_timeout;
+			if (client->login_user_credentials) {
+				user = client->login_user_credentials->global_user;
+				if (user->query_wait_timeout_set) {
+					effective_query_wait_timeout = user->query_wait_timeout;
+				}
+			}
 
 			if (cf_shutdown == SHUTDOWN_WAIT_FOR_SERVERS) {
 				disconnect_client(client, true, "server shutting down");

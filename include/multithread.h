@@ -65,9 +65,9 @@
 	}while (0)
 
 #define GET_MULTITHREAD_PTR(name, thread_id) \
-	(multithread_mode ? (void *)&(threads[thread_id].name) : (void *)&name)
+	(multithread_mode ? &(threads[thread_id].name) : &name)
 
-#define GET_MULTITHREAD_TYPE_PTR(name, thread_id) \
+#define GET_MULTITHREAD_VAR(name, thread_id) \
 	(multithread_mode ? (threads[thread_id].name) : (name))
 
 
@@ -209,7 +209,7 @@ void resume_thread(int thread_id);
 void lock_thread(int thread_id);
 void unlock_thread(int thread_id);
 
-int get_current_thread_id(const bool multithread_mode);
+int get_current_thread_id(void);
 
 usec_t get_multithread_time_with_id(int thread_id);
 

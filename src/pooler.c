@@ -99,7 +99,7 @@ void cleanup_unix_sockets(void)
 		ls = container_of(el, struct ListenSocket, node);
 		if (event_del(&ls->ev) < 0) {
 			if (multithread_mode) {
-				log_warning("[Thread %d] cleanup_sockets: event_del failed: %s", get_current_thread_id(multithread_mode), strerror(errno));
+				log_warning("[Thread %d] cleanup_sockets: event_del failed: %s", get_current_thread_id(), strerror(errno));
 			} else {
 				log_warning("cleanup_sockets, event_del: %s", strerror(errno));
 			}
@@ -573,7 +573,7 @@ static bool parse_addr(void *arg, const char *addr)
 
 void thread_pooler_setup(void)
 {
-	int thread_id = get_current_thread_id(multithread_mode);
+	int thread_id = get_current_thread_id();
 	struct event_base *base = threads[thread_id].base;
 	setup_multithread_event_args(&threads[thread_id].handle_request_event_args, NULL, handle_request, true, &threads[thread_id].thread_lock);
 	event_assign(&(threads[thread_id].ev_handle_request),

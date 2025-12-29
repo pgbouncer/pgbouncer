@@ -68,7 +68,6 @@ static regex_t rc_cmd;
 static regex_t rc_set_word;
 static regex_t rc_set_str;
 
-// admin_pool multithread support implemented
 static PgPool *admin_pool;	// Only used in single-thread mode
 
 /* only valid during processing */
@@ -1416,9 +1415,8 @@ static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 			return admin_error(admin, "pooler is not paused/suspended");
 		}
 	} else {
-		PgDatabase *db = NULL;
+		PgDatabase *db = find_database(arg);
 		log_info("RESUME '%s' command issued", arg);
-		db = find_database(arg);
 		if (db == NULL)
 			return admin_error(admin, "no such database: %s", arg);
 		if (!db->db_paused)
@@ -1527,34 +1525,12 @@ static bool admin_cmd_reconnect(PgSocket *admin, const char *arg)
 		PgDatabase *db;
 
 		log_info("RECONNECT '%s' command issued", arg);
-		if (multithread_mode) {
-			bool found = false;
-			FOR_EACH_THREAD(thread_id){
-				lock_thread(thread_id);
-				admin->sbuf.thread_id = thread_id;
-				db = find_or_register_database(admin, arg);
-				if (!db) {
-					unlock_thread(thread_id);
-					continue;
-				}
-				if (db == admin->pool->db) {
-					unlock_thread(thread_id);
-					return admin_error(admin, "cannot reconnect admin db: %s", arg);
-				}
-				found = true;
-				tag_database_dirty(db);
-				unlock_thread(thread_id);
-			}
-			if (!found)
-				return admin_error(admin, "no such database: %s", arg);
-		} else {
-			db = find_or_register_database(admin, arg);
-			if (db == NULL)
-				return admin_error(admin, "no such database: %s", arg);
-			if (db == admin->pool->db)
-				return admin_error(admin, "cannot reconnect admin db: %s", arg);
-			tag_database_dirty(db);
-		}
+		db = find_or_register_database(admin, arg);
+		if (db == NULL)
+			return admin_error(admin, "no such database: %s", arg);
+		if (db == admin->pool->db)
+			return admin_error(admin, "cannot reconnect admin db: %s", arg);
+		tag_database_dirty(db);
 	}
 
 	return admin_ready(admin, "RECONNECT");
@@ -1883,6 +1859,8 @@ static bool admin_cmd_wait_close(PgSocket *admin, const char *arg)
 				db = pool->db;
 				db->db_wait_close = true;
 				active += count_db_active(db);
+				if(active > 0)
+					break;
 			});
 		});
 		if (active > 0)
@@ -1893,41 +1871,16 @@ static bool admin_cmd_wait_close(PgSocket *admin, const char *arg)
 		PgDatabase *db;
 
 		log_info("WAIT_CLOSE '%s' command issued", arg);
-		if (multithread_mode) {
-			bool found = false;
-			bool wait = false;
-			FOR_EACH_THREAD(thread_id){
-				lock_thread(thread_id);
-				admin->sbuf.thread_id = thread_id;
-				db = find_or_register_database(admin, arg);
-				unlock_thread(thread_id);
-				if (!db) {
-					continue;
-				}
-				found = true;
-				if (db == admin->pool->db)
-					return admin_error(admin, "cannot wait in admin db: %s", arg);
-				if (count_db_active(db) > 0) {
-					admin->wait_for_response = true;
-					wait = true;
-				}
-			}
-			if (!found)
-				return admin_error(admin, "no such database: %s", arg);
-			if (!wait)
-				return admin_ready(admin, "WAIT_CLOSE");
-		} else {
-			db = find_or_register_database(admin, arg);
-			if (db == NULL)
-				return admin_error(admin, "no such database: %s", arg);
-			if (db == admin->pool->db)
-				return admin_error(admin, "cannot wait in admin db: %s", arg);
-			db->db_wait_close = true;
-			if (count_db_active(db) > 0)
-				admin->wait_for_response = true;
-			else
-				return admin_ready(admin, "WAIT_CLOSE");
-		}
+		db = find_or_register_database(admin, arg);
+		if (db == NULL)
+			return admin_error(admin, "no such database: %s", arg);
+		if (db == admin->pool->db)
+			return admin_error(admin, "cannot wait in admin db: %s", arg);
+		db->db_wait_close = true;
+		if (count_db_active(db) > 0)
+			admin->wait_for_response = true;
+		else
+			return admin_ready(admin, "WAIT_CLOSE");
 	}
 
 	return true;
@@ -2193,17 +2146,12 @@ bool admin_handle_client(PgSocket *admin, PktHdr *pkt)
 bool admin_pre_login(PgSocket *client, const char *username)
 {
 	PgPool *admin_pool_local;
+	int thread_id = client->sbuf.thread_id;
 	client->admin_user = false;
 	client->own_user = false;
 
 	/* Get the admin pool for this client's thread */
-	admin_pool_local = NULL;
-	if (multithread_mode) {
-		int thread_id = client->sbuf.thread_id;
-		admin_pool_local = threads[thread_id].admin_pool;
-	} else {
-		admin_pool_local = admin_pool;
-	}
+	admin_pool_local = GET_MULTITHREAD_VAR(admin_pool, thread_id);
 
 	if (!admin_pool_local) {
 		log_error("no admin pool found for client");
@@ -2295,15 +2243,12 @@ void admin_setup(void)
 
 	/* fake pool */
 	THREAD_ITERATE(thread_id, {
+		PgPool ** admin_pool_ptr = GET_MULTITHREAD_PTR(admin_pool, thread_id);
 		pool = get_pool(db, db->forced_user_credentials, thread_id);
 		if (!pool)
 			die("cannot create admin pool?");
 
-		if (!multithread_mode) {
-			admin_pool = pool;
-		} else {
-			threads[thread_id].admin_pool = pool;
-		}
+		*admin_pool_ptr = pool;
 	});
 
 
@@ -2330,8 +2275,8 @@ void admin_setup(void)
 		die("admin welcome failed");
 
 	THREAD_ITERATE(thread_id, {
-		GET_MULTITHREAD_TYPE_PTR(admin_pool, thread_id)->welcome_msg = msg;
-		GET_MULTITHREAD_TYPE_PTR(admin_pool, thread_id)->welcome_msg_ready = true;
+		GET_MULTITHREAD_VAR(admin_pool, thread_id)->welcome_msg = msg;
+		GET_MULTITHREAD_VAR(admin_pool, thread_id)->welcome_msg_ready = true;
 	});
 
 
@@ -2366,96 +2311,46 @@ void admin_pause_done(void)
 	struct List *item, *tmp;
 	PgSocket *admin;
 	bool res;
+	int thread_id = get_current_thread_id();
+	struct StatList *active_client_list_ptr = GET_MULTITHREAD_PTR(admin_pool->active_client_list, thread_id);
+	int *cf_pause_mode_ptr = GET_MULTITHREAD_PTR(cf_pause_mode, thread_id);
+	statlist_for_each_safe(item, active_client_list_ptr, tmp) {
+		admin = container_of(item, PgSocket, head);
+		if (!admin->wait_for_response)
+			continue;
 
-	/* This function is now only called from the main thread when all threads are ready */
-
-	/* In multithread mode, check admin clients from all threads */
-	if (multithread_mode) {
-		FOR_EACH_THREAD(thread_id) {
-			spin_lock_acquire(&threads[thread_id].pool_list.lock);
-			/* Process admin clients from this thread's admin pool */
-			statlist_for_each_safe(item, &threads[thread_id].admin_pool->active_client_list, tmp) {
-				admin = container_of(item, PgSocket, head);
-				if (!admin->wait_for_response)
-					continue;
-
-				switch (cf_pause_mode) {
-				case P_PAUSE:
-					res = admin_ready(admin, "PAUSE");
-					break;
-				case P_SUSPEND:
-					res = admin_ready(admin, "SUSPEND");
-					break;
-				default:
-					if (count_paused_databases() > 0) {
-						res = admin_ready(admin, "PAUSE");
-					} else {
-						fatal("admin_pause_done: bad state");
-						res = false;
-					}
-				}
-
-				if (!res)
-					disconnect_client(admin, false, "dead admin");
-				else
-					admin->wait_for_response = false;
-			}
-			spin_lock_release(&threads[thread_id].pool_list.lock);
-		}
-	} else {
-		/* Single-thread mode: use the global admin_pool */
-		statlist_for_each_safe(item, &admin_pool->active_client_list, tmp) {
-			admin = container_of(item, PgSocket, head);
-			if (!admin->wait_for_response)
-				continue;
-
-			switch (cf_pause_mode) {
-			case P_PAUSE:
+		switch (*cf_pause_mode_ptr) {
+		case P_PAUSE:
+			res = admin_ready(admin, "PAUSE");
+			break;
+		case P_SUSPEND:
+			res = admin_ready(admin, "SUSPEND");
+			break;
+		default:
+			if (count_paused_databases() > 0) {
 				res = admin_ready(admin, "PAUSE");
-				break;
-			case P_SUSPEND:
-				res = admin_ready(admin, "SUSPEND");
-				break;
-			default:
-				if (count_paused_databases() > 0) {
-					res = admin_ready(admin, "PAUSE");
-				} else {
-					/* FIXME */
-					fatal("admin_pause_done: bad state");
-					res = false;
-				}
+			} else {
+				/* FIXME */
+				fatal("admin_pause_done: bad state");
+				res = false;
 			}
-
-			if (!res)
-				disconnect_client(admin, false, "dead admin");
-			else
-				admin->wait_for_response = false;
 		}
+
+		if (!res)
+			disconnect_client(admin, false, "dead admin");
+		else
+			admin->wait_for_response = false;
 	}
 
-	/* Check if all admin clients are gone (for SUSPEND mode) */
-	if (multithread_mode) {
-		bool all_admin_clients_gone = true;
-		FOR_EACH_THREAD(thread_id) {
-			spin_lock_acquire(&threads[thread_id].pool_list.lock);
-			if (!statlist_empty(&threads[thread_id].admin_pool->active_client_list)) {
-				all_admin_clients_gone = false;
-				break;
-			}
-			spin_lock_release(&threads[thread_id].pool_list.lock);
-		}
-		if (all_admin_clients_gone && cf_pause_mode == P_SUSPEND) {
-			log_info("admin disappeared when suspended, doing RESUME");
-			cf_pause_mode = P_NONE;
-			resume_all();
-		}
-	} else {
-		if (statlist_empty(&admin_pool->active_client_list)
-		    && cf_pause_mode == P_SUSPEND) {
-			log_info("admin disappeared when suspended, doing RESUME");
-			cf_pause_mode = P_NONE;
-			resume_all();
-		}
+	// In multithreaded mode, resume_all is called by the main thread.
+	if(multithread_mode)
+		return;
+
+	if (statlist_empty(active_client_list_ptr)
+		&& *cf_pause_mode_ptr == P_SUSPEND) {
+		log_info("admin disappeared when suspended, doing RESUME");
+		*cf_pause_mode_ptr = P_NONE;
+		resume_all();
 	}
 }
 
@@ -2464,41 +2359,41 @@ void admin_wait_close_done(void)
 	struct List *item, *tmp;
 	PgSocket *admin;
 	bool res;
-
-	/* In multithread mode, check admin clients from all threads */
-	if (multithread_mode) {
-		FOR_EACH_THREAD(thread_id) {
+	// Only the current thread modifies admin_pool; no lock needed.
+	THREAD_ITERATE(thread_id, {
+		struct StatList*  active_client_list_ptr = GET_MULTITHREAD_PTR(admin_pool->active_client_list, thread_id);
+		if(multithread_mode)
 			spin_lock_acquire(&threads[thread_id].pool_list.lock);
-			/* Process admin clients from this thread's admin pool */
-			statlist_for_each_safe(item, &threads[thread_id].admin_pool->active_client_list, tmp) {
-				admin = container_of(item, PgSocket, head);
-				if (!admin->wait_for_response)
-					continue;
-
-				res = admin_ready(admin, "WAIT_CLOSE");
-
-				if (!res)
-					disconnect_client(admin, false, "dead admin");
-				else
-					admin->wait_for_response = false;
-			}
-			spin_lock_release(&threads[thread_id].pool_list.lock);
-		}
-	} else {
-		/* Single-thread mode: use the global admin_pool */
-		statlist_for_each_safe(item, &admin_pool->active_client_list, tmp) {
+		statlist_for_each_safe(item, active_client_list_ptr, tmp) {
 			admin = container_of(item, PgSocket, head);
 			if (!admin->wait_for_response)
 				continue;
 
 			res = admin_ready(admin, "WAIT_CLOSE");
-
 			if (!res)
 				disconnect_client(admin, false, "dead admin");
 			else
 				admin->wait_for_response = false;
 		}
+		if(multithread_mode)
+			spin_lock_release(&threads[thread_id].pool_list.lock);
+	});
+
+}
+
+bool admin_should_resume(void){
+	bool resume = true;
+	FOR_EACH_THREAD(thread_id){
+		struct StatList *active_client_list_ptr = GET_MULTITHREAD_PTR(admin_pool->active_client_list, thread_id);
+		int *cf_pause_mode_ptr = GET_MULTITHREAD_PTR(cf_pause_mode, thread_id);
+		if (!statlist_empty(active_client_list_ptr)
+			|| !(*cf_pause_mode_ptr == P_SUSPEND)) {
+				resume = false;
+				break;
+
+		}
 	}
+	return resume;
 }
 
 /* admin on console has pressed ^C */

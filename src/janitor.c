@@ -347,15 +347,15 @@ void per_loop_maint(void)
 {
 	struct List *item;
 	PgPool *pool;
-	void *pool_list_ptr;
-	struct StatList *login_client_list_;
+	struct ThreadSafeStatList *pool_list_ptr;
+	struct StatList *login_client_list_ptr;
 	int thread_pause_mode;
 	int active_count = 0;
 	int waiting_count = 0;
 	bool partial_pause = false;
 	bool partial_wait = false;
 	bool force_suspend = false;
-	int thread_id = get_current_thread_id(multithread_mode);
+	int thread_id = get_current_thread_id();
 
 	if (cf_pause_mode == P_SUSPEND && cf_suspend_timeout > 0) {
 		usec_t stime = get_multithread_time_with_id(thread_id) - g_suspend_start;
@@ -365,42 +365,11 @@ void per_loop_maint(void)
 
 	pool_list_ptr = GET_MULTITHREAD_PTR(pool_list, thread_id);
 
-	if (multithread_mode) {
-		THREAD_SAFE_STATLIST_EACH((struct ThreadSafeStatList *)pool_list_ptr, item, {
-			pool = container_of(item, PgPool, head);
-			if (pool->db->admin)
-				continue;
-			switch (cf_pause_mode) {
-				case P_NONE:
-					if (pool->db->db_paused) {
-						partial_pause = true;
-						active_count += per_loop_pause(pool);
-					} else {
-						per_loop_activate(pool);
-					}
-					break;
-				case P_PAUSE:
-					active_count += per_loop_pause(pool);
-					break;
-				case P_SUSPEND:
-					active_count += per_loop_suspend(pool, force_suspend);
-					break;
-			}
-
-			if (pool->db->db_wait_close) {
-				partial_wait = true;
-				waiting_count += per_loop_wait_close(pool);
-			}
-		});
-
-		/* Store partial_pause state in thread structure */
-		threads[thread_id].partial_pause = partial_pause;
-	} else {
-		statlist_for_each(item, (struct StatList *)pool_list_ptr) {
-			pool = container_of(item, PgPool, head);
-			if (pool->db->admin)
-				continue;
-			switch (cf_pause_mode) {
+	THREAD_SAFE_STATLIST_EACH(pool_list_ptr, item, {
+		pool = container_of(item, PgPool, head);
+		if (pool->db->admin)
+			continue;
+		switch (cf_pause_mode) {
 			case P_NONE:
 				if (pool->db->db_paused) {
 					partial_pause = true;
@@ -415,135 +384,55 @@ void per_loop_maint(void)
 			case P_SUSPEND:
 				active_count += per_loop_suspend(pool, force_suspend);
 				break;
-			}
-
-			if (pool->db->db_wait_close) {
-				partial_wait = true;
-				waiting_count += per_loop_wait_close(pool);
-			}
 		}
-	}
 
-	login_client_list_ = GET_MULTITHREAD_PTR(login_client_list, thread_id);
+		if (pool->db->db_wait_close) {
+			partial_wait = true;
+			waiting_count += per_loop_wait_close(pool);
+		}
+	});
 
-	if (multithread_mode) {
-		thread_pause_mode = threads[thread_id].cf_pause_mode;
-	} else {
-		thread_pause_mode = cf_pause_mode;
-	}
+	/* Store partial_pause state in thread structure */
+	if(multithread_mode)
+		threads[thread_id].partial_pause = partial_pause;
+
+	login_client_list_ptr = GET_MULTITHREAD_PTR(login_client_list, thread_id);
+
+	thread_pause_mode = GET_MULTITHREAD_VAR(cf_pause_mode, thread_id);
 
 	switch (thread_pause_mode) {
 	case P_SUSPEND:
 		if (force_suspend) {
-			close_client_list(login_client_list_, "suspend_timeout");
+			close_client_list(login_client_list_ptr, "suspend_timeout");
 		} else {
-			active_count = statlist_count(login_client_list_);
-			/* Store active count in thread structure for multithread coordination */
-			if (multithread_mode) {
-				threads[thread_id].active_count = active_count;
-				MULTITHREAD_VISIT(&total_active_count_lock, {
-					total_active_count += active_count;
-				});
-			}
+			active_count = statlist_count(login_client_list_ptr);
 		}
 	/* fallthrough */
 	case P_PAUSE:
-		if (!active_count) {
-			if (multithread_mode) {
-				threads[thread_id].pause_ready = true;
-			} else {
-				admin_pause_done();
-			}
-		}
+		if (!active_count)
+			admin_pause_done();
 		break;
 	case P_NONE:
-		if (partial_pause && !active_count) {
-			if (multithread_mode) {
-				threads[thread_id].pause_ready = true;
-			} else {
-				admin_pause_done();
-			}
-		}
+		if (partial_pause && !active_count)
+			admin_pause_done();
 		break;
 	}
 
-	if (partial_wait && !waiting_count) {
-		if (multithread_mode) {
-			threads[thread_id].wait_close_ready = true;
-		} else {
-			admin_wait_close_done();
-		}
-	}
+	if (partial_wait && !waiting_count)
+		admin_wait_close_done();
 }
 
 void per_loop_admin_condition_maint(void)
 {
-	bool any_pause_mode = false;
-	bool any_suspend_mode = false;
-	bool all_wait_close_ready = true;
+	bool resume = admin_should_resume();
 
-	/* Check if all threads are ready for pause or suspend */
-	FOR_EACH_THREAD(thread_id) {
-		if (threads[thread_id].cf_pause_mode == P_PAUSE ||
-		    (threads[thread_id].cf_pause_mode == P_NONE && threads[thread_id].partial_pause)) {
-			any_pause_mode = true;
+	if(resume){
+		log_info("admin disappeared when suspended, doing RESUME");
+		FOR_EACH_THREAD(thread_id){
+			int *cf_pause_mode_ptr = GET_MULTITHREAD_PTR(cf_pause_mode, thread_id);
+			*cf_pause_mode_ptr = P_NONE;
 		}
-		if (threads[thread_id].cf_pause_mode == P_SUSPEND) {
-			any_suspend_mode = true;
-		}
-	}
-
-	/* Handle PAUSE mode */
-	if (any_pause_mode) {
-		bool all_threads_ready = true;
-		FOR_EACH_THREAD(thread_id) {
-			if (!threads[thread_id].pause_ready) {
-				all_threads_ready = false;
-				break;
-			}
-		}
-
-		if (all_threads_ready) {
-			/* All threads are ready, send admin response */
-			admin_pause_done();
-
-			/* Reset flags */
-			FOR_EACH_THREAD(thread_id) {
-				threads[thread_id].pause_ready = false;
-			}
-		}
-	}
-
-	/* Handle SUSPEND mode */
-	if (any_suspend_mode) {
-		/* If total active count is 0, all threads are ready for suspend */
-		if (total_active_count == 0) {
-			/* All threads are ready, send admin response */
-			admin_pause_done();
-
-			/* Reset flags */
-			FOR_EACH_THREAD(thread_id) {
-				threads[thread_id].pause_ready = false;
-			}
-		}
-	}
-
-	/* Check if all threads are ready for wait_close */
-	FOR_EACH_THREAD(thread_id) {
-		if (!threads[thread_id].wait_close_ready) {
-			all_wait_close_ready = false;
-			break;
-		}
-	}
-
-	if (all_wait_close_ready) {
-		/* All threads are ready, send admin response */
-		admin_wait_close_done();
-
-		/* Reset flags */
-		FOR_EACH_THREAD(thread_id) {
-			threads[thread_id].wait_close_ready = false;
-		}
+		resume_all();
 	}
 }
 
@@ -945,7 +834,7 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	PgPool *pool;
 	struct ThreadSafeStatList *peer_pool_list_ptr;
 	struct ThreadSafeStatList *pool_list_ptr;
-	int thread_id = get_current_thread_id(multithread_mode);
+	int thread_id = get_current_thread_id();
 
 	/*
 	 * increment global seq, if in multithread mode,
@@ -1025,7 +914,7 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	cleanup_client_logins(thread_id);
 	if (multithread_mode) {
 		Thread *this_thread = (Thread *) pthread_getspecific(thread_pointer);
-		if (this_thread->cf_shutdown == SHUTDOWN_WAIT_FOR_SERVERS && get_active_server_count(thread_id) == 0) {
+		if (this_thread->cf_shutdown == SHUTDOWN_WAIT_FOR_SERVERS && get_active_server_count() == 0) {
 			struct event_base *base;
 			log_info("[Thread %d] server connections dropped, exiting", thread_id);
 			this_thread->cf_shutdown = SHUTDOWN_IMMEDIATE;
@@ -1034,7 +923,7 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 			return;
 		}
 
-		if (this_thread->cf_shutdown == SHUTDOWN_WAIT_FOR_CLIENTS && get_active_client_count(thread_id) == 0) {
+		if (this_thread->cf_shutdown == SHUTDOWN_WAIT_FOR_CLIENTS && get_active_client_count() == 0) {
 			struct event_base *base;
 			log_info("[Thread %d] client connections dropped, exiting", thread_id);
 			this_thread->cf_shutdown = SHUTDOWN_IMMEDIATE;
@@ -1043,7 +932,7 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 			return;
 		}
 	} else {
-		if (cf_shutdown == SHUTDOWN_WAIT_FOR_SERVERS && get_active_server_count(-1) == 0) {
+		if (cf_shutdown == SHUTDOWN_WAIT_FOR_SERVERS && get_active_server_count() == 0) {
 			log_info("server connections dropped, exiting");
 			cf_shutdown = SHUTDOWN_IMMEDIATE;
 			cleanup_unix_sockets();
@@ -1051,7 +940,7 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 			return;
 		}
 
-		if (cf_shutdown == SHUTDOWN_WAIT_FOR_CLIENTS && get_active_client_count(-1) == 0) {
+		if (cf_shutdown == SHUTDOWN_WAIT_FOR_CLIENTS && get_active_client_count() == 0) {
 			log_info("client connections dropped, exiting");
 			cf_shutdown = SHUTDOWN_IMMEDIATE;
 			cleanup_unix_sockets();
@@ -1091,7 +980,7 @@ void janitor_setup(void)
 {
 	/* launch maintenance */
 	if (multithread_mode) {
-		int thread_id = get_current_thread_id(multithread_mode);
+		int thread_id = get_current_thread_id();
 		setup_multithread_event_args(&threads[thread_id].do_full_maint_event_args, NULL, do_full_maint, true, &threads[thread_id].thread_lock);
 		event_assign(&(threads[thread_id].full_maint_ev),
 			     threads[thread_id].base,
@@ -1132,8 +1021,8 @@ void kill_pool(PgPool *pool)
 	list_del(&pool->map_head);
 	thread_safe_statlist_remove(GET_MULTITHREAD_PTR(pool_list, thread_id), &pool->head);
 	varcache_clean(&pool->orig_vars);
-	slab_free(GET_MULTITHREAD_TYPE_PTR(var_list_cache, thread_id), pool->orig_vars.var_list);
-	slab_free(GET_MULTITHREAD_TYPE_PTR(pool_cache, thread_id), pool);
+	slab_free(GET_MULTITHREAD_VAR(var_list_cache, thread_id), pool->orig_vars.var_list);
+	slab_free(GET_MULTITHREAD_VAR(pool_cache, thread_id), pool);
 }
 
 void kill_peer_pool(PgPool *pool)

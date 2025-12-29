@@ -126,7 +126,7 @@ void sbuf_init(SBuf *sbuf, sbuf_cb_t proto_fn)
 	memset(sbuf, 0, sizeof(SBuf));
 	sbuf->proto_cb = proto_fn;
 	sbuf->ops = &raw_sbufio_ops;
-	sbuf->thread_id = get_current_thread_id(multithread_mode);
+	sbuf->thread_id = get_current_thread_id();
 }
 
 /* got new socket from accept() */

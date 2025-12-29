@@ -101,8 +101,8 @@ void activate_client(PgSocket *client);
 void change_client_state(PgSocket *client, SocketState newstate);
 void change_server_state(PgSocket *server, SocketState newstate);
 
-int get_active_client_count(int thread_id);
-int get_active_server_count(int thread_id);
+int get_active_client_count(void);
+int get_active_server_count(void);
 
 int get_total_active_client_count(void);
 
@@ -112,7 +112,7 @@ void tag_autodb_dirty(void);
 void tag_host_addr_dirty(const char *host, const struct sockaddr *sa);
 void for_each_server(PgPool *pool, void (*func)(PgSocket *sk));
 
-void reuse_just_freed_objects(int thread_id);
+void reuse_just_freed_objects(void);
 
 void init_objects(void);
 void init_objects_multithread(void);

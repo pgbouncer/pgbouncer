@@ -410,7 +410,7 @@ void * worker_func(void *arg)
 		}
 		/* Perform periodic maintenance tasks */
 		per_loop_maint();
-		reuse_just_freed_objects(this_thread->thread_id);
+		reuse_just_freed_objects();
 		rescue_timers();
 		per_loop_pooler_maint();
 	}
@@ -529,7 +529,7 @@ void unlock_thread(int thread_id)
 	spin_lock_release(&(threads[thread_id].thread_lock));
 }
 
-inline int get_current_thread_id(const bool multithread_mode)
+inline int get_current_thread_id(void)
 {
 	Thread *this_thread;
 	if (!multithread_mode) {
@@ -552,7 +552,7 @@ void multithread_reset_time_cache(void)
 	int thread_id;
 	if (!multithread_mode)
 		return;
-	thread_id = get_current_thread_id(multithread_mode);
+	thread_id = get_current_thread_id();
 	if (thread_id < 0) {
 		return;
 	}

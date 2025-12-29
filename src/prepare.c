@@ -107,7 +107,7 @@ static PgServerPreparedStatement *create_server_prepared_statement(PgPreparedSta
 	PgServerPreparedStatement *server_ps;
 	struct Slab *server_prepared_statement_cache_ = NULL;
 	if (multithread_mode) {
-		int thread_id = get_current_thread_id(multithread_mode);
+		int thread_id = get_current_thread_id();
 		server_prepared_statement_cache_ = threads[thread_id].server_prepared_statement_cache;
 	} else {
 		server_prepared_statement_cache_ = server_prepared_statement_cache;

@@ -764,7 +764,7 @@ static void main_loop_once(void)
 		ldap_poll();
 		pam_poll();
 		per_loop_maint();
-		reuse_just_freed_objects(-1);
+		reuse_just_freed_objects();
 		rescue_timers();
 		per_loop_pooler_maint();
 	}
@@ -772,9 +772,9 @@ static void main_loop_once(void)
 		MULTITHREAD_VISIT(&adns_lock, adns_per_loop(adns));
 	}
 
-	if (multithread_mode) {
+	if (multithread_mode)
 		per_loop_admin_condition_maint();
-	}
+	
 }
 
 static void takeover_part1(void)

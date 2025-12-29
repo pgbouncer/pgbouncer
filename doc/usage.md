@@ -177,6 +177,8 @@ The **SHOW** commands output information. Each command is described below.
 Shows statistics.  In this and related commands, the total figures are
 since process start, the averages are updated every `stats_period`.
 
+If database name is given only stats for that single database are shown.
+
 database
 :   Statistics are presented per database.
 
@@ -274,7 +276,7 @@ Subset of **SHOW STATS** showing the average values (**avg_**).
 
 Like **SHOW STATS** but aggregated across all databases.
 
-#### SHOW SERVERS
+#### SHOW SERVERS [id]
 
 type
 :   S, for server.
@@ -350,7 +352,7 @@ id
 :   Unique ID for server.
 
 
-#### SHOW CLIENTS
+#### SHOW CLIENTS [id]
 
 type
 :   C, for client.
@@ -546,7 +548,7 @@ dns_queries
 dns_pending
 :   not used
 
-#### SHOW USERS
+#### SHOW USERS [user]
 
 name
 :   The user name
@@ -574,7 +576,7 @@ max_user_client_connections
 current_client_connections
 :   Current number of client connections that this user has open to PgBouncer.
 
-#### SHOW DATABASES
+#### SHOW DATABASES [db]
 
 name
 :   Name of configured database entry.
@@ -681,13 +683,13 @@ cancel
 link
 :   fd for corresponding server/client.  NULL if idle.
 
-#### SHOW SOCKETS, SHOW ACTIVE_SOCKETS
+#### SHOW SOCKETS [id], SHOW ACTIVE_SOCKETS
 
 Shows low-level information about sockets or only active sockets.
 This includes the information shown under **SHOW CLIENTS** and **SHOW
 SERVERS** as well as other more low-level information.
 
-#### SHOW CONFIG
+#### SHOW CONFIG [name]
 
 Show the current configuration settings, one per row, with the following
 columns:
@@ -706,7 +708,7 @@ changeable
     If **no**, the variable can be changed only at boot time.  Use
     **SET** to change a variable at run time.
 
-#### SHOW MEM
+#### SHOW MEM [name]
 
 Shows low-level information about the current sizes of various
 internal memory allocations.  The information presented is subject to

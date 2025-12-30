@@ -76,6 +76,9 @@ def test_show_filter(bouncer) -> None:
     show_items = {
         "clients": 'id',
         "servers": 'id',
+        "databases": 'name',
+        "sockets": 'id',
+        "mem": 'name',
     }
     conn_2 = bouncer.conn(dbname="p1")
 

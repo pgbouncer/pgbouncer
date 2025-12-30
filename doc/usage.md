@@ -172,7 +172,7 @@ drivers will not work for this.
 
 The **SHOW** commands output information. Each command is described below.
 
-#### SHOW STATS
+#### SHOW STATS [db]
 
 Shows statistics.  In this and related commands, the total figures are
 since process start, the averages are updated every `stats_period`.
@@ -263,12 +263,12 @@ avg_bind_count
     to PostgreSQL by **pgbouncer**. Only applicable in named prepared statement tracking
     mode, see `max_prepared_statements`.
 
-#### SHOW STATS_TOTALS
+#### SHOW STATS_TOTALS [db]
 
 Subset of **SHOW STATS** showing the total values (**total_**).
 
 
-#### SHOW STATS_AVERAGES
+#### SHOW STATS_AVERAGES [db]
 
 Subset of **SHOW STATS** showing the average values (**avg_**).
 

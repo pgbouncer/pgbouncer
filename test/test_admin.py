@@ -79,6 +79,9 @@ def test_show_filter(bouncer) -> None:
         "databases": 'name',
         "sockets": 'id',
         "mem": 'name',
+        "stats": 'database',
+        "stats_totals": 'database',
+        "stats_averages": 'database',
     }
     conn_2 = bouncer.conn(dbname="p1")
 

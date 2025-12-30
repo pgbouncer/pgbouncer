@@ -1657,17 +1657,17 @@ static bool admin_show_version(PgSocket *admin, const char *arg)
 
 static bool admin_show_stats(PgSocket *admin, const char *arg)
 {
-	return admin_database_stats(admin, &pool_list);
+	return admin_database_stats(admin, &pool_list, arg);
 }
 
 static bool admin_show_stats_totals(PgSocket *admin, const char *arg)
 {
-	return admin_database_stats_totals(admin, &pool_list);
+	return admin_database_stats_totals(admin, &pool_list, arg);
 }
 
 static bool admin_show_stats_averages(PgSocket *admin, const char *arg)
 {
-	return admin_database_stats_averages(admin, &pool_list);
+	return admin_database_stats_averages(admin, &pool_list, arg);
 }
 
 static bool admin_show_totals(PgSocket *admin, const char *arg)

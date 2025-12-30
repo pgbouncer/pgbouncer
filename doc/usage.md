@@ -421,7 +421,7 @@ prepared_statements
 id
 :   Unique ID for client.
 
-#### SHOW POOLS
+#### SHOW POOLS [db]
 
 A new pool entry is made for each couple of (database, user).
 

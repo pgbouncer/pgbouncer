@@ -4,6 +4,30 @@ PgBouncer changelog
 PgBouncer 1.25.x
 ----------------
 
+**2025-12-03  -  PgBouncer 1.25.1  -  "Fixing a bunch of bugs before Christmas"**
+
+- Security
+  * Fix CVE-2025-12819: Before this release it was possible for an unauthenticated attacker to execute arbitrary SQL during authentication by providing a malicious search_path parameter in the StartupMessage. Systems that have ALL the following configurations are vulnerable:
+
+    1. `track_extra_parameters` includes search_path (non-default configuration, probably only configured in setups involving Citus or PostgreSQL 18)
+    2. `auth_user` is set to a non-empty string (non-default configuration)
+    3. `auth_query` is configured without fully-qualified object names (default configuration, the < operator is not schema qualified)
+
+- Fixes
+    - Fix errors with ad-hoc SCRAM auth after reconnect to server ([#1432], introduced in 1.25.0)
+    - Add missing typedefs for exotic architectures without SIMD support ([#1414], introduced in 1.25.0)
+    - Remove noisy warning log when client closes the connection before sending any data ([#1420], introduced in 1.25.0)
+    - Prevent potential NULL pointer dereference ([#1423], introduced in 1.25.0)
+    - Fix potential memory leak ([#1422], introduced in 1.25.0)
+    - Fix SCRAM parsing of server messages ([#1431], introduced in 1.25.0)
+
+[#1414]: https://github.com/pgbouncer/pgbouncer/pull/1414
+[#1420]: https://github.com/pgbouncer/pgbouncer/pull/1420
+[#1422]: https://github.com/pgbouncer/pgbouncer/pull/1422
+[#1423]: https://github.com/pgbouncer/pgbouncer/pull/1423
+[#1431]: https://github.com/pgbouncer/pgbouncer/pull/1431
+[#1432]: https://github.com/pgbouncer/pgbouncer/pull/1432
+
 **2025-11-09  -  PgBouncer 1.25.0  -  "The one with LDAP support"**
 
 - Features

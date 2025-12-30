@@ -401,7 +401,7 @@ bool read_server_first_message(PgSocket *server, char *input)
 	state->saltlen = pg_b64_decode(encoded_salt,
 				       strlen(encoded_salt),
 				       state->salt, decoded_salt_len);
-	if (decoded_salt_len < 0) {
+	if (state->saltlen < 0) {
 		slog_error(server, "malformed SCRAM message (invalid salt)");
 		return false;
 	}
@@ -485,7 +485,7 @@ static bool calculate_client_proof(PgSocket *server,
 	ctx = pg_hmac_create(state->hash_type);
 	if (ctx == NULL) {
 		slog_error(server, "HMAC context creation failed: %s", pg_hmac_error(NULL));
-		return false;
+		goto failed;
 	}
 
 	if (credentials->use_scram_keys) {
@@ -494,11 +494,11 @@ static bool calculate_client_proof(PgSocket *server,
 	{
 		rc = pg_saslprep(credentials->passwd, &prep_password);
 		if (rc == SASLPREP_OOM)
-			return false;
+			goto failed;
 		if (rc != SASLPREP_SUCCESS) {
 			prep_password = strdup(credentials->passwd);
 			if (!prep_password)
-				return false;
+				goto failed;
 		}
 		state->SaltedPassword = malloc(SCRAM_SHA_256_KEY_LEN);
 		if (state->SaltedPassword == NULL)
@@ -514,8 +514,7 @@ static bool calculate_client_proof(PgSocket *server,
 		    scram_ClientKey(state->SaltedPassword, state->hash_type,
 				    state->key_length, ClientKey, &errstr) < 0) {
 			slog_error(server, "SCRAM key derivation failed: %s", errstr);
-			pg_hmac_free(ctx);
-			return false;
+			goto failed;
 		}
 	}
 
@@ -917,6 +916,7 @@ char *build_server_first_message(ScramState *state, PgCredentials *user, const c
 			goto failed;
 	} else {
 		if (user->adhoc_scram_secrets_cached) {
+			state->adhoc = true;
 			state->iterations = user->scram_Iiterations;
 			state->encoded_salt = strdup(user->scram_SaltKey);
 			memcpy(state->StoredKey, user->scram_StoredKey, sizeof(user->scram_StoredKey));

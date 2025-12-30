@@ -72,15 +72,20 @@ def test_show(bouncer):
         bouncer.admin(f"SHOW {item}")
 
 
-def test_show_clients(bouncer) -> None:
+def test_show_filter(bouncer) -> None:
+    show_items = {
+        "clients": 'id',
+        "servers": 'id',
+    }
     conn_2 = bouncer.conn(dbname="p1")
 
-    with bouncer.cur(row_factory=dict_row):
+    for show_command, primary_key in show_items.items():
         with bouncer.cur(row_factory=dict_row):
-            clients = bouncer.admin(f"SHOW CLIENTS", row_factory=dict_row)
-            assert len(clients) == 4
-            clients = bouncer.admin(f"SHOW CLIENTS {clients[0]['id']}", row_factory=dict_row)
-            assert len(clients) == 1
+            with bouncer.cur(row_factory=dict_row):
+                clients = bouncer.admin(f"SHOW {show_command}", row_factory=dict_row)
+                filtered_clients = bouncer.admin(f"SHOW {show_command} {clients[0][primary_key]}", row_factory=dict_row)
+                assert len(filtered_clients) == 1
+                assert filtered_clients[0][primary_key] == clients[0][primary_key]
 
 
 def test_socket_id(bouncer) -> None:

@@ -72,6 +72,17 @@ def test_show(bouncer):
         bouncer.admin(f"SHOW {item}")
 
 
+def test_show_clients(bouncer) -> None:
+    conn_2 = bouncer.conn(dbname="p1")
+
+    with bouncer.cur(row_factory=dict_row):
+        with bouncer.cur(row_factory=dict_row):
+            clients = bouncer.admin(f"SHOW CLIENTS", row_factory=dict_row)
+            assert len(clients) == 4
+            clients = bouncer.admin(f"SHOW CLIENTS {clients[0]['id']}", row_factory=dict_row)
+            assert len(clients) == 1
+
+
 def test_socket_id(bouncer) -> None:
     """Test that PgSocket id is assigned as expected for sockets."""
     config = f"""

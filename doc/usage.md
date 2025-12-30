@@ -646,7 +646,7 @@ port
 pool_size
 :   Maximum number of server connections that can be made to this peer
 
-#### SHOW FDS
+#### SHOW FDS [fd]
 
 Internal command - shows list of file descriptors in use with internal state attached to them.
 

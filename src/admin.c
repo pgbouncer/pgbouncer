@@ -335,7 +335,7 @@ static bool send_one_fd(PgSocket *admin,
 }
 
 /* send a row with sendmsg, optionally attaching a fd */
-static bool show_one_fd(PgSocket *admin, PgSocket *sk)
+static bool show_one_fd(PgSocket *admin, PgSocket *sk, int filter_fd)
 {
 	PgAddr *addr = &sk->remote_addr;
 	struct MBuf tmp;
@@ -348,6 +348,11 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	char addrbuf[PGADDR_BUF];
 	const char *password = NULL;
 	bool send_scram_keys = false;
+
+	if (filter_fd != 0){
+		if (filter_fd != sbuf_socket(&sk->sbuf))
+			return true;
+	}
 
 	/* Skip TLS sockets */
 	if (sk->sbuf.tls || (sk->link && sk->link->sbuf.tls))
@@ -401,19 +406,21 @@ static bool show_pooler_fds(PgSocket *admin)
 	return for_each_pooler_fd(show_pooler_cb, admin);
 }
 
-static bool show_fds_from_list(PgSocket *admin, struct StatList *list)
+static bool show_fds_from_list(PgSocket *admin, struct StatList *list, const char *filter_fd)
 {
 	struct List *item;
 	PgSocket *sk;
 	bool res = true;
+	int fd_filter;
+
+	fd_filter = 0;
+	if (filter_fd && *filter_fd) {
+		fd_filter = atoi(filter_fd);
+	}
 
 	statlist_for_each(item, list) {
 		sk = container_of(item, PgSocket, head);
-		//if (arg && *arg) {
-		//	if (strcasecmp(arg, sk->"WAIT_FOR_CLIENTS") == 0)
-		//		mode = SHUTDOWN_WAIT_FOR_CLIENTS;
-		//}
-		res = show_one_fd(admin, sk);
+		res = show_one_fd(admin, sk, fd_filter);
 		if (!res)
 			break;
 	}
@@ -461,19 +468,19 @@ static bool admin_show_fds(PgSocket *admin, const char *arg)
 		res = show_pooler_fds(admin);
 
 	if (res)
-		res = show_fds_from_list(admin, &login_client_list);
+		res = show_fds_from_list(admin, &login_client_list, arg);
 
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
 		if (pool->db->admin)
 			continue;
-		res = res && show_fds_from_list(admin, &pool->active_client_list);
-		res = res && show_fds_from_list(admin, &pool->waiting_client_list);
-		res = res && show_fds_from_list(admin, &pool->active_server_list);
-		res = res && show_fds_from_list(admin, &pool->idle_server_list);
-		res = res && show_fds_from_list(admin, &pool->used_server_list);
-		res = res && show_fds_from_list(admin, &pool->tested_server_list);
-		res = res && show_fds_from_list(admin, &pool->new_server_list);
+		res = res && show_fds_from_list(admin, &pool->active_client_list, arg);
+		res = res && show_fds_from_list(admin, &pool->waiting_client_list, arg);
+		res = res && show_fds_from_list(admin, &pool->active_server_list, arg);
+		res = res && show_fds_from_list(admin, &pool->idle_server_list, arg);
+		res = res && show_fds_from_list(admin, &pool->used_server_list, arg);
+		res = res && show_fds_from_list(admin, &pool->tested_server_list, arg);
+		res = res && show_fds_from_list(admin, &pool->new_server_list, arg);
 		if (!res)
 			break;
 	}

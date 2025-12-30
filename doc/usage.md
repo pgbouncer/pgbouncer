@@ -683,7 +683,7 @@ cancel
 link
 :   fd for corresponding server/client.  NULL if idle.
 
-#### SHOW SOCKETS [id], SHOW ACTIVE_SOCKETS
+#### SHOW SOCKETS [id], SHOW ACTIVE_SOCKETS [id]
 
 Shows low-level information about sockets or only active sockets.
 This includes the information shown under **SHOW CLIENTS** and **SHOW

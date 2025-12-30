@@ -897,11 +897,22 @@ static bool admin_show_sockets(PgSocket *admin, const char *arg)
 	return true;
 }
 
-static void show_active_socket_list(PktBuf *buf, struct StatList *list, const char *state)
+static void show_active_socket_list(PktBuf *buf, struct StatList *list, const char *state, const char *arg)
 {
 	struct List *item;
+	long long unsigned int id_filter;
+
+	id_filter = 0;
+	if (arg && *arg) {
+		id_filter = atoi(arg);
+	}
+
 	statlist_for_each(item, list) {
 		PgSocket *sk = container_of(item, PgSocket, head);
+		if (id_filter != 0) {
+			if (id_filter != sk->id)
+				continue;
+		}
 		if (!sbuf_is_empty(&sk->sbuf))
 			socket_row(buf, sk, state, true);
 	}
@@ -923,16 +934,16 @@ static bool admin_show_active_sockets(PgSocket *admin, const char *arg)
 	socket_header(buf, true);
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
-		show_active_socket_list(buf, &pool->active_client_list, "cl_active");
-		show_active_socket_list(buf, &pool->waiting_client_list, "cl_waiting");
+		show_active_socket_list(buf, &pool->active_client_list, "cl_active", arg);
+		show_active_socket_list(buf, &pool->waiting_client_list, "cl_waiting", arg);
 
-		show_active_socket_list(buf, &pool->active_server_list, "sv_active");
-		show_active_socket_list(buf, &pool->idle_server_list, "sv_idle");
-		show_active_socket_list(buf, &pool->used_server_list, "sv_used");
-		show_active_socket_list(buf, &pool->tested_server_list, "sv_tested");
-		show_active_socket_list(buf, &pool->new_server_list, "sv_login");
+		show_active_socket_list(buf, &pool->active_server_list, "sv_active", arg);
+		show_active_socket_list(buf, &pool->idle_server_list, "sv_idle", arg);
+		show_active_socket_list(buf, &pool->used_server_list, "sv_used", arg);
+		show_active_socket_list(buf, &pool->tested_server_list, "sv_tested", arg);
+		show_active_socket_list(buf, &pool->new_server_list, "sv_login", arg);
 	}
-	show_active_socket_list(buf, &login_client_list, "cl_login");
+	show_active_socket_list(buf, &login_client_list, "cl_login", arg);
 	admin_flush(admin, buf, "SHOW");
 	return true;
 }

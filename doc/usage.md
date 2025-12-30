@@ -484,7 +484,7 @@ pool_mode
 load_balance_hosts
 :   The load_balance_hosts in use if the pool's host contains a comma-separated list.
 
-#### SHOW PEER_POOLS
+#### SHOW PEER_POOLS [peer_id]
 
 A new peer_pool entry is made for each configured peer.
 
@@ -632,7 +632,7 @@ paused
 disabled
 :   1 if this database is currently disabled, else 0.
 
-#### SHOW PEERS
+#### SHOW PEERS [peer_id]
 
 peer_id
 :   ID of the configured peer entry.

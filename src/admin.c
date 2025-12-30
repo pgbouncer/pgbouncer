@@ -409,10 +409,10 @@ static bool show_fds_from_list(PgSocket *admin, struct StatList *list)
 
 	statlist_for_each(item, list) {
 		sk = container_of(item, PgSocket, head);
-		// if (arg && *arg) {
-		// 	if (strcasecmp(arg, sk->"WAIT_FOR_CLIENTS") == 0)
-		// 		mode = SHUTDOWN_WAIT_FOR_CLIENTS;
-		// }
+		//if (arg && *arg) {
+		//	if (strcasecmp(arg, sk->"WAIT_FOR_CLIENTS") == 0)
+		//		mode = SHUTDOWN_WAIT_FOR_CLIENTS;
+		//}
 		res = show_one_fd(admin, sk);
 		if (!res)
 			break;
@@ -559,6 +559,7 @@ static bool admin_show_peers(PgSocket *admin, const char *arg)
 	PgDatabase *peer;
 	struct List *item;
 	PktBuf *buf;
+	int peer_id_filter;
 
 	buf = pktbuf_dynamic(256);
 	if (!buf) {
@@ -566,11 +567,18 @@ static bool admin_show_peers(PgSocket *admin, const char *arg)
 		return true;
 	}
 
+	peer_id_filter = 0;
+	if (arg && *arg) {
+		peer_id_filter = atoi(arg);
+	}
 	pktbuf_write_RowDescription(buf, "isii",
 				    "peer_id", "host", "port", "pool_size");
 	statlist_for_each(item, &peer_list) {
 		peer = container_of(item, PgDatabase, head);
-
+		if (peer_id_filter != 0) {
+			if (peer_id_filter != peer->peer_id)
+				continue;
+		}
 		pktbuf_write_DataRow(buf, "isii",
 				     peer->peer_id, peer->host, peer->port,
 				     peer->pool_size >= 0 ? peer->pool_size : cf_default_pool_size);
@@ -997,6 +1005,7 @@ static bool admin_show_peer_pools(PgSocket *admin, const char *arg)
 	struct List *item;
 	PgPool *pool;
 	PktBuf *buf;
+	int peer_id_filter;
 
 	buf = pktbuf_dynamic(256);
 	if (!buf) {
@@ -1009,8 +1018,18 @@ static bool admin_show_peer_pools(PgSocket *admin, const char *arg)
 				    "cl_waiting_cancel_req",
 				    "sv_active_cancel",
 				    "sv_login");
+
+	peer_id_filter = 0;
+	if (arg && *arg) {
+		peer_id_filter = atoi(arg);
+	}
+
 	statlist_for_each(item, &peer_pool_list) {
 		pool = container_of(item, PgPool, head);
+		if (peer_id_filter != 0) {
+			if (peer_id_filter != pool->db->peer_id)
+				continue;
+		}
 		pktbuf_write_DataRow(buf, "iiiii",
 				     pool->db->peer_id,
 				     statlist_count(&pool->active_cancel_req_list),

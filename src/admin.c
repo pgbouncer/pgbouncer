@@ -349,7 +349,7 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk, int filter_fd)
 	const char *password = NULL;
 	bool send_scram_keys = false;
 
-	if (filter_fd != 0){
+	if (filter_fd != 0) {
 		if (filter_fd != sbuf_socket(&sk->sbuf))
 			return true;
 	}

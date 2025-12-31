@@ -74,14 +74,14 @@ def test_show(bouncer):
 
 def test_show_filter(bouncer) -> None:
     show_items = {
-        "clients": 'id',
-        "servers": 'id',
-        "databases": 'name',
-        "sockets": 'id',
-        "mem": 'name',
-        "stats": 'database',
-        "stats_totals": 'database',
-        "stats_averages": 'database',
+        "clients": "id",
+        "servers": "id",
+        "databases": "name",
+        "sockets": "id",
+        "mem": "name",
+        "stats": "database",
+        "stats_totals": "database",
+        "stats_averages": "database",
     }
     conn_2 = bouncer.conn(dbname="p1")
 
@@ -89,7 +89,10 @@ def test_show_filter(bouncer) -> None:
         with bouncer.cur(row_factory=dict_row):
             with bouncer.cur(row_factory=dict_row):
                 clients = bouncer.admin(f"SHOW {show_command}", row_factory=dict_row)
-                filtered_clients = bouncer.admin(f"SHOW {show_command} {clients[0][primary_key]}", row_factory=dict_row)
+                filtered_clients = bouncer.admin(
+                    f"SHOW {show_command} {clients[0][primary_key]}",
+                    row_factory=dict_row,
+                )
                 assert len(filtered_clients) == 1
                 assert filtered_clients[0][primary_key] == clients[0][primary_key]
 

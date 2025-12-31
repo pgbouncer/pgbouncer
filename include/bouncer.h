@@ -946,4 +946,4 @@ bool load_config(void);
 
 bool set_config_param(const char *key, const char *val);
 void config_for_each(void (*param_cb)(void *arg, const char *name, const char *val, const char *defval, bool reloadable),
-		     void *arg);
+		     void *arg, const char *filter_arg);

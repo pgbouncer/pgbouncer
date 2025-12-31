@@ -226,6 +226,7 @@ extern int cf_sbuf_len;
 #ifdef HAVE_LDAP
 /* Hope this length is long enough for ldap config line */
 #define MAX_LDAP_CONFIG 1024
+#endif
 #ifdef HAVE_GSS
 /* Hope this length is long enough for gss config line */
 #define MAX_GSS_CONFIG 1024

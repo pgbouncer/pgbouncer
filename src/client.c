@@ -387,6 +387,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 			snprintf(client->ldap_options, MAX_LDAP_CONFIG, "%s", cf_auth_ldap_options);
 			slog_noise(client, "The value of cf_auth_ldap_options is %s", cf_auth_ldap_options);
 		}
+	}
 #endif
 #ifdef HAVE_GSS
 	if (auth == AUTH_TYPE_GSS) {

@@ -8,8 +8,8 @@ import pytest
 
 from .utils import (
     FREEBSD,
-    LDAP_SUPPORT,
     GSS_SUPPORT,
+    LDAP_SUPPORT,
     LONG_PASSWORD,
     MACOS,
     PG_SUPPORTS_SCRAM,

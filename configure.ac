@@ -76,7 +76,6 @@ AC_ARG_WITH(pam,
     fi
   ], [])
 
-<<<<<<< HEAD
 dnl Check for LDAP authentication support
 ldap_support=no
 AC_ARG_WITH(ldap,
@@ -101,7 +100,7 @@ AC_ARG_WITH(ldap,
         fi
     fi
   ], [])
-=======
+
 dnl Check for GSSAPI authentication support
 gss_support=no
 AC_ARG_WITH(gss,
@@ -118,7 +117,6 @@ AC_ARG_WITH(gss,
         fi
       fi
    ], [])
->>>>>>> 9332a32 (GSS Implementation)
 
 dnl Check for systemd support
 AC_MSG_CHECKING([whether to build with systemd support])

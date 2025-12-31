@@ -774,12 +774,22 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 		rule->rule_method = AUTH_TYPE_SCRAM_SHA_256;
 	} else if (check_kw(tp, "ldap")) {
 		rule->rule_method = AUTH_TYPE_LDAP;
+	} else if (check_kw(tp, "gss")) {
+		rule->rule_method = AUTH_TYPE_GSS;
 	} else {
 		log_warning("hba line %d: unsupported method: buf=%s", linenr, tp->buf);
 		goto failed;
 	}
 
 	if (rule->rule_method == AUTH_TYPE_LDAP) {
+		if ((rule->auth_options = strdup(tp->pos)) == NULL) {
+			log_warning("hba line %d: cannot get auth_options: buf=%s", linenr, tp->pos);
+			goto failed;
+		}
+		eat_all(tp);
+	}
+
+	if (rule->rule_method == AUTH_TYPE_GSS) {
 		if ((rule->auth_options = strdup(tp->pos)) == NULL) {
 			log_warning("hba line %d: cannot get auth_options: buf=%s", linenr, tp->pos);
 			goto failed;

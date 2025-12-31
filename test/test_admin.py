@@ -95,6 +95,7 @@ def test_show_filter(bouncer) -> None:
                 )
                 assert len(filtered_clients) == 1
                 assert filtered_clients[0][primary_key] == clients[0][primary_key]
+    conn_2.close()
 
 
 def test_socket_id(bouncer) -> None:

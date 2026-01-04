@@ -941,8 +941,16 @@ bool find_server(PgSocket *client)
 	}
 	Assert(!server || server->state == SV_IDLE);
 
-	/* send var changes */
-	if (server) {
+	/*
+	 * Send var changes. However, Don't send SET commands over a connection
+	 * that runs the auth_query query. Since the user is not authenticated,
+	 * it might have security implications if a susceptible GUC is set in
+	 * track_extra_parameters (e.g.  search_path). In general, it also just
+	 * isn't necessary, to do so for the auth_query. Connections for the
+	 * auth_query should be isolated connections from the actual
+	 * connections, e.g. they also use a completely different user.
+	 */
+	if (server && !sending_auth_query(client)) {
 		res = varcache_apply(server, client, &varchange);
 		if (!res) {
 			disconnect_server(server, true, "var change failed");
@@ -1387,7 +1395,7 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 			unlink_server(server, reason);
 		break;
 	default:
-		fatal("bad server state: %d", server->state);
+		fatal("bad server state: %d, %s", server->state, reason);
 	}
 
 	Assert(server->link == NULL);
@@ -1527,6 +1535,8 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 			PgSocket *server = client->link;
 			server->link = NULL;
 			client->link = NULL;
+			/* notify disconnect_server() that connect did not fail */
+			server->ready = true;
 			disconnect_server(server, false, "client gave up on cancel request, so we also give up forwarding to server");
 		}
 		/*
@@ -1567,7 +1577,7 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 		}
 		break;
 	default:
-		fatal("bad client state: %d", client->state);
+		fatal("bad client state: %d, %s", client->state, reason ? reason : "NULL");
 	}
 
 	/* send reason to client */
@@ -2238,7 +2248,7 @@ found:
 	launch_new_connection(pool, /* evict_if_needed= */ true);
 }
 
-bool forward_cancel_request(PgSocket *server)
+void forward_cancel_request(PgSocket *server)
 {
 	bool res;
 	PgSocket *req = first_socket(&server->pool->waiting_cancel_req_list);
@@ -2246,6 +2256,9 @@ bool forward_cancel_request(PgSocket *server)
 
 	Assert(req != NULL && req->state == CL_WAITING_CANCEL);
 	Assert(server->state == SV_LOGIN);
+
+	server->link = req;
+	req->link = server;
 
 	if (!forwarding_to_peer) {
 		/*
@@ -2258,12 +2271,9 @@ bool forward_cancel_request(PgSocket *server)
 		 */
 		if (!req->canceled_server) {
 			disconnect_client(req, false, "not sending cancel request for client that is now idle");
-			return false;
+			return;
 		}
 	}
-
-	server->link = req;
-	req->link = server;
 
 	if (forwarding_to_peer) {
 		SEND_CancelRequest(res, server, req->cancel_key);
@@ -2273,11 +2283,14 @@ bool forward_cancel_request(PgSocket *server)
 	if (!res) {
 		slog_warning(req, "sending cancel request failed: %s", strerror(errno));
 		disconnect_client(req, false, "failed to send cancel request");
-		return false;
+		return;
 	}
 	slog_debug(req, "started sending cancel request");
+
 	change_client_state(req, CL_ACTIVE_CANCEL);
-	return true;
+	change_server_state(server, SV_ACTIVE_CANCEL);
+	sbuf_continue(&server->sbuf);
+	return;
 }
 
 bool use_client_socket(int fd, PgAddr *addr,
@@ -2329,7 +2342,7 @@ bool use_client_socket(int fd, PgAddr *addr,
 
 		memcpy(credentials->scram_ClientKey, scram_client_key, sizeof(credentials->scram_ClientKey));
 		memcpy(credentials->scram_ServerKey, scram_server_key, sizeof(credentials->scram_ServerKey));
-		credentials->has_scram_keys = true;
+		credentials->use_scram_keys = true;
 	}
 
 	client = accept_client(fd, pga_is_unix(addr));
@@ -2664,6 +2677,9 @@ void objects_cleanup(void)
 		PgSocket *client = container_of(item, PgSocket, head);
 		client_free(client);
 	}
+
+	/* Cleanup cached scram keys stored with PgCredentials */
+	clear_user_tree_cached_scram_keys(&user_tree);
 
 	memset(&login_client_list, 0, sizeof login_client_list);
 	memset(&user_list, 0, sizeof user_list);

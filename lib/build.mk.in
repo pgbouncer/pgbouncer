@@ -1,0 +1,2 @@
+include @abs_top_builddir@/config.mak
+include $(abs_top_srcdir)/mk/antimake.mk

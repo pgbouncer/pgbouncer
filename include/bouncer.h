@@ -32,6 +32,11 @@
 #include <event2/event.h>
 #include <event2/event_struct.h>
 
+// Needed by cryptohash.h
+#define uint8 uint8_t
+#include "common/cryptohash.h"
+#undef uint8
+
 /*
  * By default uthash exits the program when an allocation fails. But for some
  * of our hashmap usecases we don't want that. Luckily you can install your own
@@ -41,7 +46,7 @@
  * in C files where we want to handle allocation failures differently.
  */
 #define HASH_NONFATAL_OOM 1
-#include "uthash.h"
+#include "common/uthash.h"
 #undef uthash_nonfatal_oom
 #define uthash_nonfatal_oom(elt) fatal("out of memory")
 
@@ -183,10 +188,10 @@ extern int cf_sbuf_len;
 #include "takeover.h"
 #include "janitor.h"
 #include "hba.h"
+#include "ldapauth.h"
 #include "messages.h"
 #include "pam.h"
 #include "prepare.h"
-#include "ldapauth.h"
 
 #ifndef WIN32
 #define DEFAULT_UNIX_SOCKET_DIR "/tmp"
@@ -231,11 +236,11 @@ enum auth_type {
 	AUTH_TYPE_MD5,
 	AUTH_TYPE_CERT,
 	AUTH_TYPE_HBA,
+	AUTH_TYPE_LDAP,
 	AUTH_TYPE_PAM,
 	AUTH_TYPE_SCRAM_SHA_256,
 	AUTH_TYPE_PEER,
 	AUTH_TYPE_REJECT,
-	AUTH_TYPE_LDAP,
 };
 
 /* type codes for weird pkts */
@@ -505,9 +510,6 @@ struct PgCredentials {
 	struct AANode tree_node;	/* used to attach user to tree */
 	char name[MAX_USERNAME];
 	char passwd[MAX_PASSWORD];
-	uint8_t scram_ClientKey[32];
-	uint8_t scram_ServerKey[32];
-	bool has_scram_keys;		/* true if the above two are valid */
 	bool mock_auth;			/* not a real user, only for mock auth */
 	bool dynamic_passwd;		/* does the password need to be refreshed every use */
 
@@ -516,6 +518,22 @@ struct PgCredentials {
 	 * settings and connection count tracking.
 	 */
 	PgGlobalUser *global_user;
+
+	/* scram keys used for pass-though and adhoc auth caching */
+	uint8_t scram_ClientKey[32];
+	uint8_t scram_ServerKey[32];
+	uint8_t scram_StoredKey[32];
+	int scram_Iiterations;
+	char *scram_SaltKey;	/* base64-encoded */
+
+	/* true if ClientKey and ServerKey are valid and scram pass-though is in use. */
+	bool use_scram_keys;
+
+	/*
+	 * true if ServerKey, StoredKey, Salt and Iterations is cached for
+	 * adhoc scram authentication.
+	 */
+	bool adhoc_scram_secrets_cached;
 };
 
 /*
@@ -712,22 +730,31 @@ struct PgSocket {
 	};
 
 	struct ScramState {
+		/* Common fields used in both client and server roles */
 		char *client_nonce;
 		char *client_first_message_bare;
 		char *client_final_message_without_proof;
 		char *server_nonce;
 		char *server_first_message;
+		int iterations;
+		pg_cryptohash_type hash_type;
+		int key_length;
+
+		/* Client-side fields (when PgBouncer connects to PostgreSQL) */
+		uint8_t *salt;	/* binary salt */
+		int saltlen;	/* length of salt */
 		uint8_t *SaltedPassword;
+
+		/* Server-side fields (when clients connect to PgBouncer) */
 		char cbind_flag;
 		bool adhoc;	/* SCRAM data made up from plain-text password */
-		int iterations;
-		char *salt;	/* base64-encoded */
-		uint8_t ClientKey[32];	/* SHA256_DIGEST_LENGTH */
+		char *encoded_salt;	/* base64-encoded salt for server messages */
+		uint8_t ClientKey[32];
 		uint8_t StoredKey[32];
 		uint8_t ServerKey[32];
 	} scram_state;
 #ifdef HAVE_LDAP
-	char ldap_parameters[MAX_LDAP_CONFIG];
+	char ldap_options[MAX_LDAP_CONFIG];
 #endif
 
 	VarCache vars;		/* state of interesting server parameters */
@@ -827,7 +854,7 @@ extern char *cf_auth_query;
 extern char *cf_auth_user;
 extern char *cf_auth_hba_file;
 extern char *cf_auth_dbname;
-extern char *cf_auth_ldap_parameter;
+extern char *cf_auth_ldap_options;
 
 extern char *cf_pidfile;
 
@@ -865,6 +892,7 @@ extern char *cf_client_tls_ca_file;
 extern char *cf_client_tls_cert_file;
 extern char *cf_client_tls_key_file;
 extern char *cf_client_tls_ciphers;
+extern char *cf_client_tls13_ciphers;
 extern char *cf_client_tls_dheparams;
 extern char *cf_client_tls_ecdhecurve;
 
@@ -874,6 +902,7 @@ extern char *cf_server_tls_ca_file;
 extern char *cf_server_tls_cert_file;
 extern char *cf_server_tls_key_file;
 extern char *cf_server_tls_ciphers;
+extern char *cf_server_tls13_ciphers;
 
 extern int cf_max_prepared_statements;
 
@@ -884,14 +913,6 @@ extern usec_t g_suspend_start;
 
 extern struct DNSContext *adns;
 extern struct HBA *parsed_hba;
-
-static inline PgSocket * _MUSTCHECK pop_socket(struct StatList *slist)
-{
-	struct List *item = statlist_pop(slist);
-	if (item == NULL)
-		return NULL;
-	return container_of(item, PgSocket, head);
-}
 
 static inline PgSocket *first_socket(struct StatList *slist)
 {

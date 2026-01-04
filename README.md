@@ -17,8 +17,8 @@ PgBouncer depends on few things to get compiled:
 * [pkg-config]
 * [OpenSSL] 1.0.1+ for TLS support
 * (optional) [c-ares] as alternative to Libevent's evdns
-* (optional) PAM libraries
 * (optional) LDAP libraries
+* (optional) PAM libraries
 
 [GNU Make]: https://www.gnu.org/software/make/
 [Libevent]: http://libevent.org/
@@ -91,14 +91,11 @@ you are using systemd 253 or later) as well as socket activation.  See
 Building from Git
 -----------------
 
-Building PgBouncer from Git requires that you fetch the libusual and
-uthash submodules and generate the header and configuration files before
-you can run `configure`:
+Building PgBouncer from Git requires that you generate the header and
+configuration files before you can run `configure`:
 
 	$ git clone https://github.com/pgbouncer/pgbouncer.git
 	$ cd pgbouncer
-	$ git submodule init
-	$ git submodule update
 	$ ./autogen.sh
 	$ ./configure
 	$ make
@@ -132,6 +129,8 @@ To build on MinGW, do the usual:
 If cross-compiling from Unix:
 
 	$ ./configure --host=i586-mingw32msvc
+
+The LDAP build option is currently not supported on Windows.
 
 Running on Windows
 ------------------

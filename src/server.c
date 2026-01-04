@@ -677,14 +677,7 @@ static bool handle_connect(PgSocket *server)
 	 */
 	if (!statlist_empty(&pool->waiting_cancel_req_list)) {
 		slog_debug(server, "use it for pending cancel req");
-		if (forward_cancel_request(server)) {
-			change_server_state(server, SV_ACTIVE_CANCEL);
-			sbuf_continue(&server->sbuf);
-		} else {
-			/* notify disconnect_server() that connect did not fail */
-			server->ready = true;
-			disconnect_server(server, false, "failed to send cancel req");
-		}
+		forward_cancel_request(server);
 	} else if (pool->db->peer_id) {
 		/* notify disconnect_server() that connect did not fail */
 		server->ready = true;

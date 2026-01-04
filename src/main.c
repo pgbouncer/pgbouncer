@@ -39,6 +39,12 @@
 #include <sys/resource.h>
 #endif
 
+/*
+ * Default number of iterations when generating secret.  Should be at least
+ * 4096 per RFC 7677.
+ */
+#define SCRAM_DEFAULT_ITERATIONS        "4096"
+
 static void usage(const char *exe)
 {
 	printf("%s is a connection pooler for PostgreSQL.\n\n", exe);
@@ -115,8 +121,8 @@ int cf_tcp_user_timeout;
 int cf_auth_type = AUTH_TYPE_MD5;
 char *cf_auth_file;
 char *cf_auth_hba_file;
-char *cf_auth_ldap_parameter;
 char *cf_auth_ident_file;
+char *cf_auth_ldap_options;
 char *cf_auth_user;
 char *cf_auth_query;
 char *cf_auth_dbname;
@@ -186,6 +192,7 @@ char *cf_client_tls_ca_file;
 char *cf_client_tls_cert_file;
 char *cf_client_tls_key_file;
 char *cf_client_tls_ciphers;
+char *cf_client_tls13_ciphers;
 char *cf_client_tls_dheparams;
 char *cf_client_tls_ecdhecurve;
 
@@ -195,8 +202,11 @@ char *cf_server_tls_ca_file;
 char *cf_server_tls_cert_file;
 char *cf_server_tls_key_file;
 char *cf_server_tls_ciphers;
+char *cf_server_tls13_ciphers;
 
 int cf_max_prepared_statements;
+
+int cf_scram_iterations;
 
 /*
  * config file description
@@ -212,11 +222,11 @@ static const struct CfLookup auth_type_map[] = {
 	{ "md5", AUTH_TYPE_MD5 },
 	{ "cert", AUTH_TYPE_CERT },
 	{ "hba", AUTH_TYPE_HBA },
-#ifdef HAVE_PAM
-	{ "pam", AUTH_TYPE_PAM },
-#endif
 #ifdef HAVE_LDAP
 	{ "ldap", AUTH_TYPE_LDAP },
+#endif
+#ifdef HAVE_PAM
+	{ "pam", AUTH_TYPE_PAM },
 #endif
 	{ "scram-sha-256", AUTH_TYPE_SCRAM_SHA_256 },
 	{ NULL }
@@ -255,13 +265,15 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("auth_file", CF_STR, cf_auth_file, 0, NULL),
 	CF_ABS("auth_hba_file", CF_STR, cf_auth_hba_file, 0, ""),
 	CF_ABS("auth_ident_file", CF_STR, cf_auth_ident_file, 0, NULL),
+	CF_ABS("auth_ldap_options", CF_STR, cf_auth_ldap_options, 0, NULL),
 	CF_ABS("auth_query", CF_STR, cf_auth_query, 0, "SELECT rolname, CASE WHEN rolvaliduntil < now() THEN NULL ELSE rolpassword END FROM pg_authid WHERE rolname=$1 AND rolcanlogin"),
 	CF_ABS("auth_type", CF_LOOKUP(auth_type_map), cf_auth_type, 0, "md5"),
 	CF_ABS("auth_user", CF_STR, cf_auth_user, 0, NULL),
-	CF_ABS("auth_ldap_parameter", CF_STR, cf_auth_ldap_parameter, 0, NULL),
 	CF_ABS("autodb_idle_timeout", CF_TIME_USEC, cf_autodb_idle_timeout, 0, "3600"),
+	CF_ABS("cancel_wait_timeout", CF_TIME_USEC, cf_cancel_wait_timeout, 0, "10"),
 	CF_ABS("client_idle_timeout", CF_TIME_USEC, cf_client_idle_timeout, 0, "0"),
 	CF_ABS("client_login_timeout", CF_TIME_USEC, cf_client_login_timeout, 0, "60"),
+	CF_ABS("client_tls13_ciphers", CF_STR, cf_client_tls13_ciphers, 0, NULL),
 	CF_ABS("client_tls_ca_file", CF_STR, cf_client_tls_ca_file, 0, ""),
 	CF_ABS("client_tls_cert_file", CF_STR, cf_client_tls_cert_file, 0, ""),
 	CF_ABS("client_tls_ciphers", CF_STR, cf_client_tls_ciphers, 0, "default"),
@@ -277,7 +289,6 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("dns_nxdomain_ttl", CF_TIME_USEC, cf_dns_nxdomain_ttl, 0, "15"),
 	CF_ABS("dns_zone_check_period", CF_TIME_USEC, cf_dns_zone_check_period, 0, "0"),
 	CF_ABS("idle_transaction_timeout", CF_TIME_USEC, cf_idle_transaction_timeout, 0, "0"),
-	CF_ABS("transaction_timeout", CF_TIME_USEC, cf_transaction_timeout, 0, "0"),
 	CF_ABS("ignore_startup_parameters", CF_STR, cf_ignore_startup_params, 0, ""),
 	CF_ABS("job_name", CF_STR, cf_jobname, CF_NO_RELOAD, "pgbouncer"),
 	CF_ABS("listen_addr", CF_STR, cf_listen_addr, CF_NO_RELOAD, ""),
@@ -289,24 +300,25 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("log_stats", CF_INT, cf_log_stats, 0, "1"),
 	CF_ABS("logfile", CF_STR, cf_logfile, 0, ""),
 	CF_ABS("max_client_conn", CF_INT, cf_max_client_conn, 0, "100"),
-	CF_ABS("max_db_connections", CF_INT, cf_max_db_connections, 0, "0"),
 	CF_ABS("max_db_client_connections", CF_INT, cf_max_db_client_connections, 0, "0"),
+	CF_ABS("max_db_connections", CF_INT, cf_max_db_connections, 0, "0"),
 	CF_ABS("max_packet_size", CF_UINT, cf_max_packet_size, 0, "2147483647"),
 	CF_ABS("max_prepared_statements", CF_INT, cf_max_prepared_statements, 0, "200"),
-	CF_ABS("max_user_connections", CF_INT, cf_max_user_connections, 0, "0"),
 	CF_ABS("max_user_client_connections", CF_INT, cf_max_user_client_connections, 0, "0"),
+	CF_ABS("max_user_connections", CF_INT, cf_max_user_connections, 0, "0"),
 	CF_ABS("min_pool_size", CF_INT, cf_min_pool_size, 0, "0"),
 	CF_ABS("peer_id", CF_INT, cf_peer_id, 0, "0"),
 	CF_ABS("pidfile", CF_STR, cf_pidfile, CF_NO_RELOAD, ""),
 	CF_ABS("pkt_buf", CF_INT, cf_sbuf_len, CF_NO_RELOAD, "4096"),
 	CF_ABS("pool_mode", CF_LOOKUP(pool_mode_map), cf_pool_mode, 0, "session"),
 	CF_ABS("query_timeout", CF_TIME_USEC, cf_query_timeout, 0, "0"),
+	CF_ABS("query_wait_notify", CF_INT, cf_query_wait_notify, 0, "5"),
 	CF_ABS("query_wait_timeout", CF_TIME_USEC, cf_query_wait_timeout, 0, "120"),
-	CF_ABS("cancel_wait_timeout", CF_TIME_USEC, cf_cancel_wait_timeout, 0, "10"),
 	CF_ABS("reserve_pool_size", CF_INT, cf_res_pool_size, 0, "0"),
 	CF_ABS("reserve_pool_timeout", CF_TIME_USEC, cf_res_pool_timeout, 0, "5"),
 	CF_ABS("resolv_conf", CF_STR, cf_resolv_conf, CF_NO_RELOAD, ""),
 	CF_ABS("sbuf_loopcnt", CF_INT, cf_sbuf_loopcnt, 0, "5"),
+	CF_ABS("scram_iterations", CF_INT, cf_scram_iterations, 0, SCRAM_DEFAULT_ITERATIONS),
 	CF_ABS("server_check_delay", CF_TIME_USEC, cf_server_check_delay, 0, "30"),
 	CF_ABS("server_check_query", CF_STR, cf_server_check_query, 0, "<empty>"),
 	CF_ABS("server_connect_timeout", CF_TIME_USEC, cf_server_connect_timeout, 0, "15"),
@@ -317,6 +329,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("server_reset_query", CF_STR, cf_server_reset_query, 0, "DISCARD ALL"),
 	CF_ABS("server_reset_query_always", CF_INT, cf_server_reset_query_always, 0, "0"),
 	CF_ABS("server_round_robin", CF_INT, cf_server_round_robin, 0, "0"),
+	CF_ABS("server_tls13_ciphers", CF_STR, cf_server_tls13_ciphers, 0, NULL),
 	CF_ABS("server_tls_ca_file", CF_STR, cf_server_tls_ca_file, 0, ""),
 	CF_ABS("server_tls_cert_file", CF_STR, cf_server_tls_cert_file, 0, ""),
 	CF_ABS("server_tls_ciphers", CF_STR, cf_server_tls_ciphers, 0, "default"),
@@ -337,11 +350,11 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("tcp_keepalive", CF_INT, cf_tcp_keepalive, 0, "1"),
 	CF_ABS("tcp_keepcnt", CF_INT, cf_tcp_keepcnt, 0, "0"),
 	CF_ABS("tcp_keepidle", CF_INT, cf_tcp_keepidle, 0, "0"),
-	CF_ABS("query_wait_notify", CF_INT, cf_query_wait_notify, 0, "5"),
 	CF_ABS("tcp_keepintvl", CF_INT, cf_tcp_keepintvl, 0, "0"),
 	CF_ABS("tcp_socket_buffer", CF_INT, cf_tcp_socket_buffer, 0, "0"),
 	CF_ABS("tcp_user_timeout", CF_INT, cf_tcp_user_timeout, 0, "0"),
 	CF_ABS("track_extra_parameters", CF_STR, cf_track_extra_parameters, CF_NO_RELOAD, "IntervalStyle"),
+	CF_ABS("transaction_timeout", CF_TIME_USEC, cf_transaction_timeout, 0, "0"),
 	CF_ABS("unix_socket_dir", CF_STR, cf_unix_socket_dir, CF_NO_RELOAD, DEFAULT_UNIX_SOCKET_DIR),
 #ifndef WIN32
 	CF_ABS("unix_socket_group", CF_STR, cf_unix_socket_group, CF_NO_RELOAD, ""),
@@ -447,7 +460,7 @@ bool load_config(void)
 {
 	static bool loaded = false;
 	bool load_file_ok;
-	bool ok = true;
+	bool ok;
 	const char *q;
 
 	any_user_level_timeout_set = false;
@@ -464,8 +477,8 @@ bool load_config(void)
 		if (requires_auth_file(cf_auth_type))
 			loader_users_check();
 		loaded = true;
+		ok = true;
 	} else if (!loaded) {
-		ok = false;
 		die("cannot load config file");
 	} else {
 		log_warning("config file loading failed");
@@ -876,8 +889,8 @@ static void main_loop_once(void)
 		if (errno != EINTR)
 			log_warning("event_loop failed: %s", strerror(errno));
 	}
-	pam_poll();
 	ldap_poll();
+	pam_poll();
 	per_loop_maint();
 	reuse_just_freed_objects();
 	rescue_timers();
@@ -975,7 +988,7 @@ static void cleanup(void)
 	xfree(&cf_auth_ident_file);
 	xfree(&cf_auth_dbname);
 	xfree(&cf_auth_hba_file);
-	xfree(&cf_auth_ldap_parameter);
+	xfree(&cf_auth_ldap_options);
 	xfree(&cf_auth_query);
 	xfree(&cf_auth_user);
 	xfree(&cf_server_reset_query);
@@ -990,6 +1003,7 @@ static void cleanup(void)
 	xfree(&cf_client_tls_cert_file);
 	xfree(&cf_client_tls_key_file);
 	xfree(&cf_client_tls_ciphers);
+	xfree(&cf_client_tls13_ciphers);
 	xfree(&cf_client_tls_dheparams);
 	xfree(&cf_client_tls_ecdhecurve);
 	xfree(&cf_server_tls_protocols);
@@ -997,6 +1011,7 @@ static void cleanup(void)
 	xfree(&cf_server_tls_cert_file);
 	xfree(&cf_server_tls_key_file);
 	xfree(&cf_server_tls_ciphers);
+	xfree(&cf_server_tls13_ciphers);
 
 	xfree((char **)&cf_logfile);
 	xfree((char **)&cf_syslog_ident);
@@ -1143,8 +1158,8 @@ int main(int argc, char *argv[])
 	janitor_setup();
 	stats_setup();
 
-	pam_init();
 	auth_ldap_init();
+	pam_init();
 
 	if (did_takeover) {
 		takeover_finish();

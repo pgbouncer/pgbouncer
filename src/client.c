@@ -147,7 +147,7 @@ static bool send_client_authreq(PgSocket *client)
 		uint8_t saltlen = 4;
 		get_random_bytes((void *)client->tmp_login_salt, saltlen);
 		SEND_generic(res, client, PqMsg_AuthenticationRequest, "ib", AUTH_REQ_MD5, client->tmp_login_salt, saltlen);
-	} else if (auth_type == AUTH_TYPE_PLAIN || auth_type == AUTH_TYPE_PAM || auth_type == AUTH_TYPE_LDAP) {
+	} else if (auth_type == AUTH_TYPE_PLAIN || auth_type == AUTH_TYPE_LDAP || auth_type == AUTH_TYPE_PAM) {
 		SEND_generic(res, client, PqMsg_AuthenticationRequest, "i", AUTH_REQ_PASSWORD);
 	} else if (auth_type == AUTH_TYPE_SCRAM_SHA_256) {
 		SEND_generic(res, client, PqMsg_AuthenticationRequest, "iss", AUTH_REQ_SASL, "SCRAM-SHA-256", "");
@@ -375,12 +375,12 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	auth = cf_auth_type;
 #ifdef HAVE_LDAP
 	if (auth == AUTH_TYPE_LDAP) {
-		if (cf_auth_ldap_parameter == NULL) {
-			disconnect_client(client, true, "auth_ldap_parameter is null");
+		if (cf_auth_ldap_options == NULL) {
+			disconnect_client(client, true, "auth_ldap_options is null");
 			return false;
 		} else {
-			snprintf(client->ldap_parameters, MAX_LDAP_CONFIG, "%s", cf_auth_ldap_parameter);
-			slog_noise(client, "The value of cf_auth_ldap_parameter is %s", cf_auth_ldap_parameter);
+			snprintf(client->ldap_options, MAX_LDAP_CONFIG, "%s", cf_auth_ldap_options);
+			slog_noise(client, "The value of cf_auth_ldap_options is %s", cf_auth_ldap_options);
 		}
 	} else
 #endif
@@ -401,7 +401,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		auth = rule->rule_method;
 #ifdef HAVE_LDAP
 		if (auth == AUTH_TYPE_LDAP) {
-			snprintf(client->ldap_parameters, MAX_LDAP_CONFIG, "%s", rule->auth_options);
+			snprintf(client->ldap_options, MAX_LDAP_CONFIG, "%s", rule->auth_options);
 		}
 #endif
 		slog_noise(client, "HBA Line %d is matched", rule->hba_linenr);
@@ -433,9 +433,9 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 			ok = finish_client_login(client);
 		break;
 	case AUTH_TYPE_PLAIN:
+	case AUTH_TYPE_LDAP:
 	case AUTH_TYPE_MD5:
 	case AUTH_TYPE_PAM:
-	case AUTH_TYPE_LDAP:
 	case AUTH_TYPE_SCRAM_SHA_256:
 		ok = send_client_authreq(client);
 		break;
@@ -510,6 +510,7 @@ bool check_user_connection_count(PgSocket *client)
 
 	return false;
 }
+
 #ifdef HAVE_LDAP
 static bool check_if_need_ldap_authentication(PgSocket *client, const char *dbname, const char *username)
 {
@@ -570,24 +571,6 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 
 		if (!check_user_connection_count(client))
 			return false;
-	} else if (cf_auth_type == AUTH_TYPE_PAM) {
-		if (client->db->auth_user_credentials) {
-			slog_error(client, "PAM can't be used together with database authentication");
-			disconnect_client(client, true, "bouncer config error");
-			return false;
-		}
-		/* Password will be set after successful authentication when not in takeover mode */
-		client->login_user_credentials = add_pam_credentials(username, password);
-		if (!check_db_connection_count(client))
-			return false;
-		if (!client->login_user_credentials) {
-			slog_error(client, "set_pool(): failed to allocate new PAM user");
-			disconnect_client(client, true, "bouncer resources exhaustion");
-			return false;
-		}
-		if (!check_user_connection_count(client)) {
-			return false;
-		}
 #ifdef HAVE_LDAP
 	} else if (check_if_need_ldap_authentication(client, dbname, username) || cf_auth_type == AUTH_TYPE_LDAP) {
 		if (client->db->auth_user_credentials) {
@@ -606,6 +589,24 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			return false;
 		}
 #endif
+	} else if (cf_auth_type == AUTH_TYPE_PAM) {
+		if (client->db->auth_user_credentials) {
+			slog_error(client, "PAM can't be used together with database authentication");
+			disconnect_client(client, true, "bouncer config error");
+			return false;
+		}
+		/* Password will be set after successful authentication when not in takeover mode */
+		client->login_user_credentials = add_pam_credentials(username, password);
+		if (!check_db_connection_count(client))
+			return false;
+		if (!client->login_user_credentials) {
+			slog_error(client, "set_pool(): failed to allocate new PAM user");
+			disconnect_client(client, true, "bouncer resources exhaustion");
+			return false;
+		}
+		if (!check_user_connection_count(client)) {
+			return false;
+		}
 	} else {
 		client->login_user_credentials = find_global_credentials(username);
 
@@ -1049,6 +1050,13 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 			return false;
 		}
 	}
+
+	/* ran out of bytes before seeing a terminator, or got a double \0 before the end */
+	if (!ok || mbuf_avail_for_read(&pkt->data) != 0) {
+		disconnect_client(client, true, "invalid startup packet layout: expected terminator as last byte");
+		return false;
+	}
+
 	if (!username || !username[0]) {
 		disconnect_client(client, true, "no username supplied");
 		return false;
@@ -1109,10 +1117,7 @@ static bool scram_client_first(PgSocket *client, uint32_t datalen, const uint8_t
 
 	input = ibuf;
 	slog_debug(client, "SCRAM client-first-message = \"%s\"", input);
-	if (!read_client_first_message(client, input,
-				       &client->scram_state.cbind_flag,
-				       &client->scram_state.client_first_message_bare,
-				       &client->scram_state.client_nonce))
+	if (!read_client_first_message(client, input))
 		goto failed;
 
 	if (!user->mock_auth) {
@@ -1127,7 +1132,7 @@ static bool scram_client_first(PgSocket *client, uint32_t datalen, const uint8_t
 		}
 	}
 
-	if (!build_server_first_message(&client->scram_state, user->name, user->mock_auth ? NULL : user->passwd))
+	if (!build_server_first_message(&client->scram_state, user, user->mock_auth ? NULL : user->passwd))
 		goto failed;
 	slog_debug(client, "SCRAM server-first-message = \"%s\"", client->scram_state.server_first_message);
 
@@ -1172,13 +1177,13 @@ static bool scram_client_final(PgSocket *client, uint32_t datalen, const uint8_t
 		goto failed;
 	}
 
-	if (!verify_client_proof(&client->scram_state, proof)
+	if (!verify_client_proof(client, proof)
 	    || !client->login_user_credentials) {
 		slog_error(client, "password authentication failed");
 		goto failed;
 	}
 
-	server_final_message = build_server_final_message(&client->scram_state);
+	server_final_message = build_server_final_message(client);
 	if (!server_final_message)
 		goto failed;
 	slog_debug(client, "SCRAM server-final-message = \"%s\"", server_final_message);
@@ -1348,7 +1353,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 						memcpy(client->pool->user_credentials->scram_ServerKey,
 						       client->scram_state.ServerKey,
 						       sizeof(client->scram_state.ServerKey));
-						client->pool->user_credentials->has_scram_keys = true;
+						client->pool->user_credentials->use_scram_keys = true;
 					}
 
 					free_scram_state(&client->scram_state);
@@ -1373,21 +1378,21 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 					return false;
 				}
 
-				if (client->client_auth_type == AUTH_TYPE_PAM) {
-					if (!sbuf_pause(&client->sbuf)) {
-						disconnect_client(client, true, "pause failed");
-						return false;
-					}
-					pam_auth_begin(client, passwd);
-					return false;
-				}
-
 				if (client->client_auth_type == AUTH_TYPE_LDAP) {
 					if (!sbuf_pause(&client->sbuf)) {
 						disconnect_client(client, true, "pause failed");
 						return false;
 					}
 					ldap_auth_begin(client, passwd);
+					return false;
+				}
+
+				if (client->client_auth_type == AUTH_TYPE_PAM) {
+					if (!sbuf_pause(&client->sbuf)) {
+						disconnect_client(client, true, "pause failed");
+						return false;
+					}
+					pam_auth_begin(client, passwd);
 					return false;
 				}
 

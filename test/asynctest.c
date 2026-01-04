@@ -13,7 +13,6 @@
 
 #include <usual/logging.h>
 #include <usual/getopt.h>
-#include <usual/logging.h>
 #include <usual/list.h>
 #include <usual/statlist.h>
 #include <usual/time.h>
@@ -28,14 +27,14 @@ static char *simple_query = "select 1";
 static struct event_base *evbase;
 
 typedef struct DbConn {
-	struct List	head;
-	const char	*connstr;
-	struct event	ev;
-	PGconn		*con;
-	bool		logged_in;
+	struct List head;
+	const char *connstr;
+	struct event ev;
+	PGconn *con;
+	bool logged_in;
 
 	/* time_t		connect_time; */
-	int	query_count;
+	int query_count;
 	/* const char	*query; */
 	int _arglen;
 } DbConn;
@@ -50,7 +49,7 @@ static uint64_t SqlErrorCount = 0;
 static uint64_t QueryCount = 0;
 
 static char *bulk_data;
-static int bulk_data_max = 128*1024;  /* power of 2 */
+static int bulk_data_max = 128*1024;	/* power of 2 */
 static int verbose = 0;
 static int throttle_connects = 0;
 static int throttle_queries = 0;
@@ -169,7 +168,7 @@ static bool another_result(DbConn *db)
 				       db->_arglen, curlen);
 			}
 		}
-		/* fallthrough */
+	/* fallthrough */
 	case PGRES_COMMAND_OK:
 		PQclear(res);
 		break;
@@ -221,8 +220,9 @@ static void send_cb(int sock, short flags, void *arg)
 		wait_event(db, EV_WRITE, send_cb);
 	} else if (res == 0) {
 		wait_event(db, EV_READ, result_cb);
-	} else
+	} else {
 		conn_error(db, "PQflush");
+	}
 }
 
 static int send_query_bigdata(DbConn *db)
@@ -284,8 +284,9 @@ static void send_query(DbConn *db)
 		wait_event(db, EV_WRITE, send_cb);
 	} else if (res == 0) {
 		wait_event(db, EV_READ, result_cb);
-	} else
+	} else {
 		conn_error(db, "PQflush");
+	}
 }
 
 static void connect_cb(int sock, short flags, void *arg)
@@ -426,19 +427,19 @@ static void run_stats(int fd, short ev, void *arg)
 }
 
 static const char usage_str [] =
-"usage: asynctest [-d connstr][-n numconn][-s seed][-t <types>][-C maxconn][-Q maxquery][-q perconnq]\n"
-"  -d connstr		libpq connect string\n"
-"  -n num		number of connections\n"
-"  -s seed		random number seed\n"
-"  -t type of queries	query type, see below\n"
-"  -C maxcps		max number of connects per sec\n"
-"  -Q maxqps		max number of queries per sec\n"
-"  -q num		queries per connection (default 1)\n"
-"  -S sql		set simple query\n"
-"accepted query types:\n"
-"  B - bigdata\n"
-"  S - sleep occasionally\n"
-"  1 - simple 'select 1'\n";
+	"usage: asynctest [-d connstr][-n numconn][-s seed][-t <types>][-C maxconn][-Q maxquery][-q perconnq]\n"
+	"  -d connstr		libpq connect string\n"
+	"  -n num		number of connections\n"
+	"  -s seed		random number seed\n"
+	"  -t type of queries	query type, see below\n"
+	"  -C maxcps		max number of connects per sec\n"
+	"  -Q maxqps		max number of queries per sec\n"
+	"  -q num		queries per connection (default 1)\n"
+	"  -S sql		set simple query\n"
+	"accepted query types:\n"
+	"  B - bigdata\n"
+	"  S - sleep occasionally\n"
+	"  1 - simple 'select 1'\n";
 
 int main(int argc, char *argv[])
 {
@@ -495,7 +496,7 @@ int main(int argc, char *argv[])
 	}
 
 #ifdef WIN32
-	wsresult = WSAStartup(MAKEWORD(2,0),&wsaData);
+	wsresult = WSAStartup(MAKEWORD(2, 0), &wsaData);
 	if (wsresult != 0)
 		fatal("cannot start the network subsystem: -%d", wsresult);
 #endif

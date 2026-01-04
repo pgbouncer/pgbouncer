@@ -79,7 +79,7 @@ PgCredentials * find_or_add_new_global_credentials(const char *name, const char 
 PgCredentials * add_pam_credentials(const char *name, const char *passwd) _MUSTCHECK;
 
 void accept_cancel_request(PgSocket *req);
-bool forward_cancel_request(PgSocket *server);
+void forward_cancel_request(PgSocket *server);
 
 void launch_new_connection(PgPool *pool, bool evict_if_needed);
 

@@ -201,6 +201,9 @@ static void per_loop_activate(PgPool *pool)
 		    && ((get_cached_time() - client->wait_start) / USEC) > cf_query_wait_notify
 		    && cf_query_wait_notify > 0) {
 			buf = pktbuf_dynamic(256);
+			if (!buf)
+				die("out of memory");
+
 			pktbuf_write_Notice(
 				buf,
 				"No server connection available in postgres backend, client being queued"
@@ -924,6 +927,8 @@ void kill_database(PgDatabase *db)
 	if (db->auth_query)
 		free((void *)db->auth_query);
 
+	/* Cleanup cached scram keys stored with PgCredentials */
+	clear_user_tree_cached_scram_keys(&db->user_tree);
 	aatree_destroy(&db->user_tree);
 	slab_free(db_cache, db);
 }
@@ -969,4 +974,19 @@ void config_postprocess(void)
 			continue;
 		}
 	}
+}
+
+static void clean_cached_scram(struct AANode *n, void *arg)
+{
+	struct PgCredentials *user = container_of(n, struct PgCredentials, tree_node);
+	if (user->scram_SaltKey != NULL) {
+		free(user->scram_SaltKey);
+		user->scram_SaltKey = NULL;
+		user->adhoc_scram_secrets_cached = false;
+	}
+}
+
+void clear_user_tree_cached_scram_keys(struct AATree *tree)
+{
+	aatree_walk(tree, AA_WALK_IN_ORDER, clean_cached_scram, NULL);
 }

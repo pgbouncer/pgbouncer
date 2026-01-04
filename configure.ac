@@ -1,7 +1,7 @@
 dnl Process this file with autoconf to produce a configure script.
 
 AC_INIT([PgBouncer],
-        [1.24.1],
+        [1.25.1],
         [https://github.com/pgbouncer/pgbouncer/issues], [],
         [https://www.pgbouncer.org/])
 AC_CONFIG_SRCDIR(src/janitor.c)
@@ -35,11 +35,8 @@ dnl Checks for typedefs, structures, and compiler characteristics.
 AC_USUAL_TYPE_CHECK
 
 dnl autoconf 2.59 does not have UINT macros nor docdir
-m4_ifdef([AC_TYPE_UINT8_T], [
-  AC_TYPE_UINT8_T
-  AC_TYPE_UINT32_T
-  AC_TYPE_UINT64_T
-], [
+m4_ifdef([AC_TYPE_UINT8_T], [],
+[
   datarootdir='${prefix}/share'
   docdir='${datarootdir}/doc/${PACKAGE_TARNAME}'
   AC_SUBST(datarootdir)
@@ -97,10 +94,9 @@ AC_ARG_WITH(ldap,
         if test x"${have_ldap_header}" != x -a x"${have_libldap}" != x -a x"${have_pthreads}" = xyes; then
           ldap_support=yes
           AC_SUBST(ldap_support)
-          AC_SUBST(LDAP_CFLAGS, "-DLDAP_DEPRECATED")
           AC_DEFINE(HAVE_LDAP, 1, [LDAP support])
         else
-          AC_MSG_ERROR([ldap libarary or header is needed for LDAP compilation])
+          AC_MSG_ERROR([ldap library or header is needed for LDAP compilation])
         fi
     fi
   ], [])
@@ -217,8 +213,8 @@ elif test "$ac_cv_usual_glibc_gaia" = "yes"; then
 else
   echo "  adns    = compat"
 fi
-echo "  pam     = $pam_support"
 echo "  ldap    = $ldap_support"
+echo "  pam     = $pam_support"
 echo "  systemd = $with_systemd"
 echo "  tls     = $tls_support"
 echo ""

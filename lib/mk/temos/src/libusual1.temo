@@ -1,0 +1,77 @@
+
+. ./libtemo.sh || exit 1
+
+test_start
+
+title Use libusual the simplest way
+
+longmsg <<-MSG
+	Simplest usage would be to configure and build libusual
+	locally and point your projects CPPFLAGS and LDFLAGS there.
+
+	That way you get access to not only code but also
+	various autoconfigued symbols without any complexities
+	in your project.
+MSG
+
+title2 Build libusual
+
+usual_clone lib
+
+run cd lib
+
+runq ./autogen.sh
+runq ./configure --disable-shared --prefix=/opt
+runq make
+runq make install 'DESTDIR=`pwd`/../inst'
+
+run cd ..
+
+title2 Build our own code
+
+msg Now we prepare our own code.
+
+msg First, this is the source file:
+cat_file prog.c <<"EOF"
+	#include <stdio.h>
+	#include <string.h>
+	#include <usual/hashing/crc32.h>
+
+	int main(void)
+	{
+		const char *data = "CECSFXX";
+		uint32_t crc;
+
+		crc = calc_crc32(data, strlen(data), 0);
+		printf("crc: %08x\n", crc);
+		return 0;
+	}
+EOF
+
+msg Here is corresponding Makefile:
+cat_file Makefile <<"EOF"
+	# here we describe our program
+	SRCS = prog.c
+	OBJS = $(SRCS:.c=.o)
+
+	# here we link to libusual
+	CPPFLAGS = -I./inst/opt/include
+	LDFLAGS = -L./inst/opt/lib
+	LIBS = -lusual
+
+	CC = gcc
+	CFLAGS = -O -g -Wall
+
+	all: prog
+
+	prog: $(OBJS)
+		$(CC) $(CFLAGS) $(LDFLAGS) $(OBJS) $(LIBS) -o $@
+EOF
+
+msg Build the project
+
+run make
+run ls
+run ./prog
+
+msg Done!

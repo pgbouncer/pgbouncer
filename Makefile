@@ -9,12 +9,12 @@ pgbouncer_SOURCES = \
 	src/dnslookup.c \
 	src/hba.c \
 	src/janitor.c \
+	src/ldapauth.c \
 	src/loader.c \
 	src/messages.c \
 	src/main.c \
 	src/objects.c \
 	src/pam.c \
-	src/ldapauth.c \
 	src/pktbuf.c \
 	src/pooler.c \
 	src/proto.c \
@@ -27,11 +27,15 @@ pgbouncer_SOURCES = \
 	src/takeover.c \
 	src/util.c \
 	src/varcache.c \
+	src/common/sha2.c \
 	src/common/base64.c \
 	src/common/bool.c \
+	src/common/cryptohash.c \
+	src/common/hmac.c \
 	src/common/pgstrcasecmp.c \
 	src/common/saslprep.c \
 	src/common/scram-common.c \
+	src/common/string.c \
 	src/common/unicode_norm.c \
 	src/common/wchar.c \
 	include/admin.h \
@@ -41,11 +45,11 @@ pgbouncer_SOURCES = \
 	include/hba.h \
 	include/iobuf.h \
 	include/janitor.h \
+	include/ldapauth.h \
 	include/loader.h \
 	include/messages.h \
 	include/objects.h \
 	include/pam.h \
-	include/ldapauth.h \
 	include/pktbuf.h \
 	include/pooler.h \
 	include/proto.h \
@@ -58,21 +62,28 @@ pgbouncer_SOURCES = \
 	include/takeover.h \
 	include/util.h \
 	include/varcache.h \
+	include/common/ascii.h \
 	include/common/base64.h \
 	include/common/builtins.h \
+	include/common/cryptohash.h \
+	include/common/hmac.h \
 	include/common/pg_wchar.h \
 	include/common/postgres_compat.h \
 	include/common/protocol.h \
 	include/common/saslprep.h \
 	include/common/scram-common.h \
-	include/common/unicode_combining_table.h \
+	include/common/sha2.h \
+	include/common/sha2_int.h \
+	include/common/simd.h \
+	include/common/string.h \
+	include/common/unicode_east_asian_fw_table.h \
+	include/common/unicode_nonspacing_table.h \
 	include/common/unicode_norm.h \
 	include/common/unicode_norm_table.h \
+	include/common/uthash.h \
 	include/common/uthash_lowercase.h
 
-UTHASH = uthash
-pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(LIBEVENT_CFLAGS) $(TLS_CPPFLAGS) $(LDAP_CFLAGS)
-pgbouncer_CPPFLAGS += -I$(UTHASH)/src
+pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(LIBEVENT_CFLAGS) $(TLS_CPPFLAGS)
 
 # include libusual sources directly
 AM_FEATURES = libusual
@@ -90,30 +101,6 @@ DISTCLEANFILES = config.mak config.status lib/usual/config.h config.log
 
 DIST_SUBDIRS = doc test
 dist_man_MANS = doc/pgbouncer.1 doc/pgbouncer.5
-
-# files in tgz
-EXTRA_DIST = AUTHORS COPYRIGHT Makefile config.mak.in config.sub config.guess \
-	     pyproject.toml requirements.txt \
-	     install-sh autogen.sh configure configure.ac \
-	     etc/mkauth.py etc/optscan.sh etc/example.debian.init.sh \
-	     win32/Makefile \
-	     $(LIBUSUAL_DIST) \
-	     $(UTHASH_DIST) \
-
-# libusual files (FIXME: list should be provided by libusual...)
-LIBUSUAL_DIST = $(filter-out %/config.h, $(sort $(wildcard \
-		lib/usual/*.[chg] \
-		lib/usual/*/*.[ch] \
-		lib/m4/*.m4 \
-		lib/usual/config.h.in \
-		lib/mk/*.mk \
-		lib/mk/antimake.mk lib/mk/antimake.txt \
-		lib/mk/install-sh lib/mk/std-autogen.sh \
-		lib/README lib/COPYRIGHT \
-		lib/find_modules.sh )))
-
-UTHASH_DIST = $(UTHASH)/src/uthash.h \
-              $(UTHASH)/LICENSE
 
 pgbouncer_LDFLAGS := $(TLS_LDFLAGS)
 pgbouncer_LDADD := $(CARES_LIBS) $(LIBEVENT_LIBS) $(TLS_LIBS) $(LIBS)
@@ -146,6 +133,9 @@ AM_LANG_RC_LINK = false
 # now load antimake
 #
 
+# disable dist target from antimake
+AM_DIST_DEFAULT =
+
 USUAL_DIR = lib
 
 abs_top_srcdir ?= $(CURDIR)
@@ -155,16 +145,37 @@ config.mak:
 	@echo "Please run ./configure"
 	@exit 1
 
+#
+# dist
+# (adapted from PostgreSQL)
+#
+
+distdir = $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)
+PG_GIT_REVISION = HEAD
+GIT = git
+
+EXTRA_DIST = config.guess config.sub configure install-sh lib/usual/config.h.in
+
+dist: $(distdir).tar.gz
+
+$(PACKAGE_TARNAME)-$(PACKAGE_VERSION).tar.gz:
+	$(GIT) -C $(srcdir) -c core.autocrlf=false archive --format tar.gz -9 --prefix $(distdir)/ $(PG_GIT_REVISION) -o $(abs_top_builddir)/$@ $(foreach file,$(EXTRA_DIST),--prefix $(distdir)/$(dir $(file)) --add-file=$(file)) --prefix $(distdir)/
+
+#
+# test
+#
+
 PYTEST = $(shell command -v pytest || echo '$(PYTHON) -m pytest')
 
 CONCURRENCY = auto
+PYTEST_FLAGS = -r s
 
 check: all
 	etc/optscan.sh
 	if [ $(CONCURRENCY) = 1 ]; then \
-		PYTHONIOENCODING=utf8 $(PYTEST); \
+		PYTHONIOENCODING=utf8 $(PYTEST) $(PYTEST_FLAGS); \
 	else \
-		PYTHONIOENCODING=utf8 $(PYTEST) -n $(CONCURRENCY); \
+		PYTHONIOENCODING=utf8 $(PYTEST) -n $(CONCURRENCY) $(PYTEST_FLAGS); \
 	fi
 	$(MAKE) -C test check
 
@@ -195,10 +206,15 @@ doc/pgbouncer.1 doc/pgbouncer.5:
 lint:
 	flake8
 
+UNCRUSTIFY_FILES = include/*.h src/*.c test/*.c \
+		lib/test/*.c lib/usual/*.c lib/usual/crypto/*.c lib/usual/hashing/*.c lib/usual/tls/*.c \
+		lib/test/*.h lib/usual/*.h lib/usual/crypto/*.h lib/usual/hashing/*.h lib/usual/tls/*.h
+
 format-check: uncrustify
+	git diff-tree --check `git hash-object -t tree /dev/null` HEAD
 	black --check --diff .
 	isort --check --diff .
-	./uncrustify -c uncrustify.cfg --check include/*.h src/*.c -L WARN
+	./uncrustify -c uncrustify.cfg --check -L WARN $(UNCRUSTIFY_FILES)
 
 format: uncrustify
 	$(MAKE) format-c
@@ -209,7 +225,7 @@ format-python: uncrustify
 	isort .
 
 format-c: uncrustify
-	./uncrustify -c uncrustify.cfg --replace --no-backup include/*.h src/*.c -L WARN
+	./uncrustify -c uncrustify.cfg --replace --no-backup -L WARN $(UNCRUSTIFY_FILES)
 
 UNCRUSTIFY_VERSION=0.77.1
 

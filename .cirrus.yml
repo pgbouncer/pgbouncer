@@ -1,5 +1,4 @@
 env:
-  CIRRUS_CLONE_SUBMODULES: true
   DEBIAN_FRONTEND: noninteractive
   LANG: C
   PGVERSION: 16
@@ -7,8 +6,9 @@ env:
 task:
   name: Linux (Debian/Ubuntu)
   matrix:
-    # - container:
-    #     image: ubuntu:20.04
+    - container:
+        image: ubuntu:22.04
+      trigger_type: manual
     - container:
         image: ubuntu:22.04
       env:
@@ -16,59 +16,49 @@ task:
     - container:
         image: ubuntu:22.04
       env:
-        configure_args: '--without-openssl'
-    # - container:
-    #     image: ubuntu:20.04
-    #   env:
-    #     configure_args: '--disable-evdns'
-    # - container:
-    #     image: ubuntu:20.04
-    #   env:
-    #     CC: clang
-    # - container:
-    #     image: ubuntu:20.04
-    #   env:
-    #     CFLAGS: -fno-sanitize-recover=all -fsanitize=undefined -fsanitize-address-use-after-scope -fno-sanitize=shift
+        configure_args: '--disable-evdns --without-openssl'
+    - container:
+        image: ubuntu:22.04
+      env:
+        CFLAGS: -fno-sanitize-recover=all -fsanitize=undefined -fsanitize-address-use-after-scope -fno-sanitize=shift
+      trigger_type: manual
     - container:
         image: ubuntu:22.04
       env:
         ENABLE_VALGRIND: yes
         CFLAGS: -O0 -g
         PGVERSION: 17
-    # - container:
-    #     image: ubuntu:20.04
-    #   env:
-    #     ENABLE_VALGRIND: yes
-    #     CFLAGS: -O0 -g
-    #     PGVERSION: 9.6
-    # - container:
-    #     image: ubuntu:20.04
-    #   env:
-    #     use_scan_build: yes
-    # - arm_container:
-    #     image: ubuntu:20.04
-    # - container:
-    #     image: ubuntu:22.04
-    # - container:
-    #     image: debian:stable
-    #   env:
-    #     PGVERSION: 13
-    # - container:
-    #     image: debian:oldstable
-    #   env:
-    #     PGVERSION: 11
+    - container:
+        image: ubuntu:22.04
+      env:
+        use_scan_build: yes
+      trigger_type: manual
+    - arm_container:
+        image: ubuntu:22.04
+      trigger_type: manual
+    - container:
+        image: ubuntu:24.04
+      trigger_type: manual
+    - container:
+        image: debian:bookworm
+      env:
+        PGVERSION: 15
+      trigger_type: manual
+    - container:
+        image: debian:bullseye
+      env:
+        PGVERSION: 13
+      trigger_type: manual
   setup_script:
     - apt-get update
-    - apt-get -y install curl gnupg lsb-release
-    - curl https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
-    - echo "deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -cs)-pgdg main $PGVERSION" | tee /etc/apt/sources.list.d/pgdg.list
+    - apt-get -y --no-install-recommends install gnupg postgresql-common
+    - /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
     - apt-get update
-    - pkgs="autoconf automake ca-certificates cpio libc-ares-dev libevent-dev libpam0g-dev libssl-dev libsystemd-dev libtool make pandoc postgresql-$PGVERSION pkg-config python3 python3-pip python3-venv sudo iptables socat"
+    - pkgs="autoconf automake ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev libtool make pandoc pkg-config postgresql-$PGVERSION python3 python3-pip python3-venv slapd socat sudo"
     - case $CC in clang) pkgs="$pkgs clang";; esac
     - if [ x"$ENABLE_VALGRIND" = x"yes" ]; then pkgs="$pkgs valgrind"; fi
     - if [ x"$use_scan_build" = x"yes" ]; then pkgs="$pkgs clang-tools"; fi
-    - apt-get -y install $pkgs
-    - apt-get -y install libldap-dev slapd ldap-utils
+    - apt-get -y --no-install-recommends install $pkgs
     - python3 -m venv /venv
     - /venv/bin/pip install -r requirements.txt
     - useradd user
@@ -83,13 +73,11 @@ task:
   install_script:
     - make -j4 install
   dist_script:
-    - make -j4 dist
+    - su user -c "make dist"
     - PACKAGE_VERSION=$(sed -n 's/PACKAGE_VERSION = //p' config.mak)
-    - tar -x -v -f pgbouncer-${PACKAGE_VERSION}.tar.gz
-    - cd pgbouncer-${PACKAGE_VERSION}/
-    - ./configure --prefix=$HOME/install2 --enable-werror --without-cares $configure_args
-    - make -j4
-    - make -j4 install
+    - su user -c "tar -x -v -f pgbouncer-${PACKAGE_VERSION}.tar.gz"
+    - su user -c "cd pgbouncer-${PACKAGE_VERSION}/ && ./configure --prefix=$HOME/install2 --enable-werror --without-cares $configure_args && make -j4"
+    - cd pgbouncer-${PACKAGE_VERSION}/ && make -j4 install
   tarball_artifacts:
     path: "pgbouncer-*.tar.gz"
   always:
@@ -100,22 +88,28 @@ task:
 task:
   name: Linux (Red Hat)
   trigger_type: manual
-  container:
-    matrix:
-      - image: rockylinux:9
-      - image: rockylinux:8
+  matrix:
+    - container:
+        image: rockylinux:9
+      env:
+        configure_args: '--with-cares'
+    - container:
+        image: rockylinux:8
   setup_script:
-    - yum -y install autoconf automake diffutils file libevent-devel libtool make openssl-devel pkg-config postgresql-server postgresql-contrib systemd-devel wget
-    - yum -y install python3 python3-pip sudo iptables
+    - dnf -y install 'dnf-command(config-manager)'
+    - if grep -q -F 'release 9' /etc/redhat-release; then dnf config-manager --set-enabled "plus"; else dnf config-manager --set-enabled "powertools"; fi
+    - dnf -y install autoconf automake diffutils file iptables libevent-devel libpq-devel libtool make openldap-clients openldap-devel openldap-servers openssl-devel pam-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip socat sudo systemd-devel wget
+    - case $configure_args in *with-cares*) dnf -y install c-ares-devel; esac
     - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
     - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
-    - pip3 install -r requirements.txt
+    - if grep -q -F 'release 9' /etc/redhat-release; then dnf -y install python-unversioned-command; else dnf -y install python39 python39-pip && alternatives --set python /usr/bin/python3.9; fi
+    - python -m pip install -r requirements.txt
     - useradd user
     - chown -R user .
     - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
   build_script:
     - su user -c "./autogen.sh"
-    - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror --with-systemd"
+    - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror --with-ldap --with-pam --with-systemd $configure_args"
     - su user -c "make -j4"
   test_script:
     - su user -c "make -j4 check CONCURRENCY=4"
@@ -134,7 +128,7 @@ task:
       - image: alpine:latest
   setup_script:
     - apk update
-    - apk add autoconf automake bash build-base libevent-dev libtool openssl openssl-dev pkgconf postgresql postgresql-contrib python3 py3-pip wget sudo iptables
+    - apk add autoconf automake build-base c-ares-dev iptables libevent-dev libtool openldap openldap-clients openldap-dev openssl openssl-dev pkgconf postgresql postgresql-contrib python3 py3-pip socat sudo wget
     - wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
     - tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
     - python3 -m venv /venv
@@ -144,7 +138,7 @@ task:
     - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
   build_script:
     - su user -c "./autogen.sh"
-    - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror"
+    - su user -c "./configure --prefix=$HOME/install --enable-cassert --enable-werror --with-cares --with-ldap"
     - su user -c "make -j4"
   test_script:
     - source /venv/bin/activate && su user -c "make -j4 check CONCURRENCY=4"
@@ -158,12 +152,12 @@ task:
 task:
   name: FreeBSD
   freebsd_instance:
-    image_family: freebsd-14-2
+    image_family: freebsd-14-3
   env:
     HAVE_IPV6_LOCALHOST: yes
     USE_SUDO: true
   setup_script:
-    - pkg install -y autoconf automake bash gmake hs-pandoc libevent libtool pkgconf postgresql${PGVERSION}-server postgresql${PGVERSION}-contrib python devel/py-pip sudo
+    - pkg install -y autoconf automake gmake hs-pandoc libevent libtool openldap25-client openldap25-server pkgconf postgresql${PGVERSION}-server postgresql${PGVERSION}-contrib python devel/py-pip sudo
     - pip install -r requirements.txt
     - kldload pf
     - echo 'anchor "pgbouncer_test/*"' >> /etc/pf.conf
@@ -178,7 +172,7 @@ task:
     M4: /usr/local/bin/gm4
   build_script:
     - su user -c "./autogen.sh"
-    - su user -c "./configure --prefix=$HOME/install --enable-werror"
+    - su user -c "./configure --prefix=$HOME/install --enable-werror --with-ldap"
     - su user -c "gmake -j4"
   test_script:
     - su user -c "gmake -j4 check CONCURRENCY=4"
@@ -196,18 +190,18 @@ task:
   env:
     HAVE_IPV6_LOCALHOST: yes
     USE_SUDO: true
-    CPPFLAGS: -I/opt/homebrew/opt/openssl@3/include
-    LDFLAGS: -L/opt/homebrew/opt/openssl@3/lib
+    CPPFLAGS: -I/opt/homebrew/opt/openldap/include -I/opt/homebrew/opt/openssl@3/include
+    LDFLAGS: -L/opt/homebrew/opt/openldap/lib -L/opt/homebrew/opt/openssl@3/lib
     PATH: /opt/homebrew/opt/postgresql@${PGVERSION}/bin:$PATH
   setup_script:
-    - brew install autoconf automake bash libevent libtool openssl pandoc pkg-config postgresql@${PGVERSION}
+    - brew install autoconf automake libevent libtool openldap openssl pandoc pkg-config postgresql@${PGVERSION}
     - python3 -m venv venv
     - venv/bin/pip install -r requirements.txt
     - echo 'anchor "pgbouncer_test/*"' | sudo tee -a /etc/pf.conf
     - sudo pfctl -f /etc/pf.conf
   build_script:
     - ./autogen.sh
-    - ./configure --prefix=$HOME/install --enable-werror
+    - ./configure --prefix=$HOME/install --enable-werror --with-ldap
     - make -j4
   test_script:
     - source venv/bin/activate && make -j4 check CONCURRENCY=4
@@ -262,7 +256,7 @@ task:
     image: ubuntu:22.04
   setup_script:
     - apt-get update
-    - apt-get install -y python3 python3-pip cmake curl
+    - apt-get install -y --no-install-recommends python3 python3-pip cmake curl gcc g++ git make
     - pip install -r dev_requirements.txt
   build_script:
     - touch config.mak # Fake that configure has run

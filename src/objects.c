@@ -199,6 +199,7 @@ void init_objects(void)
 	thread_safe_statlist_init(&pool_list, "pool_list", true);
 	thread_safe_statlist_init(&database_list, "database_list", true);
 	thread_safe_statlist_init(&autodatabase_idle_list, "autodatabase_idle_list", true);
+	thread_safe_statlist_init(&sock_list, "socket_list", true);
 	aatree_init(&user_tree, global_user_node_cmp, NULL);
 	aatree_init(&pam_user_tree, credentials_node_cmp, NULL);
 	spin_lock_init(&user_tree_lock, true);
@@ -211,18 +212,15 @@ void init_objects(void)
 	if (!thread_safe_credentials_cache || !thread_safe_user_cache || !db_cache)
 		fatal("cannot create initial caches");
 
-	if (multithread_mode) {
-		init_objects_multithread();
-		return;
+	if (!multithread_mode) {
+		peer_cache = slab_create("peer_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
+		peer_pool_cache = slab_create("peer_pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
+		pool_cache = slab_create("pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
+		outstanding_request_cache = slab_create("outstanding_request_cache", sizeof(OutstandingRequest), 0, NULL, USUAL_ALLOC);
+
+		if (!peer_cache || !peer_pool_cache || !pool_cache || !outstanding_request_cache)
+			fatal("cannot create initial caches");
 	}
-
-	peer_cache = slab_create("peer_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC);
-	peer_pool_cache = slab_create("peer_pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
-	pool_cache = slab_create("pool_cache", sizeof(PgPool), 0, NULL, USUAL_ALLOC);
-	outstanding_request_cache = slab_create("outstanding_request_cache", sizeof(OutstandingRequest), 0, NULL, USUAL_ALLOC);
-
-	if (!peer_cache || !peer_pool_cache || !pool_cache || !outstanding_request_cache)
-		fatal("cannot create initial caches");
 }
 
 /* initialization object for multithread mode*/
@@ -2222,7 +2220,6 @@ allow_new:
 			return;
 		}
 	}
-
 	max = user_max_connections(pool->user_credentials->global_user);
 	if (max > 0) {
 		/* try to evict unused connection first */
@@ -2247,7 +2244,6 @@ allow_new:
 			return;
 		}
 	}
-
 force_new:
 	/* get free conn object */
 	server = slab_alloc(server_cache_ptr);

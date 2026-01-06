@@ -35,7 +35,7 @@ struct ListenSocket {
 	PgAddr addr;
 };
 
-static STATLIST(sock_list);
+struct ThreadSafeStatList sock_list;
 
 
 /* hints for getaddrinfo(listen_addr) */
@@ -63,13 +63,13 @@ static void tune_accept(int sock, bool on);
 void cleanup_tcp_sockets(void)
 {
 	struct ListenSocket *ls;
-	struct List *el, *tmp_l;
+	struct List *el;
 
 	/* avoid cleanup if exit() while suspended */
 	if (cf_pause_mode == P_SUSPEND)
 		return;
 
-	statlist_for_each_safe(el, &sock_list, tmp_l) {
+	THREAD_SAFE_STATLIST_EACH(&sock_list, el, {
 		ls = container_of(el, struct ListenSocket, node);
 		if (pga_is_unix(&ls->addr)) {
 			continue;
@@ -81,21 +81,21 @@ void cleanup_tcp_sockets(void)
 			safe_close(ls->fd);
 			ls->fd = 0;
 		}
-		statlist_remove(&sock_list, el);
+		thread_safe_statlist_remove(&sock_list, el);
 		free(ls);
-	}
+	});
 }
 
 /* atexit() cleanup func */
 void cleanup_unix_sockets(void)
 {
 	struct ListenSocket *ls;
-	struct List *el, *tmp_l;
+	struct List *el;
 
 	if (cf_pause_mode == P_SUSPEND)
 		return;
 
-	statlist_for_each_safe(el, &sock_list, tmp_l) {
+	THREAD_SAFE_STATLIST_EACH(&sock_list, el, {
 		ls = container_of(el, struct ListenSocket, node);
 		if (event_del(&ls->ev) < 0) {
 			if (multithread_mode) {
@@ -113,9 +113,9 @@ void cleanup_unix_sockets(void)
 			snprintf(buf, sizeof(buf), "%s/.s.PGSQL.%d", cf_unix_socket_dir, cf_listen_port);
 			unlink(buf);
 		}
-		statlist_remove(&sock_list, el);
+		thread_safe_statlist_remove(&sock_list, el);
 		free(ls);
-	}
+	});
 }
 
 /*
@@ -225,7 +225,7 @@ static bool add_listen(int af, const struct sockaddr *sa, int salen)
 	}
 
 	log_info("listening on %s", sa2str(sa, buf, sizeof(buf)));
-	statlist_append(&sock_list, &ls->node);
+	thread_safe_statlist_append(&sock_list, &ls->node);
 	return true;
 
 failed:
@@ -323,11 +323,11 @@ void pooler_tune_accept(bool on)
 {
 	struct List *el;
 	struct ListenSocket *ls;
-	statlist_for_each(el, &sock_list) {
+	THREAD_SAFE_STATLIST_EACH(&sock_list, el, {
 		ls = container_of(el, struct ListenSocket, node);
 		if (!pga_is_unix(&ls->addr))
 			tune_accept(ls->fd, on);
-	}
+	});
 }
 
 static void err_wait_func(evutil_socket_t sock, short flags, void *arg)
@@ -482,7 +482,7 @@ bool use_pooler_socket(int sock, bool is_unix)
 		pga_copy(&ls->addr, (struct sockaddr *)&ss);
 	}
 	log_info("got pooler socket: %s", pga_str(&ls->addr, buf, sizeof(buf)));
-	statlist_append(&sock_list, &ls->node);
+	thread_safe_statlist_append(&sock_list, &ls->node);
 	return true;
 }
 
@@ -492,7 +492,7 @@ void suspend_pooler(void)
 	struct ListenSocket *ls;
 
 	need_active = false;
-	statlist_for_each(el, &sock_list) {
+	THREAD_SAFE_STATLIST_EACH(&sock_list, el, {
 		ls = container_of(el, struct ListenSocket, node);
 		if (!ls->active)
 			continue;
@@ -501,7 +501,7 @@ void suspend_pooler(void)
 			return;
 		}
 		ls->active = false;
-	}
+	});
 	pooler_active = false;
 }
 
@@ -509,20 +509,22 @@ void resume_pooler(void)
 {
 	struct List *el;
 	struct ListenSocket *ls;
-
+	bool resume_succeed = true;
 	need_active = true;
-	statlist_for_each(el, &sock_list) {
+	THREAD_SAFE_STATLIST_EACH(&sock_list, el, {
 		ls = container_of(el, struct ListenSocket, node);
 		if (ls->active)
 			continue;
 		event_assign(&ls->ev, pgb_event_base, ls->fd, EV_READ | EV_PERSIST, pool_accept, ls);
 		if (event_add(&ls->ev, NULL) < 0) {
 			log_warning("event_add failed: %s", strerror(errno));
-			return;
+			resume_succeed = false;
+			break;
 		}
 		ls->active = true;
-	}
-	pooler_active = true;
+	});
+	if (resume_succeed)
+		pooler_active = true;
 }
 
 /* retry previously failed suspend_pooler() / resume_pooler() */
@@ -626,7 +628,7 @@ void pooler_setup(void)
 				die("failed to set up socket passed from service manager (fd %d)", fd);
 			log_info("socket passed from service manager (fd %d)", fd);
 
-			statlist_append(&sock_list, &ls->node);
+			thread_safe_statlist_append(&sock_list, &ls->node);
 		}
 	} else {
 		bool ok;
@@ -643,14 +645,14 @@ void pooler_setup(void)
 		if (!ok)
 			die("failed to parse listen_addr list: %s", cf_listen_addr);
 
-		if (!listen_addr_empty && !statlist_count(&sock_list))
+		if (!listen_addr_empty && !thread_safe_statlist_count(&sock_list))
 			die("failed to listen on any address in listen_addr list: %s", cf_listen_addr);
 
 		if (cf_unix_socket_dir && *cf_unix_socket_dir)
 			create_unix_socket(cf_unix_socket_dir, cf_listen_port);
 	}
 
-	if (!statlist_count(&sock_list))
+	if (!thread_safe_statlist_count(&sock_list))
 		die("nowhere to listen on");
 
 	resume_pooler();
@@ -662,11 +664,11 @@ bool for_each_pooler_fd(pooler_cb cbfunc, void *arg)
 	struct ListenSocket *ls;
 	bool ok;
 
-	statlist_for_each(el, &sock_list) {
+	THREAD_SAFE_STATLIST_EACH(&sock_list, el, {
 		ls = container_of(el, struct ListenSocket, node);
 		ok = cbfunc(arg, ls->fd, &ls->addr);
 		if (!ok)
 			return false;
-	}
+	});
 	return true;
 }

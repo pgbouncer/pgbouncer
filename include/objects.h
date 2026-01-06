@@ -32,6 +32,7 @@ extern struct Slab *peer_pool_cache;
 extern struct Slab *pool_cache;
 extern struct ThreadSafeSlab *thread_safe_user_cache;
 extern struct ThreadSafeSlab *thread_safe_credentials_cache;
+extern struct ThreadSafeStatList sock_list;
 extern struct Slab *iobuf_cache;
 extern struct Slab *outstanding_request_cache;
 extern struct Slab *var_list_cache;

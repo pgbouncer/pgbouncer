@@ -126,7 +126,7 @@ static void resume_sockets(void)
 			resume_socket_list(&pool->idle_server_list);
 			resume_socket_list(&pool->used_server_list);
 		});
-		lock_thread(thread_id);
+		unlock_thread(thread_id);
 	});
 }
 /* resume pools and listen sockets */
@@ -358,7 +358,7 @@ void per_loop_maint(void)
 	int thread_id = get_current_thread_id();
 
 	if (cf_pause_mode == P_SUSPEND && cf_suspend_timeout > 0) {
-		usec_t stime = get_multithread_time_with_id(thread_id) - g_suspend_start;
+		usec_t stime = get_cached_time() - g_suspend_start;
 		if (stime >= cf_suspend_timeout)
 			force_suspend = true;
 	}
@@ -392,10 +392,6 @@ void per_loop_maint(void)
 		}
 	});
 
-	/* Store partial_pause state in thread structure */
-	if(multithread_mode)
-		threads[thread_id].partial_pause = partial_pause;
-
 	login_client_list_ptr = GET_MULTITHREAD_PTR(login_client_list, thread_id);
 
 	thread_pause_mode = GET_MULTITHREAD_VAR(cf_pause_mode, thread_id);
@@ -413,8 +409,28 @@ void per_loop_maint(void)
 			admin_pause_done();
 		break;
 	case P_NONE:
-		if (partial_pause && !active_count)
-			admin_pause_done();
+		/*
+		 * In multithread mode, when pausing a specific database (partial_pause),
+		 * we need to check across all threads to determine if the pause is complete.
+		 *
+		 * The issue: the admin connection might be in thread A, but the paused
+		 * database has pools only in thread B. Thread A won't see partial_pause=true
+		 * locally, but still needs to check if pause is complete and notify the admin.
+		 *
+		 * Solution: Each thread checks if IT has any admin connections waiting for
+		 * a pause response. If yes, check globally if all paused databases are idle.
+		 * Only call admin_pause_done() if both conditions are met.
+		 */
+		if (multithread_mode) {
+			/* Check if this thread has admin connections waiting for pause response
+			 * AND there are actually paused databases that are now all idle */
+			if (has_waiting_pause_admin() && all_db_paused())
+				admin_pause_done();
+		} else {
+			/* Single-thread mode: use local check */
+			if (partial_pause && !active_count)
+				admin_pause_done();
+		}
 		break;
 	}
 
@@ -422,19 +438,6 @@ void per_loop_maint(void)
 		admin_wait_close_done();
 }
 
-void per_loop_admin_condition_maint(void)
-{
-	bool resume = admin_should_resume();
-
-	if(resume){
-		log_info("admin disappeared when suspended, doing RESUME");
-		FOR_EACH_THREAD(thread_id){
-			int *cf_pause_mode_ptr = GET_MULTITHREAD_PTR(cf_pause_mode, thread_id);
-			*cf_pause_mode_ptr = P_NONE;
-		}
-		resume_all();
-	}
-}
 
 
 /* maintaining clients in pool */
@@ -1089,6 +1092,12 @@ void kill_database(PgDatabase *db)
 	clear_user_tree_cached_scram_keys(&db->user_tree);
 	aatree_destroy(&db->user_tree);
 
+	/* Remove multithread limit entries for this database */
+	if (multithread_mode) {
+		multithread_remove_limit(db->name, &db_connection_limits, &db_connection_limits_lock);
+		multithread_remove_limit(db->name, &db_client_connection_limits, &db_client_connection_limits_lock);
+	}
+
 	thread_safe_slab_free(db_cache, db);
 }
 
@@ -1118,15 +1127,14 @@ void config_postprocess(void)
 	struct List *item;
 	PgDatabase *db;
 
+	THREAD_SAFE_STATLIST_EACH(&database_list, item, {
+		db = container_of(item, PgDatabase, head);
+		if (db->db_dead) {
+			kill_database(db);
+			continue;
+		}
+	});
 	THREAD_ITERATE(thread_id, {
-		THREAD_SAFE_STATLIST_EACH(&database_list, item, {
-			db = container_of(item, PgDatabase, head);
-			if (db->db_dead) {
-				kill_database(db);
-				continue;
-			}
-		});
-
 		THREAD_SAFE_STATLIST_EACH(&peer_list, item, {
 			db = container_of(item, PgDatabase, head);
 			if (db->db_dead) {

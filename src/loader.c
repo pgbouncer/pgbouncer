@@ -488,9 +488,14 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	/* remember dbname */
 	db->dbname = (char *)msg->buf + dbname_ofs;
 
+	/* Only set per-database limits once when a database is first added. Also
+	 * use info-level logging instead of error-level to avoid spamming logs on
+	 * reloads where parse_database may run multiple times for existing DBs.
+	 * Use db->name (pgbouncer database name) for consistency with runtime limit access.
+	 */
 	if (multithread_mode) {
-		multithread_set_limit(db->dbname, &db_connection_limits, &db_connection_limits_lock, max_db_connections);
-		multithread_set_limit(db->dbname, &db_client_connection_limits, &db_client_connection_limits_lock, max_db_client_connections);
+		multithread_set_limit(db->name, &db_connection_limits, &db_connection_limits_lock, max_db_connections);
+		multithread_set_limit(db->name, &db_client_connection_limits, &db_client_connection_limits_lock, max_db_client_connections);
 	}
 
 	free(tmp_connstr);

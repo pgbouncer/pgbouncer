@@ -599,14 +599,21 @@ def test_prepared_statement_counters(bouncer):
             cur.execute("SELECT 1")
 
     stats = bouncer.admin("SHOW STATS", row_factory=dict_row)
-    p0_stats = next(s for s in stats if s["database"] == "p0")
+    # In multithread mode, sum across all threads for the same database
+    p0_stats_list = [s for s in stats if s["database"] == "p0"]
+    total_client_parse = sum(s["total_client_parse_count"] for s in p0_stats_list)
+    total_server_parse = sum(s["total_server_parse_count"] for s in p0_stats_list)
+    total_bind = sum(s["total_bind_count"] for s in p0_stats_list)
+
     # All the prepared statement counters should be 0, as they are not applicable
-    assert p0_stats["total_client_parse_count"] == 0
-    assert p0_stats["total_server_parse_count"] == 0
-    assert p0_stats["total_bind_count"] == 0
-    assert p0_stats["avg_client_parse_count"] == 0
-    assert p0_stats["avg_server_parse_count"] == 0
-    assert p0_stats["avg_bind_count"] == 0
+    assert total_client_parse == 0
+    assert total_server_parse == 0
+    assert total_bind == 0
+    # avg_* counters should all be 0 for each thread
+    for p0_stats in p0_stats_list:
+        assert p0_stats["avg_client_parse_count"] == 0
+        assert p0_stats["avg_server_parse_count"] == 0
+        assert p0_stats["avg_bind_count"] == 0
 
     # Explicitly enable prepared statement support
     bouncer.admin(f"set max_prepared_statements=10")
@@ -630,10 +637,15 @@ def test_prepared_statement_counters(bouncer):
                 cur2.execute(prepared_query, prepare=True)
 
     stats = bouncer.admin("SHOW STATS", row_factory=dict_row)
-    p0_stats = next(s for s in stats if s["database"] == "p0")
+    # In multithread mode, sum across all threads for the same database
+    p0_stats_list = [s for s in stats if s["database"] == "p0"]
+    total_client_parse = sum(s["total_client_parse_count"] for s in p0_stats_list)
+    total_server_parse = sum(s["total_server_parse_count"] for s in p0_stats_list)
+    total_bind = sum(s["total_bind_count"] for s in p0_stats_list)
+
     # 2 prepare=True executions
-    assert p0_stats["total_client_parse_count"] == 2
+    assert total_client_parse == 2
     # server 1 and server 2 have to prepare the query
-    assert p0_stats["total_server_parse_count"] == 2
+    assert total_server_parse == 2
     # 2 executions with prepare=True + 3 re-use executions
-    assert p0_stats["total_bind_count"] == 5
+    assert total_bind == 5

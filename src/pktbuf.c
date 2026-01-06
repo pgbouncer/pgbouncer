@@ -52,7 +52,7 @@ static PktBuf *temp_pktbuf;
  */
 void pktbuf_free(PktBuf *buf)
 {
-	if (buf == temp_pktbuf)
+	if (buf == GET_VAR(temp_pktbuf))
 		return;
 
 	pktbuf_free_internal(buf);

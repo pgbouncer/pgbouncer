@@ -1034,6 +1034,10 @@ class Bouncer(QueryRunner):
     async def wait_until_running(self):
         tries = 1
         while True:
+            if not self.running():
+                self.print_logs()
+                raise Exception("PgBouncer process died during startup")
+
             try:
                 await self.aadmin("show version")
             except psycopg.Error:
@@ -1053,6 +1057,14 @@ class Bouncer(QueryRunner):
         """Run an SQL query on the PgBouncer admin database that returns only a
         single cell and return this value"""
         return self.admin_runner.sql_value(query, **kwargs)
+
+    def get_thread_number(self):
+        """Get the number of threads PgBouncer is running with"""
+        result = self.admin("SHOW CONFIG")
+        for row in result:
+            if row[0] == "thread_number":
+                return 1 if int(row[1]) == 0 else int(row[1])
+        raise Exception("thread_number not found in SHOW CONFIG")
 
     def aadmin(self, query, **kwargs):
         """Run an SQL query on the PgBouncer admin database in an asynchronous
@@ -1089,7 +1101,18 @@ class Bouncer(QueryRunner):
                 self.aprocess.terminate()
                 self.aprocess.terminate()
 
-        await self.wait_for_exit()
+        try:
+            await asyncio.wait_for(self.wait_for_exit(), timeout=5)
+        except asyncio.TimeoutError:
+            self.print_logs()
+            if self.process:
+                self.process.kill()
+            if self.aprocess:
+                try:
+                    self.aprocess.kill()
+                except ProcessLookupError:
+                    pass
+            await self.wait_for_exit()
 
     async def reboot(self):
         """Starts a new PgBouncer with the --reboot flag

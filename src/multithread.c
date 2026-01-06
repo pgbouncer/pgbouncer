@@ -125,9 +125,7 @@ static void handle_sigquit_main(evutil_socket_t sock, short flags, void *arg)
 		FOR_EACH_THREAD(thread_id){
 			signal_threads(threads[thread_id].worker_signal_events.pipe_sigquit);
 		}
-	}
-	FOR_EACH_THREAD(thread_id){
-		pthread_join(threads[thread_id].worker, NULL);
+		wait_threads();
 	}
 	exit(0);
 }
@@ -141,7 +139,8 @@ static void handle_sigquit_worker(evutil_socket_t sock, short flags, void *arg)
 		return;
 	}
 	log_info("[Thread %d] got SIGQUIT, fast exit", this_thread->thread_id);
-	pthread_exit(0);
+
+	pthread_exit(NULL);
 }
 
 static void handle_sigusr1(int sock, short flags, void *arg)
@@ -153,7 +152,6 @@ static void handle_sigusr1(int sock, short flags, void *arg)
 			FOR_EACH_THREAD(thread_id) {
 				lock_thread(thread_id);
 				threads[thread_id].cf_pause_mode = P_PAUSE;
-				threads[thread_id].active_count = 0;
 				unlock_thread(thread_id);
 			}
 			MULTITHREAD_VISIT(&total_active_count_lock, {
@@ -175,41 +173,11 @@ static void handle_sigusr2(int sock, short flags, void *arg)
 	switch (cf_pause_mode) {
 	case P_SUSPEND:
 		log_info("got SIGUSR2, continuing from SUSPEND");
-		if (multithread_mode) {
-			/* Reset pause mode on all threads */
-			FOR_EACH_THREAD(thread_id) {
-				lock_thread(thread_id);
-				threads[thread_id].cf_pause_mode = P_NONE;
-				threads[thread_id].pause_ready = false;
-				threads[thread_id].wait_close_ready = false;
-				threads[thread_id].partial_pause = false;
-				threads[thread_id].active_count = 0;
-				unlock_thread(thread_id);
-			}
-			MULTITHREAD_VISIT(&total_active_count_lock, {
-				total_active_count = 0;
-			});
-		}
 		resume_all();
 		cf_pause_mode = P_NONE;
 		break;
 	case P_PAUSE:
 		log_info("got SIGUSR2, continuing from PAUSE");
-		if (multithread_mode) {
-			/* Reset pause mode on all threads */
-			FOR_EACH_THREAD(thread_id) {
-				lock_thread(thread_id);
-				threads[thread_id].cf_pause_mode = P_NONE;
-				threads[thread_id].pause_ready = false;
-				threads[thread_id].wait_close_ready = false;
-				threads[thread_id].partial_pause = false;
-				threads[thread_id].active_count = 0;
-				unlock_thread(thread_id);
-			}
-			MULTITHREAD_VISIT(&total_active_count_lock, {
-				total_active_count = 0;
-			});
-		}
 		cf_pause_mode = P_NONE;
 		break;
 	case P_NONE:
@@ -400,6 +368,9 @@ void * worker_func(void *arg)
 	worker_signal_setup(base, this_thread->thread_id);	/* Set up signal handling */
 	janitor_setup();		/* Set up maintenance tasks */
 
+	/* Signal that this thread is ready to handle connections */
+	this_thread->ready = true;
+
 	/* Main event loop: process events until shutdown */
 	while (this_thread->cf_shutdown != SHUTDOWN_IMMEDIATE) {
 		multithread_reset_time_cache();
@@ -440,21 +411,34 @@ void init_thread(int thread_id)
 	threads[thread_id].vpool = NULL;
 	threads[thread_id].cf_shutdown = SHUTDOWN_NONE;
 	threads[thread_id].cf_pause_mode = P_NONE;
-	threads[thread_id].pause_ready = false;
-	threads[thread_id].wait_close_ready = false;
-	threads[thread_id].partial_pause = false;
-	threads[thread_id].active_count = 0;
 	spin_lock_init(&(threads[thread_id].thread_lock), true);
 }
 
 void start_threads(void)
 {
+	bool all_ready = false;
 	pthread_key_create(&event_base_key, event_base_destructor);
 	pthread_key_create(&thread_pointer, NULL);
 
 	FOR_EACH_THREAD(thread_id){
+		threads[thread_id].ready = false;
 		pthread_create(&threads[thread_id].worker, NULL, worker_func, &threads[thread_id]);
 	}
+
+	/* Wait for all threads to finish initialization before accepting connections */
+	while (!all_ready) {
+		all_ready = true;
+		FOR_EACH_THREAD(thread_id){
+			if (!threads[thread_id].ready) {
+				all_ready = false;
+				break;
+			}
+		}
+		if (!all_ready) {
+			usleep(1000);	/* Sleep for 1ms before checking again */
+		}
+	}
+	log_info("All %d worker threads are ready", arg_thread_number);
 }
 
 void init_threads(void)
@@ -689,6 +673,22 @@ bool multithread_check_limit_count(const char *name, ConnectionLimit **limits, S
 	return true;
 }
 
+
+void multithread_remove_limit(const char *name, ConnectionLimit **limits, SpinLock *lock)
+{
+	ConnectionLimit *limit_entry = NULL;
+	if (!multithread_mode) {
+		return;
+	}
+	spin_lock_acquire(lock);
+	HASH_FIND_STR(*limits, name, limit_entry);
+	if (limit_entry) {
+		HASH_DEL(*limits, limit_entry);
+		free(limit_entry->name);
+		free(limit_entry);
+	}
+	spin_lock_release(lock);
+}
 
 void multithread_free_limits(ConnectionLimit **limits)
 {

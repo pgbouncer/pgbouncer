@@ -61,6 +61,7 @@ async def test_notify_queue_negative(bouncer):
     Test that wait notification will not occur when query_wait_notify
     is set to longer than the client will be waiting in the queue for.
     """
+    thread_num = bouncer.get_thread_number()
     config = f"""
     [databases]
     postgres = host={bouncer.pg.host} port={bouncer.pg.port}
@@ -76,7 +77,7 @@ async def test_notify_queue_negative(bouncer):
     query_wait_notify = 8
 
     [users]
-    puser1 = max_user_connections=1
+    puser1 = max_user_connections={thread_num}
     """
     notices_received = []
 
@@ -85,30 +86,32 @@ async def test_notify_queue_negative(bouncer):
 
     with bouncer.run_with_config(config):
 
-        sleep_future = bouncer.asql(
-            "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
-        )
-        _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
+        for _ in range(bouncer.get_thread_number()):
+            sleep_future = bouncer.asql(
+                "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
+            )
+            _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
 
         conn_2: psycopg.AsyncConnection = await bouncer.aconn(
             dbname="postgres", user="puser1"
         )
         conn_2.add_notice_handler(log_notice)
         curr = await conn_2.execute("select 1;")
-        curr.fetchall()
+        await curr.fetchall()
 
         assert len(notices_received) == 0
 
-        sleep_future = bouncer.asql(
-            "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
-        )
-        _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
+        for _ in range(bouncer.get_thread_number()):
+            sleep_future = bouncer.asql(
+                "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
+            )
+            _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
 
         curr = await conn_2.execute("select 1;")
-        curr.fetchall()
+        await curr.fetchall()
         assert len(notices_received) == 0
 
-        conn_2.close()
+        await conn_2.close()
 
 
 async def test_notify_queue(bouncer):
@@ -118,6 +121,7 @@ async def test_notify_queue(bouncer):
     is correctly sent if they are waiting in a second time during the
     same connection.
     """
+    thread_num = bouncer.get_thread_number()
     config = f"""
     [databases]
     postgres = host={bouncer.pg.host} port={bouncer.pg.port}
@@ -133,7 +137,7 @@ async def test_notify_queue(bouncer):
     query_wait_notify = 2
 
     [users]
-    puser1 = max_user_connections=1
+    puser1 = max_user_connections={thread_num}
     """
     notices_received = []
 
@@ -142,17 +146,18 @@ async def test_notify_queue(bouncer):
 
     with bouncer.run_with_config(config):
 
-        sleep_future = bouncer.asql(
-            "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
-        )
-        _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
+        for _ in range(bouncer.get_thread_number()):
+            sleep_future = bouncer.asql(
+                "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
+            )
+            _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
 
         conn_2: psycopg.AsyncConnection = await bouncer.aconn(
             dbname="postgres", user="puser1"
         )
         conn_2.add_notice_handler(log_notice)
         curr = await conn_2.execute("select 1;")
-        curr.fetchall()
+        await curr.fetchall()
 
         assert len(notices_received) == 1
         expected_message = (
@@ -160,17 +165,18 @@ async def test_notify_queue(bouncer):
         )
         assert expected_message == notices_received[0]
 
-        sleep_future = bouncer.asql(
-            "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
-        )
-        _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
+        for _ in range(bouncer.get_thread_number()):
+            sleep_future = bouncer.asql(
+                "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
+            )
+            _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
 
         curr = await conn_2.execute("select 1;")
-        curr.fetchall()
+        await curr.fetchall()
         assert len(notices_received) == 2
         assert expected_message == notices_received[1]
 
-        conn_2.close()
+        await conn_2.close()
 
 
 @pytest.mark.skipif("not LINUX", reason="socat proxy only available on linux")
@@ -303,6 +309,13 @@ def test_server_check_query_default(
         with bouncer.cur(dbname="postgres", user="puser1") as cur:
             pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
 
+        # Multithread mode requires this because we want pg_backend_pid()
+        # to be executed on the same thread.
+        # -2 because get_thread_number also uses one connection.
+        for _ in range(bouncer.get_thread_number() - 2):
+            with bouncer.cur(dbname="postgres", user="puser1") as cur:
+                cur.execute("SELECT 1")
+
         with bouncer.cur(dbname="postgres", user="puser1") as cur:
             with pg.log_contains(" LOG:  statement: \n", times=1):
                 new_pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
@@ -343,6 +356,13 @@ def test_server_check_query(pg, bouncer):
     with bouncer.run_with_config(config):
         with bouncer.cur(dbname="postgres", user="puser1") as cur:
             pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
+
+        # Multithread mode requires this because we want pg_backend_pid()
+        # to be executed on the same thread.
+        # -2 because get_thread_number also uses one connection.
+        for _ in range(bouncer.get_thread_number() - 2):
+            with bouncer.cur(dbname="postgres", user="puser1") as cur:
+                cur.execute("SELECT 1")
 
         with bouncer.cur(dbname="postgres", user="puser1") as cur:
             with pg.log_contains(" LOG:  statement: SELECT 2\n", times=1):
@@ -460,9 +480,14 @@ def test_auto_database(bouncer):
 # non-empty.
 @pytest.mark.skipif("not HAVE_IPV6_LOCALHOST")
 async def test_host_list(bouncer):
-    with bouncer.log_contains(r"new connection to server \(from 127.0.0.1", times=1):
-        with bouncer.log_contains(r"new connection to server \(from \[::1\]", times=1):
-            await bouncer.asleep(1, dbname="hostlist1", times=2)
+    thread_number = bouncer.get_thread_number()
+    with bouncer.log_contains(
+        r"new connection to server \(from 127.0.0.1", times=thread_number
+    ):
+        with bouncer.log_contains(
+            r"new connection to server \(from \[::1\]", times=thread_number
+        ):
+            await bouncer.asleep(1, dbname="hostlist1", times=2 * thread_number)
 
 
 # This is the same test as above, except it doesn't use any IPv6
@@ -668,10 +693,15 @@ async def test_already_paused_client_during_wait_for_servers_shutdown(bouncer):
     bouncer.admin(f"set default_pool_size=1")
     bouncer.default_db = "p1"
     with bouncer.transaction() as cur1:
+        # -2 because get_thread_number also uses one connection.
+        for _ in range(bouncer.get_thread_number() - 2):
+            await bouncer.aconn()
+
         conn2 = await bouncer.aconn()
         cur2 = conn2.cursor()
 
         cur1.execute("SELECT 1")
+
         # start the request before the shutdown
         task = asyncio.ensure_future(cur2.execute("SELECT 1"))
         # We wait so that the client goes to CL_WAITING state
@@ -698,14 +728,25 @@ def test_shutdown_wait_for_servers(bouncer):
     """
 
     socket_directory = bouncer.config_dir if LINUX else "/tmp"
-    with bouncer.cur() as cur, bouncer.admin_runner.cur():
 
-        def run_blocked_query():
-            cur.execute("SELECT pg_sleep(5)")
-            cur.fetchone()
+    num_threads = bouncer.get_thread_number()
+    cursors = []
+    threads = []
 
-        thread = threading.Thread(target=run_blocked_query)
-        thread.start()
+    with bouncer.admin_runner.cur():
+        for _ in range(num_threads):
+            cur = bouncer.conn().cursor()
+            cursors.append(cur)
+
+            def run_blocked_query(cursor):
+                cursor.execute("SELECT pg_sleep(5)")
+                cursor.fetchone()
+
+            thread = threading.Thread(target=run_blocked_query, args=(cur,))
+            thread.start()
+            threads.append(thread)
+
+        time.sleep(0.5)
 
         bouncer.admin("SHUTDOWN WAIT_FOR_SERVERS")
 
@@ -719,7 +760,11 @@ def test_shutdown_wait_for_servers(bouncer):
         with pytest.raises(psycopg.errors.OperationalError):
             bouncer.test(host="127.0.0.1")
 
-        thread.join(timeout=10)
+        for thread in threads:
+            thread.join(timeout=10)
+
+        for cur in cursors:
+            cur.close()
 
     # Wait for janitor to close unix socket
     time.sleep(2)
@@ -809,3 +854,25 @@ def test_issue_1104(bouncer):
 
         with bouncer.run_with_config(config):
             bouncer.admin("RELOAD")
+
+
+@pytest.mark.single_thread_only
+def test_get_single_thread_number(bouncer):
+    """
+    Test the get_thread_number() helper method.
+    This is a utility method that returns the number of threads
+    PgBouncer is configured to run with.
+    """
+    thread_num = bouncer.get_thread_number()
+    assert thread_num == 1, f"Expected at least 1 thread, got {thread_num}"
+
+
+@pytest.mark.multithread_only
+def test_get_multithread_number(bouncer):
+    """
+    Test the get_thread_number() helper method.
+    This is a utility method that returns the number of threads
+    PgBouncer is configured to run with.
+    """
+    thread_num = bouncer.get_thread_number()
+    assert thread_num == 2, f"Expected at least 2 threads, got {thread_num}"

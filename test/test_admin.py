@@ -387,6 +387,7 @@ def test_help(bouncer):
     run([*bouncer.base_command(), "--help"])
 
 
+@pytest.mark.single_thread_only
 def test_show_stats(bouncer):
     # Use session pooling database to see differenecs between transactions and
     # server assignments
@@ -424,6 +425,57 @@ def test_show_stats(bouncer):
     assert p3_stats["xact_count"] == 6
     # 11 SELECT 1 + 2 times COMMIT and ROLLBACK
     assert p3_stats["query_count"] == 15
+
+    totals = bouncer.admin("SHOW TOTALS")
+    # 5 connection attempts (and thus assignments)
+    assert ("total_server_assignment_count", 5) in totals
+    # 4 autocommit queries + 2 transactions + 4 admin commands
+    assert ("total_xact_count", 10) in totals
+    # 11 SELECT 1 + 2 times COMMIT and ROLLBACK + 4 admin commands
+    assert ("total_query_count", 19) in totals
+
+
+@pytest.mark.multithread_only
+def test_show_stats_multithread(bouncer):
+    # Use session pooling database to see differenecs between transactions and
+    # server assignments
+    bouncer.default_db = "p3"
+    bouncer.test()
+    bouncer.test()
+    bouncer.test()
+    bouncer.test()
+    with bouncer.cur() as cur:
+        with cur.connection.transaction():
+            cur.execute("SELECT 1")
+            cur.execute("SELECT 1")
+            cur.execute("SELECT 1")
+        with cur.connection.transaction():
+            cur.execute("SELECT 1")
+            cur.execute("SELECT 1")
+            cur.execute("SELECT 1")
+
+    stats = bouncer.admin("SHOW STATS", row_factory=dict_row)
+    p3_stats = [s for s in stats if s["database"] == "p3"]
+
+    assert p3_stats is not None
+    # Aggregate across threads, as SHOW STATS returns per-thread statistics in multithreaded mode.
+
+    # 5 connection attempts (and thus assignments)
+    assert sum(s["total_server_assignment_count"] for s in p3_stats) == 5
+    # 4 autocommit queries + 2 transactions
+    assert sum(s["total_xact_count"] for s in p3_stats) == 6
+    # 11 SELECT 1 + 2 times COMMIT and ROLLBACK
+    assert sum(s["total_query_count"] for s in p3_stats) == 15
+
+    stats = bouncer.admin("SHOW STATS_TOTALS", row_factory=dict_row)
+    p3_stats = [s for s in stats if s["database"] == "p3"]
+    assert p3_stats is not None
+    # 5 connection attempts (and thus assignments)
+    assert sum(s["server_assignment_count"] for s in p3_stats) == 5
+    # 4 autocommit queries + 2 transactions
+    assert sum(s["xact_count"] for s in p3_stats) == 6
+    # 11 SELECT 1 + 2 times COMMIT and ROLLBACK
+    assert sum(s["query_count"] for s in p3_stats) == 15
 
     totals = bouncer.admin("SHOW TOTALS")
     # 5 connection attempts (and thus assignments)

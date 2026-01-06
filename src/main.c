@@ -553,6 +553,61 @@ bool load_config(void)
 	return ok;
 }
 
+/* Validate that connection limits are >= thread_number in multithread mode */
+static bool validate_multithread_limits(void)
+{
+	struct List *item;
+	PgDatabase *db;
+	PgGlobalUser *user;
+	bool ok = true;
+
+	if (!multithread_mode || arg_thread_number <= 0)
+		return true;
+
+	/* Check global connection limits (not pool sizes) */
+	if (cf_max_client_conn > 0 && cf_max_client_conn < arg_thread_number) {
+		log_error("In multithread mode, max_client_conn (%d) must be >= thread_number (%d)",
+			  cf_max_client_conn, arg_thread_number);
+		ok = false;
+	}
+
+	if (cf_max_db_connections > 0 && cf_max_db_connections < arg_thread_number) {
+		log_error("In multithread mode, max_db_connections (%d) must be >= thread_number (%d)",
+			  cf_max_db_connections, arg_thread_number);
+		ok = false;
+	}
+
+	if (cf_max_user_connections > 0 && cf_max_user_connections < arg_thread_number) {
+		log_error("In multithread mode, max_user_connections (%d) must be >= thread_number (%d)",
+			  cf_max_user_connections, arg_thread_number);
+		ok = false;
+	}
+
+	/* Check per-database connection limits (not pool sizes) */
+	THREAD_SAFE_STATLIST_EACH(&database_list, item, {
+		db = container_of(item, PgDatabase, head);
+
+		if (db->max_db_connections > 0 && db->max_db_connections < arg_thread_number) {
+			log_error("In multithread mode, database '%s' max_db_connections (%d) must be >= thread_number (%d)",
+				  db->name, db->max_db_connections, arg_thread_number);
+			ok = false;
+		}
+	});
+
+	/* Check per-user connection limits (not pool sizes) */
+	THREAD_SAFE_STATLIST_EACH(&thread_safe_user_list, item, {
+		user = container_of(item, PgGlobalUser, head);
+
+		if (user->max_user_connections > 0 && user->max_user_connections < arg_thread_number) {
+			log_error("In multithread mode, user '%s' max_user_connections (%d) must be >= thread_number (%d)",
+				  user->credentials.name, user->max_user_connections, arg_thread_number);
+			ok = false;
+		}
+	});
+
+	return ok;
+}
+
 /*
  * daemon mode
  */
@@ -771,10 +826,6 @@ static void main_loop_once(void)
 	if (adns) {
 		MULTITHREAD_VISIT(&adns_lock, adns_per_loop(adns));
 	}
-
-	if (multithread_mode)
-		per_loop_admin_condition_maint();
-	
 }
 
 static void takeover_part1(void)
@@ -973,6 +1024,7 @@ int main(int argc, char *argv[])
 	 */
 	atexit(cleanup);
 #endif
+	init_objects();
 
 	{
 		/* load pgbouncer section first*/
@@ -986,10 +1038,15 @@ int main(int argc, char *argv[])
 			init_threads();
 		}
 	}
-
-	init_objects();
+	if (multithread_mode)
+		init_objects_multithread();
 	load_config();
 	main_config.loaded = true;
+
+	/* Validate multithread configuration limits */
+	if (!validate_multithread_limits())
+		die("Configuration validation failed in multithread mode");
+
 	init_var_lookup(cf_track_extra_parameters);
 	init_caches();
 	logging_prefix_cb = log_socket_prefix;

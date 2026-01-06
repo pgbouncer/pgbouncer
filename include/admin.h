@@ -24,6 +24,8 @@ bool admin_error(PgSocket *console, const char *fmt, ...)  _PRINTF(2, 3) /* _MUS
 void admin_pause_done(void);
 void admin_wait_close_done(void);
 bool admin_should_resume(void);
+bool all_db_paused(void);
+bool has_waiting_pause_admin(void);
 bool admin_flush(PgSocket *admin, PktBuf *buf, const char *desc) /* _MUSTCHECK */;
 bool admin_ready(PgSocket *admin, const char *desc)  _MUSTCHECK;
 void admin_handle_cancel(PgSocket *client);

@@ -105,13 +105,7 @@ static PgClientPreparedStatement *create_client_prepared_statement(char const *n
 static PgServerPreparedStatement *create_server_prepared_statement(PgPreparedStatement *ps)
 {
 	PgServerPreparedStatement *server_ps;
-	struct Slab *server_prepared_statement_cache_ = NULL;
-	if (multithread_mode) {
-		int thread_id = get_current_thread_id();
-		server_prepared_statement_cache_ = threads[thread_id].server_prepared_statement_cache;
-	} else {
-		server_prepared_statement_cache_ = server_prepared_statement_cache;
-	}
+	struct Slab *server_prepared_statement_cache_ = GET_VAR(server_prepared_statement_cache);
 	server_ps = slab_alloc(server_prepared_statement_cache_);
 	if (server_ps == NULL)
 		return NULL;
@@ -197,6 +191,7 @@ static void skip_possibly_completely_buffered_packet(PgSocket *client, PktHdr *p
  */
 void free_server_prepared_statement(PgServerPreparedStatement *server_ps)
 {
+	struct Slab *server_prepared_statement_cache_ = GET_VAR(server_prepared_statement_cache);
 	if (server_ps == NULL)
 		return;
 	if (--server_ps->ps->use_count == 0) {
@@ -205,7 +200,7 @@ void free_server_prepared_statement(PgServerPreparedStatement *server_ps)
 		});
 		free(server_ps->ps);
 	}
-	slab_free(server_prepared_statement_cache, server_ps);
+	slab_free(server_prepared_statement_cache_, server_ps);
 }
 
 /*

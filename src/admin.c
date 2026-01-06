@@ -145,6 +145,50 @@ static int count_db_active(PgDatabase *db)
 	return cnt;
 }
 
+/*
+ * Check if all paused databases have 0 active connections across all threads.
+ * Returns true only if there are paused databases AND they are all idle globally.
+ */
+bool all_db_paused(void)
+{
+	struct List *item;
+	PgDatabase *db;
+	bool has_paused_db = false;
+
+	THREAD_SAFE_STATLIST_EACH(&database_list, item, {
+		db = container_of(item, PgDatabase, head);
+		if (db->db_paused) {
+			has_paused_db = true;
+			if (count_db_active(db) > 0) {
+				has_paused_db = false;
+				break;
+			}
+		}
+	});
+
+	return has_paused_db;
+}
+
+/*
+ * Check if the current thread has any admin connections waiting for a pause response.
+ * This is used to determine if the thread should check for pause completion.
+ */
+bool has_waiting_pause_admin(void)
+{
+	struct List *item;
+	PgSocket *admin;
+	int thread_id = get_current_thread_id();
+	struct StatList *active_client_list_ptr = GET_MULTITHREAD_PTR(admin_pool->active_client_list, thread_id);
+
+	statlist_for_each(item, active_client_list_ptr) {
+		admin = container_of(item, PgSocket, head);
+		if (admin->wait_for_response)
+			return true;
+	}
+
+	return false;
+}
+
 bool admin_flush(PgSocket *admin, PktBuf *buf, const char *desc)
 {
 	pktbuf_write_CommandComplete(buf, desc);
@@ -591,26 +635,13 @@ static bool admin_show_peers(PgSocket *admin, const char *arg)
 
 	pktbuf_write_RowDescription(buf, "isiii",
 				    "peer_id", "host", "port", "pool_size", "thread_id");
-	if (multithread_mode) {
-		FOR_EACH_THREAD(thread_id){
-			THREAD_SAFE_STATLIST_EACH(&(threads[thread_id].peer_list), item, {
-				peer = container_of(item, PgDatabase, head);
+	THREAD_SAFE_STATLIST_EACH(&peer_list, item, {
+		peer = container_of(item, PgDatabase, head);
 
-				pktbuf_write_DataRow(buf, "isiii",
-						     peer->peer_id, peer->host, peer->port,
-						     peer->pool_size >= 0 ? peer->pool_size : cf_default_pool_size,
-						     thread_id);
-			});
-		}
-	} else {
-		THREAD_SAFE_STATLIST_EACH(&peer_list, item, {
-			peer = container_of(item, PgDatabase, head);
-
-			pktbuf_write_DataRow(buf, "isiii",
-					     peer->peer_id, peer->host, peer->port,
-					     peer->pool_size >= 0 ? peer->pool_size : cf_default_pool_size, 0);
-		});
-	}
+		pktbuf_write_DataRow(buf, "isiii",
+				     peer->peer_id, peer->host, peer->port,
+				     peer->pool_size >= 0 ? peer->pool_size : cf_default_pool_size, 0);
+	});
 	admin_flush(admin, buf, "SHOW");
 	return true;
 }
@@ -619,7 +650,7 @@ static bool admin_show_peers(PgSocket *admin, const char *arg)
 /* Command: SHOW LISTS */
 static bool admin_show_lists(PgSocket *admin, const char *arg)
 {
-	int total_pool_list, total_peer_pool_list, total_peer_list;
+	int total_pool_list, total_peer_pool_list;
 	int total_free_clients, total_used_clients, total_login_clients;
 	int total_free_servers, total_used_servers;
 
@@ -632,7 +663,6 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 #define SENDLIST(name, size) pktbuf_write_DataRow(buf, "si", (name), (size))
 
 	total_pool_list = 0;
-	total_peer_list = 0;
 	total_peer_pool_list = 0;
 	total_free_clients = 0;
 	total_used_clients = 0;
@@ -643,7 +673,6 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 	if (multithread_mode) {
 		FOR_EACH_THREAD(thread_id){
 			total_pool_list += thread_safe_statlist_count(&(threads[thread_id].pool_list));
-			total_peer_list += thread_safe_statlist_count(&(threads[thread_id].peer_list));
 			total_peer_pool_list += thread_safe_statlist_count(&(threads[thread_id].peer_pool_list));
 			total_free_clients += slab_free_count(threads[thread_id].client_cache);
 			total_used_clients += slab_active_count(threads[thread_id].client_cache);
@@ -653,7 +682,6 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 		}
 	} else {
 		total_pool_list = thread_safe_statlist_count(&pool_list);
-		total_peer_list = thread_safe_statlist_count(&peer_list);
 		total_peer_pool_list = thread_safe_statlist_count(&peer_pool_list);
 		total_free_clients = slab_free_count(client_cache);
 		total_used_clients = slab_active_count(client_cache);
@@ -664,7 +692,7 @@ static bool admin_show_lists(PgSocket *admin, const char *arg)
 
 	SENDLIST("databases", thread_safe_statlist_count(&database_list));
 	SENDLIST("users", thread_safe_statlist_count(&thread_safe_user_list));
-	SENDLIST("peers", total_peer_list);
+	SENDLIST("peers", thread_safe_statlist_count(&peer_list));
 	SENDLIST("pools", total_pool_list);
 	SENDLIST("peer_pools", total_peer_pool_list);
 	SENDLIST("free_clients", total_free_clients);
@@ -1366,9 +1394,13 @@ static bool admin_cmd_shutdown(PgSocket *admin, const char *arg)
 			cf_pause_mode = P_PAUSE;
 			MULTITHREAD_ONLY_ITERATE(thread_id, {
 				threads[thread_id].cf_pause_mode = P_PAUSE;
+				threads[thread_id].cf_shutdown = SHUTDOWN_WAIT_FOR_SERVERS;
 			});
 			log_info("SHUTDOWN WAIT_FOR_SERVERS command issued");
 		} else {
+			MULTITHREAD_ONLY_ITERATE(thread_id, {
+				threads[thread_id].cf_shutdown = SHUTDOWN_WAIT_FOR_CLIENTS;
+			});
 			log_info("SHUTDOWN WAIT_FOR_CLIENTS command issued");
 		}
 		cleanup_tcp_sockets();
@@ -1379,22 +1411,12 @@ static bool admin_cmd_shutdown(PgSocket *admin, const char *arg)
 static void full_resume(void)
 {
 	int tmp_mode = cf_pause_mode;
-
-	/* Reset pause mode on all threads */
-	MULTITHREAD_ONLY_ITERATE(thread_id, {
-		lock_thread(thread_id);
-		threads[thread_id].cf_pause_mode = P_NONE;
-		threads[thread_id].pause_ready = false;
-		threads[thread_id].wait_close_ready = false;
-		threads[thread_id].partial_pause = false;
-		threads[thread_id].active_count = 0;
-		unlock_thread(thread_id);
-	});
-	MULTITHREAD_VISIT(&total_active_count_lock, {
-		total_active_count = 0;
-	});
-
 	cf_pause_mode = P_NONE;
+	if (multithread_mode) {
+		FOR_EACH_THREAD(thread_id){
+			threads[thread_id].cf_pause_mode = P_NONE;
+		}
+	}
 	if (tmp_mode == P_SUSPEND)
 		resume_all();
 }
@@ -1429,6 +1451,7 @@ static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 /* Command: SUSPEND */
 static bool admin_cmd_suspend(PgSocket *admin, const char *arg)
 {
+	int thread_id = get_current_thread_id();
 	if (arg && *arg)
 		return syntax_error(admin);
 
@@ -1443,20 +1466,17 @@ static bool admin_cmd_suspend(PgSocket *admin, const char *arg)
 		return admin_error(admin, "cannot suspend with paused databases");
 
 	log_info("SUSPEND command issued");
+
+	/* Set pause mode on this thread to respond to the admin request later. */
 	if (multithread_mode) {
-		/* Set pause mode on all threads */
-		FOR_EACH_THREAD(thread_id) {
-			lock_thread(thread_id);
-			threads[thread_id].cf_pause_mode = P_SUSPEND;
-			unlock_thread(thread_id);
-		}
+		threads[thread_id].cf_pause_mode = P_SUSPEND;
 	}
+
 	cf_pause_mode = P_SUSPEND;
 	admin->wait_for_response = true;
+
 	suspend_pooler();
-
 	g_suspend_start = get_cached_time();
-
 	return true;
 }
 
@@ -1474,9 +1494,7 @@ static bool admin_cmd_pause(PgSocket *admin, const char *arg)
 		if (multithread_mode) {
 			/* Set pause mode on all threads */
 			FOR_EACH_THREAD(thread_id) {
-				lock_thread(thread_id);
 				threads[thread_id].cf_pause_mode = P_PAUSE;
-				unlock_thread(thread_id);
 			}
 		}
 		cf_pause_mode = P_PAUSE;
@@ -1666,20 +1684,22 @@ static PgSocket * find_client_global(unsigned long long int target_id)
 			pool = container_of(item, PgPool, head);
 			kill_client = find_client_global_pool(pool, target_id);
 			if (kill_client != NULL) {
-				unlock_thread(thread_id);
-				return kill_client;
 				break;
 			}
 		});
-		THREAD_SAFE_STATLIST_EACH(peer_pool_list_ptr, item, {
-			pool = container_of(item, PgPool, head);
-			kill_client = find_client_global_peer_pool(pool, target_id);
-			if (kill_client != NULL) {
-				unlock_thread(thread_id);
-				return kill_client;
-			}
-		});
+		if (kill_client == NULL) {
+			THREAD_SAFE_STATLIST_EACH(peer_pool_list_ptr, item, {
+				pool = container_of(item, PgPool, head);
+				kill_client = find_client_global_peer_pool(pool, target_id);
+				if (kill_client != NULL) {
+					break;
+				}
+			});
+		}
 		unlock_thread(thread_id);
+		if (kill_client != NULL) {
+			break;
+		}
 	});
 
 	return kill_client;
@@ -1715,67 +1735,12 @@ static bool admin_cmd_kill_client(PgSocket *admin, const char *arg)
 	return admin_ready(admin, "KILL_CLIENT");
 }
 
-
-/* Helper function to kill pools for a specific database in a thread */
-static bool kill_database_pools_in_thread(int thread_id, const char *db_name, PgSocket *admin)
-{
-	PgDatabase *db;
-	struct List *item;
-	bool found = false;
-
-	lock_thread(thread_id);
-	admin->sbuf.thread_id = thread_id;
-	db = find_or_register_database(admin, db_name);
-	if (!db) {
-		unlock_thread(thread_id);
-		return false;
-	}
-
-	if (db == admin->pool->db) {
-		unlock_thread(thread_id);
-		return false;
-	}
-
-	found = true;
-	THREAD_SAFE_STATLIST_EACH(&(threads[thread_id].pool_list), item, {
-		PgPool *pool = container_of(item, PgPool, head);
-		if (pool->db->name == db->name) {
-			pool->db->db_paused = true;
-			kill_pool(pool);
-		}
-	});
-	unlock_thread(thread_id);
-	return found;
-}
-
-
-/* Helper function to kill pools for a specific database (single-thread mode) */
-static bool kill_database_pools_single_thread(const char *db_name, PgSocket *admin)
-{
-	struct List *item;
-	PgPool *pool;
-	PgDatabase *db;
-
-	db = find_or_register_database(admin, db_name);
-	if (db == NULL)
-		return false;
-
-	if (db == admin->pool->db)
-		return false;	/* Will be handled by caller */
-
-	db->db_paused = true;
-	THREAD_SAFE_STATLIST_EACH(&pool_list, item, {
-		pool = container_of(item, PgPool, head);
-		if (pool->db->name == db->name)
-			kill_pool(pool);
-	});
-	return true;
-}
-
 /* Command: KILL */
 static bool admin_cmd_kill(PgSocket *admin, const char *arg)
 {
 	struct List *item;
+	PgPool *pool;
+
 	if (!admin->admin_user)
 		return admin_error(admin, "admin access needed");
 
@@ -1799,39 +1764,28 @@ static bool admin_cmd_kill(PgSocket *admin, const char *arg)
 			unlock_thread(thread_id);
 		});
 		return admin_ready(admin, "KILL");
-	}
-
-	/* Kill specific database */
-	log_info("KILL '%s' command issued", arg);
-
-	if (multithread_mode) {
-		bool found = false;
-		FOR_EACH_THREAD(thread_id) {
-			if (kill_database_pools_in_thread(thread_id, arg, admin)) {
-				found = true;
-			}
-		}
-
-		if (!found) {
-			/*
-			 * Check if it's the admin database.
-			 * Only search in the current thread, since the admin database should exist in all threads.
-			 */
-			PgDatabase *db = find_or_register_database(admin, arg);
-			if (db && db == admin->pool->db) {
-				return admin_error(admin, "cannot kill admin db: %s", arg);
-			}
-			return admin_error(admin, "no such database: %s", arg);
-		}
 	} else {
-		if (!kill_database_pools_single_thread(arg, admin)) {
-			/* Check if it's the admin database */
-			PgDatabase *db = find_or_register_database(admin, arg);
-			if (db && db == admin->pool->db) {
-				return admin_error(admin, "cannot kill admin db: %s", arg);
-			}
+		PgDatabase *db;
+
+		log_info("KILL '%s' command issued", arg);
+
+		db = find_or_register_database(admin, arg);
+		if (db == NULL)
 			return admin_error(admin, "no such database: %s", arg);
-		}
+		if (db == admin->pool->db)
+			return admin_error(admin, "cannot kill admin db: %s", arg);
+
+		db->db_paused = true;
+		THREAD_ITERATE(thread_id, {
+			struct ThreadSafeStatList *pool_list_ptr = GET_MULTITHREAD_PTR(pool_list, thread_id);
+			lock_thread(thread_id);
+			THREAD_SAFE_STATLIST_EACH(pool_list_ptr, item, {
+				pool = container_of(item, PgPool, head);
+				if (pool->db == db)
+					kill_pool(pool);
+			});
+			unlock_thread(thread_id);
+		});
 	}
 
 	return admin_ready(admin, "KILL");
@@ -1859,7 +1813,7 @@ static bool admin_cmd_wait_close(PgSocket *admin, const char *arg)
 				db = pool->db;
 				db->db_wait_close = true;
 				active += count_db_active(db);
-				if(active > 0)
+				if (active > 0)
 					break;
 			});
 		});
@@ -2243,7 +2197,7 @@ void admin_setup(void)
 
 	/* fake pool */
 	THREAD_ITERATE(thread_id, {
-		PgPool ** admin_pool_ptr = GET_MULTITHREAD_PTR(admin_pool, thread_id);
+		PgPool **admin_pool_ptr = GET_MULTITHREAD_PTR(admin_pool, thread_id);
 		pool = get_pool(db, db->forced_user_credentials, thread_id);
 		if (!pool)
 			die("cannot create admin pool?");
@@ -2342,12 +2296,15 @@ void admin_pause_done(void)
 			admin->wait_for_response = false;
 	}
 
-	// In multithreaded mode, resume_all is called by the main thread.
-	if(multithread_mode)
+	// In multithreaded mode, suspend requests can come from any worker thread.
+	// Therefore, it is expected that poolers are suspended even if no admin connection
+	// is found in this thread.
+	// FIX ME
+	if (multithread_mode)
 		return;
 
 	if (statlist_empty(active_client_list_ptr)
-		&& *cf_pause_mode_ptr == P_SUSPEND) {
+	    && *cf_pause_mode_ptr == P_SUSPEND) {
 		log_info("admin disappeared when suspended, doing RESUME");
 		*cf_pause_mode_ptr = P_NONE;
 		resume_all();
@@ -2361,8 +2318,8 @@ void admin_wait_close_done(void)
 	bool res;
 	// Only the current thread modifies admin_pool; no lock needed.
 	THREAD_ITERATE(thread_id, {
-		struct StatList*  active_client_list_ptr = GET_MULTITHREAD_PTR(admin_pool->active_client_list, thread_id);
-		if(multithread_mode)
+		struct StatList *active_client_list_ptr = GET_MULTITHREAD_PTR(admin_pool->active_client_list, thread_id);
+		if (multithread_mode)
 			spin_lock_acquire(&threads[thread_id].pool_list.lock);
 		statlist_for_each_safe(item, active_client_list_ptr, tmp) {
 			admin = container_of(item, PgSocket, head);
@@ -2375,22 +2332,21 @@ void admin_wait_close_done(void)
 			else
 				admin->wait_for_response = false;
 		}
-		if(multithread_mode)
+		if (multithread_mode)
 			spin_lock_release(&threads[thread_id].pool_list.lock);
 	});
-
 }
 
-bool admin_should_resume(void){
+bool admin_should_resume(void)
+{
 	bool resume = true;
 	FOR_EACH_THREAD(thread_id){
 		struct StatList *active_client_list_ptr = GET_MULTITHREAD_PTR(admin_pool->active_client_list, thread_id);
 		int *cf_pause_mode_ptr = GET_MULTITHREAD_PTR(cf_pause_mode, thread_id);
 		if (!statlist_empty(active_client_list_ptr)
-			|| !(*cf_pause_mode_ptr == P_SUSPEND)) {
-				resume = false;
-				break;
-
+		    || !(*cf_pause_mode_ptr == P_SUSPEND)) {
+			resume = false;
+			break;
 		}
 	}
 	return resume;

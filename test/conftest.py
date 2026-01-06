@@ -191,10 +191,31 @@ async def proxy(pg, tmp_path):
     proxy.cleanup()
 
 
-@pytest.fixture
-async def bouncer(pg, tmp_path):
-    """Starts a new PgBouncer process"""
+@pytest.fixture(
+    params=[
+        pytest.param("single_thread", id="single_thread"),
+        pytest.param("multithread", id="multithread"),
+    ]
+)
+async def bouncer(pg, tmp_path, request):
+    """Starts a new PgBouncer process with either single-threaded or multi-threaded configuration"""
+    # Check if test should be skipped based on thread mode
+    test_markers = [mark.name for mark in request.node.iter_markers()]
+
+    if request.param == "single_thread" and "multithread_only" in test_markers:
+        pytest.skip("Test marked as multithread_only, skipping single_thread run")
+    elif request.param == "multithread" and "single_thread_only" in test_markers:
+        pytest.skip("Test marked as single_thread_only, skipping multithread run")
+
     bouncer = Bouncer(pg, tmp_path / "bouncer")
+
+    # Configure thread settings based on the parameter
+    if request.param == "single_thread":
+        # For single-threaded mode, no thread_number needed (default behavior)
+        pass
+    elif request.param == "multithread":
+        # For multi-threaded mode, add thread_number = 2 to the config
+        bouncer.write_ini("thread_number = 2")
 
     await bouncer.start()
 

@@ -221,6 +221,9 @@ total_bind_count
     to PostgreSQL by **pgbouncer**. Only applicable in named prepared statement tracking
     mode, see `max_prepared_statements`.
 
+total_client_login_count
+:   Total number of successful client logins.
+
 avg_xact_count
 :   Average transactions per second in last stat period.
 
@@ -260,6 +263,9 @@ avg_bind_count
 :   Average number of prepared statements readied for execution by clients and forwarded
     to PostgreSQL by **pgbouncer**. Only applicable in named prepared statement tracking
     mode, see `max_prepared_statements`.
+
+avg_client_login_count
+:   Average number of successful client logins per second.
 
 #### SHOW STATS_TOTALS
 

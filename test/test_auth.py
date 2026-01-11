@@ -1361,3 +1361,26 @@ def test_ldap_auth(bouncer_with_openldap):
     )
     bouncer_with_openldap.admin("reload")
     bouncer_with_openldap.test(user="ldapuser1", password="secret1")
+
+
+def test_client_login_count(bouncer):
+    bouncer.admin(f"set auth_type='plain'")
+
+    def get_client_login_count():
+        stats = bouncer.admin("SHOW STATS", row_factory=psycopg.rows.dict_row)
+        p3_stats = next(s for s in stats if s["database"] == "p3")
+        assert p3_stats is not None
+        return p3_stats["total_client_login_count"]
+
+    # Successful auth should increase counter
+    bouncer.test(dbname="p3", user="puser1", password="foo")
+    bouncer.test(dbname="p3", user="puser1", password="foo")
+    bouncer.test(dbname="p3", user="puser1", password="foo")
+    assert get_client_login_count() == 3
+
+    # Failed auth should not increase counter
+    with pytest.raises(
+        psycopg.OperationalError, match="password authentication failed"
+    ):
+        bouncer.test(dbname="p3", user="puser1", password="wrong")
+    assert get_client_login_count() == 3

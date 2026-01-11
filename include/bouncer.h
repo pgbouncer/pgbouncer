@@ -331,6 +331,8 @@ struct PgStats {
 	uint64_t ps_server_parse_count;
 	uint64_t ps_client_parse_count;
 	uint64_t ps_bind_count;
+
+	uint64_t client_login_count;
 };
 
 /*

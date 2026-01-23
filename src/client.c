@@ -1080,10 +1080,12 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 		}
 	}
 
-	if (pkt->type == PKT_STARTUP_V3_UNSUPPORTED || unsupported_protocol_extensions_count > 0) {
+	if ((pkt->type == PKT_STARTUP_V3_UNSUPPORTED || unsupported_protocol_extensions_count > 0)
+	    && !client->protocol_negotiated) {
 		PktBuf *buf = pktbuf_dynamic(512);
 		int res;
 
+		client->protocol_negotiated = true;
 		pktbuf_write_NegotiateProtocolVersion(
 			buf,
 			unsupported_protocol_extensions_count,

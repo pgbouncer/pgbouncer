@@ -158,6 +158,7 @@ typedef struct PgGlobalUser PgGlobalUser;
 typedef struct PgDatabase PgDatabase;
 typedef struct PgPool PgPool;
 typedef struct PgStats PgStats;
+typedef struct PgHost PgHost;
 typedef union PgAddr PgAddr;
 typedef enum SocketState SocketState;
 typedef enum PacketCallbackFlag PacketCallbackFlag;
@@ -313,6 +314,14 @@ const char *pga_ntop(const PgAddr *a, char *dst, int dstlen);
 const char *pga_str(const PgAddr *a, char *dst, int dstlen);
 const char *pga_details(const PgAddr *a, char *dst, int dstlen);
 int pga_cmp_addr(const PgAddr *a, const PgAddr *b);
+
+/*
+ * Host entry - tracks a single host from configuration.
+ * Created via pg_create_host() and persists for the lifetime of pgbouncer.
+ */
+struct PgHost {
+	char *name;		/* hostname string */
+};
 
 /*
  * Stats, kept per-pool.
@@ -722,7 +731,7 @@ struct PgSocket {
 	PgAddr remote_addr;	/* ip:port for remote endpoint */
 	PgAddr local_addr;	/* ip:port for local endpoint */
 
-	char *host;
+	PgHost *host;		/* host this connection is connected to */
 
 	union {
 		struct DNSToken *dns_token;	/* ongoing request */

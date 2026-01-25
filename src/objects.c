@@ -102,6 +102,33 @@ int get_active_server_count(void)
 	return slab_active_count(server_cache);
 }
 
+/*
+ * Create a host entry by name.
+ * Hosts persist for the lifetime of pgbouncer.
+ */
+PgHost *pg_create_host(const char *host_name)
+{
+	PgHost *host;
+
+	if (!host_name)
+		return NULL;
+
+	host = malloc(sizeof(PgHost));
+	if (!host) {
+		log_error("pg_create_host: out of memory");
+		return NULL;
+	}
+
+	host->name = strdup(host_name);
+	if (!host->name) {
+		free(host);
+		log_error("pg_create_host: out of memory for host name");
+		return NULL;
+	}
+
+	return host;
+}
+
 static void construct_client(void *obj)
 {
 	PgSocket *client = obj;
@@ -211,7 +238,7 @@ static void server_free(PgSocket *server)
 	}
 
 	free_server_prepared_statements(server);
-	free(server->host);
+	server->host = NULL;  /* PgHost objects persist, don't free */
 	varcache_clean(&server->vars);
 	slab_free(var_list_cache, server->vars.var_list);
 	slab_free(server_cache, server);
@@ -293,6 +320,7 @@ void change_server_state(PgSocket *server, SocketState newstate)
 {
 	PgPool *pool = server->pool;
 
+	/* Note: server->host may be NULL for unix socket connections */
 	/* remove from old location */
 	switch (server->state) {
 	case SV_FREE:
@@ -1706,7 +1734,7 @@ static void dns_connect(struct PgSocket *server)
 	}
 
 	if (host) {
-		server->host = xstrdup(host);
+		server->host = pg_create_host(host);
 	}
 
 	if (!host || host[0] == '/' || host[0] == '@') {

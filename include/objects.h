@@ -40,7 +40,8 @@ extern PgPreparedStatement *prepared_statements;
 
 extern unsigned long long int last_pgsocket_id;
 
-PgHost *pg_create_host(const char *host_name);
+PgHost *pg_create_host(const char *host_name, int port);
+bool parse_database_hosts(PgDatabase *db);
 
 PgDatabase *find_peer(int peer_id);
 PgDatabase *find_database(const char *name);

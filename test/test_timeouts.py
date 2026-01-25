@@ -521,7 +521,8 @@ def test_tcp_user_timeout(pg, bouncer):
         with pg.reject_traffic():
             with pytest.raises(
                 psycopg.OperationalError,
-                match=r"query timeout|Software caused connection abort|server closed the connection unexpectedly",
+                match=r"query timeout|Software caused connection abort|" +
+                      r"server closed the connection unexpectedly|server conn crashed",
             ):
                 bouncer.test(connect_timeout=10)
 

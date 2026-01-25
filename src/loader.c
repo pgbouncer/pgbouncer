@@ -264,6 +264,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	char *tmp_connstr;
 	const char *dbname = name;
 	char *host = NULL;
+	char *port_str = NULL;
 	int port = 5432;
 	char *username = NULL;
 	char *password = "";
@@ -313,7 +314,9 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			if (!set_param_value(&host, val))
 				goto fail;
 		} else if (strcmp("port", key) == 0) {
-			port = atoi(val);
+			if (!set_param_value(&port_str, val))
+				goto fail;
+			port = atoi(val);  /* first port for backward compat */
 			if (port == 0) {
 				log_error("invalid port: %s", val);
 				goto fail;
@@ -413,7 +416,12 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	free(db->host);
 	db->host = host;
 	host = NULL;
+	free(db->port_str);
+	db->port_str = port_str;
+	port_str = NULL;
 	db->port = port;
+	if (!parse_database_hosts(db))
+		goto fail;
 	db->pool_size = pool_size;
 	db->min_pool_size = min_pool_size;
 	db->res_pool_size = res_pool_size;
@@ -491,6 +499,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 fail:
 	free(tmp_connstr);
 	free(host);
+	free(port_str);
 	free(connect_query);
 	return false;
 }

@@ -159,6 +159,7 @@ typedef struct PgDatabase PgDatabase;
 typedef struct PgPool PgPool;
 typedef struct PgStats PgStats;
 typedef struct PgHost PgHost;
+typedef struct PgHosts PgHosts;
 typedef union PgAddr PgAddr;
 typedef enum SocketState SocketState;
 typedef enum PacketCallbackFlag PacketCallbackFlag;
@@ -320,7 +321,23 @@ int pga_cmp_addr(const PgAddr *a, const PgAddr *b);
  * Created via pg_create_host() and persists for the lifetime of pgbouncer.
  */
 struct PgHost {
-	char *name;		/* hostname string */
+	char *name;			/* hostname string */
+	char *key;			/* hash key: "hostname:port" */
+	int port;			/* port number for this host */
+	int active_count;		/* number of active connections to this host */
+	int index;			/* position in host_list->sorted array (kept sorted by active_count) */
+	struct StatList idle_server_list;	/* idle server connections to this host */
+	UT_hash_handle hh;		/* makes this structure hashable by key */
+};
+
+/*
+ * Collection of hosts for a database - maintains both original order
+ * (for round-robin) and sorted order (for least-connections).
+ */
+struct PgHosts {
+	PgHost **hosts;		/* array in original config order (for round-robin) */
+	PgHost **sorted;	/* same hosts sorted by active_count (for least-connections) */
+	int count;		/* number of hosts in arrays */
 };
 
 /*
@@ -589,8 +606,10 @@ struct PgDatabase {
 	/*
 	 * configuration
 	 */
-	char *host;		/* host or unix socket name */
-	int port;
+	char *host;		/* host or unix socket name (original config string) */
+	char *port_str;		/* port(s) as string (original config, may be comma-separated) */
+	PgHosts *host_list;	/* parsed host entries (NULL if unix socket or single host) */
+	int port;		/* default port (first port if comma-separated, for backward compat) */
 	int pool_size;		/* max server connections in one pool */
 	int min_pool_size;	/* min server connections in one pool */
 	int res_pool_size;	/* additional server connections in case of trouble */
@@ -672,6 +691,7 @@ extern const char *replication_type_parameters[3];
 struct PgSocket {
 	struct List head;		/* list header for pool list */
 	struct List cancel_head;	/* list header for server->canceling_clients */
+	struct List host_head;		/* list header for host idle list */
 	PgSocket *link;		/* the dest of packets */
 	PgPool *pool;		/* parent pool, if NULL not yet assigned */
 

@@ -102,31 +102,204 @@ int get_active_server_count(void)
 	return slab_active_count(server_cache);
 }
 
+/* Hash table of all hosts, keyed by name */
+static PgHost *host_hashtable = NULL;
+
+
 /*
- * Create a host entry by name.
- * Hosts persist for the lifetime of pgbouncer.
+ * Find or create a host entry by name and port.
+ * Hosts persist for the lifetime of pgbouncer and are reused across reloads.
+ * The hash key is "hostname:port" to allow same hostname with different ports.
  */
-PgHost *pg_create_host(const char *host_name)
+PgHost *pg_create_host(const char *host_name, int port)
 {
 	PgHost *host;
+	char key[512];
 
 	if (!host_name)
 		return NULL;
 
-	host = malloc(sizeof(PgHost));
+	/* Create hash key as "hostname:port" */
+	snprintf(key, sizeof(key), "%s:%d", host_name, port);
+
+	/* Look up existing host by key */
+	HASH_FIND_STR(host_hashtable, key, host);
+	if (host)
+		return host;
+
+	/* Create new host */
+	host = calloc(1, sizeof(PgHost));
 	if (!host) {
 		log_error("pg_create_host: out of memory");
 		return NULL;
 	}
 
 	host->name = strdup(host_name);
-	if (!host->name) {
+	host->key = strdup(key);
+	if (!host->name || !host->key) {
+		free(host->name);
+		free(host->key);
 		free(host);
-		log_error("pg_create_host: out of memory for host name");
+		log_error("pg_create_host: out of memory");
 		return NULL;
 	}
 
+	host->port = port;
+	statlist_init(&host->idle_server_list, "host_idle_server_list");
+
+	/* Add to hash table */
+	HASH_ADD_KEYPTR(hh, host_hashtable, host->key, strlen(host->key), host);
+
 	return host;
+}
+
+/*
+ * Parse db->host string (possibly comma-separated) and populate db->host_list.
+ * Returns true on success, false on failure.
+ */
+bool parse_database_hosts(PgDatabase *db)
+{
+	char *host_copy, *port_copy, *p, *host_name, *port_str;
+	int host_count = 1;
+	int port_count = 1;
+	int *ports = NULL;
+	int i;
+	PgHosts *hl;
+
+	/* Free old host_list if any */
+	if (db->host_list) {
+		/* Note: PgHost objects persist, we just free the arrays */
+		free(db->host_list->hosts);
+		free(db->host_list->sorted);
+		free(db->host_list);
+		db->host_list = NULL;
+	}
+
+	if (!db->host)
+		return true;  /* No hosts is valid (unix socket) */
+
+	/* Count hosts */
+	for (p = db->host; *p; p++)
+		if (*p == ',')
+			host_count++;
+
+	/* Count ports */
+	if (db->port_str) {
+		for (p = db->port_str; *p; p++)
+			if (*p == ',')
+				port_count++;
+	}
+
+	/* Validate port count: must be 1 or match host count */
+	if (port_count != 1 && port_count != host_count) {
+		log_error("parse_database_hosts: port count (%d) must be 1 or match host count (%d)",
+			  port_count, host_count);
+		return false;
+	}
+
+	/* Parse ports into array */
+	ports = malloc(host_count * sizeof(int));
+	if (!ports) {
+		log_error("parse_database_hosts: out of memory");
+		return false;
+	}
+
+	if (db->port_str) {
+		port_copy = strdup(db->port_str);
+		if (!port_copy) {
+			free(ports);
+			log_error("parse_database_hosts: out of memory");
+			return false;
+		}
+
+		i = 0;
+		for (port_str = strtok(port_copy, ","); port_str && i < host_count; port_str = strtok(NULL, ",")) {
+			ports[i] = atoi(port_str);
+			if (ports[i] == 0) {
+				log_error("parse_database_hosts: invalid port: %s", port_str);
+				free(port_copy);
+				free(ports);
+				return false;
+			}
+			i++;
+		}
+		free(port_copy);
+
+		/* If only one port, replicate for all hosts */
+		if (port_count == 1) {
+			for (i = 1; i < host_count; i++)
+				ports[i] = ports[0];
+		}
+	} else {
+		/* No port string, use default */
+		for (i = 0; i < host_count; i++)
+			ports[i] = db->port;
+	}
+
+	/* Allocate PgHosts structure */
+	hl = malloc(sizeof(PgHosts));
+	if (!hl) {
+		free(ports);
+		log_error("parse_database_hosts: out of memory");
+		return false;
+	}
+	hl->hosts = NULL;
+	hl->sorted = NULL;
+	hl->count = 0;
+
+	/* Allocate hosts array (original order) */
+	hl->hosts = malloc(host_count * sizeof(PgHost *));
+	if (!hl->hosts) {
+		free(hl);
+		free(ports);
+		log_error("parse_database_hosts: out of memory");
+		return false;
+	}
+
+	/* Allocate sorted array (same hosts, will be sorted by active_count) */
+	hl->sorted = malloc(host_count * sizeof(PgHost *));
+	if (!hl->sorted) {
+		free(hl->hosts);
+		free(hl);
+		free(ports);
+		log_error("parse_database_hosts: out of memory");
+		return false;
+	}
+
+	/* Parse and create hosts */
+	host_copy = strdup(db->host);
+	if (!host_copy) {
+		free(hl->sorted);
+		free(hl->hosts);
+		free(hl);
+		free(ports);
+		log_error("parse_database_hosts: out of memory");
+		return false;
+	}
+
+	i = 0;
+	for (host_name = strtok(host_copy, ","); host_name; host_name = strtok(NULL, ",")) {
+		PgHost *h = pg_create_host(host_name, ports[i]);
+		if (!h) {
+			free(host_copy);
+			free(hl->sorted);
+			free(hl->hosts);
+			free(hl);
+			free(ports);
+			return false;
+		}
+		h->index = i;
+		hl->hosts[i] = h;
+		hl->sorted[i] = h;  /* Initially same order as hosts */
+		i++;
+	}
+	hl->count = i;
+
+	free(host_copy);
+	free(ports);
+
+	db->host_list = hl;
+	return true;
 }
 
 static void construct_client(void *obj)
@@ -148,6 +321,7 @@ static void construct_server(void *obj)
 
 	memset(server, 0, sizeof(PgSocket));
 	list_init(&server->head);
+	list_init(&server->host_head);
 	sbuf_init(&server->sbuf, server_proto);
 	server->vars.var_list = slab_alloc(var_list_cache);
 	server->state = SV_FREE;
@@ -315,6 +489,10 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	}
 }
 
+/* forward declarations for host tracking */
+static void increment_host_active_connections(PgDatabase *db, PgHost *host);
+static void decrement_host_active_connections(PgDatabase *db, PgHost *host);
+
 /* state change means moving between lists */
 void change_server_state(PgSocket *server, SocketState newstate)
 {
@@ -342,9 +520,14 @@ void change_server_state(PgSocket *server, SocketState newstate)
 		break;
 	case SV_IDLE:
 		statlist_remove(&pool->idle_server_list, &server->head);
+		if (server->host)
+			statlist_remove(&server->host->idle_server_list, &server->host_head);
 		break;
 	case SV_ACTIVE:
 		statlist_remove(&pool->active_server_list, &server->head);
+		if (server->host) {
+			decrement_host_active_connections(pool->db, server->host);
+		}
 		break;
 	case SV_ACTIVE_CANCEL:
 		statlist_remove(&pool->active_cancel_server_list, &server->head);
@@ -384,9 +567,15 @@ void change_server_state(PgSocket *server, SocketState newstate)
 			/* otherwise use LIFO */
 			statlist_prepend(&pool->idle_server_list, &server->head);
 		}
+		if (server->host) {
+			statlist_append(&server->host->idle_server_list, &server->host_head);
+		}
 		break;
 	case SV_ACTIVE:
 		statlist_append(&pool->active_server_list, &server->head);
+		if (server->host) {
+			increment_host_active_connections(pool->db, server->host);
+		}
 		break;
 	case SV_ACTIVE_CANCEL:
 		statlist_append(&pool->active_cancel_server_list, &server->head);
@@ -919,10 +1108,103 @@ bool check_fast_fail(PgSocket *client)
 	return false;
 }
 
+/*
+ * Swap two hosts in the sorted array and update their indices.
+ * Note: only swaps in sorted array, not in original hosts array.
+ */
+static void swap_hosts(PgHost **hosts, int i, int j)
+{
+	PgHost *tmp = hosts[i];
+	hosts[i] = hosts[j];
+	hosts[j] = tmp;
+	hosts[i]->index = i;
+	hosts[j]->index = j;
+}
+
+/*
+ * After incrementing active_count, bubble the host right in sorted array.
+ * Sorting is done on host_list->sorted, keeping host_list->hosts in original order.
+ */
+static void increment_host_active_connections(PgDatabase *db, PgHost *host)
+{
+	int i;
+	PgHosts *hl = db->host_list;
+
+	host->active_count++;
+
+	if (!hl)
+		return;
+
+	/* Bubble right in sorted array to maintain order by active_count */
+	for (i = host->index + 1; i < hl->count; i++) {
+		if (hl->sorted[i]->active_count > host->active_count - 1) {
+			break;
+		}
+	}
+	if (i != host->index + 1) {
+		swap_hosts(hl->sorted, host->index, i - 1);
+	}
+}
+
+/*
+ * After decrementing active_count, bubble the host left in sorted array.
+ * Sorting is done on host_list->sorted, keeping host_list->hosts in original order.
+ */
+static void decrement_host_active_connections(PgDatabase *db, PgHost *host)
+{
+	int i;
+	PgHosts *hl = db->host_list;
+
+	host->active_count--;
+
+	if (!hl)
+		return;
+
+	/* Bubble left in sorted array to maintain order by active_count */
+	for (i = host->index - 1; i >= 0; i--) {
+		if (hl->sorted[i]->active_count < host->active_count + 1) {
+			break;
+		}
+	}
+	if (i != host->index - 1) {
+		swap_hosts(hl->sorted, host->index, i + 1);
+	}
+}
+
+/*
+ * Find an idle server from the specified host that belongs to the given pool.
+ * Returns NULL if no suitable server found.
+ */
+static PgSocket *find_idle_server_for_host(PgHost *host, PgPool *pool)
+{
+	struct List *el, *tmp;
+	PgSocket *server;
+
+	if (!host)
+		return NULL;
+
+	statlist_for_each_safe(el, &host->idle_server_list, tmp) {
+		server = container_of(el, PgSocket, host_head);
+		if (server->pool != pool)
+			continue;
+		if (server->close_needed) {
+			disconnect_server(server, true, "obsolete connection");
+			continue;
+		}
+		if (!server->ready) {
+			disconnect_server(server, true, "idle server got dirty");
+			continue;
+		}
+		return server;
+	}
+	return NULL;
+}
+
 /* link if found, otherwise put into wait queue */
 bool find_server(PgSocket *client)
 {
 	PgPool *pool = client->pool;
+	PgDatabase *db = pool->db;
 	PgSocket *server;
 	bool res;
 	bool varchange = false;
@@ -950,7 +1232,17 @@ bool find_server(PgSocket *client)
 		 */
 		launch_new_connection(pool, /*evict_if_needed= */ true);
 		server = NULL;
+	} else if (db->host_list && db->host_list->count > 0 && db->load_balance_hosts == LOAD_BALANCE_HOSTS_ROUND_ROBIN) {
+		/* Multiple hosts with round-robin: iterate through sorted hosts to find idle connection */
+		for (int i = 0; i < db->host_list->count; i++) {
+			server = find_idle_server_for_host(db->host_list->sorted[i], pool);
+			if (server)
+				break;
+		}
+		if (!server && !check_fast_fail(client))
+			return false;
 	} else {
+		/* Single host or unix socket: use pool's idle list */
 		while (1) {
 			server = first_socket(&pool->idle_server_list);
 			if (!server) {
@@ -1647,7 +1939,8 @@ static void connect_server(struct PgSocket *server, const struct sockaddr *sa, i
 	/* fill remote_addr */
 	memset(&server->remote_addr, 0, sizeof(server->remote_addr));
 	if (sa->sa_family == AF_UNIX) {
-		pga_set(&server->remote_addr, AF_UNIX, server->pool->db->port);
+		int port = server->host ? server->host->port : server->pool->db->port;
+		pga_set(&server->remote_addr, AF_UNIX, port);
 	} else {
 		pga_copy(&server->remote_addr, sa);
 	}
@@ -1667,8 +1960,12 @@ static void dns_callback(void *arg, const struct sockaddr *sa, int salen)
 	struct PgDatabase *db = server->pool->db;
 	struct sockaddr_in sa_in;
 	struct sockaddr_in6 sa_in6;
+	int port;
 
 	server->dns_token = NULL;
+
+	/* Use host-specific port if available, otherwise database default */
+	port = server->host ? server->host->port : db->port;
 
 	if (!sa) {
 		disconnect_server(server, true, "server DNS lookup failed");
@@ -1676,7 +1973,7 @@ static void dns_callback(void *arg, const struct sockaddr *sa, int salen)
 	} else if (sa->sa_family == AF_INET) {
 		char buf[64];
 		memcpy(&sa_in, sa, sizeof(sa_in));
-		sa_in.sin_port = htons(db->port);
+		sa_in.sin_port = htons(port);
 		sa = (struct sockaddr *)&sa_in;
 		salen = sizeof(sa_in);
 		slog_debug(server, "dns_callback: inet4: %s",
@@ -1684,7 +1981,7 @@ static void dns_callback(void *arg, const struct sockaddr *sa, int salen)
 	} else if (sa->sa_family == AF_INET6) {
 		char buf[64];
 		memcpy(&sa_in6, sa, sizeof(sa_in6));
-		sa_in6.sin6_port = htons(db->port);
+		sa_in6.sin6_port = htons(port);
 		sa = (struct sockaddr *)&sa_in6;
 		salen = sizeof(sa_in6);
 		slog_debug(server, "dns_callback: inet6: %s",
@@ -1705,36 +2002,29 @@ static void dns_connect(struct PgSocket *server)
 	struct sockaddr *sa;
 	struct PgDatabase *db = server->pool->db;
 	const char *host;
+	int port;
 	int sa_len;
 	int res;
-	char *host_copy = NULL;
 
 	/* host list? */
-	if (db->host && strchr(db->host, ',')) {
-		int count = 1;
-		int n;
+	if (db->host_list && db->host_list->count > 0) {
+		int idx;
+		PgHosts *hl = db->host_list;
 
-		if (server->pool->db->load_balance_hosts == LOAD_BALANCE_HOSTS_DISABLE && server->pool->last_connect_failed)
+		if (db->load_balance_hosts == LOAD_BALANCE_HOSTS_DISABLE && server->pool->last_connect_failed)
 			server->pool->rrcounter++;
 
-		for (const char *p = db->host; *p; p++)
-			if (*p == ',')
-				count++;
+		/* Round-robin uses original order (hosts), not sorted order */
+		idx = server->pool->rrcounter % hl->count;
+		server->host = hl->hosts[idx];
+		host = server->host->name;
+		port = server->host->port;
 
-		host_copy = xstrdup(db->host);
-		for (host = strtok(host_copy, ","), n = 0; host; host = strtok(NULL, ","), n++)
-			if (server->pool->rrcounter % count == n)
-				break;
-		Assert(host);
-
-		if (server->pool->db->load_balance_hosts == LOAD_BALANCE_HOSTS_ROUND_ROBIN)
+		if (db->load_balance_hosts == LOAD_BALANCE_HOSTS_ROUND_ROBIN)
 			server->pool->rrcounter++;
 	} else {
-		host = db->host;
-	}
-
-	if (host) {
-		server->host = pg_create_host(host);
+		host = db->host;  /* NULL or single unix socket path */
+		port = db->port;
 	}
 
 	if (!host || host[0] == '/' || host[0] == '@') {
@@ -1746,10 +2036,10 @@ static void dns_connect(struct PgSocket *server)
 		if (!unix_dir || !*unix_dir) {
 			log_error("unix socket dir not configured: %s", db->name);
 			disconnect_server(server, false, "cannot connect");
-			goto cleanup;
+			return;
 		}
 		snprintf(sa_un.sun_path, sizeof(sa_un.sun_path),
-			 "%s/.s.PGSQL.%d", unix_dir, db->port);
+			 "%s/.s.PGSQL.%d", unix_dir, port);
 		slog_noise(server, "unix socket: %s", sa_un.sun_path);
 		if (unix_dir[0] == '@') {
 			/*
@@ -1769,7 +2059,7 @@ static void dns_connect(struct PgSocket *server)
 		memset(&sa_in6, 0, sizeof(sa_in6));
 		sa_in6.sin6_family = AF_INET6;
 		res = inet_pton(AF_INET6, host, &sa_in6.sin6_addr);
-		sa_in6.sin6_port = htons(db->port);
+		sa_in6.sin6_port = htons(port);
 		sa = (struct sockaddr *)&sa_in6;
 		sa_len = sizeof(sa_in6);
 	} else {/* else try IPv4 */
@@ -1777,7 +2067,7 @@ static void dns_connect(struct PgSocket *server)
 		memset(&sa_in, 0, sizeof(sa_in));
 		sa_in.sin_family = AF_INET;
 		res = inet_pton(AF_INET, host, &sa_in.sin_addr);
-		sa_in.sin_port = htons(db->port);
+		sa_in.sin_port = htons(port);
 		sa = (struct sockaddr *)&sa_in;
 		sa_len = sizeof(sa_in);
 	}
@@ -1790,12 +2080,10 @@ static void dns_connect(struct PgSocket *server)
 		tk = adns_resolve(adns, host, dns_callback, server);
 		if (tk)
 			server->dns_token = tk;
-		goto cleanup;
+		return;
 	}
 
 	connect_server(server, sa, sa_len);
-cleanup:
-	free(host_copy);
 }
 
 PgSocket *compare_connections_by_time(PgSocket *lhs, PgSocket *rhs)
@@ -2455,6 +2743,14 @@ bool use_server_socket(int fd, PgAddr *addr,
 
 	fill_remote_addr(server, fd, pga_is_unix(addr));
 	fill_local_addr(server, fd, pga_is_unix(addr));
+
+	/* Set host for taken-over servers using their actual address.
+	 * This allows proper load balancing across multiple hosts/sockets. */
+	{
+		char host_str[PGADDR_BUF];
+		pga_ntop(addr, host_str, sizeof(host_str));
+		server->host = pg_create_host(host_str, pga_port(addr));
+	}
 
 	if (linkfd) {
 		server->ready = false;

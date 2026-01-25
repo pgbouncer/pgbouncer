@@ -5,16 +5,9 @@ services:
       dockerfile: Dockerfile
     volumes:
       # Mount source code read-only
-      - ..:/src:ro
+      - ..:/source:ro
       # Build output volume (keeps source clean)
       - build-output:/build
-      # Mount source directories read-only
-      - ../src:/build/src:ro
-      - ../lib:/build/lib:ro
-      - ../include:/build/include:ro
-      - ../etc:/build/etc:ro
-      - ../doc:/build/doc:ro
-      - ../pyproject.toml:/build/pyproject.toml:ro
       # Test directory needs read-write (creates certs, temp files)
       - ../test:/build/test
     # Keep container running for interactive use
@@ -26,6 +19,9 @@ services:
     environment:
       - PGVERSION=16
       - CONCURRENCY=4
+    # Network capability for tc/iptables tests
+    cap_add:
+      - NET_ADMIN
     # Default command keeps container alive
     command: ["bash"]
 

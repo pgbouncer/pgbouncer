@@ -18,6 +18,7 @@ RUN apt-get -y --no-install-recommends install \
     cpio \
     git \
     iptables \
+    iproute2 \
     ldap-utils \
     libc-ares-dev \
     libevent-dev \
@@ -33,6 +34,7 @@ RUN apt-get -y --no-install-recommends install \
     python3 \
     python3-pip \
     python3-venv \
+    rsync \
     slapd \
     socat \
     sudo
@@ -50,7 +52,7 @@ RUN useradd -m -s /bin/bash user && \
 ENV PATH="/usr/lib/postgresql/${PGVERSION}/bin:/venv/bin:${PATH}"
 
 # Create directories
-RUN mkdir -p /src /build && chown user:user /build
+RUN mkdir -p /source /build && chown user:user /build
 
 WORKDIR /build
 
@@ -61,17 +63,20 @@ set -e
 
 cd /build
 
-# Check if configure exists in source
-if [ ! -f /src/configure ]; then
-    echo "Error: /src/configure not found."
-    echo "Run './autogen.sh' in your source directory first."
-    exit 1
+# Sync source from /source to /build (excludes .git and test which is a separate mount)
+echo "==> Syncing source..."
+rsync -a --delete --exclude='.git' --exclude='test' /source/ /build/
+
+# Run autogen.sh if configure doesn't exist
+if [ ! -f configure ]; then
+    echo "==> Running autogen.sh..."
+    ./autogen.sh
 fi
 
-# Run configure if Makefile doesn't exist (out-of-tree build)
-if [ ! -f Makefile ]; then
-    echo "==> Running configure (out-of-tree build)..."
-    /src/configure --prefix=/build/install --enable-cassert --with-cares --with-pam --with-ldap --with-systemd
+# Run configure if Makefile doesn't exist or configure.ac is newer
+if [ ! -f Makefile ] || [ configure.ac -nt Makefile ]; then
+    echo "==> Running configure..."
+    ./configure --prefix=/build/install --enable-cassert --with-cares --with-pam --with-ldap --with-systemd
 fi
 
 echo "==> Building..."
@@ -99,6 +104,15 @@ source /venv/bin/activate
 CONCURRENCY=${CONCURRENCY:-4}
 
 make check CONCURRENCY=$CONCURRENCY "$@"
+EOF
+
+# Script to sync only (without building)
+COPY --chmod=755 <<'EOF' /usr/local/bin/sync-src
+#!/bin/bash
+set -e
+echo "==> Syncing source from /source to /build..."
+rsync -a --delete --exclude='.git' --exclude='test' /source/ /build/
+echo "==> Done."
 EOF
 
 USER user

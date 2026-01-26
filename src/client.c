@@ -1080,10 +1080,12 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 		}
 	}
 
-	if (pkt->type == PKT_STARTUP_V3_UNSUPPORTED || unsupported_protocol_extensions_count > 0) {
+	if ((pkt->type == PKT_STARTUP_V3_UNSUPPORTED || unsupported_protocol_extensions_count > 0)
+	    && !client->protocol_negotiated) {
 		PktBuf *buf = pktbuf_dynamic(512);
 		int res;
 
+		client->protocol_negotiated = true;
 		pktbuf_write_NegotiateProtocolVersion(
 			buf,
 			unsupported_protocol_extensions_count,
@@ -1091,8 +1093,8 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 			unsupported_protocol_extensions.write_pos
 			);
 		res = pktbuf_send_immediate(buf, client);
+		pktbuf_free(buf);
 		if (!res) {
-			pktbuf_free(buf);
 			disconnect_client(client, false, "unable to send protocol negotiation packet");
 			return false;
 		}

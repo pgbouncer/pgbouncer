@@ -158,8 +158,6 @@ typedef struct PgGlobalUser PgGlobalUser;
 typedef struct PgDatabase PgDatabase;
 typedef struct PgPool PgPool;
 typedef struct PgStats PgStats;
-typedef struct PgHost PgHost;
-typedef struct PgHosts PgHosts;
 typedef union PgAddr PgAddr;
 typedef enum SocketState SocketState;
 typedef enum PacketCallbackFlag PacketCallbackFlag;
@@ -316,29 +314,8 @@ const char *pga_str(const PgAddr *a, char *dst, int dstlen);
 const char *pga_details(const PgAddr *a, char *dst, int dstlen);
 int pga_cmp_addr(const PgAddr *a, const PgAddr *b);
 
-/*
- * Host entry - tracks a single host from configuration.
- * Created via pg_create_host() and persists for the lifetime of pgbouncer.
- */
-struct PgHost {
-	char *name;			/* hostname string */
-	char *key;			/* hash key: "hostname:port" */
-	int port;			/* port number for this host */
-	int active_count;		/* number of active connections to this host */
-	int index;			/* position in host_list->sorted array (kept sorted by active_count) */
-	struct StatList idle_server_list;	/* idle server connections to this host */
-	UT_hash_handle hh;		/* makes this structure hashable by key */
-};
-
-/*
- * Collection of hosts for a database - maintains both original order
- * (for round-robin) and sorted order (for least-connections).
- */
-struct PgHosts {
-	PgHost **hosts;		/* array in original config order (for round-robin) */
-	PgHost **sorted;	/* same hosts sorted by active_count (for least-connections) */
-	int count;		/* number of hosts in arrays */
-};
+/* Host pool structures - defined in hostpool.h */
+#include "hostpool.h"
 
 /*
  * Stats, kept per-pool.

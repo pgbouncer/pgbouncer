@@ -937,7 +937,7 @@ bool find_server(PgSocket *client)
 		launch_new_connection(pool, /*evict_if_needed= */ true);
 		server = NULL;
 	} else if (db->host_pool && db->host_pool->count > 0 && db->load_balance_hosts == LOAD_BALANCE_HOSTS_ROUND_ROBIN) {
-		/* Multiple hosts: iterate through hosts to find idle connection */
+		/* Host pool with round-robin: iterate through hosts to find idle connection */
 		PgHostPool *hp = db->host_pool;
 		server = NULL;
 		for (int i = 0; i < hp->count && !server; i++) {
@@ -2453,7 +2453,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 	{
 		char host_str[PGADDR_BUF];
 		pga_ntop(addr, host_str, sizeof(host_str));
-		server->host = hostpool_create_host(host_str, pga_port(addr));
+		server->host = hostpool_get_host(host_str, pga_port(addr));
 	}
 
 	if (linkfd) {

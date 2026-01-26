@@ -911,6 +911,11 @@ void kill_database(PgDatabase *db)
 
 	pktbuf_free(db->startup_params);
 	free(db->host);
+	free(db->port_str);
+
+	/* Release host pool reference (hosts are reference-counted separately) */
+	if (db->host_pool)
+		hostpool_unref_pool(db->host_pool);
 
 	if (db->forced_user_credentials)
 		slab_free(credentials_cache, db->forced_user_credentials);

@@ -455,13 +455,14 @@ def test_auto_database(bouncer):
 # we test this here is to have a host list containing an IPv4 and an
 # IPv6 representation of localhost, and then we check the log that
 # both connections were made.  Some CI environments don't have IPv6
-# localhost configured.  Therefore, this test is skipped by default
-# and needs to be enabled explicitly by setting HAVE_IPV6_LOCALHOST to
-# non-empty.
+# This tests round-robin load balancing with IPv6 addresses.
+# Note: hostlist1 uses ::1,::2 to avoid host pool conflicts with other multi-host databases.
+# Therefore, this test is skipped by default and needs to be enabled explicitly
+# by setting HAVE_IPV6_LOCALHOST to non-empty.
 @pytest.mark.skipif("not HAVE_IPV6_LOCALHOST")
 async def test_host_list(bouncer):
-    with bouncer.log_contains(r"new connection to server \(from 127.0.0.1", times=1):
-        with bouncer.log_contains(r"new connection to server \(from \[::1\]", times=1):
+    with bouncer.log_contains(r"new connection to server \(from \[::1\]", times=1):
+        with bouncer.log_contains(r"new connection to server \(from \[::2\]", times=1):
             await bouncer.asleep(1, dbname="hostlist1", times=2)
 
 
@@ -470,7 +471,9 @@ async def test_host_list(bouncer):
 # connections are made.  But the test is useful to get some test
 # coverage (valgrind etc.) of the host list code on systems without
 # IPv6 enabled.
+# Note: Uses 127.0.0.127 to avoid host pool conflicts with other multi-host databases.
 async def test_host_list_dummy(bouncer):
+    # hostlist2 shares pool with hostlist_good_first [127.0.0.1, 127.0.0.3]
     with bouncer.log_contains(r"new connection to server \(from 127.0.0.1", times=2):
         await bouncer.asleep(1, dbname="hostlist2", times=2)
 

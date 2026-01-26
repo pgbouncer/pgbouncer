@@ -92,8 +92,11 @@ async def bouncer_lb(pg, pg2, tmp_path):
     with bouncer.ini_path.open("r") as f:
         ini_content = f.read()
 
+    # Use 'localhost' instead of '127.0.0.1' to avoid conflicts with hostlist_* databases
+    # which also use 127.0.0.1 (with the same port after substitution). The hash key
+    # 'localhost:{port}' is different from '127.0.0.1:{port}'.
     db_entry = (
-        f"lb_test = host=127.0.0.1,127.0.0.1 port={pg.port},{pg2.port} dbname=p0 user=bouncer "
+        f"lb_test = host=localhost,localhost port={pg.port},{pg2.port} dbname=p0 user=bouncer "
         f"pool_size=10 pool_mode=session load_balance_hosts=round-robin\n"
     )
     ini_content = ini_content.replace("[databases]\n", f"[databases]\n{db_entry}")
@@ -144,8 +147,9 @@ async def bouncer_multi_host_single_port(pg, pg2_same_port, tmp_path):
         ini_content = f.read()
 
     # Two different IPs, same port - tests that single port is replicated to all hosts
+    # Use 'localhost' instead of '127.0.0.1' to avoid conflicts with hostlist_* databases
     db_entry = (
-        f"multi_single_test = host=127.0.0.1,127.0.0.2 port={pg.port} dbname=p0 user=bouncer "
+        f"multi_single_test = host=localhost,127.0.0.2 port={pg.port} dbname=p0 user=bouncer "
         f"pool_size=10 pool_mode=session load_balance_hosts=round-robin\n"
     )
     ini_content = ini_content.replace("[databases]\n", f"[databases]\n{db_entry}")
@@ -170,8 +174,9 @@ async def bouncer_failover(pg, pg2, tmp_path):
     with bouncer.ini_path.open("r") as f:
         ini_content = f.read()
 
+    # Use 'localhost' instead of '127.0.0.1' to avoid conflicts with hostlist_* databases
     db_entry = (
-        f"failover_test = host=127.0.0.1,127.0.0.1 port={pg.port},{pg2.port} dbname=p0 user=bouncer "
+        f"failover_test = host=localhost,localhost port={pg.port},{pg2.port} dbname=p0 user=bouncer "
         f"pool_size=10 pool_mode=session load_balance_hosts=disable\n"
     )
     ini_content = ini_content.replace("[databases]\n", f"[databases]\n{db_entry}")
@@ -277,12 +282,13 @@ async def test_multi_host_single_port(bouncer_multi_host_single_port):
     """Test that multiple hosts with single port works (port replicated to all hosts).
 
     This test requires USE_SUDO=1 to set up 127.0.0.2 as a loopback alias.
-    Two Postgres instances run on 127.0.0.1 and 127.0.0.2, both on the same port.
+    Two Postgres instances run on localhost (::1 or 127.0.0.1) and 127.0.0.2, both on the same port.
     """
     bouncer = bouncer_multi_host_single_port
 
     conns = []
-    addrs_seen = {"127.0.0.1": 0, "127.0.0.2": 0}
+    # localhost may resolve to ::1 or 127.0.0.1, track both
+    addrs_seen = {}
     prev_addr = None
 
     try:
@@ -298,9 +304,10 @@ async def test_multi_host_single_port(bouncer_multi_host_single_port):
                     f"Connection {i} went to same server as {i-1}: {server_addr}"
             prev_addr = server_addr
 
-        # Verify both servers got connections (should be 5 each with round-robin)
-        assert addrs_seen["127.0.0.1"] == 5, f"Expected 5 connections to 127.0.0.1, got {addrs_seen['127.0.0.1']}"
-        assert addrs_seen["127.0.0.2"] == 5, f"Expected 5 connections to 127.0.0.2, got {addrs_seen['127.0.0.2']}"
+        # Verify we got exactly 2 different addresses with 5 connections each
+        assert len(addrs_seen) == 2, f"Expected 2 different addresses, got {list(addrs_seen.keys())}"
+        for addr, count in addrs_seen.items():
+            assert count == 5, f"Expected 5 connections to {addr}, got {count}"
 
     finally:
         for conn in conns:

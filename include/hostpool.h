@@ -72,7 +72,7 @@ typedef struct PgHostPool {
 	int count;		/* number of hosts */
 	int refcount;		/* number of databases using this pool */
 	int min_active;		/* minimum active_count among all hosts (multi-host only) */
-	struct StatList *buckets;	/* array of lists, indexed by active_count (NULL for single-host) */
+	struct List *buckets;		/* array of lists, indexed by active_count (NULL for single-host) */
 	int bucket_count;	/* size of buckets array (grows as needed) */
 } PgHostPool;
 
@@ -121,12 +121,6 @@ PgHostPool *hostpool_create_host_pool(int host_count, PgHost **hosts);
 void hostpool_free_pool(PgHostPool *pool);
 
 /*
- * Add a host to a pool at the given index.
- * The host is placed in bucket 0 (zero active connections).
- */
-bool hostpool_add_host(PgHostPool *pool, PgHost *host, int index);
-
-/*
  * Parse db->host string (possibly comma-separated) and populate db->host_pool.
  * Also parses db->port_str if present to assign per-host ports.
  *
@@ -159,16 +153,10 @@ void hostpool_increment_active(PgHost *host);
 void hostpool_decrement_active(PgHost *host);
 
 /*
- * Get the host with minimum active connections from the pool.
- * Returns NULL if pool is empty.
- */
-PgHost *hostpool_get_least_active_host(struct PgHostPool *pool);
-
-/*
- * Find an idle server connection from a specific host for the given pool.
+ * Get an idle server from the host pool, preferring hosts with fewer active connections.
  * Returns NULL if no suitable server found.
  */
-struct PgSocket *hostpool_get_idle_server(PgHost *host, struct PgPool *pool);
+struct PgSocket *hostpool_get_idle_server(struct PgHostPool *host_pool, struct PgPool *conn_pool);
 
 /*
  * Get the sum of refcounts of all hosts in the array.

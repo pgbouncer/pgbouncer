@@ -936,13 +936,9 @@ bool find_server(PgSocket *client)
 		 */
 		launch_new_connection(pool, /*evict_if_needed= */ true);
 		server = NULL;
-	} else if (db->host_pool && db->host_pool->count > 0 && db->load_balance_hosts == LOAD_BALANCE_HOSTS_ROUND_ROBIN) {
-		/* Host pool with round-robin: iterate through hosts to find idle connection */
-		PgHostPool *hp = db->host_pool;
-		server = NULL;
-		for (int i = 0; i < hp->count && !server; i++) {
-			server = hostpool_get_idle_server(hp->hosts[i], pool);
-		}
+	} else if (db->host_pool && db->host_pool->count > 1 && db->load_balance_hosts == LOAD_BALANCE_HOSTS_ROUND_ROBIN) {
+		/* Multi-host pool: find idle connection preferring least-loaded hosts */
+		server = hostpool_get_idle_server(db->host_pool, pool);
 		if (!server && !check_fast_fail(client))
 			return false;
 	} else {

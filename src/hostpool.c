@@ -49,7 +49,7 @@ static STATLIST(host_pool_list);
 static bool ensure_bucket_capacity(PgHostPool *pool, int needed)
 {
 	int new_count;
-	struct StatList *new_buckets;
+	struct List *new_buckets;
 
 	if (!pool->buckets)
 		return true;  /* Single-host pool, no buckets */
@@ -62,7 +62,7 @@ static bool ensure_bucket_capacity(PgHostPool *pool, int needed)
 	if (new_count < needed)
 		new_count = needed;
 
-	new_buckets = realloc(pool->buckets, new_count * sizeof(struct StatList));
+	new_buckets = realloc(pool->buckets, new_count * sizeof(struct List));
 	if (!new_buckets) {
 		log_error("hostpool: out of memory for buckets");
 		return false;
@@ -70,7 +70,7 @@ static bool ensure_bucket_capacity(PgHostPool *pool, int needed)
 
 	/* Initialize new buckets */
 	for (int i = pool->bucket_count; i < new_count; i++) {
-		statlist_init(&new_buckets[i], "host_bucket");
+		list_init(&new_buckets[i]);
 	}
 
 	pool->buckets = new_buckets;
@@ -222,10 +222,15 @@ void hostpool_unref_pool(PgHostPool *pool)
 
 	pool->refcount--;
 	if (pool->refcount <= 0) {
-		/* Clear host_pool pointers (before releasing hosts) */
+		/* Remove hosts from buckets and clear host_pool pointers */
 		for (int i = 0; i < pool->count; i++) {
-			if (pool->hosts[i] && pool->hosts[i]->host_pool == pool)
-				pool->hosts[i]->host_pool = NULL;
+			PgHost *host = pool->hosts[i];
+			if (host && host->host_pool == pool) {
+				/* Remove from bucket list */
+				if (pool->buckets)
+					list_del(&host->bucket_node);
+				host->host_pool = NULL;
+			}
 		}
 		hostpool_unref_hosts(pool->hosts, pool->count);
 		hostpool_free_pool(pool);
@@ -260,7 +265,7 @@ PgHostPool *hostpool_create_host_pool(int host_count, PgHost **hosts)
 
 	/* Only allocate buckets for multi-host pools */
 	if (host_count > 1) {
-		pool->buckets = calloc(INITIAL_BUCKET_COUNT, sizeof(struct StatList));
+		pool->buckets = calloc(INITIAL_BUCKET_COUNT, sizeof(struct List));
 		if (!pool->buckets) {
 			log_error("hostpool_create_host_pool: out of memory");
 			free(pool->hosts);
@@ -269,7 +274,7 @@ PgHostPool *hostpool_create_host_pool(int host_count, PgHost **hosts)
 		}
 
 		for (int i = 0; i < INITIAL_BUCKET_COUNT; i++) {
-			statlist_init(&pool->buckets[i], "host_bucket");
+			list_init(&pool->buckets[i]);
 		}
 		pool->bucket_count = INITIAL_BUCKET_COUNT;
 	}
@@ -279,31 +284,21 @@ PgHostPool *hostpool_create_host_pool(int host_count, PgHost **hosts)
 	pool->min_active = 0;
 	pool->refcount = 1;
 
+	/* Link hosts to pool (multi-host only) */
+	if (host_count > 1) {
+		for (int i = 0; i < host_count; i++) {
+			PgHost *host = hosts[i];
+			host->index = i;
+			host->host_pool = pool;
+			list_init(&host->bucket_node);
+			list_append(&pool->buckets[0], &host->bucket_node);
+		}
+	}
+
 	/* Add to global list */
 	statlist_append(&host_pool_list, &pool->head);
 
 	return pool;
-}
-
-/*
- * Add a host to a pool at the given index.
- * Increments the host's refcount and sets up bucket tracking for multi-host pools.
- */
-bool hostpool_add_host(PgHostPool *pool, PgHost *host, int index)
-{
-	if (!pool || !host)
-		return false;
-
-	if (index >= pool->count) {
-		log_error("hostpool_add_host: index %d out of bounds (count %d)", index, pool->count);
-		return false;
-	}
-	if (pool->hosts[index]) {
-		log_error("hostpool_add_host: host already in pool at index %d", index);
-		return false;
-	}
-	hostpool_ref_host(host);
-	return true;
 }
 
 /**
@@ -355,33 +350,41 @@ bool hostpool_all_distinct(PgHost **hosts, int count)
 static PgHostPool *hostpool_get_pool(PgHost **hosts, int count)
 {
 	PgHostPool *pool = NULL;
+
 	if (!hostpool_all_distinct(hosts, count)) {
 		log_error("hostpool_get_pool: duplicate hosts in configuration");
 		return NULL;
 	}
-	for (int i = 0; i < count; i++) {
-		PgHost *host = hosts[i];
 
-		/* Hosts in single host pools can be grouped */
-		if (host->host_pool && host->host_pool->count > 1) {
-			if (pool == NULL) {
-				pool = host->host_pool;
-			} else if (pool != host->host_pool) {
-				/* Host appears in distinct multi-host pools - error */
-				return NULL;
+	/* For multi-host pools, check if hosts are already in a multi-host pool */
+	if (count > 1) {
+		for (int i = 0; i < count; i++) {
+			PgHost *host = hosts[i];
+
+			if (host->host_pool && host->host_pool->count > 1) {
+				if (pool == NULL) {
+					pool = host->host_pool;
+				} else if (pool != host->host_pool) {
+					/* Host appears in distinct multi-host pools - error */
+					log_error("hostpool_get_pool: host in conflicting multi-host pools");
+					return NULL;
+				}
 			}
 		}
-	}
-	if(pool) {
-		/* Check if all hosts from existing pool match */
-		if(pool->count != count) {
-			return NULL;
+
+		if (pool) {
+			/* Check if existing pool has same hosts */
+			if (pool->count != count) {
+				log_error("hostpool_get_pool: host count mismatch with existing pool");
+				return NULL;
+			}
+			hostpool_ref(pool);
+			return pool;
 		}
-		hostpool_ref(pool);
-		return pool;
-	} else {
-		return hostpool_create_host_pool(count, hosts);
 	}
+
+	/* Create new pool (single-host pools don't share or check existing multi-host pools) */
+	return hostpool_create_host_pool(count, hosts);
 }
 
 /*
@@ -545,13 +548,13 @@ void hostpool_increment_active(PgHost *host)
 		return;
 
 	/* Remove from old bucket */
-	statlist_remove(&pool->buckets[old_count], &host->bucket_node);
+	list_del(&host->bucket_node);
 
 	/* Add to new bucket */
-	statlist_append(&pool->buckets[new_count], &host->bucket_node);
+	list_append(&pool->buckets[new_count], &host->bucket_node);
 
 	/* Update min_active if the old bucket is now empty and was the minimum */
-	if (old_count == pool->min_active && statlist_empty(&pool->buckets[old_count])) {
+	if (old_count == pool->min_active && list_empty(&pool->buckets[old_count])) {
 		pool->min_active = new_count;
 	}
 }
@@ -585,10 +588,10 @@ void hostpool_decrement_active(PgHost *host)
 		return;
 
 	/* Remove from old bucket */
-	statlist_remove(&pool->buckets[old_count], &host->bucket_node);
+	list_del(&host->bucket_node);
 
 	/* Add to new bucket */
-	statlist_append(&pool->buckets[new_count], &host->bucket_node);
+	list_append(&pool->buckets[new_count], &host->bucket_node);
 
 	/* Update min_active if the new bucket is lower */
 	if (new_count < pool->min_active) {
@@ -597,38 +600,10 @@ void hostpool_decrement_active(PgHost *host)
 }
 
 /*
- * Get the host with minimum active connections from a multi-host pool.
- * Returns the first host from the min_active bucket.
- * For single-host pools, returns the only host.
- */
-PgHost *hostpool_get_least_active_host(PgHostPool *pool)
-{
-	struct List *el;
-
-	if (!pool || pool->count == 0)
-		return NULL;
-
-	/* Single-host pool: return the only host */
-	if (pool->count == 1 || !pool->buckets)
-		return pool->hosts[0];
-
-	/* Find first non-empty bucket starting from min_active */
-	while (pool->min_active < pool->bucket_count) {
-		if (!statlist_empty(&pool->buckets[pool->min_active])) {
-			el = statlist_first(&pool->buckets[pool->min_active]);
-			return container_of(el, PgHost, bucket_node);
-		}
-		pool->min_active++;
-	}
-
-	return NULL;
-}
-
-/*
- * Find an idle server from the specified host that belongs to the given pool.
+ * Find an idle server from the specified host that belongs to the given connection pool.
  * Returns NULL if no suitable server found.
  */
-PgSocket *hostpool_get_idle_server(PgHost *host, PgPool *pool)
+static PgSocket *get_host_idle_server(PgHost *host, PgPool *conn_pool)
 {
 	struct List *el, *tmp;
 	PgSocket *server;
@@ -638,7 +613,7 @@ PgSocket *hostpool_get_idle_server(PgHost *host, PgPool *pool)
 
 	statlist_for_each_safe(el, &host->idle_server_list, tmp) {
 		server = container_of(el, PgSocket, host_head);
-		if (server->pool != pool)
+		if (server->pool != conn_pool)
 			continue;
 		if (server->close_needed) {
 			disconnect_server(server, true, "obsolete connection");
@@ -649,6 +624,33 @@ PgSocket *hostpool_get_idle_server(PgHost *host, PgPool *pool)
 			continue;
 		}
 		return server;
+	}
+	return NULL;
+}
+
+/*
+ * Get an idle server from the host pool, preferring hosts with fewer active connections.
+ * Iterates through buckets starting from min_active.
+ * Returns NULL if no suitable server found.
+ */
+PgSocket *hostpool_get_idle_server(PgHostPool *host_pool, PgPool *conn_pool)
+{
+	PgHost *host;
+	struct List *el, *tmp;
+	PgSocket *server;
+	int n_attempts = 0;
+
+	if (!host_pool || !host_pool->buckets)
+		return NULL;
+
+	for (int i = host_pool->min_active; i < host_pool->bucket_count && n_attempts < host_pool->count; i++) {
+		list_for_each_safe(el, &host_pool->buckets[i], tmp) {
+			host = container_of(el, PgHost, bucket_node);
+			server = get_host_idle_server(host, conn_pool);
+			if (server)
+				return server;
+			n_attempts++;
+		}
 	}
 	return NULL;
 }

@@ -14,6 +14,7 @@ pgbouncer_SOURCES = \
 	src/messages.c \
 	src/main.c \
 	src/objects.c \
+	src/hostpool.c \
 	src/pam.c \
 	src/pktbuf.c \
 	src/pooler.c \

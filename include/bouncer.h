@@ -585,7 +585,7 @@ struct PgDatabase {
 	 */
 	char *host;		/* host or unix socket name (original config string) */
 	char *port_str;		/* port(s) as string (original config, may be comma-separated) */
-	PgHosts *host_list;	/* parsed host entries (NULL if unix socket or single host) */
+	PgHostPool *host_pool;	/* parsed host entries (NULL if unix socket or single host) */
 	int port;		/* default port (first port if comma-separated, for backward compat) */
 	int pool_size;		/* max server connections in one pool */
 	int min_pool_size;	/* min server connections in one pool */

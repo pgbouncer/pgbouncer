@@ -322,7 +322,7 @@ void change_server_state(PgSocket *server, SocketState newstate)
 	case SV_ACTIVE:
 		statlist_remove(&pool->active_server_list, &server->head);
 		if (server->host) {
-			hostpool_decrement_active(pool->db, server->host);
+			hostpool_decrement_active(server->host);
 		}
 		break;
 	case SV_ACTIVE_CANCEL:
@@ -370,7 +370,7 @@ void change_server_state(PgSocket *server, SocketState newstate)
 	case SV_ACTIVE:
 		statlist_append(&pool->active_server_list, &server->head);
 		if (server->host) {
-			hostpool_increment_active(pool->db, server->host);
+			hostpool_increment_active(server->host);
 		}
 		break;
 	case SV_ACTIVE_CANCEL:
@@ -936,12 +936,12 @@ bool find_server(PgSocket *client)
 		 */
 		launch_new_connection(pool, /*evict_if_needed= */ true);
 		server = NULL;
-	} else if (db->host_list && db->host_list->count > 0 && db->load_balance_hosts == LOAD_BALANCE_HOSTS_ROUND_ROBIN) {
-		/* Multiple hosts with round-robin: iterate through sorted hosts to find idle connection */
-		for (int i = 0; i < db->host_list->count; i++) {
-			server = hostpool_get_idle_server(db->host_list->sorted[i], pool);
-			if (server)
-				break;
+	} else if (db->host_pool && db->host_pool->count > 0 && db->load_balance_hosts == LOAD_BALANCE_HOSTS_ROUND_ROBIN) {
+		/* Multiple hosts: iterate through hosts to find idle connection */
+		PgHostPool *hp = db->host_pool;
+		server = NULL;
+		for (int i = 0; i < hp->count && !server; i++) {
+			server = hostpool_get_idle_server(hp->hosts[i], pool);
 		}
 		if (!server && !check_fast_fail(client))
 			return false;
@@ -1710,17 +1710,17 @@ static void dns_connect(struct PgSocket *server)
 	int sa_len;
 	int res;
 
-	/* host list? */
-	if (db->host_list && db->host_list->count > 0) {
+	/* host pool? */
+	if (db->host_pool && db->host_pool->count > 0) {
 		int idx;
-		PgHosts *hl = db->host_list;
+		PgHostPool *hp = db->host_pool;
 
 		if (db->load_balance_hosts == LOAD_BALANCE_HOSTS_DISABLE && server->pool->last_connect_failed)
 			server->pool->rrcounter++;
 
-		/* Round-robin uses original order (hosts), not sorted order */
-		idx = server->pool->rrcounter % hl->count;
-		server->host = hl->hosts[idx];
+		/* Round-robin uses original order (hosts array) */
+		idx = server->pool->rrcounter % hp->count;
+		server->host = hp->hosts[idx];
 		host = server->host->name;
 		port = server->host->port;
 
@@ -2453,7 +2453,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 	{
 		char host_str[PGADDR_BUF];
 		pga_ntop(addr, host_str, sizeof(host_str));
-		server->host = pg_create_host(host_str, pga_port(addr));
+		server->host = hostpool_create_host(host_str, pga_port(addr));
 	}
 
 	if (linkfd) {

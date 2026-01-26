@@ -30,39 +30,73 @@
 struct PgDatabase;
 struct PgPool;
 struct PgSocket;
+struct PgHostPool;
 
 /*
  * Host entry - tracks a single host from configuration.
- * Created via pg_create_host() and persists for the lifetime of pgbouncer.
+ * Created via hostpool_create_host() and persists for the lifetime of pgbouncer.
  */
 typedef struct PgHost {
 	char *name;			/* hostname string */
 	char *key;			/* hash key: "hostname:port" */
 	int port;			/* port number for this host */
 	int active_count;		/* number of active connections to this host */
-	int index;			/* position in host_list->sorted array */
+	int index;			/* position in host_pool->hosts array (original config order) */
+	struct List bucket_node;	/* node in active_count bucket list */
+	struct PgHostPool *host_pool;	/* back-pointer to containing pool */
 	struct StatList idle_server_list;	/* idle server connections to this host */
 	UT_hash_handle hh;		/* makes this structure hashable by key */
 } PgHost;
 
 /*
- * Collection of hosts for a database - maintains both original order
- * (for round-robin) and sorted order (for least-connections).
+ * Collection of hosts for a database - maintains original order for round-robin
+ * and buckets by active_count for least-connections selection.
  */
-typedef struct PgHosts {
+typedef struct PgHostPool {
 	PgHost **hosts;		/* array in original config order (for round-robin) */
-	PgHost **sorted;	/* same hosts sorted by active_count (for least-connections) */
-	int count;		/* number of hosts in arrays */
-} PgHosts;
+	int count;		/* number of hosts */
+	int min_active;		/* minimum active_count among all hosts */
+	struct StatList *buckets;	/* array of lists, indexed by active_count */
+	int bucket_count;	/* size of buckets array (grows as needed) */
+} PgHostPool;
 
 /*
  * Find or create a host entry by name and port.
  * Hosts persist for the lifetime of pgbouncer and are reused across reloads.
  */
-PgHost *pg_create_host(const char *host_name, int port);
+PgHost *hostpool_create_host(const char *host_name, int port);
 
 /*
- * Parse db->host string (possibly comma-separated) and populate db->host_list.
+ * Free a host entry.
+ */
+void hostpool_free_host(PgHost *host);
+
+/*
+ * Create a host pool for the given number of hosts.
+ * Buckets will grow dynamically as needed.
+ */
+PgHostPool *hostpool_create_host_pool(int host_count);
+
+/*
+ * Free a host pool structure without freeing the hosts.
+ * Use this during reload when hosts should persist.
+ */
+void hostpool_release_pool(PgHostPool *pool);
+
+/*
+ * Free a host pool and all its hosts.
+ * Use this for complete cleanup (e.g., shutdown).
+ */
+void hostpool_free_host_pool(PgHostPool *pool);
+
+/*
+ * Add a host to a pool at the given index.
+ * The host is placed in bucket 0 (zero active connections).
+ */
+bool hostpool_add_host(PgHostPool *pool, PgHost *host, int index);
+
+/*
+ * Parse db->host string (possibly comma-separated) and populate db->host_pool.
  * Also parses db->port_str if present to assign per-host ports.
  * Returns true on success, false on failure.
  */
@@ -70,10 +104,16 @@ bool parse_database_hosts(struct PgDatabase *db);
 
 /*
  * Track active connection count changes for load balancing.
- * These maintain the sorted order of hosts by active_count.
+ * These maintain the bucket structure and min_active.
  */
-void hostpool_increment_active(struct PgDatabase *db, PgHost *host);
-void hostpool_decrement_active(struct PgDatabase *db, PgHost *host);
+void hostpool_increment_active(PgHost *host);
+void hostpool_decrement_active(PgHost *host);
+
+/*
+ * Get the host with minimum active connections from the pool.
+ * Returns NULL if pool is empty.
+ */
+PgHost *hostpool_get_least_active_host(struct PgHostPool *pool);
 
 /*
  * Find an idle server connection from a specific host for the given pool.

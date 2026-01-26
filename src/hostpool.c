@@ -18,22 +18,57 @@
 
 /*
  * Host pool management - tracks hosts and their connection counts
- * for load balancing purposes.
+ * for load balancing purposes using bucket-based organization.
  */
 
 #include "bouncer.h"
 
 #include <usual/statlist.h>
 
+/* Initial number of buckets (will grow as needed) */
+#define INITIAL_BUCKET_COUNT 16
+
 /* Hash table of all hosts, keyed by "hostname:port" */
 static PgHost *host_hashtable = NULL;
+
+/*
+ * Ensure the bucket array has at least 'needed' buckets.
+ */
+static bool ensure_bucket_capacity(PgHostPool *pool, int needed)
+{
+	int new_count;
+	struct StatList *new_buckets;
+
+	if (needed <= pool->bucket_count)
+		return true;
+
+	/* Grow by doubling or to needed size, whichever is larger */
+	new_count = pool->bucket_count * 2;
+	if (new_count < needed)
+		new_count = needed;
+
+	new_buckets = realloc(pool->buckets, new_count * sizeof(struct StatList));
+	if (!new_buckets) {
+		log_error("hostpool: out of memory for buckets");
+		return false;
+	}
+
+	/* Initialize new buckets */
+	for (int i = pool->bucket_count; i < new_count; i++) {
+		statlist_init(&new_buckets[i], "host_bucket");
+	}
+
+	pool->buckets = new_buckets;
+	pool->bucket_count = new_count;
+	return true;
+}
 
 /*
  * Find or create a host entry by name and port.
  * Hosts persist for the lifetime of pgbouncer and are reused across reloads.
  * The hash key is "hostname:port" to allow same hostname with different ports.
  */
-PgHost *pg_create_host(const char *host_name, int port)
+PgHost *hostpool_create_host(const char *host_name, int port)
 {
 	PgHost *host;
 	char key[512];
@@ -52,21 +87,20 @@ PgHost *pg_create_host(const char *host_name, int port)
 	/* Create new host */
 	host = calloc(1, sizeof(PgHost));
 	if (!host) {
-		log_error("pg_create_host: out of memory");
+		log_error("hostpool_create_host: out of memory");
 		return NULL;
 	}
 
 	host->name = strdup(host_name);
 	host->key = strdup(key);
 	if (!host->name || !host->key) {
-		free(host->name);
-		free(host->key);
-		free(host);
-		log_error("pg_create_host: out of memory");
+		hostpool_free_host(host);
+		log_error("hostpool_create_host: out of memory");
 		return NULL;
 	}
 
 	host->port = port;
+	list_init(&host->bucket_node);
 	statlist_init(&host->idle_server_list, "host_idle_server_list");
 
 	/* Add to hash table */
@@ -74,9 +108,111 @@ PgHost *pg_create_host(const char *host_name, int port)
 
 	return host;
 }
+void hostpool_free_host(PgHost *host)
+{
+	if (!host)
+		return;
+
+	/* Only remove from hash table if it was added */
+	if (host->hh.tbl)
+		HASH_DEL(host_hashtable, host);
+
+	free(host->name);
+	free(host->key);
+	free(host);
+}
 
 /*
- * Parse db->host string (possibly comma-separated) and populate db->host_list.
+ * Free a host pool structure without freeing the hosts.
+ * Use this during reload when hosts should persist.
+ */
+void hostpool_release_pool(PgHostPool *pool)
+{
+	if (pool) {
+		free(pool->hosts);
+		free(pool->buckets);
+		free(pool);
+	}
+}
+
+/*
+ * Free a host pool and all its hosts.
+ * Use this for complete cleanup (e.g., shutdown).
+ */
+void hostpool_free_host_pool(PgHostPool *pool)
+{
+	if (pool) {
+		for (int i = 0; i < pool->count; i++) {
+			hostpool_free_host(pool->hosts[i]);
+		}
+		hostpool_release_pool(pool);
+	}
+}
+
+/*
+ * Create a new host pool with initial bucket capacity.
+ * Buckets will grow dynamically as needed.
+ */
+PgHostPool *hostpool_create_host_pool(int host_count)
+{
+	PgHostPool *pool = calloc(1, sizeof(PgHostPool));
+	if (!pool) {
+		log_error("hostpool_create_host_pool: out of memory");
+		return NULL;
+	}
+
+	pool->hosts = calloc(host_count, sizeof(PgHost *));
+	if (!pool->hosts) {
+		log_error("hostpool_create_host_pool: out of memory");
+		hostpool_release_pool(pool);
+		return NULL;
+	}
+
+	pool->buckets = calloc(INITIAL_BUCKET_COUNT, sizeof(struct StatList));
+	if (!pool->buckets) {
+		log_error("hostpool_create_host_pool: out of memory");
+		hostpool_release_pool(pool);
+		return NULL;
+	}
+
+	for (int i = 0; i < INITIAL_BUCKET_COUNT; i++) {
+		statlist_init(&pool->buckets[i], "host_bucket");
+	}
+
+	pool->bucket_count = INITIAL_BUCKET_COUNT;
+	pool->count = 0;
+	pool->min_active = 0;
+	return pool;
+}
+
+/*
+ * Add a host to a pool at the given index.
+ * The host is placed in bucket 0 (zero active connections).
+ */
+bool hostpool_add_host(PgHostPool *pool, PgHost *host, int index)
+{
+	if (!pool || !host)
+		return false;
+
+	host->index = index;
+	host->host_pool = pool;
+	host->active_count = 0;
+	pool->hosts[index] = host;
+
+	/* Reinitialize bucket_node (host may be reused from hash table) */
+	list_init(&host->bucket_node);
+
+	/* Add to bucket 0 (all hosts start with 0 active connections) */
+	statlist_append(&pool->buckets[0], &host->bucket_node);
+
+	if (index >= pool->count)
+		pool->count = index + 1;
+
+	return true;
+}
+
+/*
+ * Parse db->host string (possibly comma-separated) and populate db->host_pool.
  * Returns true on success, false on failure.
  */
 bool parse_database_hosts(PgDatabase *db)
@@ -86,15 +222,12 @@ bool parse_database_hosts(PgDatabase *db)
 	int port_count = 1;
 	int *ports = NULL;
 	int i;
-	PgHosts *hl;
+	PgHostPool *pool;
 
-	/* Free old host_list if any */
-	if (db->host_list) {
-		/* Note: PgHost objects persist, we just free the arrays */
-		free(db->host_list->hosts);
-		free(db->host_list->sorted);
-		free(db->host_list);
-		db->host_list = NULL;
+	/* Free old host_pool structure (hosts persist in global hash table) */
+	if (db->host_pool) {
+		hostpool_release_pool(db->host_pool);
+		db->host_pool = NULL;
 	}
 
 	if (!db->host)
@@ -120,7 +253,7 @@ bool parse_database_hosts(PgDatabase *db)
 	}
 
 	/* Parse ports into array */
-	ports = malloc(host_count * sizeof(int));
+	ports = calloc(host_count, sizeof(int));
 	if (!ports) {
 		log_error("parse_database_hosts: out of memory");
 		return false;
@@ -158,130 +291,127 @@ bool parse_database_hosts(PgDatabase *db)
 			ports[i] = db->port;
 	}
 
-	/* Allocate PgHosts structure */
-	hl = malloc(sizeof(PgHosts));
-	if (!hl) {
+	/* Create host pool */
+	pool = hostpool_create_host_pool(host_count);
+	if (!pool) {
 		free(ports);
-		log_error("parse_database_hosts: out of memory");
-		return false;
-	}
-	hl->hosts = NULL;
-	hl->sorted = NULL;
-	hl->count = 0;
-
-	/* Allocate hosts array (original order) */
-	hl->hosts = malloc(host_count * sizeof(PgHost *));
-	if (!hl->hosts) {
-		free(hl);
-		free(ports);
-		log_error("parse_database_hosts: out of memory");
-		return false;
-	}
-
-	/* Allocate sorted array (same hosts, will be sorted by active_count) */
-	hl->sorted = malloc(host_count * sizeof(PgHost *));
-	if (!hl->sorted) {
-		free(hl->hosts);
-		free(hl);
-		free(ports);
-		log_error("parse_database_hosts: out of memory");
 		return false;
 	}
 
 	/* Parse and create hosts */
 	host_copy = strdup(db->host);
 	if (!host_copy) {
-		free(hl->sorted);
-		free(hl->hosts);
-		free(hl);
-		free(ports);
 		log_error("parse_database_hosts: out of memory");
+		hostpool_release_pool(pool);
+		free(ports);
 		return false;
 	}
 
 	i = 0;
 	for (host_name = strtok(host_copy, ","); host_name; host_name = strtok(NULL, ",")) {
-		PgHost *h = pg_create_host(host_name, ports[i]);
+		PgHost *h = hostpool_create_host(host_name, ports[i]);
 		if (!h) {
 			free(host_copy);
-			free(hl->sorted);
-			free(hl->hosts);
-			free(hl);
+			hostpool_release_pool(pool);
 			free(ports);
 			return false;
 		}
-		h->index = i;
-		hl->hosts[i] = h;
-		hl->sorted[i] = h;  /* Initially same order as hosts */
+		hostpool_add_host(pool, h, i);
 		i++;
 	}
-	hl->count = i;
 
 	free(host_copy);
 	free(ports);
 
-	db->host_list = hl;
+	db->host_pool = pool;
 	return true;
 }
 
 /*
- * Swap two hosts in the sorted array and update their indices.
+ * Increment active connection count for a host.
+ * Moves host from bucket N to bucket N+1.
  */
-static void swap_hosts(PgHost **hosts, int i, int j)
+void hostpool_increment_active(PgHost *host)
 {
-	PgHost *tmp = hosts[i];
-	hosts[i] = hosts[j];
-	hosts[j] = tmp;
-	hosts[i]->index = i;
-	hosts[j]->index = j;
-}
+	PgHostPool *pool = host->host_pool;
+	int old_count = host->active_count;
+	int new_count = old_count + 1;
 
-/*
- * After incrementing active_count, bubble the host right in sorted array.
- */
-void hostpool_increment_active(PgDatabase *db, PgHost *host)
-{
-	int i;
-	PgHosts *hl = db->host_list;
+	host->active_count = new_count;
 
-	host->active_count++;
-
-	if (!hl)
+	if (!pool)
 		return;
 
-	/* Bubble right in sorted array to maintain order by active_count */
-	for (i = host->index + 1; i < hl->count; i++) {
-		if (hl->sorted[i]->active_count > host->active_count - 1) {
-			break;
-		}
-	}
-	if (i != host->index + 1) {
-		swap_hosts(hl->sorted, host->index, i - 1);
+	/* Ensure we have enough buckets */
+	if (!ensure_bucket_capacity(pool, new_count + 1))
+		return;
+
+	/* Remove from old bucket */
+	statlist_remove(&pool->buckets[old_count], &host->bucket_node);
+
+	/* Add to new bucket */
+	statlist_append(&pool->buckets[new_count], &host->bucket_node);
+
+	/* Update min_active if the old bucket is now empty and was the minimum */
+	if (old_count == pool->min_active && statlist_empty(&pool->buckets[old_count])) {
+		pool->min_active = new_count;
 	}
 }
 
 /*
- * After decrementing active_count, bubble the host left in sorted array.
+ * Decrement active connection count for a host.
+ * Moves host from bucket N to bucket N-1.
  */
-void hostpool_decrement_active(PgDatabase *db, PgHost *host)
+void hostpool_decrement_active(PgHost *host)
 {
-	int i;
-	PgHosts *hl = db->host_list;
+	PgHostPool *pool = host->host_pool;
+	int old_count = host->active_count;
+	int new_count;
 
-	host->active_count--;
+	if (old_count <= 0) {
+		log_warning("hostpool_decrement_active: active_count already 0");
+		return;
+	}
 
-	if (!hl)
+	new_count = old_count - 1;
+	host->active_count = new_count;
+
+	if (!pool)
 		return;
 
-	/* Bubble left in sorted array to maintain order by active_count */
-	for (i = host->index - 1; i >= 0; i--) {
-		if (hl->sorted[i]->active_count < host->active_count + 1) {
-			break;
+	/* Remove from old bucket */
+	statlist_remove(&pool->buckets[old_count], &host->bucket_node);
+
+	/* Add to new bucket */
+	statlist_append(&pool->buckets[new_count], &host->bucket_node);
+
+	/* Update min_active if the new bucket is lower */
+	if (new_count < pool->min_active) {
+		pool->min_active = new_count;
+	}
+}
+
+/*
+ * Get the host with minimum active connections.
+ * Returns the first host from the min_active bucket.
+ */
+PgHost *hostpool_get_least_active_host(PgHostPool *pool)
+{
+	struct List *el;
+
+	if (!pool || pool->count == 0)
+		return NULL;
+
+	/* Find first non-empty bucket starting from min_active */
+	while (pool->min_active < pool->bucket_count) {
+		if (!statlist_empty(&pool->buckets[pool->min_active])) {
+			el = statlist_first(&pool->buckets[pool->min_active]);
+			return container_of(el, PgHost, bucket_node);
 		}
+		pool->min_active++;
 	}
-	if (i != host->index - 1) {
-		swap_hosts(hl->sorted, host->index, i + 1);
-	}
+
+	return NULL;
 }
 
 /*

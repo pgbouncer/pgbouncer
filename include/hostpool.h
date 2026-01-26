@@ -46,7 +46,6 @@ typedef struct PgHost {
 	int index;			/* position in host_pool->hosts array (original config order) */
 	struct List bucket_node;	/* node in active_count bucket list (only for multi-host pools) */
 	struct PgHostPool *host_pool;	/* back-pointer to multi-host pool (NULL if only in single-host pools) */
-	struct StatList idle_server_list;	/* idle server connections to this host */
 	UT_hash_handle hh;		/* makes this structure hashable by key */
 } PgHost;
 

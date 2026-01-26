@@ -120,7 +120,6 @@ PgHost *hostpool_get_host(const char *host_name, int port)
 	host->port = port;
 	host->refcount = 1;
 	list_init(&host->bucket_node);
-	statlist_init(&host->idle_server_list, "host_idle_server_list");
 
 	/* Add to hash table */
 	HASH_ADD_KEYPTR(hh, host_hashtable, host->key, strlen(host->key), host);
@@ -600,21 +599,28 @@ void hostpool_decrement_active(PgHost *host)
 }
 
 /*
- * Find an idle server from the specified host that belongs to the given connection pool.
- * Returns NULL if no suitable server found.
+ * Get first usable idle socket from an idle_server_by_host list (linked via host_head).
+ * Skips and disconnects servers that are obsolete, dirty, or in unexpected state.
  */
-static PgSocket *get_host_idle_server(PgHost *host, PgPool *conn_pool)
+static inline PgSocket *get_host_idle_server(struct StatList *slist, PgPool *conn_pool)
 {
-	struct List *el, *tmp;
 	PgSocket *server;
 
-	if (!host)
-		return NULL;
+	while (!statlist_empty(slist)) {
+		server = container_of(slist->head.next, PgSocket, host_head);
 
-	statlist_for_each_safe(el, &host->idle_server_list, tmp) {
-		server = container_of(el, PgSocket, host_head);
-		if (server->pool != conn_pool)
+		// fail in debug
+		Assert(server->state == SV_IDLE);
+		Assert(server->pool == conn_pool);
+		if (server->state != SV_IDLE || server->pool != conn_pool) {
+			log_warning("get_host_idle_server: unexpected server state=%d pool=%p (expected pool=%p)",
+				    server->state, server->pool, conn_pool);
+			/* Remove from this list first to avoid infinite loop in production, then disconnect */
+			statlist_remove(slist, &server->host_head);
+			disconnect_server(server, true, "server in wrong state or pool");
 			continue;
+		}
+
 		if (server->close_needed) {
 			disconnect_server(server, true, "obsolete connection");
 			continue;
@@ -630,6 +636,7 @@ static PgSocket *get_host_idle_server(PgHost *host, PgPool *conn_pool)
 
 /*
  * Get an idle server from the host pool, preferring hosts with fewer active connections.
+ * Uses pool->idle_server_by_host[host->index] for O(1) lookup per host.
  * Iterates through buckets starting from min_active.
  * Returns NULL if no suitable server found.
  */
@@ -638,15 +645,17 @@ PgSocket *hostpool_get_idle_server(PgHostPool *host_pool, PgPool *conn_pool)
 	PgHost *host;
 	struct List *el, *tmp;
 	PgSocket *server;
+	struct StatList *idle_list;
 	int n_attempts = 0;
 
-	if (!host_pool || !host_pool->buckets)
+	if (!host_pool || !host_pool->buckets || !conn_pool->idle_server_by_host)
 		return NULL;
 
 	for (int i = host_pool->min_active; i < host_pool->bucket_count && n_attempts < host_pool->count; i++) {
 		list_for_each_safe(el, &host_pool->buckets[i], tmp) {
 			host = container_of(el, PgHost, bucket_node);
-			server = get_host_idle_server(host, conn_pool);
+			idle_list = &conn_pool->idle_server_by_host[host->index];
+			server = get_host_idle_server(idle_list, conn_pool);
 			if (server)
 				return server;
 			n_attempts++;

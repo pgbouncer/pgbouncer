@@ -421,6 +421,14 @@ struct PgPool {
 	struct StatList idle_server_list;
 
 	/*
+	 * For multi-host databases with load balancing: array of idle server lists
+	 * indexed by host index. Provides O(1) lookup when selecting idle servers
+	 * from least-loaded hosts. NULL for single-host databases.
+	 * Size: db->host_pool->count (when allocated)
+	 */
+	struct StatList *idle_server_by_host;
+
+	/*
 	 * Server connections that were just unlinked from their previous client.
 	 * Some work is needed to make sure these server connections can be reused
 	 * for another client. After all that that work is done the server is

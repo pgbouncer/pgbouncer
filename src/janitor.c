@@ -874,6 +874,7 @@ void kill_pool(PgPool *pool)
 	statlist_remove(&pool_list, &pool->head);
 	varcache_clean(&pool->orig_vars);
 	slab_free(var_list_cache, pool->orig_vars.var_list);
+	free(pool->idle_server_by_host);
 	slab_free(pool_cache, pool);
 }
 

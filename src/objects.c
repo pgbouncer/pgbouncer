@@ -316,8 +316,8 @@ void change_server_state(PgSocket *server, SocketState newstate)
 		break;
 	case SV_IDLE:
 		statlist_remove(&pool->idle_server_list, &server->head);
-		if (server->host)
-			statlist_remove(&server->host->idle_server_list, &server->host_head);
+		if (server->host && pool->idle_server_by_host)
+			statlist_remove(&pool->idle_server_by_host[server->host->index], &server->host_head);
 		break;
 	case SV_ACTIVE:
 		statlist_remove(&pool->active_server_list, &server->head);
@@ -363,8 +363,8 @@ void change_server_state(PgSocket *server, SocketState newstate)
 			/* otherwise use LIFO */
 			statlist_prepend(&pool->idle_server_list, &server->head);
 		}
-		if (server->host) {
-			statlist_append(&server->host->idle_server_list, &server->host_head);
+		if (server->host && pool->idle_server_by_host) {
+			statlist_append(&pool->idle_server_by_host[server->host->index], &server->host_head);
 		}
 		break;
 	case SV_ACTIVE:
@@ -736,6 +736,18 @@ static PgPool *new_pool(PgDatabase *db, PgCredentials *user_credentials)
 	statlist_init(&pool->active_cancel_req_list, "active_cancel_req_list");
 	statlist_init(&pool->active_cancel_server_list, "active_cancel_server_list");
 	statlist_init(&pool->being_canceled_server_list, "being_canceled_server_list");
+
+	/* Allocate per-host idle lists for multi-host load balancing */
+	pool->idle_server_by_host = NULL;
+	if (db->host_pool && db->host_pool->count > 1) {
+		int i;
+		pool->idle_server_by_host = calloc(db->host_pool->count, sizeof(struct StatList));
+		if (pool->idle_server_by_host) {
+			for (i = 0; i < db->host_pool->count; i++) {
+				statlist_init(&pool->idle_server_by_host[i], "idle_server_by_host");
+			}
+		}
+	}
 
 	list_append(&user_credentials->global_user->pool_list, &pool->map_head);
 

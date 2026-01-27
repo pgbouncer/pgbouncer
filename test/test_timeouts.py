@@ -558,3 +558,24 @@ def test_cancel_wait_timeout(pg, bouncer):
                     cancel.result()
 
             query.result()
+
+
+def test_query_timeout_when_no_active_query(bouncer):
+    """
+    When there's no active query (query_start == 0), query_timeout should not apply.
+    But the current implementation incorrectly uses request_time as fallback,
+    causing idle connections to be disconnected.
+    """
+    bouncer.admin("set query_timeout=2")
+    bouncer.admin("set pool_mode=transaction")
+    with bouncer.cur() as cur:
+        cur.execute("BEGIN")
+        cur.execute("SELECT 1")
+
+        # Wait longer than query_timeout while idle
+        time.sleep(3)
+
+        # This should work since no query is active, but will fail due to the bug
+        cur.execute("SELECT 2")
+        result = cur.fetchone()
+        assert result[0] == 2

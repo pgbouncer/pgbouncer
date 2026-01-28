@@ -557,6 +557,8 @@ struct PgGlobalUser {
 	usec_t transaction_timeout;	/* how long a user is allowed to stay in transaction before being killed */
 	usec_t idle_transaction_timeout;	/* how long a user is allowed to stay idle in transaction before being killed */
 	usec_t query_timeout;	/* how long a users query is allowed to run before beign killed */
+	usec_t query_wait_timeout;	/* how long a users query is allowed to wait in queue before beign killed */
+	bool query_wait_timeout_set;	/* whether or not a query_wait_timeout has been set for the user */
 	usec_t client_idle_timeout;	/* how long is user allowed to idly connect to pgbouncer */
 	int max_user_connections;	/* how many server connections are allowed */
 	int max_user_client_connections;	/* how many client connections are allowed */
@@ -585,6 +587,10 @@ struct PgDatabase {
 	int pool_size;		/* max server connections in one pool */
 	int min_pool_size;	/* min server connections in one pool */
 	int res_pool_size;	/* additional server connections in case of trouble */
+
+	usec_t query_wait_timeout;	/* how long a users query is allowed to wait in queue before beign killed */
+	bool query_wait_timeout_set;	/* whether or not a query_wait_timeout has been set for the user */
+
 	int pool_mode;		/* pool mode for this database */
 	int max_db_client_connections;	/* max connections that pgbouncer will accept from client to this database */
 	int max_db_connections;	/* max server connections between all pools */
@@ -841,6 +847,7 @@ extern usec_t cf_idle_transaction_timeout;
 extern usec_t cf_transaction_timeout;
 extern bool any_user_level_timeout_set;
 extern bool any_user_level_client_timeout_set;
+extern bool any_database_level_client_timeout_set;
 extern int cf_server_round_robin;
 extern int cf_disable_pqexec;
 extern usec_t cf_dns_max_ttl;

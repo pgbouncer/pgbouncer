@@ -964,6 +964,9 @@ bool find_server(PgSocket *client)
 		client->link = server;
 		server->link = client;
 		server->pool->stats.server_assignment_count++;
+
+		welcome_vars_apply(client);
+
 		change_server_state(server, SV_ACTIVE);
 		if (varchange) {
 			server->setting_vars = true;
@@ -1602,6 +1605,11 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 
 	free(client->startup_options);
 	client->startup_options = NULL;
+
+	if (client->welcome_msg) {
+		pktbuf_free(client->welcome_msg);
+		client->welcome_msg = NULL;
+	}
 
 	change_client_state(client, CL_JUSTFREE);
 	if (!sbuf_close(&client->sbuf))

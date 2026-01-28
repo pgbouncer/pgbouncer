@@ -555,6 +555,37 @@ authentication is configured via `auth_hba_file`.)  Example:
 
     auth_ldap_options = ldapurl="ldap://127.0.0.1:12345/dc=example,dc=net?uid?sub"
 
+### krb_server_keyfile
+
+### auth_krb_server_keyfile
+
+File path to kerberos keytab file that pgbouncer will use to validate its
+identity with the kerberos system. Please see the postgres [documentation](https://www.postgresql.org/docs/current/runtime-config-connection.html#GUC-KRB-SERVER-KEYFILE)
+for additional details.
+
+### auth_krb_caseins_users
+
+Whether or not to check for letter case when comparing the client provided username
+to kerberos verified identity. Please see the postgres [documentation](https://www.postgresql.org/docs/current/runtime-config-connection.html#GUC-KRB-CASEINS-USERS) for additional details.
+
+Default: 0
+
+### auth_gss_accept_delegation
+
+GSS option that tells pgbouncer whether or not to allow GSS delegation. Please see
+the postgres [documentation](https://www.postgresql.org/docs/current/runtime-config-connection.html#GUC-GSS-ACCEPT-DELEGATION)
+for additional details.
+
+### auth_gss_parameter
+
+When using gss authentication using the `GSS` auth mode this setting can be used in
+liu of the HBA file to set the `include_realm` and `krb_realm` options. See the
+postgres (documentation)[https://www.postgresql.org/docs/current/gssapi-auth.html] for additional details on these 2 options.
+
+The section contains key=value lines like
+
+    auth_gss_parameter = include_realm=1 krb_realm=EXAMPLE.COM
+
 ## Log settings
 
 ### syslog

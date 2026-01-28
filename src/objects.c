@@ -315,12 +315,12 @@ void change_server_state(PgSocket *server, SocketState newstate)
 		break;
 	case SV_IDLE:
 		statlist_remove(&pool->idle_server_list, &server->head);
-		if (server->host_index >= 0 && pool->socket_pool)
+		if (pool->socket_pool)
 			socketpool_remove_idle_server(pool->socket_pool, server);
 		break;
 	case SV_ACTIVE:
 		statlist_remove(&pool->active_server_list, &server->head);
-		if (server->host_index >= 0 && pool->socket_pool)
+		if (pool->socket_pool)
 			socketpool_dec_active(pool->socket_pool, server->host_index);
 		break;
 	case SV_ACTIVE_CANCEL:
@@ -1719,7 +1719,7 @@ static void dns_connect(struct PgSocket *server)
 		if (server->pool->db->load_balance_hosts == LOAD_BALANCE_HOSTS_ROUND_ROBIN)
 			server->pool->rrcounter++;
 
-		server->host_index = n;
+		server->host_index = n + 1; /* 0 = unknown */
 	} else {
 		host = db->host;
 	}
@@ -2003,7 +2003,7 @@ force_new:
 	/* initialize it */
 	server->pool = pool;
 	server->login_user_credentials = server->pool->user_credentials;
-	server->host_index = -1;  /* will be set in dns_connect */
+	server->host_index = 0;  /* will be set in dns_connect; 0 = unknown */
 	server->connect_time = get_cached_time();
 	statlist_init(&server->canceling_clients, "canceling_clients");
 	pool->last_connect_time = get_cached_time();
@@ -2398,7 +2398,8 @@ bool use_server_socket(int fd, PgAddr *addr,
 		       const char *datestyle, const char *timezone,
 		       const char *password,
 		       const char *scram_client_key, int scram_client_key_len,
-		       const char *scram_server_key, int scram_server_key_len)
+		       const char *scram_server_key, int scram_server_key_len,
+		       int host_index)
 {
 	PgDatabase *db = find_database(dbname);
 	PgCredentials *credentials;
@@ -2443,7 +2444,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 	server->login_user_credentials = credentials;
 	server->connect_time = server->request_time = get_cached_time();
 	server->query_start = 0;
-	server->host_index = -1;  /* takeover doesn't track host */
+	server->host_index = host_index;
 	statlist_init(&server->canceling_clients, "canceling_clients");
 
 	fill_remote_addr(server, fd, pga_is_unix(addr));

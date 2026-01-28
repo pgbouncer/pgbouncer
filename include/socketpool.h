@@ -41,9 +41,6 @@ PgSocketPool *socketpool_create(int host_count);
 /* Free a socket pool */
 void socketpool_free(PgSocketPool *pool);
 
-/* Get the host index with the least active connections */
-int socketpool_get_least_loaded(PgSocketPool *pool);
-
 /* Increment active count for a host */
 void socketpool_inc_active(PgSocketPool *pool, int host_index);
 

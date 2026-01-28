@@ -54,13 +54,6 @@ char *strlist_pop(struct StrList *slist);
 /** Parse comma-separated elements from string and launch callback for each of them. */
 bool parse_word_list(const char *s, str_cb cb_func, void *cb_arg);
 
-#ifndef HAVE_STRNLEN
-#undef strnlen
-#define strnlen(a, b) usual_strnlen(a, b)
-/** Compat: determine the length of a fixed-size string */
-size_t strnlen(const char *string, size_t maxlen);
-#endif
-
 #ifndef HAVE_STRLCPY
 #undef strlcpy
 #define strlcpy(a, b, c) usual_strlcpy(a, b, c)

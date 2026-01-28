@@ -72,11 +72,6 @@
 #define container_of(ptr, type, field) ((type *)((char *)(ptr) - offsetof(type, field)))
 #endif
 
-/** get alignment requirement for a type */
-#ifndef alignof
-#define alignof(type) offsetof(struct { char c; type t; }, t)
-#endif
-
 /** power-of-2 alignment */
 #ifndef CUSTOM_ALIGN
 #define CUSTOM_ALIGN(x, a) (((uintptr_t)(x) + (uintptr_t)(a) - 1) & ~((uintptr_t)(a) - 1))
@@ -240,11 +235,7 @@
 #endif
 
 /** Indicates that function never returns */
-#if _COMPILER_GNUC(4, 0) || __has_attribute(noreturn)
-#define _NORETURN __attribute__((noreturn))
-#else
-#define _NORETURN
-#endif
+#define _NORETURN _Noreturn
 
 /** Hint for compiler that expression (x) is likely to be true */
 #if _COMPILER_GNUC(4, 0) || __has_builtin(__builtin_expect)
@@ -261,25 +252,6 @@
 #endif
 
 /* @} */
-
-
-/**
- * Compile-time assert.
- *
- * Expression must be evaluatable at compile time.
- * If false, stop compilation with message.
- *
- * It can be used in either global or function scope.
- */
-#ifndef static_assert
-#if _COMPILER_GNUC(4, 6) || _COMPILER_MSC(1600) || __has_feature(c_static_assert)
-/* Version for new compilers */
-#define static_assert(expr, msg) _Static_assert(expr, msg)
-#else
-/* Version for old compilers */
-#define static_assert(expr, msg) enum { CONCAT4(static_assert_failure_, __LINE__, _, __COUNTER__) = 1/(1 != (1 + (expr))) }
-#endif
-#endif /* !static_assert */
 
 
 /** assert() that uses <usual/logging> module  */

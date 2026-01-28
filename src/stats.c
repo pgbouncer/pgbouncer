@@ -117,7 +117,7 @@ static void write_stats(PktBuf *buf, PgStats *stat, PgStats *old, char *dbname)
 			     avg.ps_server_parse_count, avg.ps_bind_count);
 }
 
-bool admin_database_stats(PgSocket *client, struct StatList *pool_list)
+bool admin_database_stats(PgSocket *client, struct StatList *pool_list, const char *filter_database)
 {
 	PgPool *pool;
 	struct List *item;
@@ -149,6 +149,10 @@ bool admin_database_stats(PgSocket *client, struct StatList *pool_list)
 				    "avg_server_parse_count", "avg_bind_count");
 	statlist_for_each(item, pool_list) {
 		pool = container_of(item, PgPool, head);
+		if (filter_database && *filter_database) {
+			if (strcasecmp(filter_database, pool->db->name) != 0)
+				continue;
+		}
 
 		if (!cur_db)
 			cur_db = pool->db;
@@ -183,7 +187,7 @@ static void write_stats_totals(PktBuf *buf, PgStats *stat, PgStats *old, char *d
 			     stat->ps_server_parse_count, stat->ps_bind_count);
 }
 
-bool admin_database_stats_totals(PgSocket *client, struct StatList *pool_list)
+bool admin_database_stats_totals(PgSocket *client, struct StatList *pool_list, const char *filter_database)
 {
 	PgPool *pool;
 	struct List *item;
@@ -209,6 +213,10 @@ bool admin_database_stats_totals(PgSocket *client, struct StatList *pool_list)
 				    "server_parse_count", "bind_count");
 	statlist_for_each(item, pool_list) {
 		pool = container_of(item, PgPool, head);
+		if (filter_database && *filter_database) {
+			if (strcasecmp(filter_database, pool->db->name) != 0)
+				continue;
+		}
 
 		if (!cur_db)
 			cur_db = pool->db;
@@ -245,7 +253,7 @@ static void write_stats_averages(PktBuf *buf, PgStats *stat, PgStats *old, char 
 			     avg.ps_server_parse_count, avg.ps_bind_count);
 }
 
-bool admin_database_stats_averages(PgSocket *client, struct StatList *pool_list)
+bool admin_database_stats_averages(PgSocket *client, struct StatList *pool_list, const char *filter_database)
 {
 	PgPool *pool;
 	struct List *item;
@@ -271,6 +279,10 @@ bool admin_database_stats_averages(PgSocket *client, struct StatList *pool_list)
 				    "avg_server_parse_count", "avg_bind_count");
 	statlist_for_each(item, pool_list) {
 		pool = container_of(item, PgPool, head);
+		if (filter_database && *filter_database) {
+			if (strcasecmp(filter_database, pool->db->name) != 0)
+				continue;
+		}
 
 		if (!cur_db)
 			cur_db = pool->db;

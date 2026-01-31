@@ -1868,14 +1868,19 @@ void admin_setup(void)
 	PgPool *pool;
 	PgGlobalUser *user;
 	PktBuf *msg;
+	char *p;
 	int res;
-
 	/* fake database */
 	db = add_database("pgbouncer");
 	if (!db)
 		die("no memory for admin database");
 
-	db->port = cf_listen_port;
+	/* choose first port to assign to admin database */
+	p = malloc(sizeof(cf_listen_port));
+	safe_strcpy(p, cf_listen_port, sizeof(p));
+	db->port = atoi(strtok(p, ","));
+	free(p);
+
 	db->pool_size = 2;
 	db->admin = true;
 	db->pool_mode = POOL_STMT;

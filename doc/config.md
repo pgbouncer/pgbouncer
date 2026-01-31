@@ -42,7 +42,9 @@ Default: not set
 
 ### listen_port
 
-Which port to listen on. Applies to both TCP and Unix sockets.
+Which port(s) to listen on. Applies to both TCP and Unix sockets.
+
+Can specify multiple ports with comma separated values
 
 Default: 6432
 

@@ -80,7 +80,7 @@ def test_socket_id(bouncer) -> None:
 
     [pgbouncer]
     listen_addr = {bouncer.host}
-    listen_port = {bouncer.port}
+    listen_port = {bouncer.port},{bouncer.second_port_lock.port}
     auth_type = trust
     admin_users = pgbouncer
     logfile = {bouncer.log_path}

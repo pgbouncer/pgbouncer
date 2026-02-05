@@ -51,6 +51,7 @@ abs_top_srcdir ?= @abs_top_srcdir@
 abs_top_builddir ?= @abs_top_builddir@
 nosub_top_srcdir ?= @top_srcdir@
 nosub_top_builddir ?= @top_builddir@
+build_man_pages ?= @build_man_pages@
 
 CARES_CFLAGS = @CARES_CFLAGS@
 CARES_LIBS = @CARES_LIBS@

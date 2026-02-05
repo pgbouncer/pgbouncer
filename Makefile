@@ -100,7 +100,9 @@ dist_doc_DATA = README.md NEWS.md \
 DISTCLEANFILES = config.mak config.status lib/usual/config.h config.log
 
 DIST_SUBDIRS = doc test
+ifeq ($(build_man_pages),yes)
 dist_man_MANS = doc/pgbouncer.1 doc/pgbouncer.5
+endif
 
 pgbouncer_LDFLAGS := $(TLS_LDFLAGS)
 pgbouncer_LDADD := $(CARES_LIBS) $(LIBEVENT_LIBS) $(TLS_LIBS) $(LIBS)

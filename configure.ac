@@ -19,6 +19,19 @@ PKG_PROG_PKG_CONFIG
 AC_CHECK_PROGS(PANDOC, pandoc, pandoc)
 AC_CHECK_PROGS(PYTHON, [python3 python], python3)
 
+dnl allow disabling man-page generation
+AC_MSG_CHECKING([whether to build man-pages])
+AC_ARG_ENABLE(man-pages, AS_HELP_STRING([--disable-man-pages], [skip building man pages]),
+              [build_man_pages=$enableval], [build_man_pages=yes])
+AC_MSG_RESULT([$build_man_pages])
+if test "$build_man_pages" = "yes"; then
+  if ! test -x "$PANDOC"; then
+      AC_MSG_WARN([pandoc not found - man pages will not be built])
+      build_man_pages=no
+  fi
+fi
+AC_SUBST(build_man_pages)
+
 dnl check for windows tools
 if test "$PORTNAME" = "win32"; then
   AC_CHECK_TOOL([WINDRES], [windres])

@@ -1343,6 +1343,15 @@ they are logged but ignored otherwise.
 Set the pool mode specific to this database. If not set,
 the default `pool_mode` is used.
 
+### query_wait_timeout
+
+Maximum time queries are allowed to spend waiting for execution.
+0 disables. -1 means this value is not set. [seconds]
+
+See description of the global `query_wait_timeout` setting for additional detail.
+
+If not set, the database or default `query_wait_timeout` is used.
+
 ### load_balance_hosts
 
 When a comma-separated list is specified in `host`, `load_balance_hosts` controls
@@ -1439,6 +1448,15 @@ not have more than this many server connections).
 
 Set the maximum number of seconds that a user query can run for.
 If set this timeout overrides the server level query_timeout described above.
+
+### query_wait_timeout
+
+Maximum time queries are allowed to spend waiting for execution.
+0 disables. -1 means this value is not set. [seconds]
+
+See description of the global `query_wait_timeout` setting for additional detail.
+
+If not set, the database or default `query_wait_timeout` is used.
 
 ### idle_transaction_timeout
 

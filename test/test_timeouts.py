@@ -1,5 +1,6 @@
 import asyncio
 import platform
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -7,6 +8,72 @@ import psycopg
 import pytest
 
 from .utils import USE_SUDO
+
+
+@pytest.mark.parametrize(
+    ("global_query_wait_timeout", "user_query_wait_timeout", "db_query_wait_timeout"),
+    [
+        (2, None, None),
+        (None, 2, None),
+        (200, 2, None),
+        (None, None, 2),
+        (200, None, 2),
+    ],
+)
+async def test_query_wait_timeout(
+    bouncer,
+    global_query_wait_timeout: int,
+    user_query_wait_timeout: int,
+    db_query_wait_timeout: int,
+):
+    """
+    Test of query_wait_timeout. Assumes that the effective timeout supplied is 2.
+
+    Specifically tests that pgbouncer will correctly:
+    1. kill a query that has been waiting for longer than effective query_wait_timeout
+    2. not kill a query that is waiting, but for less than effective query_wait_timeout
+    """
+
+    db_query_wait_timeout_clause = ""
+    if db_query_wait_timeout:
+        db_query_wait_timeout_clause += f"query_wait_timeout={db_query_wait_timeout}"
+
+    pgbouncer_ini = f"""
+    [databases]
+    postgres = host={bouncer.pg.host} port={bouncer.pg.port} pool_size=1 {db_query_wait_timeout_clause}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_type = trust
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    pool_mode = transaction
+    """
+    if global_query_wait_timeout is not None:
+        pgbouncer_ini += f"\nquery_wait_timeout={global_query_wait_timeout}"
+
+    if user_query_wait_timeout is not None:
+        pgbouncer_ini += f"\n[users]"
+        pgbouncer_ini += f"\npuser1 = query_wait_timeout={user_query_wait_timeout}"
+
+    bouncer.default_db = "postgres"
+    bouncer.default_user = "puser1"
+
+    with bouncer.run_with_config(pgbouncer_ini):
+
+        conn_1_fut = bouncer.asleep(3)
+        await asyncio.sleep(0.1)
+
+        with pytest.raises(psycopg.OperationalError, match=r"query_wait_timeout"):
+            bouncer.test()
+        await conn_1_fut
+
+        conn_1_fut = bouncer.asleep(1)
+        await asyncio.sleep(0.1)
+        bouncer.test()
+        await conn_1_fut
 
 
 def test_server_lifetime(pg, bouncer):

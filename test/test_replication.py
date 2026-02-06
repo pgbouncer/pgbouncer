@@ -97,13 +97,11 @@ def test_logical_rep_subscriber(bouncer):
     conninfo = bouncer.make_conninfo(dbname="user_passthrough")
     bouncer.create_subscription(
         "mysub",
-        sql.SQL(
-            """
+        sql.SQL("""
             CONNECTION {}
             PUBLICATION mypub
             WITH (slot_name=test_logical_rep_subscriber, create_slot=false)
-        """
-        ).format(sql.Literal(conninfo)),
+        """).format(sql.Literal(conninfo)),
     )
 
     # The initial copy should now copy over the row

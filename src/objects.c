@@ -1362,6 +1362,9 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 			  (now - server->connect_time) / USEC);
 	}
 
+	server->pool->stats.server_closed_count++;
+	server->pool->stats.server_lifetime += (now - server->connect_time);
+
 	switch (server->state) {
 	case SV_ACTIVE_CANCEL:
 	case SV_ACTIVE:

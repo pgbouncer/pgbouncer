@@ -432,3 +432,19 @@ def test_show_stats(bouncer):
     assert ("total_xact_count", 10) in totals
     # 11 SELECT 1 + 2 times COMMIT and ROLLBACK + 4 admin commands
     assert ("total_query_count", 19) in totals
+
+    bouncer.admin(f"set server_lifetime=0")
+    # wait for existing server connection to drop
+    time.sleep(3)
+    bouncer.test()
+    bouncer.test()
+    bouncer.test()
+    bouncer.test()
+
+    # Get updated stats
+    stats = bouncer.admin("SHOW STATS", row_factory=dict_row)
+    p3_stats = next((s for s in stats if s.get("database") == "p3"), None)
+    assert p3_stats is not None
+
+    # 1 server connection from previous commands and 4 after setting server_lifetime=0
+    assert p3_stats["total_server_closed_count"] == 5

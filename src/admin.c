@@ -1367,7 +1367,7 @@ static bool admin_cmd_enable(PgSocket *admin, const char *arg)
 	if (db == NULL)
 		return admin_error(admin, "no such database: %s", arg);
 	if (db->admin)
-		return admin_error(admin, "cannot disable admin db: %s", arg);
+		return admin_error(admin, "cannot enable admin db: %s", arg);
 
 	db->db_disabled = false;
 	return admin_ready(admin, "ENABLE");

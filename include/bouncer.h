@@ -685,7 +685,8 @@ struct PgSocket {
 	bool setting_vars : 1;		/* server: setting client vars */
 	bool exec_on_connect : 1;	/* server: executing connect_query */
 	bool resetting : 1;		/* server: executing reset query from auth login; don't release on flush */
-	bool copy_mode : 1;		/* server: in copy stream, ignores any Sync packets until CopyDone or CopyFail */
+	bool copy_mode : 1;		/* server: in copy stream, ignores Sync packets until CopyDone/CopyFail;
+					   client: in copy-in stream, expecting CopyData/CopyDone/CopyFail */
 
 	bool wait_for_welcome : 1;	/* client: no server yet in pool, cannot send welcome msg */
 	bool welcome_sent : 1;		/* client: client has been sent the welcome msg */

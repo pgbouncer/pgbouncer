@@ -1458,7 +1458,22 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	/* copy end markers */
 	case PqMsg_CopyDone:
 	case PqMsg_CopyFail:
-		track_outstanding = true;
+		if (!client->link) {
+			slog_debug(client, "discarding late %s, server not linked",
+				   pkt->type == PqMsg_CopyDone ? "CopyDone" : "CopyFail");
+			sbuf_prepare_skip(sbuf, pkt->len);
+			return true;
+		}
+		/*
+		 * Only track as outstanding if the server is still in copy
+		 * mode.  When the server already sent ErrorResponse (clearing
+		 * server->copy_mode), the CopyDone just feeds PostgreSQL's
+		 * pq_endcopyin drain loop — no CommandComplete will follow,
+		 * so we must not create a phantom outstanding request.
+		 */
+		if (client->link->copy_mode)
+			track_outstanding = true;
+		client->copy_mode = false;
 		break;
 
 	/*
@@ -1502,6 +1517,11 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		break;
 
 	case PqMsg_CopyData:
+		if (!client->link) {
+			slog_debug(client, "discarding late CopyData, server not linked");
+			sbuf_prepare_skip(sbuf, pkt->len);
+			return true;
+		}
 		break;
 
 	/* client wants to go away */

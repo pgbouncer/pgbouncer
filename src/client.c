@@ -1458,7 +1458,21 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	/* copy end markers */
 	case PqMsg_CopyDone:
 	case PqMsg_CopyFail:
-		track_outstanding = true;
+		/*
+		 * Only track as outstanding if the server is still in copy_mode.
+		 *
+		 * When a COPY fails server-side (e.g. constraint violation), the
+		 * server sends ErrorResponse which sets copy_mode=false and clears
+		 * outstanding requests up to 'c'/'f'. If the client's CopyDone
+		 * arrives after this, the server will have already sent
+		 * ReadyForQuery. Postgres ignores the late CopyDone, so no
+		 * server response will arrive for it. Tracking it would create
+		 * an entry in outstanding_requests that never gets popped,
+		 * permanently preventing release_server() from returning this
+		 * connection to the pool.
+		 */
+		if (client->link && client->link->copy_mode)
+			track_outstanding = true;
 		break;
 
 	/*

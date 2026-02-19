@@ -1214,6 +1214,7 @@ bool release_server(PgSocket *server)
 	case SV_BEING_CANCELED:
 	case SV_ACTIVE:
 		if (server->link) {
+			server->link->copy_mode = false;
 			server->link->link = NULL;
 			server->link = NULL;
 		}
@@ -1319,6 +1320,7 @@ static void unlink_server(PgSocket *server, const char *reason)
 
 	client = server->link;
 
+	client->copy_mode = false;
 	client->link = NULL;
 	server->link = NULL;
 	/*

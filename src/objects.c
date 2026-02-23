@@ -1320,7 +1320,6 @@ static void unlink_server(PgSocket *server, const char *reason)
 
 	client = server->link;
 
-	client->copy_mode = false;
 	client->link = NULL;
 	server->link = NULL;
 	/*

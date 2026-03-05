@@ -889,9 +889,8 @@ Allowed TLS ciphers, in OpenSSL syntax.  Shortcuts:
 - `default`/`secure`/`fast`/`normal` (these all use system wide OpenSSL defaults)
 - `all` (enables all ciphers, not recommended)
 
-Only connections using TLS version 1.2 and lower are affected.  There
-is currently no setting that controls the cipher choices used by TLS
-version 1.3 connections.
+Only connections using TLS version 1.2 and lower are affected.
+For version 1.3 see `client_tls13_ciphers` below.
 
 Default: `default`
 
@@ -989,9 +988,8 @@ Allowed TLS ciphers, in OpenSSL syntax.  Shortcuts:
 - `default`/`secure`/`fast`/`normal` (these all use system wide OpenSSL defaults)
 - `all` (enables all ciphers, not recommended)
 
-Only connections using TLS version 1.2 and lower are affected.  There
-is currently no setting that controls the cipher choices used by TLS
-version 1.3 connections.
+Only connections using TLS version 1.2 and lower are affected.
+For version 1.3 see `server_tls13_ciphers` below.
 
 Default: `default`
 

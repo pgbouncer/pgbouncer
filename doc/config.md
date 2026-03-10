@@ -126,8 +126,9 @@ Default: 100
 
 ### default_pool_size
 
-How many server connections to allow per user/database pair. Can be overridden in
-the per-database configuration.
+The maximum number of server connections to allow per user/database pair. Can be overridden by
+`pool_size` in the per-database and per-user configuration; this is the default used if no specific
+`pool_size` is specified for a given database or user.
 
 Default: 20
 

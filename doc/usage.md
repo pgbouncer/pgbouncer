@@ -878,6 +878,13 @@ connection is next released (according to the pooling mode), and new
 server connections will immediately use the updated connection
 parameters.
 
+If the configuration file cannot be parsed (for example because of a
+syntax error or an invalid parameter value), the reload fails and an
+error is reported.  In that case the previously active configuration is
+preserved in full: reloadable parameters keep their running values, and
+existing database and peer connections are left untouched.  A failed
+reload never leaves PgBouncer with a partially applied configuration.
+
 #### WAIT_CLOSE [db]
 
 Wait until all server connections, either of the specified database or

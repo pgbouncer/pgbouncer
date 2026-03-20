@@ -40,6 +40,112 @@ def test_reload_error(bouncer):
             bouncer.admin("RELOAD")
 
 
+def test_reload_error_preserves_config(bouncer):
+    """A failed RELOAD must preserve the previous active configuration.
+
+    The config parser applies values to the live configuration as it parses
+    and resets reloadable parameters to their compile-time defaults when the
+    [pgbouncer] section header is encountered. Without protection, a parse
+    error mid-section would leave the running configuration in a mix of new
+    values, old values, and compile-time defaults. load_config() snapshots
+    the reloadable parameters before loading and restores them if the load
+    fails, so the running configuration is left completely unchanged.
+
+    This test starts PgBouncer with known non-default values, introduces a
+    config file that changes one parameter and has a parse error after it,
+    and verifies that the entire config is preserved after the failed RELOAD.
+
+    See: https://github.com/pgbouncer/pgbouncer/issues/1482
+    """
+    good_config = f"""
+[databases]
+p1 = host={bouncer.pg.host} port={bouncer.pg.port}
+
+[pgbouncer]
+listen_addr = {bouncer.host}
+listen_port = {bouncer.port}
+auth_type = trust
+admin_users = pgbouncer
+logfile = {bouncer.log_path}
+auth_file = {bouncer.auth_path}
+pool_mode = session
+default_pool_size = 5
+max_client_conn = 10
+server_lifetime = 120
+"""
+
+    # The bad config changes default_pool_size (a reloadable parameter)
+    # to a new value BEFORE a line that will cause a parse error.
+    # If the parser applies values incrementally, default_pool_size will
+    # have been changed to the new value even though the overall reload
+    # fails. Parameters not listed here (like max_client_conn) would be
+    # reset to their compile-time defaults by fill_defaults().
+    bad_config = f"""
+[databases]
+p1 = host={bouncer.pg.host} port={bouncer.pg.port}
+
+[pgbouncer]
+listen_addr = {bouncer.host}
+listen_port = {bouncer.port}
+auth_type = trust
+admin_users = pgbouncer
+logfile = {bouncer.log_path}
+auth_file = {bouncer.auth_path}
+pool_mode = session
+default_pool_size = 42
+server_lifetime = INVALID_VALUE_THAT_TRIGGERS_PARSE_ERROR
+"""
+
+    with bouncer.run_with_config(good_config):
+        # Capture active config before the failed reload
+        config_before = {
+            row["key"]: row["value"]
+            for row in bouncer.admin("SHOW CONFIG", row_factory=dict_row)
+        }
+        assert config_before["default_pool_size"] == "5"
+        assert config_before["max_client_conn"] == "10"
+        assert config_before["server_lifetime"] == "120"
+
+        # Write the bad config and attempt RELOAD
+        with bouncer.ini_path.open("w") as f:
+            f.write(bad_config)
+
+        with pytest.raises(psycopg.errors.ConfigFileError):
+            bouncer.admin("RELOAD")
+
+        # The active config should be completely unchanged after a failed
+        # reload — no partial updates, no resets to compile-time defaults.
+        config_after = {
+            row["key"]: row["value"]
+            for row in bouncer.admin("SHOW CONFIG", row_factory=dict_row)
+        }
+
+        # Parameter that appeared BEFORE the parse error in the bad config.
+        # Without snapshot/restore, this would be "42" (the new value was
+        # applied before the error was hit).
+        assert config_after["default_pool_size"] == "5", (
+            f"default_pool_size changed from 5 to {config_after['default_pool_size']} "
+            f"after failed RELOAD (expected: preserved)"
+        )
+
+        # Parameter that was NOT in the bad config at all.
+        # Without snapshot/restore, this would be "100" (the compile-time
+        # default applied by fill_defaults when [pgbouncer] section was
+        # entered).
+        assert config_after["max_client_conn"] == "10", (
+            f"max_client_conn changed from 10 to {config_after['max_client_conn']} "
+            f"after failed RELOAD (expected: preserved)"
+        )
+
+        # Parameter whose invalid value caused the parse error.
+        # Without snapshot/restore, this would be "3600" (compile-time
+        # default from fill_defaults; the invalid value was rejected).
+        assert config_after["server_lifetime"] == "120", (
+            f"server_lifetime changed from 120 to {config_after['server_lifetime']} "
+            f"after failed RELOAD (expected: preserved)"
+        )
+
+
 def test_show(bouncer):
     show_items = [
         "clients",

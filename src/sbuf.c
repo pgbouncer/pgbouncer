@@ -1450,9 +1450,6 @@ bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
 	if (!sbuf_pause(sbuf))
 		return false;
 
-	if (cf_server_tls_sslmode != SSLMODE_VERIFY_FULL)
-		hostname = NULL;
-
 	ctls = tls_client();
 	if (!ctls)
 		return false;

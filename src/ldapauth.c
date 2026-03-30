@@ -41,7 +41,7 @@
  * Default is 100 milliseconds.
  */
 #define LDAP_QUEUE_WAIT_SLEEP_MCS    (100*1000)
-#define LDAP_LONG_LENGTH 256
+#define LDAP_LONG_LENGTH 1024
 #define MAX_INT_LENGTH 10
 
 struct ldap_auth_request {

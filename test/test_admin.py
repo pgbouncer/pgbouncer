@@ -69,8 +69,10 @@ def test_show_user(bouncer):
     with bouncer.run_with_config(config):
         users = bouncer.admin(f"SHOW USERS", row_factory=dict_row)
         users = [user for user in users if user["name"] in ["test1", "test2"]]
-        assert ['1', ''] == [user["pool_size"].lstrip().rstrip() for user in users]
-        assert ['1', ''] == [user["reserve_pool_size"].lstrip().rstrip() for user in users]
+        assert ["1", ""] == [user["pool_size"].lstrip().rstrip() for user in users]
+        assert ["1", ""] == [
+            user["reserve_pool_size"].lstrip().rstrip() for user in users
+        ]
 
 
 def test_show(bouncer):

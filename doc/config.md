@@ -817,6 +817,14 @@ A value of 0 disables this notification message.
 
 Default: 5
 
+### login_welcome_message
+
+Welcome notify message that is sent to the client after a login
+is successful. Can be used to ensure that clients undertand that
+they are connecting to pgbouncer instead of postgres directly.
+
+Default: empty (no welcome message sent)
+
 ## TLS settings
 
 If the contents of any of the cert or key files are changed without

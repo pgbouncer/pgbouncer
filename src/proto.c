@@ -304,7 +304,7 @@ bool welcome_client(PgSocket *client)
 
 	pktbuf_write_BackendKeyData(msg, client->cancel_key);
 
-	if (!strcmpeq(cf_login_welcome_message, "")){
+	if (!strcmpeq(cf_login_welcome_message, "")) {
 		pktbuf_write_Notice(
 			msg,
 			cf_login_welcome_message

@@ -40,9 +40,11 @@ def test_login_welcome_message_negative(bouncer):
 
     with bouncer.run_with_config(config):
 
-        ret = bouncer.psql(query="SELECT 1;", dbname="postgres", user="puser1", password="foo")
-        assert ret.stderr == b''
-        assert ret.stdout == b' ?column? \n----------\n        1\n(1 row)\n\n'
+        ret = bouncer.psql(
+            query="SELECT 1;", dbname="postgres", user="puser1", password="foo"
+        )
+        assert ret.stderr == b""
+        assert ret.stdout == b" ?column? \n----------\n        1\n(1 row)\n\n"
 
 
 def test_login_welcome_message(bouncer):
@@ -69,9 +71,11 @@ def test_login_welcome_message(bouncer):
 
     with bouncer.run_with_config(config):
 
-        ret = bouncer.psql(query="SELECT 1;", dbname="postgres", user="puser1", password="foo")
-        assert ret.stderr == b'NOTICE:  You are now connected to pgbouncer\n'
-        assert ret.stdout == b' ?column? \n----------\n        1\n(1 row)\n\n'
+        ret = bouncer.psql(
+            query="SELECT 1;", dbname="postgres", user="puser1", password="foo"
+        )
+        assert ret.stderr == b"NOTICE:  You are now connected to pgbouncer\n"
+        assert ret.stdout == b" ?column? \n----------\n        1\n(1 row)\n\n"
 
 
 @pytest.mark.parametrize(

@@ -42,8 +42,11 @@ def test_reload_error(bouncer):
 
 def test_show_user(bouncer):
     """
-    Test that admin console correctly raises error during RELOAD
-    when invalid value set for auth_type.
+    Test `SHOW USERS` command.
+
+    Specifically we are trying to fix a bug where pool_size and reserve_pool_size
+    would take its value from the previous row if a pool_size was not set for a later
+    user. In this case test2's pool_size should not be impacted by test1's value.
     """
     config = f"""
     [databases]

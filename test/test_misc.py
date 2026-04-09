@@ -17,11 +17,11 @@ from .utils import (
 )
 
 
-def test_login_welcome_message_negative(bouncer):
+def test_login_notify_message_negative(bouncer):
     """
-    Negative test for login_welcome_message
+    Negative test for login_notify_message
 
-    Tests that NOTICE is not connection when login_welcome_message is not set.
+    Tests that NOTICE is not connection when login_notify_message is not set.
     We are using psql here because psycopg does not seem to pick up notices that happen after
     AuthenticationOk message and before ReadyForQuery.
     """
@@ -47,11 +47,11 @@ def test_login_welcome_message_negative(bouncer):
         assert ret.stdout == b" ?column? \n----------\n        1\n(1 row)\n\n"
 
 
-def test_login_welcome_message(bouncer):
+def test_login_notify_message(bouncer):
     """
-    Positive test for login_welcome_message
+    Positive test for login_notify_message
 
-    Tests that NOTICE is correctly raised on connection when login_welcome_message is set.
+    Tests that NOTICE is correctly raised on connection when login_notify_message is set.
     We are using psql here because psycopg does not seem to pick up notices that happen after
     AuthenticationOk message and before ReadyForQuery.
     """
@@ -66,7 +66,7 @@ def test_login_welcome_message(bouncer):
     listen_port = {bouncer.port}
     logfile = {bouncer.log_path}
     pool_mode = session
-    login_welcome_message = You are now connected to pgbouncer
+    login_notify_message = You are now connected to pgbouncer
     """
 
     with bouncer.run_with_config(config):

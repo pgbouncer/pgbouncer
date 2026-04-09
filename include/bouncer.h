@@ -799,7 +799,7 @@ extern long unsigned int cf_query_wait_notify;
 extern char *cf_config_file;
 extern char *cf_jobname;
 
-extern char *cf_login_welcome_message;
+extern char *cf_login_notify_message;
 
 extern char *cf_unix_socket_dir;
 extern int cf_unix_socket_mode;

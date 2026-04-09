@@ -817,7 +817,7 @@ A value of 0 disables this notification message.
 
 Default: 5
 
-### login_welcome_message
+### login_notify_message
 
 Welcome notify message that is sent to the client after a login
 is successful. Can be used to ensure that clients undertand that

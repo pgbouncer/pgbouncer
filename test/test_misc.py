@@ -17,6 +17,18 @@ from .utils import (
 )
 
 
+def test_parameter_status_pgbouncer_version(bouncer):
+    """
+    Test that pgbouncer_version is sent of the postgres wire protocol via
+    the parameter_status mechanism
+    """
+    conn = bouncer.conn(dbname="p6", user="puser1", password="foo")
+    assert (
+        conn.pgconn.parameter_status(b"pgbouncer_version").decode()
+        == f"{bouncer.version()}"
+    )
+
+
 @pytest.mark.parametrize(
     "test_auth_type", ["trust"] if WINDOWS else ["trust", "scram-sha-256"]
 )

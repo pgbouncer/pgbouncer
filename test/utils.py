@@ -1022,6 +1022,16 @@ class Bouncer(QueryRunner):
             ]
         return [str(BOUNCER_EXE)]
 
+    def version(self):
+        p = subprocess.Popen(
+            [str(BOUNCER_EXE), "--version"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        out, err = p.communicate()
+        return out.decode().split("\n")[0].split(" ")[1]
+
     async def start(self):
         # Due to using WindowsSelectorEventLoopPolicy for support with psycopg
         # we cannot use asyncio subprocesses. Since this eventloop does not

@@ -231,6 +231,8 @@ bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 	if (msg->write_pos == 0)
 		pktbuf_write_AuthenticationOk(msg);
 
+	pktbuf_write_ParameterStatus(msg, "pgbouncer_version", PACKAGE_VERSION);
+
 	/* if not stored in ->orig_vars, write full packet */
 	if (!varcache_set(&pool->orig_vars, key, val))
 		pktbuf_write_ParameterStatus(msg, key, val);

@@ -766,6 +766,40 @@ static void cleanup_inactive_autodatabases(void)
 	}
 }
 
+static void cleanup_inactive_pools(void)
+{
+	struct List *item, *tmp;
+	PgPool *pool;
+	usec_t now = get_cached_time();
+
+	/* Use autodb timeout as a reference if a specific pool timeout isn't defined */
+	usec_t timeout = cf_autodb_idle_timeout;
+
+	if (timeout <= 0)
+		return;
+
+	statlist_for_each_safe(item, &pool_list, tmp) {
+		pool = container_of(item, PgPool, head);
+
+		/* Do not kill admin pools or pools currently in use */
+		if (pool->db->admin)
+			continue;
+
+		/* Check if the pool is actually "unused" */
+		if (pool_client_count(pool) == 0 && pool_connected_server_count(pool) == 0) {
+			usec_t now = get_cached_time();
+			/* 10s inactivity */
+			if ((now - pool->last_active_time) / USEC > 10) {
+				log_debug("cleaning up inactive pool for user %s on db %s", pool->user_credentials->name, pool->db->name);
+				kill_pool(pool);
+			}
+		} else {
+			/* Reset activity timer if it is being used */
+			pool->last_active_time = now;
+		}
+	}
+}
+
 /* full-scale maintenance, done only occasionally */
 static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 {
@@ -834,6 +868,8 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	}
 
 	cleanup_inactive_autodatabases();
+
+	cleanup_inactive_pools();
 
 	cleanup_client_logins();
 

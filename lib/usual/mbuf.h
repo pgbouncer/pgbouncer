@@ -210,7 +210,7 @@ static inline bool mbuf_get_uint64be(struct MBuf *buf, uint64_t *dst_p)
 _MUSTCHECK
 static inline bool mbuf_get_bytes(struct MBuf *buf, unsigned len, const uint8_t **dst_p)
 {
-	if (buf->read_pos + len > buf->write_pos)
+	if (len > buf->write_pos - buf->read_pos)
 		return false;
 	*dst_p = buf->data + buf->read_pos;
 	buf->read_pos += len;
@@ -221,7 +221,7 @@ static inline bool mbuf_get_bytes(struct MBuf *buf, unsigned len, const uint8_t 
 _MUSTCHECK
 static inline bool mbuf_get_chars(struct MBuf *buf, unsigned len, const char **dst_p)
 {
-	if (buf->read_pos + len > buf->write_pos)
+	if (len > buf->write_pos - buf->read_pos)
 		return false;
 	*dst_p = (char *)buf->data + buf->read_pos;
 	buf->read_pos += len;

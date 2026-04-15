@@ -452,6 +452,8 @@ static bool login_scram_sha_256_cont(PgSocket *server, unsigned datalen, const u
 
 	client_final_message = build_client_final_message(server,
 							  credentials);
+	if (!client_final_message)
+		goto failed;
 	free(ibuf);
 
 	slog_debug(server, "SCRAM client-final-message = \"%s\"", client_final_message);

@@ -304,11 +304,28 @@ int tls_configure_keypair(struct tls *ctx, SSL_CTX *ssl_ctx,
 	if (keypair->cert_file != NULL) {
 		if (SSL_CTX_use_certificate_chain_file(ssl_ctx,
 						       keypair->cert_file) != 1) {
-			const char *errstr = "unknown error";
+			const char *errstr = NULL;
 			unsigned long err;
+			int save_errno = errno;
 
-			if ((err = ERR_peek_error()) != 0)
-				errstr = ERR_reason_error_string(err);
+			/*
+			 * Prefer an OpenSSL reason string when one is on the
+			 * error queue. When it returns NULL (happens for
+			 * SYS_LIB errors on recent OpenSSL versions) fall back
+			 * to a formatted textual reason via ERR_error_string,
+			 * or, if the failure is at the syscall level (e.g. the
+			 * file does not exist or is unreadable), to strerror.
+			 * This keeps the log actionable instead of printing
+			 * the literal string "(null)" — see pgbouncer#956.
+			 */
+			err = ERR_peek_error();
+			if (err != 0 &&
+			    (errstr = ERR_reason_error_string(err)) == NULL)
+				errstr = ERR_error_string(err, NULL);
+			if (err == 0 && save_errno != 0)
+				errstr = strerror(save_errno);
+			if (errstr == NULL)
+				errstr = "unknown error";
 			tls_set_errorx(ctx, "failed to load certificate file \"%s\": %s",
 				       keypair->cert_file, errstr);
 			goto err;
@@ -317,11 +334,18 @@ int tls_configure_keypair(struct tls *ctx, SSL_CTX *ssl_ctx,
 	if (keypair->key_file != NULL) {
 		if (SSL_CTX_use_PrivateKey_file(ssl_ctx,
 						keypair->key_file, SSL_FILETYPE_PEM) != 1) {
-			const char *errstr = "unknown error";
+			const char *errstr = NULL;
 			unsigned long err;
+			int save_errno = errno;
 
-			if ((err = ERR_peek_error()) != 0)
-				errstr = ERR_reason_error_string(err);
+			err = ERR_peek_error();
+			if (err != 0 &&
+			    (errstr = ERR_reason_error_string(err)) == NULL)
+				errstr = ERR_error_string(err, NULL);
+			if (err == 0 && save_errno != 0)
+				errstr = strerror(save_errno);
+			if (errstr == NULL)
+				errstr = "unknown error";
 			tls_set_errorx(ctx, "failed to load private key file \"%s\": %s",
 				       keypair->key_file, errstr);
 			goto err;

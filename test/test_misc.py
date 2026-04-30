@@ -24,7 +24,7 @@ def test_parameter_status_pgbouncer_version(bouncer):
     """
     conn = bouncer.conn(dbname="p6", user="puser1", password="foo")
     assert (
-        conn.pgconn.parameter_status(b"pgbouncer_version").decode()
+        conn.pgconn.parameter_status(b"pgbouncer.version").decode()
         == f"{bouncer.version()}"
     )
 

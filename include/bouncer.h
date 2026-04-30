@@ -158,6 +158,9 @@ typedef struct PgGlobalUser PgGlobalUser;
 typedef struct PgDatabase PgDatabase;
 typedef struct PgPool PgPool;
 typedef struct PgStats PgStats;
+typedef struct PgHost PgHost;
+typedef struct PgHostPool PgHostPool;
+typedef struct PgSocketPool PgSocketPool;
 typedef union PgAddr PgAddr;
 typedef enum SocketState SocketState;
 typedef enum PacketCallbackFlag PacketCallbackFlag;
@@ -176,6 +179,8 @@ extern int cf_sbuf_len;
 #include "pktbuf.h"
 #include "varcache.h"
 #include "dnslookup.h"
+#include "hostpool.h"
+#include "socketpool.h"
 
 #include "admin.h"
 #include "loader.h"
@@ -467,6 +472,8 @@ struct PgPool {
 	bool welcome_msg_ready : 1;
 
 	uint16_t rrcounter;		/* round-robin counter */
+
+	PgSocketPool *socket_pool;	/* pool-level load balancing (per db+user pair) */
 };
 
 /*
@@ -580,8 +587,9 @@ struct PgDatabase {
 	/*
 	 * configuration
 	 */
-	char *host;		/* host or unix socket name */
-	int port;
+	char *host;		/* host or unix socket name (original config string) */
+	int port;		/* server port */
+	PgHostPool *host_pool;	/* parsed host entries (NULL if single host or unix socket) */
 	int pool_size;		/* max server connections in one pool */
 	int min_pool_size;	/* min server connections in one pool */
 	int res_pool_size;	/* additional server connections in case of trouble */
@@ -663,6 +671,7 @@ extern const char *replication_type_parameters[3];
 struct PgSocket {
 	struct List head;		/* list header for pool list */
 	struct List cancel_head;	/* list header for server->canceling_clients */
+	struct List host_head;		/* list header for host idle list */
 	PgSocket *link;		/* the dest of packets */
 	PgPool *pool;		/* parent pool, if NULL not yet assigned */
 
@@ -722,7 +731,8 @@ struct PgSocket {
 	PgAddr remote_addr;	/* ip:port for remote endpoint */
 	PgAddr local_addr;	/* ip:port for local endpoint */
 
-	char *host;
+	char *host;		/* hostname for server connection */
+	int host_index;		/* index in host list, -1 if single host */
 
 	union {
 		struct DNSToken *dns_token;	/* ongoing request */

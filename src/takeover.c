@@ -96,7 +96,7 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	char *client_enc, *std_string, *datestyle, *timezone, *password,
 	     *scram_client_key, *scram_server_key;
 	int scram_client_key_len, scram_server_key_len;
-	int oldfd, port, linkfd;
+	int oldfd, port, linkfd, host_index = 0;
 	int got;
 	uint64_t ckey;
 	PgAddr addr;
@@ -115,14 +115,15 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	}
 
 	/* parse row contents */
-	got = scan_text_result(pkt, "issssiqisssssbb", &oldfd, &task, &user, &db,
+	got = scan_text_result(pkt, "issssiqisssssbbi", &oldfd, &task, &user, &db,
 			       &saddr, &port, &ckey, &linkfd,
 			       &client_enc, &std_string, &datestyle, &timezone,
 			       &password,
 			       &scram_client_key_len,
 			       &scram_client_key,
 			       &scram_server_key_len,
-			       &scram_server_key);
+			       &scram_server_key,
+			       &host_index);
 	if (got < 0)
 		die("invalid data from old process");
 	if (task == NULL || saddr == NULL)
@@ -156,7 +157,8 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 					client_enc, std_string, datestyle, timezone,
 					password,
 					scram_client_key, scram_client_key_len,
-					scram_server_key, scram_server_key_len);
+					scram_server_key, scram_server_key_len,
+					host_index);
 	} else if (strcmp(task, "pooler") == 0) {
 		res = use_pooler_socket(fd, pga_is_unix(&addr));
 	} else {

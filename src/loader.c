@@ -410,10 +410,12 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			tag_database_dirty(db);
 	}
 
+	hostpool_free(db->host_pool);
 	free(db->host);
 	db->host = host;
 	host = NULL;
 	db->port = port;
+	db->host_pool = hostpool_parse(db->host, port);
 	db->pool_size = pool_size;
 	db->min_pool_size = min_pool_size;
 	db->res_pool_size = res_pool_size;

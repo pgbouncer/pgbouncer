@@ -8,6 +8,7 @@ pgbouncer_SOURCES = \
 	src/client.c \
 	src/dnslookup.c \
 	src/hba.c \
+	src/hostpool.c \
 	src/janitor.c \
 	src/ldapauth.c \
 	src/loader.c \
@@ -22,6 +23,7 @@ pgbouncer_SOURCES = \
 	src/sbuf.c \
 	src/scram.c \
 	src/server.c \
+	src/socketpool.c \
 	src/stats.c \
 	src/system.c \
 	src/takeover.c \
@@ -35,6 +37,7 @@ pgbouncer_SOURCES = \
 	src/common/pgstrcasecmp.c \
 	src/common/saslprep.c \
 	src/common/scram-common.c \
+	src/common/sortingperm.c \
 	src/common/string.c \
 	src/common/unicode_norm.c \
 	src/common/wchar.c \
@@ -43,6 +46,7 @@ pgbouncer_SOURCES = \
 	include/client.h \
 	include/dnslookup.h \
 	include/hba.h \
+	include/hostpool.h \
 	include/iobuf.h \
 	include/janitor.h \
 	include/ldapauth.h \
@@ -57,6 +61,7 @@ pgbouncer_SOURCES = \
 	include/sbuf.h \
 	include/scram.h \
 	include/server.h \
+	include/socketpool.h \
 	include/stats.h \
 	include/system.h \
 	include/takeover.h \
@@ -72,6 +77,7 @@ pgbouncer_SOURCES = \
 	include/common/protocol.h \
 	include/common/saslprep.h \
 	include/common/scram-common.h \
+	include/common/sortingperm.h \
 	include/common/sha2.h \
 	include/common/sha2_int.h \
 	include/common/simd.h \

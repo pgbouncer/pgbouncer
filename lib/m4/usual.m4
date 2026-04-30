@@ -48,6 +48,7 @@ AC_SUBST(PORTNAME)
 AC_MSG_RESULT([$PORTNAME])
 dnl Set the flags before any feature tests.
 if test "$PORTNAME" = "win32"; then
+  AC_DEFINE([_POSIX_C_SOURCE], [1], [Define before including <time.h> for getting localtime_r() etc. on MinGW.])
   AC_DEFINE([WIN32_LEAN_AND_MEAN], [1], [Define to request cleaner win32 headers.])
   AC_DEFINE([WINVER], [0x0600], [Define to max win32 API version (0x0600=Vista).])
 fi
@@ -213,7 +214,7 @@ AC_CHECK_FUNCS(fls flsl flsll ffs ffsl ffsll)
 AC_CHECK_FUNCS(fnmatch mbsnrtowcs nl_langinfo strtod_l strtonum)
 AC_CHECK_FUNCS(asprintf vasprintf timegm)
 ### Functions provided only on win32
-AC_CHECK_FUNCS(localtime_r gettimeofday recvmsg sendmsg usleep getrusage)
+AC_CHECK_FUNCS(gettimeofday recvmsg sendmsg usleep getrusage)
 ### Functions used by libusual itself
 AC_CHECK_FUNCS(syslog mmap getpeerucred arc4random_buf getentropy getrandom)
 ### win32: link with ws2_32

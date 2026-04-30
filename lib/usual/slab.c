@@ -215,13 +215,17 @@ static void run_slab_stats(struct Slab *slab, slab_stat_fn cb_func, void *cb_arg
 }
 
 /* call a function for all active slabs */
-void slab_stats(slab_stat_fn cb_func, void *cb_arg)
+void slab_stats(slab_stat_fn cb_func, void *cb_arg, const char *arg)
 {
 	struct Slab *slab;
 	struct List *item;
 
 	statlist_for_each(item, &slab_list) {
 		slab = container_of(item, struct Slab, head);
+		if (arg && *arg) {
+			if (strcasecmp(arg, slab->name) != 0)
+				continue;
+		}
 		run_slab_stats(slab, cb_func, cb_arg);
 	}
 }

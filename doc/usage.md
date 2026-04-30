@@ -172,10 +172,12 @@ drivers will not work for this.
 
 The **SHOW** commands output information. Each command is described below.
 
-#### SHOW STATS
+#### SHOW STATS [db]
 
 Shows statistics.  In this and related commands, the total figures are
 since process start, the averages are updated every `stats_period`.
+
+If database name is given only stats for that single database are shown.
 
 database
 :   Statistics are presented per database.
@@ -261,12 +263,12 @@ avg_bind_count
     to PostgreSQL by **pgbouncer**. Only applicable in named prepared statement tracking
     mode, see `max_prepared_statements`.
 
-#### SHOW STATS_TOTALS
+#### SHOW STATS_TOTALS [db]
 
 Subset of **SHOW STATS** showing the total values (**total_**).
 
 
-#### SHOW STATS_AVERAGES
+#### SHOW STATS_AVERAGES [db]
 
 Subset of **SHOW STATS** showing the average values (**avg_**).
 
@@ -274,7 +276,7 @@ Subset of **SHOW STATS** showing the average values (**avg_**).
 
 Like **SHOW STATS** but aggregated across all databases.
 
-#### SHOW SERVERS
+#### SHOW SERVERS [id]
 
 type
 :   S, for server.
@@ -350,7 +352,7 @@ id
 :   Unique ID for server.
 
 
-#### SHOW CLIENTS
+#### SHOW CLIENTS [id]
 
 type
 :   C, for client.
@@ -419,7 +421,7 @@ prepared_statements
 id
 :   Unique ID for client.
 
-#### SHOW POOLS
+#### SHOW POOLS [db]
 
 A new pool entry is made for each couple of (database, user).
 
@@ -482,7 +484,7 @@ pool_mode
 load_balance_hosts
 :   The load_balance_hosts in use if the pool's host contains a comma-separated list.
 
-#### SHOW PEER_POOLS
+#### SHOW PEER_POOLS [peer_id]
 
 A new peer_pool entry is made for each configured peer.
 
@@ -546,7 +548,7 @@ dns_queries
 dns_pending
 :   not used
 
-#### SHOW USERS
+#### SHOW USERS [user]
 
 name
 :   The user name
@@ -574,7 +576,7 @@ max_user_client_connections
 current_client_connections
 :   Current number of client connections that this user has open to PgBouncer.
 
-#### SHOW DATABASES
+#### SHOW DATABASES [db]
 
 name
 :   Name of configured database entry.
@@ -630,7 +632,7 @@ paused
 disabled
 :   1 if this database is currently disabled, else 0.
 
-#### SHOW PEERS
+#### SHOW PEERS [peer_id]
 
 peer_id
 :   ID of the configured peer entry.
@@ -644,7 +646,7 @@ port
 pool_size
 :   Maximum number of server connections that can be made to this peer
 
-#### SHOW FDS
+#### SHOW FDS [fd]
 
 Internal command - shows list of file descriptors in use with internal state attached to them.
 
@@ -681,13 +683,13 @@ cancel
 link
 :   fd for corresponding server/client.  NULL if idle.
 
-#### SHOW SOCKETS, SHOW ACTIVE_SOCKETS
+#### SHOW SOCKETS [id], SHOW ACTIVE_SOCKETS [id]
 
 Shows low-level information about sockets or only active sockets.
 This includes the information shown under **SHOW CLIENTS** and **SHOW
 SERVERS** as well as other more low-level information.
 
-#### SHOW CONFIG
+#### SHOW CONFIG [name]
 
 Show the current configuration settings, one per row, with the following
 columns:
@@ -706,7 +708,7 @@ changeable
     If **no**, the variable can be changed only at boot time.  Use
     **SET** to change a variable at run time.
 
-#### SHOW MEM
+#### SHOW MEM [name]
 
 Shows low-level information about the current sizes of various
 internal memory allocations.  The information presented is subject to

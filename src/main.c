@@ -394,7 +394,7 @@ bool set_config_param(const char *key, const char *val)
 }
 
 void config_for_each(void (*param_cb)(void *arg, const char *name, const char *val, const char *defval, bool reloadable),
-		     void *arg)
+		     void *arg, const char *filter_arg)
 {
 	const struct CfKey *k = bouncer_params;
 	char buf[256];
@@ -403,6 +403,10 @@ void config_for_each(void (*param_cb)(void *arg, const char *name, const char *v
 	int ro = CF_NO_RELOAD | CF_READONLY;
 
 	for (; k->key_name; k++) {
+		if (filter_arg && *filter_arg) {
+			if (strcasecmp(filter_arg, k->key_name) != 0)
+				continue;
+		}
 		val = cf_get(&main_config, "pgbouncer", k->key_name, buf, sizeof(buf));
 		reloadable = (k->flags & ro) == 0;
 		param_cb(arg, k->key_name, val, k->def_value, reloadable);

@@ -1173,6 +1173,7 @@ struct WalkInfo {
 	adns_walk_name_f name_cb;
 	adns_walk_zone_f zone_cb;
 	void *arg;
+	const char *filter;
 };
 
 static void walk_name(struct AANode *n, void *arg)
@@ -1203,7 +1204,6 @@ void adns_walk_zones(struct DNSContext *ctx, adns_walk_zone_f cb, void *arg)
 {
 	struct WalkInfo w;
 	w.zone_cb = cb;
-	w.arg = arg;
 	aatree_walk(&ctx->zone_tree, AA_WALK_IN_ORDER, walk_zone, &w);
 }
 

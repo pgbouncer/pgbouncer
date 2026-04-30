@@ -69,6 +69,6 @@ typedef void (*slab_stat_fn)(void *arg, const char *slab_name,
 			     unsigned total);
 
 /** Run stat info callback on all slabs */
-void slab_stats(slab_stat_fn cb_func, void *cb_arg);
+void slab_stats(slab_stat_fn cb_func, void *cb_arg, const char *arg);
 
 #endif

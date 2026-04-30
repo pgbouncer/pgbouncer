@@ -8,7 +8,7 @@ import psycopg.errors
 import pytest
 from psycopg import sql
 
-from .utils import PG_MAJOR_VERSION, WINDOWS, run
+from .utils import PG_MAJOR_VERSION, WINDOWS, run, wait_until
 
 
 def test_logical_rep(bouncer):
@@ -104,21 +104,31 @@ def test_logical_rep_subscriber(bouncer):
         """).format(sql.Literal(conninfo)),
     )
 
-    # The initial copy should now copy over the row
-    time.sleep(2)
-    assert (
-        bouncer.sql_value("SELECT count(*) FROM test_logical_rep_subscriber.table") >= 1
-    )
+    # Waits for the initial data to be replicated
+    def wait_for_row_count(min_count, timeout=30):
+        """Helper to wait for a minimum row count in the target table."""
+        count = 0
+        for _ in wait_until(
+            f"Data not replicated (expected at least {min_count} rows)",
+            timeout=timeout,
+            interval=0.2,
+        ):
+            count = bouncer.sql_value(
+                "SELECT count(*) FROM test_logical_rep_subscriber.table"
+            )
+            if count >= min_count:
+                return count
+        raise AssertionError(f"Expected at least {min_count} rows, got {count}")
 
-    # Insert another row and logical replication should replicate it correctly
+    # Wait for initial row to be replicated
+    assert wait_for_row_count(1) >= 1
+
+    # Insert another row and wait for it to be replicated
     bouncer.sql(
         "INSERT INTO test_logical_rep_subscriber.table values (2)",
         dbname="user_passthrough",
     )
-    time.sleep(2)
-    assert (
-        bouncer.sql_value("SELECT count(*) FROM test_logical_rep_subscriber.table") >= 2
-    )
+    assert wait_for_row_count(2) >= 2
 
 
 @pytest.mark.skipif(

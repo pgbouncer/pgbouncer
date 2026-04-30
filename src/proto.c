@@ -217,7 +217,6 @@ bool add_welcome_parameter(PgSocket *server, const char *key, const char *val)
 {
 	PgPool *pool = server->pool;
 	PktBuf *msg = pool->welcome_msg;
-	char max_prepared_statements[11];	/* length==max(int) + 1 */
 	char pool_mode[12];	/* length==len(transaction) + 1 */
 
 	if (pool->welcome_msg_ready)
@@ -233,8 +232,6 @@ bool add_welcome_parameter(PgSocket *server, const char *key, const char *val)
 	/* first packet must be AuthOk */
 	if (msg->write_pos == 0)
 		pktbuf_write_AuthenticationOk(msg);
-
-	sprintf(max_prepared_statements, "%d", cf_max_prepared_statements);
 
 	pktbuf_write_ParameterStatus(msg, "pgbouncer.version", PACKAGE_VERSION);
 	pktbuf_write_ParameterStatus(msg, "pgbouncer.max_prepared_statements", max_prepared_statements);

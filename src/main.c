@@ -206,6 +206,11 @@ char *cf_server_tls13_ciphers;
 
 int cf_max_prepared_statements;
 
+/*
+ * used for storing string max_prepared_statements
+ */
+char max_prepared_statements[11];	/* length==max(int) + 1 */
+
 int cf_scram_iterations;
 
 /*
@@ -486,6 +491,8 @@ bool load_config(void)
 		set_dbs_dead(false);
 		ok = false;
 	}
+
+	sprintf(max_prepared_statements, "%d", cf_max_prepared_statements);
 
 	q = cf_server_check_query;
 	if (strcmpeq(q, "<empty>"))

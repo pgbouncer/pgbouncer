@@ -217,7 +217,7 @@ bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 {
 	PktBuf *msg = pool->welcome_msg;
 	char max_prepared_statements[10];	/* lenth==max int */
-	char pool_mode[12];	/* lenth==len(transaction) + 1 */
+	char pool_mode[12];	/* length==len(transaction) + 1 */
 
 	if (pool->welcome_msg_ready)
 		return true;

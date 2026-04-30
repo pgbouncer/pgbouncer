@@ -16,14 +16,15 @@ from .utils import (
     WINDOWS,
 )
 
+
 @pytest.mark.parametrize(
-    "dbname,expected_pool_mode", [
+    "dbname,expected_pool_mode",
+    [
         ["p6", "statement"],
         ["p3", "session"],
         ["p3x", "transaction"],
-    ]
+    ],
 )
-
 def test_parameter_status(bouncer, dbname, expected_pool_mode):
     """
     Test that pgbouncer_version is sent of the postgres wire protocol via
@@ -38,7 +39,10 @@ def test_parameter_status(bouncer, dbname, expected_pool_mode):
         conn.pgconn.parameter_status(b"pgbouncer.max_prepared_statements").decode()
         == "200"
     )
-    assert conn.pgconn.parameter_status(b"pgbouncer.pool_mode").decode() == expected_pool_mode
+    assert (
+        conn.pgconn.parameter_status(b"pgbouncer.pool_mode").decode()
+        == expected_pool_mode
+    )
 
 
 @pytest.mark.parametrize(

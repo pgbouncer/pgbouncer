@@ -1868,7 +1868,7 @@ void admin_setup(void)
 	PgPool *pool;
 	PgGlobalUser *user;
 	PktBuf *msg;
-	char max_prepared_statements[10];  /* lenth==max int */
+	char max_prepared_statements[10];	/* lenth==max int */
 	int res;
 
 	sprintf(max_prepared_statements, "%d", cf_max_prepared_statements);

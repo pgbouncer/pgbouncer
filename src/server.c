@@ -53,7 +53,7 @@ static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 	}
 
 	if (startup) {
-		if (!add_welcome_parameter(server->pool, key, val, client))
+		if (!add_welcome_parameter(server->pool, key, val))
 			goto failed_store;
 	}
 

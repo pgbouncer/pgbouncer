@@ -213,7 +213,7 @@ void log_server_error(const char *note, PktHdr *pkt)
  */
 
 /* add another server parameter packet to cache */
-bool add_welcome_parameter(PgPool *pool, const char *key, const char *val, PgSocket *client)
+bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 {
 	PktBuf *msg = pool->welcome_msg;
 	char max_prepared_statements[10];	/* lenth==max int */

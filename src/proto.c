@@ -238,7 +238,7 @@ bool add_welcome_parameter(PgPool *pool, const char *key, const char *val, PgSoc
 	pktbuf_write_ParameterStatus(msg, "pgbouncer.version", PACKAGE_VERSION);
 	pktbuf_write_ParameterStatus(msg, "pgbouncer.max_prepared_statements", max_prepared_statements);
 
-	switch (probably_wrong_pool_pool_mode(pool)){
+	switch (probably_wrong_pool_pool_mode(pool)) {
 	case POOL_SESSION:
 		safe_strcpy(pool_mode, "session", sizeof(pool_mode));
 		break;

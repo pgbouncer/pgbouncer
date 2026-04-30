@@ -40,6 +40,15 @@ def test_reload_error(bouncer):
             bouncer.admin("RELOAD")
 
 
+def test_show_users(bouncer):
+    """
+    Specific tests for show user command
+    """
+    users = bouncer.admin(f"SHOW USERS", row_factory=dict_row)
+    assert isinstance(users[0]["pool_size"], int)
+    assert isinstance(users[0]["reserve_pool_size"], int)
+
+
 def test_show(bouncer):
     show_items = [
         "clients",

@@ -1868,7 +1868,10 @@ void admin_setup(void)
 	PgPool *pool;
 	PgGlobalUser *user;
 	PktBuf *msg;
+	char max_prepared_statements[100];
 	int res;
+
+	sprintf(max_prepared_statements, "%d", cf_max_prepared_statements);
 
 	/* fake database */
 	db = add_database("pgbouncer");
@@ -1906,6 +1909,10 @@ void admin_setup(void)
 	pktbuf_write_ParameterStatus(msg, "TimeZone", "GMT");
 	pktbuf_write_ParameterStatus(msg, "standard_conforming_strings", "on");
 	pktbuf_write_ParameterStatus(msg, "is_superuser", "on");
+
+	pktbuf_write_ParameterStatus(msg, "pgbouncer.pool_mode", "statement");
+	pktbuf_write_ParameterStatus(msg, "pgbouncer.version", PACKAGE_VERSION);
+	pktbuf_write_ParameterStatus(msg, "pgbouncer.max_prepared_statements", max_prepared_statements);
 
 	if (msg->failed)
 		die("admin welcome failed");

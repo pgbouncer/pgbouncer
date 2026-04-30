@@ -36,6 +36,9 @@ def test_parameter_status(bouncer):
         == "statement"
     )
 
+    # TODO Test session, and transaction user
+    # TODO Test admin console
+
 
 @pytest.mark.parametrize(
     "test_auth_type", ["trust"] if WINDOWS else ["trust", "scram-sha-256"]

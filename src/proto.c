@@ -213,8 +213,9 @@ void log_server_error(const char *note, PktHdr *pkt)
  */
 
 /* add another server parameter packet to cache */
-bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
+bool add_welcome_parameter(PgSocket *server, const char *key, const char *val)
 {
+	PgPool *pool = server->pool;
 	PktBuf *msg = pool->welcome_msg;
 	char max_prepared_statements[11];	/* length==max(int) + 1 */
 	char pool_mode[12];	/* length==len(transaction) + 1 */
@@ -238,7 +239,7 @@ bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 	pktbuf_write_ParameterStatus(msg, "pgbouncer.version", PACKAGE_VERSION);
 	pktbuf_write_ParameterStatus(msg, "pgbouncer.max_prepared_statements", max_prepared_statements);
 
-	switch (probably_wrong_pool_pool_mode(pool)) {
+	switch (connection_pool_mode(server)) {
 	case POOL_SESSION:
 		safe_strcpy(pool_mode, "session", sizeof(pool_mode));
 		break;

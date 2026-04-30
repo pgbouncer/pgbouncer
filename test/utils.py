@@ -283,6 +283,7 @@ class QueryRunner:
         self.port = port
         self.default_db = "postgres"
         self.default_user = "postgres"
+        self.default_password: typing.Optional[str] = None
 
         # Used to track objects that we want to clean up at the end of a test
         self.subscriptions = set()
@@ -297,6 +298,9 @@ class QueryRunner:
         options.setdefault("user", self.default_user)
         options.setdefault("host", self.host)
         options.setdefault("port", self.port)
+        if self.default_password is not None:
+            options.setdefault("password", self.default_password)
+
         if ENABLE_VALGRIND:
             # If valgrind is enabled PgBouncer is a significantly slower to
             # respond to connection requests, so we wait a little longer.
@@ -968,6 +972,7 @@ class Bouncer(QueryRunner):
         self.admin_runner = QueryRunner(self.admin_host, self.port)
         self.admin_runner.default_db = "pgbouncer"
         self.admin_runner.default_user = "pgbouncer"
+        self.admin_runner.default_password = "fake"
 
         with open(base_auth_path) as base_auth:
             with self.auth_path.open("w") as auth:

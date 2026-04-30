@@ -375,12 +375,12 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	auth = cf_auth_type;
 #ifdef HAVE_LDAP
 	if (auth == AUTH_TYPE_LDAP) {
-		if (cf_auth_ldap_parameter == NULL) {
-			disconnect_client(client, true, "auth_ldap_parameter is null");
+		if (cf_auth_ldap_options == NULL) {
+			disconnect_client(client, true, "auth_ldap_options is null");
 			return false;
 		} else {
-			snprintf(client->ldap_parameters, MAX_LDAP_CONFIG, "%s", cf_auth_ldap_parameter);
-			slog_noise(client, "The value of cf_auth_ldap_parameter is %s", cf_auth_ldap_parameter);
+			snprintf(client->ldap_options, MAX_LDAP_CONFIG, "%s", cf_auth_ldap_options);
+			slog_noise(client, "The value of cf_auth_ldap_options is %s", cf_auth_ldap_options);
 		}
 	} else
 #endif
@@ -401,7 +401,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		auth = rule->rule_method;
 #ifdef HAVE_LDAP
 		if (auth == AUTH_TYPE_LDAP) {
-			snprintf(client->ldap_parameters, MAX_LDAP_CONFIG, "%s", rule->auth_options);
+			snprintf(client->ldap_options, MAX_LDAP_CONFIG, "%s", rule->auth_options);
 		}
 #endif
 		slog_noise(client, "HBA Line %d is matched", rule->hba_linenr);
@@ -1050,6 +1050,13 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 			return false;
 		}
 	}
+
+	/* ran out of bytes before seeing a terminator, or got a double \0 before the end */
+	if (!ok || mbuf_avail_for_read(&pkt->data) != 0) {
+		disconnect_client(client, true, "invalid startup packet layout: expected terminator as last byte");
+		return false;
+	}
+
 	if (!username || !username[0]) {
 		disconnect_client(client, true, "no username supplied");
 		return false;

@@ -216,7 +216,7 @@ void log_server_error(const char *note, PktHdr *pkt)
 bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 {
 	PktBuf *msg = pool->welcome_msg;
-	char max_prepared_statements[10];	/* lenth==max int */
+	char max_prepared_statements[11];	/* length==max(int) + 1 */
 	char pool_mode[12];	/* length==len(transaction) + 1 */
 
 	if (pool->welcome_msg_ready)

@@ -17,7 +17,7 @@ from .utils import (
 )
 
 
-def test_parameter_status_pgbouncer_version(bouncer):
+def test_parameter_status(bouncer):
     """
     Test that pgbouncer_version is sent of the postgres wire protocol via
     the parameter_status mechanism
@@ -30,6 +30,10 @@ def test_parameter_status_pgbouncer_version(bouncer):
     assert (
         conn.pgconn.parameter_status(b"pgbouncer.max_prepared_statements").decode()
         == "200"
+    )
+    assert (
+        conn.pgconn.parameter_status(b"pgbouncer.pool_mode").decode()
+        == "statement"
     )
 
 

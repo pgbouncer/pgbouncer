@@ -213,10 +213,11 @@ void log_server_error(const char *note, PktHdr *pkt)
  */
 
 /* add another server parameter packet to cache */
-bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
+bool add_welcome_parameter(PgPool *pool, const char *key, const char *val, PgSocket *client)
 {
 	PktBuf *msg = pool->welcome_msg;
 	char max_prepared_statements[100];
+	char pool_mode[11];
 
 	if (pool->welcome_msg_ready)
 		return true;
@@ -236,6 +237,19 @@ bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 
 	pktbuf_write_ParameterStatus(msg, "pgbouncer.version", PACKAGE_VERSION);
 	pktbuf_write_ParameterStatus(msg, "pgbouncer.max_prepared_statements", max_prepared_statements);
+
+	switch (probably_wrong_pool_pool_mode(pool)){
+	case POOL_SESSION:
+		safe_strcpy(pool_mode, "session", sizeof(pool_mode));
+		break;
+	case POOL_TX:
+		safe_strcpy(pool_mode, "transaction", sizeof(pool_mode));
+		break;
+	case POOL_STMT:
+		safe_strcpy(pool_mode, "statement", sizeof(pool_mode));
+	}
+
+	pktbuf_write_ParameterStatus(msg, "pgbouncer.pool_mode", pool_mode);
 
 	/* if not stored in ->orig_vars, write full packet */
 	if (!varcache_set(&pool->orig_vars, key, val))

@@ -95,7 +95,7 @@ async def test_notify_queue_negative(bouncer):
         )
         conn_2.add_notice_handler(log_notice)
         curr = await conn_2.execute("select 1;")
-        curr.fetchall()
+        await curr.fetchall()
 
         assert len(notices_received) == 0
 
@@ -105,10 +105,10 @@ async def test_notify_queue_negative(bouncer):
         _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
 
         curr = await conn_2.execute("select 1;")
-        curr.fetchall()
+        await curr.fetchall()
         assert len(notices_received) == 0
 
-        conn_2.close()
+        await conn_2.close()
 
 
 async def test_notify_queue(bouncer):
@@ -152,7 +152,7 @@ async def test_notify_queue(bouncer):
         )
         conn_2.add_notice_handler(log_notice)
         curr = await conn_2.execute("select 1;")
-        curr.fetchall()
+        await curr.fetchall()
 
         assert len(notices_received) == 1
         expected_message = (
@@ -166,11 +166,11 @@ async def test_notify_queue(bouncer):
         _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
 
         curr = await conn_2.execute("select 1;")
-        curr.fetchall()
+        await curr.fetchall()
         assert len(notices_received) == 2
         assert expected_message == notices_received[1]
 
-        conn_2.close()
+        await conn_2.close()
 
 
 @pytest.mark.skipif("not LINUX", reason="socat proxy only available on linux")

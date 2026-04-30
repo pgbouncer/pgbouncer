@@ -27,6 +27,10 @@ def test_parameter_status_pgbouncer_version(bouncer):
         conn.pgconn.parameter_status(b"pgbouncer.version").decode()
         == f"{bouncer.version()}"
     )
+    assert (
+        conn.pgconn.parameter_status(b"pgbouncer.max_prepared_statements").decode()
+        == "200"
+    )
 
 
 @pytest.mark.parametrize(

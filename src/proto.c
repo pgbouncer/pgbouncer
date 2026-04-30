@@ -216,6 +216,7 @@ void log_server_error(const char *note, PktHdr *pkt)
 bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 {
 	PktBuf *msg = pool->welcome_msg;
+	char max_prepared_statements[100];
 
 	if (pool->welcome_msg_ready)
 		return true;
@@ -231,7 +232,10 @@ bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 	if (msg->write_pos == 0)
 		pktbuf_write_AuthenticationOk(msg);
 
+	sprintf(max_prepared_statements, "%d", cf_max_prepared_statements);
+
 	pktbuf_write_ParameterStatus(msg, "pgbouncer.version", PACKAGE_VERSION);
+	pktbuf_write_ParameterStatus(msg, "pgbouncer.max_prepared_statements", max_prepared_statements);
 
 	/* if not stored in ->orig_vars, write full packet */
 	if (!varcache_set(&pool->orig_vars, key, val))

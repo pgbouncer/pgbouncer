@@ -27,8 +27,9 @@ from .utils import (
 )
 def test_parameter_status(bouncer, dbname, expected_pool_mode):
     """
-    Test that pgbouncer_version is sent of the postgres wire protocol via
-    the parameter_status mechanism
+    Test that parameter_status messages `pgbouncer.version`, `pgbouncer.max_prepared_statements`
+    and `pgbouncer.pool_mode` are correctly sent to client when connecting to databases. We
+    test 3 different scenarios, one for each pool mode.
     """
     conn = bouncer.conn(dbname=dbname, user="puser1", password="foo")
     assert (

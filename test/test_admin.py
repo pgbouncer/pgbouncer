@@ -9,6 +9,10 @@ from .utils import Bouncer, capture, run
 
 
 def test_parameter_status(bouncer):
+    """
+    Test that parameter_status messages `pgbouncer.version`, `pgbouncer.max_prepared_statements`
+    and `pgbouncer.pool_mode` are correctly sent to client when connecting to the admin console.
+    """
     conn = bouncer.admin_runner.conn()
     assert (
         conn.pgconn.parameter_status(b"pgbouncer.version").decode()

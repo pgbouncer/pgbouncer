@@ -261,7 +261,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	char *tmp_connstr;
 	const char *dbname = name;
 	char *host = NULL;
-	char *port = "5432";
+	char *port = NULL;
 	char *username = NULL;
 	char *password = "";
 	char *auth_username = NULL;
@@ -293,6 +293,9 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		log_error("out of memory");
 		return false;
 	}
+
+	if (!set_param_value(&port, "5432"))
+		goto fail;
 
 	p = tmp_connstr;
 	while (*p) {
@@ -489,6 +492,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	return true;
 fail:
 	free(tmp_connstr);
+	free(port);
 	free(host);
 	free(connect_query);
 	return false;

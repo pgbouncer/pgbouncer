@@ -1693,12 +1693,6 @@ static void dns_connect(struct PgSocket *server)
 			if (*p == ',')
 				count++;
 
-		host_copy = xstrdup(db->host);
-		for (host = strtok(host_copy, ","), n = 0; host; host = strtok(NULL, ","), n++)
-			if (server->pool->rrcounter % count == n)
-				break;
-		Assert(host);
-
 		if (db->port && strchr(db->port, ',')){
 			int port_count = 1;
 			char *port_copy = NULL;
@@ -1725,10 +1719,21 @@ static void dns_connect(struct PgSocket *server)
 			}
 		}
 
+		host_copy = xstrdup(db->host);
+		for (host = strtok(host_copy, ","), n = 0; host; host = strtok(NULL, ","), n++)
+			if (server->pool->rrcounter % count == n)
+				break;
+		Assert(host);
+
+
 		if (server->pool->db->load_balance_hosts == LOAD_BALANCE_HOSTS_ROUND_ROBIN)
 			server->pool->rrcounter++;
 	} else {
 		host = db->host;
+		port = atoi(db->port);
+		if (port == 0) {
+			log_error("invalid port: %s", db->port);
+		}
 	}
 
 	if (host) {

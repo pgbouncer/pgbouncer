@@ -1907,6 +1907,10 @@ void admin_setup(void)
 	pktbuf_write_ParameterStatus(msg, "standard_conforming_strings", "on");
 	pktbuf_write_ParameterStatus(msg, "is_superuser", "on");
 
+	pktbuf_write_ParameterStatus(msg, "pgbouncer.pool_mode", "statement");
+	pktbuf_write_ParameterStatus(msg, "pgbouncer.version", PACKAGE_VERSION);
+	pktbuf_write_ParameterStatus(msg, "pgbouncer.max_prepared_statements", max_prepared_statements);
+
 	if (msg->failed)
 		die("admin welcome failed");
 

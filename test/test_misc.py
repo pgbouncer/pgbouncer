@@ -18,6 +18,28 @@ from .utils import (
 )
 
 
+def test_multi_port_validation(bouncer, pg, pg2):
+
+    config = f"""
+    [databases]
+    postgres = host={pg.host} port={pg.port},{pg2.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    auth_type = trust
+    pool_mode = session
+    """
+
+    with bouncer.log_contains("invalid number of ports"):
+        with pytest.raises(psycopg.errors.ConfigFileError):
+            with bouncer.run_with_config(config):
+                pass
+
+
 def test_login_notify_message_negative(bouncer):
     """
     Negative test for login_notify_message

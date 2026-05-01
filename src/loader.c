@@ -25,6 +25,7 @@
 
 #include <usual/fileutil.h>
 #include <usual/string.h>
+#include <usual/err.h>
 
 /*
  * ConnString parsing
@@ -177,7 +178,12 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 
 	char *tmp_connstr;
 	char *host = NULL;
-	int port = 6432;
+
+	int *ports = NULL;
+	char *port = NULL;
+	int parsed_port;
+	int port_count = 1;
+
 	int pool_size = -1;
 	int peer_id = strtonum(name, 1, 0xFFFF, NULL);
 	if (peer_id == 0) {
@@ -205,10 +211,19 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 			if (!set_param_value(&host, val))
 				goto fail;
 		} else if (strcmp("port", key) == 0) {
-			port = atoi(val);
-			if (port == 0) {
-				log_error("invalid port: %s", val);
+			if (!set_param_value(&port, val))
 				goto fail;
+			if (strchr(port, ',')) {
+				log_error("peer can only accept single port");
+				goto fail;
+			} else {
+				parsed_port = atoi(port);
+				if (parsed_port == 0) {
+					log_error("invalid port: %s", port);
+					goto fail;
+				}
+				ports = malloc(port_count * sizeof(int));
+				ports[0] = parsed_port;
 			}
 		} else if (strcmp("pool_size", key) == 0) {
 			pool_size = atoi(val);
@@ -234,12 +249,20 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 
 	free(peer->host);
 	peer->host = host;
-	peer->port = port;
+
+	free(peer->port);
+	free(peer->unparsed_port);
+	peer->port = ports;
+	peer->port_count = port_count;
+	peer->unparsed_port = port;
+
 	peer->pool_size = pool_size;
 
 	free(tmp_connstr);
 	return true;
 fail:
+	free(port);
+	free(ports);
 	free(tmp_connstr);
 	free(host);
 	return false;
@@ -261,6 +284,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 
 	int max_db_client_connections = -1;
 	int max_db_connections = -1;
+	int port_count = 1;
+	int host_count = 1;
 	usec_t server_lifetime = 0;
 	int dbname_ofs;
 	int pool_mode = POOL_INHERIT;
@@ -269,7 +294,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	char *tmp_connstr;
 	const char *dbname = name;
 	char *host = NULL;
-	int port = 5432;
+	char *port = NULL;
+	int *ports = NULL;
 	char *username = NULL;
 	char *password = "";
 	char *auth_username = NULL;
@@ -317,11 +343,59 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		} else if (strcmp("host", key) == 0) {
 			if (!set_param_value(&host, val))
 				goto fail;
+
+			for (const char *p = host; *p; p++)
+				if (*p == ',')
+					host_count++;
 		} else if (strcmp("port", key) == 0) {
-			port = atoi(val);
-			if (port == 0) {
-				log_error("invalid port: %s", val);
+			int parsed_port;
+			if (!set_param_value(&port, val))
 				goto fail;
+
+			/* check of port value */
+			if (strchr(port, ',')) {
+				char *port_copy = NULL;
+				char *port_str = NULL;
+				int n;
+
+				/* check of port value list */
+				for (const char *p = port; *p; p++)
+					if (*p == ',')
+						port_count++;
+
+				port_copy = xstrdup(port);
+
+				ports = malloc(port_count * sizeof(int));
+				if (ports == NULL) {
+					free(port_copy);
+					log_warning("out of memory");
+					goto fail;
+				}
+
+				for (port_str = strtok(port_copy, ","), n = 0; port_str; port_str = strtok(NULL, ","), n++) {
+					parsed_port = atoi(port_str);
+					if (parsed_port == 0) {
+						free(port_copy);
+						log_error("invalid port: %s", port_str);
+						goto fail;
+					}
+					ports[n] = parsed_port;
+				}
+				free(port_copy);
+			} else {
+				/* check single port value list */
+				port_count = 1;
+				ports = malloc(port_count * sizeof(int));
+				if (ports == NULL) {
+					log_warning("out of memory");
+					goto fail;
+				}
+				parsed_port = atoi(port);
+				if (parsed_port == 0) {
+					log_error("invalid port: %s", port);
+					goto fail;
+				}
+				ports[0] = parsed_port;
 			}
 		} else if (strcmp("user", key) == 0) {
 			username = val;
@@ -379,6 +453,12 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		}
 	}
 
+	/* validate host_count/port_count */
+	if (!((port_count == host_count) || (port_count == 1))) {
+		log_error("invalid number of ports (%d) provided relative to hosts (%d)", port_count, host_count);
+		goto fail;
+	}
+
 	db = add_database(name);
 	if (!db) {
 		log_error("cannot create database, no memory?");
@@ -398,7 +478,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			changed = true;
 		} else if (!strcmpeq(host, db->host)) {
 			changed = true;
-		} else if (port != db->port) {
+		} else if (!strcmpeq(port, db->unparsed_port)) {
 			changed = true;
 		} else if (username && !db->forced_user_credentials) {
 			changed = true;
@@ -422,7 +502,13 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	free(db->host);
 	db->host = host;
 	host = NULL;
-	db->port = port;
+
+	free(db->port);
+	free(db->unparsed_port);
+	db->port = ports;
+	db->port_count = port_count;
+	db->unparsed_port = port;
+
 	db->pool_size = pool_size;
 	db->min_pool_size = min_pool_size;
 	db->res_pool_size = res_pool_size;
@@ -504,6 +590,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 fail:
 	free(tmp_connstr);
 	free(host);
+	free(ports);
+	free(port);
 	free(connect_query);
 	return false;
 }

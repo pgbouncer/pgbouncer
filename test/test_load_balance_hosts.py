@@ -45,3 +45,27 @@ def test_load_balance_hosts_reload(bouncer):
         results = cur.execute("show databases").fetchall()
         result = [r for r in results if r[0] == "load_balance_hosts_update"][0]
         assert "round-robin" in result
+
+
+def test_multi_port(bouncer, pg, pg2):
+
+    config = f"""
+    [databases]
+    postgres = host={pg.host},{pg2.host} port={pg.port},{pg2.port} load_balance_hosts=round-robin
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    auth_type = trust
+    pool_mode = session
+    """
+
+    with bouncer.run_with_config(config):
+        with bouncer.cur(dbname="postgres", user="puser1") as cur:
+            port1 = cur.execute("SHOW port").fetchall()[0][0]
+            with bouncer.cur(dbname="postgres", user="puser1") as cur:
+                port2 = cur.execute("SHOW port").fetchall()[0][0]
+    assert port1 != port2

@@ -518,7 +518,7 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 		if (db->host && strchr(db->host, ','))
 			load_balance_hosts_str = cf_get_lookup(&load_balance_hosts_lookup);
 
-		pktbuf_write_DataRow(buf, "ssissiiiissiiiiii",
+		pktbuf_write_DataRow(buf, "sssssiiiissiiiiii",
 				     db->name, db->host, db->port,
 				     db->dbname, f_user,
 				     db->pool_size >= 0 ? db->pool_size : cf_default_pool_size,
@@ -1869,13 +1869,15 @@ void admin_setup(void)
 	PgGlobalUser *user;
 	PktBuf *msg;
 	int res;
+	char str_port[10];
 
 	/* fake database */
 	db = add_database("pgbouncer");
 	if (!db)
 		die("no memory for admin database");
 
-	db->port = cf_listen_port;
+	sprintf(str_port, "%d", cf_listen_port);
+	db->port = str_port;
 	db->pool_size = 2;
 	db->admin = true;
 	db->pool_mode = POOL_STMT;

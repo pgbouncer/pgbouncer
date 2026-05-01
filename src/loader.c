@@ -176,7 +176,7 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 
 	char *tmp_connstr;
 	char *host = NULL;
-	int port = 6432;
+	char *port = "6432";
 	int pool_size = -1;
 	int peer_id = strtonum(name, 1, 0xFFFF, NULL);
 	if (peer_id == 0) {
@@ -204,11 +204,8 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 			if (!set_param_value(&host, val))
 				goto fail;
 		} else if (strcmp("port", key) == 0) {
-			port = atoi(val);
-			if (port == 0) {
-				log_error("invalid port: %s", val);
+			if (!set_param_value(&port, val))
 				goto fail;
-			}
 		} else if (strcmp("pool_size", key) == 0) {
 			pool_size = atoi(val);
 		} else {
@@ -264,7 +261,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	char *tmp_connstr;
 	const char *dbname = name;
 	char *host = NULL;
-	int port = 5432;
+	char *port = "5432";
 	char *username = NULL;
 	char *password = "";
 	char *auth_username = NULL;
@@ -313,11 +310,9 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			if (!set_param_value(&host, val))
 				goto fail;
 		} else if (strcmp("port", key) == 0) {
-			port = atoi(val);
-			if (port == 0) {
-				log_error("invalid port: %s", val);
+			if (!set_param_value(&port, val))
 				goto fail;
-			}
+			// TODO one time check of all ports
 		} else if (strcmp("user", key) == 0) {
 			username = val;
 		} else if (strcmp("password", key) == 0) {
@@ -389,7 +384,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			changed = true;
 		} else if (!strcmpeq(host, db->host)) {
 			changed = true;
-		} else if (port != db->port) {
+		} else if (!strcmpeq(port, db->port)) {
 			changed = true;
 		} else if (username && !db->forced_user_credentials) {
 			changed = true;
@@ -413,7 +408,11 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	free(db->host);
 	db->host = host;
 	host = NULL;
+
+	free(db->port);
 	db->port = port;
+	port = NULL;
+
 	db->pool_size = pool_size;
 	db->min_pool_size = min_pool_size;
 	db->res_pool_size = res_pool_size;

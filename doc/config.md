@@ -1349,7 +1349,7 @@ Maximum time queries are allowed to spend waiting for execution.
 
 See description of the global `query_wait_timeout` setting for additional detail.
 
-If not set, the database or default `query_wait_timeout` is used.
+If not set, the user or default `query_wait_timeout` is used.
 
 ### load_balance_hosts
 

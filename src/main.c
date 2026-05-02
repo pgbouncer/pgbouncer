@@ -466,6 +466,7 @@ bool load_config(void)
 	any_user_level_timeout_set = false;
 	empty_server_check_query = false;
 	any_user_level_client_timeout_set = false;
+	any_database_level_client_timeout_set = false;
 
 	set_dbs_dead(true);
 	set_peers_dead(true);

@@ -405,7 +405,6 @@ static void pool_client_maint(PgPool *pool)
 	struct List *item, *tmp;
 	usec_t now = get_cached_time();
 	PgSocket *client;
-	PgDatabase *db;
 	PgGlobalUser *user;
 	usec_t age;
 	usec_t effective_client_idle_timeout;
@@ -434,6 +433,8 @@ static void pool_client_maint(PgPool *pool)
 	/* force timeouts for waiting queries */
 	if (cf_query_timeout > 0 || cf_query_wait_timeout > 0 || any_user_level_client_timeout_set || any_database_level_client_timeout_set) {
 		statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
+			PgDatabase *db;
+
 			client = container_of(item, PgSocket, head);
 			Assert(client->state == CL_WAITING || client->state == CL_WAITING_LOGIN);
 			if (client->query_start == 0) {

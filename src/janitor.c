@@ -434,7 +434,6 @@ static void pool_client_maint(PgPool *pool)
 	if (cf_query_timeout > 0 || cf_query_wait_timeout > 0 || any_user_level_client_timeout_set || any_database_level_client_timeout_set) {
 		PgDatabase *db;
 		statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
-
 			client = container_of(item, PgSocket, head);
 			Assert(client->state == CL_WAITING || client->state == CL_WAITING_LOGIN);
 			if (client->query_start == 0) {

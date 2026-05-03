@@ -25,15 +25,21 @@ async def test_port_list(bouncer, pg, pg2):
     ports = []
     with bouncer.run_with_config(config):
         with bouncer.conn() as conn:
-            for _ in range(2):
+            with bouncer.conn() as conn2:
                 port = conn.execute("""
                     SELECT setting
                     FROM pg_settings
                     WHERE name = 'port';
                 """).fetchall()
-                breakpoint()
                 ports.append(int(port[0][0]))
-    assert set(ports) == (pg.port, pg2.port)
+                port = conn2.execute("""
+                    SELECT setting
+                    FROM pg_settings
+                    WHERE name = 'port';
+                """).fetchall()
+                ports.append(int(port[0][0]))
+
+    assert set(ports) == {pg.port, pg2.port}
 
 
 async def test_load_balance_hosts_disable_good_first(bouncer):

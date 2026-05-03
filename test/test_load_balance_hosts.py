@@ -4,8 +4,36 @@ import psycopg
 import pytest
 
 
-async def test_port_list(bouncer):
-    bouncer.test(dbname="conn_limit_db")
+async def test_port_list(bouncer, pg, pg2):
+    config = f"""
+        [databases]
+        p0 = host={pg.host},{pg2.host} port={pg.port},{pg2.port}
+
+        [pgbouncer]
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = trust
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        pool_mode = session
+
+        [users]
+        puser1 =
+    """
+
+    ports = []
+    with bouncer.run_with_config(config):
+        with bouncer.conn() as conn:
+            for _ in range(2):
+                port = conn.execute("""
+                    SELECT setting
+                    FROM pg_settings
+                    WHERE name = 'port';
+                """).fetchall()
+                breakpoint()
+                ports.append(int(port[0][0]))
+    assert set(ports) == (pg.port, pg2.port)
 
 
 async def test_load_balance_hosts_disable_good_first(bouncer):

@@ -1694,7 +1694,7 @@ static void dns_connect(struct PgSocket *server)
 				count++;
 
 		if (db->port && strchr(db->port, ',')){
-			int port_count = 0;
+			int port_count = 1;
 			char *port_copy = NULL;
 			char *port_str = NULL;
 

@@ -204,6 +204,13 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 			if (!set_param_value(&host, val))
 				goto fail;
 		} else if (strcmp("port", key) == 0) {
+			/*
+			 * Validate that port is an integer but store as string
+			 */
+			if (!atoi(port)){
+				log_error("Invalid port provided");
+				goto fail
+			}
 			if (!set_param_value(&port, val))
 				goto fail;
 		} else if (strcmp("pool_size", key) == 0) {

@@ -1693,7 +1693,7 @@ static void dns_connect(struct PgSocket *server)
 			if (*p == ',')
 				count++;
 
-		if (db->port && strchr(db->port, ',')){
+		if (db->port && strchr(db->port, ',')) {
 			int port_count = 1;
 			char *port_copy = NULL;
 			char *port_str = NULL;
@@ -1711,7 +1711,6 @@ static void dns_connect(struct PgSocket *server)
 			if (port == 0) {
 				log_error("invalid port: %s", port_str);
 			}
-
 		} else {
 			port = atoi(db->port);
 			if (port == 0) {

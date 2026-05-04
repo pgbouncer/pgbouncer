@@ -4,7 +4,67 @@ import psycopg
 import pytest
 
 
-async def test_port_list(bouncer, pg, pg2):
+def test_port_list_invalid_port(bouncer):
+    config = f"""
+        [databases]
+        p0 = host={bouncer.pg.host},{bouncer.pg.host} port={bouncer.pg.port},NaN
+
+        [pgbouncer]
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = trust
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        pool_mode = session
+    """
+
+    with pytest.raises(psycopg.errors.ConfigFileError):
+        with bouncer.run_with_config(config):
+            pass
+
+
+def test_port_list_host_port_mismatch(bouncer):
+    config = f"""
+        [databases]
+        p0 = host={bouncer.pg.host} port={bouncer.pg.port},1234
+
+        [pgbouncer]
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = trust
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        pool_mode = session
+    """
+
+    with pytest.raises(psycopg.errors.ConfigFileError):
+        with bouncer.run_with_config(config):
+            pass
+
+
+def test_port_list_non_int(bouncer):
+    config = f"""
+        [databases]
+        p0 = host={bouncer.pg.host} port=NaN
+
+        [pgbouncer]
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = trust
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        pool_mode = session
+    """
+
+    with pytest.raises(psycopg.errors.ConfigFileError):
+        with bouncer.run_with_config(config):
+            pass
+
+
+def test_port_list(bouncer, pg, pg2):
     config = f"""
         [databases]
         p0 = host={pg.host},{pg2.host} port={pg.port},{pg2.port}

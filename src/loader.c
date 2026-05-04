@@ -381,27 +381,40 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		goto fail;
 	}
 
-	if (strchr(port, ',') == NULL){
-		if (!atoi(port)){
-			log_error("Invalid port provided: %s", port);
-			goto fail;
-		}
-	} else {
+	if (strchr(port, ',')){
 		char *port_copy;
 		char *port_str;
 		int n;
+
+		int port_count = 0;
+		int host_count = 0;
+
 		port_copy = xstrdup(port);
 		for (port_str = strtok(port_copy, ","), n = 0; port_str; port_str = strtok(NULL, ","), n++){
-			if (!atoi(port)){
+			if (!atoi(port_str)){
 				log_error("Invalid port provided: %s", port);
 				goto fail;
 			}
 		}
+		for (const char *p = port; *p; p++)
+			if (*p == ',')
+				port_count++;
 
+		for (const char *p = host; *p; p++)
+			if (*p == ',')
+				host_count++;
 
+		if (host_count != port_count){
+			log_error("Port count must match host count if providing more than one port");
+			goto fail;
+
+		}
+	} else {
+		if (!atoi(port)){
+			log_error("Invalid port provided: %s", port);
+			goto fail;
+		}
 	}
-	// if commas then validate each is integer
-	// if commas also validate it is same length as host
 
 	/* tag the db as alive */
 	db->db_dead = false;

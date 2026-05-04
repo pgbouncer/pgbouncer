@@ -177,7 +177,7 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 
 	char *tmp_connstr;
 	char *host = NULL;
-	char *port = "6432";
+	char *port = NULL;
 	int pool_size = -1;
 	int peer_id = strtonum(name, 1, 0xFFFF, NULL);
 	if (peer_id == 0) {
@@ -192,6 +192,10 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 	}
 
 	p = tmp_connstr;
+
+	if (!set_param_value(&port, "6432"))
+		goto fail;
+
 	while (*p) {
 		p = cstr_get_pair(p, &key, &val);
 		if (p == NULL) {
@@ -238,6 +242,8 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 
 	free(peer->host);
 	peer->host = host;
+
+	free(peer->port);
 	peer->port = port;
 	peer->pool_size = pool_size;
 

@@ -86,17 +86,21 @@ def test_port_list(bouncer, pg, pg2):
     with bouncer.run_with_config(config):
         with bouncer.conn() as conn:
             with bouncer.conn() as conn2:
-                port = conn.execute("""
+                port = conn.execute(
+                    """
                     SELECT setting
                     FROM pg_settings
                     WHERE name = 'port';
-                """).fetchall()
+                """
+                ).fetchall()
                 ports.append(int(port[0][0]))
-                port = conn2.execute("""
+                port = conn2.execute(
+                    """
                     SELECT setting
                     FROM pg_settings
                     WHERE name = 'port';
-                """).fetchall()
+                """
+                ).fetchall()
                 ports.append(int(port[0][0]))
 
     assert set(ports) == {pg.port, pg2.port}

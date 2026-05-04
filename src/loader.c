@@ -25,6 +25,7 @@
 
 #include <usual/fileutil.h>
 #include <usual/string.h>
+#include <usual/err.h>
 
 /*
  * ConnString parsing
@@ -209,7 +210,7 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 			 */
 			if (!atoi(port)){
 				log_error("Invalid port provided");
-				goto fail
+				goto fail;
 			}
 			if (!set_param_value(&port, val))
 				goto fail;
@@ -322,7 +323,6 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		} else if (strcmp("port", key) == 0) {
 			if (!set_param_value(&port, val))
 				goto fail;
-			// TODO one time check of all ports
 		} else if (strcmp("user", key) == 0) {
 			username = val;
 		} else if (strcmp("password", key) == 0) {
@@ -380,6 +380,28 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		log_error("cannot create database, no memory?");
 		goto fail;
 	}
+
+	if (strchr(port, ',') == NULL){
+		if (!atoi(port)){
+			log_error("Invalid port provided: %s", port);
+			goto fail;
+		}
+	} else {
+		char *port_copy;
+		char *port_str;
+		int n;
+		port_copy = xstrdup(port);
+		for (port_str = strtok(port_copy, ","), n = 0; port_str; port_str = strtok(NULL, ","), n++){
+			if (!atoi(port)){
+				log_error("Invalid port provided: %s", port);
+				goto fail;
+			}
+		}
+
+
+	}
+	// if commas then validate each is integer
+	// if commas also validate it is same length as host
 
 	/* tag the db as alive */
 	db->db_dead = false;

@@ -777,6 +777,7 @@ static void cleanup_inactive_pools(void)
 			if ((now - pool->last_active_time) / USEC > 10) {
 				log_debug("cleaning up inactive pool for user %s on db %s", pool->user_credentials->name, pool->db->name);
 				kill_pool(pool);
+				slab_free(pool_cache, pool);
 			}
 		} else {
 			/* Reset activity timer if it is being used */

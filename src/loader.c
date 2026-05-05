@@ -403,6 +403,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			}
 		}
 		free(port_copy);
+		port_copy = NULL;
 		for (const char *p = port; *p; p++)
 			if (*p == ',')
 				port_count++;

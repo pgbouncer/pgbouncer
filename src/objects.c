@@ -1680,6 +1680,7 @@ static void dns_connect(struct PgSocket *server)
 	int sa_len;
 	int res;
 	char *host_copy = NULL;
+	char *port_copy = NULL;
 
 	/* host list? */
 	if (db->host && strchr(db->host, ',')) {
@@ -1695,7 +1696,6 @@ static void dns_connect(struct PgSocket *server)
 
 		if (db->port && strchr(db->port, ',')) {
 			int port_count = 1;
-			char *port_copy = NULL;
 			char *port_str = NULL;
 
 			for (const char *p = db->port; *p; p++)
@@ -1799,6 +1799,7 @@ static void dns_connect(struct PgSocket *server)
 	connect_server(server, sa, sa_len);
 cleanup:
 	free(host_copy);
+	free(port_copy);
 }
 
 PgSocket *compare_connections_by_time(PgSocket *lhs, PgSocket *rhs)

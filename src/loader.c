@@ -276,6 +276,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	const char *dbname = name;
 	char *host = NULL;
 	char *port = NULL;
+	char *port_copy = NULL;
 	char *username = NULL;
 	char *password = "";
 	char *auth_username = NULL;
@@ -388,7 +389,6 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	}
 
 	if (strchr(port, ',')) {
-		char *port_copy;
 		char *port_str;
 		int n;
 
@@ -402,6 +402,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 				goto fail;
 			}
 		}
+		free(port_copy);
 		for (const char *p = port; *p; p++)
 			if (*p == ',')
 				port_count++;
@@ -539,6 +540,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	return true;
 fail:
 	free(tmp_connstr);
+	free(port_copy);
 	free(port);
 	free(host);
 	free(connect_query);

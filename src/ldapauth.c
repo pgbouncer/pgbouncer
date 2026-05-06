@@ -108,6 +108,9 @@ struct ldap_auth_request ldap_auth_queue[LDAP_REQUEST_QUEUE_SIZE];
 
 pthread_t ldap_worker_thread;
 
+/* Signal to the LDAP worker thread to terminate gracefully. */
+static volatile	sig_atomic_t ldap_worker_shutdown = 0;
+
 /*
  * Mutex serializes access to the queue's tail when we add new requests or
  * check that we reach the end of the queue in the worker thread.
@@ -134,6 +137,44 @@ static void format_search_filter(char *filter, int length, const char *pattern, 
 static bool check_ldap_auth(struct ldap_auth_request *request);
 static int get_request_status(struct ldap_auth_request *request);
 static void set_request_status(struct ldap_auth_request *request, int status);
+
+static void ldap_cleanup(void)
+{
+	int rc;
+
+	if (ldap_worker_shutdown)
+		return; /* Nothing to do if cleanup has already executed */
+
+	ldap_worker_shutdown = 1;
+
+	/* Wake up PAM worker thread if needed */
+	pthread_mutex_lock(&ldap_queue_tail_mutex);
+	pthread_cond_signal(&ldap_data_available);
+	pthread_mutex_unlock(&ldap_queue_tail_mutex);
+
+	rc = pthread_join(ldap_worker_thread, NULL);
+	if (rc != 0)
+		die("failed to join the authentication thread: %s", strerror(rc));
+
+	rc = pthread_mutex_destroy(&ldap_queue_tail_mutex);
+	if (rc != 0) {
+		die("failed to destroy a mutex: %s", strerror(rc));
+	}
+
+	rc = pthread_cond_destroy(&ldap_data_available);
+	if (rc != 0) {
+		die("failed to destroy a condition variable : %s", strerror(rc));
+	}
+
+	for (int i = 0; i < LDAP_REQUEST_QUEUE_SIZE; i++) {
+		struct ldap_auth_request *request = &ldap_auth_queue[i];
+		rc = pthread_mutex_destroy(&request->mutex);
+		if (rc != 0) {
+			die("failed to destroy a mutex for request[%d]: %s",
+				i, strerror(rc));
+		}
+	}
+}
 
 /*
  * Initialize LDAP subsystem.
@@ -166,6 +207,8 @@ void auth_ldap_init(void)
 			die("failed to initialize a mutex for request[%d]: %s", i, strerror(rc));
 		}
 	}
+
+	atexit(ldap_cleanup);
 }
 
 static int get_request_status(struct ldap_auth_request *request)
@@ -525,15 +568,24 @@ static void *ldap_auth_worker(void *arg)
 	struct ldap_auth_request *request;
 	int request_status = 0;
 
-	while (true) {
+	/* loop until shutdown request */
+	while (!ldap_worker_shutdown) {
 		/* Wait for new data in the queue */
 		pthread_mutex_lock(&ldap_queue_tail_mutex);
 
-		while (current_slot == ldap_first_free_slot) {
+		while (current_slot == ldap_first_free_slot && !ldap_worker_shutdown) {
 			pthread_cond_wait(&ldap_data_available, &ldap_queue_tail_mutex);
 		}
 
 		pthread_mutex_unlock(&ldap_queue_tail_mutex);
+
+		/*
+		 * In normal processing being here means that we have received an auth
+		 * request from the main thread. But in case of shutdown we were woken
+		 * up from the "data_available" cond variable in order to exit.
+		 */
+		if (ldap_worker_shutdown)
+			break;
 
 		log_debug("ldap_auth_worker(): processing slot %d", current_slot);
 
@@ -551,6 +603,7 @@ static void *ldap_auth_worker(void *arg)
 		log_debug("ldap_auth_worker(): authentication completed, status=%d", request_status);
 	}
 
+	log_debug("ldap_auth_worker(): got shutdown request, exiting");
 	return NULL;
 }
 

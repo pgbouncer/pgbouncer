@@ -88,6 +88,9 @@ struct pam_auth_request pam_auth_queue[PAM_REQUEST_QUEUE_SIZE];
 
 pthread_t pam_worker_thread;
 
+/* Signal to the PAM worker thread to terminate gracefully. */
+static volatile	sig_atomic_t pam_worker_shutdown = 0;
+
 /*
  * Mutex serializes access to the queue's tail when we add new requests or
  * check that we reach the end of the queue in the worker thread.
@@ -105,6 +108,35 @@ static void * pam_auth_worker(void *arg);
 static bool is_valid_socket(const struct pam_auth_request *request);
 static void pam_auth_finish(struct pam_auth_request *request);
 static bool pam_check_passwd(struct pam_auth_request *request);
+
+static void pam_cleanup(void)
+{
+	int rc;
+
+	if (pam_worker_shutdown)
+		return; /* Nothing to do if cleanup has already executed */
+
+	pam_worker_shutdown = 1;
+
+	/* Wake up PAM worker thread if needed */
+	pthread_mutex_lock(&pam_queue_tail_mutex);
+	pthread_cond_signal(&pam_data_available);
+	pthread_mutex_unlock(&pam_queue_tail_mutex);
+
+	rc = pthread_join(pam_worker_thread, NULL);
+	if (rc != 0)
+		die("failed to join the authentication thread: %s", strerror(rc));
+
+	rc = pthread_mutex_destroy(&pam_queue_tail_mutex);
+	if (rc != 0) {
+		die("failed to destroy a mutex: %s", strerror(rc));
+	}
+
+	rc = pthread_cond_destroy(&pam_data_available);
+	if (rc != 0) {
+		die("failed to destroy a condition variable: %s", strerror(rc));
+	}
+}
 
 /*
  * Initialize PAM subsystem.
@@ -130,6 +162,8 @@ void pam_init(void)
 	if (rc != 0) {
 		die("failed to create the authentication thread: %s", strerror(rc));
 	}
+
+	atexit(pam_cleanup);
 }
 
 /*
@@ -220,15 +254,24 @@ static void * pam_auth_worker(void *arg)
 	int current_slot = pam_first_taken_slot;
 	struct pam_auth_request *request;
 
-	while (true) {
+	/* loop until shutdown request */
+	while (!pam_worker_shutdown) {
 		/* Wait for new data in the queue */
 		pthread_mutex_lock(&pam_queue_tail_mutex);
 
-		while (current_slot == pam_first_free_slot) {
+		while (current_slot == pam_first_free_slot && !pam_worker_shutdown) {
 			pthread_cond_wait(&pam_data_available, &pam_queue_tail_mutex);
 		}
 
 		pthread_mutex_unlock(&pam_queue_tail_mutex);
+
+		/*
+		 * In normal processing being here means that we have received an auth
+		 * request from the main thread. But in case of shutdown we were woken
+		 * up from the "data_available" cond variable in order to exit.
+		 */
+		if (pam_worker_shutdown)
+			break;
 
 		log_debug("pam_auth_worker(): processing slot %d", current_slot);
 
@@ -256,6 +299,7 @@ static void * pam_auth_worker(void *arg)
 		log_debug("pam_auth_worker(): authentication completed, status=%d", request->status);
 	}
 
+	log_debug("pam_auth_worker(): got shutdown request, exiting");
 	return NULL;
 }
 

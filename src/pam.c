@@ -61,6 +61,12 @@ struct pam_auth_request {
 	/* The request status, one of the PAM_STATUS_* constants */
 	int status;
 
+	/*
+	 * Protect status from main thread reading and worker thread writing at the
+	 * same time.
+	 */
+	pthread_mutex_t mutex;
+
 	/* The username (same as in client->login_user_credentials->name).
 	 * See the comment for remote_addr.
 	 */
@@ -136,6 +142,15 @@ static void pam_cleanup(void)
 	if (rc != 0) {
 		die("failed to destroy a condition variable: %s", strerror(rc));
 	}
+
+	for (int i = 0; i < PAM_REQUEST_QUEUE_SIZE; i++) {
+		struct pam_auth_request *request = &pam_auth_queue[i];
+		rc = pthread_mutex_destroy(&request->mutex);
+		if (rc != 0) {
+			die("failed to destroy a mutex for request[%d]: %s",
+				i, strerror(rc));
+		}
+	}
 }
 
 /*
@@ -163,7 +178,33 @@ void pam_init(void)
 		die("failed to create the authentication thread: %s", strerror(rc));
 	}
 
+	for (int i = 0; i < PAM_REQUEST_QUEUE_SIZE; i++) {
+		struct pam_auth_request *request = &pam_auth_queue[i];
+		rc = pthread_mutex_init(&request->mutex, NULL);
+		if (rc != 0) {
+			die("failed to initialize a mutex for request[%d]: %s",
+				i, strerror(rc));
+		}
+	}
+
 	atexit(pam_cleanup);
+}
+
+static inline int get_request_status(struct pam_auth_request *request)
+{
+	int rc = 0;
+
+	pthread_mutex_lock(&request->mutex);
+	rc = request->status;
+	pthread_mutex_unlock(&request->mutex);
+	return rc;
+}
+
+static inline void set_request_status(struct pam_auth_request *request, int status)
+{
+	pthread_mutex_lock(&request->mutex);
+	request->status = status;
+	pthread_mutex_unlock(&request->mutex);
 }
 
 /*
@@ -203,7 +244,8 @@ void pam_auth_begin(PgSocket *client, const char *passwd)
 
 	request->client = client;
 	request->connect_time = client->connect_time;
-	request->status = PAM_STATUS_IN_PROGRESS;
+	request->status = PAM_STATUS_IN_PROGRESS; /* This write is protected by
+											   * pam_queue_tail_mutex */
 	memcpy(&request->remote_addr, &client->remote_addr, sizeof(client->remote_addr));
 	safe_strcpy(request->username, client->login_user_credentials->name, MAX_USERNAME);
 	safe_strcpy(request->password, passwd, MAX_PASSWORD);
@@ -222,11 +264,13 @@ int pam_poll(void)
 {
 	struct pam_auth_request *request;
 	int count = 0;
+	int status = 0;
 
 	while (pam_first_taken_slot != pam_first_free_slot) {
 		request = &pam_auth_queue[pam_first_taken_slot];
 
-		if (request->status == PAM_STATUS_IN_PROGRESS) {
+		status = get_request_status(request);
+		if (status == PAM_STATUS_IN_PROGRESS) {
 			/* When still-in-progress slot is found there is no need to continue
 			 * the loop since all further requests will be in progress too.
 			 */
@@ -253,6 +297,7 @@ static void * pam_auth_worker(void *arg)
 {
 	int current_slot = pam_first_taken_slot;
 	struct pam_auth_request *request;
+	int request_status;
 
 	/* loop until shutdown request */
 	while (!pam_worker_shutdown) {
@@ -286,17 +331,18 @@ static void * pam_auth_worker(void *arg)
 		 */
 		if (!is_valid_socket(request)) {
 			log_debug("pam_auth_worker(): invalid socket in slot %d", current_slot);
-			request->status = PAM_STATUS_FAILED;
+			set_request_status(request, PAM_STATUS_FAILED);
 			continue;
 		}
 
 		if (pam_check_passwd(request)) {
-			request->status = PAM_STATUS_SUCCESS;
+			request_status = PAM_STATUS_SUCCESS;
 		} else {
-			request->status = PAM_STATUS_FAILED;
+			request_status = PAM_STATUS_FAILED;
 		}
+		set_request_status(request, request_status);
 
-		log_debug("pam_auth_worker(): authentication completed, status=%d", request->status);
+		log_debug("pam_auth_worker(): authentication completed, status=%d", request_status);
 	}
 
 	log_debug("pam_auth_worker(): got shutdown request, exiting");
@@ -322,7 +368,8 @@ static bool is_valid_socket(const struct pam_auth_request *request)
 static void pam_auth_finish(struct pam_auth_request *request)
 {
 	PgSocket *client = request->client;
-	bool authenticated = (request->status == PAM_STATUS_SUCCESS);
+	int request_status = get_request_status(request);
+	bool authenticated = (request_status == PAM_STATUS_SUCCESS);
 
 	if (authenticated) {
 		safe_strcpy(client->login_user_credentials->passwd, request->password, sizeof(client->login_user_credentials->passwd));

@@ -191,6 +191,7 @@ extern int cf_sbuf_len;
 #include "ldapauth.h"
 #include "messages.h"
 #include "pam.h"
+#include "gss.h"
 #include "prepare.h"
 
 #ifndef WIN32
@@ -198,6 +199,7 @@ extern int cf_sbuf_len;
 #else
 #define DEFAULT_UNIX_SOCKET_DIR ""
 #endif
+
 
 /*
  * To avoid allocations, we use static buffers.
@@ -225,6 +227,10 @@ extern int cf_sbuf_len;
 /* Hope this length is long enough for ldap config line */
 #define MAX_LDAP_CONFIG 1024
 #endif
+#ifdef HAVE_GSS
+/* Hope this length is long enough for gss config line */
+#define MAX_GSS_CONFIG 1024
+#endif
 
 /*
  * Symbols for authentication type settings (auth_type, hba).
@@ -239,6 +245,8 @@ enum auth_type {
 	AUTH_TYPE_LDAP,
 	AUTH_TYPE_PAM,
 	AUTH_TYPE_SCRAM_SHA_256,
+	AUTH_TYPE_GSS,
+	AUTH_TYPE_CONT_GSS,
 	AUTH_TYPE_PEER,
 	AUTH_TYPE_REJECT,
 };
@@ -691,7 +699,7 @@ struct PgSocket {
 	bool welcome_sent : 1;		/* client: client has been sent the welcome msg */
 	bool wait_for_user_conn : 1;	/* client: waiting for auth_conn server connection */
 	bool wait_for_user : 1;		/* client: waiting for auth_conn query results */
-	bool wait_for_auth : 1;		/* client: waiting for external auth (PAM/LDAP) to be completed */
+	bool wait_for_auth : 1;		/* client: waiting for external auth (PAM/LDAP/GSS) to be completed */
 
 	bool suspended : 1;		/* client/server: if the socket is suspended */
 
@@ -755,6 +763,10 @@ struct PgSocket {
 	} scram_state;
 #ifdef HAVE_LDAP
 	char ldap_options[MAX_LDAP_CONFIG];
+#endif
+
+#ifdef HAVE_GSS
+	char gss_parameters[MAX_GSS_CONFIG];
 #endif
 
 	VarCache vars;		/* state of interesting server parameters */
@@ -855,6 +867,10 @@ extern char *cf_auth_user;
 extern char *cf_auth_hba_file;
 extern char *cf_auth_dbname;
 extern char *cf_auth_ldap_options;
+extern char *cf_auth_krb_server_keyfile;
+extern int cf_auth_krb_caseins_users;
+extern int cf_auth_gss_accept_delegation;
+extern char *cf_auth_gss_parameter;
 
 extern char *cf_pidfile;
 

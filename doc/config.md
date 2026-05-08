@@ -1279,6 +1279,13 @@ Default: not set, meaning to use a Unix socket
 
 ### port
 
+Port to connect to for a given hostname.
+
+A comma-separated list of ports can be specified. The number of ports must
+match exactly the number of hosts provided unless only one port is provided.
+If one port is provided but multiple hosts have been specified then
+pgbouncer will attempt to connect to the same port number on each host.
+
 Default: 5432
 
 ### user

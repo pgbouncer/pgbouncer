@@ -25,6 +25,7 @@
 
 #include <usual/fileutil.h>
 #include <usual/string.h>
+#include <usual/err.h>
 
 /*
  * ConnString parsing
@@ -176,7 +177,7 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 
 	char *tmp_connstr;
 	char *host = NULL;
-	int port = 6432;
+	char *port = NULL;
 	int pool_size = -1;
 	int peer_id = strtonum(name, 1, 0xFFFF, NULL);
 	if (peer_id == 0) {
@@ -191,6 +192,10 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 	}
 
 	p = tmp_connstr;
+
+	if (!set_param_value(&port, "6432"))
+		goto fail;
+
 	while (*p) {
 		p = cstr_get_pair(p, &key, &val);
 		if (p == NULL) {
@@ -204,11 +209,15 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 			if (!set_param_value(&host, val))
 				goto fail;
 		} else if (strcmp("port", key) == 0) {
-			port = atoi(val);
-			if (port == 0) {
-				log_error("invalid port: %s", val);
+			/*
+			 * Validate that port is an integer but store as string
+			 */
+			if (!atoi(port)) {
+				log_error("Invalid port provided");
 				goto fail;
 			}
+			if (!set_param_value(&port, val))
+				goto fail;
 		} else if (strcmp("pool_size", key) == 0) {
 			pool_size = atoi(val);
 		} else {
@@ -233,6 +242,8 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 
 	free(peer->host);
 	peer->host = host;
+
+	free(peer->port);
 	peer->port = port;
 	peer->pool_size = pool_size;
 
@@ -264,7 +275,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	char *tmp_connstr;
 	const char *dbname = name;
 	char *host = NULL;
-	int port = 5432;
+	char *port = NULL;
+	char *port_copy = NULL;
 	char *username = NULL;
 	char *password = "";
 	char *auth_username = NULL;
@@ -297,6 +309,9 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		return false;
 	}
 
+	if (!set_param_value(&port, "5432"))
+		goto fail;
+
 	p = tmp_connstr;
 	while (*p) {
 		p = cstr_get_pair(p, &key, &val);
@@ -313,11 +328,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			if (!set_param_value(&host, val))
 				goto fail;
 		} else if (strcmp("port", key) == 0) {
-			port = atoi(val);
-			if (port == 0) {
-				log_error("invalid port: %s", val);
+			if (!set_param_value(&port, val))
 				goto fail;
-			}
 		} else if (strcmp("user", key) == 0) {
 			username = val;
 		} else if (strcmp("password", key) == 0) {
@@ -376,6 +388,41 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		goto fail;
 	}
 
+	if (strchr(port, ',')) {
+		char *port_str;
+		int n;
+
+		int port_count = 0;
+		int host_count = 0;
+
+		port_copy = xstrdup(port);
+		for (port_str = strtok(port_copy, ","), n = 0; port_str; port_str = strtok(NULL, ","), n++) {
+			if (!atoi(port_str)) {
+				log_error("Invalid port provided: %s", port);
+				goto fail;
+			}
+		}
+		free(port_copy);
+		port_copy = NULL;
+		for (const char *p = port; *p; p++)
+			if (*p == ',')
+				port_count++;
+
+		for (const char *p = host; *p; p++)
+			if (*p == ',')
+				host_count++;
+
+		if (host_count != port_count) {
+			log_error("Port count must match host count if providing more than one port");
+			goto fail;
+		}
+	} else {
+		if (!atoi(port)) {
+			log_error("Invalid port provided: %s", port);
+			goto fail;
+		}
+	}
+
 	/* tag the db as alive */
 	db->db_dead = false;
 	/* assuming not an autodb */
@@ -389,7 +436,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			changed = true;
 		} else if (!strcmpeq(host, db->host)) {
 			changed = true;
-		} else if (port != db->port) {
+		} else if (!strcmpeq(port, db->port)) {
 			changed = true;
 		} else if (username && !db->forced_user_credentials) {
 			changed = true;
@@ -413,7 +460,11 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	free(db->host);
 	db->host = host;
 	host = NULL;
+
+	free(db->port);
 	db->port = port;
+	port = NULL;
+
 	db->pool_size = pool_size;
 	db->min_pool_size = min_pool_size;
 	db->res_pool_size = res_pool_size;
@@ -490,6 +541,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	return true;
 fail:
 	free(tmp_connstr);
+	free(port_copy);
+	free(port);
 	free(host);
 	free(connect_query);
 	return false;

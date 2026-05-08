@@ -4,6 +4,104 @@ import psycopg
 import pytest
 
 
+def test_port_list_invalid_port(bouncer):
+    config = f"""
+        [databases]
+        p0 = host={bouncer.pg.host},{bouncer.pg.host} port={bouncer.pg.port},NaN
+
+        [pgbouncer]
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = trust
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        pool_mode = session
+    """
+
+    with pytest.raises(psycopg.errors.ConfigFileError):
+        with bouncer.run_with_config(config):
+            pass
+
+
+def test_port_list_host_port_mismatch(bouncer):
+    config = f"""
+        [databases]
+        p0 = host={bouncer.pg.host} port={bouncer.pg.port},1234
+
+        [pgbouncer]
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = trust
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        pool_mode = session
+    """
+
+    with pytest.raises(psycopg.errors.ConfigFileError):
+        with bouncer.run_with_config(config):
+            pass
+
+
+def test_port_list_non_int(bouncer):
+    config = f"""
+        [databases]
+        p0 = host={bouncer.pg.host} port=NaN
+
+        [pgbouncer]
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = trust
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        pool_mode = session
+    """
+
+    with pytest.raises(psycopg.errors.ConfigFileError):
+        with bouncer.run_with_config(config):
+            pass
+
+
+def test_port_list(bouncer, pg, pg2):
+    config = f"""
+        [databases]
+        p0 = host={pg.host},{pg2.host} port={pg.port},{pg2.port}
+
+        [pgbouncer]
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = trust
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        pool_mode = session
+
+        [users]
+        puser1 =
+    """
+
+    ports = []
+    with bouncer.run_with_config(config):
+        with bouncer.conn() as conn:
+            with bouncer.conn() as conn2:
+                port = conn.execute("""
+                    SELECT setting
+                    FROM pg_settings
+                    WHERE name = 'port';
+                """).fetchall()
+                ports.append(int(port[0][0]))
+                port = conn2.execute("""
+                    SELECT setting
+                    FROM pg_settings
+                    WHERE name = 'port';
+                """).fetchall()
+                ports.append(int(port[0][0]))
+
+    assert set(ports) == {pg.port, pg2.port}
+
+
 async def test_load_balance_hosts_disable_good_first(bouncer):
     with bouncer.log_contains(r"127.0.0.1:\d+ new connection to server", 2):
         await bouncer.asleep(dbname="hostlist_good_first", duration=0.5, times=2)

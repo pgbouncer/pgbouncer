@@ -105,20 +105,7 @@ def shared_setup(tmp_path_factory, worker_id):
                 finished_count_file.write_text(str(finished_count))
 
 
-@pytest.fixture(autouse=True, scope="session")
-def pg(tmp_path_factory, cert_dir):
-    """Starts a new Postgres db that is shared for tests in this process"""
-    pg = Postgres(tmp_path_factory.getbasetemp() / "pgdata")
-    pg.initdb()
-    os.truncate(pg.hba_path, 0)
-
-    if TLS_SUPPORT:
-        with pg.conf_path.open("a") as f:
-            cert = cert_dir / "TestCA1" / "sites" / "01-localhost.crt"
-            key = cert_dir / "TestCA1" / "sites" / "01-localhost.key"
-            f.write(f"ssl_cert_file='{cert}'\n")
-            f.write(f"ssl_key_file='{key}'\n")
-
+def init_pg(pg):
     pg.nossl_access("replication", "trust", user="postgres")
     pg.nossl_access("all", "trust")
     pg.nossl_access("p4", "password")
@@ -173,6 +160,45 @@ def pg(tmp_path_factory, cert_dir):
         pg.sql("set password_encryption = 'on'; create user muser2 password 'wrong';")
         pg.sql("set password_encryption = 'on'; create user puser1 password 'foo';")
         pg.sql("set password_encryption = 'on'; create user puser2 password 'wrong';")
+
+
+@pytest.fixture(autouse=True, scope="session")
+def pg(tmp_path_factory, cert_dir):
+    """Starts a new Postgres db that is shared for tests in this process"""
+    pg = Postgres(tmp_path_factory.getbasetemp() / "pgdata")
+    pg.initdb()
+    os.truncate(pg.hba_path, 0)
+
+    if TLS_SUPPORT:
+        with pg.conf_path.open("a") as f:
+            cert = cert_dir / "TestCA1" / "sites" / "01-localhost.crt"
+            key = cert_dir / "TestCA1" / "sites" / "01-localhost.key"
+            f.write(f"ssl_cert_file='{cert}'\n")
+            f.write(f"ssl_key_file='{key}'\n")
+
+    init_pg(pg)
+
+    yield pg
+
+    pg.cleanup()
+
+
+@pytest.fixture(autouse=True, scope="session")
+def pg2(tmp_path_factory, cert_dir):
+    """Starts another new Postgres db that is shared for tests in this process"""
+    """Starts a new Postgres db that is shared for tests in this process"""
+    pg = Postgres(tmp_path_factory.getbasetemp() / "pgdata2")
+    pg.initdb()
+    os.truncate(pg.hba_path, 0)
+
+    if TLS_SUPPORT:
+        with pg.conf_path.open("a") as f:
+            cert = cert_dir / "TestCA1" / "sites" / "01-localhost.crt"
+            key = cert_dir / "TestCA1" / "sites" / "01-localhost.key"
+            f.write(f"ssl_cert_file='{cert}'\n")
+            f.write(f"ssl_key_file='{key}'\n")
+
+    init_pg(pg)
 
     yield pg
 

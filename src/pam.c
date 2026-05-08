@@ -118,17 +118,17 @@ void pam_init(void)
 
 	rc = pthread_mutex_init(&pam_queue_tail_mutex, NULL);
 	if (rc != 0) {
-		die("failed to initialize a mutex: %s", strerror(errno));
+		die("failed to initialize a mutex: %s", strerror(rc));
 	}
 
 	rc = pthread_cond_init(&pam_data_available, NULL);
 	if (rc != 0) {
-		die("failed to initialize a condition variable: %s", strerror(errno));
+		die("failed to initialize a condition variable: %s", strerror(rc));
 	}
 
 	rc = pthread_create(&pam_worker_thread, NULL, &pam_auth_worker, NULL);
 	if (rc != 0) {
-		die("failed to create the authentication thread: %s", strerror(errno));
+		die("failed to create the authentication thread: %s", strerror(rc));
 	}
 }
 

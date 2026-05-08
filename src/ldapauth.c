@@ -147,23 +147,23 @@ void auth_ldap_init(void)
 
 	rc = pthread_mutex_init(&ldap_queue_tail_mutex, NULL);
 	if (rc != 0) {
-		die("failed to initialize a mutex: %s", strerror(errno));
+		die("failed to initialize a mutex: %s", strerror(rc));
 	}
 
 	rc = pthread_cond_init(&ldap_data_available, NULL);
 	if (rc != 0) {
-		die("failed to initialize a condition variable: %s", strerror(errno));
+		die("failed to initialize a condition variable: %s", strerror(rc));
 	}
 
 	rc = pthread_create(&ldap_worker_thread, NULL, &ldap_auth_worker, NULL);
 	if (rc != 0) {
-		die("failed to create the authentication thread: %s", strerror(errno));
+		die("failed to create the authentication thread: %s", strerror(rc));
 	}
 	for (int i = 0; i < LDAP_REQUEST_QUEUE_SIZE; i++) {
 		struct ldap_auth_request *request = &ldap_auth_queue[i];
 		rc = pthread_mutex_init(&request->mutex, NULL);
 		if (rc != 0) {
-			die("failed to initialize a mutex for request[%d]: %s", i, strerror(errno));
+			die("failed to initialize a mutex for request[%d]: %s", i, strerror(rc));
 		}
 	}
 }

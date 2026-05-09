@@ -757,10 +757,7 @@ static void cleanup_inactive_pools(void)
 	PgPool *pool;
 	usec_t now = get_cached_time();
 
-	/* Use autodb timeout as a reference if a specific pool timeout isn't defined */
-	usec_t timeout = cf_autodb_idle_timeout;
-
-	if (timeout <= 0)
+	if (cf_pool_idle_timeout <= 0)
 		return;
 
 	statlist_for_each_safe(item, &pool_list, tmp) {
@@ -772,10 +769,9 @@ static void cleanup_inactive_pools(void)
 
 		/* Check if the pool is actually "unused" */
 		if (pool_client_count(pool) == 0 && pool_connected_server_count(pool) == 0) {
-			usec_t now = get_cached_time();
-			/* 10s inactivity */
-			if ((now - pool->last_active_time) / USEC > 10) {
-				log_debug("cleaning up inactive pool for user %s on db %s", pool->user_credentials->name, pool->db->name);
+			if ((now - pool->last_active_time) > cf_pool_idle_timeout) {
+				log_info("cleaning up idle pool for user %s on db %s because: pool idle timeout (age=%" PRIu64 "s)", pool->user_credentials->name, pool->db->name,
+					  (now - pool->last_active_time) / USEC);
 				kill_pool(pool);
 				slab_free(pool_cache, pool);
 			}

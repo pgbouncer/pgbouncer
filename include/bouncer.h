@@ -837,6 +837,7 @@ extern usec_t cf_query_timeout;
 extern usec_t cf_query_wait_timeout;
 extern usec_t cf_cancel_wait_timeout;
 extern usec_t cf_client_idle_timeout;
+extern usec_t cf_pool_idle_timeout;
 extern usec_t cf_client_login_timeout;
 extern usec_t cf_idle_transaction_timeout;
 extern usec_t cf_transaction_timeout;

@@ -1056,6 +1056,12 @@ for network problems. [seconds]
 
 Default: 0.0 (disabled)
 
+### pool_idle_timeout
+
+Pools idling longer than this many seconds are closed. 0 disables. [seconds]
+
+Default: 60
+
 ### idle_transaction_timeout
 
 If a client has been in "idle in transaction" state longer,

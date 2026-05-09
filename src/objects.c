@@ -1987,6 +1987,7 @@ force_new:
 	server->connect_time = get_cached_time();
 	statlist_init(&server->canceling_clients, "canceling_clients");
 	pool->last_connect_time = get_cached_time();
+	pool->last_active_time = get_cached_time();
 	change_server_state(server, SV_LOGIN);
 	pool->db->connection_count++;
 	if (pool->user_credentials)
@@ -2078,6 +2079,7 @@ bool finish_client_login(PgSocket *client)
 	client->welcome_sent = true;
 	slog_debug(client, "logged in");
 
+	client->pool->last_active_time = get_cached_time();
 	return true;
 }
 

@@ -460,6 +460,7 @@ struct PgPool {
 
 	/* if last connect to server failed, there should be delay before next */
 	usec_t last_connect_time;
+	usec_t last_active_time;
 	bool last_connect_failed : 1;
 	char last_connect_failed_message[100];
 	bool last_login_failed : 1;
@@ -836,6 +837,7 @@ extern usec_t cf_query_timeout;
 extern usec_t cf_query_wait_timeout;
 extern usec_t cf_cancel_wait_timeout;
 extern usec_t cf_client_idle_timeout;
+extern usec_t cf_pool_idle_timeout;
 extern usec_t cf_client_login_timeout;
 extern usec_t cf_idle_transaction_timeout;
 extern usec_t cf_transaction_timeout;

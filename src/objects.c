@@ -2079,7 +2079,6 @@ bool finish_client_login(PgSocket *client)
 	client->welcome_sent = true;
 	slog_debug(client, "logged in");
 
-	/* update pool's last_active_time */
 	client->pool->last_active_time = get_cached_time();
 	return true;
 }

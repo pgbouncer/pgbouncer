@@ -95,7 +95,7 @@ struct pam_auth_request pam_auth_queue[PAM_REQUEST_QUEUE_SIZE];
 pthread_t pam_worker_thread;
 
 /* Signal to the PAM worker thread to terminate gracefully. */
-static volatile	sig_atomic_t pam_worker_shutdown = 0;
+static volatile sig_atomic_t pam_worker_shutdown = 0;
 
 /*
  * Mutex serializes access to the queue's tail when we add new requests or
@@ -120,7 +120,7 @@ static void pam_cleanup(void)
 	int rc;
 
 	if (pam_worker_shutdown)
-		return; /* Nothing to do if cleanup has already executed */
+		return;	/* Nothing to do if cleanup has already executed */
 
 	pam_worker_shutdown = 1;
 
@@ -148,7 +148,7 @@ static void pam_cleanup(void)
 		rc = pthread_mutex_destroy(&request->mutex);
 		if (rc != 0) {
 			die("failed to destroy a mutex for request[%d]: %s",
-				i, strerror(rc));
+			    i, strerror(rc));
 		}
 	}
 }
@@ -183,7 +183,7 @@ void pam_init(void)
 		rc = pthread_mutex_init(&request->mutex, NULL);
 		if (rc != 0) {
 			die("failed to initialize a mutex for request[%d]: %s",
-				i, strerror(rc));
+			    i, strerror(rc));
 		}
 	}
 
@@ -244,8 +244,10 @@ void pam_auth_begin(PgSocket *client, const char *passwd)
 
 	request->client = client;
 	request->connect_time = client->connect_time;
-	request->status = PAM_STATUS_IN_PROGRESS; /* This write is protected by
-											   * pam_queue_tail_mutex */
+
+	/* This write is protected by pam_queue_tail_mutex */
+	request->status = PAM_STATUS_IN_PROGRESS;
+
 	memcpy(&request->remote_addr, &client->remote_addr, sizeof(client->remote_addr));
 	safe_strcpy(request->username, client->login_user_credentials->name, MAX_USERNAME);
 	safe_strcpy(request->password, passwd, MAX_PASSWORD);

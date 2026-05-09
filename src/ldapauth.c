@@ -109,7 +109,7 @@ struct ldap_auth_request ldap_auth_queue[LDAP_REQUEST_QUEUE_SIZE];
 pthread_t ldap_worker_thread;
 
 /* Signal to the LDAP worker thread to terminate gracefully. */
-static volatile	sig_atomic_t ldap_worker_shutdown = 0;
+static volatile sig_atomic_t ldap_worker_shutdown = 0;
 
 /*
  * Mutex serializes access to the queue's tail when we add new requests or
@@ -143,7 +143,7 @@ static void ldap_cleanup(void)
 	int rc;
 
 	if (ldap_worker_shutdown)
-		return; /* Nothing to do if cleanup has already executed */
+		return;	/* Nothing to do if cleanup has already executed */
 
 	ldap_worker_shutdown = 1;
 
@@ -171,7 +171,7 @@ static void ldap_cleanup(void)
 		rc = pthread_mutex_destroy(&request->mutex);
 		if (rc != 0) {
 			die("failed to destroy a mutex for request[%d]: %s",
-				i, strerror(rc));
+			    i, strerror(rc));
 		}
 	}
 }

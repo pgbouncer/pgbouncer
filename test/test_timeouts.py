@@ -529,6 +529,23 @@ def test_client_idle_timeout(bouncer):
                 cur.execute("select 1")
 
 
+def test_pool_idle_timeout(pg, bouncer):
+    """Test that the pool closes server connections after being idle."""
+    bouncer.admin("set pool_idle_timeout=1")
+    bouncer.admin("set server_idle_timeout=1")
+
+    bouncer.test()
+    assert pg.connection_count() == 1
+
+    with bouncer.log_contains(r"cleaning up idle pool"):
+        time.sleep(3)
+
+    assert pg.connection_count() == 0
+
+    bouncer.test()
+    assert pg.connection_count() == 1
+
+
 async def test_server_login_retry(pg, bouncer):
     bouncer.admin(f"set query_timeout=10")
     bouncer.admin(f"set server_login_retry=3")

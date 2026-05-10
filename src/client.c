@@ -1345,8 +1345,15 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 				if (!mbuf_get_bytes(&pkt->data, length, &data))
 					return false;
 				if (scram_client_final(client, length, data)) {
-					/* save SCRAM keys for user */
-					if (!client->scram_state.adhoc && !client->db->fake) {
+					/*
+					 * Save SCRAM keys for user, but not when forced user
+					 * has plaintext password (would corrupt credentials
+					 * and cause backend auth to fail).
+					 */
+					if (!client->scram_state.adhoc && !client->db->fake &&
+					    !(client->db->forced_user_credentials &&
+					      client->db->forced_user_credentials->passwd[0] &&
+					      get_password_type(client->db->forced_user_credentials->passwd) == PASSWORD_TYPE_PLAINTEXT)) {
 						memcpy(client->pool->user_credentials->scram_ClientKey,
 						       client->scram_state.ClientKey,
 						       sizeof(client->scram_state.ClientKey));

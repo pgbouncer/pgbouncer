@@ -14,7 +14,6 @@ if WINDOWS:
     pytest.skip(allow_module_level=True)
 
 
-@pytest.mark.asyncio
 @pytest.fixture
 async def bouncer(pg, tmp_path):
     bouncer = Bouncer(

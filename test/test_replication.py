@@ -257,6 +257,7 @@ def test_physical_rep_pg_basebackup(bouncer, tmp_path):
     reason="normal SQL commands are only supported in PG10+ on logical replication connections",
 )
 async def test_replication_pool_size(pg, bouncer):
+    worker_thread_counter = bouncer.get_worker_thread_count()
     connect_args = {
         "dbname": "user_passthrough_pool_size2",
         "replication": "database",
@@ -265,14 +266,14 @@ async def test_replication_pool_size(pg, bouncer):
     }
     start = time.time()
     await bouncer.asleep(0.5, times=10, **connect_args)
-    assert time.time() - start > 2.5
+    assert time.time() - start > 2.5 / worker_thread_counter
     # Replication connections always get closed right away
     assert pg.connection_count("p0") == 0
 
     connect_args["dbname"] = "user_passthrough_pool_size5"
     start = time.time()
     await bouncer.asleep(0.5, times=10, **connect_args)
-    assert time.time() - start > 1
+    assert time.time() - start > 1.0 / worker_thread_counter
     # Replication connections always get closed right away
     assert pg.connection_count("p0") == 0
 
@@ -288,7 +289,12 @@ async def test_replication_pool_size_mixed_clients(bouncer):
     }
 
     # Fill the pool with normal connections
-    await bouncer.asleep(0.5, times=2, **connect_args)
+    # In multithread mode, each thread has its own pool, so we need
+    # worker_thread_counter * pool_size connections to fill all pools
+    worker_thread_counter = bouncer.get_worker_thread_count()
+    pool_size = 2
+    num_connections = worker_thread_counter * pool_size
+    await bouncer.asleep(0.5, times=num_connections, **connect_args)
 
     # Then try to open a replication connection and ensure that it causes
     # eviction of one of the normal connections

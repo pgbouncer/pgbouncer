@@ -26,8 +26,11 @@
 #include <usual/time.h>
 #include <usual/list.h>
 #include <usual/statlist.h>
+#include <usual/statlist_ts.h>
 #include <usual/aatree.h>
+#include <usual/pthread.h>
 #include <usual/socket.h>
+#include <usual/spinlock.h>
 
 #include <event2/event.h>
 #include <event2/event_struct.h>
@@ -167,9 +170,16 @@ typedef struct ScramState ScramState;
 typedef struct PgPreparedStatement PgPreparedStatement;
 typedef enum ResponseAction ResponseAction;
 typedef enum ReplicationType ReplicationType;
+typedef struct WorkerEventArgs {
+	event_callback_fn func;
+	void *arg;
+	SpinLock *lock;
+	bool persistent;
+} WorkerEventArgs;
 
 extern int cf_sbuf_len;
 
+#include "sig.h"
 #include "util.h"
 #include "iobuf.h"
 #include "sbuf.h"
@@ -184,6 +194,7 @@ extern int cf_sbuf_len;
 #include "pooler.h"
 #include "proto.h"
 #include "objects.h"
+#include "multithread.h"
 #include "stats.h"
 #include "takeover.h"
 #include "janitor.h"
@@ -208,6 +219,9 @@ extern int cf_sbuf_len;
 
 /* matching NAMEDATALEN */
 #define MAX_DBNAME      64
+
+/* max length for slab cache name strings */
+#define MAX_SLAB_NAME   64
 
 /*
  * Ought to match NAMEDATALEN.  Some cloud services use longer user
@@ -381,6 +395,14 @@ struct PgPool {
 	struct StatList waiting_cancel_req_list;
 
 	/*
+	 * Lock protecting waiting_cancel_req_list, active_cancel_req_list, and
+	 * new_server_list for cancel forwarding operations.  In multithread mode,
+	 * cancel requests arriving on one thread may target a pool owned by a
+	 * different thread.
+	 */
+	SpinLock cancel_req_lock;
+
+	/*
 	 * Clients that sent a cancel request, to cancel another client its query.
 	 * This request was already forwarded to a server. They are waiting for a
 	 * response from the server.
@@ -467,6 +489,8 @@ struct PgPool {
 	bool welcome_msg_ready : 1;
 
 	uint16_t rrcounter;		/* round-robin counter */
+
+	int thread_id;		/* thread this pool lives in */
 };
 
 /*
@@ -548,8 +572,9 @@ struct PgCredentials {
  */
 struct PgGlobalUser {
 	PgCredentials credentials;	/* needs to be first for AAtree */
+	SpinLock lock;		/* lock for updating user state */
 	struct List head;	/* used to attach user to list */
-	struct List pool_list;	/* list of pools where pool->user == this user */
+	struct List *pool_list;	/* list of pools where pool->user == this user, in multithread mode, pools from all threads are tracked */
 	int pool_mode;
 	int pool_size;	/* max server connections in one pool */
 	int res_pool_size;	/* max additional server connections in one pool */
@@ -562,6 +587,13 @@ struct PgGlobalUser {
 	int max_user_client_connections;	/* how many client connections are allowed */
 	int connection_count;	/* how many server connections are used by user now */
 	int client_connection_count;	/* how many client connections are used by user now */
+	/*
+	 * In multithread mode, set when a new server connection for this user
+	 * is needed but max_user_connections is exhausted by other threads.
+	 * When set, other threads' janitors will evict one idle server to make
+	 * room. Protected by lock.
+	 */
+	bool needs_idle_eviction;
 };
 
 /*
@@ -609,10 +641,19 @@ struct PgDatabase {
 	bool db_disabled;	/* is the database accepting new connections? */
 	bool admin;		/* internal console db */
 	bool fake;		/* not a real database, only for mock auth */
+	/*
+	 * In multithread mode, set when this thread's db connection count has hit
+	 * max_db_connections and there are no idle connections on this thread to
+	 * evict directly. Other threads' janitors will see this flag and evict one
+	 * idle server to free up a slot.
+	 * Protected by db->lock.
+	 */
+	bool cross_thread_evict_needed;
 	usec_t inactive_time;	/* when auto-database became inactive (to kill it after timeout) */
+	int connection_count;	/* total connections for this database in all pools, protected by db->lock */
+	int client_connection_count;	/* total client connections for this database, protected by db->lock */
+	SpinLock lock;		/* protects connection_count, client_connection_count, cross_thread_evict_needed */
 	unsigned active_stamp;	/* set if autodb has connections */
-	int connection_count;	/* total connections for this database in all pools */
-	int client_connection_count;	/* total client connections for this database */
 
 	struct AATree user_tree;	/* users that have been queried on this database */
 };
@@ -678,6 +719,7 @@ struct PgSocket {
 
 	bool contributes_db_client_count : 1;
 	bool user_connection_counted : 1;
+	bool contributes_global_client_count : 1;
 
 	bool ready : 1;			/* server: accepts new query */
 	bool idle_tx : 1;		/* server: idling in tx */
@@ -906,13 +948,27 @@ extern char *cf_server_tls13_ciphers;
 
 extern int cf_max_prepared_statements;
 
+extern int num_threads;
+extern bool multithread_mode;
+
 extern const struct CfLookup pool_mode_map[];
 extern const struct CfLookup load_balance_hosts_map[];
 
 extern usec_t g_suspend_start;
 
 extern struct DNSContext *adns;
+extern SpinLock adns_lock;
 extern struct HBA *parsed_hba;
+
+extern SpinLock user_lock;
+
+static inline PgSocket * _MUSTCHECK pop_socket(struct StatList *slist)
+{
+	struct List *item = statlist_pop(slist);
+	if (item == NULL)
+		return NULL;
+	return container_of(item, PgSocket, head);
+}
 
 static inline PgSocket *first_socket(struct StatList *slist)
 {
@@ -947,3 +1003,8 @@ bool load_config(void);
 bool set_config_param(const char *key, const char *val);
 void config_for_each(void (*param_cb)(void *arg, const char *name, const char *val, const char *defval, bool reloadable),
 		     void *arg);
+
+extern pthread_key_t worker_key;
+
+extern int client_count;
+extern SpinLock client_count_lock;

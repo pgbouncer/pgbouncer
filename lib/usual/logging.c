@@ -29,6 +29,9 @@
 #include <syslog.h>
 #endif
 
+#include <usual/spinlock.h>
+static SpinLock log_file_lock;
+
 #ifdef USE_SYSTEMD
 #define SD_JOURNAL_SUPPRESS_LOCATION
 #include <systemd/sd-journal.h>
@@ -73,6 +76,14 @@ logging_prefix_fn_t logging_prefix_cb;
 static FILE *log_file = NULL;
 static bool syslog_started = false;
 
+void log_file_lock_init(void)
+{
+	spin_lock_init(&log_file_lock, false);
+}
+
+#define LOG_FILE_LOCK()   spin_lock_acquire(&log_file_lock)
+#define LOG_FILE_UNLOCK() spin_lock_release(&log_file_lock)
+
 struct LevelInfo {
 	const char *tag;
 	int syslog_prio;
@@ -111,6 +122,7 @@ static const struct FacName facility_names [] = {
 
 void reset_logging(void)
 {
+	LOG_FILE_LOCK();
 	if (log_file) {
 		fclose(log_file);
 		log_file = NULL;
@@ -119,6 +131,7 @@ void reset_logging(void)
 		closelog();
 		syslog_started = 0;
 	}
+	LOG_FILE_UNLOCK();
 }
 
 
@@ -190,6 +203,7 @@ void log_generic(enum LogLevel level, void *ctx, const char *fmt, ...)
 
 	format_time_ms(0, timebuf, sizeof(timebuf));
 
+	LOG_FILE_LOCK();
 	if (!log_file && cf_logfile && cf_logfile[0]) {
 		log_file = fopen(cf_logfile, "a");
 		if (log_file) {
@@ -240,6 +254,7 @@ void log_generic(enum LogLevel level, void *ctx, const char *fmt, ...)
 			start_syslog();
 		syslog(lev->syslog_prio, "%s", msg);
 	}
+	LOG_FILE_UNLOCK();
 done:
 	if (old_errno != errno)
 		errno = old_errno;

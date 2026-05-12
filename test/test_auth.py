@@ -709,9 +709,12 @@ async def test_change_server_password_reconnect(bouncer, pg):
     bouncer.default_db = "p4"
     bouncer.admin(f"set default_pool_size=1")
     bouncer.admin(f"set pool_mode=transaction")
+    worker_thread_counter = bouncer.get_worker_thread_count()
     try:
         # good password, opens connection
-        bouncer.test()
+        for _ in range(worker_thread_counter):
+            bouncer.test()
+
         pg.sql("ALTER USER puser1 PASSWORD 'bar'")
         # works fine because server connection is still open
         bouncer.test()
@@ -719,13 +722,17 @@ async def test_change_server_password_reconnect(bouncer, pg):
             # Claim the connection
             cur1.execute("select 1")
             # Because of our fast client closure on server auth failures (see
-            # kill_pool_logins), we should only have one connection failing at
-            # the postgres side. But we should still have 3 failing at the
-            # pgbouncer side.
+            # kill_pool_logins), we should only have one*worker_thread_counter connection failing at
+            # the postgres side. In multithread mode, connections are distributed across
+            # threads, and each thread attempts to create new connections independently.
+            # We expect: 3 client closures + worker_thread_counter server closures (one per thread that
+            # attempts reconnection).
+            expected_bouncer_closures = 3 + worker_thread_counter
             with pg.log_contains(
-                r"password authentication failed", times=1
+                r"password authentication failed", times=1 * worker_thread_counter
             ), bouncer.log_contains(
-                r"closing because: password authentication failed for user", times=4
+                r"closing because: password authentication failed for user",
+                times=expected_bouncer_closures,
             ):
                 result1 = bouncer.atest()
                 result2 = bouncer.atest()
@@ -757,6 +764,7 @@ async def test_change_server_password_server_lifetime(bouncer, pg):
     bouncer.admin(f"set default_pool_size=1")
     bouncer.admin(f"set pool_mode=transaction")
     bouncer.admin(f"set server_lifetime=1")
+    worker_thread_counter = bouncer.get_worker_thread_count()
     try:
         # good password, opens connection
         bouncer.test()
@@ -766,12 +774,14 @@ async def test_change_server_password_server_lifetime(bouncer, pg):
 
         # Because of our fast client closure on server auth failures (see
         # kill_pool_logins), we should only have one connection failing at
-        # the postgres side. But we should still have 3 failing at the
+        # the postgres side. But we should still have 3+worker_thread_counter failing at the
         # pgbouncer side.
+        expected_bouncer_closures = 3 + worker_thread_counter
         with pg.log_contains(
-            r"password authentication failed", times=1
+            r"password authentication failed", times=1 * worker_thread_counter
         ), bouncer.log_contains(
-            r"closing because: password authentication failed for user", times=4
+            r"closing because: password authentication failed for user",
+            times=expected_bouncer_closures,
         ):
             result1 = bouncer.atest()
             result2 = bouncer.atest()
@@ -831,6 +841,7 @@ def test_client_hba_cert(bouncer, cert_dir):
         sslrootcert=root,
     )
 
+    bouncer.pg.sql("drop user if exists anotheruser;")
     bouncer.pg.sql("create user anotheruser with login;")
 
     # The client connects to p0x using a client certificate with CN=pgbouncer.acme.org.

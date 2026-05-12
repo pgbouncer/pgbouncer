@@ -108,6 +108,12 @@ int pthread_once(pthread_once_t *once, void (*once_func)(void))
 
 #endif
 
+void pthread_exit(void *retval)
+{
+	/* On Windows, ExitThread terminates the calling thread */
+	ExitThread(retval ? (DWORD)(uintptr_t)retval : 0);
+}
+
 
 #endif /* win32 */
 #endif /* !HAVE_PTHREAD_H */

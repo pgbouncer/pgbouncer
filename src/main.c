@@ -24,11 +24,9 @@
 
 #include <usual/signal.h>
 #include <usual/err.h>
-#include <usual/cfparser.h>
 #include <usual/getopt.h>
 #include <usual/safeio.h>
 #include <usual/slab.h>
-#include <usual/socket.h>
 #include <usual/string.h>
 
 #ifdef WIN32
@@ -57,6 +55,7 @@ static void usage(const char *exe)
 	printf("  -u, --user=USERNAME  assume identity of USERNAME\n");
 	printf("  -v, --verbose        increase verbosity\n");
 	printf("  -V, --version        show version, then exit\n");
+	printf("  -T, --thread         number of thread\n");
 	printf("  -h, --help           show this help, then exit\n");
 	printf("\n");
 #ifdef WIN32
@@ -75,10 +74,12 @@ struct event_base *pgb_event_base;
 
 /* async dns handler */
 struct DNSContext *adns;
+SpinLock adns_lock;
 
 struct HBA *parsed_hba;
 struct Ident *parsed_ident;
 
+struct SignalEvent signal_event;
 /*
  * configuration storage
  */
@@ -208,6 +209,9 @@ int cf_max_prepared_statements;
 
 int cf_scram_iterations;
 
+int num_threads = 0;
+bool multithread_mode = false;
+static int cf_worker_thread_count = 0;	/* raw value from config file */
 /*
  * config file description
  */
@@ -350,6 +354,8 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("tcp_keepalive", CF_INT, cf_tcp_keepalive, 0, "1"),
 	CF_ABS("tcp_keepcnt", CF_INT, cf_tcp_keepcnt, 0, "0"),
 	CF_ABS("tcp_keepidle", CF_INT, cf_tcp_keepidle, 0, "0"),
+	/* A placeholder to guarantee CF_NO_RELOAD */
+	CF_ABS("worker_thread_count", CF_INT, cf_worker_thread_count, CF_NO_RELOAD, "0"),
 	CF_ABS("tcp_keepintvl", CF_INT, cf_tcp_keepintvl, 0, "0"),
 	CF_ABS("tcp_socket_buffer", CF_INT, cf_tcp_socket_buffer, 0, "0"),
 	CF_ABS("tcp_user_timeout", CF_INT, cf_tcp_user_timeout, 0, "0"),
@@ -386,7 +392,32 @@ static const struct CfSect config_sects [] = {
 	}
 };
 
+static bool fake_set_key(void *base, const char *key, const char *val)
+{
+	return true;
+}
+
+static const struct CfSect multithread_config_sects [] = {
+	{
+		.sect_name = "pgbouncer",
+		.key_list = bouncer_params,
+	}, {
+		.sect_name = "databases",
+		.set_key = fake_set_key
+	}, {
+		.sect_name = "users",
+		.set_key = fake_set_key
+	}, {
+		.sect_name = "peers",
+		.set_key = fake_set_key
+	}, {
+		.sect_name = NULL,
+	}
+};
+
 static struct CfContext main_config = { config_sects, };
+
+static struct CfContext multithread_config = { multithread_config_sects, };
 
 bool set_config_param(const char *key, const char *val)
 {
@@ -425,14 +456,14 @@ static void set_dbs_dead(bool flag)
 	struct List *item;
 	PgDatabase *db;
 
-	statlist_for_each(item, &database_list) {
+	THREAD_SAFE_STATLIST_EACH(&database_list, item, {
 		db = container_of(item, PgDatabase, head);
 		if (db->admin)
 			continue;
 		if (db->db_auto)
 			continue;
 		db->db_dead = flag;
-	}
+	});
 }
 
 static void set_peers_dead(bool flag)
@@ -440,10 +471,10 @@ static void set_peers_dead(bool flag)
 	struct List *item;
 	PgDatabase *db;
 
-	statlist_for_each(item, &peer_list) {
+	THREAD_SAFE_STATLIST_EACH(&peer_list, item, {
 		db = container_of(item, PgDatabase, head);
 		db->db_dead = flag;
-	}
+	});
 }
 
 /* Tells if the specified auth type requires data from the auth file. */
@@ -523,168 +554,58 @@ bool load_config(void)
 	return ok;
 }
 
-/*
- * signal handling.
- *
- * handle_* functions are not actual signal handlers but called from
- * event_loop() so they have no restrictions what they can do.
- */
-static struct event ev_sigterm;
-static struct event ev_sigint;
-
-static void handle_sigterm(evutil_socket_t sock, short flags, void *arg)
+/* Validate that connection limits are >= worker_thread_count in multithread mode */
+static bool validate_multithread_limits(void)
 {
-	if (cf_shutdown) {
-		log_info("got SIGTERM while shutting down, fast exit");
-		/* pidfile cleanup happens via atexit() */
-		exit(0);
+	struct List *item;
+	PgDatabase *db;
+	PgGlobalUser *user;
+	bool ok = true;
+
+	if (!multithread_mode || num_threads <= 0)
+		return true;
+
+	/* Check global connection limits (not pool sizes) */
+	if (cf_max_client_conn > 0 && cf_max_client_conn < num_threads) {
+		log_error("In multithread mode, max_client_conn (%d) must be >= worker_thread_count (%d)",
+			  cf_max_client_conn, num_threads);
+		ok = false;
 	}
-	log_info("got SIGTERM, shutting down, waiting for all clients disconnect");
-	sd_notify(0, "STOPPING=1");
-	if (cf_reboot)
-		die("takeover was in progress, going down immediately");
-	if (cf_pause_mode == P_SUSPEND)
-		die("suspend was in progress, going down immediately");
-	cf_shutdown = SHUTDOWN_WAIT_FOR_CLIENTS;
-	cleanup_tcp_sockets();
-}
 
-static void handle_sigint(evutil_socket_t sock, short flags, void *arg)
-{
-	if (cf_shutdown) {
-		log_info("got SIGINT while shutting down, fast exit");
-		/* pidfile cleanup happens via atexit() */
-		exit(0);
+	if (cf_max_db_connections > 0 && cf_max_db_connections < num_threads) {
+		log_error("In multithread mode, max_db_connections (%d) must be >= worker_thread_count (%d)",
+			  cf_max_db_connections, num_threads);
+		ok = false;
 	}
-	log_info("got SIGINT, shutting down, waiting for all servers connections to be released");
-	sd_notify(0, "STOPPING=1");
-	if (cf_reboot)
-		die("takeover was in progress, going down immediately");
-	if (cf_pause_mode == P_SUSPEND)
-		die("suspend was in progress, going down immediately");
-	cf_pause_mode = P_PAUSE;
-	cf_shutdown = SHUTDOWN_WAIT_FOR_SERVERS;
-	cleanup_tcp_sockets();
-}
-
-#ifndef WIN32
-
-static struct event ev_sigquit;
-static struct event ev_sigusr1;
-static struct event ev_sigusr2;
-static struct event ev_sighup;
-
-static void handle_sigquit(evutil_socket_t sock, short flags, void *arg)
-{
-	log_info("got SIGQUIT, fast exit");
-	/* pidfile cleanup happens via atexit() */
-	exit(0);
-}
-
-static void handle_sigusr1(int sock, short flags, void *arg)
-{
-	if (cf_pause_mode == P_NONE) {
-		log_info("got SIGUSR1, pausing all activity");
-		cf_pause_mode = P_PAUSE;
-	} else {
-		log_info("got SIGUSR1, but already paused/suspended");
+	if (cf_max_user_connections > 0 && cf_max_user_connections < num_threads) {
+		log_error("In multithread mode, max_user_connections (%d) must be >= worker_thread_count (%d)",
+			  cf_max_user_connections, num_threads);
+		ok = false;
 	}
-}
 
-static void handle_sigusr2(int sock, short flags, void *arg)
-{
-	if (cf_shutdown) {
-		log_info("got SIGUSR2 while shutting down, ignoring");
-		return;
-	}
-	switch (cf_pause_mode) {
-	case P_SUSPEND:
-		log_info("got SIGUSR2, continuing from SUSPEND");
-		resume_all();
-		cf_pause_mode = P_NONE;
-		break;
-	case P_PAUSE:
-		log_info("got SIGUSR2, continuing from PAUSE");
-		cf_pause_mode = P_NONE;
-		break;
-	case P_NONE:
-		log_info("got SIGUSR2, but not paused/suspended");
-	}
-}
+	/* Check per-database connection limits (not pool sizes) */
+	THREAD_SAFE_STATLIST_EACH(&database_list, item, {
+		db = container_of(item, PgDatabase, head);
 
-/*
- * Notify systemd that we are reloading, including a CLOCK_MONOTONIC timestamp
- * in usec so that the program is compatible with a Type=notify-reload service.
- *
- * See https://www.freedesktop.org/software/systemd/man/latest/sd_notify.html
- */
-static void notify_reloading(void)
-{
-#ifdef USE_SYSTEMD
-	struct timespec ts;
-	usec_t usec;
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	usec = (usec_t)ts.tv_sec * USEC + (usec_t)ts.tv_nsec / (usec_t)1000;
-	sd_notifyf(0, "RELOADING=1\nMONOTONIC_USEC=%" PRIu64, usec);
-#endif
-}
+		if (db->max_db_connections > 0 && db->max_db_connections < num_threads) {
+			log_error("In multithread mode, database '%s' max_db_connections (%d) must be >= worker_thread_count (%d)",
+				  db->name, db->max_db_connections, num_threads);
+			ok = false;
+		}
+	});
 
-static void handle_sighup(int sock, short flags, void *arg)
-{
-	log_info("got SIGHUP, re-reading config");
-	notify_reloading();
-	load_config();
-	if (!sbuf_tls_setup())
-		log_error("TLS configuration could not be reloaded, keeping old configuration");
-	sd_notify(0, "READY=1");
-}
-#endif
+	/* Check per-user connection limits (not pool sizes) */
+	THREAD_SAFE_STATLIST_EACH(&user_list, item, {
+		user = container_of(item, PgGlobalUser, head);
 
-static void signal_setup(void)
-{
-	int err;
+		if (user->max_user_connections > 0 && user->max_user_connections < num_threads) {
+			log_error("In multithread mode, user '%s' max_user_connections (%d) must be >= worker_thread_count (%d)",
+				  user->credentials.name, user->max_user_connections, num_threads);
+			ok = false;
+		}
+	});
 
-#ifndef WIN32
-	sigset_t set;
-
-	/* block SIGPIPE */
-	sigemptyset(&set);
-	sigaddset(&set, SIGPIPE);
-	err = sigprocmask(SIG_BLOCK, &set, NULL);
-	if (err < 0)
-		fatal_perror("sigprocmask");
-
-	/* install handlers */
-
-	evsignal_assign(&ev_sigusr1, pgb_event_base, SIGUSR1, handle_sigusr1, NULL);
-	err = evsignal_add(&ev_sigusr1, NULL);
-	if (err < 0)
-		fatal_perror("evsignal_add");
-
-	evsignal_assign(&ev_sigusr2, pgb_event_base, SIGUSR2, handle_sigusr2, NULL);
-	err = evsignal_add(&ev_sigusr2, NULL);
-	if (err < 0)
-		fatal_perror("evsignal_add");
-
-	evsignal_assign(&ev_sighup, pgb_event_base, SIGHUP, handle_sighup, NULL);
-	err = evsignal_add(&ev_sighup, NULL);
-	if (err < 0)
-		fatal_perror("evsignal_add");
-
-	evsignal_assign(&ev_sigquit, pgb_event_base, SIGQUIT, handle_sigquit, NULL);
-	err = evsignal_add(&ev_sigquit, NULL);
-	if (err < 0)
-		fatal_perror("evsignal_add");
-#endif
-	evsignal_assign(&ev_sigterm, pgb_event_base, SIGTERM, handle_sigterm, NULL);
-	err = evsignal_add(&ev_sigterm, NULL);
-	if (err < 0)
-		fatal_perror("evsignal_add");
-
-	evsignal_assign(&ev_sigint, pgb_event_base, SIGINT, handle_sigint, NULL);
-	err = evsignal_add(&ev_sigint, NULL);
-	if (err < 0)
-		fatal_perror("evsignal_add");
+	return ok;
 }
 
 /*
@@ -821,12 +742,15 @@ static void write_pidfile(void)
 /* just print out max files, in the future may warn if something is off */
 static void check_limits(void)
 {
-	struct rlimit lim;
-	int total_users = statlist_count(&user_list);
 	int fd_count;
 	int err;
 	struct List *item;
 	PgDatabase *db;
+	struct rlimit lim;
+	int total_users;
+
+	fd_count = cf_max_client_conn + 10;
+	total_users = thread_safe_statlist_count(&user_list);
 
 	log_noise("event: %d, SBuf: %d, PgSocket: %d, IOBuf: %d",
 		  (int)sizeof(struct event), (int)sizeof(SBuf),
@@ -840,14 +764,13 @@ static void check_limits(void)
 	}
 
 	/* calculate theoretical max, +10 is just in case */
-	fd_count = cf_max_client_conn + 10;
-	statlist_for_each(item, &database_list) {
+	THREAD_SAFE_STATLIST_EACH(&database_list, item, {
 		db = container_of(item, PgDatabase, head);
 		if (db->forced_user_credentials)
 			fd_count += (db->pool_size >= 0 ? db->pool_size : cf_default_pool_size);
 		else
 			fd_count += (db->pool_size >= 0 ? db->pool_size : cf_default_pool_size) * total_users;
-	}
+	});
 
 	log_info("kernel file descriptor limit: %d (hard: %d); max_client_conn: %d, max expected fd use: %d",
 		 (int)lim.rlim_cur, (int)lim.rlim_max, cf_max_client_conn, fd_count);
@@ -889,15 +812,18 @@ static void main_loop_once(void)
 		if (errno != EINTR)
 			log_warning("event_loop failed: %s", strerror(errno));
 	}
-	ldap_poll();
-	pam_poll();
-	per_loop_maint();
-	reuse_just_freed_objects();
-	rescue_timers();
-	per_loop_pooler_maint();
 
-	if (adns)
-		adns_per_loop(adns);
+	if (!multithread_mode) {
+		ldap_poll();
+		pam_poll();
+		per_loop_maint();
+		reuse_just_freed_objects();
+		rescue_timers();
+		per_loop_pooler_maint();
+	}
+	if (adns) {
+		WITH_LOCK(&adns_lock, adns_per_loop(adns));
+	}
 }
 
 static void takeover_part1(void)
@@ -907,6 +833,8 @@ static void takeover_part1(void)
 
 	evtmp = pgb_event_base;
 	pgb_event_base = event_base_new();
+	if (!multithread_mode)
+		workers[0].base = pgb_event_base;
 
 	if (!cf_unix_socket_dir || !*cf_unix_socket_dir)
 		die("cannot reboot if unix dir not configured");
@@ -928,6 +856,8 @@ static void takeover_part1(void)
 
 	event_base_free(pgb_event_base);
 	pgb_event_base = evtmp;
+	if (!multithread_mode)
+		workers[0].base = pgb_event_base;
 }
 
 static void dns_setup(void)
@@ -937,6 +867,7 @@ static void dns_setup(void)
 	adns = adns_create_context();
 	if (!adns)
 		die("dns setup failed");
+	spin_lock_init(&adns_lock, true);
 }
 
 static void xfree(char **ptr_p)
@@ -1036,13 +967,14 @@ int main(int argc, char *argv[])
 		{"version", no_argument, NULL, 'V'},
 		{"reboot", no_argument, NULL, 'R'},
 		{"user", required_argument, NULL, 'u'},
+		{"thread", required_argument, NULL, 'T'},
 		{NULL, 0, NULL, 0}
 	};
 
 	setprogname(basename(argv[0]));
 
 	/* parse cmdline */
-	while ((c = getopt_long(argc, argv, "qvhdVRu:", long_options, &long_idx)) != -1) {
+	while ((c = getopt_long(argc, argv, "qvhdVRuT:", long_options, &long_idx)) != -1) {
 		switch (c) {
 		case 'R':
 			cf_reboot = 1;
@@ -1095,9 +1027,30 @@ int main(int argc, char *argv[])
 	atexit(cleanup);
 #endif
 
+	log_file_lock_init();
 	init_objects();
+	{
+		/* load pgbouncer section first*/
+		int load_file_ok = cf_load_file(&multithread_config, cf_config_file);
+		if (!load_file_ok)
+			die("cannot load pgbouncer config");
+		if (cf_worker_thread_count <= 0) {
+			multithread_mode = false;
+			num_threads = 1;
+		} else {
+			multithread_mode = true;
+			num_threads = cf_worker_thread_count;
+		}
+	}
+	/* Always initialise threads; in single-thread mode this creates workers[0]. */
+	init_worker_threads();
 	load_config();
 	main_config.loaded = true;
+
+	/* Validate multithread configuration limits */
+	if (!validate_multithread_limits())
+		die("Configuration validation failed in multithread mode");
+
 	init_var_lookup(cf_track_extra_parameters);
 	init_caches();
 	logging_prefix_cb = log_socket_prefix;
@@ -1120,9 +1073,13 @@ int main(int argc, char *argv[])
 		die("PgBouncer should not run as root");
 
 	admin_setup();
+	admin_regex_init();
 
 	if (cf_reboot) {
 		log_warning("Online restart is deprecated, use so_reuseport instead");
+		if (multithread_mode) {
+			die("Multithread mode doean't support reboot.");
+		}
 		if (check_old_process_unix()) {
 			takeover_part1();
 			did_takeover = true;
@@ -1153,11 +1110,18 @@ int main(int argc, char *argv[])
 	srandom(time(NULL) ^ getpid());
 	if (!(pgb_event_base = event_base_new()))
 		die("event_base_new() failed");
+	/* In single-thread mode, workers[0].base must point to the main event base. */
+	if (!multithread_mode)
+		workers[0].base = pgb_event_base;
 	dns_setup();
-	signal_setup();
-	janitor_setup();
+	signal_setup_main(pgb_event_base, &signal_event);
 	stats_setup();
 
+	if (!multithread_mode) {
+		janitor_setup();
+	} else {
+		main_thread_janitor_setup();
+	}
 	auth_ldap_init();
 	pam_init();
 
@@ -1174,10 +1138,15 @@ int main(int argc, char *argv[])
 		 tls_backend_version());
 
 	sd_notify(0, "READY=1");
+	if (multithread_mode)
+		start_worker_threads();
 
 	/* main loop */
 	while (cf_shutdown != SHUTDOWN_IMMEDIATE)
 		main_loop_once();
+
+	if (multithread_mode)
+		return join_worker_threads();
 
 	return 0;
 }

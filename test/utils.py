@@ -502,36 +502,45 @@ class QueryRunner:
     @contextmanager
     def drop_traffic(self):
         """Drops all TCP packets to this query runner"""
-        with self.enable_firewall():
-            if LINUX:
-                sudo(
-                    "iptables --append OUTPUT "
-                    "--protocol tcp "
-                    f"--destination {self.host} "
-                    f"--destination-port {self.port} "
-                    "--jump DROP "
-                )
-            elif BSD:
-                sudo(
-                    "sh -c '"
-                    f'echo "block drop out proto tcp from any to {self.host} port {self.port}"'
-                    f"| pfctl -a pgbouncer_test/port_{self.port} -f -'"
-                )
-            else:
-                raise Exception("This OS cannot run this test")
+        # Retry on transient "Device busy" errors from pfctl when multiple test
+        # workers call enable_firewall concurrently on FreeBSD.
+        for attempt in range(10):
             try:
-                yield
-            finally:
-                if LINUX:
-                    sudo(
-                        "iptables --delete OUTPUT "
-                        "--protocol tcp "
-                        f"--destination {self.host} "
-                        f"--destination-port {self.port} "
-                        "--jump DROP "
-                    )
-                elif BSD:
-                    sudo(f"pfctl -a pgbouncer_test/port_{self.port} -F all")
+                with self.enable_firewall():
+                    if LINUX:
+                        sudo(
+                            "iptables --append OUTPUT "
+                            "--protocol tcp "
+                            f"--destination {self.host} "
+                            f"--destination-port {self.port} "
+                            "--jump DROP "
+                        )
+                    elif BSD:
+                        sudo(
+                            "sh -c '"
+                            f'echo "block drop out proto tcp from any to {self.host} port {self.port}"'
+                            f"| pfctl -a pgbouncer_test/port_{self.port} -f -'"
+                        )
+                    else:
+                        raise Exception("This OS cannot run this test")
+                    try:
+                        yield
+                    finally:
+                        if LINUX:
+                            sudo(
+                                "iptables --delete OUTPUT "
+                                "--protocol tcp "
+                                f"--destination {self.host} "
+                                f"--destination-port {self.port} "
+                                "--jump DROP "
+                            )
+                        elif BSD:
+                            sudo(f"pfctl -a pgbouncer_test/port_{self.port} -F all")
+                return
+            except subprocess.CalledProcessError:
+                if attempt == 9:
+                    raise
+                time.sleep(0.1 * (attempt + 1))
 
     @contextmanager
     def reject_traffic(self):
@@ -1039,6 +1048,10 @@ class Bouncer(QueryRunner):
     async def wait_until_running(self):
         tries = 1
         while True:
+            if not self.running():
+                self.print_logs()
+                raise Exception("PgBouncer process died during startup")
+
             try:
                 await self.aadmin("show version")
             except psycopg.Error:
@@ -1058,6 +1071,14 @@ class Bouncer(QueryRunner):
         """Run an SQL query on the PgBouncer admin database that returns only a
         single cell and return this value"""
         return self.admin_runner.sql_value(query, **kwargs)
+
+    def get_worker_thread_count(self):
+        """Get the number of threads PgBouncer is running with"""
+        result = self.admin("SHOW CONFIG")
+        for row in result:
+            if row[0] == "worker_thread_count":
+                return 1 if int(row[1]) == 0 else int(row[1])
+        raise Exception("worker_thread_count not found in SHOW CONFIG")
 
     def aadmin(self, query, **kwargs):
         """Run an SQL query on the PgBouncer admin database in an asynchronous
@@ -1094,7 +1115,18 @@ class Bouncer(QueryRunner):
                 self.aprocess.terminate()
                 self.aprocess.terminate()
 
-        await self.wait_for_exit()
+        try:
+            await asyncio.wait_for(self.wait_for_exit(), timeout=5)
+        except asyncio.TimeoutError:
+            self.print_logs()
+            if self.process:
+                self.process.kill()
+            if self.aprocess:
+                try:
+                    self.aprocess.kill()
+                except ProcessLookupError:
+                    pass
+            await self.wait_for_exit()
 
     async def reboot(self):
         """Starts a new PgBouncer with the --reboot flag

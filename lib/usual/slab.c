@@ -18,33 +18,14 @@
 
 #include <usual/slab.h>
 
+#include <usual/slab_internal.h>
+
 #include <string.h>
 
 #include <usual/statlist.h>
 
 #ifndef USUAL_FAKE_SLAB
 
-/*
- * Store for pre-initialized objects of one type.
- */
-struct Slab {
-	struct List head;
-	struct StatList freelist;
-	struct StatList fraglist;
-	char name[32];
-	unsigned final_size;
-	unsigned total_count;
-	slab_init_fn init_func;
-	CxMem *cx;
-};
-
-
-/*
- * Header for each slab.
- */
-struct SlabFrag {
-	struct List head;
-};
 
 /* keep track of all active slabs */
 static STATLIST(slab_list);
@@ -64,38 +45,11 @@ static void slab_list_remove(struct Slab *slab)
 }
 
 /* fill struct contents */
-static void init_slab(struct Slab *slab, const char *name, unsigned obj_size,
-		      unsigned align, slab_init_fn init_func,
-		      CxMem *cx)
+static void init_slab_and_store_in_list(struct Slab *slab, const char *name, unsigned obj_size,
+					unsigned align, slab_init_fn init_func,
+					CxMem *cx)
 {
-	unsigned slen = strlen(name);
-
-	list_init(&slab->head);
-	statlist_init(&slab->freelist, name);
-	statlist_init(&slab->fraglist, name);
-	slab->total_count = 0;
-	slab->init_func = init_func;
-	slab->cx = cx;
-
-	if (slen >= sizeof(slab->name))
-		slen = sizeof(slab->name) - 1;
-	memcpy(slab->name, name, slen);
-	slab->name[slen] = 0;
-
-	/* don't allow too small align, as we want to put pointers into area */
-	if (align < sizeof(long))
-		align = 0;
-
-	/* actual area for one object */
-	if (align == 0)
-		slab->final_size = ALIGN(obj_size);
-	else
-		slab->final_size = CUSTOM_ALIGN(obj_size, align);
-
-	/* allow small structs */
-	if (slab->final_size < sizeof(struct List))
-		slab->final_size = sizeof(struct List);
-
+	init_slab(slab, name, obj_size, align, init_func, cx);
 	slab_list_append(slab);
 }
 
@@ -109,25 +63,18 @@ struct Slab *slab_create(const char *name, unsigned obj_size, unsigned align,
 	/* new slab object */
 	slab = cx_alloc0(cx, sizeof(*slab));
 	if (slab)
-		init_slab(slab, name, obj_size, align, init_func, cx);
+		init_slab_and_store_in_list(slab, name, obj_size, align, init_func, cx);
 	return slab;
 }
 
 /* free all storage associated by slab */
 void slab_destroy(struct Slab *slab)
 {
-	struct List *item, *tmp;
-	struct SlabFrag *frag;
-
 	if (!slab)
 		return;
 
 	slab_list_remove(slab);
-	statlist_for_each_safe(item, &slab->fraglist, tmp) {
-		frag = container_of(item, struct SlabFrag, head);
-		cx_free(slab->cx, frag);
-	}
-	cx_free(slab->cx, slab);
+	slab_destroy_internal(slab);
 }
 
 /* add new block of objects to slab */

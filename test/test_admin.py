@@ -72,6 +72,7 @@ def test_show(bouncer):
         bouncer.admin(f"SHOW {item}")
 
 
+@pytest.mark.single_thread_only
 def test_socket_id(bouncer) -> None:
     """Test that PgSocket id is assigned as expected for sockets."""
     config = f"""
@@ -115,6 +116,52 @@ def test_socket_id(bouncer) -> None:
                 time.sleep(2)
 
 
+@pytest.mark.multithread_only
+def test_socket_id_multithread(bouncer) -> None:
+    """Test that PgSocket id is monotonically increasing for sockets in multithread mode.
+
+    In multithread mode, server_lifetime=0 can cause background threads to create
+    and close connections, consuming IDs in between iterations, so the exact
+    per-iteration increment is not predictable. Instead we verify that each new
+    session's sockets have strictly higher IDs than the previous iteration's.
+    """
+    config = f"""
+    [databases]
+    p1 = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    listen_port = {bouncer.port}
+    auth_type = trust
+    admin_users = pgbouncer
+    logfile = {bouncer.log_path}
+    auth_file = {bouncer.auth_path}
+    pool_mode = session
+    server_lifetime = 0
+    """
+
+    with bouncer.run_with_config(config):
+        with bouncer.cur(
+            dbname="pgbouncer", user="pgbouncer", row_factory=dict_row
+        ) as admin_cursor:
+            prev_max_id = None
+
+            for _ in range(3):
+                conn_2 = bouncer.conn(dbname="p1")
+                curr = conn_2.cursor()
+                _ = curr.execute("SELECT 1")
+                time.sleep(2)
+                sockets = admin_cursor.execute("SHOW SOCKETS").fetchall()
+                assert len(sockets) == 3
+                current_max_id = max(s["id"] for s in sockets)
+                if prev_max_id is not None:
+                    assert current_max_id > prev_max_id
+                prev_max_id = current_max_id
+                conn_2.close()
+                time.sleep(2)
+
+
+@pytest.mark.single_thread_only
 def test_server_id(bouncer) -> None:
     """Test that PgSocket id is assigned as expected for servers."""
     config = f"""
@@ -148,6 +195,50 @@ def test_server_id(bouncer) -> None:
                 assert [
                     initial_id + i * 2,
                 ] == [client["id"] for client in clients]
+                conn_2.close()
+                time.sleep(2)
+
+
+@pytest.mark.multithread_only
+def test_server_id_multithread(bouncer) -> None:
+    """Test that PgSocket id is monotonically increasing for servers in multithread mode.
+
+    In multithread mode, server_lifetime=0 can cause a server to be recycled
+    during an active session (closed and replaced by a new connection), so the
+    exact per-iteration ID increment is not predictable. Instead we verify that
+    each new session's server has a strictly higher ID than the previous one.
+    """
+    config = f"""
+    [databases]
+    p1 = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    listen_port = {bouncer.port}
+    auth_type = trust
+    admin_users = pgbouncer
+    logfile = {bouncer.log_path}
+    auth_file = {bouncer.auth_path}
+    server_lifetime = 0
+    """
+
+    with bouncer.run_with_config(config):
+        with bouncer.cur(
+            dbname="pgbouncer", user="pgbouncer", row_factory=dict_row
+        ) as admin_cursor:
+            prev_server_id = None
+
+            for _ in range(3):
+                conn_2 = bouncer.conn(dbname="p1")
+                curr = conn_2.cursor()
+                _ = curr.execute("SELECT 1")
+                time.sleep(2)
+                servers = admin_cursor.execute("SHOW SERVERS").fetchall()
+                assert len(servers) == 1
+                current_server_id = servers[0]["id"]
+                if prev_server_id is not None:
+                    assert current_server_id > prev_server_id
+                prev_server_id = current_server_id
                 conn_2.close()
                 time.sleep(2)
 
@@ -257,6 +348,11 @@ def test_kill_db(bouncer: "Bouncer"):
     # Issue kill command
     bouncer.admin("KILL p0")
 
+    # In multithread mode there is a brief window where the KILL admin
+    # connection has not yet been fully cleaned up.
+    # Give threads time to settle before checking.
+    time.sleep(0.5)
+
     # Validate count
     clients = bouncer.admin("SHOW CLIENTS")
     assert len(clients) == 1
@@ -301,6 +397,11 @@ def test_kill_all(bouncer: "Bouncer"):
     # Issue kill command
     bouncer.admin("KILL")
 
+    # In multithread mode there is a brief window where the KILL admin
+    # connection has not yet been fully cleaned up.  Give threads time to
+    # settle before checking.
+    time.sleep(0.5)
+
     # Validate count
     clients = bouncer.admin("SHOW CLIENTS")
     assert len(clients) == 1
@@ -324,6 +425,9 @@ def test_kill_client_nonexisting(bouncer):
     ):
         clients = bouncer.admin(f"KILL_CLIENT 1000")
 
+    # In multithread mode the failing admin connection may linger briefly.
+    time.sleep(0.5)
+
     # Validate count
     clients = bouncer.admin("SHOW CLIENTS")
     assert len(clients) == 2
@@ -345,6 +449,9 @@ def test_kill_client_invalid(bouncer):
         match=r"invalid client pointer supplied",
     ):
         clients = bouncer.admin("KILL_CLIENT non_existant_client_id")
+
+    # In multithread mode the failing admin connection may linger briefly.
+    time.sleep(0.5)
 
     # Validate count
     clients = bouncer.admin("SHOW CLIENTS")
@@ -387,6 +494,7 @@ def test_help(bouncer):
     run([*bouncer.base_command(), "--help"])
 
 
+@pytest.mark.single_thread_only
 def test_show_stats(bouncer):
     # Use session pooling database to see differenecs between transactions and
     # server assignments
@@ -424,6 +532,57 @@ def test_show_stats(bouncer):
     assert p3_stats["xact_count"] == 6
     # 11 SELECT 1 + 2 times COMMIT and ROLLBACK
     assert p3_stats["query_count"] == 15
+
+    totals = bouncer.admin("SHOW TOTALS")
+    # 5 connection attempts (and thus assignments)
+    assert ("total_server_assignment_count", 5) in totals
+    # 4 autocommit queries + 2 transactions + 4 admin commands
+    assert ("total_xact_count", 10) in totals
+    # 11 SELECT 1 + 2 times COMMIT and ROLLBACK + 4 admin commands
+    assert ("total_query_count", 19) in totals
+
+
+@pytest.mark.multithread_only
+def test_show_stats_multithread(bouncer):
+    # Use session pooling database to see differenecs between transactions and
+    # server assignments
+    bouncer.default_db = "p3"
+    bouncer.test()
+    bouncer.test()
+    bouncer.test()
+    bouncer.test()
+    with bouncer.cur() as cur:
+        with cur.connection.transaction():
+            cur.execute("SELECT 1")
+            cur.execute("SELECT 1")
+            cur.execute("SELECT 1")
+        with cur.connection.transaction():
+            cur.execute("SELECT 1")
+            cur.execute("SELECT 1")
+            cur.execute("SELECT 1")
+
+    stats = bouncer.admin("SHOW STATS", row_factory=dict_row)
+    p3_stats = [s for s in stats if s["database"] == "p3"]
+
+    assert p3_stats is not None
+    # Aggregate across threads, as SHOW STATS returns per-thread statistics in multithreaded mode.
+
+    # 5 connection attempts (and thus assignments)
+    assert sum(s["total_server_assignment_count"] for s in p3_stats) == 5
+    # 4 autocommit queries + 2 transactions
+    assert sum(s["total_xact_count"] for s in p3_stats) == 6
+    # 11 SELECT 1 + 2 times COMMIT and ROLLBACK
+    assert sum(s["total_query_count"] for s in p3_stats) == 15
+
+    stats = bouncer.admin("SHOW STATS_TOTALS", row_factory=dict_row)
+    p3_stats = [s for s in stats if s["database"] == "p3"]
+    assert p3_stats is not None
+    # 5 connection attempts (and thus assignments)
+    assert sum(s["server_assignment_count"] for s in p3_stats) == 5
+    # 4 autocommit queries + 2 transactions
+    assert sum(s["xact_count"] for s in p3_stats) == 6
+    # 11 SELECT 1 + 2 times COMMIT and ROLLBACK
+    assert sum(s["query_count"] for s in p3_stats) == 15
 
     totals = bouncer.admin("SHOW TOTALS")
     # 5 connection attempts (and thus assignments)

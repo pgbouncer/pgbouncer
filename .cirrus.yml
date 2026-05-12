@@ -168,7 +168,7 @@ task:
     - echo 'user ALL=(ALL) NOPASSWD: ALL' >> /usr/local/etc/sudoers
   env:
     CPPFLAGS: -I/usr/local/include
-    LDFLAGS: -L/usr/local/lib
+    LDFLAGS: -L/usr/local/lib -pthread
     M4: /usr/local/bin/gm4
   build_script:
     - su user -c "./autogen.sh"

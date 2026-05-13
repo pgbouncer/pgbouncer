@@ -853,4 +853,4 @@ bool tls_config_equal(struct tls_config *tc1, struct tls_config *tc2)
 	return true;
 }
 
-#endif	/* USUAL_LIBSSL_FOR_TLS */
+#endif /* USUAL_LIBSSL_FOR_TLS */

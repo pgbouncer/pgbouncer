@@ -606,17 +606,17 @@ int tls_ssl_error(struct tls *ctx, SSL *ssl_conn, int ssl_ret, const char *prefi
 		if ((err = ERR_peek_error()) != 0) {
 #ifdef SSL_R_UNEXPECTED_EOF_WHILE_READING
 			/*
-			* OpenSSL 3 reports an unannounced peer disconnect
-			* after a completed handshake here, where pre-3.0
-			* versions reported it via SSL_ERROR_SYSCALL with
-			* ssl_ret==0 (handled above). Treat both the same so
-			* we don't log a WARNING for every client that closes
-			* its socket without a TLS close_notify.
-			*/
+			 * OpenSSL 3 reports an unannounced peer disconnect
+			 * after a completed handshake here, where pre-3.0
+			 * versions reported it via SSL_ERROR_SYSCALL with
+			 * ssl_ret==0 (handled above). Treat both the same so
+			 * we don't log a WARNING for every client that closes
+			 * its socket without a TLS close_notify.
+			 */
 			if (ERR_GET_REASON(err) == SSL_R_UNEXPECTED_EOF_WHILE_READING &&
-				(ctx->state & TLS_HANDSHAKE_COMPLETE) != 0) {
-					ctx->state |= TLS_EOF_NO_CLOSE_NOTIFY;
-					return (0);
+			    (ctx->state & TLS_HANDSHAKE_COMPLETE) != 0) {
+				ctx->state |= TLS_EOF_NO_CLOSE_NOTIFY;
+				return (0);
 			}
 #endif
 			errstr = ERR_error_string(err, NULL);
@@ -853,4 +853,4 @@ bool tls_config_equal(struct tls_config *tc1, struct tls_config *tc2)
 	return true;
 }
 
-#endif /* USUAL_LIBSSL_FOR_TLS */
+#endif	/* USUAL_LIBSSL_FOR_TLS */

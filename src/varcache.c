@@ -75,7 +75,12 @@ static void init_var_lookup_from_config(const char *cf_track_extra_parameters, i
 			continue;
 
 		lookup = (struct var_lookup *)malloc(sizeof *lookup);
+		if (lookup == NULL)
+			die("failed to allocate memory in init_var_lookup_from_config");
+
 		lookup->name = strdup(var_name);
+		if (lookup->name == NULL)
+			die("failed to allocate memory in init_var_lookup_from_config");
 
 		lookup->idx = (*num_vars)++;
 		HASH_ADD_KEYPTR(hh, lookup_map, lookup->name, strlen(lookup->name), lookup);
@@ -96,6 +101,9 @@ void init_var_lookup(const char *cf_track_extra_parameters)
 	/* Always add the static list of names for compatibility */
 	for (; names[idx]; idx++) {
 		lookup = (struct var_lookup *)malloc(sizeof *lookup);
+		if (lookup == NULL)
+			die("failed to allocate memory in init_var_lookup_from_config");
+
 		lookup->name = names[idx];
 		lookup->idx = idx;
 		HASH_ADD_KEYPTR(hh, lookup_map, lookup->name, strlen(lookup->name), lookup);

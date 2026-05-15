@@ -71,8 +71,10 @@ static void init_var_lookup_from_config(const char *cf_track_extra_parameters, i
 		HASH_FIND_STR(lookup_map, var_name, lookup);
 
 		/* If the var name is already on the hash map, do not update its idx */
-		if (lookup != NULL)
+		if (lookup != NULL) {
+			free(var_name);
 			continue;
+		}
 
 		lookup = (struct var_lookup *)malloc(sizeof *lookup);
 		if (lookup == NULL)

@@ -1,0 +1,32 @@
+# Compilation options
+
+option('cassert', type: 'boolean', value: false,
+       description: 'Turn on assertion checking in code')
+
+# TODO
+option('evdns', type: 'boolean', value: false,
+       description: 'Use libevent for DNS lookups')
+
+# TODO
+option('root-ca-file', type: 'string', value: 'TODO',
+       description: 'Specify where the root CA certificates are')
+
+# External dependencies
+
+option('cares', type: 'feature', value: 'auto',
+       description: 'Build with c-ares support')
+
+# TODO
+option('ldap', type: 'feature', value: 'auto',
+       description: 'Build with LDAP support')
+
+# TODO
+option('pam', type: 'feature', value: 'auto',
+       description: 'Build with PAM support')
+
+# TODO
+option('openssl', type: 'feature', value: 'auto',
+       description: 'Build with OpenSSL support')
+
+option('systemd', type: 'feature', value: 'auto',
+       description: 'Build with systemd support')

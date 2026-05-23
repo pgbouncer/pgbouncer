@@ -1250,9 +1250,20 @@ class Bouncer(QueryRunner):
             yield self
         finally:
             # Code to release resource, e.g.:
-            with self.ini_path.open("w") as f:
-                f.write(config_old)
-            self.admin("RELOAD")
+            # On Windows, the process might be terminating during cleanup,
+            # so we need to handle exceptions gracefully to avoid worker crashes
+            try:
+                with self.ini_path.open("w") as f:
+                    f.write(config_old)
+                # Only try to reload if the bouncer is still running
+                if self.running():
+                    self.admin("RELOAD")
+            except Exception:
+                # If cleanup fails (e.g., process is terminating, file is locked,
+                # or connection is closed), we can't do much about it.
+                # This is especially important on Windows where process cleanup
+                # can be more problematic with pytest-xdist workers.
+                pass
 
 
 class OpenLDAP:

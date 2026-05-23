@@ -1,3 +1,4 @@
+import logging
 import threading
 import time
 
@@ -115,8 +116,17 @@ def test_socket_id(bouncer) -> None:
                 time.sleep(2)
 
 
-def test_server_id(bouncer) -> None:
-    """Test that PgSocket id is assigned as expected for servers."""
+g_test_server_id__timeouts = [0, 1, 2]
+
+
+@pytest.mark.parametrize(
+    "timeout",
+    g_test_server_id__timeouts,
+    ids=["timeout_{}".format(x) for x in g_test_server_id__timeouts],
+)
+def test_server_id(bouncer, timeout) -> None:
+    """Test that server id is assigned as expected for servers."""
+    assert timeout >= 0
     config = f"""
     [databases]
     p1 = host={bouncer.pg.host} port={bouncer.pg.port}
@@ -138,16 +148,56 @@ def test_server_id(bouncer) -> None:
             admin_cursor.execute("SHOW SOCKETS")
             servers = admin_cursor.fetchall()
             initial_id = max([i["id"] for i in servers])
-
+            base_id = initial_id
             for i in range(1, 4):
+                logging.info("----------- Step #{}".format(i))
                 conn_2 = bouncer.conn(dbname="p1")
+                # CHECKPOINT_001: ++base_id
                 curr = conn_2.cursor()
+                time.sleep(timeout)
+                # CHECKPOINT_002: ++base_id (?)
                 _ = curr.execute("SELECT 1")
                 time.sleep(2)
-                clients = admin_cursor.execute("SHOW SERVERS").fetchall()
-                assert [
-                    initial_id + i * 2,
-                ] == [client["id"] for client in clients]
+                # CHECKPOINT_003: ++base_id
+                servers = admin_cursor.execute("SHOW SERVERS").fetchall()
+                # We expected here ID of admin connection
+                server_ids = [client["id"] for client in servers]
+
+                if len(server_ids) == 0:
+                    raise Exception("No servers were gotten!")
+
+                if len(server_ids) == 1:
+                    # It is OK. This is admin connection ID.
+                    server_id = server_ids[0]
+                    expected_id1 = base_id + 2  # It is fine
+                    expected_id2 = base_id + 3  # It is possible
+
+                    slow_machine = False
+                    if server_id == expected_id1:
+                        slow_machine = timeout > 0
+                        base_id = expected_id1
+                    elif server_id == expected_id2:
+                        slow_machine = timeout == 0
+                        base_id = expected_id2
+                    else:
+                        raise Exception(
+                            "Unexpected server ID: {}. We expected {} or {}.".format(
+                                server_id,
+                                expected_id1,
+                                expected_id2,
+                            )
+                        )
+
+                    if slow_machine:
+                        logging.warning(
+                            "Server ID is {}. Slow machine.".format(server_id)
+                        )
+                    else:
+                        logging.info("Server ID is {}".format(server_id))
+                else:
+                    # Is it "one user connection" + "one admin connection" ?
+                    raise Exception("Bad server IDs: {}".format(server_ids))
+
                 conn_2.close()
                 time.sleep(2)
 

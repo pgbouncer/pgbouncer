@@ -27,6 +27,7 @@ char *format_time_ms(usec_t time, char *dest, unsigned destlen)
 	struct tm *tm, tmbuf;
 	struct timeval tv;
 	time_t sec;
+	char msbuf[13];
 
 	if (!time) {
 		gettimeofday(&tv, NULL);
@@ -37,11 +38,12 @@ char *format_time_ms(usec_t time, char *dest, unsigned destlen)
 
 	sec = tv.tv_sec;
 	tm = localtime_r(&sec, &tmbuf);
-	snprintf(dest, destlen, "%04d-%02d-%02d %02d:%02d:%02d.%03d %s",
-		 tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
-		 tm->tm_hour, tm->tm_min, tm->tm_sec,
-		 (int)(tv.tv_usec / 1000),
-		 tzname[tm->tm_isdst > 0 ? 1 : 0]);
+	strftime(dest, destlen, "%Y-%m-%d %H:%M:%S     %Z", tm);
+
+	/* 'paste' milliseconds into place... */
+	sprintf(msbuf, ".%03d", (int) (tv.tv_usec / 1000));
+	memcpy(dest + 19, msbuf, 4);
+
 	return dest;
 }
 
@@ -57,10 +59,7 @@ char *format_time_s(usec_t time, char *dest, unsigned destlen)
 		s = time / USEC;
 	}
 	tm = localtime_r(&s, &tbuf);
-	snprintf(dest, destlen, "%04d-%02d-%02d %02d:%02d:%02d %s",
-		 tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
-		 tm->tm_hour, tm->tm_min, tm->tm_sec,
-		 tzname[tm->tm_isdst > 0 ? 1 : 0]);
+	strftime(dest, destlen, "%Y-%m-%d %H:%M:%S %Z", tm);
 	return dest;
 }
 
@@ -128,40 +127,6 @@ int gettimeofday(struct timeval *tp, void *tzp)
 }
 
 #endif /* !HAVE_GETTIMEOFDAY */
-
-#ifndef HAVE_LOCALTIME_R
-
-struct tm *localtime_r(const time_t *tp, struct tm *result)
-{
-	ULARGE_INTEGER utc;
-	FILETIME ft_utc;
-	SYSTEMTIME st_utc, st_local;
-
-	/* convert time_t to FILETIME */
-	utc.QuadPart = (*tp + UNIX_EPOCH) * FT_SEC;
-	ft_utc.dwLowDateTime = utc.LowPart;
-	ft_utc.dwHighDateTime = utc.HighPart;
-
-	/* split to parts and get local time */
-	if (!FileTimeToSystemTime(&ft_utc, &st_utc))
-		return NULL;
-	if (!SystemTimeToTzSpecificLocalTime(NULL, &st_utc, &st_local))
-		return NULL;
-
-	/* fill struct tm */
-	result->tm_sec = st_local.wSecond;
-	result->tm_min = st_local.wMinute;
-	result->tm_hour = st_local.wHour;
-	result->tm_mday = st_local.wDay;
-	result->tm_mon = st_local.wMonth - 1;
-	result->tm_year = st_local.wYear - 1900;
-	result->tm_wday = st_local.wDayOfWeek;
-	result->tm_yday = 0;
-	result->tm_isdst = -1;
-	return result;
-}
-
-#endif /* !HAVE_LOCALTIME_R */
 
 #ifndef HAVE_GETRUSAGE
 

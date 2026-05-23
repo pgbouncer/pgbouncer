@@ -67,7 +67,7 @@ dnl
 dnl AC_USUAL_PROGRAM_CHECK:  Simple C environment: CC, CPP, INSTALL
 dnl
 AC_DEFUN([AC_USUAL_PROGRAM_CHECK], [
-AC_PROG_CC_STDC
+AC_PROG_CC
 AC_PROG_CPP
 
 dnl Check if linker supports -Wl,--as-needed
@@ -166,7 +166,6 @@ dnl
 dnl AC_USUAL_TYPE_CHECK: Basic types for C
 dnl
 AC_DEFUN([AC_USUAL_TYPE_CHECK], [
-AC_C_RESTRICT
 AC_C_BIGENDIAN
 AC_SYS_LARGEFILE
 AC_TYPE_PID_T
@@ -203,7 +202,7 @@ dnl
 AC_DEFUN([AC_USUAL_FUNCTION_CHECK], [
 ### Functions provided if missing
 dnl AC_CHECK_FUNCS(basename dirname) # unstable, provide always
-AC_CHECK_FUNCS(strlcpy strlcat strnlen strsep getpeereid sigaction sigqueue)
+AC_CHECK_FUNCS(strlcpy strlcat strsep getpeereid sigaction sigqueue)
 AC_CHECK_FUNCS(memmem memrchr mempcpy)
 AC_CHECK_FUNCS(inet_ntop inet_pton poll getline regcomp)
 AC_CHECK_FUNCS(err errx warn warnx getprogname setprogname)

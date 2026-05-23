@@ -271,7 +271,8 @@ static bool send_one_fd(PgSocket *admin,
 			const uint8_t *scram_client_key,
 			int scram_client_key_len,
 			const uint8_t *scram_server_key,
-			int scram_server_key_len)
+			int scram_server_key_len,
+			int host_index)
 {
 	struct msghdr msg;
 	struct cmsghdr *cmsg;
@@ -281,12 +282,13 @@ static bool send_one_fd(PgSocket *admin,
 
 	struct PktBuf *pkt = pktbuf_temp();
 
-	pktbuf_write_DataRow(pkt, "issssiqisssssbb",
+	pktbuf_write_DataRow(pkt, "issssiqisssssbbi",
 			     fd, task, user, db, addr, port, ckey, link,
 			     client_enc, std_strings, datestyle, timezone,
 			     password,
 			     scram_client_key_len, scram_client_key,
-			     scram_server_key_len, scram_server_key);
+			     scram_server_key_len, scram_server_key,
+			     host_index);
 	if (pkt->failed)
 		return false;
 	iovec.iov_base = pkt->buf;
@@ -377,7 +379,8 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 			   send_scram_keys ? sk->pool->user_credentials->scram_ClientKey : NULL,
 			   send_scram_keys ? (int) sizeof(sk->pool->user_credentials->scram_ClientKey) : -1,
 			   send_scram_keys ? sk->pool->user_credentials->scram_ServerKey : NULL,
-			   send_scram_keys ? (int) sizeof(sk->pool->user_credentials->scram_ServerKey) : -1);
+			   send_scram_keys ? (int) sizeof(sk->pool->user_credentials->scram_ServerKey) : -1,
+			   is_server_socket(sk) ? sk->host_index : -1);
 }
 
 static bool show_pooler_cb(void *arg, int fd, const PgAddr *a)
@@ -386,7 +389,7 @@ static bool show_pooler_cb(void *arg, int fd, const PgAddr *a)
 
 	return send_one_fd(arg, fd, "pooler", NULL, NULL,
 			   pga_ntop(a, buf, sizeof(buf)), pga_port(a), 0, 0,
-			   NULL, NULL, NULL, NULL, NULL, NULL, -1, NULL, -1);
+			   NULL, NULL, NULL, NULL, NULL, NULL, -1, NULL, -1, -1);
 }
 
 /* send a row with sendmsg, optionally attaching a fd */

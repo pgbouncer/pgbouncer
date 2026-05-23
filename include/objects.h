@@ -92,7 +92,8 @@ bool use_server_socket(int fd, PgAddr *addr, const char *dbname, const char *use
 		       const char *client_end, const char *std_string, const char *datestyle, const char *timezone,
 		       const char *password,
 		       const char *scram_client_key, int scram_client_key_len,
-		       const char *scram_server_key, int scram_server_key_len) _MUSTCHECK;
+		       const char *scram_server_key, int scram_server_key_len,
+		       int host_index) _MUSTCHECK;
 
 void activate_client(PgSocket *client);
 

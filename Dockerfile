@@ -9,6 +9,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libevent-dev \
     libssl-dev \
     libc-ares-dev \
+    libpam0g-dev \
+    libldap2-dev \
     python3 \
     pandoc \
     && rm -rf /var/lib/apt/lists/*
@@ -17,7 +19,7 @@ COPY . /src
 WORKDIR /src
 
 RUN ./autogen.sh \
-    && ./configure --prefix=/usr/local --with-cares \
+    && ./configure --prefix=/usr/local --with-cares --with-pam --with-ldap \
     && make -j"$(nproc)" \
     && make install
 
@@ -27,6 +29,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libevent-2.1-7 \
     libssl3 \
     libc-ares2 \
+    libpam0g \
+    libldap-2.5-0 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -r pgbouncer && useradd -r -g pgbouncer -u 1000 pgbouncer \

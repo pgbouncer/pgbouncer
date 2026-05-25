@@ -102,14 +102,17 @@ const char * kill_pool_logins_server_error(PgPool *pool, PktHdr *errpkt)
 	const char *level, *sqlstate, *msg;
 
 	parse_server_error(errpkt, &level, &msg, &sqlstate);
-	log_warning("server login failed: %s %s", level, msg);
+	if (level != NULL && msg != NULL)
+		log_warning("server login failed: %s %s", level, msg);
+	else
+		log_warning("server login failed");
 
 	/*
 	 * Kill all waiting clients unless it's a temporary error, such as
 	 * "database system is starting up".
 	 */
-	if (strcmp(sqlstate, ERRCODE_CANNOT_CONNECT_NOW) != 0) {
-		log_noise("kill_pool_logins_server_error: sqlstate: %s", sqlstate);
+	if (sqlstate == NULL || strcmp(sqlstate, ERRCODE_CANNOT_CONNECT_NOW) != 0) {
+		log_noise("kill_pool_logins_server_error: sqlstate: %s", sqlstate ? sqlstate : "NULL");
 		kill_pool_logins(pool, sqlstate, msg);
 	}
 	return msg;

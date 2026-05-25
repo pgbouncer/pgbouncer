@@ -1436,6 +1436,9 @@ static bool admin_cmd_kill_client(PgSocket *admin, const char *arg)
 	PgSocket *kill_client;
 	unsigned long long int target_id = 0;
 
+	if (!admin->admin_user)
+		return admin_error(admin, "admin access needed");
+
 	if (sscanf(arg, "%llu", &target_id) != 1) {
 		return admin_error(admin, "invalid client pointer supplied");
 	}

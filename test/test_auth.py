@@ -1160,8 +1160,7 @@ def test_auth_query_no_set_commands(bouncer, pg):
     """
     # Create a custom auth query that will fail if search_path is set incorrectly
     # We'll use a function that checks current_setting('search_path')
-    pg.sql(
-        """
+    pg.sql("""
         CREATE OR REPLACE FUNCTION auth_check_search_path(username TEXT)
         RETURNS TABLE(usename name, passwd text) AS $$
         BEGIN
@@ -1172,8 +1171,7 @@ def test_auth_query_no_set_commands(bouncer, pg):
             RETURN QUERY SELECT u.usename, u.passwd FROM pg_shadow u WHERE u.usename = username;
         END;
         $$ LANGUAGE plpgsql SECURITY DEFINER;
-    """
-    )
+    """)
 
     config = f"""
         [databases]

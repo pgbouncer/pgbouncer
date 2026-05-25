@@ -1,0 +1,17 @@
+services:
+  pgbouncer:
+    build: .
+    ports:
+      - "6432:6432"
+    volumes:
+      - ./etc/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./etc/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5432:5432"

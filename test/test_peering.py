@@ -52,6 +52,33 @@ def test_peering_without_own_index(peers):
                     query.result()
 
 
+def test_failed_reload_preserves_peers(peers):
+    """A failed RELOAD must not drop configured peer connections.
+
+    Before loading a config file, load_config() marks every peer dead and
+    relies on the successful load to revive them. The failure path must undo
+    that marking (set_peers_dead(false)); otherwise config_postprocess()
+    kills every peer when a config file fails to parse.
+
+    See: https://github.com/pgbouncer/pgbouncer/issues/1482
+    """
+    bouncer = peers[1]
+
+    peers_before = bouncer.admin("SHOW PEERS")
+    assert len(peers_before) == 2
+
+    # Append an invalid parameter so the next reload fails to parse.
+    with bouncer.ini_path.open("a") as f:
+        f.write("server_lifetime = INVALID_VALUE_THAT_TRIGGERS_PARSE_ERROR\n")
+
+    with pytest.raises(psycopg.errors.ConfigFileError):
+        bouncer.admin("reload")
+
+    # The peers must still be present after the failed reload.
+    peers_after = bouncer.admin("SHOW PEERS")
+    assert len(peers_after) == 2
+
+
 def test_peering_with_own_index(peers):
     for own_index, bouncer in peers.items():
         with bouncer.ini_path.open("a") as f:

@@ -28,7 +28,7 @@ task:
         configure_args: ''
         ENABLE_VALGRIND: yes
         CFLAGS: -O0 -g
-        PGVERSION: 17
+        PGVERSION: 18
     - container:
         image: ubuntu:22.04
       env:

@@ -418,7 +418,12 @@ class QueryRunner:
         self.set_default_connection_options(kwargs)
         connect_options = " ".join([f"{k}={v}" for k, v in kwargs.items()])
 
-        run(["psql", f"port={self.port} {connect_options}", "-c", query], shell=False)
+        return run(
+            ["psql", f"port={self.port} {connect_options}", "-c", query],
+            shell=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
 
     @contextmanager
     def transaction(self, **kwargs):

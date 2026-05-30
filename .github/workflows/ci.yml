@@ -107,6 +107,14 @@ jobs:
           # $pkgs is an intentionally word-split package list.
           # shellcheck disable=SC2086
           sudo apt-get -y --no-install-recommends install $pkgs
+          # The LDAP tests run slapd from a temp directory. On the VM runners
+          # (unlike the old Cirrus containers) the slapd AppArmor profile is
+          # loaded and confines it to its default paths, so it fails to start.
+          # Unload the profile if it is present.
+          if [ -e /etc/apparmor.d/usr.sbin.slapd ]; then
+            sudo ln -sf /etc/apparmor.d/usr.sbin.slapd /etc/apparmor.d/disable/
+            sudo apparmor_parser -R /etc/apparmor.d/usr.sbin.slapd || true
+          fi
           python3 -m venv "$HOME/venv"
           "$HOME/venv/bin/pip" install -r requirements.txt
       - name: Build
@@ -255,22 +263,32 @@ jobs:
           path: config.log
           if-no-files-found: ignore
 
-  # Alpine via a chroot on an Ubuntu runner (see comment on linux-container for
-  # why it can't use the container: mechanism).
+  # Alpine runs in its official container image. Its musl libc can't run the
+  # glibc node binary GitHub uses for JavaScript actions, so this job uses no
+  # actions at all: the checkout is done with plain git and there is no
+  # artifact upload. bash isn't installed on Alpine either, so steps run under
+  # POSIX sh.
   alpine:
     name: Linux (alpine)
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    container:
+      image: alpine:latest
+    defaults:
+      run:
+        shell: sh
     steps:
-      - uses: actions/checkout@v4
-      - uses: jirutka/setup-alpine@v1
-        with:
-          packages: >-
-            autoconf automake build-base c-ares-dev iptables libevent-dev libtool
-            openldap openldap-clients openldap-dev openssl openssl-dev pkgconf
-            postgresql postgresql-contrib python3 py3-pip socat sudo wget
+      - name: Install dependencies
+        run: |
+          apk add --no-cache autoconf automake build-base c-ares-dev git iptables libevent-dev libtool openldap openldap-clients openldap-dev openssl openssl-dev pkgconf postgresql postgresql-contrib python3 py3-pip socat sudo wget
+      - name: Checkout
+        run: |
+          git config --global --add safe.directory "$PWD"
+          git init -q .
+          git remote add origin "https://github.com/$GITHUB_REPOSITORY"
+          git fetch -q --depth 1 origin "$GITHUB_SHA"
+          git checkout -q FETCH_HEAD
       - name: Build and test
-        shell: alpine.sh --root {0}
         run: |
           set -e
           wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
@@ -335,45 +353,37 @@ jobs:
     runs-on: windows-2022
     env:
       HAVE_IPV6_LOCALHOST: "yes"
+      # Use the MSYS2 installation preinstalled at C:\msys64 on the runner
+      # rather than a third-party setup action. MSYSTEM picks the MINGW64
+      # toolchain and CHERE_INVOKING keeps the login shell in the checkout dir.
+      MSYSTEM: MINGW64
+      CHERE_INVOKING: "1"
+    defaults:
+      run:
+        shell: 'C:\msys64\usr\bin\bash.exe --login -eo pipefail {0}'
     steps:
       - uses: actions/checkout@v4
       - name: Install pandoc
         shell: pwsh
         run: choco install -y --no-progress pandoc
-      - uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          update: true
-          install: >-
-            base-devel
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-libevent
-            mingw-w64-x86_64-openssl
-            mingw-w64-x86_64-postgresql
-            mingw-w64-x86_64-python
-            mingw-w64-x86_64-python-pip
-            autoconf automake libtool pkg-config zip
       - name: Configure hosts file
         shell: pwsh
         run: Add-Content c:\Windows\System32\Drivers\etc\hosts "127.0.0.1 localhost"
-      - name: Install Python dependencies
-        shell: msys2 {0}
+      - name: Install MSYS2 packages
         run: |
+          pacman -S --noconfirm --needed base-devel mingw-w64-x86_64-gcc mingw-w64-x86_64-libevent mingw-w64-x86_64-openssl mingw-w64-x86_64-postgresql mingw-w64-x86_64-python mingw-w64-x86_64-python-pip autoconf automake libtool pkg-config zip
           echo "127.0.0.1   localhost" >> /etc/hosts
           pip install -r requirements.txt
       - name: Build
-        shell: msys2 {0}
         run: |
           ./autogen.sh
           ./configure --prefix="$(pwd)/install" --enable-werror PANDOC=/c/programdata/chocolatey/bin/pandoc LDFLAGS=-static "LIBS=-liphlpapi $(pkgconf --libs --static openssl)" PKG_CONFIG='pkg-config --static'
           make -j4
       - name: Test
-        shell: msys2 {0}
         run: |
           make -j4 check CONCURRENCY=3
           windres pgbouncer.exe
       - name: Build zip
-        shell: msys2 {0}
         run: make -j4 zip
       - name: Upload zip
         if: always()

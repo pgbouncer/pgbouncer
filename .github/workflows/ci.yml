@@ -2,9 +2,6 @@ name: CI
 
 on:
   push:
-    # Only run directly for pushes to master. Feature branches are covered by
-    # the pull_request trigger, which avoids running every job twice.
-    branches: [master]
   pull_request:
   # Cirrus marked a number of tasks `trigger_type: manual`. Those are mapped
   # onto the workflow_dispatch event so they can be started by hand from the

@@ -770,7 +770,7 @@ static void cleanup_inactive_pools(void)
 		/* Check if the pool is actually "unused" */
 		if (pool_client_count(pool) == 0 && pool_connected_server_count(pool) == 0) {
 			if ((now - pool->last_active_time) > cf_pool_idle_timeout) {
-				log_info("cleaning up idle pool for user %s on db %s because: pool idle timeout (age=%" PRIu64 "s)",
+				log_info("cleaning up idle pool for user %s on db %s because: pool idle timeout (age= %" PRIu64 "s)",
 					pool->user_credentials->name, pool->db->name, (now - pool->last_active_time) / USEC);
 				kill_pool(pool);
 				slab_free(pool_cache, pool);

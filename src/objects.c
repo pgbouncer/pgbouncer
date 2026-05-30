@@ -2053,6 +2053,7 @@ bool finish_client_login(PgSocket *client)
 	switch (client->state) {
 	case CL_LOGIN:
 		change_client_state(client, CL_ACTIVE);
+		client->pool->stats.client_login_count++;
 	case CL_ACTIVE:
 		break;
 	default:

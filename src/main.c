@@ -176,6 +176,8 @@ usec_t g_suspend_start;
 char *cf_pidfile;
 char *cf_jobname;
 
+char *cf_login_notify_message;
+
 char *cf_admin_users;
 char *cf_stats_users;
 int cf_stats_period;
@@ -299,6 +301,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("log_pooler_errors", CF_INT, cf_log_pooler_errors, 0, "1"),
 	CF_ABS("log_stats", CF_INT, cf_log_stats, 0, "1"),
 	CF_ABS("logfile", CF_STR, cf_logfile, 0, ""),
+	CF_ABS("login_notify_message", CF_STR, cf_login_notify_message, 0, ""),
 	CF_ABS("max_client_conn", CF_INT, cf_max_client_conn, 0, "100"),
 	CF_ABS("max_db_client_connections", CF_INT, cf_max_db_client_connections, 0, "0"),
 	CF_ABS("max_db_connections", CF_INT, cf_max_db_connections, 0, "0"),

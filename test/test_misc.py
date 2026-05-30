@@ -17,6 +17,67 @@ from .utils import (
 )
 
 
+def test_login_notify_message_negative(bouncer):
+    """
+    Negative test for login_notify_message
+
+    Tests that NOTICE is not connection when login_notify_message is not set.
+    We are using psql here because psycopg does not seem to pick up notices that happen after
+    AuthenticationOk message and before ReadyForQuery.
+    """
+    config = f"""
+    [databases]
+    postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    pool_mode = session
+    """
+
+    with bouncer.run_with_config(config):
+
+        ret = bouncer.psql(
+            query="SELECT 1;", dbname="postgres", user="puser1", password="foo"
+        )
+        assert ret.stderr == b""
+        assert ret.stdout == b" ?column? \n----------\n        1\n(1 row)\n\n"
+
+
+def test_login_notify_message(bouncer):
+    """
+    Positive test for login_notify_message
+
+    Tests that NOTICE is correctly raised on connection when login_notify_message is set.
+    We are using psql here because psycopg does not seem to pick up notices that happen after
+    AuthenticationOk message and before ReadyForQuery.
+    """
+    config = f"""
+    [databases]
+    postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    pool_mode = session
+    login_notify_message = You are now connected to pgbouncer
+    """
+
+    with bouncer.run_with_config(config):
+
+        ret = bouncer.psql(
+            query="SELECT 1;", dbname="postgres", user="puser1", password="foo"
+        )
+        assert ret.stderr == b"NOTICE:  You are now connected to pgbouncer\n"
+        assert ret.stdout == b" ?column? \n----------\n        1\n(1 row)\n\n"
+
+
 @pytest.mark.parametrize(
     "test_auth_type", ["trust"] if WINDOWS else ["trust", "scram-sha-256"]
 )

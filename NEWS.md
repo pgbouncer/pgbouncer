@@ -4,6 +4,33 @@ PgBouncer changelog
 PgBouncer 1.25.x
 ----------------
 
+**2026-05-08  -  PgBouncer 1.25.2  -  "Human touch with fresh twist in title race full of uncertainties"**
+
+- Security
+  * Fix CVE-2026-6664: An integer overflow in network packet parsing
+    code in PgBouncer before 1.25.2 bypasses a boundary check and can
+    lead to a crash. An unauthenticated remote attacker can crash
+    PgBouncer with a malformed SCRAM authentication packet.
+  * Fix CVE-2026-6665: The SCRAM code in PgBouncer before 1.25.2 did
+    not check the return value of strlcat() correctly when building
+    the contents of the SCRAM client-final-message. A malicious
+    backend that sends a SCRAM server-final-message with a long nonce
+    can trigger a stack overflow.
+  * Fix CVE-2026-6666: A possible null pointer reference in PgBouncer
+    before 1.25.2 could lead to a crash, if a server sends an error
+    response without SQLSTATE field.
+  * Fix CVE-2026-6667: PgBouncer before 1.25.2 did not perform an
+    appropriate authorization check for the `KILL_CLIENT` admin
+    command. All users with access to the administration console
+    (which itself requires authorization) could run this command. It
+    would have been correct to allow only users listed in the
+    `admin_users` parameter.
+
+- Fixes
+  * Clarify documentation of `default_pool_size parameter`.
+  * Correct documentation regarding `client_tls13_ciphers` and
+    `server_tls13_ciphers`.
+
 **2025-12-03  -  PgBouncer 1.25.1  -  "Fixing a bunch of bugs before Christmas"**
 
 - Security

@@ -497,7 +497,7 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "ssissiiiissiiiiii",
+	pktbuf_write_RowDescription(buf, "sssssiiiissiiiiii",
 				    "name", "host", "port",
 				    "database", "force_user", "pool_size", "min_pool_size", "reserve_pool_size",
 				    "server_lifetime", "pool_mode", "load_balance_hosts", "max_connections",
@@ -518,7 +518,7 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 		if (db->host && strchr(db->host, ','))
 			load_balance_hosts_str = cf_get_lookup(&load_balance_hosts_lookup);
 
-		pktbuf_write_DataRow(buf, "ssissiiiissiiiiii",
+		pktbuf_write_DataRow(buf, "sssssiiiissiiiiii",
 				     db->name, db->host, db->port,
 				     db->dbname, f_user,
 				     db->pool_size >= 0 ? db->pool_size : cf_default_pool_size,
@@ -1863,6 +1863,29 @@ bool admin_post_login(PgSocket *client)
 	disconnect_client(client, true, "not allowed");
 	return false;
 }
+/*
+ * Free the old value and set the new value
+ */
+static bool set_param_value(char **old_value, const char *new_value)
+{
+	if (strcmpeq(*old_value, new_value))
+		return true;
+
+	if (*old_value)
+		free(*old_value);
+
+	if (new_value) {
+		*old_value = strdup(new_value);
+		if (!(*old_value)) {
+			log_error("out of memory");
+			return false;
+		}
+	} else {
+		*old_value = NULL;
+	}
+
+	return true;
+}
 
 /* init special database and query parsing */
 void admin_setup(void)
@@ -1872,13 +1895,20 @@ void admin_setup(void)
 	PgGlobalUser *user;
 	PktBuf *msg;
 	int res;
+	char str_port[10];
+	char *port = NULL;
 
 	/* fake database */
 	db = add_database("pgbouncer");
 	if (!db)
 		die("no memory for admin database");
 
-	db->port = cf_listen_port;
+	sprintf(str_port, "%d", cf_listen_port);
+
+	if (!set_param_value(&port, str_port))
+		die("no memory for admin database");
+
+	db->port = port;
 	db->pool_size = 2;
 	db->admin = true;
 	db->pool_mode = POOL_STMT;

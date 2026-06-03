@@ -739,11 +739,18 @@ async def test_already_paused_client_during_wait_for_servers_shutdown(bouncer):
         done, pending = await asyncio.wait([task], timeout=3)
         assert done == set()
         assert pending == {task}
-        bouncer.admin("SHUTDOWN WAIT_FOR_SERVERS")
-        # Still in the same transaction, so this should work
-        cur1.execute("SELECT 1")
-        # New transaction so this should fail
+
+        # Unlike a client that's idle at shutdown, a client that's already
+        # waiting for a server is closed as a direct consequence of the
+        # SHUTDOWN command itself. So the log_contains needs to wrap the
+        # SHUTDOWN, not just the await of the failing task. Otherwise the
+        # "server shutting down" line can be written before log_contains seeks
+        # to the end of the log, causing it to be missed.
         with bouncer.log_contains(r"closing because: server shutting down"):
+            bouncer.admin("SHUTDOWN WAIT_FOR_SERVERS")
+            # Still in the same transaction, so this should work
+            cur1.execute("SELECT 1")
+            # New transaction so this should fail
             with pytest.raises(psycopg.OperationalError):
                 await task
 

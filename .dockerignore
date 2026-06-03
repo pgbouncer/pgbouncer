@@ -1,0 +1,16 @@
+.git
+.gitignore
+.cirrus.yml
+.dockerignore
+Dockerfile
+docker-compose.yml
+docs/
+test/
+*.html
+*.xml
+*.gz
+*.swp
+__pycache__/
+env/
+venv/
+.venv/

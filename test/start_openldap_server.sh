@@ -29,11 +29,7 @@ slapd_logfile="${ldap_dir}/slapd.log"
 ldap_conf="${ldap_dir}/ldap.conf"
 slapd_certs="${ldap_dir}/slapd-certs"
 
-# Use the IPv4 loopback address rather than "localhost". The pgbouncer hba
-# entries connect to ldapserver=127.0.0.1, and on hosts where "localhost"
-# resolves to both ::1 and 127.0.0.1 (e.g. macOS) slapd and the client could
-# otherwise end up on different addresses, making auth hang.
-ldap_server='127.0.0.1'
+ldap_server='localhost'
 ldap_port=$2
 ldaps_port=$3
 ldap_url="ldap://$ldap_server:$ldap_port"

@@ -1267,9 +1267,9 @@ def test_ldap_auth(bouncer_with_openldap):
     bouncer_with_openldap.write_ini(f"auth_type = hba")
     bouncer_with_openldap.write_ini(f"auth_hba_file = {hba_conf_file}")
     bouncer_with_openldap.admin("reload")
-    # DEBUG: long connect_timeout so PgBouncer's LDAP worker can run to
-    # completion on macOS instead of the client giving up at 3s, so we can see
-    # whether the bind fails (logged) or just succeeds slowly.
+    # The first LDAP bind in PgBouncer's process is slow on macOS (a one-time
+    # resolver cost; later binds reuse it and are fast), enough to exceed the
+    # default 3s connect_timeout. Give just this first login extra time.
     bouncer_with_openldap.test(user="ldapuser1", password="secret1", connect_timeout=30)
     # 2 test "search+bind"
     with open(hba_conf_file, "w") as f:

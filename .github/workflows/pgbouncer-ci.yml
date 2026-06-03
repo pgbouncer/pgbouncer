@@ -306,11 +306,7 @@ jobs:
 
   macos:
     name: macOS
-    # macos-14 is Sonoma, matching the image the old Cirrus CI used. On
-    # macos-15 (Sequoia, with Homebrew openldap 2.6.13) pgbouncer's LDAP client
-    # bind to a reachable slapd stalls until its network timeout, failing
-    # test_ldap_auth; Sonoma does not have that problem.
-    runs-on: macos-14
+    runs-on: macos-15
     env:
       HAVE_IPV6_LOCALHOST: "yes"
       USE_SUDO: "true"

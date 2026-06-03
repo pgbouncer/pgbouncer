@@ -921,9 +921,7 @@ static bool check_ldap_auth(struct ldap_auth_request *request)
 			 request->ldapsuffix ? request->ldapsuffix : "");
 	}
 
-	log_warning("DEBUG LDAP: binding as \"%s\" on server \"%s\"", fulluser, request->ldapserver);
 	r = ldap_simple_bind_s(ldap, fulluser, request->password);
-	log_warning("DEBUG LDAP: bind as \"%s\" returned: %s", fulluser, ldap_err2string(r));
 	ldap_unbind(ldap);
 
 	if (r != LDAP_SUCCESS) {

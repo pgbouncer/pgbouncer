@@ -1,8 +1,6 @@
 PgBouncer
 =========
 
-[![CI](https://github.com/pgbouncer/pgbouncer/actions/workflows/ci.yml/badge.svg)](https://github.com/pgbouncer/pgbouncer/actions/workflows/ci.yml)
-
 Lightweight connection pooler for PostgreSQL.
 
 Homepage: <https://www.pgbouncer.org/>

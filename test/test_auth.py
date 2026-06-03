@@ -14,6 +14,7 @@ from .utils import (
     PG_SUPPORTS_SCRAM,
     TLS_SUPPORT,
     WINDOWS,
+    wait_until,
 )
 
 
@@ -45,13 +46,23 @@ def test_message(test_message_fixture):
     """
     pg.sql(terminate_string)
 
-    # login, check error message
-    # login again, check error message
-    for _ in range(2):
-        with pytest.raises(
-            psycopg.OperationalError, match=r"is not permitted to log in"
-        ):
+    # The connection opened above leaves a server connection in the pool that
+    # pg_terminate_backend just killed. PgBouncer only notices when it next uses
+    # it, so the first reconnect can surface "terminating connection due to
+    # administrator command" before PgBouncer opens a fresh server connection
+    # that hits the NOLOGIN rejection. Tolerate only that specific transient
+    # error until the login is rejected with the expected message.
+    for _ in wait_until("login rejected with the NOLOGIN error"):
+        with pytest.raises(psycopg.OperationalError) as exc_info:
             bouncer.test(**connection_params)
+        message = str(exc_info.value)
+        if "is not permitted to log in" in message:
+            break
+        assert "terminating connection due to administrator command" in message, message
+
+    # Logging in again must keep reporting the same error.
+    with pytest.raises(psycopg.OperationalError, match=r"is not permitted to log in"):
+        bouncer.test(**connection_params)
 
 
 @pytest.mark.md5

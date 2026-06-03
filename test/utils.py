@@ -418,12 +418,19 @@ class QueryRunner:
         self.set_default_connection_options(kwargs)
         connect_options = " ".join([f"{k}={v}" for k, v in kwargs.items()])
 
-        return run(
+        result = run(
             ["psql", f"port={self.port} {connect_options}", "-c", query],
             shell=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
+        if WINDOWS:
+            # On Windows psql writes its output in text mode, turning every \n
+            # into \r\n. Normalize it so callers can compare against the plain
+            # \n form regardless of platform.
+            result.stdout = result.stdout.replace(b"\r\n", b"\n")
+            result.stderr = result.stderr.replace(b"\r\n", b"\n")
+        return result
 
     @contextmanager
     def transaction(self, **kwargs):

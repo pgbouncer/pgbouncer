@@ -204,6 +204,24 @@ async def bouncer(pg, tmp_path):
 
 
 @pytest.fixture
+async def bouncer_small_pktbuf(pg, tmp_path):
+    """Starts a new PgBouncer process with a small pkt_buf
+
+    This is useful for testing large packet handling without needing to
+    generate huge packets - instead we shrink the buffer so normal packets
+    become "large" relative to it.
+    """
+    bouncer = Bouncer(pg, tmp_path / "bouncer")
+    bouncer.write_ini("pkt_buf = 75")
+
+    await bouncer.start()
+
+    yield bouncer
+
+    await bouncer.cleanup()
+
+
+@pytest.fixture
 async def bouncer_with_openldap(pg, tmp_path, monkeypatch):
     """Starts a new PgBouncer process"""
     bouncer = Bouncer(pg, tmp_path / "bouncer")

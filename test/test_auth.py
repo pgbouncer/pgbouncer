@@ -356,6 +356,31 @@ def test_scram_cached_adhoc_secrets_after_reconnect(bouncer):
     bouncer.test(dbname="p62", user="scramuser3", password="baz")
 
 
+@pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
+def test_scram_passthrough_after_reconnect(bouncer):
+    """
+    Regression test: SCRAM pass-through with a SCRAM hash in userlist.txt
+    must work after server reconnection.
+
+    The adhoc_scram_secrets_cached flag is set for both plaintext and SCRAM
+    hash passwords, but only plaintext-derived secrets should be marked as
+    adhoc (preventing key saving). With a real SCRAM hash, the extracted
+    ClientKey/ServerKey must be saved for pass-through even on subsequent
+    connections.
+    """
+    bouncer.admin(f"set auth_type='scram-sha-256'")
+    bouncer.admin(f"set pool_mode='transaction'")
+
+    # First connection - parses SCRAM secret, caches it, extracts keys
+    bouncer.test(dbname="p62", user="scramuser1", password="foo")
+
+    # Kill server connections to force reconnection
+    bouncer.admin("reconnect")
+
+    # Second connection - must still work with pass-through keys
+    bouncer.test(dbname="p62", user="scramuser1", password="foo")
+
+
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
 def test_auth_dbname_usage(
     bouncer,

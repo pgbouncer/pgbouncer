@@ -919,7 +919,8 @@ char *build_server_first_message(ScramState *state, PgCredentials *user, const c
 			goto failed;
 	} else {
 		if (user->adhoc_scram_secrets_cached) {
-			state->adhoc = true;
+			if (get_password_type(stored_secret) == PASSWORD_TYPE_PLAINTEXT)
+				state->adhoc = true;
 			state->iterations = user->scram_Iiterations;
 			state->encoded_salt = strdup(user->scram_SaltKey);
 			memcpy(state->StoredKey, user->scram_StoredKey, sizeof(user->scram_StoredKey));

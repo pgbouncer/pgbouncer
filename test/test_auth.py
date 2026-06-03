@@ -14,6 +14,7 @@ from .utils import (
     PG_SUPPORTS_SCRAM,
     TLS_SUPPORT,
     WINDOWS,
+    wait_until,
 )
 
 
@@ -45,13 +46,23 @@ def test_message(test_message_fixture):
     """
     pg.sql(terminate_string)
 
-    # login, check error message
-    # login again, check error message
-    for _ in range(2):
-        with pytest.raises(
-            psycopg.OperationalError, match=r"is not permitted to log in"
-        ):
+    # The connection opened above leaves a server connection in the pool that
+    # pg_terminate_backend just killed. PgBouncer only notices when it next uses
+    # it, so the first reconnect can surface "terminating connection due to
+    # administrator command" before PgBouncer opens a fresh server connection
+    # that hits the NOLOGIN rejection. Tolerate only that specific transient
+    # error until the login is rejected with the expected message.
+    for _ in wait_until("login rejected with the NOLOGIN error"):
+        with pytest.raises(psycopg.OperationalError) as exc_info:
             bouncer.test(**connection_params)
+        message = str(exc_info.value)
+        if "is not permitted to log in" in message:
+            break
+        assert "terminating connection due to administrator command" in message, message
+
+    # Logging in again must keep reporting the same error.
+    with pytest.raises(psycopg.OperationalError, match=r"is not permitted to log in"):
+        bouncer.test(**connection_params)
 
 
 @pytest.mark.md5
@@ -1256,7 +1267,10 @@ def test_ldap_auth(bouncer_with_openldap):
     bouncer_with_openldap.write_ini(f"auth_type = hba")
     bouncer_with_openldap.write_ini(f"auth_hba_file = {hba_conf_file}")
     bouncer_with_openldap.admin("reload")
-    bouncer_with_openldap.test(user="ldapuser1", password="secret1")
+    # The first LDAP bind in PgBouncer's process is slow on macOS (a one-time
+    # resolver cost; later binds reuse it and are fast), enough to exceed the
+    # default 3s connect_timeout. Give just this first login extra time.
+    bouncer_with_openldap.test(user="ldapuser1", password="secret1", connect_timeout=30)
     # 2 test "search+bind"
     with open(hba_conf_file, "w") as f:
         f.write(

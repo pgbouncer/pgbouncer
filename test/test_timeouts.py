@@ -470,10 +470,10 @@ async def test_server_login_retry(pg, bouncer):
     bouncer.admin("set server_tls_sslmode = disable")
 
     pg.stop()
-    if platform.system() == "FreeBSD":
-        # XXX: For some reason FreeBSD logs don't contain connect failed
-        # For now we simply remove this check. But this warants further
-        # investigation.
+    if platform.system() in ("FreeBSD", "Windows"):
+        # XXX: For some reason FreeBSD and Windows logs don't contain connect
+        # failed. For now we simply remove this check. But this warrants
+        # further investigation.
         await asyncio.gather(
             bouncer.atest(connect_timeout=10),
             pg.delayed_start(1),

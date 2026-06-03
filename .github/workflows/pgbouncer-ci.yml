@@ -1,0 +1,435 @@
+name: CI
+
+on:
+  push:
+  # `labeled` is included so adding the `ci-full` label to a PR re-triggers the
+  # workflow and runs the jobs that Cirrus gated behind `trigger_type: manual`.
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  # Those same manual jobs can also be started by hand from the Actions UI
+  # ("Run workflow"), which is available once this workflow is on the default
+  # branch.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Never cancel in-progress runs on master, so every commit is fully tested.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+  LANG: C
+
+jobs:
+  # Builds and tests on native GitHub-hosted Ubuntu runners. These run as the
+  # unprivileged `runner` user, so unlike the Cirrus containers there is no
+  # need to create a separate user and su into it.
+  #
+  # `linux-extra` below reuses this job's steps via a YAML anchor and only
+  # differs in its matrix, env and trigger. Matrix entries list only the keys
+  # that differ from the defaults set in `env`.
+  linux:
+    name: Linux (${{ matrix.name }})
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: cares-pam-ldap, configure_args: "--with-cares --with-pam --with-ldap", dist: "yes" }
+          - { name: no-evdns-no-openssl, configure_args: "--disable-evdns --without-openssl" }
+          - { name: valgrind, pgversion: "18", cflags: "-O0 -g", enable_valgrind: "yes" }
+    env:
+      PGVERSION: ${{ matrix.pgversion || '16' }}
+      configure_args: ${{ matrix.configure_args }}
+      # CFLAGS_OVERRIDE is exported into the real CFLAGS by the build step only
+      # when non-empty, so entries that don't set it keep configure's defaults.
+      CFLAGS_OVERRIDE: ${{ matrix.cflags }}
+      ENABLE_VALGRIND: ${{ matrix.enable_valgrind }}
+      DIST: ${{ matrix.dist }}
+    steps: &linux_steps
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          set -e
+          sudo apt-get update
+          sudo apt-get -y --no-install-recommends install gnupg postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get update
+          pkgs="autoconf automake ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev libtool make pandoc pkg-config postgresql-$PGVERSION python3 python3-pip python3-venv slapd socat sudo"
+          if [ "$ENABLE_VALGRIND" = "yes" ]; then pkgs="$pkgs valgrind"; fi
+          if [ "$USE_SCAN_BUILD" = "yes" ]; then pkgs="$pkgs clang clang-tools"; fi
+          # $pkgs is an intentionally word-split package list.
+          # shellcheck disable=SC2086
+          sudo apt-get -y --no-install-recommends install $pkgs
+          # The LDAP tests run slapd from a temp directory. On the VM runners
+          # (unlike the old Cirrus containers) the slapd AppArmor profile is
+          # loaded and confines it to its default paths, so it fails to start.
+          # Unload the profile if it is present.
+          if [ -e /etc/apparmor.d/usr.sbin.slapd ]; then
+            sudo ln -sf /etc/apparmor.d/usr.sbin.slapd /etc/apparmor.d/disable/
+            sudo apparmor_parser -R /etc/apparmor.d/usr.sbin.slapd || true
+          fi
+          python3 -m venv "$HOME/venv"
+          "$HOME/venv/bin/pip" install -r requirements.txt
+      - name: Build
+        run: |
+          set -e
+          [ -n "$CFLAGS_OVERRIDE" ] && export CFLAGS="$CFLAGS_OVERRIDE"
+          ./autogen.sh
+          # $configure_args and the optional scan-build prefix are meant to
+          # word-split.
+          # shellcheck disable=SC2086
+          ${USE_SCAN_BUILD:+scan-build} ./configure --prefix="$HOME/install" --enable-cassert --enable-werror --without-cares --with-systemd $configure_args
+          # shellcheck disable=SC2086
+          ${USE_SCAN_BUILD:+scan-build} make -j4
+      - name: Test
+        run: |
+          set -e
+          # shellcheck disable=SC1091
+          source "$HOME/venv/bin/activate"
+          PATH="/usr/lib/postgresql/$PGVERSION/bin:$PATH" make -j4 check CONCURRENCY=4
+      - name: Install
+        run: make -j4 install
+      # Verify the dist tarball builds from a clean checkout, like Cirrus did.
+      # Only needs to run once, so it is gated on the `DIST` flag.
+      - name: Build distribution tarball
+        if: ${{ env.DIST == 'yes' }}
+        run: |
+          set -e
+          make dist
+          PACKAGE_VERSION=$(sed -n 's/PACKAGE_VERSION = //p' config.mak)
+          tar -x -v -f "pgbouncer-${PACKAGE_VERSION}.tar.gz"
+          cd "pgbouncer-${PACKAGE_VERSION}/"
+          # shellcheck disable=SC2086
+          ./configure --prefix="$HOME/install2" --enable-werror --without-cares $configure_args
+          make -j4
+          make -j4 install
+      - name: Upload tarball
+        if: ${{ env.DIST == 'yes' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pgbouncer-tarball
+          path: pgbouncer-*.tar.gz
+          if-no-files-found: error
+      - name: Upload config.log
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: config-log-${{ matrix.name }}
+          path: config.log
+          if-no-files-found: ignore
+
+  # The native-runner builds Cirrus only ran on manual trigger. Reuses the
+  # `linux` job's steps via a YAML anchor. Runs on master, on manual dispatch,
+  # or when a PR carries the `ci-full` label. Matrix entries list only what
+  # differs from the defaults in `env` (all use PG 16 and the baseline configure
+  # args).
+  linux-extra:
+    name: Linux extra (${{ matrix.name }})
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.ref == 'refs/heads/master' ||
+      contains(github.event.pull_request.labels.*.name, 'ci-full')
+    runs-on: ${{ matrix.runner || 'ubuntu-22.04' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: plain }
+          - { name: ubsan, cflags: "-fno-sanitize-recover=all -fsanitize=undefined -fsanitize-address-use-after-scope -fno-sanitize=shift" }
+          - { name: scan-build, scan_build: "yes" }
+          - { name: arm, runner: ubuntu-24.04-arm }
+          - { name: ubuntu-2404, runner: ubuntu-24.04 }
+    env:
+      PGVERSION: "16"
+      configure_args: ""
+      CFLAGS_OVERRIDE: ${{ matrix.cflags }}
+      USE_SCAN_BUILD: ${{ matrix.scan_build }}
+      DIST: ""
+    steps: *linux_steps
+
+  # Debian releases have no native GitHub-hosted runner, so they run in their
+  # official container images. Container jobs run as root, where PostgreSQL
+  # refuses to initdb, so we build and test as an unprivileged `user`.
+  linux-debian:
+    name: Linux Debian (${{ matrix.name }})
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.ref == 'refs/heads/master' ||
+      contains(github.event.pull_request.labels.*.name, 'ci-full')
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: bookworm, image: debian:bookworm, pgversion: "15" }
+          - { name: bullseye, image: debian:bullseye, pgversion: "13" }
+    env:
+      PGVERSION: ${{ matrix.pgversion }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          set -e
+          apt-get update
+          apt-get -y --no-install-recommends install gnupg postgresql-common
+          /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          apt-get update
+          apt-get -y --no-install-recommends install autoconf automake ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev libtool make pandoc pkg-config "postgresql-$PGVERSION" python3 python3-pip python3-venv slapd socat sudo
+          python3 -m venv /venv
+          /venv/bin/pip install -r requirements.txt
+          # -m creates the home directory; `make install` writes to $HOME, and
+          # unlike RHEL's useradd, Debian's doesn't create it by default.
+          useradd -m user
+          chown -R user .
+          echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+      - name: Build
+        run: |
+          set -e
+          su user -c "./autogen.sh"
+          su user -c "./configure --prefix=\$HOME/install --enable-cassert --enable-werror --without-cares --with-systemd"
+          su user -c "make -j4"
+      - name: Test
+        run: su user -c "PATH=/usr/lib/postgresql/$PGVERSION/bin:/venv/bin:\$PATH make -j4 check CONCURRENCY=4"
+      - name: Install
+        run: su user -c "make -j4 install"
+      - name: Upload config.log
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: config-log-${{ matrix.name }}
+          path: config.log
+          if-no-files-found: ignore
+
+  # Red Hat-compatible releases in their official container images. Same
+  # build-and-test-as-`user` approach as the Debian job above.
+  linux-rhel:
+    name: Linux Red Hat (${{ matrix.name }})
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.ref == 'refs/heads/master' ||
+      contains(github.event.pull_request.labels.*.name, 'ci-full')
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: rocky-9, image: rockylinux:9, configure_args: --with-cares }
+          - { name: rocky-8, image: rockylinux:8 }
+    env:
+      configure_args: ${{ matrix.configure_args }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          set -e
+          dnf -y install 'dnf-command(config-manager)'
+          if grep -q -F 'release 9' /etc/redhat-release; then dnf config-manager --set-enabled "plus"; else dnf config-manager --set-enabled "powertools"; fi
+          dnf -y install autoconf automake diffutils file iptables libevent-devel libpq-devel libtool make openldap-clients openldap-devel openldap-servers openssl-devel pam-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip socat sudo systemd-devel wget
+          case "$configure_args" in *with-cares*) dnf -y install c-ares-devel;; esac
+          wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
+          tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
+          if grep -q -F 'release 9' /etc/redhat-release; then dnf -y install python-unversioned-command; else dnf -y install python39 python39-pip && alternatives --set python /usr/bin/python3.9; fi
+          python -m pip install -r requirements.txt
+          useradd user
+          chown -R user .
+          echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+      - name: Build
+        run: |
+          set -e
+          su user -c "./autogen.sh"
+          # $configure_args is meant to word-split inside the quoted su command.
+          su user -c "./configure --prefix=\$HOME/install --enable-cassert --enable-werror --with-ldap --with-pam --with-systemd $configure_args"
+          su user -c "make -j4"
+      - name: Test
+        run: su user -c "make -j4 check CONCURRENCY=4"
+      - name: Install
+        run: su user -c "make -j4 install"
+      - name: Upload config.log
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: config-log-${{ matrix.name }}
+          path: config.log
+          if-no-files-found: ignore
+
+  # Alpine runs in its official container image. Its musl libc can't run the
+  # glibc node binary GitHub uses for JavaScript actions, so this job uses no
+  # actions at all: the checkout is done with plain git and there is no
+  # artifact upload. bash isn't installed on Alpine either, so steps run under
+  # POSIX sh.
+  linux-alpine:
+    name: Linux (alpine)
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.ref == 'refs/heads/master' ||
+      contains(github.event.pull_request.labels.*.name, 'ci-full')
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:latest
+    defaults:
+      run:
+        shell: sh
+    steps:
+      - name: Install dependencies
+        run: |
+          apk add --no-cache autoconf automake build-base c-ares-dev git iptables libevent-dev libtool openldap openldap-clients openldap-dev openssl openssl-dev pkgconf postgresql postgresql-contrib python3 py3-pip socat sudo wget
+      - name: Checkout
+        run: |
+          git config --global --add safe.directory "$PWD"
+          git init -q .
+          git remote add origin "https://github.com/$GITHUB_REPOSITORY"
+          git fetch -q --depth 1 origin "$GITHUB_SHA"
+          git checkout -q FETCH_HEAD
+      - name: Build and test
+        run: |
+          set -e
+          wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
+          tar xzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
+          python3 -m venv /venv
+          /venv/bin/pip install -r requirements.txt
+          adduser --disabled-password user
+          chown -R user .
+          echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+          su user -c "./autogen.sh"
+          su user -c "./configure --prefix=\$HOME/install --enable-cassert --enable-werror --with-cares --with-ldap"
+          su user -c "make -j4"
+          su user -c "PATH=/venv/bin:\$PATH make -j4 check CONCURRENCY=4"
+          su user -c "make -j4 install"
+
+  macos:
+    name: macOS
+    runs-on: macos-15
+    env:
+      HAVE_IPV6_LOCALHOST: "yes"
+      USE_SUDO: "true"
+      PGVERSION: "16"
+      CPPFLAGS: -I/opt/homebrew/opt/openldap/include -I/opt/homebrew/opt/openssl@3/include
+      LDFLAGS: -L/opt/homebrew/opt/openldap/lib -L/opt/homebrew/opt/openssl@3/lib
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          set -e
+          brew install autoconf automake libevent libtool openldap openssl pandoc pkg-config "postgresql@$PGVERSION"
+          python3 -m venv venv
+          venv/bin/pip install -r requirements.txt
+          # Allow the test suite to install its packet-filter anchor.
+          echo 'anchor "pgbouncer_test/*"' | sudo tee -a /etc/pf.conf
+          sudo pfctl -f /etc/pf.conf
+      - name: Build
+        run: |
+          set -e
+          export PATH="/opt/homebrew/opt/postgresql@$PGVERSION/bin:$PATH"
+          ./autogen.sh
+          ./configure --prefix="$HOME/install" --enable-werror --with-ldap
+          make -j4
+      - name: Test
+        run: |
+          set -e
+          # shellcheck disable=SC1091
+          source venv/bin/activate
+          export PATH="/opt/homebrew/opt/postgresql@$PGVERSION/bin:$PATH"
+          make -j4 check CONCURRENCY=4
+      - name: Install
+        run: make -j4 install
+      - name: Upload config.log
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: config-log-macos
+          path: config.log
+          if-no-files-found: ignore
+
+  windows:
+    name: Windows
+    runs-on: windows-2022
+    env:
+      HAVE_IPV6_LOCALHOST: "yes"
+      MSYSTEM: MINGW64
+      # Without this the MSYS2 login shell starts in the home directory; we want
+      # it to stay in the checkout directory.
+      CHERE_INVOKING: "1"
+    # Run steps in the MSYS2 installation that is preinstalled at C:\msys64 on
+    # the runner. This avoids depending on a third-party setup action, which
+    # matters because the repository only permits GitHub-owned actions. The
+    # --login shell reads the MSYS2 profile, which puts the MSYSTEM toolchain
+    # (MINGW64 here) on PATH and exports MINGW_PACKAGE_PREFIX.
+    defaults:
+      run:
+        shell: 'C:\msys64\usr\bin\bash.exe --login -eo pipefail {0}'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pandoc
+        shell: pwsh
+        run: choco install -y --no-progress pandoc
+      - name: Configure hosts file
+        shell: pwsh
+        run: Add-Content c:\Windows\System32\Drivers\etc\hosts "127.0.0.1 localhost"
+      - name: Install MSYS2 packages
+        run: |
+          pacman -S --noconfirm --needed base-devel \
+            "${MINGW_PACKAGE_PREFIX}-gcc" "${MINGW_PACKAGE_PREFIX}-libevent" \
+            "${MINGW_PACKAGE_PREFIX}-openssl" "${MINGW_PACKAGE_PREFIX}-postgresql" \
+            "${MINGW_PACKAGE_PREFIX}-python" "${MINGW_PACKAGE_PREFIX}-python-pip" \
+            autoconf automake libtool pkg-config zip
+          echo "127.0.0.1   localhost" >> /etc/hosts
+          pip install -r requirements.txt
+      - name: Build
+        run: |
+          ./autogen.sh
+          ./configure --prefix="$(pwd)/install" --enable-werror PANDOC=/c/programdata/chocolatey/bin/pandoc LDFLAGS=-static "LIBS=-liphlpapi $(pkgconf --libs --static openssl)" PKG_CONFIG='pkg-config --static'
+          make -j4
+      - name: Test
+        run: |
+          make -j4 check CONCURRENCY=3
+          windres pgbouncer.exe
+      - name: Build zip
+        run: make -j4 zip
+      - name: Upload zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: pgbouncer-windows-zip
+          path: pgbouncer-*.zip
+          if-no-files-found: error
+      - name: Upload config.log
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: config-log-windows
+          path: config.log
+          if-no-files-found: ignore
+
+  format-check:
+    name: Formatting & linting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake curl gcc g++ git make
+          pip install -r dev_requirements.txt
+      # `make format-check` compiles uncrustify from source, which takes a
+      # while. Cache the resulting binary keyed on the pinned version so it is
+      # only rebuilt when we bump UNCRUSTIFY_VERSION in the Makefile.
+      - name: Cache uncrustify
+        uses: actions/cache@v4
+        with:
+          path: uncrustify
+          key: uncrustify-0.77.1-${{ runner.os }}
+      - name: Run checks
+        run: |
+          touch config.mak # Pretend that ./configure has run
+          make format-check
+          make lint

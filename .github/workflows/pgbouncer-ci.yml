@@ -183,7 +183,9 @@ jobs:
           apt-get -y --no-install-recommends install autoconf automake ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev libtool make pandoc pkg-config "postgresql-$PGVERSION" python3 python3-pip python3-venv slapd socat sudo
           python3 -m venv /venv
           /venv/bin/pip install -r requirements.txt
-          useradd user
+          # -m creates the home directory; `make install` writes to $HOME, and
+          # unlike RHEL's useradd, Debian's doesn't create it by default.
+          useradd -m user
           chown -R user .
           echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
       - name: Build

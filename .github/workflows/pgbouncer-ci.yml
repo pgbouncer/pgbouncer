@@ -123,13 +123,15 @@ jobs:
           if-no-files-found: ignore
 
   # The native-runner builds Cirrus only ran on manual trigger. Reuses the
-  # `linux` job's steps via a YAML anchor. Runs on manual dispatch or when a PR
-  # carries the `ci-full` label. Matrix entries list only what differs from the
-  # defaults in `env` (all use PG 16 and the baseline configure args).
+  # `linux` job's steps via a YAML anchor. Runs on master, on manual dispatch,
+  # or when a PR carries the `ci-full` label. Matrix entries list only what
+  # differs from the defaults in `env` (all use PG 16 and the baseline configure
+  # args).
   linux-extra:
-    name: Linux (${{ matrix.name }})
+    name: Linux extra (${{ matrix.name }})
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.ref == 'refs/heads/master' ||
       contains(github.event.pull_request.labels.*.name, 'ci-full')
     runs-on: ${{ matrix.runner || 'ubuntu-22.04' }}
     strategy:
@@ -153,9 +155,10 @@ jobs:
   # official container images. Container jobs run as root, where PostgreSQL
   # refuses to initdb, so we build and test as an unprivileged `user`.
   linux-debian:
-    name: Linux (${{ matrix.name }})
+    name: Linux Debian (${{ matrix.name }})
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.ref == 'refs/heads/master' ||
       contains(github.event.pull_request.labels.*.name, 'ci-full')
     runs-on: ubuntu-latest
     container:
@@ -164,8 +167,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: debian-bookworm, image: debian:bookworm, pgversion: "15" }
-          - { name: debian-bullseye, image: debian:bullseye, pgversion: "13" }
+          - { name: bookworm, image: debian:bookworm, pgversion: "15" }
+          - { name: bullseye, image: debian:bullseye, pgversion: "13" }
     env:
       PGVERSION: ${{ matrix.pgversion }}
     steps:
@@ -204,9 +207,10 @@ jobs:
   # Red Hat-compatible releases in their official container images. Same
   # build-and-test-as-`user` approach as the Debian job above.
   linux-rhel:
-    name: Linux (${{ matrix.name }})
+    name: Linux Red Hat (${{ matrix.name }})
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.ref == 'refs/heads/master' ||
       contains(github.event.pull_request.labels.*.name, 'ci-full')
     runs-on: ubuntu-latest
     container:
@@ -263,6 +267,7 @@ jobs:
     name: Linux (alpine)
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.ref == 'refs/heads/master' ||
       contains(github.event.pull_request.labels.*.name, 'ci-full')
     runs-on: ubuntu-latest
     container:

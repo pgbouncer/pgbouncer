@@ -102,14 +102,17 @@ const char * kill_pool_logins_server_error(PgPool *pool, PktHdr *errpkt)
 	const char *level, *sqlstate, *msg;
 
 	parse_server_error(errpkt, &level, &msg, &sqlstate);
-	log_warning("server login failed: %s %s", level, msg);
+	if (level != NULL && msg != NULL)
+		log_warning("server login failed: %s %s", level, msg);
+	else
+		log_warning("server login failed");
 
 	/*
 	 * Kill all waiting clients unless it's a temporary error, such as
 	 * "database system is starting up".
 	 */
-	if (strcmp(sqlstate, ERRCODE_CANNOT_CONNECT_NOW) != 0) {
-		log_noise("kill_pool_logins_server_error: sqlstate: %s", sqlstate);
+	if (sqlstate == NULL || strcmp(sqlstate, ERRCODE_CANNOT_CONNECT_NOW) != 0) {
+		log_noise("kill_pool_logins_server_error: sqlstate: %s", sqlstate ? sqlstate : "NULL");
 		kill_pool_logins(pool, sqlstate, msg);
 	}
 	return msg;
@@ -534,6 +537,8 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	case PqMsg_CopyBothResponse:
 		slog_debug(server, "COPY started");
 		server->copy_mode = true;
+		if (client)
+			client->copy_mode = true;
 		break;
 	case PqMsg_CopyOutResponse:
 		break;
@@ -866,6 +871,18 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 				/* keep link if client expects more responses */
 				if (server->link) {
 					if (statlist_count(&server->outstanding_requests) > 0)
+						break;
+					/*
+					 * Client still in COPY-in stream (hasn't sent
+					 * CopyDone/CopyFail yet).  PostgreSQL sent
+					 * ReadyForQuery before entering pq_endcopyin
+					 * drain, so the drain loop is still consuming
+					 * CopyData from the client.  Stay linked so the
+					 * remaining CopyData + CopyDone can reach the
+					 * server; release will happen once copy_mode
+					 * clears after CopyDone.
+					 */
+					if (server->link->copy_mode)
 						break;
 				}
 

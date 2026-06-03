@@ -14,6 +14,7 @@ from .utils import (
     PG_SUPPORTS_SCRAM,
     TLS_SUPPORT,
     WINDOWS,
+    wait_until,
 )
 
 
@@ -45,13 +46,23 @@ def test_message(test_message_fixture):
     """
     pg.sql(terminate_string)
 
-    # login, check error message
-    # login again, check error message
-    for _ in range(2):
-        with pytest.raises(
-            psycopg.OperationalError, match=r"is not permitted to log in"
-        ):
+    # The connection opened above leaves a server connection in the pool that
+    # pg_terminate_backend just killed. PgBouncer only notices when it next uses
+    # it, so the first reconnect can surface "terminating connection due to
+    # administrator command" before PgBouncer opens a fresh server connection
+    # that hits the NOLOGIN rejection. Tolerate only that specific transient
+    # error until the login is rejected with the expected message.
+    for _ in wait_until("login rejected with the NOLOGIN error"):
+        with pytest.raises(psycopg.OperationalError) as exc_info:
             bouncer.test(**connection_params)
+        message = str(exc_info.value)
+        if "is not permitted to log in" in message:
+            break
+        assert "terminating connection due to administrator command" in message, message
+
+    # Logging in again must keep reporting the same error.
+    with pytest.raises(psycopg.OperationalError, match=r"is not permitted to log in"):
+        bouncer.test(**connection_params)
 
 
 @pytest.mark.md5
@@ -1159,8 +1170,7 @@ def test_auth_query_no_set_commands(bouncer, pg):
     """
     # Create a custom auth query that will fail if search_path is set incorrectly
     # We'll use a function that checks current_setting('search_path')
-    pg.sql(
-        """
+    pg.sql("""
         CREATE OR REPLACE FUNCTION auth_check_search_path(username TEXT)
         RETURNS TABLE(usename name, passwd text) AS $$
         BEGIN
@@ -1171,8 +1181,7 @@ def test_auth_query_no_set_commands(bouncer, pg):
             RETURN QUERY SELECT u.usename, u.passwd FROM pg_shadow u WHERE u.usename = username;
         END;
         $$ LANGUAGE plpgsql SECURITY DEFINER;
-    """
-    )
+    """)
 
     config = f"""
         [databases]
@@ -1208,6 +1217,41 @@ def test_auth_query_no_set_commands(bouncer, pg):
         pg.sql("DROP FUNCTION IF EXISTS auth_check_search_path(TEXT)")
 
 
+@pytest.mark.md5
+@pytest.mark.skipif(
+    "psycopg.pq.version() < 180000", reason="libpq 18+ required for protocol 3.2"
+)
+def test_auth_query_protocol_negotiation(bouncer, pg):
+    """
+    Test that protocol version negotiation works correctly with auth_query.
+    This is a regression test for GitHub issue #1459 where clients connecting
+    with protocol version 3.2 would receive duplicate NegotiateProtocolVersion
+    messages when auth_query was needed.
+
+    The bug occurred because decide_startup_pool() sends the
+    NegotiateProtocolVersion message, but when auth_query is needed, the
+    startup packet would be reprocessed after auth_query completes, potentially
+    calling decide_startup_pool() again and sending a duplicate message.
+    """
+    bouncer.default_db = "authdb"
+    bouncer.admin("set auth_type='md5'")
+
+    # First, kill all server connections to ensure a cold pool. This is
+    # important because the bug only manifests when auth_query needs to
+    # actually run (first connection), not when user is already cached.
+    bouncer.admin("reconnect authdb")
+
+    # If the bug is present, this will fail with
+    # "received duplicate protocol negotiation message"
+    bouncer.sql(
+        "SELECT 1",
+        dbname="authdb",
+        user="someuser",
+        password="anypasswd",
+        max_protocol_version="3.2",
+    )
+
+
 @pytest.mark.skipif("WINDOWS", reason="We do not expect to support ldap on Windows")
 @pytest.mark.skipif(not LDAP_SUPPORT, reason="pgbouncer is built without LDAP support")
 def test_ldap_auth(bouncer_with_openldap):
@@ -1223,7 +1267,10 @@ def test_ldap_auth(bouncer_with_openldap):
     bouncer_with_openldap.write_ini(f"auth_type = hba")
     bouncer_with_openldap.write_ini(f"auth_hba_file = {hba_conf_file}")
     bouncer_with_openldap.admin("reload")
-    bouncer_with_openldap.test(user="ldapuser1", password="secret1")
+    # The first LDAP bind in PgBouncer's process is slow on macOS (a one-time
+    # resolver cost; later binds reuse it and are fast), enough to exceed the
+    # default 3s connect_timeout. Give just this first login extra time.
+    bouncer_with_openldap.test(user="ldapuser1", password="secret1", connect_timeout=30)
     # 2 test "search+bind"
     with open(hba_conf_file, "w") as f:
         f.write(
@@ -1361,3 +1408,26 @@ def test_ldap_auth(bouncer_with_openldap):
     )
     bouncer_with_openldap.admin("reload")
     bouncer_with_openldap.test(user="ldapuser1", password="secret1")
+
+
+def test_client_login_count(bouncer):
+    bouncer.admin(f"set auth_type='plain'")
+
+    def get_client_login_count():
+        stats = bouncer.admin("SHOW STATS", row_factory=psycopg.rows.dict_row)
+        p3_stats = next(s for s in stats if s["database"] == "p3")
+        assert p3_stats is not None
+        return p3_stats["total_client_login_count"]
+
+    # Successful auth should increase counter
+    bouncer.test(dbname="p3", user="puser1", password="foo")
+    bouncer.test(dbname="p3", user="puser1", password="foo")
+    bouncer.test(dbname="p3", user="puser1", password="foo")
+    assert get_client_login_count() == 3
+
+    # Failed auth should not increase counter
+    with pytest.raises(
+        psycopg.OperationalError, match="password authentication failed"
+    ):
+        bouncer.test(dbname="p3", user="puser1", password="wrong")
+    assert get_client_login_count() == 3

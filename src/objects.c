@@ -1214,6 +1214,7 @@ bool release_server(PgSocket *server)
 	case SV_BEING_CANCELED:
 	case SV_ACTIVE:
 		if (server->link) {
+			server->link->copy_mode = false;
 			server->link->link = NULL;
 			server->link = NULL;
 		}
@@ -2052,6 +2053,7 @@ bool finish_client_login(PgSocket *client)
 	switch (client->state) {
 	case CL_LOGIN:
 		change_client_state(client, CL_ACTIVE);
+		client->pool->stats.client_login_count++;
 	case CL_ACTIVE:
 		break;
 	default:

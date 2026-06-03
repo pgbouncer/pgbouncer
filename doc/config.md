@@ -126,8 +126,9 @@ Default: 100
 
 ### default_pool_size
 
-How many server connections to allow per user/database pair. Can be overridden in
-the per-database configuration.
+The maximum number of server connections to allow per user/database pair. Can be overridden by
+`pool_size` in the per-database and per-user configuration; this is the default used if no specific
+`pool_size` is specified for a given database or user.
 
 Default: 20
 
@@ -817,6 +818,14 @@ A value of 0 disables this notification message.
 
 Default: 5
 
+### login_notify_message
+
+Welcome notify message that is sent to the client after a login
+is successful. Can be used to ensure that clients undertand that
+they are connecting to pgbouncer instead of postgres directly.
+
+Default: empty (no welcome message sent)
+
 ## TLS settings
 
 If the contents of any of the cert or key files are changed without
@@ -889,9 +898,8 @@ Allowed TLS ciphers, in OpenSSL syntax.  Shortcuts:
 - `default`/`secure`/`fast`/`normal` (these all use system wide OpenSSL defaults)
 - `all` (enables all ciphers, not recommended)
 
-Only connections using TLS version 1.2 and lower are affected.  There
-is currently no setting that controls the cipher choices used by TLS
-version 1.3 connections.
+Only connections using TLS version 1.2 and lower are affected.
+For version 1.3 see `client_tls13_ciphers` below.
 
 Default: `default`
 
@@ -989,9 +997,8 @@ Allowed TLS ciphers, in OpenSSL syntax.  Shortcuts:
 - `default`/`secure`/`fast`/`normal` (these all use system wide OpenSSL defaults)
 - `all` (enables all ciphers, not recommended)
 
-Only connections using TLS version 1.2 and lower are affected.  There
-is currently no setting that controls the cipher choices used by TLS
-version 1.3 connections.
+Only connections using TLS version 1.2 and lower are affected.
+For version 1.3 see `server_tls13_ciphers` below.
 
 Default: `default`
 

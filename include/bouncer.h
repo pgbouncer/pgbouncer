@@ -331,6 +331,8 @@ struct PgStats {
 	uint64_t ps_server_parse_count;
 	uint64_t ps_client_parse_count;
 	uint64_t ps_bind_count;
+
+	uint64_t client_login_count;
 };
 
 /*
@@ -685,10 +687,12 @@ struct PgSocket {
 	bool setting_vars : 1;		/* server: setting client vars */
 	bool exec_on_connect : 1;	/* server: executing connect_query */
 	bool resetting : 1;		/* server: executing reset query from auth login; don't release on flush */
-	bool copy_mode : 1;		/* server: in copy stream, ignores any Sync packets until CopyDone or CopyFail */
+	bool copy_mode : 1;		/* server: in copy stream, ignores Sync packets until CopyDone/CopyFail;
+					   client: in copy-in stream, expecting CopyData/CopyDone/CopyFail */
 
 	bool wait_for_welcome : 1;	/* client: no server yet in pool, cannot send welcome msg */
 	bool welcome_sent : 1;		/* client: client has been sent the welcome msg */
+	bool protocol_negotiated : 1;	/* client: NegotiateProtocolVersion already sent */
 	bool wait_for_user_conn : 1;	/* client: waiting for auth_conn server connection */
 	bool wait_for_user : 1;		/* client: waiting for auth_conn query results */
 	bool wait_for_auth : 1;		/* client: waiting for external auth (PAM/LDAP) to be completed */
@@ -798,6 +802,8 @@ extern int cf_daemon;
 extern long unsigned int cf_query_wait_notify;
 extern char *cf_config_file;
 extern char *cf_jobname;
+
+extern char *cf_login_notify_message;
 
 extern char *cf_unix_socket_dir;
 extern int cf_unix_socket_mode;

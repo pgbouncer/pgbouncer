@@ -44,7 +44,8 @@ void log_server_error(const char *note, PktHdr *pkt);
 void parse_server_error(PktHdr *pkt, const char **level_p, const char **msg_p, const char **sqlstate_p);
 
 bool add_welcome_parameter(PgPool *pool, const char *key, const char *val) _MUSTCHECK;
-void finish_welcome_msg(PgSocket *server);
+bool build_welcome_message(PgPool *pool) _MUSTCHECK;
+bool finish_welcome_msg(PgSocket *server) _MUSTCHECK;
 bool welcome_client(PgSocket *client) _MUSTCHECK;
 
 bool answer_authreq(PgSocket *server, PktHdr *pkt) _MUSTCHECK;

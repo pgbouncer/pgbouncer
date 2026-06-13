@@ -11,6 +11,7 @@ from .utils import (
     LDAP_SUPPORT,
     LONG_PASSWORD,
     MACOS,
+    PAM_SUPPORT,
     PG_SUPPORTS_SCRAM,
     TLS_SUPPORT,
     WINDOWS,
@@ -1431,3 +1432,27 @@ def test_client_login_count(bouncer):
     ):
         bouncer.test(dbname="p3", user="puser1", password="wrong")
     assert get_client_login_count() == 3
+
+
+@pytest.mark.skipif("WINDOWS", reason="We do not expect to support pam on Windows")
+@pytest.mark.skipif(not PAM_SUPPORT, reason="pgbouncer is built without PAM support")
+async def test_pam_auth(bouncer):
+    # Setup PAM configuration.
+    bouncer.write_ini(f"auth_type = pam")
+    bouncer.write_ini(f"logfile = {bouncer.log_path}")
+    bouncer.write_ini(f"verbose = 3")
+    bouncer.admin("reload")
+
+    # Test a failed authentication attempt - it allows us to ensure that PAM
+    # auth worker has started.
+    with bouncer.log_contains(r"pam_auth_worker\(\): authentication completed"):
+        with pytest.raises(psycopg.OperationalError):
+            bouncer.test(user="nonexistent_pam_user", password="anypassword")
+
+    # Wrap stop() inside log_contains to capture the shutdown message. We are
+    # expecting PAM worker to exit gracefully.
+    with bouncer.log_contains(r"pam_auth_worker\(\): got shutdown request, exiting"):
+        await bouncer.stop()
+
+    # This will fail on assert if valgrind has found errors.
+    bouncer.print_logs()

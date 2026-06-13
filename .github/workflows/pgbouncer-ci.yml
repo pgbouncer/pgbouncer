@@ -40,7 +40,7 @@ jobs:
         include:
           - { name: cares-pam-ldap, configure_args: "--with-cares --with-pam --with-ldap", dist: "yes" }
           - { name: no-evdns-no-openssl, configure_args: "--disable-evdns --without-openssl" }
-          - { name: valgrind, pgversion: "18", cflags: "-O0 -g", enable_valgrind: "yes" }
+          - { name: valgrind, pgversion: "18", cflags: "-O0 -g", enable_valgrind: "yes", configure_args: "--with-pam --with-ldap" }
     env:
       PGVERSION: ${{ matrix.pgversion || '16' }}
       configure_args: ${{ matrix.configure_args }}

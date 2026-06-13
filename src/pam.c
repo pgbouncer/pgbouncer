@@ -61,6 +61,12 @@ struct pam_auth_request {
 	/* The request status, one of the PAM_STATUS_* constants */
 	int status;
 
+	/*
+	 * Protect status from main thread reading and worker thread writing at the
+	 * same time.
+	 */
+	pthread_mutex_t mutex;
+
 	/* The username (same as in client->login_user_credentials->name).
 	 * See the comment for remote_addr.
 	 */
@@ -88,6 +94,9 @@ struct pam_auth_request pam_auth_queue[PAM_REQUEST_QUEUE_SIZE];
 
 pthread_t pam_worker_thread;
 
+/* Signal to the PAM worker thread to terminate gracefully. */
+static volatile sig_atomic_t pam_worker_shutdown = 0;
+
 /*
  * Mutex serializes access to the queue's tail when we add new requests or
  * check that we reach the end of the queue in the worker thread.
@@ -106,6 +115,44 @@ static bool is_valid_socket(const struct pam_auth_request *request);
 static void pam_auth_finish(struct pam_auth_request *request);
 static bool pam_check_passwd(struct pam_auth_request *request);
 
+static void pam_cleanup(void)
+{
+	int rc;
+
+	if (pam_worker_shutdown)
+		return;	/* Nothing to do if cleanup has already executed */
+
+	pam_worker_shutdown = 1;
+
+	/* Wake up PAM worker thread if needed */
+	pthread_mutex_lock(&pam_queue_tail_mutex);
+	pthread_cond_signal(&pam_data_available);
+	pthread_mutex_unlock(&pam_queue_tail_mutex);
+
+	rc = pthread_join(pam_worker_thread, NULL);
+	if (rc != 0)
+		die("failed to join the authentication thread: %s", strerror(rc));
+
+	rc = pthread_mutex_destroy(&pam_queue_tail_mutex);
+	if (rc != 0) {
+		die("failed to destroy a mutex: %s", strerror(rc));
+	}
+
+	rc = pthread_cond_destroy(&pam_data_available);
+	if (rc != 0) {
+		die("failed to destroy a condition variable: %s", strerror(rc));
+	}
+
+	for (int i = 0; i < PAM_REQUEST_QUEUE_SIZE; i++) {
+		struct pam_auth_request *request = &pam_auth_queue[i];
+		rc = pthread_mutex_destroy(&request->mutex);
+		if (rc != 0) {
+			die("failed to destroy a mutex for request[%d]: %s",
+			    i, strerror(rc));
+		}
+	}
+}
+
 /*
  * Initialize PAM subsystem.
  */
@@ -118,18 +165,46 @@ void pam_init(void)
 
 	rc = pthread_mutex_init(&pam_queue_tail_mutex, NULL);
 	if (rc != 0) {
-		die("failed to initialize a mutex: %s", strerror(errno));
+		die("failed to initialize a mutex: %s", strerror(rc));
 	}
 
 	rc = pthread_cond_init(&pam_data_available, NULL);
 	if (rc != 0) {
-		die("failed to initialize a condition variable: %s", strerror(errno));
+		die("failed to initialize a condition variable: %s", strerror(rc));
 	}
 
 	rc = pthread_create(&pam_worker_thread, NULL, &pam_auth_worker, NULL);
 	if (rc != 0) {
-		die("failed to create the authentication thread: %s", strerror(errno));
+		die("failed to create the authentication thread: %s", strerror(rc));
 	}
+
+	for (int i = 0; i < PAM_REQUEST_QUEUE_SIZE; i++) {
+		struct pam_auth_request *request = &pam_auth_queue[i];
+		rc = pthread_mutex_init(&request->mutex, NULL);
+		if (rc != 0) {
+			die("failed to initialize a mutex for request[%d]: %s",
+			    i, strerror(rc));
+		}
+	}
+
+	atexit(pam_cleanup);
+}
+
+static inline int get_request_status(struct pam_auth_request *request)
+{
+	int rc = 0;
+
+	pthread_mutex_lock(&request->mutex);
+	rc = request->status;
+	pthread_mutex_unlock(&request->mutex);
+	return rc;
+}
+
+static inline void set_request_status(struct pam_auth_request *request, int status)
+{
+	pthread_mutex_lock(&request->mutex);
+	request->status = status;
+	pthread_mutex_unlock(&request->mutex);
 }
 
 /*
@@ -169,7 +244,10 @@ void pam_auth_begin(PgSocket *client, const char *passwd)
 
 	request->client = client;
 	request->connect_time = client->connect_time;
+
+	/* This write is protected by pam_queue_tail_mutex */
 	request->status = PAM_STATUS_IN_PROGRESS;
+
 	memcpy(&request->remote_addr, &client->remote_addr, sizeof(client->remote_addr));
 	safe_strcpy(request->username, client->login_user_credentials->name, MAX_USERNAME);
 	safe_strcpy(request->password, passwd, MAX_PASSWORD);
@@ -188,11 +266,13 @@ int pam_poll(void)
 {
 	struct pam_auth_request *request;
 	int count = 0;
+	int status = 0;
 
 	while (pam_first_taken_slot != pam_first_free_slot) {
 		request = &pam_auth_queue[pam_first_taken_slot];
 
-		if (request->status == PAM_STATUS_IN_PROGRESS) {
+		status = get_request_status(request);
+		if (status == PAM_STATUS_IN_PROGRESS) {
 			/* When still-in-progress slot is found there is no need to continue
 			 * the loop since all further requests will be in progress too.
 			 */
@@ -219,16 +299,26 @@ static void * pam_auth_worker(void *arg)
 {
 	int current_slot = pam_first_taken_slot;
 	struct pam_auth_request *request;
+	int request_status;
 
-	while (true) {
+	/* loop until shutdown request */
+	while (!pam_worker_shutdown) {
 		/* Wait for new data in the queue */
 		pthread_mutex_lock(&pam_queue_tail_mutex);
 
-		while (current_slot == pam_first_free_slot) {
+		while (current_slot == pam_first_free_slot && !pam_worker_shutdown) {
 			pthread_cond_wait(&pam_data_available, &pam_queue_tail_mutex);
 		}
 
 		pthread_mutex_unlock(&pam_queue_tail_mutex);
+
+		/*
+		 * In normal processing being here means that we have received an auth
+		 * request from the main thread. But in case of shutdown we were woken
+		 * up from the "data_available" cond variable in order to exit.
+		 */
+		if (pam_worker_shutdown)
+			break;
 
 		log_debug("pam_auth_worker(): processing slot %d", current_slot);
 
@@ -243,19 +333,21 @@ static void * pam_auth_worker(void *arg)
 		 */
 		if (!is_valid_socket(request)) {
 			log_debug("pam_auth_worker(): invalid socket in slot %d", current_slot);
-			request->status = PAM_STATUS_FAILED;
+			set_request_status(request, PAM_STATUS_FAILED);
 			continue;
 		}
 
 		if (pam_check_passwd(request)) {
-			request->status = PAM_STATUS_SUCCESS;
+			request_status = PAM_STATUS_SUCCESS;
 		} else {
-			request->status = PAM_STATUS_FAILED;
+			request_status = PAM_STATUS_FAILED;
 		}
+		set_request_status(request, request_status);
 
-		log_debug("pam_auth_worker(): authentication completed, status=%d", request->status);
+		log_debug("pam_auth_worker(): authentication completed, status=%d", request_status);
 	}
 
+	log_debug("pam_auth_worker(): got shutdown request, exiting");
 	return NULL;
 }
 
@@ -278,7 +370,8 @@ static bool is_valid_socket(const struct pam_auth_request *request)
 static void pam_auth_finish(struct pam_auth_request *request)
 {
 	PgSocket *client = request->client;
-	bool authenticated = (request->status == PAM_STATUS_SUCCESS);
+	int request_status = get_request_status(request);
+	bool authenticated = (request_status == PAM_STATUS_SUCCESS);
 
 	if (authenticated) {
 		safe_strcpy(client->login_user_credentials->passwd, request->password, sizeof(client->login_user_credentials->passwd));

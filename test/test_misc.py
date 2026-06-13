@@ -17,6 +17,67 @@ from .utils import (
 )
 
 
+def test_login_notify_message_negative(bouncer):
+    """
+    Negative test for login_notify_message
+
+    Tests that NOTICE is not connection when login_notify_message is not set.
+    We are using psql here because psycopg does not seem to pick up notices that happen after
+    AuthenticationOk message and before ReadyForQuery.
+    """
+    config = f"""
+    [databases]
+    postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    pool_mode = session
+    """
+
+    with bouncer.run_with_config(config):
+
+        ret = bouncer.psql(
+            query="SELECT 1;", dbname="postgres", user="puser1", password="foo"
+        )
+        assert ret.stderr == b""
+        assert ret.stdout == b" ?column? \n----------\n        1\n(1 row)\n\n"
+
+
+def test_login_notify_message(bouncer):
+    """
+    Positive test for login_notify_message
+
+    Tests that NOTICE is correctly raised on connection when login_notify_message is set.
+    We are using psql here because psycopg does not seem to pick up notices that happen after
+    AuthenticationOk message and before ReadyForQuery.
+    """
+    config = f"""
+    [databases]
+    postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    pool_mode = session
+    login_notify_message = You are now connected to pgbouncer
+    """
+
+    with bouncer.run_with_config(config):
+
+        ret = bouncer.psql(
+            query="SELECT 1;", dbname="postgres", user="puser1", password="foo"
+        )
+        assert ret.stderr == b"NOTICE:  You are now connected to pgbouncer\n"
+        assert ret.stdout == b" ?column? \n----------\n        1\n(1 row)\n\n"
+
+
 @pytest.mark.parametrize(
     "test_auth_type", ["trust"] if WINDOWS else ["trust", "scram-sha-256"]
 )
@@ -678,11 +739,18 @@ async def test_already_paused_client_during_wait_for_servers_shutdown(bouncer):
         done, pending = await asyncio.wait([task], timeout=3)
         assert done == set()
         assert pending == {task}
-        bouncer.admin("SHUTDOWN WAIT_FOR_SERVERS")
-        # Still in the same transaction, so this should work
-        cur1.execute("SELECT 1")
-        # New transaction so this should fail
+
+        # Unlike a client that's idle at shutdown, a client that's already
+        # waiting for a server is closed as a direct consequence of the
+        # SHUTDOWN command itself. So the log_contains needs to wrap the
+        # SHUTDOWN, not just the await of the failing task. Otherwise the
+        # "server shutting down" line can be written before log_contains seeks
+        # to the end of the log, causing it to be missed.
         with bouncer.log_contains(r"closing because: server shutting down"):
+            bouncer.admin("SHUTDOWN WAIT_FOR_SERVERS")
+            # Still in the same transaction, so this should work
+            cur1.execute("SELECT 1")
+            # New transaction so this should fail
             with pytest.raises(psycopg.OperationalError):
                 await task
 

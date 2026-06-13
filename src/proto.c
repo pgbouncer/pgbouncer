@@ -304,6 +304,13 @@ bool welcome_client(PgSocket *client)
 
 	pktbuf_write_BackendKeyData(msg, client->cancel_key);
 
+	if (!(strcmp(cf_login_notify_message, "") == 0)) {
+		pktbuf_write_Notice(
+			msg,
+			cf_login_notify_message
+			);
+	}
+
 	/* finish */
 	pktbuf_write_ReadyForQuery(msg);
 	if (msg->failed) {
@@ -452,6 +459,8 @@ static bool login_scram_sha_256_cont(PgSocket *server, unsigned datalen, const u
 
 	client_final_message = build_client_final_message(server,
 							  credentials);
+	if (!client_final_message)
+		goto failed;
 	free(ibuf);
 
 	slog_debug(server, "SCRAM client-final-message = \"%s\"", client_final_message);

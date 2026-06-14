@@ -362,10 +362,10 @@ def test_scram_passthrough_after_reconnect(bouncer):
     Regression test: SCRAM pass-through with a SCRAM hash in userlist.txt
     must work after server reconnection.
 
-    The adhoc_scram_secrets_cached flag is set for both plaintext and SCRAM
-    hash passwords, but only plaintext-derived secrets should be marked as
-    adhoc (preventing key saving). With a real SCRAM hash, the extracted
-    ClientKey/ServerKey must be saved for pass-through even on subsequent
+    Verifier secrets are cached for both plaintext and SCRAM hash passwords, but
+    only a plaintext-derived (scram_adhoc) verifier should be prevented from
+    saving pass-through keys. With a real SCRAM hash, the extracted
+    ClientKey/ServerKey must be saved as pass-through keys even on subsequent
     connections.
     """
     bouncer.admin(f"set auth_type='scram-sha-256'")

@@ -982,7 +982,7 @@ static void clean_cached_scram(struct AANode *n, void *arg)
 	if (user->scram_SaltKey != NULL) {
 		free(user->scram_SaltKey);
 		user->scram_SaltKey = NULL;
-		user->adhoc_scram_secrets_cached = false;
+		user->scram_verifier_cached = false;
 	}
 }
 

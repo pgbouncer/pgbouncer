@@ -1355,7 +1355,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 						memcpy(client->pool->user_credentials->scram_ServerKey,
 						       client->scram_state.ServerKey,
 						       sizeof(client->scram_state.ServerKey));
-						client->pool->user_credentials->use_scram_keys = true;
+						client->pool->user_credentials->scram_passthrough_valid = true;
 					}
 
 					free_scram_state(&client->scram_state);

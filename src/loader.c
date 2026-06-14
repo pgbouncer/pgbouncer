@@ -637,11 +637,11 @@ static void unquote_add_authfile_user(const char *username, const char *password
 
 	user->credentials.dynamic_passwd = false;
 
-	/* Clear cached adhoc scram secrets since the user may have changed the password. */
+	/* Clear cached scram secrets since the user may have changed the password. */
 	if (user->credentials.scram_SaltKey != NULL) {
 		free(user->credentials.scram_SaltKey);
 		user->credentials.scram_SaltKey = NULL;
-		user->credentials.adhoc_scram_secrets_cached = false;
+		user->credentials.scram_verifier_cached = false;
 	}
 }
 

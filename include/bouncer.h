@@ -521,21 +521,33 @@ struct PgCredentials {
 	 */
 	PgGlobalUser *global_user;
 
-	/* scram keys used for pass-though and adhoc auth caching */
-	uint8_t scram_ClientKey[32];
-	uint8_t scram_ServerKey[32];
-	uint8_t scram_StoredKey[32];
-	int scram_Iiterations;
-	char *scram_SaltKey;	/* base64-encoded */
-
-	/* true if ClientKey and ServerKey are valid and scram pass-though is in use. */
-	bool use_scram_keys;
+	/* scram keys used for pass-through and client scram caching */
+	uint8_t scram_ClientKey[32];	/* only for pass-through */
+	uint8_t scram_ServerKey[32];	/* used by both verifier caching and pass-through */
+	uint8_t scram_StoredKey[32];	/* only for verifier caching */
+	int scram_Iiterations;	/* only for verifier caching */
+	char *scram_SaltKey;	/* only for verifier caching, base64-encoded */
 
 	/*
-	 * true if ServerKey, StoredKey, Salt and Iterations is cached for
-	 * adhoc scram authentication.
+	 * true if scram_StoredKey/ServerKey/SaltKey/Iterations hold a cached
+	 * verifier, so clients can be authenticated without re-deriving it on
+	 * every connection. Never set for dynamic_passwd users.
 	 */
-	bool adhoc_scram_secrets_cached;
+	bool scram_verifier_cached;
+
+	/*
+	 * true if the cached verifier was derived adhoc from a plaintext password
+	 * (rather than parsed from a real SCRAM secret). Only meaningful when
+	 * scram_verifier_cached is set. Adhoc keys must NOT be reused as backend
+	 * pass-through keys, since they are not the backend's real credentials.
+	 */
+	bool scram_adhoc;
+
+	/*
+	 * true if scram_ClientKey/ServerKey are valid backend pass-through keys.
+	 * Never set for an adhoc verifier (see scram_adhoc).
+	 */
+	bool scram_passthrough_valid;
 };
 
 /*

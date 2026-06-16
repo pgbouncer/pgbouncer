@@ -765,6 +765,15 @@ static bool handle_sslchar(PgSocket *server, struct MBuf *data)
 	return ok;
 }
 
+/* dispatch a fully buffered packet, see process_pkt_callback() */
+static bool server_handle_complete_packet(PgSocket *server, PktHdr *pkt)
+{
+	pkt_rewind_v3(pkt);
+	if (server->state == SV_LOGIN)
+		return handle_server_startup(server, pkt);
+	return handle_server_work(server, pkt);
+}
+
 /* callback from SBuf */
 bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 {
@@ -898,69 +907,8 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		}
 		break;
 	case SBUF_EV_PKT_CALLBACK:
-	{
-		bool first = false;
-		if (server->packet_cb_state.pkt.type == 0) {
-			first = true;
-			if (!get_header(data, &server->packet_cb_state.pkt)) {
-				disconnect_server(server, true, "bad packet header");
-				return false;
-			}
-			mbuf_rewind_reader(data);
-		}
-
-		switch (server->packet_cb_state.flag) {
-		case CB_WANT_COMPLETE_PACKET:
-			if (first) {
-				slog_debug(server,
-					   "buffering complete packet, pkt='%c' len=%d incomplete=%s available=%d",
-					   pkt_desc(&server->packet_cb_state.pkt),
-					   server->packet_cb_state.pkt.len,
-					   incomplete_pkt(&server->packet_cb_state.pkt) ? "true" : "false",
-					   mbuf_avail_for_read(data));
-
-				mbuf_init_dynamic(&server->packet_cb_state.pkt.data);
-				if (!mbuf_make_room(&server->packet_cb_state.pkt.data, server->packet_cb_state.pkt.len))
-					return false;
-			}
-
-			if (!mbuf_write_raw_mbuf(&server->packet_cb_state.pkt.data, data))
-				return false;
-
-			if (sbuf->pkt_remain != mbuf_avail_for_read(data)) {
-				/*
-				 * We wrote the partial packet to our temporary buffer. So
-				 * we "handled" it and want to receive more data.
-				 */
-				res = true;
-				break;
-			}
-
-			/*
-			 * We wrote the full packet into memory. Change the callback state
-			 * to indicate that. If anything fails while handling this packet
-			 * we'll continue from the current state in the callback state
-			 * machine.
-			 */
-			server->packet_cb_state.flag = CB_HANDLE_COMPLETE_PACKET;
-		/* fallthrough */
-		case CB_HANDLE_COMPLETE_PACKET:
-			pkt_rewind_v3(&server->packet_cb_state.pkt);
-			if (server->state == SV_LOGIN)
-				res = handle_server_startup(server, &server->packet_cb_state.pkt);
-			else
-				res = handle_server_work(server, &server->packet_cb_state.pkt);
-			if (!res)
-				return false;
-			server->packet_cb_state.flag = CB_NONE;
-			free_header(&server->packet_cb_state.pkt);
-			break;
-		default:
-			disconnect_server(server, true, "BUG: unknown packet callback flag");
-			break;
-		}
+		res = process_pkt_callback(server, data, server_handle_complete_packet);
 		break;
-	}
 	case SBUF_EV_TLS_READY:
 		Assert(server->state == SV_LOGIN);
 

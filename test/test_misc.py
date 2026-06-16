@@ -879,14 +879,20 @@ def test_issue_1104(bouncer):
             bouncer.admin("RELOAD")
 
 
-def test_server_login_large_packets(bouncer_small_pktbuf):
+async def test_server_login_large_packets(bouncer):
     """Test that server login works when packets exceed the small pkt_buf.
 
     This tests the fix for handling large packets during server login phase
-    (handle_server_startup). By using a tiny pkt_buf, normal server login
-    packets like ParameterStatus may exceed the buffer and trigger dynamic
-    packet buffering.
+    (handle_server_startup). By shrinking pkt_buf to a tiny value, normal
+    server login packets like ParameterStatus exceed the buffer and trigger
+    dynamic packet buffering.
+
+    pkt_buf is CF_NO_RELOAD, so it can only be changed by restarting pgbouncer
+    rather than with a RELOAD.
     """
-    # Simply connecting exercises the server login path
-    # The server sends ParameterStatus, BackendKeyData, ReadyForQuery etc.
-    bouncer_small_pktbuf.test()
+    bouncer.write_ini("pkt_buf = 75")
+    await bouncer.restart()
+
+    # Simply connecting exercises the server login path: the server sends
+    # ParameterStatus, BackendKeyData, ReadyForQuery etc.
+    bouncer.test()

@@ -521,7 +521,7 @@ struct PgCredentials {
 	 */
 	PgGlobalUser *global_user;
 
-	/* scram keys used for pass-through and client scram caching */
+	/* scram keys used for pass-through and verifier caching */
 	uint8_t scram_ClientKey[32];	/* only for pass-through */
 	uint8_t scram_ServerKey[32];	/* used by both verifier caching and pass-through */
 	uint8_t scram_StoredKey[32];	/* only for verifier caching */

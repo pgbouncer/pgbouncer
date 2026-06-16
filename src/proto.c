@@ -137,6 +137,113 @@ bool get_header(struct MBuf *data, PktHdr *pkt)
 	return mbuf_get_bytes(&pkt->data, got, &ptr);
 }
 
+const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
+{
+	const uint8_t *bin = data->data + data->read_pos;
+	unsigned int dlen;
+
+	dlen = mbuf_avail_for_read(data);
+	return bin2hex(bin, dlen, buf, buflen);
+}
+
+static void pkt_cb_disconnect(PgSocket *sk, const char *reason)
+{
+	/*
+	 * The callback state machine is shared between client and server
+	 * sockets, so pick the right disconnect variant based on the socket
+	 * type.
+	 */
+	if (is_server_socket(sk))
+		disconnect_server(sk, true, "%s", reason);
+	else
+		disconnect_client(sk, true, "%s", reason);
+}
+
+/*
+ * Shared handler for the SBUF_EV_PKT_CALLBACK event on both client and server
+ * sockets.
+ *
+ * It reassembles a packet that is too large to fit in the sbuf into the
+ * dynamically sized sk->packet_cb_state.pkt buffer across multiple event loop
+ * ticks.  Once the full packet has been buffered it is dispatched to
+ * handle_complete_packet, which is responsible for rewinding the packet body
+ * and calling the appropriate protocol handler.
+ *
+ * If handle_complete_packet returns false the callback state is intentionally
+ * left untouched, so that processing resumes from the same state on the next
+ * call.
+ */
+bool process_pkt_callback(PgSocket *sk, struct MBuf *data,
+			  pkt_handler_cb handle_complete_packet)
+{
+	SBuf *sbuf = &sk->sbuf;
+	struct CallbackState *cb = &sk->packet_cb_state;
+	bool first = false;
+	bool res = false;
+
+	if (cb->pkt.type == 0) {
+		first = true;
+		if (!get_header(data, &cb->pkt)) {
+			char hex[8*2 + 1];
+			char reason[64];
+			snprintf(reason, sizeof(reason), "bad packet header: '%s'",
+				 hdr2hex(data, hex, sizeof(hex)));
+			pkt_cb_disconnect(sk, reason);
+			return false;
+		}
+		mbuf_rewind_reader(data);
+	}
+
+	switch (cb->flag) {
+	case CB_WANT_COMPLETE_PACKET:
+		if (first) {
+			slog_debug(sk,
+				   "buffering complete packet, pkt='%c' len=%d incomplete=%s available=%d",
+				   pkt_desc(&cb->pkt),
+				   cb->pkt.len,
+				   incomplete_pkt(&cb->pkt) ? "true" : "false",
+				   mbuf_avail_for_read(data));
+
+			mbuf_init_dynamic(&cb->pkt.data);
+			if (!mbuf_make_room(&cb->pkt.data, cb->pkt.len))
+				return false;
+		}
+
+		if (!mbuf_write_raw_mbuf(&cb->pkt.data, data))
+			return false;
+
+		if (sbuf->pkt_remain != mbuf_avail_for_read(data)) {
+			/*
+			 * We wrote the partial packet to our temporary buffer. So
+			 * we "handled" it and want to receive more data.
+			 */
+			res = true;
+			break;
+		}
+
+		/*
+		 * We wrote the full packet into memory. Change the callback state
+		 * to indicate that. If anything fails while handling this packet
+		 * we'll continue from the current state in the callback state
+		 * machine.
+		 */
+		cb->flag = CB_HANDLE_COMPLETE_PACKET;
+	/* fallthrough */
+	case CB_HANDLE_COMPLETE_PACKET:
+		res = handle_complete_packet(sk, &cb->pkt);
+		if (!res)
+			return false;
+		cb->flag = CB_NONE;
+		free_header(&cb->pkt);
+		break;
+	default:
+		pkt_cb_disconnect(sk, "BUG: unknown packet callback flag");
+		break;
+	}
+
+	return res;
+}
+
 
 /*
  * Send error message packet to client.

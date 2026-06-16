@@ -1141,6 +1141,16 @@ class Bouncer(QueryRunner):
             await self.wait_until_running()
             assert self.process.pid != old_pid
 
+    async def restart(self):
+        """Fully stops and starts PgBouncer again
+
+        Unlike reboot() this does not take over the sockets of the old process,
+        so it can be used to apply config changes that a RELOAD cannot (i.e.
+        CF_NO_RELOAD settings such as pkt_buf).
+        """
+        await self.stop()
+        await self.start()
+
     def send_signal(self, sig):
         if self.aprocess:
             self.aprocess.send_signal(sig)

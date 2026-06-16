@@ -127,8 +127,26 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 	const uint8_t *ckey;
 
 	if (incomplete_pkt(pkt)) {
-		disconnect_server(server, true, "partial pkt in login phase");
-		return false;
+		if (pkt->len > (unsigned) cf_sbuf_len) {
+			/*
+			 * We need to handle the complete packet, but it is too
+			 * large to fit into our sbuf buffer size (determined
+			 * by the pkt_buf config). So now we need to fetch the
+			 * whole packet using our dynamically sized packet
+			 * buffering logic.
+			 */
+			server->packet_cb_state.flag = CB_WANT_COMPLETE_PACKET;
+			sbuf_prepare_fetch(sbuf, pkt->len);
+			return true;
+		} else {
+			/*
+			 * We need to handle the complete packet, but it fits
+			 * in our sbuf buffer, so we can simply return false to
+			 * indicate to sbuf to retry once it has received more
+			 * data
+			 */
+			return false;
+		}
 	}
 
 	/* ignore most that happens during connect_query */
@@ -238,8 +256,9 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 		break;
 	}
 
-	if (res)
+	if (res && server->packet_cb_state.flag != CB_HANDLE_COMPLETE_PACKET) {
 		sbuf_prepare_skip(sbuf, pkt->len);
+	}
 
 	return res;
 }
@@ -746,6 +765,15 @@ static bool handle_sslchar(PgSocket *server, struct MBuf *data)
 	return ok;
 }
 
+/* dispatch a fully buffered packet, see process_pkt_callback() */
+static bool server_handle_complete_packet(PgSocket *server, PktHdr *pkt)
+{
+	pkt_rewind_v3(pkt);
+	if (server->state == SV_LOGIN)
+		return handle_server_startup(server, pkt);
+	return handle_server_work(server, pkt);
+}
+
 /* callback from SBuf */
 bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 {
@@ -879,7 +907,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		}
 		break;
 	case SBUF_EV_PKT_CALLBACK:
-		slog_warning(server, "SBUF_EV_PKT_CALLBACK with state=%d", server->state);
+		res = process_pkt_callback(server, data, server_handle_complete_packet);
 		break;
 	case SBUF_EV_TLS_READY:
 		Assert(server->state == SV_LOGIN);

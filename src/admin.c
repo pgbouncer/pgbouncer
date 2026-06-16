@@ -603,8 +603,6 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	struct List *item;
 	PktBuf *buf = pktbuf_dynamic(256);
 	struct CfValue cv;
-	char pool_size_str[12] = "";
-	char res_pool_size_str[12] = "";
 	const char *pool_mode_str;
 
 	if (!buf) {
@@ -618,6 +616,8 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 		"max_user_client_connections", "current_client_connections");
 	statlist_for_each(item, &user_list) {
 		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
+		char pool_size_str[12] = "";
+		char res_pool_size_str[12] = "";
 		if (user->pool_size >= 0)
 			snprintf(pool_size_str, sizeof(pool_size_str), "%9d", user->pool_size);
 		if (user->res_pool_size >= 0)
@@ -1367,7 +1367,7 @@ static bool admin_cmd_enable(PgSocket *admin, const char *arg)
 	if (db == NULL)
 		return admin_error(admin, "no such database: %s", arg);
 	if (db->admin)
-		return admin_error(admin, "cannot disable admin db: %s", arg);
+		return admin_error(admin, "cannot enable admin db: %s", arg);
 
 	db->db_disabled = false;
 	return admin_ready(admin, "ENABLE");

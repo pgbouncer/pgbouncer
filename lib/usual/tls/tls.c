@@ -199,11 +199,11 @@ int tls_set_error_libssl(struct tls *ctx, const char *fmt, ...)
 	int rv;
 	const char *msg = NULL;
 	char *old;
-	int err;
+	unsigned long err;
 
 	err = ERR_peek_error();
 	if (err != 0)
-		msg = ERR_reason_error_string(err);
+		msg = ERR_error_string(err, NULL);
 
 	va_start(ap, fmt);
 	rv = tls_error_vset(&ctx->error, -1, fmt, ap);
@@ -308,7 +308,7 @@ int tls_configure_keypair(struct tls *ctx, SSL_CTX *ssl_ctx,
 			unsigned long err;
 
 			if ((err = ERR_peek_error()) != 0)
-				errstr = ERR_reason_error_string(err);
+				errstr = ERR_error_string(err, NULL);
 			tls_set_errorx(ctx, "failed to load certificate file \"%s\": %s",
 				       keypair->cert_file, errstr);
 			goto err;
@@ -321,7 +321,7 @@ int tls_configure_keypair(struct tls *ctx, SSL_CTX *ssl_ctx,
 			unsigned long err;
 
 			if ((err = ERR_peek_error()) != 0)
-				errstr = ERR_reason_error_string(err);
+				errstr = ERR_error_string(err, NULL);
 			tls_set_errorx(ctx, "failed to load private key file \"%s\": %s",
 				       keypair->key_file, errstr);
 			goto err;
@@ -511,7 +511,7 @@ int tls_configure_ssl_verify(struct tls *ctx, int verify)
 		unsigned long err;
 
 		if ((err = ERR_peek_error()) != 0)
-			errstr = ERR_reason_error_string(err);
+			errstr = ERR_error_string(err, NULL);
 		tls_set_errorx(ctx, "failed to load CA: %s", errstr);
 		goto err;
 	}

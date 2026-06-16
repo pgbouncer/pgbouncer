@@ -132,6 +132,24 @@ def capture(command, *args, stdout=subprocess.PIPE, encoding="utf-8", **kwargs):
     return run(command, *args, stdout=stdout, encoding=encoding, **kwargs).stdout
 
 
+def wait_until(error_message="Did not complete", timeout=5, interval=0.1):
+    """
+    Loop until the timeout is reached. If the timeout is reached, raise an
+    exception with the given error message.
+    """
+    start = time.time()
+    end = start + timeout
+    last_printed_progress = start
+    while time.time() < end:
+        if timeout > 5 and time.time() - last_printed_progress > 5:
+            last_printed_progress = time.time()
+            print(f"{error_message} in {time.time() - start} seconds - will retry")
+        yield
+        time.sleep(interval)
+
+    raise TimeoutError(error_message + " in time")
+
+
 def get_pg_major_version():
     full_version_string = capture("initdb --version", silent=True)
     major_version_string = re.search("[0-9]+", full_version_string)
@@ -165,16 +183,6 @@ PG_SUPPORTS_SCRAM = PG_MAJOR_VERSION >= 10
 LIBPQ_SUPPORTS_PIPELINING = psycopg.pq.version() >= 140000
 
 
-def get_tls_support():
-    with open("../config.mak", encoding="utf-8") as f:
-        match = re.search(r"tls_support = (\w+)", f.read())
-        assert match is not None
-        return match.group(1) == "yes"
-
-
-TLS_SUPPORT = get_tls_support()
-
-
 def get_ldap_support():
     with open("../config.mak", encoding="utf-8") as f:
         match = re.search(r"ldap_support = (\w+)", f.read())
@@ -183,6 +191,18 @@ def get_ldap_support():
 
 
 LDAP_SUPPORT = get_ldap_support()
+
+
+def get_tls_support():
+    with open("../config.mak", encoding="utf-8") as f:
+        match = re.search(r"tls_support = (\w+)", f.read())
+        assert match is not None
+        return match.group(1) == "yes"
+
+
+TLS_SUPPORT = get_tls_support()
+DIRECT_TLS_SUPPORT = TLS_SUPPORT and PG_MAJOR_VERSION >= 17
+
 
 # this is out of ephemeral port range for many systems hence
 # it is a lower change that it will conflict with "in-use" ports
@@ -216,6 +236,9 @@ def cleanup_test_leftovers(*nodes):
 
     for node in nodes:
         node.cleanup_users()
+
+    for node in nodes:
+        node.reset_ini()
 
 
 class PortLock:
@@ -260,6 +283,7 @@ class QueryRunner:
         self.port = port
         self.default_db = "postgres"
         self.default_user = "postgres"
+        self.default_password: typing.Optional[str] = None
 
         # Used to track objects that we want to clean up at the end of a test
         self.subscriptions = set()
@@ -274,6 +298,9 @@ class QueryRunner:
         options.setdefault("user", self.default_user)
         options.setdefault("host", self.host)
         options.setdefault("port", self.port)
+        if self.default_password is not None:
+            options.setdefault("password", self.default_password)
+
         if ENABLE_VALGRIND:
             # If valgrind is enabled PgBouncer is a significantly slower to
             # respond to connection requests, so we wait a little longer.
@@ -341,12 +368,13 @@ class QueryRunner:
         """
         with self.cur(**kwargs) as cur:
             cur.execute(query, params=params)
-            try:
-                return cur.fetchall()
-            except psycopg.ProgrammingError as e:
-                if "the last operation didn't produce a result" == str(e):
-                    return None
-                raise
+            if cur.pgresult and cur.pgresult.status in [
+                psycopg.pq.ExecStatus.COMMAND_OK,
+                psycopg.pq.ExecStatus.EMPTY_QUERY,
+            ]:
+                return None
+
+            return cur.fetchall()
 
     def sql_value(self, query, params=None, **kwargs):
         """Run an SQL query that returns a single cell and return this value
@@ -373,12 +401,13 @@ class QueryRunner:
     ) -> typing.Optional[typing.List[typing.Any]]:
         async with self.acur(**kwargs) as cur:
             await cur.execute(query, params=params)
-            try:
-                return await cur.fetchall()
-            except psycopg.ProgrammingError as e:
-                if "the last operation didn't produce a result" == str(e):
-                    return None
-                raise
+            if cur.pgresult and cur.pgresult.status in [
+                psycopg.pq.ExecStatus.COMMAND_OK,
+                psycopg.pq.ExecStatus.EMPTY_QUERY,
+            ]:
+                return None
+
+            return await cur.fetchall()
 
     def psql(self, query, **kwargs):
         """Run an SQL query using psql instead of psycopg
@@ -389,7 +418,19 @@ class QueryRunner:
         self.set_default_connection_options(kwargs)
         connect_options = " ".join([f"{k}={v}" for k, v in kwargs.items()])
 
-        run(["psql", f"port={self.port} {connect_options}", "-c", query], shell=False)
+        result = run(
+            ["psql", f"port={self.port} {connect_options}", "-c", query],
+            shell=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if WINDOWS:
+            # On Windows psql writes its output in text mode, turning every \n
+            # into \r\n. Normalize it so callers can compare against the plain
+            # \n form regardless of platform.
+            result.stdout = result.stdout.replace(b"\r\n", b"\n")
+            result.stderr = result.stderr.replace(b"\r\n", b"\n")
+        return result
 
     @contextmanager
     def transaction(self, **kwargs):
@@ -433,15 +474,15 @@ class QueryRunner:
 
     def test(self, **kwargs):
         """Test if you can connect"""
-        return self.sql("select 1", **kwargs)
+        return self.sql(";", **kwargs)
 
     def atest(self, **kwargs):
         """Test if you can connect asynchronously"""
-        return self.asql("select 1", **kwargs)
+        return self.asql(";", **kwargs)
 
     def psql_test(self, **kwargs):
         """Test if you can connect with psql instead of psycopg"""
-        return self.psql("select 1", **kwargs)
+        return self.psql(";", **kwargs)
 
     @contextmanager
     def enable_firewall(self):
@@ -460,7 +501,7 @@ class QueryRunner:
                 assert match is not None
                 fw_token = match.group(1)
             sudo(
-                'bash -c "'
+                'sh -c "'
                 f"echo 'anchor \\\"port_{self.port}\\\"'"
                 f' | pfctl -a pgbouncer_test -f -"'
             )
@@ -484,7 +525,7 @@ class QueryRunner:
                 )
             elif BSD:
                 sudo(
-                    "bash -c '"
+                    "sh -c '"
                     f'echo "block drop out proto tcp from any to {self.host} port {self.port}"'
                     f"| pfctl -a pgbouncer_test/port_{self.port} -f -'"
                 )
@@ -519,7 +560,7 @@ class QueryRunner:
                 )
             elif BSD:
                 sudo(
-                    "bash -c '"
+                    "sh -c '"
                     f'echo "block return-rst out out proto tcp from any to {self.host} port {self.port}"'
                     f"| pfctl -a pgbouncer_test/port_{self.port} -f -'"
                 )
@@ -943,6 +984,7 @@ class Bouncer(QueryRunner):
         self.admin_runner = QueryRunner(self.admin_host, self.port)
         self.admin_runner.default_db = "pgbouncer"
         self.admin_runner.default_user = "pgbouncer"
+        self.admin_runner.default_password = "fake"
 
         with open(base_auth_path) as base_auth:
             with self.auth_path.open("w") as auth:
@@ -968,6 +1010,9 @@ class Bouncer(QueryRunner):
                 ini.write(f"listen_port = {self.port}\n")
 
                 ini.flush()
+
+        with self.ini_path.open("r") as ini:
+            self.original_ini_contents = ini.read()
 
     def base_command(self):
         """returns the basecommand that is used to run PgBouncer
@@ -1096,6 +1141,16 @@ class Bouncer(QueryRunner):
             await self.wait_until_running()
             assert self.process.pid != old_pid
 
+    async def restart(self):
+        """Fully stops and starts PgBouncer again
+
+        Unlike reboot() this does not take over the sockets of the old process,
+        so it can be used to apply config changes that a RELOAD cannot (i.e.
+        CF_NO_RELOAD settings such as pkt_buf).
+        """
+        await self.stop()
+        await self.start()
+
     def send_signal(self, sig):
         if self.aprocess:
             self.aprocess.send_signal(sig)
@@ -1167,6 +1222,16 @@ class Bouncer(QueryRunner):
         """
         with self.ini_path.open("a") as f:
             f.write(config + "\n")
+
+    def reset_ini(self):
+        """Resets the PgBouncer config contents to their original state
+
+        Used to undo all config changes. To apply these changes PgBouncer
+        still needs to be reloaded or restarted. To reload in a cross platform
+        way you need can use admin("reload").
+        """
+        with self.ini_path.open("w") as f:
+            f.write(self.original_ini_contents)
 
     @contextmanager
     def log_contains(self, re_string, times=None):

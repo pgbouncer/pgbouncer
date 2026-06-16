@@ -1,11 +1,237 @@
 import asyncio
 import re
+import threading
 import time
 
 import psycopg
 import pytest
 
-from .utils import HAVE_IPV6_LOCALHOST, LINUX, PG_MAJOR_VERSION, PKT_BUF_SIZE, WINDOWS
+from .utils import (
+    HAVE_IPV6_LOCALHOST,
+    LINUX,
+    PG_MAJOR_VERSION,
+    PG_SUPPORTS_SCRAM,
+    PKT_BUF_SIZE,
+    USE_UNIX_SOCKETS,
+    WINDOWS,
+)
+
+
+def test_login_notify_message_negative(bouncer):
+    """
+    Negative test for login_notify_message
+
+    Tests that NOTICE is not connection when login_notify_message is not set.
+    We are using psql here because psycopg does not seem to pick up notices that happen after
+    AuthenticationOk message and before ReadyForQuery.
+    """
+    config = f"""
+    [databases]
+    postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    pool_mode = session
+    """
+
+    with bouncer.run_with_config(config):
+
+        ret = bouncer.psql(
+            query="SELECT 1;", dbname="postgres", user="puser1", password="foo"
+        )
+        assert ret.stderr == b""
+        assert ret.stdout == b" ?column? \n----------\n        1\n(1 row)\n\n"
+
+
+def test_login_notify_message(bouncer):
+    """
+    Positive test for login_notify_message
+
+    Tests that NOTICE is correctly raised on connection when login_notify_message is set.
+    We are using psql here because psycopg does not seem to pick up notices that happen after
+    AuthenticationOk message and before ReadyForQuery.
+    """
+    config = f"""
+    [databases]
+    postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    pool_mode = session
+    login_notify_message = You are now connected to pgbouncer
+    """
+
+    with bouncer.run_with_config(config):
+
+        ret = bouncer.psql(
+            query="SELECT 1;", dbname="postgres", user="puser1", password="foo"
+        )
+        assert ret.stderr == b"NOTICE:  You are now connected to pgbouncer\n"
+        assert ret.stdout == b" ?column? \n----------\n        1\n(1 row)\n\n"
+
+
+@pytest.mark.parametrize(
+    "test_auth_type", ["trust"] if WINDOWS else ["trust", "scram-sha-256"]
+)
+@pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
+def test_scram_server(bouncer, test_auth_type):
+    """
+    Test that query_wait_notify setting plays nicely with scram-sha-256 authentication.
+
+    Please note that this test does not work when using scram-sha-256 test_auth_type on
+    windows. This is because windows does not allow socket connections which would allow
+    connection to the admin console to reload without a password.
+    """
+    config = f"""
+    [databases]
+    p6 = port=6666 host=127.0.0.1 dbname=p6 user=scramuser1 password=foo max_db_connections=0
+    postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_type = {test_auth_type}
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    pool_mode = session
+    query_wait_notify = 1
+
+    [users]
+    puser1 = max_user_connections = 1
+    """
+    with bouncer.run_with_config(config):
+        # good password from ini
+        with pytest.raises(psycopg.errors.ConnectionTimeout):
+            if test_auth_type == "trust":
+                bouncer.test(dbname="p6")
+            else:
+                bouncer.test(dbname="p6", password="foo", user="scramuser1")
+
+
+async def test_notify_queue_negative(bouncer):
+    """
+    Test that wait notification will not occur when query_wait_notify
+    is set to longer than the client will be waiting in the queue for.
+    """
+    config = f"""
+    [databases]
+    postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_type = trust
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    pool_mode = statement
+    query_wait_notify = 8
+
+    [users]
+    puser1 = max_user_connections=1
+    """
+    notices_received = []
+
+    def log_notice(diag):
+        notices_received.append(diag.message_primary)
+
+    with bouncer.run_with_config(config):
+
+        sleep_future = bouncer.asql(
+            "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
+        )
+        _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
+
+        conn_2: psycopg.AsyncConnection = await bouncer.aconn(
+            dbname="postgres", user="puser1"
+        )
+        conn_2.add_notice_handler(log_notice)
+        curr = await conn_2.execute("select 1;")
+        curr.fetchall()
+
+        assert len(notices_received) == 0
+
+        sleep_future = bouncer.asql(
+            "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
+        )
+        _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
+
+        curr = await conn_2.execute("select 1;")
+        curr.fetchall()
+        assert len(notices_received) == 0
+
+        conn_2.close()
+
+
+async def test_notify_queue(bouncer):
+    """
+    Test that client is notified when they are waiting for longer
+    than query_wait_notify seconds. Also tests that the notification
+    is correctly sent if they are waiting in a second time during the
+    same connection.
+    """
+    config = f"""
+    [databases]
+    postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_type = trust
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    pool_mode = statement
+    query_wait_notify = 2
+
+    [users]
+    puser1 = max_user_connections=1
+    """
+    notices_received = []
+
+    def log_notice(diag):
+        notices_received.append(diag.message_primary)
+
+    with bouncer.run_with_config(config):
+
+        sleep_future = bouncer.asql(
+            "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
+        )
+        _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
+
+        conn_2: psycopg.AsyncConnection = await bouncer.aconn(
+            dbname="postgres", user="puser1"
+        )
+        conn_2.add_notice_handler(log_notice)
+        curr = await conn_2.execute("select 1;")
+        curr.fetchall()
+
+        assert len(notices_received) == 1
+        expected_message = (
+            "No server connection available in postgres backend, client being queued"
+        )
+        assert expected_message == notices_received[0]
+
+        sleep_future = bouncer.asql(
+            "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
+        )
+        _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
+
+        curr = await conn_2.execute("select 1;")
+        curr.fetchall()
+        assert len(notices_received) == 2
+        assert expected_message == notices_received[1]
+
+        conn_2.close()
 
 
 @pytest.mark.skipif("not LINUX", reason="socat proxy only available on linux")
@@ -259,7 +485,6 @@ def test_track_extra_parameters(bouncer):
                 assert result2[0] == test_expected[key][1]
 
 
-@pytest.mark.asyncio
 async def test_wait_close(bouncer):
     with bouncer.cur(dbname="p3") as cur:
         cur.execute("select 1")
@@ -294,7 +519,6 @@ def test_auto_database(bouncer):
 # localhost configured.  Therefore, this test is skipped by default
 # and needs to be enabled explicitly by setting HAVE_IPV6_LOCALHOST to
 # non-empty.
-@pytest.mark.asyncio
 @pytest.mark.skipif("not HAVE_IPV6_LOCALHOST")
 async def test_host_list(bouncer):
     with bouncer.log_contains(r"new connection to server \(from 127.0.0.1", times=1):
@@ -307,7 +531,6 @@ async def test_host_list(bouncer):
 # connections are made.  But the test is useful to get some test
 # coverage (valgrind etc.) of the host list code on systems without
 # IPv6 enabled.
-@pytest.mark.asyncio
 async def test_host_list_dummy(bouncer):
     with bouncer.log_contains(r"new connection to server \(from 127.0.0.1", times=2):
         await bouncer.asleep(1, dbname="hostlist2", times=2)
@@ -322,7 +545,7 @@ def test_options_startup_param(bouncer):
     assert (
         bouncer.sql_value(
             "SHOW datestyle",
-            options="-c timezone=Portugal  -c    datestyle=German,\\ YMD",
+            options="-c timezone=Europe/Lisbon  -c    datestyle=German,\\ YMD",
         )
         == "German, YMD"
     )
@@ -330,31 +553,33 @@ def test_options_startup_param(bouncer):
     assert (
         bouncer.sql_value(
             "SHOW timezone",
-            options="-c timezone=Portugal  -c    datestyle=German,\\ YMD",
+            options="-c timezone=Europe/Lisbon  -c    datestyle=German,\\ YMD",
         )
-        == "Portugal"
-    )
-
-    assert (
-        bouncer.sql_value(
-            "SHOW timezone", options="-ctimezone=Portugal  -cdatestyle=German,\\ YMD"
-        )
-        == "Portugal"
-    )
-
-    assert (
-        bouncer.sql_value(
-            "SHOW timezone", options="--timezone=Portugal  --datestyle=German,\\ YMD"
-        )
-        == "Portugal"
+        == "Europe/Lisbon"
     )
 
     assert (
         bouncer.sql_value(
             "SHOW timezone",
-            options="-c t\\imezone=\\P\\o\\r\\t\\ugal  -c    dat\\estyle\\=\\Ge\\rman,\\ YMD",
+            options="-ctimezone=Europe/Lisbon  -cdatestyle=German,\\ YMD",
         )
-        == "Portugal"
+        == "Europe/Lisbon"
+    )
+
+    assert (
+        bouncer.sql_value(
+            "SHOW timezone",
+            options="--timezone=Europe/Lisbon  --datestyle=German,\\ YMD",
+        )
+        == "Europe/Lisbon"
+    )
+
+    assert (
+        bouncer.sql_value(
+            "SHOW timezone",
+            options="-c t\\imezone=\\E\\u\\r\\o\\pe/Lisbon  -c    dat\\estyle\\=\\Ge\\rman,\\ YMD",
+        )
+        == "Europe/Lisbon"
     )
 
     # extra_float_digits is in ignore_startup_parameters so setting it has no
@@ -397,9 +622,10 @@ def test_options_startup_param(bouncer):
     # and configure any values in it that we support
     assert (
         bouncer.sql_value(
-            "SHOW timezone", options="-ctimezone=Portugal  -cdatestyle=German,\\ YMD"
+            "SHOW timezone",
+            options="-ctimezone=Europe/Lisbon  -cdatestyle=German,\\ YMD",
         )
-        == "Portugal"
+        == "Europe/Lisbon"
     )
 
 
@@ -513,13 +739,92 @@ async def test_already_paused_client_during_wait_for_servers_shutdown(bouncer):
         done, pending = await asyncio.wait([task], timeout=3)
         assert done == set()
         assert pending == {task}
-        bouncer.admin("SHUTDOWN WAIT_FOR_SERVERS")
-        # Still in the same transaction, so this should work
-        cur1.execute("SELECT 1")
-        # New transaction so this should fail
+
+        # Unlike a client that's idle at shutdown, a client that's already
+        # waiting for a server is closed as a direct consequence of the
+        # SHUTDOWN command itself. So the log_contains needs to wrap the
+        # SHUTDOWN, not just the await of the failing task. Otherwise the
+        # "server shutting down" line can be written before log_contains seeks
+        # to the end of the log, causing it to be missed.
         with bouncer.log_contains(r"closing because: server shutting down"):
+            bouncer.admin("SHUTDOWN WAIT_FOR_SERVERS")
+            # Still in the same transaction, so this should work
+            cur1.execute("SELECT 1")
+            # New transaction so this should fail
             with pytest.raises(psycopg.OperationalError):
                 await task
+
+
+@pytest.mark.skipif(
+    "not USE_UNIX_SOCKETS", reason="This test does not apply to non unix sockets"
+)
+def test_shutdown_wait_for_servers(bouncer):
+    """
+    Test that after issuing `SHUTDOWN WAIT_FOR_SERVERS` pgbouncer
+    is no longer accessible via 127.0.0.1 but is still accessible
+    on UNIX socket until the last client leaves the pgbouncer instance.
+    """
+
+    socket_directory = bouncer.config_dir if LINUX else "/tmp"
+    with bouncer.cur() as cur, bouncer.admin_runner.cur():
+
+        def run_blocked_query():
+            cur.execute("SELECT pg_sleep(5)")
+            cur.fetchone()
+
+        thread = threading.Thread(target=run_blocked_query)
+        thread.start()
+
+        bouncer.admin("SHUTDOWN WAIT_FOR_SERVERS")
+
+        time.sleep(2)
+
+        with pytest.raises(psycopg.errors.OperationalError):
+            bouncer.test(host=bouncer.config_dir)
+
+        bouncer.admin("SHOW VERSION", host=socket_directory)
+
+        with pytest.raises(psycopg.errors.OperationalError):
+            bouncer.test(host="127.0.0.1")
+
+        thread.join(timeout=10)
+
+    # Wait for janitor to close unix socket
+    time.sleep(2)
+
+    with pytest.raises(psycopg.errors.OperationalError):
+        bouncer.test(host=socket_directory)
+
+
+@pytest.mark.skipif(
+    "not USE_UNIX_SOCKETS", reason="This test does not apply to non unix sockets"
+)
+def test_shutdown_wait_for_clients(bouncer):
+    """
+    Test that after issuing `SHUTDOWN WAIT_FOR_CLIENTS` pgbouncer
+    is no longer accessible via 127.0.0.1 but is still accessible
+    on UNIX socket until the last client leaves the pgbouncer instance.
+    """
+    socket_directory = bouncer.config_dir if LINUX else "/tmp"
+    with bouncer.cur() as cur, bouncer.admin_runner.cur():
+        cur.execute(";")
+        bouncer.admin("SHUTDOWN WAIT_FOR_CLIENTS")
+
+        time.sleep(2)
+
+        with pytest.raises(psycopg.errors.OperationalError):
+            bouncer.test(host=bouncer.config_dir)
+
+        bouncer.admin("SHOW VERSION", host=socket_directory)
+
+        with pytest.raises(psycopg.errors.OperationalError):
+            bouncer.test(host="127.0.0.1")
+
+    # Wait for janitor to close unix socket
+    time.sleep(2)
+
+    with pytest.raises(psycopg.errors.OperationalError):
+        bouncer.test(host=socket_directory)
 
 
 def test_resume_during_shutdown(bouncer):
@@ -572,3 +877,22 @@ def test_issue_1104(bouncer):
 
         with bouncer.run_with_config(config):
             bouncer.admin("RELOAD")
+
+
+async def test_server_login_large_packets(bouncer):
+    """Test that server login works when packets exceed the small pkt_buf.
+
+    This tests the fix for handling large packets during server login phase
+    (handle_server_startup). By shrinking pkt_buf to a tiny value, normal
+    server login packets like ParameterStatus exceed the buffer and trigger
+    dynamic packet buffering.
+
+    pkt_buf is CF_NO_RELOAD, so it can only be changed by restarting pgbouncer
+    rather than with a RELOAD.
+    """
+    bouncer.write_ini("pkt_buf = 75")
+    await bouncer.restart()
+
+    # Simply connecting exercises the server login path: the server sends
+    # ParameterStatus, BackendKeyData, ReadyForQuery etc.
+    bouncer.test()

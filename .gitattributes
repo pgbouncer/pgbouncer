@@ -1,3 +1,6 @@
 *.[ch]				whitespace=indent-with-non-tab
 test/hba_test.rules		-whitespace
 win32/eventmsg.rc		whitespace=cr-at-eol
+
+# These files are maintained or generated elsewhere.  We take them as is.
+include/common/uthash.h		-whitespace

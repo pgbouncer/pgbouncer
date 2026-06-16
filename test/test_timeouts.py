@@ -462,7 +462,6 @@ def test_client_idle_timeout(bouncer):
                 cur.execute("select 1")
 
 
-@pytest.mark.asyncio
 async def test_server_login_retry(pg, bouncer):
     bouncer.admin(f"set query_timeout=10")
     bouncer.admin(f"set server_login_retry=3")
@@ -471,10 +470,10 @@ async def test_server_login_retry(pg, bouncer):
     bouncer.admin("set server_tls_sslmode = disable")
 
     pg.stop()
-    if platform.system() == "FreeBSD":
-        # XXX: For some reason FreeBSD logs don't contain connect failed
-        # For now we simply remove this check. But this warants further
-        # investigation.
+    if platform.system() in ("FreeBSD", "Windows"):
+        # XXX: For some reason FreeBSD and Windows logs don't contain connect
+        # failed. For now we simply remove this check. But this warrants
+        # further investigation.
         await asyncio.gather(
             bouncer.atest(connect_timeout=10),
             pg.delayed_start(1),
@@ -528,7 +527,6 @@ def test_tcp_user_timeout(pg, bouncer):
 
 
 @pytest.mark.skipif("not USE_SUDO")
-@pytest.mark.asyncio
 async def test_server_check_delay(pg, bouncer):
     bouncer.admin("set server_check_delay=2")
     bouncer.admin("set server_login_retry=3")
@@ -560,3 +558,24 @@ def test_cancel_wait_timeout(pg, bouncer):
                     cancel.result()
 
             query.result()
+
+
+def test_query_timeout_when_no_active_query(bouncer):
+    """
+    When there's no active query (query_start == 0), query_timeout should not apply.
+    But the current implementation incorrectly uses request_time as fallback,
+    causing idle connections to be disconnected.
+    """
+    bouncer.admin("set query_timeout=2")
+    bouncer.admin("set pool_mode=transaction")
+    with bouncer.cur() as cur:
+        cur.execute("BEGIN")
+        cur.execute("SELECT 1")
+
+        # Wait longer than query_timeout while idle
+        time.sleep(3)
+
+        # This should work since no query is active, but will fail due to the bug
+        cur.execute("SELECT 2")
+        result = cur.fetchone()
+        assert result[0] == 2

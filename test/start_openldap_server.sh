@@ -1,15 +1,22 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
-slapd=/usr/sbin/slapd
-if [ -d '/etc/ldap/schema' ]
-then
-	ldap_schema_dir='/etc/ldap/schema'
-else
-	ldap_schema_dir='/etc/openldap/schema'
+for file in '/usr/sbin/slapd' '/usr/local/libexec/slapd' '/opt/homebrew/opt/openldap/libexec/slapd' '/usr/local/opt/openldap/libexec/slapd' '/opt/local/libexec/slapd'; do
+	if [ -e "$file" ]; then
+		slapd=$file
+	fi
+done
+if [ -z "$slapd" ]; then
+	exit 77
 fi
-if [ ! -e $slapd ];then
-	return 77
+
+for dir in '/etc/ldap/schema' '/etc/openldap/schema' '/usr/local/etc/openldap/schema' '/opt/homebrew/etc/openldap/schema' '/opt/local/etc/openldap/schema'; do
+	if [ -d "$dir" ]; then
+		ldap_schema_dir=$dir
+	fi
+done
+if [ -z "$ldap_schema_dir" ]; then
+	exit 77
 fi
 
 

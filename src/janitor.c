@@ -191,7 +191,29 @@ static void per_loop_activate(PgPool *pool)
 	sv_tested = statlist_count(&pool->tested_server_list);
 	sv_used = statlist_count(&pool->used_server_list);
 	statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
+		PktBuf *buf;
+		bool res;
 		client = container_of(item, PgSocket, head);
+
+		if (client->state == CL_WAITING
+		    && !client->sent_wait_notification
+		    && client->welcome_sent
+		    && ((get_cached_time() - client->wait_start) / USEC) > cf_query_wait_notify
+		    && cf_query_wait_notify > 0) {
+			buf = pktbuf_dynamic(256);
+			if (!buf)
+				die("out of memory");
+
+			pktbuf_write_Notice(
+				buf,
+				"No server connection available in postgres backend, client being queued"
+				);
+			res = pktbuf_send_queued(buf, client);
+			if (!res)
+				log_warning("Sending queue warning failed");
+			client->sent_wait_notification = true;
+		}
+
 		if (client->replication) {
 			/*
 			 * For replication connections we always launch
@@ -584,7 +606,7 @@ static void pool_server_maint(PgPool *pool)
 	/* handle query_timeout and idle_transaction_timeout */
 	if (cf_query_timeout > 0 || cf_idle_transaction_timeout > 0 || cf_transaction_timeout > 0 || any_user_level_timeout_set) {
 		statlist_for_each_safe(item, &pool->active_server_list, tmp) {
-			usec_t age_client, age_server, age_transaction;
+			usec_t age_query, age_server, age_transaction;
 			usec_t effective_query_timeout;
 			usec_t effective_idle_transaction_timeout;
 			usec_t user_query_timeout;
@@ -599,13 +621,13 @@ static void pool_server_maint(PgPool *pool)
 
 			/*
 			 * Note the different age calculations:
-			 * query_timeout counts from the last request
-			 * of the client (the client started the
-			 * query), idle_transaction_timeout counts
-			 * from the last request of the server (the
-			 * server sent the idle information).
+			 * query_timeout counts from when the query started
+			 * (only applies when a query is actually running),
+			 * idle_transaction_timeout counts from the last
+			 * request of the server (the server sent the idle
+			 * information).
 			 */
-			age_client = now - server->link->request_time;
+			age_query = (server->link->query_start != 0) ? now - server->link->query_start : 0;
 			age_server = now - server->request_time;
 			age_transaction = now - server->link->xact_start;
 
@@ -626,7 +648,7 @@ static void pool_server_maint(PgPool *pool)
 			if (user_transaction_timeout > 0)
 				effective_transaction_timeout = user_transaction_timeout;
 
-			if (effective_query_timeout > 0 && age_client > effective_query_timeout) {
+			if (effective_query_timeout > 0 && age_query > 0 && age_query > effective_query_timeout) {
 				disconnect_server(server, true, "query timeout");
 			} else if (effective_idle_transaction_timeout > 0 &&
 				   server->idle_tx &&
@@ -803,6 +825,7 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	if (cf_shutdown == SHUTDOWN_WAIT_FOR_SERVERS && get_active_server_count() == 0) {
 		log_info("server connections dropped, exiting");
 		cf_shutdown = SHUTDOWN_IMMEDIATE;
+		cleanup_unix_sockets();
 		event_base_loopbreak(pgb_event_base);
 		return;
 	}
@@ -810,6 +833,7 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	if (cf_shutdown == SHUTDOWN_WAIT_FOR_CLIENTS && get_active_client_count() == 0) {
 		log_info("client connections dropped, exiting");
 		cf_shutdown = SHUTDOWN_IMMEDIATE;
+		cleanup_unix_sockets();
 		event_base_loopbreak(pgb_event_base);
 		return;
 	}
@@ -903,6 +927,8 @@ void kill_database(PgDatabase *db)
 	if (db->auth_query)
 		free((void *)db->auth_query);
 
+	/* Cleanup cached scram keys stored with PgCredentials */
+	clear_user_tree_cached_scram_keys(&db->user_tree);
 	aatree_destroy(&db->user_tree);
 	slab_free(db_cache, db);
 }
@@ -948,4 +974,19 @@ void config_postprocess(void)
 			continue;
 		}
 	}
+}
+
+static void clean_cached_scram(struct AANode *n, void *arg)
+{
+	struct PgCredentials *user = container_of(n, struct PgCredentials, tree_node);
+	if (user->scram_SaltKey != NULL) {
+		free(user->scram_SaltKey);
+		user->scram_SaltKey = NULL;
+		user->adhoc_scram_secrets_cached = false;
+	}
+}
+
+void clear_user_tree_cached_scram_keys(struct AATree *tree)
+{
+	aatree_walk(tree, AA_WALK_IN_ORDER, clean_cached_scram, NULL);
 }

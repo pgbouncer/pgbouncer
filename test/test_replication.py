@@ -97,13 +97,11 @@ def test_logical_rep_subscriber(bouncer):
     conninfo = bouncer.make_conninfo(dbname="user_passthrough")
     bouncer.create_subscription(
         "mysub",
-        sql.SQL(
-            """
+        sql.SQL("""
             CONNECTION {}
             PUBLICATION mypub
             WITH (slot_name=test_logical_rep_subscriber, create_slot=false)
-        """
-        ).format(sql.Literal(conninfo)),
+        """).format(sql.Literal(conninfo)),
     )
 
     # The initial copy should now copy over the row
@@ -254,7 +252,6 @@ def test_physical_rep_pg_basebackup(bouncer, tmp_path):
     print(children)
 
 
-@pytest.mark.asyncio
 @pytest.mark.skipif(
     "PG_MAJOR_VERSION < 10",
     reason="normal SQL commands are only supported in PG10+ on logical replication connections",
@@ -280,7 +277,6 @@ async def test_replication_pool_size(pg, bouncer):
     assert pg.connection_count("p0") == 0
 
 
-@pytest.mark.asyncio
 @pytest.mark.skipif(
     "PG_MAJOR_VERSION < 10",
     reason="normal SQL commands are only supported in PG10+ on logical replication connections",

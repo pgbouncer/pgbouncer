@@ -102,14 +102,17 @@ const char * kill_pool_logins_server_error(PgPool *pool, PktHdr *errpkt)
 	const char *level, *sqlstate, *msg;
 
 	parse_server_error(errpkt, &level, &msg, &sqlstate);
-	log_warning("server login failed: %s %s", level, msg);
+	if (level != NULL && msg != NULL)
+		log_warning("server login failed: %s %s", level, msg);
+	else
+		log_warning("server login failed");
 
 	/*
 	 * Kill all waiting clients unless it's a temporary error, such as
 	 * "database system is starting up".
 	 */
-	if (strcmp(sqlstate, ERRCODE_CANNOT_CONNECT_NOW) != 0) {
-		log_noise("kill_pool_logins_server_error: sqlstate: %s", sqlstate);
+	if (sqlstate == NULL || strcmp(sqlstate, ERRCODE_CANNOT_CONNECT_NOW) != 0) {
+		log_noise("kill_pool_logins_server_error: sqlstate: %s", sqlstate ? sqlstate : "NULL");
 		kill_pool_logins(pool, sqlstate, msg);
 	}
 	return msg;
@@ -124,8 +127,26 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 	const uint8_t *ckey;
 
 	if (incomplete_pkt(pkt)) {
-		disconnect_server(server, true, "partial pkt in login phase");
-		return false;
+		if (pkt->len > (unsigned) cf_sbuf_len) {
+			/*
+			 * We need to handle the complete packet, but it is too
+			 * large to fit into our sbuf buffer size (determined
+			 * by the pkt_buf config). So now we need to fetch the
+			 * whole packet using our dynamically sized packet
+			 * buffering logic.
+			 */
+			server->packet_cb_state.flag = CB_WANT_COMPLETE_PACKET;
+			sbuf_prepare_fetch(sbuf, pkt->len);
+			return true;
+		} else {
+			/*
+			 * We need to handle the complete packet, but it fits
+			 * in our sbuf buffer, so we can simply return false to
+			 * indicate to sbuf to retry once it has received more
+			 * data
+			 */
+			return false;
+		}
 	}
 
 	/* ignore most that happens during connect_query */
@@ -235,8 +256,9 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 		break;
 	}
 
-	if (res)
+	if (res && server->packet_cb_state.flag != CB_HANDLE_COMPLETE_PACKET) {
 		sbuf_prepare_skip(sbuf, pkt->len);
+	}
 
 	return res;
 }
@@ -515,6 +537,8 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	case PqMsg_CopyBothResponse:
 		slog_debug(server, "COPY started");
 		server->copy_mode = true;
+		if (client)
+			client->copy_mode = true;
 		break;
 	case PqMsg_CopyOutResponse:
 		break;
@@ -677,14 +701,7 @@ static bool handle_connect(PgSocket *server)
 	 */
 	if (!statlist_empty(&pool->waiting_cancel_req_list)) {
 		slog_debug(server, "use it for pending cancel req");
-		if (forward_cancel_request(server)) {
-			change_server_state(server, SV_ACTIVE_CANCEL);
-			sbuf_continue(&server->sbuf);
-		} else {
-			/* notify disconnect_server() that connect did not fail */
-			server->ready = true;
-			disconnect_server(server, false, "failed to send cancel req");
-		}
+		forward_cancel_request(server);
 	} else if (pool->db->peer_id) {
 		/* notify disconnect_server() that connect did not fail */
 		server->ready = true;
@@ -746,6 +763,15 @@ static bool handle_sslchar(PgSocket *server, struct MBuf *data)
 		disconnect_server(server, false, "sslreq processing failed");
 	}
 	return ok;
+}
+
+/* dispatch a fully buffered packet, see process_pkt_callback() */
+static bool server_handle_complete_packet(PgSocket *server, PktHdr *pkt)
+{
+	pkt_rewind_v3(pkt);
+	if (server->state == SV_LOGIN)
+		return handle_server_startup(server, pkt);
+	return handle_server_work(server, pkt);
 }
 
 /* callback from SBuf */
@@ -855,6 +881,18 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 				if (server->link) {
 					if (statlist_count(&server->outstanding_requests) > 0)
 						break;
+					/*
+					 * Client still in COPY-in stream (hasn't sent
+					 * CopyDone/CopyFail yet).  PostgreSQL sent
+					 * ReadyForQuery before entering pq_endcopyin
+					 * drain, so the drain loop is still consuming
+					 * CopyData from the client.  Stay linked so the
+					 * remaining CopyData + CopyDone can reach the
+					 * server; release will happen once copy_mode
+					 * clears after CopyDone.
+					 */
+					if (server->link->copy_mode)
+						break;
 				}
 
 				/* retval does not matter here */
@@ -869,7 +907,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		}
 		break;
 	case SBUF_EV_PKT_CALLBACK:
-		slog_warning(server, "SBUF_EV_PKT_CALLBACK with state=%d", server->state);
+		res = process_pkt_callback(server, data, server_handle_complete_packet);
 		break;
 	case SBUF_EV_TLS_READY:
 		Assert(server->state == SV_LOGIN);

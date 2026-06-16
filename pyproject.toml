@@ -9,17 +9,6 @@ markers = [
 ]
 timeout = 30
 
-# The asyncio_mode setting doesn't work on outdated versions of pytest-asyncio.
-# For python 3.6 no version is available that supports the asyncio_mode
-# setting, and for some of the older OSes Python 3.6 is the newest python
-# available. So @pytest.mark.asyncio is used everywhere instead. Once none of
-# our supported OSes require usage we can drop those marks and rely on the
-# asyncio_mode setting instead.
-# On these outdated versions having this setting in the config will throw a
-# warning, but we still add it anyway. The reason is that by adding it async
-# fixtures work on all versions, and are pretty much impossible to make work
-# otherwise without lots of version checks. So having a warning on outdated
-# versions is a small price to pay to not have to worry about that.
 asyncio_mode = 'auto'
 
 # Make test discovery quicker
@@ -30,12 +19,7 @@ norecursedirs = [
     'venv',
     'src',
     'lib',
-    'uthash',
 ]
 
 [tool.isort]
 profile = 'black'
-skip = 'lib,uthash'
-
-[tool.black]
-extend-exclude = 'lib|uthash'

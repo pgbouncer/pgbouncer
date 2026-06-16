@@ -1,0 +1,102 @@
+
+= Embedding libusual as part of the source. =
+
+
+Here we build libusual as part of top-level tree.
+This gives the advantage of building only the modules
+that are actually used in main tree and without the
+intermediate `libusual.a` step.
+
+This method is for projects that are developed
+in parallel with libusual.  Not recommended for
+casual usage.
+
+
+== Configure libusual ==
+
+
+Here we configure libusual, but do not build it.
+
+---------------------------------
+$ git clone git://github.com/libusual/libusual.git lib
+Cloning into 'lib'...
+$ cd lib
+$ ./autogen.sh
+[...]
+$ ./configure
+[...]
+$ cd ..
+---------------------------------
+
+== Prepare own code ==
+
+
+Here is the source that needs to be linked with libusual:
+
+.File: prog.c
+[source,c]
+-----------------------------------
+#include <usual/hashing/crc32.h>
+#include <stdio.h>
+#include <string.h>
+
+int main(void)
+{
+	const char *data = "CECSFXX";
+	uint32_t crc;
+
+	crc = calc_crc32(data, strlen(data), 0);
+	printf("crc: %08x\n", crc);
+	return 0;
+}
+-----------------------------------
+
+== Build with Antimake. ==
+
+
+Antimake is build framework on plain GNU Make that reads
+build instructons with Automake syntax.  It has also hooks
+for libusual integration.
+
+Here is Makefile that uses Antimake:
+
+.File: Makefile
+[source,makefile]
+-----------------------------------
+# the automake-style build description for 'prog'
+noinst_PROGRAMS = prog
+prog_SOURCES = prog.c
+
+# location of configured libusual
+USUAL_DIR = lib
+
+# mention that 'prog' wants embedded libusual
+prog_EMBED_LIBUSUAL = 1
+
+# Load Antimake plugin that handles libusual embedding
+AM_FEATURES = libusual
+
+# launch Antimake
+include $(USUAL_DIR)/mk/antimake.mk
+-----------------------------------
+
+Build the project
+
+---------------------------------
+$ make
+     CC       prog.c
+     CC       lib/usual/base.c
+     CC       lib/usual/hashing/crc32.c
+     CCLD     prog
+$ ls
+Makefile  lib  prog  prog.c
+$ ./prog
+crc: 12345678
+$ make clean
+     CLEAN    prog
+$ ls
+Makefile  lib  prog.c
+---------------------------------
+
+Done
+

@@ -7,7 +7,6 @@ import pytest
 from psycopg.rows import dict_row
 
 
-@pytest.mark.asyncio
 async def test_max_client_conn(bouncer):
     bouncer.default_db = "p1"
     bouncer.admin(f"set max_client_conn=5")
@@ -181,7 +180,6 @@ def test_max_db_client_connections_positive(bouncer, test_db: str, test_user) ->
     conn.close()
 
 
-@pytest.mark.asyncio
 async def test_pool_size(pg, bouncer):
     # per user pool_size
     await bouncer.asleep(0.5, dbname="p0a", user="poolsize1", times=3)
@@ -205,7 +203,6 @@ async def test_pool_size(pg, bouncer):
     assert pg.connection_count("p1") == 7
 
 
-@pytest.mark.asyncio
 async def test_min_pool_size(pg, bouncer):
     # uncommenting the db that has "forced" maintenance enabled
     # by not having this db enabled we avoid polluting other tests
@@ -517,7 +514,6 @@ def test_min_pool_size_with_lower_max_db_connections(bouncer):
             bouncer.sleep(2, dbname="p0y", user="puser1")
 
 
-@pytest.mark.asyncio
 async def test_reserve_pool_size(pg, bouncer):
     bouncer.admin("set reserve_pool_size = 3")
     bouncer.admin("set reserve_pool_timeout = 2")
@@ -537,7 +533,6 @@ async def test_reserve_pool_size(pg, bouncer):
         await result
 
 
-@pytest.mark.asyncio
 async def test_user_reserve_pool_size(pg, bouncer):
     bouncer.admin("set reserve_pool_timeout = 2")
 
@@ -556,7 +551,6 @@ async def test_user_reserve_pool_size(pg, bouncer):
         await result
 
 
-@pytest.mark.asyncio
 async def test_database_reserve_pool_size(pg, bouncer):
     bouncer.admin("set reserve_pool_timeout = 2")
 
@@ -575,7 +569,6 @@ async def test_database_reserve_pool_size(pg, bouncer):
         await result
 
 
-@pytest.mark.asyncio
 async def test_database_reserve_pool_size_old_param(pg, bouncer):
     bouncer.admin("set reserve_pool_timeout = 2")
 
@@ -594,7 +587,6 @@ async def test_database_reserve_pool_size_old_param(pg, bouncer):
         await result
 
 
-@pytest.mark.asyncio
 async def test_max_db_connections(pg, bouncer):
     # some users, doesn't matter which ones
     users = ["muser1", "muser2", "puser1", "puser2", "postgres"]
@@ -608,7 +600,6 @@ async def test_max_db_connections(pg, bouncer):
     assert pg.connection_count("p0", users=users) == 4
 
 
-@pytest.mark.asyncio
 async def test_max_user_connections(pg, bouncer):
     # some users, doesn't matter which ones
     dbnames = ["p7a", "p7b", "p7c"]

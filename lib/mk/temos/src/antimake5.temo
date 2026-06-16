@@ -1,0 +1,119 @@
+
+. ./libtemo.sh || exit 1
+
+test_start
+
+title Shared libraries and autoconf
+
+msg Autoconf setup
+
+cat_file autogen.sh <<"EOF"
+	../../std-autogen.sh ../../..
+
+	# fetch Antimake template from libusual
+	cp ../../antimake.mk antimake.mk.in
+EOF
+
+cat_file configure.ac <<"EOF"
+	AC_INIT([actest], [0.1])
+	AC_CONFIG_SRCDIR([prog.c])
+	AC_PREREQ([2.59])
+
+	LT_INIT
+	AC_USUAL_INIT
+
+	AC_USUAL_PROGRAM_CHECK
+
+	AC_OUTPUT([antimake.mk])
+EOF
+
+msg Here are the source files:
+
+cat_file prog.c <<"EOF"
+	void func1(void);
+	int main(void)
+	{
+		func1();
+		return 0;
+	}
+EOF
+
+cat_file func.c <<"EOF"
+	#include <stdio.h>
+
+	void func1(void);
+	void func1(void)
+	{
+		printf("hello from func1\n");
+	}
+EOF
+
+msg Antimake based Makefile
+
+cat_file Makefile <<"EOF"
+	lib_LTLIBRARIES = libtemo.la
+	libtemo_la_SOURCES = func.c
+	libtemo_la_LDFLAGS = -version-info 3:0:2
+
+	bin_PROGRAMS = prog
+	prog_SOURCES = prog.c
+	prog_LDADD = libtemo.la
+
+	# clean configured files
+	DISTCLEANFILES = \
+		config.status \
+		config.log \
+		antimake.mk \
+		libtool
+
+	# clean generated files
+	MAINTAINERCLEANFILES = \
+		configure \
+		config.guess \
+		config.sub \
+		install-sh \
+		antimake.mk.in \
+		ltmain.sh
+
+	EXTRA_DIST = \
+		Makefile \
+		$(MAINTAINERCLEANFILES)
+
+	# launch Antimake
+	include antimake.mk
+EOF
+
+msg Build the project
+runq sh ./autogen.sh
+runq ./configure
+run make
+run ls
+run ./prog
+
+msg Create distribution package
+run make dist
+run 'tar tzf actest-0.1.tar.gz | sort'
+
+msg Test installation
+run 'make install DESTDIR=/tmp/test-inst'
+run ls
+run 'find /tmp/test-inst | sort'
+run rm -rf /tmp/test-inst
+
+msg Test the distribution package and separate build dir
+run mkdir -p test
+run cd test
+run tar xf ../actest-0.1.tar.gz
+run mkdir build
+run cd build
+runq ../actest-0.1/configure
+run make
+run ls
+run ./prog
+run cd ../..
+
+msg Clean up
+run make maintainer-clean
+run ls
+
+msg Done

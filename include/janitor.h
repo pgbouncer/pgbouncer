@@ -25,3 +25,4 @@ void kill_pool(PgPool *pool);
 void kill_peer_pool(PgPool *pool);
 void kill_database(PgDatabase *db);
 void kill_peer(PgDatabase *db);
+void clear_user_tree_cached_scram_keys(struct AATree *tree);

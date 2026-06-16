@@ -5,7 +5,7 @@ import psycopg
 import pytest
 from psycopg.rows import dict_row
 
-from .utils import capture, run
+from .utils import Bouncer, capture, run
 
 
 def test_reload_error(bouncer):
@@ -38,6 +38,41 @@ def test_reload_error(bouncer):
             match=r"RELOAD failed, see logs for additional details",
         ):
             bouncer.admin("RELOAD")
+
+
+def test_show_user(bouncer):
+    """
+    Test `SHOW USERS` command.
+
+    Specifically we are trying to fix a bug where pool_size and reserve_pool_size
+    would take its value from the previous row if a pool_size was not set for a later
+    user. In this case test2's pool_size should not be impacted by test1's value.
+    """
+    config = f"""
+    [databases]
+    p1 = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    auth_file = {bouncer.auth_path}
+    auth_type = trust
+    auth_user = postgres
+    listen_addr = {bouncer.host}
+    listen_port = {bouncer.port}
+    admin_users = pgbouncer
+    pool_mode = session
+
+    [users]
+    test1 = pool_size=1 reserve_pool_size=1
+    test2 =
+    """
+
+    with bouncer.run_with_config(config):
+        users = bouncer.admin(f"SHOW USERS", row_factory=dict_row)
+        users = [user for user in users if user["name"] in ["test1", "test2"]]
+        assert ["1", ""] == [user["pool_size"].lstrip().rstrip() for user in users]
+        assert ["1", ""] == [
+            user["reserve_pool_size"].lstrip().rstrip() for user in users
+        ]
 
 
 def test_show(bouncer):
@@ -243,6 +278,72 @@ def test_client_states(bouncer):
     conn_1.close()
 
 
+def test_kill_db(bouncer: "Bouncer"):
+    # Connect to client as user A
+    conn_1 = bouncer.conn(dbname="p0", user="maxedout")
+
+    # Connect to client as user B
+    conn_2 = bouncer.conn(dbname="p0", user="maxedout")
+
+    # Validate count
+    clients = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)
+    assert len(clients) == 3
+
+    # Issue kill command
+    bouncer.admin("KILL p0")
+
+    # Validate count
+    clients = bouncer.admin("SHOW CLIENTS")
+    assert len(clients) == 1
+
+    conn_1.close()
+    conn_2.close()
+
+
+def test_kill_db_nonexisting(bouncer: "Bouncer"):
+    # Connect to client as user A
+    conn_1 = bouncer.conn(dbname="p0", user="maxedout")
+
+    # Validate count
+    clients = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)
+    assert len(clients) == 2
+
+    # Issue kill command
+    with pytest.raises(
+        psycopg.errors.ProtocolViolation,
+        match=r"no such database: dne",
+    ):
+        clients = bouncer.admin("KILL dne")
+
+    # Validate count
+    clients = bouncer.admin("SHOW CLIENTS")
+    assert len(clients) == 2
+
+    conn_1.close()
+
+
+def test_kill_all(bouncer: "Bouncer"):
+    # Connect to client as user A to first database
+    conn_1 = bouncer.conn(dbname="p0", user="maxedout")
+
+    # Connect to client as user B to second database
+    conn_2 = bouncer.conn(dbname="p1", user="maxedout")
+
+    # Validate count
+    clients = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)
+    assert len(clients) == 3
+
+    # Issue kill command
+    bouncer.admin("KILL")
+
+    # Validate count
+    clients = bouncer.admin("SHOW CLIENTS")
+    assert len(clients) == 1
+
+    conn_1.close()
+    conn_2.close()
+
+
 def test_kill_client_nonexisting(bouncer):
     # Connect to client as user A
     conn_1 = bouncer.conn(dbname="p0", user="maxedout")
@@ -344,6 +445,7 @@ def test_show_stats(bouncer):
     assert p3_stats is not None
     # 5 connection attempts (and thus assignments)
     assert p3_stats["total_server_assignment_count"] == 5
+    assert p3_stats["total_client_login_count"] == 5
     # 4 autocommit queries + 2 transactions
     assert p3_stats["total_xact_count"] == 6
     # 11 SELECT 1 + 2 times COMMIT and ROLLBACK
@@ -354,14 +456,17 @@ def test_show_stats(bouncer):
     assert p3_stats is not None
     # 5 connection attempts (and thus assignments)
     assert p3_stats["server_assignment_count"] == 5
+    assert p3_stats["client_login_count"] == 5
     # 4 autocommit queries + 2 transactions
     assert p3_stats["xact_count"] == 6
     # 11 SELECT 1 + 2 times COMMIT and ROLLBACK
     assert p3_stats["query_count"] == 15
 
     totals = bouncer.admin("SHOW TOTALS")
-    # 5 connection attempts (and thus assignments)
+    # 5 p3 connection attempts (and thus assignments)
     assert ("total_server_assignment_count", 5) in totals
+    # 5 p3 connections + 3 admin connections from this test + 1 admin connection from Bouncer.wait_until_running()
+    assert ("total_client_login_count", 9) in totals
     # 4 autocommit queries + 2 transactions + 4 admin commands
     assert ("total_xact_count", 10) in totals
     # 11 SELECT 1 + 2 times COMMIT and ROLLBACK + 4 admin commands

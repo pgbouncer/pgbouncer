@@ -22,6 +22,7 @@
 
 #include "bouncer.h"
 #include "scram.h"
+#include "common/sha2.h"
 
 /*
  * parse protocol header from struct MBuf
@@ -134,6 +135,113 @@ bool get_header(struct MBuf *data, PktHdr *pkt)
 
 	/* tag header as read */
 	return mbuf_get_bytes(&pkt->data, got, &ptr);
+}
+
+const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
+{
+	const uint8_t *bin = data->data + data->read_pos;
+	unsigned int dlen;
+
+	dlen = mbuf_avail_for_read(data);
+	return bin2hex(bin, dlen, buf, buflen);
+}
+
+static void pkt_cb_disconnect(PgSocket *sk, const char *reason)
+{
+	/*
+	 * The callback state machine is shared between client and server
+	 * sockets, so pick the right disconnect variant based on the socket
+	 * type.
+	 */
+	if (is_server_socket(sk))
+		disconnect_server(sk, true, "%s", reason);
+	else
+		disconnect_client(sk, true, "%s", reason);
+}
+
+/*
+ * Shared handler for the SBUF_EV_PKT_CALLBACK event on both client and server
+ * sockets.
+ *
+ * It reassembles a packet that is too large to fit in the sbuf into the
+ * dynamically sized sk->packet_cb_state.pkt buffer across multiple event loop
+ * ticks.  Once the full packet has been buffered it is dispatched to
+ * handle_complete_packet, which is responsible for rewinding the packet body
+ * and calling the appropriate protocol handler.
+ *
+ * If handle_complete_packet returns false the callback state is intentionally
+ * left untouched, so that processing resumes from the same state on the next
+ * call.
+ */
+bool process_pkt_callback(PgSocket *sk, struct MBuf *data,
+			  pkt_handler_cb handle_complete_packet)
+{
+	SBuf *sbuf = &sk->sbuf;
+	struct CallbackState *cb = &sk->packet_cb_state;
+	bool first = false;
+	bool res = false;
+
+	if (cb->pkt.type == 0) {
+		first = true;
+		if (!get_header(data, &cb->pkt)) {
+			char hex[8*2 + 1];
+			char reason[64];
+			snprintf(reason, sizeof(reason), "bad packet header: '%s'",
+				 hdr2hex(data, hex, sizeof(hex)));
+			pkt_cb_disconnect(sk, reason);
+			return false;
+		}
+		mbuf_rewind_reader(data);
+	}
+
+	switch (cb->flag) {
+	case CB_WANT_COMPLETE_PACKET:
+		if (first) {
+			slog_debug(sk,
+				   "buffering complete packet, pkt='%c' len=%d incomplete=%s available=%d",
+				   pkt_desc(&cb->pkt),
+				   cb->pkt.len,
+				   incomplete_pkt(&cb->pkt) ? "true" : "false",
+				   mbuf_avail_for_read(data));
+
+			mbuf_init_dynamic(&cb->pkt.data);
+			if (!mbuf_make_room(&cb->pkt.data, cb->pkt.len))
+				return false;
+		}
+
+		if (!mbuf_write_raw_mbuf(&cb->pkt.data, data))
+			return false;
+
+		if (sbuf->pkt_remain != mbuf_avail_for_read(data)) {
+			/*
+			 * We wrote the partial packet to our temporary buffer. So
+			 * we "handled" it and want to receive more data.
+			 */
+			res = true;
+			break;
+		}
+
+		/*
+		 * We wrote the full packet into memory. Change the callback state
+		 * to indicate that. If anything fails while handling this packet
+		 * we'll continue from the current state in the callback state
+		 * machine.
+		 */
+		cb->flag = CB_HANDLE_COMPLETE_PACKET;
+	/* fallthrough */
+	case CB_HANDLE_COMPLETE_PACKET:
+		res = handle_complete_packet(sk, &cb->pkt);
+		if (!res)
+			return false;
+		cb->flag = CB_NONE;
+		free_header(&cb->pkt);
+		break;
+	default:
+		pkt_cb_disconnect(sk, "BUG: unknown packet callback flag");
+		break;
+	}
+
+	return res;
 }
 
 
@@ -303,6 +411,13 @@ bool welcome_client(PgSocket *client)
 
 	pktbuf_write_BackendKeyData(msg, client->cancel_key);
 
+	if (!(strcmp(cf_login_notify_message, "") == 0)) {
+		pktbuf_write_Notice(
+			msg,
+			cf_login_notify_message
+			);
+	}
+
 	/* finish */
 	pktbuf_write_ReadyForQuery(msg);
 	if (msg->failed) {
@@ -391,7 +506,7 @@ static bool login_scram_sha_256(PgSocket *server)
 		/* ok */
 		break;
 	case PASSWORD_TYPE_SCRAM_SHA_256:
-		if (!credentials->has_scram_keys) {
+		if (!credentials->use_scram_keys) {
 			slog_error(server, "cannot do SCRAM authentication: password is SCRAM secret but client authentication did not provide SCRAM keys");
 			kill_pool_logins(server->pool, NULL, "server login failed: wrong password type");
 			return false;
@@ -425,10 +540,6 @@ static bool login_scram_sha_256_cont(PgSocket *server, unsigned datalen, const u
 	PgCredentials *credentials = get_srv_psw(server);
 	char *ibuf = NULL;
 	char *input;
-	char *server_nonce;
-	int saltlen;
-	char *salt = NULL;
-	int iterations;
 	bool res;
 	char *client_final_message = NULL;
 
@@ -450,15 +561,13 @@ static bool login_scram_sha_256_cont(PgSocket *server, unsigned datalen, const u
 
 	input = ibuf;
 	slog_debug(server, "SCRAM server-first-message = \"%s\"", input);
-	if (!read_server_first_message(server, input,
-				       &server_nonce, &salt, &saltlen, &iterations))
+	if (!read_server_first_message(server, input))
 		goto failed;
 
-	client_final_message = build_client_final_message(&server->scram_state,
-							  credentials, server_nonce,
-							  salt, saltlen, iterations);
-
-	free(salt);
+	client_final_message = build_client_final_message(server,
+							  credentials);
+	if (!client_final_message)
+		goto failed;
 	free(ibuf);
 
 	slog_debug(server, "SCRAM client-final-message = \"%s\"", client_final_message);
@@ -468,7 +577,6 @@ static bool login_scram_sha_256_cont(PgSocket *server, unsigned datalen, const u
 	free(client_final_message);
 	return res;
 failed:
-	free(salt);
 	free(ibuf);
 	free(client_final_message);
 	return false;
@@ -479,7 +587,8 @@ static bool login_scram_sha_256_final(PgSocket *server, unsigned datalen, const 
 	PgCredentials *credentials = get_srv_psw(server);
 	char *ibuf = NULL;
 	char *input;
-	char ServerSignature[SHA256_DIGEST_LENGTH];
+	char ServerSignature[PG_SHA256_DIGEST_LENGTH];
+	bool match = false;
 
 	if (!server->scram_state.server_first_message) {
 		slog_error(server, "protocol error: AuthenticationSASLFinal without prior AuthenticationSASLContinue");
@@ -497,7 +606,12 @@ static bool login_scram_sha_256_final(PgSocket *server, unsigned datalen, const 
 	if (!read_server_final_message(server, input, ServerSignature))
 		goto failed;
 
-	if (!verify_server_signature(&server->scram_state, credentials, ServerSignature)) {
+	if (!verify_server_signature(server, credentials, ServerSignature, &match)) {
+		kill_pool_logins(server->pool, NULL, "server login failed: failed to verify server signature");
+		goto failed;
+	}
+
+	if (!match) {
 		slog_error(server, "invalid server signature");
 		kill_pool_logins(server->pool, NULL, "server login failed: invalid server signature");
 		goto failed;

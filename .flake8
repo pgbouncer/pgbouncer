@@ -4,5 +4,4 @@ max-line-length = 150
 exclude =
     .git,
     __pycache__,
-    lib,
-    uthash
+    lib

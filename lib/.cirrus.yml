@@ -1,0 +1,174 @@
+env:
+  DEBIAN_FRONTEND: noninteractive
+  LANG: C
+
+task:
+  name: Linux (Debian/Ubuntu)
+  matrix:
+    - container:
+        image: ubuntu:20.04
+    - container:
+        image: ubuntu:20.04
+      env:
+        configure_args: '--enable-cassert'
+    - container:
+        image: ubuntu:20.04
+      env:
+        configure_args: '--enable-cassert --with-uregex'
+    - container:
+        image: ubuntu:20.04
+      env:
+        CPPFLAGS: -DUSE_SYSTEMD
+        LIBS: -lsystemd
+    - container:
+        image: ubuntu:20.04
+      env:
+        CC: clang
+    - container:
+        image: ubuntu:20.04
+      env:
+        CFLAGS: -fno-sanitize-recover=all -fsanitize=undefined -fsanitize-address-use-after-scope -fno-sanitize=shift
+    - container:
+        image: ubuntu:20.04
+      env:
+        use_scan_build: yes
+    - arm_container:
+        image: ubuntu:20.04
+    - container:
+        image: ubuntu:22.04
+    - container:
+        image: debian:stable
+    - container:
+        image: debian:oldstable
+  setup_script:
+    - apt-get update
+    - pkgs="autoconf automake ca-certificates libevent-dev libssl-dev libtool make pkg-config"
+    - case $CC in clang) pkgs="$pkgs clang";; esac
+    - case $CPPFLAGS in *USE_SYSTEMD*) pkgs="$pkgs libsystemd-dev";; esac
+    - if [ x"$use_scan_build" = x"yes" ]; then pkgs="$pkgs clang-tools"; fi
+    - apt-get -y install $pkgs
+  build_script:
+    - ./autogen.sh
+    - ${use_scan_build:+scan-build} ./configure --prefix=$HOME/install --enable-werror $configure_args
+    - ${use_scan_build:+scan-build} make
+  test_script:
+    - make check
+  install_script:
+    - make install
+  always:
+    configure_artifacts:
+      path: "config.log"
+      type: text/plain
+
+task:
+  name: Linux (Red Hat)
+  container:
+    matrix:
+      - image: rockylinux:9
+      - image: rockylinux:8
+  setup_script:
+    - yum -y install autoconf automake diffutils file libevent-devel libtool make openssl-devel pkg-config
+  build_script:
+    - ./autogen.sh
+    - ./configure --prefix=$HOME/install --enable-werror
+    - make
+  test_script:
+    - make check
+  install_script:
+    - make install
+  always:
+    configure_artifacts:
+      path: "config.log"
+      type: text/plain
+
+task:
+  name: Linux (Alpine)
+  container:
+    matrix:
+      - image: alpine:latest
+  setup_script:
+    - apk update
+    - apk add autoconf automake build-base libevent-dev libtool openssl-dev pkgconf
+  build_script:
+    - ./autogen.sh
+    - ./configure --prefix=$HOME/install --enable-werror
+    - make
+  test_script:
+    - make check || :  # TODO
+  install_script:
+    - make install
+  always:
+    configure_artifacts:
+      path: "config.log"
+      type: text/plain
+
+task:
+  name: FreeBSD
+  freebsd_instance:
+    image_family: freebsd-14-2
+  setup_script:
+    - pkg install -y autoconf automake gmake libevent libtool pkgconf
+  env:
+    CPPFLAGS: -I/usr/local/include
+    LDFLAGS: -L/usr/local/lib
+    M4: /usr/local/bin/gm4
+  build_script:
+    - ./autogen.sh
+    - ./configure --prefix=$HOME/install --enable-werror
+    - gmake
+  test_script:
+    - gmake check || :  # TODO
+  install_script:
+    - gmake install
+  always:
+    configure_artifacts:
+      path: "config.log"
+      type: text/plain
+
+task:
+  name: macOS
+  macos_instance:
+    image: ghcr.io/cirruslabs/macos-ventura-base:latest
+  setup_script:
+    - brew install autoconf automake libevent libtool openssl pkg-config
+  env:
+    CPPFLAGS: -I/opt/homebrew/opt/openssl@3/include
+    LDFLAGS: -L/opt/homebrew/opt/openssl@3/lib
+  build_script:
+    - ./autogen.sh
+    - ./configure --prefix=$HOME/install --enable-werror
+    - make
+  test_script:
+    - make check || :  # TODO
+  install_script:
+    - make install
+  always:
+    configure_artifacts:
+      path: "config.log"
+      type: text/plain
+
+task:
+  name: Windows
+  windows_container:
+    image: cirrusci/windowsservercore:cmake
+  env:
+    PATH: C:/tools/msys64/usr/bin;%PATH%
+    HOME: .
+  matrix:
+    - env:
+        MSYSTEM: MINGW64
+  setup_script:
+    - choco install -y --no-progress msys2
+    - sh -l -c "pacman --noconfirm -S --needed base-devel ${MINGW_PACKAGE_PREFIX}-toolchain ${MINGW_PACKAGE_PREFIX}-libevent autoconf automake libtool"
+  build_script:
+    - sh -l -c "./autogen.sh"
+    - sh -l -c "./configure --prefix=$HOME/install --enable-werror"
+    - sh -l -c "make"
+  test_script:
+    - sh -l -c "make check || :"  # TODO
+  install_script:
+    - sh -l -c "make install"
+  always:
+    configure_artifacts:
+      path: "config.log"
+      type: text/plain

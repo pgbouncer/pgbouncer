@@ -243,7 +243,7 @@ static bool admin_set(PgSocket *admin, const char *key, const char *val)
 			if (!buf) {
 				return admin_error(admin, "no mem");
 			}
-			if (strstr(key, "_tls_") != NULL) {
+			if (strstr(key, "_tls_") != NULL || strstr(key, "_tls13_") != NULL) {
 				if (!sbuf_tls_setup())
 					pktbuf_write_Notice(buf, "TLS settings could not be applied, still using old configuration");
 			}
@@ -358,7 +358,7 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	if (cf_auth_type == AUTH_TYPE_PAM && !find_global_user(sk->login_user_credentials->name))
 		password = sk->login_user_credentials->passwd;
 
-	if (sk->pool && sk->pool->user_credentials && sk->pool->user_credentials->has_scram_keys)
+	if (sk->pool && sk->pool->user_credentials && sk->pool->user_credentials->use_scram_keys)
 		send_scram_keys = true;
 
 	return send_one_fd(admin, sbuf_socket(&sk->sbuf),
@@ -603,8 +603,6 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 	struct List *item;
 	PktBuf *buf = pktbuf_dynamic(256);
 	struct CfValue cv;
-	char pool_size_str[12] = "";
-	char res_pool_size_str[12] = "";
 	const char *pool_mode_str;
 
 	if (!buf) {
@@ -618,6 +616,8 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 		"max_user_client_connections", "current_client_connections");
 	statlist_for_each(item, &user_list) {
 		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
+		char pool_size_str[12] = "";
+		char res_pool_size_str[12] = "";
 		if (user->pool_size >= 0)
 			snprintf(pool_size_str, sizeof(pool_size_str), "%9d", user->pool_size);
 		if (user->res_pool_size >= 0)
@@ -1200,7 +1200,7 @@ static bool admin_cmd_shutdown(PgSocket *admin, const char *arg)
 		} else {
 			log_info("SHUTDOWN WAIT_FOR_CLIENTS command issued");
 		}
-		cleanup_sockets();
+		cleanup_tcp_sockets();
 		return admin_ready(admin, "SHUTDOWN");
 	}
 }
@@ -1367,7 +1367,7 @@ static bool admin_cmd_enable(PgSocket *admin, const char *arg)
 	if (db == NULL)
 		return admin_error(admin, "no such database: %s", arg);
 	if (db->admin)
-		return admin_error(admin, "cannot disable admin db: %s", arg);
+		return admin_error(admin, "cannot enable admin db: %s", arg);
 
 	db->db_disabled = false;
 	return admin_ready(admin, "ENABLE");
@@ -1436,6 +1436,9 @@ static bool admin_cmd_kill_client(PgSocket *admin, const char *arg)
 	PgSocket *kill_client;
 	unsigned long long int target_id = 0;
 
+	if (!admin->admin_user)
+		return admin_error(admin, "admin access needed");
+
 	if (sscanf(arg, "%llu", &target_id) != 1) {
 		return admin_error(admin, "invalid client pointer supplied");
 	}
@@ -1452,7 +1455,6 @@ static bool admin_cmd_kill_client(PgSocket *admin, const char *arg)
 static bool admin_cmd_kill(PgSocket *admin, const char *arg)
 {
 	struct List *item, *tmp;
-	PgDatabase *db;
 	PgPool *pool;
 
 	if (!admin->admin_user)
@@ -1461,21 +1463,34 @@ static bool admin_cmd_kill(PgSocket *admin, const char *arg)
 	if (cf_pause_mode)
 		return admin_error(admin, "already suspended/paused");
 
-	if (!arg[0])
-		return admin_error(admin, "a database is required");
+	if (!arg[0]) {
+		log_info("KILL command issued");
 
-	log_info("KILL '%s' command issued", arg);
-	db = find_or_register_database(admin, arg);
-	if (db == NULL)
-		return admin_error(admin, "no such database: %s", arg);
-	if (db == admin->pool->db)
-		return admin_error(admin, "cannot kill admin db: %s", arg);
+		statlist_for_each_safe(item, &pool_list, tmp) {
+			pool = container_of(item, PgPool, head);
+			if (pool->db->admin)
+				continue;
 
-	db->db_paused = true;
-	statlist_for_each_safe(item, &pool_list, tmp) {
-		pool = container_of(item, PgPool, head);
-		if (pool->db == db)
+			pool->db->db_paused = true;
 			kill_pool(pool);
+		}
+	} else {
+		PgDatabase *db;
+
+		log_info("KILL '%s' command issued", arg);
+
+		db = find_or_register_database(admin, arg);
+		if (db == NULL)
+			return admin_error(admin, "no such database: %s", arg);
+		if (db == admin->pool->db)
+			return admin_error(admin, "cannot kill admin db: %s", arg);
+
+		db->db_paused = true;
+		statlist_for_each_safe(item, &pool_list, tmp) {
+			pool = container_of(item, PgPool, head);
+			if (pool->db == db)
+				kill_pool(pool);
+		}
 	}
 
 	return admin_ready(admin, "KILL");
@@ -1584,7 +1599,7 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		     "\tDISABLE <db>\n"
 		     "\tENABLE <db>\n"
 		     "\tRECONNECT [<db>]\n"
-		     "\tKILL <db>\n"
+		     "\tKILL [<db>]\n"
 		     "\tKILL_CLIENT <client_id>\n"
 		     "\tSUSPEND\n"
 		     "\tSHUTDOWN\n"

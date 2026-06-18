@@ -94,6 +94,7 @@ char *cf_config_file;
 char *cf_listen_addr;
 int cf_listen_port;
 int cf_listen_backlog;
+int cf_accept_batch;
 char *cf_unix_socket_dir;
 int cf_unix_socket_mode;
 char *cf_unix_socket_group;
@@ -261,6 +262,7 @@ const struct CfLookup load_balance_hosts_map[] = {
  * Add new parameters in alphabetical order. This order is used by SHOW CONFIG.
  */
 static const struct CfKey bouncer_params [] = {
+	CF_ABS("accept_batch", CF_INT, cf_accept_batch, 0, "0"),
 	CF_ABS("admin_users", CF_STR, cf_admin_users, 0, ""),
 	CF_ABS("application_name_add_host", CF_INT, cf_application_name_add_host, 0, "0"),
 	CF_ABS("auth_dbname", CF_AUTHDB, cf_auth_dbname, 0, NULL),

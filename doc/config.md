@@ -1087,6 +1087,14 @@ Default: 10
 
 ## Low-level network settings
 
+### accept_batch
+
+Maximum number of client connections to accept from a single listening socket in
+one event loop iteration. 0 means no limit, so PgBouncer accepts connections
+until the accept queue is empty.
+
+Default: 0
+
 ### pkt_buf
 
 Internal buffer size for packets. Affects size of TCP packets sent and general

@@ -367,6 +367,7 @@ static void pool_accept(evutil_socket_t sock, short flags, void *arg)
 	} raddr;
 	socklen_t len = sizeof(raddr);
 	bool is_unix = pga_is_unix(&ls->addr);
+	int accepted = 0;
 
 	if (!(flags & EV_READ)) {
 		log_warning("no EV_READ in pool_accept");
@@ -401,6 +402,9 @@ loop:
 
 	if (client)
 		slog_debug(client, "P: got connection: %s", conninfo(client));
+
+	if (cf_accept_batch > 0 && ++accepted >= cf_accept_batch)
+		return;
 
 	/*
 	 * there may be several clients waiting,

@@ -14,6 +14,16 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
+/*
+ * OpenSSL < 1.1.1 has no TLSv1.3 cipher-suite API (and no TLS 1.3 at all),
+ * so SSL_CTX_set_ciphersuites() is undefined there. No-op it to allow
+ * building on e.g. OpenSSL 1.1.0 (Debian 9). Returns 1 (success) so the
+ * caller proceeds; on 1.1.0 there is no TLS 1.3 to configure anyway.
+ */
+#if OPENSSL_VERSION_NUMBER < 0x10101000L && !defined(LIBRESSL_VERSION_NUMBER)
+#define SSL_CTX_set_ciphersuites(c, s) (1)
+#endif
+
 #include <stdbool.h>
 
 bool get_ecdh_curve_nid(EVP_PKEY *pk, int *nid);

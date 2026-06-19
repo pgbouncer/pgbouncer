@@ -711,6 +711,7 @@ static PgPool *new_pool(PgDatabase *db, PgCredentials *user_credentials)
 
 	pool->user_credentials = user_credentials;
 	pool->db = db;
+	pool->last_active_time = get_cached_time();
 
 	statlist_init(&pool->active_client_list, "active_client_list");
 	statlist_init(&pool->waiting_client_list, "waiting_client_list");

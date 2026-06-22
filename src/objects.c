@@ -1214,6 +1214,7 @@ bool release_server(PgSocket *server)
 	case SV_BEING_CANCELED:
 	case SV_ACTIVE:
 		if (server->link) {
+			server->link->copy_mode = false;
 			server->link->link = NULL;
 			server->link = NULL;
 		}
@@ -2052,6 +2053,7 @@ bool finish_client_login(PgSocket *client)
 	switch (client->state) {
 	case CL_LOGIN:
 		change_client_state(client, CL_ACTIVE);
+		client->pool->stats.client_login_count++;
 	case CL_ACTIVE:
 		break;
 	default:
@@ -2342,7 +2344,7 @@ bool use_client_socket(int fd, PgAddr *addr,
 
 		memcpy(credentials->scram_ClientKey, scram_client_key, sizeof(credentials->scram_ClientKey));
 		memcpy(credentials->scram_ServerKey, scram_server_key, sizeof(credentials->scram_ServerKey));
-		credentials->use_scram_keys = true;
+		credentials->scram_passthrough_valid = true;
 	}
 
 	client = accept_client(fd, pga_is_unix(addr));

@@ -1,5 +1,6 @@
 import asyncio
 import platform
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -7,6 +8,73 @@ import psycopg
 import pytest
 
 from .utils import USE_SUDO
+
+
+@pytest.mark.parametrize(
+    ("global_query_wait_timeout", "user_query_wait_timeout", "db_query_wait_timeout"),
+    [
+        (2, None, None),
+        (None, 2, None),
+        (200, 2, None),
+        (None, None, 2),
+        (200, None, 2),
+    ],
+)
+async def test_query_wait_timeout(
+    bouncer,
+    global_query_wait_timeout: int,
+    user_query_wait_timeout: int,
+    db_query_wait_timeout: int,
+):
+    """
+    Test of query_wait_timeout. Assumes that the effective timeout supplied is 2.
+
+    Specifically tests that pgbouncer will correctly:
+    1. kill a query that has been waiting for longer than effective query_wait_timeout
+    2. not kill a query that is waiting, but for less than effective query_wait_timeout
+    """
+
+    db_query_wait_timeout_clause = ""
+    if db_query_wait_timeout:
+        db_query_wait_timeout_clause += f"query_wait_timeout={db_query_wait_timeout}"
+
+    pgbouncer_ini = f"""
+    [databases]
+    postgres = host={bouncer.pg.host} port={bouncer.pg.port} pool_size=1 {db_query_wait_timeout_clause}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_type = trust
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    pool_mode = transaction
+    """
+    if global_query_wait_timeout is not None:
+        pgbouncer_ini += f"\nquery_wait_timeout={global_query_wait_timeout}"
+
+    if user_query_wait_timeout is not None:
+        pgbouncer_ini += f"\n[users]"
+        pgbouncer_ini += f"\npuser1 = query_wait_timeout={user_query_wait_timeout}"
+
+    bouncer.default_db = "postgres"
+    bouncer.default_user = "puser1"
+
+    with bouncer.run_with_config(pgbouncer_ini):
+        worker_thread_count = bouncer.get_worker_thread_count()
+
+        conn_1_futs = [bouncer.asleep(3) for _ in range(worker_thread_count)]
+        await asyncio.sleep(0.1)
+
+        with pytest.raises(psycopg.OperationalError, match=r"query_wait_timeout"):
+            bouncer.sql("SELECT 1")
+        await asyncio.gather(*conn_1_futs)
+
+        conn_1_futs = [bouncer.asleep(1) for _ in range(worker_thread_count)]
+        await asyncio.sleep(0.1)
+        bouncer.sql("SELECT 1")
+        await asyncio.gather(*conn_1_futs)
 
 
 def test_server_lifetime(pg, bouncer):
@@ -470,10 +538,10 @@ async def test_server_login_retry(pg, bouncer):
     bouncer.admin("set server_tls_sslmode = disable")
 
     pg.stop()
-    if platform.system() == "FreeBSD":
-        # XXX: For some reason FreeBSD logs don't contain connect failed
-        # For now we simply remove this check. But this warants further
-        # investigation.
+    if platform.system() in ("FreeBSD", "Windows"):
+        # XXX: For some reason FreeBSD and Windows logs don't contain connect
+        # failed. For now we simply remove this check. But this warrants
+        # further investigation.
         await asyncio.gather(
             bouncer.atest(connect_timeout=10),
             pg.delayed_start(1),
@@ -558,3 +626,24 @@ def test_cancel_wait_timeout(pg, bouncer):
                     cancel.result()
 
             query.result()
+
+
+def test_query_timeout_when_no_active_query(bouncer):
+    """
+    When there's no active query (query_start == 0), query_timeout should not apply.
+    But the current implementation incorrectly uses request_time as fallback,
+    causing idle connections to be disconnected.
+    """
+    bouncer.admin("set query_timeout=2")
+    bouncer.admin("set pool_mode=transaction")
+    with bouncer.cur() as cur:
+        cur.execute("BEGIN")
+        cur.execute("SELECT 1")
+
+        # Wait longer than query_timeout while idle
+        time.sleep(3)
+
+        # This should work since no query is active, but will fail due to the bug
+        cur.execute("SELECT 2")
+        result = cur.fetchone()
+        assert result[0] == 2

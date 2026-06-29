@@ -36,6 +36,8 @@ static void reset_stats(PgStats *stat)
 	stat->ps_client_parse_count = 0;
 	stat->ps_server_parse_count = 0;
 	stat->ps_bind_count = 0;
+
+	stat->client_login_count = 0;
 }
 
 static void stat_add(PgStats *total, PgStats *stat)
@@ -52,6 +54,8 @@ static void stat_add(PgStats *total, PgStats *stat)
 	total->ps_client_parse_count += stat->ps_client_parse_count;
 	total->ps_server_parse_count += stat->ps_server_parse_count;
 	total->ps_bind_count += stat->ps_bind_count;
+
+	total->client_login_count += stat->client_login_count;
 }
 
 static void calc_average(PgStats *avg, PgStats *cur, PgStats *old, usec_t current_time)
@@ -62,6 +66,7 @@ static void calc_average(PgStats *avg, PgStats *cur, PgStats *old, usec_t curren
 	uint64_t ps_client_parse_count;
 	uint64_t ps_server_parse_count;
 	uint64_t ps_bind_count;
+	uint64_t client_login_count;
 	usec_t dur;
 
 	dur = current_time - old_stamp;
@@ -98,25 +103,30 @@ static void calc_average(PgStats *avg, PgStats *cur, PgStats *old, usec_t curren
 	avg->ps_client_parse_count = USEC * ps_client_parse_count / dur;
 	avg->ps_server_parse_count = USEC * ps_server_parse_count / dur;
 	avg->ps_bind_count = USEC * ps_bind_count / dur;
+
+	client_login_count = cur->client_login_count - old->client_login_count;
+	avg->client_login_count = USEC * client_login_count / dur;
 }
 
 static void write_stats(PktBuf *buf, PgStats *stat, PgStats *old, char *dbname, int thread_id)
 {
 	PgStats avg;
 	calc_average(&avg, stat, old, get_worker_thread_time(thread_id));
-	pktbuf_write_DataRow(buf, "sNNNNNNNNNNNNNNNNNNNNNNi", dbname,
+	pktbuf_write_DataRow(buf, "sNNNNNNNNNNNNNNNNNNNNNNNNi", dbname,
 			     stat->server_assignment_count,
 			     stat->xact_count, stat->query_count,
 			     stat->client_bytes, stat->server_bytes,
 			     stat->xact_time, stat->query_time,
 			     stat->wait_time, stat->ps_client_parse_count,
 			     stat->ps_server_parse_count, stat->ps_bind_count,
+			     stat->client_login_count,
 			     avg.server_assignment_count,
 			     avg.xact_count, avg.query_count,
 			     avg.client_bytes, avg.server_bytes,
 			     avg.xact_time, avg.query_time,
 			     avg.wait_time, avg.ps_client_parse_count,
 			     avg.ps_server_parse_count, avg.ps_bind_count,
+			     avg.client_login_count,
 			     thread_id);
 }
 
@@ -164,19 +174,21 @@ bool admin_database_stats(PgSocket *client)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "sNNNNNNNNNNNNNNNNNNNNNNi", "database",
+	pktbuf_write_RowDescription(buf, "sNNNNNNNNNNNNNNNNNNNNNNNNi", "database",
 				    "total_server_assignment_count",
 				    "total_xact_count", "total_query_count",
 				    "total_received", "total_sent",
 				    "total_xact_time", "total_query_time",
 				    "total_wait_time", "total_client_parse_count",
 				    "total_server_parse_count", "total_bind_count",
+				    "total_client_login_count",
 				    "avg_server_assignment_count",
 				    "avg_xact_count", "avg_query_count",
 				    "avg_recv", "avg_sent",
 				    "avg_xact_time", "avg_query_time",
 				    "avg_wait_time", "avg_client_parse_count",
 				    "avg_server_parse_count", "avg_bind_count",
+				    "avg_client_login_count",
 				    "thread_id");
 
 	FOR_EACH_WORKER_THREAD(thread_id) {
@@ -193,13 +205,14 @@ bool admin_database_stats(PgSocket *client)
 
 static void write_stats_totals(PktBuf *buf, PgStats *stat, PgStats *old, char *dbname, int thread_id)
 {
-	pktbuf_write_DataRow(buf, "sNNNNNNNNNNNi", dbname,
+	pktbuf_write_DataRow(buf, "sNNNNNNNNNNNNi", dbname,
 			     stat->server_assignment_count,
 			     stat->xact_count, stat->query_count,
 			     stat->client_bytes, stat->server_bytes,
 			     stat->xact_time, stat->query_time,
 			     stat->wait_time, stat->ps_client_parse_count,
 			     stat->ps_server_parse_count, stat->ps_bind_count,
+			     stat->client_login_count,
 			     thread_id);
 }
 
@@ -212,13 +225,14 @@ bool admin_database_stats_totals(PgSocket *client)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "sNNNNNNNNNNNi", "database",
+	pktbuf_write_RowDescription(buf, "sNNNNNNNNNNNNi", "database",
 				    "server_assignment_count",
 				    "xact_count", "query_count",
 				    "bytes_received", "bytes_sent",
 				    "xact_time", "query_time",
 				    "wait_time", "client_parse_count",
 				    "server_parse_count", "bind_count",
+				    "client_login_count",
 				    "thread_id");
 
 	FOR_EACH_WORKER_THREAD(thread_id) {
@@ -236,13 +250,14 @@ static void write_stats_averages(PktBuf *buf, PgStats *stat, PgStats *old, char 
 {
 	PgStats avg;
 	calc_average(&avg, stat, old, get_worker_thread_time(thread_id));
-	pktbuf_write_DataRow(buf, "sNNNNNNNNNNNi", dbname,
+	pktbuf_write_DataRow(buf, "sNNNNNNNNNNNNi", dbname,
 			     avg.server_assignment_count,
 			     avg.xact_count, avg.query_count,
 			     avg.client_bytes, avg.server_bytes,
 			     avg.xact_time, avg.query_time,
 			     avg.wait_time, avg.ps_client_parse_count,
 			     avg.ps_server_parse_count, avg.ps_bind_count,
+			     avg.client_login_count,
 			     thread_id);
 }
 
@@ -255,13 +270,14 @@ bool admin_database_stats_averages(PgSocket *client)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "sNNNNNNNNNNNi", "database",
+	pktbuf_write_RowDescription(buf, "sNNNNNNNNNNNNi", "database",
 				    "server_assignment_count",
 				    "xact_count", "query_count",
 				    "bytes_received", "bytes_sent",
 				    "xact_time", "query_time",
 				    "wait_time", "avg_client_parse_count",
 				    "avg_server_parse_count", "avg_bind_count",
+				    "avg_client_login_count",
 				    "thread_id");
 
 	FOR_EACH_WORKER_THREAD(thread_id) {
@@ -318,6 +334,7 @@ bool show_stat_totals(PgSocket *client)
 	WTOTAL(ps_client_parse_count);
 	WTOTAL(ps_server_parse_count);
 	WTOTAL(ps_bind_count);
+	WTOTAL(client_login_count);
 	WAVG(server_assignment_count);
 	WAVG(xact_count);
 	WAVG(query_count);
@@ -329,6 +346,7 @@ bool show_stat_totals(PgSocket *client)
 	WAVG(ps_client_parse_count);
 	WAVG(ps_server_parse_count);
 	WAVG(ps_bind_count);
+	WAVG(client_login_count);
 
 	admin_flush(client, buf, "SHOW");
 	return true;
@@ -367,6 +385,7 @@ static void refresh_stats(evutil_socket_t s, short flags, void *arg)
 			" %" PRIu64 " client parses/s,"
 			" %" PRIu64 " server parses/s,"
 			" %" PRIu64 " binds/s,"
+			" %" PRIu64 " client logins/s,"
 			" in %" PRIu64 " B/s,"
 			" out %" PRIu64 " B/s,"
 			" xact %" PRIu64 " us,"
@@ -377,6 +396,7 @@ static void refresh_stats(evutil_socket_t s, short flags, void *arg)
 			avg.ps_client_parse_count,
 			avg.ps_server_parse_count,
 			avg.ps_bind_count,
+			avg.client_login_count,
 			avg.client_bytes, avg.server_bytes,
 			avg.xact_time, avg.query_time,
 			avg.wait_time);
@@ -388,6 +408,7 @@ static void refresh_stats(evutil_socket_t s, short flags, void *arg)
 		   " %" PRIu64 " client parses/s,"
 		   " %" PRIu64 " server parses/s,"
 		   " %" PRIu64 " binds/s,"
+		   " %" PRIu64 " client logins/s,"
 		   " in %" PRIu64 " B/s,"
 		   " out %" PRIu64 " B/s,"
 		   " xact %" PRIu64 " μs,"
@@ -398,6 +419,7 @@ static void refresh_stats(evutil_socket_t s, short flags, void *arg)
 		   avg.ps_client_parse_count,
 		   avg.ps_server_parse_count,
 		   avg.ps_bind_count,
+		   avg.client_login_count,
 		   avg.client_bytes, avg.server_bytes,
 		   avg.xact_time, avg.query_time,
 		   avg.wait_time);

@@ -455,9 +455,32 @@ static PgCredentials *get_srv_psw(PgSocket *server)
 /* actual packet send */
 static bool send_password(PgSocket *server, const char *enc_psw)
 {
-	bool res;
-	SEND_PasswordMessage(res, server, enc_psw);
-	return res;
+	PktBuf *buf;
+
+	/*
+	 * A cleartext password can be up to MAX_PASSWORD bytes, which is far
+	 * larger than the socket send buffer. We can't use pktbuf_send_immediate
+	 * for that: it does a single non-blocking send and treats a partial
+	 * write as a failure. So build the packet on the heap and send it
+	 * through the queued path, which flushes the remainder from the event
+	 * loop instead of blocking it. pktbuf_send_queued frees buf.
+	 *
+	 * Start small and let it grow: most passwords (and the md5 hash this
+	 * also sends) are tiny, so we avoid allocating a MAX_PASSWORD-sized
+	 * buffer on every server login.
+	 */
+	buf = pktbuf_dynamic(512);
+	if (!buf) {
+		disconnect_server(server, false, "out of memory");
+		return false;
+	}
+	pktbuf_write_PasswordMessage(buf, enc_psw);
+	if (buf->failed) {
+		pktbuf_free(buf);
+		disconnect_server(server, false, "out of memory");
+		return false;
+	}
+	return pktbuf_send_queued(buf, server);
 }
 
 static bool login_clear_psw(PgSocket *server)

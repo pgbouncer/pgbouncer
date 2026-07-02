@@ -28,15 +28,6 @@
 #include <usual/pgutil.h>
 #include <usual/slab.h>
 
-static const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen)
-{
-	const uint8_t *bin = data->data + data->read_pos;
-	unsigned int dlen;
-
-	dlen = mbuf_avail_for_read(data);
-	return bin2hex(bin, dlen, buf, buflen);
-}
-
 /*
  * Get authentication database for the current client. The order of preference is:
  *   client->db->auth_dbname: per client authentication database
@@ -1080,10 +1071,12 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 		}
 	}
 
-	if (pkt->type == PKT_STARTUP_V3_UNSUPPORTED || unsupported_protocol_extensions_count > 0) {
+	if ((pkt->type == PKT_STARTUP_V3_UNSUPPORTED || unsupported_protocol_extensions_count > 0)
+	    && !client->protocol_negotiated) {
 		PktBuf *buf = pktbuf_dynamic(512);
 		int res;
 
+		client->protocol_negotiated = true;
 		pktbuf_write_NegotiateProtocolVersion(
 			buf,
 			unsupported_protocol_extensions_count,
@@ -1091,8 +1084,8 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 			unsupported_protocol_extensions.write_pos
 			);
 		res = pktbuf_send_immediate(buf, client);
+		pktbuf_free(buf);
 		if (!res) {
-			pktbuf_free(buf);
 			disconnect_client(client, false, "unable to send protocol negotiation packet");
 			return false;
 		}
@@ -1353,7 +1346,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 						memcpy(client->pool->user_credentials->scram_ServerKey,
 						       client->scram_state.ServerKey,
 						       sizeof(client->scram_state.ServerKey));
-						client->pool->user_credentials->use_scram_keys = true;
+						client->pool->user_credentials->scram_passthrough_valid = true;
 					}
 
 					free_scram_state(&client->scram_state);
@@ -1458,7 +1451,22 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	/* copy end markers */
 	case PqMsg_CopyDone:
 	case PqMsg_CopyFail:
-		track_outstanding = true;
+		if (!client->link) {
+			slog_debug(client, "discarding late %s, server not linked",
+				   pkt->type == PqMsg_CopyDone ? "CopyDone" : "CopyFail");
+			sbuf_prepare_skip(sbuf, pkt->len);
+			return true;
+		}
+		/*
+		 * Only track as outstanding if the server is still in copy
+		 * mode.  When the server already sent ErrorResponse (clearing
+		 * server->copy_mode), the CopyDone just feeds PostgreSQL's
+		 * pq_endcopyin drain loop — no CommandComplete will follow,
+		 * so we must not create a phantom outstanding request.
+		 */
+		if (client->link->copy_mode)
+			track_outstanding = true;
+		client->copy_mode = false;
 		break;
 
 	/*
@@ -1502,6 +1510,11 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		break;
 
 	case PqMsg_CopyData:
+		if (!client->link) {
+			slog_debug(client, "discarding late CopyData, server not linked");
+			sbuf_prepare_skip(sbuf, pkt->len);
+			return true;
+		}
 		break;
 
 	/* client wants to go away */
@@ -1702,6 +1715,18 @@ static bool expect_startup_packet(PgSocket *client)
 }
 
 
+/* dispatch a fully buffered packet, see process_pkt_callback() */
+static bool client_handle_complete_packet(PgSocket *client, PktHdr *pkt)
+{
+	/* Make sure we start reading after the header. */
+	if (expect_startup_packet(client)) {
+		pkt_rewind_v2(pkt);
+		return handle_client_startup(client, pkt);
+	}
+	pkt_rewind_v3(pkt);
+	return handle_client_work(client, pkt);
+}
+
 /* callback from SBuf */
 bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 {
@@ -1779,76 +1804,8 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		/* client is not interested in it */
 		break;
 	case SBUF_EV_PKT_CALLBACK:
-	{
-		bool first = false;
-		if (client->packet_cb_state.pkt.type == 0) {
-			first = true;
-			if (!get_header(data, &client->packet_cb_state.pkt)) {
-				char hex[8*2 + 1];
-				disconnect_client(client, true, "bad packet header: '%s'",
-						  hdr2hex(data, hex, sizeof(hex)));
-				return false;
-			}
-			mbuf_rewind_reader(data);
-		}
-
-		switch (client->packet_cb_state.flag) {
-		case CB_WANT_COMPLETE_PACKET:
-			if (first) {
-				slog_debug(client,
-					   "buffering complete packet, pkt='%c' len=%d incomplete=%s available=%d",
-					   pkt_desc(&client->packet_cb_state.pkt),
-					   client->packet_cb_state.pkt.len,
-					   incomplete_pkt(&client->packet_cb_state.pkt) ? "true" : "false",
-					   mbuf_avail_for_read(data));
-
-				mbuf_init_dynamic(&client->packet_cb_state.pkt.data);
-				if (!mbuf_make_room(&client->packet_cb_state.pkt.data, client->packet_cb_state.pkt.len))
-					return false;
-			}
-
-			if (!mbuf_write_raw_mbuf(&client->packet_cb_state.pkt.data, data))
-				return false;
-
-			if (sbuf->pkt_remain != mbuf_avail_for_read(data)) {
-				/*
-				 * We wrote the partial packet to our temporary buffer. So
-				 * we "handled" it and want to receive more data.
-				 */
-				res = true;
-				break;
-			}
-
-			/*
-			 * We wrote the full packet into memory. Change the callback state
-			 * to indicate that. If anything fails while handling this packet
-			 * we'll continue from the current state in the callback state
-			 * machine.
-			 */
-			client->packet_cb_state.flag = CB_HANDLE_COMPLETE_PACKET;
-		/* fallthrough */
-		case CB_HANDLE_COMPLETE_PACKET:
-			/* Make sure we start reading after the header. */
-			if (expect_startup_packet(client)) {
-				pkt_rewind_v2(&client->packet_cb_state.pkt);
-				res = handle_client_startup(client, &client->packet_cb_state.pkt);
-			} else {
-				pkt_rewind_v3(&client->packet_cb_state.pkt);
-				res = handle_client_work(client, &client->packet_cb_state.pkt);
-			}
-			if (!res) {
-				return false;
-			}
-
-			client->packet_cb_state.flag = CB_NONE;
-			free_header(&client->packet_cb_state.pkt);
-			break;
-		default:
-			disconnect_client(client, true, "BUG: unknown packet callback flag");
-			break;
-		}
+		res = process_pkt_callback(client, data, client_handle_complete_packet);
 		break;
-	}
 	case SBUF_EV_TLS_READY:
 		sbuf_continue(&client->sbuf);
 		res = true;

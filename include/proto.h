@@ -39,6 +39,18 @@ struct PktHdr {
 
 bool get_header(struct MBuf *data, PktHdr *pkt) _MUSTCHECK;
 
+/* render the unparsed bytes of a packet header as hex, for error messages */
+const char *hdr2hex(const struct MBuf *data, char *buf, unsigned buflen);
+
+/*
+ * Dispatches a fully buffered packet to the appropriate protocol handler. It
+ * is responsible for rewinding the packet body to the start before handling.
+ */
+typedef bool (*pkt_handler_cb)(PgSocket *sk, PktHdr *pkt);
+
+/* shared SBUF_EV_PKT_CALLBACK handler for client and server sockets */
+bool process_pkt_callback(PgSocket *sk, struct MBuf *data, pkt_handler_cb handle_complete_packet) _MUSTCHECK;
+
 bool send_pooler_error(PgSocket *client, bool send_ready, const char *sqlstate, bool level_fatal, const char *msg) /*_MUSTCHECK*/;
 void log_server_error(const char *note, PktHdr *pkt);
 void parse_server_error(PktHdr *pkt, const char **level_p, const char **msg_p, const char **sqlstate_p);

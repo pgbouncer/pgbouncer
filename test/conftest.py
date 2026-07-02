@@ -1,4 +1,3 @@
-import asyncio
 import os
 import shutil
 
@@ -13,7 +12,6 @@ from .utils import (
     TEST_DIR,
     TLS_SUPPORT,
     USE_SUDO,
-    WINDOWS,
     Bouncer,
     OpenLDAP,
     Postgres,
@@ -21,18 +19,6 @@ from .utils import (
     run,
     sudo,
 )
-
-if WINDOWS:
-    # psycopg only works with a SelectorEventLoop, but on Windows the default is
-    # the ProactorEventLoop. We used to force this by setting
-    # WindowsSelectorEventLoopPolicy, but the event loop policy machinery is
-    # deprecated in Python 3.14 and removed in 3.16. Handing pytest-asyncio a
-    # loop factory is the supported replacement. On other platforms the default
-    # already is a SelectorEventLoop, so we don't define the hook there (an
-    # implementation that returns anything other than a non-empty mapping is an
-    # error), leaving pytest-asyncio's loop selection untouched.
-    def pytest_asyncio_loop_factories():
-        return {"selector": asyncio.SelectorEventLoop}
 
 
 def add_qdisc():

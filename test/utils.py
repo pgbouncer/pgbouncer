@@ -54,8 +54,22 @@ if os.name == "nt":
     USE_UNIX_SOCKETS = False
     HAVE_GETPEEREID = False
     WINDOWS = True
-    # psycopg only works with a SelectorEventLoop, which pytest-asyncio is told
-    # to create through the pytest_asyncio_loop_factories hook in conftest.py.
+
+    # psycopg only works with a SelectorEventLoop, but on Windows asyncio
+    # defaults to the ProactorEventLoop. Setting the policy changes the
+    # process-wide default loop type, which is what we need here: most of our
+    # tests are synchronous but pull in async fixtures (e.g. bouncer), and
+    # pytest-asyncio runs those fixtures on the default loop.
+    #
+    # pytest-asyncio's newer pytest_asyncio_loop_factories hook can't replace
+    # this: it only steers the loop for async *tests*, not for async fixtures
+    # used by sync tests, which is the bulk of our suite. The event loop policy
+    # machinery is deprecated in Python 3.14 and removed in 3.16, so this needs
+    # revisiting for 3.16; until then the DeprecationWarning is ignored via
+    # filterwarnings in pyproject.toml.
+    from asyncio import WindowsSelectorEventLoopPolicy
+
+    asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
 else:
     USE_UNIX_SOCKETS = True
     HAVE_GETPEEREID = True

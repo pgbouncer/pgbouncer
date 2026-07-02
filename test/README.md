@@ -6,8 +6,8 @@ Tests
 To be able to run most of the tests you need a few Python tools. They are
 declared in the `pyproject.toml` at the root of the repository: the main
 dependencies are what the test suite needs, and the optional `dev` extra adds
-the formatters and linters used by `make format-check`/`make lint`. You can
-install them with either `pip` or `uv`.
+`ruff`, which is used for formatting and linting by `make format-check`/`make
+lint`. You can install them with either `pip` or `uv`.
 
 ### Option 1: With `pip`
 

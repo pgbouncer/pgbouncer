@@ -62,7 +62,6 @@ async def test_query_wait_timeout(
     bouncer.default_user = "puser1"
 
     with bouncer.run_with_config(pgbouncer_ini):
-
         conn_1_fut = bouncer.asleep(3)
         await asyncio.sleep(0.1)
 

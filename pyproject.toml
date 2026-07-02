@@ -23,10 +23,7 @@ dependencies = [
 # Needed for `make format-check` and `make lint`; install with `pip install .[dev]`.
 [project.optional-dependencies]
 dev = [
-    "black",
-    "flake8",
-    "flake8-bugbear",
-    "isort",
+    "ruff",
 ]
 
 [build-system]
@@ -79,5 +76,18 @@ filterwarnings = [
     # https://docs.pytest.org/en/latest/how-to/capture-warnings.html#controlling-warnings
 ]
 
-[tool.isort]
-profile = 'black'
+# ruff replaces black (formatting), isort (import sorting) and flake8 +
+# flake8-bugbear (linting). `make format` runs `ruff format`, `make lint` runs
+# `ruff check`.
+[tool.ruff]
+# lib/ is the vendored libusual C library plus its build helpers; nothing there
+# is ours to format or lint.
+extend-exclude = ["lib"]
+
+[tool.ruff.lint]
+# Ruff's default rules (a subset of pycodestyle E + pyflakes F); "I" adds
+# import sorting, replacing isort.
+extend-select = ["I"]
+# F401 (unused import) and F541 (f-string without placeholders) were ignored
+# under the old flake8 config and the test suite still relies on that.
+ignore = ["F401", "F541"]

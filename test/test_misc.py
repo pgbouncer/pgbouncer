@@ -9,6 +9,7 @@ import pytest
 from .utils import (
     HAVE_IPV6_LOCALHOST,
     LINUX,
+    LONG_PASSWORD,
     PG_MAJOR_VERSION,
     PG_SUPPORTS_SCRAM,
     PKT_BUF_SIZE,
@@ -629,7 +630,7 @@ def test_options_startup_param(bouncer):
     )
 
 
-def test_startup_packet_larger_than_pktbuf(bouncer):
+def test_startup_message_larger_than_pktbuf(bouncer):
     long_string = "1" * PKT_BUF_SIZE
     bouncer.test(options=f"-c extra_float_digits={long_string}")
 

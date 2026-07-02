@@ -709,6 +709,9 @@ struct PgSocket {
 					   client: in copy-in stream, expecting CopyData/CopyDone/CopyFail */
 
 	bool wait_for_welcome : 1;	/* client: no server yet in pool, cannot send welcome msg */
+	bool startup_message_received : 1;	/* client: the StartupMessage has been processed, so all
+						   following packets use V3 framing instead of the V2
+						   framing the StartupMessage */
 	bool welcome_sent : 1;		/* client: client has been sent the welcome msg */
 	bool protocol_negotiated : 1;	/* client: NegotiateProtocolVersion already sent */
 	bool wait_for_user_conn : 1;	/* client: waiting for auth_conn server connection */

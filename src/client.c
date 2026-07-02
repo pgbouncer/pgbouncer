@@ -321,6 +321,23 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 	int auth;
 	struct HBARule *rule = NULL;
 
+	/*
+	 * Reaching finish_set_pool means the StartupMessage has been fully
+	 * processed and we're moving on to authentication, so every following
+	 * packet from the client uses V3 framing. We track this to pick the
+	 * right header size when reassembling packets too large for pkt_buf.
+	 *
+	 * This is the single convergence point for all the ways a login can
+	 * proceed (directly, deferred while waiting for a server, or resumed
+	 * after an auth_query), so it's the reliable place to record it. It's
+	 * deliberately not set earlier, in the PKT_STARTUP_V3 handling: an
+	 * auth_query bails out of that handling before finish_set_pool and
+	 * leaves the buffered startup packet to be rewound and re-handled once
+	 * the query completes, so setting it there would make that re-handling
+	 * rewind the V2 startup packet as if it were V3.
+	 */
+	client->startup_message_received = true;
+
 	if (!client->login_user_credentials->mock_auth && !client->db->fake) {
 		PgCredentials *pool_user_credentials;
 
@@ -1689,10 +1706,15 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 
 
 /*
- * expect_startup_packet chooses returns true if we expect a startup packet and
- * false if we expect a regular packet.
+ * in_connection_startup_phase returns true while the client is still starting
+ * up its connection, so its packets should be dispatched to
+ * handle_client_startup (which handles both the StartupMessage and the
+ * password/SASL exchange that follows). It returns false once the client is
+ * fully logged in and sending regular queries. This is about which handler to
+ * use, not about the wire framing of the next packet (that is tracked
+ * separately by client->startup_message_received).
  */
-static bool expect_startup_packet(PgSocket *client)
+static bool in_connection_startup_phase(PgSocket *client)
 {
 	switch (client->state) {
 	case CL_LOGIN:
@@ -1718,12 +1740,13 @@ static bool expect_startup_packet(PgSocket *client)
 /* dispatch a fully buffered packet, see process_pkt_callback() */
 static bool client_handle_complete_packet(PgSocket *client, PktHdr *pkt)
 {
-	/* Make sure we start reading after the header. */
-	if (expect_startup_packet(client)) {
+	if (client->startup_message_received)
+		pkt_rewind_v3(pkt);
+	else
 		pkt_rewind_v2(pkt);
+
+	if (in_connection_startup_phase(client))
 		return handle_client_startup(client, pkt);
-	}
-	pkt_rewind_v3(pkt);
 	return handle_client_work(client, pkt);
 }
 
@@ -1793,7 +1816,7 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		}
 
 		client->request_time = get_cached_time();
-		if (expect_startup_packet(client)) {
+		if (in_connection_startup_phase(client)) {
 			res = handle_client_startup(client, &pkt);
 		} else {
 			res = handle_client_work(client, &pkt);

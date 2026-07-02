@@ -711,7 +711,7 @@ bool answer_authreq(PgSocket *server, PktHdr *pkt)
 	return res;
 }
 
-bool send_startup_packet(PgSocket *server)
+bool send_startup_message(PgSocket *server)
 {
 	PgPool *pool = server->pool;
 	PgDatabase *db = pool->db;

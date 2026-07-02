@@ -1,74 +1,107 @@
-project('PgBouncer',
+project('pgbouncer',
         ['c'],
-        version: '1.24.1',
+        version: '1.25.2',
         license: 'ISC',
+        meson_version: '>= 0.60',
+        default_options: [
+          # We manage the warning flags explicitly below to match the set the
+          # autoconf build used, so keep meson from injecting its own. The C
+          # standard is deliberately left at the compiler default (as the
+          # autoconf build did): forcing an older -std would make clang flag
+          # the code's typedef redefinitions as a "C11 feature".
+          'warning_level=0',
+        ],
 )
 
 cc = meson.get_compiler('c')
+fs = import('fs')
+host_system = host_machine.system()
+windows = host_system == 'windows'
 
 not_found_dep = dependency('', required: false)
 
 cdata = configuration_data()
 
+# ----------------------------------------------------------------------
+# Package metadata (mirrors AC_INIT / config.mak.in)
+# ----------------------------------------------------------------------
 
-libcares = dependency('libcares', required: false)
-libevent = dependency('libevent', required: true)
-openssl = dependency('openssl', required: false)
+cdata.set_quoted('PACKAGE_NAME', 'PgBouncer')
+cdata.set_quoted('PACKAGE_TARNAME', 'pgbouncer')
+cdata.set_quoted('PACKAGE_VERSION', meson.project_version())
+cdata.set_quoted('PACKAGE_STRING', 'PgBouncer @0@'.format(meson.project_version()))
+cdata.set_quoted('PACKAGE_URL', 'https://www.pgbouncer.org/')
+cdata.set_quoted('PACKAGE_BUGREPORT', 'https://github.com/pgbouncer/pgbouncer/issues')
 
-#
-# cares option
-#
-libcares = not_found_dep
-caresopt = get_option('cares')
-libcares = dependency('libcares', required: caresopt, version: '>= 1.6.0')
-cdata.set('USE_CARES', libcares.found() ? 1 : false,
-          description: 'Use c-ares for name resolution.')
+# Windows resource files want the version as a comma separated 4-tuple.
+version_parts = meson.project_version().split('.')
+if version_parts.length() == 1
+  version_parts += ['0', '0', '0']
+elif version_parts.length() == 2
+  version_parts += ['0', '0']
+elif version_parts.length() == 3
+  version_parts += ['0']
+endif
+cdata.set('PACKAGE_VERSION_4B', ','.join(version_parts),
+          description: 'Version of this package for the Windows resource file (1,2,3,4).')
 
-#
-# systemd option
-#
-systemd = not_found_dep
-systemdopt = get_option('systemd')
-systemdopt = systemdopt.disable_auto_if(host_machine.system() != 'linux')
-systemd = dependency('libsystemd', required: systemdopt)
-cdata.set('USE_SYSTEMD', systemd.found() ? 1 : false,
-          description: 'Define to build with systemd support. (-Dsystemd=enabled)')
-
+# ----------------------------------------------------------------------
+# Basic environment defines (mirrors AC_USUAL_INIT / AC_USUAL_TYPE_CHECK)
+# ----------------------------------------------------------------------
 
 cdata.set('_GNU_SOURCE', 1,
           description: 'Define to get some GNU functions in headers.')
+cdata.set('STDC_HEADERS', 1)
+# Always request a 64-bit off_t. Harmless on 64-bit platforms and required on
+# 32-bit ones (replaces autoconf's AC_SYS_LARGEFILE).
+cdata.set('_FILE_OFFSET_BITS', 64)
 
-cdata.set('CASSERT', get_option('cassert') ? 1 : false,
-          description: 'Define to enable assert checking')
+if windows
+  cdata.set('WIN32_LEAN_AND_MEAN', 1,
+            description: 'Define to request cleaner win32 headers.')
+  cdata.set('WINVER', '0x0600',
+            description: 'Define to max win32 API version (0x0600=Vista).')
+endif
 
-check_funcs = [
-  'arc4random_buf',
-  'getentropy',
-  'getopt',
-  'getopt_long',
-  'getrandom',
-  'inet_ntop',
-  'inet_pton',
-  'lstat',
-  'poll',
-  'regcomp',
-  'sigaction',
-  'strerror_r',
-  'strlcpy',
-]
+if host_machine.endian() == 'big'
+  cdata.set('WORDS_BIGENDIAN', 1,
+            description: 'Define to 1 on big-endian hosts.')
+endif
 
-foreach func : check_funcs
-  found = cc.has_function(func)
-  cdata.set('HAVE_' + func.to_upper(), found ? 1 : false,
-           description: 'Define to 1 if you have the `@0@\' function.'.format(func))
+# pid_t/uid_t/gid_t fall back to int when the platform lacks them.
+foreach t : [['pid_t', 'int'], ['uid_t', 'int'], ['gid_t', 'int']]
+  if not cc.has_type(t[0], prefix: '#include <sys/types.h>')
+    cdata.set(t[0], t[1])
+  endif
 endforeach
 
-cdata.set('HAVE_PTHREAD', 1)
+# ----------------------------------------------------------------------
+# Header checks (mirrors AC_USUAL_HEADER_CHECK + pgbouncer extras)
+# ----------------------------------------------------------------------
+
+# ucred.h / sys/ucred.h have prerequisites on some platforms.
+ucred_prefix = '''
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#ifdef HAVE_SYS_PARAM_H
+#include <sys/param.h>
+#endif
+'''
 
 header_checks = [
   'arpa/inet.h',
+  'byteswap.h',
+  'dlfcn.h',
+  'endian.h',
+  'err.h',
+  'fnmatch.h',
   'getopt.h',
   'grp.h',
+  'inttypes.h',
+  'langinfo.h',
+  'linux/random.h',
+  'malloc.h',
   'netdb.h',
   'netinet/in.h',
   'netinet/tcp.h',
@@ -76,75 +109,381 @@ header_checks = [
   'pthread.h',
   'pwd.h',
   'regex.h',
+  'stdint.h',
+  'stdio.h',
+  'stdlib.h',
+  'string.h',
+  'strings.h',
   'syslog.h',
+  'sys/endian.h',
+  'sys/mman.h',
   'sys/param.h',
   'sys/resource.h',
   'sys/socket.h',
+  'sys/stat.h',
   'sys/time.h',
   'sys/types.h',
-  'sys/ucred.h',
+  'sys/uio.h',
   'sys/un.h',
-  'ucred.h',
+  'sys/wait.h',
   'unistd.h',
+  'xlocale.h',
 ]
 
 foreach header : header_checks
   varname = 'HAVE_' + header.underscorify().to_upper()
-
-  found = cc.has_header(header)
-  cdata.set(varname, found ? 1 : false,
+  cdata.set(varname, cc.has_header(header) ? 1 : false,
             description: 'Define to 1 if you have the <@0@> header file.'.format(header))
 endforeach
 
-cdata.set('OPENSSL_API_COMPAT', '0x00908000L',
-          description: 'Define to the OpenSSL API version in use. This avoids deprecation warnings from newer OpenSSL versions.')
-cdata.set('USUAL_LIBSSL_FOR_TLS', 1)
-cdata.set_quoted('USUAL_TLS_CA_FILE', get_option('root-ca-file'))
+foreach header : ['ucred.h', 'sys/ucred.h']
+  varname = 'HAVE_' + header.underscorify().to_upper()
+  cdata.set(varname, cc.has_header(header, prefix: ucred_prefix) ? 1 : false,
+            description: 'Define to 1 if you have the <@0@> header file.'.format(header))
+endforeach
 
-cdata.set_quoted('PACKAGE_BUGREPORT', 'https://github.com/pgbouncer/pgbouncer/issues',
-                 description: 'Define to the address where bug reports for this package should be sent.')
-cdata.set_quoted('PACKAGE_NAME', meson.project_name(),
-                 description: 'Define to the full name of this package.')
-cdata.set_quoted('PACKAGE_STRING', '@0@ @1@'.format(meson.project_name(), meson.project_version()),
-                 description: 'Define to the full name and version of this package.')
-cdata.set_quoted('PACKAGE_URL', 'https://www.pgbouncer.org/',
-                 description: 'Define to the home page for this package.')
-cdata.set_quoted('PACKAGE_VERSION', meson.project_version(),
-                 description: 'Define to the version of this package.')
+# ----------------------------------------------------------------------
+# Function checks (mirrors AC_USUAL_FUNCTION_CHECK + pgbouncer extras)
+# ----------------------------------------------------------------------
 
-cdata.set('USE_CARES', 1)
+check_funcs = [
+  'arc4random_buf',
+  'asprintf',
+  'err',
+  'errx',
+  'explicit_bzero',
+  'ffs',
+  'ffsl',
+  'ffsll',
+  'fls',
+  'flsl',
+  'flsll',
+  'fnmatch',
+  'getentropy',
+  'getline',
+  'getopt',
+  'getopt_long',
+  'getopt_long_only',
+  'getpeereid',
+  'getpeerucred',
+  'getprogname',
+  'getrandom',
+  'getrusage',
+  'gettimeofday',
+  'inet_ntop',
+  'inet_pton',
+  'localtime_r',
+  'lstat',
+  'mbsnrtowcs',
+  'memalign',
+  'memmem',
+  'mempcpy',
+  'memrchr',
+  'memset_s',
+  'mmap',
+  'nl_langinfo',
+  'poll',
+  'posix_memalign',
+  'reallocarray',
+  'recvmsg',
+  'regcomp',
+  'sendmsg',
+  'setprogname',
+  'sigaction',
+  'sigqueue',
+  'strlcat',
+  'strlcpy',
+  'strsep',
+  'strtod_l',
+  'strtonum',
+  'syslog',
+  'timegm',
+  'usleep',
+  'valloc',
+  'vasprintf',
+  'warn',
+  'warnx',
+]
 
+foreach func : check_funcs
+  cdata.set('HAVE_' + func.to_upper(), cc.has_function(func, args: '-D_GNU_SOURCE') ? 1 : false,
+            description: 'Define to 1 if you have the `@0@\' function.'.format(func))
+endforeach
 
-# FIXME: cannot write 'lib/usual/config.h' here
-config_h = configure_file(output: 'test_config.h',
-                          configuration: cdata,
-                         )
-add_project_arguments('-DUSUAL_TEST_CONFIG', language: ['c'])
+# strerror_r: is it declared, and does it return char * (GNU) or int (XSI)?
+cdata.set('HAVE_STRERROR_R',
+          cc.has_function('strerror_r', args: '-D_GNU_SOURCE') ? 1 : false)
+cdata.set('HAVE_DECL_STRERROR_R',
+          cc.has_header_symbol('string.h', 'strerror_r', args: '-D_GNU_SOURCE') ? 1 : 0)
+strerror_r_char_p = cc.compiles('''
+#define _GNU_SOURCE
+#include <string.h>
+int main(void) {
+    char buf[100];
+    char *p = strerror_r(0, buf, sizeof(buf));
+    return !p;
+}
+''', name: 'strerror_r returns char *')
+cdata.set('STRERROR_R_CHAR_P', strerror_r_char_p ? 1 : false,
+          description: 'Define to 1 if strerror_r returns char *.')
 
+# Native be/le enc/dec helpers (be16enc, le32dec, ...).
+encdec_args = []
+if cc.has_header('endian.h')
+  encdec_args += '-DHAVE_ENDIAN_H'
+endif
+if cc.has_header('sys/endian.h')
+  encdec_args += '-DHAVE_SYS_ENDIAN_H'
+endif
+have_encdec = cc.links('''
+#include <sys/types.h>
+#ifdef HAVE_SYS_ENDIAN_H
+#include <sys/endian.h>
+#endif
+#ifdef HAVE_ENDIAN_H
+#include <endian.h>
+#endif
+char p[] = "01234567";
+int main(void) {
+    be16enc(p, 0); be32enc(p, 1); be64enc(p, 2);
+    le16enc(p, 2); le32enc(p, 3); le64enc(p, 4);
+    return (int)(be16dec(p) + be32dec(p) + be64dec(p)) +
+           (int)(le16dec(p) + le32dec(p) + le64dec(p));
+}
+''', args: encdec_args, name: 'be/le enc/dec functions')
+cdata.set('HAVE_ENCDEC_FUNCS', have_encdec ? 1 : false,
+          description: 'Define if *enc & *dec functions are available.')
 
-cc = meson.get_compiler('c')
+# ----------------------------------------------------------------------
+# Threads (needed for PAM/LDAP and the getaddrinfo_a compat fallback)
+# ----------------------------------------------------------------------
+
+threads = dependency('threads')
+cdata.set('HAVE_PTHREAD', cc.has_header('pthread.h') ? 1 : false)
+
+# ----------------------------------------------------------------------
+# assert checking (mirrors AC_USUAL_CASSERT / --enable-cassert)
+# ----------------------------------------------------------------------
+
+cdata.set('CASSERT', get_option('cassert') ? 1 : false,
+          description: 'Define to enable assert checking.')
+
+# ----------------------------------------------------------------------
+# libevent (required)
+# ----------------------------------------------------------------------
+
+libevent = dependency('libevent')
+
+# ----------------------------------------------------------------------
+# OpenSSL / TLS (mirrors AC_USUAL_TLS)
+# ----------------------------------------------------------------------
+
+opensslopt = get_option('openssl')
+openssl = dependency('openssl', required: opensslopt)
+if openssl.found()
+  cdata.set('USUAL_LIBSSL_FOR_TLS', 1, description: 'Use libssl for TLS.')
+  cdata.set('OPENSSL_API_COMPAT', '0x00908000L',
+            description: 'OpenSSL API version in use, to silence deprecation warnings.')
+
+  # LibreSSL-only helpers, used when present.
+  foreach func : ['SSL_CTX_use_certificate_chain_mem', 'SSL_CTX_load_verify_mem', 'asn1_time_parse']
+    cdata.set('HAVE_' + func.to_upper(),
+              cc.has_function(func, dependencies: openssl) ? 1 : false)
+  endforeach
+
+  # Pick a default root CA bundle, unless one was given explicitly.
+  cafile = get_option('root_ca_file')
+  if cafile == ''
+    foreach candidate : [
+      '/etc/ssl/certs/ca-certificates.crt',
+      '/etc/pki/tls/certs/ca-bundle.crt',
+      '/etc/ssl/ca-bundle.pem',
+      '/etc/pki/tls/cacert.pem',
+      '/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem',
+      '/etc/ssl/cert.pem',
+    ]
+      if cafile == '' and fs.is_file(candidate)
+        cafile = candidate
+      endif
+    endforeach
+    if cafile == ''
+      cafile = '/etc/ssl/certs/ca-certificates.crt'
+    endif
+  endif
+  cdata.set_quoted('USUAL_TLS_CA_FILE', cafile, description: 'Path to root CA certs.')
+  message('root CA file: ' + cafile)
+endif
+
+# ----------------------------------------------------------------------
+# systemd (mirrors --with-systemd)
+# ----------------------------------------------------------------------
+
+systemdopt = get_option('systemd').disable_auto_if(host_system != 'linux')
+systemd = dependency('libsystemd', required: systemdopt)
+cdata.set('USE_SYSTEMD', systemd.found() ? 1 : false,
+          description: 'Define to build with systemd support. (-Dsystemd=enabled)')
+
+# ----------------------------------------------------------------------
+# PAM (mirrors --with-pam)
+# ----------------------------------------------------------------------
+
+pamopt = get_option('pam')
+pam = not_found_dep
+if pamopt.allowed()
+  pam = cc.find_library('pam', required: pamopt, has_headers: ['security/pam_appl.h'])
+endif
+if pam.found()
+  cdata.set('HAVE_PAM', 1, description: 'PAM support.')
+  cdata.set('HAVE_SECURITY_PAM_APPL_H', 1)
+endif
+
+# ----------------------------------------------------------------------
+# LDAP (mirrors --with-ldap)
+# ----------------------------------------------------------------------
+
+ldapopt = get_option('ldap')
+ldap = not_found_dep
+if ldapopt.allowed()
+  ldap = cc.find_library('ldap', required: ldapopt, has_headers: ['ldap.h'])
+endif
+if ldap.found()
+  cdata.set('HAVE_LDAP', 1, description: 'LDAP support.')
+  cdata.set('HAVE_LDAP_H', 1)
+endif
+
+# ----------------------------------------------------------------------
+# DNS backend selection (mirrors the DNS section of configure.ac)
+#
+# Order of preference: c-ares, then libevent's evdns, then the libc /
+# getaddrinfo_a based compat path. Exactly one USE_* macro is defined so that
+# src/dnslookup.c selects a single implementation.
+# ----------------------------------------------------------------------
+
+caresopt = get_option('cares')
+libcares = dependency('libcares', required: caresopt, version: '>= 1.9.0')
+
+adns = ''
+dns_deps = []
+if libcares.found()
+  adns = 'c-ares'
+  cdata.set('USE_CARES', 1, description: 'Use c-ares for name resolution.')
+  # Portability substitute for arpa/nameser.h, needed mainly for Windows.
+  cdata.set('HAVE_ARES_NAMESER_H',
+            cc.has_header('ares_nameser.h', dependencies: libcares) ? 1 : false)
+elif get_option('evdns')
+  adns = 'evdns'
+  cdata.set('USE_EVDNS', 1, description: 'Use libevent for DNS lookups.')
+else
+  # Compat path: prefer glibc's native getaddrinfo_a, otherwise fall back to
+  # the pthread-based implementation shipped in libusual (lib/usual/netdb.c).
+  # getaddrinfo_a lives in libanl on older glibc and in libc since glibc 2.34,
+  # so the library is optional but linked when present (AC_SEARCH_LIBS(..anl)).
+  libanl = cc.find_library('anl', required: false)
+  have_gaia = cc.links('''
+#define _GNU_SOURCE
+#include <stdio.h>
+#include <netdb.h>
+int main(void) {
+#if defined(__GLIBC_PREREQ) && __GLIBC_PREREQ(2,9)
+    getaddrinfo_a(0, NULL, 0, NULL);
+    return 0;
+#else
+    return broken;
+#endif
+}
+''', dependencies: libanl, name: 'native getaddrinfo_a')
+  if have_gaia
+    adns = 'libc'
+    cdata.set('HAVE_GETADDRINFO_A', 1,
+              description: 'Define to 1 if you have the getaddrinfo_a() function.')
+    dns_deps = [libanl]
+  else
+    adns = 'compat (pthread)'
+  endif
+endif
+
+# ----------------------------------------------------------------------
+# Generate the config header.
+#
+# libusual normally includes <usual/config.h>; when USUAL_TEST_CONFIG is set it
+# includes "test_config.h" instead (see lib/usual/base.h). We use that hook so
+# the generated header lands in the build directory rather than the source tree.
+# ----------------------------------------------------------------------
+
+config_h = configure_file(output: 'test_config.h', configuration: cdata)
+add_project_arguments('-DUSUAL_TEST_CONFIG', language: 'c')
+
+# ----------------------------------------------------------------------
+# Warning flags (mirrors the WFLAGS antimake enables)
+# ----------------------------------------------------------------------
+
+# Exact WFLAGS set the autoconf build selected (see AC_USUAL_* in lib/m4/usual.m4).
+# Matching it matters because CI builds with -Werror (meson's -Dwerror=true), so a
+# stricter set here would fail on warnings the autoconf build deliberately silenced
+# (notably -Wno-missing-field-initializers). get_supported_arguments mirrors the
+# per-flag compile probe autoconf does.
+warning_flags = [
+  '-Wall',
+  '-Wextra',
+  # turn off noise from -Wextra
+  '-Wno-unused-parameter',
+  '-Wno-missing-field-initializers',
+  # things -Wextra does not turn on by itself
+  '-Wmissing-prototypes',
+  '-Wpointer-arith',
+  '-Wendif-labels',
+  '-Wdeclaration-after-statement',
+  '-Wold-style-definition',
+  '-Wstrict-prototypes',
+  '-Wundef',
+  '-Wformat=2',
+  '-Wuninitialized',
+  '-Wmissing-format-attribute',
+]
+add_project_arguments(cc.get_supported_arguments(warning_flags), language: 'c')
+
+# ----------------------------------------------------------------------
+# Sources
+#
+# The libusual file set matches what antimake's find_modules.sh selects for
+# pgbouncer (i.e. the modules actually reached through #include <usual/...>).
+# The TLS files are always compiled; their bodies are guarded by
+# USUAL_LIBSSL_FOR_TLS and collapse to nothing when OpenSSL is disabled.
+# ----------------------------------------------------------------------
 
 libusual_sources = files(
   'lib/usual/aatree.c',
   'lib/usual/base.c',
   'lib/usual/cbtree.c',
   'lib/usual/cfparser.c',
+  'lib/usual/crypto/chacha.c',
+  'lib/usual/crypto/csrandom.c',
+  'lib/usual/crypto/digest.c',
+  'lib/usual/crypto/entropy.c',
+  'lib/usual/crypto/keccak.c',
+  'lib/usual/crypto/keccak_prng.c',
+  'lib/usual/crypto/md5.c',
   'lib/usual/cxalloc.c',
   'lib/usual/cxextra.c',
   'lib/usual/err.c',
   'lib/usual/fileutil.c',
+  'lib/usual/getopt.c',
+  'lib/usual/list.c',
   'lib/usual/logging.c',
   'lib/usual/mbuf.c',
+  'lib/usual/mempool.c',
+  'lib/usual/netdb.c',
   'lib/usual/pgutil.c',
+  'lib/usual/regex.c',
   'lib/usual/safeio.c',
+  'lib/usual/signal.c',
   'lib/usual/slab.c',
   'lib/usual/socket.c',
+  'lib/usual/socket_ntop.c',
+  'lib/usual/socket_pton.c',
   'lib/usual/string.c',
   'lib/usual/strpool.c',
   'lib/usual/time.c',
-  'lib/usual/crypto/csrandom.c',
-  'lib/usual/crypto/keccak.c',
-  'lib/usual/crypto/keccak_prng.c',
   'lib/usual/tls/tls.c',
   'lib/usual/tls/tls_cert.c',
   'lib/usual/tls/tls_client.c',
@@ -158,64 +497,134 @@ libusual_sources = files(
   'lib/usual/tls/tls_verify.c',
 )
 
-pgbouncer = executable('pgbouncer',
-           'src/admin.c',
-           'src/client.c',
-           'src/dnslookup.c',
-           'src/hba.c',
-           'src/janitor.c',
-           'src/ldapauth.c',
-           'src/loader.c',
-           'src/messages.c',
-           'src/main.c',
-           'src/objects.c',
-           'src/pam.c',
-           'src/pktbuf.c',
-           'src/pooler.c',
-           'src/proto.c',
-           'src/prepare.c',
-           'src/sbuf.c',
-           'src/scram.c',
-           'src/server.c',
-           'src/stats.c',
-           'src/system.c',
-           'src/takeover.c',
-           'src/util.c',
-           'src/varcache.c',
-           'src/common/base64.c',
-           'src/common/bool.c',
-           'src/common/cryptohash.c',
-           'src/common/hmac.c',
-           'src/common/pgstrcasecmp.c',
-           'src/common/saslprep.c',
-           'src/common/scram-common.c',
-           'src/common/sha2.c',
-           'src/common/string.c',
-           'src/common/unicode_norm.c',
-           'src/common/wchar.c',
-           libusual_sources,
-           config_h,
-
-           include_directories: ['include', 'lib'],
-           install: true,
-           dependencies: [libcares, libevent, openssl, systemd],
+pgbouncer_sources = files(
+  'src/admin.c',
+  'src/client.c',
+  'src/dnslookup.c',
+  'src/hba.c',
+  'src/janitor.c',
+  'src/ldapauth.c',
+  'src/loader.c',
+  'src/main.c',
+  'src/messages.c',
+  'src/objects.c',
+  'src/pam.c',
+  'src/pktbuf.c',
+  'src/pooler.c',
+  'src/prepare.c',
+  'src/proto.c',
+  'src/sbuf.c',
+  'src/scram.c',
+  'src/server.c',
+  'src/stats.c',
+  'src/system.c',
+  'src/takeover.c',
+  'src/util.c',
+  'src/varcache.c',
+  'src/common/base64.c',
+  'src/common/bool.c',
+  'src/common/cryptohash.c',
+  'src/common/hmac.c',
+  'src/common/pgstrcasecmp.c',
+  'src/common/saslprep.c',
+  'src/common/scram-common.c',
+  'src/common/sha2.c',
+  'src/common/string.c',
+  'src/common/unicode_norm.c',
+  'src/common/wchar.c',
 )
 
-pandoc = find_program('pandoc', required: true, native: true)
-python = find_program('python3', 'python', required: true, native: true)
+pgbouncer_deps = [
+  libcares,
+  libevent,
+  openssl,
+  systemd,
+  pam,
+  ldap,
+  threads,
+] + dns_deps
 
-subdir('doc')
+if windows
+  # Winsock and the IP helper API, linked via LIBS in the autoconf build.
+  pgbouncer_deps += cc.find_library('ws2_32')
+  pgbouncer_deps += cc.find_library('iphlpapi')
+endif
+
+# '.' brings in the build root (where the generated test_config.h lives).
+if windows
+  pgbouncer_incdirs = include_directories('.', 'include', 'lib', 'win32')
+else
+  pgbouncer_incdirs = include_directories('.', 'include', 'lib')
+endif
+
+if windows
+  pgbouncer_sources += files('win32/win32support.c')
+  win = import('windows')
+  pgbouncer_sources += win.compile_resources('win32/win32ver.rc',
+                                             include_directories: pgbouncer_incdirs)
+endif
+
+pgbouncer = executable('pgbouncer',
+  pgbouncer_sources,
+  libusual_sources,
+  config_h,
+  include_directories: pgbouncer_incdirs,
+  dependencies: pgbouncer_deps,
+  install: true,
+)
+
+# ----------------------------------------------------------------------
+# win32 event log helper (pgbevent.dll)
+# ----------------------------------------------------------------------
+
+if windows
+  win = import('windows')
+  pgbevent_res = win.compile_resources('win32/eventmsg.rc',
+                                       include_directories: pgbouncer_incdirs)
+  shared_library('pgbevent',
+    'win32/pgbevent.c',
+    pgbevent_res,
+    name_prefix: '',
+    include_directories: pgbouncer_incdirs,
+    install: true,
+  )
+endif
+
+# ----------------------------------------------------------------------
+# Tools needed for docs and tests
+# ----------------------------------------------------------------------
+
+python = find_program('python3', 'python', required: true)
+pandoc = find_program('pandoc', required: false, native: true)
+
+# ----------------------------------------------------------------------
+# Docs and data installation
+# ----------------------------------------------------------------------
+
+if pandoc.found()
+  subdir('doc')
+else
+  message('pandoc not found: man pages will not be built or installed')
+endif
 
 pkgdocdir = get_option('datadir') / 'doc' / 'pgbouncer'
 
-install_data('README.md',
-             'NEWS.md',
-             'etc/pgbouncer-minimal.ini',
-             'etc/pgbouncer.ini',
-             'etc/pgbouncer.service',
-             'etc/pgbouncer.socket',
-             'etc/userlist.txt',
-             install_dir: pkgdocdir)
+install_data(
+  'README.md',
+  'NEWS.md',
+  'etc/pgbouncer-minimal.ini',
+  'etc/pgbouncer.ini',
+  'etc/pgbouncer.service',
+  'etc/pgbouncer.socket',
+  'etc/userlist.txt',
+  install_dir: pkgdocdir,
+)
+
+# ----------------------------------------------------------------------
+# Tests
+# ----------------------------------------------------------------------
+
+subdir('test')
 
 test('optscan',
      files('etc/optscan.sh'),
@@ -223,15 +632,42 @@ test('optscan',
 
 test('pytest',
      python,
-     args: ['-m', 'pytest', '-n', 'auto', '-v', '..'],
+     args: ['-m', 'pytest', '-n', 'auto', '-r', 's'],
      env: {
-            'BOUNCER_EXE': pgbouncer.full_path(),
-            'PYTHONIOENCODING': 'utf8',
-            'TEST_USE_LDAP': '',
-            'TEST_USE_TLS': '1',
-          },
+       'BOUNCER_EXE': pgbouncer.full_path(),
+       'PYTHONIOENCODING': 'utf8',
+       'TEST_USE_LDAP': ldap.found() ? '1' : '',
+       'TEST_USE_TLS': openssl.found() ? '1' : '',
+     },
+     workdir: meson.project_source_root() / 'test',
      depends: [pgbouncer],
      timeout: 1000,
     )
 
-subdir('test')
+# ----------------------------------------------------------------------
+# Convenience developer targets (mirrors the Makefile phony targets)
+# ----------------------------------------------------------------------
+
+ruff = find_program('ruff', required: false)
+if ruff.found()
+  run_target('lint', command: [ruff, 'check'])
+endif
+
+ctags = find_program('ctags', required: false)
+if ctags.found()
+  run_target('tags',
+             command: [ctags, '-R', 'src', 'include', 'lib/usual'])
+endif
+
+# ----------------------------------------------------------------------
+# Configuration summary
+# ----------------------------------------------------------------------
+
+summary({
+  'adns': adns,
+  'ldap': ldap.found(),
+  'pam': pam.found(),
+  'systemd': systemd.found(),
+  'tls': openssl.found(),
+  'cassert': get_option('cassert'),
+}, section: 'PgBouncer')

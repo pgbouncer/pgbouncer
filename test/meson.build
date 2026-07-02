@@ -1,3 +1,7 @@
+# The '..' include dir also brings in the build root (its build-tree
+# counterpart), which is where the generated test_config.h lives.
+test_incdirs = include_directories('..', '../include', '../lib')
+
 hba_test = executable('hba_test',
                       'hba_test.c',
                       '../src/hba.c',
@@ -5,8 +9,8 @@ hba_test = executable('hba_test',
                       libusual_sources,
                       config_h,
                       build_by_default: false,
-                      include_directories: ['..', '../include', '../lib'],
-                      dependencies: [libevent, openssl, systemd],
+                      include_directories: test_incdirs,
+                      dependencies: [libevent, openssl, systemd, threads],
                      )
 
 libpq = dependency('libpq', required: false, disabler: true)
@@ -16,8 +20,8 @@ asynctest = executable('asynctest',
                        libusual_sources,
                        config_h,
                        build_by_default: false,
-                       include_directories: ['..', '../include', '../lib'],
-                       dependencies: [libevent, libpq, systemd],
+                       include_directories: test_incdirs,
+                       dependencies: [libevent, libpq, systemd, threads],
                       )
 
 test('hba_test',

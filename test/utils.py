@@ -53,12 +53,9 @@ START_OPENLDAP_SCRIPT = TEST_DIR / "start_openldap_server.sh"
 if os.name == "nt":
     USE_UNIX_SOCKETS = False
     HAVE_GETPEEREID = False
-
-    # psycopg only supports WindowsSelectorEventLoopPolicy
-    from asyncio import WindowsSelectorEventLoopPolicy
-
-    asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
     WINDOWS = True
+    # psycopg only works with a SelectorEventLoop, which pytest-asyncio is told
+    # to create through the pytest_asyncio_loop_factories hook in conftest.py.
 else:
     USE_UNIX_SOCKETS = True
     HAVE_GETPEEREID = True
@@ -1040,9 +1037,9 @@ class Bouncer(QueryRunner):
         return [str(BOUNCER_EXE)]
 
     async def start(self):
-        # Due to using WindowsSelectorEventLoopPolicy for support with psycopg
-        # we cannot use asyncio subprocesses. Since this eventloop does not
-        # support it. We fall back to regular subprocesses.
+        # Due to using a SelectorEventLoop for support with psycopg we cannot
+        # use asyncio subprocesses, since that eventloop does not support them.
+        # We fall back to regular subprocesses.
         if WINDOWS:
             self.process = subprocess.Popen(
                 [*self.base_command(), "--quiet", self.ini_path], close_fds=True

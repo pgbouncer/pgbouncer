@@ -69,8 +69,8 @@ async def test_database_restart(pg, bouncer):
 
     await asyncio.sleep(0.5)
     if WINDOWS:
-        # WindowsSelectorEventLoopPolicy does not support async subprocesses,
-        # so we fall back to regular suprocesses here.
+        # The SelectorEventLoop does not support async subprocesses, so we fall
+        # back to regular subprocesses here.
         pg.restart()
     else:
         await pg.arestart()

@@ -21,5 +21,22 @@ norecursedirs = [
     'lib',
 ]
 
+filterwarnings = [
+    'error',
+    # Ignore psycopg close warnings. In some tests we don't close all opened
+    # connections manually. This is no problem in practice. They get cleaned up
+    # at the end of the test run anyway. It's only a few sockets and a bit of
+    # memory that does not get cleaned up before process exit.
+    'ignore:.*psycopg.Connection.*was deleted while still open.*:ResourceWarning',
+    # On Windows we set WindowsSelectorEventLoopPolicy so async fixtures run on a
+    # SelectorEventLoop (required by psycopg); see test/utils.py for why the
+    # pytest_asyncio_loop_factories hook can't replace it. The event loop policy
+    # machinery is deprecated in Python 3.14 (removed in 3.16), so ignore the
+    # deprecation until we need to support 3.16.
+    'ignore:.*(WindowsSelectorEventLoopPolicy|set_event_loop_policy).*:DeprecationWarning',
+    # To ignore other warnings use the syntax described here:
+    # https://docs.pytest.org/en/latest/how-to/capture-warnings.html#controlling-warnings
+]
+
 [tool.isort]
 profile = 'black'

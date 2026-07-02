@@ -537,8 +537,19 @@ def test_pool_idle_timeout(pg, bouncer):
     bouncer.test()
     assert pg.connection_count() == 1
 
+    # The non-admin pool exists after connecting. Column 0 of SHOW POOLS is
+    # the database, and there's always an admin ("pgbouncer") pool.
+    pools_before = bouncer.admin("show pools")
+    print("pools before idle timeout:", pools_before)
+    assert any(row[0] != "pgbouncer" for row in pools_before)
+
     with bouncer.log_contains(r"cleaning up idle pool"):
         time.sleep(3)
+
+    # The idle pool is gone entirely, not just its server connections.
+    pools_after = bouncer.admin("show pools")
+    print("pools after idle timeout:", pools_after)
+    assert all(row[0] == "pgbouncer" for row in pools_after)
 
     assert pg.connection_count() == 0
 

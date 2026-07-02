@@ -58,6 +58,7 @@ void pktbuf_free(PktBuf *buf)
 	pktbuf_free_internal(buf);
 }
 
+_MUSTCHECK
 PktBuf *pktbuf_dynamic(int start_len)
 {
 	PktBuf *buf = zmalloc(sizeof(PktBuf));

@@ -134,7 +134,7 @@ bool pg_md5_encrypt(const char *part1,
 	hash2hex(hash, dest + 3);
 	return true;
 failed:
-	log_error("MD5 authentication failed: %s", ERR_reason_error_string(ERR_get_error()));
+	log_error("MD5 authentication failed: %s", ERR_error_string(ERR_get_error(), NULL));
 	EVP_MD_CTX_destroy(mdctx);
 	return false;
 #else

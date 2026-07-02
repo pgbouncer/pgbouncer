@@ -941,8 +941,16 @@ bool find_server(PgSocket *client)
 	}
 	Assert(!server || server->state == SV_IDLE);
 
-	/* send var changes */
-	if (server) {
+	/*
+	 * Send var changes. However, Don't send SET commands over a connection
+	 * that runs the auth_query query. Since the user is not authenticated,
+	 * it might have security implications if a susceptible GUC is set in
+	 * track_extra_parameters (e.g.  search_path). In general, it also just
+	 * isn't necessary, to do so for the auth_query. Connections for the
+	 * auth_query should be isolated connections from the actual
+	 * connections, e.g. they also use a completely different user.
+	 */
+	if (server && !sending_auth_query(client)) {
 		res = varcache_apply(server, client, &varchange);
 		if (!res) {
 			disconnect_server(server, true, "var change failed");
@@ -1206,6 +1214,7 @@ bool release_server(PgSocket *server)
 	case SV_BEING_CANCELED:
 	case SV_ACTIVE:
 		if (server->link) {
+			server->link->copy_mode = false;
 			server->link->link = NULL;
 			server->link = NULL;
 		}
@@ -2044,6 +2053,7 @@ bool finish_client_login(PgSocket *client)
 	switch (client->state) {
 	case CL_LOGIN:
 		change_client_state(client, CL_ACTIVE);
+		client->pool->stats.client_login_count++;
 	case CL_ACTIVE:
 		break;
 	default:
@@ -2334,7 +2344,7 @@ bool use_client_socket(int fd, PgAddr *addr,
 
 		memcpy(credentials->scram_ClientKey, scram_client_key, sizeof(credentials->scram_ClientKey));
 		memcpy(credentials->scram_ServerKey, scram_server_key, sizeof(credentials->scram_ServerKey));
-		credentials->use_scram_keys = true;
+		credentials->scram_passthrough_valid = true;
 	}
 
 	client = accept_client(fd, pga_is_unix(addr));

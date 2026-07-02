@@ -4,6 +4,57 @@ PgBouncer changelog
 PgBouncer 1.25.x
 ----------------
 
+**2026-05-08  -  PgBouncer 1.25.2  -  "Human touch with fresh twist in title race full of uncertainties"**
+
+- Security
+  * Fix CVE-2026-6664: An integer overflow in network packet parsing
+    code in PgBouncer before 1.25.2 bypasses a boundary check and can
+    lead to a crash. An unauthenticated remote attacker can crash
+    PgBouncer with a malformed SCRAM authentication packet.
+  * Fix CVE-2026-6665: The SCRAM code in PgBouncer before 1.25.2 did
+    not check the return value of strlcat() correctly when building
+    the contents of the SCRAM client-final-message. A malicious
+    backend that sends a SCRAM server-final-message with a long nonce
+    can trigger a stack overflow.
+  * Fix CVE-2026-6666: A possible null pointer reference in PgBouncer
+    before 1.25.2 could lead to a crash, if a server sends an error
+    response without SQLSTATE field.
+  * Fix CVE-2026-6667: PgBouncer before 1.25.2 did not perform an
+    appropriate authorization check for the `KILL_CLIENT` admin
+    command. All users with access to the administration console
+    (which itself requires authorization) could run this command. It
+    would have been correct to allow only users listed in the
+    `admin_users` parameter.
+
+- Fixes
+  * Clarify documentation of `default_pool_size parameter`.
+  * Correct documentation regarding `client_tls13_ciphers` and
+    `server_tls13_ciphers`.
+
+**2025-12-03  -  PgBouncer 1.25.1  -  "Fixing a bunch of bugs before Christmas"**
+
+- Security
+  * Fix CVE-2025-12819: Before this release it was possible for an unauthenticated attacker to execute arbitrary SQL during authentication by providing a malicious search_path parameter in the StartupMessage. Systems that have ALL the following configurations are vulnerable:
+
+    1. `track_extra_parameters` includes search_path (non-default configuration, probably only configured in setups involving Citus or PostgreSQL 18)
+    2. `auth_user` is set to a non-empty string (non-default configuration)
+    3. `auth_query` is configured without fully-qualified object names (default configuration, the < operator is not schema qualified)
+
+- Fixes
+    - Fix errors with ad-hoc SCRAM auth after reconnect to server ([#1432], introduced in 1.25.0)
+    - Add missing typedefs for exotic architectures without SIMD support ([#1414], introduced in 1.25.0)
+    - Remove noisy warning log when client closes the connection before sending any data ([#1420], introduced in 1.25.0)
+    - Prevent potential NULL pointer dereference ([#1423], introduced in 1.25.0)
+    - Fix potential memory leak ([#1422], introduced in 1.25.0)
+    - Fix SCRAM parsing of server messages ([#1431], introduced in 1.25.0)
+
+[#1414]: https://github.com/pgbouncer/pgbouncer/pull/1414
+[#1420]: https://github.com/pgbouncer/pgbouncer/pull/1420
+[#1422]: https://github.com/pgbouncer/pgbouncer/pull/1422
+[#1423]: https://github.com/pgbouncer/pgbouncer/pull/1423
+[#1431]: https://github.com/pgbouncer/pgbouncer/pull/1431
+[#1432]: https://github.com/pgbouncer/pgbouncer/pull/1432
+
 **2025-11-09  -  PgBouncer 1.25.0  -  "The one with LDAP support"**
 
 - Features

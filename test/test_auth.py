@@ -14,6 +14,7 @@ from .utils import (
     PG_SUPPORTS_SCRAM,
     TLS_SUPPORT,
     WINDOWS,
+    wait_until,
 )
 
 
@@ -45,13 +46,23 @@ def test_message(test_message_fixture):
     """
     pg.sql(terminate_string)
 
-    # login, check error message
-    # login again, check error message
-    for _ in range(2):
-        with pytest.raises(
-            psycopg.OperationalError, match=r"is not permitted to log in"
-        ):
+    # The connection opened above leaves a server connection in the pool that
+    # pg_terminate_backend just killed. PgBouncer only notices when it next uses
+    # it, so the first reconnect can surface "terminating connection due to
+    # administrator command" before PgBouncer opens a fresh server connection
+    # that hits the NOLOGIN rejection. Tolerate only that specific transient
+    # error until the login is rejected with the expected message.
+    for _ in wait_until("login rejected with the NOLOGIN error"):
+        with pytest.raises(psycopg.OperationalError) as exc_info:
             bouncer.test(**connection_params)
+        message = str(exc_info.value)
+        if "is not permitted to log in" in message:
+            break
+        assert "terminating connection due to administrator command" in message, message
+
+    # Logging in again must keep reporting the same error.
+    with pytest.raises(psycopg.OperationalError, match=r"is not permitted to log in"):
+        bouncer.test(**connection_params)
 
 
 @pytest.mark.md5
@@ -321,6 +332,53 @@ def test_scram_both_reauthentication_using_cache(bouncer):
 
         # SCRAM password in userlist.txt
         bouncer.test(dbname="p62", user="scramuser1", password="foo")
+
+
+@pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
+def test_scram_cached_adhoc_secrets_after_reconnect(bouncer):
+    """
+    Regression test for issue #1418.
+
+    Tests that cached adhoc SCRAM secrets work correctly when server connections
+    are recycled. Uses plaintext password in userlist.txt with SCRAM auth to both
+    pgbouncer and PostgreSQL.
+    """
+    bouncer.admin(f"set auth_type='scram-sha-256'")
+    bouncer.admin(f"set pool_mode='transaction'")
+
+    # First connection - caches adhoc secrets
+    bouncer.test(dbname="p62", user="scramuser3", password="baz")
+
+    # Kill server connections to force reconnection
+    bouncer.admin("reconnect")
+
+    # Second connection - reuses cached secrets and reconnects to server
+    bouncer.test(dbname="p62", user="scramuser3", password="baz")
+
+
+@pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
+def test_scram_passthrough_after_reconnect(bouncer):
+    """
+    Regression test: SCRAM pass-through with a SCRAM hash in userlist.txt
+    must work after server reconnection.
+
+    Verifier secrets are cached for both plaintext and SCRAM hash passwords, but
+    only a plaintext-derived (scram_adhoc) verifier should be prevented from
+    saving pass-through keys. With a real SCRAM hash, the extracted
+    ClientKey/ServerKey must be saved as pass-through keys even on subsequent
+    connections.
+    """
+    bouncer.admin(f"set auth_type='scram-sha-256'")
+    bouncer.admin(f"set pool_mode='transaction'")
+
+    # First connection - parses SCRAM secret, caches it, extracts keys
+    bouncer.test(dbname="p62", user="scramuser1", password="foo")
+
+    # Kill server connections to force reconnection
+    bouncer.admin("reconnect")
+
+    # Second connection - must still work with pass-through keys
+    bouncer.test(dbname="p62", user="scramuser1", password="foo")
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
@@ -1128,6 +1186,97 @@ def test_auth_user_at_db_level_with_same_forced_user(bouncer):
                 cur.execute("select 1")
 
 
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+def test_auth_query_no_set_commands(bouncer, pg):
+    """
+    Test that SET commands from client variables are not sent over the
+    auth_query connection. This prevents unauthenticated clients from
+    potentially affecting the auth_query execution via track_extra_parameters.
+    """
+    # Create a custom auth query that will fail if search_path is set incorrectly
+    # We'll use a function that checks current_setting('search_path')
+    pg.sql("""
+        CREATE OR REPLACE FUNCTION auth_check_search_path(username TEXT)
+        RETURNS TABLE(usename name, passwd text) AS $$
+        BEGIN
+            -- This auth query will fail if search_path contains 'malicious_schema'
+            IF current_setting('search_path') LIKE '%malicious_schema%' THEN
+                RAISE EXCEPTION 'malicious search_path detected in auth query';
+            END IF;
+            RETURN QUERY SELECT u.usename, u.passwd FROM pg_shadow u WHERE u.usename = username;
+        END;
+        $$ LANGUAGE plpgsql SECURITY DEFINER;
+    """)
+
+    config = f"""
+        [databases]
+        postgres = host={bouncer.pg.host} port={bouncer.pg.port} auth_query='SELECT * FROM auth_check_search_path($1)'
+        [pgbouncer]
+        auth_query = SELECT * FROM auth_check_search_path($1)
+        auth_user = pswcheck
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = postgres
+        track_extra_parameters = search_path
+    """
+
+    try:
+        with bouncer.run_with_config(config):
+            # Connect with a malicious search_path in the startup parameters
+            # With the fix, this should succeed because SET commands are not sent
+            # over the auth_query connection
+            # Without the fix, this would cause the auth query to fail
+            bouncer.sql(
+                query="SELECT 1",
+                user="stats",
+                password="stats",
+                dbname="postgres",
+                options="-c search_path=malicious_schema,public",
+            )
+    finally:
+        pg.sql("DROP FUNCTION IF EXISTS auth_check_search_path(TEXT)")
+
+
+@pytest.mark.md5
+@pytest.mark.skipif(
+    "psycopg.pq.version() < 180000", reason="libpq 18+ required for protocol 3.2"
+)
+def test_auth_query_protocol_negotiation(bouncer, pg):
+    """
+    Test that protocol version negotiation works correctly with auth_query.
+    This is a regression test for GitHub issue #1459 where clients connecting
+    with protocol version 3.2 would receive duplicate NegotiateProtocolVersion
+    messages when auth_query was needed.
+
+    The bug occurred because decide_startup_pool() sends the
+    NegotiateProtocolVersion message, but when auth_query is needed, the
+    startup packet would be reprocessed after auth_query completes, potentially
+    calling decide_startup_pool() again and sending a duplicate message.
+    """
+    bouncer.default_db = "authdb"
+    bouncer.admin("set auth_type='md5'")
+
+    # First, kill all server connections to ensure a cold pool. This is
+    # important because the bug only manifests when auth_query needs to
+    # actually run (first connection), not when user is already cached.
+    bouncer.admin("reconnect authdb")
+
+    # If the bug is present, this will fail with
+    # "received duplicate protocol negotiation message"
+    bouncer.sql(
+        "SELECT 1",
+        dbname="authdb",
+        user="someuser",
+        password="anypasswd",
+        max_protocol_version="3.2",
+    )
+
+
 @pytest.mark.skipif("WINDOWS", reason="We do not expect to support ldap on Windows")
 @pytest.mark.skipif(not LDAP_SUPPORT, reason="pgbouncer is built without LDAP support")
 def test_ldap_auth(bouncer_with_openldap):
@@ -1143,7 +1292,10 @@ def test_ldap_auth(bouncer_with_openldap):
     bouncer_with_openldap.write_ini(f"auth_type = hba")
     bouncer_with_openldap.write_ini(f"auth_hba_file = {hba_conf_file}")
     bouncer_with_openldap.admin("reload")
-    bouncer_with_openldap.test(user="ldapuser1", password="secret1")
+    # The first LDAP bind in PgBouncer's process is slow on macOS (a one-time
+    # resolver cost; later binds reuse it and are fast), enough to exceed the
+    # default 3s connect_timeout. Give just this first login extra time.
+    bouncer_with_openldap.test(user="ldapuser1", password="secret1", connect_timeout=30)
     # 2 test "search+bind"
     with open(hba_conf_file, "w") as f:
         f.write(
@@ -1281,3 +1433,58 @@ def test_ldap_auth(bouncer_with_openldap):
     )
     bouncer_with_openldap.admin("reload")
     bouncer_with_openldap.test(user="ldapuser1", password="secret1")
+    # 11 test ldap auth_type with very long dn
+    bouncer_with_openldap.write_ini(f"auth_type = ldap")
+    bouncer_with_openldap.write_ini(
+        f'auth_ldap_options = ldapurl="ldap://127.0.0.1:{openldap.ldap_port}/dc=example,dc=net?uid?sub"'
+    )
+    bouncer_with_openldap.admin("reload")
+    bouncer_with_openldap.test(user="ldapuser2", password="secret2")
+
+
+def test_client_login_count(bouncer):
+    bouncer.admin(f"set auth_type='plain'")
+
+    def get_client_login_count():
+        stats = bouncer.admin("SHOW STATS", row_factory=psycopg.rows.dict_row)
+        p3_stats = next(s for s in stats if s["database"] == "p3")
+        assert p3_stats is not None
+        return p3_stats["total_client_login_count"]
+
+    # Successful auth should increase counter
+    bouncer.test(dbname="p3", user="puser1", password="foo")
+    bouncer.test(dbname="p3", user="puser1", password="foo")
+    bouncer.test(dbname="p3", user="puser1", password="foo")
+    assert get_client_login_count() == 3
+
+    # Failed auth should not increase counter
+    with pytest.raises(
+        psycopg.OperationalError, match="password authentication failed"
+    ):
+        bouncer.test(dbname="p3", user="puser1", password="wrong")
+    assert get_client_login_count() == 3
+
+
+async def test_auth_query_login_large_packets(bouncer):
+    """Login via auth_query works when auth packets exceed the small pkt_buf.
+
+    This is the trickiest variant of the large-packet login path: with
+    auth_query pgbouncer pauses the client after the StartupMessage, runs the
+    query on a server connection, and then resumes and re-processes the same
+    StartupMessage. Shrinking pkt_buf below both the startup and password sizes
+    forces both packets through the dynamic packet buffering path, so it checks
+    that the V2/V3 framing is tracked correctly across that pause/resume. The
+    password itself is fetched from pg_shadow by the auth_query rather than the
+    auth_file.
+    """
+    bouncer.write_ini("auth_type = plain")
+    bouncer.write_ini("auth_user = pswcheck")
+    bouncer.write_ini(
+        "auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1"
+    )
+    bouncer.write_ini("pkt_buf = 75")
+    await bouncer.restart()
+
+    bouncer.test(user="longpass", password=LONG_PASSWORD)
+    with pytest.raises(psycopg.OperationalError, match="authentication failed"):
+        bouncer.test(user="longpass", password="X" + LONG_PASSWORD)

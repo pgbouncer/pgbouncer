@@ -9,12 +9,74 @@ import pytest
 from .utils import (
     HAVE_IPV6_LOCALHOST,
     LINUX,
+    LONG_PASSWORD,
     PG_MAJOR_VERSION,
     PG_SUPPORTS_SCRAM,
     PKT_BUF_SIZE,
     USE_UNIX_SOCKETS,
     WINDOWS,
 )
+
+
+def test_login_notify_message_negative(bouncer):
+    """
+    Negative test for login_notify_message
+
+    Tests that NOTICE is not connection when login_notify_message is not set.
+    We are using psql here because psycopg does not seem to pick up notices that happen after
+    AuthenticationOk message and before ReadyForQuery.
+    """
+    config = f"""
+    [databases]
+    postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    pool_mode = session
+    """
+
+    with bouncer.run_with_config(config):
+
+        ret = bouncer.psql(
+            query="SELECT 1;", dbname="postgres", user="puser1", password="foo"
+        )
+        assert ret.stderr == b""
+        assert ret.stdout == b" ?column? \n----------\n        1\n(1 row)\n\n"
+
+
+def test_login_notify_message(bouncer):
+    """
+    Positive test for login_notify_message
+
+    Tests that NOTICE is correctly raised on connection when login_notify_message is set.
+    We are using psql here because psycopg does not seem to pick up notices that happen after
+    AuthenticationOk message and before ReadyForQuery.
+    """
+    config = f"""
+    [databases]
+    postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    pool_mode = session
+    login_notify_message = You are now connected to pgbouncer
+    """
+
+    with bouncer.run_with_config(config):
+
+        ret = bouncer.psql(
+            query="SELECT 1;", dbname="postgres", user="puser1", password="foo"
+        )
+        assert ret.stderr == b"NOTICE:  You are now connected to pgbouncer\n"
+        assert ret.stdout == b" ?column? \n----------\n        1\n(1 row)\n\n"
 
 
 @pytest.mark.parametrize(
@@ -568,7 +630,7 @@ def test_options_startup_param(bouncer):
     )
 
 
-def test_startup_packet_larger_than_pktbuf(bouncer):
+def test_startup_message_larger_than_pktbuf(bouncer):
     long_string = "1" * PKT_BUF_SIZE
     bouncer.test(options=f"-c extra_float_digits={long_string}")
 
@@ -678,11 +740,18 @@ async def test_already_paused_client_during_wait_for_servers_shutdown(bouncer):
         done, pending = await asyncio.wait([task], timeout=3)
         assert done == set()
         assert pending == {task}
-        bouncer.admin("SHUTDOWN WAIT_FOR_SERVERS")
-        # Still in the same transaction, so this should work
-        cur1.execute("SELECT 1")
-        # New transaction so this should fail
+
+        # Unlike a client that's idle at shutdown, a client that's already
+        # waiting for a server is closed as a direct consequence of the
+        # SHUTDOWN command itself. So the log_contains needs to wrap the
+        # SHUTDOWN, not just the await of the failing task. Otherwise the
+        # "server shutting down" line can be written before log_contains seeks
+        # to the end of the log, causing it to be missed.
         with bouncer.log_contains(r"closing because: server shutting down"):
+            bouncer.admin("SHUTDOWN WAIT_FOR_SERVERS")
+            # Still in the same transaction, so this should work
+            cur1.execute("SELECT 1")
+            # New transaction so this should fail
             with pytest.raises(psycopg.OperationalError):
                 await task
 
@@ -809,3 +878,22 @@ def test_issue_1104(bouncer):
 
         with bouncer.run_with_config(config):
             bouncer.admin("RELOAD")
+
+
+async def test_server_login_large_packets(bouncer):
+    """Test that server login works when packets exceed the small pkt_buf.
+
+    This tests the fix for handling large packets during server login phase
+    (handle_server_startup). By shrinking pkt_buf to a tiny value, normal
+    server login packets like ParameterStatus exceed the buffer and trigger
+    dynamic packet buffering.
+
+    pkt_buf is CF_NO_RELOAD, so it can only be changed by restarting pgbouncer
+    rather than with a RELOAD.
+    """
+    bouncer.write_ini("pkt_buf = 75")
+    await bouncer.restart()
+
+    # Simply connecting exercises the server login path: the server sends
+    # ParameterStatus, BackendKeyData, ReadyForQuery etc.
+    bouncer.test()

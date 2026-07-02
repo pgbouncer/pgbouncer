@@ -764,7 +764,7 @@ static bool check_ldap_auth(struct ldap_auth_request *request)
 {
 	LDAP *ldap;
 	int r;
-	char fulluser[LDAP_LONG_LENGTH];
+	char *fulluser;
 
 	if (!initialize_ldap_options(request, request->client->ldap_options)) {
 		return false;
@@ -890,7 +890,7 @@ static bool check_ldap_auth(struct ldap_auth_request *request)
 			ldap_msgfree(search_message);
 			return false;
 		}
-		snprintf(fulluser, LDAP_LONG_LENGTH, "%s", dn);
+		fulluser = strdup(dn);
 
 		ldap_memfree(dn);
 		ldap_msgfree(search_message);
@@ -903,6 +903,7 @@ static bool check_ldap_auth(struct ldap_auth_request *request)
 			(void) ldap_get_option(ldap, LDAP_OPT_ERROR_NUMBER, &error);
 			log_warning("could not unbind after searching for user \"%s\" on server \"%s\": %s",
 				    fulluser, request->ldapserver, ldap_err2string(error));
+			free(fulluser);
 			return false;
 		}
 
@@ -911,11 +912,18 @@ static bool check_ldap_auth(struct ldap_auth_request *request)
 		 * it with a different username.
 		 */
 		if (InitializeLDAPConnection(request, &ldap) == false) {
+			free(fulluser);
 			/* Error message already sent */
 			return false;
 		}
 	} else {
-		snprintf(fulluser, LDAP_LONG_LENGTH, "%s%s%s",
+		size_t maxlen = strlen(request->username);
+		if (request->ldapprefix)
+			maxlen += strlen(request->ldapprefix);
+		if (request->ldapsuffix)
+			maxlen += strlen(request->ldapsuffix);
+		fulluser = malloc(maxlen + 1);
+		snprintf(fulluser, maxlen + 1, "%s%s%s",
 			 request->ldapprefix ? request->ldapprefix : "",
 			 request->username,
 			 request->ldapsuffix ? request->ldapsuffix : "");
@@ -927,9 +935,11 @@ static bool check_ldap_auth(struct ldap_auth_request *request)
 	if (r != LDAP_SUCCESS) {
 		log_warning("LDAP login failed for user %s on server %s: %s",
 			    fulluser, request->ldapserver, ldap_err2string(r));
+		free(fulluser);
 		return false;
 	}
 
+	free(fulluser);
 	return true;
 }
 

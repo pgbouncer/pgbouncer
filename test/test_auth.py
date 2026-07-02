@@ -1433,6 +1433,13 @@ def test_ldap_auth(bouncer_with_openldap):
     )
     bouncer_with_openldap.admin("reload")
     bouncer_with_openldap.test(user="ldapuser1", password="secret1")
+    # 11 test ldap auth_type with very long dn
+    bouncer_with_openldap.write_ini(f"auth_type = ldap")
+    bouncer_with_openldap.write_ini(
+        f'auth_ldap_options = ldapurl="ldap://127.0.0.1:{openldap.ldap_port}/dc=example,dc=net?uid?sub"'
+    )
+    bouncer_with_openldap.admin("reload")
+    bouncer_with_openldap.test(user="ldapuser2", password="secret2")
 
 
 def test_client_login_count(bouncer):

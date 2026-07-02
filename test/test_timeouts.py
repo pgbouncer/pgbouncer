@@ -528,6 +528,60 @@ def test_client_idle_timeout(bouncer):
                 cur.execute("select 1")
 
 
+def test_pool_idle_timeout(pg, bouncer):
+    """Test that the pool closes server connections after being idle."""
+    bouncer.admin("set pool_idle_timeout=1")
+    bouncer.admin("set server_idle_timeout=1")
+
+    bouncer.test()
+    assert pg.connection_count() == 1
+
+    # The non-admin pool exists after connecting. Column 0 of SHOW POOLS is
+    # the database, and there's always an admin ("pgbouncer") pool.
+    pools_before = bouncer.admin("show pools")
+    print("pools before idle timeout:", pools_before)
+    assert any(row[0] != "pgbouncer" for row in pools_before)
+
+    with bouncer.log_contains(r"cleaning up idle pool"):
+        time.sleep(3)
+
+    # The idle pool is gone entirely, not just its server connections.
+    pools_after = bouncer.admin("show pools")
+    print("pools after idle timeout:", pools_after)
+    assert all(row[0] == "pgbouncer" for row in pools_after)
+
+    assert pg.connection_count() == 0
+
+    bouncer.test()
+    assert pg.connection_count() == 1
+
+
+def test_pool_idle_timeout_ignores_min_pool_size(pg, bouncer):
+    """A pool configured with min_pool_size must not be reaped by
+    pool_idle_timeout, even when it currently has zero live server
+    connections.
+
+    We use a forced user together with min_pool_size, so the janitor
+    proactively creates the pool and keeps trying to maintain backend
+    connections even without any clients. The backend database does not
+    exist, so every connection attempt fails, which leaves the pool with
+    zero connected servers. On top of that, once a connect fails there is a
+    server_login_retry backoff during which no new connection is launched,
+    so the pool's last_active_time stops getting bumped. Without an
+    exemption for min_pool_size, cleanup_inactive_pools then reaps the pool.
+    """
+    bouncer.write_ini("pool_idle_timeout = 1")
+    bouncer.write_ini(
+        "[databases]\n"
+        "min_pool_size_dead = port=6666 host=127.0.0.1"
+        " dbname=non_existing_pg_db min_pool_size=3 user=pswcheck"
+    )
+    bouncer.admin("reload")
+
+    with bouncer.log_contains(r"cleaning up idle pool.*min_pool_size_dead", times=0):
+        time.sleep(3)
+
+
 async def test_server_login_retry(pg, bouncer):
     bouncer.admin(f"set query_timeout=10")
     bouncer.admin(f"set server_login_retry=3")

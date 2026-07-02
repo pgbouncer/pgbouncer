@@ -167,6 +167,7 @@ usec_t cf_query_wait_timeout;
 usec_t cf_cancel_wait_timeout;
 usec_t cf_client_idle_timeout;
 usec_t cf_client_login_timeout;
+usec_t cf_pool_idle_timeout;
 usec_t cf_idle_transaction_timeout;
 usec_t cf_transaction_timeout;
 usec_t cf_suspend_timeout;
@@ -314,6 +315,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("pidfile", CF_STR, cf_pidfile, CF_NO_RELOAD, ""),
 	CF_ABS("pkt_buf", CF_INT, cf_sbuf_len, CF_NO_RELOAD, "4096"),
 	CF_ABS("pool_mode", CF_LOOKUP(pool_mode_map), cf_pool_mode, 0, "session"),
+	CF_ABS("pool_idle_timeout", CF_TIME_USEC, cf_pool_idle_timeout, 0, "0"),
 	CF_ABS("query_timeout", CF_TIME_USEC, cf_query_timeout, 0, "0"),
 	CF_ABS("query_wait_notify", CF_INT, cf_query_wait_notify, 0, "5"),
 	CF_ABS("query_wait_timeout", CF_TIME_USEC, cf_query_wait_timeout, 0, "120"),

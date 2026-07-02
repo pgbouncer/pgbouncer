@@ -35,6 +35,13 @@ def test_cancel_wait(bouncer):
             q1 = pool.submit(cur.execute, "select pg_sleep(5)")
             others = [pool.submit(bouncer.sleep, 2, dbname="p3") for _ in range(4)]
 
+            # Wait for q1 to be dispatched to a server before cancelling.
+            # Without this sleep, in multithread mode the cancel request can
+            # arrive on a different thread before the server link is established
+            # (client->link == NULL), causing it to be silently dropped as
+            # "cancel request for idle client".
+            time.sleep(1)
+
             cancel = pool.submit(cur.connection.cancel)
             cancel.result()
             with pytest.raises(

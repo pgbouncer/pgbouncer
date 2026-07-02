@@ -36,6 +36,7 @@
 
 static PgSocket *old_bouncer = NULL;
 
+// Not supported in multithread mode
 void takeover_finish(void)
 {
 	uint8_t buf[512];
@@ -100,6 +101,7 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	int got;
 	uint64_t ckey;
 	PgAddr addr;
+	int thread_id = 0;
 	bool res = false;
 
 	memset(&addr, 0, sizeof(addr));
@@ -143,20 +145,20 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 		if (!pga_pton(&addr, saddr, port))
 			fatal("failed to convert address: %s", saddr);
 	}
-
+	thread_id = get_current_worker_thread_id();
 	/* decide what to do with it */
 	if (strcmp(task, "client") == 0) {
 		res = use_client_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
 					client_enc, std_string, datestyle, timezone,
 					password,
 					scram_client_key, scram_client_key_len,
-					scram_server_key, scram_server_key_len);
+					scram_server_key, scram_server_key_len, thread_id);
 	} else if (strcmp(task, "server") == 0) {
 		res = use_server_socket(fd, &addr, db, user, ckey, oldfd, linkfd,
 					client_enc, std_string, datestyle, timezone,
 					password,
 					scram_client_key, scram_client_key_len,
-					scram_server_key, scram_server_key_len);
+					scram_server_key, scram_server_key_len, thread_id);
 	} else if (strcmp(task, "pooler") == 0) {
 		res = use_pooler_socket(fd, pga_is_unix(&addr));
 	} else {
@@ -206,8 +208,11 @@ static void takeover_postprocess_fds(void)
 	struct List *item, *item2;
 	PgSocket *client;
 	PgPool *pool;
-
-	statlist_for_each(item, &pool_list) {
+	if (multithread_mode) {
+		log_error("takeover_postprocess_fds: multithread mode not supported");
+		return;
+	}
+	THREAD_SAFE_STATLIST_EACH(&workers[0].pool_list, item, {
 		pool = container_of(item, PgPool, head);
 		if (pool->db->admin)
 			continue;
@@ -216,13 +221,13 @@ static void takeover_postprocess_fds(void)
 			if (client->suspended && client->tmp_sk_linkfd)
 				takeover_create_link(pool, client);
 		}
-	}
-	statlist_for_each(item, &pool_list) {
+	});
+	THREAD_SAFE_STATLIST_EACH(&workers[0].pool_list, item, {
 		pool = container_of(item, PgPool, head);
 		takeover_clean_socket_list(&pool->active_client_list);
 		takeover_clean_socket_list(&pool->active_server_list);
 		takeover_clean_socket_list(&pool->idle_server_list);
-	}
+	});
 }
 
 static void next_command(PgSocket *bouncer, struct MBuf *pkt)
@@ -362,10 +367,14 @@ void takeover_init(void)
 {
 	PgDatabase *db;
 	PgPool *pool = NULL;
+	if (multithread_mode) {
+		log_error("takeover_init: multithread mode not supported");
+		return;
+	}
 
 	db = find_database("pgbouncer");
 	if (db)
-		pool = get_pool(db, db->forced_user_credentials);
+		pool = get_pool(db, db->forced_user_credentials, 0);
 
 	if (!pool)
 		fatal("no admin pool?");

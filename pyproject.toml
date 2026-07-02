@@ -6,6 +6,8 @@ addopts = [
 ]
 markers = [
     "md5: uses MD5, will fail in FIPS mode",
+    "single_thread_only: test should only run with single-threaded pgbouncer",
+    "multithread_only: test should only run with multi-threaded pgbouncer",
 ]
 timeout = 30
 

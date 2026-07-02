@@ -36,7 +36,6 @@ struct var_lookup {
 
 static struct var_lookup *lookup_map;
 
-static struct StrPool *vpool;
 
 static inline struct PStr *get_value(VarCache *cache, const struct var_lookup *lk)
 {
@@ -106,16 +105,18 @@ void init_var_lookup(const char *cf_track_extra_parameters)
 	num_var_cached = idx;
 }
 
-bool varcache_set(VarCache *cache, const char *key, const char *value)
+bool varcache_set(VarCache *cache, const char *key, const char *value, int thread_id)
 {
 	const struct var_lookup *lk = NULL;
 	struct PStr *pstr = NULL;
+	struct StrPool *pool;
 
-	if (!vpool) {
-		vpool = strpool_create(USUAL_ALLOC);
-		if (!vpool)
+	if (!workers[thread_id].vpool) {
+		workers[thread_id].vpool = strpool_create(USUAL_ALLOC);
+		if (!workers[thread_id].vpool)
 			return false;
 	}
+	pool = workers[thread_id].vpool;
 
 	HASH_FIND_STR(lookup_map, key, lk);
 
@@ -131,7 +132,7 @@ bool varcache_set(VarCache *cache, const char *key, const char *value)
 		return false;
 
 	/* set new value */
-	pstr = strpool_get(vpool, value, strlen(value));
+	pstr = strpool_get(pool, value, strlen(value));
 	if (!pstr)
 		return false;
 	cache->var_list[lk->idx] = pstr;
@@ -302,6 +303,8 @@ void varcache_add_params(PktBuf *pkt, VarCache *vars)
 
 void varcache_deinit(void)
 {
-	strpool_free(vpool);
-	vpool = NULL;
+	FOR_EACH_WORKER_THREAD(thread_id){
+		strpool_free(workers[thread_id].vpool);
+		workers[thread_id].vpool = NULL;
+	}
 }

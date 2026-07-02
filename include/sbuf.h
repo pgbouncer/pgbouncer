@@ -91,6 +91,12 @@ struct SBuf {
 	const SBufIO *ops;	/* normal vs. TLS */
 	struct tls *tls;	/* TLS context */
 	const char *tls_host;	/* target hostname */
+
+	int thread_id;	/* thread handling this SBuf */
+
+	WorkerEventArgs continue_event_args;	/* WorkerEventArgs for continue */
+	WorkerEventArgs wait_for_data_event_args;	/* WorkerEventArgs for wait_for_data */
+	WorkerEventArgs ev_once_args;		/* WorkerEventArgs for one-shot events (connect, queue_once, queue_send, recv_forced) */
 };
 
 #define sbuf_socket(sbuf) ((sbuf)->sock)

@@ -62,18 +62,19 @@ async def test_query_wait_timeout(
     bouncer.default_user = "puser1"
 
     with bouncer.run_with_config(pgbouncer_ini):
+        worker_thread_count = bouncer.get_worker_thread_count()
 
-        conn_1_fut = bouncer.asleep(3)
+        conn_1_futs = [bouncer.asleep(3) for _ in range(worker_thread_count)]
         await asyncio.sleep(0.1)
 
         with pytest.raises(psycopg.OperationalError, match=r"query_wait_timeout"):
-            bouncer.test()
-        await conn_1_fut
+            bouncer.sql("SELECT 1")
+        await asyncio.gather(*conn_1_futs)
 
-        conn_1_fut = bouncer.asleep(1)
+        conn_1_futs = [bouncer.asleep(1) for _ in range(worker_thread_count)]
         await asyncio.sleep(0.1)
-        bouncer.test()
-        await conn_1_fut
+        bouncer.sql("SELECT 1")
+        await asyncio.gather(*conn_1_futs)
 
 
 def test_server_lifetime(pg, bouncer):

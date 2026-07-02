@@ -17,6 +17,7 @@
  */
 
 void pooler_setup(void);
+void thread_pooler_setup(void);
 bool use_pooler_socket(int fd, bool is_unix) _MUSTCHECK;
 void resume_pooler(void);
 void suspend_pooler(void);

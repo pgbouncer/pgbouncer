@@ -172,6 +172,11 @@ void log_fatal(const char *file, int line, const char *func, bool show_perror,
 		      exit(1); } while (0)
 
 /**
+ * Initialize the log file lock.
+ */
+void log_file_lock_init(void);
+
+/**
  * Close open logfiles and syslog.
  *
  * Useful when rotating log files.

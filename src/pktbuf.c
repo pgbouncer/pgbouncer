@@ -44,15 +44,13 @@ static void pktbuf_free_internal(PktBuf *buf)
 	free(buf);
 }
 
-static PktBuf *temp_pktbuf;
-
 /*
- * free the given buffer, if it's a dynamic buffer and not the global temp
+ * free the given buffer, if it's a dynamic buffer and not the per-thread temp
  * buffer
  */
 void pktbuf_free(PktBuf *buf)
 {
-	if (buf == temp_pktbuf)
+	if (buf == WORKER_THREAD_VAR(temp_pktbuf, get_current_worker_thread_id()))
 		return;
 
 	pktbuf_free_internal(buf);
@@ -99,18 +97,23 @@ void pktbuf_static(PktBuf *buf, uint8_t *data, int len)
 
 struct PktBuf *pktbuf_temp(void)
 {
-	if (!temp_pktbuf)
-		temp_pktbuf = pktbuf_dynamic(512);
-	if (!temp_pktbuf)
+	int thread_id = get_current_worker_thread_id();
+	PktBuf **temp_pktbuf_ = &(workers[thread_id].temp_pktbuf);
+
+	if (!(*temp_pktbuf_))
+		(*temp_pktbuf_) = pktbuf_dynamic(512);
+	if (!(*temp_pktbuf_))
 		die("out of memory");
-	pktbuf_reset(temp_pktbuf);
-	return temp_pktbuf;
+	pktbuf_reset((*temp_pktbuf_));
+	return (*temp_pktbuf_);
 }
 
 void pktbuf_cleanup(void)
 {
-	pktbuf_free_internal(temp_pktbuf);
-	temp_pktbuf = NULL;
+	FOR_EACH_WORKER_THREAD(thread_id){
+		pktbuf_free_internal(workers[thread_id].temp_pktbuf);
+		workers[thread_id].temp_pktbuf = NULL;
+	}
 }
 
 bool pktbuf_send_immediate(PktBuf *buf, PgSocket *sk)
@@ -153,7 +156,9 @@ static void pktbuf_send_func(evutil_socket_t fd, short flags, void *arg)
 	buf->send_pos += res;
 
 	if (buf->send_pos < buf->write_pos) {
-		event_assign(buf->ev, pgb_event_base, fd, EV_WRITE, pktbuf_send_func, buf);
+		struct event_base *base = workers[sbuf->thread_id].base;
+		init_worker_event_args(&buf->ev_args, buf, pktbuf_send_func, false, &workers[sbuf->thread_id].thread_lock);
+		event_assign(buf->ev, base, fd, EV_WRITE, worker_thread_event_wrapper, &buf->ev_args);
 		res = event_add(buf->ev, NULL);
 		if (res < 0) {
 			log_error("pktbuf_send_func: %s", strerror(errno));

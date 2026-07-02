@@ -782,6 +782,21 @@ static void cleanup_inactive_pools(void)
 		if (pool->db->admin)
 			continue;
 
+		/*
+		 * Never reap a forced-user pool that keeps a minimum number of
+		 * server connections around. The janitor proactively (re)creates
+		 * such pools every maintenance round to enforce min_pool_size
+		 * even without clients, so reaping it here just causes a
+		 * kill/recreate churn every round while the backend is
+		 * unreachable (when it is reachable the pool has connected
+		 * servers and isn't considered idle anyway). Non-forced pools
+		 * only maintain min_pool_size while a client is connected, so a
+		 * non-forced pool with no clients and no servers is genuinely
+		 * idle and safe to reap.
+		 */
+		if (pool_min_pool_size(pool) > 0 && pool->db->forced_user_credentials != NULL)
+			continue;
+
 		/* Check if the pool is actually "unused" */
 		if (pool_client_count(pool) == 0 && pool_connected_server_count(pool) == 0) {
 			if ((now - pool->last_active_time) > cf_pool_idle_timeout) {

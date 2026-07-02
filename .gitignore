@@ -33,6 +33,8 @@
 env
 venv
 .venv
+*.egg-info
+/uv.lock
 
 /uncrustify
 

@@ -53,12 +53,23 @@ START_OPENLDAP_SCRIPT = TEST_DIR / "start_openldap_server.sh"
 if os.name == "nt":
     USE_UNIX_SOCKETS = False
     HAVE_GETPEEREID = False
+    WINDOWS = True
 
-    # psycopg only supports WindowsSelectorEventLoopPolicy
+    # psycopg only works with a SelectorEventLoop, but on Windows asyncio
+    # defaults to the ProactorEventLoop. Setting the policy changes the
+    # process-wide default loop type, which is what we need here: most of our
+    # tests are synchronous but pull in async fixtures (e.g. bouncer), and
+    # pytest-asyncio runs those fixtures on the default loop.
+    #
+    # pytest-asyncio's newer pytest_asyncio_loop_factories hook can't replace
+    # this: it only steers the loop for async *tests*, not for async fixtures
+    # used by sync tests, which is the bulk of our suite. The event loop policy
+    # machinery is deprecated in Python 3.14 and removed in 3.16, so this needs
+    # revisiting for 3.16; until then the DeprecationWarning is ignored via
+    # filterwarnings in pyproject.toml.
     from asyncio import WindowsSelectorEventLoopPolicy
 
     asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
-    WINDOWS = True
 else:
     USE_UNIX_SOCKETS = True
     HAVE_GETPEEREID = True
@@ -419,7 +430,7 @@ class QueryRunner:
         connect_options = " ".join([f"{k}={v}" for k, v in kwargs.items()])
 
         result = run(
-            ["psql", f"port={self.port} {connect_options}", "-c", query],
+            ["psql", "-X", f"port={self.port} {connect_options}", "-c", query],
             shell=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -725,7 +736,12 @@ class Proxy(QueryRunner):
         self.process = subprocess.Popen(" ".join(command), shell=True)
 
     def stop(self):
+        if self.process is None:
+            return
+
         self.process.kill()
+        self.process.wait()
+        self.process = None
 
     def cleanup(self):
         self.stop()
@@ -1035,9 +1051,9 @@ class Bouncer(QueryRunner):
         return [str(BOUNCER_EXE)]
 
     async def start(self):
-        # Due to using WindowsSelectorEventLoopPolicy for support with psycopg
-        # we cannot use asyncio subprocesses. Since this eventloop does not
-        # support it. We fall back to regular subprocesses.
+        # Due to using a SelectorEventLoop for support with psycopg we cannot
+        # use asyncio subprocesses, since that eventloop does not support them.
+        # We fall back to regular subprocesses.
         if WINDOWS:
             self.process = subprocess.Popen(
                 [*self.base_command(), "--quiet", self.ini_path], close_fds=True

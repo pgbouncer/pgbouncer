@@ -758,10 +758,11 @@ async def test_change_server_password_reconnect(bouncer, pg):
             # kill_pool_logins), we should only have one connection failing at
             # the postgres side. But we should still have 3 failing at the
             # pgbouncer side.
-            with pg.log_contains(
-                r"password authentication failed", times=1
-            ), bouncer.log_contains(
-                r"closing because: password authentication failed for user", times=4
+            with (
+                pg.log_contains(r"password authentication failed", times=1),
+                bouncer.log_contains(
+                    r"closing because: password authentication failed for user", times=4
+                ),
             ):
                 result1 = bouncer.atest()
                 result2 = bouncer.atest()
@@ -804,10 +805,11 @@ async def test_change_server_password_server_lifetime(bouncer, pg):
         # kill_pool_logins), we should only have one connection failing at
         # the postgres side. But we should still have 3 failing at the
         # pgbouncer side.
-        with pg.log_contains(
-            r"password authentication failed", times=1
-        ), bouncer.log_contains(
-            r"closing because: password authentication failed for user", times=4
+        with (
+            pg.log_contains(r"password authentication failed", times=1),
+            bouncer.log_contains(
+                r"closing because: password authentication failed for user", times=4
+            ),
         ):
             result1 = bouncer.atest()
             result2 = bouncer.atest()
@@ -1433,6 +1435,13 @@ def test_ldap_auth(bouncer_with_openldap):
     )
     bouncer_with_openldap.admin("reload")
     bouncer_with_openldap.test(user="ldapuser1", password="secret1")
+    # 11 test ldap auth_type with very long dn
+    bouncer_with_openldap.write_ini(f"auth_type = ldap")
+    bouncer_with_openldap.write_ini(
+        f'auth_ldap_options = ldapurl="ldap://127.0.0.1:{openldap.ldap_port}/dc=example,dc=net?uid?sub"'
+    )
+    bouncer_with_openldap.admin("reload")
+    bouncer_with_openldap.test(user="ldapuser2", password="secret2")
 
 
 def test_client_login_count(bouncer):
@@ -1456,3 +1465,28 @@ def test_client_login_count(bouncer):
     ):
         bouncer.test(dbname="p3", user="puser1", password="wrong")
     assert get_client_login_count() == 3
+
+
+async def test_auth_query_login_large_packets(bouncer):
+    """Login via auth_query works when auth packets exceed the small pkt_buf.
+
+    This is the trickiest variant of the large-packet login path: with
+    auth_query pgbouncer pauses the client after the StartupMessage, runs the
+    query on a server connection, and then resumes and re-processes the same
+    StartupMessage. Shrinking pkt_buf below both the startup and password sizes
+    forces both packets through the dynamic packet buffering path, so it checks
+    that the V2/V3 framing is tracked correctly across that pause/resume. The
+    password itself is fetched from pg_shadow by the auth_query rather than the
+    auth_file.
+    """
+    bouncer.write_ini("auth_type = plain")
+    bouncer.write_ini("auth_user = pswcheck")
+    bouncer.write_ini(
+        "auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1"
+    )
+    bouncer.write_ini("pkt_buf = 75")
+    await bouncer.restart()
+
+    bouncer.test(user="longpass", password=LONG_PASSWORD)
+    with pytest.raises(psycopg.OperationalError, match="authentication failed"):
+        bouncer.test(user="longpass", password="X" + LONG_PASSWORD)

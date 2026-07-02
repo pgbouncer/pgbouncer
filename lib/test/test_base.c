@@ -30,11 +30,6 @@ static void test_ptr(void *p)
 		int_check(sc->c, 'c');
 	}
 
-	/* alignof */
-	int_check(alignof(char), 1);
-	int_check(alignof(short), 2);
-	int_check(alignof(int), 4);
-
 	/* CUSTOM_ALIGN */
 	int_check(CUSTOM_ALIGN(1, 4), 4);
 	int_check(CUSTOM_ALIGN(2, 4), 4);

@@ -9,6 +9,7 @@ import pytest
 from .utils import (
     HAVE_IPV6_LOCALHOST,
     LINUX,
+    LONG_PASSWORD,
     PG_MAJOR_VERSION,
     PG_SUPPORTS_SCRAM,
     PKT_BUF_SIZE,
@@ -156,7 +157,7 @@ async def test_notify_queue_negative(bouncer):
         )
         conn_2.add_notice_handler(log_notice)
         curr = await conn_2.execute("select 1;")
-        curr.fetchall()
+        await curr.fetchall()
 
         assert len(notices_received) == 0
 
@@ -166,10 +167,10 @@ async def test_notify_queue_negative(bouncer):
         _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
 
         curr = await conn_2.execute("select 1;")
-        curr.fetchall()
+        await curr.fetchall()
         assert len(notices_received) == 0
 
-        conn_2.close()
+        await conn_2.close()
 
 
 async def test_notify_queue(bouncer):
@@ -213,7 +214,7 @@ async def test_notify_queue(bouncer):
         )
         conn_2.add_notice_handler(log_notice)
         curr = await conn_2.execute("select 1;")
-        curr.fetchall()
+        await curr.fetchall()
 
         assert len(notices_received) == 1
         expected_message = (
@@ -227,11 +228,11 @@ async def test_notify_queue(bouncer):
         _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
 
         curr = await conn_2.execute("select 1;")
-        curr.fetchall()
+        await curr.fetchall()
         assert len(notices_received) == 2
         assert expected_message == notices_received[1]
 
-        conn_2.close()
+        await conn_2.close()
 
 
 @pytest.mark.skipif("not LINUX", reason="socat proxy only available on linux")
@@ -629,7 +630,7 @@ def test_options_startup_param(bouncer):
     )
 
 
-def test_startup_packet_larger_than_pktbuf(bouncer):
+def test_startup_message_larger_than_pktbuf(bouncer):
     long_string = "1" * PKT_BUF_SIZE
     bouncer.test(options=f"-c extra_float_digits={long_string}")
 
@@ -651,11 +652,12 @@ def test_equivalent_startup_param(bouncer):
 
     canonical_expected_times = 1 if PG_MAJOR_VERSION >= 14 else 0
     with bouncer.cur(options="-c DateStyle=ISO") as cur:
-        with bouncer.log_contains(
-            "varcache_apply: .*SET DateStyle='ISO'", times=1
-        ), bouncer.log_contains(
-            "varcache_set_canonical: setting DateStyle to its canonical version ISO -> ISO, MDY",
-            times=canonical_expected_times,
+        with (
+            bouncer.log_contains("varcache_apply: .*SET DateStyle='ISO'", times=1),
+            bouncer.log_contains(
+                "varcache_set_canonical: setting DateStyle to its canonical version ISO -> ISO, MDY",
+                times=canonical_expected_times,
+            ),
         ):
             cur.execute("SELECT 1")
             cur.execute("SELECT 1")

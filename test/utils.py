@@ -190,7 +190,15 @@ def get_ldap_support():
         return match.group(1) == "yes"
 
 
+def get_pam_support():
+    with open("../config.mak", encoding="utf-8") as f:
+        match = re.search(r"pam_support = (\w+)", f.read())
+        assert match is not None
+        return match.group(1) == "yes"
+
+
 LDAP_SUPPORT = get_ldap_support()
+PAM_SUPPORT = get_pam_support()
 
 
 def get_tls_support():

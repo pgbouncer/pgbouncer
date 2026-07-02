@@ -59,11 +59,13 @@ def test_logical_rep_unprivileged(bouncer):
     else:
         expected_log = "permission denied to start WAL sender"
 
-    with bouncer.log_contains(
-        expected_log,
-    ), bouncer.log_contains(
-        r"closing because: login failed \(age", times=2
-    ), pytest.raises(psycopg.OperationalError, match=r"login failed"):
+    with (
+        bouncer.log_contains(
+            expected_log,
+        ),
+        bouncer.log_contains(r"closing because: login failed \(age", times=2),
+        pytest.raises(psycopg.OperationalError, match=r"login failed"),
+    ):
         bouncer.sql("IDENTIFY_SYSTEM", replication="database")
 
 
@@ -97,11 +99,13 @@ def test_logical_rep_subscriber(bouncer):
     conninfo = bouncer.make_conninfo(dbname="user_passthrough")
     bouncer.create_subscription(
         "mysub",
-        sql.SQL("""
+        sql.SQL(
+            """
             CONNECTION {}
             PUBLICATION mypub
             WITH (slot_name=test_logical_rep_subscriber, create_slot=false)
-        """).format(sql.Literal(conninfo)),
+        """
+        ).format(sql.Literal(conninfo)),
     )
 
     # The initial copy should now copy over the row
@@ -188,12 +192,12 @@ def test_physical_rep(bouncer):
 
 
 def test_physcal_rep_unprivileged(bouncer):
-    with bouncer.log_contains(
-        r"no pg_hba.conf entry for replication connection from host"
-    ), bouncer.log_contains(
-        r"closing because: login failed \(age", times=2
-    ), pytest.raises(
-        psycopg.OperationalError, match=r"login failed"
+    with (
+        bouncer.log_contains(
+            r"no pg_hba.conf entry for replication connection from host"
+        ),
+        bouncer.log_contains(r"closing because: login failed \(age", times=2),
+        pytest.raises(psycopg.OperationalError, match=r"login failed"),
     ):
         bouncer.test(replication="yes")
 

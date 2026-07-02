@@ -652,11 +652,12 @@ def test_equivalent_startup_param(bouncer):
 
     canonical_expected_times = 1 if PG_MAJOR_VERSION >= 14 else 0
     with bouncer.cur(options="-c DateStyle=ISO") as cur:
-        with bouncer.log_contains(
-            "varcache_apply: .*SET DateStyle='ISO'", times=1
-        ), bouncer.log_contains(
-            "varcache_set_canonical: setting DateStyle to its canonical version ISO -> ISO, MDY",
-            times=canonical_expected_times,
+        with (
+            bouncer.log_contains("varcache_apply: .*SET DateStyle='ISO'", times=1),
+            bouncer.log_contains(
+                "varcache_set_canonical: setting DateStyle to its canonical version ISO -> ISO, MDY",
+                times=canonical_expected_times,
+            ),
         ):
             cur.execute("SELECT 1")
             cur.execute("SELECT 1")

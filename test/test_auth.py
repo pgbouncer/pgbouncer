@@ -758,10 +758,11 @@ async def test_change_server_password_reconnect(bouncer, pg):
             # kill_pool_logins), we should only have one connection failing at
             # the postgres side. But we should still have 3 failing at the
             # pgbouncer side.
-            with pg.log_contains(
-                r"password authentication failed", times=1
-            ), bouncer.log_contains(
-                r"closing because: password authentication failed for user", times=4
+            with (
+                pg.log_contains(r"password authentication failed", times=1),
+                bouncer.log_contains(
+                    r"closing because: password authentication failed for user", times=4
+                ),
             ):
                 result1 = bouncer.atest()
                 result2 = bouncer.atest()
@@ -804,10 +805,11 @@ async def test_change_server_password_server_lifetime(bouncer, pg):
         # kill_pool_logins), we should only have one connection failing at
         # the postgres side. But we should still have 3 failing at the
         # pgbouncer side.
-        with pg.log_contains(
-            r"password authentication failed", times=1
-        ), bouncer.log_contains(
-            r"closing because: password authentication failed for user", times=4
+        with (
+            pg.log_contains(r"password authentication failed", times=1),
+            bouncer.log_contains(
+                r"closing because: password authentication failed for user", times=4
+            ),
         ):
             result1 = bouncer.atest()
             result2 = bouncer.atest()
@@ -1195,7 +1197,8 @@ def test_auth_query_no_set_commands(bouncer, pg):
     """
     # Create a custom auth query that will fail if search_path is set incorrectly
     # We'll use a function that checks current_setting('search_path')
-    pg.sql("""
+    pg.sql(
+        """
         CREATE OR REPLACE FUNCTION auth_check_search_path(username TEXT)
         RETURNS TABLE(usename name, passwd text) AS $$
         BEGIN
@@ -1206,7 +1209,8 @@ def test_auth_query_no_set_commands(bouncer, pg):
             RETURN QUERY SELECT u.usename, u.passwd FROM pg_shadow u WHERE u.usename = username;
         END;
         $$ LANGUAGE plpgsql SECURITY DEFINER;
-    """)
+    """
+    )
 
     config = f"""
         [databases]

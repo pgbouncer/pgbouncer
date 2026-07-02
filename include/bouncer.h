@@ -521,21 +521,33 @@ struct PgCredentials {
 	 */
 	PgGlobalUser *global_user;
 
-	/* scram keys used for pass-though and adhoc auth caching */
-	uint8_t scram_ClientKey[32];
-	uint8_t scram_ServerKey[32];
-	uint8_t scram_StoredKey[32];
-	int scram_Iiterations;
-	char *scram_SaltKey;	/* base64-encoded */
-
-	/* true if ClientKey and ServerKey are valid and scram pass-though is in use. */
-	bool use_scram_keys;
+	/* scram keys used for pass-through and verifier caching */
+	uint8_t scram_ClientKey[32];	/* only for pass-through */
+	uint8_t scram_ServerKey[32];	/* used by both verifier caching and pass-through */
+	uint8_t scram_StoredKey[32];	/* only for verifier caching */
+	int scram_Iiterations;	/* only for verifier caching */
+	char *scram_SaltKey;	/* only for verifier caching, base64-encoded */
 
 	/*
-	 * true if ServerKey, StoredKey, Salt and Iterations is cached for
-	 * adhoc scram authentication.
+	 * true if scram_StoredKey/ServerKey/SaltKey/Iterations hold a cached
+	 * verifier, so clients can be authenticated without re-deriving it on
+	 * every connection. Never set for dynamic_passwd users.
 	 */
-	bool adhoc_scram_secrets_cached;
+	bool scram_verifier_cached;
+
+	/*
+	 * true if the cached verifier was derived adhoc from a plaintext password
+	 * (rather than parsed from a real SCRAM secret). Only meaningful when
+	 * scram_verifier_cached is set. Adhoc keys must NOT be reused as backend
+	 * pass-through keys, since they are not the backend's real credentials.
+	 */
+	bool scram_adhoc;
+
+	/*
+	 * true if scram_ClientKey/ServerKey are valid backend pass-through keys.
+	 * Never set for an adhoc verifier (see scram_adhoc).
+	 */
+	bool scram_passthrough_valid;
 };
 
 /*
@@ -559,6 +571,8 @@ struct PgGlobalUser {
 	usec_t transaction_timeout;	/* how long a user is allowed to stay in transaction before being killed */
 	usec_t idle_transaction_timeout;	/* how long a user is allowed to stay idle in transaction before being killed */
 	usec_t query_timeout;	/* how long a users query is allowed to run before beign killed */
+	usec_t query_wait_timeout;	/* how long a users query is allowed to wait in queue before beign killed */
+	bool query_wait_timeout_set;	/* whether or not a query_wait_timeout has been set for the user */
 	usec_t client_idle_timeout;	/* how long is user allowed to idly connect to pgbouncer */
 	int max_user_connections;	/* how many server connections are allowed */
 	int max_user_client_connections;	/* how many client connections are allowed */
@@ -587,6 +601,10 @@ struct PgDatabase {
 	int pool_size;		/* max server connections in one pool */
 	int min_pool_size;	/* min server connections in one pool */
 	int res_pool_size;	/* additional server connections in case of trouble */
+
+	usec_t query_wait_timeout;	/* how long a users query is allowed to wait in queue before beign killed */
+	bool query_wait_timeout_set;	/* whether or not a query_wait_timeout has been set for the user */
+
 	int pool_mode;		/* pool mode for this database */
 	int max_db_client_connections;	/* max connections that pgbouncer will accept from client to this database */
 	int max_db_connections;	/* max server connections between all pools */
@@ -691,6 +709,9 @@ struct PgSocket {
 					   client: in copy-in stream, expecting CopyData/CopyDone/CopyFail */
 
 	bool wait_for_welcome : 1;	/* client: no server yet in pool, cannot send welcome msg */
+	bool startup_message_received : 1;	/* client: the StartupMessage has been processed, so all
+						   following packets use V3 framing instead of the V2
+						   framing the StartupMessage */
 	bool welcome_sent : 1;		/* client: client has been sent the welcome msg */
 	bool protocol_negotiated : 1;	/* client: NegotiateProtocolVersion already sent */
 	bool wait_for_user_conn : 1;	/* client: waiting for auth_conn server connection */
@@ -847,6 +868,7 @@ extern usec_t cf_idle_transaction_timeout;
 extern usec_t cf_transaction_timeout;
 extern bool any_user_level_timeout_set;
 extern bool any_user_level_client_timeout_set;
+extern bool any_database_level_client_timeout_set;
 extern int cf_server_round_robin;
 extern int cf_disable_pqexec;
 extern usec_t cf_dns_max_ttl;

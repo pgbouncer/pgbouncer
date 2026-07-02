@@ -362,10 +362,10 @@ def test_scram_passthrough_after_reconnect(bouncer):
     Regression test: SCRAM pass-through with a SCRAM hash in userlist.txt
     must work after server reconnection.
 
-    The adhoc_scram_secrets_cached flag is set for both plaintext and SCRAM
-    hash passwords, but only plaintext-derived secrets should be marked as
-    adhoc (preventing key saving). With a real SCRAM hash, the extracted
-    ClientKey/ServerKey must be saved for pass-through even on subsequent
+    Verifier secrets are cached for both plaintext and SCRAM hash passwords, but
+    only a plaintext-derived (scram_adhoc) verifier should be prevented from
+    saving pass-through keys. With a real SCRAM hash, the extracted
+    ClientKey/ServerKey must be saved as pass-through keys even on subsequent
     connections.
     """
     bouncer.admin(f"set auth_type='scram-sha-256'")
@@ -1433,6 +1433,13 @@ def test_ldap_auth(bouncer_with_openldap):
     )
     bouncer_with_openldap.admin("reload")
     bouncer_with_openldap.test(user="ldapuser1", password="secret1")
+    # 11 test ldap auth_type with very long dn
+    bouncer_with_openldap.write_ini(f"auth_type = ldap")
+    bouncer_with_openldap.write_ini(
+        f'auth_ldap_options = ldapurl="ldap://127.0.0.1:{openldap.ldap_port}/dc=example,dc=net?uid?sub"'
+    )
+    bouncer_with_openldap.admin("reload")
+    bouncer_with_openldap.test(user="ldapuser2", password="secret2")
 
 
 def test_client_login_count(bouncer):
@@ -1456,3 +1463,28 @@ def test_client_login_count(bouncer):
     ):
         bouncer.test(dbname="p3", user="puser1", password="wrong")
     assert get_client_login_count() == 3
+
+
+async def test_auth_query_login_large_packets(bouncer):
+    """Login via auth_query works when auth packets exceed the small pkt_buf.
+
+    This is the trickiest variant of the large-packet login path: with
+    auth_query pgbouncer pauses the client after the StartupMessage, runs the
+    query on a server connection, and then resumes and re-processes the same
+    StartupMessage. Shrinking pkt_buf below both the startup and password sizes
+    forces both packets through the dynamic packet buffering path, so it checks
+    that the V2/V3 framing is tracked correctly across that pause/resume. The
+    password itself is fetched from pg_shadow by the auth_query rather than the
+    auth_file.
+    """
+    bouncer.write_ini("auth_type = plain")
+    bouncer.write_ini("auth_user = pswcheck")
+    bouncer.write_ini(
+        "auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1"
+    )
+    bouncer.write_ini("pkt_buf = 75")
+    await bouncer.restart()
+
+    bouncer.test(user="longpass", password=LONG_PASSWORD)
+    with pytest.raises(psycopg.OperationalError, match="authentication failed"):
+        bouncer.test(user="longpass", password="X" + LONG_PASSWORD)

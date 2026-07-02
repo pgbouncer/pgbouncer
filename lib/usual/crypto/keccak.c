@@ -39,6 +39,7 @@
 #include <usual/crypto/keccak.h>
 #include <usual/bits.h>
 #include <usual/endian.h>
+#include <usual/string.h>
 
 #include <limits.h>
 #include <string.h>
@@ -1253,7 +1254,7 @@ static void extract_bytes(struct KeccakContext *ctx, uint8_t *dst, unsigned int 
 		memcpy(dst, lanebuf, count);
 	}
 
-	memset(lanebuf, 0, sizeof(lanebuf));
+	explicit_bzero(lanebuf, sizeof(lanebuf));
 }
 
 static inline void permute_if_needed(struct KeccakContext *ctx)

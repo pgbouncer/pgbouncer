@@ -2344,7 +2344,7 @@ bool use_client_socket(int fd, PgAddr *addr,
 
 		memcpy(credentials->scram_ClientKey, scram_client_key, sizeof(credentials->scram_ClientKey));
 		memcpy(credentials->scram_ServerKey, scram_server_key, sizeof(credentials->scram_ServerKey));
-		credentials->use_scram_keys = true;
+		credentials->scram_passthrough_valid = true;
 	}
 
 	client = accept_client(fd, pga_is_unix(addr));

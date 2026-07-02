@@ -506,7 +506,7 @@ static bool login_scram_sha_256(PgSocket *server)
 		/* ok */
 		break;
 	case PASSWORD_TYPE_SCRAM_SHA_256:
-		if (!credentials->use_scram_keys) {
+		if (!credentials->scram_passthrough_valid) {
 			slog_error(server, "cannot do SCRAM authentication: password is SCRAM secret but client authentication did not provide SCRAM keys");
 			kill_pool_logins(server->pool, NULL, "server login failed: wrong password type");
 			return false;
@@ -711,7 +711,7 @@ bool answer_authreq(PgSocket *server, PktHdr *pkt)
 	return res;
 }
 
-bool send_startup_packet(PgSocket *server)
+bool send_startup_message(PgSocket *server)
 {
 	PgPool *pool = server->pool;
 	PgDatabase *db = pool->db;

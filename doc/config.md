@@ -767,6 +767,17 @@ aspect of that is that their statistics are also forgotten.  [seconds]
 
 Default: 3600.0
 
+### pool_idle_timeout
+
+If a pool (a specific database/user pair) has had no client connections and
+no server connections for this many seconds, it is freed. This is similar to
+`autodb_idle_timeout`, but frees individual pools rather than whole
+automatically created databases. Note that, unlike `server_idle_timeout`
+(which closes idle server connections but keeps the pool around), this frees
+the whole pool, and only once it is completely empty. 0 disables. [seconds]
+
+Default: 60
+
 ### dns_max_ttl
 
 How long DNS lookups can be cached.  The actual DNS TTL is ignored.
@@ -1062,12 +1073,6 @@ be larger than the client-side connection lifetime settings, and only used
 for network problems. [seconds]
 
 Default: 0.0 (disabled)
-
-### pool_idle_timeout
-
-Pools idling longer than this many seconds are closed. 0 disables. [seconds]
-
-Default: 60
 
 ### idle_transaction_timeout
 

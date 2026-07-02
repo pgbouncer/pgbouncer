@@ -218,8 +218,15 @@ extern int cf_sbuf_len;
 /*
  * Some cloud services use very long generated passwords, so give it
  * plenty of room.
+ *
+ * The upper bound is set by PostgreSQL: it rejects any authentication
+ * message longer than PG_MAX_AUTH_TOKEN_LENGTH (65535) bytes, and that
+ * length includes the 4-byte length word and the trailing NUL of the
+ * password. So the largest cleartext password we can still forward to a
+ * server is 65535 - 4 - 1 = 65530 bytes, which means the buffer (which
+ * includes the NUL) can be at most 65531.
  */
-#define MAX_PASSWORD    65535
+#define MAX_PASSWORD    65531
 
 #ifdef HAVE_LDAP
 /* Hope this length is long enough for ldap config line */

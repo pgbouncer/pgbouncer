@@ -419,7 +419,7 @@ class QueryRunner:
         connect_options = " ".join([f"{k}={v}" for k, v in kwargs.items()])
 
         result = run(
-            ["psql", f"port={self.port} {connect_options}", "-c", query],
+            ["psql", "-X", f"port={self.port} {connect_options}", "-c", query],
             shell=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

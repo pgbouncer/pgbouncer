@@ -22,7 +22,6 @@ from .utils import (
     sudo,
 )
 
-
 if WINDOWS:
     # psycopg only works with a SelectorEventLoop, but on Windows the default is
     # the ProactorEventLoop. We used to force this by setting

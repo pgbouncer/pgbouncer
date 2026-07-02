@@ -283,6 +283,7 @@ class QueryRunner:
         self.port = port
         self.default_db = "postgres"
         self.default_user = "postgres"
+        self.default_password: typing.Optional[str] = None
 
         # Used to track objects that we want to clean up at the end of a test
         self.subscriptions = set()
@@ -297,6 +298,9 @@ class QueryRunner:
         options.setdefault("user", self.default_user)
         options.setdefault("host", self.host)
         options.setdefault("port", self.port)
+        if self.default_password is not None:
+            options.setdefault("password", self.default_password)
+
         if ENABLE_VALGRIND:
             # If valgrind is enabled PgBouncer is a significantly slower to
             # respond to connection requests, so we wait a little longer.
@@ -414,7 +418,19 @@ class QueryRunner:
         self.set_default_connection_options(kwargs)
         connect_options = " ".join([f"{k}={v}" for k, v in kwargs.items()])
 
-        run(["psql", f"port={self.port} {connect_options}", "-c", query], shell=False)
+        result = run(
+            ["psql", f"port={self.port} {connect_options}", "-c", query],
+            shell=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if WINDOWS:
+            # On Windows psql writes its output in text mode, turning every \n
+            # into \r\n. Normalize it so callers can compare against the plain
+            # \n form regardless of platform.
+            result.stdout = result.stdout.replace(b"\r\n", b"\n")
+            result.stderr = result.stderr.replace(b"\r\n", b"\n")
+        return result
 
     @contextmanager
     def transaction(self, **kwargs):
@@ -973,6 +989,7 @@ class Bouncer(QueryRunner):
         self.admin_runner = QueryRunner(self.admin_host, self.port)
         self.admin_runner.default_db = "pgbouncer"
         self.admin_runner.default_user = "pgbouncer"
+        self.admin_runner.default_password = "fake"
 
         with open(base_auth_path) as base_auth:
             with self.auth_path.open("w") as auth:
@@ -1128,6 +1145,16 @@ class Bouncer(QueryRunner):
             old_process.wait()
             await self.wait_until_running()
             assert self.process.pid != old_pid
+
+    async def restart(self):
+        """Fully stops and starts PgBouncer again
+
+        Unlike reboot() this does not take over the sockets of the old process,
+        so it can be used to apply config changes that a RELOAD cannot (i.e.
+        CF_NO_RELOAD settings such as pkt_buf).
+        """
+        await self.stop()
+        await self.start()
 
     def send_signal(self, sig):
         if self.aprocess:

@@ -487,3 +487,27 @@ def test_client_direct_ssl(bouncer, cert_dir):
     bouncer.admin(f"set client_tls_ca_file = '{root}'")
     bouncer.admin("set client_tls_sslmode = require")
     bouncer.psql_test(host="localhost", sslmode="require", sslnegotiation="direct")
+
+
+def test_system_error_propagation(bouncer_tls, cert_dir):
+    root = cert_dir / "TestCA1" / "ca.crt"
+    key = cert_dir / "TestCA1" / "sites" / "01-localhost.key"
+
+    nonexistent_cert = cert_dir / "dummy.crt"
+    if nonexistent_cert.exists():
+        nonexistent_cert.unlink()
+
+    bouncer_tls.write_ini(f"client_tls_key_file = {key}")
+    bouncer_tls.write_ini(f"client_tls_cert_file = {nonexistent_cert}")
+    bouncer_tls.write_ini(f"client_tls_ca_file = {root}")
+    bouncer_tls.write_ini(f"client_tls_sslmode = require")
+
+    with bouncer_tls.log_contains(
+        r"ERROR TLS setup failed:[^\n]*No such file or directory"
+    ):
+        try:
+            bouncer_tls.admin("RELOAD")
+        # System error will cause an exception during RELOAD command. Ignore it
+        # since it is expected.
+        except psycopg.errors.ConfigFileError as e:
+            assert "RELOAD failed" in str(e)

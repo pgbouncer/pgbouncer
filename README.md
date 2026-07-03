@@ -80,33 +80,32 @@ with `-Dcares=enabled` (configure: `--with-cares`) or disabled with
 (configure: `--disable-evdns`) to disable the use of Libevent's evdns and
 fall back to a libc-based implementation.
 
+Optional features
+-----------------
+
+The PAM, LDAP and systemd features are auto-detected by meson: their `-Dpam`,
+`-Dldap` and `-Dsystemd` options default to `auto`, so each is built when its
+libraries are present.  Force one on with `-D<feature>=enabled` or off with
+`-D<feature>=disabled`.  The Autoconf build does not auto-detect them; opt in
+explicitly with `--with-pam`, `--with-ldap` or `--with-systemd`.
+
 PAM authentication
 ------------------
 
-With meson, PAM support is enabled automatically when the PAM libraries are
-detected (the `-Dpam` option defaults to `auto`); pass `-Dpam=enabled` to
-require it or `-Dpam=disabled` to turn it off.  The Autoconf build instead
-has it off by default and needs `--with-pam` to opt in.  When compiled with
-PAM support, a new global authentication type `pam` is available to validate
-users through PAM.
+When compiled with PAM support, a new global authentication type `pam` is
+available to validate users through PAM.
 
 LDAP authentication
 ------------------
 
-With meson, LDAP support is enabled automatically when the LDAP libraries are
-detected (the `-Dldap` option defaults to `auto`); pass `-Dldap=enabled` to
-require it or `-Dldap=disabled` to turn it off.  The Autoconf build instead
-has it off by default and needs `--with-ldap` to opt in.  When compiled with
-LDAP support, a new global authentication type `ldap` is available to validate
-users through LDAP.
+When compiled with LDAP support, a new global authentication type `ldap` is
+available to validate users through LDAP.
 
 systemd integration
 -------------------
 
-To enable systemd integration, use the meson option `-Dsystemd=enabled`
-(configure: `--with-systemd`).  This allows using
-`Type=notify` (or `Type=notify-reload` if
-you are using systemd 253 or later) as well as socket activation.  See
+systemd support allows using `Type=notify` (or `Type=notify-reload` if you are
+using systemd 253 or later) as well as socket activation.  See
 `etc/pgbouncer.service` and `etc/pgbouncer.socket` for examples.
 
 Building from Git

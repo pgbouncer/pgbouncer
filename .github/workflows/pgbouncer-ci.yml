@@ -42,7 +42,8 @@ jobs:
           - { name: no-evdns-no-openssl, meson_args: "-Dcares=disabled -Devdns=false -Dopenssl=disabled" }
           # LDAP/PAM each spawn a background thread whose stack valgrind reports
           # as "possibly lost", so disable them here (they are auto by default).
-          - { name: valgrind, pgversion: "18", cflags: "-O0 -g", enable_valgrind: "yes", meson_args: "-Dcares=disabled -Dldap=disabled -Dpam=disabled" }
+          # c-ares is event-driven (no threads), so exercise it under valgrind.
+          - { name: valgrind, pgversion: "18", cflags: "-O0 -g", enable_valgrind: "yes", meson_args: "-Dcares=enabled -Dldap=disabled -Dpam=disabled" }
     env:
       PGVERSION: ${{ matrix.pgversion || '16' }}
       # Baseline flags mirror the old `--without-cares --with-systemd`; each

@@ -240,9 +240,9 @@ jobs:
         run: |
           set -e
           dnf -y install 'dnf-command(config-manager)'
-          if grep -q -F 'release 9' /etc/redhat-release; then dnf config-manager --set-enabled "plus"; else dnf config-manager --set-enabled "powertools"; fi
-          # meson is in AppStream; ninja-build comes from EPEL.
-          dnf -y install epel-release
+          # ninja-build (and the -devel packages) live in PowerTools, which is
+          # called CRB on EL9; meson itself is in AppStream.
+          if grep -q -F 'release 9' /etc/redhat-release; then dnf config-manager --set-enabled "crb"; else dnf config-manager --set-enabled "powertools"; fi
           dnf -y install diffutils file iptables libevent-devel libpq-devel make meson ninja-build openldap-clients openldap-devel openldap-servers openssl-devel pam-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip socat sudo systemd-devel wget
           case "$meson_args" in *cares=enabled*) dnf -y install c-ares-devel;; esac
           wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz

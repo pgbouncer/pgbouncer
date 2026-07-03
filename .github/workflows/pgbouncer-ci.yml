@@ -178,7 +178,6 @@ jobs:
       matrix:
         include:
           - { name: bookworm, image: debian:bookworm, pgversion: "15" }
-          - { name: bullseye, image: debian:bullseye, pgversion: "13" }
     env:
       PGVERSION: ${{ matrix.pgversion }}
     steps:

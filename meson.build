@@ -2,10 +2,10 @@ project('pgbouncer',
         ['c'],
         version: '1.25.2',
         license: 'ISC',
-        # Kept low enough for the meson shipped by the distros we build on (the
-        # oldest being Debian bullseye's 0.56), so CI can install meson from the
-        # official package repos rather than pip.
-        meson_version: '>= 0.56.0',
+        # Kept in reach of the meson shipped by the distros we build on (the
+        # oldest being RHEL 8's 0.58), so CI can install meson from the official
+        # package repos rather than pip.
+        meson_version: '>= 0.58.0',
         default_options: [
           # The C standard is left at the compiler default; the C11 requirement
           # is enforced by an explicit probe below (see AC_USUAL_C11), which only

@@ -19,10 +19,13 @@ option('root_ca_file', type: 'string', value: '',
 option('cares', type: 'feature', value: 'auto',
        description: 'Build with c-ares support (preferred DNS backend when available)')
 
-option('ldap', type: 'feature', value: 'auto',
+# Off by default, matching autoconf where LDAP/PAM were opt-in (--with-ldap /
+# --with-pam). Both spawn a background thread, whose stack valgrind reports as a
+# "possibly lost" block, so auto-enabling them would break the valgrind job.
+option('ldap', type: 'feature', value: 'disabled',
        description: 'Build with LDAP authentication support')
 
-option('pam', type: 'feature', value: 'auto',
+option('pam', type: 'feature', value: 'disabled',
        description: 'Build with PAM authentication support')
 
 option('openssl', type: 'feature', value: 'auto',

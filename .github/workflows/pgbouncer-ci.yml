@@ -112,7 +112,8 @@ jobs:
           set -e
           # shellcheck disable=SC1091
           source "$HOME/venv/bin/activate"
-          meson dist -C build --no-tests
+          # gztar to match the upload glob below (meson defaults to xztar).
+          meson dist -C build --no-tests --formats gztar
       - name: Upload tarball
         if: ${{ env.DIST == 'yes' }}
         uses: actions/upload-artifact@v4

@@ -608,8 +608,11 @@ endif
 if windows
   pgbouncer_sources += files('win32/win32support.c')
   win = import('windows')
+  # win32ver.rc includes the generated config, so windres needs the same
+  # USUAL_TEST_CONFIG define the C sources get.
   pgbouncer_sources += win.compile_resources('win32/win32ver.rc',
-                                             include_directories: pgbouncer_incdirs)
+                                             include_directories: pgbouncer_incdirs,
+                                             args: ['-DUSUAL_TEST_CONFIG'])
 endif
 
 pgbouncer = executable('pgbouncer',

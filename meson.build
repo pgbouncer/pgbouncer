@@ -582,6 +582,15 @@ pgbouncer_sources = files(
   'src/common/wchar.c',
 )
 
+# Winsock and the IP helper API (linked via LIBS in the autoconf build). Needed
+# by anything that pulls in libusual's socket/tls code, including the test
+# binaries in test/meson.build, so keep it in a shared variable.
+net_deps = []
+if windows
+  net_deps += cc.find_library('ws2_32')
+  net_deps += cc.find_library('iphlpapi')
+endif
+
 pgbouncer_deps = [
   libcares,
   libevent,
@@ -590,13 +599,7 @@ pgbouncer_deps = [
   pam,
   ldap,
   threads,
-] + dns_deps
-
-if windows
-  # Winsock and the IP helper API, linked via LIBS in the autoconf build.
-  pgbouncer_deps += cc.find_library('ws2_32')
-  pgbouncer_deps += cc.find_library('iphlpapi')
-endif
+] + dns_deps + net_deps
 
 # '.' brings in the build root (where the generated test_config.h lives).
 if windows

@@ -10,7 +10,7 @@ hba_test = executable('hba_test',
                       config_h,
                       build_by_default: false,
                       include_directories: test_incdirs,
-                      dependencies: [libevent, openssl, systemd, threads],
+                      dependencies: [libevent, openssl, systemd, threads] + net_deps,
                      )
 
 libpq = dependency('libpq', required: false, disabler: true)
@@ -21,7 +21,7 @@ asynctest = executable('asynctest',
                        config_h,
                        build_by_default: false,
                        include_directories: test_incdirs,
-                       dependencies: [libevent, libpq, systemd, threads],
+                       dependencies: [libevent, libpq, systemd, threads] + net_deps,
                       )
 
 test('hba_test',

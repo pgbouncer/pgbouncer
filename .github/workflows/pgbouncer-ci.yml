@@ -42,27 +42,37 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: [cares-pam-ldap, no-evdns-no-openssl, valgrind]
         include:
-          - name: cares-pam-ldap
-            meson_args: "-Dcares=enabled -Dpam=enabled -Dldap=enabled"
+          # Keep the autoconf build exercised (while both build systems coexist)
+          # on the same stock Ubuntu runner rather than a separate distro. This
+          # also produces the release dist tarball, which (unlike meson's) bundles
+          # the generated `configure` so it can be built without autoconf tools.
+          - name: autoconf
+            build_system: autoconf
+            configure_args: "--with-cares --with-pam --with-ldap"
             dist: "yes"
+          - name: cares-pam-ldap
+            build_system: meson
+            meson_args: "-Dcares=enabled -Dpam=enabled -Dldap=enabled"
           - name: no-evdns-no-openssl
+            build_system: meson
             meson_args: "-Dcares=disabled -Devdns=false -Dopenssl=disabled"
           # LDAP/PAM each spawn a background thread whose stack valgrind reports
           # as "possibly lost", so disable them here. c-ares is event-driven (no
           # threads), so exercise it under valgrind.
           - name: valgrind
+            build_system: meson
             pgversion: "18"
             cflags: "-O0 -g"
             enable_valgrind: "yes"
             meson_args: "-Dcares=enabled -Dldap=disabled -Dpam=disabled"
     env:
       PGVERSION: ${{ matrix.pgversion || '16' }}
-      BUILD_SYSTEM: meson
+      BUILD_SYSTEM: ${{ matrix.build_system }}
       # Baseline flags common to every Linux config; each matrix entry adds its
       # own feature toggles.
       MESON_ARGS: -Dcassert=true -Dsystemd=enabled ${{ matrix.meson_args }}
+      CONFIGURE_ARGS: --enable-cassert --with-systemd ${{ matrix.configure_args }}
       # CFLAGS_OVERRIDE is exported into the real CFLAGS by the build step only
       # when non-empty, so entries that don't set it keep the default flags.
       CFLAGS_OVERRIDE: ${{ matrix.cflags }}
@@ -77,7 +87,7 @@ jobs:
           sudo apt-get -y --no-install-recommends install gnupg postgresql-common
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get update
-          pkgs="ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev meson ninja-build pandoc pkg-config postgresql-$PGVERSION python3 python3-pip python3-venv slapd socat sudo"
+          pkgs="autoconf automake ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev libtool make meson ninja-build pandoc pkg-config postgresql-$PGVERSION python3 python3-pip python3-venv slapd socat sudo"
           if [ "$ENABLE_VALGRIND" = "yes" ]; then pkgs="$pkgs valgrind"; fi
           if [ "$USE_SCAN_BUILD" = "yes" ]; then pkgs="$pkgs clang clang-tools"; fi
           # $pkgs is an intentionally word-split package list.
@@ -232,10 +242,9 @@ jobs:
           if-no-files-found: ignore
 
   # Red Hat-compatible releases in their official container images. Same
-  # build-and-test-as-`user` approach as the Debian job above. rocky-8 is built
-  # both ways (meson and autoconf); rocky-9 with meson.
+  # build-and-test-as-`user` approach as the Debian job above. Built with meson.
   linux-rhel:
-    name: Linux Red Hat (${{ matrix.name }}, ${{ matrix.build_system }})
+    name: Linux Red Hat (${{ matrix.name }})
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.ref == 'refs/heads/master' ||
@@ -247,13 +256,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: rocky-8, image: rockylinux:8, build_system: meson }
-          - { name: rocky-8, image: rockylinux:8, build_system: autoconf }
-          - { name: rocky-9, image: rockylinux:9, build_system: meson, meson_args: "-Dcares=enabled", configure_args: "--with-cares" }
+          - { name: rocky-8, image: rockylinux:8 }
+          - { name: rocky-9, image: rockylinux:9, meson_args: "-Dcares=enabled" }
     env:
-      BUILD_SYSTEM: ${{ matrix.build_system }}
+      BUILD_SYSTEM: meson
       MESON_ARGS: -Dcassert=true -Dsystemd=enabled -Dldap=enabled -Dpam=enabled ${{ matrix.meson_args }}
-      CONFIGURE_ARGS: --enable-cassert --with-systemd --with-ldap --with-pam ${{ matrix.configure_args }}
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
@@ -263,7 +270,7 @@ jobs:
           # ninja-build (and the -devel packages) live in PowerTools, which is
           # called CRB on EL9; meson itself is in AppStream.
           if grep -q -F 'release 9' /etc/redhat-release; then dnf config-manager --set-enabled "crb"; else dnf config-manager --set-enabled "powertools"; fi
-          dnf -y install autoconf automake diffutils file iptables libevent-devel libpq-devel libtool make meson ninja-build openldap-clients openldap-devel openldap-servers openssl-devel pam-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip socat sudo systemd-devel wget
+          dnf -y install diffutils file iptables libevent-devel libpq-devel make meson ninja-build openldap-clients openldap-devel openldap-servers openssl-devel pam-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip socat sudo systemd-devel wget
           if [ "${{ matrix.name }}" = "rocky-9" ]; then dnf -y install c-ares-devel; fi
           wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
           tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
@@ -284,7 +291,7 @@ jobs:
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: logs-${{ matrix.name }}-${{ matrix.build_system }}
+          name: logs-${{ matrix.name }}
           path: |
             build/meson-logs/meson-log.txt
             config.log

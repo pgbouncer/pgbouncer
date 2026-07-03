@@ -214,6 +214,53 @@ jobs:
           path: build/meson-logs/meson-log.txt
           if-no-files-found: ignore
 
+  # Debian bullseye ships a meson too old to build PgBouncer, so instead of the
+  # meson job above it exercises the autoconf build here. This doubles as
+  # coverage that the autoconf build keeps working while the two coexist.
+  linux-debian-autoconf:
+    name: Linux Debian (bullseye, autoconf)
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.ref == 'refs/heads/master' ||
+      contains(github.event.pull_request.labels.*.name, 'ci-full')
+    runs-on: ubuntu-latest
+    container:
+      image: debian:bullseye
+    env:
+      PGVERSION: "13"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          set -e
+          apt-get update
+          apt-get -y --no-install-recommends install gnupg postgresql-common
+          /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          apt-get update
+          apt-get -y --no-install-recommends install autoconf automake ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev libtool make pandoc pkg-config "postgresql-$PGVERSION" python3 python3-pip python3-venv slapd socat sudo
+          python3 -m venv /venv
+          /venv/bin/pip install .
+          useradd -m user
+          chown -R user .
+          echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+      - name: Build
+        run: |
+          set -e
+          su user -c "./autogen.sh"
+          su user -c "./configure --prefix=\$HOME/install --enable-cassert --enable-werror --without-cares --with-systemd"
+          su user -c "make -j4"
+      - name: Test
+        run: su user -c "PATH=/usr/lib/postgresql/$PGVERSION/bin:/venv/bin:\$PATH make -j4 check CONCURRENCY=4"
+      - name: Install
+        run: su user -c "make -j4 install"
+      - name: Upload config.log
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: config-log-debian-bullseye
+          path: config.log
+          if-no-files-found: ignore
+
   # Red Hat-compatible releases in their official container images. Same
   # build-and-test-as-`user` approach as the Debian job above.
   linux-rhel:

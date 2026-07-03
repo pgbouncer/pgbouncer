@@ -429,7 +429,7 @@ jobs:
             "${MINGW_PACKAGE_PREFIX}-meson" "${MINGW_PACKAGE_PREFIX}-ninja" \
             "${MINGW_PACKAGE_PREFIX}-pkgconf" zip
           echo "127.0.0.1   localhost" >> /etc/hosts
-          pip install --break-system-packages .
+          pip install .
       - name: Build
         run: |
           export PATH="/c/programdata/chocolatey/bin:$PATH"

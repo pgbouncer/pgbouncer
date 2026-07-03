@@ -10,9 +10,9 @@ project('pgbouncer',
           # The C standard is left at the compiler default; the C11 requirement
           # is enforced by an explicit probe below (see AC_USUAL_C11), which only
           # adds a -std= flag when the default is not already C11.
-          # We manage the warning flags explicitly below to match the set the
-          # autoconf build used, so keep meson from injecting its own.
-          'warning_level=0',
+          # warning_level=2 supplies -Wall -Wextra (the rest of the autoconf
+          # WFLAGS set is added explicitly below).
+          'warning_level=2',
         ],
 )
 
@@ -479,8 +479,7 @@ add_project_arguments('-DUSUAL_TEST_CONFIG', language: 'c')
 # (notably -Wno-missing-field-initializers). get_supported_arguments mirrors the
 # per-flag compile probe autoconf does.
 warning_flags = [
-  '-Wall',
-  '-Wextra',
+  # -Wall -Wextra come from warning_level=2 above.
   # turn off noise from -Wextra
   '-Wno-unused-parameter',
   '-Wno-missing-field-initializers',

@@ -245,6 +245,8 @@ jobs:
           wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
           tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
           if grep -q -F 'release 9' /etc/redhat-release; then dnf -y install python-unversioned-command; else dnf -y install python39 python39-pip && alternatives --set python /usr/bin/python3.9; fi
+          # Installs the `pytest` console script (with the right python shebang)
+          # onto PATH, which meson finds at configure time.
           python -m pip install .
           # RHEL 8's packaged meson is too old for our meson_version floor, so
           # install meson and ninja from PyPI.
@@ -308,7 +310,8 @@ jobs:
           adduser --disabled-password user
           chown -R user .
           echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
-          su user -c "meson setup build --prefix=\$HOME/install -Dcassert=true --werror -Dcares=enabled -Dldap=enabled -Dsystemd=disabled"
+          # /venv/bin on PATH so meson finds pytest at configure time.
+          su user -c "PATH=/venv/bin:\$PATH meson setup build --prefix=\$HOME/install -Dcassert=true --werror -Dcares=enabled -Dldap=enabled -Dsystemd=disabled"
           su user -c "meson compile -C build -v"
           su user -c "PATH=/venv/bin:\$PATH meson test -C build -v --print-errorlogs"
           su user -c "meson install -C build"
@@ -339,6 +342,8 @@ jobs:
       - name: Build
         run: |
           set -e
+          # shellcheck disable=SC1091
+          source venv/bin/activate   # so meson finds pytest at configure time
           export PATH="/opt/homebrew/opt/postgresql@$PGVERSION/bin:$PATH"
           meson setup build --prefix="$HOME/install" --werror -Dldap=enabled
           meson compile -C build -v

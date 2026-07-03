@@ -678,9 +678,38 @@ test('optscan',
      files('etc/optscan.sh'),
      workdir: meson.project_source_root())
 
+# Pick the command used to run the test suite. An explicit -Dpytest=... wins
+# (its first element is the program, the rest are leading arguments); otherwise
+# prefer the `pytest` console script and fall back to `python -m pytest`. This is
+# resolved at configure time, so CI puts the test dependencies (its venv) on PATH
+# before running `meson setup`.
+pytest_opt = get_option('pytest')
+if pytest_opt.length() > 0
+  pytest_exe = find_program(pytest_opt[0])
+  pytest_args = []
+  is_first = true
+  foreach a : pytest_opt
+    if is_first
+      is_first = false
+    else
+      pytest_args += a
+    endif
+  endforeach
+else
+  pytest = find_program('pytest', required: false)
+  if pytest.found()
+    pytest_exe = pytest
+    pytest_args = []
+  else
+    pytest_exe = python
+    pytest_args = ['-m', 'pytest']
+  endif
+endif
+pytest_args += ['-n', 'auto', '-r', 's']
+
 test('pytest',
-     python,
-     args: ['-m', 'pytest', '-n', 'auto', '-r', 's'],
+     pytest_exe,
+     args: pytest_args,
      env: {
        'BOUNCER_EXE': pgbouncer.full_path(),
        'PYTHONIOENCODING': 'utf8',

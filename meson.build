@@ -4,11 +4,11 @@ project('pgbouncer',
         license: 'ISC',
         meson_version: '>= 0.60',
         default_options: [
+          # The C standard is left at the compiler default; the C11 requirement
+          # is enforced by an explicit probe below (see AC_USUAL_C11), which only
+          # adds a -std= flag when the default is not already C11.
           # We manage the warning flags explicitly below to match the set the
-          # autoconf build used, so keep meson from injecting its own. The C
-          # standard is deliberately left at the compiler default (as the
-          # autoconf build did): forcing an older -std would make clang flag
-          # the code's typedef redefinitions as a "C11 feature".
+          # autoconf build used, so keep meson from injecting its own.
           'warning_level=0',
         ],
 )
@@ -17,6 +17,54 @@ cc = meson.get_compiler('c')
 fs = import('fs')
 host_system = host_machine.system()
 windows = host_system == 'windows'
+
+# ----------------------------------------------------------------------
+# Require a C11-capable compiler (mirrors AC_USUAL_C11).
+#
+# Prefer the compiler's default mode so a newer default (e.g. gnu17) is kept;
+# only add an explicit -std= flag when the default is not already C11. A genuine
+# C11 mode is required, not just the underlying keywords: GCC accepts
+# _Static_assert/_Alignof/_Generic as extensions even in pre-C11 modes, while
+# glibc gates the <assert.h>/<stdalign.h> macros the code actually uses on
+# __STDC_VERSION__ >= 201112L. So key the probe off that macro and also exercise
+# the library macros themselves.
+# ----------------------------------------------------------------------
+
+c11_probe = '''
+#include <assert.h>
+#include <stdalign.h>
+#if __STDC_VERSION__ < 201112L
+#error "C11 mode is not enabled"
+#endif
+static_assert(1, "static assertions work");
+_Noreturn void pgb_noret(void);
+_Noreturn void pgb_noret(void) { for (;;) {} }
+int main(void) {
+    int x = 0;
+    int g = _Generic(x, int: 1, default: 0);
+    int a = (int) alignof(int);
+    return g + a - g - a;
+}
+'''
+
+c11_flag = ''
+c11_ok = false
+foreach flag : ['', '-std=gnu11', '-std=c11']
+  if not c11_ok
+    label = flag == '' ? 'C11 support (compiler default)' : 'C11 support (@0@)'.format(flag)
+    if cc.compiles(c11_probe, args: flag == '' ? [] : [flag], name: label)
+      c11_ok = true
+      c11_flag = flag
+    endif
+  endif
+endforeach
+
+if not c11_ok
+  error('a C11-capable compiler is required to build this software')
+endif
+if c11_flag != ''
+  add_project_arguments(c11_flag, language: 'c')
+endif
 
 not_found_dep = dependency('', required: false)
 
@@ -648,10 +696,13 @@ test('pytest',
 # Convenience developer targets (mirrors the Makefile phony targets)
 # ----------------------------------------------------------------------
 
-ruff = find_program('ruff', required: false)
-if ruff.found()
-  run_target('lint', command: [ruff, 'check'])
-endif
+# Formatting and linting are handled by a standalone script so they do not
+# depend on the build system (dev/format.sh builds the pinned uncrustify and
+# drives ruff). These targets mirror the old `make format`/`format-check`/`lint`.
+format_sh = find_program('dev/format.sh')
+run_target('format', command: [format_sh, 'fix'])
+run_target('format-check', command: [format_sh, 'check'])
+run_target('lint', command: [format_sh, 'lint'])
 
 ctags = find_program('ctags', required: false)
 if ctags.found()

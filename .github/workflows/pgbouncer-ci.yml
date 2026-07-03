@@ -432,11 +432,11 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake curl gcc g++ git make
+          sudo apt-get install -y --no-install-recommends cmake curl gcc g++ git
           pip install .[dev]
-      # `make format-check` compiles uncrustify from source, which takes a
-      # while. Cache the resulting binary keyed on the pinned version so it is
-      # only rebuilt when we bump UNCRUSTIFY_VERSION in the Makefile.
+      # dev/format.sh compiles uncrustify from source, which takes a while.
+      # Cache the resulting binary keyed on the pinned version so it is only
+      # rebuilt when we bump UNCRUSTIFY_VERSION in the script.
       - name: Cache uncrustify
         uses: actions/cache@v4
         with:
@@ -444,6 +444,5 @@ jobs:
           key: uncrustify-0.77.1-${{ runner.os }}
       - name: Run checks
         run: |
-          touch config.mak # Pretend that ./configure has run
-          make format-check
-          make lint
+          dev/format.sh check
+          dev/format.sh lint

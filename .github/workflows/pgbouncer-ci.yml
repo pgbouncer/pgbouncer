@@ -269,12 +269,12 @@ jobs:
           dnf -y install 'dnf-command(config-manager)'
           # ninja-build (and the -devel packages) live in PowerTools, which is
           # called CRB on EL9; meson itself is in AppStream.
-          if grep -q -F 'release 9' /etc/redhat-release; then dnf config-manager --set-enabled "crb"; else dnf config-manager --set-enabled "powertools"; fi
+          if [ "${{ matrix.name }}" = "rocky-9" ]; then dnf config-manager --set-enabled "crb"; else dnf config-manager --set-enabled "powertools"; fi
           dnf -y install diffutils file iptables libevent-devel libpq-devel make meson ninja-build openldap-clients openldap-devel openldap-servers openssl-devel pam-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip socat sudo systemd-devel wget
           if [ "${{ matrix.name }}" = "rocky-9" ]; then dnf -y install c-ares-devel; fi
           wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
           tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
-          if grep -q -F 'release 9' /etc/redhat-release; then dnf -y install python-unversioned-command; else dnf -y install python39 python39-pip && alternatives --set python /usr/bin/python3.9; fi
+          if [ "${{ matrix.name }}" = "rocky-9" ]; then dnf -y install python-unversioned-command; else dnf -y install python39 python39-pip && alternatives --set python /usr/bin/python3.9; fi
           # Installs the `pytest` console script (with the right python shebang)
           # onto PATH, which meson finds at configure time.
           python -m pip install .

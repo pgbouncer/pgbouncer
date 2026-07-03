@@ -83,17 +83,21 @@ fall back to a libc-based implementation.
 PAM authentication
 ------------------
 
-To enable PAM authentication, use the meson option `-Dpam=enabled`
-(configure: `--with-pam`; disabled by default).  When compiled with PAM
-support, a new global authentication type `pam` is available to validate
+With meson, PAM support is enabled automatically when the PAM libraries are
+detected (the `-Dpam` option defaults to `auto`); pass `-Dpam=enabled` to
+require it or `-Dpam=disabled` to turn it off.  The Autoconf build instead
+has it off by default and needs `--with-pam` to opt in.  When compiled with
+PAM support, a new global authentication type `pam` is available to validate
 users through PAM.
 
 LDAP authentication
 ------------------
 
-To enable LDAP authentication, use the meson option `-Dldap=enabled`
-(configure: `--with-ldap`; disabled by default).  When compiled with LDAP
-support, a new global authentication type `ldap` is available to validate
+With meson, LDAP support is enabled automatically when the LDAP libraries are
+detected (the `-Dldap` option defaults to `auto`); pass `-Dldap=enabled` to
+require it or `-Dldap=disabled` to turn it off.  The Autoconf build instead
+has it off by default and needs `--with-ldap` to opt in.  When compiled with
+LDAP support, a new global authentication type `ldap` is available to validate
 users through LDAP.
 
 systemd integration

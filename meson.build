@@ -2,7 +2,10 @@ project('pgbouncer',
         ['c'],
         version: '1.25.2',
         license: 'ISC',
-        meson_version: '>= 0.60',
+        # Kept low enough for the meson shipped by the distros we build on (the
+        # oldest being Debian bullseye's 0.56), so CI can install meson from the
+        # official package repos rather than pip.
+        meson_version: '>= 0.56.0',
         default_options: [
           # The C standard is left at the compiler default; the C11 requirement
           # is enforced by an explicit probe below (see AC_USUAL_C11), which only
@@ -366,8 +369,9 @@ endif
 # systemd (mirrors --with-systemd)
 # ----------------------------------------------------------------------
 
-systemdopt = get_option('systemd').disable_auto_if(host_system != 'linux')
-systemd = dependency('libsystemd', required: systemdopt)
+# libsystemd only exists on Linux; on other systems an `auto` lookup simply
+# comes back not-found, so no special-casing is needed.
+systemd = dependency('libsystemd', required: get_option('systemd'))
 cdata.set('USE_SYSTEMD', systemd.found() ? 1 : false,
           description: 'Define to build with systemd support. (-Dsystemd=enabled)')
 
@@ -375,10 +379,14 @@ cdata.set('USE_SYSTEMD', systemd.found() ? 1 : false,
 # PAM (mirrors --with-pam)
 # ----------------------------------------------------------------------
 
+# pam/ldap are combo options ('auto'/'enabled'/'disabled') rather than meson
+# `feature`s: the feature accessors (.allowed(), and passing a feature to
+# find_library's `required`) need meson 0.59, newer than our floor. The string
+# compare below reproduces the same semantics on older meson.
 pamopt = get_option('pam')
 pam = not_found_dep
-if pamopt.allowed()
-  pam = cc.find_library('pam', required: pamopt, has_headers: ['security/pam_appl.h'])
+if pamopt != 'disabled'
+  pam = cc.find_library('pam', required: pamopt == 'enabled', has_headers: ['security/pam_appl.h'])
 endif
 if pam.found()
   cdata.set('HAVE_PAM', 1, description: 'PAM support.')
@@ -391,8 +399,8 @@ endif
 
 ldapopt = get_option('ldap')
 ldap = not_found_dep
-if ldapopt.allowed()
-  ldap = cc.find_library('ldap', required: ldapopt, has_headers: ['ldap.h'])
+if ldapopt != 'disabled'
+  ldap = cc.find_library('ldap', required: ldapopt == 'enabled', has_headers: ['ldap.h'])
 endif
 if ldap.found()
   cdata.set('HAVE_LDAP', 1, description: 'LDAP support.')

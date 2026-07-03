@@ -190,12 +190,9 @@ jobs:
           apt-get -y --no-install-recommends install gnupg postgresql-common
           /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           apt-get update
-          apt-get -y --no-install-recommends install ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev ninja-build pandoc pkg-config "postgresql-$PGVERSION" python3 python3-pip python3-venv slapd socat sudo
+          apt-get -y --no-install-recommends install ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev meson ninja-build pandoc pkg-config "postgresql-$PGVERSION" python3 python3-pip python3-venv slapd socat sudo
           python3 -m venv /venv
           /venv/bin/pip install .
-          # The meson in Debian bullseye predates our meson_version floor, so
-          # install a current meson (and ninja) from PyPI into the venv.
-          /venv/bin/pip install meson ninja
           # -m creates the home directory; `meson install` writes to $HOME, and
           # unlike RHEL's useradd, Debian's doesn't create it by default.
           useradd -m user
@@ -244,7 +241,9 @@ jobs:
           set -e
           dnf -y install 'dnf-command(config-manager)'
           if grep -q -F 'release 9' /etc/redhat-release; then dnf config-manager --set-enabled "plus"; else dnf config-manager --set-enabled "powertools"; fi
-          dnf -y install diffutils file iptables libevent-devel libpq-devel make openldap-clients openldap-devel openldap-servers openssl-devel pam-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip socat sudo systemd-devel wget
+          # meson is in AppStream; ninja-build comes from EPEL.
+          dnf -y install epel-release
+          dnf -y install diffutils file iptables libevent-devel libpq-devel make meson ninja-build openldap-clients openldap-devel openldap-servers openssl-devel pam-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip socat sudo systemd-devel wget
           case "$meson_args" in *cares=enabled*) dnf -y install c-ares-devel;; esac
           wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
           tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
@@ -252,9 +251,6 @@ jobs:
           # Installs the `pytest` console script (with the right python shebang)
           # onto PATH, which meson finds at configure time.
           python -m pip install .
-          # RHEL 8's packaged meson is too old for our meson_version floor, so
-          # install meson and ninja from PyPI.
-          python -m pip install meson ninja
           useradd user
           chown -R user .
           echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers

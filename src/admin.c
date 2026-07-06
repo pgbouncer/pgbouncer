@@ -172,7 +172,7 @@ static const struct FakeParam fake_param_list[] = {
 	{ "standard_conforming_strings", "on" },
 	{ "datestyle", "ISO" },
 	{ "timezone", "GMT" },
-	{ "extra_float_digits", "2"} ,
+	{ "extra_float_digits", "2"},
 	{ NULL },
 };
 

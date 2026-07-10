@@ -726,8 +726,6 @@ test('pytest',
      env: {
        'BOUNCER_EXE': pgbouncer.full_path(),
        'PYTHONIOENCODING': 'utf8',
-       'TEST_USE_LDAP': ldap.found() ? '1' : '',
-       'TEST_USE_TLS': openssl.found() ? '1' : '',
      },
      workdir: meson.project_source_root() / 'test',
      depends: [pgbouncer],

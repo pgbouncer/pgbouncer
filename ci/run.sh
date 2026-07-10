@@ -54,13 +54,30 @@ install.autoconf)
 	make -j"$jobs" install
 	;;
 dist.meson)
-	# gztar to match the artifact glob (meson defaults to xztar).
+	# gztar to match the artifact glob (meson defaults to xztar). --no-tests
+	# because the test suite already ran against this checkout; the tarball
+	# itself is verified below by building from a fresh extraction instead.
 	meson dist -C build --no-tests --formats gztar
 	mkdir -p dist && cp build/meson-dist/pgbouncer-*.tar.gz dist/
+	tar -x -f dist/pgbouncer-*.tar.gz -C dist
+	cd dist/pgbouncer-*/
+	# shellcheck disable=SC2086
+	meson setup build --prefix="$prefix-dist" --werror ${MESON_ARGS:-}
+	meson compile -C build -v
+	meson install -C build
 	;;
 dist.autoconf)
 	make dist
 	mkdir -p dist && cp pgbouncer-*.tar.gz dist/
+	# Build from a fresh extraction of the tarball. No autogen.sh here: the
+	# tarball bundles the generated `configure`, and skipping it verifies the
+	# tarball can be built without the autoconf tools installed.
+	tar -x -f dist/pgbouncer-*.tar.gz -C dist
+	cd dist/pgbouncer-*/
+	# shellcheck disable=SC2086
+	./configure --prefix="$prefix-dist" --enable-werror ${CONFIGURE_ARGS:-}
+	make -j"$jobs"
+	make -j"$jobs" install
 	;;
 *)
 	echo "usage: ci/run.sh <build|test|install|dist> <meson|autoconf>" >&2

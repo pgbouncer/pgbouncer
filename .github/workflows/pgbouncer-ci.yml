@@ -24,10 +24,11 @@ env:
   LANG: C
 
 # Platforms build with meson. The autoconf build still coexists and is kept
-# exercised on two representative container jobs (Debian bullseye, whose packaged
-# meson is too old, and RHEL 8, which also gets a meson build). The per-step
-# commands live in ci/run.sh, which takes the build system as an argument, so
-# both are driven the same way.
+# exercised on two jobs: the `autoconf` entry in the `linux` matrix (a stock
+# Ubuntu runner, which also produces the dist tarball) and the Debian bullseye
+# container, whose packaged meson is too old. The per-step commands live in
+# ci/run.sh, which takes the build system as an argument, so both are driven
+# the same way.
 
 jobs:
   # Builds and tests on native GitHub-hosted Ubuntu runners. These run as the

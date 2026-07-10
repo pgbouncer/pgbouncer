@@ -236,6 +236,48 @@ def test_evict_statement_cache_pipeline_failure(bouncer):
             assert curs[0].fetchall() == [(1,)]
 
 
+@pytest.fixture(
+    params=[pytest.param(x, id="step_timeout_{}".format(x)) for x in range(3)]
+)
+def step_timeout(request: pytest.FixtureRequest) -> int:
+    return request.param
+
+
+@pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
+def test_evict_statement_cache_pipeline_failure_v2(bouncer, step_timeout: int):
+    #
+    # See: https://github.com/pgbouncer/pgbouncer/issues/1480
+    #
+    bouncer.admin(f"set max_prepared_statements=1")
+
+    with bouncer.conn() as conn:
+        # Phase 1: Breaking the Pipeline
+        with conn.pipeline() as p:
+            curs = [conn.cursor() for _ in range(4)]
+            curs[0].execute("SELECT 1", prepare=True)
+            time.sleep(step_timeout)
+
+            with pytest.raises(psycopg.errors.SyntaxError):
+                curs[1].execute("bad query", prepare=True)
+                p.sync()
+
+        # We CANNOT continue in this p block,
+        # because it's marked as [BAD].
+        # We'll exit it so psycopg can clean up.
+
+        # BUT WE'LL STILL CHECK THE RESULT
+        assert curs[0].fetchall() == [(1,)]
+
+        # Phase 2: Check that the bouncer is alive and the statement cache is working
+        # Create a NEW pipeline block on the same connection
+        with conn.pipeline() as p:
+            new_curs = conn.cursor()
+            for _ in range(2):
+                new_curs.execute("SELECT 1", prepare=True)
+                p.sync()
+                assert new_curs.fetchall() == [(1,)]
+
+
 @pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
 def test_prepared_statement_pipeline(bouncer):
     # Prepare query on the server connection and then disconnect again

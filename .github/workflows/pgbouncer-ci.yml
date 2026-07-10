@@ -23,14 +23,20 @@ env:
   DEBIAN_FRONTEND: noninteractive
   LANG: C
 
+# Platforms build with meson. The autoconf build still coexists and is kept
+# exercised on two jobs: the `autoconf` entry in the `linux` matrix (a stock
+# Ubuntu runner, which also produces the dist tarball) and the Debian bullseye
+# container, whose packaged meson is too old. The per-step commands live in
+# ci/run.sh, which takes the build system as an argument, so both are driven
+# the same way.
+
 jobs:
   # Builds and tests on native GitHub-hosted Ubuntu runners. These run as the
   # unprivileged `runner` user, so unlike the Cirrus containers there is no
   # need to create a separate user and su into it.
   #
   # `linux-extra` below reuses this job's steps via a YAML anchor and only
-  # differs in its matrix, env and trigger. Matrix entries list only the keys
-  # that differ from the defaults set in `env`.
+  # differs in its matrix, env and trigger.
   linux:
     name: Linux (${{ matrix.name }})
     runs-on: ubuntu-22.04
@@ -38,14 +44,38 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: cares-pam-ldap, configure_args: "--with-cares --with-pam --with-ldap", dist: "yes" }
-          - { name: no-evdns-no-openssl, configure_args: "--disable-evdns --without-openssl" }
-          - { name: valgrind, pgversion: "18", cflags: "-O0 -g", enable_valgrind: "yes" }
+          # Keep the autoconf build exercised (while both build systems coexist)
+          # on the same stock Ubuntu runner rather than a separate distro. This
+          # also produces the release dist tarball, which (unlike meson's) bundles
+          # the generated `configure` so it can be built without autoconf tools.
+          - name: autoconf
+            build_system: autoconf
+            configure_args: "--with-cares --with-pam --with-ldap"
+            dist: "yes"
+          - name: cares-pam-ldap
+            build_system: meson
+            meson_args: "-Dcares=enabled -Dpam=enabled -Dldap=enabled"
+          - name: no-evdns-no-openssl
+            build_system: meson
+            meson_args: "-Dcares=disabled -Devdns=false -Dopenssl=disabled"
+          # LDAP/PAM each spawn a background thread whose stack valgrind reports
+          # as "possibly lost", so disable them here. c-ares is event-driven (no
+          # threads), so exercise it under valgrind.
+          - name: valgrind
+            build_system: meson
+            pgversion: "18"
+            cflags: "-O0 -g"
+            enable_valgrind: "yes"
+            meson_args: "-Dcares=enabled -Dldap=disabled -Dpam=disabled"
     env:
       PGVERSION: ${{ matrix.pgversion || '16' }}
-      configure_args: ${{ matrix.configure_args }}
+      BUILD_SYSTEM: ${{ matrix.build_system }}
+      # Baseline flags common to every Linux config; each matrix entry adds its
+      # own feature toggles.
+      MESON_ARGS: -Dcassert=true -Dsystemd=enabled ${{ matrix.meson_args }}
+      CONFIGURE_ARGS: --enable-cassert --with-systemd ${{ matrix.configure_args }}
       # CFLAGS_OVERRIDE is exported into the real CFLAGS by the build step only
-      # when non-empty, so entries that don't set it keep configure's defaults.
+      # when non-empty, so entries that don't set it keep the default flags.
       CFLAGS_OVERRIDE: ${{ matrix.cflags }}
       ENABLE_VALGRIND: ${{ matrix.enable_valgrind }}
       DIST: ${{ matrix.dist }}
@@ -58,7 +88,7 @@ jobs:
           sudo apt-get -y --no-install-recommends install gnupg postgresql-common
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get update
-          pkgs="autoconf automake ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev libtool make pandoc pkg-config postgresql-$PGVERSION python3 python3-pip python3-venv slapd socat sudo"
+          pkgs="autoconf automake ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev libtool make meson ninja-build pandoc pkg-config postgresql-$PGVERSION python3 python3-pip python3-venv slapd socat sudo"
           if [ "$ENABLE_VALGRIND" = "yes" ]; then pkgs="$pkgs valgrind"; fi
           if [ "$USE_SCAN_BUILD" = "yes" ]; then pkgs="$pkgs clang clang-tools"; fi
           # $pkgs is an intentionally word-split package list.
@@ -77,56 +107,53 @@ jobs:
       - name: Build
         run: |
           set -e
+          # shellcheck disable=SC1091
+          source "$HOME/venv/bin/activate"
           [ -n "$CFLAGS_OVERRIDE" ] && export CFLAGS="$CFLAGS_OVERRIDE"
-          ./autogen.sh
-          # $configure_args and the optional scan-build prefix are meant to
-          # word-split.
-          # shellcheck disable=SC2086
-          ${USE_SCAN_BUILD:+scan-build} ./configure --prefix="$HOME/install" --enable-cassert --enable-werror --without-cares --with-systemd $configure_args
-          # shellcheck disable=SC2086
-          ${USE_SCAN_BUILD:+scan-build} make -j4
+          [ "${USE_SCAN_BUILD:-}" = "yes" ] && export SCANBUILD="scan-build"
+          sh ci/run.sh build "$BUILD_SYSTEM"
       - name: Test
         run: |
           set -e
           # shellcheck disable=SC1091
           source "$HOME/venv/bin/activate"
-          PATH="/usr/lib/postgresql/$PGVERSION/bin:$PATH" make -j4 check CONCURRENCY=4
+          export PATH="/usr/lib/postgresql/$PGVERSION/bin:$PATH"
+          sh ci/run.sh test "$BUILD_SYSTEM"
       - name: Install
-        run: make -j4 install
+        run: |
+          set -e
+          # shellcheck disable=SC1091
+          source "$HOME/venv/bin/activate"
+          sh ci/run.sh install "$BUILD_SYSTEM"
       # Verify the dist tarball builds from a clean checkout, like Cirrus did.
       # Only needs to run once, so it is gated on the `DIST` flag.
       - name: Build distribution tarball
         if: ${{ env.DIST == 'yes' }}
         run: |
           set -e
-          make dist
-          PACKAGE_VERSION=$(sed -n 's/PACKAGE_VERSION = //p' config.mak)
-          tar -x -v -f "pgbouncer-${PACKAGE_VERSION}.tar.gz"
-          cd "pgbouncer-${PACKAGE_VERSION}/"
-          # shellcheck disable=SC2086
-          ./configure --prefix="$HOME/install2" --enable-werror --without-cares $configure_args
-          make -j4
-          make -j4 install
+          # shellcheck disable=SC1091
+          source "$HOME/venv/bin/activate"
+          sh ci/run.sh dist "$BUILD_SYSTEM"
       - name: Upload tarball
         if: ${{ env.DIST == 'yes' }}
         uses: actions/upload-artifact@v4
         with:
-          name: pgbouncer-tarball
-          path: pgbouncer-*.tar.gz
+          name: pgbouncer-tarball-${{ matrix.name }}
+          path: dist/pgbouncer-*.tar.gz
           if-no-files-found: error
-      - name: Upload config.log
+      - name: Upload build logs
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: config-log-${{ matrix.name }}
-          path: config.log
+          name: logs-${{ matrix.name }}
+          path: |
+            build/meson-logs/meson-log.txt
+            config.log
           if-no-files-found: ignore
 
   # The native-runner builds Cirrus only ran on manual trigger. Reuses the
   # `linux` job's steps via a YAML anchor. Runs on master, on manual dispatch,
-  # or when a PR carries the `ci-full` label. Matrix entries list only what
-  # differs from the defaults in `env` (all use PG 16 and the baseline configure
-  # args).
+  # or when a PR carries the `ci-full` label.
   linux-extra:
     name: Linux extra (${{ matrix.name }})
     if: >-
@@ -138,14 +165,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: plain }
-          - { name: ubsan, cflags: "-fno-sanitize-recover=all -fsanitize=undefined -fsanitize-address-use-after-scope -fno-sanitize=shift" }
-          - { name: scan-build, scan_build: "yes" }
-          - { name: arm, runner: ubuntu-24.04-arm }
-          - { name: ubuntu-2404, runner: ubuntu-24.04 }
+          - name: plain
+          - name: ubsan
+            cflags: "-fno-sanitize-recover=all -fsanitize=undefined -fsanitize-address-use-after-scope -fno-sanitize=shift"
+          - name: scan-build
+            scan_build: "yes"
+          - name: arm
+            runner: ubuntu-24.04-arm
+          - name: ubuntu-2404
+            runner: ubuntu-24.04
     env:
       PGVERSION: "16"
-      configure_args: ""
+      BUILD_SYSTEM: meson
+      MESON_ARGS: -Dcassert=true -Dsystemd=enabled -Dcares=disabled
       CFLAGS_OVERRIDE: ${{ matrix.cflags }}
       USE_SCAN_BUILD: ${{ matrix.scan_build }}
       DIST: ""
@@ -154,8 +186,11 @@ jobs:
   # Debian releases have no native GitHub-hosted runner, so they run in their
   # official container images. Container jobs run as root, where PostgreSQL
   # refuses to initdb, so we build and test as an unprivileged `user`.
+  #
+  # bookworm is built with meson; bullseye's packaged meson (0.56) is below our
+  # floor, so it exercises the autoconf build instead.
   linux-debian:
-    name: Linux Debian (${{ matrix.name }})
+    name: Linux Debian (${{ matrix.name }}, ${{ matrix.build_system }})
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.ref == 'refs/heads/master' ||
@@ -167,10 +202,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: bookworm, image: debian:bookworm, pgversion: "15" }
-          - { name: bullseye, image: debian:bullseye, pgversion: "13" }
+          - { name: bookworm, image: debian:bookworm, pgversion: "15", build_system: meson }
+          - { name: bullseye, image: debian:bullseye, pgversion: "13", build_system: autoconf }
     env:
       PGVERSION: ${{ matrix.pgversion }}
+      BUILD_SYSTEM: ${{ matrix.build_system }}
+      MESON_ARGS: -Dcassert=true -Dsystemd=enabled -Dcares=disabled
+      CONFIGURE_ARGS: --enable-cassert --with-systemd --without-cares
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
@@ -180,34 +218,32 @@ jobs:
           apt-get -y --no-install-recommends install gnupg postgresql-common
           /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           apt-get update
-          apt-get -y --no-install-recommends install autoconf automake ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev libtool make pandoc pkg-config "postgresql-$PGVERSION" python3 python3-pip python3-venv slapd socat sudo
+          apt-get -y --no-install-recommends install autoconf automake ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev libtool make meson ninja-build pandoc pkg-config "postgresql-$PGVERSION" python3 python3-pip python3-venv slapd socat sudo
           python3 -m venv /venv
           /venv/bin/pip install .
-          # -m creates the home directory; `make install` writes to $HOME, and
+          # -m creates the home directory; the install step writes to $HOME, and
           # unlike RHEL's useradd, Debian's doesn't create it by default.
           useradd -m user
           chown -R user .
           echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
       - name: Build
-        run: |
-          set -e
-          su user -c "./autogen.sh"
-          su user -c "./configure --prefix=\$HOME/install --enable-cassert --enable-werror --without-cares --with-systemd"
-          su user -c "make -j4"
+        run: su user -c "MESON_ARGS='$MESON_ARGS' CONFIGURE_ARGS='$CONFIGURE_ARGS' PATH=/venv/bin:\$PATH sh ci/run.sh build $BUILD_SYSTEM"
       - name: Test
-        run: su user -c "PATH=/usr/lib/postgresql/$PGVERSION/bin:/venv/bin:\$PATH make -j4 check CONCURRENCY=4"
+        run: su user -c "PATH=/usr/lib/postgresql/$PGVERSION/bin:/venv/bin:\$PATH sh ci/run.sh test $BUILD_SYSTEM"
       - name: Install
-        run: su user -c "make -j4 install"
-      - name: Upload config.log
+        run: su user -c "PATH=/venv/bin:\$PATH sh ci/run.sh install $BUILD_SYSTEM"
+      - name: Upload build logs
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: config-log-${{ matrix.name }}
-          path: config.log
+          name: logs-${{ matrix.name }}-${{ matrix.build_system }}
+          path: |
+            build/meson-logs/meson-log.txt
+            config.log
           if-no-files-found: ignore
 
   # Red Hat-compatible releases in their official container images. Same
-  # build-and-test-as-`user` approach as the Debian job above.
+  # build-and-test-as-`user` approach as the Debian job above. Built with meson.
   linux-rhel:
     name: Linux Red Hat (${{ matrix.name }})
     if: >-
@@ -221,43 +257,48 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: rocky-9, image: rockylinux:9, configure_args: --with-cares }
           - { name: rocky-8, image: rockylinux:8 }
+          - { name: rocky-9, image: rockylinux:9, meson_args: "-Dcares=enabled" }
     env:
-      configure_args: ${{ matrix.configure_args }}
+      BUILD_SYSTEM: meson
+      MESON_ARGS: -Dcassert=true -Dsystemd=enabled -Dldap=enabled -Dpam=enabled ${{ matrix.meson_args }}
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
           set -e
           dnf -y install 'dnf-command(config-manager)'
-          if grep -q -F 'release 9' /etc/redhat-release; then dnf config-manager --set-enabled "plus"; else dnf config-manager --set-enabled "powertools"; fi
-          dnf -y install autoconf automake diffutils file iptables libevent-devel libpq-devel libtool make openldap-clients openldap-devel openldap-servers openssl-devel pam-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip socat sudo systemd-devel wget
-          case "$configure_args" in *with-cares*) dnf -y install c-ares-devel;; esac
+          # ninja-build (and the -devel packages) live in PowerTools, which is
+          # called CRB on EL9; meson itself is in AppStream.
+          if [ "${{ matrix.name }}" = "rocky-9" ]; then dnf config-manager --set-enabled "crb"; else dnf config-manager --set-enabled "powertools"; fi
+          # RHEL 9 dropped the OpenLDAP server; Rocky rebuilds openldap-servers
+          # in their "plus" repo.
+          if [ "${{ matrix.name }}" = "rocky-9" ]; then dnf config-manager --set-enabled "plus"; fi
+          dnf -y install diffutils file gcc iptables libevent-devel libpq-devel make meson ninja-build openldap-clients openldap-devel openldap-servers openssl-devel pam-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip socat sudo systemd-devel wget
+          if [ "${{ matrix.name }}" = "rocky-9" ]; then dnf -y install c-ares-devel; fi
           wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
           tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
-          if grep -q -F 'release 9' /etc/redhat-release; then dnf -y install python-unversioned-command; else dnf -y install python39 python39-pip && alternatives --set python /usr/bin/python3.9; fi
+          if [ "${{ matrix.name }}" = "rocky-9" ]; then dnf -y install python-unversioned-command; else dnf -y install python39 python39-pip && alternatives --set python /usr/bin/python3.9; fi
+          # Installs the `pytest` console script (with the right python shebang)
+          # onto PATH, which meson finds at configure time.
           python -m pip install .
           useradd user
           chown -R user .
           echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
       - name: Build
-        run: |
-          set -e
-          su user -c "./autogen.sh"
-          # $configure_args is meant to word-split inside the quoted su command.
-          su user -c "./configure --prefix=\$HOME/install --enable-cassert --enable-werror --with-ldap --with-pam --with-systemd $configure_args"
-          su user -c "make -j4"
+        run: su user -c "MESON_ARGS='$MESON_ARGS' CONFIGURE_ARGS='$CONFIGURE_ARGS' sh ci/run.sh build $BUILD_SYSTEM"
       - name: Test
-        run: su user -c "make -j4 check CONCURRENCY=4"
+        run: su user -c "sh ci/run.sh test $BUILD_SYSTEM"
       - name: Install
-        run: su user -c "make -j4 install"
-      - name: Upload config.log
+        run: su user -c "sh ci/run.sh install $BUILD_SYSTEM"
+      - name: Upload build logs
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: config-log-${{ matrix.name }}
-          path: config.log
+          name: logs-${{ matrix.name }}
+          path: |
+            build/meson-logs/meson-log.txt
+            config.log
           if-no-files-found: ignore
 
   # Alpine runs in its official container image. Its musl libc can't run the
@@ -277,10 +318,13 @@ jobs:
     defaults:
       run:
         shell: sh
+    env:
+      BUILD_SYSTEM: meson
+      MESON_ARGS: -Dcassert=true -Dcares=enabled -Dldap=enabled -Dsystemd=disabled
     steps:
       - name: Install dependencies
         run: |
-          apk add --no-cache autoconf automake build-base c-ares-dev git iptables libevent-dev libtool openldap openldap-clients openldap-dev openssl openssl-dev pkgconf postgresql postgresql-contrib python3 py3-pip socat sudo wget
+          apk add --no-cache build-base c-ares-dev git iptables libevent-dev meson ninja openldap openldap-clients openldap-dev openssl openssl-dev pkgconf postgresql postgresql-contrib python3 py3-pip socat sudo wget
       - name: Checkout
         run: |
           git config --global --add safe.directory "$PWD"
@@ -298,11 +342,10 @@ jobs:
           adduser --disabled-password user
           chown -R user .
           echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
-          su user -c "./autogen.sh"
-          su user -c "./configure --prefix=\$HOME/install --enable-cassert --enable-werror --with-cares --with-ldap"
-          su user -c "make -j4"
-          su user -c "PATH=/venv/bin:\$PATH make -j4 check CONCURRENCY=4"
-          su user -c "make -j4 install"
+          # /venv/bin on PATH so meson finds pytest at configure time.
+          su user -c "MESON_ARGS='$MESON_ARGS' PATH=/venv/bin:\$PATH sh ci/run.sh build $BUILD_SYSTEM"
+          su user -c "PATH=/venv/bin:\$PATH sh ci/run.sh test $BUILD_SYSTEM"
+          su user -c "PATH=/venv/bin:\$PATH sh ci/run.sh install $BUILD_SYSTEM"
 
   macos:
     name: macOS
@@ -311,14 +354,19 @@ jobs:
       HAVE_IPV6_LOCALHOST: "yes"
       USE_SUDO: "true"
       PGVERSION: "16"
+      BUILD_SYSTEM: meson
+      MESON_ARGS: -Dldap=enabled
+      # openldap and openssl@3 are keg-only, so point the compiler and
+      # pkg-config at their Homebrew prefixes.
       CPPFLAGS: -I/opt/homebrew/opt/openldap/include -I/opt/homebrew/opt/openssl@3/include
       LDFLAGS: -L/opt/homebrew/opt/openldap/lib -L/opt/homebrew/opt/openssl@3/lib
+      PKG_CONFIG_PATH: /opt/homebrew/opt/openssl@3/lib/pkgconfig:/opt/homebrew/opt/openldap/lib/pkgconfig
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
           set -e
-          brew install autoconf automake libevent libtool openldap openssl pandoc pkg-config "postgresql@$PGVERSION"
+          brew install libevent meson ninja openldap openssl pandoc pkg-config "postgresql@$PGVERSION"
           python3 -m venv venv
           venv/bin/pip install .
           # Allow the test suite to install its packet-filter anchor.
@@ -327,25 +375,27 @@ jobs:
       - name: Build
         run: |
           set -e
+          # shellcheck disable=SC1091
+          source venv/bin/activate   # so meson finds pytest at configure time
           export PATH="/opt/homebrew/opt/postgresql@$PGVERSION/bin:$PATH"
-          ./autogen.sh
-          ./configure --prefix="$HOME/install" --enable-werror --with-ldap
-          make -j4
+          sh ci/run.sh build "$BUILD_SYSTEM"
       - name: Test
         run: |
           set -e
           # shellcheck disable=SC1091
           source venv/bin/activate
           export PATH="/opt/homebrew/opt/postgresql@$PGVERSION/bin:$PATH"
-          make -j4 check CONCURRENCY=4
+          sh ci/run.sh test "$BUILD_SYSTEM"
       - name: Install
-        run: make -j4 install
-      - name: Upload config.log
+        run: sh ci/run.sh install "$BUILD_SYSTEM"
+      - name: Upload build logs
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: config-log-macos
-          path: config.log
+          name: logs-macos
+          path: |
+            build/meson-logs/meson-log.txt
+            config.log
           if-no-files-found: ignore
 
   windows:
@@ -354,6 +404,7 @@ jobs:
     env:
       HAVE_IPV6_LOCALHOST: "yes"
       MSYSTEM: MINGW64
+      BUILD_SYSTEM: meson
       # Without this the MSYS2 login shell starts in the home directory; we want
       # it to stay in the checkout directory.
       CHERE_INVOKING: "1"
@@ -379,32 +430,36 @@ jobs:
             "${MINGW_PACKAGE_PREFIX}-gcc" "${MINGW_PACKAGE_PREFIX}-libevent" \
             "${MINGW_PACKAGE_PREFIX}-openssl" "${MINGW_PACKAGE_PREFIX}-postgresql" \
             "${MINGW_PACKAGE_PREFIX}-python" "${MINGW_PACKAGE_PREFIX}-python-pip" \
-            autoconf automake libtool pkg-config zip
+            "${MINGW_PACKAGE_PREFIX}-meson" "${MINGW_PACKAGE_PREFIX}-ninja" \
+            "${MINGW_PACKAGE_PREFIX}-pkgconf" zip
           echo "127.0.0.1   localhost" >> /etc/hosts
           pip install .
       - name: Build
         run: |
-          ./autogen.sh
-          ./configure --prefix="$(pwd)/install" --enable-werror PANDOC=/c/programdata/chocolatey/bin/pandoc LDFLAGS=-static "LIBS=-liphlpapi $(pkgconf --libs --static openssl)" PKG_CONFIG='pkg-config --static'
-          make -j4
+          export PATH="/c/programdata/chocolatey/bin:$PATH"
+          PREFIX="$(pwd)/install" MESON_ARGS="-Dsystemd=disabled -Dc_link_args=-static" sh ci/run.sh build "$BUILD_SYSTEM"
       - name: Test
-        run: |
-          make -j4 check CONCURRENCY=3
-          windres pgbouncer.exe
+        run: sh ci/run.sh test "$BUILD_SYSTEM"
+      - name: Install
+        run: sh ci/run.sh install "$BUILD_SYSTEM"
       - name: Build zip
-        run: make -j4 zip
+        run: |
+          cd install
+          zip -r "../pgbouncer-windows.zip" .
       - name: Upload zip
         uses: actions/upload-artifact@v4
         with:
           name: pgbouncer-windows-zip
           path: pgbouncer-*.zip
           if-no-files-found: error
-      - name: Upload config.log
+      - name: Upload build logs
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: config-log-windows
-          path: config.log
+          name: logs-windows
+          path: |
+            build/meson-logs/meson-log.txt
+            config.log
           if-no-files-found: ignore
 
   format-check:
@@ -418,11 +473,11 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake curl gcc g++ git make
+          sudo apt-get install -y --no-install-recommends cmake curl gcc g++ git
           pip install .[dev]
-      # `make format-check` compiles uncrustify from source, which takes a
-      # while. Cache the resulting binary keyed on the pinned version so it is
-      # only rebuilt when we bump UNCRUSTIFY_VERSION in the Makefile.
+      # dev/format.sh compiles uncrustify from source, which takes a while.
+      # Cache the resulting binary keyed on the pinned version so it is only
+      # rebuilt when we bump UNCRUSTIFY_VERSION in the script.
       - name: Cache uncrustify
         uses: actions/cache@v4
         with:
@@ -430,6 +485,5 @@ jobs:
           key: uncrustify-0.77.1-${{ runner.os }}
       - name: Run checks
         run: |
-          touch config.mak # Pretend that ./configure has run
-          make format-check
-          make lint
+          dev/format.sh check
+          dev/format.sh lint

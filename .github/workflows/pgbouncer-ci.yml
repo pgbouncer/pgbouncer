@@ -270,7 +270,10 @@ jobs:
           # ninja-build (and the -devel packages) live in PowerTools, which is
           # called CRB on EL9; meson itself is in AppStream.
           if [ "${{ matrix.name }}" = "rocky-9" ]; then dnf config-manager --set-enabled "crb"; else dnf config-manager --set-enabled "powertools"; fi
-          dnf -y install diffutils file iptables libevent-devel libpq-devel make meson ninja-build openldap-clients openldap-devel openldap-servers openssl-devel pam-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip socat sudo systemd-devel wget
+          # RHEL 9 dropped the OpenLDAP server; Rocky rebuilds openldap-servers
+          # in their "plus" repo.
+          if [ "${{ matrix.name }}" = "rocky-9" ]; then dnf config-manager --set-enabled "plus"; fi
+          dnf -y install diffutils file gcc iptables libevent-devel libpq-devel make meson ninja-build openldap-clients openldap-devel openldap-servers openssl-devel pam-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip socat sudo systemd-devel wget
           if [ "${{ matrix.name }}" = "rocky-9" ]; then dnf -y install c-ares-devel; fi
           wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
           tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/

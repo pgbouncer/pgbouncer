@@ -60,6 +60,8 @@ struct pam_auth_request {
 
 	/* The request status, one of the PAM_STATUS_* constants */
 	int status;
+	/* Protect status from main thread reading and worker thread writing at the same time */
+	pthread_mutex_t mutex;
 
 	/* The username (same as in client->login_user_credentials->name).
 	 * See the comment for remote_addr.
@@ -105,6 +107,8 @@ static void * pam_auth_worker(void *arg);
 static bool is_valid_socket(const struct pam_auth_request *request);
 static void pam_auth_finish(struct pam_auth_request *request);
 static bool pam_check_passwd(struct pam_auth_request *request);
+static int get_request_status(struct pam_auth_request *request);
+static void set_request_status(struct pam_auth_request *request, int status);
 
 /*
  * Initialize PAM subsystem.
@@ -169,15 +173,33 @@ void pam_auth_begin(PgSocket *client, const char *passwd)
 
 	request->client = client;
 	request->connect_time = client->connect_time;
-	request->status = PAM_STATUS_IN_PROGRESS;
+	request->status = PAM_STATUS_IN_PROGRESS;	/* This is protected by pam_queue_tail_mutex */
 	memcpy(&request->remote_addr, &client->remote_addr, sizeof(client->remote_addr));
 	safe_strcpy(request->username, client->login_user_credentials->name, MAX_USERNAME);
 	safe_strcpy(request->password, passwd, MAX_PASSWORD);
 
 	pam_first_free_slot = next_free_slot;
 
-	pthread_mutex_unlock(&pam_queue_tail_mutex);
 	pthread_cond_signal(&pam_data_available);
+	pthread_mutex_unlock(&pam_queue_tail_mutex);
+}
+
+
+static int get_request_status(struct pam_auth_request *request)
+{
+	int rc = 0;
+
+	pthread_mutex_lock(&request->mutex);
+	rc = request->status;
+	pthread_mutex_unlock(&request->mutex);
+	return rc;
+}
+
+static void set_request_status(struct pam_auth_request *request, int status)
+{
+	pthread_mutex_lock(&request->mutex);
+	request->status = status;
+	pthread_mutex_unlock(&request->mutex);
 }
 
 /*
@@ -188,11 +210,13 @@ int pam_poll(void)
 {
 	struct pam_auth_request *request;
 	int count = 0;
+	int status = 0;
 
 	while (pam_first_taken_slot != pam_first_free_slot) {
 		request = &pam_auth_queue[pam_first_taken_slot];
 
-		if (request->status == PAM_STATUS_IN_PROGRESS) {
+		status = get_request_status(request);
+		if (status == PAM_STATUS_IN_PROGRESS) {
 			/* When still-in-progress slot is found there is no need to continue
 			 * the loop since all further requests will be in progress too.
 			 */
@@ -219,6 +243,7 @@ static void * pam_auth_worker(void *arg)
 {
 	int current_slot = pam_first_taken_slot;
 	struct pam_auth_request *request;
+	int request_status = 0;
 
 	while (true) {
 		/* Wait for new data in the queue */
@@ -236,22 +261,12 @@ static void * pam_auth_worker(void *arg)
 		request = &pam_auth_queue[current_slot];
 		current_slot = (current_slot + 1) % PAM_REQUEST_QUEUE_SIZE;
 
-		/* If the socket is already in the wrong state or reused then ignore it.
-		 * This check is not safe and should not be trusted (the socket state
-		 * might change exactly after it), but it helps to quickly filter out invalid
-		 * sockets and thus save some time.
-		 */
-		if (!is_valid_socket(request)) {
-			log_debug("pam_auth_worker(): invalid socket in slot %d", current_slot);
-			request->status = PAM_STATUS_FAILED;
-			continue;
-		}
-
 		if (pam_check_passwd(request)) {
-			request->status = PAM_STATUS_SUCCESS;
+			request_status = PAM_STATUS_SUCCESS;
 		} else {
-			request->status = PAM_STATUS_FAILED;
+			request_status = PAM_STATUS_FAILED;
 		}
+		set_request_status(request, request_status);
 
 		log_debug("pam_auth_worker(): authentication completed, status=%d", request->status);
 	}

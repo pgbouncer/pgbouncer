@@ -74,8 +74,6 @@ static inline int setgroups(int ngroups, const gid_t *gidsets)
 
 #ifdef _MSC_VER
 
-#define snprintf(fmt, ...) _snprintf(fmt, __VA_ARGS__)
-
 static inline int strcasecmp(const char *a, const char *b)
 {
 	return _stricmp(a, b);
@@ -86,7 +84,12 @@ static inline int strncasecmp(const char *a, const char *b, size_t cnt)
 	return _strnicmp(a, b, cnt);
 }
 
-typedef int ssize_t;
+#include <basetsd.h>
+typedef SSIZE_T ssize_t;
+typedef int mode_t;
+
+/* UCRT only declares the underscore-prefixed name. */
+#define tzname _tzname
 
 #endif
 

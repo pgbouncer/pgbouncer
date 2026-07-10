@@ -19,6 +19,7 @@ project('pgbouncer',
 cc = meson.get_compiler('c')
 fs = import('fs')
 windows = host_machine.system() == 'windows'
+msvc = cc.get_argument_syntax() == 'msvc'
 
 # ----------------------------------------------------------------------
 # Require a C11-capable compiler (mirrors AC_USUAL_C11).
@@ -51,7 +52,10 @@ int main(void) {
 
 c11_flag = ''
 c11_ok = false
-foreach flag : ['', '-std=gnu11', '-std=c11']
+# MSVC ignores unknown -std= options with a warning instead of an error, so it
+# would silently stay in its default (C89-ish) mode; it needs /std:c11 instead.
+c11_candidates = msvc ? ['', '/std:c11'] : ['', '-std=gnu11', '-std=c11']
+foreach flag : c11_candidates
   label = flag == '' ? 'C11 support (compiler default)' : 'C11 support (@0@)'.format(flag)
   if cc.compiles(c11_probe, args: flag == '' ? [] : [flag], name: label)
     c11_ok = true
@@ -105,10 +109,32 @@ cdata.set('_GNU_SOURCE', 1,
 cdata.set('_FILE_OFFSET_BITS', 64)
 
 if windows
+  # MinGW's gcc predefines WIN32, MSVC only defines _WIN32; the code keys its
+  # Windows paths off plain WIN32 (see lib/usual/base.h), so define it here.
+  cdata.set('WIN32', 1,
+            description: 'Define on Windows (the code tests WIN32, which MSVC does not predefine).')
   cdata.set('WIN32_LEAN_AND_MEAN', 1,
             description: 'Define to request cleaner win32 headers.')
   cdata.set('WINVER', '0x0600',
             description: 'Define to max win32 API version (0x0600=Vista).')
+endif
+
+if msvc
+  # The Windows MSVC build is only supported with Visual Studio 2022 or newer
+  # (cl 19.30); older versions lack a usable C11 mode anyway, but fail early
+  # with a clear message rather than through the C11 probe.
+  if cc.version().version_compare('< 19.30')
+    error('building with MSVC requires Visual Studio 2022 or newer')
+  endif
+  # Silence MSVC's blanket deprecation of the standard C and POSIX APIs the
+  # code uses on every platform (strcpy, open, dup, strdup, the Winsock
+  # inet_ntoa family); switching to the _s/underscore variants everywhere is
+  # not an option since all other platforms use the standard names.
+  add_project_arguments(
+    '-D_CRT_SECURE_NO_WARNINGS',
+    '-D_CRT_NONSTDC_NO_DEPRECATE',
+    '-D_WINSOCK_DEPRECATED_NO_WARNINGS',
+    language: 'c')
 endif
 
 if host_machine.endian() == 'big'
@@ -172,8 +198,11 @@ endforeach
 
 # ucred.h / sys/ucred.h have prerequisites on some platforms (sys/param.h on
 # the BSDs, guarded by its check above since it does not exist everywhere).
+# cc.has_header answers from meson's cache here; asking again avoids comparing
+# the cdata value, whose type differs between found (1) and not found (false),
+# which older meson cannot compare against an int.
 ucred_prefix = '#include <sys/types.h>'
-if cdata.get('HAVE_SYS_PARAM_H') == 1
+if cc.has_header('sys/param.h')
   ucred_prefix += '\n#include <sys/param.h>'
 endif
 
@@ -465,23 +494,37 @@ add_project_arguments('-DUSUAL_TEST_CONFIG', language: 'c')
 # stricter set here would fail on warnings the autoconf build deliberately silenced
 # (notably -Wno-missing-field-initializers). get_supported_arguments mirrors the
 # per-flag compile probe autoconf does.
-warning_flags = [
-  # -Wall -Wextra come from warning_level=2 above.
-  # turn off noise from -Wextra
-  '-Wno-unused-parameter',
-  '-Wno-missing-field-initializers',
-  # things -Wextra does not turn on by itself
-  '-Wmissing-prototypes',
-  '-Wpointer-arith',
-  '-Wendif-labels',
-  '-Wdeclaration-after-statement',
-  '-Wold-style-definition',
-  '-Wstrict-prototypes',
-  '-Wundef',
-  '-Wformat=2',
-  '-Wuninitialized',
-  '-Wmissing-format-attribute',
-]
+if msvc
+  # The same spirit as the -Wno-* flags below: the codebase deliberately relies
+  # on patterns MSVC warns about at /W3, and CI builds with /WX. These mirror
+  # the warnings PostgreSQL itself disables for its MSVC build.
+  warning_flags = [
+    '/wd4018',    # signed/unsigned mismatch in comparisons
+    '/wd4244',    # implicit narrowing conversion (e.g. size_t -> int)
+    '/wd4267',    # implicit size_t -> smaller integer conversion
+    '/wd4090',    # different const qualifiers
+    '/wd4101',    # unreferenced local variable
+    '/wd4146',    # unary minus on unsigned: deliberate `-x % x` idiom in csrandom.c
+  ]
+else
+  warning_flags = [
+    # -Wall -Wextra come from warning_level=2 above.
+    # turn off noise from -Wextra
+    '-Wno-unused-parameter',
+    '-Wno-missing-field-initializers',
+    # things -Wextra does not turn on by itself
+    '-Wmissing-prototypes',
+    '-Wpointer-arith',
+    '-Wendif-labels',
+    '-Wdeclaration-after-statement',
+    '-Wold-style-definition',
+    '-Wstrict-prototypes',
+    '-Wundef',
+    '-Wformat=2',
+    '-Wuninitialized',
+    '-Wmissing-format-attribute',
+  ]
+endif
 add_project_arguments(cc.get_supported_arguments(warning_flags), language: 'c')
 
 # ----------------------------------------------------------------------
@@ -625,10 +668,15 @@ pgbouncer = executable('pgbouncer',
 if windows
   pgbevent_res = win.compile_resources('win32/eventmsg.rc',
                                        include_directories: pgbouncer_incdirs)
-  shared_library('pgbevent',
+  # shared_module rather than shared_library: nothing links against
+  # pgbevent.dll (the Event Log service loads it at runtime), and with MSVC a
+  # shared_library would try to install an import library that is never
+  # generated because the .def file marks all exports PRIVATE.
+  shared_module('pgbevent',
     'win32/pgbevent.c',
     pgbevent_res,
     name_prefix: '',
+    vs_module_defs: 'win32/pgbevent.def',
     include_directories: pgbouncer_incdirs,
     install: true,
   )

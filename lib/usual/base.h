@@ -179,6 +179,15 @@
  * @{
  */
 
+/*
+ * MSVC has no __attribute__ at all. Defining it away here keeps the vendored
+ * code (e.g. lib/usual/tls) that uses __attribute__ directly, rather than one
+ * of the wrapper macros below, compiling unchanged.
+ */
+#ifdef _MSC_VER
+#define __attribute__(x)
+#endif
+
 /** Disable padding for structure */
 #ifndef _MSC_VER
 #define _PACKED                 __attribute__((packed))

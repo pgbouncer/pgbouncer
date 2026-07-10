@@ -140,10 +140,17 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
  * Shortcut for creating DataRow in memory.
  */
 
-#define BUILD_DataRow(reslen, dst, dstlen, args...) do { \
+/*
+ * The wrap macros below use standard C99 variadic macros rather than the GNU
+ * `args...`/`## args` form, which MSVC's conforming preprocessor rejects.
+ * That means `...` must never be empty, so packet writers that take no
+ * arguments besides the buffer go through the separate non-variadic
+ * SEND_wrap0/QUEUE_wrap0 instead of relying on `##` to swallow the comma.
+ */
+#define BUILD_DataRow(reslen, dst, dstlen, ...) do { \
 		PktBuf _buf; \
 		pktbuf_static(&_buf, dst, dstlen); \
-		pktbuf_write_DataRow(&_buf, ## args); \
+		pktbuf_write_DataRow(&_buf, __VA_ARGS__); \
 		reslen = _buf.failed ? -1 : _buf.write_pos; \
 } while (0)
 
@@ -158,21 +165,28 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
  * to ever happen in practice.
  */
 
-#define SEND_wrap(buflen, pktfn, res, sk, args...) do { \
+#define SEND_wrap(buflen, pktfn, res, sk, ...) do { \
 		uint8_t _data[buflen]; PktBuf _buf; \
 		pktbuf_static(&_buf, _data, sizeof(_data)); \
-		pktfn(&_buf, ## args); \
+		pktfn(&_buf, __VA_ARGS__); \
 		res = pktbuf_send_immediate(&_buf, sk); \
 } while (0)
 
-#define SEND_RowDescription(res, sk, args...) \
-	SEND_wrap(512, pktbuf_write_RowDescription, res, sk, ## args)
+#define SEND_wrap0(buflen, pktfn, res, sk) do { \
+		uint8_t _data[buflen]; PktBuf _buf; \
+		pktbuf_static(&_buf, _data, sizeof(_data)); \
+		pktfn(&_buf); \
+		res = pktbuf_send_immediate(&_buf, sk); \
+} while (0)
 
-#define SEND_generic(res, sk, args...) \
-	SEND_wrap(512, pktbuf_write_generic, res, sk, ## args)
+#define SEND_RowDescription(res, sk, ...) \
+	SEND_wrap(512, pktbuf_write_RowDescription, res, sk, __VA_ARGS__)
+
+#define SEND_generic(res, sk, ...) \
+	SEND_wrap(512, pktbuf_write_generic, res, sk, __VA_ARGS__)
 
 #define SEND_ReadyForQuery(res, sk) \
-	SEND_wrap(8, pktbuf_write_ReadyForQuery, res, sk)
+	SEND_wrap0(8, pktbuf_write_ReadyForQuery, res, sk)
 
 #define SEND_CancelRequest(res, sk, key) \
 	SEND_wrap(16, pktbuf_write_CancelRequest, res, sk, key)
@@ -187,7 +201,7 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
 	SEND_wrap(512, pkgbuf_write_SASLResponseMessage, res, sk, cr)
 
 #define SEND_CloseComplete(res, sk) \
-	SEND_wrap(5, pktbuf_write_CloseComplete, res, sk)
+	SEND_wrap0(5, pktbuf_write_CloseComplete, res, sk)
 
 /*
  * Shortcuts for queueing one packet. These should only be used when the server
@@ -195,15 +209,22 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
  * any partially sent packet from the other side of the link has been fully
  * sent.
  */
-#define QUEUE_wrap(buflen, pktfn, res, source, target, args...) do { \
+#define QUEUE_wrap(buflen, pktfn, res, source, target, ...) do { \
 		uint8_t _data[buflen]; PktBuf _buf; \
 		pktbuf_static(&_buf, _data, sizeof(_data)); \
-		pktfn(&_buf, ## args); \
+		pktfn(&_buf, __VA_ARGS__); \
+		res = sbuf_queue_packet(&source->sbuf, &target->sbuf, &_buf); \
+} while (0)
+
+#define QUEUE_wrap0(buflen, pktfn, res, source, target) do { \
+		uint8_t _data[buflen]; PktBuf _buf; \
+		pktbuf_static(&_buf, _data, sizeof(_data)); \
+		pktfn(&_buf); \
 		res = sbuf_queue_packet(&source->sbuf, &target->sbuf, &_buf); \
 } while (0)
 
 #define QUEUE_ParseComplete(res, source, target) \
-	QUEUE_wrap(5, pktbuf_write_ParseComplete, res, source, target)
+	QUEUE_wrap0(5, pktbuf_write_ParseComplete, res, source, target)
 
 #define QUEUE_DescribeStmt(res, source, target, statement) \
 	QUEUE_wrap(6 + MAX_SERVER_PREPARED_STMT_NAME, pktbuf_write_DescribeStmt, res, source, target, statement)
@@ -212,6 +233,6 @@ void pktbuf_write_ExtQuery(PktBuf *buf, const char *query, int nargs, ...);
 	QUEUE_wrap(6 + MAX_SERVER_PREPARED_STMT_NAME, pktbuf_write_CloseStmt, res, source, target, statement)
 
 #define QUEUE_CloseComplete(res, source, target) \
-	QUEUE_wrap(5, pktbuf_write_CloseComplete, res, source, target)
+	QUEUE_wrap0(5, pktbuf_write_CloseComplete, res, source, target)
 
 void pktbuf_cleanup(void);

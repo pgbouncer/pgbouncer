@@ -148,7 +148,8 @@ static SC_HANDLE openSCM(void)
 static const char *get_config_fullpath(void)
 {
 	DWORD r;
-	static char buf[PATH_MAX];
+	/* MAX_PATH rather than PATH_MAX: MSVC's headers only define the former. */
+	static char buf[MAX_PATH];
 
 	r = GetFullPathName(cf_config_file, sizeof(buf), buf, NULL);
 	if (r == 0 || r >= sizeof(buf)) {

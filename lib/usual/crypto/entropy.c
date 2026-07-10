@@ -53,7 +53,8 @@
  *   Need to link or load from advapi32.dll.
  */
 
-typedef BOOLEAN APIENTRY (*rtlgenrandom_t)(void *, ULONG);
+/* The calling convention must be inside the parentheses for MSVC. */
+typedef BOOLEAN (APIENTRY *rtlgenrandom_t)(void *, ULONG);
 
 static int getentropy_win32(void *dst, size_t len)
 {

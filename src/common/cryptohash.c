@@ -17,7 +17,10 @@
 
 #include "common/postgres_compat.h"
 
+/* MSVC has no <sys/param.h>; postgres_compat.h provides what is needed. */
+#ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h>
+#endif
 
 #include "common/cryptohash.h"
 #include "common/sha2_int.h"

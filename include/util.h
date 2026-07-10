@@ -25,16 +25,21 @@
  */
 int log_socket_prefix(enum LogLevel lev, void *ctx, char *dst, unsigned int dstlen);
 
-#define slog_error(sk, args...) log_generic(LG_ERROR, sk, ## args)
-#define slog_warning(sk, args...) log_generic(LG_WARNING, sk, ## args)
-#define slog_info(sk, args...) log_generic(LG_INFO, sk, ## args)
-#define slog_debug(sk, args...) do { \
+/*
+ * Standard C99 variadic macros rather than the GNU `args...`/`## args` form,
+ * which MSVC's conforming preprocessor rejects. The format string is part of
+ * `...`, so it is never empty and no comma-swallowing `##` is needed.
+ */
+#define slog_error(sk, ...) log_generic(LG_ERROR, sk, __VA_ARGS__)
+#define slog_warning(sk, ...) log_generic(LG_WARNING, sk, __VA_ARGS__)
+#define slog_info(sk, ...) log_generic(LG_INFO, sk, __VA_ARGS__)
+#define slog_debug(sk, ...) do { \
 		if (unlikely(cf_verbose > 0)) \
-		log_generic(LG_DEBUG, sk, ## args); \
+		log_generic(LG_DEBUG, sk, __VA_ARGS__); \
 } while (0)
-#define slog_noise(sk, args...) do { \
+#define slog_noise(sk, ...) do { \
 		if (unlikely(cf_verbose > 1)) \
-		log_generic(LG_NOISE, sk, ## args); \
+		log_generic(LG_NOISE, sk, __VA_ARGS__); \
 } while (0)
 
 /*

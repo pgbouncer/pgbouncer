@@ -446,7 +446,13 @@ class QueryRunner:
         """
 
         self.set_default_connection_options(kwargs)
-        connect_options = " ".join([f"{k}={v}" for k, v in kwargs.items()])
+        # Render paths with forward slashes: backslashes act as escape
+        # characters in libpq connection strings, so a plain str() of a
+        # WindowsPath would get mangled (e.g. for sslrootcert).
+        connect_options = " ".join(
+            f"{k}={v.as_posix() if isinstance(v, Path) else v}"
+            for k, v in kwargs.items()
+        )
 
         result = run(
             ["psql", "-X", f"port={self.port} {connect_options}", "-c", query],

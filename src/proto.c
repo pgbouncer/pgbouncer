@@ -804,7 +804,7 @@ bool send_startup_message(PgSocket *server)
 bool send_sslreq_packet(PgSocket *server)
 {
 	int res;
-	SEND_wrap(16, pktbuf_write_SSLRequest, res, server);
+	SEND_wrap0(16, pktbuf_write_SSLRequest, res, server);
 	return res;
 }
 

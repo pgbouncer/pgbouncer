@@ -50,13 +50,31 @@ struct msghdr {
 #define SCM_RIGHTS 1
 #endif
 
+/*
+ * MSVC's <ws2def.h> defines the unprefixed CMSG_FIRSTHDR/NXTHDR/SPACE/LEN
+ * macros, but in terms of WSAMSG (they reference its `Control` member), so
+ * they do not work on the BSD-style struct msghdr defined above and must be
+ * replaced with the definitions below. It also already provides a compatible
+ * struct cmsghdr (by renaming its _WSACMSGHDR tag via a #define), so only the
+ * struct definition is skipped. MinGW's headers define neither.
+ */
+#ifdef _MSC_VER
+#undef CMSG_FIRSTHDR
+#undef CMSG_NXTHDR
+#undef CMSG_SPACE
+#undef CMSG_LEN
+#define _USUAL_SDK_CMSGHDR 1
+#endif
+
 #ifndef CMSG_FIRSTHDR
 
+#ifndef _USUAL_SDK_CMSGHDR
 struct cmsghdr {
 	int cmsg_len;
 	int cmsg_level;
 	int cmsg_type;
 };
+#endif
 
 #define CMSG_DATA(cmsg) ((unsigned char *) ((struct cmsghdr *) (cmsg) + 1))
 #define CMSG_ALIGN(len) (((len) + sizeof(size_t) - 1) \

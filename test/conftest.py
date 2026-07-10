@@ -116,8 +116,10 @@ def pg(tmp_path_factory, cert_dir):
         with pg.conf_path.open("a") as f:
             cert = cert_dir / "TestCA1" / "sites" / "01-localhost.crt"
             key = cert_dir / "TestCA1" / "sites" / "01-localhost.key"
-            f.write(f"ssl_cert_file='{cert}'\n")
-            f.write(f"ssl_key_file='{key}'\n")
+            # as_posix() so the Windows path separator is not interpreted as
+            # an escape character in postgresql.conf's quoted string
+            f.write(f"ssl_cert_file='{cert.as_posix()}'\n")
+            f.write(f"ssl_key_file='{key.as_posix()}'\n")
 
     pg.nossl_access("replication", "trust", user="postgres")
     pg.nossl_access("all", "trust")

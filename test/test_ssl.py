@@ -43,7 +43,9 @@ def test_server_ssl(pg, bouncer_tls, cert_dir):
     pg.ssl_access("all", "trust")
     pg.configure("ssl=on")
     root = cert_dir / "TestCA1" / "ca.crt"
-    pg.configure(f"ssl_ca_file='{root}'")
+    # as_posix() so the Windows path separator is not interpreted as an escape
+    # character in postgresql.conf's quoted string
+    pg.configure(f"ssl_ca_file='{root.as_posix()}'")
     if PG_MAJOR_VERSION < 10 or WINDOWS:
         pg.restart()
     else:
@@ -56,7 +58,9 @@ def test_server_ssl_set_disable(pg, bouncer_tls, cert_dir):
     pg.ssl_access("all", "trust")
     pg.configure("ssl=on")
     root = cert_dir / "TestCA1" / "ca.crt"
-    pg.configure(f"ssl_ca_file='{root}'")
+    # as_posix() so the Windows path separator is not interpreted as an escape
+    # character in postgresql.conf's quoted string
+    pg.configure(f"ssl_ca_file='{root.as_posix()}'")
     if PG_MAJOR_VERSION < 10 or WINDOWS:
         pg.restart()
     else:
@@ -87,7 +91,9 @@ def test_server_ssl_set_enable(pg, bouncer_tls, cert_dir):
     bouncer_tls.admin("set server_tls_sslmode = disable")
     pg.configure("ssl=on")
     root = cert_dir / "TestCA1" / "ca.crt"
-    pg.configure(f"ssl_ca_file='{root}'")
+    # as_posix() so the Windows path separator is not interpreted as an escape
+    # character in postgresql.conf's quoted string
+    pg.configure(f"ssl_ca_file='{root.as_posix()}'")
     if PG_MAJOR_VERSION < 10 or WINDOWS:
         pg.restart()
     else:
@@ -123,7 +129,9 @@ def test_server_ssl_verify(pg, bouncer_tls, cert_dir):
     bouncer_tls.admin(f"set server_tls_ca_file = '{wrong_root}'")
     pg.ssl_access("all", "trust")
     pg.configure("ssl=on")
-    pg.configure(f"ssl_ca_file='{root}'")
+    # as_posix() so the Windows path separator is not interpreted as an escape
+    # character in postgresql.conf's quoted string
+    pg.configure(f"ssl_ca_file='{root.as_posix()}'")
     if PG_MAJOR_VERSION < 10 or WINDOWS:
         pg.restart()
     else:
@@ -150,7 +158,9 @@ def test_server_ssl_auth(pg, bouncer_tls, cert_dir):
     bouncer_tls.admin(f"set server_tls_cert_file = '{cert}'")
     pg.ssl_access("all", "cert")
     pg.configure("ssl=on")
-    pg.configure(f"ssl_ca_file='{root}'")
+    # as_posix() so the Windows path separator is not interpreted as an escape
+    # character in postgresql.conf's quoted string
+    pg.configure(f"ssl_ca_file='{root.as_posix()}'")
     if PG_MAJOR_VERSION < 10 or WINDOWS:
         pg.restart()
     else:
@@ -359,7 +369,9 @@ def test_ssl_replication(pg, bouncer_tls, cert_dir):
     pg.ssl_access("all", "trust")
     pg.ssl_access("replication", "trust", user="postgres")
     pg.configure("ssl=on")
-    pg.configure(f"ssl_ca_file='{root}'")
+    # as_posix() so the Windows path separator is not interpreted as an escape
+    # character in postgresql.conf's quoted string
+    pg.configure(f"ssl_ca_file='{root.as_posix()}'")
 
     if PG_MAJOR_VERSION < 10 or WINDOWS:
         pg.restart()

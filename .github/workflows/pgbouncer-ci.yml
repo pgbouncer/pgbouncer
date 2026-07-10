@@ -462,6 +462,92 @@ jobs:
             config.log
           if-no-files-found: ignore
 
+  # Native Visual Studio (MSVC) build via meson. Unlike the MSYS2 job above
+  # this uses the MSVC toolchain that ships on the runner: meson's --vsenv
+  # flag locates the Visual Studio installation and activates its environment
+  # itself (also for later `meson compile`/`meson test` invocations), so the
+  # steps can run from the default Git Bash shell and reuse ci/run.sh.
+  # Dependencies (libevent, openssl) come from the runner's preinstalled
+  # vcpkg; --x-install-root keeps them inside the workspace so they can be
+  # cached between runs.
+  windows-msvc:
+    name: Windows (MSVC)
+    runs-on: windows-2022
+    env:
+      HAVE_IPV6_LOCALHOST: "yes"
+      BUILD_SYSTEM: meson
+      # debugoptimized rather than meson's default debug buildtype: debug
+      # selects the /MDd debug CRT, but the vcpkg release DLLs we link against
+      # use /MD, and mixing CRTs across DLL boundaries is undefined behavior.
+      MESON_ARGS: --vsenv --buildtype debugoptimized -Dsystemd=disabled -Dcares=disabled -Dldap=disabled -Dpam=disabled
+      VCPKG_TRIPLET: x64-windows
+      PGVERSION: "17"
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure hosts file
+        shell: pwsh
+        run: Add-Content c:\Windows\System32\Drivers\etc\hosts "127.0.0.1 localhost"
+      # The runner image only preinstalls PostgreSQL 14, whose psql emits
+      # warnings that trip up tests comparing stderr output verbatim.
+      - name: Install PostgreSQL
+        shell: pwsh
+        run: choco install -y --no-progress postgresql$env:PGVERSION --params '/Password:postgres'
+      # Explicit restore/save instead of the combined cache action: the
+      # combined action only saves in its post-job step when the whole job
+      # succeeded, so the (slow) vcpkg builds would never get cached while a
+      # later step is still failing. Saving directly after the install step
+      # caches them on the first run that gets this far.
+      - name: Restore vcpkg cache
+        id: vcpkg-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: vcpkg-installed
+          key: vcpkg-${{ env.VCPKG_TRIPLET }}-libevent-openssl-pkgconf-v1
+      - name: Install dependencies
+        run: |
+          set -e
+          # pkgconf is installed alongside the libraries so meson can consume
+          # the .pc files vcpkg generates for them.
+          vcpkg install --x-install-root="$PWD/vcpkg-installed" \
+            --triplet "$VCPKG_TRIPLET" libevent openssl pkgconf
+          pip install meson ninja .
+      - name: Save vcpkg cache
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: vcpkg-installed
+          key: vcpkg-${{ env.VCPKG_TRIPLET }}-libevent-openssl-pkgconf-v1
+      - name: Build
+        run: |
+          set -e
+          export PKG_CONFIG="$PWD/vcpkg-installed/$VCPKG_TRIPLET/tools/pkgconf/pkgconf.exe"
+          # pkgconf is a native Windows binary, so it needs a Windows-style path.
+          PKG_CONFIG_PATH="$(cygpath -w "$PWD/vcpkg-installed/$VCPKG_TRIPLET/lib/pkgconfig")"
+          export PKG_CONFIG_PATH
+          sh ci/run.sh build "$BUILD_SYSTEM"
+      - name: Test
+        run: |
+          set -e
+          # The vcpkg triplet builds DLLs, which pgbouncer.exe needs on PATH at
+          # runtime. The test suite uses the PostgreSQL binaries to spin up its
+          # own cluster.
+          export PATH="$PWD/vcpkg-installed/$VCPKG_TRIPLET/bin:/c/Program Files/PostgreSQL/$PGVERSION/bin:$PATH"
+          sh ci/run.sh test "$BUILD_SYSTEM"
+      - name: Install
+        run: sh ci/run.sh install "$BUILD_SYSTEM"
+      - name: Upload build logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-windows-msvc
+          path: |
+            build/meson-logs/meson-log.txt
+            build/meson-logs/testlog.txt
+          if-no-files-found: ignore
+
   format-check:
     name: Formatting & linting
     runs-on: ubuntu-latest

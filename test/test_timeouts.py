@@ -61,16 +61,35 @@ async def test_query_wait_timeout(
     bouncer.default_db = "postgres"
     bouncer.default_user = "puser1"
 
+    async def wait_for_sleep_query(duration):
+        # A fixed asyncio.sleep is not enough to know the pg_sleep query has
+        # taken the pool's only server connection: on slow machines (notably
+        # the Windows CI runners) issuing it can take longer than that, and
+        # then the queries below would sneak in first and not have to wait at
+        # all. So poll until it is actually running.
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            await asyncio.sleep(0.1)
+            active = bouncer.pg.sql_value(
+                "SELECT count(*) FROM pg_stat_activity"
+                " WHERE state = 'active'"
+                f" AND query LIKE '%pg_sleep({duration})%'"
+                " AND pid != pg_backend_pid()"
+            )
+            if active > 0:
+                return
+        raise TimeoutError("pg_sleep query did not start in time")
+
     with bouncer.run_with_config(pgbouncer_ini):
         conn_1_fut = bouncer.asleep(3)
-        await asyncio.sleep(0.1)
+        await wait_for_sleep_query(3)
 
         with pytest.raises(psycopg.OperationalError, match=r"query_wait_timeout"):
             bouncer.test()
         await conn_1_fut
 
         conn_1_fut = bouncer.asleep(1)
-        await asyncio.sleep(0.1)
+        await wait_for_sleep_query(1)
         bouncer.test()
         await conn_1_fut
 

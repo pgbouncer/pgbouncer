@@ -18,8 +18,7 @@ project('pgbouncer',
 
 cc = meson.get_compiler('c')
 fs = import('fs')
-host_system = host_machine.system()
-windows = host_system == 'windows'
+windows = host_machine.system() == 'windows'
 
 # ----------------------------------------------------------------------
 # Require a C11-capable compiler (mirrors AC_USUAL_C11).
@@ -53,12 +52,11 @@ int main(void) {
 c11_flag = ''
 c11_ok = false
 foreach flag : ['', '-std=gnu11', '-std=c11']
-  if not c11_ok
-    label = flag == '' ? 'C11 support (compiler default)' : 'C11 support (@0@)'.format(flag)
-    if cc.compiles(c11_probe, args: flag == '' ? [] : [flag], name: label)
-      c11_ok = true
-      c11_flag = flag
-    endif
+  label = flag == '' ? 'C11 support (compiler default)' : 'C11 support (@0@)'.format(flag)
+  if cc.compiles(c11_probe, args: flag == '' ? [] : [flag], name: label)
+    c11_ok = true
+    c11_flag = flag
+    break
   endif
 endforeach
 
@@ -102,7 +100,6 @@ cdata.set('PACKAGE_VERSION_4B', ','.join(version_parts),
 
 cdata.set('_GNU_SOURCE', 1,
           description: 'Define to get some GNU functions in headers.')
-cdata.set('STDC_HEADERS', 1)
 # Always request a 64-bit off_t. Harmless on 64-bit platforms and required on
 # 32-bit ones (replaces autoconf's AC_SYS_LARGEFILE).
 cdata.set('_FILE_OFFSET_BITS', 64)
@@ -130,16 +127,10 @@ endforeach
 # Header checks (mirrors AC_USUAL_HEADER_CHECK + pgbouncer extras)
 # ----------------------------------------------------------------------
 
-# ucred.h / sys/ucred.h have prerequisites on some platforms.
-ucred_prefix = '''
-#ifdef HAVE_SYS_TYPES_H
-#include <sys/types.h>
-#endif
-#ifdef HAVE_SYS_PARAM_H
-#include <sys/param.h>
-#endif
-'''
-
+# The C89/C99 headers (stdio.h, string.h, stdint.h, ...) are guaranteed by the
+# C11 requirement and their HAVE_ macros are no longer consulted anywhere, so
+# only the genuinely platform-specific headers are probed, matching what
+# configure's AC_USUAL_HEADER_CHECK still checks.
 header_checks = [
   'arpa/inet.h',
   'byteswap.h',
@@ -149,7 +140,6 @@ header_checks = [
   'fnmatch.h',
   'getopt.h',
   'grp.h',
-  'inttypes.h',
   'langinfo.h',
   'linux/random.h',
   'malloc.h',
@@ -160,20 +150,13 @@ header_checks = [
   'pthread.h',
   'pwd.h',
   'regex.h',
-  'stdint.h',
-  'stdio.h',
-  'stdlib.h',
-  'string.h',
-  'strings.h',
   'syslog.h',
   'sys/endian.h',
   'sys/mman.h',
   'sys/param.h',
   'sys/resource.h',
   'sys/socket.h',
-  'sys/stat.h',
   'sys/time.h',
-  'sys/types.h',
   'sys/uio.h',
   'sys/un.h',
   'sys/wait.h',
@@ -186,6 +169,13 @@ foreach header : header_checks
   cdata.set(varname, cc.has_header(header) ? 1 : false,
             description: 'Define to 1 if you have the <@0@> header file.'.format(header))
 endforeach
+
+# ucred.h / sys/ucred.h have prerequisites on some platforms (sys/param.h on
+# the BSDs, guarded by its check above since it does not exist everywhere).
+ucred_prefix = '#include <sys/types.h>'
+if cdata.get('HAVE_SYS_PARAM_H') == 1
+  ucred_prefix += '\n#include <sys/param.h>'
+endif
 
 foreach header : ['ucred.h', 'sys/ucred.h']
   varname = 'HAVE_' + header.underscorify().to_upper()
@@ -261,11 +251,8 @@ foreach func : check_funcs
             description: 'Define to 1 if you have the `@0@\' function.'.format(func))
 endforeach
 
-# strerror_r: is it declared, and does it return char * (GNU) or int (XSI)?
-cdata.set('HAVE_STRERROR_R',
-          cc.has_function('strerror_r', args: '-D_GNU_SOURCE') ? 1 : false)
-cdata.set('HAVE_DECL_STRERROR_R',
-          cc.has_header_symbol('string.h', 'strerror_r', args: '-D_GNU_SOURCE') ? 1 : 0)
+# strerror_r: does it return char * (GNU) or int (XSI)? Only the return-type
+# question matters; lib/usual/string.c assumes strerror_r itself exists.
 strerror_r_char_p = cc.compiles('''
 #define _GNU_SOURCE
 #include <string.h>
@@ -609,11 +596,8 @@ pgbouncer_deps = [
 ] + dns_deps + net_deps
 
 # '.' brings in the build root (where the generated test_config.h lives).
-if windows
-  pgbouncer_incdirs = include_directories('.', 'include', 'lib', 'win32')
-else
-  pgbouncer_incdirs = include_directories('.', 'include', 'lib')
-endif
+incdir_names = ['.', 'include', 'lib'] + (windows ? ['win32'] : [])
+pgbouncer_incdirs = include_directories(incdir_names)
 
 if windows
   pgbouncer_sources += files('win32/win32support.c')
@@ -639,7 +623,6 @@ pgbouncer = executable('pgbouncer',
 # ----------------------------------------------------------------------
 
 if windows
-  win = import('windows')
   pgbevent_res = win.compile_resources('win32/eventmsg.rc',
                                        include_directories: pgbouncer_incdirs)
   shared_library('pgbevent',

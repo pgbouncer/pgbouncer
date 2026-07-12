@@ -522,6 +522,7 @@ struct PgCredentials {
 	char passwd[MAX_PASSWORD];
 	bool mock_auth;			/* not a real user, only for mock auth */
 	bool dynamic_passwd;		/* does the password need to be refreshed every use */
+	bool forced_user;		/* credentials were created for a database forced user */
 
 	/*
 	 * global_user points at the global user which is used for configuration

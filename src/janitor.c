@@ -915,6 +915,8 @@ void janitor_setup(void)
 void kill_pool(PgPool *pool)
 {
 	const char *reason = "database removed";
+	PgCredentials *user_credentials = pool->user_credentials;
+	PgCredentials *forced_user_credentials = pool->db->forced_user_credentials;
 
 	close_client_list(&pool->active_client_list, reason);
 	close_client_list(&pool->waiting_client_list, reason);
@@ -937,6 +939,9 @@ void kill_pool(PgPool *pool)
 	varcache_clean(&pool->orig_vars);
 	slab_free(var_list_cache, pool->orig_vars.var_list);
 	slab_free(pool_cache, pool);
+
+	if (user_credentials && user_credentials->forced_user && user_credentials != forced_user_credentials)
+		slab_free(credentials_cache, user_credentials);
 }
 
 void kill_peer_pool(PgPool *pool)

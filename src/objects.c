@@ -520,6 +520,7 @@ static PgGlobalUser *add_new_global_user(const char *name, const char *passwd)
 		return NULL;
 
 	user->credentials.global_user = user;
+	user->credentials.forced_user = false;
 
 	list_init(&user->head);
 	list_init(&user->pool_list);
@@ -556,6 +557,7 @@ PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const c
 			return NULL;
 
 		safe_strcpy(credentials->name, name, sizeof(credentials->name));
+		credentials->forced_user = false;
 
 		credentials->global_user = find_or_add_new_global_user(name, NULL);
 		if (!credentials->global_user) {
@@ -587,6 +589,7 @@ PgCredentials *add_pam_credentials(const char *name, const char *passwd)
 			return NULL;
 
 		safe_strcpy(credentials->name, name, sizeof(credentials->name));
+		credentials->forced_user = false;
 
 		credentials->global_user = find_or_add_new_global_user(name, NULL);
 		if (!credentials->global_user) {
@@ -601,15 +604,36 @@ PgCredentials *add_pam_credentials(const char *name, const char *passwd)
 	return credentials;
 }
 
+static bool forced_user_credentials_has_pool(PgDatabase *db, PgCredentials *credentials)
+{
+	struct List *item;
+	PgPool *pool;
+
+	list_for_each(item, &credentials->global_user->pool_list) {
+		pool = container_of(item, PgPool, map_head);
+		if (pool->db == db && pool->user_credentials == credentials)
+			return true;
+	}
+	return false;
+}
+
 /* create separate PgCredentials object for this database */
 PgCredentials *force_user_credentials(PgDatabase *db, const char *name, const char *passwd)
 {
 	PgCredentials *credentials = db->forced_user_credentials;
+	PgCredentials *old_credentials = NULL;
+
+	if (credentials && strcmp(credentials->name, name) != 0) {
+		old_credentials = credentials;
+		credentials = NULL;
+	}
+
 	if (!credentials) {
 		credentials = slab_alloc(credentials_cache);
 		if (!credentials)
 			return NULL;
 
+		credentials->forced_user = true;
 		credentials->global_user = find_or_add_new_global_user(name, NULL);
 		if (!credentials->global_user) {
 			slab_free(credentials_cache, credentials);
@@ -619,6 +643,8 @@ PgCredentials *force_user_credentials(PgDatabase *db, const char *name, const ch
 	safe_strcpy(credentials->name, name, sizeof(credentials->name));
 	safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
 	db->forced_user_credentials = credentials;
+	if (old_credentials && !forced_user_credentials_has_pool(db, old_credentials))
+		slab_free(credentials_cache, old_credentials);
 	return credentials;
 }
 

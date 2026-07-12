@@ -36,7 +36,7 @@ BOUNCER_INI = TEST_DIR / "test.ini"
 BOUNCER_AUTH = TEST_DIR / "userlist.txt"
 BOUNCER_PID = TEST_DIR / "test.pid"
 BOUNCER_PORT = 6667
-BOUNCER_EXE = TEST_DIR / "../pgbouncer"
+BOUNCER_EXE = os.environ.get("BOUNCER_EXE", TEST_DIR / "../pgbouncer")
 NEW_CA_SCRIPT = TEST_DIR / "ssl" / "newca.sh"
 NEW_SITE_SCRIPT = TEST_DIR / "ssl" / "newsite.sh"
 ENABLE_VALGRIND = bool(os.environ.get("ENABLE_VALGRIND"))
@@ -194,21 +194,40 @@ PG_SUPPORTS_SCRAM = PG_MAJOR_VERSION >= 10
 LIBPQ_SUPPORTS_PIPELINING = psycopg.pq.version() >= 140000
 
 
-def get_ldap_support():
-    with open("../config.mak", encoding="utf-8") as f:
-        match = re.search(r"ldap_support = (\w+)", f.read())
+def get_build_feature(config_mak_key, meson_define):
+    """Detect whether pgbouncer was built with a certain feature enabled.
+
+    An autotools build records this in config.mak, a meson build in the
+    generated test_config.h header. For meson we assume the conventional
+    "build" directory name, since the tests have no way of knowing where
+    the build directory actually is.
+    """
+    meson_config = Path("../build/test_config.h")
+    if meson_config.exists():
+        return (
+            re.search(rf"#define {meson_define}\b", meson_config.read_text())
+            is not None
+        )
+    config_mak = Path("../config.mak")
+    if config_mak.exists():
+        match = re.search(rf"{config_mak_key} = (\w+)", config_mak.read_text())
         assert match is not None
         return match.group(1) == "yes"
+    raise FileNotFoundError(
+        "Could not find ../config.mak (autotools) or ../build/test_config.h (meson). "
+        "Configure the project first, and for meson use 'build' as the build directory."
+    )
+
+
+def get_ldap_support():
+    return get_build_feature("ldap_support", "HAVE_LDAP")
 
 
 LDAP_SUPPORT = get_ldap_support()
 
 
 def get_tls_support():
-    with open("../config.mak", encoding="utf-8") as f:
-        match = re.search(r"tls_support = (\w+)", f.read())
-        assert match is not None
-        return match.group(1) == "yes"
+    return get_build_feature("tls_support", "USUAL_LIBSSL_FOR_TLS")
 
 
 TLS_SUPPORT = get_tls_support()

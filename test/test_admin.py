@@ -20,7 +20,7 @@ def test_parameter_status(bouncer):
     )
     assert (
         conn.pgconn.parameter_status(b"pgbouncer.max_prepared_statements").decode()
-        == "200"
+        == "0"
     )
     assert conn.pgconn.parameter_status(b"pgbouncer.pool_mode").decode() == "statement"
 

@@ -39,6 +39,8 @@
 #include <sys/resource.h>
 #endif
 
+#include <math.h>
+
 /*
  * Default number of iterations when generating secret.  Should be at least
  * 4096 per RFC 7677.
@@ -207,12 +209,12 @@ char *cf_server_tls_key_file;
 char *cf_server_tls_ciphers;
 char *cf_server_tls13_ciphers;
 
-int cf_max_prepared_statements;
+char *cf_max_prepared_statements;
 
 /*
- * used for storing string max_prepared_statements
+ * used for storing integer max_prepared_statements
  */
-char max_prepared_statements[11];	/* length==max(int) + 1 */
+int max_prepared_statements;
 
 int cf_scram_iterations;
 
@@ -312,7 +314,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("max_db_client_connections", CF_INT, cf_max_db_client_connections, 0, "0"),
 	CF_ABS("max_db_connections", CF_INT, cf_max_db_connections, 0, "0"),
 	CF_ABS("max_packet_size", CF_UINT, cf_max_packet_size, 0, "2147483647"),
-	CF_ABS("max_prepared_statements", CF_INT, cf_max_prepared_statements, 0, "200"),
+	CF_ABS("max_prepared_statements", CF_STR, cf_max_prepared_statements, 0, "200"),
 	CF_ABS("max_user_client_connections", CF_INT, cf_max_user_client_connections, 0, "0"),
 	CF_ABS("max_user_connections", CF_INT, cf_max_user_connections, 0, "0"),
 	CF_ABS("min_pool_size", CF_INT, cf_min_pool_size, 0, "0"),
@@ -400,7 +402,24 @@ static struct CfContext main_config = { config_sects, };
 
 bool set_config_param(const char *key, const char *val)
 {
-	return cf_set(&main_config, "pgbouncer", key, val);
+	bool ret;
+	ret = cf_set(&main_config, "pgbouncer", key, val);
+	if (!ret)
+		return ret;
+
+	ret = true;
+	if (strcmp(key, "max_prepared_statements") == 0) {
+		if (strcmp(val, "0") == 0) {
+			max_prepared_statements = 0;
+		} else {
+			max_prepared_statements = atoi(val);
+			if (max_prepared_statements == 0) {
+				ret = false;
+			}
+		}
+	}
+
+	return ret;
 }
 
 void config_for_each(void (*param_cb)(void *arg, const char *name, const char *val, const char *defval, bool reloadable),
@@ -498,7 +517,15 @@ bool load_config(void)
 		ok = false;
 	}
 
-	sprintf(max_prepared_statements, "%d", cf_max_prepared_statements);
+	if (strcmp(cf_max_prepared_statements, "0") == 0) {
+		max_prepared_statements = 0;
+	} else {
+		max_prepared_statements = atoi(cf_max_prepared_statements);
+		if (max_prepared_statements == 0) {
+			die("invalid max_prepared_statements value in config");
+			ok = false;
+		}
+	}
 
 	q = cf_server_check_query;
 	if (strcmpeq(q, "<empty>"))
@@ -1031,6 +1058,8 @@ static void cleanup(void)
 	xfree((char **)&cf_syslog_facility);
 
 	xfree(&cf_track_extra_parameters);
+
+	xfree(&cf_max_prepared_statements);
 }
 
 /* boot everything */

@@ -941,8 +941,8 @@ extern char *cf_server_tls_key_file;
 extern char *cf_server_tls_ciphers;
 extern char *cf_server_tls13_ciphers;
 
-extern int cf_max_prepared_statements;
-extern char max_prepared_statements[11];
+extern char *cf_max_prepared_statements;
+extern int max_prepared_statements;
 
 extern const struct CfLookup pool_mode_map[];
 extern const struct CfLookup load_balance_hosts_map[];

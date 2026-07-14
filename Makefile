@@ -205,40 +205,20 @@ htmls:
 doc/pgbouncer.1 doc/pgbouncer.5:
 	$(MAKE) -C doc $(@F)
 
+# Formatting and linting live in a build-system-independent script so the same
+# logic is shared with meson (`meson compile -C build format` etc.); these
+# targets just forward to it.
 lint:
-	ruff check
+	dev/format.sh lint
 
-UNCRUSTIFY_FILES = include/*.h src/*.c test/*.c \
-		lib/test/*.c lib/usual/*.c lib/usual/crypto/*.c lib/usual/hashing/*.c lib/usual/tls/*.c \
-		lib/test/*.h lib/usual/*.h lib/usual/crypto/*.h lib/usual/hashing/*.h lib/usual/tls/*.h
+format-check:
+	dev/format.sh check
 
-format-check: uncrustify
-	git diff-tree --check `git hash-object -t tree /dev/null` HEAD
-	ruff format --check --diff
-	ruff check --select I --diff
-	./uncrustify -c uncrustify.cfg --check -L WARN $(UNCRUSTIFY_FILES)
+format:
+	dev/format.sh fix
 
-format: uncrustify
-	$(MAKE) format-c
-	$(MAKE) format-python
+format-c:
+	dev/format.sh fix-c
 
-format-python: uncrustify
-	ruff format
-	ruff check --select I --fix
-
-format-c: uncrustify
-	./uncrustify -c uncrustify.cfg --replace --no-backup -L WARN $(UNCRUSTIFY_FILES)
-
-UNCRUSTIFY_VERSION=0.77.1
-
-uncrustify:
-	temp=$$(mktemp -d) \
-		&& cd $$temp \
-		&& curl -L https://github.com/uncrustify/uncrustify/archive/refs/tags/uncrustify-$(UNCRUSTIFY_VERSION).tar.gz --output uncrustify.tar.gz \
-		&& tar xzf uncrustify.tar.gz \
-		&& cd uncrustify-uncrustify-$(UNCRUSTIFY_VERSION) \
-		&& mkdir -p build \
-		&& cd build \
-		&& cmake .. \
-		&& $(MAKE) \
-		&& cp uncrustify $(CURDIR)/uncrustify
+format-python:
+	dev/format.sh fix-python

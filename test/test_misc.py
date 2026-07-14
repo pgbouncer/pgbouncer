@@ -18,6 +18,14 @@ from .utils import (
 )
 
 
+@pytest.mark.parametrize(
+    "dbname,expected_pool_mode",
+    [
+        ["p6", "statement"],
+        ["p3", "session"],
+        ["p3x", "transaction"],
+    ],
+)
 def test_login_notify_message_negative(bouncer):
     """
     Negative test for login_notify_message
@@ -75,6 +83,27 @@ def test_login_notify_message(bouncer):
         )
         assert ret.stderr == b"NOTICE:  You are now connected to pgbouncer\n"
         assert ret.stdout == b" ?column? \n----------\n        1\n(1 row)\n\n"
+
+
+def test_parameter_status(bouncer, dbname, expected_pool_mode):
+    """
+    Test that parameter_status messages `pgbouncer.version`, `pgbouncer.max_prepared_statements`
+    and `pgbouncer.pool_mode` are correctly sent to client when connecting to databases. We
+    test 3 different scenarios, one for each pool mode.
+    """
+    conn = bouncer.conn(dbname=dbname, user="puser1", password="foo")
+    assert (
+        conn.pgconn.parameter_status(b"pgbouncer.version").decode()
+        == f"{bouncer.version()}"
+    )
+    assert (
+        conn.pgconn.parameter_status(b"pgbouncer.max_prepared_statements").decode()
+        == "200"
+    )
+    assert (
+        conn.pgconn.parameter_status(b"pgbouncer.pool_mode").decode()
+        == expected_pool_mode
+    )
 
 
 @pytest.mark.parametrize(

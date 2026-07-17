@@ -181,7 +181,7 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 
 	int *ports = NULL;
 	char *port = NULL;
-	int parsed_port;
+	int parsed_port = -1;
 	int port_count = 1;
 
 	int pool_size = -1;
@@ -216,14 +216,6 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 			if (strchr(port, ',')) {
 				log_error("peer can only accept single port");
 				goto fail;
-			} else {
-				parsed_port = atoi(port);
-				if (parsed_port == 0) {
-					log_error("invalid port: %s", port);
-					goto fail;
-				}
-				ports = malloc(port_count * sizeof(int));
-				ports[0] = parsed_port;
 			}
 		} else if (strcmp("pool_size", key) == 0) {
 			pool_size = atoi(val);
@@ -237,6 +229,19 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 		log_error("host was not provided for peer %d", peer_id);
 		goto fail;
 	}
+
+	if (!port) {
+		if (!set_param_value(&port, "6432"))
+			goto fail;
+	}
+
+	parsed_port = atoi(port);
+	if (parsed_port == 0) {
+		log_error("invalid port: %s", port);
+		goto fail;
+	}
+	ports = malloc(port_count * sizeof(int));
+	ports[0] = parsed_port;
 
 	peer = add_peer(name, peer_id);
 	if (!peer) {
@@ -285,6 +290,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	int max_db_client_connections = -1;
 	int max_db_connections = -1;
 	int port_count = 1;
+	int parsed_port;
 	int host_count = 1;
 	usec_t server_lifetime = 0;
 	int dbname_ofs;
@@ -348,55 +354,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 				if (*p == ',')
 					host_count++;
 		} else if (strcmp("port", key) == 0) {
-			int parsed_port;
 			if (!set_param_value(&port, val))
 				goto fail;
-
-			/* check of port value */
-			if (strchr(port, ',')) {
-				char *port_copy = NULL;
-				char *port_str = NULL;
-				int n;
-
-				/* check of port value list */
-				for (const char *p = port; *p; p++)
-					if (*p == ',')
-						port_count++;
-
-				port_copy = xstrdup(port);
-
-				ports = malloc(port_count * sizeof(int));
-				if (ports == NULL) {
-					free(port_copy);
-					log_warning("out of memory");
-					goto fail;
-				}
-
-				for (port_str = strtok(port_copy, ","), n = 0; port_str; port_str = strtok(NULL, ","), n++) {
-					parsed_port = atoi(port_str);
-					if (parsed_port == 0) {
-						free(port_copy);
-						log_error("invalid port: %s", port_str);
-						goto fail;
-					}
-					ports[n] = parsed_port;
-				}
-				free(port_copy);
-			} else {
-				/* check single port value list */
-				port_count = 1;
-				ports = malloc(port_count * sizeof(int));
-				if (ports == NULL) {
-					log_warning("out of memory");
-					goto fail;
-				}
-				parsed_port = atoi(port);
-				if (parsed_port == 0) {
-					log_error("invalid port: %s", port);
-					goto fail;
-				}
-				ports[0] = parsed_port;
-			}
 		} else if (strcmp("user", key) == 0) {
 			username = val;
 		} else if (strcmp("password", key) == 0) {
@@ -451,6 +410,57 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			log_error("unrecognized connection parameter: %s", key);
 			goto fail;
 		}
+	}
+
+	if (!port) {
+		if (!set_param_value(&port, "5432"))
+			goto fail;
+	}
+
+	/* check of port value */
+	if (strchr(port, ',')) {
+		char *port_copy = NULL;
+		char *port_str = NULL;
+		int n;
+
+		/* check of port value list */
+		for (const char *p = port; *p; p++)
+			if (*p == ',')
+				port_count++;
+
+		port_copy = xstrdup(port);
+
+		ports = malloc(port_count * sizeof(int));
+		if (ports == NULL) {
+			free(port_copy);
+			log_warning("out of memory");
+			goto fail;
+		}
+
+		for (port_str = strtok(port_copy, ","), n = 0; port_str; port_str = strtok(NULL, ","), n++) {
+			parsed_port = atoi(port_str);
+			if (parsed_port == 0) {
+				free(port_copy);
+				log_error("invalid port: %s", port_str);
+				goto fail;
+			}
+			ports[n] = parsed_port;
+		}
+		free(port_copy);
+	} else {
+		/* check single port value list */
+		port_count = 1;
+		ports = malloc(port_count * sizeof(int));
+		if (ports == NULL) {
+			log_warning("out of memory");
+			goto fail;
+		}
+		parsed_port = atoi(port);
+		if (parsed_port == 0) {
+			log_error("invalid port: %s", port);
+			goto fail;
+		}
+		ports[0] = parsed_port;
 	}
 
 	/* validate host_count/port_count */

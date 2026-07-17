@@ -556,7 +556,7 @@ static bool admin_show_peers(PgSocket *admin, const char *arg)
 	statlist_for_each(item, &peer_list) {
 		peer = container_of(item, PgDatabase, head);
 
-		pktbuf_write_DataRow(buf, "isii",
+		pktbuf_write_DataRow(buf, "issi",
 				     peer->peer_id, peer->host, peer->unparsed_port,
 				     peer->pool_size >= 0 ? peer->pool_size : cf_default_pool_size);
 	}

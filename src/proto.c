@@ -320,8 +320,9 @@ void log_server_error(const char *note, PktHdr *pkt)
  */
 
 /* add another server parameter packet to cache */
-bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
+bool add_welcome_parameter(PgSocket *server, const char *key, const char *val)
 {
+	PgPool *pool = server->pool;
 	PktBuf *msg = pool->welcome_msg;
 
 	if (pool->welcome_msg_ready)
@@ -337,6 +338,20 @@ bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 	/* first packet must be AuthOk */
 	if (msg->write_pos == 0)
 		pktbuf_write_AuthenticationOk(msg);
+
+	pktbuf_write_ParameterStatus(msg, "pgbouncer.version", PACKAGE_VERSION);
+	pktbuf_write_ParameterStatus(msg, "pgbouncer.max_prepared_statements", cf_max_prepared_statements);
+
+	switch (connection_pool_mode(server)) {
+	case POOL_SESSION:
+		pktbuf_write_ParameterStatus(msg, "pgbouncer.pool_mode", "session");
+		break;
+	case POOL_TX:
+		pktbuf_write_ParameterStatus(msg, "pgbouncer.pool_mode", "transaction");
+		break;
+	case POOL_STMT:
+		pktbuf_write_ParameterStatus(msg, "pgbouncer.pool_mode", "statement");
+	}
 
 	/* if not stored in ->orig_vars, write full packet */
 	if (!varcache_set(&pool->orig_vars, key, val))

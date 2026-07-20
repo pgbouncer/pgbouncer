@@ -300,8 +300,13 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	char *tmp_connstr;
 	const char *dbname = name;
 	char *host = NULL;
+
 	char *port = NULL;
 	int *ports = NULL;
+	char *port_copy = NULL;
+	char *port_str = NULL;
+	int n;
+
 	char *username = NULL;
 	char *password = "";
 	char *auth_username = NULL;
@@ -417,51 +422,30 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			goto fail;
 	}
 
-	/* check of port value */
-	if (strchr(port, ',')) {
-		char *port_copy = NULL;
-		char *port_str = NULL;
-		int n;
+	/* check of port value list */
+	for (const char *p = port; *p; p++)
+		if (*p == ',')
+			port_count++;
 
-		/* check of port value list */
-		for (const char *p = port; *p; p++)
-			if (*p == ',')
-				port_count++;
+	port_copy = xstrdup(port);
 
-		port_copy = xstrdup(port);
-
-		ports = malloc(port_count * sizeof(int));
-		if (ports == NULL) {
-			free(port_copy);
-			log_warning("out of memory");
-			goto fail;
-		}
-
-		for (port_str = strtok(port_copy, ","), n = 0; port_str; port_str = strtok(NULL, ","), n++) {
-			parsed_port = atoi(port_str);
-			if (parsed_port == 0) {
-				free(port_copy);
-				log_error("invalid port: %s", port_str);
-				goto fail;
-			}
-			ports[n] = parsed_port;
-		}
+	ports = malloc(port_count * sizeof(int));
+	if (ports == NULL) {
 		free(port_copy);
-	} else {
-		/* check single port value list */
-		port_count = 1;
-		ports = malloc(port_count * sizeof(int));
-		if (ports == NULL) {
-			log_warning("out of memory");
-			goto fail;
-		}
-		parsed_port = atoi(port);
-		if (parsed_port == 0) {
-			log_error("invalid port: %s", port);
-			goto fail;
-		}
-		ports[0] = parsed_port;
+		log_warning("out of memory");
+		goto fail;
 	}
+
+	for (port_str = strtok(port_copy, ","), n = 0; port_str; port_str = strtok(NULL, ","), n++) {
+		parsed_port = atoi(port_str);
+		if (parsed_port == 0) {
+			free(port_copy);
+			log_error("invalid port: %s", port_str);
+			goto fail;
+		}
+		ports[n] = parsed_port;
+	}
+	free(port_copy);
 
 	/* validate host_count/port_count */
 	if (!((port_count == host_count) || (port_count == 1))) {

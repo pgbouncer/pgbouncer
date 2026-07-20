@@ -403,7 +403,7 @@ jobs:
     runs-on: windows-2022
     env:
       HAVE_IPV6_LOCALHOST: "yes"
-      MSYSTEM: MINGW64
+      MSYSTEM: UCRT64
       BUILD_SYSTEM: meson
       # Without this the MSYS2 login shell starts in the home directory; we want
       # it to stay in the checkout directory.

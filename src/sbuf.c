@@ -89,11 +89,13 @@ static ssize_t raw_sbufio_peek(struct SBuf *sbuf, void *buf, size_t len);
 static ssize_t raw_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len);
 static ssize_t raw_sbufio_send(struct SBuf *sbuf, const void *data, size_t len);
 static int raw_sbufio_close(struct SBuf *sbuf);
+static size_t raw_sbufio_pending(struct SBuf *sbuf);
 static const SBufIO raw_sbufio_ops = {
 	raw_sbufio_peek,
 	raw_sbufio_recv,
 	raw_sbufio_send,
-	raw_sbufio_close
+	raw_sbufio_close,
+	raw_sbufio_pending
 };
 
 /* I/O over TLS */
@@ -102,11 +104,13 @@ static ssize_t tls_sbufio_peek(struct SBuf *sbuf, void *buf, size_t len);
 static ssize_t tls_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len);
 static ssize_t tls_sbufio_send(struct SBuf *sbuf, const void *data, size_t len);
 static int tls_sbufio_close(struct SBuf *sbuf);
+static size_t tls_sbufio_pending(struct SBuf *sbuf);
 static const SBufIO tls_sbufio_ops = {
 	tls_sbufio_peek,
 	tls_sbufio_recv,
 	tls_sbufio_send,
-	tls_sbufio_close
+	tls_sbufio_close,
+	tls_sbufio_pending
 };
 static void sbuf_tls_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
 static void sbuf_possible_direct_tls_startup_cb(evutil_socket_t fd, short flags, void *_sbuf);
@@ -1038,8 +1042,19 @@ try_more:
 skip_recv:
 	/* now handle it */
 	ok = sbuf_process_pending(sbuf);
-	if (!ok)
+	if (!ok) {
+		/*
+		 * Handler wants more data, but on TLS the rest of the packet
+		 * may already sit decrypted inside the TLS library where the
+		 * poller cannot see it.  Waiting for a read event would then
+		 * hang, so read it now instead.
+		 */
+		if (sbuf->sock && sbuf->wait_type == W_RECV && sbuf->io
+		    && iobuf_amount_recv(sbuf->io) > 0
+		    && sbuf_op_pending(sbuf) > 0)
+			goto try_more;
 		return;
+	}
 
 	/* if the buffer is full, there can be more data available */
 	if (iobuf_amount_recv(sbuf->io) <= 0)
@@ -1127,6 +1142,12 @@ static ssize_t raw_sbufio_peek(struct SBuf *sbuf, void *buf, size_t len)
 static ssize_t raw_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len)
 {
 	return safe_recv(sbuf->sock, dst, len, 0);
+}
+
+static size_t raw_sbufio_pending(struct SBuf *sbuf)
+{
+	/* unread data stays in the kernel, the poller sees it */
+	return 0;
 }
 
 static ssize_t raw_sbufio_send(struct SBuf *sbuf, const void *data, size_t len)
@@ -1510,6 +1531,13 @@ static ssize_t tls_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len)
 		errno = EIO;
 	}
 	return -1;
+}
+
+static size_t tls_sbufio_pending(struct SBuf *sbuf)
+{
+	if (sbuf->tls_state != SBUF_TLS_OK)
+		return 0;
+	return tls_pending(sbuf->tls);
 }
 
 static ssize_t tls_sbufio_send(struct SBuf *sbuf, const void *data, size_t len)

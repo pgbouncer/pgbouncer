@@ -1621,7 +1621,7 @@ static void connect_server(struct PgSocket *server, const struct sockaddr *sa, i
 	/* fill remote_addr */
 	memset(&server->remote_addr, 0, sizeof(server->remote_addr));
 	if (sa->sa_family == AF_UNIX) {
-		pga_set(&server->remote_addr, AF_UNIX, server->pool->db->port);
+		pga_set(&server->remote_addr, AF_UNIX, server->current_port);
 	} else {
 		pga_copy(&server->remote_addr, sa);
 	}
@@ -1638,7 +1638,6 @@ static void connect_server(struct PgSocket *server, const struct sockaddr *sa, i
 static void dns_callback(void *arg, const struct sockaddr *sa, int salen)
 {
 	struct PgSocket *server = arg;
-	struct PgDatabase *db = server->pool->db;
 	struct sockaddr_in sa_in;
 	struct sockaddr_in6 sa_in6;
 
@@ -1650,7 +1649,7 @@ static void dns_callback(void *arg, const struct sockaddr *sa, int salen)
 	} else if (sa->sa_family == AF_INET) {
 		char buf[64];
 		memcpy(&sa_in, sa, sizeof(sa_in));
-		sa_in.sin_port = htons(db->port);
+		sa_in.sin_port = htons(server->current_port);
 		sa = (struct sockaddr *)&sa_in;
 		salen = sizeof(sa_in);
 		slog_debug(server, "dns_callback: inet4: %s",
@@ -1658,7 +1657,7 @@ static void dns_callback(void *arg, const struct sockaddr *sa, int salen)
 	} else if (sa->sa_family == AF_INET6) {
 		char buf[64];
 		memcpy(&sa_in6, sa, sizeof(sa_in6));
-		sa_in6.sin6_port = htons(db->port);
+		sa_in6.sin6_port = htons(server->current_port);
 		sa = (struct sockaddr *)&sa_in6;
 		salen = sizeof(sa_in6);
 		slog_debug(server, "dns_callback: inet6: %s",
@@ -1679,6 +1678,7 @@ static void dns_connect(struct PgSocket *server)
 	struct sockaddr *sa;
 	struct PgDatabase *db = server->pool->db;
 	const char *host;
+	int port;
 	int sa_len;
 	int res;
 	char *host_copy = NULL;
@@ -1701,10 +1701,18 @@ static void dns_connect(struct PgSocket *server)
 				break;
 		Assert(host);
 
+		if (db->port) {
+			for (n = 0; n < db->port_count + 1; n++) {
+				if (server->pool->rrcounter % db->port_count == n)
+					break;
+			}
+			port = db->port[n];
+		}
 		if (server->pool->db->load_balance_hosts == LOAD_BALANCE_HOSTS_ROUND_ROBIN)
 			server->pool->rrcounter++;
 	} else {
 		host = db->host;
+		port = db->port[0];
 	}
 
 	if (host) {
@@ -1723,7 +1731,7 @@ static void dns_connect(struct PgSocket *server)
 			goto cleanup;
 		}
 		snprintf(sa_un.sun_path, sizeof(sa_un.sun_path),
-			 "%s/.s.PGSQL.%d", unix_dir, db->port);
+			 "%s/.s.PGSQL.%d", unix_dir, port);
 		slog_noise(server, "unix socket: %s", sa_un.sun_path);
 		if (unix_dir[0] == '@') {
 			/*
@@ -1743,7 +1751,7 @@ static void dns_connect(struct PgSocket *server)
 		memset(&sa_in6, 0, sizeof(sa_in6));
 		sa_in6.sin6_family = AF_INET6;
 		res = inet_pton(AF_INET6, host, &sa_in6.sin6_addr);
-		sa_in6.sin6_port = htons(db->port);
+		sa_in6.sin6_port = htons(port);
 		sa = (struct sockaddr *)&sa_in6;
 		sa_len = sizeof(sa_in6);
 	} else {/* else try IPv4 */
@@ -1751,7 +1759,7 @@ static void dns_connect(struct PgSocket *server)
 		memset(&sa_in, 0, sizeof(sa_in));
 		sa_in.sin_family = AF_INET;
 		res = inet_pton(AF_INET, host, &sa_in.sin_addr);
-		sa_in.sin_port = htons(db->port);
+		sa_in.sin_port = htons(port);
 		sa = (struct sockaddr *)&sa_in;
 		sa_len = sizeof(sa_in);
 	}
@@ -1761,6 +1769,7 @@ static void dns_connect(struct PgSocket *server)
 		struct DNSToken *tk;
 		slog_noise(server, "dns socket: %s", host);
 		/* launch dns lookup */
+		server->current_port = port;
 		tk = adns_resolve(adns, host, dns_callback, server);
 		if (tk)
 			server->dns_token = tk;

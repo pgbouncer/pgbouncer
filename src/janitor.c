@@ -972,6 +972,8 @@ void kill_database(PgDatabase *db)
 	}
 
 	pktbuf_free(db->startup_params);
+	free(db->port);
+	free(db->unparsed_port);
 	free(db->host);
 
 	if (db->forced_user_credentials)
@@ -1008,6 +1010,8 @@ void kill_peer(PgDatabase *db)
 			kill_peer_pool(pool);
 	}
 
+	free(db->port);
+	free(db->unparsed_port);
 	free(db->host);
 
 	statlist_remove(&peer_list, &db->head);

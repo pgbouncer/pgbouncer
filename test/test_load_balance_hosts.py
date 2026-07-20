@@ -45,3 +45,39 @@ def test_load_balance_hosts_reload(bouncer):
         results = cur.execute("show databases").fetchall()
         result = [r for r in results if r[0] == "load_balance_hosts_update"][0]
         assert "round-robin" in result
+
+
+def test_multi_port(bouncer, pg, pg2):
+    """
+    Test multi port load balancing
+
+    Test that specifying multiple ports with load_balance_hosts=round-robin
+    results in pgbouncer correctly round robining through the ports. It should
+    hit the first port, then the second, then back to the first.
+    """
+
+    config = f"""
+    [databases]
+    postgres = host={pg.host},{pg2.host} port={pg.port},{pg2.port} load_balance_hosts=round-robin
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    auth_type = trust
+    pool_mode = session
+    """
+
+    with bouncer.run_with_config(config):
+        with bouncer.cur(dbname="postgres", user="puser1") as cur1:
+            port1 = cur1.execute("SHOW port").fetchall()[0][0]
+            with bouncer.cur(dbname="postgres", user="puser1") as cur2:
+                port2 = cur2.execute("SHOW port").fetchall()[0][0]
+                with bouncer.cur(dbname="postgres", user="puser1") as cur3:
+                    port3 = cur3.execute("SHOW port").fetchall()[0][0]
+
+    assert int(port1) == pg.port
+    assert int(port2) == pg2.port
+    assert int(port3) == pg.port

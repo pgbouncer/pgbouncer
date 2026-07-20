@@ -518,8 +518,8 @@ static bool admin_show_databases(PgSocket *admin, const char *arg)
 		if (db->host && strchr(db->host, ','))
 			load_balance_hosts_str = cf_get_lookup(&load_balance_hosts_lookup);
 
-		pktbuf_write_DataRow(buf, "ssissiiiissiiiiii",
-				     db->name, db->host, db->port,
+		pktbuf_write_DataRow(buf, "sssssiiiissiiiiii",
+				     db->name, db->host, db->unparsed_port,
 				     db->dbname, f_user,
 				     db->pool_size >= 0 ? db->pool_size : cf_default_pool_size,
 				     db->min_pool_size >= 0 ? db->min_pool_size : cf_min_pool_size,
@@ -551,13 +551,13 @@ static bool admin_show_peers(PgSocket *admin, const char *arg)
 		return true;
 	}
 
-	pktbuf_write_RowDescription(buf, "isii",
+	pktbuf_write_RowDescription(buf, "issi",
 				    "peer_id", "host", "port", "pool_size");
 	statlist_for_each(item, &peer_list) {
 		peer = container_of(item, PgDatabase, head);
 
-		pktbuf_write_DataRow(buf, "isii",
-				     peer->peer_id, peer->host, peer->port,
+		pktbuf_write_DataRow(buf, "issi",
+				     peer->peer_id, peer->host, peer->unparsed_port,
 				     peer->pool_size >= 0 ? peer->pool_size : cf_default_pool_size);
 	}
 	admin_flush(admin, buf, "SHOW");
@@ -1878,7 +1878,13 @@ void admin_setup(void)
 	if (!db)
 		die("no memory for admin database");
 
-	db->port = cf_listen_port;
+	db->port = malloc(sizeof(int));
+	db->port[0] = cf_listen_port;
+
+	db->unparsed_port = malloc(128);
+	snprintf(db->unparsed_port, 128, "%d", cf_listen_port);
+	db->port_count = 1;
+
 	db->pool_size = 2;
 	db->admin = true;
 	db->pool_mode = POOL_STMT;

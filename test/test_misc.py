@@ -5,6 +5,7 @@ import time
 
 import psycopg
 import pytest
+from psycopg.rows import dict_row
 
 from .utils import (
     HAVE_IPV6_LOCALHOST,
@@ -16,6 +17,65 @@ from .utils import (
     USE_UNIX_SOCKETS,
     WINDOWS,
 )
+
+
+def test_database_port_default(bouncer, pg):
+    """
+    Test that database entries have correct default port
+
+    This test spins up a pgbouncer instance with a database entry
+    that does not specify a port number. We verify that pgbouncer
+    successfully runs and the database is correctly assigned the
+    default port of 5432.
+    """
+
+    config = f"""
+    [databases]
+    postgres = host={pg.host}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    auth_type = trust
+    pool_mode = session
+    """
+
+    with bouncer.run_with_config(config):
+        databases = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
+        postgres_database = [
+            database for database in databases if database["name"] == "postgres"
+        ][0]
+    assert postgres_database["port"] == 5432
+
+
+def test_multi_port_validation(bouncer, pg, pg2):
+    """
+    Negative test of database port list parsing
+
+    Test that specifying 1 host with 2 ports results in pgbouncer raising an error.
+    """
+
+    config = f"""
+    [databases]
+    postgres = host={pg.host} port={pg.port},{pg2.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    auth_type = trust
+    pool_mode = session
+    """
+
+    with bouncer.log_contains("invalid number of ports"):
+        with pytest.raises(psycopg.errors.ConfigFileError):
+            with bouncer.run_with_config(config):
+                pass
 
 
 def test_login_notify_message_negative(bouncer):

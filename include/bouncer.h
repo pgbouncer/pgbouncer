@@ -605,7 +605,9 @@ struct PgDatabase {
 	 * configuration
 	 */
 	char *host;		/* host or unix socket name */
-	int port;
+	int *port;		/* list of ports */
+	char *unparsed_port;	/* unparsed list of ports, used for comparing old vs new config */
+	int port_count;		/* number of ports */
 	int pool_size;		/* max server connections in one pool */
 	int min_pool_size;	/* min server connections in one pool */
 	int res_pool_size;	/* additional server connections in case of trouble */
@@ -752,6 +754,7 @@ struct PgSocket {
 	struct StatList canceling_clients;	/* clients trying to cancel the query on this connection */
 	PgSocket *canceled_server;	/* server that is being canceled by this request */
 
+	int current_port;
 	PgAddr remote_addr;	/* ip:port for remote endpoint */
 	PgAddr local_addr;	/* ip:port for local endpoint */
 

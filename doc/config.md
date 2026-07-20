@@ -1304,6 +1304,17 @@ Default: not set, meaning to use a Unix socket
 
 ### port
 
+Port number to conect to. Can be specified as a single port or a comma
+separated list of ports. If multiple ports are specified then the
+number of ports must match the number of hosts provided. If only one
+port is provided but multiple hosts then that port will be used for
+every host.
+
+Examples:
+
+	port=5433
+	port=5433,5434
+
 Default: 5432
 
 ### user

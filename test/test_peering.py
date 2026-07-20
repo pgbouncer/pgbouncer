@@ -5,6 +5,7 @@ from typing import Dict
 
 import psycopg
 import pytest
+from psycopg.rows import dict_row
 
 from .utils import LINUX, Bouncer
 
@@ -50,6 +51,40 @@ def test_peering_without_own_index(peers):
                     psycopg.errors.QueryCanceled, match="due to user request"
                 ):
                     query.result()
+
+
+def test_peering_default_port(bouncer, pg):
+    """
+    Test that peer entries have correct default port
+
+    This test spins up a pgbouncer instance with a peer entry
+    that does not specify a port number. We verify that pgbouncer
+    successfully runs and the peer is correctly assigned the
+    default port of 5432.
+    """
+
+    config = f"""
+    [databases]
+    postgres = host={pg.host}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    auth_type = trust
+    pool_mode = session
+    peer_id = 1
+
+    [peers]
+    1 = host=localhost
+    """
+
+    with bouncer.run_with_config(config):
+        peers = bouncer.admin("SHOW PEERS", row_factory=dict_row)
+        peer_1 = [peer for peer in peers if peer["peer_id"] == 1][0]
+    assert peer_1["port"] == "6432"
 
 
 def test_peering_with_own_index(peers):

@@ -105,6 +105,10 @@ cdata.set('_GNU_SOURCE', 1,
 cdata.set('_FILE_OFFSET_BITS', 64)
 
 if windows
+  if cc.get_id() != 'msvc'
+    cdata.set('_POSIX_C_SOURCE', 1,
+              description: 'Define before including <time.h> for getting localtime_r() etc. on MinGW.')
+  endif
   cdata.set('WIN32_LEAN_AND_MEAN', 1,
             description: 'Define to request cleaner win32 headers.')
   cdata.set('WINVER', '0x0600',
@@ -213,7 +217,6 @@ check_funcs = [
   'gettimeofday',
   'inet_ntop',
   'inet_pton',
-  'localtime_r',
   'lstat',
   'mbsnrtowcs',
   'memalign',

@@ -134,6 +134,7 @@ int tls_connect_socket(struct tls *_ctx, int _s, const char *_servername);
 int tls_handshake(struct tls *_ctx);
 ssize_t tls_read(struct tls *_ctx, void *_buf, size_t _buflen);
 ssize_t tls_write(struct tls *_ctx, const void *_buf, size_t _buflen);
+size_t tls_pending(struct tls *_ctx);
 int tls_close(struct tls *_ctx);
 
 int tls_peer_cert_provided(struct tls *_ctx);

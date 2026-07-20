@@ -60,6 +60,8 @@ struct SBufIO {
 	ssize_t (*sbufio_recv)(SBuf *sbuf, void *buf, size_t len);
 	ssize_t (*sbufio_send)(SBuf *sbuf, const void *data, size_t len);
 	int (*sbufio_close)(SBuf *sbuf);
+	/* buffered data the poller cannot see (e.g. decrypted by TLS) */
+	size_t (*sbufio_pending)(SBuf *sbuf);
 };
 
 /*
@@ -168,6 +170,11 @@ static inline ssize_t sbuf_op_recv(SBuf *sbuf, void *buf, size_t len)
 static inline ssize_t sbuf_op_send(SBuf *sbuf, const void *buf, size_t len)
 {
 	return sbuf->ops->sbufio_send(sbuf, buf, len);
+}
+
+static inline size_t sbuf_op_pending(SBuf *sbuf)
+{
+	return sbuf->ops->sbufio_pending(sbuf);
 }
 
 static inline int sbuf_op_close(SBuf *sbuf)

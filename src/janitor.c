@@ -936,6 +936,7 @@ void kill_pool(PgPool *pool)
 	statlist_remove(&pool_list, &pool->head);
 	varcache_clean(&pool->orig_vars);
 	slab_free(var_list_cache, pool->orig_vars.var_list);
+	socketpool_free(pool->socket_pool);
 	slab_free(pool_cache, pool);
 }
 
@@ -972,6 +973,7 @@ void kill_database(PgDatabase *db)
 	}
 
 	pktbuf_free(db->startup_params);
+	hostpool_free(db->host_pool);
 	free(db->host);
 
 	if (db->forced_user_credentials)
@@ -1008,6 +1010,7 @@ void kill_peer(PgDatabase *db)
 			kill_peer_pool(pool);
 	}
 
+	hostpool_free(db->host_pool);
 	free(db->host);
 
 	statlist_remove(&peer_list, &db->head);

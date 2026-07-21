@@ -167,6 +167,7 @@ usec_t cf_query_wait_timeout;
 usec_t cf_cancel_wait_timeout;
 usec_t cf_client_idle_timeout;
 usec_t cf_client_login_timeout;
+usec_t cf_pool_idle_timeout;
 usec_t cf_idle_transaction_timeout;
 usec_t cf_transaction_timeout;
 usec_t cf_suspend_timeout;
@@ -175,6 +176,8 @@ usec_t g_suspend_start;
 
 char *cf_pidfile;
 char *cf_jobname;
+
+char *cf_login_notify_message;
 
 char *cf_admin_users;
 char *cf_stats_users;
@@ -299,6 +302,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("log_pooler_errors", CF_INT, cf_log_pooler_errors, 0, "1"),
 	CF_ABS("log_stats", CF_INT, cf_log_stats, 0, "1"),
 	CF_ABS("logfile", CF_STR, cf_logfile, 0, ""),
+	CF_ABS("login_notify_message", CF_STR, cf_login_notify_message, 0, ""),
 	CF_ABS("max_client_conn", CF_INT, cf_max_client_conn, 0, "100"),
 	CF_ABS("max_db_client_connections", CF_INT, cf_max_db_client_connections, 0, "0"),
 	CF_ABS("max_db_connections", CF_INT, cf_max_db_connections, 0, "0"),
@@ -311,6 +315,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("pidfile", CF_STR, cf_pidfile, CF_NO_RELOAD, ""),
 	CF_ABS("pkt_buf", CF_INT, cf_sbuf_len, CF_NO_RELOAD, "4096"),
 	CF_ABS("pool_mode", CF_LOOKUP(pool_mode_map), cf_pool_mode, 0, "session"),
+	CF_ABS("pool_idle_timeout", CF_TIME_USEC, cf_pool_idle_timeout, 0, "0"),
 	CF_ABS("query_timeout", CF_TIME_USEC, cf_query_timeout, 0, "0"),
 	CF_ABS("query_wait_notify", CF_INT, cf_query_wait_notify, 0, "5"),
 	CF_ABS("query_wait_timeout", CF_TIME_USEC, cf_query_wait_timeout, 0, "120"),
@@ -466,6 +471,7 @@ bool load_config(void)
 	any_user_level_timeout_set = false;
 	empty_server_check_query = false;
 	any_user_level_client_timeout_set = false;
+	any_database_level_client_timeout_set = false;
 
 	set_dbs_dead(true);
 	set_peers_dead(true);

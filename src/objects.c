@@ -720,6 +720,7 @@ static PgPool *new_pool(PgDatabase *db, PgCredentials *user_credentials)
 
 	pool->user_credentials = user_credentials;
 	pool->db = db;
+	pool->last_active_time = get_cached_time();
 
 	statlist_init(&pool->active_client_list, "active_client_list");
 	statlist_init(&pool->waiting_client_list, "waiting_client_list");
@@ -1231,6 +1232,7 @@ bool release_server(PgSocket *server)
 	case SV_BEING_CANCELED:
 	case SV_ACTIVE:
 		if (server->link) {
+			server->link->copy_mode = false;
 			server->link->link = NULL;
 			server->link = NULL;
 		}
@@ -2007,6 +2009,7 @@ force_new:
 	server->connect_time = get_cached_time();
 	statlist_init(&server->canceling_clients, "canceling_clients");
 	pool->last_connect_time = get_cached_time();
+	pool->last_active_time = get_cached_time();
 	change_server_state(server, SV_LOGIN);
 	pool->db->connection_count++;
 	if (pool->user_credentials)
@@ -2072,6 +2075,7 @@ bool finish_client_login(PgSocket *client)
 	switch (client->state) {
 	case CL_LOGIN:
 		change_client_state(client, CL_ACTIVE);
+		client->pool->stats.client_login_count++;
 	case CL_ACTIVE:
 		break;
 	default:
@@ -2098,6 +2102,7 @@ bool finish_client_login(PgSocket *client)
 	client->welcome_sent = true;
 	slog_debug(client, "logged in");
 
+	client->pool->last_active_time = get_cached_time();
 	return true;
 }
 
@@ -2362,7 +2367,7 @@ bool use_client_socket(int fd, PgAddr *addr,
 
 		memcpy(credentials->scram_ClientKey, scram_client_key, sizeof(credentials->scram_ClientKey));
 		memcpy(credentials->scram_ServerKey, scram_server_key, sizeof(credentials->scram_ServerKey));
-		credentials->use_scram_keys = true;
+		credentials->scram_passthrough_valid = true;
 	}
 
 	client = accept_client(fd, pga_is_unix(addr));

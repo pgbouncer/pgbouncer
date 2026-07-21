@@ -1,5 +1,12 @@
 #include <winver.h>
+/* Match how lib/usual/base.h picks up the generated config: the meson build
+ * defines USUAL_TEST_CONFIG and generates test_config.h, while autoconf
+ * generates usual/config.h. */
+#ifdef USUAL_TEST_CONFIG
+#include "test_config.h"
+#else
 #include "usual/config.h"
+#endif
 
 // https://docs.microsoft.com/en-us/windows/win32/menurc/versioninfo-resource
 

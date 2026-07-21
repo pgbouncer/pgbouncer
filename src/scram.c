@@ -348,6 +348,9 @@ char *build_client_final_message(PgSocket *server,
 		goto failed;
 
 	len = strlcat(buf, ",p=", sizeof(buf));
+	/* Final string is too long */
+	if (len >= sizeof(buf))
+		goto failed;
 	enclen = pg_b64_enc_len(sizeof(client_proof));
 	enclen = pg_b64_encode(client_proof,
 			       SCRAM_SHA_256_KEY_LEN,
@@ -488,7 +491,7 @@ static bool calculate_client_proof(PgSocket *server,
 		goto failed;
 	}
 
-	if (credentials->use_scram_keys) {
+	if (credentials->scram_passthrough_valid) {
 		memcpy(ClientKey, credentials->scram_ClientKey, SCRAM_SHA_256_KEY_LEN);
 	} else
 	{
@@ -567,7 +570,7 @@ bool verify_server_signature(PgSocket *server, const PgCredentials *credentials,
 		return false;
 	}
 
-	if (credentials->use_scram_keys) {
+	if (credentials->scram_passthrough_valid) {
 		memcpy(ServerKey, credentials->scram_ServerKey, SCRAM_SHA_256_KEY_LEN);
 	} else
 	{
@@ -915,8 +918,8 @@ char *build_server_first_message(ScramState *state, PgCredentials *user, const c
 		if (!build_mock_scram_secret(user->name, state))
 			goto failed;
 	} else {
-		if (user->adhoc_scram_secrets_cached) {
-			state->adhoc = true;
+		if (user->scram_verifier_cached) {
+			state->adhoc = user->scram_adhoc;
 			state->iterations = user->scram_Iiterations;
 			state->encoded_salt = strdup(user->scram_SaltKey);
 			memcpy(state->StoredKey, user->scram_StoredKey, sizeof(user->scram_StoredKey));
@@ -945,7 +948,8 @@ char *build_server_first_message(ScramState *state, PgCredentials *user, const c
 				user->scram_SaltKey = strdup(state->encoded_salt);
 				memcpy(user->scram_StoredKey, state->StoredKey, sizeof(state->StoredKey));
 				memcpy(user->scram_ServerKey, state->ServerKey, sizeof(state->ServerKey));
-				user->adhoc_scram_secrets_cached = true;
+				user->scram_adhoc = state->adhoc;
+				user->scram_verifier_cached = true;
 			}
 		}
 	}

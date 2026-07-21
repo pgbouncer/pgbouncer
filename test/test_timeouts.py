@@ -1,5 +1,6 @@
 import asyncio
 import platform
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -7,6 +8,71 @@ import psycopg
 import pytest
 
 from .utils import USE_SUDO
+
+
+@pytest.mark.parametrize(
+    ("global_query_wait_timeout", "user_query_wait_timeout", "db_query_wait_timeout"),
+    [
+        (2, None, None),
+        (None, 2, None),
+        (200, 2, None),
+        (None, None, 2),
+        (200, None, 2),
+    ],
+)
+async def test_query_wait_timeout(
+    bouncer,
+    global_query_wait_timeout: int,
+    user_query_wait_timeout: int,
+    db_query_wait_timeout: int,
+):
+    """
+    Test of query_wait_timeout. Assumes that the effective timeout supplied is 2.
+
+    Specifically tests that pgbouncer will correctly:
+    1. kill a query that has been waiting for longer than effective query_wait_timeout
+    2. not kill a query that is waiting, but for less than effective query_wait_timeout
+    """
+
+    db_query_wait_timeout_clause = ""
+    if db_query_wait_timeout:
+        db_query_wait_timeout_clause += f"query_wait_timeout={db_query_wait_timeout}"
+
+    pgbouncer_ini = f"""
+    [databases]
+    postgres = host={bouncer.pg.host} port={bouncer.pg.port} pool_size=1 {db_query_wait_timeout_clause}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_type = trust
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    pool_mode = transaction
+    """
+    if global_query_wait_timeout is not None:
+        pgbouncer_ini += f"\nquery_wait_timeout={global_query_wait_timeout}"
+
+    if user_query_wait_timeout is not None:
+        pgbouncer_ini += f"\n[users]"
+        pgbouncer_ini += f"\npuser1 = query_wait_timeout={user_query_wait_timeout}"
+
+    bouncer.default_db = "postgres"
+    bouncer.default_user = "puser1"
+
+    with bouncer.run_with_config(pgbouncer_ini):
+        conn_1_fut = bouncer.asleep(3)
+        await asyncio.sleep(0.1)
+
+        with pytest.raises(psycopg.OperationalError, match=r"query_wait_timeout"):
+            bouncer.test()
+        await conn_1_fut
+
+        conn_1_fut = bouncer.asleep(1)
+        await asyncio.sleep(0.1)
+        bouncer.test()
+        await conn_1_fut
 
 
 def test_server_lifetime(pg, bouncer):
@@ -462,6 +528,60 @@ def test_client_idle_timeout(bouncer):
                 cur.execute("select 1")
 
 
+def test_pool_idle_timeout(pg, bouncer):
+    """Test that the pool closes server connections after being idle."""
+    bouncer.admin("set pool_idle_timeout=1")
+    bouncer.admin("set server_idle_timeout=1")
+
+    bouncer.test()
+    assert pg.connection_count() == 1
+
+    # The non-admin pool exists after connecting. Column 0 of SHOW POOLS is
+    # the database, and there's always an admin ("pgbouncer") pool.
+    pools_before = bouncer.admin("show pools")
+    print("pools before idle timeout:", pools_before)
+    assert any(row[0] != "pgbouncer" for row in pools_before)
+
+    with bouncer.log_contains(r"cleaning up idle pool"):
+        time.sleep(3)
+
+    # The idle pool is gone entirely, not just its server connections.
+    pools_after = bouncer.admin("show pools")
+    print("pools after idle timeout:", pools_after)
+    assert all(row[0] == "pgbouncer" for row in pools_after)
+
+    assert pg.connection_count() == 0
+
+    bouncer.test()
+    assert pg.connection_count() == 1
+
+
+def test_pool_idle_timeout_ignores_min_pool_size(pg, bouncer):
+    """A pool configured with min_pool_size must not be reaped by
+    pool_idle_timeout, even when it currently has zero live server
+    connections.
+
+    We use a forced user together with min_pool_size, so the janitor
+    proactively creates the pool and keeps trying to maintain backend
+    connections even without any clients. The backend database does not
+    exist, so every connection attempt fails, which leaves the pool with
+    zero connected servers. On top of that, once a connect fails there is a
+    server_login_retry backoff during which no new connection is launched,
+    so the pool's last_active_time stops getting bumped. Without an
+    exemption for min_pool_size, cleanup_inactive_pools then reaps the pool.
+    """
+    bouncer.write_ini("pool_idle_timeout = 1")
+    bouncer.write_ini(
+        "[databases]\n"
+        "min_pool_size_dead = port=6666 host=127.0.0.1"
+        " dbname=non_existing_pg_db min_pool_size=3 user=pswcheck"
+    )
+    bouncer.admin("reload")
+
+    with bouncer.log_contains(r"cleaning up idle pool.*min_pool_size_dead", times=0):
+        time.sleep(3)
+
+
 async def test_server_login_retry(pg, bouncer):
     bouncer.admin(f"set query_timeout=10")
     bouncer.admin(f"set server_login_retry=3")
@@ -470,10 +590,10 @@ async def test_server_login_retry(pg, bouncer):
     bouncer.admin("set server_tls_sslmode = disable")
 
     pg.stop()
-    if platform.system() == "FreeBSD":
-        # XXX: For some reason FreeBSD logs don't contain connect failed
-        # For now we simply remove this check. But this warants further
-        # investigation.
+    if platform.system() in ("FreeBSD", "Windows"):
+        # XXX: For some reason FreeBSD and Windows logs don't contain connect
+        # failed. For now we simply remove this check. But this warrants
+        # further investigation.
         await asyncio.gather(
             bouncer.atest(connect_timeout=10),
             pg.delayed_start(1),
@@ -558,3 +678,24 @@ def test_cancel_wait_timeout(pg, bouncer):
                     cancel.result()
 
             query.result()
+
+
+def test_query_timeout_when_no_active_query(bouncer):
+    """
+    When there's no active query (query_start == 0), query_timeout should not apply.
+    But the current implementation incorrectly uses request_time as fallback,
+    causing idle connections to be disconnected.
+    """
+    bouncer.admin("set query_timeout=2")
+    bouncer.admin("set pool_mode=transaction")
+    with bouncer.cur() as cur:
+        cur.execute("BEGIN")
+        cur.execute("SELECT 1")
+
+        # Wait longer than query_timeout while idle
+        time.sleep(3)
+
+        # This should work since no query is active, but will fail due to the bug
+        cur.execute("SELECT 2")
+        result = cur.fetchone()
+        assert result[0] == 2

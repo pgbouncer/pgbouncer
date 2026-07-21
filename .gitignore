@@ -1,3 +1,4 @@
+/build
 /aclocal.m4
 /config.guess
 /config.log
@@ -33,6 +34,8 @@
 env
 venv
 .venv
+*.egg-info
+/uv.lock
 
 /uncrustify
 

@@ -36,7 +36,7 @@ BOUNCER_INI = TEST_DIR / "test.ini"
 BOUNCER_AUTH = TEST_DIR / "userlist.txt"
 BOUNCER_PID = TEST_DIR / "test.pid"
 BOUNCER_PORT = 6667
-BOUNCER_EXE = TEST_DIR / "../pgbouncer"
+BOUNCER_EXE = os.environ.get("BOUNCER_EXE", TEST_DIR / "../pgbouncer")
 NEW_CA_SCRIPT = TEST_DIR / "ssl" / "newca.sh"
 NEW_SITE_SCRIPT = TEST_DIR / "ssl" / "newsite.sh"
 ENABLE_VALGRIND = bool(os.environ.get("ENABLE_VALGRIND"))
@@ -53,12 +53,23 @@ START_OPENLDAP_SCRIPT = TEST_DIR / "start_openldap_server.sh"
 if os.name == "nt":
     USE_UNIX_SOCKETS = False
     HAVE_GETPEEREID = False
+    WINDOWS = True
 
-    # psycopg only supports WindowsSelectorEventLoopPolicy
+    # psycopg only works with a SelectorEventLoop, but on Windows asyncio
+    # defaults to the ProactorEventLoop. Setting the policy changes the
+    # process-wide default loop type, which is what we need here: most of our
+    # tests are synchronous but pull in async fixtures (e.g. bouncer), and
+    # pytest-asyncio runs those fixtures on the default loop.
+    #
+    # pytest-asyncio's newer pytest_asyncio_loop_factories hook can't replace
+    # this: it only steers the loop for async *tests*, not for async fixtures
+    # used by sync tests, which is the bulk of our suite. The event loop policy
+    # machinery is deprecated in Python 3.14 and removed in 3.16, so this needs
+    # revisiting for 3.16; until then the DeprecationWarning is ignored via
+    # filterwarnings in pyproject.toml.
     from asyncio import WindowsSelectorEventLoopPolicy
 
     asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
-    WINDOWS = True
 else:
     USE_UNIX_SOCKETS = True
     HAVE_GETPEEREID = True
@@ -183,21 +194,40 @@ PG_SUPPORTS_SCRAM = PG_MAJOR_VERSION >= 10
 LIBPQ_SUPPORTS_PIPELINING = psycopg.pq.version() >= 140000
 
 
-def get_ldap_support():
-    with open("../config.mak", encoding="utf-8") as f:
-        match = re.search(r"ldap_support = (\w+)", f.read())
+def get_build_feature(config_mak_key, meson_define):
+    """Detect whether pgbouncer was built with a certain feature enabled.
+
+    An autotools build records this in config.mak, a meson build in the
+    generated test_config.h header. For meson we assume the conventional
+    "build" directory name, since the tests have no way of knowing where
+    the build directory actually is.
+    """
+    meson_config = Path("../build/test_config.h")
+    if meson_config.exists():
+        return (
+            re.search(rf"#define {meson_define}\b", meson_config.read_text())
+            is not None
+        )
+    config_mak = Path("../config.mak")
+    if config_mak.exists():
+        match = re.search(rf"{config_mak_key} = (\w+)", config_mak.read_text())
         assert match is not None
         return match.group(1) == "yes"
+    raise FileNotFoundError(
+        "Could not find ../config.mak (autotools) or ../build/test_config.h (meson). "
+        "Configure the project first, and for meson use 'build' as the build directory."
+    )
+
+
+def get_ldap_support():
+    return get_build_feature("ldap_support", "HAVE_LDAP")
 
 
 LDAP_SUPPORT = get_ldap_support()
 
 
 def get_tls_support():
-    with open("../config.mak", encoding="utf-8") as f:
-        match = re.search(r"tls_support = (\w+)", f.read())
-        assert match is not None
-        return match.group(1) == "yes"
+    return get_build_feature("tls_support", "USUAL_LIBSSL_FOR_TLS")
 
 
 TLS_SUPPORT = get_tls_support()
@@ -418,7 +448,19 @@ class QueryRunner:
         self.set_default_connection_options(kwargs)
         connect_options = " ".join([f"{k}={v}" for k, v in kwargs.items()])
 
-        run(["psql", f"port={self.port} {connect_options}", "-c", query], shell=False)
+        result = run(
+            ["psql", "-X", f"port={self.port} {connect_options}", "-c", query],
+            shell=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if WINDOWS:
+            # On Windows psql writes its output in text mode, turning every \n
+            # into \r\n. Normalize it so callers can compare against the plain
+            # \n form regardless of platform.
+            result.stdout = result.stdout.replace(b"\r\n", b"\n")
+            result.stderr = result.stderr.replace(b"\r\n", b"\n")
+        return result
 
     @contextmanager
     def transaction(self, **kwargs):
@@ -713,7 +755,12 @@ class Proxy(QueryRunner):
         self.process = subprocess.Popen(" ".join(command), shell=True)
 
     def stop(self):
+        if self.process is None:
+            return
+
         self.process.kill()
+        self.process.wait()
+        self.process = None
 
     def cleanup(self):
         self.stop()
@@ -1023,9 +1070,9 @@ class Bouncer(QueryRunner):
         return [str(BOUNCER_EXE)]
 
     async def start(self):
-        # Due to using WindowsSelectorEventLoopPolicy for support with psycopg
-        # we cannot use asyncio subprocesses. Since this eventloop does not
-        # support it. We fall back to regular subprocesses.
+        # Due to using a SelectorEventLoop for support with psycopg we cannot
+        # use asyncio subprocesses, since that eventloop does not support them.
+        # We fall back to regular subprocesses.
         if WINDOWS:
             self.process = subprocess.Popen(
                 [*self.base_command(), "--quiet", self.ini_path], close_fds=True
@@ -1128,6 +1175,16 @@ class Bouncer(QueryRunner):
             old_process.wait()
             await self.wait_until_running()
             assert self.process.pid != old_pid
+
+    async def restart(self):
+        """Fully stops and starts PgBouncer again
+
+        Unlike reboot() this does not take over the sockets of the old process,
+        so it can be used to apply config changes that a RELOAD cannot (i.e.
+        CF_NO_RELOAD settings such as pkt_buf).
+        """
+        await self.stop()
+        await self.start()
 
     def send_signal(self, sig):
         if self.aprocess:

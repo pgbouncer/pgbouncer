@@ -32,10 +32,13 @@ def test_no_database_auth_user(bouncer):
 
 
 def test_no_database_pg(bouncer):
-    with bouncer.log_contains(
-        r'server login failed: FATAL database "non_existing_pg_db" does not exist'
-    ), bouncer.log_contains(
-        r'closing because: database "non_existing_pg_db" does not exist'
+    with (
+        bouncer.log_contains(
+            r'server login failed: FATAL database "non_existing_pg_db" does not exist'
+        ),
+        bouncer.log_contains(
+            r'closing because: database "non_existing_pg_db" does not exist'
+        ),
     ):
         with pytest.raises(
             psycopg.OperationalError,
@@ -53,9 +56,12 @@ def test_no_database_auto_database(bouncer):
 
     bouncer.admin("reload")
 
-    with bouncer.log_contains(
-        r'server login failed: FATAL database "nosuchdb" does not exist'
-    ), bouncer.log_contains(r'closing because: database "nosuchdb" does not exist'):
+    with (
+        bouncer.log_contains(
+            r'server login failed: FATAL database "nosuchdb" does not exist'
+        ),
+        bouncer.log_contains(r'closing because: database "nosuchdb" does not exist'),
+    ):
         with pytest.raises(
             psycopg.OperationalError, match='database "nosuchdb" does not exist'
         ):
@@ -73,9 +79,12 @@ def test_no_database_auto_database_auth_user(bouncer):
     bouncer.admin(f"set auth_user='pswcheck'")
     bouncer.admin(f"set auth_type='md5'")
 
-    with bouncer.log_contains(
-        r'server login failed: FATAL database "nosuchdb" does not exist'
-    ), bouncer.log_contains(r'closing because: database "nosuchdb" does not exist'):
+    with (
+        bouncer.log_contains(
+            r'server login failed: FATAL database "nosuchdb" does not exist'
+        ),
+        bouncer.log_contains(r'closing because: database "nosuchdb" does not exist'),
+    ):
         with pytest.raises(
             psycopg.OperationalError, match='database "nosuchdb" does not exist'
         ):

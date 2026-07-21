@@ -126,8 +126,9 @@ Default: 100
 
 ### default_pool_size
 
-How many server connections to allow per user/database pair. Can be overridden in
-the per-database configuration.
+The maximum number of server connections to allow per user/database pair. Can be overridden by
+`pool_size` in the per-database and per-user configuration; this is the default used if no specific
+`pool_size` is specified for a given database or user.
 
 Default: 20
 
@@ -766,6 +767,23 @@ aspect of that is that their statistics are also forgotten.  [seconds]
 
 Default: 3600.0
 
+### pool_idle_timeout
+
+If a pool (a specific database/user pair) has had no client connections and
+no server connections for this many seconds, it is freed. This is similar to
+`autodb_idle_timeout`, but frees individual pools rather than whole
+automatically created databases. Note that, unlike `server_idle_timeout`
+(which closes idle server connections but keeps the pool around), this frees
+the whole pool, and only once it is completely empty.
+
+As with `autodb_idle_timeout`, the negative aspect is that a freed pool's
+statistics are forgotten. Because the per-database totals in `SHOW STATS` are
+the sum over the currently existing pools, freeing a pool makes those totals
+decrease, which monitoring systems may misread as a counter reset. For that
+reason this is disabled by default. 0 disables. [seconds]
+
+Default: 0 (disabled)
+
 ### dns_max_ttl
 
 How long DNS lookups can be cached.  The actual DNS TTL is ignored.
@@ -816,6 +834,14 @@ queued. [seconds]
 A value of 0 disables this notification message.
 
 Default: 5
+
+### login_notify_message
+
+Welcome notify message that is sent to the client after a login
+is successful. Can be used to ensure that clients undertand that
+they are connecting to pgbouncer instead of postgres directly.
+
+Default: empty (no welcome message sent)
 
 ## TLS settings
 
@@ -889,9 +915,8 @@ Allowed TLS ciphers, in OpenSSL syntax.  Shortcuts:
 - `default`/`secure`/`fast`/`normal` (these all use system wide OpenSSL defaults)
 - `all` (enables all ciphers, not recommended)
 
-Only connections using TLS version 1.2 and lower are affected.  There
-is currently no setting that controls the cipher choices used by TLS
-version 1.3 connections.
+Only connections using TLS version 1.2 and lower are affected.
+For version 1.3 see `client_tls13_ciphers` below.
 
 Default: `default`
 
@@ -989,9 +1014,8 @@ Allowed TLS ciphers, in OpenSSL syntax.  Shortcuts:
 - `default`/`secure`/`fast`/`normal` (these all use system wide OpenSSL defaults)
 - `all` (enables all ciphers, not recommended)
 
-Only connections using TLS version 1.2 and lower are affected.  There
-is currently no setting that controls the cipher choices used by TLS
-version 1.3 connections.
+Only connections using TLS version 1.2 and lower are affected.
+For version 1.3 see `server_tls13_ciphers` below.
 
 Default: `default`
 
@@ -1343,6 +1367,15 @@ they are logged but ignored otherwise.
 Set the pool mode specific to this database. If not set,
 the default `pool_mode` is used.
 
+### query_wait_timeout
+
+Maximum time queries are allowed to spend waiting for execution.
+0 disables. -1 means this value is not set. [seconds]
+
+See description of the global `query_wait_timeout` setting for additional detail.
+
+If not set, the user or default `query_wait_timeout` is used.
+
 ### load_balance_hosts
 
 When a comma-separated list is specified in `host`, `load_balance_hosts` controls
@@ -1439,6 +1472,15 @@ not have more than this many server connections).
 
 Set the maximum number of seconds that a user query can run for.
 If set this timeout overrides the server level query_timeout described above.
+
+### query_wait_timeout
+
+Maximum time queries are allowed to spend waiting for execution.
+0 disables. -1 means this value is not set. [seconds]
+
+See description of the global `query_wait_timeout` setting for additional detail.
+
+If not set, the database or default `query_wait_timeout` is used.
 
 ### idle_transaction_timeout
 

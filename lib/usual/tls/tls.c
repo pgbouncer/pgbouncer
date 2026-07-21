@@ -199,11 +199,11 @@ int tls_set_error_libssl(struct tls *ctx, const char *fmt, ...)
 	int rv;
 	const char *msg = NULL;
 	char *old;
-	int err;
+	unsigned long err;
 
 	err = ERR_peek_error();
 	if (err != 0)
-		msg = ERR_reason_error_string(err);
+		msg = ERR_error_string(err, NULL);
 
 	va_start(ap, fmt);
 	rv = tls_error_vset(&ctx->error, -1, fmt, ap);
@@ -308,7 +308,7 @@ int tls_configure_keypair(struct tls *ctx, SSL_CTX *ssl_ctx,
 			unsigned long err;
 
 			if ((err = ERR_peek_error()) != 0)
-				errstr = ERR_reason_error_string(err);
+				errstr = ERR_error_string(err, NULL);
 			tls_set_errorx(ctx, "failed to load certificate file \"%s\": %s",
 				       keypair->cert_file, errstr);
 			goto err;
@@ -321,7 +321,7 @@ int tls_configure_keypair(struct tls *ctx, SSL_CTX *ssl_ctx,
 			unsigned long err;
 
 			if ((err = ERR_peek_error()) != 0)
-				errstr = ERR_reason_error_string(err);
+				errstr = ERR_error_string(err, NULL);
 			tls_set_errorx(ctx, "failed to load private key file \"%s\": %s",
 				       keypair->key_file, errstr);
 			goto err;
@@ -511,7 +511,7 @@ int tls_configure_ssl_verify(struct tls *ctx, int verify)
 		unsigned long err;
 
 		if ((err = ERR_peek_error()) != 0)
-			errstr = ERR_reason_error_string(err);
+			errstr = ERR_error_string(err, NULL);
 		tls_set_errorx(ctx, "failed to load CA: %s", errstr);
 		goto err;
 	}
@@ -604,6 +604,21 @@ int tls_ssl_error(struct tls *ctx, SSL *ssl_conn, int ssl_ret, const char *prefi
 
 	case SSL_ERROR_SSL:
 		if ((err = ERR_peek_error()) != 0) {
+#ifdef SSL_R_UNEXPECTED_EOF_WHILE_READING
+			/*
+			 * OpenSSL 3 reports an unannounced peer disconnect
+			 * after a completed handshake here, where pre-3.0
+			 * versions reported it via SSL_ERROR_SYSCALL with
+			 * ssl_ret==0 (handled above). Treat both the same so
+			 * we don't log a WARNING for every client that closes
+			 * its socket without a TLS close_notify.
+			 */
+			if (ERR_GET_REASON(err) == SSL_R_UNEXPECTED_EOF_WHILE_READING &&
+			    (ctx->state & TLS_HANDSHAKE_COMPLETE) != 0) {
+				ctx->state |= TLS_EOF_NO_CLOSE_NOTIFY;
+				return (0);
+			}
+#endif
 			errstr = ERR_error_string(err, NULL);
 		}
 		tls_set_errorx(ctx, "%s failed: %s", prefix, errstr);

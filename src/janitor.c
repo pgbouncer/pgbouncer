@@ -408,6 +408,7 @@ static void pool_client_maint(PgPool *pool)
 	PgGlobalUser *user;
 	usec_t age;
 	usec_t effective_client_idle_timeout;
+	usec_t effective_query_wait_timeout;
 
 	/* force client_idle_timeout */
 	if (cf_client_idle_timeout > 0 || any_user_level_client_timeout_set) {
@@ -430,7 +431,8 @@ static void pool_client_maint(PgPool *pool)
 
 
 	/* force timeouts for waiting queries */
-	if (cf_query_timeout > 0 || cf_query_wait_timeout > 0) {
+	if (cf_query_timeout > 0 || cf_query_wait_timeout > 0 || any_user_level_client_timeout_set || any_database_level_client_timeout_set) {
+		PgDatabase *db;
 		statlist_for_each_safe(item, &pool->waiting_client_list, tmp) {
 			client = container_of(item, PgSocket, head);
 			Assert(client->state == CL_WAITING || client->state == CL_WAITING_LOGIN);
@@ -441,11 +443,24 @@ static void pool_client_maint(PgPool *pool)
 				age = now - client->query_start;
 			}
 
+			db = client->db;
+
+			effective_query_wait_timeout = cf_query_wait_timeout;
+			if (db->query_wait_timeout_set)
+				effective_query_wait_timeout = db->query_wait_timeout;
+
+			if (client->login_user_credentials) {
+				user = client->login_user_credentials->global_user;
+				if (user->query_wait_timeout_set) {
+					effective_query_wait_timeout = user->query_wait_timeout;
+				}
+			}
+
 			if (cf_shutdown == SHUTDOWN_WAIT_FOR_SERVERS) {
 				disconnect_client(client, true, "server shutting down");
 			} else if (cf_query_timeout > 0 && age > cf_query_timeout) {
 				disconnect_client(client, true, "query_timeout");
-			} else if (cf_query_wait_timeout > 0 && age > cf_query_wait_timeout) {
+			} else if (effective_query_wait_timeout > 0 && age > effective_query_wait_timeout) {
 				disconnect_client(client, true, "query_wait_timeout");
 			}
 		}
@@ -606,7 +621,7 @@ static void pool_server_maint(PgPool *pool)
 	/* handle query_timeout and idle_transaction_timeout */
 	if (cf_query_timeout > 0 || cf_idle_transaction_timeout > 0 || cf_transaction_timeout > 0 || any_user_level_timeout_set) {
 		statlist_for_each_safe(item, &pool->active_server_list, tmp) {
-			usec_t age_client, age_server, age_transaction;
+			usec_t age_query, age_server, age_transaction;
 			usec_t effective_query_timeout;
 			usec_t effective_idle_transaction_timeout;
 			usec_t user_query_timeout;
@@ -621,13 +636,13 @@ static void pool_server_maint(PgPool *pool)
 
 			/*
 			 * Note the different age calculations:
-			 * query_timeout counts from the last request
-			 * of the client (the client started the
-			 * query), idle_transaction_timeout counts
-			 * from the last request of the server (the
-			 * server sent the idle information).
+			 * query_timeout counts from when the query started
+			 * (only applies when a query is actually running),
+			 * idle_transaction_timeout counts from the last
+			 * request of the server (the server sent the idle
+			 * information).
 			 */
-			age_client = now - server->link->request_time;
+			age_query = (server->link->query_start != 0) ? now - server->link->query_start : 0;
 			age_server = now - server->request_time;
 			age_transaction = now - server->link->xact_start;
 
@@ -648,7 +663,7 @@ static void pool_server_maint(PgPool *pool)
 			if (user_transaction_timeout > 0)
 				effective_transaction_timeout = user_transaction_timeout;
 
-			if (effective_query_timeout > 0 && age_client > effective_query_timeout) {
+			if (effective_query_timeout > 0 && age_query > 0 && age_query > effective_query_timeout) {
 				disconnect_server(server, true, "query timeout");
 			} else if (effective_idle_transaction_timeout > 0 &&
 				   server->idle_tx &&
@@ -751,6 +766,51 @@ static void cleanup_inactive_autodatabases(void)
 	}
 }
 
+static void cleanup_inactive_pools(void)
+{
+	struct List *item, *tmp;
+	PgPool *pool;
+	usec_t now = get_cached_time();
+
+	if (cf_pool_idle_timeout <= 0)
+		return;
+
+	statlist_for_each_safe(item, &pool_list, tmp) {
+		pool = container_of(item, PgPool, head);
+
+		/* Do not kill admin pools or pools currently in use */
+		if (pool->db->admin)
+			continue;
+
+		/*
+		 * Never reap a forced-user pool that keeps a minimum number of
+		 * server connections around. The janitor proactively (re)creates
+		 * such pools every maintenance round to enforce min_pool_size
+		 * even without clients, so reaping it here just causes a
+		 * kill/recreate churn every round while the backend is
+		 * unreachable (when it is reachable the pool has connected
+		 * servers and isn't considered idle anyway). Non-forced pools
+		 * only maintain min_pool_size while a client is connected, so a
+		 * non-forced pool with no clients and no servers is genuinely
+		 * idle and safe to reap.
+		 */
+		if (pool_min_pool_size(pool) > 0 && pool->db->forced_user_credentials != NULL)
+			continue;
+
+		/* Check if the pool is actually "unused" */
+		if (pool_client_count(pool) == 0 && pool_connected_server_count(pool) == 0) {
+			if ((now - pool->last_active_time) > cf_pool_idle_timeout) {
+				log_info("cleaning up idle pool for user %s on db %s because: pool idle timeout (age= %" PRIu64 "s)",
+					 pool->user_credentials->name, pool->db->name, (now - pool->last_active_time) / USEC);
+				kill_pool(pool);
+			}
+		} else {
+			/* Reset activity timer if it is being used */
+			pool->last_active_time = now;
+		}
+	}
+}
+
 /* full-scale maintenance, done only occasionally */
 static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 {
@@ -819,6 +879,8 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	}
 
 	cleanup_inactive_autodatabases();
+
+	cleanup_inactive_pools();
 
 	cleanup_client_logins();
 
@@ -985,7 +1047,7 @@ static void clean_cached_scram(struct AANode *n, void *arg)
 	if (user->scram_SaltKey != NULL) {
 		free(user->scram_SaltKey);
 		user->scram_SaltKey = NULL;
-		user->adhoc_scram_secrets_cached = false;
+		user->scram_verifier_cached = false;
 	}
 }
 

@@ -1,3 +1,41 @@
+# PgBouncer itself is a C project; this [project] table exists only so the
+# Python tooling used by the test suite can be declared in one place. There is
+# no importable Python package here: the build backend produces an empty
+# distribution whose sole purpose is to carry the dependency lists below, so
+# `pip install .` installs the test tools and `pip install .[dev]` adds the
+# linters. Keeping them as regular dependencies (rather than PEP 735 dependency
+# groups) means any pip that understands pyproject.toml works — no need for the
+# very recent pip that `pip install --group` requires.
+[project]
+name = "pgbouncer"
+version = "0"
+requires-python = ">=3.9"
+# Needed to run the pytest-based test suite (`make check` / `pytest`).
+dependencies = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-timeout",
+    "pytest-xdist",
+    "psycopg",
+    "filelock",
+]
+
+# Needed for `make format-check` and `make lint`; install with `pip install .[dev]`.
+[project.optional-dependencies]
+dev = [
+    "ruff",
+]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+# There are no Python modules to ship, so disable setuptools' package
+# auto-discovery, which would otherwise try to package lib/, src/, etc. and
+# fail. The resulting distribution is empty apart from its metadata.
+[tool.setuptools]
+packages = []
+
 [tool.pytest.ini_options]
 addopts = [
     "--import-mode=prepend",
@@ -21,5 +59,35 @@ norecursedirs = [
     'lib',
 ]
 
-[tool.isort]
-profile = 'black'
+filterwarnings = [
+    'error',
+    # Ignore psycopg close warnings. In some tests we don't close all opened
+    # connections manually. This is no problem in practice. They get cleaned up
+    # at the end of the test run anyway. It's only a few sockets and a bit of
+    # memory that does not get cleaned up before process exit.
+    'ignore:.*psycopg.Connection.*was deleted while still open.*:ResourceWarning',
+    # On Windows we set WindowsSelectorEventLoopPolicy so async fixtures run on a
+    # SelectorEventLoop (required by psycopg); see test/utils.py for why the
+    # pytest_asyncio_loop_factories hook can't replace it. The event loop policy
+    # machinery is deprecated in Python 3.14 (removed in 3.16), so ignore the
+    # deprecation until we need to support 3.16.
+    'ignore:.*(WindowsSelectorEventLoopPolicy|set_event_loop_policy).*:DeprecationWarning',
+    # To ignore other warnings use the syntax described here:
+    # https://docs.pytest.org/en/latest/how-to/capture-warnings.html#controlling-warnings
+]
+
+# ruff replaces black (formatting), isort (import sorting) and flake8 +
+# flake8-bugbear (linting). `make format` runs `ruff format`, `make lint` runs
+# `ruff check`.
+[tool.ruff]
+# lib/ is the vendored libusual C library plus its build helpers; nothing there
+# is ours to format or lint.
+extend-exclude = ["lib"]
+
+[tool.ruff.lint]
+# Ruff's default rules (a subset of pycodestyle E + pyflakes F); "I" adds
+# import sorting, replacing isort.
+extend-select = ["I"]
+# F401 (unused import) and F541 (f-string without placeholders) were ignored
+# under the old flake8 config and the test suite still relies on that.
+ignore = ["F401", "F541"]

@@ -1545,26 +1545,31 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	}
 
 	if (ps_action == PS_HANDLE_FULL_PACKET && incomplete_pkt(pkt)) {
-		if (pkt->len > (unsigned) cf_sbuf_len) {
-			/*
-			 * We need to handle the complete packet, but it is too
-			 * large to fit into our sbuf buffer size (determined
-			 * by the pkt_buf config). So now we need to fetch the
-			 * whole packet using our dynamically sized packet
-			 * buffering logic.
-			 */
-			client->packet_cb_state.flag = CB_WANT_COMPLETE_PACKET;
-			sbuf_prepare_fetch(sbuf, pkt->len);
-			return true;
-		} else {
-			/*
-			 * We need to handle the complete packet, but it fits
-			 * in our sbuf buffer, so we can simply return false to
-			 * indicate to sbuf to retry once it has received more
-			 * data
-			 */
-			return false;
-		}
+		/*
+		 * Always use the dynamic reassembly path for named prepared
+		 * statement packets that haven't been fully received yet,
+		 * regardless of whether they fit in pkt_buf.
+		 *
+		 * The previous code returned false (inline retry) when
+		 * pkt->len <= cf_sbuf_len, relying on sbuf to call us again
+		 * once the full packet arrived. However, this causes a
+		 * prepared-statement accounting corruption: inspect_parse_packet()
+		 * succeeds on the partial packet (statement name fits in the
+		 * initial bytes), then the inline retry fires handle_parse_command()
+		 * which adds RA_FAKE to outstanding_requests. When the next Bind
+		 * in the pipeline arrives on a freshly-assigned server backend,
+		 * handle_bind_command() injects RA_SKIP(Parse) behind that RA_FAKE.
+		 * pop_outstanding_request() refuses to pop an RA_FAKE head, so
+		 * RA_SKIP is never consumed, leaving the server permanently pinned
+		 * with outstanding_requests > 0 (active/ClientRead stall).
+		 *
+		 * The reassembly path (CB_WANT_COMPLETE_PACKET) buffers the entire
+		 * packet before any queue entries are written, preventing the
+		 * RA_FAKE/RA_SKIP ordering corruption entirely.
+		 */
+		client->packet_cb_state.flag = CB_WANT_COMPLETE_PACKET;
+		sbuf_prepare_fetch(sbuf, pkt->len);
+		return true;
 	}
 
 	if (ps_action == PS_INSPECT_FAILED) {

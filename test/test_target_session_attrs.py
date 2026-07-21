@@ -112,6 +112,29 @@ def startup_parameters(bouncer, dbname):
                 return parameters
 
 
+def test_target_session_attrs_admin_output(bouncer):
+    databases = {
+        row["name"]: row
+        for row in bouncer.admin("SHOW DATABASES", row_factory=dict_row)
+    }
+    assert databases["tsa_version_any"]["target_session_attrs"] == "any"
+    assert databases["tsa_version_primary"]["target_session_attrs"] == "primary"
+    assert databases["tsa_default_any"]["target_session_attrs"] == "any"
+
+    bouncer.test(dbname="tsa_version_any")
+    bouncer.test(dbname="p0")
+    if PG_MAJOR_VERSION >= 14:
+        bouncer.test(dbname="tsa_version_primary")
+    pools = {
+        row["database"]: row
+        for row in bouncer.admin("SHOW POOLS", row_factory=dict_row)
+    }
+    assert pools["tsa_version_any"]["target_session_attrs"] == "any"
+    assert pools["p0"]["target_session_attrs"] == "any"
+    if PG_MAJOR_VERSION >= 14:
+        assert pools["tsa_version_primary"]["target_session_attrs"] == "primary"
+
+
 @requires_replica
 @pytest.mark.parametrize(
     "dbname,expected",
@@ -336,6 +359,13 @@ def test_target_session_attrs_reload_replaces_server(bouncer, target_replica):
     bouncer.admin("RELOAD")
     bouncer.admin("SET server_login_retry=1")
     bouncer.admin("SET client_login_timeout=5")
+
+    database = next(
+        row
+        for row in bouncer.admin("SHOW DATABASES", row_factory=dict_row)
+        if row["name"] == "tsa_reload"
+    )
+    assert database["target_session_attrs"] == "primary"
 
     deadline = time.monotonic() + 5
     while time.monotonic() < deadline:

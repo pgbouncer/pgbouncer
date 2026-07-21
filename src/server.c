@@ -27,6 +27,15 @@
 
 #define ERRCODE_CANNOT_CONNECT_NOW "57P03"
 
+static enum TargetSessionAttrValue parse_target_session_attr(const char *value)
+{
+	if (strcmp(value, "off") == 0)
+		return TARGET_SESSION_ATTR_OFF;
+	if (strcmp(value, "on") == 0)
+		return TARGET_SESSION_ATTR_ON;
+	return TARGET_SESSION_ATTR_UNKNOWN;
+}
+
 static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 {
 	const char *key, *val;
@@ -44,6 +53,10 @@ static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 	if (!mbuf_get_string(&pkt->data, &val))
 		goto failed;
 	slog_debug(server, "S: param: %s = %s", key, val);
+	if (strcmp(key, "in_hot_standby") == 0)
+		server->in_hot_standby = parse_target_session_attr(val);
+	else if (strcmp(key, "default_transaction_read_only") == 0)
+		server->default_transaction_read_only = parse_target_session_attr(val);
 
 	varcache_set(&server->vars, key, val);
 

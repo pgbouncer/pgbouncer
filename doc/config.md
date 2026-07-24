@@ -1399,6 +1399,41 @@ fast retries when multiple hosts are available.
 
 Default: `round-robin`
 
+### target_session_attrs
+
+Controls which PostgreSQL servers are accepted for new server connections.
+PgBouncer checks status values reported by PostgreSQL after authentication and
+the configured `connect_query`, before making the connection available to
+clients.
+
+any
+:   Accept any server. This is the default.
+
+read-write
+:   Accept a server only when both `in_hot_standby` and
+    `default_transaction_read_only` are `off`.
+
+read-only
+:   Accept a server when either `in_hot_standby` or
+    `default_transaction_read_only` is `on`.
+
+primary
+:   Accept a server only when `in_hot_standby` is `off`. A primary whose
+    `default_transaction_read_only` setting is `on` still matches `primary`.
+
+standby
+:   Accept a server only when `in_hot_standby` is `on`.
+
+Values other than `any` require the status parameters reported by PostgreSQL
+14 and later. If PostgreSQL does not report enough information to evaluate the
+requested value, PgBouncer rejects the server connection. `prefer-standby` is
+not supported.
+
+The check occurs when a server connection is established. PgBouncer does not
+re-evaluate an admitted connection if its reported status later changes.
+
+Default: `any`
+
 ### max_db_connections
 
 Configure a database-wide maximum of server connections (i.e. all pools within

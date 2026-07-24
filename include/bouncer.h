@@ -149,6 +149,20 @@ enum LoadBalanceHosts {
 	LOAD_BALANCE_HOSTS_ROUND_ROBIN
 };
 
+enum TargetSessionAttrs {
+	TARGET_SESSION_ANY,
+	TARGET_SESSION_READ_WRITE,
+	TARGET_SESSION_READ_ONLY,
+	TARGET_SESSION_PRIMARY,
+	TARGET_SESSION_STANDBY
+};
+
+enum TargetSessionAttrValue {
+	TARGET_SESSION_ATTR_UNKNOWN,
+	TARGET_SESSION_ATTR_OFF,
+	TARGET_SESSION_ATTR_ON
+};
+
 #define is_server_socket(sk) ((sk)->state >= SV_FREE)
 
 
@@ -619,6 +633,7 @@ struct PgDatabase {
 	usec_t server_lifetime;	/* max lifetime of server connection */
 	char *connect_query;	/* startup commands to send to server after connect */
 	enum LoadBalanceHosts load_balance_hosts;	/* strategy for host selection in a comma-separated host list */
+	enum TargetSessionAttrs target_session_attrs;	/* acceptable server state */
 
 	struct PktBuf *startup_params;	/* partial StartupMessage (without user) be sent to server */
 	const char *dbname;	/* server-side name, pointer to inside startup_msg */
@@ -791,6 +806,8 @@ struct PgSocket {
 #endif
 
 	VarCache vars;		/* state of interesting server parameters */
+	enum TargetSessionAttrValue in_hot_standby;	/* server-reported state used during admission */
+	enum TargetSessionAttrValue default_transaction_read_only;	/* server-reported state used during admission */
 
 	/* client: prepared statements prepared by this client */
 	PgClientPreparedStatement *client_prepared_statements;
@@ -945,6 +962,7 @@ extern int cf_max_prepared_statements;
 
 extern const struct CfLookup pool_mode_map[];
 extern const struct CfLookup load_balance_hosts_map[];
+extern const struct CfLookup target_session_attrs_map[];
 
 extern usec_t g_suspend_start;
 

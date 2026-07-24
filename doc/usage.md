@@ -488,6 +488,9 @@ pool_mode
 load_balance_hosts
 :   The load_balance_hosts in use if the pool's host contains a comma-separated list.
 
+target_session_attrs
+:   The database's target_session_attrs setting. The default is shown as `any`.
+
 #### SHOW PEER_POOLS
 
 A new peer_pool entry is made for each configured peer.
@@ -635,6 +638,9 @@ paused
 
 disabled
 :   1 if this database is currently disabled, else 0.
+
+target_session_attrs
+:   The database's target_session_attrs setting. The default is shown as `any`.
 
 #### SHOW PEERS
 

@@ -27,6 +27,15 @@
 
 #define ERRCODE_CANNOT_CONNECT_NOW "57P03"
 
+static enum TargetSessionAttrValue parse_target_session_attr(const char *value)
+{
+	if (strcmp(value, "off") == 0)
+		return TARGET_SESSION_ATTR_OFF;
+	if (strcmp(value, "on") == 0)
+		return TARGET_SESSION_ATTR_ON;
+	return TARGET_SESSION_ATTR_UNKNOWN;
+}
+
 static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 {
 	const char *key, *val;
@@ -44,10 +53,14 @@ static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 	if (!mbuf_get_string(&pkt->data, &val))
 		goto failed;
 	slog_debug(server, "S: param: %s = %s", key, val);
+	if (strcmp(key, "in_hot_standby") == 0)
+		server->in_hot_standby = parse_target_session_attr(val);
+	else if (strcmp(key, "default_transaction_read_only") == 0)
+		server->default_transaction_read_only = parse_target_session_attr(val);
 
 	varcache_set(&server->vars, key, val);
 
-	if (client) {
+	if (client && !(startup && server->replication)) {
 		slog_debug(client, "setting client var: %s='%s'", key, val);
 		varcache_set(&client->vars, key, val);
 	}
@@ -63,6 +76,25 @@ failed:
 	return false;
 failed_store:
 	disconnect_server(server, true, "failed to store ParameterStatus");
+	return false;
+}
+
+static bool server_matches_target_session_attrs(const PgSocket *server)
+{
+	switch (server->pool->db->target_session_attrs) {
+	case TARGET_SESSION_ANY:
+		return true;
+	case TARGET_SESSION_READ_WRITE:
+		return server->in_hot_standby == TARGET_SESSION_ATTR_OFF &&
+		       server->default_transaction_read_only == TARGET_SESSION_ATTR_OFF;
+	case TARGET_SESSION_READ_ONLY:
+		return server->in_hot_standby == TARGET_SESSION_ATTR_ON ||
+		       server->default_transaction_read_only == TARGET_SESSION_ATTR_ON;
+	case TARGET_SESSION_PRIMARY:
+		return server->in_hot_standby == TARGET_SESSION_ATTR_OFF;
+	case TARGET_SESSION_STANDBY:
+		return server->in_hot_standby == TARGET_SESSION_ATTR_ON;
+	}
 	return false;
 }
 
@@ -224,9 +256,42 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 			break;
 		}
 
+		if (!server_matches_target_session_attrs(server)) {
+			PgPool *pool = server->pool;
+			bool last_login_failed = pool->last_login_failed;
+			char last_connect_failed_message[sizeof(pool->last_connect_failed_message)];
+
+			/* Target mismatch is not a login failure. Keep any earlier real failure. */
+			safe_strcpy(last_connect_failed_message, pool->last_connect_failed_message, sizeof(last_connect_failed_message));
+			/* Keep a replication client waiting for the next candidate. */
+			if (server->replication && server->link) {
+				server->link->link = NULL;
+				server->link = NULL;
+			}
+			disconnect_server(server, true, "server does not satisfy target_session_attrs");
+			pool->last_login_failed = last_login_failed;
+			if (last_login_failed)
+				safe_strcpy(pool->last_connect_failed_message, last_connect_failed_message, sizeof(pool->last_connect_failed_message));
+
+			/* Do not publish startup parameters from a rejected server. */
+			if (!pool->welcome_msg_ready) {
+				if (pool->welcome_msg) {
+					pktbuf_free(pool->welcome_msg);
+					pool->welcome_msg = NULL;
+				}
+				varcache_clean(&pool->orig_vars);
+			}
+			break;
+		}
+
 		/* login ok */
 		slog_debug(server, "server login ok, start accepting queries");
 		server->ready = true;
+		if (server->replication && server->link) {
+			/* Publish only the accepted backend's startup values. */
+			varcache_set_canonical(server, server->link);
+			varcache_fill_unset(&server->vars, server->link);
+		}
 
 		/* got all params */
 		finish_welcome_msg(server);

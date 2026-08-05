@@ -1333,21 +1333,14 @@ static void unlink_server(PgSocket *server, const char *reason)
  * The latter is for protocol and communication errors where a normal
  * protocol termination is not possible.
  */
-void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...)
+static void disconnect_server_impl(PgSocket *server, bool send_term, bool record_login_failure, const char *reason)
 {
 	usec_t now = get_cached_time();
-	char buf[128];
-	va_list ap;
 	struct List *cancel_item, *tmp;
 
 	if (server == NULL) {
 		return;
 	}
-
-	va_start(ap, reason);
-	vsnprintf(buf, sizeof(buf), reason, ap);
-	va_end(ap);
-	reason = buf;
 
 	if (cf_log_disconnections) {
 		slog_info(server, "closing because: %s (age=%" PRIu64 "s)", reason,
@@ -1369,18 +1362,18 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 		 * usually disconnect means problems in startup phase,
 		 * except when sending cancel packet
 		 */
-		if (!server->ready) {
+		if (!server->ready && record_login_failure) {
 			server->pool->last_login_failed = true;
 			server->pool->last_connect_failed = true;
 			safe_strcpy(server->pool->last_connect_failed_message, reason, sizeof(server->pool->last_connect_failed_message));
-		} else
-		{
+		} else if (server->ready) {
 			/*
 			 * We did manage to connect and used the connection for query
 			 * cancellation, so to the best of our knowledge we can connect to
 			 * the server, reset last_connect_failed accordingly.
 			 */
-			server->pool->last_connect_failed = false;
+			if (record_login_failure)
+				server->pool->last_connect_failed = false;
 			send_term = false;
 		}
 		if (server->replication)
@@ -1419,6 +1412,30 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 	change_server_state(server, SV_JUSTFREE);
 	if (!sbuf_close(&server->sbuf))
 		log_noise("sbuf_close failed, retry later");
+}
+
+void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...)
+{
+	char buf[128];
+	va_list ap;
+
+	va_start(ap, reason);
+	vsnprintf(buf, sizeof(buf), reason, ap);
+	va_end(ap);
+
+	disconnect_server_impl(server, send_term, true, buf);
+}
+
+static void disconnect_server_for_reconnect(PgSocket *server, const char *reason)
+{
+	Assert(server->state == SV_LOGIN);
+
+	/*
+	 * An administrative reconnect canceled this attempt; it says nothing about
+	 * whether the server is reachable. Publishing it as a failed login would
+	 * suppress the replacement attempt for server_login_retry.
+	 */
+	disconnect_server_impl(server, true, false, reason);
 }
 
 /*
@@ -1671,34 +1688,43 @@ static void dns_connect(struct PgSocket *server)
 	const char *host;
 	int sa_len;
 	int res;
-	char *host_copy = NULL;
 
 	/* host list? */
 	if (db->host && strchr(db->host, ',')) {
-		int count = 1;
-		int n;
+		struct HostListIter iter;
+		struct HostListEntry entry;
+		int count = 0;
+		int n = 0;
 
 		if (server->pool->db->load_balance_hosts == LOAD_BALANCE_HOSTS_DISABLE && server->pool->last_connect_failed)
 			server->pool->rrcounter++;
 
-		for (const char *p = db->host; *p; p++)
-			if (*p == ',')
-				count++;
+		host_list_iter_init(&iter, db->host);
+		while (host_list_iter_next(&iter, &entry))
+			count++;
+		Assert(count > 1);
 
-		host_copy = xstrdup(db->host);
-		for (host = strtok(host_copy, ","), n = 0; host; host = strtok(NULL, ","), n++)
-			if (server->pool->rrcounter % count == n)
+		host_list_iter_init(&iter, db->host);
+		while (host_list_iter_next(&iter, &entry)) {
+			if (server->pool->rrcounter % count == n) {
+				server->host = xmalloc(entry.len + 1);
+				memcpy(server->host, entry.str, entry.len);
+				server->host[entry.len] = '\0';
 				break;
-		Assert(host);
+			}
+			n++;
+		}
+		Assert(server->host);
+		host = server->host;
 
 		if (server->pool->db->load_balance_hosts == LOAD_BALANCE_HOSTS_ROUND_ROBIN)
 			server->pool->rrcounter++;
 	} else {
 		host = db->host;
-	}
-
-	if (host) {
-		server->host = xstrdup(host);
+		if (host) {
+			server->host = xstrdup(host);
+			host = server->host;
+		}
 	}
 
 	if (!host || host[0] == '/' || host[0] == '@') {
@@ -1710,7 +1736,7 @@ static void dns_connect(struct PgSocket *server)
 		if (!unix_dir || !*unix_dir) {
 			log_error("unix socket dir not configured: %s", db->name);
 			disconnect_server(server, false, "cannot connect");
-			goto cleanup;
+			return;
 		}
 		snprintf(sa_un.sun_path, sizeof(sa_un.sun_path),
 			 "%s/.s.PGSQL.%d", unix_dir, db->port);
@@ -1754,12 +1780,10 @@ static void dns_connect(struct PgSocket *server)
 		tk = adns_resolve(adns, host, dns_callback, server);
 		if (tk)
 			server->dns_token = tk;
-		goto cleanup;
+		return;
 	}
 
 	connect_server(server, sa, sa_len);
-cleanup:
-	free(host_copy);
 }
 
 PgSocket *compare_connections_by_time(PgSocket *lhs, PgSocket *rhs)
@@ -2511,6 +2535,15 @@ static void tag_dirty(PgSocket *sk)
 	sk->close_needed = true;
 }
 
+static void reset_pool_welcome(PgPool *pool)
+{
+	if (pool->welcome_msg) {
+		pktbuf_free(pool->welcome_msg);
+		pool->welcome_msg = NULL;
+	}
+	pool->welcome_msg_ready = false;
+}
+
 void tag_pool_dirty(PgPool *pool)
 {
 	struct List *item, *tmp;
@@ -2525,11 +2558,7 @@ void tag_pool_dirty(PgPool *pool)
 		return;
 
 	/* reset welcome msg */
-	if (pool->welcome_msg) {
-		pktbuf_free(pool->welcome_msg);
-		pool->welcome_msg = NULL;
-	}
-	pool->welcome_msg_ready = false;
+	reset_pool_welcome(pool);
 
 	/* drop all existing servers ASAP */
 	for_each_server(pool, tag_dirty);
@@ -2537,7 +2566,7 @@ void tag_pool_dirty(PgPool *pool)
 	/* drop servers login phase immediately */
 	statlist_for_each_safe(item, &pool->new_server_list, tmp) {
 		server = container_of(item, PgSocket, head);
-		disconnect_server(server, true, "connect string changed");
+		disconnect_server_for_reconnect(server, "connect string changed");
 	}
 }
 
@@ -2550,6 +2579,63 @@ void tag_database_dirty(PgDatabase *db)
 		pool = container_of(item, PgPool, head);
 		if (pool->db == db)
 			tag_pool_dirty(pool);
+	}
+}
+
+static bool server_host_was_removed(PgSocket *server, void *arg)
+{
+	const char *new_host_list = arg;
+
+	return !host_list_contains(new_host_list, server->host);
+}
+
+static void clear_pool_host_failure(PgPool *pool, const char *old_host_list)
+{
+	/*
+	 * The cached failure belongs to the old host set. Clear it so the updated set
+	 * gets one immediate attempt instead of inheriting the old set's
+	 * server_login_retry delay. Do this only for membership changes so ordinary
+	 * reloads cannot repeatedly bypass the backoff.
+	 */
+	/*
+	 * Preserve the host-selection step that dns_connect() would have performed
+	 * on the next retry before we erase last_connect_failed.
+	 */
+	if (pool->last_connect_failed
+	    && old_host_list
+	    && (!strchr(old_host_list, ',') || pool->db->load_balance_hosts == LOAD_BALANCE_HOSTS_DISABLE))
+		pool->rrcounter++;
+	pool->last_login_failed = false;
+	pool->last_connect_failed = false;
+	pool->last_connect_failed_message[0] = '\0';
+}
+
+void reconcile_database_hosts(PgDatabase *db, const char *old_host_list, const char *new_host_list, bool reconnect_all)
+{
+	struct List *pool_item, *server_item, *tmp;
+	PgPool *pool;
+	PgSocket *server;
+	bool overlap = host_lists_overlap(old_host_list, new_host_list);
+
+	statlist_for_each(pool_item, &pool_list) {
+		pool = container_of(pool_item, PgPool, head);
+		if (pool->db != db)
+			continue;
+
+		clear_pool_host_failure(pool, old_host_list);
+
+		if (reconnect_all || !overlap) {
+			tag_pool_dirty(pool);
+			continue;
+		}
+
+		for_each_server_filtered(pool, tag_dirty, server_host_was_removed, (void *)new_host_list);
+
+		statlist_for_each_safe(server_item, &pool->new_server_list, tmp) {
+			server = container_of(server_item, PgSocket, head);
+			if (server_host_was_removed(server, (void *)new_host_list))
+				disconnect_server_for_reconnect(server, "host removed from connect string");
+		}
 	}
 }
 

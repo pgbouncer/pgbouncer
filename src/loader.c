@@ -415,7 +415,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		}
 
 		if (host_membership_changed)
-			reconcile_database_hosts(db, db->host, host, reconnect_all);
+			apply_database_host_change(db, db->host, host, reconnect_all);
 		else if (reconnect_all)
 			tag_database_dirty(db);
 	}

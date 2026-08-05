@@ -1333,7 +1333,12 @@ static void unlink_server(PgSocket *server, const char *reason)
  * The latter is for protocol and communication errors where a normal
  * protocol termination is not possible.
  */
-static void disconnect_server_impl(PgSocket *server, bool send_term, bool record_login_failure, const char *reason)
+enum DisconnectFailureState {
+	DISCONNECT_UPDATE_FAILURE_STATE,
+	DISCONNECT_PRESERVE_FAILURE_STATE,
+};
+
+static void disconnect_server_impl(PgSocket *server, bool send_term, enum DisconnectFailureState failure_state, const char *reason)
 {
 	usec_t now = get_cached_time();
 	struct List *cancel_item, *tmp;
@@ -1362,7 +1367,7 @@ static void disconnect_server_impl(PgSocket *server, bool send_term, bool record
 		 * usually disconnect means problems in startup phase,
 		 * except when sending cancel packet
 		 */
-		if (!server->ready && record_login_failure) {
+		if (!server->ready && failure_state == DISCONNECT_UPDATE_FAILURE_STATE) {
 			server->pool->last_login_failed = true;
 			server->pool->last_connect_failed = true;
 			safe_strcpy(server->pool->last_connect_failed_message, reason, sizeof(server->pool->last_connect_failed_message));
@@ -1372,7 +1377,7 @@ static void disconnect_server_impl(PgSocket *server, bool send_term, bool record
 			 * cancellation, so to the best of our knowledge we can connect to
 			 * the server, reset last_connect_failed accordingly.
 			 */
-			if (record_login_failure)
+			if (failure_state == DISCONNECT_UPDATE_FAILURE_STATE)
 				server->pool->last_connect_failed = false;
 			send_term = false;
 		}
@@ -1423,7 +1428,7 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 	vsnprintf(buf, sizeof(buf), reason, ap);
 	va_end(ap);
 
-	disconnect_server_impl(server, send_term, true, buf);
+	disconnect_server_impl(server, send_term, DISCONNECT_UPDATE_FAILURE_STATE, buf);
 }
 
 static void disconnect_server_for_reconnect(PgSocket *server, const char *reason)
@@ -1435,7 +1440,7 @@ static void disconnect_server_for_reconnect(PgSocket *server, const char *reason
 	 * whether the server is reachable. Publishing it as a failed login would
 	 * suppress the replacement attempt for server_login_retry.
 	 */
-	disconnect_server_impl(server, true, false, reason);
+	disconnect_server_impl(server, true, DISCONNECT_PRESERVE_FAILURE_STATE, reason);
 }
 
 /*
@@ -2610,7 +2615,7 @@ static void clear_pool_host_failure(PgPool *pool, const char *old_host_list)
 	pool->last_connect_failed_message[0] = '\0';
 }
 
-void reconcile_database_hosts(PgDatabase *db, const char *old_host_list, const char *new_host_list, bool reconnect_all)
+void apply_database_host_change(PgDatabase *db, const char *old_host_list, const char *new_host_list, bool reconnect_all)
 {
 	struct List *pool_item, *server_item, *tmp;
 	PgPool *pool;
@@ -2629,8 +2634,10 @@ void reconcile_database_hosts(PgDatabase *db, const char *old_host_list, const c
 			continue;
 		}
 
+		/* Mark removed hosts so established connections drain on release. */
 		for_each_server_filtered(pool, tag_dirty, server_host_was_removed, (void *)new_host_list);
 
+		/* In-progress logins have no release point, so cancel them now. */
 		statlist_for_each_safe(server_item, &pool->new_server_list, tmp) {
 			server = container_of(server_item, PgSocket, head);
 			if (server_host_was_removed(server, (void *)new_host_list))

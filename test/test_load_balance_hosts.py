@@ -91,6 +91,24 @@ async def test_load_balance_hosts_disable_bad_first(bouncer):
             await bouncer.asleep(dbname="hostlist_bad_first", duration=0.5, times=2)
 
 
+async def test_round_robin_preserves_duplicate_host_weighting(bouncer):
+    hosts = f"{bouncer.pg.host},{bouncer.pg.host},unresolvable-hostname"
+
+    with bouncer.run_with_config(
+        host_reload_config(bouncer, hosts, server_login_retry=1)
+    ):
+        with bouncer.log_contains(r"127.0.0.1:\d+ new connection to server", 2):
+            with bouncer.log_contains(r"closing because: server DNS lookup failed", 1):
+                # Keeping the first two backends busy forces a third attempt.
+                # The duplicate healthy entry is a deliberate weight, so the
+                # selected sequence must be healthy, healthy, unresolvable.
+                await bouncer.asleep(
+                    dbname=HOST_RELOAD_DB,
+                    duration=0.5,
+                    times=3,
+                )
+
+
 def test_load_balance_hosts_reload(bouncer):
     with bouncer.admin_runner.cur() as cur:
         results = cur.execute("show databases").fetchall()

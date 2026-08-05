@@ -5,6 +5,8 @@ import psycopg
 import pytest
 from psycopg.rows import dict_row
 
+from .utils import WINDOWS
+
 HOST_RELOAD_DB = "host_reload"
 
 
@@ -333,6 +335,7 @@ def test_host_membership_change_clears_cached_connect_failure(bouncer):
         pytest.param("connect-query-changed", 1, id="connection-identity-changed"),
     ],
 )
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
 async def test_reload_during_login_does_not_trigger_server_login_retry(
     pg, bouncer, reload_kind, expected_canceled_logins
 ):

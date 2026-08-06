@@ -14,7 +14,7 @@ if len(sys.argv) != 3:
 fn = sys.argv[1]
 if fn != "-":
     try:
-        old = open(fn, "r").read()
+        old = open(fn).read()
     except IOError:
         old = ""
 

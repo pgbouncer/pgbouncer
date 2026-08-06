@@ -15,7 +15,7 @@ fn = sys.argv[1]
 if fn != "-":
     try:
         old = open(fn).read()
-    except IOError:
+    except OSError:
         old = ""
 
 # create new file data

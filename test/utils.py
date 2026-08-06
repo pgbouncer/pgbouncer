@@ -428,7 +428,7 @@ class QueryRunner:
 
     async def asql_coroutine(
         self, query, params=None, **kwargs
-    ) -> typing.Optional[typing.List[typing.Any]]:
+    ) -> typing.Optional[list[typing.Any]]:
         async with self.acur(**kwargs) as cur:
             await cur.execute(query, params=params)
             if cur.pgresult and cur.pgresult.status in [

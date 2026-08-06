@@ -1,7 +1,6 @@
 import asyncio
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict
 
 import psycopg
 import pytest
@@ -14,7 +13,7 @@ if not LINUX:
 
 @pytest.fixture
 async def peers(pg, tmp_path):
-    peers: Dict[int, Bouncer] = {}
+    peers: dict[int, Bouncer] = {}
     peers[1] = Bouncer(pg, tmp_path / "bouncer1")
 
     peers[2] = Bouncer(pg, tmp_path / "bouncer2", port=peers[1].port)

@@ -623,7 +623,6 @@ class QueryRunner:
             yield
         finally:
             sudo(f"tc filter del dev lo parent 1: prio {self.port}")
-            pass
 
     def create_user(self, name, args: typing.Optional[psycopg.sql.Composable] = None):
         self.users.add(name)

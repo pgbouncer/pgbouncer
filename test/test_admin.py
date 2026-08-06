@@ -145,7 +145,7 @@ def test_socket_id(bouncer) -> None:
                         initial_id + i * 2 - 1,
                         initial_id + i * 2,
                     ]
-                ) == set([client["id"] for client in clients])
+                ) == {client["id"] for client in clients}
                 conn_2.close()
                 time.sleep(2)
 

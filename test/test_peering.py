@@ -78,7 +78,7 @@ async def test_rolling_restart_admin(peers):
         # Trigger a shutdown, but the process should keep running until we
         # close the connection
         peers[1].admin("shutdown wait_for_clients")
-        time.sleep(1)
+        await asyncio.sleep(1)
         assert peers[1].running()
 
         # New connection attempts are now expected to fail, because no process
@@ -113,7 +113,7 @@ async def test_rolling_restart_sigterm(peers):
         # Trigger a shutdown, but the process should keep running until we
         # close the connection
         peers[1].sigterm()
-        time.sleep(1)
+        await asyncio.sleep(1)
         assert peers[1].running()
 
         # New connection attempts are now expected to fail, because no process

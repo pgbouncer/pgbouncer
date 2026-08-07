@@ -680,7 +680,7 @@ async def test_server_check_delay(pg, bouncer):
     bouncer.admin("set server_login_retry=3")
     bouncer.admin("set query_timeout=10")
     with pg.drop_traffic():
-        time.sleep(3)
+        await asyncio.sleep(3)
         query_task = bouncer.atest(connect_timeout=10)
 
         # We wait for 1 second to show that the query is blocked while traffic

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import subprocess
 from contextlib import closing, contextmanager
 from pathlib import Path

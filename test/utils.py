@@ -1077,7 +1077,7 @@ class Bouncer(QueryRunner):
         # use asyncio subprocesses, since that eventloop does not support them.
         # We fall back to regular subprocesses.
         if WINDOWS:
-            self.process = subprocess.Popen(
+            self.process = subprocess.Popen(  # noqa: ASYNC220
                 [*self.base_command(), "--quiet", self.ini_path], close_fds=True
             )
         else:
@@ -1168,9 +1168,11 @@ class Bouncer(QueryRunner):
             await self.wait_until_running()
             assert self.aprocess.pid != old_pid
         if self.process:
+            # A regular subprocess, so Windows: see the comment in start() for
+            # why asyncio subprocesses cannot be used there.
             old_process = self.process
             old_pid = old_process.pid
-            self.process = subprocess.Popen(
+            self.process = subprocess.Popen(  # noqa: ASYNC220
                 [*self.base_command(), "--reboot", "--quiet", self.ini_path],
                 close_fds=True,
             )

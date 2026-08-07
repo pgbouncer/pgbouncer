@@ -128,12 +128,14 @@ def test_server_ssl_verify(pg, bouncer_tls, cert_dir):
         pg.restart()
     else:
         pg.reload()
-    with bouncer_tls.log_contains(r"certificate verify failed"):
-        with pytest.raises(
+    with (
+        bouncer_tls.log_contains(r"certificate verify failed"),
+        pytest.raises(
             psycopg.OperationalError,
             match="connection timeout expired",
-        ):
-            bouncer_tls.test(connect_timeout=4)
+        ),
+    ):
+        bouncer_tls.test(connect_timeout=4)
     bouncer_tls.admin(f"set server_tls_ca_file = '{root}'")
     bouncer_tls.test()
 

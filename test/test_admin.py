@@ -124,28 +124,30 @@ def test_socket_id(bouncer) -> None:
     server_lifetime = 0
     """
 
-    with bouncer.run_with_config(config):
-        with bouncer.cur(
+    with (
+        bouncer.run_with_config(config),
+        bouncer.cur(
             dbname="pgbouncer", user="pgbouncer", row_factory=dict_row
-        ) as admin_cursor:
-            admin_cursor.execute("SHOW SOCKETS")
-            servers = admin_cursor.fetchall()
-            initial_id = max([i["id"] for i in servers])
+        ) as admin_cursor,
+    ):
+        admin_cursor.execute("SHOW SOCKETS")
+        servers = admin_cursor.fetchall()
+        initial_id = max([i["id"] for i in servers])
 
-            for i in range(1, 4):
-                conn_2 = bouncer.conn(dbname="p1")
-                curr = conn_2.cursor()
-                _ = curr.execute("SELECT 1")
-                time.sleep(2)
-                clients = admin_cursor.execute("SHOW SOCKETS").fetchall()
-                assert len(clients) == 3
-                assert {
-                        initial_id,
-                        initial_id + i * 2 - 1,
-                        initial_id + i * 2,
-                    } == {client["id"] for client in clients}
-                conn_2.close()
-                time.sleep(2)
+        for i in range(1, 4):
+            conn_2 = bouncer.conn(dbname="p1")
+            curr = conn_2.cursor()
+            _ = curr.execute("SELECT 1")
+            time.sleep(2)
+            clients = admin_cursor.execute("SHOW SOCKETS").fetchall()
+            assert len(clients) == 3
+            assert {
+                initial_id,
+                initial_id + i * 2 - 1,
+                initial_id + i * 2,
+            } == {client["id"] for client in clients}
+            conn_2.close()
+            time.sleep(2)
 
 
 def test_server_id(bouncer) -> None:
@@ -164,25 +166,27 @@ def test_server_id(bouncer) -> None:
     server_lifetime = 0
     """
 
-    with bouncer.run_with_config(config):
-        with bouncer.cur(
+    with (
+        bouncer.run_with_config(config),
+        bouncer.cur(
             dbname="pgbouncer", user="pgbouncer", row_factory=dict_row
-        ) as admin_cursor:
-            admin_cursor.execute("SHOW SOCKETS")
-            servers = admin_cursor.fetchall()
-            initial_id = max([i["id"] for i in servers])
+        ) as admin_cursor,
+    ):
+        admin_cursor.execute("SHOW SOCKETS")
+        servers = admin_cursor.fetchall()
+        initial_id = max([i["id"] for i in servers])
 
-            for i in range(1, 4):
-                conn_2 = bouncer.conn(dbname="p1")
-                curr = conn_2.cursor()
-                _ = curr.execute("SELECT 1")
-                time.sleep(2)
-                clients = admin_cursor.execute("SHOW SERVERS").fetchall()
-                assert [
-                    initial_id + i * 2,
-                ] == [client["id"] for client in clients]
-                conn_2.close()
-                time.sleep(2)
+        for i in range(1, 4):
+            conn_2 = bouncer.conn(dbname="p1")
+            curr = conn_2.cursor()
+            _ = curr.execute("SELECT 1")
+            time.sleep(2)
+            clients = admin_cursor.execute("SHOW SERVERS").fetchall()
+            assert [
+                initial_id + i * 2,
+            ] == [client["id"] for client in clients]
+            conn_2.close()
+            time.sleep(2)
 
 
 def test_client_id(bouncer) -> None:

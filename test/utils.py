@@ -1090,7 +1090,7 @@ class Bouncer(QueryRunner):
                     self.print_logs()
                     raise
                 tries += 1
-                time.sleep(0.1)
+                await asyncio.sleep(0.1)
                 continue
             break
 

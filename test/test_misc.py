@@ -677,7 +677,7 @@ async def test_repeated_sigterm(bouncer):
         bouncer.sigterm()
 
         # Single sigterm should wait for clients
-        time.sleep(1)
+        await asyncio.sleep(1)
         cur.execute("SELECT 1")
         assert bouncer.running()
 
@@ -700,7 +700,7 @@ async def test_repeated_sigint(bouncer):
         bouncer.sigint()
 
         # Single sigint should wait for servers to be released
-        time.sleep(1)
+        await asyncio.sleep(1)
         cur.execute("SELECT 1")
         assert bouncer.running()
 

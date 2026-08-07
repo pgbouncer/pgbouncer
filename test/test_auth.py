@@ -1,3 +1,4 @@
+import asyncio
 import getpass
 import re
 import subprocess
@@ -793,7 +794,7 @@ async def test_change_server_password_reconnect(bouncer, pg):
                     psycopg.OperationalError, match="password authentication failed"
                 ):
                     await result3
-                time.sleep(3)
+                await asyncio.sleep(3)
     finally:
         pg.sql("ALTER USER puser1 PASSWORD 'foo'")
 
@@ -808,7 +809,7 @@ async def test_change_server_password_server_lifetime(bouncer, pg):
         bouncer.test()
         pg.sql("ALTER USER puser1 PASSWORD 'bar'")
         # wait until server disconnect
-        time.sleep(3)
+        await asyncio.sleep(3)
 
         # Because of our fast client closure on server auth failures (see
         # kill_pool_logins), we should only have one connection failing at
@@ -830,7 +831,7 @@ async def test_change_server_password_server_lifetime(bouncer, pg):
                 await result2
             with pytest.raises(psycopg.OperationalError):
                 await result3
-            time.sleep(3)
+            await asyncio.sleep(3)
     finally:
         pg.sql("ALTER USER puser1 PASSWORD 'foo'")
 

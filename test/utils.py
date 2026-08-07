@@ -315,7 +315,7 @@ class QueryRunner:
         self.port = port
         self.default_db = "postgres"
         self.default_user = "postgres"
-        self.default_password: typing.Optional[str] = None
+        self.default_password: str | None = None
 
         # Used to track objects that we want to clean up at the end of a test
         self.subscriptions = set()
@@ -431,7 +431,7 @@ class QueryRunner:
 
     async def asql_coroutine(
         self, query, params=None, **kwargs
-    ) -> typing.Optional[list[typing.Any]]:
+    ) -> list[typing.Any] | None:
         async with self.acur(**kwargs) as cur:
             await cur.execute(query, params=params)
             if cur.pgresult and cur.pgresult.status in [
@@ -626,7 +626,7 @@ class QueryRunner:
         finally:
             sudo(f"tc filter del dev lo parent 1: prio {self.port}")
 
-    def create_user(self, name, args: typing.Optional[psycopg.sql.Composable] = None):
+    def create_user(self, name, args: psycopg.sql.Composable | None = None):
         self.users.add(name)
         if args is None:
             args = sql.SQL("")
@@ -745,7 +745,7 @@ class Proxy(QueryRunner):
         self.pg = pg
         self.cursors = {}
         self.restarted = False
-        self.process: typing.Optional[subprocess.Popen] = None
+        self.process: subprocess.Popen | None = None
 
     def start(self):
         command = [
@@ -990,8 +990,8 @@ class Bouncer(QueryRunner):
             self.port_lock = PortLock()
             super().__init__("127.0.0.1", self.port_lock.port)
 
-        self.process: typing.Optional[subprocess.Popen] = None
-        self.aprocess: typing.Optional[asyncio.subprocess.Process] = None
+        self.process: subprocess.Popen | None = None
+        self.aprocess: asyncio.subprocess.Process | None = None
         config_dir.mkdir()
         self.config_dir = config_dir
         self.ini_path = self.config_dir / "test.ini"

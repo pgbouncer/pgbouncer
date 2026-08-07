@@ -122,7 +122,7 @@ def test_max_db_client_connections_decrement(
     bouncer.admin("SET admin_users = 'pgbouncer'")
 
     connect_args = {"dbname": test_db, "user": test_user}
-    [conn_1, conn_2] = [bouncer.conn(**connect_args) for _ in range(2)]
+    [_conn_1, conn_2] = [bouncer.conn(**connect_args) for _ in range(2)]
     dbs = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
     db = next(db for db in dbs if db["name"] == test_db)
     assert db["current_client_connections"] == 2 if test_db == "p0" else 3

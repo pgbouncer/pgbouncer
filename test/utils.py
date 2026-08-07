@@ -246,6 +246,10 @@ PORT_UPPER_BOUND = 32768
 next_port = PORT_LOWER_BOUND
 
 
+class UnsupportedPlatformError(Exception):
+    """Raised by a test helper that has no implementation for this OS."""
+
+
 def cleanup_test_leftovers(*nodes):
     """
     Cleaning up test leftovers needs to be done in a specific order, because
@@ -562,7 +566,7 @@ class QueryRunner:
                     f"| pfctl -a pgbouncer_test/port_{self.port} -f -'"
                 )
             else:
-                raise Exception("This OS cannot run this test")
+                raise UnsupportedPlatformError("This OS cannot run this test")
             try:
                 yield
             finally:
@@ -597,7 +601,7 @@ class QueryRunner:
                     f"| pfctl -a pgbouncer_test/port_{self.port} -f -'"
                 )
             else:
-                raise Exception("This OS cannot run this test")
+                raise UnsupportedPlatformError("This OS cannot run this test")
             try:
                 yield
             finally:
@@ -617,7 +621,7 @@ class QueryRunner:
     def add_latency(self):
         """Adds one second of latency to all packets to this query runner"""
         if not LINUX:
-            raise Exception("This OS cannot run this test")
+            raise UnsupportedPlatformError("This OS cannot run this test")
         sudo(
             f"tc filter add dev lo parent 1:0 protocol ip prio {self.port} u32 match ip dport {self.port} 0xffff flowid 1:2"
         )

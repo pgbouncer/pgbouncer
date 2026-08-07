@@ -373,12 +373,14 @@ class QueryRunner:
         The connection and the cursors automatically close once you leave the
         "with" block
         """
-        with self.conn(
-            autocommit=autocommit,
-            **kwargs,
-        ) as conn:
-            with conn.cursor() as cur:
-                yield cur
+        with (
+            self.conn(
+                autocommit=autocommit,
+                **kwargs,
+            ) as conn,
+            conn.cursor() as cur,
+        ):
+            yield cur
 
     @asynccontextmanager
     async def acur(self, **kwargs):
@@ -387,9 +389,8 @@ class QueryRunner:
         The connection and the cursors automatically close once you leave the
         "async with" block
         """
-        async with await self.aconn(**kwargs) as conn:
-            async with conn.cursor() as cur:
-                yield cur
+        async with await self.aconn(**kwargs) as conn, conn.cursor() as cur:
+            yield cur
 
     def sql(self, query, params=None, **kwargs):
         """Run an SQL query
@@ -464,9 +465,8 @@ class QueryRunner:
 
     @contextmanager
     def transaction(self, **kwargs):
-        with self.cur(**kwargs) as cur:
-            with cur.connection.transaction():
-                yield cur
+        with self.cur(**kwargs) as cur, cur.connection.transaction():
+            yield cur
 
     def sleep(self, duration=3, **kwargs):
         """Run pg_sleep"""
@@ -1020,30 +1020,28 @@ class Bouncer(QueryRunner):
         self.admin_runner.default_user = "pgbouncer"
         self.admin_runner.default_password = "fake"
 
-        with open(base_auth_path) as base_auth:
-            with self.auth_path.open("w") as auth:
-                auth.write(base_auth.read())
-                auth.write(f'"longpass" "{LONG_PASSWORD}"\n')
-                auth.flush()
+        with open(base_auth_path) as base_auth, self.auth_path.open("w") as auth:
+            auth.write(base_auth.read())
+            auth.write(f'"longpass" "{LONG_PASSWORD}"\n')
+            auth.flush()
 
-        with open(base_ini_path) as base_ini:
-            with self.ini_path.open("w") as ini:
-                ini.write(base_ini.read().replace("port=6666", f"port={pg.port}"))
-                ini.write("\n")
-                ini.write(f"logfile = {self.log_path}\n")
-                ini.write(f"auth_file = {self.auth_path}\n")
-                ini.write("pidfile = \n")
-                # Uncomment for much more noise but, more detailed debugging
-                # ini.write("verbose = 3\n")
+        with open(base_ini_path) as base_ini, self.ini_path.open("w") as ini:
+            ini.write(base_ini.read().replace("port=6666", f"port={pg.port}"))
+            ini.write("\n")
+            ini.write(f"logfile = {self.log_path}\n")
+            ini.write(f"auth_file = {self.auth_path}\n")
+            ini.write("pidfile = \n")
+            # Uncomment for much more noise but, more detailed debugging
+            # ini.write("verbose = 3\n")
 
-                if not USE_UNIX_SOCKETS:
-                    ini.write(f"unix_socket_dir = \n")
-                    ini.write(f"admin_users = pgbouncer\n")
-                else:
-                    ini.write(f"unix_socket_dir = {self.admin_host}\n")
-                ini.write(f"listen_port = {self.port}\n")
+            if not USE_UNIX_SOCKETS:
+                ini.write(f"unix_socket_dir = \n")
+                ini.write(f"admin_users = pgbouncer\n")
+            else:
+                ini.write(f"unix_socket_dir = {self.admin_host}\n")
+            ini.write(f"listen_port = {self.port}\n")
 
-                ini.flush()
+            ini.flush()
 
         with self.ini_path.open("r") as ini:
             self.original_ini_contents = ini.read()

@@ -38,17 +38,16 @@ async def peers(pg, tmp_path):
 
 
 def test_peering_without_own_index(peers):
-    with peers[1].cur() as cur:
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            for _ in range(10):
-                query = pool.submit(cur.execute, "select pg_sleep(5)")
-                time.sleep(0.5)
-                cancel = pool.submit(cur.connection.cancel)
-                cancel.result()
-                with pytest.raises(
-                    psycopg.errors.QueryCanceled, match="due to user request"
-                ):
-                    query.result()
+    with peers[1].cur() as cur, ThreadPoolExecutor(max_workers=2) as pool:
+        for _ in range(10):
+            query = pool.submit(cur.execute, "select pg_sleep(5)")
+            time.sleep(0.5)
+            cancel = pool.submit(cur.connection.cancel)
+            cancel.result()
+            with pytest.raises(
+                psycopg.errors.QueryCanceled, match="due to user request"
+            ):
+                query.result()
 
 
 def test_peering_with_own_index(peers):
@@ -57,17 +56,16 @@ def test_peering_with_own_index(peers):
             f.write(f"{own_index} = host={bouncer.admin_host} port={bouncer.port}\n")
         bouncer.admin("reload")
 
-    with peers[1].cur() as cur:
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            for _ in range(10):
-                query = pool.submit(cur.execute, "select pg_sleep(5)")
-                time.sleep(0.5)
-                cancel = pool.submit(cur.connection.cancel)
-                cancel.result()
-                with pytest.raises(
-                    psycopg.errors.QueryCanceled, match="due to user request"
-                ):
-                    query.result()
+    with peers[1].cur() as cur, ThreadPoolExecutor(max_workers=2) as pool:
+        for _ in range(10):
+            query = pool.submit(cur.execute, "select pg_sleep(5)")
+            time.sleep(0.5)
+            cancel = pool.submit(cur.connection.cancel)
+            cancel.result()
+            with pytest.raises(
+                psycopg.errors.QueryCanceled, match="due to user request"
+            ):
+                query.result()
 
 
 async def test_rolling_restart_admin(peers):

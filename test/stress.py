@@ -48,10 +48,7 @@ class WorkThread(threading.Thread):
         return val
 
     def run(self):
-        try:
-            time.sleep(random.random() * 10.0)
-        except Exception:
-            pass
+        time.sleep(random.random() * 10.0)
         while 1:
             try:
                 self.main_loop()
@@ -59,12 +56,9 @@ class WorkThread(threading.Thread):
                 break
             except SystemExit:
                 break
-            except Exception as d:
+            except psycopg2.Error as d:
                 print(d)
-                try:
-                    time.sleep(5)
-                except Exception:
-                    pass
+                time.sleep(5)
 
     def main_loop(self):
         db = psycopg2.connect(get_connstr())

@@ -292,7 +292,7 @@ class PortLock:
                     s.bind(("127.0.0.1", next_port))
                     self.port = next_port
                     break
-                except Exception:
+                except OSError:
                     continue
 
     def release(self):
@@ -1215,7 +1215,7 @@ class Bouncer(QueryRunner):
             with self.log_path.open() as f:
                 log_contents = f.read()
                 print(log_contents)
-        except Exception:
+        except (OSError, UnicodeDecodeError):
             pass
 
         # Most reliable way to detect Assert failures. Otherwise we might miss

@@ -156,10 +156,10 @@ enum TargetSessionAttrs {
 	TARGET_SESSION_STANDBY
 };
 
-enum TargetSessionAttrValue {
-	TARGET_SESSION_ATTR_UNKNOWN,
-	TARGET_SESSION_ATTR_OFF,
-	TARGET_SESSION_ATTR_ON
+enum BoolOption {
+	BOOL_OPTION_UNKNOWN,
+	BOOL_OPTION_OFF,
+	BOOL_OPTION_ON
 };
 
 #define is_server_socket(sk) ((sk)->state >= SV_FREE)
@@ -802,8 +802,8 @@ struct PgSocket {
 #endif
 
 	VarCache vars;		/* state of interesting server parameters */
-	enum TargetSessionAttrValue in_hot_standby;	/* server-reported state used during admission */
-	enum TargetSessionAttrValue default_transaction_read_only;	/* server-reported state used during admission */
+	enum BoolOption in_hot_standby;	/* server-reported state used during admission */
+	enum BoolOption default_transaction_read_only;	/* server-reported state used during admission */
 
 	/* client: prepared statements prepared by this client */
 	PgClientPreparedStatement *client_prepared_statements;

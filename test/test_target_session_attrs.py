@@ -11,13 +11,32 @@ import psycopg
 import pytest
 from psycopg.rows import dict_row
 
-from .utils import PG_MAJOR_VERSION, USE_UNIX_SOCKETS, Postgres, run
+from .utils import (
+    PG_MAJOR_VERSION,
+    TEST_DIR,
+    USE_UNIX_SOCKETS,
+    Bouncer,
+    Postgres,
+    run,
+)
 
 REPLICA_SOCKET_DIR = Path("/tmp/pgbouncer-test-replica")
 requires_replica = pytest.mark.skipif(
     PG_MAJOR_VERSION < 14 or not USE_UNIX_SOCKETS,
     reason="target role tests require PostgreSQL 14+ and Unix sockets",
 )
+
+
+@pytest.fixture
+async def bouncer(pg, tmp_path):
+    bouncer = Bouncer(
+        pg,
+        tmp_path / "bouncer",
+        base_ini_path=TEST_DIR / "target_session_attrs.ini",
+    )
+    await bouncer.start()
+    yield bouncer
+    await bouncer.cleanup()
 
 
 @pytest.fixture(scope="session")

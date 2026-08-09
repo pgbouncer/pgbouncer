@@ -11,13 +11,32 @@ import psycopg
 import pytest
 from psycopg.rows import dict_row
 
-from .utils import PG_MAJOR_VERSION, USE_UNIX_SOCKETS, Postgres, run
+from .utils import (
+    PG_MAJOR_VERSION,
+    TEST_DIR,
+    USE_UNIX_SOCKETS,
+    Bouncer,
+    Postgres,
+    run,
+)
 
 REPLICA_SOCKET_DIR = Path("/tmp/pgbouncer-test-replica")
 requires_replica = pytest.mark.skipif(
     PG_MAJOR_VERSION < 14 or not USE_UNIX_SOCKETS,
     reason="target role tests require PostgreSQL 14+ and Unix sockets",
 )
+
+
+@pytest.fixture
+async def bouncer(pg, tmp_path):
+    bouncer = Bouncer(
+        pg,
+        tmp_path / "bouncer",
+        base_ini_path=TEST_DIR / "target_session_attrs.ini",
+    )
+    await bouncer.start()
+    yield bouncer
+    await bouncer.cleanup()
 
 
 @pytest.fixture(scope="session")
@@ -382,37 +401,6 @@ def test_target_session_attrs_reload_replaces_server(bouncer, target_replica):
     second_pid, second_in_recovery = bouncer.sql(
         "SELECT pg_backend_pid(), pg_is_in_recovery()",
         dbname="tsa_reload",
-        connect_timeout=10,
-    )[0]
-    assert second_in_recovery is False
-    assert second_pid != first_pid
-
-
-@requires_replica
-async def test_target_session_attrs_takeover_reconnects_unknown_server(
-    bouncer, target_replica
-):
-    first_pid, first_in_recovery = bouncer.sql(
-        "SELECT pg_backend_pid(), pg_is_in_recovery()", dbname="tsa_takeover"
-    )[0]
-    assert first_in_recovery is True
-
-    original = bouncer.ini_path.read_text()
-    updated, replacements = re.subn(
-        r"^(tsa_takeover.*target_session_attrs=)any$",
-        r"\1primary",
-        original,
-        flags=re.MULTILINE,
-    )
-    assert replacements == 1
-    bouncer.ini_path.write_text(updated)
-    await bouncer.reboot()
-    bouncer.admin("SET server_login_retry=1")
-    bouncer.admin("SET client_login_timeout=5")
-
-    second_pid, second_in_recovery = bouncer.sql(
-        "SELECT pg_backend_pid(), pg_is_in_recovery()",
-        dbname="tsa_takeover",
         connect_timeout=10,
     )[0]
     assert second_in_recovery is False

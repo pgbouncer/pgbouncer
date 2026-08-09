@@ -98,6 +98,25 @@ gidNumber: 100
 homeDirectory: /home/ldapuser1
 mail: ldapuser1@example.net
 
+dn: o=йцукенгшщзхъфывапролджэячсмитьбю-йцукенгшщзхъфывапролджэячсмитьбю-йцукенгшщзхъфывапролджэячсмитьбю-йцукенгшщзхъфыва,dc=example,dc=net
+objectClass: top
+objectClass: dcObject
+objectClass: organization
+dc: example
+o: ExampleCo
+
+dn: uid=ldapuser2,o=йцукенгшщзхъфывапролджэячсмитьбю-йцукенгшщзхъфывапролджэячсмитьбю-йцукенгшщзхъфывапролджэячсмитьбю-йцукенгшщзхъфыва,dc=example,dc=net
+objectClass: inetOrgPerson
+objectClass: posixAccount
+uid: ldapuser2
+sn: Lastname2
+givenName: Firstname2
+cn: Second Test User
+displayName: Second Test User
+uidNumber: 102
+gidNumber: 100
+homeDirectory: /home/ldapuser2
+mail: ldapuser2@example.net
 EOF
 
 
@@ -112,3 +131,4 @@ echo ldapadd -x -w $ldap_rootpw -f $ldap_dir/ldap.ldif -H $ldap_url
 ldapadd -x -w $ldap_rootpw -f $ldap_dir/ldap.ldif
 ldappasswd -x -w $ldap_rootpw -s secret1 'uid=ldapuser1,dc=example,dc=net'
 ldapsearch -x -b "dc=example,dc=net"
+ldappasswd -x -w $ldap_rootpw -s secret2 'uid=ldapuser2,o=йцукенгшщзхъфывапролджэячсмитьбю-йцукенгшщзхъфывапролджэячсмитьбю-йцукенгшщзхъфывапролджэячсмитьбю-йцукенгшщзхъфыва,dc=example,dc=net'

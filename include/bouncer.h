@@ -231,8 +231,15 @@ extern int cf_sbuf_len;
 /*
  * Some cloud services use very long generated passwords, so give it
  * plenty of room.
+ *
+ * The upper bound is set by PostgreSQL: it rejects any authentication
+ * message longer than PG_MAX_AUTH_TOKEN_LENGTH (65535) bytes, and that
+ * length includes the 4-byte length word and the trailing NUL of the
+ * password. So the largest cleartext password we can still forward to a
+ * server is 65535 - 4 - 1 = 65530 bytes, which means the buffer (which
+ * includes the NUL) can be at most 65531.
  */
-#define MAX_PASSWORD    2048
+#define MAX_PASSWORD    65531
 
 #ifdef HAVE_LDAP
 /* Hope this length is long enough for ldap config line */
@@ -483,6 +490,7 @@ struct PgPool {
 
 	/* if last connect to server failed, there should be delay before next */
 	usec_t last_connect_time;
+	usec_t last_active_time;
 	bool last_connect_failed : 1;
 	char last_connect_failed_message[100];
 	bool last_login_failed : 1;
@@ -750,6 +758,9 @@ struct PgSocket {
 					   client: in copy-in stream, expecting CopyData/CopyDone/CopyFail */
 
 	bool wait_for_welcome : 1;	/* client: no server yet in pool, cannot send welcome msg */
+	bool startup_message_received : 1;	/* client: the StartupMessage has been processed, so all
+						   following packets use V3 framing instead of the V2
+						   framing the StartupMessage */
 	bool welcome_sent : 1;		/* client: client has been sent the welcome msg */
 	bool protocol_negotiated : 1;	/* client: NegotiateProtocolVersion already sent */
 	bool wait_for_user_conn : 1;	/* client: waiting for auth_conn server connection */
@@ -901,6 +912,7 @@ extern usec_t cf_query_timeout;
 extern usec_t cf_query_wait_timeout;
 extern usec_t cf_cancel_wait_timeout;
 extern usec_t cf_client_idle_timeout;
+extern usec_t cf_pool_idle_timeout;
 extern usec_t cf_client_login_timeout;
 extern usec_t cf_idle_transaction_timeout;
 extern usec_t cf_transaction_timeout;

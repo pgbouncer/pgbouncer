@@ -214,7 +214,7 @@ static void per_loop_activate(PgPool *pool)
 		if (client->state == CL_WAITING
 		    && !client->sent_wait_notification
 		    && client->welcome_sent
-		    && ((time - client->wait_start) / USEC) > cf_query_wait_notify
+		    && (time - client->wait_start) > (usec_t)cf_query_wait_notify * USEC
 		    && cf_query_wait_notify > 0) {
 			buf = pktbuf_dynamic(256);
 			if (!buf)
@@ -873,6 +873,52 @@ static void find_and_cleanup_inactive_autodatabases(void)
 	cleanup_inactive_autodatabases();
 }
 
+static void cleanup_inactive_pools(int thread_id)
+{
+	struct List *item;
+	PgPool *pool;
+	usec_t now = get_cached_time();
+	struct ThreadSafeStatList *pool_list_ptr = WORKER_THREAD_PTR(pool_list, thread_id);
+
+	if (cf_pool_idle_timeout <= 0)
+		return;
+
+	THREAD_SAFE_STATLIST_EACH(pool_list_ptr, item, {
+		pool = container_of(item, PgPool, head);
+
+		/* Do not kill admin pools or pools currently in use */
+		if (pool->db->admin)
+			continue;
+
+		/*
+		 * Never reap a forced-user pool that keeps a minimum number of
+		 * server connections around. The janitor proactively (re)creates
+		 * such pools every maintenance round to enforce min_pool_size
+		 * even without clients, so reaping it here just causes a
+		 * kill/recreate churn every round while the backend is
+		 * unreachable (when it is reachable the pool has connected
+		 * servers and isn't considered idle anyway). Non-forced pools
+		 * only maintain min_pool_size while a client is connected, so a
+		 * non-forced pool with no clients and no servers is genuinely
+		 * idle and safe to reap.
+		 */
+		if (pool_min_pool_size(pool) > 0 && pool->db->forced_user_credentials != NULL)
+			continue;
+
+		/* Check if the pool is actually "unused" */
+		if (pool_client_count(pool) == 0 && pool_connected_server_count(pool) == 0) {
+			if ((now - pool->last_active_time) > cf_pool_idle_timeout) {
+				log_info("cleaning up idle pool for user %s on db %s because: pool idle timeout (age= %" PRIu64 "s)",
+					 pool->user_credentials->name, pool->db->name, (now - pool->last_active_time) / USEC);
+				kill_pool(pool);
+			}
+		} else {
+			/* Reset activity timer if it is being used */
+			pool->last_active_time = now;
+		}
+	});
+}
+
 /* full-scale maintenance, done only occasionally */
 static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 {
@@ -894,19 +940,6 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	if (cf_pause_mode == P_SUSPEND)
 		return;
 
-	/*
-	 * Creating new pools to enable `min_pool_size` enforcement even if
-	 * there are no active clients.
-	 *
-	 * If clients never connect there won't be a pool to maintain the
-	 * min_pool_size on, which means we have to proactively create a pool,
-	 * so that it can be maintained.
-	 *
-	 * We are doing this for databases with forced users only, to reduce
-	 * the risk of creating connections in unexpected ways, where there are
-	 * many users.
-	   _	 */
-
 	peer_pool_list_ptr = WORKER_THREAD_PTR(peer_pool_list, thread_id);
 	pool_list_ptr = WORKER_THREAD_PTR(pool_list, thread_id);
 	/*
@@ -920,7 +953,7 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	 * We are doing this for databases with forced users only, to reduce
 	 * the risk of creating connections in unexpected ways, where there are
 	 * many users.
-	   _	 */
+	 */
 
 	THREAD_SAFE_STATLIST_EACH(&database_list, item, {
 		PgDatabase *db = container_of(item, PgDatabase, head);
@@ -955,6 +988,8 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	if (!multithread_mode) {
 		find_and_cleanup_inactive_autodatabases();
 	}
+
+	cleanup_inactive_pools(thread_id);
 
 	cleanup_client_logins(thread_id);
 	if (multithread_mode) {

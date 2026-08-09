@@ -767,6 +767,23 @@ aspect of that is that their statistics are also forgotten.  [seconds]
 
 Default: 3600.0
 
+### pool_idle_timeout
+
+If a pool (a specific database/user pair) has had no client connections and
+no server connections for this many seconds, it is freed. This is similar to
+`autodb_idle_timeout`, but frees individual pools rather than whole
+automatically created databases. Note that, unlike `server_idle_timeout`
+(which closes idle server connections but keeps the pool around), this frees
+the whole pool, and only once it is completely empty.
+
+As with `autodb_idle_timeout`, the negative aspect is that a freed pool's
+statistics are forgotten. Because the per-database totals in `SHOW STATS` are
+the sum over the currently existing pools, freeing a pool makes those totals
+decrease, which monitoring systems may misread as a counter reset. For that
+reason this is disabled by default. 0 disables. [seconds]
+
+Default: 0 (disabled)
+
 ### dns_max_ttl
 
 How long DNS lookups can be cached.  The actual DNS TTL is ignored.

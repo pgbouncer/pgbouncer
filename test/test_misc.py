@@ -9,6 +9,7 @@ import pytest
 from .utils import (
     HAVE_IPV6_LOCALHOST,
     LINUX,
+    LONG_PASSWORD,
     PG_MAJOR_VERSION,
     PG_SUPPORTS_SCRAM,
     PKT_BUF_SIZE,
@@ -39,7 +40,6 @@ def test_login_notify_message_negative(bouncer):
     """
 
     with bouncer.run_with_config(config):
-
         ret = bouncer.psql(
             query="SELECT 1;", dbname="postgres", user="puser1", password="foo"
         )
@@ -70,7 +70,6 @@ def test_login_notify_message(bouncer):
     """
 
     with bouncer.run_with_config(config):
-
         ret = bouncer.psql(
             query="SELECT 1;", dbname="postgres", user="puser1", password="foo"
         )
@@ -146,7 +145,6 @@ async def test_notify_queue_negative(bouncer):
         notices_received.append(diag.message_primary)
 
     with bouncer.run_with_config(config):
-
         for _ in range(bouncer.get_worker_thread_count()):
             sleep_future = bouncer.asql(
                 "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
@@ -159,6 +157,7 @@ async def test_notify_queue_negative(bouncer):
         conn_2.add_notice_handler(log_notice)
         curr = await conn_2.execute("select 1;")
         await curr.fetchall()
+        await curr.fetchall()
 
         assert len(notices_received) == 0
 
@@ -170,8 +169,10 @@ async def test_notify_queue_negative(bouncer):
 
         curr = await conn_2.execute("select 1;")
         await curr.fetchall()
+        await curr.fetchall()
         assert len(notices_received) == 0
 
+        await conn_2.close()
         await conn_2.close()
 
 
@@ -206,6 +207,10 @@ async def test_notify_queue(bouncer):
         notices_received.append(diag.message_primary)
 
     with bouncer.run_with_config(config):
+        sleep_future = bouncer.asql(
+            "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
+        )
+        _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
 
         for _ in range(bouncer.get_worker_thread_count()):
             sleep_future = bouncer.asql(
@@ -218,6 +223,7 @@ async def test_notify_queue(bouncer):
         )
         conn_2.add_notice_handler(log_notice)
         curr = await conn_2.execute("select 1;")
+        await curr.fetchall()
         await curr.fetchall()
 
         assert len(notices_received) == 1
@@ -234,9 +240,11 @@ async def test_notify_queue(bouncer):
 
         curr = await conn_2.execute("select 1;")
         await curr.fetchall()
+        await curr.fetchall()
         assert len(notices_received) == 2
         assert expected_message == notices_received[1]
 
+        await conn_2.close()
         await conn_2.close()
 
 
@@ -654,7 +662,7 @@ def test_options_startup_param(bouncer):
     )
 
 
-def test_startup_packet_larger_than_pktbuf(bouncer):
+def test_startup_message_larger_than_pktbuf(bouncer):
     long_string = "1" * PKT_BUF_SIZE
     bouncer.test(options=f"-c extra_float_digits={long_string}")
 
@@ -676,11 +684,12 @@ def test_equivalent_startup_param(bouncer):
 
     canonical_expected_times = 1 if PG_MAJOR_VERSION >= 14 else 0
     with bouncer.cur(options="-c DateStyle=ISO") as cur:
-        with bouncer.log_contains(
-            "varcache_apply: .*SET DateStyle='ISO'", times=1
-        ), bouncer.log_contains(
-            "varcache_set_canonical: setting DateStyle to its canonical version ISO -> ISO, MDY",
-            times=canonical_expected_times,
+        with (
+            bouncer.log_contains("varcache_apply: .*SET DateStyle='ISO'", times=1),
+            bouncer.log_contains(
+                "varcache_set_canonical: setting DateStyle to its canonical version ISO -> ISO, MDY",
+                times=canonical_expected_times,
+            ),
         ):
             cur.execute("SELECT 1")
             cur.execute("SELECT 1")

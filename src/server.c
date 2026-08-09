@@ -722,7 +722,7 @@ static bool handle_connect(PgSocket *server)
 				server->wait_sslchar = true;
 		} else {
 			slog_noise(server, "P: startup");
-			res = send_startup_packet(server);
+			res = send_startup_message(server);
 		}
 		if (!res)
 			disconnect_server(server, false, "startup pkt failed");
@@ -761,7 +761,7 @@ static bool handle_sslchar(PgSocket *server, struct MBuf *data)
 		return false;
 	} else {
 		/* proceed with non-TLS connection */
-		ok = send_startup_packet(server);
+		ok = send_startup_message(server);
 	}
 
 	if (ok) {
@@ -928,7 +928,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		}
 
 		server->request_time = get_worker_thread_time(thread_id);
-		res = send_startup_packet(server);
+		res = send_startup_message(server);
 		if (res)
 			sbuf_continue(&server->sbuf);
 		else

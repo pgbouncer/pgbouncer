@@ -157,7 +157,7 @@ static void pktbuf_send_func(evutil_socket_t fd, short flags, void *arg)
 
 	if (buf->send_pos < buf->write_pos) {
 		struct event_base *base = workers[sbuf->thread_id].base;
-		init_worker_event_args(&buf->ev_args, buf, pktbuf_send_func, false, &workers[sbuf->thread_id].thread_lock);
+		init_worker_event_args(&buf->ev_args, buf, pktbuf_send_func, true, &workers[sbuf->thread_id].thread_lock);
 		event_assign(buf->ev, base, fd, EV_WRITE, worker_thread_event_wrapper, &buf->ev_args);
 		res = event_add(buf->ev, NULL);
 		if (res < 0) {

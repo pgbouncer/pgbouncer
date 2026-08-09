@@ -3,16 +3,26 @@ Tests
 
 ## Setting up Python dependencies for testing
 
-To be able to run most of the tests you need to install a few python tools.  To
-do so, you should run the following from the root of the repository:
+To be able to run most of the tests you need a few Python tools. They are
+declared in the `pyproject.toml` at the root of the repository: the main
+dependencies are what the test suite needs, and the optional `dev` extra adds
+`ruff`, which is used for formatting and linting by `make format-check`/`make
+lint`. You can install them with either `pip` or `uv`.
+
+### Option 1: With `pip`
+
+`pip` is already installed alongside most Python interpreters, so this is the
+simplest option if you don't have `uv` installed yet. Run the following from
+the root of the repository:
 
 ```sh
-pip3 install --user -r requirements.txt
+# Installs the packages globally on your system.
+pip install .
 ```
 
-This will install the packages globally on your system, if you don't want to do
-that (or if tests are still not working after executing the above command) you can use a
-[virtual environment][1] instead:
+Installing globally is often undesirable, so you can use a [virtual
+environment][1] instead:
+
 ```sh
 # create a virtual environment (only needed once)
 python3 -m venv env
@@ -23,11 +33,27 @@ python3 -m venv env
 . env/bin/activate
 
 # Install the dependencies (only needed once, or whenever extra dependencies
-# get added to requirements.txt)
-pip install -r requirements.txt
+# get added to pyproject.toml). Use `.[dev]` to also install the linters.
+pip install .
+```
+
+### Option 2: With `uv`
+
+If you use [uv][2], it creates and manages the virtual environment for you:
+
+```sh
+# Installs the test dependencies into a .venv in the repository root.
+uv sync
+
+# Run the tests through that environment without activating it.
+uv run pytest
+
+# Add the formatters and linters too.
+uv sync --extra dev
 ```
 
 [1]: https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/#creating-a-virtual-environment
+[2]: https://docs.astral.sh/uv/
 
 
 ## Various ways to test PgBouncer

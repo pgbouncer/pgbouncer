@@ -1,0 +1,34 @@
+# Compilation options
+
+option('cassert', type: 'boolean', value: false,
+       description: 'Turn on assertion checking in code')
+
+# Test options
+
+option('pytest', type: 'string', value: '',
+       description: 'Path to the pytest binary used to run the test suite (default: the pytest script if on PATH, else python -m pytest)')
+
+option('evdns', type: 'boolean', value: true,
+       description: 'Use libevent for DNS lookups (only used when c-ares is not available)')
+
+option('root_ca_file', type: 'string', value: '',
+       description: 'Path to the root CA certificates (empty = autodetect a system bundle)')
+
+# External dependencies
+
+option('cares', type: 'feature', value: 'auto',
+       description: 'Build with c-ares support (preferred DNS backend when available)')
+
+# combo rather than feature: these are probed with find_library, and passing a
+# feature to find_library's `required` needs meson 0.59 (newer than our floor).
+option('ldap', type: 'combo', choices: ['auto', 'enabled', 'disabled'], value: 'auto',
+       description: 'Build with LDAP authentication support')
+
+option('pam', type: 'combo', choices: ['auto', 'enabled', 'disabled'], value: 'auto',
+       description: 'Build with PAM authentication support')
+
+option('openssl', type: 'feature', value: 'auto',
+       description: 'Build with OpenSSL (TLS) support')
+
+option('systemd', type: 'feature', value: 'auto',
+       description: 'Build with systemd support')

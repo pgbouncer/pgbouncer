@@ -151,17 +151,28 @@ void worker_thread_event_wrapper(evutil_socket_t sock, short flags, void *arg)
 {
 	WorkerEventArgs *event_args = (WorkerEventArgs *) arg;
 
-	if (multithread_mode && event_args->lock != NULL) {
-		mutex_lock(event_args->lock);
+	/*
+	 * Snapshot what we still need after the callback runs. The callback
+	 * may free the object that embeds this WorkerEventArgs (e.g.
+	 * pktbuf_send_func() frees its PktBuf once a queued send finishes),
+	 * which makes event_args a dangling pointer the moment func()
+	 * returns. lock/persistent must not be read from event_args again
+	 * after that point.
+	 */
+	Mutex *lock = event_args->lock;
+	bool persistent = event_args->persistent;
+
+	if (multithread_mode && lock != NULL) {
+		mutex_lock(lock);
 	}
 
 	event_args->func(sock, flags, event_args->arg);
 
-	if (multithread_mode && event_args->lock != NULL) {
-		mutex_unlock(event_args->lock);
+	if (multithread_mode && lock != NULL) {
+		mutex_unlock(lock);
 	}
 
-	if (!event_args->persistent)
+	if (!persistent)
 		free(event_args);
 }
 

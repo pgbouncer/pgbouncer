@@ -74,7 +74,7 @@ struct event_base *pgb_event_base;
 
 /* async dns handler */
 struct DNSContext *adns;
-SpinLock adns_lock;
+Mutex adns_lock;
 
 struct HBA *parsed_hba;
 struct Ident *parsed_ident;
@@ -871,7 +871,7 @@ static void dns_setup(void)
 	adns = adns_create_context();
 	if (!adns)
 		die("dns setup failed");
-	spin_lock_init(&adns_lock, true);
+	mutex_init(&adns_lock, true);
 }
 
 static void xfree(char **ptr_p)

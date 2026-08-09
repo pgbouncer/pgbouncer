@@ -38,18 +38,25 @@
 #define pthread_join(a, b)               compat_pthread_join(a, b)
 #define pthread_once(a, b)               compat_pthread_once(a, b)
 #define pthread_exit(a)                  compat_pthread_exit(a)
+#define pthread_key_create(a, b)         compat_pthread_key_create(a, b)
+#define pthread_setspecific(a, b)        compat_pthread_setspecific(a, b)
+#define pthread_getspecific(a)           compat_pthread_getspecific(a)
 
 typedef HANDLE pthread_t;
 typedef HANDLE pthread_mutex_t;
 typedef int pthread_attr_t;
+typedef DWORD pthread_key_t;
 
 int pthread_create(pthread_t *t, pthread_attr_t *attr, void *(*fn)(void *), void *arg);
 int pthread_mutex_init(pthread_mutex_t *lock, void *unused);
 int pthread_mutex_destroy(pthread_mutex_t *lock);
 int pthread_mutex_lock(pthread_mutex_t *lock);
 int pthread_mutex_unlock(pthread_mutex_t *lock);
-int pthread_join(pthread_t *t, void **ret);
+int pthread_join(pthread_t t, void **ret);
 void pthread_exit(void *retval);
+int pthread_key_create(pthread_key_t *key, void (*destructor)(void *));
+int pthread_setspecific(pthread_key_t key, const void *value);
+void *pthread_getspecific(pthread_key_t key);
 
 #ifdef INIT_ONCE_STATIC_INIT
 #define PTHREAD_ONCE_INIT INIT_ONCE_STATIC_INIT
@@ -60,5 +67,15 @@ int pthread_once(pthread_once_t *once, void (*once_func)(void));
 #endif /* WIN32 */
 
 #endif /* HAVE_PTHREAD_H */
+
+#if defined(HAVE_PTHREAD_H) || defined(WIN32)
+typedef struct {
+	pthread_mutex_t mutex;
+} Mutex;
+
+int mutex_init(Mutex *lock, bool recursive);
+int mutex_lock(Mutex *lock);
+int mutex_unlock(Mutex *lock);
+#endif
 
 #endif

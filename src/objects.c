@@ -50,7 +50,7 @@ struct ThreadSafeStatList peer_list;
 
 /* All locally defined users (in auth_file) are kept here. */
 struct AATree user_tree;
-SpinLock user_tree_lock;
+Mutex user_tree_lock;
 
 /*
  * All PAM users are kept here. We need to differentiate two user
@@ -59,12 +59,12 @@ SpinLock user_tree_lock;
  * logic.
  */
 struct AATree pam_user_tree;
-SpinLock pam_user_tree_lock;
+Mutex pam_user_tree_lock;
 
 /*
  * Lock around user critical sections to protect consecutive lookup and insert operations.
  */
-SpinLock user_lock;
+Mutex user_lock;
 
 /*
  * The global prepared statement cache, which deduplicates prepared statements
@@ -73,14 +73,14 @@ SpinLock user_lock;
  */
 PgPreparedStatement *prepared_statements = NULL;
 
-SpinLock prepared_statements_lock;
+Mutex prepared_statements_lock;
 
 struct ThreadSafeSlab *db_cache;
 struct Slab *peer_cache;
 struct ThreadSafeSlab *user_cache;
 struct ThreadSafeSlab *credentials_cache;
 unsigned long long int last_pgsocket_id;
-static SpinLock pgsocket_id_lock;
+static Mutex pgsocket_id_lock;
 
 const char *replication_type_parameters[] = {
 	[REPLICATION_NONE] = "no",
@@ -182,10 +182,10 @@ void init_objects(void)
 	thread_safe_statlist_init(&sock_list, "socket_list", true);
 	aatree_init(&user_tree, global_user_node_cmp, NULL);
 	aatree_init(&pam_user_tree, credentials_node_cmp, NULL);
-	spin_lock_init(&user_tree_lock, true);
-	spin_lock_init(&pam_user_tree_lock, true);
-	spin_lock_init(&user_lock, true);
-	spin_lock_init(&pgsocket_id_lock, true);
+	mutex_init(&user_tree_lock, true);
+	mutex_init(&pam_user_tree_lock, true);
+	mutex_init(&user_lock, true);
+	mutex_init(&pgsocket_id_lock, true);
 	user_cache = thread_safe_slab_create("user_cache", sizeof(PgGlobalUser), 0, NULL, USUAL_ALLOC, true);
 	credentials_cache = thread_safe_slab_create("credentials_cache", sizeof(PgCredentials), 0, NULL, USUAL_ALLOC, true);
 	db_cache = thread_safe_slab_create("db_cache", sizeof(PgDatabase), 0, NULL, USUAL_ALLOC, true);
@@ -511,7 +511,7 @@ PgDatabase *add_peer(const char *name, int peer_id)
 			return NULL;
 
 		list_init(&peer->head);
-		spin_lock_init(&peer->lock, true);
+		mutex_init(&peer->lock, true);
 		peer->peer_id = peer_id;
 		put_in_order(&peer->head, &peer_list, cmp_peer);
 	}
@@ -537,7 +537,7 @@ PgDatabase *add_database(const char *name)
 			return NULL;
 		}
 		aatree_init(&db->user_tree, credentials_node_cmp, credentials_node_release);
-		spin_lock_init(&db->lock, true);
+		mutex_init(&db->lock, true);
 		put_in_order(&db->head, &database_list, cmp_database);
 	}
 
@@ -580,7 +580,7 @@ static PgGlobalUser *add_new_global_user(const char *name, const char *passwd)
 	PgGlobalUser *user = thread_safe_slab_alloc(user_cache);
 	if (!user)
 		return NULL;
-	spin_lock_init(&user->lock, true);
+	mutex_init(&user->lock, true);
 	user->credentials.global_user = user;
 
 	list_init(&user->head);
@@ -801,7 +801,7 @@ static PgPool *new_pool(PgDatabase *db, PgCredentials *user_credentials, int thr
 	statlist_init(&pool->used_server_list, "used_server_list");
 	statlist_init(&pool->new_server_list, "new_server_list");
 	statlist_init(&pool->waiting_cancel_req_list, "waiting_cancel_req_list");
-	spin_lock_init(&pool->cancel_req_lock, true);
+	mutex_init(&pool->cancel_req_lock, true);
 	statlist_init(&pool->active_cancel_req_list, "active_cancel_req_list");
 	statlist_init(&pool->active_cancel_server_list, "active_cancel_server_list");
 	statlist_init(&pool->being_canceled_server_list, "being_canceled_server_list");
@@ -845,7 +845,7 @@ static PgPool *new_peer_pool(PgDatabase *db, int thread_id)
 
 	statlist_init(&pool->new_server_list, "new_server_list");
 	statlist_init(&pool->waiting_cancel_req_list, "waiting_cancel_req_list");
-	spin_lock_init(&pool->cancel_req_lock, true);
+	mutex_init(&pool->cancel_req_lock, true);
 	statlist_init(&pool->active_cancel_req_list, "active_cancel_req_list");
 	statlist_init(&pool->active_cancel_server_list, "active_cancel_server_list");
 

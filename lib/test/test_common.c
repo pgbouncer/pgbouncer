@@ -33,7 +33,6 @@ struct testgroup_t groups[] = {
 	{ "shlist/", shlist_tests },
 	{ "socket/", socket_tests },
 	{ "slab_ts/", slab_ts_tests },
-	{ "spinlock/", spinlock_tests },
 	{ "statlist_ts/", statlist_ts_tests },
 	{ "string/", string_tests },
 	{ "strpool/", strpool_tests },

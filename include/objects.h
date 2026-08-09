@@ -60,7 +60,7 @@ typedef struct Worker {
 	unsigned int seq;
 
 	/* multithread-only fields */
-	SpinLock thread_lock;
+	Mutex thread_lock;
 	pthread_t worker;
 	evutil_socket_t pipefd[2];	/* Pipe for receiving new client connections from main thread */
 	struct WorkerSignalEvents worker_signal_events;
@@ -87,7 +87,7 @@ extern struct ThreadSafeSlab *user_cache;
 extern struct ThreadSafeSlab *credentials_cache;
 extern struct ThreadSafeStatList sock_list;
 extern PgPreparedStatement *prepared_statements;
-extern SpinLock prepared_statements_lock;
+extern Mutex prepared_statements_lock;
 
 extern unsigned long long int last_pgsocket_id;
 

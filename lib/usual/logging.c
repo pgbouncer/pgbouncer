@@ -24,13 +24,13 @@
 #include <usual/string.h>
 #include <usual/time.h>
 #include <usual/err.h>
+#include <usual/pthread.h>
 
 #ifdef HAVE_SYSLOG_H
 #include <syslog.h>
 #endif
 
-#include <usual/spinlock.h>
-static SpinLock log_file_lock;
+static Mutex log_file_lock;
 
 #ifdef USE_SYSTEMD
 #define SD_JOURNAL_SUPPRESS_LOCATION
@@ -78,11 +78,12 @@ static bool syslog_started = false;
 
 void log_file_lock_init(void)
 {
-	spin_lock_init(&log_file_lock, false);
+	if (mutex_init(&log_file_lock, false) != 0)
+		abort();
 }
 
-#define LOG_FILE_LOCK()   spin_lock_acquire(&log_file_lock)
-#define LOG_FILE_UNLOCK() spin_lock_release(&log_file_lock)
+#define LOG_FILE_LOCK()   mutex_lock(&log_file_lock)
+#define LOG_FILE_UNLOCK() mutex_unlock(&log_file_lock)
 
 struct LevelInfo {
 	const char *tag;

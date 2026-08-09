@@ -2286,7 +2286,7 @@ void admin_wait_close_done(void)
 	FOR_EACH_WORKER_THREAD(thread_id) {
 		struct StatList *active_client_list_ptr = WORKER_THREAD_PTR(admin_pool->active_client_list, thread_id);
 		if (multithread_mode)
-			spin_lock_acquire(&workers[thread_id].pool_list.lock);
+			mutex_lock(&workers[thread_id].pool_list.lock);
 		statlist_for_each_safe(item, active_client_list_ptr, tmp) {
 			admin = container_of(item, PgSocket, head);
 			if (!admin->wait_for_response)
@@ -2299,7 +2299,7 @@ void admin_wait_close_done(void)
 				admin->wait_for_response = false;
 		}
 		if (multithread_mode)
-			spin_lock_release(&workers[thread_id].pool_list.lock);
+			mutex_unlock(&workers[thread_id].pool_list.lock);
 	}
 }
 

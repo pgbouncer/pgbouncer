@@ -539,7 +539,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 	client->db = find_or_register_database(client, dbname);
 	if (!client->db) {
 		client->db = calloc(1, sizeof(*client->db));
-		spin_lock_init(&client->db->lock, true);
+		mutex_init(&client->db->lock, true);
 		client->db->fake = true;
 		strlcpy(client->db->name, dbname, sizeof(client->db->name));
 	}

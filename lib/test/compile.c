@@ -17,7 +17,6 @@
 #include <usual/crypto/csrandom.h>
 #include <usual/misc.h>
 #include <usual/safeio.h>
-#include <usual/spinlock.h>
 #include <usual/statlist_ts.h>
 #include <usual/shlist.h>
 #include <usual/signal.h>

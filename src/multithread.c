@@ -8,7 +8,7 @@ static void init_thread(int thread_id);
 int next_worker_thread_idx = 0;
 pthread_key_t worker_key;
 int client_count = 0;
-SpinLock client_count_lock;
+Mutex client_count_lock;
 
 /*
  * WORKER THREAD MAIN FUNCTION:
@@ -74,7 +74,7 @@ void init_thread(int thread_id)
 	workers[thread_id].vpool = NULL;
 	workers[thread_id].cf_shutdown = SHUTDOWN_NONE;
 	workers[thread_id].cf_pause_mode = P_NONE;
-	spin_lock_init(&(workers[thread_id].thread_lock), true);
+	mutex_init(&(workers[thread_id].thread_lock), true);
 
 	snprintf(name, sizeof(name), "pool_cache_t%d", thread_id);
 	workers[thread_id].pool_cache = slab_create(name, sizeof(PgPool), 0, NULL, USUAL_ALLOC);
@@ -118,8 +118,8 @@ void start_worker_threads(void)
 void init_worker_threads(void)
 {
 	workers = calloc(num_threads, sizeof(Worker));
-	spin_lock_init(&prepared_statements_lock, true);
-	spin_lock_init(&client_count_lock, true);
+	mutex_init(&prepared_statements_lock, true);
+	mutex_init(&client_count_lock, true);
 	FOR_EACH_WORKER_THREAD(thread_id) {
 		init_thread(thread_id);
 	}
@@ -152,13 +152,13 @@ void worker_thread_event_wrapper(evutil_socket_t sock, short flags, void *arg)
 	WorkerEventArgs *event_args = (WorkerEventArgs *) arg;
 
 	if (multithread_mode && event_args->lock != NULL) {
-		spin_lock_acquire(event_args->lock);
+		mutex_lock(event_args->lock);
 	}
 
 	event_args->func(sock, flags, event_args->arg);
 
 	if (multithread_mode && event_args->lock != NULL) {
-		spin_lock_release(event_args->lock);
+		mutex_unlock(event_args->lock);
 	}
 
 	if (!event_args->persistent)
@@ -170,7 +170,7 @@ void lock_worker_thread(int thread_id)
 	if (thread_id < 0 || !multithread_mode) {
 		return;
 	}
-	spin_lock_acquire(&(workers[thread_id].thread_lock));
+	mutex_lock(&(workers[thread_id].thread_lock));
 }
 
 void unlock_worker_thread(int thread_id)
@@ -178,7 +178,7 @@ void unlock_worker_thread(int thread_id)
 	if (thread_id < 0 || !multithread_mode) {
 		return;
 	}
-	spin_lock_release(&(workers[thread_id].thread_lock));
+	mutex_unlock(&(workers[thread_id].thread_lock));
 }
 
 inline int get_current_worker_thread_id(void)
@@ -229,7 +229,7 @@ void wakeup_worker_thread(int thread_id)
 }
 
 /* Helper function to set up multithread event arguments */
-void init_worker_event_args(WorkerEventArgs *args, void *arg, event_callback_fn func, bool persistent, SpinLock *lock)
+void init_worker_event_args(WorkerEventArgs *args, void *arg, event_callback_fn func, bool persistent, Mutex *lock)
 {
 	args->arg = arg;
 	args->func = func;

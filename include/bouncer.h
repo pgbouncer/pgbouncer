@@ -30,7 +30,6 @@
 #include <usual/aatree.h>
 #include <usual/pthread.h>
 #include <usual/socket.h>
-#include <usual/spinlock.h>
 
 #include <event2/event.h>
 #include <event2/event_struct.h>
@@ -173,7 +172,7 @@ typedef enum ReplicationType ReplicationType;
 typedef struct WorkerEventArgs {
 	event_callback_fn func;
 	void *arg;
-	SpinLock *lock;
+	Mutex *lock;
 	bool persistent;
 } WorkerEventArgs;
 
@@ -402,7 +401,7 @@ struct PgPool {
 	 * cancel requests arriving on one thread may target a pool owned by a
 	 * different thread.
 	 */
-	SpinLock cancel_req_lock;
+	Mutex cancel_req_lock;
 
 	/*
 	 * Clients that sent a cancel request, to cancel another client its query.
@@ -586,7 +585,7 @@ struct PgCredentials {
  */
 struct PgGlobalUser {
 	PgCredentials credentials;	/* needs to be first for AAtree */
-	SpinLock lock;		/* lock for updating user state */
+	Mutex lock;		/* lock for updating user state */
 	struct List head;	/* used to attach user to list */
 	struct List *pool_list;	/* list of pools where pool->user == this user, in multithread mode, pools from all threads are tracked */
 	int pool_mode;
@@ -672,7 +671,7 @@ struct PgDatabase {
 	usec_t inactive_time;	/* when auto-database became inactive (to kill it after timeout) */
 	int connection_count;	/* total connections for this database in all pools, protected by db->lock */
 	int client_connection_count;	/* total client connections for this database, protected by db->lock */
-	SpinLock lock;		/* protects connection_count, client_connection_count, cross_thread_evict_needed */
+	Mutex lock;		/* protects connection_count, client_connection_count, cross_thread_evict_needed */
 	unsigned active_stamp;	/* set if autodb has connections */
 
 	struct AATree user_tree;	/* users that have been queried on this database */
@@ -982,10 +981,10 @@ extern const struct CfLookup load_balance_hosts_map[];
 extern usec_t g_suspend_start;
 
 extern struct DNSContext *adns;
-extern SpinLock adns_lock;
+extern Mutex adns_lock;
 extern struct HBA *parsed_hba;
 
-extern SpinLock user_lock;
+extern Mutex user_lock;
 
 static inline PgSocket * _MUSTCHECK pop_socket(struct StatList *slist)
 {
@@ -1032,4 +1031,4 @@ void config_for_each(void (*param_cb)(void *arg, const char *name, const char *v
 extern pthread_key_t worker_key;
 
 extern int client_count;
-extern SpinLock client_count_lock;
+extern Mutex client_count_lock;

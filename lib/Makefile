@@ -71,7 +71,6 @@ libusual_la_SOURCES = usual/config.h.in \
 	usual/slab.h usual/slab.c \
 	usual/slab_ts.h usual/slab_ts.c \
 	usual/socket.h usual/socket.c usual/socket_ntop.c usual/socket_pton.c usual/socket_win32.h \
-	usual/spinlock.h usual/spinlock.c \
 	usual/statlist.h \
 	usual/statlist_ts.h \
 	usual/string.h usual/string.c \

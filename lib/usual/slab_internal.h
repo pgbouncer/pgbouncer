@@ -3,7 +3,6 @@
 
 #include <usual/statlist.h>
 #include <usual/slab.h>
-#include <usual/spinlock.h>
 
 /*
  * Store for pre-initialized objects of one type.

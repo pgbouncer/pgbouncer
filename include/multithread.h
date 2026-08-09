@@ -63,9 +63,9 @@
 #define WITH_LOCK(lock, func) \
 	do { \
 		if (multithread_mode) { \
-			spin_lock_acquire(lock); \
+			mutex_lock(lock); \
 			func; \
-			spin_lock_release(lock); \
+			mutex_unlock(lock); \
 		} else { \
 			func; \
 		} \
@@ -89,4 +89,4 @@ void worker_thread_event_wrapper(evutil_socket_t sock, short flags, void *arg);
 void wakeup_worker_thread(int thread_id);
 
 /* Helper function to set up multithread event arguments */
-void init_worker_event_args(WorkerEventArgs *args, void *arg, event_callback_fn func, bool persistent, SpinLock *lock);
+void init_worker_event_args(WorkerEventArgs *args, void *arg, event_callback_fn func, bool persistent, Mutex *lock);

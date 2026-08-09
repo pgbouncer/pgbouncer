@@ -50,7 +50,6 @@ extern struct testcase_t regex_tests[];
 extern struct testcase_t shlist_tests[];
 extern struct testcase_t socket_tests[];
 extern struct testcase_t slab_ts_tests[];
-extern struct testcase_t spinlock_tests[];
 extern struct testcase_t statlist_ts_tests[];
 extern struct testcase_t string_tests[];
 extern struct testcase_t strpool_tests[];

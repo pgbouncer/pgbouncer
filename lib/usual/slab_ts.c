@@ -1,11 +1,21 @@
 #include <usual/slab_ts.h>
 #include <usual/slab_internal.h>
-#include <usual/spinlock.h>
 #include <usual/statlist_ts.h>
 
 
 /* keep track of all active thread-safe slabs */
-static THREAD_SAFE_STATLIST(thread_safe_slab_list, true);
+static struct ThreadSafeStatList thread_safe_slab_list;
+static pthread_once_t thread_safe_slab_list_once = PTHREAD_ONCE_INIT;
+
+static void thread_safe_slab_list_init_once(void)
+{
+	thread_safe_statlist_init(&thread_safe_slab_list, "thread_safe_slab_list", true);
+}
+
+static void ensure_thread_safe_slab_list_init(void)
+{
+	pthread_once(&thread_safe_slab_list_once, thread_safe_slab_list_init_once);
+}
 
 /*
  * Thread-safe wrapper for the primitive slab allocator.
@@ -13,16 +23,18 @@ static THREAD_SAFE_STATLIST(thread_safe_slab_list, true);
 struct ThreadSafeSlab {
 	struct List head;
 	struct Slab *slab;
-	SpinLock lock;
+	Mutex lock;
 };
 
 static void ts_slab_list_append(struct ThreadSafeSlab *ts_slab)
 {
+	ensure_thread_safe_slab_list_init();
 	thread_safe_statlist_append(&thread_safe_slab_list, &ts_slab->head);
 }
 
 static void ts_slab_list_remove(struct ThreadSafeSlab *ts_slab)
 {
+	ensure_thread_safe_slab_list_init();
 	thread_safe_statlist_remove(&thread_safe_slab_list, &ts_slab->head);
 }
 
@@ -53,7 +65,12 @@ struct ThreadSafeSlab *thread_safe_slab_create(const char *name, unsigned obj_si
 
 	list_init(&ts_slab->head);
 	init_thread_safe_slab_and_store_in_list(ts_slab, name, obj_size, align, init_func, cx);
-	spin_lock_init(&ts_slab->lock, enable_recursive_lock);
+	if (mutex_init(&ts_slab->lock, enable_recursive_lock) != 0) {
+		ts_slab_list_remove(ts_slab);
+		slab_destroy_internal(ts_slab->slab);
+		free(ts_slab);
+		return NULL;
+	}
 	return ts_slab;
 }
 
@@ -72,27 +89,27 @@ void thread_safe_slab_destroy(struct ThreadSafeSlab *ts_slab)
 void *thread_safe_slab_alloc(struct ThreadSafeSlab *ts_slab)
 {
 	void *obj;
-	spin_lock_acquire(&ts_slab->lock);
+	mutex_lock(&ts_slab->lock);
 	obj = slab_alloc(ts_slab->slab);
-	spin_lock_release(&ts_slab->lock);
+	mutex_unlock(&ts_slab->lock);
 	return obj;
 }
 
 /* return object back to the slab */
 void thread_safe_slab_free(struct ThreadSafeSlab *ts_slab, void *obj)
 {
-	spin_lock_acquire(&ts_slab->lock);
+	mutex_lock(&ts_slab->lock);
 	slab_free(ts_slab->slab, obj);
-	spin_lock_release(&ts_slab->lock);
+	mutex_unlock(&ts_slab->lock);
 }
 
 /* get total number of objects allocated (capacity), including free and in-use */
 int thread_safe_slab_total_count(struct ThreadSafeSlab *ts_slab)
 {
 	int count;
-	spin_lock_acquire(&ts_slab->lock);
+	mutex_lock(&ts_slab->lock);
 	count = slab_total_count(ts_slab->slab);
-	spin_lock_release(&ts_slab->lock);
+	mutex_unlock(&ts_slab->lock);
 	return count;
 }
 
@@ -100,9 +117,9 @@ int thread_safe_slab_total_count(struct ThreadSafeSlab *ts_slab)
 int thread_safe_slab_free_count(struct ThreadSafeSlab *ts_slab)
 {
 	int count;
-	spin_lock_acquire(&ts_slab->lock);
+	mutex_lock(&ts_slab->lock);
 	count = slab_free_count(ts_slab->slab);
-	spin_lock_release(&ts_slab->lock);
+	mutex_unlock(&ts_slab->lock);
 	return count;
 }
 
@@ -110,9 +127,9 @@ int thread_safe_slab_free_count(struct ThreadSafeSlab *ts_slab)
 int thread_safe_slab_active_count(struct ThreadSafeSlab *ts_slab)
 {
 	int count;
-	spin_lock_acquire(&ts_slab->lock);
+	mutex_lock(&ts_slab->lock);
 	count = slab_active_count(ts_slab->slab);
-	spin_lock_release(&ts_slab->lock);
+	mutex_unlock(&ts_slab->lock);
 	return count;
 }
 
@@ -125,17 +142,18 @@ void thread_safe_slab_stats(slab_stat_fn cb_func, void *cb_arg)
 	size_t final_size;
 	unsigned free, total_count;
 
-	spin_lock_acquire(&thread_safe_slab_list.lock);
+	ensure_thread_safe_slab_list_init();
+	mutex_lock(&thread_safe_slab_list.lock);
 	statlist_for_each(item, &thread_safe_slab_list.list) {
 		ts_slab = container_of(item, struct ThreadSafeSlab, head);
-		spin_lock_acquire(&ts_slab->lock);
+		mutex_lock(&ts_slab->lock);
 		name = ts_slab->slab->name;
 		final_size = ts_slab->slab->final_size;
 		free = statlist_count(&ts_slab->slab->freelist);
 		total_count = ts_slab->slab->total_count;
-		spin_lock_release(&ts_slab->lock);
+		mutex_unlock(&ts_slab->lock);
 
 		cb_func(cb_arg, name, final_size, free, total_count);
 	}
-	spin_lock_release(&thread_safe_slab_list.lock);
+	mutex_unlock(&thread_safe_slab_list.lock);
 }

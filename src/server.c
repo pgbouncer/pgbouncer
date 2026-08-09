@@ -27,13 +27,13 @@
 
 #define ERRCODE_CANNOT_CONNECT_NOW "57P03"
 
-static enum TargetSessionAttrValue parse_target_session_attr(const char *value)
+static enum BoolOption parse_bool_option(const char *value)
 {
 	if (strcmp(value, "off") == 0)
-		return TARGET_SESSION_ATTR_OFF;
+		return BOOL_OPTION_OFF;
 	if (strcmp(value, "on") == 0)
-		return TARGET_SESSION_ATTR_ON;
-	return TARGET_SESSION_ATTR_UNKNOWN;
+		return BOOL_OPTION_ON;
+	return BOOL_OPTION_UNKNOWN;
 }
 
 static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
@@ -54,9 +54,9 @@ static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 		goto failed;
 	slog_debug(server, "S: param: %s = %s", key, val);
 	if (strcmp(key, "in_hot_standby") == 0)
-		server->in_hot_standby = parse_target_session_attr(val);
+		server->in_hot_standby = parse_bool_option(val);
 	else if (strcmp(key, "default_transaction_read_only") == 0)
-		server->default_transaction_read_only = parse_target_session_attr(val);
+		server->default_transaction_read_only = parse_bool_option(val);
 
 	varcache_set(&server->vars, key, val);
 
@@ -85,15 +85,15 @@ static bool server_matches_target_session_attrs(const PgSocket *server)
 	case TARGET_SESSION_ANY:
 		return true;
 	case TARGET_SESSION_READ_WRITE:
-		return server->in_hot_standby == TARGET_SESSION_ATTR_OFF &&
-		       server->default_transaction_read_only == TARGET_SESSION_ATTR_OFF;
+		return server->in_hot_standby == BOOL_OPTION_OFF &&
+		       server->default_transaction_read_only == BOOL_OPTION_OFF;
 	case TARGET_SESSION_READ_ONLY:
-		return server->in_hot_standby == TARGET_SESSION_ATTR_ON ||
-		       server->default_transaction_read_only == TARGET_SESSION_ATTR_ON;
+		return server->in_hot_standby == BOOL_OPTION_ON ||
+		       server->default_transaction_read_only == BOOL_OPTION_ON;
 	case TARGET_SESSION_PRIMARY:
-		return server->in_hot_standby == TARGET_SESSION_ATTR_OFF;
+		return server->in_hot_standby == BOOL_OPTION_OFF;
 	case TARGET_SESSION_STANDBY:
-		return server->in_hot_standby == TARGET_SESSION_ATTR_ON;
+		return server->in_hot_standby == BOOL_OPTION_ON;
 	}
 	return false;
 }

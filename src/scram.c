@@ -737,6 +737,8 @@ bool read_client_final_message(PgSocket *client, const uint8_t *raw_input, char 
 	}
 
 	client_final_nonce = read_attr_value(client, &input, 'r');
+	if (client_final_nonce == NULL)
+		goto failed;
 
 	/* ignore optional extensions */
 	do {

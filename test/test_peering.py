@@ -1,7 +1,6 @@
 import asyncio
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict
 
 import psycopg
 import pytest
@@ -15,7 +14,7 @@ if not LINUX:
 
 @pytest.fixture
 async def peers(pg, tmp_path):
-    peers: Dict[int, Bouncer] = {}
+    peers: dict[int, Bouncer] = {}
     peers[1] = Bouncer(pg, tmp_path / "bouncer1")
 
     peers[2] = Bouncer(pg, tmp_path / "bouncer2", port=peers[1].port)
@@ -40,17 +39,16 @@ async def peers(pg, tmp_path):
 
 
 def test_peering_without_own_index(peers):
-    with peers[1].cur() as cur:
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            for _ in range(10):
-                query = pool.submit(cur.execute, "select pg_sleep(5)")
-                time.sleep(0.5)
-                cancel = pool.submit(cur.connection.cancel)
-                cancel.result()
-                with pytest.raises(
-                    psycopg.errors.QueryCanceled, match="due to user request"
-                ):
-                    query.result()
+    with peers[1].cur() as cur, ThreadPoolExecutor(max_workers=2) as pool:
+        for _ in range(10):
+            query = pool.submit(cur.execute, "select pg_sleep(5)")
+            time.sleep(0.5)
+            cancel = pool.submit(cur.connection.cancel)
+            cancel.result()
+            with pytest.raises(
+                psycopg.errors.QueryCanceled, match="due to user request"
+            ):
+                query.result()
 
 
 def test_peering_default_port(bouncer, pg):
@@ -93,17 +91,16 @@ def test_peering_with_own_index(peers):
             f.write(f"{own_index} = host={bouncer.admin_host} port={bouncer.port}\n")
         bouncer.admin("reload")
 
-    with peers[1].cur() as cur:
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            for _ in range(10):
-                query = pool.submit(cur.execute, "select pg_sleep(5)")
-                time.sleep(0.5)
-                cancel = pool.submit(cur.connection.cancel)
-                cancel.result()
-                with pytest.raises(
-                    psycopg.errors.QueryCanceled, match="due to user request"
-                ):
-                    query.result()
+    with peers[1].cur() as cur, ThreadPoolExecutor(max_workers=2) as pool:
+        for _ in range(10):
+            query = pool.submit(cur.execute, "select pg_sleep(5)")
+            time.sleep(0.5)
+            cancel = pool.submit(cur.connection.cancel)
+            cancel.result()
+            with pytest.raises(
+                psycopg.errors.QueryCanceled, match="due to user request"
+            ):
+                query.result()
 
 
 async def test_rolling_restart_admin(peers):
@@ -116,7 +113,7 @@ async def test_rolling_restart_admin(peers):
         # Trigger a shutdown, but the process should keep running until we
         # close the connection
         peers[1].admin("shutdown wait_for_clients")
-        time.sleep(1)
+        await asyncio.sleep(1)
         assert peers[1].running()
 
         # New connection attempts are now expected to fail, because no process
@@ -151,7 +148,7 @@ async def test_rolling_restart_sigterm(peers):
         # Trigger a shutdown, but the process should keep running until we
         # close the connection
         peers[1].sigterm()
-        time.sleep(1)
+        await asyncio.sleep(1)
         assert peers[1].running()
 
         # New connection attempts are now expected to fail, because no process

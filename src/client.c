@@ -663,6 +663,11 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 
 			slog_info(client, "no such user: %s", username);
 			client->login_user_credentials = calloc(1, sizeof(*client->login_user_credentials));
+			if (!client->login_user_credentials) {
+				slog_error(client, "set_pool(): failed to allocate login user credentials");
+				disconnect_client(client, true, "bouncer resources exhaustion");
+				return false;
+			}
 
 			/*
 			 * For users that we are already tracking, we want to

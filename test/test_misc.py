@@ -1,5 +1,7 @@
 import asyncio
 import re
+import socket
+import struct
 import threading
 import time
 
@@ -542,6 +544,62 @@ async def test_host_list(bouncer):
 async def test_host_list_dummy(bouncer):
     with bouncer.log_contains(r"new connection to server \(from 127.0.0.1", times=2):
         await bouncer.asleep(1, dbname="hostlist2", times=2)
+
+
+def _send_startup_message(bouncer, parameters):
+    payload = struct.pack("!I", 0x30000) + parameters
+
+    with socket.create_connection((bouncer.host, bouncer.port)) as sock:
+        sock.sendall(struct.pack("!I", len(payload) + 4) + payload)
+        with sock.makefile("rb") as stream:
+            message_type = stream.read(1)
+            message_length = struct.unpack("!I", stream.read(4))[0]
+            return message_type, stream.read(message_length - 4)
+
+
+def test_protocol_extension_negotiation(bouncer):
+    protocol_version = 0x30000
+    extension = b"_pq_.test_protocol_negotiation"
+    parameters = (
+        b"\0".join(
+            (
+                b"user",
+                b"puser1",
+                b"database",
+                b"p0",
+                extension,
+                b"",
+                b"",
+            )
+        )
+        + b"\0"
+    )
+    message_type, message = _send_startup_message(bouncer, parameters)
+
+    assert message_type == b"v"
+    negotiated_version, extension_count = struct.unpack("!II", message[:8])
+    assert negotiated_version == protocol_version
+    assert extension_count == 1
+    assert message[8:] == extension + b"\0"
+
+    parameters = (
+        b"\0".join(
+            (
+                b"user",
+                b"puser1",
+                extension,
+                b"",
+                b"unsupported",
+                b"value",
+                b"",
+            )
+        )
+        + b"\0"
+    )
+    message_type, message = _send_startup_message(bouncer, parameters)
+
+    assert message_type == b"E"
+    assert b"unsupported startup parameter: unsupported\0" in message
 
 
 def test_options_startup_param(bouncer):

@@ -414,7 +414,7 @@ bool read_server_first_message(PgSocket *server, char *input)
 		return false;
 
 	iterations = strtol(iterations_str, &endptr, 10);
-	if (*endptr != '\0' || iterations < 1) {
+	if (*endptr != '\0' || iterations < 1 || iterations > SCRAM_MAX_ITERATIONS) {
 		slog_error(server, "malformed SCRAM message (invalid iteration count)");
 		return false;
 	}

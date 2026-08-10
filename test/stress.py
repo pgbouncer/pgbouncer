@@ -48,10 +48,7 @@ class WorkThread(threading.Thread):
         return val
 
     def run(self):
-        try:
-            time.sleep(random.random() * 10.0)
-        except Exception:
-            pass
+        time.sleep(random.random() * 10.0)
         while 1:
             try:
                 self.main_loop()
@@ -59,12 +56,9 @@ class WorkThread(threading.Thread):
                 break
             except SystemExit:
                 break
-            except Exception as d:
+            except psycopg2.Error as d:
                 print(d)
-                try:
-                    time.sleep(5)
-                except Exception:
-                    pass
+                time.sleep(5)
 
     def main_loop(self):
         db = psycopg2.connect(get_connstr())
@@ -86,7 +80,7 @@ class WorkThread(threading.Thread):
 
 
 def main():
-    print("connstr %s" % get_connstr())
+    print(f"connstr {get_connstr()}")
 
     thread_list = []
     while len(thread_list) < n_thread:
@@ -94,7 +88,7 @@ def main():
         t.start()
         thread_list.append(t)
 
-    print("started %d threads" % len(thread_list))
+    print(f"started {len(thread_list)} threads")
 
     last = time.time()
     while 1:
@@ -107,7 +101,7 @@ def main():
             for t in thread_list:
                 cnt += t.fetch_cnt()
             avg = cnt / dur
-            print("avg %s" % avg)
+            print(f"avg {avg}")
 
 
 if __name__ == "__main__":

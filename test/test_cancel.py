@@ -6,18 +6,15 @@ import pytest
 
 
 def test_cancel(bouncer):
-    with bouncer.cur(dbname="p3") as cur:
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            query = pool.submit(cur.execute, "select pg_sleep(5)")
+    with bouncer.cur(dbname="p3") as cur, ThreadPoolExecutor(max_workers=2) as pool:
+        query = pool.submit(cur.execute, "select pg_sleep(5)")
 
-            time.sleep(1)
+        time.sleep(1)
 
-            cancel = pool.submit(cur.connection.cancel)
-            cancel.result()
-            with pytest.raises(
-                psycopg.errors.QueryCanceled, match="due to user request"
-            ):
-                query.result()
+        cancel = pool.submit(cur.connection.cancel)
+        cancel.result()
+        with pytest.raises(psycopg.errors.QueryCanceled, match="due to user request"):
+            query.result()
 
 
 # Test for waiting connections handling for cancel requests.
@@ -30,20 +27,17 @@ def test_cancel_wait(bouncer):
     # default_pool_size=5
     bouncer.admin(f"set server_idle_timeout=2")
 
-    with bouncer.cur(dbname="p3") as cur:
-        with ThreadPoolExecutor(max_workers=6) as pool:
-            q1 = pool.submit(cur.execute, "select pg_sleep(5)")
-            others = [pool.submit(bouncer.sleep, 2, dbname="p3") for _ in range(4)]
+    with bouncer.cur(dbname="p3") as cur, ThreadPoolExecutor(max_workers=6) as pool:
+        q1 = pool.submit(cur.execute, "select pg_sleep(5)")
+        others = [pool.submit(bouncer.sleep, 2, dbname="p3") for _ in range(4)]
 
-            cancel = pool.submit(cur.connection.cancel)
-            cancel.result()
-            with pytest.raises(
-                psycopg.errors.QueryCanceled, match="due to user request"
-            ):
-                q1.result()
+        cancel = pool.submit(cur.connection.cancel)
+        cancel.result()
+        with pytest.raises(psycopg.errors.QueryCanceled, match="due to user request"):
+            q1.result()
 
-            for q in others:
-                q.result()
+        for q in others:
+            q.result()
 
 
 # Test that cancel requests can exceed the pool size

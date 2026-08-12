@@ -1898,10 +1898,9 @@ void admin_setup(void)
 	}
 
 	/* prepare welcome */
-	msg = pktbuf_dynamic(128);
+	msg = pool->welcome_msg;
 	if (!msg)
 		die("out of memory");
-	pktbuf_write_AuthenticationOk(msg);
 	pktbuf_write_ParameterStatus(msg, "server_version", PACKAGE_VERSION "/bouncer");
 	pktbuf_write_ParameterStatus(msg, "client_encoding", "UTF8");
 	pktbuf_write_ParameterStatus(msg, "server_encoding", "UTF8");
@@ -1910,8 +1909,6 @@ void admin_setup(void)
 	pktbuf_write_ParameterStatus(msg, "standard_conforming_strings", "on");
 	pktbuf_write_ParameterStatus(msg, "is_superuser", "on");
 
-	pktbuf_write_ParameterStatus(msg, "pgbouncer.pool_mode", "statement");
-	pktbuf_write_ParameterStatus(msg, "pgbouncer.version", PACKAGE_VERSION);
 	pktbuf_write_ParameterStatus(msg, "pgbouncer.max_prepared_statements", "0");
 
 	if (msg->failed)

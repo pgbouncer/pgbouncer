@@ -1079,7 +1079,7 @@ class Bouncer(QueryRunner):
             stderr=subprocess.PIPE,
         )
 
-        out, err = p.communicate()
+        out, _ = p.communicate()
         return out.decode().split("\n")[0].split(" ")[1]
 
     async def start(self):

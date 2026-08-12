@@ -700,10 +700,19 @@ PgCredentials *find_global_credentials(const char *name)
 static PgPool *new_pool(PgDatabase *db, PgCredentials *user_credentials)
 {
 	PgPool *pool;
+	PktBuf *msg;
 
 	pool = slab_alloc(pool_cache);
-	if (!pool)
+	if (!pool) {
 		return NULL;
+	}
+
+	msg = new_welcome_msg();
+	if (!msg) {
+		slab_free(pool_cache, pool);
+		return NULL;
+	}
+	pool->welcome_msg = msg;
 
 	list_init(&pool->head);
 	list_init(&pool->map_head);
@@ -2528,6 +2537,7 @@ void tag_pool_dirty(PgPool *pool)
 {
 	struct List *item, *tmp;
 	struct PgSocket *server;
+	PktBuf *msg;
 
 	/*
 	 * Don't tag the admin pool as dirty, since this is not an actual postgres
@@ -2552,6 +2562,11 @@ void tag_pool_dirty(PgPool *pool)
 		server = container_of(item, PgSocket, head);
 		disconnect_server(server, true, "connect string changed");
 	}
+
+	msg = new_welcome_msg();
+	if (!msg)
+		return;
+	pool->welcome_msg = msg;
 }
 
 void tag_database_dirty(PgDatabase *db)

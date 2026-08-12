@@ -319,39 +319,25 @@ void log_server_error(const char *note, PktHdr *pkt)
  * Preparation of welcome message for client connection.
  */
 
-/* add another server parameter packet to cache */
-bool add_welcome_parameter(PgSocket *server, const char *key, const char *val)
+PktBuf *new_welcome_msg(void)
 {
-	PgPool *pool = server->pool;
+	PktBuf *msg;
+	msg = pktbuf_dynamic(128);
+	if (!msg)
+		return false;
+
+	pktbuf_write_AuthenticationOk(msg);
+	pktbuf_write_ParameterStatus(msg, "pgbouncer.version", PACKAGE_VERSION);
+	return msg;
+}
+
+/* add another server parameter packet to cache */
+bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
+{
 	PktBuf *msg = pool->welcome_msg;
 
 	if (pool->welcome_msg_ready)
 		return true;
-
-	if (!msg) {
-		msg = pktbuf_dynamic(128);
-		if (!msg)
-			return false;
-		pool->welcome_msg = msg;
-	}
-
-	/* first packet must be AuthOk */
-	if (msg->write_pos == 0)
-		pktbuf_write_AuthenticationOk(msg);
-
-	pktbuf_write_ParameterStatus(msg, "pgbouncer.version", PACKAGE_VERSION);
-	pktbuf_write_ParameterStatus(msg, "pgbouncer.max_prepared_statements", cf_max_prepared_statements);
-
-	switch (connection_pool_mode(server)) {
-	case POOL_SESSION:
-		pktbuf_write_ParameterStatus(msg, "pgbouncer.pool_mode", "session");
-		break;
-	case POOL_TX:
-		pktbuf_write_ParameterStatus(msg, "pgbouncer.pool_mode", "transaction");
-		break;
-	case POOL_STMT:
-		pktbuf_write_ParameterStatus(msg, "pgbouncer.pool_mode", "statement");
-	}
 
 	/* if not stored in ->orig_vars, write full packet */
 	if (!varcache_set(&pool->orig_vars, key, val))
@@ -381,6 +367,22 @@ bool welcome_client(PgSocket *client)
 	/* copy prepared stuff around */
 	msg = pktbuf_temp();
 	pktbuf_put_bytes(msg, pmsg->buf, pmsg->write_pos);
+
+	if (pool->db->admin) {
+		pktbuf_write_ParameterStatus(msg, "pgbouncer.max_prepared_statements", "0");
+	} else {
+		pktbuf_write_ParameterStatus(msg, "pgbouncer.max_prepared_statements", cf_max_prepared_statements);
+	}
+	switch (connection_pool_mode(client)) {
+	case POOL_SESSION:
+		pktbuf_write_ParameterStatus(msg, "pgbouncer.pool_mode", "session");
+		break;
+	case POOL_TX:
+		pktbuf_write_ParameterStatus(msg, "pgbouncer.pool_mode", "transaction");
+		break;
+	case POOL_STMT:
+		pktbuf_write_ParameterStatus(msg, "pgbouncer.pool_mode", "statement");
+	}
 
 	/* fill vars */
 	varcache_fill_unset(&pool->orig_vars, client);

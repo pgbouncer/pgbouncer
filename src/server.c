@@ -510,22 +510,31 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			if (mbuf_get_string(&pkt->data, &tag)) {
 				if (strcmp(tag, "DEALLOCATE ALL") == 0 ||
 				    strcmp(tag, "DISCARD ALL") == 0) {
-					struct List *reset_item = statlist_first(&server->outstanding_requests);
-					OutstandingRequest *reset_req = reset_item
-						? container_of(reset_item, OutstandingRequest, node) : NULL;
-					free_server_prepared_statements_upto(server,
-									    reset_req ? reset_req->server_ps_seq
-									    : server->prepared_statement_seq);
+					/*
+					 * Only what was prepared before the client sent the reset
+					 * is gone. Pipelined input means a Parse can already have
+					 * arrived since then, and the server ran it after the
+					 * reset, so those statements still exist and keep their
+					 * mappings. The request at the head of the queue is the
+					 * reset its own, and it carries the counters as they were
+					 * when the reset was queued.
+					 */
+					struct List *item = statlist_first(&server->outstanding_requests);
+					OutstandingRequest *reset_req = NULL;
+					uint64_t server_seq = server->prepared_statement_seq;
+
+					if (item) {
+						reset_req = container_of(item, OutstandingRequest, node);
+						server_seq = reset_req->server_ps_seq;
+					}
+					free_server_prepared_statements_upto(server, server_seq);
+
 					if (client) {
-						/*
-						 * Only the statements the client had registered when
-						 * it sent the reset are gone. Pipelined input means it
-						 * can already have prepared more since then, and those
-						 * do exist on the server, so their mappings stay.
-						 */
-						free_client_prepared_statements_upto(client,
-										     reset_req ? reset_req->client_ps_seq
-										     : client->prepared_statement_seq);
+						uint64_t client_seq = reset_req
+								      ? reset_req->client_ps_seq
+								      : client->prepared_statement_seq;
+
+						free_client_prepared_statements_upto(client, client_seq);
 					}
 				}
 			} else {

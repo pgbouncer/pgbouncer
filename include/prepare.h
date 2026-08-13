@@ -21,6 +21,13 @@ typedef struct PgPreparedStatement {
 typedef struct PgClientPreparedStatement {
 	UT_hash_handle hh;
 	PgPreparedStatement *ps;
+	/*
+	 * Order in which the client registered this statement, taken from the
+	 * client its prepared_statement_seq counter. A DEALLOCATE ALL or
+	 * DISCARD ALL only invalidates statements that the client registered
+	 * before it sent the reset, so the reset compares against this.
+	 */
+	uint64_t seq;
 	char stmt_name[];	/* varying size */
 } PgClientPreparedStatement;
 
@@ -29,6 +36,12 @@ typedef struct PgServerPreparedStatement {
 	uint64_t query_id;
 	UT_hash_handle hh;
 	PgPreparedStatement *ps;
+	/*
+	 * Order in which this statement was prepared on the server, taken from
+	 * the server its prepared_statement_seq counter. A reset only removes
+	 * what the server had prepared before it ran the reset.
+	 */
+	uint64_t seq;
 } PgServerPreparedStatement;
 
 #define is_prepared_statements_enabled(client_or_server) \
@@ -44,4 +57,6 @@ void free_server_prepared_statement(PgServerPreparedStatement *server_ps);
 void unregister_prepared_statement(PgSocket *server, uint64_t query_id);
 bool add_prepared_statement(PgSocket *server, PgServerPreparedStatement *server_ps) _MUSTCHECK;
 void free_client_prepared_statements(PgSocket *client);
+void free_client_prepared_statements_upto(PgSocket *client, uint64_t seq);
 void free_server_prepared_statements(PgSocket *server);
+void free_server_prepared_statements_upto(PgSocket *server, uint64_t seq);

@@ -79,6 +79,28 @@ def test_deallocate_all(bouncer):
             cur1.execute(prepared_query)
 
 
+@pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
+@pytest.mark.parametrize("reset_query", ["DEALLOCATE ALL", "DISCARD ALL"])
+def test_reset_all_does_not_remove_later_prepared_statement(bouncer, reset_query):
+    bouncer.admin("set pool_mode=transaction")
+    prepared_query = "SELECT 1"
+    with bouncer.conn() as conn, conn.pipeline() as pipeline:
+        reset = conn.cursor()
+        cur = conn.cursor()
+
+        # The Parse for the prepared query reaches PgBouncer before the
+        # CommandComplete for the reset comes back from the server, so the
+        # cleanup must not drop the mapping registered after the reset.
+        reset.execute(reset_query)
+        cur.execute(prepared_query, prepare=True)
+        pipeline.sync()
+        assert cur.fetchall() == [(1,)]
+
+        cur.execute(prepared_query, prepare=True)
+        pipeline.sync()
+        assert cur.fetchall() == [(1,)]
+
+
 def test_discard_all(bouncer):
     bouncer.admin(f"set pool_mode=transaction")
     prepared_query = "SELECT 1"

@@ -1078,6 +1078,8 @@ bool add_outstanding_request(PgSocket *client, char type, ResponseAction action)
 		return false;
 	request->type = type;
 	request->action = action;
+	request->client_ps_seq = client->prepared_statement_seq;
+	request->server_ps_seq = server->prepared_statement_seq;
 	statlist_append(&server->outstanding_requests, &request->node);
 	slog_noise(client, "add_outstanding_request: added %c, still outstanding %d",
 		   type, statlist_count(&client->link->outstanding_requests));

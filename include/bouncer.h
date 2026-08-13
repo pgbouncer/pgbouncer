@@ -673,6 +673,20 @@ typedef struct OutstandingRequest {
 	PgServerPreparedStatement *server_ps;
 
 	uint64_t server_ps_query_id;
+
+	/*
+	 * Value of the client its prepared_statement_seq counter when this
+	 * request was queued. A reset only invalidates client statements that
+	 * were registered at or before this point; anything the client
+	 * registered later in the same pipeline still exists on the server.
+	 */
+	uint64_t client_ps_seq;
+
+	/*
+	 * Same idea for the server its statement cache: what the server had
+	 * prepared when this request was queued.
+	 */
+	uint64_t server_ps_seq;
 } OutstandingRequest;
 
 enum ReplicationType {
@@ -796,6 +810,8 @@ struct PgSocket {
 	PgClientPreparedStatement *client_prepared_statements;
 	/* server: prepared statements prepared on this server */
 	PgServerPreparedStatement *server_prepared_statements;
+	/* client and server: order in which statements were registered here */
+	uint64_t prepared_statement_seq;
 
 	/* cb state during SBUF_EV_PKT_CALLBACK processing */
 	struct CallbackState {

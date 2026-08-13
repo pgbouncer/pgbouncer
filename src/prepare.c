@@ -210,6 +210,7 @@ void unregister_prepared_statement(PgSocket *server, uint64_t query_id)
  */
 bool add_prepared_statement(PgSocket *server, PgServerPreparedStatement *server_ps)
 {
+	server_ps->seq = ++server->prepared_statement_seq;
 	HASH_ADD_UINT64(server->server_prepared_statements, query_id, server_ps);
 	if (uthash_alloc_failed) {
 		uthash_alloc_failed = false;
@@ -341,6 +342,7 @@ bool handle_parse_command(PgSocket *client, PktHdr *pkt)
 	client_ps = create_client_prepared_statement(pp.name, ps);
 	if (client_ps == NULL)
 		goto oom;
+	client_ps->seq = ++client->prepared_statement_seq;
 	HASH_ADD_STR(client->client_prepared_statements, stmt_name, client_ps);
 	if (uthash_alloc_failed) {
 		uthash_alloc_failed = false;
@@ -693,6 +695,32 @@ bool handle_close_statement_command(PgSocket *client, PktHdr *pkt, PgClosePacket
 }
 
 /*
+ * Frees the prepared statements that the client registered at or before the
+ * given sequence number, leaving any it registered later in place.
+ *
+ * A DEALLOCATE ALL or DISCARD ALL is cleaned up when the server reports its
+ * CommandComplete, but pipelined input means the client can already have sent
+ * a Parse for a new statement by then. That statement really does exist on the
+ * server, so dropping its mapping would make PgBouncer reject a statement the
+ * client just prepared successfully.
+ */
+void free_client_prepared_statements_upto(PgSocket *client, uint64_t seq)
+{
+	PgClientPreparedStatement *client_ps, *tmp;
+
+	HASH_ITER(hh, client->client_prepared_statements, client_ps, tmp) {
+		if (client_ps->seq > seq)
+			continue;
+		HASH_DEL(client->client_prepared_statements, client_ps);
+		if (--client_ps->ps->use_count == 0) {
+			HASH_DEL(prepared_statements, client_ps->ps);
+			free(client_ps->ps);
+		}
+		free(client_ps);
+	}
+}
+
+/*
  * Frees all the prepared statements that are cached on the client.
  */
 void free_client_prepared_statements(PgSocket *client)
@@ -710,6 +738,23 @@ void free_client_prepared_statements(PgSocket *client)
 
 	free(client->client_prepared_statements);
 	client->client_prepared_statements = NULL;
+}
+
+/*
+ * Frees the statements prepared on the server at or before the given sequence
+ * number. A reset the server has just run only removes what it had prepared
+ * beforehand; anything Parsed later in the same pipeline still exists there.
+ */
+void free_server_prepared_statements_upto(PgSocket *server, uint64_t seq)
+{
+	struct PgServerPreparedStatement *current, *tmp_s;
+
+	HASH_ITER(hh, server->server_prepared_statements, current, tmp_s) {
+		if (current->seq > seq)
+			continue;
+		HASH_DEL(server->server_prepared_statements, current);
+		free_server_prepared_statement(current);
+	}
 }
 
 /*

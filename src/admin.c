@@ -347,6 +347,17 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	if (sk->sbuf.tls || (sk->link && sk->link->sbuf.tls))
 		return true;
 
+#ifdef HAVE_GSSAPI
+	/*
+	 * Skip GSS-encrypted sockets: the encryption context cannot be handed
+	 * to the new process across a takeover, and resuming such an fd as
+	 * plaintext would emit unencrypted bytes on a stream the peer believes
+	 * is encrypted.
+	 */
+	if (sk->gss_enc.active || (sk->link && sk->link->gss_enc.active))
+		return true;
+#endif
+
 	mbuf_init_fixed_reader(&tmp, sk->cancel_key, 8);
 	if (!mbuf_get_uint64be(&tmp, &ckey))
 		return false;

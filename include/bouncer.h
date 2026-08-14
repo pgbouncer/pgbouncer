@@ -22,6 +22,10 @@
 
 #include "system.h"
 
+#ifdef HAVE_GSSAPI
+#include <gssapi/gssapi.h>
+#endif
+
 #include <usual/cfparser.h>
 #include <usual/time.h>
 #include <usual/list.h>
@@ -126,6 +130,13 @@ enum SSLMode {
 	SSLMODE_REQUIRE,
 	SSLMODE_VERIFY_CA,
 	SSLMODE_VERIFY_FULL
+};
+
+enum GssEncMode {
+	GSSENCMODE_DISABLED,
+	GSSENCMODE_ALLOW,
+	GSSENCMODE_PREFER,
+	GSSENCMODE_REQUIRE
 };
 
 enum PacketCallbackFlag {
@@ -248,6 +259,7 @@ enum auth_type {
 	AUTH_TYPE_SCRAM_SHA_256,
 	AUTH_TYPE_PEER,
 	AUTH_TYPE_REJECT,
+	AUTH_TYPE_GSSAPI,
 };
 
 /* type codes for weird pkts */
@@ -735,6 +747,7 @@ struct PgSocket {
 	bool wait_for_response : 1;	/* console client: waits for completion of PAUSE/SUSPEND cmd */
 
 	bool wait_sslchar : 1;		/* server: waiting for ssl response: S/N */
+	bool wait_gss_enc_char : 1;	/* server: waiting for gss enc response: G/N */
 	/* server: received an ErrorResponse, waiting for ReadyForQuery to clear
 	 * the outstanding requests until the next Sync */
 	bool query_failed : 1;
@@ -788,6 +801,77 @@ struct PgSocket {
 	} scram_state;
 #ifdef HAVE_LDAP
 	char ldap_options[MAX_LDAP_CONFIG];
+#endif
+
+#ifdef HAVE_GSSAPI
+	/*
+	 * Per-connection GSSAPI state.
+	 *
+	 * For client connections (acceptor role): context and creds are used
+	 * across multiple rounds of gss_accept_sec_context().
+	 * For server connections (initiator role): context, creds, and
+	 * target_name are used across multiple rounds of gss_init_sec_context().
+	 * target_name is only populated in the server/initiator path.
+	 */
+	struct GssState {
+		gss_ctx_id_t context;		/* GSS security context */
+		gss_cred_id_t creds;		/* acquired credential handle */
+		gss_name_t target_name;	/* initiator only: postgres@host */
+		/*
+		 * Set when we sent an AP-REP (AUTH_REQ_GSS_CONT) to complete
+		 * mutual authentication.  If the client's final gss_init_sec_context()
+		 * emits a token with GSS_S_COMPLETE (RFC 2744, mechanism-dependent),
+		 * libpq forwards one extra GSSResponse ('p'); handle_client_work()
+		 * uses this flag to absorb it silently rather than treating it as a
+		 * protocol error.
+		 */
+		bool sent_ap_rep;	/* acceptor only: AP-REP was sent */
+	} gss_state;
+
+	/*
+	 * Per-connection GSSAPI encryption state.
+	 *
+	 * When gss_enc.active is true, all I/O on this socket goes through
+	 * gss_wrap()/gss_unwrap() via the gss_sbufio_ops vtable in sbuf.
+	 * Buffer sizes match the postgres protocol constants:
+	 *   PQ_GSS_MAX_PACKET_SIZE  = 16384 (encrypted on-wire packet limit)
+	 *   PQ_GSS_AUTH_BUFFER_SIZE = 65536 (handshake token limit)
+	 */
+	struct GssEncState {
+		gss_ctx_id_t ctx;	/* established security context */
+		gss_cred_id_t creds;	/* credential handle for handshake */
+		gss_name_t target_name;	/* initiator: service principal name */
+		bool active;		/* encryption channel is live */
+
+		char *send_buf;		/* encrypted output buffering */
+		int send_len;		/* bytes of data in send_buf */
+		int send_next;		/* next byte index to send */
+		int send_consumed;	/* source bytes already encrypted */
+
+		char *recv_buf;		/* encrypted input buffering */
+		int recv_len;		/* bytes received into recv_buf */
+
+		char *result_buf;	/* decrypted result buffering */
+		int result_len;		/* bytes available in result_buf */
+		int result_next;	/* next byte to return to caller */
+
+		uint32_t max_pkt_size;	/* from gss_wrap_size_limit() */
+
+		/* handshake accumulation buffer */
+		char *hs_buf;		/* handshake token buffer */
+		int hs_len;		/* bytes accumulated in handshake */
+		int pkt_expected;	/* bytes expected for current packet (handshake or data, 0 = reading length) */
+
+		/*
+		 * Handshake output flow control.  An output token is framed into
+		 * send_buf and flushed non-blocking; a partial write re-arms
+		 * EV_WRITE (hs_want) and resumes on the next call.  When the token
+		 * that completes the context has been fully sent, hs_complete_pending
+		 * triggers the transition to the encrypted data phase.
+		 */
+		int hs_want;		/* GSSENC_HS_READ or GSSENC_HS_WRITE */
+		bool hs_complete_pending;	/* transition to data phase once output is flushed */
+	} gss_enc;
 #endif
 
 	VarCache vars;		/* state of interesting server parameters */
@@ -892,6 +976,11 @@ extern char *cf_auth_user;
 extern char *cf_auth_hba_file;
 extern char *cf_auth_dbname;
 extern char *cf_auth_ldap_options;
+extern char *cf_auth_gssapi_keytab;
+extern char *cf_auth_gssapi_client_keytab;
+extern char *cf_auth_gssapi_service_name;
+extern int cf_client_gssencmode;
+extern int cf_server_gssencmode;
 
 extern char *cf_pidfile;
 

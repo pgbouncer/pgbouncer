@@ -774,6 +774,10 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 		rule->rule_method = AUTH_TYPE_SCRAM_SHA_256;
 	} else if (check_kw(tp, "ldap")) {
 		rule->rule_method = AUTH_TYPE_LDAP;
+#ifdef HAVE_GSSAPI
+	} else if (eat_kw(tp, "gssapi")) {
+		rule->rule_method = AUTH_TYPE_GSSAPI;
+#endif
 	} else {
 		log_warning("hba line %d: unsupported method: buf=%s", linenr, tp->buf);
 		goto failed;
@@ -787,6 +791,38 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 		eat_all(tp);
 	}
 
+#ifdef HAVE_GSSAPI
+	if (rule->rule_method == AUTH_TYPE_GSSAPI) {
+		/*
+		 * pgbouncer maps principals with gss_localname()/auth_to_local
+		 * (krb5.conf), not pg_ident.  include_realm= is redundant with that
+		 * and is tolerated (ignored with a warning) so a GSSAPI line copies
+		 * over from a postgres pg_hba.conf.  krb_realm= and map= are
+		 * *restrictive* options, though: silently ignoring them would grant
+		 * more access than the administrator wrote, so reject the line (fail
+		 * closed), consistent with how pgbouncer treats other unsupported HBA
+		 * parameters.  Express the equivalent restriction via auth_to_local.
+		 */
+		while (tp->cur_tok == TOK_IDENT) {
+			if (strncmp(tp->cur_tok_str, "include_realm=", 14) == 0) {
+				log_warning("hba line %d: GSSAPI option \"%s\" is ignored; "
+					    "principal-to-username mapping is handled by "
+					    "auth_to_local rules in krb5.conf",
+					    linenr, tp->cur_tok_str);
+				next_token(tp);
+			} else if (strncmp(tp->cur_tok_str, "krb_realm=", 10) == 0 ||
+				   strncmp(tp->cur_tok_str, "map=", 4) == 0) {
+				log_warning("hba line %d: restrictive GSSAPI option \"%s\" is "
+					    "not supported; express the restriction via "
+					    "auth_to_local rules in krb5.conf and remove it",
+					    linenr, tp->cur_tok_str);
+				goto failed;
+			} else {
+				break;
+			}
+		}
+	} else
+#endif
 	if (!parse_map_definition(rule, ident, tp, linenr)) {
 		goto failed;
 	}

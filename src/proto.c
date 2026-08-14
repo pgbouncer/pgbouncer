@@ -22,6 +22,7 @@
 
 #include "bouncer.h"
 #include "scram.h"
+#include "gssapi_auth.h"
 #include "common/sha2.h"
 
 /*
@@ -726,6 +727,32 @@ bool answer_authreq(PgSocket *server, PktHdr *pkt)
 		free_scram_state(&server->scram_state);
 		break;
 	}
+	case AUTH_REQ_GSS:
+		/*
+		 * Backend requests GSSAPI authentication.  pgbouncer initiates
+		 * the exchange using its own service-account credentials from
+		 * the configured keytab.  No client credentials are forwarded.
+		 */
+		slog_debug(server, "S: req GSSAPI");
+		res = gssapi_initiate_begin(server);
+		break;
+	case AUTH_REQ_GSS_CONT:
+	{
+		unsigned len;
+		const uint8_t *data;
+
+		slog_debug(server, "S: GSSAPI continuation");
+		len = mbuf_avail_for_read(&pkt->data);
+		if (len == 0) {
+			slog_error(server, "GSSAPI: backend sent AUTH_REQ_GSS_CONT "
+				   "with empty body; this is a protocol violation");
+			return false;
+		}
+		if (!mbuf_get_bytes(&pkt->data, len, &data))
+			return false;
+		res = gssapi_initiate_continue(server, data, len);
+		break;
+	}
 	default:
 		slog_error(server, "unknown/unsupported auth method: %u", cmd);
 		res = false;
@@ -806,6 +833,15 @@ bool send_sslreq_packet(PgSocket *server)
 	int res;
 	SEND_wrap(16, pktbuf_write_SSLRequest, res, server);
 	return res;
+}
+
+bool send_gssencreq_packet(PgSocket *server)
+{
+	static const uint8_t pkt[] = {
+		0, 0, 0, 8,			/* uint32 length = 8 */
+		0x04, 0xd2, 0x16, 0x30		/* uint32 80877104 = PKT_GSSENCREQ */
+	};
+	return sbuf_answer(&server->sbuf, pkt, sizeof(pkt));
 }
 
 /*

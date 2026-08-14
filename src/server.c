@@ -21,6 +21,7 @@
  */
 
 #include "bouncer.h"
+#include "gssapi_auth.h"
 #include "usual/time.h"
 
 #include <usual/slab.h>
@@ -708,6 +709,27 @@ static bool handle_connect(PgSocket *server)
 		disconnect_server(server, false, "peer server was not necessary anymore, because client cancel connection was already closed");
 	} else {
 		/* proceed with login */
+#ifdef HAVE_GSSAPI
+		bool try_gss = cf_server_gssencmode > GSSENCMODE_DISABLED && !is_unix;
+		/*
+		 * Under "prefer", only offer GSS encryption when initiator
+		 * credentials are actually available; otherwise fall back to SSL or
+		 * plain startup.  This mirrors libpq, which skips GSS when
+		 * pg_GSS_have_cred_cache() finds no usable credentials.  Under
+		 * "require" we always attempt it and let the handshake fail loudly.
+		 */
+		if (try_gss && cf_server_gssencmode < GSSENCMODE_REQUIRE &&
+		    !gssenc_have_initiator_cred(server)) {
+			slog_debug(server, "no GSS initiator credentials; skipping GSS encryption");
+			try_gss = false;
+		}
+		if (try_gss) {
+			slog_noise(server, "P: GSS enc request");
+			res = send_gssencreq_packet(server);
+			if (res)
+				server->wait_gss_enc_char = true;
+		} else
+#endif
 		if (server_connect_sslmode > SSLMODE_DISABLED && !is_unix) {
 			slog_noise(server, "P: SSL request");
 			res = send_sslreq_packet(server);
@@ -773,6 +795,53 @@ static bool server_handle_complete_packet(PgSocket *server, PktHdr *pkt)
 		return handle_server_startup(server, pkt);
 	return handle_server_work(server, pkt);
 }
+#ifdef HAVE_GSSAPI
+static bool handle_gssencchar(PgSocket *server, struct MBuf *data)
+{
+	uint8_t gchar;
+	bool ok;
+
+	server->wait_gss_enc_char = false;
+
+	ok = mbuf_get_byte(data, &gchar);
+	if (!ok || (gchar != 'G' && gchar != 'N')) {
+		disconnect_server(server, false, "bad gssencreq answer");
+		return false;
+	}
+	if (mbuf_avail_for_read(data) != 0) {
+		disconnect_server(server, false,
+				  "received unencrypted data after GSS enc response");
+		return false;
+	}
+
+	if (gchar == 'G') {
+		slog_noise(server, "launching GSS encryption");
+		ok = sbuf_gss_connect(&server->sbuf);
+	} else if (cf_server_gssencmode >= GSSENCMODE_REQUIRE) {
+		disconnect_server(server, false, "server refused GSS encryption");
+		return false;
+	} else {
+		/* clean up GSS state from the failed negotiation */
+		gssenc_cleanup(server);
+		/* fall through to SSL or plain startup */
+		if (server_connect_sslmode > SSLMODE_DISABLED) {
+			slog_noise(server, "P: SSL request (after GSS refused)");
+			ok = send_sslreq_packet(server);
+			if (ok)
+				server->wait_sslchar = true;
+		} else {
+			ok = send_startup_message(server);
+		}
+	}
+
+	if (ok) {
+		sbuf_prepare_skip(&server->sbuf, 1);
+	} else {
+		disconnect_server(server, false, "gssencreq processing failed");
+	}
+	return ok;
+}
+#endif
 
 /* callback from SBuf */
 bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
@@ -801,6 +870,12 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		disconnect_client(server->link, false, "unexpected eof");
 		break;
 	case SBUF_EV_READ:
+#ifdef HAVE_GSSAPI
+		if (server->wait_gss_enc_char) {
+			res = handle_gssencchar(server, data);
+			break;
+		}
+#endif
 		if (server->wait_sslchar) {
 			res = handle_sslchar(server, data);
 			break;
@@ -925,6 +1000,17 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			sbuf_continue(&server->sbuf);
 		else
 			disconnect_server(server, false, "TLS startup failed");
+		break;
+	case SBUF_EV_GSS_READY:
+		Assert(server->state == SV_LOGIN);
+		if (cf_log_connections)
+			slog_info(server, "GSSAPI encrypted connection established");
+		server->request_time = get_cached_time();
+		res = send_startup_message(server);
+		if (res)
+			sbuf_continue(&server->sbuf);
+		else
+			disconnect_server(server, false, "GSS enc startup failed");
 		break;
 	}
 	if (!res && pool->db->admin)

@@ -29,7 +29,8 @@ typedef enum {
 	SBUF_EV_CONNECT_OK,	/* got connection */
 	SBUF_EV_FLUSH,		/* data is sent, buffer empty */
 	SBUF_EV_PKT_CALLBACK,	/* next part of pkt data */
-	SBUF_EV_TLS_READY	/* TLS was established */
+	SBUF_EV_TLS_READY,	/* TLS was established */
+	SBUF_EV_GSS_READY	/* GSS encryption was established */
 } SBufEvent;
 
 /*
@@ -74,6 +75,9 @@ struct SBuf {
 	uint8_t wait_type;	/* track wait state */
 	uint8_t pkt_action;	/* method for handling current pkt */
 	uint8_t tls_state;	/* progress of tls */
+#ifdef HAVE_GSSAPI
+	uint8_t gss_state;	/* progress of GSS encryption */
+#endif
 
 	int sock;		/* fd for this socket */
 
@@ -117,6 +121,9 @@ extern int server_connect_sslmode;
 bool sbuf_tls_setup(void);
 bool sbuf_tls_accept(SBuf *sbuf)  _MUSTCHECK;
 bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)  _MUSTCHECK;
+
+bool sbuf_gss_accept(SBuf *sbuf)  _MUSTCHECK;
+bool sbuf_gss_connect(SBuf *sbuf)  _MUSTCHECK;
 
 bool sbuf_pause(SBuf *sbuf) _MUSTCHECK;
 void sbuf_continue(SBuf *sbuf);

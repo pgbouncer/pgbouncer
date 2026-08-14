@@ -387,6 +387,23 @@ endif
 # LDAP (mirrors --with-ldap)
 # ----------------------------------------------------------------------
 
+gssapiopt = get_option('gssapi')
+gssapi = not_found_dep
+if gssapiopt != 'disabled'
+  gssapi = dependency('krb5-gssapi', required: gssapiopt == 'enabled')
+endif
+if gssapi.found()
+  # src/gssapi_auth.c calls these unconditionally; require the MIT Kerberos
+  # versions that provide them (gss_localname: 1.7, gss_acquire_cred_from: 1.11).
+  if not cc.has_function('gss_acquire_cred_from', dependencies: gssapi)
+    error('GSSAPI library does not provide gss_acquire_cred_from; MIT Kerberos >= 1.11 is required')
+  endif
+  if not cc.has_function('gss_localname', dependencies: gssapi)
+    error('GSSAPI library does not provide gss_localname; MIT Kerberos >= 1.7 is required')
+  endif
+  cdata.set('HAVE_GSSAPI', 1, description: 'GSSAPI (Kerberos) support.')
+endif
+
 ldapopt = get_option('ldap')
 ldap = not_found_dep
 if ldapopt != 'disabled'
@@ -546,6 +563,7 @@ pgbouncer_sources = files(
   'src/admin.c',
   'src/client.c',
   'src/dnslookup.c',
+  'src/gssapi_auth.c',
   'src/hba.c',
   'src/janitor.c',
   'src/ldapauth.c',
@@ -593,6 +611,7 @@ pgbouncer_deps = [
   libevent,
   openssl,
   systemd,
+  gssapi,
   pam,
   ldap,
   threads,

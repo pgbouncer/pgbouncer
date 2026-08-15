@@ -1080,7 +1080,10 @@ class Bouncer(QueryRunner):
         )
 
         out, _ = p.communicate()
-        return out.decode().split("\n")[0].split(" ")[1]
+        pgbouncer_version = out.decode().split("\n")[0].split(" ")[1]
+        if WINDOWS:
+            pgbouncer_version = pgbouncer_version.split("\r")[0]
+        return pgbouncer_version
 
     async def start(self):
         # Due to using a SelectorEventLoop for support with psycopg we cannot

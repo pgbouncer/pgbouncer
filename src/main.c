@@ -412,10 +412,10 @@ bool set_config_param(const char *key, const char *val)
 		if (strcmp(val, "0") == 0) {
 			max_prepared_statements = 0;
 		} else {
-			max_prepared_statements = atoi(val);
-			if (max_prepared_statements == 0) {
+			const char *errstr;
+			max_prepared_statements = strtonum(val, 0, INT_MAX, &errstr);
+			if (errstr != NULL)
 				ret = false;
-			}
 		}
 	}
 
@@ -520,9 +520,10 @@ bool load_config(void)
 	if (strcmp(cf_max_prepared_statements, "0") == 0) {
 		max_prepared_statements = 0;
 	} else {
-		max_prepared_statements = atoi(cf_max_prepared_statements);
-		if (max_prepared_statements == 0) {
-			die("invalid max_prepared_statements value in config");
+		const char *errstr;
+		max_prepared_statements = strtonum(cf_max_prepared_statements, 0, INT_MAX, &errstr);
+		if (errstr != NULL) {
+			log_warning("invalid max_prepared_statements = %s", cf_max_prepared_statements);
 			ok = false;
 		}
 	}

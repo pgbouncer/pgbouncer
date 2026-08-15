@@ -8,6 +8,82 @@ from psycopg.rows import dict_row
 
 from .utils import LIBPQ_SUPPORTS_PIPELINING, LINUX, PKT_BUF_SIZE, USE_SUDO
 
+MAX_PREPARED_STATEMENT_TEST_VALS = [
+    (-1, True),  # Lower OOB
+    (3147483648, True),  # Upper OOB
+    (0, False),  # Lower valid
+    (1, False),  # Lower valid
+    (2147483647, False),  # Upper Valid
+]
+
+
+@pytest.mark.parametrize(
+    ("max_prepared_statements", "expect_fail"), MAX_PREPARED_STATEMENT_TEST_VALS
+)
+def test_prepared_statement_parsing_config(
+    bouncer, max_prepared_statements: int, expect_fail: bool
+):
+    """
+    Test valid and OOB values of max_prepared_statements via pgbouncer config file.
+    """
+
+    config = f"""
+        [databases]
+        * = host={bouncer.host} port={bouncer.port}
+        [pgbouncer]
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
+        auth_user = pswcheck
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pswcheck
+        auth_type = md5
+        max_prepared_statements = {max_prepared_statements}
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+    """
+
+    if expect_fail:
+        with (
+            bouncer.log_contains(
+                f"WARNING invalid max_prepared_statements = {max_prepared_statements}",
+                1,
+            ),
+            pytest.raises(psycopg.DatabaseError),
+            bouncer.run_with_config(config),
+        ):
+            pass
+    else:
+        with (
+            bouncer.log_contains(
+                f"WARNING invalid max_prepared_statements = {max_prepared_statements}",
+                0,
+            ),
+            bouncer.run_with_config(config),
+        ):
+            pass
+
+
+@pytest.mark.parametrize(
+    ("max_prepared_statements", "expect_fail"), MAX_PREPARED_STATEMENT_TEST_VALS
+)
+def test_prepared_statement_parsing_admin(
+    bouncer, max_prepared_statements: int, expect_fail: bool
+):
+    """
+    Test valid and OOB values of max_prepared_statements via admin console.
+    """
+
+    if expect_fail:
+        with pytest.raises(
+            psycopg.errors.ProtocolViolation,
+            match=r"SET failed",
+        ):
+            bouncer.admin(f"set max_prepared_statements='{max_prepared_statements}'")
+
+    else:
+        bouncer.admin(f"set max_prepared_statements='{max_prepared_statements}'")
+
 
 def test_prepared_statement(bouncer):
     bouncer.admin(f"set pool_mode=transaction")

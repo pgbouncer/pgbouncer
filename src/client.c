@@ -1320,7 +1320,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 			return false;
 		}
 
-		if (client->pool && !sending_auth_query(client)) {
+		if (client->startup_message_received) {
 			disconnect_client(client, true, "client re-sent startup pkt");
 			return false;
 		}

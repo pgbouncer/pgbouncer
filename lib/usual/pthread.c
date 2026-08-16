@@ -149,14 +149,7 @@ int mutex_init(Mutex *lock, bool recursive)
 	if (res != 0)
 		return res;
 
-#ifdef PTHREAD_MUTEX_RECURSIVE
 	res = pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-#elif defined(PTHREAD_MUTEX_RECURSIVE_NP)
-	res = pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE_NP);
-#else
-	pthread_mutexattr_destroy(&attr);
-	return -1;
-#endif
 	if (res != 0) {
 		pthread_mutexattr_destroy(&attr);
 		return res;

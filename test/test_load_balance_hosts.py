@@ -15,22 +15,24 @@ async def test_load_balance_hosts_disable_bad_first(bouncer):
     # so we expect min(worker_thread_counter, 2) DNS lookup failures (we only create 2 connections)
     worker_thread_counter = bouncer.get_worker_thread_count()
     expected_failures = min(worker_thread_counter, 2)
-    with bouncer.log_contains(
-        r"closing because: server DNS lookup failed", expected_failures
+    with (
+        bouncer.log_contains(
+            r"closing because: server DNS lookup failed", expected_failures
+        ),
+        bouncer.log_contains(r"127.0.0.1:\d+ new connection to server", 2),
     ):
-        with bouncer.log_contains(r"127.0.0.1:\d+ new connection to server", 2):
-            # Execute two concurrent sleeps to force two backend connections.
-            # The first connection will attempt the "bad" host and retry on
-            # the "good" host.
-            # The second connection will honor `load_balance_hosts` and use the
-            # `disable` host.
-            await bouncer.asleep(dbname="hostlist_bad_first", duration=0.5, times=2)
+        # Execute two concurrent sleeps to force two backend connections.
+        # The first connection will attempt the "bad" host and retry on
+        # the "good" host.
+        # The second connection will honor `load_balance_hosts` and use the
+        # `disable` host.
+        await bouncer.asleep(dbname="hostlist_bad_first", duration=0.5, times=2)
 
 
 def test_load_balance_hosts_reload(bouncer):
     with bouncer.admin_runner.cur() as cur:
         results = cur.execute("show databases").fetchall()
-        result = [r for r in results if r[0] == "load_balance_hosts_update"][0]
+        result = next(r for r in results if r[0] == "load_balance_hosts_update")
         assert "disable" in result
 
     with bouncer.ini_path.open() as f:
@@ -49,5 +51,5 @@ def test_load_balance_hosts_reload(bouncer):
 
     with bouncer.admin_runner.cur() as cur:
         results = cur.execute("show databases").fetchall()
-        result = [r for r in results if r[0] == "load_balance_hosts_update"][0]
+        result = next(r for r in results if r[0] == "load_balance_hosts_update")
         assert "round-robin" in result

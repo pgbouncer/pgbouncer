@@ -14,8 +14,9 @@ if len(sys.argv) != 3:
 fn = sys.argv[1]
 if fn != "-":
     try:
-        old = open(fn, "r").read()
-    except IOError:
+        with open(fn) as fd:
+            old = fd.read()
+    except OSError:
         old = ""
 
 # create new file data
@@ -30,7 +31,7 @@ for user, psw in curs.fetchall():
     if not psw:
         psw = ""
     psw = psw.replace('"', '""')
-    lines.append('"%s" "%s"\n' % (user, psw))
+    lines.append('"{}" "{}"\n').format(user, psw)
 db.commit()
 cur = "".join(lines)
 

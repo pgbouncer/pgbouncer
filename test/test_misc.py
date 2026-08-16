@@ -1,5 +1,7 @@
 import asyncio
 import re
+import socket
+import struct
 import threading
 import time
 
@@ -107,13 +109,15 @@ def test_scram_server(bouncer, test_auth_type):
     [users]
     puser1 = max_user_connections = 1
     """
-    with bouncer.run_with_config(config):
-        # good password from ini
-        with pytest.raises(psycopg.errors.ConnectionTimeout):
-            if test_auth_type == "trust":
-                bouncer.test(dbname="p6")
-            else:
-                bouncer.test(dbname="p6", password="foo", user="scramuser1")
+    # good password from ini
+    with (
+        bouncer.run_with_config(config),
+        pytest.raises(psycopg.errors.ConnectionTimeout),
+    ):
+        if test_auth_type == "trust":
+            bouncer.test(dbname="p6")
+        else:
+            bouncer.test(dbname="p6", password="foo", user="scramuser1")
 
 
 async def test_notify_queue_negative(bouncer):
@@ -287,9 +291,11 @@ def test_server_check_query_default_negative(pg, bouncer, proxy):
         pg.sql(f"SELECT pg_terminate_backend({pid});")
         proxy.start()
 
-        with bouncer.cur(dbname="postgres", user="puser1") as cur:
-            with pg.log_contains(" LOG:  statement: \n", times=0):
-                new_pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
+        with (
+            bouncer.cur(dbname="postgres", user="puser1") as cur,
+            pg.log_contains(" LOG:  statement: \n", times=0),
+        ):
+            new_pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
 
     assert new_pid != pid
     pg.configure(config="log_statement = 'none'")
@@ -335,9 +341,11 @@ def test_server_check_query_negative(pg, bouncer, proxy):
         pg.sql(f"SELECT pg_terminate_backend({pid});")
         proxy.start()
 
-        with bouncer.cur(dbname="postgres", user="puser1") as cur:
-            with pg.log_contains(" LOG:  statement: SELECT 2\n", times=0):
-                new_pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
+        with (
+            bouncer.cur(dbname="postgres", user="puser1") as cur,
+            pg.log_contains(" LOG:  statement: SELECT 2\n", times=0),
+        ):
+            new_pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
 
     assert new_pid != pid
     pg.configure(config="log_statement = 'none'")
@@ -385,9 +393,11 @@ def test_server_check_query_default(
             with bouncer.cur(dbname="postgres", user="puser1") as cur:
                 cur.execute("SELECT 1")
 
-        with bouncer.cur(dbname="postgres", user="puser1") as cur:
-            with pg.log_contains(" LOG:  statement: \n", times=1):
-                new_pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
+        with (
+            bouncer.cur(dbname="postgres", user="puser1") as cur,
+            pg.log_contains(" LOG:  statement: \n", times=1),
+        ):
+            new_pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
 
     assert new_pid == pid
     pg.configure(config="log_statement = 'none'")
@@ -433,9 +443,11 @@ def test_server_check_query(pg, bouncer):
             with bouncer.cur(dbname="postgres", user="puser1") as cur:
                 cur.execute("SELECT 1")
 
-        with bouncer.cur(dbname="postgres", user="puser1") as cur:
-            with pg.log_contains(" LOG:  statement: SELECT 2\n", times=1):
-                new_pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
+        with (
+            bouncer.cur(dbname="postgres", user="puser1") as cur,
+            pg.log_contains(" LOG:  statement: SELECT 2\n", times=1),
+        ):
+            new_pid = cur.execute("SELECT pg_backend_pid()").fetchall()[0][0]
 
     assert new_pid == pid
     pg.configure(config="log_statement = 'none'")
@@ -494,23 +506,22 @@ def test_track_extra_parameters(bouncer):
     if not WINDOWS:
         test_expected["client_encoding"] = ["LATIN1", "LATIN5"]
 
-    with bouncer.cur(dbname="p1") as cur1:
-        with bouncer.cur(dbname="p1") as cur2:
-            for key in test_set:
-                stmt1 = "SET " + key + " TO " + test_set[key][0]
-                stmt2 = "SET " + key + " TO " + test_set[key][1]
-                cur1.execute(stmt1)
-                cur2.execute(stmt2)
+    with bouncer.cur(dbname="p1") as cur1, bouncer.cur(dbname="p1") as cur2:
+        for key in test_set:
+            stmt1 = "SET " + key + " TO " + test_set[key][0]
+            stmt2 = "SET " + key + " TO " + test_set[key][1]
+            cur1.execute(stmt1)
+            cur2.execute(stmt2)
 
-                stmt = "SHOW " + key
-                cur1.execute(stmt)
-                cur2.execute(stmt)
+            stmt = "SHOW " + key
+            cur1.execute(stmt)
+            cur2.execute(stmt)
 
-                result1 = cur1.fetchone()
-                assert result1[0] == test_expected[key][0]
+            result1 = cur1.fetchone()
+            assert result1[0] == test_expected[key][0]
 
-                result2 = cur2.fetchone()
-                assert result2[0] == test_expected[key][1]
+            result2 = cur2.fetchone()
+            assert result2[0] == test_expected[key][1]
 
 
 async def test_wait_close(bouncer):
@@ -550,13 +561,15 @@ def test_auto_database(bouncer):
 @pytest.mark.skipif("not HAVE_IPV6_LOCALHOST")
 async def test_host_list(bouncer):
     worker_thread_counter = bouncer.get_worker_thread_count()
-    with bouncer.log_contains(
-        r"new connection to server \(from 127.0.0.1", times=worker_thread_counter
-    ):
-        with bouncer.log_contains(
+    with (
+        bouncer.log_contains(
+            r"new connection to server \(from 127.0.0.1", times=worker_thread_counter
+        ),
+        bouncer.log_contains(
             r"new connection to server \(from \[::1\]", times=worker_thread_counter
-        ):
-            await bouncer.asleep(1, dbname="hostlist1", times=2 * worker_thread_counter)
+        ),
+    ):
+        await bouncer.asleep(1, dbname="hostlist1", times=2 * worker_thread_counter)
 
 
 # This is the same test as above, except it doesn't use any IPv6
@@ -567,6 +580,62 @@ async def test_host_list(bouncer):
 async def test_host_list_dummy(bouncer):
     with bouncer.log_contains(r"new connection to server \(from 127.0.0.1", times=2):
         await bouncer.asleep(1, dbname="hostlist2", times=2)
+
+
+def _send_startup_message(bouncer, parameters):
+    payload = struct.pack("!I", 0x30000) + parameters
+
+    with socket.create_connection((bouncer.host, bouncer.port)) as sock:
+        sock.sendall(struct.pack("!I", len(payload) + 4) + payload)
+        with sock.makefile("rb") as stream:
+            message_type = stream.read(1)
+            message_length = struct.unpack("!I", stream.read(4))[0]
+            return message_type, stream.read(message_length - 4)
+
+
+def test_protocol_extension_negotiation(bouncer):
+    protocol_version = 0x30000
+    extension = b"_pq_.test_protocol_negotiation"
+    parameters = (
+        b"\0".join(
+            (
+                b"user",
+                b"puser1",
+                b"database",
+                b"p0",
+                extension,
+                b"",
+                b"",
+            )
+        )
+        + b"\0"
+    )
+    message_type, message = _send_startup_message(bouncer, parameters)
+
+    assert message_type == b"v"
+    negotiated_version, extension_count = struct.unpack("!II", message[:8])
+    assert negotiated_version == protocol_version
+    assert extension_count == 1
+    assert message[8:] == extension + b"\0"
+
+    parameters = (
+        b"\0".join(
+            (
+                b"user",
+                b"puser1",
+                extension,
+                b"",
+                b"unsupported",
+                b"value",
+                b"",
+            )
+        )
+        + b"\0"
+    )
+    message_type, message = _send_startup_message(bouncer, parameters)
+
+    assert message_type == b"E"
+    assert b"unsupported startup parameter: unsupported\0" in message
 
 
 def test_options_startup_param(bouncer):
@@ -683,16 +752,16 @@ def test_equivalent_startup_param(bouncer):
     bouncer.admin("set verbose=2")
 
     canonical_expected_times = 1 if PG_MAJOR_VERSION >= 14 else 0
-    with bouncer.cur(options="-c DateStyle=ISO") as cur:
-        with (
-            bouncer.log_contains("varcache_apply: .*SET DateStyle='ISO'", times=1),
-            bouncer.log_contains(
-                "varcache_set_canonical: setting DateStyle to its canonical version ISO -> ISO, MDY",
-                times=canonical_expected_times,
-            ),
-        ):
-            cur.execute("SELECT 1")
-            cur.execute("SELECT 1")
+    with (
+        bouncer.cur(options="-c DateStyle=ISO") as cur,
+        bouncer.log_contains("varcache_apply: .*SET DateStyle='ISO'", times=1),
+        bouncer.log_contains(
+            "varcache_set_canonical: setting DateStyle to its canonical version ISO -> ISO, MDY",
+            times=canonical_expected_times,
+        ),
+    ):
+        cur.execute("SELECT 1")
+        cur.execute("SELECT 1")
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows doesn't support sending SIGTERM")
@@ -702,7 +771,7 @@ async def test_repeated_sigterm(bouncer):
         bouncer.sigterm()
 
         # Single sigterm should wait for clients
-        time.sleep(1)
+        await asyncio.sleep(1)
         cur.execute("SELECT 1")
         assert bouncer.running()
 
@@ -725,7 +794,7 @@ async def test_repeated_sigint(bouncer):
         bouncer.sigint()
 
         # Single sigint should wait for servers to be released
-        time.sleep(1)
+        await asyncio.sleep(1)
         cur.execute("SELECT 1")
         assert bouncer.running()
 
@@ -753,9 +822,11 @@ def test_newly_paused_client_during_wait_for_servers_shutdown(bouncer):
         # Still in the same transaction, so this should work
         cur1.execute("SELECT 1")
         # New transaction so this should fail
-        with bouncer.log_contains(r"closing because: server shutting down"):
-            with pytest.raises(psycopg.OperationalError):
-                cur2.execute("SELECT 1")
+        with (
+            bouncer.log_contains(r"closing because: server shutting down"),
+            pytest.raises(psycopg.OperationalError),
+        ):
+            cur2.execute("SELECT 1")
 
 
 async def test_already_paused_client_during_wait_for_servers_shutdown(bouncer):
@@ -941,9 +1012,9 @@ def test_get_single_worker_thread_counter(bouncer):
     PgBouncer is configured to run with.
     """
     worker_thread_count = bouncer.get_worker_thread_count()
-    assert (
-        worker_thread_count == 1
-    ), f"Expected at least 1 thread, got {worker_thread_count}"
+    assert worker_thread_count == 1, (
+        f"Expected at least 1 thread, got {worker_thread_count}"
+    )
 
 
 @pytest.mark.multithread_only
@@ -954,9 +1025,9 @@ def test_get_multiworker_thread_counter(bouncer):
     PgBouncer is configured to run with.
     """
     worker_thread_count = bouncer.get_worker_thread_count()
-    assert (
-        worker_thread_count == 2
-    ), f"Expected at least 2 threads, got {worker_thread_count}"
+    assert worker_thread_count == 2, (
+        f"Expected at least 2 threads, got {worker_thread_count}"
+    )
 
 
 async def test_server_login_large_packets(bouncer):

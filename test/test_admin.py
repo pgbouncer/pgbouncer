@@ -125,30 +125,30 @@ def test_socket_id(bouncer) -> None:
     server_lifetime = 0
     """
 
-    with bouncer.run_with_config(config):
-        with bouncer.cur(
+    with (
+        bouncer.run_with_config(config),
+        bouncer.cur(
             dbname="pgbouncer", user="pgbouncer", row_factory=dict_row
-        ) as admin_cursor:
-            admin_cursor.execute("SHOW SOCKETS")
-            servers = admin_cursor.fetchall()
-            initial_id = max([i["id"] for i in servers])
+        ) as admin_cursor,
+    ):
+        admin_cursor.execute("SHOW SOCKETS")
+        servers = admin_cursor.fetchall()
+        initial_id = max([i["id"] for i in servers])
 
-            for i in range(1, 4):
-                conn_2 = bouncer.conn(dbname="p1")
-                curr = conn_2.cursor()
-                _ = curr.execute("SELECT 1")
-                time.sleep(2)
-                clients = admin_cursor.execute("SHOW SOCKETS").fetchall()
-                assert len(clients) == 3
-                assert set(
-                    [
-                        initial_id,
-                        initial_id + i * 2 - 1,
-                        initial_id + i * 2,
-                    ]
-                ) == set([client["id"] for client in clients])
-                conn_2.close()
-                time.sleep(2)
+        for i in range(1, 4):
+            conn_2 = bouncer.conn(dbname="p1")
+            curr = conn_2.cursor()
+            _ = curr.execute("SELECT 1")
+            time.sleep(2)
+            clients = admin_cursor.execute("SHOW SOCKETS").fetchall()
+            assert len(clients) == 3
+            assert {
+                initial_id,
+                initial_id + i * 2 - 1,
+                initial_id + i * 2,
+            } == {client["id"] for client in clients}
+            conn_2.close()
+            time.sleep(2)
 
 
 @pytest.mark.multithread_only
@@ -175,25 +175,27 @@ def test_socket_id_multithread(bouncer) -> None:
     server_lifetime = 0
     """
 
-    with bouncer.run_with_config(config):
-        with bouncer.cur(
+    with (
+        bouncer.run_with_config(config),
+        bouncer.cur(
             dbname="pgbouncer", user="pgbouncer", row_factory=dict_row
-        ) as admin_cursor:
-            prev_max_id = None
+        ) as admin_cursor,
+    ):
+        prev_max_id = None
 
-            for _ in range(3):
-                conn_2 = bouncer.conn(dbname="p1")
-                curr = conn_2.cursor()
-                _ = curr.execute("SELECT 1")
-                time.sleep(2)
-                sockets = admin_cursor.execute("SHOW SOCKETS").fetchall()
-                assert len(sockets) == 3
-                current_max_id = max(s["id"] for s in sockets)
-                if prev_max_id is not None:
-                    assert current_max_id > prev_max_id
-                prev_max_id = current_max_id
-                conn_2.close()
-                time.sleep(2)
+        for _ in range(3):
+            conn_2 = bouncer.conn(dbname="p1")
+            curr = conn_2.cursor()
+            _ = curr.execute("SELECT 1")
+            time.sleep(2)
+            sockets = admin_cursor.execute("SHOW SOCKETS").fetchall()
+            assert len(sockets) == 3
+            current_max_id = max(s["id"] for s in sockets)
+            if prev_max_id is not None:
+                assert current_max_id > prev_max_id
+            prev_max_id = current_max_id
+            conn_2.close()
+            time.sleep(2)
 
 
 @pytest.mark.single_thread_only
@@ -213,25 +215,27 @@ def test_server_id(bouncer) -> None:
     server_lifetime = 0
     """
 
-    with bouncer.run_with_config(config):
-        with bouncer.cur(
+    with (
+        bouncer.run_with_config(config),
+        bouncer.cur(
             dbname="pgbouncer", user="pgbouncer", row_factory=dict_row
-        ) as admin_cursor:
-            admin_cursor.execute("SHOW SOCKETS")
-            servers = admin_cursor.fetchall()
-            initial_id = max([i["id"] for i in servers])
+        ) as admin_cursor,
+    ):
+        admin_cursor.execute("SHOW SOCKETS")
+        servers = admin_cursor.fetchall()
+        initial_id = max([i["id"] for i in servers])
 
-            for i in range(1, 4):
-                conn_2 = bouncer.conn(dbname="p1")
-                curr = conn_2.cursor()
-                _ = curr.execute("SELECT 1")
-                time.sleep(2)
-                clients = admin_cursor.execute("SHOW SERVERS").fetchall()
-                assert [
-                    initial_id + i * 2,
-                ] == [client["id"] for client in clients]
-                conn_2.close()
-                time.sleep(2)
+        for i in range(1, 4):
+            conn_2 = bouncer.conn(dbname="p1")
+            curr = conn_2.cursor()
+            _ = curr.execute("SELECT 1")
+            time.sleep(2)
+            clients = admin_cursor.execute("SHOW SERVERS").fetchall()
+            assert [
+                initial_id + i * 2,
+            ] == [client["id"] for client in clients]
+            conn_2.close()
+            time.sleep(2)
 
 
 @pytest.mark.multithread_only
@@ -257,25 +261,27 @@ def test_server_id_multithread(bouncer) -> None:
     server_lifetime = 0
     """
 
-    with bouncer.run_with_config(config):
-        with bouncer.cur(
+    with (
+        bouncer.run_with_config(config),
+        bouncer.cur(
             dbname="pgbouncer", user="pgbouncer", row_factory=dict_row
-        ) as admin_cursor:
-            prev_server_id = None
+        ) as admin_cursor,
+    ):
+        prev_server_id = None
 
-            for _ in range(3):
-                conn_2 = bouncer.conn(dbname="p1")
-                curr = conn_2.cursor()
-                _ = curr.execute("SELECT 1")
-                time.sleep(2)
-                servers = admin_cursor.execute("SHOW SERVERS").fetchall()
-                assert len(servers) == 1
-                current_server_id = servers[0]["id"]
-                if prev_server_id is not None:
-                    assert current_server_id > prev_server_id
-                prev_server_id = current_server_id
-                conn_2.close()
-                time.sleep(2)
+        for _ in range(3):
+            conn_2 = bouncer.conn(dbname="p1")
+            curr = conn_2.cursor()
+            _ = curr.execute("SELECT 1")
+            time.sleep(2)
+            servers = admin_cursor.execute("SHOW SERVERS").fetchall()
+            assert len(servers) == 1
+            current_server_id = servers[0]["id"]
+            if prev_server_id is not None:
+                assert current_server_id > prev_server_id
+            prev_server_id = current_server_id
+            conn_2.close()
+            time.sleep(2)
 
 
 def test_client_id(bouncer) -> None:
@@ -308,11 +314,11 @@ def test_client_states(bouncer):
     conn_1 = bouncer.conn(dbname="p3x", user="clientstate")
 
     clients = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)
-    client_id = [
+    client_id = next(
         client
         for client in clients
         if client["database"] == "p3x" and client["user"] == "clientstate"
-    ][0]["state"]
+    )["state"]
     assert client_id == "idle"
 
     cur_1 = conn_1.cursor()
@@ -337,11 +343,11 @@ def test_client_states(bouncer):
     time.sleep(1)
 
     clients = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)
-    client_id = [
+    client_id = next(
         client
         for client in clients
         if client["database"] == "p3x" and client["user"] == "clientstate"
-    ][0]["state"]
+    )["state"]
     assert client_id == "waiting"
 
     bouncer.admin("RESUME p3x")
@@ -354,11 +360,11 @@ def test_client_states(bouncer):
     cur_1.execute("BEGIN; SELECT pg_sleep(5);")
 
     clients = bouncer.admin("SHOW CLIENTS", row_factory=dict_row)
-    client_id = [
+    client_id = next(
         client
         for client in clients
         if client["database"] == "p3x" and client["user"] == "clientstate"
-    ][0]["state"]
+    )["state"]
     assert client_id == "active"
 
     # Rollback/commit to end the long-running transaction
@@ -507,7 +513,7 @@ def test_kill_client(bouncer):
     assert len(clients) == 2
 
     # Get clients id
-    client_id = [client for client in clients if client["database"] == "p0"][0]["id"]
+    client_id = next(client for client in clients if client["database"] == "p0")["id"]
 
     # Issue kill client command
     clients = bouncer.admin(f"KILL_CLIENT {client_id}")

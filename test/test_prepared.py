@@ -35,7 +35,7 @@ def test_prepared_statement_parsing_config(
         auth_user = pswcheck
         stats_users = stats
         listen_addr = {bouncer.host}
-        admin_users = pswcheck
+        admin_users = pgbouncer
         auth_type = md5
         max_prepared_statements = {max_prepared_statements}
         auth_file = {bouncer.auth_path}

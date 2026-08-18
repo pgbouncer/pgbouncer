@@ -330,6 +330,108 @@ def test_close_prepared_statement(bouncer):
         assert result.status == pq.ExecStatus.FATAL_ERROR
 
 
+def collect_pipeline_results(pgconn, max_results=20):
+    """Collect the pipeline result statuses, up to and including the sync.
+
+    None means the current command has no more results. The limit makes a
+    missing result fail the test instead of hang it.
+    """
+    statuses = []
+    for _ in range(max_results):
+        result = pgconn.get_result()
+        if result is None:
+            continue
+        statuses.append(result.status)
+        if result.status == pq.ExecStatus.PIPELINE_SYNC:
+            return statuses
+    raise AssertionError(f"no pipeline sync after {max_results} results: {statuses}")
+
+
+# libpq before PG17 does not support sending Close messages
+@pytest.mark.skipif("psycopg.pq.version() < 170000")
+@pytest.mark.skipif(
+    "psycopg.__version__ < '3.2.0'",
+    reason="Debian oldstable doesn't support a version of psycopg with 'close_prepared' support",
+)
+@pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
+@pytest.mark.timeout(60)
+def test_close_batched_with_reused_parse(bouncer):
+    """Close in a batch with a Parse that PgBouncer answers itself.
+
+    PgBouncer sends nothing to the server for a Close, or for a Parse of a
+    query that is already prepared. It makes both replies itself. The client
+    must get them in the order that it asked for.
+    """
+    bouncer.admin("set max_prepared_statements=100")
+
+    with bouncer.conn() as conn:
+        pgconn = conn.pgconn
+
+        # Prepare the query on the server link. PgBouncer then answers the
+        # Parse below and does not forward it.
+        result = pgconn.prepare(b"a", b"SELECT 1")
+        assert result.status == pq.ExecStatus.COMMAND_OK
+
+        pgconn.enter_pipeline_mode()
+        pgconn.send_prepare(b"b", b"SELECT 1")
+        pgconn.send_close_prepared(b"a")
+        pgconn.pipeline_sync()
+
+        assert collect_pipeline_results(pgconn) == [
+            pq.ExecStatus.COMMAND_OK,
+            pq.ExecStatus.COMMAND_OK,
+            pq.ExecStatus.PIPELINE_SYNC,
+        ]
+        pgconn.exit_pipeline_mode()
+
+        # The connection must still work. A wrong order breaks it permanently.
+        result = pgconn.exec_(b"SELECT 2")
+        assert result.status == pq.ExecStatus.TUPLES_OK
+        assert result.get_value(0, 0) == b"2"
+
+
+# libpq before PG17 does not support sending Close messages
+@pytest.mark.skipif("psycopg.pq.version() < 170000")
+@pytest.mark.skipif(
+    "psycopg.__version__ < '3.2.0'",
+    reason="Debian oldstable doesn't support a version of psycopg with 'close_prepared' support",
+)
+@pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
+@pytest.mark.timeout(60)
+def test_close_batched_with_evicting_parse(bouncer):
+    """Close in a batch with a Parse that evicts a statement.
+
+    A Parse into a full cache makes PgBouncer send its own Close to the server
+    and discard the CloseComplete. The discard must not delay the CloseComplete
+    that the client waits for.
+    """
+    bouncer.admin("set max_prepared_statements=1")
+
+    with bouncer.conn() as conn:
+        pgconn = conn.pgconn
+
+        result = pgconn.prepare(b"a", b"SELECT 1")
+        assert result.status == pq.ExecStatus.COMMAND_OK
+
+        pgconn.enter_pipeline_mode()
+        # A different query. PgBouncer forwards this Parse, which fills the
+        # cache above its limit of one.
+        pgconn.send_prepare(b"b", b"SELECT 2")
+        pgconn.send_close_prepared(b"a")
+        pgconn.pipeline_sync()
+
+        assert collect_pipeline_results(pgconn) == [
+            pq.ExecStatus.COMMAND_OK,
+            pq.ExecStatus.COMMAND_OK,
+            pq.ExecStatus.PIPELINE_SYNC,
+        ]
+        pgconn.exit_pipeline_mode()
+
+        result = pgconn.exec_(b"SELECT 3")
+        assert result.status == pq.ExecStatus.TUPLES_OK
+        assert result.get_value(0, 0) == b"3"
+
+
 def test_statement_name_longer_than_pkt_buf(bouncer):
     name = b"a" * PKT_BUF_SIZE * 4
 

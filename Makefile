@@ -159,7 +159,7 @@ EXTRA_DIST = config.guess config.sub configure install-sh lib/usual/config.h.in
 dist: $(distdir).tar.gz
 
 $(PACKAGE_TARNAME)-$(PACKAGE_VERSION).tar.gz:
-	$(GIT) -C $(srcdir) -c core.autocrlf=false archive --format tar.gz -9 --prefix $(distdir)/ $(PG_GIT_REVISION) -o $(abs_top_builddir)/$@ $(foreach file,$(EXTRA_DIST),--prefix $(distdir)/$(dir $(file)) --add-file=$(file)) --prefix $(distdir)/
+	$(GIT) -C $(srcdir) -c core.autocrlf=false archive --format tar.gz -9 --prefix $(distdir)/ $(PG_GIT_REVISION) -o $(abs_top_builddir)/$@ $(foreach file,$(EXTRA_DIST),--prefix $(distdir)/$(patsubst ./,,$(dir $(file))) --add-file=$(file)) --prefix $(distdir)/
 
 #
 # test

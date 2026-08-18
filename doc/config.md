@@ -274,12 +274,18 @@ that they are handled by the admin and it can ignore them.
 If you need to specify multiple values, use a comma-separated list (e.g.
 `options,extra_float_digits`)
 
-The Postgres protocol allows specifying parameters settings, both directly as a
+The Postgres protocol allows specifying parameter settings, both directly as a
 parameter in the startup packet, or inside the [`options` startup
 packet][options-startup]. Parameters specified using both of these methods are
 supported by `ignore_startup_parameters`. It's even possible to include
-`options` itself in `track_extra_parameters`, which results in any unknown
-parameters contained inside `options` to be ignored.
+`options` itself in `ignore_startup_parameters`, which results in any unknown
+parameters contained inside `options` being ignored. This only suppresses the
+error; it does not forward those parameters to the server or track their values.
+For example, to use a Citus setting such as
+`citus.use_secondary_nodes`, add `options` to
+`ignore_startup_parameters` and set the Citus parameter after connecting. This
+requires session pooling unless the parameter is reported by PostgreSQL or the
+extension and added to `track_extra_parameters`.
 
 
 [options-startup]: https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNECT-OPTIONS

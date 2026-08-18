@@ -59,16 +59,17 @@
 #define WORKER_THREAD_VAR(name, thread_id) \
 	((workers[(thread_id)].name))
 
-/* Execute func under lock in multithread mode; no locking in single-thread mode. */
+/*
+ * Execute func under lock in multithread mode; no locking in single-thread mode.
+ * Never use `return`/`goto`, since those skip the unlock.
+ */
 #define WITH_LOCK(lock, func) \
 	do { \
-		if (multithread_mode) { \
+		if (multithread_mode) \
 			mutex_lock(lock); \
-			func; \
+		do { func; } while (0); \
+		if (multithread_mode) \
 			mutex_unlock(lock); \
-		} else { \
-			func; \
-		} \
 	} while (0)
 
 /* Iterate over a ThreadSafeStatList looked up by field name and thread_id. */

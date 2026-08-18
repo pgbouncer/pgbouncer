@@ -621,14 +621,15 @@ PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const c
 		if (credentials == NULL) {
 			credentials = thread_safe_slab_alloc(credentials_cache);
 			if (!credentials)
-				return NULL;
+				goto failed;
 
 			safe_strcpy(credentials->name, name, sizeof(credentials->name));
 
 			credentials->global_user = find_or_add_new_global_user(name, NULL);
 			if (!credentials->global_user) {
 				thread_safe_slab_free(credentials_cache, credentials);
-				return NULL;
+				credentials = NULL;
+				goto failed;
 			}
 
 			aatree_insert(&db->user_tree, (uintptr_t)credentials->name, &credentials->tree_node);
@@ -636,6 +637,8 @@ PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const c
 
 		safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
 		credentials->dynamic_passwd = true;
+	failed:
+		;
 	});
 	return credentials;
 }
@@ -645,21 +648,26 @@ PgCredentials *add_pam_credentials(const char *name, const char *passwd)
 {
 	PgCredentials *credentials = NULL;
 	struct AANode *node;
+	bool oom = false;
 	WITH_LOCK(&user_lock, {
 		node = aatree_search(&pam_user_tree, (uintptr_t)name);
 		credentials = node ? container_of(node, PgCredentials, tree_node) : NULL;
 
 		if (credentials == NULL) {
 			credentials = thread_safe_slab_alloc(credentials_cache);
-			if (!credentials)
-				return NULL;
+			if (!credentials) {
+				oom = true;
+				break;
+			}
 
 			safe_strcpy(credentials->name, name, sizeof(credentials->name));
 
 			credentials->global_user = find_or_add_new_global_user(name, NULL);
 			if (!credentials->global_user) {
 				thread_safe_slab_free(credentials_cache, credentials);
-				return NULL;
+				credentials = NULL;
+				oom = true;
+				break;
 			}
 
 			aatree_insert(&pam_user_tree, (uintptr_t)credentials->name, &credentials->tree_node);
@@ -667,7 +675,7 @@ PgCredentials *add_pam_credentials(const char *name, const char *passwd)
 		if (passwd)
 			safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
 	});
-	return credentials;
+	return oom ? NULL : credentials;
 }
 
 /* create separate PgCredentials object for this database */
@@ -695,13 +703,16 @@ PgCredentials *force_user_credentials(PgDatabase *db, const char *name, const ch
 PgDatabase *find_peer(int peer_id)
 {
 	struct List *item;
-	PgDatabase *peer;
+	PgDatabase *peer = NULL;
+	bool found = false;
 	THREAD_SAFE_STATLIST_EACH(&peer_list, item, {
 		peer = container_of(item, PgDatabase, head);
-		if (peer->peer_id == peer_id)
-			return peer;
+		if (peer->peer_id == peer_id) {
+			found = true;
+			break;
+		}
 	});
-	return NULL;
+	return found ? peer : NULL;
 }
 
 /* find an existing database */

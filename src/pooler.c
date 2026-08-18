@@ -483,6 +483,7 @@ void suspend_pooler(void)
 {
 	struct List *el;
 	struct ListenSocket *ls;
+	bool failed = false;
 
 	need_active = false;
 	THREAD_SAFE_STATLIST_EACH(&sock_list, el, {
@@ -491,11 +492,13 @@ void suspend_pooler(void)
 			continue;
 		if (event_del(&ls->ev) < 0) {
 			log_warning("suspend_pooler, event_del: %s", strerror(errno));
-			return;
+			failed = true;
+			break;
 		}
 		ls->active = false;
 	});
-	pooler_active = false;
+	if (!failed)
+		pooler_active = false;
 }
 
 void resume_pooler(void)
@@ -656,13 +659,14 @@ bool for_each_pooler_fd(pooler_cb cbfunc, void *arg)
 {
 	struct List *el;
 	struct ListenSocket *ls;
-	bool ok;
+	bool ok = true;
 
 	THREAD_SAFE_STATLIST_EACH(&sock_list, el, {
 		ls = container_of(el, struct ListenSocket, node);
-		ok = cbfunc(arg, ls->fd, &ls->addr);
-		if (!ok)
-			return false;
+		if (!cbfunc(arg, ls->fd, &ls->addr)) {
+			ok = false;
+			break;
+		}
 	});
-	return true;
+	return ok;
 }

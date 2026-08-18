@@ -44,15 +44,6 @@ static void slab_list_remove(struct Slab *slab)
 #endif
 }
 
-/* fill struct contents */
-static void init_slab_and_store_in_list(struct Slab *slab, const char *name, unsigned obj_size,
-					unsigned align, slab_init_fn init_func,
-					CxMem *cx)
-{
-	init_slab(slab, name, obj_size, align, init_func, cx);
-	slab_list_append(slab);
-}
-
 /* make new slab */
 struct Slab *slab_create(const char *name, unsigned obj_size, unsigned align,
 			 slab_init_fn init_func,
@@ -62,8 +53,10 @@ struct Slab *slab_create(const char *name, unsigned obj_size, unsigned align,
 
 	/* new slab object */
 	slab = cx_alloc0(cx, sizeof(*slab));
-	if (slab)
-		init_slab_and_store_in_list(slab, name, obj_size, align, init_func, cx);
+	if (slab){
+		init_slab(slab, name, obj_size, align, init_func, cx);
+		slab_list_append(slab);
+	}
 	return slab;
 }
 

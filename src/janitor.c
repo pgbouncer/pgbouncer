@@ -834,7 +834,6 @@ static void cleanup_inactive_autodatabases(void)
 	PgDatabase *db;
 	usec_t age;
 	usec_t now = get_cached_time();
-
 	if (cf_autodb_idle_timeout <= 0)
 		return;
 
@@ -842,10 +841,12 @@ static void cleanup_inactive_autodatabases(void)
 	THREAD_SAFE_STATLIST_EACH(&autodatabase_idle_list, item, {
 		db = container_of(item, PgDatabase, head);
 		if (db->db_paused)
-			return;
+			continue;
 		age = now - db->inactive_time;
 		if (age > cf_autodb_idle_timeout) {
 			kill_database(db);
+		}else{
+			break;
 		}
 	});
 }

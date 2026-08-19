@@ -83,11 +83,18 @@ def test_tls_login_packet_across_sbuf_boundary(pg, bouncer_tls, cert_dir):
     try:
         pg.sql(f"alter role bouncer set search_path = '{'a' * SEARCH_PATH_LEN}'")
 
+        with pg.conn(dbname="p0", user="bouncer") as conn:
+            reported = conn.pgconn.parameter_status(b"search_path")
+
+        # Only newer Postgres versions mark search_path as GUC_REPORT, and
+        # without a ParameterStatus for it there is no oversized packet in the
+        # login response to put across the boundary.
+        if reported is None:
+            pytest.skip("this Postgres does not report search_path")
+
         # Guard against this test silently passing because Postgres reported
         # something other than the value we set, which would change the size of
         # the packet and could move it off the boundary.
-        with pg.conn(dbname="p0", user="bouncer") as conn:
-            reported = conn.pgconn.parameter_status(b"search_path")
         assert len(reported) == SEARCH_PATH_LEN
 
         # PgBouncer only answers once the server login this triggers has

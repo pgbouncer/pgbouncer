@@ -397,8 +397,13 @@ static bool send_pending_fake_responses(PgSocket *server, PgSocket *client)
 
 		if (!queue_fake_response(client, request->type)) {
 			/*
-			 * Only an allocation error causes this. A retry needs the
-			 * queue in its initial state, so disconnect instead.
+			 * The only reason the above could have failed is because
+			 * of allocation errors. To actually be able to retry after
+			 * these failures the next round we would need to restore
+			 * the outstanding_requests queue to how it was before.
+			 * Instead of doing that, we take the easy and known
+			 * correct way out: Simply disconnecting the involved
+			 * client and server.
 			 */
 			disconnect_client(client, true, "out of memory");
 			disconnect_server(client->link, true, "out of memory");

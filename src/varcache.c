@@ -88,7 +88,7 @@ static void init_var_lookup_from_config(const char *cf_track_extra_parameters, i
 
 void init_var_lookup(const char *cf_track_extra_parameters)
 {
-	const char *names[] = { "DateStyle", "client_encoding", "TimeZone", "standard_conforming_strings", "application_name", NULL };
+	const char *names[] = { "DateStyle", "client_encoding", "TimeZone", "standard_conforming_strings", "application_name", "plan_cache_mode", NULL };
 	int idx = 0;
 
 	struct var_lookup *lookup = NULL;

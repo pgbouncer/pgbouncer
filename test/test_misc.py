@@ -655,6 +655,14 @@ def test_options_startup_param(bouncer):
         == "1"
     )
 
+    assert (
+        bouncer.sql_value(
+            "SHOW plan_cache_mode",
+            options="-c plan_cache_mode=force_custom_plan",
+        )
+        == "force_custom_plan"
+    )
+
     with pytest.raises(
         psycopg.OperationalError,
         match="unsupported options startup parameter: only '-c config=val' and '--config=val' are allowed",

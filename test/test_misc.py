@@ -512,12 +512,16 @@ def test_timezone_change_after_database_alter(bouncer, pg):
     with bouncer.run_with_config(config):
         pg.sql("ALTER DATABASE postgres RESET timezone")
         bouncer.admin("reconnect postgres")
-        initial_timezone = bouncer.sql_value("SHOW timezone", dbname="postgres", user="puser1")
+        initial_timezone = bouncer.sql_value(
+            "SHOW timezone", dbname="postgres", user="puser1"
+        )
 
         try:
             pg.sql("ALTER DATABASE postgres SET timezone TO 'Europe/Paris'")
             bouncer.admin("reconnect postgres")
-            updated_timezone = bouncer.sql_value("SHOW timezone", dbname="postgres", user="puser1")
+            updated_timezone = bouncer.sql_value(
+                "SHOW timezone", dbname="postgres", user="puser1"
+            )
 
             assert initial_timezone != updated_timezone
             assert updated_timezone == pg.sql_value("SHOW timezone", dbname="postgres")

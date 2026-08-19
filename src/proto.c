@@ -324,25 +324,27 @@ bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 {
 	PktBuf *msg = pool->welcome_msg;
 
-	if (pool->welcome_msg_ready)
-		return true;
+	/*
+	 * Keep the cached server defaults current when a database setting changes
+	 * while the pool remains alive. The welcome packet itself is immutable once
+	 * it has been sent, so only append parameters while it is being built.
+	 */
+	if (!varcache_set(&pool->orig_vars, key, val) && !pool->welcome_msg_ready) {
+		if (!msg) {
+			msg = pktbuf_dynamic(128);
+			if (!msg)
+				return false;
+			pool->welcome_msg = msg;
+		}
 
-	if (!msg) {
-		msg = pktbuf_dynamic(128);
-		if (!msg)
-			return false;
-		pool->welcome_msg = msg;
+		/* first packet must be AuthOk */
+		if (msg->write_pos == 0)
+			pktbuf_write_AuthenticationOk(msg);
+
+		pktbuf_write_ParameterStatus(msg, key, val);
 	}
 
-	/* first packet must be AuthOk */
-	if (msg->write_pos == 0)
-		pktbuf_write_AuthenticationOk(msg);
-
-	/* if not stored in ->orig_vars, write full packet */
-	if (!varcache_set(&pool->orig_vars, key, val))
-		pktbuf_write_ParameterStatus(msg, key, val);
-
-	return !msg->failed;
+	return !msg || !msg->failed;
 }
 
 /* all parameters processed */

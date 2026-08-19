@@ -493,6 +493,39 @@ def test_track_extra_parameters(bouncer):
             assert result2[0] == test_expected[key][1]
 
 
+def test_timezone_change_after_database_alter(bouncer, pg):
+    config = f"""
+    [databases]
+    postgres = host={pg.host} port={pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_type = trust
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    pool_mode = session
+    query_wait_notify = 1
+    """
+
+    with bouncer.run_with_config(config):
+        pg.sql("ALTER DATABASE postgres RESET timezone")
+        bouncer.admin("reconnect postgres")
+        initial_timezone = bouncer.sql_value("SHOW timezone", user="puser1")
+
+        try:
+            pg.sql("ALTER DATABASE postgres SET timezone TO 'Europe/Paris'")
+            bouncer.admin("reconnect postgres")
+            updated_timezone = bouncer.sql_value("SHOW timezone", user="puser1")
+
+            assert initial_timezone != updated_timezone
+            assert updated_timezone == pg.sql_value("SHOW timezone", dbname="postgres")
+        finally:
+            pg.sql("ALTER DATABASE postgres RESET timezone")
+            bouncer.admin("reconnect postgres")
+
+
 async def test_wait_close(bouncer):
     with bouncer.cur(dbname="p3") as cur:
         cur.execute("select 1")

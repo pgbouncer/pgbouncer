@@ -672,7 +672,7 @@ static bool nothing_in_flight_to_client(PgSocket *server)
 	if (mbuf_avail_for_read(&server->sbuf.extra_packets) != 0)
 		return false;
 
-	if (server->sbuf.io != NULL && iobuf_amount_pending(server->sbuf.io) != 0)
+	if (!sbuf_is_empty(&server->sbuf))
 		return false;
 
 	return true;

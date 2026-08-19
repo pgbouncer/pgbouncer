@@ -155,16 +155,16 @@ static int apply_var(PktBuf *pkt, const char *key,
 	unsigned len;
 	const char *tmp;
 
-	/* if unset, skip */
-	if (!cval || !sval)
+	/* if unset on the client, skip */
+	if (!cval)
 		return 0;
 
-	/* if equal, skip */
-	if (cval == sval)
+	/* if already known to be equal, skip */
+	if (sval && cval == sval)
 		return 0;
 
 	/* ignore case difference */
-	if (strcasecmp(cval->str, sval->str) == 0)
+	if (sval && strcasecmp(cval->str, sval->str) == 0)
 		return 0;
 
 	/* parameters that are marked GUC_LIST_QUOTE are returned already fully quoted

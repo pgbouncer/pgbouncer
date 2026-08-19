@@ -540,6 +540,11 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 	client->db = find_or_register_database(client, dbname);
 	if (!client->db) {
 		client->db = calloc(1, sizeof(*client->db));
+		if (!client->db) {
+			slog_error(client, "set_pool(): failed to allocate fake database");
+			disconnect_client(client, true, "out of memory");
+			return false;
+		}
 		client->db->fake = true;
 		strlcpy(client->db->name, dbname, sizeof(client->db->name));
 	}
@@ -663,6 +668,11 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 
 			slog_info(client, "no such user: %s", username);
 			client->login_user_credentials = calloc(1, sizeof(*client->login_user_credentials));
+			if (!client->login_user_credentials) {
+				slog_error(client, "set_pool(): failed to allocate login user credentials");
+				disconnect_client(client, true, "bouncer resources exhaustion");
+				return false;
+			}
 
 			/*
 			 * For users that we are already tracking, we want to
@@ -1037,7 +1047,7 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 			username = val;
 		} else if (strcmp(key, "options") == 0) {
 			if (!set_startup_options(client, val))
-				return false;
+				goto fail;
 		} else if (strcmp(key, "application_name") == 0) {
 			set_appname(client, val);
 			appname_found = true;
@@ -1047,7 +1057,7 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 			slog_debug(client, "ignoring protocol extension parameter: %s=%s", key, val);
 			unsupported_protocol_extensions_count++;
 			if (!mbuf_write(&unsupported_protocol_extensions, key, strlen(key) + 1))
-				return false;
+				goto fail;
 		} else if (varcache_set(&client->vars, key, val)) {
 			slog_debug(client, "got var: %s=%s", key, val);
 		} else if (strlist_contains(cf_ignore_startup_params, key)) {
@@ -1055,19 +1065,19 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 		} else {
 			slog_warning(client, "unsupported startup parameter: %s=%s", key, val);
 			disconnect_client(client, true, "unsupported startup parameter: %s", key);
-			return false;
+			goto fail;
 		}
 	}
 
 	/* ran out of bytes before seeing a terminator, or got a double \0 before the end */
 	if (!ok || mbuf_avail_for_read(&pkt->data) != 0) {
 		disconnect_client(client, true, "invalid startup packet layout: expected terminator as last byte");
-		return false;
+		goto fail;
 	}
 
 	if (!username || !username[0]) {
 		disconnect_client(client, true, "no username supplied");
-		return false;
+		goto fail;
 	}
 
 	/* if missing dbname, default to username */
@@ -1084,7 +1094,7 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 	if (get_active_client_count() > cf_max_client_conn) {
 		if (strcmp(dbname, "pgbouncer") != 0) {
 			disconnect_client(client, true, "no more connections allowed (max_client_conn)");
-			return false;
+			goto fail;
 		}
 	}
 
@@ -1104,12 +1114,16 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 		pktbuf_free(buf);
 		if (!res) {
 			disconnect_client(client, false, "unable to send protocol negotiation packet");
-			return false;
+			goto fail;
 		}
 	}
 
 	/* find pool */
+	mbuf_free(&unsupported_protocol_extensions);
 	return set_pool(client, dbname, username, NULL, false);
+fail:
+	mbuf_free(&unsupported_protocol_extensions);
+	return false;
 }
 
 static bool scram_client_first(PgSocket *client, uint32_t datalen, const uint8_t *data)

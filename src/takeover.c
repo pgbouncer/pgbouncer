@@ -96,7 +96,6 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	char *client_enc, *std_string, *datestyle, *timezone, *password,
 	     *scram_client_key, *scram_server_key;
 	int scram_client_key_len, scram_server_key_len;
-	int keepalive, keepidle, keepintvl, keepcnt;
 	int oldfd, port, linkfd;
 	int got;
 	uint64_t ckey;
@@ -116,15 +115,14 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	}
 
 	/* parse row contents */
-	got = scan_text_result(pkt, "issssiqisssssbbiiii", &oldfd, &task, &user, &db,
+	got = scan_text_result(pkt, "issssiqisssssbb", &oldfd, &task, &user, &db,
 			       &saddr, &port, &ckey, &linkfd,
 			       &client_enc, &std_string, &datestyle, &timezone,
 			       &password,
 			       &scram_client_key_len,
 			       &scram_client_key,
 			       &scram_server_key_len,
-			       &scram_server_key,
-			       &keepalive, &keepidle, &keepintvl, &keepcnt);
+			       &scram_server_key);
 	if (got < 0)
 		die("invalid data from old process");
 	if (task == NULL || saddr == NULL)

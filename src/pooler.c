@@ -415,9 +415,6 @@ bool use_pooler_socket(int sock, bool is_unix)
 	int res;
 	char buf[PGADDR_BUF];
 
-	if (!tune_socket(sock, is_unix))
-		return false;
-
 	ls = calloc(1, sizeof(*ls));
 	if (!ls)
 		return false;

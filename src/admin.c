@@ -283,14 +283,24 @@ static bool send_one_fd(PgSocket *admin,
 
 	struct PktBuf *pkt = pktbuf_temp();
 
-	pktbuf_write_DataRow(pkt, "issssiqisssssbbiiii",
-			     fd, task, user, db, addr, port, ckey, link,
-			     client_enc, std_strings, datestyle, timezone,
-			     password,
-			     scram_client_key_len, scram_client_key,
-			     scram_server_key_len, scram_server_key,
-			     keepalive->keepalive, keepalive->keepidle,
-			     keepalive->keepintvl, keepalive->keepcnt);
+	/* Keep the online-restart wire format unchanged. */
+	if (cf_reboot) {
+		pktbuf_write_DataRow(pkt, "issssiqisssssbb",
+				     fd, task, user, db, addr, port, ckey, link,
+				     client_enc, std_strings, datestyle, timezone,
+				     password,
+				     scram_client_key_len, scram_client_key,
+				     scram_server_key_len, scram_server_key);
+	} else {
+		pktbuf_write_DataRow(pkt, "issssiqisssssbbiiii",
+				     fd, task, user, db, addr, port, ckey, link,
+				     client_enc, std_strings, datestyle, timezone,
+				     password,
+				     scram_client_key_len, scram_client_key,
+				     scram_server_key_len, scram_server_key,
+				     keepalive->keepalive, keepalive->keepidle,
+				     keepalive->keepintvl, keepalive->keepcnt);
+	}
 	if (pkt->failed)
 		return false;
 	iovec.iov_base = pkt->buf;
@@ -449,7 +459,7 @@ static bool admin_show_fds(PgSocket *admin, const char *arg)
 	/*
 	 * send resultset
 	 */
-	SEND_RowDescription(res, admin, "issssiqisssssbbiiii",
+	SEND_RowDescription(res, admin, cf_reboot ? "issssiqisssssbb" : "issssiqisssssbbiiii",
 			    "fd", "task",
 			    "user", "database",
 			    "addr", "port",

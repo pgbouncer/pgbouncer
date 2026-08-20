@@ -2000,7 +2000,7 @@ force_new:
 }
 
 /* new client connection attempt */
-PgSocket *accept_client(int sock, bool is_unix)
+static PgSocket *accept_client_common(int sock, bool is_unix, bool inherited)
 {
 	bool res;
 	PgSocket *client;
@@ -2022,7 +2022,9 @@ PgSocket *accept_client(int sock, bool is_unix)
 
 	change_client_state(client, CL_LOGIN);
 
-	res = sbuf_accept(&client->sbuf, sock, is_unix);
+	res = inherited
+		? sbuf_accept_inherited(&client->sbuf, sock, is_unix)
+		: sbuf_accept(&client->sbuf, sock, is_unix);
 	if (!res) {
 		if (cf_log_connections)
 			slog_debug(client, "failed connection attempt");
@@ -2030,6 +2032,11 @@ PgSocket *accept_client(int sock, bool is_unix)
 	}
 
 	return client;
+}
+
+PgSocket *accept_client(int sock, bool is_unix)
+{
+	return accept_client_common(sock, is_unix, false);
 }
 
 /* send cached parameters to client to pretend being server */
@@ -2351,7 +2358,7 @@ bool use_client_socket(int fd, PgAddr *addr,
 		credentials->scram_passthrough_valid = true;
 	}
 
-	client = accept_client(fd, pga_is_unix(addr));
+	client = accept_client_common(fd, pga_is_unix(addr), true);
 	if (client == NULL)
 		return false;
 	client->suspended = true;
@@ -2418,7 +2425,7 @@ bool use_server_socket(int fd, PgAddr *addr,
 	if (!server)
 		return false;
 
-	res = sbuf_accept(&server->sbuf, fd, pga_is_unix(addr));
+	res = sbuf_accept_inherited(&server->sbuf, fd, pga_is_unix(addr));
 	if (!res)
 		return false;
 

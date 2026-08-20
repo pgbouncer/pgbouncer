@@ -1371,13 +1371,18 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 				if (scram_client_final(client, length, data)) {
 					/* save SCRAM keys for user */
 					if (!client->scram_state.adhoc && !client->db->fake) {
-						memcpy(client->pool->user_credentials->scram_ClientKey,
+						/*
+						 * The pool credentials can be a forced backend user
+						 * (notably for stats_users on the admin database).
+						 * SCRAM keys belong to the user that authenticated.
+						 */
+						memcpy(client->login_user_credentials->scram_ClientKey,
 						       client->scram_state.ClientKey,
 						       sizeof(client->scram_state.ClientKey));
-						memcpy(client->pool->user_credentials->scram_ServerKey,
+						memcpy(client->login_user_credentials->scram_ServerKey,
 						       client->scram_state.ServerKey,
 						       sizeof(client->scram_state.ServerKey));
-						client->pool->user_credentials->scram_passthrough_valid = true;
+						client->login_user_credentials->scram_passthrough_valid = true;
 					}
 
 					free_scram_state(&client->scram_state);

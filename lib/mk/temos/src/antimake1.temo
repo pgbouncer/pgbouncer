@@ -1,0 +1,77 @@
+
+. ./libtemo.sh || exit 1
+
+test_start
+
+title Test Antimake
+
+title2 Simplest usage
+
+msg Here we avoid use of any autotools.
+
+msg First, this is the source file:
+cat_file hello.c <<"EOF"
+	#include <stdio.h>
+
+	int main(void)
+	{
+		printf("Hello, world\n");
+		return 0;
+	}
+EOF
+
+msg Here is corresponding Makefile:
+
+cat_file Makefile <<"EOF"
+	# This is target list - it's name describes target type
+	# and how it is installed, it's value target files to be built.
+	# bin - the targets will be installed under $(bindir)
+	# PROGRAMS - the target is executable built from many sources
+	bin_PROGRAMS = hello
+
+	# The target 'hello'-s source file list.
+	hello_SOURCES = hello.c
+
+	# Run Antimake
+	include antimake.mk
+EOF
+
+msg Also install Antimake and we are ready to build:
+run cp ../../antimake.mk .
+run ls
+
+msg Build the project
+
+run make
+run ls
+run ./hello
+
+msg We can even install it already:
+run make install prefix=/opt DESTDIR=./inst
+run ls ./inst/opt/bin
+
+msg For creating source package, we need to provide additional info:
+
+cat_file Makefile <<"EOF"
+	# Package name and version for tarball filename
+	PACKAGE_NAME = myhello
+	PACKAGE_VERSION = 1.0
+
+	# Non-source files to put into tarball
+	EXTRA_DIST = Makefile antimake.mk
+
+	bin_PROGRAMS = hello
+	hello_SOURCES = hello.c
+	include antimake.mk
+EOF
+
+msg Now we can create package that can be given to others.
+run make dist
+run ls
+run 'tar tzf myhello-1.0.tar.gz | sort'
+
+msg Clean the tree
+run make clean
+run ls
+
+msg Done!

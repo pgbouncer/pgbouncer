@@ -1,0 +1,473 @@
+= antimake.mk(5) =
+
+== NAME ==
+
+antimake - Minimal Automake syntax on plain GNU Make
+
+== DESCRIPTION ==
+
+Antimake makes possible to use GNU Automake conventions
+to describe builds in ordinary Makefiles for GNU Make.
+
+It's main abstractions are target lists and target variables.
+Target list describes target type and where to install.
+Target variables give source files and additional flags for build.
+
+== EXAMPLE ==
+
+-------------------
+# target list
+bin_PROGRAMS = prog
+
+# target variables for 'prog'
+prog_SOURCES = prog.c prog.h
+prog_LDADD = libutil.a
+
+# target list
+noinst_LIBRARIES = libutil.a
+
+# target variables for 'libutil.a'
+libutil_a_SOURCES = util.c util.h
+
+# load Antimake
+include antimake.mk
+-------------------
+
+== Terminology ==
+
+Primary::
+  target type, describes how to build and install particular type of targets.
+
+Target::
+  a file that needs to be built and/or installed.
+
+Distribute::
+  Include file in source .tar.gz.  Non-distributed files are skipped
+  when building .tar.gz and are cleaned during `make distclean`.
+
+Source::
+  Source files are files that appear in `..._SOURCES` per-target variable.
+  They are distributed by default.  They may or may not result in object files.
+  It's fine to put both `.h` and `.c` files into _SOURCES.
+
+== TARGET LISTS ==
+
+Target lists are variables that contain file names that need to be
+built and installed.  They are specially named so that the name also describes how they
+are built, how and where they will be installed.
+
+The target list name contains 3 parts, separated with underscore, in following order:
+
+1. Optional flags.  Flags are: `nodist`, `dist`, `nobase`, `base`.  (Default: `base`, `nodist`)
+2. Destination directory name.  Destination directory called *bin* actual
+   location is stored in Make variable `$(bindir)`.  Some common values:
+   `bin`, `lib`, `include`.   There are more and the list can be extended.
+   Special name `noinst` means the target file should not be installed.
+3. Target type, also called "primary".   This will describe how the target
+   needs to be built.  Common values: `PROGRAMS`, `LIBRARIES`, `DATA`
+
+For details, what the various values mean, see next sections.
+
+.Examples:
+----------------
+bin_PROGRAMS = prog1 prog2
+# flags: base, nodist
+# dest: $(bindir)
+# type: PROGRAMS
+
+noinst_LIBRARIES = lib1.a lib2.a
+# flags: base, nodist
+# dest: noinst
+# type: LIBRARIES
+
+nobase_dist_doc_DATA = docs/README
+# flags: dist, nobase
+# dest: $(docdir)/docs
+# type: DATA
+----------------
+
+=== Primaries ===
+
+`PROGRAMS`::
+  executable programs, linked together from objects built from source files
+
+`LIBARIES`::
+  static libraries, linked together from objects built from source files
+
+`LTLIBRARIES`::
+  dynamic or static libraries, linked together from objects built from source files
+
+`HEADERS`::
+  header files, no default build method, the target files have `dist` flag by default.
+
+`MANS`::
+  man pages, no default build method, installed into manX subdir.
+
+`SCRIPTS`::
+  scripts, executable file, no default build method
+
+`DATA`::
+  data, non-executable file, no default build method
+
+=== Target list flags ===
+
+`dist`::
+  The target should be distributed with other sources.
+  Default for `HEADERS` type, others have `nodist` by default.
+
+`nodist`::
+  Target is not distributed and should be cleaned with distclean.
+  Default for all primaries, except `HEADERS`.
+
+`base`::
+  On install relative path is ignored, all files
+  end up in destination directory.  Always default.
+
+`nobase`::
+  On install relative path is kept.  Eg: if `includedir=/usr/include`
+  then `nobase_include_HEADERS=mylib/common.h`
+  is installed to `/usr/include/mylib/common.h`.
+
+`noinst`::
+  Target is built as part of build process, but is not installed.
+
+`EXTRA`::
+  Targets in such list are not built, nor installed.
+  Useful to make sure that sources for dynamically configured targets
+  will end up in source tarball.  Unlike other target list ariables,
+  `EXTRA_<primary>` may contain targets already defined in other
+  target lists, they will be filtered out from this list then.
+
+== Target variables ==
+
+Only big targets take additional variables: `PROGRAMS`/`LIBRARIES`/`LTLIBRARIES`.
+
+`<tgt>_SOURCES`::
+    All source files, *.c *.h *.cpp *.hpp.
+
+`nodist_<tgt>_SOURCES`::
+    Source files that should not be distributed.
+
+`EXTRA_<tgt>_SOURCES`::
+    In case tgt_SOURCES is dynamic, here is non-dynamic
+    list of sources for distribution.  Only dynamic sources
+    need to be listed here.
+
+`<tgt>_DEPENDENCIES`::
+    Add dependencies that need to be build before target build will start.
+
+`<tgt>_CFLAGS`, `<tgt>_CPPFLAGS`, `<tgt>_LDFLAGS`, `<tgt>_LIBTOOLFLAGS`::
+    Override corresponging AM_xx variable
+
+`<tgt>_LDADD`::
+    Add dependencies that are used during linking.
+    For PROGRAMS only.
+    They will be added to linker command line.
+
+`<tgt>_LIBADD`::
+    Add dependencies that are used during linking.
+    For LIBRARIES/LTLIBRARIES only.
+    They will be added to linker command line.
+
+`<tgt>_AR`::
+    Overrides $(AR) $(ARFLAGS).
+    For LIBRARIES only.
+
+.Example:
+-------------------
+bin_PROGRAMS = prog
+prog_SOURCE = main.c util.c util.h
+prog_CFLAGS = $(GTK_CFLAGS)
+prog_LDADD = $(GTK_LIBS)
+-------------------
+
+
+== Global variables ==
+
+They can be set before `antimake.mk` inclusion to change
+build behaviour.
+
+EXTRA_DIST::
+	Additional files to include in source archive.
+
+CLEANFILES::
+	Additional files to `make clean`.
+
+DISTCLEANFILES::
+	Additional files to `make distclean`.
+
+MAINTAINERCLEANFILES::
+	Additional files to `make maintainer-clean`.
+
+SUBDIRS::
+	Subdirectories of current directory where Make
+	needs to be recursively launched.  If subdirectory
+	`Makefile` is Antimake-base, it should set `SUBLOC`.
+
+SUBLOC::
+	Current diretory location in overall source tree.
+	This can stay unset in top directory.  Needed for
+	subdirectiories entered with `SUBDIRS` to find
+	its position in source tree.
+
+DIST_SUBDIRS::
+	Subdirs that only `make dist`, `make distclean` and `make maintainer-clean`
+	will enter.
+
+EMBED_SUBDIRS::
+	Subdirectories that are built non-recursively: they need to contain `Makefile.am`
+	that contains makefile-fragment with Antimake syntax
+	that describes local targets using relative filenames.
+	The fragment is included in main makefile and file
+	and variable names are converted and merged with top-level targets.
+
+AM_FEATURES::
+	List of extensions to load.  Extensions are Makefile fragments
+	that are loaded before actual rules are generated, so they
+	can change or add targets.
+
+=== More details on EMBED_SUBDIRS ===
+
+It acts like `include $(dir)/Makefile.am` for each directory, except it converts
+file and variable names.  Example:
+
+---------------------
+Makefile:
+  EMBED_SUBDIRS = src
+
+src/Makefile.am:
+  bin_PROGRAMS = hello
+  hello_SOURCES = main.c
+  hello_CPPFLAGS = -I./include
+---------------------
+
+Conversion results as if top-level `Makefile` had contained following rows:
+
+----------------------
+bin_PROGRAMS += src/hello
+src_hello_SOURCES = src/main.c
+src_hello_CPPFLAGS = -I./src/include
+----------------------
+
+Variables, where file names are converted:
+
+* SUBDIRS, DIST_SUBDIRS, EMBED_SUBDIRS
+* DISTFILES, CLEANFILES, DISTCLEANFILES, MAINTAINERCLEANFILES
+* target lists
+* <tgt>_SOURCES, <tgt>_LDADD, <tgt>_LIBADD
+
+Variables, where -L and -I flags are converted:
+
+* <tgt>_CFLAGS
+* <tgt>_CPPFLAGS
+* <tgt>_LDFLAGS
+
+Makefile should be written in a way that those conversions
+would be enough.
+
+=== Global variables for current location ===
+
+* srcdir, builddir - relative path to source dir and build dir.
+* top_srcdir, top_builddir - relative path to top-level source and build dir.
+* abs_srcdir, abs_builddir - absolute path to source and build dir
+* abs_top_srcdir, abs_top_builddir - absolute path to top-level source and build dir
+* nosub_top_srcdir, nosub_top_builddir - relative path from top of builddir to srcdir and builddir.
+
+=== Global variables that target can override ===
+
+- AM_CPPFLAGS
+- AM_CFLAGS
+- AM_LDFLAGS
+- AM_LIBTOOLFLAGS
+- AM_DEFS
+- AM_MAKEFLAGS
+
+=== Global variables from autoconf ===
+
+These variables come usually from autoconf,
+but also have reasonable defaults:
+
+  CC, DEFS, CPPFLAGS, CFLAGS, LDFLAGS, LIBS,
+  LIBTOOL, LIBTOOLFLAGS, AR, ARFLAGS, RANLIB,
+  CXX, CXXFLAGS, INSTALL, MKDIR_P, LN_S
+
+=== Global variables for extending Antimake ===
+
+AM_DIST_DEFAULT::
+	Default format(s) for `make dist` target.  One or more of:
+	`gzip`, `bzip2`, `xz`, `zip`.  Default: `gzip`.
+
+
+AM_DESTINATIONS::
+	Additional directory names to consider as valid
+	destinations.  Expects corresponding `dir`-variable to be set.
+
+AM_SMALL_PRIMARIES::
+	Additional single-file primaries.  (Builtin: HEADERS, SCRIPTS, DATA, MANS)
+
+AM_BIG_PRIMARIES::
+	Additional primaries built from objects.  (Builtin: PROGRAMS, LIBRARIES, LTLIBRARIES)
+
+AM_LANGUAGES::
+	Additional language names.  Antimake expects variables
+	`AM_LANG_$(name)_SRCEXTS`, `AM_LANG_$(name)_COMPILE` and
+	`AM_LANG_$(name)_LINK` to be set.
+
+
+=== Variables for command-line usage ===
+
+DESTDIR::
+	Relocate installation root.
+
+AM_TRACE::
+	Turns on function-call debug info.  Can be set from command-line.
+
+=== Hacking variables ===
+
+GNUMAKE380, GNUMAKE381, GNUMAKE382::
+	If we have at least that version of GNU Make.  GNUMAKE380 is always
+	set, others may not be.  If Makefile uses features from newer GNU Make
+	it would be good idea to use those flags and error out with clear
+	error message, instead having mysterious failures.
+
+=== Libtool flags ===
+
+Useful http://www.gnu.org/software/libtool/manual/html_node/Link-mode.html[Libtool]
+flags that can be put int tgt_LDFLAGS for a LTLIBRARY:
+
+* -export-dynamic
+* -export-symbols symfile
+* -export-symbols-regex regex
+* -module
+
+See libtool http://www.gnu.org/software/libtool/manual/html_node/Versioning.html["Versioning"] chapter about those:
+
+* -avoid-version
+* -version-info  current[:revision[:age]]
+* -version-number major[:minor[:revision]]
+* -release major[:minor[:revision]]
+
+
+== Top-level pseudo-targets ==
+
+=== all ===
+
+The default target when no other target is given on command-line.  Builds all target files.
+
+==== Simple targets ====
+
+These are simple - either the file already exists,
+or the user needs to give build command.
+
+==== Object-based targets ====
+
+The targets in primaries PROGRAMS, LIBRARIES and LTLIBRARIES consist of multiple source
+files that need to be compiled into objects.  Then the objects need to be
+linked into final target.  The process is roughly following:
+
+. Dependencies are built (_LDADD, _LIBADD, _DEPENDENCIES).
+. Source list is filtered for extensions that can be compiled into object files,
+  object file list is created based on them.  The rest of files are used and
+  dependencies for target, but otherwise ignored.
+. Object files are built.
+. Linker is picked based on source files - as there can be files in multiple languages,
+  the most advanced language wins (the one that appears later in `AM_LANGUAGES`)
+. Final executable is linked.
+
+=== install ===
+
+Install all targets to their destination directories, which is mentioned
+in their target list variable name.  Eg.  `bin_PROGRAMS` will be installed
+to `$(bindir)`.   If destination is named `noinst`, it will not be installed.
+
+If the flag `nobase` is given, the relative filename is kept, otherwise
+basename is taken and it will appear directly under destination directory.
+
+.Example:
+------
+include_HEADERS = func1.h lib/func2.h
+# Files will end up in:
+#   $(includedir)/func1.h
+#   $(includedir)/func2.h
+
+nobase_include_HEADERS = func1.h lib/func2.h
+# Files will end up in:
+#   $(includedir)/func1.h
+#   $(includedir)/lib/func2.h
+------
+
+=== clean ===
+
+- Remove files in `$(CLEANFILES)`
+- Remove built objects.
+- Remove target files, unless they are marked as `dist`.
+  (Note: `HEADERS` primary is `dist` by default, all other are `nodist`)
+
+=== distclean ===
+
+- Remove files in `$(DISTCLEANFILES)`
+- Remove sources tagged with `nodist`.  All sources as `dist` by default.
+
+=== maintainer-clean ===
+
+- Remove files in `$(MAINTAINERCLEANFILES)`
+
+=== help ===
+
+Describe top-level targets.
+
+=== am-test ===
+
+Regression test for low-level Antimake functions.
+
+=== am-debug ===
+
+Show Antimake internal state.
+
+== FEATURES ==
+
+Done:
+
+- Big primaries: PROGRAMS, LIBRARIES, LTLIBRARIES
+- Small primaries: DATA, SCRIPTS, MANS, HEADERS
+- Flags: base nobase dist nodist noinst EXTRA
+- Target vars: SOURCES, CPPFLAGS, CFLAGS, LDFLAGS, LDADD/LIBADD
+- Separate build dir
+- Per-target objects
+- Languages: C, CXX
+- SUBDIRS, DIST_SUBDIRS
+- EMBED_SUBDIRS
+
+Todo:
+
+- Improve docs
+- Standardize and document how to extend
+- Deps with non-gcc?
+- Long if-s to support `O=` seems to break GNU Make 3.80.
+  Drop `O=` or drop 3.80?
+
+Probably out of scope:
+
+- `make uninstall`
+- `make distcheck`
+- `make dist` from separate build dir
+- `install-(exec|data)-hook` - based on dir not primary
+- Default file list for `EXTRA_DIST`.  (Problem: distclean / maintainer-clean)
+
+Definitely out of scope:
+
+- automake conditionals
+- automake extras (autoconf macros, ltdl)
+- automake nanny mode (gnu/gnits)
+
+== SEE ALSO ==
+
+GNU Make Reference: http://www.gnu.org/software/make/manual/make.html#Quick-Reference[]
+
+Recursive Make Considered Harmful: http://miller.emu.id.au/pmiller/books/rmch/[]
+
+Paul's Rules of Makefiles: http://make.mad-scientist.us/rules.html[]
+
+Small BSD-ish build system: https://webkeks.org/hg/buildsys/[]
+
+GNU Make Standard Library: http://sourceforge.net/projects/gmsl/[]

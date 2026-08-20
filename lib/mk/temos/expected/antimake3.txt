@@ -1,0 +1,266 @@
+
+= Test Antimake EMBED_SUBDIRS =
+
+
+Antimake variable `EMBED_SUBDIRS` list names of directories that
+contains Makefile fragmants that are to be embedded into current
+Makefile.
+
+- Plus: Proper dependencies, work well with parallel Make.
+- Minus: Cannot go into subdir and run make there.
+- Minus: Fragments are not stand-alone, so need some care when writing.
+
+
+== Intro to EMBED_SUBDIRS ==
+
+
+To better understand what EMBED_SUBDIRS does, let\'s start with simple
+case - single Makefile that references files under subdir:
+
+---------------------------------
+$ mkdir -p src
+$ cp ../../antimake.mk .
+---------------------------------
+.File: Makefile
+[source,makefile]
+-----------------------------------
+bin_PROGRAMS = src/myprog
+src_myprog_SOURCES = src/myprog.c
+include antimake.mk
+-----------------------------------
+.File: src/myprog.c
+[source,c]
+-----------------------------------
+#include <stdio.h>
+
+int main(void)
+{
+	printf("myprog\n");
+	return 0;
+}
+-----------------------------------
+---------------------------------
+$ make
+     CC       src/myprog.c
+     CCLD     src/myprog
+$ ./src/myprog
+myprog
+$ make clean
+     CLEAN    src/myprog
+---------------------------------
+
+Now you can put the lines that reference files under `src/`
+also into `src` and include that from top-level Makefile:
+
+.File: src/Makefile.inc
+-----------------------------------
+bin_PROGRAMS = src/myprog
+src_myprog_SOURCES = src/myprog.c
+-----------------------------------
+.File: Makefile
+[source,makefile]
+-----------------------------------
+include src/Makefile.inc
+include antimake.mk
+-----------------------------------
+---------------------------------
+$ make
+     CC       src/myprog.c
+     CCLD     src/myprog
+$ ./src/myprog
+myprog
+---------------------------------
+
+This works but the problem is that although the Makefile is local,
+it still sees files from top-Makefile-level.  So that is what `EMBED_SUBDIRS`
+helps with - it allows using local filenames in Makefile fragment,
+and it converts them to top-level filenames when including.  It knows
+only few type of variables it needs to convert:
+
+- target filenames in primares lists (*_PROGRAMS, *_LIBRARIES, etc)
+- target_SOURCES: foo_SOURCES -> sub_dir_foo_SOURCES with filename conversion
+- other target variables: `foo_*` -> `sub_dir_foo_*` without filename conversion
+- EXTRA_DIST, CLEANFILES, DISTCLEANFILES, MAINTAINERCLEANFILES
+
+Any other variables stay untouched, and obviously they can mess up top-level variables.
+So the included Makefile should be as clean as possible.
+
+
+== Setup source tree for EMBED_SUBDIRS ==
+
+
+Setup directories, install Antimake
+
+---------------------------------
+$ mkdir -p lib1/sublib lib2
+$ cp ../../antimake.mk .
+---------------------------------
+
+Prepare sources
+
+.File: main.c
+[source,c]
+-----------------------------------
+#include <stdio.h>
+
+void func1(void);
+void func2(void);
+void func3(void);
+
+int main(void)
+{
+	func1();
+	func2();
+	func3();
+	printf("main\n");
+	return 0;
+}
+-----------------------------------
+.File: lib1/func1.c
+[source,c]
+-----------------------------------
+#include <stdio.h>
+
+void func1(void)
+{
+	printf("func1\n");
+}
+-----------------------------------
+.File: lib1/sublib/func2.c
+[source,c]
+-----------------------------------
+#include <stdio.h>
+
+void func2(void)
+{
+	printf("func2\n");
+}
+-----------------------------------
+.File: lib2/func3.c
+[source,c]
+-----------------------------------
+#include <stdio.h>
+
+void func3(void)
+{
+	printf("func3\n");
+}
+-----------------------------------
+
+Prepare Makefiles
+
+.File: Makefile
+[source,makefile]
+-----------------------------------
+PACKAGE_NAME = test-subdirs
+PACKAGE_VERSION = 1.0
+
+EMBED_SUBDIRS = lib1 lib1/sublib lib2
+
+bin_PROGRAMS = prog
+prog_SOURCES = main.c
+prog_LDADD = lib1/func1.a lib1/sublib/func2.a lib2/func3.a
+
+EXTRA_DIST = Makefile antimake.mk
+
+include antimake.mk
+-----------------------------------
+.File: lib1/Makefile.am
+-----------------------------------
+noinst_LIBRARIES = func1.a
+func1_a_SOURCES = func1.c
+
+EXTRA_DIST = Makefile.am
+-----------------------------------
+.File: lib1/sublib/Makefile.am
+-----------------------------------
+noinst_LIBRARIES = func2.a
+func2_a_SOURCES = func2.c
+EXTRA_DIST = Makefile.am
+-----------------------------------
+.File: lib2/Makefile.am
+-----------------------------------
+noinst_LIBRARIES = func3.a
+func3_a_SOURCES = func3.c
+
+EXTRA_DIST = Makefile.am
+-----------------------------------
+
+== Building ==
+
+
+Build the project
+
+---------------------------------
+$ make
+     CC       main.c
+     CC       lib1/func1.c
+     AR       lib1/func1.a
+     RANLIB   lib1/func1.a
+     CC       lib1/sublib/func2.c
+     AR       lib1/sublib/func2.a
+     RANLIB   lib1/sublib/func2.a
+     CC       lib2/func3.c
+     AR       lib2/func3.a
+     RANLIB   lib2/func3.a
+     CCLD     prog
+$ ls
+Makefile  antimake.mk  lib1  lib2  main.c  prog  src
+$ ./prog
+func1
+func2
+func3
+main
+---------------------------------
+
+We can now install it:
+
+---------------------------------
+$ make install prefix=/opt DESTDIR=./inst
+     INSTALL  prog ./inst/opt/bin
+$ ls ./inst/opt/bin
+prog
+---------------------------------
+
+Now we can create package that can be given to others.
+
+---------------------------------
+$ make dist
+     CHECK    dist-gzip
+     MKDIR    test-subdirs-1.0
+     COPY     test-subdirs-1.0
+     PACK     test-subdirs-1.0.tar.gz
+$ ls
+Makefile     inst  lib2    prog  test-subdirs-1.0.tar.gz
+antimake.mk  lib1  main.c  src
+$ tar tzf test-subdirs-1.0.tar.gz | sort
+test-subdirs-1.0/
+test-subdirs-1.0/Makefile
+test-subdirs-1.0/antimake.mk
+test-subdirs-1.0/lib1/
+test-subdirs-1.0/lib1/Makefile.am
+test-subdirs-1.0/lib1/func1.c
+test-subdirs-1.0/lib1/sublib/
+test-subdirs-1.0/lib1/sublib/Makefile.am
+test-subdirs-1.0/lib1/sublib/func2.c
+test-subdirs-1.0/lib2/
+test-subdirs-1.0/lib2/Makefile.am
+test-subdirs-1.0/lib2/func3.c
+test-subdirs-1.0/main.c
+---------------------------------
+
+Clean the tree
+
+---------------------------------
+$ make clean
+     CLEAN    prog
+     CLEAN    lib1/func1.a
+     CLEAN    lib1/sublib/func2.a
+     CLEAN    lib2/func3.a
+     CLEAN    clean
+$ ls
+Makefile  antimake.mk  inst  lib1  lib2  main.c  src  test-subdirs-1.0.tar.gz
+---------------------------------
+
+Done!
+

@@ -1,0 +1,37 @@
+#include <winver.h>
+/* Match how lib/usual/base.h picks up the generated config: the meson build
+ * defines USUAL_TEST_CONFIG and generates test_config.h, while autoconf
+ * generates usual/config.h. */
+#ifdef USUAL_TEST_CONFIG
+#include "test_config.h"
+#else
+#include "usual/config.h"
+#endif
+
+// https://docs.microsoft.com/en-us/windows/win32/menurc/versioninfo-resource
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION    PACKAGE_VERSION_4B
+ PRODUCTVERSION PACKAGE_VERSION_4B
+ FILEFLAGSMASK  VS_FFI_FILEFLAGSMASK
+ FILEFLAGS      0x0L
+ FILEOS         VOS_NT_WINDOWS32
+ FILETYPE       VFT_APP
+ FILESUBTYPE    0x0L
+BEGIN
+ BLOCK "StringFileInfo"
+ BEGIN
+  BLOCK "040904B0"			// U.S. English, Unicode
+  BEGIN
+   VALUE "CompanyName",      "PgBouncer developers"
+   VALUE "FileDescription",  "connection pooler for PostgreSQL"
+   VALUE "FileVersion",      PACKAGE_VERSION
+   VALUE "ProductName",      PACKAGE_NAME
+   VALUE "ProductVersion",   PACKAGE_VERSION
+  END
+ END
+ BLOCK "VarFileInfo"
+ BEGIN
+  VALUE "Translation", 0x0409, 1200	// U.S. English, Unicode
+ END
+END

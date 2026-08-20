@@ -1,0 +1,89 @@
+
+= Use installed libusual with antimake. =
+
+
+Install libusual and link against it.
+
+
+== Build libusual ==
+
+---------------------------------
+$ git clone git://github.com/libusual/libusual.git libusual
+Cloning into 'libusual'...
+$ cd libusual
+$ ./autogen.sh
+[...]
+$ ./configure --disable-shared --prefix=`pwd`/../inst
+[...]
+$ make
+[...]
+$ make install
+[...]
+$ cd ..
+---------------------------------
+
+== Build our own code ==
+
+
+Now we prepare our own code.
+
+
+First, this is the source file:
+
+.File: prog.c
+[source,c]
+-----------------------------------
+#include <stdio.h>
+#include <string.h>
+#include <usual/hashing/crc32.h>
+
+int main(void)
+{
+	const char *data = "CECSFXX";
+	uint32_t crc;
+
+	crc = calc_crc32(data, strlen(data), 0);
+	printf("crc: %08x\n", crc);
+	return 0;
+}
+-----------------------------------
+
+Here is corresponding Makefile:
+
+.File: Makefile
+[source,makefile]
+-----------------------------------
+# temo hacks to support local install, not needed otherwise
+PKG_CONFIG = PKG_CONFIG_PATH=$(CURDIR)/inst/lib/pkgconfig pkg-config
+
+# use pkg-config to get libusual info
+USUAL_CPPFLAGS = $(shell $(PKG_CONFIG) libusual --cflags)
+USUAL_LDFLAGS = $(shell $(PKG_CONFIG) libusual --libs-only-L)
+USUAL_LIBS = $(shell $(PKG_CONFIG) libusual --libs-only-l)
+
+# Generic Antimake
+bin_PROGRAMS = prog
+prog_SOURCES = prog.c
+prog_CPPFLAGS = $(USUAL_CPPFLAGS)
+prog_LDFLAGS = $(USUAL_LDFLAGS)
+prog_LDADD = $(USUAL_LIBS)
+
+# use installed Antimake
+ANTIMAKE = $(shell $(PKG_CONFIG) libusual --variable=antimake)
+include $(ANTIMAKE)
+-----------------------------------
+
+Build the project
+
+---------------------------------
+$ make
+     CC       prog.c
+     CCLD     prog
+$ ls
+Makefile  inst	libusual  prog	prog.c
+$ ./prog
+crc: 12345678
+---------------------------------
+
+Done!
+

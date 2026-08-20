@@ -1,0 +1,268 @@
+
+= Test Antimake SUBDIRS =
+
+
+Antimake variable `SUBDIRS` list names of directories that the Make
+needs to recurse into.  Each of them contains stand-alone Makefile
+that directs building in that subdirs.
+
+- Plus: you can call 'make' while being in subdir to build only local targets.
+- Minus: dependencies between subdirs do not work.
+
+
+== Setup source tree ==
+
+
+Setup directories, install Antimake
+
+---------------------------------
+$ mkdir -p lib1/sublib lib2
+$ cp ../../antimake.mk .
+---------------------------------
+
+Prepare sources
+
+.File: api.h
+[source,c]
+-----------------------------------
+void func1(void);
+void func2(void);
+void func3(void);
+-----------------------------------
+.File: main.c
+[source,c]
+-----------------------------------
+#include <stdio.h>
+#include "api.h"
+
+int main(void)
+{
+	func1();
+	func2();
+	func3();
+	printf("main\n");
+	return 0;
+}
+-----------------------------------
+.File: lib1/func1.c
+[source,c]
+-----------------------------------
+#include <stdio.h>
+#include "api.h"
+
+void func1(void)
+{
+	printf("func1\n");
+}
+-----------------------------------
+.File: lib1/sublib/func2.c
+[source,c]
+-----------------------------------
+#include <stdio.h>
+#include "api.h"
+
+void func2(void)
+{
+	printf("func2\n");
+}
+-----------------------------------
+.File: lib2/func3.c
+[source,c]
+-----------------------------------
+#include <stdio.h>
+#include "api.h"
+
+void func3(void)
+{
+	printf("func3\n");
+}
+-----------------------------------
+
+Prepare Makefiles
+
+.File: Makefile
+[source,makefile]
+-----------------------------------
+PACKAGE_NAME = test-subdirs
+PACKAGE_VERSION = 1.0
+
+SUBDIRS = lib1 lib2
+
+bin_PROGRAMS = prog
+prog_SOURCES = main.c
+prog_LDADD = lib1/func1.a lib1/sublib/func2.a lib2/func3.a
+
+EXTRA_DIST = Makefile antimake.mk
+
+include antimake.mk
+-----------------------------------
+.File: lib1/Makefile
+[source,makefile]
+-----------------------------------
+SUBLOC = lib1
+SUBDIRS = sublib
+
+noinst_LIBRARIES = func1.a
+func1_a_SOURCES = func1.c
+func1_a_CPPFLAGS = -I..
+
+EXTRA_DIST = Makefile
+
+include ../antimake.mk
+-----------------------------------
+.File: lib1/sublib/Makefile
+[source,makefile]
+-----------------------------------
+SUBLOC = lib1/sublib
+
+noinst_LIBRARIES = func2.a
+func2_a_SOURCES = func2.c
+func2_a_CPPFLAGS = -I../..
+
+EXTRA_DIST = Makefile
+
+include ../../antimake.mk
+-----------------------------------
+.File: lib2/Makefile
+[source,makefile]
+-----------------------------------
+SUBLOC = lib2
+
+noinst_LIBRARIES = func3.a
+func3_a_SOURCES = func3.c
+func3_a_CPPFLAGS = -I$(top_srcdir)
+
+EXTRA_DIST = Makefile
+
+include ../antimake.mk
+-----------------------------------
+
+== Building ==
+
+
+Build the project
+
+---------------------------------
+$ make
+     -->      lib1
+     -->      lib1/sublib
+     CC       func2.c
+     AR       func2.a
+     RANLIB   func2.a
+     <--      lib1/sublib
+     CC       func1.c
+     AR       func1.a
+     RANLIB   func1.a
+     <--      lib1
+     -->      lib2
+     CC       func3.c
+     AR       func3.a
+     RANLIB   func3.a
+     <--      lib2
+     CC       main.c
+     CCLD     prog
+$ ls
+Makefile  antimake.mk  api.h  lib1  lib2  main.c  prog
+$ ./prog
+func1
+func2
+func3
+main
+---------------------------------
+
+We can now install it:
+
+---------------------------------
+$ make install DESTDIR=./inst
+     -->      lib1
+     -->      lib1/sublib
+make[2]: Nothing to be done for `install'.
+     <--      lib1/sublib
+     <--      lib1
+     -->      lib2
+make[1]: Nothing to be done for `install'.
+     <--      lib2
+     INSTALL  prog ./inst/usr/local/bin
+$ ls ./inst/usr/local/bin
+prog
+---------------------------------
+
+Now we can create package that can be given to others.
+
+---------------------------------
+$ make dist
+     CHECK    dist-gzip
+     MKDIR    test-subdirs-1.0
+     COPY     test-subdirs-1.0
+     PACK     test-subdirs-1.0.tar.gz
+$ ls
+Makefile     api.h  lib1  main.c  test-subdirs-1.0.tar.gz
+antimake.mk  inst   lib2  prog
+$ tar tzf test-subdirs-1.0.tar.gz | sort
+test-subdirs-1.0/
+test-subdirs-1.0/Makefile
+test-subdirs-1.0/antimake.mk
+test-subdirs-1.0/lib1/
+test-subdirs-1.0/lib1/Makefile
+test-subdirs-1.0/lib1/func1.c
+test-subdirs-1.0/lib1/sublib/
+test-subdirs-1.0/lib1/sublib/Makefile
+test-subdirs-1.0/lib1/sublib/func2.c
+test-subdirs-1.0/lib2/
+test-subdirs-1.0/lib2/Makefile
+test-subdirs-1.0/lib2/func3.c
+test-subdirs-1.0/main.c
+---------------------------------
+
+Clean the tree
+
+---------------------------------
+$ make clean
+     -->      lib1
+     -->      lib1/sublib
+     CLEAN    func2.a
+     <--      lib1/sublib
+     CLEAN    func1.a
+     <--      lib1
+     -->      lib2
+     CLEAN    func3.a
+     <--      lib2
+     CLEAN    prog
+$ ls
+Makefile  antimake.mk  api.h  inst  lib1  lib2	main.c	test-subdirs-1.0.tar.gz
+---------------------------------
+
+Test O=
+
+---------------------------------
+$ mkdir -p build
+$ make O=build
+     MKDIR    Create lib1
+     -->      lib1
+     MKDIR    Create lib1/sublib
+     -->      lib1/sublib
+     CC       ../../../lib1/sublib/func2.c
+     AR       func2.a
+     RANLIB   func2.a
+     <--      lib1/sublib
+     CC       ../../lib1/func1.c
+     AR       func1.a
+     RANLIB   func1.a
+     <--      lib1
+     MKDIR    Create lib2
+     -->      lib2
+     CC       ../../lib2/func3.c
+     AR       func3.a
+     RANLIB   func3.a
+     <--      lib2
+     CC       ../main.c
+     CCLD     prog
+$ ls
+Makefile     api.h  inst  lib2	  test-subdirs-1.0.tar.gz
+antimake.mk  build  lib1  main.c
+$ ls build
+Makefile  antimake.mk  lib1  lib2  prog
+---------------------------------
+
+Done!
+

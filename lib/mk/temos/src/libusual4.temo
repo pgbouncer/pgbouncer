@@ -1,0 +1,84 @@
+
+. ./libtemo.sh || exit 1
+
+test_start
+
+title Use installed libusual
+
+longmsg <<-MSG
+	Install libusual and link against it.
+MSG
+
+title2 Build libusual
+
+usual_clone libusual
+
+run cd libusual
+
+runq ./autogen.sh
+runq './configure --disable-static --prefix=`pwd`/../inst'
+runq make
+runq make install
+run cd ..
+run 'find inst | sort'
+
+title2 Build our own code
+
+msg Now we prepare our own code.
+
+msg First, this is the source file:
+cat_file prog.c <<"EOF"
+	#include <stdio.h>
+	#include <string.h>
+	#include <usual/hashing/crc32.h>
+
+	int main(void)
+	{
+		const char *data = "CECSFXX";
+		uint32_t crc;
+
+		crc = calc_crc32(data, strlen(data), 0);
+		printf("crc: %08x\n", crc);
+		return 0;
+	}
+EOF
+
+msg Here is corresponding Makefile:
+cat_file Makefile <<"EOF"
+
+	CC = gcc
+	CFLAGS = -O -g -Wall
+
+	# here we describe our program
+	SRCS = prog.c
+	OBJS = $(SRCS:.c=.o)
+
+	# put libusual flags to proper place
+	CPPFLAGS = $(USUAL_CPPFLAGS)
+	LIBS = $(USUAL_LIBS)
+
+	# use pkg-config to get libusual info
+	USUAL_CPPFLAGS = $(shell $(PKG_CONFIG) --cflags libusual)
+	USUAL_LIBS = $(shell $(PKG_CONFIG) --libs libusual)
+
+	# temo hacks to support local install, not needed otherwise
+	PKG_CONFIG := PKG_CONFIG_PATH=$(CURDIR)/inst/lib/pkgconfig pkg-config
+	CPPFLAGS := $(subst $(CURDIR)/libusual/../,./,$(CPPFLAGS))
+	LIBS := $(subst $(CURDIR)/libusual/../,./,$(LIBS))
+
+	all: prog
+
+	%.o: %.c
+		$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
+
+	prog: $(OBJS)
+		$(CC) $(CFLAGS) $(LDFLAGS) $(OBJS) $(LIBS) -o $@
+EOF
+
+msg Build the project
+
+run make
+run ls
+run LD_LIBRARY_PATH=./inst/lib ./prog
+
+msg Done!

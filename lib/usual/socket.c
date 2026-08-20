@@ -146,6 +146,45 @@ bool socket_set_keepalive(int fd, int onoff, int keepidle, int keepintvl, int ke
 	return true;
 }
 
+void socket_get_keepalive(int fd, struct SocketKeepalive *settings)
+{
+	int val;
+	socklen_t len;
+
+	settings->keepalive = -1;
+	settings->keepidle = -1;
+	settings->keepintvl = -1;
+	settings->keepcnt = -1;
+
+#ifdef SO_KEEPALIVE
+	len = sizeof(val);
+	if (getsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &val, &len) == 0)
+		settings->keepalive = val;
+#endif
+
+#if defined(TCP_KEEPIDLE)
+	len = sizeof(val);
+	if (getsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &val, &len) == 0)
+		settings->keepidle = val;
+#elif defined(TCP_KEEPALIVE)
+	len = sizeof(val);
+	if (getsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE, &val, &len) == 0)
+		settings->keepidle = val;
+#endif
+
+#ifdef TCP_KEEPINTVL
+	len = sizeof(val);
+	if (getsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &val, &len) == 0)
+		settings->keepintvl = val;
+#endif
+
+#ifdef TCP_KEEPCNT
+	len = sizeof(val);
+	if (getsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &val, &len) == 0)
+		settings->keepcnt = val;
+#endif
+}
+
 /*
  * Convert sockaddr to string.  Supports ipv4, ipv6 and unix sockets.
  */

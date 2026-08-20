@@ -95,6 +95,21 @@ bool socket_set_nonblocking(int sock, bool non_block);
  */
 bool socket_set_keepalive(int fd, int onoff, int keepidle, int keepintvl, int keepcnt);
 
+struct SocketKeepalive {
+	int keepalive;
+	int keepidle;
+	int keepintvl;
+	int keepcnt;
+};
+
+/**
+ * Get TCP keepalive settings from a socket.
+ *
+ * Values are -1 when the option is unavailable or does not apply to the
+ * socket.
+ */
+void socket_get_keepalive(int fd, struct SocketKeepalive *settings);
+
 /**
  * Convert struct sockaddr to stirng.
  *

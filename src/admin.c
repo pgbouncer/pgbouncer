@@ -272,7 +272,8 @@ static bool send_one_fd(PgSocket *admin,
 			const uint8_t *scram_client_key,
 			int scram_client_key_len,
 			const uint8_t *scram_server_key,
-			int scram_server_key_len)
+			int scram_server_key_len,
+			const struct SocketKeepalive *keepalive)
 {
 	struct msghdr msg;
 	struct cmsghdr *cmsg;
@@ -282,12 +283,14 @@ static bool send_one_fd(PgSocket *admin,
 
 	struct PktBuf *pkt = pktbuf_temp();
 
-	pktbuf_write_DataRow(pkt, "issssiqisssssbb",
+	pktbuf_write_DataRow(pkt, "issssiqisssssbbiiii",
 			     fd, task, user, db, addr, port, ckey, link,
 			     client_enc, std_strings, datestyle, timezone,
 			     password,
 			     scram_client_key_len, scram_client_key,
-			     scram_server_key_len, scram_server_key);
+			     scram_server_key_len, scram_server_key,
+			     keepalive->keepalive, keepalive->keepidle,
+			     keepalive->keepintvl, keepalive->keepcnt);
 	if (pkt->failed)
 		return false;
 	iovec.iov_base = pkt->buf;
@@ -343,6 +346,7 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	char addrbuf[PGADDR_BUF];
 	const char *password = NULL;
 	bool send_scram_keys = false;
+	struct SocketKeepalive keepalive;
 
 	/* Skip TLS sockets */
 	if (sk->sbuf.tls || (sk->link && sk->link->sbuf.tls))
@@ -362,6 +366,7 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 	if (sk->pool && sk->pool->user_credentials && sk->pool->user_credentials->scram_passthrough_valid)
 		send_scram_keys = true;
 
+	socket_get_keepalive(sbuf_socket(&sk->sbuf), &keepalive);
 	return send_one_fd(admin, sbuf_socket(&sk->sbuf),
 			   is_server_socket(sk) ? "server" : "client",
 			   sk->login_user_credentials ? sk->login_user_credentials->name : NULL,
@@ -378,16 +383,20 @@ static bool show_one_fd(PgSocket *admin, PgSocket *sk)
 			   send_scram_keys ? sk->pool->user_credentials->scram_ClientKey : NULL,
 			   send_scram_keys ? (int) sizeof(sk->pool->user_credentials->scram_ClientKey) : -1,
 			   send_scram_keys ? sk->pool->user_credentials->scram_ServerKey : NULL,
-			   send_scram_keys ? (int) sizeof(sk->pool->user_credentials->scram_ServerKey) : -1);
+			   send_scram_keys ? (int) sizeof(sk->pool->user_credentials->scram_ServerKey) : -1,
+			   &keepalive);
 }
 
 static bool show_pooler_cb(void *arg, int fd, const PgAddr *a)
 {
 	char buf[PGADDR_BUF];
+	struct SocketKeepalive keepalive;
 
+	socket_get_keepalive(fd, &keepalive);
 	return send_one_fd(arg, fd, "pooler", NULL, NULL,
 			   pga_ntop(a, buf, sizeof(buf)), pga_port(a), 0, 0,
-			   NULL, NULL, NULL, NULL, NULL, NULL, -1, NULL, -1);
+			   NULL, NULL, NULL, NULL, NULL, NULL, -1, NULL, -1,
+			   &keepalive);
 }
 
 /* send a row with sendmsg, optionally attaching a fd */
@@ -440,14 +449,15 @@ static bool admin_show_fds(PgSocket *admin, const char *arg)
 	/*
 	 * send resultset
 	 */
-	SEND_RowDescription(res, admin, "issssiqisssssbb",
+	SEND_RowDescription(res, admin, "issssiqisssssbbiiii",
 			    "fd", "task",
 			    "user", "database",
 			    "addr", "port",
 			    "cancel", "link",
 			    "client_encoding", "std_strings",
 			    "datestyle", "timezone", "password",
-			    "scram_client_key", "scram_server_key");
+			    "scram_client_key", "scram_server_key",
+			    "keepalive", "keepidle", "keepintvl", "keepcnt");
 	if (res)
 		res = show_pooler_fds(admin);
 

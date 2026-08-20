@@ -116,7 +116,7 @@ static void takeover_load_fd(struct MBuf *pkt, const struct cmsghdr *cmsg)
 	}
 
 	/* parse row contents */
-	got = scan_text_result(pkt, "issssiqisssssbb", &oldfd, &task, &user, &db,
+	got = scan_text_result(pkt, "issssiqisssssbbiiii", &oldfd, &task, &user, &db,
 			       &saddr, &port, &ckey, &linkfd,
 			       &client_enc, &std_string, &datestyle, &timezone,
 			       &password,

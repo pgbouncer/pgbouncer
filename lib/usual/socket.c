@@ -158,29 +158,29 @@ void socket_get_keepalive(int fd, struct SocketKeepalive *settings)
 
 #ifdef SO_KEEPALIVE
 	len = sizeof(val);
-	if (getsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &val, &len) == 0)
+	if (getsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, (char *)&val, &len) == 0)
 		settings->keepalive = val;
 #endif
 
 #if defined(TCP_KEEPIDLE)
 	len = sizeof(val);
-	if (getsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &val, &len) == 0)
+	if (getsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, (char *)&val, &len) == 0)
 		settings->keepidle = val;
 #elif defined(TCP_KEEPALIVE)
 	len = sizeof(val);
-	if (getsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE, &val, &len) == 0)
+	if (getsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE, (char *)&val, &len) == 0)
 		settings->keepidle = val;
 #endif
 
 #ifdef TCP_KEEPINTVL
 	len = sizeof(val);
-	if (getsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &val, &len) == 0)
+	if (getsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, (char *)&val, &len) == 0)
 		settings->keepintvl = val;
 #endif
 
 #ifdef TCP_KEEPCNT
 	len = sizeof(val);
-	if (getsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &val, &len) == 0)
+	if (getsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, (char *)&val, &len) == 0)
 		settings->keepcnt = val;
 #endif
 }

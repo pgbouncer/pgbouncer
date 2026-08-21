@@ -493,6 +493,80 @@ def test_track_extra_parameters(bouncer):
             assert result2[0] == test_expected[key][1]
 
 
+def _reject_backend_after_timezone(listener, rejection_processed):
+    with listener.accept()[0] as backend, backend.makefile("rb") as stream:
+        startup_length = struct.unpack("!I", stream.read(4))[0]
+        stream.read(startup_length - 4)
+
+        def message(message_type, payload):
+            return message_type + struct.pack("!I", len(payload) + 4) + payload
+
+        authentication_ok = message(b"R", struct.pack("!I", 0))
+        parameter_status = message(b"S", b"TimeZone\0Europe/Paris\0")
+        fatal_error = message(b"E", b"SFATAL\0C08006\0Mtest backend rejected\0\0")
+        backend.sendall(authentication_ok + parameter_status + fatal_error)
+
+        # Wait until PgBouncer processes the error and closes the connection.
+        stream.read()
+    rejection_processed.set()
+
+
+async def test_rejected_backend_does_not_refresh_cached_timezone(bouncer, pg):
+    rejected_host = "127.0.0.2"
+    config = f"""
+    [databases]
+    postgres = host={pg.host},{rejected_host} port={pg.port} load_balance_hosts=round-robin
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    admin_users = pgbouncer
+    auth_type = trust
+    auth_file = {bouncer.auth_path}
+    listen_port = {bouncer.port}
+    logfile = {bouncer.log_path}
+    pool_mode = session
+    server_login_retry = 10
+    server_tls_sslmode = disable
+    """
+
+    rejection_processed = threading.Event()
+    pending_query = None
+    with socket.socket() as listener:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind((rejected_host, pg.port))
+        listener.listen()
+        fake_backend = threading.Thread(
+            target=_reject_backend_after_timezone,
+            args=(listener, rejection_processed),
+            daemon=True,
+        )
+        fake_backend.start()
+
+        try:
+            with (
+                bouncer.run_with_config(config),
+                bouncer.conn(dbname="postgres", user="puser1") as accepted,
+            ):
+                # Keep the admitted server occupied so the next query opens
+                # the fake backend.
+                accepted.execute("SELECT 1")
+                accepted_timezone = accepted.info.parameter_status("TimeZone")
+                pending_query = bouncer.asql(
+                    "SELECT 1", dbname="postgres", user="puser1", connect_timeout=15
+                )
+                assert await asyncio.to_thread(rejection_processed.wait, 5)
+
+                with bouncer.conn(dbname="postgres", user="puser1") as later:
+                    assert later.info.parameter_status("TimeZone") == accepted_timezone
+        finally:
+            if pending_query is not None and not pending_query.done():
+                pending_query.cancel()
+            if pending_query is not None:
+                await asyncio.gather(pending_query, return_exceptions=True)
+            fake_backend.join(timeout=5)
+            assert not fake_backend.is_alive()
+
+
 def test_timezone_change_after_database_alter(bouncer, pg):
     config = f"""
     [databases]

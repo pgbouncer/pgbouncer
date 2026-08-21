@@ -138,6 +138,18 @@ bool varcache_set(VarCache *cache, const char *key, const char *value)
 	return true;
 }
 
+void varcache_merge(VarCache *dst, const VarCache *src)
+{
+	const struct var_lookup *lk, *tmp;
+	const struct PStr *val;
+
+	HASH_ITER(hh, lookup_map, lk, tmp) {
+		val = src->var_list[lk->idx];
+		if (val)
+			varcache_set(dst, lk->name, val->str);
+	}
+}
+
 static bool variable_is_guc_list_quote(const char *key)
 {
 	if (strcasecmp("search_path", key) == 0)

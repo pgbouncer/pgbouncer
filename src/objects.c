@@ -1077,6 +1077,7 @@ bool add_outstanding_request(PgSocket *client, char type, ResponseAction action)
 		 */
 		slog_noise(client, "add_outstanding_request: queueing fake response right away %c",
 			   type);
+		server->sbuf.extra_packet_queue_after = true;
 		return queue_fake_response(client, type);
 	}
 

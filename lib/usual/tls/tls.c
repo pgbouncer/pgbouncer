@@ -695,6 +695,13 @@ out:
 	return (rv);
 }
 
+size_t tls_pending(struct tls *ctx)
+{
+	if (ctx->ssl_conn == NULL)
+		return 0;
+	return SSL_pending(ctx->ssl_conn);
+}
+
 ssize_t tls_write(struct tls *ctx, const void *buf, size_t buflen)
 {
 	ssize_t rv = -1;

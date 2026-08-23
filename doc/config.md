@@ -439,7 +439,7 @@ Default: 200
 The number of computational iterations to be performed when encrypting a
 password using SCRAM-SHA-256. A higher number of iterations provides additional
 protection against brute-force attacks on stored passwords, but makes
-authentication slower.
+authentication slower. This value must be at least 1.
 
 Default: 4096
 

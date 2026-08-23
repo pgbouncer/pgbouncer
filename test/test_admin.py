@@ -111,6 +111,12 @@ def test_jdbc_extra_float_digits(bouncer):
     bouncer.admin("SET extra_float_digits = 2")
 
 
+@pytest.mark.parametrize("iterations", ["0", "2147483648"])
+def test_scram_iterations_must_be_valid(bouncer, iterations):
+    with pytest.raises(psycopg.OperationalError, match="SET failed"):
+        bouncer.admin(f"SET scram_iterations = {iterations}")
+
+
 def test_socket_id(bouncer) -> None:
     """Test that PgSocket id is assigned as expected for sockets."""
     config = f"""

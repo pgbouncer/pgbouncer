@@ -326,6 +326,11 @@ if openssl.found()
   cdata.set('OPENSSL_API_COMPAT', '0x00908000L',
             description: 'OpenSSL API version in use, to silence deprecation warnings.')
 
+  cdata.set('HAVE_PKCS5_PBKDF2_HMAC',
+            cc.has_function('PKCS5_PBKDF2_HMAC',
+                            prefix: '#include <openssl/evp.h>',
+                            dependencies: openssl) ? 1 : false)
+
   # LibreSSL-only helpers, used when present.
   foreach func : ['SSL_CTX_use_certificate_chain_mem', 'SSL_CTX_load_verify_mem', 'asn1_time_parse']
     cdata.set('HAVE_' + func.to_upper(),

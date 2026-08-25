@@ -667,6 +667,31 @@ state after each transaction.
 
 Default: 0
 
+### cleanup_server_connections
+
+In transaction or statement pooling mode a server connection is shared between
+many clients.  Session state that one client leaves behind, such as a `SET`, a
+changed role or authorization, or a prepared statement, otherwise carries over
+to whichever client gets the connection next, causing errors that are hard to
+trace back to their source.
+
+When enabled, PgBouncer notices that a client changed such state and resets
+only that connection before reusing it, so nothing leaks between clients.
+Connections that were not changed are reused as-is, so unlike
+`server_reset_query_always` there is no reset cost on the common path.
+
+Detection is best-effort.  State changed in ways PgBouncer cannot observe (for
+example through `set_config()` or advisory locks) is not cleaned up, and some
+cases cause an extra reset.  Tracked parameters
+(`track_extra_parameters`) still work as before; their values are restored for
+each client.
+
+While `server_reset_query_always` is enabled its full reset already covers
+this and so `cleanup_server_connections` setting has no effect.
+Changes take effect on reload.
+
+Default: 0
+
 ### server_check_delay
 
 How long to keep released connections available for immediate re-use, without running

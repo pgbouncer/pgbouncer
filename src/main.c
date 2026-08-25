@@ -140,6 +140,7 @@ int cf_max_user_client_connections;
 
 char *cf_server_reset_query;
 int cf_server_reset_query_always;
+int cf_cleanup_server_connections;
 char *cf_server_check_query;
 bool empty_server_check_query;
 usec_t cf_server_check_delay;
@@ -333,6 +334,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("server_login_retry", CF_TIME_USEC, cf_server_login_retry, 0, "15"),
 	CF_ABS("server_reset_query", CF_STR, cf_server_reset_query, 0, "DISCARD ALL"),
 	CF_ABS("server_reset_query_always", CF_INT, cf_server_reset_query_always, 0, "0"),
+	CF_ABS("cleanup_server_connections", CF_INT, cf_cleanup_server_connections, 0, "0"),
 	CF_ABS("server_round_robin", CF_INT, cf_server_round_robin, 0, "0"),
 	CF_ABS("server_tls13_ciphers", CF_STR, cf_server_tls13_ciphers, 0, NULL),
 	CF_ABS("server_tls_ca_file", CF_STR, cf_server_tls_ca_file, 0, ""),
@@ -521,6 +523,9 @@ bool load_config(void)
 
 	/* kill dbs */
 	config_postprocess();
+
+	if (cf_cleanup_server_connections && cf_server_reset_query_always)
+		log_warning("cleanup_server_connections has no effect while server_reset_query_always is enabled");
 
 	/* reopen logfile */
 	if (main_config.loaded)

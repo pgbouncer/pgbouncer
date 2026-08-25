@@ -75,6 +75,112 @@ def test_show_user(bouncer):
         ]
 
 
+def test_show_user_after_removal_from_users_section(bouncer):
+    """
+    Test that a RELOAD clears the settings of a user that lost its entry.
+
+    Removing a user from the `[users]` section used to leave that user's old
+    settings in place, so `SHOW USERS` kept reporting a pool_size, a pool_mode
+    and connection limits for a user that no longer configures any.
+    """
+    config = f"""
+    [databases]
+    p1 = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    auth_file = {bouncer.auth_path}
+    auth_type = trust
+    auth_user = postgres
+    listen_addr = {bouncer.host}
+    listen_port = {bouncer.port}
+    admin_users = pgbouncer
+    pool_mode = session
+
+    [users]
+    test1 = pool_size=1 reserve_pool_size=1
+    """
+    test2_settings = (
+        "test2 = pool_size=2 reserve_pool_size=2 pool_mode=statement "
+        "max_user_connections=7 max_user_client_connections=9"
+    )
+    config_with_test2 = config + test2_settings + "\n"
+
+    def show_user(name):
+        users = bouncer.admin("SHOW USERS", row_factory=dict_row)
+        (user,) = [user for user in users if user["name"] == name]
+        return user
+
+    with bouncer.run_with_config(config_with_test2):
+        test2 = show_user("test2")
+        assert "2" == test2["pool_size"].strip()
+        assert "2" == test2["reserve_pool_size"].strip()
+        assert "statement" == test2["pool_mode"]
+        assert 7 == test2["max_user_connections"]
+        assert 9 == test2["max_user_client_connections"]
+
+        # Reload a config whose [users] section no longer lists test2. The
+        # user stays visible, but its settings go back to the defaults.
+        with bouncer.run_with_config(config):
+            test2 = show_user("test2")
+            assert "" == test2["pool_size"].strip()
+            assert "" == test2["reserve_pool_size"].strip()
+            assert test2["pool_mode"] is None
+            assert 0 == test2["max_user_connections"]
+            assert 0 == test2["max_user_client_connections"]
+
+            # test1 kept its entry, so it keeps its settings.
+            test1 = show_user("test1")
+            assert "1" == test1["pool_size"].strip()
+            assert "1" == test1["reserve_pool_size"].strip()
+
+
+def test_show_user_settings_kept_after_failed_reload(bouncer):
+    """
+    Test that a failed RELOAD does not clear the settings of a user.
+
+    The settings of a user that is missing from the new `[users]` section are
+    only reset once the new config file is known to be valid.
+    """
+    config = f"""
+    [databases]
+    p1 = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    auth_file = {bouncer.auth_path}
+    auth_type = trust
+    auth_user = postgres
+    listen_addr = {bouncer.host}
+    listen_port = {bouncer.port}
+    admin_users = pgbouncer
+    pool_mode = session
+    logfile = {bouncer.log_path}
+    server_lifetime = {{server_lifetime}}
+    """
+    good_config = config.format(server_lifetime=0) + "\n[users]\ntest1 = pool_size=1\n"
+    # Same file, but test1 lost its [users] entry and server_lifetime is
+    # unparsable, so the reload fails.
+    bad_config = config.format(server_lifetime="invalid_server_lifetime")
+
+    def pool_size(name):
+        users = bouncer.admin("SHOW USERS", row_factory=dict_row)
+        (user,) = [user for user in users if user["name"] == name]
+        return user["pool_size"].strip()
+
+    with bouncer.run_with_config(good_config):
+        assert "1" == pool_size("test1")
+
+        with bouncer.ini_path.open("w") as f:
+            f.write(bad_config)
+
+        with pytest.raises(
+            psycopg.errors.ConfigFileError,
+            match=r"RELOAD failed, see logs for additional details",
+        ):
+            bouncer.admin("RELOAD")
+
+        assert "1" == pool_size("test1")
+
+
 def test_show(bouncer):
     show_items = [
         "clients",

@@ -451,6 +451,22 @@ static void set_peers_dead(bool flag)
 	}
 }
 
+/*
+ * Mark the [users] section settings of every user as stale.  parse_user()
+ * clears the flag again for each user that the new config file still lists,
+ * so what is left flagged after a successful load has lost its entry.
+ */
+static void set_users_config_dead(bool flag)
+{
+	struct List *item;
+	PgGlobalUser *user;
+
+	statlist_for_each(item, &user_list) {
+		user = container_of(item, PgGlobalUser, head);
+		user->config_dead = flag;
+	}
+}
+
 /* Tells if the specified auth type requires data from the auth file. */
 static bool requires_auth_file(int auth_type)
 {
@@ -475,6 +491,7 @@ bool load_config(void)
 
 	set_dbs_dead(true);
 	set_peers_dead(true);
+	set_users_config_dead(true);
 
 	/* actual loading */
 	load_file_ok = cf_load_file(&main_config, cf_config_file);
@@ -490,6 +507,8 @@ bool load_config(void)
 		log_warning("config file loading failed");
 		/* if ini file missing, don't kill anybody */
 		set_dbs_dead(false);
+		/* and keep the per-user settings that are already in use */
+		set_users_config_dead(false);
 		ok = false;
 	}
 

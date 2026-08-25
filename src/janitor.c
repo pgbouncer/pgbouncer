@@ -1020,6 +1020,7 @@ void config_postprocess(void)
 {
 	struct List *item, *tmp;
 	PgDatabase *db;
+	PgGlobalUser *user;
 
 	statlist_for_each_safe(item, &database_list, tmp) {
 		db = container_of(item, PgDatabase, head);
@@ -1034,6 +1035,20 @@ void config_postprocess(void)
 		if (db->db_dead) {
 			kill_peer(db);
 			continue;
+		}
+	}
+
+	/*
+	 * Users that lost their [users] entry keep their settings until here.
+	 * Only the settings go back to the defaults: the user stays in
+	 * user_list, because it can still own pools, connections and
+	 * credentials that have nothing to do with the [users] section.
+	 */
+	statlist_for_each(item, &user_list) {
+		user = container_of(item, PgGlobalUser, head);
+		if (user->config_dead) {
+			reset_global_user_config(user);
+			user->config_dead = false;
 		}
 	}
 }

@@ -1210,6 +1210,9 @@ class Bouncer(QueryRunner):
     def sigquit(self):
         self.send_signal(signal.SIGQUIT)
 
+    def sigusr1(self):
+        self.send_signal(signal.SIGUSR1)
+
     def sigusr2(self):
         self.send_signal(signal.SIGUSR2)
 

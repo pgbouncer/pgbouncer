@@ -599,8 +599,8 @@ static void handle_sigusr1(int sock, short flags, void *arg)
 
 static void handle_sigusr2(int sock, short flags, void *arg)
 {
-	if (cf_shutdown) {
-		log_info("got SIGUSR2 while shutting down, ignoring");
+	if (cf_shutdown && cf_shutdown != SHUTDOWN_WAIT_FOR_CLIENTS) {
+		log_info("got SIGUSR2 while shutting down (mode=%d), ignoring", cf_shutdown);
 		return;
 	}
 	switch (cf_pause_mode) {

@@ -217,6 +217,7 @@ static const struct FakeParam fake_param_list[] = {
 	{ "standard_conforming_strings", "on" },
 	{ "datestyle", "ISO" },
 	{ "timezone", "GMT" },
+	{ "extra_float_digits", "2" },
 	{ NULL },
 };
 
@@ -887,7 +888,9 @@ static bool admin_show_clients(PgSocket *admin, const char *arg)
 	FOR_EACH_WORKER_THREAD(thread_id) {
 		struct ThreadSafeStatList *pool_list_ptr = WORKER_THREAD_PTR(pool_list, thread_id);
 		struct ThreadSafeStatList *peer_pool_list_ptr = WORKER_THREAD_PTR(peer_pool_list, thread_id);
+		lock_worker_thread(thread_id);
 		show_client(buf, pool_list_ptr, peer_pool_list_ptr);
+		unlock_worker_thread(thread_id);
 	}
 
 	admin_flush(admin, buf, "SHOW");

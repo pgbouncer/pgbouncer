@@ -53,7 +53,7 @@ struct Slab *slab_create(const char *name, unsigned obj_size, unsigned align,
 
 	/* new slab object */
 	slab = cx_alloc0(cx, sizeof(*slab));
-	if (slab){
+	if (slab) {
 		init_slab(slab, name, obj_size, align, init_func, cx);
 		slab_list_append(slab);
 	}

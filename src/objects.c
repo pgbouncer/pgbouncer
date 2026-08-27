@@ -637,7 +637,7 @@ PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const c
 
 		safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
 		credentials->dynamic_passwd = true;
-	failed:
+		failed:
 		;
 	});
 	return credentials;
@@ -1248,6 +1248,7 @@ bool add_outstanding_request(PgSocket *client, char type, ResponseAction action)
 		 */
 		slog_noise(client, "add_outstanding_request: queueing fake response right away %c",
 			   type);
+		server->sbuf.extra_packet_queue_after = true;
 		return queue_fake_response(client, type);
 	}
 

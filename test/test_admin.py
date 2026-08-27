@@ -107,6 +107,10 @@ def test_show(bouncer):
         bouncer.admin(f"SHOW {item}")
 
 
+def test_jdbc_extra_float_digits(bouncer):
+    bouncer.admin("SET extra_float_digits = 2")
+
+
 @pytest.mark.single_thread_only
 def test_socket_id(bouncer) -> None:
     """Test that PgSocket id is assigned as expected for sockets."""

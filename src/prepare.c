@@ -669,6 +669,29 @@ oom:
 }
 
 /*
+ * Returns true if no data is on its way to the client. Only then is it safe to
+ * answer with SEND_CloseComplete, which writes directly to the socket and does
+ * not use the buffered path.
+ *
+ * An empty outstanding_requests queue is not sufficient. A suppressed Parse
+ * queues a fake ParseComplete in the server SBuf and adds nothing to the queue
+ * (see add_outstanding_request). The CloseComplete would then go first.
+ */
+static bool nothing_in_flight_to_client(PgSocket *server)
+{
+	if (statlist_count(&server->outstanding_requests) != 0)
+		return false;
+
+	if (mbuf_avail_for_read(&server->sbuf.extra_packets) != 0)
+		return false;
+
+	if (!sbuf_is_empty(&server->sbuf))
+		return false;
+
+	return true;
+}
+
+/*
  * Handle a Close packet for a named prepared statement
  *
  * This does not actually close the mapped prepared statement on the server. But
@@ -693,8 +716,8 @@ bool handle_close_statement_command(PgSocket *client, PktHdr *pkt, PgClosePacket
 	/* Do not forward packet to server */
 	skip_possibly_completely_buffered_packet(client, pkt);
 
-	if (!client->link || statlist_count(&client->link->outstanding_requests) == 0) {
-		slog_debug(client, "handle_close_statement_command: no outstanding requests so instantly answering client");
+	if (!client->link || nothing_in_flight_to_client(client->link)) {
+		slog_debug(client, "handle_close_statement_command: no data in flight, answering client directly");
 		SEND_CloseComplete(res, client);
 		return res;
 	}

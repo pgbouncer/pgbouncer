@@ -66,10 +66,10 @@
 #define WITH_LOCK(lock, func) \
 	do { \
 		if (multithread_mode) \
-			mutex_lock(lock); \
+		mutex_lock(lock); \
 		do { func; } while (0); \
 		if (multithread_mode) \
-			mutex_unlock(lock); \
+		mutex_unlock(lock); \
 	} while (0)
 
 /* Iterate over a ThreadSafeStatList looked up by field name and thread_id. */

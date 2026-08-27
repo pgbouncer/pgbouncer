@@ -845,7 +845,7 @@ static void cleanup_inactive_autodatabases(void)
 		age = now - db->inactive_time;
 		if (age > cf_autodb_idle_timeout) {
 			kill_database(db);
-		}else{
+		} else {
 			break;
 		}
 	});
@@ -1131,11 +1131,13 @@ void kill_database(PgDatabase *db)
 
 	FOR_EACH_WORKER_THREAD(thread_id) {
 		struct ThreadSafeStatList *pool_list_ptr = WORKER_THREAD_PTR(pool_list, thread_id);
+		lock_worker_thread(thread_id);
 		THREAD_SAFE_STATLIST_EACH(pool_list_ptr, item, {
 			pool = container_of(item, PgPool, head);
 			if (pool->db == db)
 				kill_pool(pool);
 		});
+		unlock_worker_thread(thread_id);
 	}
 
 	pktbuf_free(db->startup_params);
@@ -1171,11 +1173,13 @@ void kill_peer(PgDatabase *db, int thread_id)
 
 	log_warning("dropping peer %s as it does not exist anymore", db->name);
 
+	lock_worker_thread(thread_id);
 	THREAD_SAFE_STATLIST_EACH_BY_NAME(peer_pool_list, thread_id, item, {
 		pool = container_of(item, PgPool, head);
 		if (pool->db->name == db->name)
 			kill_peer_pool(pool);
 	});
+	unlock_worker_thread(thread_id);
 	free(db->host);
 
 	thread_safe_statlist_remove(&peer_list, &db->head);

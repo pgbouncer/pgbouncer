@@ -22,11 +22,15 @@ run() {
 run_req() {
   tmp="csr.template"
   args=""
-  while test "$1" != '--'; do
+  while test $# -gt 0 && test "$1" != '--'; do
     args="$args $1"
     shift
   done
-  shift
+  if test $# -eq 0; then
+    echo "run_req: missing '--' separator between openssl arguments and DN fields" >&2
+    exit 1
+  fi
+  shift # skip '--'
 
   (
     echo "[req]"
@@ -42,9 +46,13 @@ run_req() {
 run_ca() {
   ser=`cat ${CaName}/serial`
   run openssl ca -batch -config "${CaName}/config.ini" "$@"
-  while test "$1" != '-out'; do
+  while test $# -gt 0 && test "$1" != '-out'; do
     shift
   done
+  if test $# -lt 2; then
+    echo "run_ca: missing required '-out <file>' argument" >&2
+    exit 1
+  fi
   if test "$1" = '-out'; then
     cp "${CaName}/certs/$ser.pem" "$2"
   fi

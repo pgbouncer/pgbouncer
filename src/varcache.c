@@ -106,6 +106,27 @@ void init_var_lookup(const char *cf_track_extra_parameters)
 	num_var_cached = idx;
 }
 
+const char *varcache_get(VarCache *cache, const char *key)
+{
+	struct var_lookup *lookup = NULL;
+	struct PStr *pstr;
+
+	if (!vpool) {
+		return NULL;
+	}
+	HASH_FIND_STR(lookup_map, key, lookup);
+
+	/* parameter not found */
+	if (lookup == NULL)
+		return NULL;
+
+	pstr = get_value(cache, lookup);
+	if (pstr)
+		return pstr->str;
+	else
+		return NULL;
+}
+
 bool varcache_set(VarCache *cache, const char *key, const char *value)
 {
 	const struct var_lookup *lk = NULL;

@@ -460,10 +460,92 @@ static bool requires_auth_file(int auth_type)
 	return auth_type >= AUTH_TYPE_TRUST;
 }
 
+/*
+ * Snapshot and restore of the reloadable [pgbouncer] parameters.
+ *
+ * cf_load_file() applies values to the live configuration as it parses,
+ * and resets reloadable parameters to their compile-time defaults when it
+ * enters the [pgbouncer] section. If the file contains a parse error part
+ * way through, the live configuration is left in a mix of new values, old
+ * values, and compile-time defaults. To keep a failed reload from changing
+ * the running configuration, snapshot the reloadable parameters before
+ * loading and restore them if loading fails.
+ *
+ * All reloadable parameters are snapshotted, not only those with a
+ * compile-time default: a key=value line appearing before the parse error
+ * changes its parameter regardless of whether the parameter has a default.
+ * Parameters whose current value is NULL (an unset string with no default)
+ * cannot be represented as a snapshot string and are skipped; restoring
+ * such a parameter to NULL is not supported.
+ */
+struct cfg_snapshot {
+	char **values;		/* strdup'd value per bouncer_params entry, or NULL */
+	int count;
+};
+
+static void cfg_snapshot_free(struct cfg_snapshot *snap)
+{
+	int i;
+
+	if (!snap->values)
+		return;
+	for (i = 0; i < snap->count; i++)
+		free(snap->values[i]);
+	free(snap->values);
+	snap->values = NULL;
+	snap->count = 0;
+}
+
+static bool cfg_snapshot_take(struct cfg_snapshot *snap)
+{
+	const struct CfKey *k;
+	char buf[256];
+	const char *val;
+	int n = 0, i = 0;
+	const int ro = CF_NO_RELOAD | CF_READONLY;
+
+	for (k = bouncer_params; k->key_name; k++)
+		n++;
+
+	snap->count = n;
+	snap->values = calloc(n, sizeof(char *));
+	if (!snap->values) {
+		snap->count = 0;
+		return false;
+	}
+
+	for (k = bouncer_params; k->key_name; k++, i++) {
+		if (k->flags & ro)
+			continue;
+		val = cf_get(&main_config, "pgbouncer", k->key_name, buf, sizeof(buf));
+		if (!val)
+			continue;
+		snap->values[i] = strdup(val);
+		if (!snap->values[i]) {
+			cfg_snapshot_free(snap);
+			return false;
+		}
+	}
+	return true;
+}
+
+static void cfg_snapshot_restore(struct cfg_snapshot *snap)
+{
+	const struct CfKey *k = bouncer_params;
+	int i = 0;
+
+	for (; k->key_name; k++, i++) {
+		if (snap->values[i])
+			cf_set(&main_config, "pgbouncer", k->key_name, snap->values[i]);
+	}
+}
+
 /* config loading, tries to be tolerant to errors */
 bool load_config(void)
 {
 	static bool loaded = false;
+	struct cfg_snapshot snap = { NULL, 0 };
+	bool have_snapshot = false;
 	bool load_file_ok;
 	bool ok;
 	const char *q;
@@ -472,6 +554,15 @@ bool load_config(void)
 	empty_server_check_query = false;
 	any_user_level_client_timeout_set = false;
 	any_database_level_client_timeout_set = false;
+
+	/*
+	 * On a reload, snapshot the running configuration so it can be
+	 * restored intact if the new config file fails to parse. On the
+	 * very first load there is nothing worth preserving (a failure
+	 * there is fatal), so skip the snapshot.
+	 */
+	if (loaded)
+		have_snapshot = cfg_snapshot_take(&snap);
 
 	set_dbs_dead(true);
 	set_peers_dead(true);
@@ -488,8 +579,12 @@ bool load_config(void)
 		die("cannot load config file");
 	} else {
 		log_warning("config file loading failed");
-		/* if ini file missing, don't kill anybody */
+		/* a failed reload must not kill databases or peers */
 		set_dbs_dead(false);
+		set_peers_dead(false);
+		/* restore parameters that the partial parse may have changed */
+		if (have_snapshot)
+			cfg_snapshot_restore(&snap);
 		ok = false;
 	}
 
@@ -526,6 +621,7 @@ bool load_config(void)
 	if (main_config.loaded)
 		reset_logging();
 
+	cfg_snapshot_free(&snap);
 	return ok;
 }
 

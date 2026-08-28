@@ -899,6 +899,10 @@ static struct DNSQuery *new_query(struct DNSRequest *req)
 	return q;
 }
 
+/* test-only: the request (and its epoch) whose first lookup was dropped */
+static struct DNSRequest *test_hung_req;
+static unsigned test_hung_epoch;
+
 /*
  * Issue (or re-issue) the backend query for a request and record when, so that
  * adns_check_stuck() can relaunch a request whose resolver callback never fires.
@@ -908,6 +912,25 @@ static void launch_request(struct DNSRequest *req)
 	struct DNSQuery *q;
 
 	req->launch_time = get_cached_time();
+
+	/*
+	 * Test-only fault injection: drop the first lookup so its callback never
+	 * fires, reproducing the "hung in-process resolver" that leaves a request
+	 * pending forever (see adns_check_stuck / test/test_dns_stuck.py). Active
+	 * only when the PGB_TEST_HANG_ONCE environment variable is set; a no-op in
+	 * normal operation.  Dropped before active++/new_query, so nothing leaks.
+	 */
+	if (getenv("PGB_TEST_HANG_ONCE")) {
+		static bool hung_once = false;
+		if (!hung_once) {
+			hung_once = true;
+			test_hung_req = req;
+			test_hung_epoch = req->epoch;
+			log_warning("TEST: dropping lookup of '%s' to simulate a hung resolution",
+				    req->name);
+			return;
+		}
+	}
 
 	req->ctx->active++;
 	q = new_query(req);
@@ -1384,8 +1407,33 @@ static void adns_check_stuck(struct DNSContext *ctx)
 	free(w.stuck);
 }
 
+/*
+ * Test-only: once a dropped ("hung") request has recovered via a relaunch,
+ * simulate its original query finally answering late, carrying the epoch it was
+ * launched for.  The epoch guard in got_result_gai() must discard this stale
+ * answer so it cannot clobber the fresh result.  Pair it with an active++ so the
+ * discard's active-- balances (a real late query would have taken one when it
+ * was launched).  Active only under PGB_TEST_LATE_STALE.
+ */
+static void test_late_stale(void)
+{
+	struct DNSRequest *req = test_hung_req;
+	struct DNSQuery q;
+
+	if (!req || !req->done || !getenv("PGB_TEST_LATE_STALE"))
+		return;
+	test_hung_req = NULL;
+
+	q.req = req;
+	q.epoch = test_hung_epoch;
+	log_warning("TEST: delivering late stale callback for '%s'", req->name);
+	req->ctx->active++;
+	got_result_gai(0, NULL, &q);
+}
+
 void adns_per_loop(struct DNSContext *ctx)
 {
 	impl_per_loop(ctx);
 	adns_check_stuck(ctx);
+	test_late_stale();
 }

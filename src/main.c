@@ -907,8 +907,6 @@ static void xfree(char **ptr_p)
 _UNUSED
 static void cleanup(void)
 {
-	adns_free_context(adns);
-	adns = NULL;
 	hba_free(parsed_hba);
 	parsed_hba = NULL;
 	ident_free(parsed_ident);
@@ -916,6 +914,14 @@ static void cleanup(void)
 
 	admin_cleanup();
 	objects_cleanup();
+
+	/*
+	 * Free the DNS context only after objects_cleanup(): disconnecting a server
+	 * that is still resolving calls adns_cancel() on its DNS token, which must
+	 * still be valid here (adns_free_context() frees every request and token).
+	 */
+	adns_free_context(adns);
+	adns = NULL;
 	sbuf_cleanup();
 
 	event_base_free(pgb_event_base);

@@ -200,8 +200,11 @@ htmls:
 		mkdir -p html && $(PANDOC) $$f -o html/`basename $$f`.html; \
 	done
 
-doc/pgbouncer.1 doc/pgbouncer.5:
-	$(MAKE) -C doc $(@F)
+doc/pgbouncer.1:
+	$(MAKE) -C doc pgbouncer.1
+
+doc/pgbouncer.5:
+	$(MAKE) -C doc pgbouncer.5
 
 # Formatting and linting live in a build-system-independent script so the same
 # logic is shared with meson (`meson compile -C build format` etc.); these

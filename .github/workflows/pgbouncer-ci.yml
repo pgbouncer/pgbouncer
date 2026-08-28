@@ -46,8 +46,10 @@ jobs:
         include:
           # Keep the autoconf build exercised (while both build systems coexist)
           # on the same stock Ubuntu runner rather than a separate distro. This
-          # also produces the release dist tarball, which (unlike meson's) bundles
-          # the generated `configure` so it can be built without autoconf tools.
+          # also produces the release dist tarball, which bundles the generated
+          # `configure` so it can be built without autoconf tools. The meson
+          # `pgdist` target produces an equivalent tarball, so this can move to
+          # meson once the autoconf build is retired.
           - name: autoconf
             build_system: autoconf
             configure_args: "--with-cares --with-pam --with-ldap"
@@ -55,6 +57,7 @@ jobs:
           - name: cares-pam-ldap
             build_system: meson
             meson_args: "-Dcares=enabled -Dpam=enabled -Dldap=enabled"
+            dist: "yes"
           - name: no-evdns-no-openssl
             build_system: meson
             meson_args: "-Dcares=disabled -Devdns=false -Dopenssl=disabled"

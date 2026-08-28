@@ -104,6 +104,7 @@ int get_active_server_count(void);
 
 void tag_pool_dirty(PgPool *pool);
 void tag_database_dirty(PgDatabase *db);
+void apply_database_host_change(PgDatabase *db, const char *old_host_list, const char *new_host_list, bool reconnect_all);
 void tag_autodb_dirty(void);
 void tag_host_addr_dirty(const char *host, const struct sockaddr *sa);
 void for_each_server(PgPool *pool, void (*func)(PgSocket *sk));

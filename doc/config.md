@@ -1292,6 +1292,11 @@ of new connections are chosen.  See also the setting
 `server_round_robin` for how clients are assigned to already
 established server connections.
 
+Host list entries must not be empty.  When a configuration reload changes the
+list, existing server connections to hosts that remain in the list are
+preserved.  Connections to removed hosts are closed when they become idle.
+Connection attempts to removed hosts are canceled immediately.
+
 Examples:
 
 	host=localhost

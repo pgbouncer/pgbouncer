@@ -54,11 +54,17 @@ install.autoconf)
 	make -j"$jobs" install
 	;;
 dist.meson)
-	# gztar to match the artifact glob (meson defaults to xztar). --no-tests
-	# because the test suite already ran against this checkout; the tarball
-	# itself is verified below by building from a fresh extraction instead.
-	meson dist -C build --no-tests --formats gztar
-	mkdir -p dist && cp build/meson-dist/pgbouncer-*.tar.gz dist/
+	# pgdist, not `meson dist`: the latter is not reproducible, so meson.build
+	# makes it fail. pgdist uses git archive and emits gztar, matching the
+	# artifact glob and the autoconf tarball.
+	#
+	# autogen.sh because pgdist bundles the generated autoconf bootstrap files
+	# (configure, config.guess, ...) into the tarball, and a meson-only job has
+	# not otherwise generated them.
+	./autogen.sh
+	meson compile -C build -v pgdist
+	mkdir -p dist && cp build/pgbouncer-*.tar.gz dist/
+	# Build from a fresh extraction of the tarball, as the autoconf path does.
 	tar -x -f dist/pgbouncer-*.tar.gz -C dist
 	cd dist/pgbouncer-*/
 	# shellcheck disable=SC2086

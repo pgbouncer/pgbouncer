@@ -168,7 +168,7 @@ $(PACKAGE_TARNAME)-$(PACKAGE_VERSION).tar.gz:
 PYTEST = $(shell command -v pytest || echo '$(PYTHON) -m pytest')
 
 CONCURRENCY = auto
-PYTEST_FLAGS = -r s
+PYTEST_FLAGS = -r s -vvv -l
 
 check: all
 	etc/optscan.sh

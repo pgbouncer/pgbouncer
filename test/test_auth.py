@@ -1526,6 +1526,13 @@ async def test_auth_query_login_large_packets(bouncer):
     reason="pgbouncer is built without pam_start_confdir support",
 )
 def test_pam_negative(bouncer, tmp_path):
+    """
+    Negative test of pgbouncer PAM authentication system
+
+    This test uses the pam_deny.so submodule to execute a basic negative test of
+    the pgbouncer PAM system. pam_deny basically just returns "no" to any authentication
+    request so we just assume that we are not able to connect.
+    """
     pam_d = tmp_path / "pam.d"
     pam_d.mkdir()
     pam_pgbouncer_conf = pam_d / "pgbouncer"
@@ -1557,9 +1564,11 @@ account  required pam_deny.so
         pytest.raises(
             psycopg.OperationalError, match="FATAL:  PAM authentication failed"
         ),
+        bouncer.log_contains(
+            "WARNING pam_authenticate() failed: Authentication failure"
+        ),
     ):
-        bouncer.sql(
-            query=";",
+        bouncer.test(
             user="postgres",
             dbname="postgres",
             password="fakepass",
@@ -1572,6 +1581,13 @@ account  required pam_deny.so
     reason="pgbouncer is built without pam_start_confdir support",
 )
 def test_pam_positive(bouncer, tmp_path):
+    """
+    Positive test of pgbouncer PAM authentication system
+
+    This test uses the pam_permit.so submodule to execute a basic positive test of
+    the pgbouncer PAM system. pam_permit basically just returns "yes" to any authentication
+    request so we just assume that we are able to connect.
+    """
     pam_d = tmp_path / "pam.d"
     pam_d.mkdir()
     pam_pgbouncer_conf = pam_d / "pgbouncer"
@@ -1600,8 +1616,7 @@ account  required pam_permit.so
         auth_pam_confdir = {pam_d}
     """
     with bouncer.run_with_config(config):
-        bouncer.sql(
-            query=";",
+        bouncer.test(
             user="postgres",
             dbname="postgres",
             host="localhost",
@@ -1615,6 +1630,14 @@ account  required pam_permit.so
     reason="pgbouncer is built without pam_start_confdir support",
 )
 def test_pam_exec(bouncer, tmp_path):
+    """
+    Test PAM auth functionality via pam_exec module
+
+    This test executes fine grained tests of the PAM auth system via the pam_exec.so
+    module. This module allows you to use a shell script (or any binary) for authentication.
+    In this case we are just validating some of the items that we expect pgbouncer to pass
+    from the client to PAM such as username and password.
+    """
     pam_exec_script_sh = tmp_path / "pam_exec_script.sh"
     with open(pam_exec_script_sh, "w") as of_pam_exec_script_sh:
         of_pam_exec_script_sh.write("""#! /bin/sh
@@ -1625,9 +1648,18 @@ read pam_passwd
 
 if [ "$PAM_USER" != "postgres" ]; then
     exit 1
-fi
-if [ "$pam_passwd" != "password3" ]; then
+elif [ "$pam_passwd" != "password3" ]; then
     exit 3
+elif [ "$PAM_RUSER" != "" ]; then
+    exit 4
+elif [ "$PAM_SERVICE" != "pgbouncer" ]; then
+    exit 5
+elif [ "$PAM_TTY" != "" ]; then
+    exit 6
+elif [ "$PAM_TYPE" != "auth" ]; then
+    exit 7
+elif [ "$PAM_RHOST" != "127.0.0.1" ]; then
+    exit 8
 fi
 exit 0
 """)
@@ -1659,26 +1691,34 @@ account  required pam_permit.so
         auth_pam_confdir = {pam_d}
     """
     with bouncer.run_with_config(config):
-        bouncer.sql(
-            query=";",
+        bouncer.test(
             user="postgres",
             dbname="postgres",
             password="password3",
         )
-        with pytest.raises(
-            psycopg.OperationalError, match="FATAL:  PAM authentication failed"
+
+        with (
+            pytest.raises(
+                psycopg.OperationalError, match="FATAL:  PAM authentication failed"
+            ),
+            bouncer.log_contains(
+                "WARNING pam_conversation(): PAM error: /bin/sh failed: exit code 3"
+            ),
         ):
-            bouncer.sql(
-                query=";",
+            bouncer.test(
                 user="postgres",
                 dbname="postgres",
                 password="badpassword",
             )
-        with pytest.raises(
-            psycopg.OperationalError, match="FATAL:  PAM authentication failed"
+        with (
+            pytest.raises(
+                psycopg.OperationalError, match="FATAL:  PAM authentication failed"
+            ),
+            bouncer.log_contains(
+                "WARNING pam_conversation(): PAM error: /bin/sh failed: exit code 1"
+            ),
         ):
-            bouncer.sql(
-                query=";",
+            bouncer.test(
                 user="baduser",
                 dbname="postgres",
                 password="badpassword",

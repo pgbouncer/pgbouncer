@@ -381,8 +381,6 @@ endif
 if pam.found()
   cdata.set('HAVE_PAM', 1, description: 'PAM support.')
   cdata.set('HAVE_SECURITY_PAM_APPL_H', 1)
-
-
 endif
 
 cdata.set('HAVE_' + 'pam_start_confdir'.to_upper(),

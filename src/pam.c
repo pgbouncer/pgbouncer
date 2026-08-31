@@ -365,7 +365,11 @@ static bool pam_check_passwd(struct pam_auth_request *request)
 		.appdata_ptr = request
 	};
 
+#ifdef HAVE_PAM_START_CONFDIR
+	rc = pam_start_confdir(PGBOUNCER_PAM_SERVICE, request->username, &pam_conv, cf_auth_pam_confdir, &hpam);
+#else
 	rc = pam_start(PGBOUNCER_PAM_SERVICE, request->username, &pam_conv, &hpam);
+#endif
 	if (rc != PAM_SUCCESS) {
 		log_warning("pam_start() failed: %s", pam_strerror(NULL, rc));
 		return false;

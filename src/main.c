@@ -205,6 +205,9 @@ char *cf_server_tls13_ciphers;
 int cf_max_prepared_statements;
 
 int cf_scram_iterations;
+#ifdef HAVE_PAM_START_CONFDIR
+char *cf_auth_pam_confdir;
+#endif
 
 /*
  * config file description
@@ -363,6 +366,9 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("user", CF_STR, global_username, CF_NO_RELOAD, NULL),
 #endif
 	CF_ABS("verbose", CF_INT, cf_verbose, 0, NULL),
+#ifdef HAVE_PAM_START_CONFDIR
+	CF_ABS("auth_pam_confdir", CF_STR, cf_auth_pam_confdir, 0, NULL),
+#endif
 
 	{NULL}
 };

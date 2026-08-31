@@ -80,7 +80,7 @@ jobs:
       ENABLE_VALGRIND: ${{ matrix.enable_valgrind }}
       DIST: ${{ matrix.dist }}
     steps: &linux_steps
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install dependencies
         run: |
           set -e
@@ -136,14 +136,14 @@ jobs:
           sh ci/run.sh dist "$BUILD_SYSTEM"
       - name: Upload tarball
         if: ${{ env.DIST == 'yes' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pgbouncer-tarball-${{ matrix.name }}
           path: dist/pgbouncer-*.tar.gz
           if-no-files-found: error
       - name: Upload build logs
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: logs-${{ matrix.name }}
           path: |
@@ -210,7 +210,7 @@ jobs:
       MESON_ARGS: -Dcassert=true -Dsystemd=enabled -Dcares=disabled
       CONFIGURE_ARGS: --enable-cassert --with-systemd --without-cares
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install dependencies
         run: |
           set -e
@@ -234,7 +234,7 @@ jobs:
         run: su user -c "PATH=/venv/bin:\$PATH sh ci/run.sh install $BUILD_SYSTEM"
       - name: Upload build logs
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: logs-${{ matrix.name }}-${{ matrix.build_system }}
           path: |
@@ -263,7 +263,7 @@ jobs:
       BUILD_SYSTEM: meson
       MESON_ARGS: -Dcassert=true -Dsystemd=enabled -Dldap=enabled -Dpam=enabled ${{ matrix.meson_args }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install dependencies
         run: |
           set -e
@@ -293,7 +293,7 @@ jobs:
         run: su user -c "sh ci/run.sh install $BUILD_SYSTEM"
       - name: Upload build logs
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: logs-${{ matrix.name }}
           path: |
@@ -362,7 +362,7 @@ jobs:
       LDFLAGS: -L/opt/homebrew/opt/openldap/lib -L/opt/homebrew/opt/openssl@3/lib
       PKG_CONFIG_PATH: /opt/homebrew/opt/openssl@3/lib/pkgconfig:/opt/homebrew/opt/openldap/lib/pkgconfig
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install dependencies
         run: |
           set -e
@@ -390,7 +390,7 @@ jobs:
         run: sh ci/run.sh install "$BUILD_SYSTEM"
       - name: Upload build logs
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: logs-macos
           path: |
@@ -417,7 +417,7 @@ jobs:
       run:
         shell: 'C:\msys64\usr\bin\bash.exe --login -eo pipefail {0}'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install pandoc
         shell: pwsh
         run: choco install -y --no-progress pandoc
@@ -447,14 +447,14 @@ jobs:
           cd install
           zip -r "../pgbouncer-windows.zip" .
       - name: Upload zip
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pgbouncer-windows-zip
           path: pgbouncer-*.zip
           if-no-files-found: error
       - name: Upload build logs
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: logs-windows
           path: |
@@ -466,8 +466,8 @@ jobs:
     name: Formatting & linting
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.x"
       - name: Install dependencies
@@ -479,7 +479,7 @@ jobs:
       # Cache the resulting binary keyed on the pinned version so it is only
       # rebuilt when we bump UNCRUSTIFY_VERSION in the script.
       - name: Cache uncrustify
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: uncrustify
           key: uncrustify-0.77.1-${{ runner.os }}

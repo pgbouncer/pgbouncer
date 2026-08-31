@@ -119,9 +119,9 @@ bin_PROGRAMS += pgbevent
 endif
 
 pgbevent_SOURCES = win32/pgbevent.c win32/eventmsg.rc \
-		   win32/eventmsg.mc win32/MSG00001.bin
+		   win32/eventmsg.mc win32/MSG00001.bin win32/pgbevent.def
 pgbevent_EXT = .dll
-pgbevent_LINK = $(CC) -shared -Wl,--export-all-symbols -Wl,--add-stdcall-alias -o $@ $^
+pgbevent_LINK = $(CC) -shared -o $@ $^ $(srcdir)/win32/pgbevent.def
 
 # .rc->.o
 AM_LANGUAGES = RC

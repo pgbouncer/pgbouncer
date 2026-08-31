@@ -628,12 +628,14 @@ pgbouncer = executable('pgbouncer',
 if windows
   pgbevent_res = win.compile_resources('win32/eventmsg.rc',
                                        include_directories: pgbouncer_incdirs)
-  shared_library('pgbevent',
+  shared_module('pgbevent',
     'win32/pgbevent.c',
     pgbevent_res,
     name_prefix: '',
     include_directories: pgbouncer_incdirs,
     install: true,
+    install_dir: get_option('bindir'),
+    vs_module_defs: 'win32/pgbevent.def',
   )
 endif
 

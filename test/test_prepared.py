@@ -58,32 +58,41 @@ def test_discard_or_deallocate_all(bouncer, command):
     bypass psycopg's special DISCARD ALL handling.
     """
     bouncer.admin(f"set pool_mode=transaction")
-    prepared_query = "SELECT 1"
-    with bouncer.cur() as cur1, bouncer.cur() as cur2:
-        # prepare query on client 1
-        cur1.execute(prepared_query, prepare=True)
-        # Run the prepared query again on same server and client
-        cur1.execute(prepared_query)
+    with bouncer.conn() as conn1, bouncer.conn() as conn2:
+        # prepare and execute query on client 1
+        result = conn1.pgconn.prepare(b"mystmt", b"SELECT 1")
+        assert result.status == pq.ExecStatus.COMMAND_OK
 
-        # prepared query for client 2
-        cur2.execute(prepared_query, prepare=True)
+        result = conn1.pgconn.exec_prepared(b"mystmt", ())
+        assert result.status == pq.ExecStatus.TUPLES_OK
+        assert result.get_value(0, 0) == b"1"
+
+        # prepare and execute query on client 2
+        result = conn2.pgconn.prepare(b"mystmt", b"SELECT 2")
+        assert result.status == pq.ExecStatus.COMMAND_OK
+
+        result = conn2.pgconn.exec_prepared(b"mystmt", ())
+        assert result.status == pq.ExecStatus.TUPLES_OK
+        assert result.get_value(0, 0) == b"2"
 
         # execute DISCARD / DEALLOCATE ALL on client 1
-        cur1.execute(command)
+        result = conn1.pgconn.exec_(command.encode("utf-8"))
+        assert result.status == pq.ExecStatus.COMMAND_OK
 
-        # Run the prepared query again on server 2 and client 2
-        cur2.execute(prepared_query)
+        # Execute the prepared query again on client 2
+        result = conn2.pgconn.exec_prepared(b"mystmt", ())
+        assert result.status == pq.ExecStatus.TUPLES_OK
+        assert result.get_value(0, 0) == b"2"
 
         # Confirm that the prepared query is not available anymore on
         # client 1
-        with (
-            bouncer.log_contains("prepared statement did not exist"),
-            pytest.raises(
-                psycopg.OperationalError,
-                match="prepared statement did not exist|server closed the connection unexpectedly",
-            ),
-        ):
-            cur1.execute(prepared_query)
+        result = conn1.pgconn.exec_prepared(b"mystmt", ())
+        assert result.status == pq.ExecStatus.FATAL_ERROR
+        assert (
+            b"prepared statement did not exist" in result.error_message
+            or b"server closed the connection unexpectedly" in result.error_message
+        )
+        assert bouncer.log_contains("prepared statement did not exist")
 
 
 def test_parse_larger_than_pkt_buf(bouncer):

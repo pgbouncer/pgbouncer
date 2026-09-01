@@ -173,17 +173,43 @@ static int apply_var(PktBuf *pkt, const char *key,
 	unsigned len;
 	const char *tmp;
 
-	/* if unset, skip */
-	if (!cval || !sval)
+	/* if both are unset, skip */
+	if (!cval && !sval)
 		return 0;
 
-	/* if equal, skip */
-	if (cval == sval)
-		return 0;
+	/* if both are set and equal, skip */
+	if (cval && sval) {
+		if (cval == sval)
+			return 0;
 
-	/* ignore case difference */
-	if (strcasecmp(cval->str, sval->str) == 0)
-		return 0;
+		/* ignore case difference */
+		if (strcasecmp(cval->str, sval->str) == 0)
+			return 0;
+	}
+
+	if (!cval) {
+		/*
+		 * This happens when a parameter is in track_extra_parameters but
+		 * PostgreSQL does not report it in ParameterStatus (e.g. enable_seqscan,
+		 * or default_transaction_read_only on PG <= 13), so pool->orig_vars is NULL.
+		 * A previous client configured this setting in its StartupMessage / connection
+		 * options (so sval is non-NULL), and now a client without this startup
+		 * parameter connects (cval is NULL).
+		 * Reset the parameter back to its session default on the server.
+		 */
+		len = snprintf(buf, sizeof(buf), "RESET %s;", key);
+		if (len < sizeof(buf)) {
+			pktbuf_put_bytes(pkt, buf, len);
+		} else {
+			char *buf2 = malloc(len + 1);
+			if (!buf2)
+				die("failed to allocate memory in apply_var");
+			snprintf(buf2, len + 1, "RESET %s;", key);
+			pktbuf_put_bytes(pkt, buf2, len);
+			free(buf2);
+		}
+		return 1;
+	}
 
 	/* parameters that are marked GUC_LIST_QUOTE are returned already fully quoted
 	 * re-quoting them using pg_quote_literal will result in malformed values. */
@@ -206,12 +232,12 @@ static int apply_var(PktBuf *pkt, const char *key,
 	if (len < sizeof(buf)) {
 		pktbuf_put_bytes(pkt, buf, len);
 	} else {
-		char *buf2 = malloc(sizeof(char)*len);
+		char *buf2 = malloc(len + 1);
 
 		if (!buf2)
 			die("failed to allocate memory in apply_var");
 
-		snprintf(buf2, len, "SET %s=%s;", key, tmp);
+		snprintf(buf2, len + 1, "SET %s=%s;", key, tmp);
 		pktbuf_put_bytes(pkt, buf2, len);
 
 		free(buf2);
@@ -264,6 +290,15 @@ void varcache_set_canonical(PgSocket *server, PgSocket *client)
 			strpool_incref(server_val);
 			strpool_decref(client_val);
 			client->vars.var_list[lk->idx] = server_val;
+		} else if (client_val && !server_val) {
+			slog_debug(server, "varcache_set_canonical: server var %s set to client value %s",
+				   lk->name, client_val->str);
+			strpool_incref(client_val);
+			server->vars.var_list[lk->idx] = client_val;
+		} else if (!client_val && server_val) {
+			slog_debug(server, "varcache_set_canonical: server var %s reset to NULL", lk->name);
+			strpool_decref(server_val);
+			server->vars.var_list[lk->idx] = NULL;
 		}
 	}
 }

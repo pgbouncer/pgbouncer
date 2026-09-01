@@ -49,7 +49,14 @@ def test_prepared_statement_params(bouncer):
             cur2.execute(prepared_query, params=(1,), prepare=True)
 
 
-def test_deallocate_all(bouncer):
+@pytest.mark.parametrize("command", ["DISCARD ALL", "DEALLOCATE ALL"])
+def test_discard_or_deallocate_all(bouncer, command):
+    """
+    Client sends a "DEALLOCATE ALL" command (or "DISCARD ALL", which has the
+    same effect). pgbouncer recognizes it and resets the client's prepared
+    statement cache. This scenario is implemented with raw libpq calls to
+    bypass psycopg's special DISCARD ALL handling.
+    """
     bouncer.admin(f"set pool_mode=transaction")
     prepared_query = "SELECT 1"
     with bouncer.cur() as cur1, bouncer.cur() as cur2:
@@ -61,8 +68,8 @@ def test_deallocate_all(bouncer):
         # prepared query for client 2
         cur2.execute(prepared_query, prepare=True)
 
-        # execute DEALLOCATE ALL on client 1
-        cur1.execute("DEALLOCATE ALL")
+        # execute DISCARD / DEALLOCATE ALL on client 1
+        cur1.execute(command)
 
         # Run the prepared query again on server 2 and client 2
         cur2.execute(prepared_query)
@@ -77,34 +84,6 @@ def test_deallocate_all(bouncer):
             ),
         ):
             cur1.execute(prepared_query)
-
-
-def test_discard_all(bouncer):
-    bouncer.admin(f"set pool_mode=transaction")
-    prepared_query = "SELECT 1"
-    with bouncer.cur() as cur1, bouncer.cur() as cur2:
-        # prepare query on client 1
-        cur1.execute(prepared_query, prepare=True)
-        # Run the prepared query again on same server and client
-        cur1.execute(prepared_query)
-
-        # prepared query for client 2
-        cur2.execute(prepared_query, prepare=True)
-
-        # execute DISCARD ALL on client 1
-        cur1.execute("DISCARD ALL")
-
-        # Run the prepared query again on client 2
-        cur2.execute(prepared_query)
-
-        # Depending on the psycopg version, the statement may or may not work on
-        # client 1. Starting with psycopg 3.3.5, it recognizes the "DISCARD"
-        # command, resets its prepared statement cache, and prepares the
-        # statement again on the next call. In earlier versions, you get a
-        # "prepared statement did not exist" error. We're not trying to test
-        # psycopg here, so skip it.
-        #
-        # cur1.execute(prepared_query)
 
 
 def test_parse_larger_than_pkt_buf(bouncer):

@@ -102,8 +102,6 @@ jobs:
             sudo ln -sf /etc/apparmor.d/usr.sbin.slapd /etc/apparmor.d/disable/
             sudo apparmor_parser -R /etc/apparmor.d/usr.sbin.slapd || true
           fi
-          chmod +x ./test/setup_system_krb.sh
-          ./test/setup_system_krb.sh
           python3 -m venv "$HOME/venv"
           "$HOME/venv/bin/pip" install .
       - name: Build

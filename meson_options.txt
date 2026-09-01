@@ -27,6 +27,9 @@ option('ldap', type: 'combo', choices: ['auto', 'enabled', 'disabled'], value: '
 option('pam', type: 'combo', choices: ['auto', 'enabled', 'disabled'], value: 'auto',
        description: 'Build with PAM authentication support')
 
+option('gss', type: 'combo', choices: ['auto', 'enabled', 'disabled'], value: 'auto',
+       description: 'Build with GSS authentication support')
+
 option('openssl', type: 'feature', value: 'auto',
        description: 'Build with OpenSSL (TLS) support')
 

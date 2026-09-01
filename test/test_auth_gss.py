@@ -1,4 +1,3 @@
-import getpass
 import os
 import socket
 import subprocess
@@ -12,10 +11,6 @@ REALM = "EXAMPLE.COM"
 KADMIN_PRINCIPAL = "root"
 MASTER_PASSWORD = "master_password"
 KADMIN_PASSWORD = "root"
-KEYTAB_FILEPATH = "/tmp/pgbouncer.keytab"
-
-if "KEYTAB_FILEPATH" in os.environ:
-    KEYTAB_FILEPATH = os.environ["KEYTAB_FILEPATH"]
 
 if "REALM" in os.environ:
     REALM = os.environ["REALM"]
@@ -23,308 +18,256 @@ if "REALM" in os.environ:
 if "KADMIN_PASSWORD" in os.environ:
     KADMIN_PASSWORD = os.environ["KADMIN_PASSWORD"]
 
-KADMIN_PRINCIPAL_FULL = f"{getpass.getuser()}@{REALM}"
-USER_SWAPPED_CASE = f"{getpass.getuser().swapcase()}@{REALM}"
-REALM_SWAPPED_CASE = f"{getpass.getuser()}@{REALM.swapcase()}"
-
-
-def setup_module(module):
-    kerberos_command = f"""
-    sudo krb5_newrealm <<EOF
-    {MASTER_PASSWORD}
-    {MASTER_PASSWORD}
-    EOF
-    """
-    subprocess.run(kerberos_command, check=False, shell=True)
-
-    delete_principal = f'sudo kadmin.local -q "delete_principal -force postgres"'
-    subprocess.run(delete_principal, check=True, shell=True)
-    delete_principal = (
-        f'sudo kadmin.local -q "delete_principal -force postgres/127.0.0.1"'
-    )
-    subprocess.run(delete_principal, check=True, shell=True)
-
-    create_principal = (
-        f'sudo kadmin.local -q "addprinc -pw {KADMIN_PASSWORD} {KADMIN_PRINCIPAL_FULL}"'
-    )
-    subprocess.run(create_principal, check=True, shell=True)
-
-    create_principal = 'sudo kadmin.local -q "addprinc -randkey postgres"'
-    subprocess.run(create_principal, check=True, shell=True)
-
-    create_principal = f'sudo kadmin.local -q "addprinc -randkey postgres/127.0.0.1"'
-    subprocess.run(create_principal, check=True, shell=True)
-
-    kadd_command = (
-        f'sudo kadmin.local -q "ktadd -k /tmp/pgbouncer.keytab postgres/127.0.0.1"'
-    )
-    subprocess.run(kadd_command, check=True, shell=True)
-    kadd_command_2 = 'sudo kadmin.local -q "ktadd -k /tmp/pgbouncer.keytab postgres"'
-    subprocess.run(kadd_command_2, check=True, shell=True)
-
-    change_permissions = "sudo chmod 644 /tmp/pgbouncer.keytab"
-    subprocess.run(change_permissions, check=True, shell=True)
-
-
-def teardown_module(module):
-    subprocess.run("kdestroy", check=True, shell=True)
-
-    delete_principal = (
-        f'sudo kadmin.local -q "delete_principal -force {KADMIN_PRINCIPAL_FULL}"'
-    )
-    subprocess.run(delete_principal, check=True, shell=True)
-    delete_principal = (
-        f'sudo kadmin.local -q "delete_principal -force postgres/127.0.0.1"'
-    )
-    subprocess.run(delete_principal, check=True, shell=True)
-    change_permissions = "sudo rm /tmp/pgbouncer.keytab"
-    subprocess.run(change_permissions, check=True, shell=True)
+KADMIN_PRINCIPAL_FULL = f"root@{REALM}"
+USER_SWAPPED_CASE = f"ROOT@{REALM}"
+REALM_SWAPPED_CASE = f"root@{REALM.swapcase()}"
 
 
 @pytest.mark.skipif(not GSS_SUPPORT, reason="pgbouncer is built without GSS support")
-def test_hba(bouncer):
+def test_hba(bouncer_with_krb5):
+
     config = f"""
         [databases]
-        postgres = host={bouncer.pg.host} port={bouncer.pg.port} user=postgres
+        postgres = host={bouncer_with_krb5.pg.host} port={bouncer_with_krb5.pg.port} user=postgres
 
         [pgbouncer]
         listen_addr = 127.0.0.1
         auth_type = hba
         admin_users = pgbouncer
-        auth_file = {bouncer.auth_path}
-        listen_port = {bouncer.port}
-        logfile = {bouncer.log_path}
-        auth_krb_server_keyfile = {KEYTAB_FILEPATH}
+        auth_file = {bouncer_with_krb5.auth_path}
+        listen_port = {bouncer_with_krb5.port}
+        logfile = {bouncer_with_krb5.log_path}
+        auth_krb_server_keyfile = {bouncer_with_krb5.krb5.keytab_fp}
         auth_hba_file = pgbouncer_hba.conf
         auth_file = userlist.txt
     """
-    subprocess.run(f"echo {KADMIN_PASSWORD} | kinit", check=True, shell=True)
-    with bouncer.run_with_config(config):
-        bouncer.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres")
-        subprocess.run("kdestroy", check=True, shell=True)
+    bouncer_with_krb5.krb5.kinit()
+    with bouncer_with_krb5.run_with_config(config):
+        bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+        bouncer_with_krb5.krb5.kdestroy()
         with pytest.raises(psycopg.OperationalError, match="GSSAPI continuation error"):
-            bouncer.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres")
+            bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
 
 
 @pytest.mark.skipif(not GSS_SUPPORT, reason="pgbouncer is built without GSS support")
-def test_default_behavior(bouncer):
+def test_default_behavior(bouncer_with_krb5):
     config = f"""
         [databases]
-        postgres = host={bouncer.pg.host} port={bouncer.pg.port} user=postgres
+        postgres = host={bouncer_with_krb5.pg.host} port={bouncer_with_krb5.pg.port} user=postgres
 
         [pgbouncer]
         listen_addr = 127.0.0.1
         auth_type = gss
         admin_users = pgbouncer
-        auth_file = {bouncer.auth_path}
-        listen_port = {bouncer.port}
-        logfile = {bouncer.log_path}
-        auth_krb_server_keyfile = {KEYTAB_FILEPATH}
+        auth_file = {bouncer_with_krb5.auth_path}
+        listen_port = {bouncer_with_krb5.port}
+        logfile = {bouncer_with_krb5.log_path}
+        auth_krb_server_keyfile = {bouncer_with_krb5.krb5.keytab_fp}
     """
-    subprocess.run(f"echo {KADMIN_PASSWORD} | kinit", check=True, shell=True)
-    with bouncer.run_with_config(config):
-        bouncer.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres")
-        subprocess.run("kdestroy", check=True, shell=True)
+    bouncer_with_krb5.krb5.kinit()
+    with bouncer_with_krb5.run_with_config(config):
+        bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+        bouncer_with_krb5.krb5.kdestroy()
         with pytest.raises(psycopg.OperationalError, match="GSSAPI continuation error"):
-            bouncer.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres")
+            bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
 
 
 @pytest.mark.skipif(not GSS_SUPPORT, reason="pgbouncer is built without GSS support")
-def test_case_sensitive_negative(bouncer):
+def test_case_sensitive_negative(bouncer_with_krb5):
     """
     Test that user fails when there is a mismatch on name due to case issues
     """
     config = f"""
         [databases]
-        postgres = host={bouncer.pg.host} port={bouncer.pg.port} user=postgres
+        postgres = host={bouncer_with_krb5.pg.host} port={bouncer_with_krb5.pg.port} user=postgres
 
         [pgbouncer]
         listen_addr = 127.0.0.1
         auth_type = gss
-        auth_file = {bouncer.auth_path}
+        auth_file = {bouncer_with_krb5.auth_path}
         admin_users = pgbouncer
-        listen_port = {bouncer.port}
-        logfile = {bouncer.log_path}
-        auth_krb_server_keyfile = {KEYTAB_FILEPATH}
+        listen_port = {bouncer_with_krb5.port}
+        logfile = {bouncer_with_krb5.log_path}
+        auth_krb_server_keyfile = {bouncer_with_krb5.krb5.keytab_fp}
     """
 
-    subprocess.run(f"echo {KADMIN_PASSWORD} | kinit", check=True, shell=True)
-    with bouncer.run_with_config(config):
-        bouncer.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres")
+    bouncer_with_krb5.krb5.kinit()
+    with bouncer_with_krb5.run_with_config(config):
+        bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
         with pytest.raises(psycopg.OperationalError, match="GSS authentication failed"):
-            bouncer.test(user=USER_SWAPPED_CASE, dbname="postgres")
-    subprocess.run("kdestroy", check=True, shell=True)
+            bouncer_with_krb5.test(user=USER_SWAPPED_CASE, dbname="postgres", gssencmode="disable", require_auth="gss")
+    bouncer_with_krb5.krb5.kdestroy()
 
 
 @pytest.mark.skipif(not GSS_SUPPORT, reason="pgbouncer is built without GSS support")
-def test_case_insensitive_positive(bouncer):
+def test_case_insensitive_positive(bouncer_with_krb5):
     """
     Test that user is accepted when there is a match on name even with casing issues
     """
     config = f"""
         [databases]
-        postgres = host={bouncer.pg.host} port={bouncer.pg.port} user=postgres
+        postgres = host={bouncer_with_krb5.pg.host} port={bouncer_with_krb5.pg.port} user=postgres
 
         [pgbouncer]
         listen_addr = 127.0.0.1
         auth_type = gss
-        auth_file = {bouncer.auth_path}
+        auth_file = {bouncer_with_krb5.auth_path}
         admin_users = pgbouncer
-        listen_port = {bouncer.port}
-        logfile = {bouncer.log_path}
-        auth_krb_server_keyfile = {KEYTAB_FILEPATH}
+        listen_port = {bouncer_with_krb5.port}
+        logfile = {bouncer_with_krb5.log_path}
+        auth_krb_server_keyfile = {bouncer_with_krb5.krb5.keytab_fp}
         auth_krb_caseins_users = 1
     """
-    subprocess.run(f"echo {KADMIN_PASSWORD} | kinit", check=True, shell=True)
-    with bouncer.run_with_config(config):
-        bouncer.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres")
-        bouncer.test(user=USER_SWAPPED_CASE, dbname="postgres")
-    subprocess.run("kdestroy", check=True, shell=True)
+    bouncer_with_krb5.krb5.kinit()
+    with bouncer_with_krb5.run_with_config(config):
+        bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+        bouncer_with_krb5.test(user=USER_SWAPPED_CASE, dbname="postgres", gssencmode="disable", require_auth="gss")
+    bouncer_with_krb5.krb5.kdestroy()
 
 
 @pytest.mark.skipif(not GSS_SUPPORT, reason="pgbouncer is built without GSS support")
-def test_bouncer_config_realm_match_case_sensitive_negative(bouncer):
+def test_bouncer_config_realm_match_case_sensitive_negative(bouncer_with_krb5):
     """
     Test that realm is matched for case sesativity when using bouncer wide config
     """
     config = f"""
         [databases]
-        postgres = host={bouncer.pg.host} port={bouncer.pg.port} user=postgres
+        postgres = host={bouncer_with_krb5.pg.host} port={bouncer_with_krb5.pg.port} user=postgres
 
         [pgbouncer]
         listen_addr = 127.0.0.1
         auth_type = gss
-        auth_file = {bouncer.auth_path}
-        listen_port = {bouncer.port}
+        auth_file = {bouncer_with_krb5.auth_path}
+        listen_port = {bouncer_with_krb5.port}
         admin_users = pgbouncer
-        logfile = {bouncer.log_path}
-        auth_krb_server_keyfile = {KEYTAB_FILEPATH}
+        logfile = {bouncer_with_krb5.log_path}
+        auth_krb_server_keyfile = {bouncer_with_krb5.krb5.keytab_fp}
         auth_hba_file = pgbouncer_hba.conf
         auth_file = userlist.txt
         auth_gss_parameter = krb_realm={REALM.swapcase()}
     """
-    subprocess.run(f"echo {KADMIN_PASSWORD} | kinit", check=True, shell=True)
-    with bouncer.run_with_config(config):
+    bouncer_with_krb5.krb5.kinit()
+    with bouncer_with_krb5.run_with_config(config):
         with pytest.raises(psycopg.OperationalError, match="GSS authentication failed"):
-            bouncer.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres")
-    subprocess.run("kdestroy", check=True, shell=True)
+            bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+    bouncer_with_krb5.krb5.kdestroy()
 
 
 @pytest.mark.skipif(not GSS_SUPPORT, reason="pgbouncer is built without GSS support")
-def test_bouncer_config_realm_match_case_sensitive_positive(bouncer):
+def test_bouncer_config_realm_match_case_sensitive_positive(bouncer_with_krb5):
     """
     Test that realm match functions when used in bouncer wide config
     """
     config = f"""
         [databases]
-        postgres = host={bouncer.pg.host} port={bouncer.pg.port} user=postgres
+        postgres = host={bouncer_with_krb5.pg.host} port={bouncer_with_krb5.pg.port} user=postgres
 
         [pgbouncer]
         listen_addr = 127.0.0.1
         auth_type = gss
-        auth_file = {bouncer.auth_path}
+        auth_file = {bouncer_with_krb5.auth_path}
         admin_users = pgbouncer
-        listen_port = {bouncer.port}
-        logfile = {bouncer.log_path}
-        auth_krb_server_keyfile = {KEYTAB_FILEPATH}
+        listen_port = {bouncer_with_krb5.port}
+        logfile = {bouncer_with_krb5.log_path}
+        auth_krb_server_keyfile = {bouncer_with_krb5.krb5.keytab_fp}
         auth_hba_file = pgbouncer_hba.conf
         auth_file = userlist.txt
         auth_gss_parameter = krb_realm={REALM}
     """
-    subprocess.run(f"echo {KADMIN_PASSWORD} | kinit", check=True, shell=True)
-    with bouncer.run_with_config(config):
-        bouncer.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres")
-        subprocess.run("kdestroy", check=True, shell=True)
+    bouncer_with_krb5.krb5.kinit()
+    with bouncer_with_krb5.run_with_config(config):
+        bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+        bouncer_with_krb5.krb5.kdestroy()
         with pytest.raises(psycopg.OperationalError, match="GSSAPI continuation error"):
-            bouncer.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres")
+            bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
 
 
 @pytest.mark.skipif(not GSS_SUPPORT, reason="pgbouncer is built without GSS support")
-def test_bouncer_config_realm_match_case_insensitive_negative(bouncer):
+def test_bouncer_config_realm_match_case_insensitive_negative(bouncer_with_krb5):
     """
     Test that realm match works in bouncer wide config when used with case
     insensitive mode.
     """
     config = f"""
         [databases]
-        postgres = host={bouncer.pg.host} port={bouncer.pg.port} user=postgres
+        postgres = host={bouncer_with_krb5.pg.host} port={bouncer_with_krb5.pg.port} user=postgres
 
         [pgbouncer]
         listen_addr = 127.0.0.1
         auth_type = gss
         admin_users = pgbouncer
-        auth_file = {bouncer.auth_path}
-        listen_port = {bouncer.port}
-        logfile = {bouncer.log_path}
-        auth_krb_server_keyfile = {KEYTAB_FILEPATH}
+        auth_file = {bouncer_with_krb5.auth_path}
+        listen_port = {bouncer_with_krb5.port}
+        logfile = {bouncer_with_krb5.log_path}
+        auth_krb_server_keyfile = {bouncer_with_krb5.krb5.keytab_fp}
         auth_hba_file = pgbouncer_hba.conf
         auth_file = userlist.txt
         auth_krb_caseins_users = 1
         auth_gss_parameter = krb_realm={REALM.swapcase()}a
     """
-    subprocess.run(f"echo {KADMIN_PASSWORD} | kinit", check=True, shell=True)
-    with bouncer.run_with_config(config):
+    bouncer_with_krb5.krb5.kinit()
+    with bouncer_with_krb5.run_with_config(config):
         with pytest.raises(psycopg.OperationalError, match="GSS authentication failed"):
-            bouncer.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres")
-        subprocess.run("kdestroy", check=True, shell=True)
+            bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+        bouncer_with_krb5.krb5.kdestroy()
         with pytest.raises(psycopg.OperationalError, match="GSSAPI continuation error"):
-            bouncer.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres")
+            bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
 
 
 @pytest.mark.skipif(not GSS_SUPPORT, reason="pgbouncer is built without GSS support")
-def test_bouncer_config_realm_match_case_insensitive_positive(bouncer):
+def test_bouncer_config_realm_match_case_insensitive_positive(bouncer_with_krb5):
     """
     Test that realm match mode correctly accepts match even with differences
     in case.
     """
     config = f"""
         [databases]
-        postgres = host={bouncer.pg.host} port={bouncer.pg.port} user=postgres
+        postgres = host={bouncer_with_krb5.pg.host} port={bouncer_with_krb5.pg.port} user=postgres
 
         [pgbouncer]
         listen_addr = 127.0.0.1
         auth_type = gss
-        auth_file = {bouncer.auth_path}
-        listen_port = {bouncer.port}
+        auth_file = {bouncer_with_krb5.auth_path}
+        listen_port = {bouncer_with_krb5.port}
         admin_users = pgbouncer
-        logfile = {bouncer.log_path}
-        auth_krb_server_keyfile = {KEYTAB_FILEPATH}
+        logfile = {bouncer_with_krb5.log_path}
+        auth_krb_server_keyfile = {bouncer_with_krb5.krb5.keytab_fp}
         auth_hba_file = pgbouncer_hba.conf
         auth_file = userlist.txt
         auth_krb_caseins_users = 1
         auth_gss_parameter = krb_realm={REALM.swapcase()}
     """
-    subprocess.run(f"echo {KADMIN_PASSWORD} | kinit", check=True, shell=True)
-    with bouncer.run_with_config(config):
-        bouncer.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres")
-        subprocess.run("kdestroy", check=True, shell=True)
+    bouncer_with_krb5.krb5.kinit()
+    with bouncer_with_krb5.run_with_config(config):
+        bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+        bouncer_with_krb5.krb5.kdestroy()
         with pytest.raises(psycopg.OperationalError, match="GSSAPI continuation error"):
-            bouncer.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres")
+            bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
 
 
 @pytest.mark.skipif(not GSS_SUPPORT, reason="pgbouncer is built without GSS support")
-def test_hba_case_insensitive_positive_realm_match(bouncer):
+def test_hba_case_insensitive_positive_realm_match(bouncer_with_krb5):
     """
     Test that user is accepted even with case sensativity issues when using HBA
     realm checking.
     """
-    hba_conf_file = bouncer.config_dir / "hba.conf"
+    hba_conf_file = bouncer_with_krb5.config_dir / "hba.conf"
     config = f"""
         [databases]
-        postgres = host={bouncer.pg.host} port={bouncer.pg.port} user=postgres
+        postgres = host={bouncer_with_krb5.pg.host} port={bouncer_with_krb5.pg.port} user=postgres
 
         [pgbouncer]
         listen_addr = 127.0.0.1
         auth_type = hba
-        auth_file = {bouncer.auth_path}
-        listen_port = {bouncer.port}
+        auth_file = {bouncer_with_krb5.auth_path}
+        listen_port = {bouncer_with_krb5.port}
         admin_users = pgbouncer
-        logfile = {bouncer.log_path}
-        auth_krb_server_keyfile = {KEYTAB_FILEPATH}
+        logfile = {bouncer_with_krb5.log_path}
+        auth_krb_server_keyfile = {bouncer_with_krb5.krb5.keytab_fp}
         auth_krb_caseins_users = 1
         auth_hba_file = {hba_conf_file}
     """
-    subprocess.run(f"echo {KADMIN_PASSWORD} | kinit", check=True, shell=True)
+    bouncer_with_krb5.krb5.kinit()
     with open(hba_conf_file, "w") as f:
         hba_entry = [
             "host",
@@ -335,32 +278,32 @@ def test_hba_case_insensitive_positive_realm_match(bouncer):
             f"krb_realm={REALM.swapcase()}",
         ]
         f.write(" ".join(hba_entry))
-    with bouncer.run_with_config(config):
-        bouncer.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres")
-        subprocess.run("kdestroy", check=True, shell=True)
+    with bouncer_with_krb5.run_with_config(config):
+        bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+        bouncer_with_krb5.krb5.kdestroy()
         with pytest.raises(psycopg.OperationalError, match="GSSAPI continuation error"):
-            bouncer.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres")
+            bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
 
 
 @pytest.mark.skipif(not GSS_SUPPORT, reason="pgbouncer is built without GSS support")
-def test_hba_case_sensitive_negative_realm_match(bouncer):
+def test_hba_case_sensitive_negative_realm_match(bouncer_with_krb5):
     """
     Test that user is rejected when using case insesitive realm match with HBA
     """
-    hba_conf_file = bouncer.config_dir / "hba.conf"
+    hba_conf_file = bouncer_with_krb5.config_dir / "hba.conf"
 
     config = f"""
         [databases]
-        postgres = host={bouncer.pg.host} port={bouncer.pg.port} user=postgres
+        postgres = host={bouncer_with_krb5.pg.host} port={bouncer_with_krb5.pg.port} user=postgres
 
         [pgbouncer]
         listen_addr = 127.0.0.1
         auth_type = hba
-        auth_file = {bouncer.auth_path}
-        listen_port = {bouncer.port}
-        logfile = {bouncer.log_path}
+        auth_file = {bouncer_with_krb5.auth_path}
+        listen_port = {bouncer_with_krb5.port}
+        logfile = {bouncer_with_krb5.log_path}
         admin_users = pgbouncer
-        auth_krb_server_keyfile = {KEYTAB_FILEPATH}
+        auth_krb_server_keyfile = {bouncer_with_krb5.krb5.keytab_fp}
         auth_hba_file = {hba_conf_file}
     """
 
@@ -375,75 +318,75 @@ def test_hba_case_sensitive_negative_realm_match(bouncer):
         ]
         f.write(" ".join(hba_entry))
 
-    subprocess.run(f"echo {KADMIN_PASSWORD} | kinit", check=True, shell=True)
-    with bouncer.run_with_config(config):
+    bouncer_with_krb5.krb5.kinit()
+    with bouncer_with_krb5.run_with_config(config):
         with pytest.raises(psycopg.OperationalError, match="GSS authentication failed"):
-            bouncer.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres")
-        subprocess.run("kdestroy", check=True, shell=True)
+            bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+        bouncer_with_krb5.krb5.kdestroy()
         with pytest.raises(psycopg.OperationalError, match="GSSAPI continuation error"):
-            bouncer.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres")
+            bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
 
 
 @pytest.mark.skipif(not GSS_SUPPORT, reason="pgbouncer is built without GSS support")
-def test_bouncer_config_include_realm_disabled(bouncer):
+def test_bouncer_config_include_realm_disabled(bouncer_with_krb5):
     """
     Test include realm functionality for bouncer wide gss config
     """
     config = f"""
         [databases]
-        postgres = host={bouncer.pg.host} port={bouncer.pg.port} user=postgres
+        postgres = host={bouncer_with_krb5.pg.host} port={bouncer_with_krb5.pg.port} user=postgres
 
         [pgbouncer]
         listen_addr = 127.0.0.1
         auth_type = gss
-        auth_file = {bouncer.auth_path}
-        listen_port = {bouncer.port}
+        auth_file = {bouncer_with_krb5.auth_path}
+        listen_port = {bouncer_with_krb5.port}
         admin_users = pgbouncer
-        logfile = {bouncer.log_path}
-        auth_krb_server_keyfile = {KEYTAB_FILEPATH}
+        logfile = {bouncer_with_krb5.log_path}
+        auth_krb_server_keyfile = {bouncer_with_krb5.krb5.keytab_fp}
         auth_gss_parameter = include_realm=0
     """
-    subprocess.run(f"echo {KADMIN_PASSWORD} | kinit", check=True, shell=True)
-    with bouncer.run_with_config(config):
-        bouncer.test(user=getpass.getuser(), dbname="postgres")
-        subprocess.run("kdestroy", check=True, shell=True)
+    bouncer_with_krb5.krb5.kinit()
+    with bouncer_with_krb5.run_with_config(config):
+        bouncer_with_krb5.test(user="root", dbname="postgres", gssencmode="disable", require_auth="gss")
+        bouncer_with_krb5.krb5.kdestroy()
         with pytest.raises(psycopg.OperationalError, match="GSSAPI continuation error"):
-            bouncer.test(user=getpass.getuser(), dbname="postgres")
+            bouncer_with_krb5.test(user="root", dbname="postgres", gssencmode="disable", require_auth="gss")
 
 
 @pytest.mark.skipif(not GSS_SUPPORT, reason="pgbouncer is built without GSS support")
-def test_hba_include_realm_disabled(bouncer):
+def test_hba_include_realm_disabled(bouncer_with_krb5):
     """
     Test include realm functionality for HBA config
     """
-    hba_conf_file = bouncer.config_dir / "hba.conf"
+    hba_conf_file = bouncer_with_krb5.config_dir / "hba.conf"
     config = f"""
         [databases]
-        postgres = host={bouncer.pg.host} port={bouncer.pg.port} user=postgres
+        postgres = host={bouncer_with_krb5.pg.host} port={bouncer_with_krb5.pg.port} user=postgres
 
         [pgbouncer]
         listen_addr = 127.0.0.1
         auth_type = hba
-        auth_file = {bouncer.auth_path}
-        listen_port = {bouncer.port}
+        auth_file = {bouncer_with_krb5.auth_path}
+        listen_port = {bouncer_with_krb5.port}
         admin_users = pgbouncer
-        logfile = {bouncer.log_path}
-        auth_krb_server_keyfile = {KEYTAB_FILEPATH}
+        logfile = {bouncer_with_krb5.log_path}
+        auth_krb_server_keyfile = {bouncer_with_krb5.krb5.keytab_fp}
         auth_hba_file = {hba_conf_file}
     """
-    subprocess.run(f"echo {KADMIN_PASSWORD} | kinit", check=True, shell=True)
+    bouncer_with_krb5.krb5.kinit()
     with open(hba_conf_file, "w") as f:
         hba_entry = [
             "host",
             "postgres",
-            getpass.getuser(),
+            "root",
             "0.0.0.0/0",
             "gss",
             "include_realm=0",
         ]
         f.write(" ".join(hba_entry))
-    with bouncer.run_with_config(config):
-        bouncer.test(user=getpass.getuser(), dbname="postgres")
-        subprocess.run("kdestroy", check=True, shell=True)
+    with bouncer_with_krb5.run_with_config(config):
+        bouncer_with_krb5.test(user="root", dbname="postgres", gssencmode="disable", require_auth="gss")
+        bouncer_with_krb5.krb5.kdestroy()
         with pytest.raises(psycopg.OperationalError, match="GSSAPI continuation error"):
-            bouncer.test(user=getpass.getuser(), dbname="postgres")
+            bouncer_with_krb5.test(user="root", dbname="postgres", gssencmode="disable", require_auth="gss")

@@ -384,6 +384,23 @@ if pam.found()
 endif
 
 # ----------------------------------------------------------------------
+# GSS (mirrors --with-gss)
+# ----------------------------------------------------------------------
+
+# gss/pam/ldap are combo options ('auto'/'enabled'/'disabled') rather than meson
+# `feature`s: the feature accessors (.allowed(), and passing a feature to
+# find_library's `required`) need meson 0.59, newer than our floor. The string
+# compare below reproduces the same semantics on older meson.
+gssopt = get_option('gss')
+gss = not_found_dep
+if gssopt != 'disabled'
+  gss = cc.find_library('gssapi_krb5', required: gssopt == 'enabled', has_headers: ['gssapi.h'])
+endif
+if gss.found()
+  cdata.set('HAVE_GSS', 1, description: 'GSS support.')
+endif
+
+# ----------------------------------------------------------------------
 # LDAP (mirrors --with-ldap)
 # ----------------------------------------------------------------------
 

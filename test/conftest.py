@@ -6,6 +6,7 @@ import pytest
 
 from .utils import (
     LDAP_SUPPORT,
+    GSS_SUPPORT,
     LINUX,
     LONG_PASSWORD,
     PG_SUPPORTS_SCRAM,
@@ -14,6 +15,7 @@ from .utils import (
     USE_SUDO,
     Bouncer,
     OpenLDAP,
+    Krb5,
     Postgres,
     Proxy,
     run,
@@ -134,6 +136,9 @@ def pg(tmp_path_factory, cert_dir):
     if LDAP_SUPPORT:
         pg.sql("create user ldapuser1 login password 'secret1'")
 
+    if GSS_SUPPORT:
+        pg.sql("create user root")
+
     pg.sql("create database unconfigured_auth_database")
     pg.sql("create user bouncer")
 
@@ -200,6 +205,26 @@ async def bouncer(pg, tmp_path):
 
     yield bouncer
 
+    await bouncer.cleanup()
+
+
+@pytest.fixture
+async def bouncer_with_krb5(pg, tmp_path, monkeypatch):
+    """Starts a new pgbouncer process and krb5 KDC server"""
+    bouncer = Bouncer(pg, tmp_path / "bouncer")
+    krb5 = Krb5(tmp_path)
+    bouncer.krb5 = krb5
+
+    monkeypatch.setenv("KRB5_CONFIG", str(krb5.krb5_conf_fp))
+    monkeypatch.setenv("KRB5_KDC_PROFILE", str(krb5.kdc_conf_fp))
+    monkeypatch.setenv("KRB5CCNAME", str(krb5.krb5_cache))
+
+    krb5.startup()
+    await bouncer.start()
+
+    yield bouncer
+
+    krb5.cleanup()
     await bouncer.cleanup()
 
 

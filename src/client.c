@@ -734,8 +734,11 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
 			return false;
 		}
 		if (length == (uint32_t)-1) {
-			disconnect_server(server, false, "auth_query response contained null user name");
-			return false;
+			/*
+			 * A null user name means the user does not
+			 * exist, so skip the row.
+			 */
+			break;
 		}
 		if (!mbuf_get_chars(&pkt->data, length, &username)) {
 			disconnect_server(server, false, "bad packet");

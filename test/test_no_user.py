@@ -89,3 +89,24 @@ def test_no_user_auth_user(bouncer):
         pytest.raises(psycopg.OperationalError, match="no such user"),
     ):
         bouncer.test(dbname="authdb", user="nosuchuser", password="whatever")
+
+
+def test_no_user_auth_user_null_row(bouncer):
+    """
+    An auth_query that reports a missing user as a null value rather
+    than with no rows must be treated the same as one returning no
+    rows.  The user_lookup() example in the documentation behaves this
+    way.
+    """
+    bouncer.admin(f"set auth_type='md5'")
+    bouncer.admin(
+        "set auth_query='SELECT (SELECT rolname FROM pg_authid WHERE rolname = $1), (SELECT rolpassword FROM pg_authid WHERE rolname = $1)'"
+    )
+    with (
+        bouncer.log_contains(r"closing because: no such user \(age"),
+        pytest.raises(psycopg.OperationalError, match="no such user"),
+    ):
+        bouncer.test(dbname="authdb", user="nosuchuser", password="whatever")
+
+    # An existing user still logs in through the same auth_query.
+    bouncer.test(dbname="authdb", user="someuser", password="anypasswd")

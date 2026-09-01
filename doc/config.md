@@ -541,6 +541,16 @@ use a non-superuser that calls a SECURITY DEFINER function instead.
 Note that the query is run inside the target database.  So if a function
 is used, it needs to be installed into each database.
 
+The query must return two columns, the user name and the password
+(appropriately encrypted/hashed).  To report that the user does not
+exist, either return no rows or a row with a null value for the user.
+(The default query below returns no rows for a nonexistent user.  The
+variant with the null value is useful when the query calls a
+record-returning function, as in the example shown under
+[Examples](#examples) below.)  A null value in the password column
+means that the user exists but no password is available for it, so
+that no password that the client offers will be accepted.
+
 Default: `SELECT rolname, CASE WHEN rolvaliduntil < now() THEN NULL ELSE rolpassword END FROM pg_authid WHERE rolname=$1 AND rolcanlogin`
 
 ### auth_dbname

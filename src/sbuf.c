@@ -816,6 +816,11 @@ static bool sbuf_process_pending(SBuf *sbuf)
 				goto need_more_data;
 			}
 			Assert(sbuf->pkt_remain > 0);
+
+			/* callback may have closed sbuf and freed io */
+			io = sbuf->io;
+			if (!io)
+				return false;
 		}
 
 		if (sbuf->pkt_action == ACT_SKIP || sbuf->pkt_action == ACT_CALL) {
@@ -837,6 +842,10 @@ static bool sbuf_process_pending(SBuf *sbuf)
 			if (!sbuf_call_proto(sbuf, SBUF_EV_PKT_CALLBACK)) {
 				goto need_more_data;
 			}
+			/* callback may have closed sbuf and freed io */
+			io = sbuf->io;
+			if (!io)
+				return false;
 		/* fallthrough */
 		/* after callback, skip pkt */
 		case ACT_SKIP:

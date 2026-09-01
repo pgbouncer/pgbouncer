@@ -66,7 +66,7 @@ jobs:
             pgversion: "18"
             cflags: "-O0 -g"
             enable_valgrind: "yes"
-            meson_args: "-Dcares=enabled -Dldap=disabled -Dpam=disabled"
+            meson_args: "-Dcares=enabled -Dldap=disabled -Dpam=disabled -Dgss=disabled"
     env:
       PGVERSION: ${{ matrix.pgversion || '16' }}
       BUILD_SYSTEM: ${{ matrix.build_system }}

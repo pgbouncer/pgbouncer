@@ -187,14 +187,16 @@ def test_bouncer_config_realm_match_case_sensitive_negative(bouncer_with_krb5):
         auth_gss_parameter = krb_realm={REALM.swapcase()}
     """
     bouncer_with_krb5.krb5.kinit()
-    with bouncer_with_krb5.run_with_config(config):
-        with pytest.raises(psycopg.OperationalError, match="GSS authentication failed"):
-            bouncer_with_krb5.test(
-                user=KADMIN_PRINCIPAL_FULL,
-                dbname="postgres",
-                gssencmode="disable",
-                require_auth="gss",
-            )
+    with (
+        bouncer_with_krb5.run_with_config(config),
+        pytest.raises(psycopg.OperationalError, match="GSS authentication failed"),
+    ):
+        bouncer_with_krb5.test(
+            user=KADMIN_PRINCIPAL_FULL,
+            dbname="postgres",
+            gssencmode="disable",
+            require_auth="gss",
+        )
     bouncer_with_krb5.krb5.kdestroy()
 
 

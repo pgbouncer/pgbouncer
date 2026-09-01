@@ -1349,13 +1349,18 @@ class Krb5:
 
     def krb5_env(self):
         krb5_client_env = os.environ.copy()
-        krb5_client_env['KRB5_CONFIG'] = str(self.krb5_conf_fp)
-        krb5_client_env['KRB5_KDC_PROFILE'] = str(self.kdc_conf_fp)
-        krb5_client_env['KRB5CCNAME'] = str(self.krb5_cache)
+        krb5_client_env["KRB5_CONFIG"] = str(self.krb5_conf_fp)
+        krb5_client_env["KRB5_KDC_PROFILE"] = str(self.kdc_conf_fp)
+        krb5_client_env["KRB5CCNAME"] = str(self.krb5_cache)
         return krb5_client_env
 
     def kinit(self):
-        subprocess.run(f"echo {self.kadmin_password} | kinit root", check=True, shell=True, env=self.krb5_env())
+        subprocess.run(
+            f"echo {self.kadmin_password} | kinit root",
+            check=True,
+            shell=True,
+            env=self.krb5_env(),
+        )
 
     def kdestroy(self):
         subprocess.run(f"kdestroy", check=True, shell=True, env=self.krb5_env())
@@ -1404,12 +1409,26 @@ kdc = FILE:{self.kdc_log}
 
         run("kdb5_util create -s -P secret0", env=self.krb5_env())
         run("kadmin.local -q 'delete_principal -force postgres'", env=self.krb5_env())
-        run("kadmin.local -q 'delete_principal -force postgres/127.0.0.1'", env=self.krb5_env())
-        run(f"kadmin.local -q 'addprinc -pw {self.kadmin_password} {self.kadmin_principal_full}'", env=self.krb5_env())
+        run(
+            "kadmin.local -q 'delete_principal -force postgres/127.0.0.1'",
+            env=self.krb5_env(),
+        )
+        run(
+            f"kadmin.local -q 'addprinc -pw {self.kadmin_password} {self.kadmin_principal_full}'",
+            env=self.krb5_env(),
+        )
         run("kadmin.local -q 'addprinc -randkey postgres'", env=self.krb5_env())
-        run("kadmin.local -q 'addprinc -randkey postgres/127.0.0.1'", env=self.krb5_env())
-        run(f"kadmin.local -q 'ktadd -k {self.keytab_fp} postgres/127.0.0.1'", env=self.krb5_env())
-        run(f"kadmin.local -q 'ktadd -k {self.keytab_fp} postgres'", env=self.krb5_env())
+        run(
+            "kadmin.local -q 'addprinc -randkey postgres/127.0.0.1'",
+            env=self.krb5_env(),
+        )
+        run(
+            f"kadmin.local -q 'ktadd -k {self.keytab_fp} postgres/127.0.0.1'",
+            env=self.krb5_env(),
+        )
+        run(
+            f"kadmin.local -q 'ktadd -k {self.keytab_fp} postgres'", env=self.krb5_env()
+        )
         run(f"chmod 644 {self.keytab_fp}", env=self.krb5_env())
         run(f"krb5kdc -P {self.kdc_pidfile}", env=self.krb5_env())
 

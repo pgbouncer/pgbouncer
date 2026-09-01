@@ -43,10 +43,20 @@ def test_hba(bouncer_with_krb5):
     """
     bouncer_with_krb5.krb5.kinit()
     with bouncer_with_krb5.run_with_config(config):
-        bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+        bouncer_with_krb5.test(
+            user=KADMIN_PRINCIPAL_FULL,
+            dbname="postgres",
+            gssencmode="disable",
+            require_auth="gss",
+        )
         bouncer_with_krb5.krb5.kdestroy()
         with pytest.raises(psycopg.OperationalError, match="GSSAPI continuation error"):
-            bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+            bouncer_with_krb5.test(
+                user=KADMIN_PRINCIPAL_FULL,
+                dbname="postgres",
+                gssencmode="disable",
+                require_auth="gss",
+            )
 
 
 @pytest.mark.skipif(not GSS_SUPPORT, reason="pgbouncer is built without GSS support")
@@ -66,10 +76,20 @@ def test_default_behavior(bouncer_with_krb5):
     """
     bouncer_with_krb5.krb5.kinit()
     with bouncer_with_krb5.run_with_config(config):
-        bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+        bouncer_with_krb5.test(
+            user=KADMIN_PRINCIPAL_FULL,
+            dbname="postgres",
+            gssencmode="disable",
+            require_auth="gss",
+        )
         bouncer_with_krb5.krb5.kdestroy()
         with pytest.raises(psycopg.OperationalError, match="GSSAPI continuation error"):
-            bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+            bouncer_with_krb5.test(
+                user=KADMIN_PRINCIPAL_FULL,
+                dbname="postgres",
+                gssencmode="disable",
+                require_auth="gss",
+            )
 
 
 @pytest.mark.skipif(not GSS_SUPPORT, reason="pgbouncer is built without GSS support")
@@ -93,9 +113,19 @@ def test_case_sensitive_negative(bouncer_with_krb5):
 
     bouncer_with_krb5.krb5.kinit()
     with bouncer_with_krb5.run_with_config(config):
-        bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+        bouncer_with_krb5.test(
+            user=KADMIN_PRINCIPAL_FULL,
+            dbname="postgres",
+            gssencmode="disable",
+            require_auth="gss",
+        )
         with pytest.raises(psycopg.OperationalError, match="GSS authentication failed"):
-            bouncer_with_krb5.test(user=USER_SWAPPED_CASE, dbname="postgres", gssencmode="disable", require_auth="gss")
+            bouncer_with_krb5.test(
+                user=USER_SWAPPED_CASE,
+                dbname="postgres",
+                gssencmode="disable",
+                require_auth="gss",
+            )
     bouncer_with_krb5.krb5.kdestroy()
 
 
@@ -120,8 +150,18 @@ def test_case_insensitive_positive(bouncer_with_krb5):
     """
     bouncer_with_krb5.krb5.kinit()
     with bouncer_with_krb5.run_with_config(config):
-        bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
-        bouncer_with_krb5.test(user=USER_SWAPPED_CASE, dbname="postgres", gssencmode="disable", require_auth="gss")
+        bouncer_with_krb5.test(
+            user=KADMIN_PRINCIPAL_FULL,
+            dbname="postgres",
+            gssencmode="disable",
+            require_auth="gss",
+        )
+        bouncer_with_krb5.test(
+            user=USER_SWAPPED_CASE,
+            dbname="postgres",
+            gssencmode="disable",
+            require_auth="gss",
+        )
     bouncer_with_krb5.krb5.kdestroy()
 
 
@@ -149,7 +189,12 @@ def test_bouncer_config_realm_match_case_sensitive_negative(bouncer_with_krb5):
     bouncer_with_krb5.krb5.kinit()
     with bouncer_with_krb5.run_with_config(config):
         with pytest.raises(psycopg.OperationalError, match="GSS authentication failed"):
-            bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+            bouncer_with_krb5.test(
+                user=KADMIN_PRINCIPAL_FULL,
+                dbname="postgres",
+                gssencmode="disable",
+                require_auth="gss",
+            )
     bouncer_with_krb5.krb5.kdestroy()
 
 
@@ -176,10 +221,20 @@ def test_bouncer_config_realm_match_case_sensitive_positive(bouncer_with_krb5):
     """
     bouncer_with_krb5.krb5.kinit()
     with bouncer_with_krb5.run_with_config(config):
-        bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+        bouncer_with_krb5.test(
+            user=KADMIN_PRINCIPAL_FULL,
+            dbname="postgres",
+            gssencmode="disable",
+            require_auth="gss",
+        )
         bouncer_with_krb5.krb5.kdestroy()
         with pytest.raises(psycopg.OperationalError, match="GSSAPI continuation error"):
-            bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+            bouncer_with_krb5.test(
+                user=KADMIN_PRINCIPAL_FULL,
+                dbname="postgres",
+                gssencmode="disable",
+                require_auth="gss",
+            )
 
 
 @pytest.mark.skipif(not GSS_SUPPORT, reason="pgbouncer is built without GSS support")
@@ -208,10 +263,20 @@ def test_bouncer_config_realm_match_case_insensitive_negative(bouncer_with_krb5)
     bouncer_with_krb5.krb5.kinit()
     with bouncer_with_krb5.run_with_config(config):
         with pytest.raises(psycopg.OperationalError, match="GSS authentication failed"):
-            bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+            bouncer_with_krb5.test(
+                user=KADMIN_PRINCIPAL_FULL,
+                dbname="postgres",
+                gssencmode="disable",
+                require_auth="gss",
+            )
         bouncer_with_krb5.krb5.kdestroy()
         with pytest.raises(psycopg.OperationalError, match="GSSAPI continuation error"):
-            bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+            bouncer_with_krb5.test(
+                user=KADMIN_PRINCIPAL_FULL,
+                dbname="postgres",
+                gssencmode="disable",
+                require_auth="gss",
+            )
 
 
 @pytest.mark.skipif(not GSS_SUPPORT, reason="pgbouncer is built without GSS support")
@@ -239,10 +304,20 @@ def test_bouncer_config_realm_match_case_insensitive_positive(bouncer_with_krb5)
     """
     bouncer_with_krb5.krb5.kinit()
     with bouncer_with_krb5.run_with_config(config):
-        bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+        bouncer_with_krb5.test(
+            user=KADMIN_PRINCIPAL_FULL,
+            dbname="postgres",
+            gssencmode="disable",
+            require_auth="gss",
+        )
         bouncer_with_krb5.krb5.kdestroy()
         with pytest.raises(psycopg.OperationalError, match="GSSAPI continuation error"):
-            bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+            bouncer_with_krb5.test(
+                user=KADMIN_PRINCIPAL_FULL,
+                dbname="postgres",
+                gssencmode="disable",
+                require_auth="gss",
+            )
 
 
 @pytest.mark.skipif(not GSS_SUPPORT, reason="pgbouncer is built without GSS support")
@@ -279,10 +354,20 @@ def test_hba_case_insensitive_positive_realm_match(bouncer_with_krb5):
         ]
         f.write(" ".join(hba_entry))
     with bouncer_with_krb5.run_with_config(config):
-        bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+        bouncer_with_krb5.test(
+            user=KADMIN_PRINCIPAL_FULL,
+            dbname="postgres",
+            gssencmode="disable",
+            require_auth="gss",
+        )
         bouncer_with_krb5.krb5.kdestroy()
         with pytest.raises(psycopg.OperationalError, match="GSSAPI continuation error"):
-            bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+            bouncer_with_krb5.test(
+                user=KADMIN_PRINCIPAL_FULL,
+                dbname="postgres",
+                gssencmode="disable",
+                require_auth="gss",
+            )
 
 
 @pytest.mark.skipif(not GSS_SUPPORT, reason="pgbouncer is built without GSS support")
@@ -321,10 +406,20 @@ def test_hba_case_sensitive_negative_realm_match(bouncer_with_krb5):
     bouncer_with_krb5.krb5.kinit()
     with bouncer_with_krb5.run_with_config(config):
         with pytest.raises(psycopg.OperationalError, match="GSS authentication failed"):
-            bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+            bouncer_with_krb5.test(
+                user=KADMIN_PRINCIPAL_FULL,
+                dbname="postgres",
+                gssencmode="disable",
+                require_auth="gss",
+            )
         bouncer_with_krb5.krb5.kdestroy()
         with pytest.raises(psycopg.OperationalError, match="GSSAPI continuation error"):
-            bouncer_with_krb5.test(user=KADMIN_PRINCIPAL_FULL, dbname="postgres", gssencmode="disable", require_auth="gss")
+            bouncer_with_krb5.test(
+                user=KADMIN_PRINCIPAL_FULL,
+                dbname="postgres",
+                gssencmode="disable",
+                require_auth="gss",
+            )
 
 
 @pytest.mark.skipif(not GSS_SUPPORT, reason="pgbouncer is built without GSS support")
@@ -348,10 +443,14 @@ def test_bouncer_config_include_realm_disabled(bouncer_with_krb5):
     """
     bouncer_with_krb5.krb5.kinit()
     with bouncer_with_krb5.run_with_config(config):
-        bouncer_with_krb5.test(user="root", dbname="postgres", gssencmode="disable", require_auth="gss")
+        bouncer_with_krb5.test(
+            user="root", dbname="postgres", gssencmode="disable", require_auth="gss"
+        )
         bouncer_with_krb5.krb5.kdestroy()
         with pytest.raises(psycopg.OperationalError, match="GSSAPI continuation error"):
-            bouncer_with_krb5.test(user="root", dbname="postgres", gssencmode="disable", require_auth="gss")
+            bouncer_with_krb5.test(
+                user="root", dbname="postgres", gssencmode="disable", require_auth="gss"
+            )
 
 
 @pytest.mark.skipif(not GSS_SUPPORT, reason="pgbouncer is built without GSS support")
@@ -386,7 +485,11 @@ def test_hba_include_realm_disabled(bouncer_with_krb5):
         ]
         f.write(" ".join(hba_entry))
     with bouncer_with_krb5.run_with_config(config):
-        bouncer_with_krb5.test(user="root", dbname="postgres", gssencmode="disable", require_auth="gss")
+        bouncer_with_krb5.test(
+            user="root", dbname="postgres", gssencmode="disable", require_auth="gss"
+        )
         bouncer_with_krb5.krb5.kdestroy()
         with pytest.raises(psycopg.OperationalError, match="GSSAPI continuation error"):
-            bouncer_with_krb5.test(user="root", dbname="postgres", gssencmode="disable", require_auth="gss")
+            bouncer_with_krb5.test(
+                user="root", dbname="postgres", gssencmode="disable", require_auth="gss"
+            )

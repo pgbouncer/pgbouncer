@@ -94,19 +94,17 @@ def test_discard_all(bouncer):
         # execute DISCARD ALL on client 1
         cur1.execute("DISCARD ALL")
 
-        # Run the prepared query again on server 2 and client 2
+        # Run the prepared query again on client 2
         cur2.execute(prepared_query)
 
-        # Confirm that the prepared query is not available anymore on
-        # client 1
-        with (
-            bouncer.log_contains("prepared statement did not exist"),
-            pytest.raises(
-                psycopg.OperationalError,
-                match="prepared statement did not exist|server closed the connection unexpectedly",
-            ),
-        ):
-            cur1.execute(prepared_query)
+        # Depending on the psycopg version, the statement may or may not work on
+        # client 1. Starting with psycopg 3.3.5, it recognizes the "DISCARD"
+        # command, resets its prepared statement cache, and prepares the
+        # statement again on the next call. In earlier versions, you get a
+        # "prepared statement did not exist" error. We're not trying to test
+        # psycopg here, so skip it.
+        #
+        # cur1.execute(prepared_query)
 
 
 def test_parse_larger_than_pkt_buf(bouncer):

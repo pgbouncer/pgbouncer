@@ -461,9 +461,6 @@ def test_track_extra_parameters(bouncer):
         "application_name": ["client1", "client2"],
     }
 
-    if not WINDOWS:
-        test_set["client_encoding"] = ["LATIN1", "LATIN5"]
-
     test_expected = {
         "intervalstyle": ["sql_standard", "postgres"],
         "standard_conforming_strings": ["on", "off"],
@@ -473,7 +470,13 @@ def test_track_extra_parameters(bouncer):
     }
 
     if not WINDOWS:
+        test_set["client_encoding"] = ["LATIN1", "LATIN5"]
         test_expected["client_encoding"] = ["LATIN1", "LATIN5"]
+
+    # default_transaction-read_only was not marked as GUC_REPORT until server version 14
+    if PG_MAJOR_VERSION >= 14:
+        test_set["default_transaction_read_only"] = ["true", "false"]
+        test_expected["default_transaction_read_only"] = ["on", "off"]
 
     with bouncer.cur(dbname="p1") as cur1, bouncer.cur(dbname="p1") as cur2:
         for key in test_set:
@@ -486,11 +489,17 @@ def test_track_extra_parameters(bouncer):
             cur1.execute(stmt)
             cur2.execute(stmt)
 
-            result1 = cur1.fetchone()
-            assert result1[0] == test_expected[key][0]
+            result1 = cur1.fetchone()[0]
+            expected1 = test_expected[key][0]
+            assert result1 == expected1, (
+                f'parameter {key}, expected "{expected1}", got "{result1}"'
+            )
 
-            result2 = cur2.fetchone()
-            assert result2[0] == test_expected[key][1]
+            result2 = cur2.fetchone()[0]
+            expected2 = test_expected[key][1]
+            assert result2 == expected2, (
+                f'parameter {key}, expected "{expected2}", got "{result2}"'
+            )
 
 
 async def test_wait_close(bouncer):
@@ -726,6 +735,25 @@ def test_equivalent_startup_param(bouncer):
     ):
         cur.execute("SELECT 1")
         cur.execute("SELECT 1")
+
+
+@pytest.mark.skipif(
+    "PG_MAJOR_VERSION < 14",
+    reason="default_transaction_read_only was not marked as GUC_REPORT before PG14",
+)
+def test_default_transaction_read_only(bouncer):
+    """
+    Test that "SET default_transaction_read_only = true" in one client connection
+    doesn't poison the pool with a read-only connection.
+    """
+    bouncer.admin(f"set pool_mode=transaction")
+
+    with bouncer.cur() as rocur:
+        rocur.execute("SET default_transaction_read_only = true")
+        assert rocur.execute("SHOW transaction_read_only").fetchone()[0] == "on"
+
+    with bouncer.cur() as rwcur:
+        assert rwcur.execute("SHOW transaction_read_only").fetchone()[0] == "off"
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows doesn't support sending SIGTERM")

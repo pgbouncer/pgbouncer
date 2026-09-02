@@ -1057,9 +1057,11 @@ async def test_session_authorization_tracked(bouncer):
     bouncer.admin("set pool_mode=transaction")
     bouncer.admin("set verbose=2")
 
-    conn_args = dict(
-        dbname="user_passthrough", user="pswcheck", password="pgbouncer-check"
-    )
+    conn_args = {
+        "dbname": "user_passthrough",
+        "user": "pswcheck",
+        "password": "pgbouncer-check",
+    }
 
     with bouncer.cur(**conn_args) as cur1, bouncer.cur(**conn_args) as cur2:
         assert cur1.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"

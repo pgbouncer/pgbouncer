@@ -86,13 +86,13 @@ def test_discard_or_deallocate_all(bouncer, command):
 
         # Confirm that the prepared query is not available anymore on
         # client 1
-        result = conn1.pgconn.exec_prepared(b"mystmt", ())
+        with bouncer.log_contains("prepared statement did not exist"):
+            result = conn1.pgconn.exec_prepared(b"mystmt", ())
         assert result.status == pq.ExecStatus.FATAL_ERROR
         assert (
             b"prepared statement did not exist" in result.error_message
             or b"server closed the connection unexpectedly" in result.error_message
         )
-        assert bouncer.log_contains("prepared statement did not exist")
 
 
 def test_parse_larger_than_pkt_buf(bouncer):

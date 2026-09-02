@@ -53,7 +53,6 @@ static void usage(const char *exe)
 	printf("\nOptions:\n");
 	printf("  -d, --daemon         run in background (as a daemon)\n");
 	printf("  -q, --quiet          run quietly\n");
-	printf("  -R, --reboot         do an online reboot\n");
 	printf("  -u, --user=USERNAME  assume identity of USERNAME\n");
 	printf("  -v, --verbose        increase verbosity\n");
 	printf("  -V, --version        show version, then exit\n");
@@ -87,7 +86,6 @@ long unsigned int cf_query_wait_notify;
 int cf_daemon;
 int cf_pause_mode = P_NONE;
 int cf_shutdown = SHUTDOWN_NONE;
-int cf_reboot;
 static char *global_username;
 char *cf_config_file;
 
@@ -170,9 +168,6 @@ usec_t cf_client_login_timeout;
 usec_t cf_pool_idle_timeout;
 usec_t cf_idle_transaction_timeout;
 usec_t cf_transaction_timeout;
-usec_t cf_suspend_timeout;
-
-usec_t g_suspend_start;
 
 char *cf_pidfile;
 char *cf_jobname;
@@ -347,7 +342,6 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("so_reuseport", CF_INT, cf_so_reuseport, CF_NO_RELOAD, "0"),
 	CF_ABS("stats_period", CF_INT, cf_stats_period, 0, "60"),
 	CF_ABS("stats_users", CF_STR, cf_stats_users, 0, ""),
-	CF_ABS("suspend_timeout", CF_TIME_USEC, cf_suspend_timeout, 0, "10"),
 	CF_ABS("syslog", CF_INT, cf_syslog, 0, "0"),
 	CF_ABS("syslog_facility", CF_STR, cf_syslog_facility, 0, "daemon"),
 	CF_ABS("syslog_ident", CF_STR, cf_syslog_ident, 0, "pgbouncer"),
@@ -547,10 +541,6 @@ static void handle_sigterm(evutil_socket_t sock, short flags, void *arg)
 	}
 	log_info("got SIGTERM, shutting down, waiting for all clients disconnect");
 	sd_notify(0, "STOPPING=1");
-	if (cf_reboot)
-		die("takeover was in progress, going down immediately");
-	if (cf_pause_mode == P_SUSPEND)
-		die("suspend was in progress, going down immediately");
 	cf_shutdown = SHUTDOWN_WAIT_FOR_CLIENTS;
 	cleanup_tcp_sockets();
 }
@@ -564,10 +554,6 @@ static void handle_sigint(evutil_socket_t sock, short flags, void *arg)
 	}
 	log_info("got SIGINT, shutting down, waiting for all servers connections to be released");
 	sd_notify(0, "STOPPING=1");
-	if (cf_reboot)
-		die("takeover was in progress, going down immediately");
-	if (cf_pause_mode == P_SUSPEND)
-		die("suspend was in progress, going down immediately");
 	cf_pause_mode = P_PAUSE;
 	cf_shutdown = SHUTDOWN_WAIT_FOR_SERVERS;
 	cleanup_tcp_sockets();
@@ -593,7 +579,7 @@ static void handle_sigusr1(int sock, short flags, void *arg)
 		log_info("got SIGUSR1, pausing all activity");
 		cf_pause_mode = P_PAUSE;
 	} else {
-		log_info("got SIGUSR1, but already paused/suspended");
+		log_info("got SIGUSR1, but already paused");
 	}
 }
 
@@ -604,17 +590,12 @@ static void handle_sigusr2(int sock, short flags, void *arg)
 		return;
 	}
 	switch (cf_pause_mode) {
-	case P_SUSPEND:
-		log_info("got SIGUSR2, continuing from SUSPEND");
-		resume_all();
-		cf_pause_mode = P_NONE;
-		break;
 	case P_PAUSE:
 		log_info("got SIGUSR2, continuing from PAUSE");
 		cf_pause_mode = P_NONE;
 		break;
 	case P_NONE:
-		log_info("got SIGUSR2, but not paused/suspended");
+		log_info("got SIGUSR2, but not paused");
 	}
 }
 
@@ -906,36 +887,6 @@ static void main_loop_once(void)
 		adns_per_loop(adns);
 }
 
-static void takeover_part1(void)
-{
-	/* use temporary libevent base */
-	struct event_base *evtmp;
-
-	evtmp = pgb_event_base;
-	pgb_event_base = event_base_new();
-
-	if (!cf_unix_socket_dir || !*cf_unix_socket_dir)
-		die("cannot reboot if unix dir not configured");
-
-	/*
-	 * Takeover with abstract Unix socket doesn't work because the
-	 * new process can't unlink the socket used by the old process
-	 * and put its own in place (see create_unix_socket()).
-	 */
-	if (cf_unix_socket_dir[0] == '@')
-		die("cannot reboot with abstract Unix socket");
-
-	if (sd_listen_fds(0) > 0)
-		die("cannot reboot under service manager");
-
-	takeover_init();
-	while (cf_reboot)
-		main_loop_once();
-
-	event_base_free(pgb_event_base);
-	pgb_event_base = evtmp;
-}
-
 static void dns_setup(void)
 {
 	if (adns)
@@ -956,16 +907,6 @@ static void xfree(char **ptr_p)
 _UNUSED
 static void cleanup(void)
 {
-	/*
-	 * We don't want to cleanup when we're the target of a takeover, because
-	 * that would close the sockets that we hand over. There's no real clean
-	 * way to detect that we were the target, so the below check is rather
-	 * crude. But since this cleanup is only happening in builds with asserts
-	 * enabled anyway it seems fine.
-	 */
-	if (cf_pause_mode == P_SUSPEND && cf_shutdown == SHUTDOWN_IMMEDIATE) {
-		return;
-	}
 	adns_free_context(adns);
 	adns = NULL;
 	hba_free(parsed_hba);
@@ -1030,7 +971,6 @@ static void cleanup(void)
 int main(int argc, char *argv[])
 {
 	int c;
-	bool did_takeover = false;
 	char *arg_username = NULL;
 	int long_idx;
 
@@ -1040,7 +980,6 @@ int main(int argc, char *argv[])
 		{"help", no_argument, NULL, 'h'},
 		{"daemon", no_argument, NULL, 'd'},
 		{"version", no_argument, NULL, 'V'},
-		{"reboot", no_argument, NULL, 'R'},
 		{"user", required_argument, NULL, 'u'},
 		{NULL, 0, NULL, 0}
 	};
@@ -1048,11 +987,8 @@ int main(int argc, char *argv[])
 	setprogname(basename(argv[0]));
 
 	/* parse cmdline */
-	while ((c = getopt_long(argc, argv, "qvhdVRu:", long_options, &long_idx)) != -1) {
+	while ((c = getopt_long(argc, argv, "qvhdVu:", long_options, &long_idx)) != -1) {
 		switch (c) {
-		case 'R':
-			cf_reboot = 1;
-			break;
 		case 'v':
 			cf_verbose++;
 			break;
@@ -1127,21 +1063,9 @@ int main(int argc, char *argv[])
 
 	admin_setup();
 
-	if (cf_reboot) {
-		log_warning("Online restart is deprecated, use so_reuseport instead");
-		if (check_old_process_unix()) {
-			takeover_part1();
-			did_takeover = true;
-		} else {
-			log_info("old process not found, try to continue normally");
-			cf_reboot = 0;
-			check_pidfile();
-		}
-	} else {
-		if (check_old_process_unix())
-			die("unix socket is in use, cannot continue");
-		check_pidfile();
-	}
+	if (check_old_process_unix())
+		die("unix socket is in use, cannot continue");
+	check_pidfile();
 
 	if (cf_daemon)
 		go_daemon();
@@ -1167,11 +1091,7 @@ int main(int argc, char *argv[])
 	auth_ldap_init();
 	pam_init();
 
-	if (did_takeover) {
-		takeover_finish();
-	} else {
-		pooler_setup();
-	}
+	pooler_setup();
 
 	write_pidfile();
 

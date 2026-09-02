@@ -258,225 +258,6 @@ static bool admin_set(PgSocket *admin, const char *key, const char *val)
 	}
 }
 
-/* send a row with sendmsg, optionally attaching a fd */
-static bool send_one_fd(PgSocket *admin,
-			int fd, const char *task,
-			const char *user, const char *db,
-			const char *addr, int port,
-			uint64_t ckey, int link,
-			const char *client_enc,
-			const char *std_strings,
-			const char *datestyle,
-			const char *timezone,
-			const char *password,
-			const uint8_t *scram_client_key,
-			int scram_client_key_len,
-			const uint8_t *scram_server_key,
-			int scram_server_key_len)
-{
-	struct msghdr msg;
-	struct cmsghdr *cmsg;
-	struct iovec iovec;
-	ssize_t res;
-	uint8_t cntbuf[CMSG_SPACE(sizeof(int))];
-
-	struct PktBuf *pkt = pktbuf_temp();
-
-	pktbuf_write_DataRow(pkt, "issssiqisssssbb",
-			     fd, task, user, db, addr, port, ckey, link,
-			     client_enc, std_strings, datestyle, timezone,
-			     password,
-			     scram_client_key_len, scram_client_key,
-			     scram_server_key_len, scram_server_key);
-	if (pkt->failed)
-		return false;
-	iovec.iov_base = pkt->buf;
-	iovec.iov_len = pktbuf_written(pkt);
-
-	/* sending fds */
-	memset(&msg, 0, sizeof(msg));
-	msg.msg_iov = &iovec;
-	msg.msg_iovlen = 1;
-
-	/* attach a fd */
-	if (pga_is_unix(&admin->remote_addr) && admin->own_user && !admin->sbuf.tls) {
-		msg.msg_control = cntbuf;
-		msg.msg_controllen = sizeof(cntbuf);
-
-		cmsg = CMSG_FIRSTHDR(&msg);
-		cmsg->cmsg_level = SOL_SOCKET;
-		cmsg->cmsg_type = SCM_RIGHTS;
-		cmsg->cmsg_len = CMSG_LEN(sizeof(int));
-
-		memcpy(CMSG_DATA(cmsg), &fd, sizeof(int));
-		msg.msg_controllen = cmsg->cmsg_len;
-	}
-
-	slog_debug(admin, "sending socket list: fd=%d, len=%d",
-		   fd, (int)msg.msg_controllen);
-	if (msg.msg_controllen) {
-		res = safe_sendmsg(sbuf_socket(&admin->sbuf), &msg, 0);
-	} else {
-		res = sbuf_op_send(&admin->sbuf, pkt->buf, pktbuf_written(pkt));
-	}
-	if (res < 0) {
-		log_error("send_one_fd: sendmsg error: %s", strerror(errno));
-		return false;
-	} else if ((size_t)res != iovec.iov_len) {
-		log_error("send_one_fd: partial sendmsg");
-		return false;
-	}
-	return true;
-}
-
-/* send a row with sendmsg, optionally attaching a fd */
-static bool show_one_fd(PgSocket *admin, PgSocket *sk)
-{
-	PgAddr *addr = &sk->remote_addr;
-	struct MBuf tmp;
-	VarCache *v = &sk->vars;
-	uint64_t ckey;
-	const struct PStr *client_encoding = v->var_list[VClientEncoding];
-	const struct PStr *std_strings = v->var_list[VStdStr];
-	const struct PStr *datestyle = v->var_list[VDateStyle];
-	const struct PStr *timezone = v->var_list[VTimeZone];
-	char addrbuf[PGADDR_BUF];
-	const char *password = NULL;
-	bool send_scram_keys = false;
-
-	/* Skip TLS sockets */
-	if (sk->sbuf.tls || (sk->link && sk->link->sbuf.tls))
-		return true;
-
-	mbuf_init_fixed_reader(&tmp, sk->cancel_key, 8);
-	if (!mbuf_get_uint64be(&tmp, &ckey))
-		return false;
-
-	if (sk->pool && sk->pool->db->auth_user_credentials && sk->login_user_credentials && !find_global_user(sk->login_user_credentials->name))
-		password = sk->login_user_credentials->passwd;
-
-	/* PAM requires passwords as well since they are not stored externally */
-	if (cf_auth_type == AUTH_TYPE_PAM && !find_global_user(sk->login_user_credentials->name))
-		password = sk->login_user_credentials->passwd;
-
-	if (sk->pool && sk->pool->user_credentials && sk->pool->user_credentials->scram_passthrough_valid)
-		send_scram_keys = true;
-
-	return send_one_fd(admin, sbuf_socket(&sk->sbuf),
-			   is_server_socket(sk) ? "server" : "client",
-			   sk->login_user_credentials ? sk->login_user_credentials->name : NULL,
-			   sk->pool ? sk->pool->db->name : NULL,
-			   pga_ntop(addr, addrbuf, sizeof(addrbuf)),
-			   pga_port(addr),
-			   ckey,
-			   sk->link ? sbuf_socket(&sk->link->sbuf) : 0,
-			   client_encoding ? client_encoding->str : NULL,
-			   std_strings ? std_strings->str : NULL,
-			   datestyle ? datestyle->str : NULL,
-			   timezone ? timezone->str : NULL,
-			   password,
-			   send_scram_keys ? sk->pool->user_credentials->scram_ClientKey : NULL,
-			   send_scram_keys ? (int) sizeof(sk->pool->user_credentials->scram_ClientKey) : -1,
-			   send_scram_keys ? sk->pool->user_credentials->scram_ServerKey : NULL,
-			   send_scram_keys ? (int) sizeof(sk->pool->user_credentials->scram_ServerKey) : -1);
-}
-
-static bool show_pooler_cb(void *arg, int fd, const PgAddr *a)
-{
-	char buf[PGADDR_BUF];
-
-	return send_one_fd(arg, fd, "pooler", NULL, NULL,
-			   pga_ntop(a, buf, sizeof(buf)), pga_port(a), 0, 0,
-			   NULL, NULL, NULL, NULL, NULL, NULL, -1, NULL, -1);
-}
-
-/* send a row with sendmsg, optionally attaching a fd */
-static bool show_pooler_fds(PgSocket *admin)
-{
-	return for_each_pooler_fd(show_pooler_cb, admin);
-}
-
-static bool show_fds_from_list(PgSocket *admin, struct StatList *list)
-{
-	struct List *item;
-	PgSocket *sk;
-	bool res = true;
-
-	statlist_for_each(item, list) {
-		sk = container_of(item, PgSocket, head);
-		res = show_one_fd(admin, sk);
-		if (!res)
-			break;
-	}
-	return res;
-}
-
-/*
- * Command: SHOW FDS
- *
- * If privileged connection, send also actual fds
- */
-static bool admin_show_fds(PgSocket *admin, const char *arg)
-{
-	struct List *item;
-	PgPool *pool;
-	bool res;
-
-	/*
-	 * Dangerous to show to everybody:
-	 * - can lock pooler as code flips async option
-	 * - show cancel keys for all users
-	 * - shows passwords (md5) for dynamic users
-	 */
-	if (!admin->admin_user)
-		return admin_error(admin, "admin access needed");
-
-	/*
-	 * It's very hard to send it reliably over in async manner,
-	 * so turn async off for this resultset.
-	 */
-	socket_set_nonblocking(sbuf_socket(&admin->sbuf), 0);
-
-	/*
-	 * send resultset
-	 */
-	SEND_RowDescription(res, admin, "issssiqisssssbb",
-			    "fd", "task",
-			    "user", "database",
-			    "addr", "port",
-			    "cancel", "link",
-			    "client_encoding", "std_strings",
-			    "datestyle", "timezone", "password",
-			    "scram_client_key", "scram_server_key");
-	if (res)
-		res = show_pooler_fds(admin);
-
-	if (res)
-		res = show_fds_from_list(admin, &login_client_list);
-
-	statlist_for_each(item, &pool_list) {
-		pool = container_of(item, PgPool, head);
-		if (pool->db->admin)
-			continue;
-		res = res && show_fds_from_list(admin, &pool->active_client_list);
-		res = res && show_fds_from_list(admin, &pool->waiting_client_list);
-		res = res && show_fds_from_list(admin, &pool->active_server_list);
-		res = res && show_fds_from_list(admin, &pool->idle_server_list);
-		res = res && show_fds_from_list(admin, &pool->used_server_list);
-		res = res && show_fds_from_list(admin, &pool->tested_server_list);
-		res = res && show_fds_from_list(admin, &pool->new_server_list);
-		if (!res)
-			break;
-	}
-	if (res)
-		res = admin_ready(admin, "SHOW");
-
-	/* turn async back on */
-	socket_set_nonblocking(sbuf_socket(&admin->sbuf), 1);
-
-	return res;
-}
-
 /* Command: SHOW DATABASES */
 static bool admin_show_databases(PgSocket *admin, const char *arg)
 {
@@ -1036,7 +817,6 @@ static bool admin_show_state(PgSocket *admin, const char *arg)
 
 	pktbuf_write_DataRow(buf, "ss", "active", (cf_pause_mode == P_NONE) ? "yes" : "no");
 	pktbuf_write_DataRow(buf, "ss", "paused", (cf_pause_mode == P_PAUSE) ? "yes" : "no");
-	pktbuf_write_DataRow(buf, "ss", "suspended", (cf_pause_mode == P_SUSPEND) ? "yes" : "no");
 
 	admin_flush(admin, buf, "SHOW");
 
@@ -1206,14 +986,6 @@ static bool admin_cmd_shutdown(PgSocket *admin, const char *arg)
 	}
 }
 
-static void full_resume(void)
-{
-	int tmp_mode = cf_pause_mode;
-	cf_pause_mode = P_NONE;
-	if (tmp_mode == P_SUSPEND)
-		resume_all();
-}
-
 /* Command: RESUME */
 static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 {
@@ -1225,9 +997,9 @@ static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 		if (cf_shutdown) {
 			return admin_error(admin, "pooler is shutting down");
 		} else if (cf_pause_mode != P_NONE) {
-			full_resume();
+			cf_pause_mode = P_NONE;
 		} else {
-			return admin_error(admin, "pooler is not paused/suspended");
+			return admin_error(admin, "pooler is not paused");
 		}
 	} else {
 		PgDatabase *db = find_database(arg);
@@ -1241,32 +1013,6 @@ static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 	return admin_ready(admin, "RESUME");
 }
 
-/* Command: SUSPEND */
-static bool admin_cmd_suspend(PgSocket *admin, const char *arg)
-{
-	if (arg && *arg)
-		return syntax_error(admin);
-
-	if (!admin->admin_user)
-		return admin_error(admin, "admin access needed");
-
-	if (cf_pause_mode)
-		return admin_error(admin, "already suspended/paused");
-
-	/* suspend needs to be able to flush buffers */
-	if (count_paused_databases() > 0)
-		return admin_error(admin, "cannot suspend with paused databases");
-
-	log_info("SUSPEND command issued");
-	cf_pause_mode = P_SUSPEND;
-	admin->wait_for_response = true;
-	suspend_pooler();
-
-	g_suspend_start = get_cached_time();
-
-	return true;
-}
-
 /* Command: PAUSE */
 static bool admin_cmd_pause(PgSocket *admin, const char *arg)
 {
@@ -1274,7 +1020,7 @@ static bool admin_cmd_pause(PgSocket *admin, const char *arg)
 		return admin_error(admin, "admin access needed");
 
 	if (cf_pause_mode)
-		return admin_error(admin, "already suspended/paused");
+		return admin_error(admin, "already paused");
 
 	if (!arg[0]) {
 		log_info("PAUSE command issued");
@@ -1462,7 +1208,7 @@ static bool admin_cmd_kill(PgSocket *admin, const char *arg)
 		return admin_error(admin, "admin access needed");
 
 	if (cf_pause_mode)
-		return admin_error(admin, "already suspended/paused");
+		return admin_error(admin, "already paused");
 
 	if (!arg[0]) {
 		log_info("KILL command issued");
@@ -1590,7 +1336,7 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		     "D\n\tSHOW HELP|CONFIG|DATABASES"
 		     "|POOLS|CLIENTS|SERVERS|USERS|VERSION\n"
 		     "\tSHOW PEERS|PEER_POOLS\n"
-		     "\tSHOW FDS|SOCKETS|ACTIVE_SOCKETS|LISTS|MEM|STATE\n"
+		     "\tSHOW SOCKETS|ACTIVE_SOCKETS|LISTS|MEM|STATE\n"
 		     "\tSHOW DNS_HOSTS|DNS_ZONES\n"
 		     "\tSHOW STATS|STATS_TOTALS|STATS_AVERAGES|TOTALS\n"
 		     "\tSET key = arg\n"
@@ -1602,7 +1348,6 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		     "\tRECONNECT [<db>]\n"
 		     "\tKILL [<db>]\n"
 		     "\tKILL_CLIENT <client_id>\n"
-		     "\tSUSPEND\n"
 		     "\tSHUTDOWN\n"
 		     "\tSHUTDOWN WAIT_FOR_SERVERS|WAIT_FOR_CLIENTS\n"
 		     "\tWAIT_CLOSE [<db>]", "");
@@ -1654,7 +1399,6 @@ static struct cmd_lookup show_map [] = {
 	{"clients", admin_show_clients},
 	{"config", admin_show_config},
 	{"databases", admin_show_databases},
-	{"fds", admin_show_fds},
 	{"help", admin_show_help},
 	{"lists", admin_show_lists},
 	{"peers", admin_show_peers},
@@ -1695,7 +1439,6 @@ static struct cmd_lookup cmd_list [] = {
 	{"select", admin_cmd_show},
 	{"show", admin_cmd_show},
 	{"shutdown", admin_cmd_shutdown},
-	{"suspend", admin_cmd_suspend},
 	{"wait_close", admin_cmd_wait_close},
 	{NULL, NULL}
 };
@@ -1952,9 +1695,6 @@ void admin_pause_done(void)
 		case P_PAUSE:
 			res = admin_ready(admin, "PAUSE");
 			break;
-		case P_SUSPEND:
-			res = admin_ready(admin, "SUSPEND");
-			break;
 		default:
 			if (count_paused_databases() > 0) {
 				res = admin_ready(admin, "PAUSE");
@@ -1969,13 +1709,6 @@ void admin_pause_done(void)
 			disconnect_client(admin, false, "dead admin");
 		else
 			admin->wait_for_response = false;
-	}
-
-	if (statlist_empty(&admin_pool->active_client_list)
-	    && cf_pause_mode == P_SUSPEND) {
-		log_info("admin disappeared when suspended, doing RESUME");
-		cf_pause_mode = P_NONE;
-		resume_all();
 	}
 }
 
@@ -2009,6 +1742,5 @@ void admin_handle_cancel(PgSocket *admin)
 	if (cf_shutdown)
 		return;
 
-	if (cf_pause_mode != P_NONE)
-		full_resume();
+	cf_pause_mode = P_NONE;
 }

@@ -54,9 +54,6 @@ A value that starts with `@` specifies that a Unix socket in the
 abstract namespace should be created (currently supported on Linux and
 Windows).
 
-For online reboot (`-R`) to work, a Unix socket needs to be
-configured, and it needs to be in the file-system namespace.
-
 Default: `/tmp` (empty on Windows)
 
 ### unix_socket_mode
@@ -635,8 +632,7 @@ Default: empty
 ### stats_users
 
 Comma-separated list of database users that are allowed to connect and
-run read-only queries on the console. That means all `SHOW` commands except
-`SHOW FDS`.
+run read-only queries on the console. That means all `SHOW` commands.
 
 Default: empty
 
@@ -764,8 +760,7 @@ Default: 15.0
 ### client_login_timeout
 
 If a client connects but does not manage to log in in this amount of time, it
-will be disconnected. Mainly needed to avoid dead connections stalling
-`SUSPEND` and thus online restart. [seconds]
+will be disconnected. [seconds]
 
 Default: 60.0
 
@@ -1103,14 +1098,6 @@ If a client has been in "in transaction" state longer,
 it will be disconnected.  [seconds]
 
 Default: 0.0 (disabled)
-
-### suspend_timeout
-
-How long to wait for buffer flush during `SUSPEND` or reboot (`-R`).
-A connection is dropped if the flush does not succeed. [seconds]
-
-Default: 10
-
 
 ## Low-level network settings
 

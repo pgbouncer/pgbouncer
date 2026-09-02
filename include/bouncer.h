@@ -90,8 +90,7 @@ enum SocketState {
 
 enum PauseMode {
 	P_NONE = 0,		/* active pooling */
-	P_PAUSE = 1,		/* wait for client to finish work */
-	P_SUSPEND = 2		/* wait for buffers to be empty */
+	P_PAUSE = 1		/* wait for client to finish work */
 };
 
 enum ShutDownMode {
@@ -185,7 +184,6 @@ extern int cf_sbuf_len;
 #include "proto.h"
 #include "objects.h"
 #include "stats.h"
-#include "takeover.h"
 #include "janitor.h"
 #include "hba.h"
 #include "ldapauth.h"
@@ -726,13 +724,11 @@ struct PgSocket {
 	bool wait_for_user : 1;		/* client: waiting for auth_conn query results */
 	bool wait_for_auth : 1;		/* client: waiting for external auth (PAM/LDAP) to be completed */
 
-	bool suspended : 1;		/* client/server: if the socket is suspended */
-
 	bool sent_wait_notification : 1;/* client: whether client has been alerted that it is queued */
 
 	bool admin_user : 1;		/* console client: has admin rights */
 	bool own_user : 1;		/* console client: client with same uid on unix socket */
-	bool wait_for_response : 1;	/* console client: waits for completion of PAUSE/SUSPEND cmd */
+	bool wait_for_response : 1;	/* console client: waits for completion of PAUSE cmd */
 
 	bool wait_sslchar : 1;		/* server: waiting for ssl response: S/N */
 	/* server: received an ErrorResponse, waiting for ReadyForQuery to clear
@@ -818,11 +814,6 @@ struct PgSocket {
 #define RAW_IOBUF_SIZE  offsetof(IOBuf, buf)
 #define IOBUF_SIZE      (RAW_IOBUF_SIZE + cf_sbuf_len)
 
-/* where to store old fd info during SHOW FDS result processing */
-#define tmp_sk_oldfd    request_time
-#define tmp_sk_linkfd   query_start
-/* takeover_clean_socket() needs to clean those up */
-
 /* where the salt is temporarily stored */
 #define tmp_login_salt  cancel_key
 
@@ -856,7 +847,6 @@ extern int cf_max_user_client_connections;
 extern char *cf_autodb_connstr;
 extern usec_t cf_autodb_idle_timeout;
 
-extern usec_t cf_suspend_timeout;
 extern usec_t cf_server_lifetime;
 extern usec_t cf_server_idle_timeout;
 extern char *cf_server_reset_query;
@@ -904,7 +894,6 @@ extern int cf_log_stats;
 
 extern int cf_pause_mode;
 extern int cf_shutdown;
-extern int cf_reboot;
 
 extern unsigned int cf_max_packet_size;
 
@@ -945,8 +934,6 @@ extern int cf_max_prepared_statements;
 
 extern const struct CfLookup pool_mode_map[];
 extern const struct CfLookup load_balance_hosts_map[];
-
-extern usec_t g_suspend_start;
 
 extern struct DNSContext *adns;
 extern struct HBA *parsed_hba;

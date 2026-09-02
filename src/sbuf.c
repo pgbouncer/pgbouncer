@@ -142,18 +142,16 @@ bool sbuf_accept(SBuf *sbuf, int sock, bool is_unix)
 	if (!tune_socket(sock, is_unix))
 		goto failed;
 
-	if (!cf_reboot) {
-		res = sbuf_wait_for_data(sbuf);
-		if (!res)
-			goto failed;
-		if (!handle_possible_direct_tls_startup(sbuf, is_unix))
-			goto failed;
-		/* socket should already have some data (linux only) */
-		if (sbuf->wait_type == W_RECV && cf_tcp_defer_accept && !is_unix) {
-			sbuf_main_loop(sbuf, DO_RECV);
-			if (!sbuf->sock)
-				return false;
-		}
+	res = sbuf_wait_for_data(sbuf);
+	if (!res)
+		goto failed;
+	if (!handle_possible_direct_tls_startup(sbuf, is_unix))
+		goto failed;
+	/* socket should already have some data (linux only) */
+	if (sbuf->wait_type == W_RECV && cf_tcp_defer_accept && !is_unix) {
+		sbuf_main_loop(sbuf, DO_RECV);
+		if (!sbuf->sock)
+			return false;
 	}
 	return true;
 failed:
@@ -256,30 +254,6 @@ void sbuf_continue(SBuf *sbuf)
 	 */
 
 	sbuf_main_loop(sbuf, do_recv);
-}
-
-/*
- * Resume from pause and give socket over to external
- * callback function.
- *
- * The callback will be called with arg given to sbuf_init.
- */
-bool sbuf_continue_with_callback(SBuf *sbuf, event_callback_fn user_cb)
-{
-	int err;
-
-	AssertActive(sbuf);
-
-	event_assign(&sbuf->ev, pgb_event_base, sbuf->sock, EV_READ | EV_PERSIST,
-		     user_cb, sbuf);
-
-	err = event_add(&sbuf->ev, NULL);
-	if (err < 0) {
-		log_warning("sbuf_continue_with_callback: %s", strerror(errno));
-		return false;
-	}
-	sbuf->wait_type = W_RECV;
-	return true;
 }
 
 bool sbuf_use_callback_once(SBuf *sbuf, short ev, event_callback_fn user_cb)
@@ -1024,15 +998,6 @@ try_more:
 	 */
 	free = iobuf_amount_recv(sbuf->io);
 	if (free > 0) {
-		/*
-		 * When suspending, try to hit packet boundary ASAP.
-		 */
-		if (cf_pause_mode == P_SUSPEND
-		    && sbuf->pkt_remain > 0
-		    && sbuf->pkt_remain < free) {
-			free = sbuf->pkt_remain;
-		}
-
 		/* now fetch the data */
 		ok = sbuf_actual_recv(sbuf, free);
 		if (!ok)

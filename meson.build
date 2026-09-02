@@ -384,6 +384,23 @@ if pam.found()
 endif
 
 # ----------------------------------------------------------------------
+# GSS (mirrors --with-gss)
+# ----------------------------------------------------------------------
+
+# gss/pam/ldap are combo options ('auto'/'enabled'/'disabled') rather than meson
+# `feature`s: the feature accessors (.allowed(), and passing a feature to
+# find_library's `required`) need meson 0.59, newer than our floor. The string
+# compare below reproduces the same semantics on older meson.
+gssopt = get_option('gss')
+gss = not_found_dep
+if gssopt != 'disabled'
+  gss = cc.find_library('gssapi_krb5', required: gssopt == 'enabled', has_headers: ['gssapi/gssapi.h', 'gssapi/gssapi_ext.h'])
+endif
+if gss.found()
+  cdata.set('HAVE_GSS', 1, description: 'GSS support.')
+endif
+
+# ----------------------------------------------------------------------
 # LDAP (mirrors --with-ldap)
 # ----------------------------------------------------------------------
 
@@ -547,6 +564,7 @@ pgbouncer_sources = files(
   'src/client.c',
   'src/dnslookup.c',
   'src/hba.c',
+  'src/gss.c',
   'src/janitor.c',
   'src/ldapauth.c',
   'src/loader.c',
@@ -594,6 +612,7 @@ pgbouncer_deps = [
   openssl,
   systemd,
   pam,
+  gss,
   ldap,
   threads,
 ] + dns_deps + net_deps
@@ -735,6 +754,7 @@ summary({
   'adns': adns,
   'ldap': ldap.found(),
   'pam': pam.found(),
+  'gss': gss.found(),
   'systemd': systemd.found(),
   'tls': openssl.found(),
   'cassert': get_option('cassert'),

@@ -52,9 +52,9 @@ jobs:
             build_system: autoconf
             configure_args: "--with-cares --with-pam --with-ldap"
             dist: "yes"
-          - name: cares-pam-ldap
+          - name: cares-pam-ldap-gss
             build_system: meson
-            meson_args: "-Dcares=enabled -Dpam=enabled -Dldap=enabled"
+            meson_args: "-Dcares=enabled -Dpam=enabled -Dldap=enabled -Dgss=enabled"
           - name: no-evdns-no-openssl
             build_system: meson
             meson_args: "-Dcares=disabled -Devdns=false -Dopenssl=disabled"
@@ -66,7 +66,7 @@ jobs:
             pgversion: "18"
             cflags: "-O0 -g"
             enable_valgrind: "yes"
-            meson_args: "-Dcares=enabled -Dldap=disabled -Dpam=disabled"
+            meson_args: "-Dcares=enabled -Dldap=disabled -Dpam=disabled -Dgss=disabled"
     env:
       PGVERSION: ${{ matrix.pgversion || '16' }}
       BUILD_SYSTEM: ${{ matrix.build_system }}
@@ -88,7 +88,7 @@ jobs:
           sudo apt-get -y --no-install-recommends install gnupg postgresql-common
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get update
-          pkgs="autoconf automake ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev libtool make meson ninja-build pandoc pkg-config postgresql-$PGVERSION python3 python3-pip python3-venv slapd socat sudo"
+          pkgs="autoconf automake ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev libtool make meson ninja-build pandoc pkg-config postgresql-$PGVERSION python3 python3-pip python3-venv slapd socat sudo krb5-kdc krb5-admin-server krb5-user libkrb5-dev"
           if [ "$ENABLE_VALGRIND" = "yes" ]; then pkgs="$pkgs valgrind"; fi
           if [ "$USE_SCAN_BUILD" = "yes" ]; then pkgs="$pkgs clang clang-tools"; fi
           # $pkgs is an intentionally word-split package list.

@@ -228,6 +228,13 @@ def get_ldap_support():
 LDAP_SUPPORT = get_ldap_support()
 
 
+def get_gss_support():
+    return get_build_feature("gss_support", "HAVE_GSS")
+
+
+GSS_SUPPORT = get_gss_support()
+
+
 def get_tls_support():
     return get_build_feature("tls_support", "USUAL_LIBSSL_FOR_TLS")
 
@@ -1315,6 +1322,120 @@ class Bouncer(QueryRunner):
             with self.ini_path.open("w") as f:
                 f.write(config_old)
             self.admin("RELOAD")
+
+
+class Krb5:
+    def __init__(self, config_dir):
+        self.config_dir = config_dir
+
+        self.krb5_conf_fp = config_dir / "krb5.conf"
+        self.kdc_conf_fp = config_dir / "kdc.conf"
+        self.kadm_acl_fp = config_dir / "kadm5.acl"
+        self.kdc_pidfile = config_dir / "kdc.pid"
+        self.krb5_cache = config_dir / "krb5cc"
+        self.kdc_datadir = config_dir / "kdc_datadir"
+        self.krb5_log = config_dir / "krb5.log"
+        self.kdc_log = config_dir / "kdc.log"
+        self.kdc_datadir.mkdir()
+        self.keytab_fp = config_dir / "pgbouncer.keytab"
+        self.realm = "EXAMPLE.COM"
+        self.kadmin_principal_full = f"root@{self.realm}"
+        self.kdc_kadmin_server = socket.gethostname()
+        self.kadmin_password = "root"
+        self.kdc_port_lock = PortLock()
+
+    def krb5_env(self):
+        krb5_client_env = os.environ.copy()
+        krb5_client_env["KRB5_CONFIG"] = str(self.krb5_conf_fp)
+        krb5_client_env["KRB5_KDC_PROFILE"] = str(self.kdc_conf_fp)
+        krb5_client_env["KRB5CCNAME"] = str(self.krb5_cache)
+        return krb5_client_env
+
+    def kinit(self):
+        subprocess.run(
+            f"echo {self.kadmin_password} | kinit root",
+            check=True,
+            shell=True,
+            env=self.krb5_env(),
+        )
+
+    def kdestroy(self):
+        subprocess.run(f"kdestroy", check=True, shell=True, env=self.krb5_env())
+
+    def startup(self):
+        krb5_conf = f"""
+[libdefaults]
+        dns_lookup_realm = false
+        dns_lookup_kdc = false
+        forwardable = false
+        default_realm = {self.realm}
+        rdns = false
+
+[logging]
+default = FILE:{self.krb5_log}
+kdc = FILE:{self.kdc_log}
+
+[realms]
+        {self.realm} = {{
+                kdc = {self.kdc_kadmin_server}:{self.kdc_port_lock.port}
+        }}
+        """
+
+        with self.krb5_conf_fp.open("w") as f:
+            f.write(krb5_conf)
+
+        kdc_conf = f"""
+[kdcdefaults]
+    kdc_listen = {self.kdc_kadmin_server}:{self.kdc_port_lock.port}
+    kdc_tcp_listen = {self.kdc_kadmin_server}:{self.kdc_port_lock.port}
+[realms]
+        {self.realm} = {{
+                database_name = {self.kdc_datadir}/principal
+                key_stash_file = {self.kdc_datadir}/_k5.{self.realm}
+                acl_file = {self.kadm_acl_fp}
+                max_renewable_life = 7d 0h 0m 0s
+                supported_enctypes = aes256-cts-hmac-sha1-96:normal
+                default_principal_flags = +preauth
+        }}
+        """
+        with self.kdc_conf_fp.open("w") as f:
+            f.write(kdc_conf)
+
+        with self.kadm_acl_fp.open("w") as f:
+            f.write(f"{self.kadmin_principal_full} *")
+
+        run("kdb5_util create -s -P secret0", env=self.krb5_env())
+        run("kadmin.local -q 'delete_principal -force postgres'", env=self.krb5_env())
+        run(
+            "kadmin.local -q 'delete_principal -force postgres/127.0.0.1'",
+            env=self.krb5_env(),
+        )
+        run(
+            f"kadmin.local -q 'addprinc -pw {self.kadmin_password} {self.kadmin_principal_full}'",
+            env=self.krb5_env(),
+        )
+        run("kadmin.local -q 'addprinc -randkey postgres'", env=self.krb5_env())
+        run(
+            "kadmin.local -q 'addprinc -randkey postgres/127.0.0.1'",
+            env=self.krb5_env(),
+        )
+        run(
+            f"kadmin.local -q 'ktadd -k {self.keytab_fp} postgres/127.0.0.1'",
+            env=self.krb5_env(),
+        )
+        run(
+            f"kadmin.local -q 'ktadd -k {self.keytab_fp} postgres'", env=self.krb5_env()
+        )
+        run(f"chmod 644 {self.keytab_fp}", env=self.krb5_env())
+        run(f"krb5kdc -P {self.kdc_pidfile}", env=self.krb5_env())
+
+    def stop(self):
+        with self.kdc_pidfile.open("r") as pid_file:
+            pid = pid_file.read()
+        os.kill(int(pid), signal.SIGTERM)
+
+    def cleanup(self):
+        self.stop()
 
 
 class OpenLDAP:

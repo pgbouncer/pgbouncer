@@ -358,7 +358,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("tcp_keepintvl", CF_INT, cf_tcp_keepintvl, 0, "0"),
 	CF_ABS("tcp_socket_buffer", CF_INT, cf_tcp_socket_buffer, 0, "0"),
 	CF_ABS("tcp_user_timeout", CF_INT, cf_tcp_user_timeout, 0, "0"),
-	CF_ABS("track_extra_parameters", CF_STR, cf_track_extra_parameters, CF_NO_RELOAD, "IntervalStyle"),
+	CF_ABS("track_extra_parameters", CF_STR, cf_track_extra_parameters, CF_NO_RELOAD, ""),
 	CF_ABS("transaction_timeout", CF_TIME_USEC, cf_transaction_timeout, 0, "0"),
 	CF_ABS("unix_socket_dir", CF_STR, cf_unix_socket_dir, CF_NO_RELOAD, DEFAULT_UNIX_SOCKET_DIR),
 #ifndef WIN32

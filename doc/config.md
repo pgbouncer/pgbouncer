@@ -237,22 +237,38 @@ Default: 0
 
 ### track_extra_parameters
 
-By default, PgBouncer tracks `client_encoding`, `datestyle`, `timezone`,
-`standard_conforming_strings` and `application_name` parameters per client. To
-allow other parameters to be tracked, they can be specified here, so that
-PgBouncer knows that they should be maintained in the client variable cache and
-restored in the server whenever the client becomes active.
+By default, PgBouncer tracks all the parameters that Postgres reports to the
+client and that can be changed by the client: `application_name`,
+`client_encoding`, `DateStyle`, `default_transaction_read_only`,
+`IntervalStyle`, `scram_iterations`, `search_path`, `session_authorization`,
+`standard_conforming_strings` and `TimeZone`. To allow other parameters to be
+tracked, they can be specified here, so that PgBouncer knows that they should be
+maintained in the client variable cache and restored in the server whenever the
+client becomes active.
 
 If you need to specify multiple values, use a comma-separated list (e.g.
-`search_path, IntervalStyle`)
+`some_extension.setting, other_extension.setting`)
 
-Note: Most parameters cannot be tracked this way. The only parameters that can
-be tracked are ones that Postgres reports to the client. Postgres has
-[an official list of parameters that it reports to the client](https://www.postgresql.org/docs/15/protocol-flow.html#PROTOCOL-ASYNC).
+Note: Most parameters cannot be fully tracked this way. PgBouncer only learns
+about changes made with `SET` for parameters that Postgres reports to the
+client. Postgres has
+[an official list of parameters that it reports to the client](https://www.postgresql.org/docs/current/protocol-flow.html#PROTOCOL-ASYNC).
 Postgres extensions can change this list though, they can add parameters
 themselves that they also report, and they can start reporting already existing
 parameters that Postgres does not report.  Notably Citus 12.0+ causes Postgres
-to also report `search_path`.
+to also report `search_path`. Some of the parameters that are tracked by default
+are also only reported by newer Postgres versions: `default_transaction_read_only`
+since Postgres 14, `scram_iterations` since Postgres 16 and `search_path` since
+Postgres 18.
+
+For a tracked parameter that Postgres does not report (e.g. `search_path` on
+Postgres versions before 18), PgBouncer only knows the value that a client
+specified in its startup packet (or in the `options` startup parameter). That
+value is applied to the server connection whenever the client becomes active,
+and the parameter is reset to its default for clients that did not specify it.
+Changes made with `SET` after connecting are not tracked for such parameters, so
+they leak to other clients sharing the server connection, unless
+`server_reset_query_always` is used.
 
 The Postgres protocol allows specifying parameters settings, both directly as a
 parameter in the startup packet, or inside the [`options` startup
@@ -261,13 +277,13 @@ supported by `track_extra_parameters`. However, it's not possible to include
 `options` itself in `track_extra_parameters`, only the parameters contained in
 `options`.
 
-Default: IntervalStyle
+Default: empty
 
 ### ignore_startup_parameters
 
 By default, PgBouncer allows only parameters it can keep track of in startup
-packets: `client_encoding`, `datestyle`, `timezone` and
-`standard_conforming_strings`.  All others parameters will raise an error.  To
+packets (see `track_extra_parameters` for the list). All other parameters will
+raise an error.  To
 allow others parameters, they can be specified here, so that PgBouncer knows
 that they are handled by the admin and it can ignore them.
 

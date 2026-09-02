@@ -102,6 +102,10 @@ void init_var_lookup(const char *cf_track_extra_parameters)
 		"standard_conforming_strings",
 		"application_name",
 		"default_transaction_read_only",
+		"IntervalStyle",
+		"search_path",
+		"scram_iterations",
+		"session_authorization",
 		NULL
 	};
 	int idx = 0;

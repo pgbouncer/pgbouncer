@@ -1398,6 +1398,8 @@ Default: `round-robin`
 
 ### target_session_attrs
 
+This option follows [libpq's `target_session_attrs`](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNECT-TARGET-SESSION-ATTRS).
+
 Controls which PostgreSQL servers are accepted for new server connections.
 PgBouncer checks status values reported by PostgreSQL after authentication and
 the configured `connect_query`, before making the connection available to

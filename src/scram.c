@@ -28,11 +28,44 @@
 #include "common/scram-common.h"
 #include "common/hmac.h"
 
+#if defined(USUAL_LIBSSL_FOR_TLS) && defined(HAVE_PKCS5_PBKDF2_HMAC)
+#include <openssl/err.h>
+#include <openssl/evp.h>
+#endif
+
 
 static bool calculate_client_proof(PgSocket *server,
 				   const PgCredentials *credentials,
 				   const char *client_final_message_without_proof,
 				   uint8_t *result);
+
+
+/*
+ * PBKDF2 for the SCRAM SaltedPassword.  Result is identical to
+ * scram_SaltedPassword(), which stays as the fallback and handles any
+ * digest other than SHA-256.
+ */
+static int calculate_salted_password(const char *password,
+				     pg_cryptohash_type hash_type, int key_length,
+				     const uint8 *salt, int saltlen, int iterations,
+				     uint8 *result, const char **errstr)
+{
+#if defined(USUAL_LIBSSL_FOR_TLS) && defined(HAVE_PKCS5_PBKDF2_HMAC)
+	if (hash_type == PG_SHA256) {
+		if (PKCS5_PBKDF2_HMAC(password, (int)strlen(password),
+				      salt, saltlen, iterations,
+				      EVP_sha256(), key_length, result) == 1)
+			return 0;
+
+		/* do not leave our error for the TLS code to report */
+		ERR_clear_error();
+		*errstr = "PBKDF2 failed";
+		return -1;
+	}
+#endif
+	return scram_SaltedPassword(password, hash_type, key_length,
+				    salt, saltlen, iterations, result, errstr);
+}
 
 
 /*
@@ -173,6 +206,7 @@ static bool parse_scram_secret(const char *secret, int *iterations, char **salt,
 	char *iterations_str;
 	char *storedkey_str;
 	char *serverkey_str;
+	long iteration_count;
 	int decoded_len;
 	uint8_t *decoded_salt_buf;
 	uint8_t *decoded_stored_buf = NULL;
@@ -202,9 +236,10 @@ static bool parse_scram_secret(const char *secret, int *iterations, char **salt,
 		goto invalid_secret;
 
 	errno = 0;
-	*iterations = strtol(iterations_str, &p, 10);
-	if (*p || errno != 0)
+	iteration_count = strtol(iterations_str, &p, 10);
+	if (*p || errno != 0 || iteration_count < 1 || iteration_count > INT_MAX)
 		goto invalid_secret;
+	*iterations = (int)iteration_count;
 
 	/*
 	 * Verify that the salt is in Base64-encoded format, by decoding it,
@@ -510,10 +545,10 @@ static bool calculate_client_proof(PgSocket *server,
 		 * Calculate SaltedPassword, and store it in 'state' so that we can
 		 * reuse it later in verify_server_signature.
 		 */
-		if (scram_SaltedPassword(prep_password, state->hash_type,
-					 state->key_length, state->salt, state->saltlen,
-					 state->iterations, state->SaltedPassword,
-					 &errstr) < 0 ||
+		if (calculate_salted_password(prep_password, state->hash_type,
+					      state->key_length, state->salt, state->saltlen,
+					      state->iterations, state->SaltedPassword,
+					      &errstr) < 0 ||
 		    scram_ClientKey(state->SaltedPassword, state->hash_type,
 				    state->key_length, ClientKey, &errstr) < 0) {
 			slog_error(server, "SCRAM key derivation failed: %s", errstr);
@@ -822,12 +857,15 @@ static bool build_adhoc_scram_secret(const char *plain_password, ScramState *sta
 	state->encoded_salt[encoded_len] = '\0';
 
 	/* Calculate StoredKey and ServerKey */
-	scram_SaltedPassword(password, state->hash_type, state->key_length, saltbuf, sizeof(saltbuf),
-			     state->iterations,
-			     salted_password, &errstr);
-	scram_ClientKey(salted_password, state->hash_type, state->key_length, state->StoredKey, &errstr);
-	scram_H(state->StoredKey, state->hash_type, state->key_length, state->StoredKey, &errstr);
-	scram_ServerKey(salted_password, state->hash_type, state->key_length, state->ServerKey, &errstr);
+	if (calculate_salted_password(password, state->hash_type, state->key_length, saltbuf, sizeof(saltbuf),
+				      state->iterations,
+				      salted_password, &errstr) < 0 ||
+	    scram_ClientKey(salted_password, state->hash_type, state->key_length, state->StoredKey, &errstr) < 0 ||
+	    scram_H(state->StoredKey, state->hash_type, state->key_length, state->StoredKey, &errstr) < 0 ||
+	    scram_ServerKey(salted_password, state->hash_type, state->key_length, state->ServerKey, &errstr) < 0) {
+		log_error("SCRAM key derivation failed: %s", errstr);
+		goto failed;
+	}
 
 	free(prep_password);
 	return true;
@@ -1188,8 +1226,13 @@ bool scram_verify_plain_password(PgSocket *client,
 		password = prep_password;
 
 	/* Compute Server Key based on the user-supplied plaintext password */
-	scram_SaltedPassword(password, PG_SHA256, SCRAM_SHA_256_KEY_LEN, salt, saltlen, iterations, salted_password, &errstr);
-	scram_ServerKey(salted_password, PG_SHA256, SCRAM_SHA_256_KEY_LEN, computed_key, &errstr);
+	if (calculate_salted_password(password, PG_SHA256, SCRAM_SHA_256_KEY_LEN,
+				      salt, saltlen, iterations, salted_password, &errstr) < 0 ||
+	    scram_ServerKey(salted_password, PG_SHA256, SCRAM_SHA_256_KEY_LEN,
+			    computed_key, &errstr) < 0) {
+		slog_error(client, "SCRAM key derivation failed: %s", errstr);
+		goto failed;
+	}
 
 	/*
 	 * Compare the secret's Server Key with the one computed from the

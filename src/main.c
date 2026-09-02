@@ -217,6 +217,8 @@ int cf_scram_iterations;
 
 static bool set_defer_accept(struct CfValue *cv, const char *val);
 #define DEFER_OPS {set_defer_accept, cf_get_int}
+static bool set_scram_iterations(struct CfValue *cv, const char *val);
+#define SCRAM_ITERATIONS_OPS {set_scram_iterations, cf_get_int}
 
 static const struct CfLookup auth_type_map[] = {
 	{ "any", AUTH_TYPE_ANY },
@@ -323,7 +325,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("reserve_pool_timeout", CF_TIME_USEC, cf_res_pool_timeout, 0, "5"),
 	CF_ABS("resolv_conf", CF_STR, cf_resolv_conf, CF_NO_RELOAD, ""),
 	CF_ABS("sbuf_loopcnt", CF_INT, cf_sbuf_loopcnt, 0, "5"),
-	CF_ABS("scram_iterations", CF_INT, cf_scram_iterations, 0, SCRAM_DEFAULT_ITERATIONS),
+	CF_ABS("scram_iterations", SCRAM_ITERATIONS_OPS, cf_scram_iterations, 0, SCRAM_DEFAULT_ITERATIONS),
 	CF_ABS("server_check_delay", CF_TIME_USEC, cf_server_check_delay, 0, "30"),
 	CF_ABS("server_check_query", CF_STR, cf_server_check_query, 0, "<empty>"),
 	CF_ABS("server_connect_timeout", CF_TIME_USEC, cf_server_connect_timeout, 0, "15"),
@@ -423,6 +425,23 @@ static bool set_defer_accept(struct CfValue *cv, const char *val)
 	if (ok && !!oldval != !!*p)
 		pooler_tune_accept(*p);
 	return ok;
+}
+
+static bool set_scram_iterations(struct CfValue *cv, const char *val)
+{
+	int *p = cv->value_p;
+	char *end;
+	long iterations;
+
+	errno = 0;
+	iterations = strtol(val, &end, 0);
+	if (end == val || *end != '\0' || errno != 0 ||
+	    iterations < 1 || iterations > INT_MAX) {
+		errno = EINVAL;
+		return false;
+	}
+	*p = (int)iterations;
+	return true;
 }
 
 static void set_dbs_dead(bool flag)

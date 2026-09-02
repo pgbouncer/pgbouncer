@@ -93,6 +93,7 @@ char *cf_config_file;
 
 char *cf_listen_addr;
 int cf_listen_port;
+int listen_port;
 int cf_listen_backlog;
 char *cf_unix_socket_dir;
 int cf_unix_socket_mode;

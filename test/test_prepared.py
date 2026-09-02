@@ -49,64 +49,50 @@ def test_prepared_statement_params(bouncer):
             cur2.execute(prepared_query, params=(1,), prepare=True)
 
 
-def test_deallocate_all(bouncer):
+@pytest.mark.parametrize("command", ["DISCARD ALL", "DEALLOCATE ALL"])
+def test_discard_or_deallocate_all(bouncer, command):
+    """
+    Client sends a "DEALLOCATE ALL" command (or "DISCARD ALL", which has the
+    same effect). pgbouncer recognizes it and resets the client's prepared
+    statement cache. This scenario is implemented with raw libpq calls to
+    bypass psycopg's special DISCARD ALL handling.
+    """
     bouncer.admin(f"set pool_mode=transaction")
-    prepared_query = "SELECT 1"
-    with bouncer.cur() as cur1, bouncer.cur() as cur2:
-        # prepare query on client 1
-        cur1.execute(prepared_query, prepare=True)
-        # Run the prepared query again on same server and client
-        cur1.execute(prepared_query)
+    with bouncer.conn() as conn1, bouncer.conn() as conn2:
+        # prepare and execute query on client 1
+        result = conn1.pgconn.prepare(b"mystmt", b"SELECT 1")
+        assert result.status == pq.ExecStatus.COMMAND_OK
 
-        # prepared query for client 2
-        cur2.execute(prepared_query, prepare=True)
+        result = conn1.pgconn.exec_prepared(b"mystmt", ())
+        assert result.status == pq.ExecStatus.TUPLES_OK
+        assert result.get_value(0, 0) == b"1"
 
-        # execute DEALLOCATE ALL on client 1
-        cur1.execute("DEALLOCATE ALL")
+        # prepare and execute query on client 2
+        result = conn2.pgconn.prepare(b"mystmt", b"SELECT 2")
+        assert result.status == pq.ExecStatus.COMMAND_OK
 
-        # Run the prepared query again on server 2 and client 2
-        cur2.execute(prepared_query)
+        result = conn2.pgconn.exec_prepared(b"mystmt", ())
+        assert result.status == pq.ExecStatus.TUPLES_OK
+        assert result.get_value(0, 0) == b"2"
+
+        # execute DISCARD / DEALLOCATE ALL on client 1
+        result = conn1.pgconn.exec_(command.encode("utf-8"))
+        assert result.status == pq.ExecStatus.COMMAND_OK
+
+        # Execute the prepared query again on client 2
+        result = conn2.pgconn.exec_prepared(b"mystmt", ())
+        assert result.status == pq.ExecStatus.TUPLES_OK
+        assert result.get_value(0, 0) == b"2"
 
         # Confirm that the prepared query is not available anymore on
         # client 1
-        with (
-            bouncer.log_contains("prepared statement did not exist"),
-            pytest.raises(
-                psycopg.OperationalError,
-                match="prepared statement did not exist|server closed the connection unexpectedly",
-            ),
-        ):
-            cur1.execute(prepared_query)
-
-
-def test_discard_all(bouncer):
-    bouncer.admin(f"set pool_mode=transaction")
-    prepared_query = "SELECT 1"
-    with bouncer.cur() as cur1, bouncer.cur() as cur2:
-        # prepare query on client 1
-        cur1.execute(prepared_query, prepare=True)
-        # Run the prepared query again on same server and client
-        cur1.execute(prepared_query)
-
-        # prepared query for client 2
-        cur2.execute(prepared_query, prepare=True)
-
-        # execute DISCARD ALL on client 1
-        cur1.execute("DISCARD ALL")
-
-        # Run the prepared query again on server 2 and client 2
-        cur2.execute(prepared_query)
-
-        # Confirm that the prepared query is not available anymore on
-        # client 1
-        with (
-            bouncer.log_contains("prepared statement did not exist"),
-            pytest.raises(
-                psycopg.OperationalError,
-                match="prepared statement did not exist|server closed the connection unexpectedly",
-            ),
-        ):
-            cur1.execute(prepared_query)
+        with bouncer.log_contains("prepared statement did not exist"):
+            result = conn1.pgconn.exec_prepared(b"mystmt", ())
+        assert result.status == pq.ExecStatus.FATAL_ERROR
+        assert (
+            b"prepared statement did not exist" in result.error_message
+            or b"server closed the connection unexpectedly" in result.error_message
+        )
 
 
 def test_parse_larger_than_pkt_buf(bouncer):

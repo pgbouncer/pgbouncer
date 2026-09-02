@@ -21,7 +21,6 @@
  */
 
 #include "bouncer.h"
-#include "usual/time.h"
 
 #include <usual/fileutil.h>
 #include <usual/string.h>
@@ -233,11 +232,12 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 	peer->db_dead = false;
 
 	free(peer->host);
-	peer->host = host;
+	peer->host = strdup(host);
 	peer->port = port;
 	peer->pool_size = pool_size;
 
 	free(tmp_connstr);
+	free(host);
 	return true;
 fail:
 	free(tmp_connstr);
@@ -707,10 +707,10 @@ static void disable_users(void)
 {
 	struct List *item;
 
-	statlist_for_each(item, &user_list) {
+	THREAD_SAFE_STATLIST_EACH(&user_list, item, {
 		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
 		user->credentials.passwd[0] = 0;
-	}
+	});
 }
 
 /* load list of users from auth_file */

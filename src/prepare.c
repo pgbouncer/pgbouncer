@@ -102,12 +102,15 @@ static PgClientPreparedStatement *create_client_prepared_statement(char const *n
  */
 static PgServerPreparedStatement *create_server_prepared_statement(PgPreparedStatement *ps)
 {
-	PgServerPreparedStatement *server_ps = slab_alloc(server_prepared_statement_cache);
+	PgServerPreparedStatement *server_ps;
+	struct Slab *server_prepared_statement_cache_ = WORKER_THREAD_VAR(server_prepared_statement_cache, get_current_worker_thread_id());
+	server_ps = slab_alloc(server_prepared_statement_cache_);
 	if (server_ps == NULL)
 		return NULL;
 
 	server_ps->ps = ps;
 	server_ps->query_id = ps->query_id;
+	server_ps->thread_id = get_current_worker_thread_id();
 	ps->use_count += 1;
 	return server_ps;
 }
@@ -119,11 +122,13 @@ static PgServerPreparedStatement *create_server_prepared_statement(PgPreparedSta
 static PgPreparedStatement *get_prepared_statement(PgParsePacket *pkt, bool *found)
 {
 	PgPreparedStatement *ps = NULL;
-	HASH_FIND(hh,
-		  prepared_statements,
-		  pkt->query_and_parameters,
-		  pkt->query_and_parameters_len,
-		  ps);
+	WITH_LOCK(&prepared_statements_lock, {
+		HASH_FIND(hh,
+			  prepared_statements,
+			  pkt->query_and_parameters,
+			  pkt->query_and_parameters_len,
+			  ps);
+	});
 	if (ps != NULL) {
 		*found = true;
 		return ps;
@@ -133,11 +138,13 @@ static PgPreparedStatement *get_prepared_statement(PgParsePacket *pkt, bool *fou
 	if (ps == NULL)
 		return NULL;
 
-	HASH_ADD(hh,
-		 prepared_statements,
-		 query_and_parameters,
-		 ps->query_and_parameters_len,
-		 ps);
+	WITH_LOCK(&prepared_statements_lock, {
+		HASH_ADD(hh,
+			 prepared_statements,
+			 query_and_parameters,
+			 ps->query_and_parameters_len,
+			 ps);
+	});
 	if (uthash_alloc_failed) {
 		uthash_alloc_failed = false;
 		free(ps);
@@ -183,13 +190,19 @@ static void skip_possibly_completely_buffered_packet(PgSocket *client, PktHdr *p
  */
 void free_server_prepared_statement(PgServerPreparedStatement *server_ps)
 {
+	struct Slab *server_prepared_statement_cache_;
+
 	if (server_ps == NULL)
 		return;
+	server_prepared_statement_cache_ =
+		WORKER_THREAD_VAR(server_prepared_statement_cache, server_ps->thread_id);
 	if (--server_ps->ps->use_count == 0) {
-		HASH_DEL(prepared_statements, server_ps->ps);
+		WITH_LOCK(&prepared_statements_lock, {
+			HASH_DEL(prepared_statements, server_ps->ps);
+		});
 		free(server_ps->ps);
 	}
-	slab_free(server_prepared_statement_cache, server_ps);
+	slab_free(server_prepared_statement_cache_, server_ps);
 }
 
 /*

@@ -33,6 +33,8 @@ struct PktBuf {
 	struct event *ev;
 	PgSocket *queued_dst;
 
+	WorkerEventArgs ev_args;
+
 	bool failed : 1;
 	bool sending : 1;
 	bool fixed_buf : 1;

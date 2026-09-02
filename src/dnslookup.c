@@ -1086,11 +1086,14 @@ static void zone_timer(evutil_socket_t fd, short flg, void *arg)
 static void launch_zone_timer(struct DNSContext *ctx)
 {
 	struct timeval tv;
+	WorkerEventArgs *ev_args;
 
 	tv.tv_sec = cf_dns_zone_check_period / USEC;
 	tv.tv_usec = cf_dns_zone_check_period % USEC;
 
-	evtimer_assign(&ctx->ev_zone_timer, pgb_event_base, zone_timer, ctx);
+	ev_args = malloc(sizeof(WorkerEventArgs));
+	init_worker_event_args(ev_args, &ctx, zone_timer, false, &adns_lock);
+	evtimer_assign(&ctx->ev_zone_timer, pgb_event_base, worker_thread_event_wrapper, ev_args);
 	safe_evtimer_add(&ctx->ev_zone_timer, &tv);
 
 	ctx->zone_state = 2;

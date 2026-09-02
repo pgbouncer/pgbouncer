@@ -51,11 +51,12 @@ int pthread_create(pthread_t *t, pthread_attr_t *attr, void *(*fn)(void *), void
 	return 0;
 }
 
-int pthread_join(pthread_t *t, void **ret)
+int pthread_join(pthread_t t, void **ret)
 {
-	if (WaitForSingleObject(*t, INFINITE) != WAIT_OBJECT_0)
+	(void)ret;
+	if (WaitForSingleObject(t, INFINITE) != WAIT_OBJECT_0)
 		return -1;
-	CloseHandle(*t);
+	CloseHandle(t);
 	return 0;
 }
 
@@ -90,6 +91,23 @@ int pthread_mutex_unlock(pthread_mutex_t *lock)
 	return 0;
 }
 
+int pthread_key_create(pthread_key_t *key, void (*destructor)(void *))
+{
+	(void)destructor;
+	*key = TlsAlloc();
+	return *key == TLS_OUT_OF_INDEXES ? -1 : 0;
+}
+
+int pthread_setspecific(pthread_key_t key, const void *value)
+{
+	return TlsSetValue(key, (LPVOID)value) ? 0 : -1;
+}
+
+void *pthread_getspecific(pthread_key_t key)
+{
+	return TlsGetValue(key);
+}
+
 #ifdef INIT_ONCE_STATIC_INIT
 
 typedef void (*once_posix_cb_t)(void);
@@ -108,6 +126,49 @@ int pthread_once(pthread_once_t *once, void (*once_func)(void))
 
 #endif
 
+void pthread_exit(void *retval)
+{
+	/* On Windows, ExitThread terminates the calling thread */
+	ExitThread(retval ? (DWORD)(uintptr_t)retval : 0);
+}
+
 
 #endif /* win32 */
 #endif /* !HAVE_PTHREAD_H */
+
+int mutex_init(Mutex *lock, bool recursive)
+{
+#ifdef HAVE_PTHREAD_H
+	int res;
+	pthread_mutexattr_t attr;
+
+	if (!recursive)
+		return pthread_mutex_init(&lock->mutex, NULL);
+
+	res = pthread_mutexattr_init(&attr);
+	if (res != 0)
+		return res;
+
+	res = pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+	if (res != 0) {
+		pthread_mutexattr_destroy(&attr);
+		return res;
+	}
+
+	res = pthread_mutex_init(&lock->mutex, &attr);
+	pthread_mutexattr_destroy(&attr);
+	return res;
+#else
+	return pthread_mutex_init(&lock->mutex, NULL);
+#endif /* HAVE_PTHREAD_H */
+}
+
+int mutex_lock(Mutex *lock)
+{
+	return pthread_mutex_lock(&lock->mutex);
+}
+
+int mutex_unlock(Mutex *lock)
+{
+	return pthread_mutex_unlock(&lock->mutex);
+}

@@ -27,6 +27,7 @@ typedef struct PgClientPreparedStatement {
 /* Prepared statements in Postgres backends */
 typedef struct PgServerPreparedStatement {
 	uint64_t query_id;
+	int thread_id;
 	UT_hash_handle hh;
 	PgPreparedStatement *ps;
 } PgServerPreparedStatement;

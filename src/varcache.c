@@ -191,7 +191,8 @@ static int apply_var(PktBuf *pkt, const char *key,
 		/*
 		 * This happens when a parameter is in track_extra_parameters but
 		 * PostgreSQL does not report it in ParameterStatus (e.g. enable_seqscan,
-		 * or default_transaction_read_only on PG <= 13), so pool->orig_vars is NULL.
+		 * or search_path on PG <= 17), so the parameter is not set in
+		 * pool->orig_vars.
 		 * A previous client configured this setting in its StartupMessage / connection
 		 * options (so sval is non-NULL), and now a client without this startup
 		 * parameter connects (cval is NULL).

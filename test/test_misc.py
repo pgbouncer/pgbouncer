@@ -1004,10 +1004,7 @@ async def test_unreported_param_startup(bouncer):
     apply_var() must apply the variable when sval is NULL and reset it when a
     client without the variable connects.
     """
-    bouncer.write_ini(
-        "track_extra_parameters = enable_seqscan\n"
-        "default_pool_size = 1"
-    )
+    bouncer.write_ini("track_extra_parameters = enable_seqscan\ndefault_pool_size = 1")
     await bouncer.restart()
     bouncer.admin("set pool_mode=transaction")
     bouncer.admin("set verbose=2")
@@ -1036,7 +1033,3 @@ async def test_unreported_param_startup(bouncer):
         bouncer.cur(dbname="p1", options="-c enable_seqscan=off") as cur1,
     ):
         assert cur1.execute("SHOW enable_seqscan").fetchone()[0] == "off"
-
-
-
-

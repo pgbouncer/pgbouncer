@@ -993,3 +993,43 @@ async def test_server_login_large_packets(bouncer):
     # Simply connecting exercises the server login path: the server sends
     # ParameterStatus, BackendKeyData, ReadyForQuery etc.
     bouncer.test()
+
+
+async def test_unreported_param_startup(bouncer):
+    """Test that startup parameters tracked via track_extra_parameters are applied.
+
+    When track_extra_parameters includes a parameter that PostgreSQL does not report
+    via ParameterStatus (such as enable_seqscan), PgBouncer stores client->vars
+    from the startup options, but server->vars remains NULL. Consequently,
+    apply_var() must apply the variable when sval is NULL and reset it when a
+    client without the variable connects.
+    """
+    bouncer.write_ini("track_extra_parameters = enable_seqscan\ndefault_pool_size = 1")
+    await bouncer.restart()
+    bouncer.admin("set pool_mode=transaction")
+    bouncer.admin("set verbose=2")
+
+    # Client 1 sets enable_seqscan=off in startup options.
+    # It should emit SET enable_seqscan='off' only once across multiple transactions.
+    with (
+        bouncer.log_contains(r"varcache_apply: .*SET enable_seqscan='off'", times=1),
+        bouncer.cur(dbname="p1", options="-c enable_seqscan=off") as cur1,
+    ):
+        assert cur1.execute("SHOW enable_seqscan").fetchone()[0] == "off"
+        assert cur1.execute("SHOW enable_seqscan").fetchone()[0] == "off"
+
+    # Client 2 connects without startup options to the same pool (default_pool_size=1).
+    # The server connection should have enable_seqscan reset to DEFAULT ('on').
+    with (
+        bouncer.log_contains(r"varcache_apply: .*RESET enable_seqscan;", times=1),
+        bouncer.cur(dbname="p1") as cur2,
+    ):
+        assert cur2.execute("SHOW enable_seqscan").fetchone()[0] == "on"
+        assert cur2.execute("SHOW enable_seqscan").fetchone()[0] == "on"
+
+    # Client 1 connects again and should still have 'off' applied.
+    with (
+        bouncer.log_contains(r"varcache_apply: .*SET enable_seqscan='off'", times=1),
+        bouncer.cur(dbname="p1", options="-c enable_seqscan=off") as cur1,
+    ):
+        assert cur1.execute("SHOW enable_seqscan").fetchone()[0] == "off"

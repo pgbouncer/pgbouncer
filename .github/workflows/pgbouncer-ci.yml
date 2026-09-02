@@ -67,6 +67,12 @@ jobs:
             cflags: "-O0 -g"
             enable_valgrind: "yes"
             meson_args: "-Dcares=enabled -Dldap=disabled -Dpam=disabled"
+          # GSSAPI/Kerberos auth + encryption, exercised against a local MIT KDC
+          # set up by test/setup_kdc.sh (gated on setup_kdc below).
+          - name: gssapi
+            build_system: meson
+            meson_args: "-Dgssapi=enabled"
+            setup_kdc: "yes"
     env:
       PGVERSION: ${{ matrix.pgversion || '16' }}
       BUILD_SYSTEM: ${{ matrix.build_system }}
@@ -79,6 +85,7 @@ jobs:
       CFLAGS_OVERRIDE: ${{ matrix.cflags }}
       ENABLE_VALGRIND: ${{ matrix.enable_valgrind }}
       DIST: ${{ matrix.dist }}
+      SETUP_KDC: ${{ matrix.setup_kdc }}
     steps: &linux_steps
       - uses: actions/checkout@v7
       - name: Install dependencies
@@ -91,6 +98,7 @@ jobs:
           pkgs="autoconf automake ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev libtool make meson ninja-build pandoc pkg-config postgresql-$PGVERSION python3 python3-pip python3-venv slapd socat sudo"
           if [ "$ENABLE_VALGRIND" = "yes" ]; then pkgs="$pkgs valgrind"; fi
           if [ "$USE_SCAN_BUILD" = "yes" ]; then pkgs="$pkgs clang clang-tools"; fi
+          if [ "$SETUP_KDC" = "yes" ]; then pkgs="$pkgs krb5-kdc krb5-admin-server krb5-user libkrb5-dev"; fi
           # $pkgs is an intentionally word-split package list.
           # shellcheck disable=SC2086
           sudo apt-get -y --no-install-recommends install $pkgs
@@ -112,6 +120,9 @@ jobs:
           [ -n "$CFLAGS_OVERRIDE" ] && export CFLAGS="$CFLAGS_OVERRIDE"
           [ "${USE_SCAN_BUILD:-}" = "yes" ] && export SCANBUILD="scan-build"
           sh ci/run.sh build "$BUILD_SYSTEM"
+      - name: Set up Kerberos KDC
+        if: ${{ env.SETUP_KDC == 'yes' }}
+        run: sudo bash test/setup_kdc.sh
       - name: Test
         run: |
           set -e

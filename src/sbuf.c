@@ -116,6 +116,30 @@ static void sbuf_tls_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
 static void sbuf_possible_direct_tls_startup_cb(evutil_socket_t fd, short flags, void *_sbuf);
 #endif
 
+/* I/O over GSSAPI encryption */
+#ifdef HAVE_GSSAPI
+#include "gssapi_auth.h"
+
+enum SBufGssState {
+	SBUF_GSS_NONE = 0,
+	SBUF_GSS_DO_HANDSHAKE,
+	SBUF_GSS_OK
+};
+
+static ssize_t gss_sbufio_peek(struct SBuf *sbuf, void *buf, size_t len);
+static ssize_t gss_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len);
+static ssize_t gss_sbufio_send(struct SBuf *sbuf, const void *data, size_t len);
+static int gss_sbufio_close(struct SBuf *sbuf);
+static const SBufIO gss_sbufio_ops = {
+	gss_sbufio_peek,
+	gss_sbufio_recv,
+	gss_sbufio_send,
+	gss_sbufio_close
+};
+static bool handle_gss_handshake(SBuf *sbuf, bool is_server) _MUSTCHECK;
+static void sbuf_gss_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
+#endif
+
 /*
  *********************************
  * Public functions
@@ -1072,6 +1096,14 @@ skip_recv:
 		if (!handle_tls_handshake(sbuf))
 			sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
 	}
+
+#ifdef HAVE_GSSAPI
+	if (sbuf->gss_state == SBUF_GSS_DO_HANDSHAKE) {
+		PgSocket *sk = container_of(sbuf, PgSocket, sbuf);
+		if (!handle_gss_handshake(sbuf, is_server_socket(sk)))
+			sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
+	}
+#endif
 }
 
 /* check if there is any error pending on socket */
@@ -1579,6 +1611,142 @@ static int tls_sbufio_close(struct SBuf *sbuf)
 	}
 	return 0;
 }
+
+#endif /* USE_TLS */
+
+/*
+ * GSSAPI encryption I/O ops and handshake.  GSS transport encryption does not
+ * depend on TLS, so this block is guarded by HAVE_GSSAPI alone.
+ */
+
+#ifdef HAVE_GSSAPI
+
+static ssize_t gss_sbufio_peek(struct SBuf *sbuf, void *buf, size_t len)
+{
+	Assert(0);
+	return -1;
+}
+
+static ssize_t gss_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len)
+{
+	PgSocket *sk = container_of(sbuf, PgSocket, sbuf);
+
+	if (sbuf->gss_state != SBUF_GSS_OK) {
+		errno = EIO;
+		return -1;
+	}
+	return gssenc_recv(sk, dst, len);
+}
+
+static ssize_t gss_sbufio_send(struct SBuf *sbuf, const void *data, size_t len)
+{
+	PgSocket *sk = container_of(sbuf, PgSocket, sbuf);
+
+	if (sbuf->gss_state != SBUF_GSS_OK) {
+		errno = EIO;
+		return -1;
+	}
+	return gssenc_send(sk, data, len);
+}
+
+static int gss_sbufio_close(struct SBuf *sbuf)
+{
+	PgSocket *sk = container_of(sbuf, PgSocket, sbuf);
+
+	gssenc_cleanup(sk);
+	if (sbuf->sock > 0) {
+		safe_close(sbuf->sock);
+		sbuf->sock = 0;
+	}
+	return 0;
+}
+
+static bool handle_gss_handshake(SBuf *sbuf, bool is_server)
+{
+	PgSocket *sk = container_of(sbuf, PgSocket, sbuf);
+	bool ok;
+
+	if (is_server)
+		ok = gssenc_connect_handshake(sk);
+	else
+		ok = gssenc_accept_handshake(sk);
+
+	if (!ok)
+		return false;
+
+	if (sk->gss_enc.active) {
+		sbuf->gss_state = SBUF_GSS_OK;
+		sbuf_call_proto(sbuf, SBUF_EV_GSS_READY);
+	} else {
+		short ev = (sk->gss_enc.hs_want == GSSENC_HS_WRITE) ? EV_WRITE : EV_READ;
+		return sbuf_use_callback_once(sbuf, ev, sbuf_gss_handshake_cb);
+	}
+	return true;
+}
+
+static void sbuf_gss_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf)
+{
+	SBuf *sbuf = _sbuf;
+	PgSocket *sk = container_of(sbuf, PgSocket, sbuf);
+
+	sbuf->wait_type = W_NONE;
+	if (!handle_gss_handshake(sbuf, is_server_socket(sk)))
+		sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
+}
+
+bool sbuf_gss_accept(SBuf *sbuf)
+{
+	PgSocket *sk = container_of(sbuf, PgSocket, sbuf);
+
+	if (!sbuf_pause(sbuf))
+		return false;
+
+	if (!gssenc_accept_start(sk))
+		return false;
+
+	sbuf->ops = &gss_sbufio_ops;
+	sbuf->gss_state = SBUF_GSS_DO_HANDSHAKE;
+	return true;
+}
+
+bool sbuf_gss_connect(SBuf *sbuf)
+{
+	PgSocket *sk = container_of(sbuf, PgSocket, sbuf);
+
+	if (!sbuf_pause(sbuf))
+		return false;
+
+	if (!gssenc_connect_start(sk))
+		return false;
+
+	sbuf->ops = &gss_sbufio_ops;
+	sbuf->gss_state = SBUF_GSS_DO_HANDSHAKE;
+
+	/*
+	 * Let the main loop drive the handshake, exactly as sbuf_tls_connect and
+	 * the accept path do.  Self-arming an event here as well would double-drive
+	 * the handshake and can re-assign a still-pending libevent event.
+	 */
+	return true;
+}
+
+#else
+
+bool sbuf_gss_accept(SBuf *sbuf)
+{
+	(void)sbuf;
+	return false;
+}
+
+bool sbuf_gss_connect(SBuf *sbuf)
+{
+	(void)sbuf;
+	return false;
+}
+
+#endif /* HAVE_GSSAPI */
+
+#ifdef USE_TLS
 
 void sbuf_cleanup(void)
 {

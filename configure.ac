@@ -54,6 +54,35 @@ AC_CHECK_FUNCS(lstat)
 dnl Find libevent
 PKG_CHECK_MODULES(LIBEVENT, libevent)
 
+dnl Check for GSSAPI (Kerberos) authentication support
+gssapi_support=no
+AC_ARG_WITH(gssapi,
+  AS_HELP_STRING([--with-gssapi], [build with GSSAPI (Kerberos) support]),
+  [ GSSAPI=
+    if test "$withval" != no; then
+        # Look for GSSAPI header and library
+        AC_CHECK_HEADERS(gssapi/gssapi.h gssapi/gssapi_krb5.h, [have_gssapi_header=t])
+        AC_SEARCH_LIBS(gss_accept_sec_context, gssapi_krb5 gss, [have_libgssapi=t])
+        dnl gss_acquire_cred_from was added in MIT Kerberos 1.11 (2013).
+        AC_CHECK_FUNC(gss_acquire_cred_from, [have_gss_acquire_cred_from=t])
+        dnl gss_localname was added in MIT Kerberos 1.7 (2009).
+        AC_CHECK_FUNC(gss_localname, [have_gss_localname=t])
+        if test x"${have_gssapi_header}" != x -a x"${have_libgssapi}" != x; then
+          if test x"${have_gss_acquire_cred_from}" = x; then
+            AC_MSG_ERROR([GSSAPI library does not provide gss_acquire_cred_from; MIT Kerberos >= 1.11 is required])
+          fi
+          if test x"${have_gss_localname}" = x; then
+            AC_MSG_ERROR([GSSAPI library does not provide gss_localname; MIT Kerberos >= 1.7 is required])
+          fi
+          gssapi_support=yes
+          AC_SUBST(gssapi_support)
+          AC_DEFINE(HAVE_GSSAPI, 1, [GSSAPI support])
+        else
+          AC_MSG_ERROR([gssapi library or header is needed for GSSAPI compilation])
+        fi
+    fi
+  ], [])
+
 dnl Check for PAM authentication support
 pam_support=no
 AC_ARG_WITH(pam,
@@ -213,6 +242,7 @@ elif test "$ac_cv_usual_glibc_gaia" = "yes"; then
 else
   echo "  adns    = compat"
 fi
+echo "  gssapi  = $gssapi_support"
 echo "  ldap    = $ldap_support"
 echo "  pam     = $pam_support"
 echo "  systemd = $with_systemd"

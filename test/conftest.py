@@ -5,6 +5,7 @@ import filelock
 import pytest
 
 from .utils import (
+    GSS_SUPPORT,
     LDAP_SUPPORT,
     LINUX,
     LONG_PASSWORD,
@@ -119,6 +120,10 @@ def pg(tmp_path_factory, cert_dir):
             f.write(f"ssl_cert_file='{cert}'\n")
             f.write(f"ssl_key_file='{key}'\n")
 
+    if GSS_SUPPORT:
+        with pg.conf_path.open("a") as f:
+            f.write("krb_server_keyfile = 'FILE:/tmp/pgbouncer-test.keytab'\n")
+
     pg.nossl_access("replication", "trust", user="postgres")
     pg.nossl_access("all", "trust")
     pg.nossl_access("p4", "password")
@@ -133,6 +138,9 @@ def pg(tmp_path_factory, cert_dir):
 
     if LDAP_SUPPORT:
         pg.sql("create user ldapuser1 login password 'secret1'")
+
+    if GSS_SUPPORT:
+        pg.sql("create user testuser login")
 
     pg.sql("create database unconfigured_auth_database")
     pg.sql("create user bouncer")

@@ -63,6 +63,7 @@ bool answer_authreq(PgSocket *server, PktHdr *pkt) _MUSTCHECK;
 
 bool send_startup_message(PgSocket *server) _MUSTCHECK;
 bool send_sslreq_packet(PgSocket *server) _MUSTCHECK;
+bool send_gssencreq_packet(PgSocket *server) _MUSTCHECK;
 
 int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...) _MUSTCHECK;
 

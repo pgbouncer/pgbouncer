@@ -7,6 +7,7 @@ pgbouncer_SOURCES = \
 	src/admin.c \
 	src/client.c \
 	src/dnslookup.c \
+	src/gssapi_auth.c \
 	src/hba.c \
 	src/janitor.c \
 	src/ldapauth.c \
@@ -42,6 +43,7 @@ pgbouncer_SOURCES = \
 	include/bouncer.h \
 	include/client.h \
 	include/dnslookup.h \
+	include/gssapi_auth.h \
 	include/hba.h \
 	include/iobuf.h \
 	include/janitor.h \

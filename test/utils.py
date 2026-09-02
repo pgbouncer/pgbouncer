@@ -228,6 +228,13 @@ def get_ldap_support():
 LDAP_SUPPORT = get_ldap_support()
 
 
+def get_gss_support():
+    return get_build_feature("gssapi_support", "HAVE_GSSAPI")
+
+
+GSS_SUPPORT = get_gss_support()
+
+
 def get_tls_support():
     return get_build_feature("tls_support", "USUAL_LIBSSL_FOR_TLS")
 
@@ -348,6 +355,12 @@ class QueryRunner:
         # client_encoding specified in the config and client_encoding by the
         # client will force a varcache change when a connection is given.
         options.setdefault("client_encoding", "UTF8")
+        # Pin gssencmode so psycopg doesn't rely on libpq's ambiguous default
+        # and emit a RuntimeWarning when a Kerberos ccache is present (as in the
+        # gssapi CI job); filterwarnings=error would turn that into a spurious
+        # failure. Tests that exercise GSS set gssencmode explicitly, which
+        # overrides this default.
+        options.setdefault("gssencmode", "disable")
         return options
 
     def make_conninfo(self, **kwargs) -> str:

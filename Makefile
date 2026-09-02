@@ -24,7 +24,6 @@ pgbouncer_SOURCES = \
 	src/server.c \
 	src/stats.c \
 	src/system.c \
-	src/takeover.c \
 	src/util.c \
 	src/varcache.c \
 	src/common/sha2.c \
@@ -59,7 +58,6 @@ pgbouncer_SOURCES = \
 	include/server.h \
 	include/stats.h \
 	include/system.h \
-	include/takeover.h \
 	include/util.h \
 	include/varcache.h \
 	include/common/ascii.h \

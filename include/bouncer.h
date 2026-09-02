@@ -185,7 +185,6 @@ extern int cf_sbuf_len;
 #include "proto.h"
 #include "objects.h"
 #include "stats.h"
-#include "takeover.h"
 #include "janitor.h"
 #include "hba.h"
 #include "ldapauth.h"
@@ -818,11 +817,6 @@ struct PgSocket {
 #define RAW_IOBUF_SIZE  offsetof(IOBuf, buf)
 #define IOBUF_SIZE      (RAW_IOBUF_SIZE + cf_sbuf_len)
 
-/* where to store old fd info during SHOW FDS result processing */
-#define tmp_sk_oldfd    request_time
-#define tmp_sk_linkfd   query_start
-/* takeover_clean_socket() needs to clean those up */
-
 /* where the salt is temporarily stored */
 #define tmp_login_salt  cancel_key
 
@@ -904,7 +898,6 @@ extern int cf_log_stats;
 
 extern int cf_pause_mode;
 extern int cf_shutdown;
-extern int cf_reboot;
 
 extern unsigned int cf_max_packet_size;
 

@@ -563,7 +563,6 @@ pgbouncer_sources = files(
   'src/server.c',
   'src/stats.c',
   'src/system.c',
-  'src/takeover.c',
   'src/util.c',
   'src/varcache.c',
   'src/common/base64.c',

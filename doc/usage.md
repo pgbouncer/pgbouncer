@@ -3,7 +3,7 @@
 
 ## Synopsis
 
-    pgbouncer [-d][-R][-v][-u user] <pgbouncer.ini>
+    pgbouncer [-d][-v][-u user] <pgbouncer.ini>
     pgbouncer -V|-h
 
 On Windows, the options are:
@@ -114,16 +114,6 @@ Basic setup and usage is as follows.
     going into the background.
 
     Note: Does not work on Windows; **pgbouncer** need to run as service there.
-
-`-R`, `--reboot`
-:   **DEPRECATED: Instead of this option use a rolling restart with multiple
-    pgbouncer processes listening on the same port using so_reuseport instead**
-    Do an online restart. That means connecting to the running process,
-    loading the open sockets from it, and then using them.  If there
-    is no active process, boot normally.
-    Note: Works only if OS supports Unix sockets and the `unix_socket_dir`
-    is not disabled in configuration.  Does not work on Windows.
-    Does not work with TLS connections, they are dropped.
 
 `-u` _USERNAME_, `--user=`_USERNAME_
 :   Switch to the given user on startup.
@@ -650,43 +640,6 @@ port
 pool_size
 :   Maximum number of server connections that can be made to this peer
 
-#### SHOW FDS
-
-Internal command - shows list of file descriptors in use with internal state attached to them.
-
-When the connected user has the user name "pgbouncer", connects through the Unix socket
-and has same the UID as the running process, the actual FDs are passed over the connection.
-This mechanism is used to do an online restart.
-Note: This does not work on Windows.
-
-This command also blocks the internal event loop, so it should not be used
-while PgBouncer is in use.
-
-fd
-:   File descriptor numeric value.
-
-task
-:   One of **pooler**, **client** or **server**.
-
-user
-:   User of the connection using the FD.
-
-database
-:   Database of the connection using the FD.
-
-addr
-:   IP address of the connection using the FD, **unix** if a Unix socket
-    is used.
-
-port
-:   Port used by the connection using the FD.
-
-cancel
-:   Cancel key for this connection.
-
-link
-:   fd for corresponding server/client.  NULL if idle.
-
 #### SHOW SOCKETS, SHOW ACTIVE_SOCKETS
 
 Shows low-level information about sockets or only active sockets.
@@ -822,8 +775,7 @@ An example command will look something like `KILL_CLIENT 1234`.
 #### SUSPEND
 
 All socket buffers are flushed and PgBouncer stops listening for data on them.
-The command will not return before all buffers are empty.  To be used at the time
-of PgBouncer online reboot.
+The command will not return before all buffers are empty.
 
 New client connections to a suspended database will wait until
 **RESUME** is called.

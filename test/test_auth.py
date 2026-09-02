@@ -1270,6 +1270,101 @@ def test_auth_query_no_set_commands(bouncer, pg):
         pg.sql("DROP FUNCTION IF EXISTS auth_check_search_path(TEXT)")
 
 
+def test_auth_query_client_addr_allowed(bouncer, pg):
+    """
+    Check that when auth_query_client_addr is enabled, the client's
+    connecting address is passed to auth_query as a second parameter, and
+    that a login from an allowed address succeeds.
+    """
+    pg.sql("""
+        CREATE OR REPLACE FUNCTION auth_check_client_addr(username TEXT, client_addr TEXT)
+        RETURNS TABLE(usename name, passwd text) AS $$
+        BEGIN
+            IF client_addr <> '127.0.0.1' THEN
+                RAISE EXCEPTION 'client address % is not allowed', client_addr;
+            END IF;
+            RETURN QUERY SELECT u.usename, u.passwd FROM pg_shadow u WHERE u.usename = username;
+        END;
+        $$ LANGUAGE plpgsql SECURITY DEFINER;
+    """)
+
+    config = f"""
+        [databases]
+        postgres = host={bouncer.pg.host} port={bouncer.pg.port} auth_query='SELECT * FROM auth_check_client_addr($1, $2)'
+        [pgbouncer]
+        auth_query = SELECT * FROM auth_check_client_addr($1, $2)
+        auth_query_client_addr = 1
+        auth_user = pswcheck
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = postgres
+    """
+
+    try:
+        with bouncer.run_with_config(config):
+            bouncer.sql(
+                query="select 1",
+                user="stats",
+                password="stats",
+                dbname="postgres",
+            )
+    finally:
+        pg.sql("DROP FUNCTION IF EXISTS auth_check_client_addr(TEXT, TEXT)")
+
+
+def test_auth_query_client_addr_denied(bouncer, pg):
+    """
+    Check that when auth_query_client_addr is enabled, auth_query can use
+    the client's connecting address to deny a login, e.g. to implement an
+    IP-based deny list.
+    """
+    pg.sql("""
+        CREATE OR REPLACE FUNCTION auth_check_client_addr(username TEXT, client_addr TEXT)
+        RETURNS TABLE(usename name, passwd text) AS $$
+        BEGIN
+            RAISE EXCEPTION 'client address % is not allowed', client_addr;
+        END;
+        $$ LANGUAGE plpgsql SECURITY DEFINER;
+    """)
+
+    config = f"""
+        [databases]
+        postgres = host={bouncer.pg.host} port={bouncer.pg.port} auth_query='SELECT * FROM auth_check_client_addr($1, $2)'
+        [pgbouncer]
+        auth_query = SELECT * FROM auth_check_client_addr($1, $2)
+        auth_query_client_addr = 1
+        auth_user = pswcheck
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = postgres
+    """
+
+    try:
+        with (
+            bouncer.run_with_config(config),
+            bouncer.log_contains("client address 127.0.0.1 is not allowed"),
+            pytest.raises(psycopg.OperationalError, match="bouncer config error"),
+        ):
+            bouncer.sql(
+                query="select 1",
+                user="stats",
+                password="stats",
+                dbname="postgres",
+            )
+    finally:
+        pg.sql("DROP FUNCTION IF EXISTS auth_check_client_addr(TEXT, TEXT)")
+
+
 @pytest.mark.md5
 @pytest.mark.skipif(
     "psycopg.pq.version() < 180000", reason="libpq 18+ required for protocol 3.2"

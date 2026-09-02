@@ -63,10 +63,6 @@ void cleanup_tcp_sockets(void)
 	struct ListenSocket *ls;
 	struct List *el, *tmp_l;
 
-	/* avoid cleanup if exit() while suspended */
-	if (cf_pause_mode == P_SUSPEND)
-		return;
-
 	statlist_for_each_safe(el, &sock_list, tmp_l) {
 		ls = container_of(el, struct ListenSocket, node);
 		if (pga_is_unix(&ls->addr)) {
@@ -89,9 +85,6 @@ void cleanup_unix_sockets(void)
 {
 	struct ListenSocket *ls;
 	struct List *el, *tmp_l;
-
-	if (cf_pause_mode == P_SUSPEND)
-		return;
 
 	statlist_for_each_safe(el, &sock_list, tmp_l) {
 		ls = container_of(el, struct ListenSocket, node);
@@ -325,8 +318,7 @@ void pooler_tune_accept(bool on)
 
 static void err_wait_func(evutil_socket_t sock, short flags, void *arg)
 {
-	if (cf_pause_mode != P_SUSPEND)
-		resume_pooler();
+	resume_pooler();
 }
 
 static const char *addrpair(const PgAddr *src, const PgAddr *dst)

@@ -817,7 +817,6 @@ static bool admin_show_state(PgSocket *admin, const char *arg)
 
 	pktbuf_write_DataRow(buf, "ss", "active", (cf_pause_mode == P_NONE) ? "yes" : "no");
 	pktbuf_write_DataRow(buf, "ss", "paused", (cf_pause_mode == P_PAUSE) ? "yes" : "no");
-	pktbuf_write_DataRow(buf, "ss", "suspended", (cf_pause_mode == P_SUSPEND) ? "yes" : "no");
 
 	admin_flush(admin, buf, "SHOW");
 
@@ -987,14 +986,6 @@ static bool admin_cmd_shutdown(PgSocket *admin, const char *arg)
 	}
 }
 
-static void full_resume(void)
-{
-	int tmp_mode = cf_pause_mode;
-	cf_pause_mode = P_NONE;
-	if (tmp_mode == P_SUSPEND)
-		resume_all();
-}
-
 /* Command: RESUME */
 static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 {
@@ -1006,9 +997,9 @@ static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 		if (cf_shutdown) {
 			return admin_error(admin, "pooler is shutting down");
 		} else if (cf_pause_mode != P_NONE) {
-			full_resume();
+			cf_pause_mode = P_NONE;
 		} else {
-			return admin_error(admin, "pooler is not paused/suspended");
+			return admin_error(admin, "pooler is not paused");
 		}
 	} else {
 		PgDatabase *db = find_database(arg);
@@ -1022,32 +1013,6 @@ static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 	return admin_ready(admin, "RESUME");
 }
 
-/* Command: SUSPEND */
-static bool admin_cmd_suspend(PgSocket *admin, const char *arg)
-{
-	if (arg && *arg)
-		return syntax_error(admin);
-
-	if (!admin->admin_user)
-		return admin_error(admin, "admin access needed");
-
-	if (cf_pause_mode)
-		return admin_error(admin, "already suspended/paused");
-
-	/* suspend needs to be able to flush buffers */
-	if (count_paused_databases() > 0)
-		return admin_error(admin, "cannot suspend with paused databases");
-
-	log_info("SUSPEND command issued");
-	cf_pause_mode = P_SUSPEND;
-	admin->wait_for_response = true;
-	suspend_pooler();
-
-	g_suspend_start = get_cached_time();
-
-	return true;
-}
-
 /* Command: PAUSE */
 static bool admin_cmd_pause(PgSocket *admin, const char *arg)
 {
@@ -1055,7 +1020,7 @@ static bool admin_cmd_pause(PgSocket *admin, const char *arg)
 		return admin_error(admin, "admin access needed");
 
 	if (cf_pause_mode)
-		return admin_error(admin, "already suspended/paused");
+		return admin_error(admin, "already paused");
 
 	if (!arg[0]) {
 		log_info("PAUSE command issued");
@@ -1243,7 +1208,7 @@ static bool admin_cmd_kill(PgSocket *admin, const char *arg)
 		return admin_error(admin, "admin access needed");
 
 	if (cf_pause_mode)
-		return admin_error(admin, "already suspended/paused");
+		return admin_error(admin, "already paused");
 
 	if (!arg[0]) {
 		log_info("KILL command issued");
@@ -1383,7 +1348,6 @@ static bool admin_show_help(PgSocket *admin, const char *arg)
 		     "\tRECONNECT [<db>]\n"
 		     "\tKILL [<db>]\n"
 		     "\tKILL_CLIENT <client_id>\n"
-		     "\tSUSPEND\n"
 		     "\tSHUTDOWN\n"
 		     "\tSHUTDOWN WAIT_FOR_SERVERS|WAIT_FOR_CLIENTS\n"
 		     "\tWAIT_CLOSE [<db>]", "");
@@ -1475,7 +1439,6 @@ static struct cmd_lookup cmd_list [] = {
 	{"select", admin_cmd_show},
 	{"show", admin_cmd_show},
 	{"shutdown", admin_cmd_shutdown},
-	{"suspend", admin_cmd_suspend},
 	{"wait_close", admin_cmd_wait_close},
 	{NULL, NULL}
 };
@@ -1732,9 +1695,6 @@ void admin_pause_done(void)
 		case P_PAUSE:
 			res = admin_ready(admin, "PAUSE");
 			break;
-		case P_SUSPEND:
-			res = admin_ready(admin, "SUSPEND");
-			break;
 		default:
 			if (count_paused_databases() > 0) {
 				res = admin_ready(admin, "PAUSE");
@@ -1749,13 +1709,6 @@ void admin_pause_done(void)
 			disconnect_client(admin, false, "dead admin");
 		else
 			admin->wait_for_response = false;
-	}
-
-	if (statlist_empty(&admin_pool->active_client_list)
-	    && cf_pause_mode == P_SUSPEND) {
-		log_info("admin disappeared when suspended, doing RESUME");
-		cf_pause_mode = P_NONE;
-		resume_all();
 	}
 }
 
@@ -1789,6 +1742,5 @@ void admin_handle_cancel(PgSocket *admin)
 	if (cf_shutdown)
 		return;
 
-	if (cf_pause_mode != P_NONE)
-		full_resume();
+	cf_pause_mode = P_NONE;
 }

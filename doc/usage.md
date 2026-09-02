@@ -91,11 +91,10 @@ Basic setup and usage is as follows.
         pgbouncer=# SHOW HELP;
         NOTICE:  Console usage
         DETAIL:
-          SHOW [HELP|CONFIG|DATABASES|FDS|POOLS|CLIENTS|SERVERS|SOCKETS|LISTS|VERSION|...]
+          SHOW [HELP|CONFIG|DATABASES|POOLS|CLIENTS|SERVERS|SOCKETS|LISTS|VERSION|...]
           SET key = arg
           RELOAD
           PAUSE
-          SUSPEND
           RESUME
           SHUTDOWN
           [...]
@@ -704,7 +703,7 @@ Show the PgBouncer version string.
 
 #### SHOW STATE
 
-Show the PgBouncer state settings. Current states are active, paused and suspended.
+Show the PgBouncer state settings. Current states are active and paused.
 
 ### Process controlling commands
 
@@ -772,17 +771,9 @@ by the `id` value that can be found using the `SHOW CLIENTS` command.
 
 An example command will look something like `KILL_CLIENT 1234`.
 
-#### SUSPEND
-
-All socket buffers are flushed and PgBouncer stops listening for data on them.
-The command will not return before all buffers are empty.
-
-New client connections to a suspended database will wait until
-**RESUME** is called.
-
 #### RESUME [db]
 
-Resume work from previous **KILL**, **PAUSE**, or **SUSPEND** command.
+Resume work from previous **KILL** or **PAUSE** command.
 
 #### SHUTDOWN
 

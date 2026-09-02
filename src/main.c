@@ -168,9 +168,6 @@ usec_t cf_client_login_timeout;
 usec_t cf_pool_idle_timeout;
 usec_t cf_idle_transaction_timeout;
 usec_t cf_transaction_timeout;
-usec_t cf_suspend_timeout;
-
-usec_t g_suspend_start;
 
 char *cf_pidfile;
 char *cf_jobname;
@@ -345,7 +342,6 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("so_reuseport", CF_INT, cf_so_reuseport, CF_NO_RELOAD, "0"),
 	CF_ABS("stats_period", CF_INT, cf_stats_period, 0, "60"),
 	CF_ABS("stats_users", CF_STR, cf_stats_users, 0, ""),
-	CF_ABS("suspend_timeout", CF_TIME_USEC, cf_suspend_timeout, 0, "10"),
 	CF_ABS("syslog", CF_INT, cf_syslog, 0, "0"),
 	CF_ABS("syslog_facility", CF_STR, cf_syslog_facility, 0, "daemon"),
 	CF_ABS("syslog_ident", CF_STR, cf_syslog_ident, 0, "pgbouncer"),
@@ -545,8 +541,6 @@ static void handle_sigterm(evutil_socket_t sock, short flags, void *arg)
 	}
 	log_info("got SIGTERM, shutting down, waiting for all clients disconnect");
 	sd_notify(0, "STOPPING=1");
-	if (cf_pause_mode == P_SUSPEND)
-		die("suspend was in progress, going down immediately");
 	cf_shutdown = SHUTDOWN_WAIT_FOR_CLIENTS;
 	cleanup_tcp_sockets();
 }
@@ -560,8 +554,6 @@ static void handle_sigint(evutil_socket_t sock, short flags, void *arg)
 	}
 	log_info("got SIGINT, shutting down, waiting for all servers connections to be released");
 	sd_notify(0, "STOPPING=1");
-	if (cf_pause_mode == P_SUSPEND)
-		die("suspend was in progress, going down immediately");
 	cf_pause_mode = P_PAUSE;
 	cf_shutdown = SHUTDOWN_WAIT_FOR_SERVERS;
 	cleanup_tcp_sockets();
@@ -587,7 +579,7 @@ static void handle_sigusr1(int sock, short flags, void *arg)
 		log_info("got SIGUSR1, pausing all activity");
 		cf_pause_mode = P_PAUSE;
 	} else {
-		log_info("got SIGUSR1, but already paused/suspended");
+		log_info("got SIGUSR1, but already paused");
 	}
 }
 
@@ -598,17 +590,12 @@ static void handle_sigusr2(int sock, short flags, void *arg)
 		return;
 	}
 	switch (cf_pause_mode) {
-	case P_SUSPEND:
-		log_info("got SIGUSR2, continuing from SUSPEND");
-		resume_all();
-		cf_pause_mode = P_NONE;
-		break;
 	case P_PAUSE:
 		log_info("got SIGUSR2, continuing from PAUSE");
 		cf_pause_mode = P_NONE;
 		break;
 	case P_NONE:
-		log_info("got SIGUSR2, but not paused/suspended");
+		log_info("got SIGUSR2, but not paused");
 	}
 }
 

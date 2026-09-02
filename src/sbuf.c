@@ -998,15 +998,6 @@ try_more:
 	 */
 	free = iobuf_amount_recv(sbuf->io);
 	if (free > 0) {
-		/*
-		 * When suspending, try to hit packet boundary ASAP.
-		 */
-		if (cf_pause_mode == P_SUSPEND
-		    && sbuf->pkt_remain > 0
-		    && sbuf->pkt_remain < free) {
-			free = sbuf->pkt_remain;
-		}
-
 		/* now fetch the data */
 		ok = sbuf_actual_recv(sbuf, free);
 		if (!ok)

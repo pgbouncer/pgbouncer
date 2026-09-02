@@ -19,19 +19,6 @@ async def test_pause_resume(bouncer):
     await task
 
 
-async def test_suspend_resume(bouncer):
-    task = bouncer.asleep(0.1, times=50, sequentially=True)
-
-    for _ in range(5):
-        async with bouncer.admin_runner.acur() as cur:
-            await cur.execute("suspend")
-            await asyncio.sleep(1)
-            await cur.execute("resume")
-            await asyncio.sleep(1)
-
-    await task
-
-
 def test_enable_disable(bouncer):
     bouncer.test()
     bouncer.admin("disable p0")

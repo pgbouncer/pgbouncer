@@ -760,8 +760,7 @@ Default: 15.0
 ### client_login_timeout
 
 If a client connects but does not manage to log in in this amount of time, it
-will be disconnected. Mainly needed to avoid dead connections stalling
-`SUSPEND` and thus online restart. [seconds]
+will be disconnected. [seconds]
 
 Default: 60.0
 
@@ -1099,14 +1098,6 @@ If a client has been in "in transaction" state longer,
 it will be disconnected.  [seconds]
 
 Default: 0.0 (disabled)
-
-### suspend_timeout
-
-How long to wait for buffer flush during `SUSPEND`.
-A connection is dropped if the flush does not succeed. [seconds]
-
-Default: 10
-
 
 ## Low-level network settings
 

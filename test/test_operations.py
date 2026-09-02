@@ -9,6 +9,11 @@ from .utils import PG_SUPPORTS_SCRAM, WINDOWS
 
 @pytest.mark.skipif("WINDOWS", reason="gets stuck for some reason during takeover")
 async def test_online_restart(bouncer):
+    bouncer.admin("set tcp_keepalive=1")
+    bouncer.admin("set tcp_keepidle=123")
+    bouncer.admin("set tcp_keepintvl=17")
+    bouncer.admin("set tcp_keepcnt=5")
+
     for _ in range(5):
         # max_client_conn = 10
         # default_pool_size = 5

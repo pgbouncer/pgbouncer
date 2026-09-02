@@ -1,3 +1,4 @@
+import sys
 import threading
 import time
 
@@ -105,6 +106,42 @@ def test_show(bouncer):
 
     for item in show_items:
         bouncer.admin(f"SHOW {item}")
+
+
+@pytest.mark.skipif(
+    sys.platform == "darwin", reason="SHOW FDS leaks passed FDs on macOS"
+)
+def test_show_fds_keepalive(bouncer):
+    config = f"""
+    [databases]
+    p1 = host={bouncer.pg.host} port={bouncer.pg.port}
+
+    [pgbouncer]
+    listen_addr = {bouncer.host}
+    listen_port = {bouncer.port}
+    auth_type = trust
+    admin_users = pgbouncer
+    logfile = {bouncer.log_path}
+    auth_file = {bouncer.auth_path}
+    tcp_keepalive = 1
+    tcp_keepidle = 123
+    tcp_keepintvl = 17
+    tcp_keepcnt = 5
+    """
+
+    with bouncer.run_with_config(config):
+        conn = bouncer.conn(dbname="p1")
+        try:
+            conn.execute("SELECT 1")
+            fds = bouncer.admin("SHOW FDS", row_factory=dict_row)
+            client = next(fd for fd in fds if fd["task"] == "client")
+        finally:
+            conn.close()
+
+    assert client["keepalive"] == 1
+    assert client["keepidle"] in (123, -1)
+    assert client["keepintvl"] in (17, -1)
+    assert client["keepcnt"] in (5, -1)
 
 
 def test_jdbc_extra_float_digits(bouncer):

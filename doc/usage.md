@@ -687,6 +687,19 @@ cancel
 link
 :   fd for corresponding server/client.  NULL if idle.
 
+keepalive
+:   Whether TCP keepalive is enabled for the socket, or **-1** when it does
+    not apply or is unavailable.
+
+keepidle
+:   TCP keepalive idle time in seconds, or **-1** when it is unavailable.
+
+keepintvl
+:   TCP keepalive interval in seconds, or **-1** when it is unavailable.
+
+keepcnt
+:   Number of TCP keepalive probes, or **-1** when it is unavailable.
+
 #### SHOW SOCKETS, SHOW ACTIVE_SOCKETS
 
 Shows low-level information about sockets or only active sockets.

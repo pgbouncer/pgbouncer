@@ -131,7 +131,7 @@ void sbuf_init(SBuf *sbuf, sbuf_cb_t proto_fn)
 }
 
 /* got new socket from accept() */
-bool sbuf_accept(SBuf *sbuf, int sock, bool is_unix)
+static bool sbuf_accept_common(SBuf *sbuf, int sock, bool is_unix, bool inherited)
 {
 	bool res;
 
@@ -139,7 +139,7 @@ bool sbuf_accept(SBuf *sbuf, int sock, bool is_unix)
 	AssertSanity(sbuf);
 
 	sbuf->sock = sock;
-	if (!tune_socket(sock, is_unix))
+	if (!inherited && !tune_socket(sock, is_unix))
 		goto failed;
 
 	if (!cf_reboot) {
@@ -159,6 +159,16 @@ bool sbuf_accept(SBuf *sbuf, int sock, bool is_unix)
 failed:
 	sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
 	return false;
+}
+
+bool sbuf_accept(SBuf *sbuf, int sock, bool is_unix)
+{
+	return sbuf_accept_common(sbuf, sock, is_unix, false);
+}
+
+bool sbuf_accept_inherited(SBuf *sbuf, int sock, bool is_unix)
+{
+	return sbuf_accept_common(sbuf, sock, is_unix, true);
 }
 
 /* need to connect() to get a socket */

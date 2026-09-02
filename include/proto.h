@@ -37,6 +37,8 @@ struct PktHdr {
 	struct MBuf data;
 };
 
+PktBuf *new_welcome_msg(void);
+
 bool get_header(struct MBuf *data, PktHdr *pkt) _MUSTCHECK;
 
 /* render the unparsed bytes of a packet header as hex, for error messages */

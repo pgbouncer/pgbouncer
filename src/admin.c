@@ -1899,10 +1899,9 @@ void admin_setup(void)
 	}
 
 	/* prepare welcome */
-	msg = pktbuf_dynamic(128);
+	msg = pool->welcome_msg;
 	if (!msg)
 		die("out of memory");
-	pktbuf_write_AuthenticationOk(msg);
 	pktbuf_write_ParameterStatus(msg, "server_version", PACKAGE_VERSION "/bouncer");
 	pktbuf_write_ParameterStatus(msg, "client_encoding", "UTF8");
 	pktbuf_write_ParameterStatus(msg, "server_encoding", "UTF8");
@@ -1914,7 +1913,6 @@ void admin_setup(void)
 	if (msg->failed)
 		die("admin welcome failed");
 
-	pool->welcome_msg = msg;
 	pool->welcome_msg_ready = true;
 
 	msg = pktbuf_dynamic(128);

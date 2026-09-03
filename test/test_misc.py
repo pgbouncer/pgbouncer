@@ -448,9 +448,8 @@ def test_fast_close(bouncer):
 
 
 def test_track_extra_parameters(bouncer):
-    # test.ini has track_extra_parameters set to a list of Postgres
-    # parameters. Test that the parameters in the list in addition to the
-    # default hardcoded list of parameters are cached per client.
+    # Test that the default hardcoded list of tracked parameters are cached
+    # per client.
     bouncer.admin(f"set pool_mode=transaction")
 
     test_set = {
@@ -477,6 +476,16 @@ def test_track_extra_parameters(bouncer):
     if PG_MAJOR_VERSION >= 14:
         test_set["default_transaction_read_only"] = ["true", "false"]
         test_expected["default_transaction_read_only"] = ["on", "off"]
+
+    # scram_iterations was not marked as GUC_REPORT until server version 16
+    if PG_MAJOR_VERSION >= 16:
+        test_set["scram_iterations"] = ["1000", "2000"]
+        test_expected["scram_iterations"] = ["1000", "2000"]
+
+    # search_path was not marked as GUC_REPORT until server version 18
+    if PG_MAJOR_VERSION >= 18:
+        test_set["search_path"] = ["a, b", "c, d"]
+        test_expected["search_path"] = ["a, b", "c, d"]
 
     with bouncer.cur(dbname="p1") as cur1, bouncer.cur(dbname="p1") as cur2:
         for key in test_set:
@@ -1033,3 +1042,49 @@ async def test_unreported_param_startup(bouncer):
         bouncer.cur(dbname="p1", options="-c enable_seqscan=off") as cur1,
     ):
         assert cur1.execute("SHOW enable_seqscan").fetchone()[0] == "off"
+
+
+async def test_session_authorization_tracked(bouncer):
+    """Test that SET SESSION AUTHORIZATION does not leak to other clients.
+
+    session_authorization is in the static list of tracked parameters. A
+    superuser client that changes it in transaction mode should get it
+    re-applied on every transaction, and other clients sharing the same server
+    connection should get it reset to the login user.
+    """
+    bouncer.write_ini("default_pool_size = 1")
+    await bouncer.restart()
+    bouncer.admin("set pool_mode=transaction")
+    bouncer.admin("set verbose=2")
+
+    conn_args = {
+        "dbname": "user_passthrough",
+        "user": "pswcheck",
+        "password": "pgbouncer-check",
+    }
+
+    with bouncer.cur(**conn_args) as cur1, bouncer.cur(**conn_args) as cur2:
+        assert cur1.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"
+        assert cur2.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"
+
+        cur1.execute("SET SESSION AUTHORIZATION someuser")
+        assert cur1.execute("SHOW session_authorization").fetchone()[0] == "someuser"
+
+        # cur2 shares the single server connection, so PgBouncer has to switch
+        # session_authorization back and forth between the two clients.
+        with bouncer.log_contains(
+            r"varcache_apply: .*SET session_authorization='pswcheck'", times=1
+        ):
+            assert (
+                cur2.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"
+            )
+        with bouncer.log_contains(
+            r"varcache_apply: .*SET session_authorization='someuser'", times=1
+        ):
+            assert (
+                cur1.execute("SHOW session_authorization").fetchone()[0] == "someuser"
+            )
+
+        cur1.execute("RESET SESSION AUTHORIZATION")
+        assert cur1.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"
+        assert cur2.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"

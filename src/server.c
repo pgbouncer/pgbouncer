@@ -60,6 +60,7 @@ static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 
 	varcache_set(&server->vars, key, val);
 
+	/* Replication clients are linked before admission. Defer startup values until backend accepted. */
 	if (client && !(startup && server->replication)) {
 		slog_debug(client, "setting client var: %s='%s'", key, val);
 		varcache_set(&client->vars, key, val);

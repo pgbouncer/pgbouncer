@@ -899,9 +899,11 @@ static struct DNSQuery *new_query(struct DNSRequest *req)
 	return q;
 }
 
+#ifdef CASSERT
 /* test-only: the request (and its epoch) whose first lookup was dropped */
 static struct DNSRequest *test_hung_req;
 static unsigned test_hung_epoch;
+#endif
 
 /*
  * Issue (or re-issue) the backend query for a request and record when, so that
@@ -913,12 +915,15 @@ static void launch_request(struct DNSRequest *req)
 
 	req->launch_time = get_cached_time();
 
+#ifdef CASSERT
 	/*
-	 * Test-only fault injection: drop the first lookup so its callback never
+	 * Test-only fault injection, compiled only in cassert builds
+	 * (--enable-cassert / meson -Dcassert=true), like the atexit cleanup in
+	 * main.c: drop the first lookup so its callback never
 	 * fires, reproducing the "hung in-process resolver" that leaves a request
-	 * pending forever (see adns_check_stuck / test/test_dns_stuck.py). Active
-	 * only when the PGB_TEST_HANG_ONCE environment variable is set; a no-op in
-	 * normal operation.  Dropped before active++/new_query, so nothing leaks.
+	 * pending forever (see adns_check_stuck / test/test_dns_stuck.py). Armed by
+	 * the PGB_TEST_HANG_ONCE environment variable; a no-op otherwise.  Dropped
+	 * before active++/new_query, so nothing leaks.
 	 */
 	if (getenv("PGB_TEST_HANG_ONCE")) {
 		static bool hung_once = false;
@@ -931,6 +936,7 @@ static void launch_request(struct DNSRequest *req)
 			return;
 		}
 	}
+#endif
 
 	req->ctx->active++;
 	q = new_query(req);
@@ -1407,13 +1413,16 @@ static void adns_check_stuck(struct DNSContext *ctx)
 	free(w.stuck);
 }
 
+#ifdef CASSERT
 /*
- * Test-only: once a dropped ("hung") request has recovered via a relaunch,
- * simulate its original query finally answering late, carrying the epoch it was
- * launched for.  The epoch guard in got_result_gai() must discard this stale
- * answer so it cannot clobber the fresh result.  Pair it with an active++ so the
- * discard's active-- balances (a real late query would have taken one when it
- * was launched).  Active only under PGB_TEST_LATE_STALE.
+ * Test-only (compiled only in cassert builds, --enable-cassert /
+ * -Dcassert=true): once a dropped ("hung")
+ * request has recovered via a relaunch, simulate its original query finally
+ * answering late, carrying the epoch it was launched for.  The epoch guard in
+ * got_result_gai() must discard this stale answer so it cannot clobber the fresh
+ * result.  Pair it with an active++ so the discard's active-- balances (a real
+ * late query would have taken one when it was launched).  Armed by
+ * PGB_TEST_LATE_STALE.
  */
 static void test_late_stale(void)
 {
@@ -1430,10 +1439,13 @@ static void test_late_stale(void)
 	req->ctx->active++;
 	got_result_gai(0, NULL, &q);
 }
+#endif
 
 void adns_per_loop(struct DNSContext *ctx)
 {
 	impl_per_loop(ctx);
 	adns_check_stuck(ctx);
+#ifdef CASSERT
 	test_late_stale();
+#endif
 }

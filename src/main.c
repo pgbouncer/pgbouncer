@@ -1009,6 +1009,9 @@ int main(int argc, char *argv[])
 #ifdef USE_SYSTEMD
 			printf("systemd: yes\n");
 #endif
+#ifdef CASSERT
+			printf("cassert: yes\n");
+#endif
 			return 0;
 		case 'd':
 			cf_daemon = 1;

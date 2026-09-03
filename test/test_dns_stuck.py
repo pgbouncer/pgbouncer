@@ -4,7 +4,7 @@ import time
 import psycopg
 import pytest
 
-from .utils import Bouncer
+from .utils import CASSERT, Bouncer
 
 # PgBouncer relaunches a DNS request only once it is ->done (see
 # src/dnslookup.c). If the in-process resolver never delivers a result for a
@@ -14,7 +14,14 @@ from .utils import Bouncer
 #
 # The PGB_TEST_HANG_ONCE environment variable is a test-only hook (see
 # launch_request() in src/dnslookup.c) that drops the first lookup so its
-# callback never fires, reproducing the hang deterministically.
+# callback never fires, reproducing the hang deterministically. That hook, like
+# the atexit cleanup in main.c, is compiled only in cassert builds
+# (--enable-cassert / meson -Dcassert=true), so skip this module when it is
+# absent (e.g. release, macOS/Windows CI).
+pytestmark = pytest.mark.skipif(
+    not CASSERT,
+    reason="DNS fault-injection hooks require a --enable-cassert build",
+)
 
 DNS_DB = "dns_hang_db"
 

@@ -801,7 +801,10 @@ async def test_repeated_sigint(bouncer):
 
         # But new clients should be rejected, because we stopped listening for
         # new connections.
-        with pytest.raises(psycopg.OperationalError, match="Connection refused"):
+        with pytest.raises(
+            psycopg.OperationalError,
+            match=r"Connection refused|server closed the connection unexpectedly",
+        ):
             bouncer.test()
 
         # Second sigint should cause fast exit

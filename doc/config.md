@@ -818,6 +818,24 @@ How long DNS errors and NXDOMAIN DNS lookups can be cached. [seconds]
 
 Default: 15.0
 
+### dns_resolve_timeout
+
+Maximum time a hostname lookup may stay outstanding before PgBouncer re-issues
+it.
+
+PgBouncer normally re-issues a lookup only after the previous one has finished.
+If the in-process resolver never delivers a result for a request (a hung
+resolution), the request would otherwise stay pending forever: the hostname
+becomes permanently unresolvable (`SHOW DNS_HOSTS` shows it with no addresses)
+and only a restart clears it, even though a fresh resolver on the same host
+resolves the name. When this is set, PgBouncer relaunches a lookup that has been
+outstanding for longer than this, so it can recover without a restart.
+
+The value should be comfortably larger than a normal lookup (including resolver
+retries) so it never fires for a lookup that is merely slow. [seconds]
+
+Default: 0.0 (disabled)
+
 ### dns_zone_check_period
 
 Period to check if a zone serial has changed.

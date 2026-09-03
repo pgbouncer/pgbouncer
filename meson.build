@@ -383,6 +383,9 @@ if pam.found()
   cdata.set('HAVE_SECURITY_PAM_APPL_H', 1)
 endif
 
+cdata.set('HAVE_' + 'pam_start_confdir'.to_upper(),
+          cc.has_function('pam_start_confdir', dependencies: pam) ? 1 : false)
+
 # ----------------------------------------------------------------------
 # LDAP (mirrors --with-ldap)
 # ----------------------------------------------------------------------

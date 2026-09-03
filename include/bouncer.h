@@ -932,6 +932,8 @@ extern char *cf_server_tls13_ciphers;
 
 extern int cf_max_prepared_statements;
 
+extern char *cf_auth_pam_confdir;
+
 extern const struct CfLookup pool_mode_map[];
 extern const struct CfLookup load_balance_hosts_map[];
 

@@ -566,6 +566,20 @@ that no password that the client offers will be accepted.
 
 Default: `SELECT rolname, CASE WHEN rolvaliduntil < now() THEN NULL ELSE rolpassword END FROM pg_authid WHERE rolname=$1 AND rolcanlogin`
 
+### auth_query_client_addr
+
+Whether the client's connecting address is passed to `auth_query` as a
+second query parameter (`$2`), in addition to the user name (`$1`).
+
+This allows an `auth_query` function to implement IP-based allow/deny listing for logins, by inspecting the address and raising an error
+(or returning no rows) for addresses that should not be allowed to
+authenticate.
+
+The address is a numeric IPv4 or IPv6 address, or the literal string
+`unix` for Unix domain socket connections.
+
+Default: 0
+
 ### auth_dbname
 
 Database name in the `[database]` section to be used for authentication purposes. This

@@ -12,12 +12,12 @@ from .utils import CASSERT, Bouncer
 # hostname becomes permanently unresolvable, cleared only by a restart.
 # dns_resolve_timeout makes adns_per_loop() relaunch such a request.
 #
-# The PGB_TEST_HANG_ONCE environment variable is a test-only hook (see
-# launch_request() in src/dnslookup.c) that drops the first lookup so its
-# callback never fires, reproducing the hang deterministically. That hook, like
-# the atexit cleanup in main.c, is compiled only in cassert builds
-# (--enable-cassert / meson -Dcassert=true), so skip this module when it is
-# absent (e.g. release, macOS/Windows CI).
+# The PGB_TEST_DNS_FAULT environment variable arms a test-only hook (see
+# launch_request() in src/dnslookup.c) that drops the first lookup so its callback
+# never fires, reproducing the hang deterministically. That hook, like the atexit
+# cleanup in main.c, is compiled only in cassert builds (--enable-cassert / meson
+# -Dcassert=true), so skip this module when it is absent (e.g. release,
+# macOS/Windows CI).
 pytestmark = pytest.mark.skipif(
     not CASSERT,
     reason="DNS fault-injection hooks require a --enable-cassert build",
@@ -26,8 +26,16 @@ pytestmark = pytest.mark.skipif(
 DNS_DB = "dns_hang_db"
 
 
-async def _start_hang_bouncer(pg, tmp_path, monkeypatch, dns_resolve_timeout):
-    monkeypatch.setenv("PGB_TEST_HANG_ONCE", "1")
+async def _start_hang_bouncer(
+    pg, tmp_path, monkeypatch, dns_resolve_timeout, late_stale=False
+):
+    # Arm the cassert-only fault-injection hooks via PGB_TEST_DNS_FAULT, which
+    # PgBouncer reads once at startup (see main.c). Each test starts its own
+    # PgBouncer process, so this is scoped to the instance and never affects
+    # other tests.
+    monkeypatch.setenv(
+        "PGB_TEST_DNS_FAULT", "hang,late-stale" if late_stale else "hang"
+    )
     bouncer = Bouncer(pg, tmp_path / "dns_hang")
     # The base ini ends in the [pgbouncer] section, so these settings continue
     # it; the [databases] section is added last (re-opening [pgbouncer] after a
@@ -95,11 +103,10 @@ async def test_late_stale_callback_does_not_clobber_recovered_result(
 ):
     """After a relaunch recovers the hostname, the original ("hung") query's late
     answer must be discarded (epoch guard in got_result_gai) so it cannot clobber
-    the fresh result. PGB_TEST_LATE_STALE injects that late callback once the
+    the fresh result. The late-stale fault injects that late callback once the
     request has recovered; the database must keep resolving afterward."""
-    monkeypatch.setenv("PGB_TEST_LATE_STALE", "1")
     bouncer = await _start_hang_bouncer(
-        pg, tmp_path, monkeypatch, dns_resolve_timeout=1
+        pg, tmp_path, monkeypatch, dns_resolve_timeout=1, late_stale=True
     )
     try:
         # Wait for the relaunch to recover the hostname.

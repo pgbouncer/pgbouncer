@@ -75,6 +75,17 @@ struct event_base *pgb_event_base;
 /* async dns handler */
 struct DNSContext *adns;
 
+#ifdef CASSERT
+/*
+ * Test-only DNS fault-injection flags (cassert builds only). Not configuration:
+ * armed once at startup from the PGB_TEST_DNS_FAULT environment variable (see
+ * main()) and read by the hooks in dnslookup.c, so nothing test-related touches
+ * the config surface or the resolve hot path.
+ */
+int test_dns_hang;
+int test_dns_late_stale;
+#endif
+
 struct HBA *parsed_hba;
 struct Ident *parsed_ident;
 
@@ -1046,6 +1057,20 @@ int main(int argc, char *argv[])
 	 * make use of things that will be cleaned up.
 	 */
 	atexit(cleanup);
+
+	/*
+	 * Arm the test-only DNS fault-injection hooks once, here at startup, from
+	 * PGB_TEST_DNS_FAULT (a comma-separated list, e.g. "hang" or
+	 * "hang,late-stale"). Reading it here keeps getenv() off the resolve path;
+	 * the hooks in dnslookup.c only test the cached flags. See test_dns_stuck.py.
+	 */
+	{
+		const char *fault = getenv("PGB_TEST_DNS_FAULT");
+		if (fault) {
+			test_dns_hang = strstr(fault, "hang") != NULL;
+			test_dns_late_stale = strstr(fault, "late-stale") != NULL;
+		}
+	}
 #endif
 
 	init_objects();

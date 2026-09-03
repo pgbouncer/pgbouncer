@@ -939,6 +939,12 @@ extern const struct CfLookup load_balance_hosts_map[];
 extern struct DNSContext *adns;
 extern struct HBA *parsed_hba;
 
+#ifdef CASSERT
+/* test-only DNS fault-injection flags, armed from PGB_TEST_DNS_FAULT in main() */
+extern int test_dns_hang;
+extern int test_dns_late_stale;
+#endif
+
 static inline PgSocket *first_socket(struct StatList *slist)
 {
 	if (statlist_empty(slist))

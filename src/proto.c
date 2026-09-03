@@ -320,12 +320,10 @@ void log_server_error(const char *note, PktHdr *pkt)
  */
 
 /* add another server parameter packet to cache */
-bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
+bool add_welcome_parameter(PgSocket *server, const char *key, const char *val)
 {
+	PgPool *pool = server->pool;
 	PktBuf *msg = pool->welcome_msg;
-
-	if (pool->welcome_msg_ready)
-		return true;
 
 	if (!msg) {
 		msg = pktbuf_dynamic(128);
@@ -338,8 +336,11 @@ bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 	if (msg->write_pos == 0)
 		pktbuf_write_AuthenticationOk(msg);
 
-	/* if not stored in ->orig_vars, write full packet */
-	if (!varcache_set(&pool->orig_vars, key, val))
+	/*
+	 * Do not publish values until this server reaches ReadyForQuery. A backend
+	 * can send ParameterStatus before rejecting the startup.
+	 */
+	if (!varcache_set(&server->startup_vars, key, val) && !pool->welcome_msg_ready)
 		pktbuf_write_ParameterStatus(msg, key, val);
 
 	return !msg->failed;
@@ -349,6 +350,7 @@ bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 void finish_welcome_msg(PgSocket *server)
 {
 	PgPool *pool = server->pool;
+	varcache_merge(&pool->orig_vars, &server->startup_vars);
 	if (pool->welcome_msg_ready)
 		return;
 	pool->welcome_msg_ready = true;

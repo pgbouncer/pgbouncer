@@ -123,6 +123,7 @@ static void construct_server(void *obj)
 	list_init(&server->head);
 	sbuf_init(&server->sbuf, server_proto);
 	server->vars.var_list = slab_alloc(var_list_cache);
+	server->startup_vars.var_list = slab_alloc(var_list_cache);
 	server->state = SV_FREE;
 	server->server_prepared_statements = NULL;
 	server->host = NULL;
@@ -212,8 +213,14 @@ static void server_free(PgSocket *server)
 
 	free_server_prepared_statements(server);
 	free(server->host);
+	if (server->pool && !server->pool->welcome_msg_ready) {
+		pktbuf_free(server->pool->welcome_msg);
+		server->pool->welcome_msg = NULL;
+	}
 	varcache_clean(&server->vars);
 	slab_free(var_list_cache, server->vars.var_list);
+	varcache_clean(&server->startup_vars);
+	slab_free(var_list_cache, server->startup_vars.var_list);
 	slab_free(server_cache, server);
 }
 

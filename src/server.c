@@ -723,7 +723,15 @@ static bool handle_connect(PgSocket *server)
 		disconnect_server(server, false, "peer server was not necessary anymore, because client cancel connection was already closed");
 	} else {
 		/* proceed with login */
-		if (server_connect_sslmode > SSLMODE_DISABLED && !is_unix) {
+		if (server_connect_tls_direct && !is_unix) {
+			slog_noise(server, "P: direct TLS");
+			/*
+			 * Start TLS handshake immediately — no SSLRequest round-trip.
+			 * On completion SBUF_EV_TLS_READY fires and send_startup_message()
+			 * is called, same as the STARTTLS path.
+			 */
+			res = sbuf_tls_connect_direct(&server->sbuf, server->host);
+		} else if (server_connect_sslmode > SSLMODE_DISABLED && !is_unix) {
 			slog_noise(server, "P: SSL request");
 			res = send_sslreq_packet(server);
 			if (res)

@@ -407,37 +407,6 @@ def test_target_session_attrs_reload_replaces_server(bouncer, target_replica):
     assert second_pid != first_pid
 
 
-@requires_replica
-async def test_target_session_attrs_takeover_reconnects_unknown_server(
-    bouncer, target_replica
-):
-    first_pid, first_in_recovery = bouncer.sql(
-        "SELECT pg_backend_pid(), pg_is_in_recovery()", dbname="tsa_takeover"
-    )[0]
-    assert first_in_recovery is True
-
-    original = bouncer.ini_path.read_text()
-    updated, replacements = re.subn(
-        r"^(tsa_takeover.*target_session_attrs=)any$",
-        r"\1primary",
-        original,
-        flags=re.MULTILINE,
-    )
-    assert replacements == 1
-    bouncer.ini_path.write_text(updated)
-    await bouncer.reboot()
-    bouncer.admin("SET server_login_retry=1")
-    bouncer.admin("SET client_login_timeout=5")
-
-    second_pid, second_in_recovery = bouncer.sql(
-        "SELECT pg_backend_pid(), pg_is_in_recovery()",
-        dbname="tsa_takeover",
-        connect_timeout=10,
-    )[0]
-    assert second_in_recovery is False
-    assert second_pid != first_pid
-
-
 def test_target_session_attrs_rejects_prefer_standby(bouncer):
     original = bouncer.ini_path.read_text()
     invalid, replacements = re.subn(

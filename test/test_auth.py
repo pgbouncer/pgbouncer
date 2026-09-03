@@ -384,6 +384,26 @@ def test_scram_passthrough_after_reconnect(bouncer):
     bouncer.test(dbname="p62", user="scramuser1", password="foo")
 
 
+@pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
+def test_scram_stats_user_passthrough(bouncer):
+    """
+    Regression test for SCRAM keys cached through the admin database.
+
+    The admin database uses a forced backend user, so keys learned from a
+    stats_users client must remain associated with the authenticated user.
+    """
+    bouncer.admin(f"set auth_type='scram-sha-256'")
+    bouncer.admin("set stats_users='scramuser1'")
+
+    bouncer.sql(
+        query="show stats",
+        user="scramuser1",
+        password="foo",
+        dbname="pgbouncer",
+    )
+    bouncer.test(dbname="p62", user="scramuser1", password="foo")
+
+
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
 def test_auth_dbname_usage(
     bouncer,

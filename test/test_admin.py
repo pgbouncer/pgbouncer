@@ -5,7 +5,7 @@ import psycopg
 import pytest
 from psycopg.rows import dict_row
 
-from .utils import Bouncer, capture, run
+from .utils import Bouncer, capture, run, wait_until
 
 
 def test_reload_error(bouncer):
@@ -73,6 +73,45 @@ def test_show_user(bouncer):
         assert ["1", ""] == [
             user["reserve_pool_size"].lstrip().rstrip() for user in users
         ]
+
+
+def test_show_users_after_forced_user_reload(bouncer):
+    config_template = f"""
+    [databases]
+    db1 = host={bouncer.pg.host} port={bouncer.pg.port} dbname=p0 user={{forced_user}}
+
+    [pgbouncer]
+    auth_file = {bouncer.auth_path}
+    auth_type = trust
+    listen_addr = {bouncer.host}
+    listen_port = {bouncer.port}
+    admin_users = pgbouncer
+    pool_mode = session
+    logfile = {bouncer.log_path}
+    """
+
+    def get_user_connections(username):
+        users = bouncer.admin("SHOW USERS", row_factory=dict_row)
+        return [user for user in users if user["name"] == username][0][
+            "current_connections"
+        ]
+
+    with bouncer.run_with_config(config_template.format(forced_user="someuser")):
+        with bouncer.conn(dbname="db1", user="postgres") as conn:
+            assert conn.execute("SELECT current_user").fetchone() == ("someuser",)
+            assert get_user_connections("someuser") == 1
+            assert get_user_connections("pswcheck") == 0
+
+        with bouncer.ini_path.open("w") as f:
+            f.write(config_template.format(forced_user="pswcheck"))
+        bouncer.admin("RELOAD")
+
+        with bouncer.conn(dbname="db1", user="postgres") as conn:
+            assert conn.execute("SELECT current_user").fetchone() == ("pswcheck",)
+            for _ in wait_until("old forced user connection count was not cleared"):
+                if get_user_connections("someuser") == 0:
+                    break
+            assert get_user_connections("pswcheck") == 1
 
 
 def test_show(bouncer):

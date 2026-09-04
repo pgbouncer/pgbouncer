@@ -431,7 +431,7 @@ jobs:
             "${MINGW_PACKAGE_PREFIX}-openssl" "${MINGW_PACKAGE_PREFIX}-postgresql" \
             "${MINGW_PACKAGE_PREFIX}-python" "${MINGW_PACKAGE_PREFIX}-python-pip" \
             "${MINGW_PACKAGE_PREFIX}-meson" "${MINGW_PACKAGE_PREFIX}-ninja" \
-            "${MINGW_PACKAGE_PREFIX}-pkgconf" zip
+            "${MINGW_PACKAGE_PREFIX}-pkgconf"
           echo "127.0.0.1   localhost" >> /etc/hosts
           pip install .
       - name: Build
@@ -443,14 +443,12 @@ jobs:
       - name: Install
         run: sh ci/run.sh install "$BUILD_SYSTEM"
       - name: Build zip
-        run: |
-          cd install
-          zip -r "../pgbouncer-windows.zip" .
+        run: meson compile -C build zip
       - name: Upload zip
         uses: actions/upload-artifact@v7
         with:
           name: pgbouncer-windows-zip
-          path: pgbouncer-*.zip
+          path: build/pgbouncer-*.zip
           if-no-files-found: error
       - name: Upload build logs
         if: ${{ !cancelled() }}

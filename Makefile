@@ -181,13 +181,7 @@ w32zip = $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)-windows-$(host_cpu).zip
 zip: $(w32zip)
 
 $(w32zip): pgbouncer.exe pgbevent.dll etc/pgbouncer.ini etc/userlist.txt README.md COPYRIGHT
-	rm -rf $(basename $@)
-	mkdir $(basename $@)
-	cp $^ $(basename $@)
-	$(STRIP) $(addprefix $(basename $@)/,$(filter %.exe %.dll,$(^F)))
-	zip -MM $@ $(addprefix $(basename $@)/,$(filter %.exe %.dll,$(^F)))
-# NB: zip -l for text files for end-of-line conversion
-	zip -MM -l $@ $(addprefix $(basename $@)/,$(filter-out %.exe %.dll,$(^F)))
+	$(PYTHON) $(srcdir)/win32/make-zip.py --strip='$(STRIP)' -o $@ $^
 
 .PHONY: tags
 tags:

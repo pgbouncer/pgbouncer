@@ -1160,15 +1160,45 @@ bool clear_outstanding_requests_until(PgSocket *server, const char types[])
 	return true;
 }
 
+/* client altered session state that cleanup_server_connections resets on release */
+static bool server_session_dirty(PgSocket *server)
+{
+	return server->dirty_set || server->dirty_prepare ||
+	       server->dirty_session_authorization;
+}
+
 /* send reset query */
 static bool reset_on_release(PgSocket *server)
 {
 	bool res;
+	char cleanup_query[96];
+	const char *q = cf_server_reset_query;
 
 	Assert(server->state == SV_TESTED);
 
-	slog_debug(server, "resetting: %s", cf_server_reset_query);
-	SEND_generic(res, server, PqMsg_Query, "s", cf_server_reset_query);
+	/*
+	 * With cleanup_server_connections on, reset only what the client
+	 * altered instead of the server_reset_query.
+	 */
+	if (server_session_dirty(server) &&
+	    !cf_server_reset_query_always &&
+	    connection_pool_mode(server) != POOL_SESSION) {
+		slog_debug(server, "cleaning client-altered session state (set=%d, prepare=%d, session_authorization=%d)",
+			   server->dirty_set, server->dirty_prepare,
+			   server->dirty_session_authorization);
+		snprintf(cleanup_query, sizeof(cleanup_query), "%s%s%s%s",
+			 server->dirty_session_authorization ? "RESET SESSION AUTHORIZATION;" : "",
+			 server->dirty_set || server->dirty_session_authorization ? "RESET ROLE;" : "",
+			 server->dirty_set ? "RESET ALL;" : "",
+			 server->dirty_prepare ? "DEALLOCATE ALL;" : "");
+		q = cleanup_query;
+	}
+	server->dirty_set = false;
+	server->dirty_prepare = false;
+	server->dirty_session_authorization = false;
+
+	slog_debug(server, "resetting: %s", q);
+	SEND_generic(res, server, PqMsg_Query, "s", q);
 	if (!res)
 		disconnect_server(server, false, "reset query failed");
 	return res;
@@ -1219,8 +1249,9 @@ bool release_server(PgSocket *server)
 			server->link = NULL;
 		}
 
-		if (*cf_server_reset_query && (cf_server_reset_query_always ||
-					       connection_pool_mode(server) == POOL_SESSION)) {
+		if ((*cf_server_reset_query &&
+		     (cf_server_reset_query_always || connection_pool_mode(server) == POOL_SESSION)) ||
+		    (cleanup_server_connections_active() && server_session_dirty(server))) {
 			/* notify reset is required */
 			newstate = SV_TESTED;
 		} else if (cf_server_check_delay == 0 && *cf_server_check_query) {

@@ -45,6 +45,24 @@ static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 		goto failed;
 	slog_debug(server, "S: param: %s = %s", key, val);
 
+	/*
+	 * Generally, the SET command tag doesn't name the parameter, but
+	 * session_authorization is GUC_REPORT so its ParameterStatus does.
+	 * Track it separately so RESET SESSION AUTHORIZATION is sent only
+	 * when authorization actually differs from the login user; a client
+	 * restoring the login user clears the flag again.
+	 */
+	if (!startup && cleanup_server_connections_active() && client
+	    && !server->setting_vars && !server->exec_on_connect
+	    && connection_pool_mode(server) != POOL_SESSION
+	    && strcmp(key, "session_authorization") == 0) {
+		server->dirty_session_authorization =
+			!server->login_user_credentials ||
+			strcmp(val, server->login_user_credentials->name) != 0;
+		if (server->dirty_session_authorization)
+			slog_debug(server, "client altered session authorization, cleanup scheduled on release");
+	}
+
 	varcache_set(&server->vars, key, val);
 
 	if (client) {
@@ -420,6 +438,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	PgSocket *client = server->link;
 	bool async_response = false;
 	bool ignore_packet = false;
+	const char *tag = NULL;
 
 	Assert(!server->pool->db->admin);
 
@@ -532,6 +551,14 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			if (!clear_outstanding_requests_until(server, (char[]) {PqMsg_CopyDone, '\0'}))
 				return false;
 		}
+
+		/* CommandComplete carries the command tag; read it once, as the
+		 * checks below share pkt->data. */
+		if (is_prepared_statements_enabled(server) || cleanup_server_connections_active()) {
+			if (!mbuf_get_string(&pkt->data, &tag))
+				return false;
+		}
+
 		/*
 		 * Clean up prepared statements if needed if the client sent a
 		 * DEALLOCATE ALL or a DISCARD ALL query. Not doing so would
@@ -541,16 +568,35 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		 */
 		if (is_prepared_statements_enabled(server)
 		    && (pkt->len == 1 + 4 + 15 || pkt->len == 1 + 4 + 12)) {	/* size of complete DEALLOCATE/DISCARD ALL */
-			const char *tag;
-			if (mbuf_get_string(&pkt->data, &tag)) {
-				if (strcmp(tag, "DEALLOCATE ALL") == 0 ||
-				    strcmp(tag, "DISCARD ALL") == 0) {
-					free_server_prepared_statements(server);
-					if (client)
-						free_client_prepared_statements(client);
-				}
-			} else {
-				return false;
+			if (strcmp(tag, "DEALLOCATE ALL") == 0 ||
+			    strcmp(tag, "DISCARD ALL") == 0) {
+				free_server_prepared_statements(server);
+				if (client)
+					free_client_prepared_statements(client);
+			}
+		}
+		/*
+		 * Flag client-issued SET/PREPARE so release_server cleans this
+		 * connection (cleanup_server_connections). SET counts even in a
+		 * transaction: its tag is indistinguishable from SET LOCAL and a
+		 * non-LOCAL SET survives COMMIT.
+		 *
+		 * SET of a tracked parameter is flagged too, because the command tag
+		 * never names the parameter, so we pay a reset.
+		 * The parameter is still correctly stored in the varcache and
+		 * re-applies the value on next checkout which skips cleanup
+		 * detection.
+		 */
+		if (cleanup_server_connections_active()
+		    && client && !server->setting_vars && !server->exec_on_connect
+		    && connection_pool_mode(server) != POOL_SESSION
+		    && (pkt->len == 1 + 4 + 4 || pkt->len == 1 + 4 + 8)) {	/* size of complete SET/PREPARE */
+			if (strcmp(tag, "SET") == 0) {
+				slog_debug(server, "client altered session state (SET), cleanup scheduled for release");
+				server->dirty_set = true;
+			} else if (strcmp(tag, "PREPARE") == 0) {
+				slog_debug(server, "client prepared a statement, cleanup scheduled for release");
+				server->dirty_prepare = true;
 			}
 		}
 		pop_outstanding_request(server, (char[]) {PqMsg_Execute, '\0'}, &ignore_packet);

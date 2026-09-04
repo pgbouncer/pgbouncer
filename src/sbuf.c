@@ -718,6 +718,18 @@ try_more:
 }
 
 
+/*
+ * Is this sbuf still set up to receive more data?
+ *
+ * A packet handler is free to close or pause the socket, and a failed send
+ * switches us to waiting for writability instead.  In those cases the sbuf
+ * must be left alone rather than read from or resynced.
+ */
+static bool sbuf_is_recv_active(SBuf *sbuf)
+{
+	return sbuf->sock && sbuf->io && sbuf->wait_type == W_RECV;
+}
+
 /* process as much data as possible */
 static bool sbuf_process_pending(SBuf *sbuf)
 {
@@ -847,7 +859,7 @@ need_more_data:
 	 */
 	mbuf_rewind_writer(extra_packets);
 
-	if (sbuf->sock && io && sbuf->wait_type == W_RECV) {
+	if (sbuf_is_recv_active(sbuf)) {
 		/*
 		 * There might still be some previous packets that we're able
 		 * to send though. Let's do that now to create some extra space
@@ -1014,7 +1026,7 @@ skip_recv:
 		 * poller cannot see it.  Waiting for a read event would then
 		 * hang, so read it now instead.
 		 */
-		if (sbuf->sock && sbuf->wait_type == W_RECV && sbuf->io
+		if (sbuf_is_recv_active(sbuf)
 		    && iobuf_amount_recv(sbuf->io) > 0
 		    && sbuf_op_pending(sbuf) > 0)
 			goto try_more;

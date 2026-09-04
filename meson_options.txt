@@ -32,3 +32,8 @@ option('openssl', type: 'feature', value: 'auto',
 
 option('systemd', type: 'feature', value: 'auto',
        description: 'Build with systemd support')
+
+# Packaging options
+
+option('PG_GIT_REVISION', type: 'string', value: 'HEAD',
+       description: 'git revision to be packaged by the pgdist target')

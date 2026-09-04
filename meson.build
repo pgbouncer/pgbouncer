@@ -727,6 +727,67 @@ if ctags.found()
 endif
 
 # ----------------------------------------------------------------------
+# dist (adapted from PostgreSQL)
+# ----------------------------------------------------------------------
+
+# Meson has its own distribution building command (meson dist), but we
+# are not using that at this point.  The main problem is that, the way
+# they have implemented it, it is not deterministic.  Also, we want it
+# to be equivalent to the "make" version for the time being.  But the
+# target name "dist" in meson is reserved for that reason, so we call
+# the custom target "pgdist".
+
+git = find_program('git', required: false, native: true, disabler: true)
+
+distdir = meson.project_name() + '-' + meson.project_version()
+
+# Generated files that are not in git but must ship in the tarball, so
+# it can be built without autoconf/automake installed.  Keep in sync
+# with EXTRA_DIST in the Makefile.
+extra_dist = ['config.guess', 'config.sub', 'configure', 'install-sh',
+              'lib/usual/config.h.in']
+
+# git archive applies --prefix to the --add-file that follows it, so
+# each extra file needs its own --prefix carrying that file's
+# directory.  A trailing --prefix restores the plain distdir for
+# anything after.
+git_archive_args = []
+foreach f : extra_dist
+  dirname = fs.parent(f)
+  if dirname == '.'
+    dirname = ''
+  else
+    dirname += '/'
+  endif
+  git_archive_args += ['--prefix', '@0@/@1@'.format(distdir, dirname),
+                       '--add-file', f]
+endforeach
+
+tar_gz = custom_target('tar.gz',
+  build_always_stale: true,
+  command: [git, '-C', '@SOURCE_ROOT@',
+            '-c', 'core.autocrlf=false',
+            'archive',
+            '--format', 'tar.gz',
+            '-9',
+            '--prefix', distdir + '/',
+            '-o', meson.project_build_root() / '@OUTPUT@',
+            get_option('PG_GIT_REVISION')] + git_archive_args
+           + ['--prefix', distdir + '/'],
+  output: distdir + '.tar.gz',
+)
+
+alias_target('pgdist', [tar_gz])
+
+# Make the standard "dist" command fail, to prevent accidental use.
+# But not if we are in a subproject, in case the parent project wants
+# to create a dist using the standard Meson command.
+if not meson.is_subproject()
+  meson.add_dist_script(python, '-c',
+                        'import sys; sys.exit("Use \'meson compile pgdist\' instead of \'meson dist\'")')
+endif
+
+# ----------------------------------------------------------------------
 # Configuration summary
 # ----------------------------------------------------------------------
 

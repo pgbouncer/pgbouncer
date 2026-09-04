@@ -1003,6 +1003,23 @@ verify-full
     according to `server_tls_ca_file`.  Server host name must match
     certificate information.
 
+### server_tls_direct
+
+If set to 1, PgBouncer initiates a TLS handshake immediately upon TCP connect,
+without sending the PostgreSQL `SSLRequest` message first.  Use this when
+connecting to PostgreSQL 17+ servers or proxies that expect a direct TLS
+connection rather than the standard SSL-negotiation protocol (e.g. a
+TLS-terminating load balancer or stunnel).
+
+Certificate verification behaviour is controlled by `server_tls_sslmode` as
+normal: `require`, `verify-ca`, and `verify-full` all work correctly with
+`server_tls_direct = 1`.
+
+Setting `server_tls_direct = 1` together with `server_tls_sslmode = disable`
+is an error.
+
+Default: 0
+
 ### server_tls_ca_file
 
 Root certificate file to validate PostgreSQL server certificates.

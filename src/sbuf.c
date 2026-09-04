@@ -1072,6 +1072,12 @@ static void sbuf_connect_cb(evutil_socket_t sock, short flags, void *arg)
 			goto failed;
 		if (!sbuf_call_proto(sbuf, SBUF_EV_CONNECT_OK))
 			return;
+		/*
+		 * If the proto handler already registered an event (e.g. a
+		 * direct-TLS handshake callback), don't overwrite it.
+		 */
+		if (sbuf->wait_type != W_NONE)
+			return;
 		if (!sbuf_wait_for_data(sbuf))
 			goto failed;
 		return;
@@ -1145,6 +1151,7 @@ static struct tls_config *client_accept_conf;
 int client_accept_sslmode;
 static struct tls_config *server_connect_conf;
 int server_connect_sslmode;
+int server_connect_tls_direct;
 
 /*
  * TLS setup
@@ -1246,6 +1253,9 @@ static bool tls_change_requires_reconnect(struct tls_config *new_server_connect_
 	if (server_connect_sslmode != cf_server_tls_sslmode) {
 		log_noise("new server_tls_sslmode detected");
 		return true;
+	} else if (server_connect_tls_direct != cf_server_tls_direct) {
+		log_noise("new server_tls_direct detected");
+		return true;
 	} else if (server_connect_conf == NULL) {
 		log_noise("no existing server tls config detected");
 		return true;
@@ -1295,6 +1305,11 @@ bool sbuf_tls_setup(void)
 	err = tls_init();
 	if (err)
 		fatal("tls_init failed");
+
+	if (cf_server_tls_direct && cf_server_tls_sslmode == SSLMODE_DISABLED) {
+		log_error("server_tls_direct requires server_tls_sslmode to not be 'disable'");
+		return false;
+	}
 
 	if (cf_server_tls_sslmode != SSLMODE_DISABLED) {
 		new_server_connect_conf = tls_config_new();
@@ -1360,6 +1375,7 @@ bool sbuf_tls_setup(void)
 	client_accept_sslmode = cf_client_tls_sslmode;
 	server_connect_conf = new_server_connect_conf;
 	server_connect_sslmode = cf_server_tls_sslmode;
+	server_connect_tls_direct = cf_server_tls_direct;
 	return true;
 failed:
 	usual_tls_free(new_client_accept_base);
@@ -1433,12 +1449,24 @@ bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
 	struct tls *ctls;
 	int err;
 
-	if (!sbuf_pause(sbuf))
-		return false;
+	/*
+	 * Pause the current read event if one is registered.  When called from
+	 * the STARTTLS path (handle_sslchar) the socket is in W_RECV.
+	 */
+	if (sbuf->wait_type == W_RECV) {
+		if (!sbuf_pause(sbuf))
+			return false;
+	}
 
-	if (cf_server_tls_sslmode != SSLMODE_VERIFY_FULL)
-		hostname = NULL;
-
+	/*
+	 * Always pass the hostname to tls_connect_fds() so it is set as SNI in
+	 * the ClientHello.  SNI is needed for server-side backend routing
+	 * (e.g. cloud VPE endpoints) regardless of whether we verify the
+	 * server's certificate name.  Certificate name verification is already
+	 * controlled independently by tls_config_insecure_noverifyname() in
+	 * sbuf_tls_setup(), so nulling the hostname here only breaks SNI without
+	 * making connections any less strict.
+	 */
 	ctls = tls_client();
 	if (!ctls)
 		return false;
@@ -1461,6 +1489,27 @@ bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
 
 	sbuf->tls_state = SBUF_TLS_DO_HANDSHAKE;
 	return true;
+}
+
+/*
+ * Set up TLS for a direct-TLS server connection (no SSLRequest round-trip)
+ * and immediately start the handshake.  Called from handle_connect() at
+ * SBUF_EV_CONNECT_OK time, when wait_type is W_NONE.
+ */
+bool sbuf_tls_connect_direct(SBuf *sbuf, const char *hostname)
+{
+	if (!sbuf_tls_connect(sbuf, hostname))
+		return false;
+
+	/*
+	 * Kick the TLS handshake right away.  handle_tls_handshake() will
+	 * either complete synchronously (TLS_WANT_POLLIN / TLS_WANT_POLLOUT
+	 * registers a one-shot callback) or fire SBUF_EV_TLS_READY when done.
+	 * We must NOT call sbuf_continue() here — that would attempt recv()
+	 * before the handshake completes and see EOF from PG.
+	 */
+	sbuf->pkt_action = SBUF_TLS_IN_HANDSHAKE;
+	return handle_tls_handshake(sbuf);
 }
 
 /*
@@ -1602,6 +1651,7 @@ static void sbuf_possible_direct_tls_startup_cb(evutil_socket_t fd, short flags,
 
 int client_accept_sslmode = SSLMODE_DISABLED;
 int server_connect_sslmode = SSLMODE_DISABLED;
+int server_connect_tls_direct;
 
 bool sbuf_tls_setup(void)
 {
@@ -1612,6 +1662,10 @@ bool sbuf_tls_accept(SBuf *sbuf)
 	return false;
 }
 bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
+{
+	return false;
+}
+bool sbuf_tls_connect_direct(SBuf *sbuf, const char *hostname)
 {
 	return false;
 }

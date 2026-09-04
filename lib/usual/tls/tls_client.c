@@ -183,6 +183,24 @@ int tls_connect_fds(struct tls *ctx, int fd_read, int fd_write,
 		goto err;
 	}
 
+	/*
+	 * Advertise the "postgresql" ALPN protocol.  This is required for
+	 * PostgreSQL 17+ direct TLS connections (RFC 7301) and is harmless
+	 * for STARTTLS connections where PostgreSQL ignores ALPN.
+	 * Mirrors PG_ALPN_PROTOCOL_VECTOR in tls_server.c.
+	 */
+	{
+		static const unsigned char alpn_protos[] = {
+			10, 'p', 'o', 's', 't', 'g', 'r', 'e', 's', 'q', 'l'
+		};
+		if (SSL_CTX_set_alpn_protos(ctx->ssl_ctx,
+					    alpn_protos,
+					    sizeof(alpn_protos)) != 0) {
+			tls_set_errorx(ctx, "failed to set ALPN protocols");
+			goto err;
+		}
+	}
+
 	if (tls_configure_ssl(ctx) != 0)
 		goto err;
 	if (tls_configure_keypair(ctx, ctx->ssl_ctx, ctx->config->keypair, 0) != 0)

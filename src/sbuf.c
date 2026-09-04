@@ -1458,9 +1458,15 @@ bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
 			return false;
 	}
 
-	if (cf_server_tls_sslmode != SSLMODE_VERIFY_FULL)
-		hostname = NULL;
-
+	/*
+	 * Always pass the hostname to tls_connect_fds() so it is set as SNI in
+	 * the ClientHello.  SNI is needed for server-side backend routing
+	 * (e.g. cloud VPE endpoints) regardless of whether we verify the
+	 * server's certificate name.  Certificate name verification is already
+	 * controlled independently by tls_config_insecure_noverifyname() in
+	 * sbuf_tls_setup(), so nulling the hostname here only breaks SNI without
+	 * making connections any less strict.
+	 */
 	ctls = tls_client();
 	if (!ctls)
 		return false;

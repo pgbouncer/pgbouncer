@@ -651,3 +651,27 @@ def test_server_tls_direct_alpn_negotiated(pg, bouncer_tls, cert_dir):
     # a successful query through pg_stat_ssl confirms TLS + ALPN both worked.
     result = bouncer_tls.sql("SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()")
     assert result and result[0][0] is True
+
+
+@pytest.mark.skipif(
+    "not DIRECT_TLS_SUPPORT", reason="Direct TLS requires PG 17+ with TLS support"
+)
+def test_server_tls_direct_sni_sent_for_non_verify_full(pg, bouncer_tls, cert_dir):
+    """SNI is sent in the ClientHello even when sslmode is not verify-full."""
+    root = cert_dir / "TestCA1" / "ca.crt"
+
+    pg.configure("ssl=on")
+    pg.configure(f"ssl_ca_file='{root}'")
+    pg.ssl_access("all", "trust")
+    pg.nossl_access("all", "reject")
+    pg.reload()
+
+    bouncer_tls.write_ini("server_tls_sslmode = verify-ca")
+    bouncer_tls.write_ini(f"server_tls_ca_file = {root}")
+    bouncer_tls.write_ini("server_tls_direct = 1")
+    bouncer_tls.admin("reload")
+
+    # A successful query proves the handshake completed — which requires SNI
+    # because the server only accepts hostssl connections.
+    with bouncer_tls.log_contains(r"SSL established"):
+        bouncer_tls.test()

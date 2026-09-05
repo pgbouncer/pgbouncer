@@ -933,10 +933,31 @@ def test_shutdown_wait_for_clients(bouncer):
         bouncer.test(host=socket_directory)
 
 
-def test_resume_during_shutdown(bouncer):
+def test_resume_during_wait_for_clients_shutdown(bouncer):
+    """
+    RESUME must be honored during SHUTDOWN_WAIT_FOR_CLIENTS so that a pause
+    set just before (or after) the shutdown signal can be cleared. Otherwise
+    in-flight clients hang forever.
+    """
     with bouncer.cur() as cur, bouncer.admin_runner.cur() as admin_cur:
         cur.execute("SELECT 1")
+        admin_cur.execute("PAUSE")
         bouncer.admin("SHUTDOWN WAIT_FOR_CLIENTS")
+
+        admin_cur.execute("RESUME")
+
+        cur.execute("SELECT 2")
+        assert cur.fetchone() == (2,)
+
+
+def test_resume_during_wait_for_servers_shutdown(bouncer):
+    """
+    RESUME must still be refused during SHUTDOWN_WAIT_FOR_SERVERS, which is
+    explicitly draining servers in preparation for exit.
+    """
+    with bouncer.cur() as cur, bouncer.admin_runner.cur() as admin_cur:
+        cur.execute("SELECT 1")
+        bouncer.admin("SHUTDOWN WAIT_FOR_SERVERS")
 
         with pytest.raises(
             psycopg.errors.ProtocolViolation, match="pooler is shutting down"
@@ -944,15 +965,44 @@ def test_resume_during_shutdown(bouncer):
             admin_cur.execute("RESUME")
 
 
-def test_sigusr2_during_shutdown(bouncer):
+def test_sigusr2_during_wait_for_clients_shutdown(bouncer):
+    """
+    SIGUSR2 must clear an active pause even after the pgbouncer has entered
+    SHUTDOWN_WAIT_FOR_CLIENTS.
+    """
+    if WINDOWS:
+        pytest.skip("signals are POSIX-only")
+
     with bouncer.cur() as cur:
         cur.execute("SELECT 1")
+        bouncer.sigusr1()
+        time.sleep(1)
         bouncer.admin("SHUTDOWN WAIT_FOR_CLIENTS")
 
-        if not WINDOWS:
-            with bouncer.log_contains(r"got SIGUSR2 while shutting down, ignoring"):
-                bouncer.sigusr2()
-                time.sleep(1)
+        with bouncer.log_contains(r"got SIGUSR2, continuing from PAUSE"):
+            bouncer.sigusr2()
+            time.sleep(1)
+
+        cur.execute("SELECT 2")
+        assert cur.fetchone() == (2,)
+
+
+def test_sigusr2_during_wait_for_servers_shutdown(bouncer):
+    """
+    SIGUSR2 must be ignored under SHUTDOWN_WAIT_FOR_SERVERS, which is
+    intentionally draining servers.
+    """
+    if WINDOWS:
+        pytest.skip("signals are POSIX-only")
+
+    bouncer.admin("set pool_mode=transaction")
+    with bouncer.transaction() as cur:
+        cur.execute("SELECT 1")
+        bouncer.admin("SHUTDOWN WAIT_FOR_SERVERS")
+
+        with bouncer.log_contains(r"got SIGUSR2 while shutting down"):
+            bouncer.sigusr2()
+            time.sleep(1)
 
 
 def test_issue_1104(bouncer):

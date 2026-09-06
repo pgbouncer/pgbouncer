@@ -1604,11 +1604,119 @@ account  required pam_deny.so
     """
     with (
         bouncer.run_with_config(config),
+        bouncer.log_contains(
+            re_string="WARNING pam_authenticate\\(\\) failed: Authentication failure",
+            times=1,
+        ),
         pytest.raises(
             psycopg.OperationalError, match="FATAL:  PAM authentication failed"
         ),
+    ):
+        bouncer.test(
+            user="postgres",
+            dbname="postgres",
+            password="fakepass",
+        )
+
+
+@pytest.mark.skipif(not PAM_SUPPORT, reason="pgbouncer is built without PAM support")
+@pytest.mark.skipif(
+    not PAM_START_CONFDIR_SUPPORT,
+    reason="pgbouncer is built without pam_start_confdir support",
+)
+def test_pam_negative_pam_start(bouncer, tmp_path):
+    """
+    Negative test of pam_start execption handling
+
+    Test forces a pam_start_confdir to exit with a non PAM_SUCCESS return code.
+    It does this by creating a pam.d directory in the tests temp path, pointing
+    pam_start_confdir to this directory, but then not putting a pgbouncer service file
+    in the directory.
+    """
+    pam_d = tmp_path / "pam.d"
+    pam_d.mkdir()
+
+    # Leave out pam service file to instigate pam_start failure
+
+    config = f"""
+        [databases]
+        postgres = auth_query='SELECT usename, passwd FROM pg_shadow where usename = $1'\
+            host={bouncer.pg.host} port={bouncer.pg.port}
+        [pgbouncer]
+        auth_query = SELECT 1
+        auth_user = pswcheck
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = pam
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = postgres
+        auth_pam_confdir = {pam_d}
+    """
+    with (
+        bouncer.run_with_config(config),
         bouncer.log_contains(
-            "WARNING pam_authenticate() failed: Authentication failure"
+            re_string="WARNING pam_start\\(\\) failed: Critical error",
+            times=1,
+        ),
+        pytest.raises(
+            psycopg.OperationalError, match="FATAL:  PAM authentication failed"
+        ),
+    ):
+        bouncer.test(
+            user="postgres",
+            dbname="postgres",
+            password="fakepass",
+        )
+
+
+@pytest.mark.skipif(not PAM_SUPPORT, reason="pgbouncer is built without PAM support")
+@pytest.mark.skipif(
+    not PAM_START_CONFDIR_SUPPORT,
+    reason="pgbouncer is built without pam_start_confdir support",
+)
+def test_pam_negative_account(bouncer, tmp_path):
+    """
+    Negative test of pam_acct_mgmt execption handling
+
+    Test forces a non PAM_SUCCESS return code from pam_acct_mgmt by setting up the
+    pgbouncer pam service to permit all auth but deny all account.
+    """
+    pam_d = tmp_path / "pam.d"
+    pam_d.mkdir()
+    pam_pgbouncer_conf = pam_d / "pgbouncer"
+    with open(pam_pgbouncer_conf, "w") as of_pam_pgbouncer_conf:
+        of_pam_pgbouncer_conf.write("""
+auth     required pam_permit.so
+account  required pam_deny.so
+""")
+
+    config = f"""
+        [databases]
+        postgres = auth_query='SELECT usename, passwd FROM pg_shadow where usename = $1'\
+            host={bouncer.pg.host} port={bouncer.pg.port}
+        [pgbouncer]
+        auth_query = SELECT 1
+        auth_user = pswcheck
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = pam
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = postgres
+        auth_pam_confdir = {pam_d}
+    """
+    with (
+        bouncer.run_with_config(config),
+        bouncer.log_contains(
+            "WARNING pam_acct_mgmt\\(\\) failed: Authentication failure"
+        ),
+        pytest.raises(
+            psycopg.OperationalError, match="FATAL:  PAM authentication failed"
         ),
     ):
         bouncer.test(
@@ -1689,20 +1797,20 @@ set -x
 
 read pam_passwd
 
-if [ "$PAM_USER" != "postgres" ]; then
+if [ "$PAM_RUSER" != "" ]; then
     exit 1
-elif [ "$pam_passwd" != "password3" ]; then
-    exit 3
-elif [ "$PAM_RUSER" != "" ]; then
-    exit 4
 elif [ "$PAM_SERVICE" != "pgbouncer" ]; then
-    exit 5
+    exit 2
 elif [ "$PAM_TTY" != "" ]; then
-    exit 6
+    exit 3
 elif [ "$PAM_TYPE" != "auth" ]; then
-    exit 7
+    exit 4
 elif [ "$PAM_RHOST" != "127.0.0.1" ]; then
-    exit 8
+    exit 5
+elif [ "$PAM_USER" != "postgres" ]; then
+    exit 6
+elif [ "$pam_passwd" != "password3" ]; then
+    exit 7
 fi
 exit 0
 """)

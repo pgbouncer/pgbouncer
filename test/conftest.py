@@ -8,6 +8,7 @@ from .utils import (
     LDAP_SUPPORT,
     LINUX,
     LONG_PASSWORD,
+    PAM,
     PG_SUPPORTS_SCRAM,
     TEST_DIR,
     TLS_SUPPORT,
@@ -200,6 +201,16 @@ async def bouncer(pg, tmp_path):
 
     yield bouncer
 
+    await bouncer.cleanup()
+
+
+@pytest.fixture
+async def bouncer_with_pam(pg, tmp_path):
+    bouncer = Bouncer(pg, tmp_path / "bouncer")
+    pam = PAM(tmp_path)
+    bouncer.pam = pam
+    await bouncer.start()
+    yield bouncer
     await bouncer.cleanup()
 
 

@@ -230,6 +230,7 @@ jobs:
           useradd -m user
           chown -R user .
           echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+          echo -e 'auth required pam_permit.so\naccount required pam_permit.so' > /etc/pam.d/pgbouncer
       - name: Build
         run: su user -c "MESON_ARGS='$MESON_ARGS' CONFIGURE_ARGS='$CONFIGURE_ARGS' PATH=/venv/bin:\$PATH sh ci/run.sh build $BUILD_SYSTEM"
       - name: Test

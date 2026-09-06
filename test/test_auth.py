@@ -12,6 +12,7 @@ from .utils import (
     LDAP_SUPPORT,
     LONG_PASSWORD,
     MACOS,
+    PAM_PGBOUNCER_CONF_TEST_CONFIGURED,
     PAM_START_CONFDIR_SUPPORT,
     PAM_SUPPORT,
     PG_SUPPORTS_SCRAM,
@@ -1568,7 +1569,7 @@ async def test_auth_query_login_large_packets(bouncer):
     not PAM_START_CONFDIR_SUPPORT,
     reason="pgbouncer is built without pam_start_confdir support",
 )
-def test_pam_negative(bouncer, tmp_path):
+def test_pam_negative(bouncer_with_pam):
     """
     Negative test of pgbouncer PAM authentication system
 
@@ -1576,35 +1577,33 @@ def test_pam_negative(bouncer, tmp_path):
     the pgbouncer PAM system. pam_deny basically just returns "no" to any authentication
     request so we just assume that we are not able to connect.
     """
-    pam_d = tmp_path / "pam.d"
-    pam_d.mkdir()
-    pam_pgbouncer_conf = pam_d / "pgbouncer"
-    with open(pam_pgbouncer_conf, "w") as of_pam_pgbouncer_conf:
-        of_pam_pgbouncer_conf.write("""
+
+    pam_config_file = """
 auth     required pam_deny.so
 account  required pam_deny.so
-""")
+"""
+    bouncer_with_pam.pam.create_pam_service_file(pam_config_file)
 
     config = f"""
         [databases]
         postgres = auth_query='SELECT usename, passwd FROM pg_shadow where usename = $1'\
-            host={bouncer.pg.host} port={bouncer.pg.port}
+            host={bouncer_with_pam.pg.host} port={bouncer_with_pam.pg.port}
         [pgbouncer]
         auth_query = SELECT 1
         auth_user = pswcheck
         stats_users = stats
-        listen_addr = {bouncer.host}
-        admin_users = pgbouncer
+        listen_addr = {bouncer_with_pam.host}
+        admin_users = pgbouncer_with_pam
         auth_type = pam
-        auth_file = {bouncer.auth_path}
-        listen_port = {bouncer.port}
-        logfile = {bouncer.log_path}
+        auth_file = {bouncer_with_pam.auth_path}
+        listen_port = {bouncer_with_pam.port}
+        logfile = {bouncer_with_pam.log_path}
         auth_dbname = postgres
-        auth_pam_confdir = {pam_d}
+        auth_pam_confdir = {bouncer_with_pam.pam.pam_config_dir}
     """
     with (
-        bouncer.run_with_config(config),
-        bouncer.log_contains(
+        bouncer_with_pam.run_with_config(config),
+        bouncer_with_pam.log_contains(
             re_string="WARNING pam_authenticate\\(\\) failed: Authentication failure",
             times=1,
         ),
@@ -1612,7 +1611,7 @@ account  required pam_deny.so
             psycopg.OperationalError, match="FATAL:  PAM authentication failed"
         ),
     ):
-        bouncer.test(
+        bouncer_with_pam.test(
             user="postgres",
             dbname="postgres",
             password="fakepass",
@@ -1624,7 +1623,7 @@ account  required pam_deny.so
     not PAM_START_CONFDIR_SUPPORT,
     reason="pgbouncer is built without pam_start_confdir support",
 )
-def test_pam_negative_pam_start(bouncer, tmp_path):
+def test_pam_negative_pam_start(bouncer_with_pam):
     """
     Negative test of pam_start execption handling
 
@@ -1633,31 +1632,29 @@ def test_pam_negative_pam_start(bouncer, tmp_path):
     pam_start_confdir to this directory, but then not putting a pgbouncer service file
     in the directory.
     """
-    pam_d = tmp_path / "pam.d"
-    pam_d.mkdir()
 
     # Leave out pam service file to instigate pam_start failure
 
     config = f"""
         [databases]
         postgres = auth_query='SELECT usename, passwd FROM pg_shadow where usename = $1'\
-            host={bouncer.pg.host} port={bouncer.pg.port}
+            host={bouncer_with_pam.pg.host} port={bouncer_with_pam.pg.port}
         [pgbouncer]
         auth_query = SELECT 1
         auth_user = pswcheck
         stats_users = stats
-        listen_addr = {bouncer.host}
-        admin_users = pgbouncer
+        listen_addr = {bouncer_with_pam.host}
+        admin_users = pgbouncer_with_pam
         auth_type = pam
-        auth_file = {bouncer.auth_path}
-        listen_port = {bouncer.port}
-        logfile = {bouncer.log_path}
+        auth_file = {bouncer_with_pam.auth_path}
+        listen_port = {bouncer_with_pam.port}
+        logfile = {bouncer_with_pam.log_path}
         auth_dbname = postgres
-        auth_pam_confdir = {pam_d}
+        auth_pam_confdir = {bouncer_with_pam.pam.pam_config_dir}
     """
     with (
-        bouncer.run_with_config(config),
-        bouncer.log_contains(
+        bouncer_with_pam.run_with_config(config),
+        bouncer_with_pam.log_contains(
             re_string="WARNING pam_start\\(\\) failed: Critical error",
             times=1,
         ),
@@ -1665,7 +1662,7 @@ def test_pam_negative_pam_start(bouncer, tmp_path):
             psycopg.OperationalError, match="FATAL:  PAM authentication failed"
         ),
     ):
-        bouncer.test(
+        bouncer_with_pam.test(
             user="postgres",
             dbname="postgres",
             password="fakepass",
@@ -1677,49 +1674,46 @@ def test_pam_negative_pam_start(bouncer, tmp_path):
     not PAM_START_CONFDIR_SUPPORT,
     reason="pgbouncer is built without pam_start_confdir support",
 )
-def test_pam_negative_account(bouncer, tmp_path):
+def test_pam_negative_account(bouncer_with_pam):
     """
     Negative test of pam_acct_mgmt execption handling
 
     Test forces a non PAM_SUCCESS return code from pam_acct_mgmt by setting up the
     pgbouncer pam service to permit all auth but deny all account.
     """
-    pam_d = tmp_path / "pam.d"
-    pam_d.mkdir()
-    pam_pgbouncer_conf = pam_d / "pgbouncer"
-    with open(pam_pgbouncer_conf, "w") as of_pam_pgbouncer_conf:
-        of_pam_pgbouncer_conf.write("""
+    pam_config_file = """
 auth     required pam_permit.so
 account  required pam_deny.so
-""")
+"""
+    bouncer_with_pam.pam.create_pam_service_file(pam_config_file)
 
     config = f"""
         [databases]
         postgres = auth_query='SELECT usename, passwd FROM pg_shadow where usename = $1'\
-            host={bouncer.pg.host} port={bouncer.pg.port}
+            host={bouncer_with_pam.pg.host} port={bouncer_with_pam.pg.port}
         [pgbouncer]
         auth_query = SELECT 1
         auth_user = pswcheck
         stats_users = stats
-        listen_addr = {bouncer.host}
-        admin_users = pgbouncer
+        listen_addr = {bouncer_with_pam.host}
+        admin_users = pgbouncer_with_pam
         auth_type = pam
-        auth_file = {bouncer.auth_path}
-        listen_port = {bouncer.port}
-        logfile = {bouncer.log_path}
+        auth_file = {bouncer_with_pam.auth_path}
+        listen_port = {bouncer_with_pam.port}
+        logfile = {bouncer_with_pam.log_path}
         auth_dbname = postgres
-        auth_pam_confdir = {pam_d}
+        auth_pam_confdir = {bouncer_with_pam.pam.pam_config_dir}
     """
     with (
-        bouncer.run_with_config(config),
-        bouncer.log_contains(
+        bouncer_with_pam.run_with_config(config),
+        bouncer_with_pam.log_contains(
             "WARNING pam_acct_mgmt\\(\\) failed: Authentication failure"
         ),
         pytest.raises(
             psycopg.OperationalError, match="FATAL:  PAM authentication failed"
         ),
     ):
-        bouncer.test(
+        bouncer_with_pam.test(
             user="postgres",
             dbname="postgres",
             password="fakepass",
@@ -1731,7 +1725,7 @@ account  required pam_deny.so
     not PAM_START_CONFDIR_SUPPORT,
     reason="pgbouncer is built without pam_start_confdir support",
 )
-def test_pam_positive(bouncer, tmp_path):
+def test_pam_positive(bouncer_with_pam):
     """
     Positive test of pgbouncer PAM authentication system
 
@@ -1739,35 +1733,38 @@ def test_pam_positive(bouncer, tmp_path):
     the pgbouncer PAM system. pam_permit basically just returns "yes" to any authentication
     request so we just assume that we are able to connect.
     """
-    pam_d = tmp_path / "pam.d"
-    pam_d.mkdir()
-    pam_pgbouncer_conf = pam_d / "pgbouncer"
-    pam_pgbouncer_conf.touch()
-    with open(pam_pgbouncer_conf, "w") as of_pam_pgbouncer_conf:
-        of_pam_pgbouncer_conf.write("""
+    pam_config_file = """
 auth     required pam_permit.so
 account  required pam_permit.so
-""")
+    """
+    bouncer_with_pam.pam.create_pam_service_file(pam_config_file)
 
     config = f"""
         [databases]
         postgres = auth_query='SELECT usename, passwd FROM pg_shadow where usename = $1'\
-            host={bouncer.pg.host} port={bouncer.pg.port}
+            host={bouncer_with_pam.pg.host} port={bouncer_with_pam.pg.port}
         [pgbouncer]
         auth_query = SELECT 1
         auth_user = pswcheck
         stats_users = stats
-        listen_addr = {bouncer.host}
-        admin_users = pgbouncer
+        listen_addr = {bouncer_with_pam.host}
+        admin_users = pgbouncer_with_pam
         auth_type = pam
-        auth_file = {bouncer.auth_path}
-        listen_port = {bouncer.port}
-        logfile = {bouncer.log_path}
+        auth_file = {bouncer_with_pam.auth_path}
+        listen_port = {bouncer_with_pam.port}
+        logfile = {bouncer_with_pam.log_path}
         auth_dbname = postgres
-        auth_pam_confdir = {pam_d}
+        auth_pam_confdir = {bouncer_with_pam.pam.pam_config_dir}
+        verbose = 1
     """
-    with bouncer.run_with_config(config):
-        bouncer.test(
+    with (
+        bouncer_with_pam.run_with_config(config),
+        bouncer_with_pam.log_contains(
+            "DEBUG pam_auth_worker\\(\\): authentication completed, status=2",
+            1,
+        ),
+    ):
+        bouncer_with_pam.test(
             user="postgres",
             dbname="postgres",
             host="localhost",
@@ -1780,7 +1777,7 @@ account  required pam_permit.so
     not PAM_START_CONFDIR_SUPPORT,
     reason="pgbouncer is built without pam_start_confdir support",
 )
-def test_pam_exec(bouncer, tmp_path):
+def test_pam_exec(bouncer_with_pam, tmp_path):
     """
     Test PAM auth functionality via pam_exec module
 
@@ -1815,14 +1812,94 @@ fi
 exit 0
 """)
 
-    pam_d = tmp_path / "pam.d"
-    pam_d.mkdir()
-    pam_pgbouncer_conf = pam_d / "pgbouncer"
-    with open(pam_pgbouncer_conf, "w") as of_pam_pgbouncer_conf:
-        of_pam_pgbouncer_conf.write(f"""
+    pam_service_file_contents = f"""
 auth     required pam_exec.so debug expose_authtok log={tmp_path}/pam.log /bin/sh {pam_exec_script_sh}
 account  required pam_permit.so
-""")
+"""
+
+    bouncer_with_pam.pam.create_pam_service_file(pam_service_file_contents)
+
+    config = f"""
+        [databases]
+        postgres = auth_query='SELECT usename, passwd FROM pg_shadow where usename = $1'\
+            host={bouncer_with_pam.pg.host} port={bouncer_with_pam.pg.port}
+        [pgbouncer]
+        auth_query = SELECT 1
+        auth_user = pswcheck
+        stats_users = stats
+        listen_addr = {bouncer_with_pam.host}
+        admin_users = pgbouncer_with_pam
+        auth_type = pam
+        auth_file = {bouncer_with_pam.auth_path}
+        listen_port = {bouncer_with_pam.port}
+        logfile = {bouncer_with_pam.log_path}
+        auth_dbname = postgres
+        auth_pam_confdir = {bouncer_with_pam.pam.pam_config_dir}
+        verbose = 1
+    """
+    with bouncer_with_pam.run_with_config(config):
+        with bouncer_with_pam.log_contains(
+            "DEBUG pam_auth_worker\\(\\): authentication completed, status=2",
+            1,
+        ):
+            bouncer_with_pam.test(
+                user="postgres",
+                dbname="postgres",
+                password="password3",
+            )
+
+        with (
+            bouncer_with_pam.log_contains(
+                "WARNING pam_conversation\\(\\): PAM error: /bin/sh failed: exit code 7",
+                1,
+            ),
+            pytest.raises(
+                psycopg.OperationalError, match="FATAL:  PAM authentication failed"
+            ),
+        ):
+            bouncer_with_pam.test(
+                user="postgres",
+                dbname="postgres",
+                password="badpassword",
+            )
+        with (
+            bouncer_with_pam.log_contains(
+                "WARNING pam_conversation\\(\\): PAM error: /bin/sh failed: exit code 6",
+                1,
+            ),
+            pytest.raises(
+                psycopg.OperationalError, match="FATAL:  PAM authentication failed"
+            ),
+        ):
+            bouncer_with_pam.test(
+                user="baduser",
+                dbname="postgres",
+                password="badpassword",
+            )
+
+
+@pytest.mark.skipif(not PAM_SUPPORT, reason="pgbouncer is built without PAM support")
+@pytest.mark.skipif(
+    not PAM_PGBOUNCER_CONF_TEST_CONFIGURED,
+    reason="test requires a config file placed in /etc/pam.d/pgbouncer which permits all via ",
+)
+def test_pam_system(bouncer, tmp_path):
+    """
+    Positive test of PAM using default confdir
+
+    This test assumes that the system has been set up with a `/etc/pam.d/pgbouncer` file
+    to permit all auth requests. Designed to ensure that the default functionality works
+    at a basic level. Other tests that utilitize temp, non system confdir test the PAM system
+    in a more fine grained way without making assumptions about what has been set up on the root
+    system. This is similar to how the test is set up in postgres
+    `src/interfaces/libpq/t/004_load_balance_dns.pl`. The contents of /etc/pam.d/pgbouncer should
+    be:
+
+    ```
+    auth required pam_permit.so
+    account required pam_permit.so
+    ```
+    """
 
     config = f"""
         [databases]
@@ -1839,38 +1916,18 @@ account  required pam_permit.so
         listen_port = {bouncer.port}
         logfile = {bouncer.log_path}
         auth_dbname = postgres
-        auth_pam_confdir = {pam_d}
+        verbose = 1
     """
-    with bouncer.run_with_config(config):
+    with (
+        bouncer.run_with_config(config),
+        bouncer.log_contains(
+            "DEBUG pam_auth_worker\\(\\): authentication completed, status=2",
+            1,
+        ),
+    ):
         bouncer.test(
             user="postgres",
             dbname="postgres",
-            password="password3",
+            host="localhost",
+            password="fakepass",
         )
-
-        with (
-            pytest.raises(
-                psycopg.OperationalError, match="FATAL:  PAM authentication failed"
-            ),
-            bouncer.log_contains(
-                "WARNING pam_conversation(): PAM error: /bin/sh failed: exit code 3"
-            ),
-        ):
-            bouncer.test(
-                user="postgres",
-                dbname="postgres",
-                password="badpassword",
-            )
-        with (
-            pytest.raises(
-                psycopg.OperationalError, match="FATAL:  PAM authentication failed"
-            ),
-            bouncer.log_contains(
-                "WARNING pam_conversation(): PAM error: /bin/sh failed: exit code 1"
-            ),
-        ):
-            bouncer.test(
-                user="baduser",
-                dbname="postgres",
-                password="badpassword",
-            )

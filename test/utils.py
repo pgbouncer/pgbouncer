@@ -242,6 +242,20 @@ def get_pam_start_confdir_support():
 PAM_START_CONFDIR_SUPPORT = get_pam_start_confdir_support()
 
 
+def validate_pam_pgbouncer_test_config():
+    pgbouncer_pam_config_fp = Path("/etc/pam.d/pgbouncer")
+    if not pgbouncer_pam_config_fp.exists():
+        return False
+
+    expected_file_contents = (
+        "auth required pam_permit.so\naccount required pam_permit.so\n"
+    )
+    return expected_file_contents == pgbouncer_pam_config_fp.read_text()
+
+
+PAM_PGBOUNCER_CONF_TEST_CONFIGURED = validate_pam_pgbouncer_test_config()
+
+
 def get_tls_support():
     return get_build_feature("tls_support", "USUAL_LIBSSL_FOR_TLS")
 
@@ -1306,6 +1320,18 @@ class Bouncer(QueryRunner):
             with self.ini_path.open("w") as f:
                 f.write(config_old)
             self.admin("RELOAD")
+
+
+class PAM:
+    def __init__(self, config_dir):
+        self.pam_config_dir = config_dir / "pam.d"
+        self.pam_config_dir.mkdir()
+
+    def create_pam_service_file(self, contents):
+        pam_config_file_path = self.pam_config_dir / "pgbouncer"
+        with pam_config_file_path.open(mode="w") as pam_config_file_path_of:
+            pam_config_file_path_of.write(contents)
+        return pam_config_file_path_of
 
 
 class OpenLDAP:

@@ -932,9 +932,10 @@ static bool map_ldap_username(struct ldap_auth_request *request)
 	ok = expand_ldap_username(request, replacement, pmatch, ngroups);
 	regfree(&re);
 
-	if (ok)
+	if (ok) {
 		log_debug("LDAP user name mapping: \"%s\" -> \"%s\"",
 			  request->username, request->ldap_username);
+	}
 	return ok;
 }
 

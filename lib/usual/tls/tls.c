@@ -229,6 +229,8 @@ struct tls *tls_new(void)
 		return (NULL);
 
 	ctx->config = tls_config_default;
+	if (ctx->config)
+		ctx->config->references++;
 
 	tls_reset(ctx);
 
@@ -240,6 +242,9 @@ int tls_configure(struct tls *ctx, struct tls_config *config)
 	if (config == NULL)
 		config = tls_config_default;
 
+	/* A live handshake can outlast replacement of its owning configuration. */
+	config->references++;
+	tls_config_free(ctx->config);
 	ctx->config = config;
 
 	if ((ctx->flags & TLS_SERVER) != 0)
@@ -531,6 +536,7 @@ void usual_tls_free(struct tls *ctx)
 	if (ctx == NULL)
 		return;
 	tls_reset(ctx);
+	tls_config_free(ctx->config);
 	free(ctx);
 }
 

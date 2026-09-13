@@ -873,6 +873,9 @@ connections won't be closed though. If it's necessary for security
 reasons that all connections start using the new files ASAP, it's
 advised to run RECONNECT after the RELOAD.
 
+For automatic detection and recycling after outbound TLS file changes, see
+`server_tls_reload_interval` below.
+
 Changing any TLS settings will trigger a RECONNECT automatically
 for security reasons.
 
@@ -1020,6 +1023,36 @@ Default: not set
 Certificate for private key.  PostgreSQL server can validate it.
 
 Default: not set
+
+### server_tls_reload_interval
+
+Interval in seconds between checks for changes to explicit `server_tls_ca_file`,
+`server_tls_cert_file`, and `server_tls_key_file` contents. Zero disables automatic
+refresh and preserves the existing file-loading behavior. Fractional seconds are
+accepted; checks use the maintenance timer, which runs approximately three times
+per second.
+
+When enabled, outbound TLS material is copied into memory and locally validated
+at startup, RELOAD, and each interval. Invalid or missing files leave the last
+successfully loaded configuration in use, including for new server connections;
+checks retry on subsequent intervals. Invalid initial material prevents startup.
+Certificate and key must match. This does not test whether a remote PostgreSQL
+server accepts the new client certificate or whether its certificate chains to a
+new CA bundle. Use overlapping CA bundles during trust-anchor rotation.
+
+Changed contents mark existing server connections for recycling using the same
+mechanism as a TLS configuration change. In transaction pooling, an active
+transaction finishes before its server connection is replaced. In session pooling,
+replacement waits for the client session to release its server. Idle backends may
+all be closed at once. Identical contents do not cause reconnection.
+
+This checks outbound TLS files only: it does not reload the configuration file or
+incoming `client_tls_*` files. Reads and validation run on the event loop; use
+small files on a responsive local filesystem and choose an appropriate interval.
+Writers should replace files atomically. On disabling the setting, new connections
+return to the existing path-based loading behavior.
+
+Default: 0 (disabled)
 
 ### server_tls_protocols
 

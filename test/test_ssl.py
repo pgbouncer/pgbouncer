@@ -513,3 +513,154 @@ def test_system_error_propagation(bouncer_tls, cert_dir):
         # since it is expected.
         except psycopg.errors.ConfigFileError as e:
             assert "RELOAD failed" in str(e)
+
+
+@pytest.fixture
+def rotating_server_tls(bouncer_tls, pg, cert_dir, tmp_path):
+    """Real mTLS backend with stable, atomically replaceable credential paths."""
+    ca = cert_dir / "TestCA1"
+    cert = tmp_path / "client.crt"
+    key = tmp_path / "client.key"
+    root = tmp_path / "ca.crt"
+    cert.write_bytes((ca / "sites/02-bouncer.crt").read_bytes())
+    key.write_bytes((ca / "sites/02-bouncer.key").read_bytes())
+    root.write_bytes((ca / "ca.crt").read_bytes())
+    key.chmod(0o600)
+    renewed = tmp_path / "renewed.crt"
+    subprocess.run(
+        [
+            "openssl",
+            "x509",
+            "-in",
+            str(cert),
+            "-CA",
+            str(ca / "ca.crt"),
+            "-CAkey",
+            str(ca / "ca.key"),
+            "-set_serial",
+            "202",
+            "-days",
+            "30",
+            "-out",
+            str(renewed),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    pg.ssl_access("all", "cert")
+    pg.configure("ssl=on")
+    pg.configure(f"ssl_ca_file='{root}'")
+    pg.reload()
+    bouncer_tls.default_db = "pTxnPool"
+    bouncer_tls.ini_path.write_text(
+        bouncer_tls.ini_path.read_text().replace("host=127.0.0.1", "host=localhost")
+    )
+    for setting, value in {
+        "server_tls_sslmode": "verify-full",
+        "server_tls_ca_file": root,
+        "server_tls_cert_file": cert,
+        "server_tls_key_file": key,
+        "server_tls_reload_interval": "0.2",
+    }.items():
+        bouncer_tls.write_ini(f"{setting} = {value}")
+    bouncer_tls.admin("RELOAD")
+    return bouncer_tls, cert, key, root, renewed
+
+
+def replace_tls_file(path, content):
+    candidate = path.with_suffix(".candidate")
+    candidate.write_bytes(content)
+    candidate.chmod(0o600)
+    candidate.replace(path)
+
+
+def wait_for_tls_log(bouncer, offset, message):
+    for _ in wait_until(message):
+        if message in bouncer.log_path.read_text()[offset:]:
+            return
+
+
+def test_server_tls_auto_reload_transaction(rotating_server_tls):
+    bouncer, cert, _key, _root, renewed = rotating_server_tls
+    query = "SELECT pg_backend_pid(), client_serial::text FROM pg_stat_ssl WHERE pid=pg_backend_pid()"
+    with bouncer.conn() as conn:
+        with conn.transaction():
+            before = conn.execute(query).fetchone()
+            offset = len(bouncer.log_path.read_text())
+            replace_tls_file(cert, renewed.read_bytes())
+            wait_for_tls_log(bouncer, offset, "server TLS files changed")
+            assert conn.execute(query).fetchone() == before
+        after = conn.execute(query).fetchone()
+        assert after[0] != before[0]
+        assert after[1] == "202"
+        # Neither normal timer checks nor rewriting identical bytes churn pools.
+        replace_tls_file(cert, renewed.read_bytes())
+        time.sleep(0.8)
+        assert conn.execute(query).fetchone() == after
+
+
+@pytest.mark.parametrize("invalid", ["mismatch", "malformed", "missing", "ca"])
+def test_server_tls_auto_reload_retains_snapshot(
+    rotating_server_tls, cert_dir, invalid
+):
+    bouncer, cert, key, root, renewed = rotating_server_tls
+    target = root if invalid == "ca" else key
+    original = target.read_bytes()
+    query = "SELECT pg_backend_pid(), client_serial::text FROM pg_stat_ssl WHERE pid=pg_backend_pid()"
+    with bouncer.conn() as conn:
+        with conn.transaction():
+            before = conn.execute(query).fetchone()
+            offset = len(bouncer.log_path.read_text())
+            if invalid == "missing":
+                target.unlink()
+            elif invalid == "mismatch":
+                replace_tls_file(
+                    key, (cert_dir / "TestCA1/sites/01-localhost.key").read_bytes()
+                )
+            else:
+                replace_tls_file(target, b"not PEM\n")
+            wait_for_tls_log(bouncer, offset, "ERROR")
+            assert conn.execute(query).fetchone() == before
+            # A second physical backend must use the retained memory snapshot,
+            # rather than re-opening the now-invalid file.
+            fresh = bouncer.sql(query)[0]
+            assert fresh[0] != before[0]
+            assert fresh[1] == before[1]
+        offset = len(bouncer.log_path.read_text())
+        replace_tls_file(target, original)
+        replace_tls_file(cert, renewed.read_bytes())
+        wait_for_tls_log(bouncer, offset, "server TLS files changed")
+        assert conn.execute(query).fetchone()[1] == "202"
+
+
+def test_server_tls_auto_reload_ca_only(rotating_server_tls, cert_dir):
+    bouncer, _cert, _key, root, _renewed = rotating_server_tls
+    query = "SELECT pg_backend_pid(), client_serial::text FROM pg_stat_ssl WHERE pid=pg_backend_pid()"
+    before = bouncer.sql(query)[0]
+    offset = len(bouncer.log_path.read_text())
+    replace_tls_file(
+        root, root.read_bytes() + (cert_dir / "TestCA2/ca.crt").read_bytes()
+    )
+    wait_for_tls_log(bouncer, offset, "server TLS files changed")
+    after = bouncer.sql(query)[0]
+    assert before[0] != after[0]
+    assert before[1] == after[1]
+
+
+def test_server_tls_auto_reload_disable_and_enable(rotating_server_tls):
+    bouncer, cert, _key, _root, renewed = rotating_server_tls
+    query = "SELECT pg_backend_pid(), client_serial::text FROM pg_stat_ssl WHERE pid=pg_backend_pid()"
+    bouncer.admin("SET server_tls_reload_interval=0")
+    with bouncer.conn() as conn:
+        with conn.transaction():
+            before = conn.execute(query).fetchone()
+            replace_tls_file(cert, renewed.read_bytes())
+            time.sleep(0.8)
+            assert conn.execute(query).fetchone() == before
+            # Disabled: legacy new-connection file reads are preserved.
+            assert bouncer.sql(query)[0][1] == "202"
+        assert conn.execute(query).fetchone() == before
+        bouncer.admin("SET server_tls_reload_interval='0.2'")
+        after = conn.execute(query).fetchone()
+        assert after[0] != before[0]
+        assert after[1] == "202"

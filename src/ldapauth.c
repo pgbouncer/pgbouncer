@@ -28,6 +28,8 @@
 #define LDAP_DEPRECATED 1
 #include <ldap.h>
 
+#include <usual/regex.h>
+
 /* The request is waiting in the queue or being authenticated */
 #define LDAP_STATUS_IN_PROGRESS  1
 /* The request was successfully authenticated */
@@ -43,6 +45,11 @@
 #define LDAP_QUEUE_WAIT_SLEEP_MCS    (100*1000)
 #define LDAP_LONG_LENGTH 256
 #define MAX_INT_LENGTH 10
+
+/* Highest capture group usable as \1 - \9 in ldapusernamereplacement. */
+#define LDAP_MAP_MAX_GROUPS 9
+/* Used when ldapusernameregex is set but ldapusernamereplacement is not. */
+#define LDAP_MAP_DEFAULT_REPLACEMENT "\\1"
 
 struct ldap_auth_request {
 	/* The socket we check authentication for */
@@ -73,6 +80,14 @@ struct ldap_auth_request {
 	/* password we should check for validity together with the socket's username */
 	char password[MAX_PASSWORD];
 
+	/*
+	 * The user name handed to the directory.  Equal to username unless
+	 * ldapusernameregex rewrote it.  The PostgreSQL name in username is
+	 * never modified: that is the role we log in as on the server side.
+	 * Written by the authentication thread only.
+	 */
+	char ldap_username[MAX_USERNAME];
+
 	char ldap_options[MAX_LDAP_CONFIG];
 	int option_pos;
 	/* LDAP specific options */
@@ -86,6 +101,8 @@ struct ldap_auth_request {
 	char *ldapbindpasswd;
 	char *ldapprefix;
 	char *ldapsuffix;
+	char *ldapusernameregex;
+	char *ldapusernamereplacement;
 	int ldapport;
 	int ldapscope;
 };
@@ -131,6 +148,7 @@ static bool get_key_value(char **p, char **key, char **value);
 static bool initialize_ldap_options(struct ldap_auth_request *request, char *option);
 static bool InitializeLDAPConnection(struct ldap_auth_request *request, LDAP **ldap);
 static void format_search_filter(char *filter, int length, const char *pattern, const char *user_name);
+static bool map_ldap_username(struct ldap_auth_request *request);
 static bool check_ldap_auth(struct ldap_auth_request *request);
 static int get_request_status(struct ldap_auth_request *request);
 static void set_request_status(struct ldap_auth_request *request, int status);
@@ -208,6 +226,10 @@ static void free_ldap_options(struct ldap_auth_request *request)
 	reset_ptr(request, ldapbindpasswd);
 	reset_ptr(request, ldapprefix);
 	reset_ptr(request, ldapsuffix);
+	reset_ptr(request, ldapusernameregex);
+	reset_ptr(request, ldapusernamereplacement);
+
+	memset(request->ldap_username, 0, sizeof(request->ldap_username));
 
 	request->ldaptls = false;
 	request->ldapport = 0;
@@ -243,6 +265,15 @@ static bool validate_ldap_options(struct ldap_auth_request *request)
 	 */
 	if (request->ldapsearchattribute && request->ldapsearchfilter) {
 		log_warning("cannot use ldapsearchattribute together with ldapsearchfilter");
+		return false;
+	}
+
+	/*
+	 * The replacement only means anything together with a pattern to
+	 * capture from.
+	 */
+	if (request->ldapusernamereplacement && !request->ldapusernameregex) {
+		log_warning("ldapusernamereplacement requires ldapusernameregex to be set");
 		return false;
 	}
 
@@ -420,6 +451,10 @@ static bool initialize_ldap_options(struct ldap_auth_request *request, char *opt
 			ldap_option_dup(request, ldapprefix, value);
 		} else if (strcmp(key, "ldapsuffix") == 0) {
 			ldap_option_dup(request, ldapsuffix, value);
+		} else if (strcmp(key, "ldapusernameregex") == 0) {
+			ldap_option_dup(request, ldapusernameregex, value);
+		} else if (strcmp(key, "ldapusernamereplacement") == 0) {
+			ldap_option_dup(request, ldapusernamereplacement, value);
 		} else if (strcmp(key, "ldapurl") == 0) {
 			if (!parse_ldapurl(request, value))
 				return false;
@@ -758,6 +793,152 @@ static void format_search_filter(char *filter, int length, const char *pattern, 
 	filter[cur_len] = '\0';
 }
 /*
+ * Build request->ldap_username from "replacement", substituting \1 - \9 with
+ * the matching capture group of the login name.  "\\" yields a literal
+ * backslash; any other escape is rejected.
+ *
+ * Note that "\1" is used rather than the "$1" that OpenLDAP's authz-regexp
+ * uses, because "$" already introduces the $username placeholder understood
+ * by ldapsearchfilter.
+ */
+static bool expand_ldap_username(struct ldap_auth_request *request,
+				 const char *replacement,
+				 const regmatch_t *pmatch,
+				 size_t ngroups)
+{
+	const char *p = replacement;
+	size_t used = 0;
+
+	while (*p) {
+		const char *piece;
+		size_t len;
+
+		if (*p != '\\') {
+			piece = p++;
+			len = 1;
+		} else if (p[1] == '\\') {
+			/* "\\" is a literal backslash */
+			piece = p;
+			len = 1;
+			p += 2;
+		} else if (p[1] >= '1' && p[1] <= '9') {
+			size_t n = (size_t)(p[1] - '0');
+
+			if (n > ngroups || pmatch[n].rm_so < 0) {
+				log_warning(
+					"ldapusernamereplacement refers to \\%d, which ldapusernameregex \"%s\" does not capture",
+					(int)n, request->ldapusernameregex);
+				goto fail;
+			}
+			piece = request->username + pmatch[n].rm_so;
+			len = (size_t)(pmatch[n].rm_eo - pmatch[n].rm_so);
+			p += 2;
+		} else if (p[1] == '\0') {
+			log_warning("ldapusernamereplacement ends with a lone backslash");
+			goto fail;
+		} else {
+			log_warning("invalid escape sequence \"\\%c\" in ldapusernamereplacement", p[1]);
+			goto fail;
+		}
+
+		/* Never truncate a name that is about to be used for a bind. */
+		if (used + len >= sizeof(request->ldap_username)) {
+			log_warning("the user name produced by ldapusernameregex is longer than %d bytes",
+				    MAX_USERNAME - 1);
+			goto fail;
+		}
+		memcpy(request->ldap_username + used, piece, len);
+		used += len;
+	}
+	request->ldap_username[used] = '\0';
+
+	/*
+	 * An empty name would be sent as an empty bind DN, which RFC 4513
+	 * calls an unauthenticated bind.  A directory that answers it as an
+	 * anonymous bind would accept any password, so refuse it here.
+	 */
+	if (used == 0) {
+		log_warning("ldapusernameregex \"%s\" produced an empty user name",
+			    request->ldapusernameregex);
+		goto fail;
+	}
+
+	return true;
+
+fail:
+	/* Never leave a half-built name behind for a caller or a log line. */
+	request->ldap_username[0] = '\0';
+	return false;
+}
+
+/*
+ * Work out the user name to hand to the directory.
+ *
+ * The PostgreSQL login name is never modified: it stays the role PgBouncer
+ * logs in as on the server side.  Without ldapusernameregex the two names are
+ * the same, which is how LDAP authentication has always behaved.
+ *
+ * As in pg_ident.conf, the pattern is not implicitly anchored.  Write "^" and
+ * "$" to require the whole login name to match; an unanchored pattern will
+ * happily match a substring of it.
+ */
+static bool map_ldap_username(struct ldap_auth_request *request)
+{
+	regmatch_t pmatch[LDAP_MAP_MAX_GROUPS + 1];
+	const char *replacement;
+	regex_t re;
+	size_t ngroups;
+	bool ok;
+	int r;
+
+	if (!request->ldapusernameregex) {
+		safe_strcpy(request->ldap_username, request->username,
+			    sizeof(request->ldap_username));
+		return true;
+	}
+
+	r = regcomp(&re, request->ldapusernameregex, REG_EXTENDED);
+	if (r != 0) {
+		char errbuf[LDAP_LONG_LENGTH];
+
+		/*
+		 * regcomp() leaves *re unspecified on failure, so it must not
+		 * be passed to regfree().  regerror() accepts it.
+		 */
+		regerror(r, &re, errbuf, sizeof(errbuf));
+		log_warning("could not compile ldapusernameregex \"%s\": %s",
+			    request->ldapusernameregex, errbuf);
+		return false;
+	}
+
+	ngroups = (size_t)re.re_nsub;
+	if (ngroups == 0) {
+		log_warning("ldapusernameregex \"%s\" has no capture group to build the LDAP user name from",
+			    request->ldapusernameregex);
+		regfree(&re);
+		return false;
+	}
+
+	r = regexec(&re, request->username, LDAP_MAP_MAX_GROUPS + 1, pmatch, 0);
+	if (r != 0) {
+		log_warning("user name does not match ldapusernameregex \"%s\"",
+			    request->ldapusernameregex);
+		regfree(&re);
+		return false;
+	}
+
+	replacement = request->ldapusernamereplacement
+		      ? request->ldapusernamereplacement : LDAP_MAP_DEFAULT_REPLACEMENT;
+	ok = expand_ldap_username(request, replacement, pmatch, ngroups);
+	regfree(&re);
+
+	if (ok)
+		log_debug("LDAP user name mapping: \"%s\" -> \"%s\"",
+			  request->username, request->ldap_username);
+	return ok;
+}
+
+/*
  * Perform LDAP authentication
  */
 static bool check_ldap_auth(struct ldap_auth_request *request)
@@ -769,6 +950,15 @@ static bool check_ldap_auth(struct ldap_auth_request *request)
 	if (!initialize_ldap_options(request, request->client->ldap_options)) {
 		return false;
 	}
+
+	/*
+	 * Decide which name to present to the directory before doing anything
+	 * on the network, so a name we will not accept costs no connection.
+	 */
+	if (!map_ldap_username(request)) {
+		return false;
+	}
+
 	if ((!request->ldapserver || request->ldapserver[0] == '\0') &&
 	    (!request->ldapbasedn || request->ldapbasedn[0] == '\0')) {
 		log_warning("LDAP server not specified, and no ldapbasedn");
@@ -809,8 +999,13 @@ static bool check_ldap_auth(struct ldap_auth_request *request)
 		 * since they aren't really reasonable in a username anyway. Allowing
 		 * them would make it possible to inject any kind of custom filters in
 		 * the LDAP filter.
+		 *
+		 * This checks the mapped name, which is the one that ends up in the
+		 * filter.  The PostgreSQL login name is not checked, because it never
+		 * reaches the directory; that is what lets a namespaced role such as
+		 * "postgres://prod/alice" authenticate here at all.
 		 */
-		for (c = request->username; *c; c++) {
+		for (c = request->ldap_username; *c; c++) {
 			if (*c == '*' ||
 			    *c == '(' ||
 			    *c == ')' ||
@@ -838,13 +1033,13 @@ static bool check_ldap_auth(struct ldap_auth_request *request)
 
 		/* Fetch just one attribute, else *all* attributes are returned */
 		if (request->ldapsearchfilter) {
-			format_search_filter(filter, LDAP_LONG_LENGTH, request->ldapsearchfilter, request->username);
+			format_search_filter(filter, LDAP_LONG_LENGTH, request->ldapsearchfilter, request->ldap_username);
 		} else {
 			attributes[0] = request->ldapsearchattribute ? request->ldapsearchattribute : "uid";
 			attributes[1] = NULL;
 			snprintf(filter, LDAP_LONG_LENGTH, "(%s=%s)",
 				 attributes[0],
-				 request->username);
+				 request->ldap_username);
 		}
 
 		r = ldap_search_s(ldap,
@@ -865,11 +1060,11 @@ static bool check_ldap_auth(struct ldap_auth_request *request)
 		count = ldap_count_entries(ldap, search_message);
 		if (count != 1) {
 			if (count == 0) {
-				log_warning("LDAP user \"%s\" does not exist", request->username);
+				log_warning("LDAP user \"%s\" does not exist", request->ldap_username);
 				log_warning("LDAP search for filter \"%s\" on server \"%s\" returned no entries.",
 					    filter, request->ldapserver);
 			} else {
-				log_warning("LDAP user \"%s\" is not unique", request->username);
+				log_warning("LDAP user \"%s\" is not unique", request->ldap_username);
 				log_warning("LDAP search for filter \"%s\" on server \"%s\" returned %d entries.",
 					    filter, request->ldapserver, count);
 			}
@@ -917,7 +1112,7 @@ static bool check_ldap_auth(struct ldap_auth_request *request)
 			return false;
 		}
 	} else {
-		size_t maxlen = strlen(request->username);
+		size_t maxlen = strlen(request->ldap_username);
 		if (request->ldapprefix)
 			maxlen += strlen(request->ldapprefix);
 		if (request->ldapsuffix)
@@ -925,7 +1120,7 @@ static bool check_ldap_auth(struct ldap_auth_request *request)
 		fulluser = malloc(maxlen + 1);
 		snprintf(fulluser, maxlen + 1, "%s%s%s",
 			 request->ldapprefix ? request->ldapprefix : "",
-			 request->username,
+			 request->ldap_username,
 			 request->ldapsuffix ? request->ldapsuffix : "");
 	}
 

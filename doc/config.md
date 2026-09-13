@@ -501,6 +501,9 @@ ldap
     (see <https://www.postgresql.org/docs/current/auth-ldap.html> for
     details).  The LDAP connection options are configured using the
     setting `auth_ldap_options`, or alternatively in the `auth_hba_file`.
+    PgBouncer additionally supports rewriting the login name before the
+    bind; see section [LDAP user name mapping](#ldap-user-name-mapping)
+    below.
 
 pam
 :   PAM is used to authenticate users, `auth_file` is ignored. This method is not
@@ -578,6 +581,10 @@ LDAP connection options to use if `auth_type` is `ldap`.  (Not used if
 authentication is configured via `auth_hba_file`.)  Example:
 
     auth_ldap_options = ldapurl="ldap://127.0.0.1:12345/dc=example,dc=net?uid?sub"
+
+See section [LDAP user name mapping](#ldap-user-name-mapping) for the
+`ldapusernameregex` and `ldapusernamereplacement` options, which are also
+accepted here.
 
 ## Log settings
 
@@ -1732,6 +1739,67 @@ The file format is a simplified variation of the PostgreSQL ident map file
 * There is no support for including file/directory.
 * System-username field: Not supported: regular expressions.
 * Database-username field: Supports `all` or a single Postgres user name. Not supported: `+groupname`, regular expressions.
+
+## LDAP user name mapping
+
+By default the `ldap` authentication method presents the PostgreSQL login
+name to the directory unchanged, as PostgreSQL does.  That is a problem when
+PostgreSQL roles are namespaced but the directory accounts are not, for
+example a role `postgres://prod/alice` that exists in LDAP only as `alice`.
+
+Two LDAP options rewrite the name before the bind.  The PostgreSQL login name
+itself is never modified: it remains the role PgBouncer connects to the
+server as, and it remains the name that HBA rules are matched against.
+
+`ldapusernameregex`
+:   A POSIX extended regular expression matched against the PostgreSQL login
+    name.  If it does not match, authentication fails.  Required in order to
+    use mapping at all; without it, no rewriting happens.
+
+`ldapusernamereplacement`
+:   The name presented to the directory, where `\1` to `\9` are replaced by
+    the corresponding capture groups and `\\` produces a literal backslash.
+    Defaults to `\1`.
+
+Both options work in `auth_ldap_options` and in an `ldap` rule in the HBA
+file.  In an HBA rule the value must be quoted, because an unquoted value
+ends at the first space or comma and a regular expression may contain both.
+
+Example, mapping `postgres://<environment>/<user>` to `<user>`:
+
+    host all all 0.0.0.0/0 ldap ldapserver=ad.corp.example.com ldapport=636 ldapscheme=ldaps ldapbasedn="dc=corp,dc=example,dc=com" ldapsearchattribute=sAMAccountName ldapusernameregex="^postgres://[a-z0-9_]+/(.+)$" ldapusernamereplacement="\1"
+
+The whole rule must be on one physical line; the HBA parser has no line
+continuation syntax.
+
+The mapped name is also what `$username` expands to in `ldapsearchfilter`,
+and what is placed between `ldapprefix` and `ldapsuffix` for a simple bind.
+
+Note the following:
+
+* **The pattern is not anchored**, exactly as in `pg_ident.conf`.  Write `^`
+  and `$` to require the whole login name to match.  Without them the pattern
+  matches a substring, so `^postgres://[a-z0-9_]+/(.+)$` and
+  `postgres://[a-z0-9_]+/(.+)` behave very differently: the latter also
+  accepts a login name such as `anything-postgres://prod/alice`, and maps it
+  to `alice`.  Anchor the pattern unless you have a specific reason not to.
+* **Matching is case-sensitive.**  Directories such as Active Directory treat
+  account names case-insensitively, but the pattern does not.  Use bracket
+  expressions, for example `[Pp]ostgres`, where you need tolerance.
+* The regular expressions are POSIX extended ones, which are less capable
+  than those PostgreSQL accepts in `pg_ident.conf`.  There is no `\d`, no
+  `(?i)`, no non-greedy quantifier and no non-capturing group.  Because every
+  group captures, a pattern using alternation such as
+  `^postgres://(prod|dev)/(.+)$` needs `ldapusernamereplacement="\2"`.
+* Authentication fails, rather than falling back to the unmapped name, if the
+  pattern does not compile, does not match, captures nothing, produces an
+  empty name, produces a name longer than 127 bytes, or if
+  `ldapusernamereplacement` refers to a group the pattern does not define.
+* The mapping is many-to-one by design.  If both `postgres://prod/alice` and
+  `postgres://dev/alice` map to `alice`, one directory password authenticates
+  both.  The mapping establishes who the person is; it cannot establish which
+  environment they are entitled to.  Use separate HBA rules, PostgreSQL role
+  grants, or a directory group checked through `ldapsearchfilter` for that.
 
 ## Examples
 

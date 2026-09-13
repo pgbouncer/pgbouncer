@@ -133,6 +133,10 @@ def pg(tmp_path_factory, cert_dir):
 
     if LDAP_SUPPORT:
         pg.sql("create user ldapuser1 login password 'secret1'")
+        # Namespaced role used by the LDAP user name mapping tests. There is
+        # deliberately no matching LDAP entry: the directory only knows
+        # "ldapuser1", and the mapping is what bridges the two.
+        pg.sql("""create user "postgres://dev/ldapuser1" login password 'secret1'""")
 
     pg.sql("create database unconfigured_auth_database")
     pg.sql("create user bouncer")

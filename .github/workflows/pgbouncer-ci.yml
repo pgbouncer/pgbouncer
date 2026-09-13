@@ -446,12 +446,12 @@ jobs:
       - name: Install
         run: sh ci/run.sh install "$BUILD_SYSTEM"
       - name: Build zip
-        run: meson compile -C build zip
+        run: sh ci/run.sh zip "$BUILD_SYSTEM"
       - name: Upload zip
         uses: actions/upload-artifact@v7
         with:
           name: pgbouncer-windows-zip
-          path: build/pgbouncer-*.zip
+          path: dist/pgbouncer-*.zip
           if-no-files-found: error
       - name: Upload build logs
         if: ${{ !cancelled() }}

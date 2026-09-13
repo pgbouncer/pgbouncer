@@ -3,7 +3,7 @@
 # Drive a build/test/install/dist step for either build system, so CI can
 # exercise both meson and autoconf on every platform from one place.
 #
-# Usage: ci/run.sh <build|test|install|dist> <meson|autoconf>
+# Usage: ci/run.sh <build|test|install|dist|zip> <meson|autoconf>
 #
 # Env:
 #   MESON_ARGS      extra `meson setup` options      (build, meson only)
@@ -17,8 +17,8 @@
 # (cassert, systemd, feature toggles, ...) comes in via MESON_ARGS/CONFIGURE_ARGS.
 set -eu
 
-action=${1:?usage: ci/run.sh <build|test|install|dist> <meson|autoconf>}
-bs=${2:?usage: ci/run.sh <build|test|install|dist> <meson|autoconf>}
+action=${1:?usage: ci/run.sh <build|test|install|dist|zip> <meson|autoconf>}
+bs=${2:?usage: ci/run.sh <build|test|install|dist|zip> <meson|autoconf>}
 
 prefix=${PREFIX:-$HOME/install}
 scanbuild=${SCANBUILD:-}
@@ -85,8 +85,19 @@ dist.autoconf)
 	make -j"$jobs"
 	make -j"$jobs" install
 	;;
+zip.meson)
+	# The Windows binary distribution zip. Both build systems assemble it with
+	# win32/make-zip.py, but they leave it in different places, so copy it to
+	# dist/ for a build-system-independent artifact path.
+	meson compile -C build -v zip
+	mkdir -p dist && cp build/pgbouncer-*-windows-*.zip dist/
+	;;
+zip.autoconf)
+	make zip
+	mkdir -p dist && cp pgbouncer-*-windows-*.zip dist/
+	;;
 *)
-	echo "usage: ci/run.sh <build|test|install|dist> <meson|autoconf>" >&2
+	echo "usage: ci/run.sh <build|test|install|dist|zip> <meson|autoconf>" >&2
 	exit 2
 	;;
 esac

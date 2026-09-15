@@ -1444,6 +1444,11 @@ Values other than `any` require the status parameters reported by PostgreSQL
 requested value, PgBouncer rejects the server connection. `prefer-standby` is
 not supported.
 
+With multiple hosts, a server that does not satisfy `target_session_attrs`
+counts as a failed connection attempt. PgBouncer waits `server_login_retry`
+before attempting the next host. Lower `server_login_retry` from its 15-second
+default if you need faster retries after a target mismatch.
+
 The check occurs when a server connection is established. PgBouncer does not
 re-evaluate an admitted connection if its reported status later changes.
 

@@ -10,9 +10,15 @@ project('pgbouncer',
           # The C standard is left at the compiler default; the C11 requirement
           # is enforced by an explicit probe below (see AC_USUAL_C11), which only
           # adds a -std= flag when the default is not already C11.
+
           # warning_level=2 supplies -Wall -Wextra (the rest of the autoconf
           # WFLAGS set is added explicitly below).
           'warning_level=2',
+
+          # debugoptimized matches the -g -O2 from autoconf and is
+          # also a better default for both development and production
+          # builds.
+          'buildtype=debugoptimized',
         ],
 )
 

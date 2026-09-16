@@ -1006,6 +1006,8 @@ try_more:
 
 	/* avoid spending too much time on single socket */
 	if (cf_sbuf_loopcnt > 0 && loopcnt >= cf_sbuf_loopcnt) {
+		bool _ignore;
+
 		log_debug("loopcnt full");
 		/*
 		 * Flush as much as we can before yielding this socket.
@@ -1013,7 +1015,8 @@ try_more:
 		 * (W_SEND), or "need another turn".  Only replace the
 		 * persistent EV_READ watcher while we are still in W_RECV.
 		 */
-		(void) sbuf_process_pending(sbuf);
+		_ignore = sbuf_process_pending(sbuf);
+		(void) _ignore;
 		if (!sbuf->sock || sbuf->wait_type != W_RECV)
 			return;
 		if (!sbuf_wait_for_data_forced(sbuf))

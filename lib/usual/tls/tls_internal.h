@@ -57,7 +57,7 @@ struct tls_config {
 	const char *cipher_suites;	/* For TLS v1.3 */
 	int ciphers_server;
 	int dheparams;
-	int ecdhecurve;
+	const char *ecdhecurves;	/* colon-separated curve/group list, or "auto"/"none" */
 	struct tls_keypair *keypair;
 	const char *ocsp_file;
 	char *ocsp_mem;

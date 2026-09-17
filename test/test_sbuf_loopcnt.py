@@ -50,8 +50,4 @@ def test_sbuf_loopcnt_client_backpressure_still_accepts(bouncer):
         time.sleep(0.5)
         assert bouncer.sql("SELECT 1", connect_timeout=3)[0][0] == 1
     finally:
-        try:
-            stalled.cancel()
-        except Exception:
-            pass
         stalled.close()

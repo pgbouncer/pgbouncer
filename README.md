@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="doc/pgbouncer-logo.svg" alt="PgBouncer" width="360">
+</p>
+
 PgBouncer
 =========
 

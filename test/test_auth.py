@@ -384,6 +384,49 @@ def test_scram_passthrough_after_reconnect(bouncer):
     bouncer.test(dbname="p62", user="scramuser1", password="foo")
 
 
+@pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
+def test_scram_forced_user_with_different_password(bouncer):
+    """
+    Regression test: wrong SCRAM pass-through with forced user.
+
+    When a database forces a backend user with its own (different) password,
+    and the client authenticates to PgBouncer with a genuine SCRAM secret for a
+    *different* user/password, PgBouncer must not reuse the client SCRAM keys
+    for the backend connection.
+
+    If it is a forced user and the client SCRAM exchange completes, the client
+    keys *must not* overwrite the forced user cached credentials and mark them
+    as a valid SCRAM pass-through. The backend authentication should derive
+    fresh keys from the forced user.
+    """
+    with bouncer.ini_path.open() as f:
+        original = f.read()
+    with bouncer.ini_path.open("w") as f:
+        f.write(
+            re.sub(
+                r"^(p62=.*dbname=p6)$",
+                # Forced user with its own (correct) password, distinct
+                # from the client identity used to connect below.
+                rf"\1\np6forced= port={bouncer.pg.port} host=127.0.0.1 dbname=p6 user=scramuser3 password=baz",
+                original,
+                flags=re.MULTILINE,
+            )
+        )
+    bouncer.admin("reload")
+    bouncer.admin(f"set auth_type='scram-sha-256'")
+
+    # scramuser1 entry (userlist.txt) is a genuine SCRAM-SHA-256 secret
+    # (not derived on the fly from a plaintext password), so the keys
+    # PgBouncer extracts from this client login are not "adhoc" and are
+    # eligible to be (wrongly) cached as a pass-through for the pool.
+    #
+    # Absent the bug, this should behave exactly like connecting directly
+    # to scramuser3/baz: the forced user password is correct, so
+    # backend authentication should succeed regardless of which client
+    # identity logged in.
+    bouncer.test(dbname="p6forced", user="scramuser1", password="foo")
+
+
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
 def test_auth_dbname_usage(
     bouncer,

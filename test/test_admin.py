@@ -10,19 +10,17 @@ from .utils import Bouncer, capture, run
 
 def test_parameter_status(bouncer):
     """
-    Test that parameter_status messages `pgbouncer.version`, `pgbouncer.max_prepared_statements`
-    and `pgbouncer.pool_mode` are correctly sent to client when connecting to the admin console.
+    Test that the admin console only sends the `pgbouncer.version` parameter
+    status and not `pgbouncer.max_prepared_statements` or
+    `pgbouncer.pool_mode`, since there is no real pool behind it.
     """
     conn = bouncer.admin_runner.conn()
     assert (
         conn.pgconn.parameter_status(b"pgbouncer.version").decode()
         == f"{bouncer.version()}"
     )
-    assert (
-        conn.pgconn.parameter_status(b"pgbouncer.max_prepared_statements").decode()
-        == "0"
-    )
-    assert conn.pgconn.parameter_status(b"pgbouncer.pool_mode").decode() == "statement"
+    assert conn.pgconn.parameter_status(b"pgbouncer.max_prepared_statements") is None
+    assert conn.pgconn.parameter_status(b"pgbouncer.pool_mode") is None
 
 
 def test_reload_error(bouncer):

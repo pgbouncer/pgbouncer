@@ -361,9 +361,6 @@ bool welcome_client(PgSocket *client)
 	PgPool *pool = client->pool;
 	const PktBuf *pmsg = pool->welcome_msg;
 	PktBuf *msg;
-	char max_prepared_statements[16];
-	int pool_mode = connection_pool_mode(client);
-	struct CfValue pool_mode_lookup = { .value_p = &pool_mode, .extra = pool_mode_map };
 
 	slog_noise(client, "P: welcome_client");
 
@@ -372,13 +369,19 @@ bool welcome_client(PgSocket *client)
 	pktbuf_put_bytes(msg, pmsg->buf, pmsg->write_pos);
 
 	/*
-	 * The admin console never supports prepared statements, regardless of
-	 * the configured value.
+	 * The admin console has no real pool behind it, so pool_mode and
+	 * max_prepared_statements are meaningless there. Only send them for
+	 * connections to actual databases.
 	 */
-	snprintf(max_prepared_statements, sizeof(max_prepared_statements), "%d",
-		 pool->db->admin ? 0 : cf_max_prepared_statements);
-	pktbuf_write_ParameterStatus(msg, "pgbouncer.max_prepared_statements", max_prepared_statements);
-	pktbuf_write_ParameterStatus(msg, "pgbouncer.pool_mode", cf_get_lookup(&pool_mode_lookup));
+	if (!pool->db->admin) {
+		char max_prepared_statements[16];
+		int pool_mode = connection_pool_mode(client);
+		struct CfValue pool_mode_lookup = { .value_p = &pool_mode, .extra = pool_mode_map };
+
+		snprintf(max_prepared_statements, sizeof(max_prepared_statements), "%d", cf_max_prepared_statements);
+		pktbuf_write_ParameterStatus(msg, "pgbouncer.max_prepared_statements", max_prepared_statements);
+		pktbuf_write_ParameterStatus(msg, "pgbouncer.pool_mode", cf_get_lookup(&pool_mode_lookup));
+	}
 
 	/* fill vars */
 	varcache_fill_unset(&pool->orig_vars, client);

@@ -465,8 +465,12 @@ sv_login
 maxwait
 :   How long the first (oldest) client in the queue has waited, in seconds.
     If this starts increasing, then the current pool of servers does
-    not handle requests quickly enough.  The reason may be either an overloaded
-    server or just too small of a **pool_size** setting.
+    not handle requests quickly enough.  The reason may be an overloaded
+    server, just too small of a **pool_size** setting, or the pool having no
+    server connection yet at all: a slow connect, a slow TLS handshake,
+    **PAUSE**, or a server that is down.  A pool that is only warming up
+    therefore reports a small nonzero value while its first client waits for
+    that first connection.
 
 maxwait_us
 :   Microsecond part of the maximum waiting time.

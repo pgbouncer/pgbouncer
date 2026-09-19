@@ -841,6 +841,45 @@ void activate_client(PgSocket *client)
 }
 
 /*
+ * What SHOW POOLS.maxwait and SHOW CLIENTS/SOCKETS.wait report for a socket.
+ *
+ * The first branch is not a wait: a client with a query in flight counts from
+ * query_start, which is the query's age, and is also the clock query_timeout
+ * acts on.  It is kept because that is what these columns have always shown
+ * for such a client.  For a client that is really queued it makes no
+ * difference which of the two you pick: handle_client_work() sets query_start
+ * and change_client_state() sets wait_start from the same cached clock read of
+ * one event loop iteration, so they are equal, and maxwait therefore agrees
+ * with the wait_start that SHOW STATS.total_wait_time and query_wait_notify
+ * count from.
+ *
+ * The remaining branches are the wait proper.  A client queued before it ever
+ * issued a query - during login, while its pool still has no server connection
+ * - has no query_start, so it counts from wait_start, the moment
+ * change_client_state() put it on the waiting list.  A queued cancel request
+ * has neither, so it counts from request_time, which is what
+ * cancel_wait_timeout uses.  A socket that is not waiting, including every
+ * server socket, has waited no time.
+ */
+usec_t socket_wait_time(PgSocket *sk)
+{
+	usec_t now = get_cached_time();
+
+	if (sk->query_start)
+		return now - sk->query_start;
+
+	switch (sk->state) {
+	case CL_WAITING:
+	case CL_WAITING_LOGIN:
+		return now - sk->wait_start;
+	case CL_WAITING_CANCEL:
+		return now - sk->request_time;
+	default:
+		return 0;
+	}
+}
+
+/*
  * Don't let clients queue at all if there is no working server connection.
  *
  * It must still allow following cases:

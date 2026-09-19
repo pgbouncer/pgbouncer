@@ -1,3 +1,6 @@
+import asyncio
+import socket
+import struct
 import threading
 import time
 
@@ -5,7 +8,7 @@ import psycopg
 import pytest
 from psycopg.rows import dict_row
 
-from .utils import Bouncer, capture, run
+from .utils import Bouncer, PortLock, capture, run
 
 
 def test_reload_error(bouncer):
@@ -278,6 +281,117 @@ def test_client_states(bouncer):
     # Cleanup
     cur_1.close()
     conn_1.close()
+
+
+async def await_show_rows(bouncer, command, count, timeout=20, **match):
+    """
+    Poll an admin SHOW command until `count` of its rows match `match`.
+
+    Returns the matching rows. Unlike utils.wait_until() this yields to the
+    event loop, so it can be used to wait for connections opened with atest().
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        rows = [
+            row
+            for row in bouncer.admin(command, row_factory=dict_row)
+            if all(row[column] == value for column, value in match.items())
+        ]
+        if len(rows) == count:
+            return rows
+        assert time.monotonic() < deadline, f"{command}: {rows}"
+        await asyncio.sleep(0.1)
+
+
+async def test_maxwait_for_clients_queued_before_their_first_query(bouncer):
+    """
+    Test that `maxwait` and `wait` count a client that was queued before it
+    ever sent a query.
+
+    A client that arrives while its pool has no server connection is parked
+    during login, so it never sets query_start. `query_wait_timeout` counts
+    such a client down from when it was queued, and `maxwait`/`wait` have to
+    report that same wait instead of 0, or a stuck pool looks idle.
+    """
+    # Nothing has used this pool yet, so it has no welcome message to hand a
+    # new client, and while the pooler is paused it will not open a server
+    # connection to get one. Clients that arrive now queue up during login.
+    bouncer.admin("PAUSE")
+    start = time.monotonic()
+    # These clients stay queued for as long as this test watches them, which is
+    # well past libpq's default connect_timeout of 3s that utils.py sets.
+    queued = [bouncer.atest(dbname="p0", connect_timeout=30) for _ in range(2)]
+
+    try:
+        await await_show_rows(
+            bouncer, "SHOW CLIENTS", 2, database="p0", state="waiting"
+        )
+        await asyncio.sleep(2)
+
+        [pool] = await await_show_rows(
+            bouncer, "SHOW POOLS", 1, database="p0", cl_waiting=2
+        )
+        clients = await await_show_rows(
+            bouncer, "SHOW CLIENTS", 2, database="p0", state="waiting"
+        )
+        elapsed = time.monotonic() - start
+
+        maxwait = pool["maxwait"] + pool["maxwait_us"] / 1_000_000
+        assert 1 <= maxwait <= elapsed + 1
+
+        for client in clients:
+            wait = client["wait"] + client["wait_us"] / 1_000_000
+            assert 1 <= wait <= elapsed + 1
+    finally:
+        bouncer.admin("RESUME")
+        await asyncio.gather(*queued, return_exceptions=True)
+
+
+async def test_wait_for_a_queued_cancel_request(bouncer):
+    """
+    Test that `wait` counts a cancel request that is queued for a connection.
+
+    A cancel request sets neither query_start nor wait_start, so it needs its
+    own clock: `cancel_wait_timeout` counts it down from its request_time, and
+    `wait` has to report that same wait instead of 0.
+    """
+    # A cancel request whose key names another peer is queued on that peer's
+    # pool until a connection to the peer can be opened. Nothing listens on
+    # this port, so the connection keeps failing and the request keeps waiting.
+    #
+    # The port is taken from PortLock even though nothing will ever bind it:
+    # the point is that no other test's fixture may bind it either, because
+    # anything answering there would let the cancel request through.
+    dead_peer = PortLock()
+    bouncer.write_ini(f"peer_id = 1\n[peers]\n2 = host=127.0.0.1 port={dead_peer.port}")
+    await bouncer.restart()
+
+    try:
+        # So that the request is not disconnected while we are watching it.
+        bouncer.admin("set cancel_wait_timeout=0")
+
+        with socket.create_connection((bouncer.host, bouncer.port)) as sock:
+            start = time.monotonic()
+            # A CancelRequest for peer 2. PgBouncer reads the peer id out of
+            # the 2nd and 3rd byte of the 8 byte key, and the forwarding TTL
+            # out of the last 2 bits of the 8th, so the key needs no real
+            # client behind it to be routed to the peer's pool.
+            sock.sendall(struct.pack("!IIII", 16, 80877102, 2 << 16, 0b11))
+
+            await await_show_rows(
+                bouncer, "SHOW CLIENTS", 1, state="waiting_cancel_req"
+            )
+            await asyncio.sleep(2)
+
+            [request] = await await_show_rows(
+                bouncer, "SHOW CLIENTS", 1, state="waiting_cancel_req"
+            )
+            elapsed = time.monotonic() - start
+
+            wait = request["wait"] + request["wait_us"] / 1_000_000
+            assert 1 <= wait <= elapsed + 1
+    finally:
+        dead_peer.release()
 
 
 def test_kill_db(bouncer: "Bouncer"):

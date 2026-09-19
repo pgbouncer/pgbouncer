@@ -280,24 +280,43 @@ def cleanup_test_leftovers(*nodes):
 class PortLock:
     def __init__(self):
         global next_port
-        while True:
+        locked = 0
+        in_use = 0
+        # One attempt per port in the range, so a range with nothing free ends
+        # the walk instead of wrapping round for as long as the test allows.
+        for _ in range(PORT_UPPER_BOUND - PORT_LOWER_BOUND):
             next_port += 1
             if next_port >= PORT_UPPER_BOUND:
                 next_port = PORT_LOWER_BOUND
 
-            self.lock = filelock.FileLock(Path(gettempdir()) / f"port-{next_port}.lock")
+            lock = filelock.FileLock(Path(gettempdir()) / f"port-{next_port}.lock")
             try:
-                self.lock.acquire(timeout=0)
+                lock.acquire(timeout=0)
             except filelock.Timeout:
+                locked += 1
                 continue
 
             with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
                 try:
                     s.bind(("127.0.0.1", next_port))
-                    self.port = next_port
-                    break
                 except OSError:
+                    # Locked, but not usable, so hand it back here rather than
+                    # leaving a lock we still hold to filelock's finalizer.
+                    lock.release()
+                    in_use += 1
                     continue
+
+            self.lock = lock
+            self.port = next_port
+            return
+
+        # Which arm turned every port away is the interesting part: locks point
+        # at too many test processes or leftover lock files, in-use points at
+        # something else on the machine sitting in the range.
+        raise RuntimeError(
+            f"no free port in {PORT_LOWER_BOUND}..{PORT_UPPER_BOUND - 1} "
+            f"({locked} locked by other test processes, {in_use} in use)"
+        )
 
     def release(self):
         self.lock.release()

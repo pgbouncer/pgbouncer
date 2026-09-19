@@ -582,6 +582,7 @@ struct PgGlobalUser {
 	usec_t client_idle_timeout;	/* how long is user allowed to idly connect to pgbouncer */
 	int max_user_connections;	/* how many server connections are allowed */
 	int max_user_client_connections;	/* how many client connections are allowed */
+	uint64_t settings_generation;	/* which configuration load last set the settings above */
 	int connection_count;	/* how many server connections are used by user now */
 	int client_connection_count;	/* how many client connections are used by user now */
 };

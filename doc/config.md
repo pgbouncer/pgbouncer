@@ -1455,6 +1455,11 @@ Example:
 
 Only a few settings are available here.
 
+A setting a reloaded configuration no longer gives a user goes back to its
+default, whether the entry dropped just that setting or the whole line.  The
+user itself survives a `[users]` entry being removed, keeping its password and
+its connection counts, since neither of those comes from this section.
+
 Note that when `auth_file` is configured, if a user is defined in this section
 but not listed in `auth_file`, PgBouncer will attempt to use `auth_query` to
 find a password for that user if `auth_user` is set. If `auth_user` is not set,

@@ -23,12 +23,12 @@ env:
   DEBIAN_FRONTEND: noninteractive
   LANG: C
 
-# Platforms build with meson. The autoconf build still coexists and is kept
-# exercised on two jobs: the `autoconf` entry in the `linux` matrix (a stock
-# Ubuntu runner, which also produces the dist tarball) and the Debian trixie
-# container. The per-step commands live in
-# ci/run.sh, which takes the build system as an argument, so both are driven
-# the same way.
+# Most platforms build with meson. The autoconf build still coexists and is
+# kept exercised on three jobs: the `autoconf` entry in the `linux` matrix (a
+# stock Ubuntu runner, which also produces the dist tarball), the Debian trixie
+# container, and the Windows job (which produces the release zip; see there for
+# why). The per-step commands live in ci/run.sh, which takes the build system as
+# an argument, so both are driven the same way.
 
 jobs:
   # Builds and tests on native GitHub-hosted Ubuntu runners. These run as the
@@ -408,7 +408,11 @@ jobs:
     env:
       HAVE_IPV6_LOCALHOST: "yes"
       MSYSTEM: UCRT64
-      BUILD_SYSTEM: meson
+      # The zip this job produces is what gets published as the Windows release
+      # binaries. The meson build system is still experimental, so until it has
+      # seen wider manual testing on Windows (in particular the service
+      # registration), the release binaries are built with autoconf.
+      BUILD_SYSTEM: autoconf
       # Without this the MSYS2 login shell starts in the home directory; we want
       # it to stay in the checkout directory.
       CHERE_INVOKING: "1"
@@ -434,16 +438,25 @@ jobs:
             "${MINGW_PACKAGE_PREFIX}-gcc" "${MINGW_PACKAGE_PREFIX}-libevent" \
             "${MINGW_PACKAGE_PREFIX}-openssl" "${MINGW_PACKAGE_PREFIX}-postgresql" \
             "${MINGW_PACKAGE_PREFIX}-python" "${MINGW_PACKAGE_PREFIX}-python-pip" \
-            "${MINGW_PACKAGE_PREFIX}-meson" "${MINGW_PACKAGE_PREFIX}-ninja" \
-            "${MINGW_PACKAGE_PREFIX}-pkgconf"
+            "${MINGW_PACKAGE_PREFIX}-pkgconf" \
+            autoconf automake libtool
           echo "127.0.0.1   localhost" >> /etc/hosts
           pip install .
       - name: Build
         run: |
           export PATH="/c/programdata/chocolatey/bin:$PATH"
-          PREFIX="$(pwd)/install" MESON_ARGS="-Dsystemd=disabled -Dc_link_args=-static" sh ci/run.sh build "$BUILD_SYSTEM"
+          # Link statically so the resulting pgbouncer.exe does not depend on
+          # the MSYS2 runtime DLLs. These are passed as environment variables
+          # rather than through CONFIGURE_ARGS because LIBS contains spaces,
+          # which ci/run.sh's unquoted expansion would split.
+          export LDFLAGS=-static
+          export LIBS="-liphlpapi $(pkgconf --libs --static openssl)"
+          export PKG_CONFIG='pkg-config --static'
+          PREFIX="$(pwd)/install" sh ci/run.sh build "$BUILD_SYSTEM"
       - name: Test
-        run: sh ci/run.sh test "$BUILD_SYSTEM"
+        run: |
+          CONCURRENCY=3 sh ci/run.sh test "$BUILD_SYSTEM"
+          windres pgbouncer.exe
       - name: Install
         run: sh ci/run.sh install "$BUILD_SYSTEM"
       - name: Build zip

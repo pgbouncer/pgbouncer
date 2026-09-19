@@ -74,6 +74,7 @@ bool queue_fake_response(PgSocket *client, char request_type) _MUSTCHECK;
 
 PgGlobalUser * update_global_user_passwd(PgGlobalUser *user, const char *passwd) _MUSTCHECK;
 PgGlobalUser * find_or_add_new_global_user(const char *name, const char *passwd) _MUSTCHECK;
+void reset_global_user_config(PgGlobalUser *user);
 PgCredentials * find_or_add_new_global_credentials(const char *name, const char *passwd) _MUSTCHECK;
 
 PgCredentials * add_pam_credentials(const char *name) _MUSTCHECK;

@@ -235,13 +235,22 @@ Default: 0
 ### track_extra_parameters
 
 By default, PgBouncer tracks all the parameters that Postgres reports to the
-client and that can be changed by the client: `application_name`,
-`client_encoding`, `DateStyle`, `default_transaction_read_only`,
-`IntervalStyle`, `scram_iterations`, `search_path`, `session_authorization`,
-`standard_conforming_strings` and `TimeZone`. To allow other parameters to be
-tracked, they can be specified here, so that PgBouncer knows that they should be
-maintained in the client variable cache and restored in the server whenever the
-client becomes active.
+client and that can be changed by the client:
+
+- `application_name`
+- `client_encoding`
+- `DateStyle`
+- `default_transaction_read_only`
+- `IntervalStyle`
+- `scram_iterations` (since PostgreSQL version 16)
+- `search_path` (since PostgreSQL version 18)
+- `session_authorization`
+- `standard_conforming_strings`
+- `TimeZone`
+
+To allow other parameters to be tracked, they can be specified here, so that
+PgBouncer knows that they should be maintained in the client variable cache and
+restored in the server whenever the client becomes active.
 
 If you need to specify multiple values, use a comma-separated list (e.g.
 `some_extension.setting, other_extension.setting`)

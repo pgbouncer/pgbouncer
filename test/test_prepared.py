@@ -8,6 +8,7 @@ from psycopg.rows import dict_row
 
 from .utils import LIBPQ_SUPPORTS_PIPELINING, LINUX, PKT_BUF_SIZE, USE_SUDO
 
+
 def test_prepared_statement(bouncer):
     bouncer.admin(f"set pool_mode=transaction")
     prepared_query = "SELECT 1"

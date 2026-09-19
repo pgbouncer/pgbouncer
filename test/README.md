@@ -61,7 +61,7 @@ uv sync --extra dev
 ### `test_xxx.py`
 
 These are general tests of basic functionality and different configuration
-parameters including timeouts, pool size, online restart, pause/resume, etc.
+parameters including timeouts, pool size, pause/resume, etc.
 
 You can run these tests using `pytest -n auto` from the root of the repository
 (after installing the python dependencies as explained above). This needs

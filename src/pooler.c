@@ -63,10 +63,6 @@ void cleanup_tcp_sockets(void)
 	struct ListenSocket *ls;
 	struct List *el, *tmp_l;
 
-	/* avoid cleanup if exit() while suspended */
-	if (cf_pause_mode == P_SUSPEND)
-		return;
-
 	statlist_for_each_safe(el, &sock_list, tmp_l) {
 		ls = container_of(el, struct ListenSocket, node);
 		if (pga_is_unix(&ls->addr)) {
@@ -89,9 +85,6 @@ void cleanup_unix_sockets(void)
 {
 	struct ListenSocket *ls;
 	struct List *el, *tmp_l;
-
-	if (cf_pause_mode == P_SUSPEND)
-		return;
 
 	statlist_for_each_safe(el, &sock_list, tmp_l) {
 		ls = container_of(el, struct ListenSocket, node);
@@ -325,8 +318,7 @@ void pooler_tune_accept(bool on)
 
 static void err_wait_func(evutil_socket_t sock, short flags, void *arg)
 {
-	if (cf_pause_mode != P_SUSPEND)
-		resume_pooler();
+	resume_pooler();
 }
 
 static const char *addrpair(const PgAddr *src, const PgAddr *dst)
@@ -409,36 +401,6 @@ loop:
 	goto loop;
 }
 
-bool use_pooler_socket(int sock, bool is_unix)
-{
-	struct ListenSocket *ls;
-	int res;
-	char buf[PGADDR_BUF];
-
-	if (!tune_socket(sock, is_unix))
-		return false;
-
-	ls = calloc(1, sizeof(*ls));
-	if (!ls)
-		return false;
-	ls->fd = sock;
-	if (is_unix) {
-		pga_set(&ls->addr, AF_UNIX, cf_listen_port);
-	} else {
-		struct sockaddr_storage ss;
-		socklen_t len = sizeof(ss);
-		res = getsockname(sock, (struct sockaddr *)&ss, &len);
-		if (res < 0) {
-			log_error("getsockname failed");
-			free(ls);
-			return false;
-		}
-		pga_copy(&ls->addr, (struct sockaddr *)&ss);
-	}
-	log_info("got pooler socket: %s", pga_str(&ls->addr, buf, sizeof(buf)));
-	statlist_append(&sock_list, &ls->node);
-	return true;
-}
 
 void suspend_pooler(void)
 {
@@ -593,19 +555,4 @@ void pooler_setup(void)
 		die("nowhere to listen on");
 
 	resume_pooler();
-}
-
-bool for_each_pooler_fd(pooler_cb cbfunc, void *arg)
-{
-	struct List *el;
-	struct ListenSocket *ls;
-	bool ok;
-
-	statlist_for_each(el, &sock_list) {
-		ls = container_of(el, struct ListenSocket, node);
-		ok = cbfunc(arg, ls->fd, &ls->addr);
-		if (!ok)
-			return false;
-	}
-	return true;
 }

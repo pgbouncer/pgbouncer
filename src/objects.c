@@ -573,7 +573,7 @@ PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const c
 }
 
 /* Add PAM user. The logic is same as in add_dynamic_credentials */
-PgCredentials *add_pam_credentials(const char *name, const char *passwd)
+PgCredentials *add_pam_credentials(const char *name)
 {
 	PgCredentials *credentials = NULL;
 	struct AANode *node;
@@ -596,8 +596,6 @@ PgCredentials *add_pam_credentials(const char *name, const char *passwd)
 
 		aatree_insert(&pam_user_tree, (uintptr_t)credentials->name, &credentials->tree_node);
 	}
-	if (passwd)
-		safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
 	return credentials;
 }
 
@@ -2297,165 +2295,6 @@ void forward_cancel_request(PgSocket *server)
 	change_server_state(server, SV_ACTIVE_CANCEL);
 	sbuf_continue(&server->sbuf);
 	return;
-}
-
-bool use_client_socket(int fd, PgAddr *addr,
-		       const char *dbname, const char *username,
-		       uint64_t ckey, int oldfd, int linkfd,
-		       const char *client_enc, const char *std_string,
-		       const char *datestyle, const char *timezone,
-		       const char *password,
-		       const char *scram_client_key, int scram_client_key_len,
-		       const char *scram_server_key, int scram_server_key_len)
-{
-	PgDatabase *db = find_database(dbname);
-	PgSocket *client;
-	PktBuf tmp;
-
-	/* if the database not found, it's an auto database -> registering... */
-	if (!db) {
-		db = register_auto_database(dbname);
-		if (!db)
-			return true;
-	}
-
-	if (scram_client_key || scram_server_key) {
-		PgCredentials *credentials;
-
-		if (!scram_client_key || !scram_server_key) {
-			log_error("incomplete SCRAM key data");
-			return false;
-		}
-		if (sizeof(credentials->scram_ClientKey) != scram_client_key_len
-		    || sizeof(credentials->scram_ServerKey) != scram_server_key_len) {
-			log_error("incompatible SCRAM key data");
-			return false;
-		}
-		if (db->forced_user_credentials) {
-			log_error("SCRAM key data received for forced user");
-			return false;
-		}
-		if (cf_auth_type == AUTH_TYPE_PAM) {
-			log_error("SCRAM key data received for PAM user");
-			return false;
-		}
-		credentials = find_global_credentials(username);
-		if (!credentials && db->auth_user_credentials)
-			credentials = add_dynamic_credentials(db, username, password);
-
-		if (!credentials)
-			return false;
-
-		memcpy(credentials->scram_ClientKey, scram_client_key, sizeof(credentials->scram_ClientKey));
-		memcpy(credentials->scram_ServerKey, scram_server_key, sizeof(credentials->scram_ServerKey));
-		credentials->scram_passthrough_valid = true;
-	}
-
-	client = accept_client(fd, pga_is_unix(addr));
-	if (client == NULL)
-		return false;
-	client->suspended = true;
-
-	if (!set_pool(client, dbname, username, password, true))
-		return false;
-
-	change_client_state(client, CL_ACTIVE);
-
-	/* store old cancel key */
-	pktbuf_static(&tmp, client->cancel_key, 8);
-	pktbuf_put_uint64(&tmp, ckey);
-
-	/* store old fds */
-	client->tmp_sk_oldfd = oldfd;
-	client->tmp_sk_linkfd = linkfd;
-
-	varcache_set(&client->vars, "client_encoding", client_enc);
-	varcache_set(&client->vars, "standard_conforming_strings", std_string);
-	varcache_set(&client->vars, "datestyle", datestyle);
-	varcache_set(&client->vars, "timezone", timezone);
-
-	return true;
-}
-
-bool use_server_socket(int fd, PgAddr *addr,
-		       const char *dbname, const char *username,
-		       uint64_t ckey, int oldfd, int linkfd,
-		       const char *client_enc, const char *std_string,
-		       const char *datestyle, const char *timezone,
-		       const char *password,
-		       const char *scram_client_key, int scram_client_key_len,
-		       const char *scram_server_key, int scram_server_key_len)
-{
-	PgDatabase *db = find_database(dbname);
-	PgCredentials *credentials;
-	PgPool *pool;
-	PgSocket *server;
-	PktBuf tmp;
-	bool res;
-
-	/* if the database not found, it's an auto database -> registering... */
-	if (!db) {
-		db = register_auto_database(dbname);
-		if (!db)
-			return true;
-	}
-
-	if (db->forced_user_credentials) {
-		credentials = db->forced_user_credentials;
-	} else if (cf_auth_type == AUTH_TYPE_PAM) {
-		credentials = add_pam_credentials(username, password);
-	} else {
-		credentials = find_global_credentials(username);
-	}
-	if (!credentials && db->auth_user_credentials)
-		credentials = add_dynamic_credentials(db, username, password);
-
-	pool = get_pool(db, credentials);
-	if (!pool)
-		return false;
-
-	server = slab_alloc(server_cache);
-	if (!server)
-		return false;
-
-	res = sbuf_accept(&server->sbuf, fd, pga_is_unix(addr));
-	if (!res)
-		return false;
-
-	db->connection_count++;
-
-	server->suspended = true;
-	server->pool = pool;
-	server->login_user_credentials = credentials;
-	server->connect_time = server->request_time = get_cached_time();
-	server->query_start = 0;
-	statlist_init(&server->canceling_clients, "canceling_clients");
-
-	fill_remote_addr(server, fd, pga_is_unix(addr));
-	fill_local_addr(server, fd, pga_is_unix(addr));
-
-	if (linkfd) {
-		server->ready = false;
-		change_server_state(server, SV_ACTIVE);
-	} else {
-		server->ready = true;
-		change_server_state(server, SV_IDLE);
-	}
-
-	/* store old cancel key */
-	pktbuf_static(&tmp, server->cancel_key, 8);
-	pktbuf_put_uint64(&tmp, ckey);
-
-	/* store old fds */
-	server->tmp_sk_oldfd = oldfd;
-	server->tmp_sk_linkfd = linkfd;
-
-	varcache_set(&server->vars, "client_encoding", client_enc);
-	varcache_set(&server->vars, "standard_conforming_strings", std_string);
-	varcache_set(&server->vars, "datestyle", datestyle);
-	varcache_set(&server->vars, "timezone", timezone);
-
-	return true;
 }
 
 void for_each_server(PgPool *pool, void (*func)(PgSocket *sk))

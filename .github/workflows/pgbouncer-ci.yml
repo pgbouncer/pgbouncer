@@ -25,8 +25,8 @@ env:
 
 # Platforms build with meson. The autoconf build still coexists and is kept
 # exercised on two jobs: the `autoconf` entry in the `linux` matrix (a stock
-# Ubuntu runner, which also produces the dist tarball) and the Debian bullseye
-# container, whose packaged meson is too old. The per-step commands live in
+# Ubuntu runner, which also produces the dist tarball) and the Debian trixie
+# container. The per-step commands live in
 # ci/run.sh, which takes the build system as an argument, so both are driven
 # the same way.
 
@@ -46,8 +46,10 @@ jobs:
         include:
           # Keep the autoconf build exercised (while both build systems coexist)
           # on the same stock Ubuntu runner rather than a separate distro. This
-          # also produces the release dist tarball, which (unlike meson's) bundles
-          # the generated `configure` so it can be built without autoconf tools.
+          # also produces the release dist tarball, which bundles the generated
+          # `configure` so it can be built without autoconf tools. The meson
+          # `pgdist` target produces an equivalent tarball, so this can move to
+          # meson once the autoconf build is retired.
           - name: autoconf
             build_system: autoconf
             configure_args: "--with-cares --with-pam --with-ldap"
@@ -55,6 +57,7 @@ jobs:
           - name: cares-pam-ldap
             build_system: meson
             meson_args: "-Dcares=enabled -Dpam=enabled -Dldap=enabled"
+            dist: "yes"
           - name: no-evdns-no-openssl
             build_system: meson
             meson_args: "-Dcares=disabled -Devdns=false -Dopenssl=disabled"
@@ -187,8 +190,7 @@ jobs:
   # official container images. Container jobs run as root, where PostgreSQL
   # refuses to initdb, so we build and test as an unprivileged `user`.
   #
-  # bookworm is built with meson; bullseye's packaged meson (0.56) is below our
-  # floor, so it exercises the autoconf build instead.
+  # bookworm is built with meson; trixie exercises the autoconf build instead.
   linux-debian:
     name: Linux Debian (${{ matrix.name }}, ${{ matrix.build_system }})
     if: >-
@@ -202,8 +204,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # The Debian jobs below use the PG version that ships with
+          # them (so that we test what users are likely to use).
           - { name: bookworm, image: debian:bookworm, pgversion: "15", build_system: meson }
-          - { name: bullseye, image: debian:bullseye, pgversion: "13", build_system: autoconf }
+          - { name: trixie, image: debian:trixie, pgversion: "17", build_system: autoconf }
     env:
       PGVERSION: ${{ matrix.pgversion }}
       BUILD_SYSTEM: ${{ matrix.build_system }}
@@ -431,7 +435,7 @@ jobs:
             "${MINGW_PACKAGE_PREFIX}-openssl" "${MINGW_PACKAGE_PREFIX}-postgresql" \
             "${MINGW_PACKAGE_PREFIX}-python" "${MINGW_PACKAGE_PREFIX}-python-pip" \
             "${MINGW_PACKAGE_PREFIX}-meson" "${MINGW_PACKAGE_PREFIX}-ninja" \
-            "${MINGW_PACKAGE_PREFIX}-pkgconf" zip
+            "${MINGW_PACKAGE_PREFIX}-pkgconf"
           echo "127.0.0.1   localhost" >> /etc/hosts
           pip install .
       - name: Build
@@ -443,14 +447,12 @@ jobs:
       - name: Install
         run: sh ci/run.sh install "$BUILD_SYSTEM"
       - name: Build zip
-        run: |
-          cd install
-          zip -r "../pgbouncer-windows.zip" .
+        run: sh ci/run.sh zip "$BUILD_SYSTEM"
       - name: Upload zip
         uses: actions/upload-artifact@v7
         with:
           name: pgbouncer-windows-zip
-          path: pgbouncer-*.zip
+          path: dist/pgbouncer-*.zip
           if-no-files-found: error
       - name: Upload build logs
         if: ${{ !cancelled() }}

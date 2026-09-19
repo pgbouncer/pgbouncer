@@ -233,10 +233,6 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 
 		/* need to notify sbuf if server was closed */
 		res = release_server(server);
-
-		/* let the takeover process handle it */
-		if (res && server->pool->db->admin)
-			res = takeover_login(server);
 		break;
 
 	/* ignorable packets */
@@ -667,8 +663,6 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 						server->pool->stats.xact_time += total;
 						slog_debug(client, "transaction time: %d us", (int)total);
 					} else if (!async_response) {
-						/* XXX This happens during takeover if the new process
-						 * continues a transaction. */
 						slog_warning(client, "FIXME: transaction end, but xact_start == 0");
 					}
 				}
@@ -800,7 +794,6 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 {
 	bool res = false;
 	PgSocket *server = container_of(sbuf, PgSocket, sbuf);
-	PgPool *pool = server->pool;
 	PktHdr pkt;
 	char infobuf[96];
 
@@ -948,7 +941,5 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			disconnect_server(server, false, "TLS startup failed");
 		break;
 	}
-	if (!res && pool->db->admin)
-		takeover_login_failed();
 	return res;
 }

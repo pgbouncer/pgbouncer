@@ -10,9 +10,15 @@ project('pgbouncer',
           # The C standard is left at the compiler default; the C11 requirement
           # is enforced by an explicit probe below (see AC_USUAL_C11), which only
           # adds a -std= flag when the default is not already C11.
+
           # warning_level=2 supplies -Wall -Wextra (the rest of the autoconf
           # WFLAGS set is added explicitly below).
           'warning_level=2',
+
+          # debugoptimized matches the -g -O2 from autoconf and is
+          # also a better default for both development and production
+          # builds.
+          'buildtype=debugoptimized',
         ],
 )
 
@@ -563,7 +569,6 @@ pgbouncer_sources = files(
   'src/server.c',
   'src/stats.c',
   'src/system.c',
-  'src/takeover.c',
   'src/util.c',
   'src/varcache.c',
   'src/common/base64.c',
@@ -628,7 +633,7 @@ pgbouncer = executable('pgbouncer',
 if windows
   pgbevent_res = win.compile_resources('win32/eventmsg.rc',
                                        include_directories: pgbouncer_incdirs)
-  shared_module('pgbevent',
+  pgbevent = shared_module('pgbevent',
     'win32/pgbevent.c',
     pgbevent_res,
     name_prefix: '',
@@ -654,6 +659,32 @@ if pandoc.found()
   subdir('doc')
 else
   message('pandoc not found: man pages will not be built or installed')
+endif
+
+# ----------------------------------------------------------------------
+# Windows binary distribution zip
+# ----------------------------------------------------------------------
+
+if windows
+  # We use required: false here to not fail the entire Windows build
+  # if strip is not found.  But make-zip.py requires --strip, so the
+  # zip target will fail then.
+  strip_prog = find_program('strip', required: false)
+  strip_args = []
+  if strip_prog.found()
+    strip_args = ['--strip', strip_prog.full_path()]
+  else
+    message('strip not found, zip target will not work')
+  endif
+
+  custom_target('zip',
+    output: 'pgbouncer-@0@-windows-@1@.zip'.format(meson.project_version(),
+                                                   host_machine.cpu()),
+    input: [pgbouncer, pgbevent,
+            files('etc/pgbouncer.ini', 'etc/userlist.txt', 'README.md', 'COPYRIGHT')],
+    command: [python, files('win32/make-zip.py'), strip_args, '-o', '@OUTPUT@', '@INPUT@'],
+    build_by_default: false,
+  )
 endif
 
 pkgdocdir = get_option('datadir') / 'doc' / 'pgbouncer'
@@ -725,6 +756,67 @@ ctags = find_program('ctags', required: false)
 if ctags.found()
   run_target('tags',
              command: [ctags, '-R', 'src', 'include', 'lib/usual'])
+endif
+
+# ----------------------------------------------------------------------
+# dist (adapted from PostgreSQL)
+# ----------------------------------------------------------------------
+
+# Meson has its own distribution building command (meson dist), but we
+# are not using that at this point.  The main problem is that, the way
+# they have implemented it, it is not deterministic.  Also, we want it
+# to be equivalent to the "make" version for the time being.  But the
+# target name "dist" in meson is reserved for that reason, so we call
+# the custom target "pgdist".
+
+git = find_program('git', required: false, native: true, disabler: true)
+
+distdir = meson.project_name() + '-' + meson.project_version()
+
+# Generated files that are not in git but must ship in the tarball, so
+# it can be built without autoconf/automake installed.  Keep in sync
+# with EXTRA_DIST in the Makefile.
+extra_dist = ['config.guess', 'config.sub', 'configure', 'install-sh',
+              'lib/usual/config.h.in']
+
+# git archive applies --prefix to the --add-file that follows it, so
+# each extra file needs its own --prefix carrying that file's
+# directory.  A trailing --prefix restores the plain distdir for
+# anything after.
+git_archive_args = []
+foreach f : extra_dist
+  dirname = fs.parent(f)
+  if dirname == '.'
+    dirname = ''
+  else
+    dirname += '/'
+  endif
+  git_archive_args += ['--prefix', '@0@/@1@'.format(distdir, dirname),
+                       '--add-file', f]
+endforeach
+
+tar_gz = custom_target('tar.gz',
+  build_always_stale: true,
+  command: [git, '-C', '@SOURCE_ROOT@',
+            '-c', 'core.autocrlf=false',
+            'archive',
+            '--format', 'tar.gz',
+            '-9',
+            '--prefix', distdir + '/',
+            '-o', meson.project_build_root() / '@OUTPUT@',
+            get_option('PG_GIT_REVISION')] + git_archive_args
+           + ['--prefix', distdir + '/'],
+  output: distdir + '.tar.gz',
+)
+
+alias_target('pgdist', [tar_gz])
+
+# Make the standard "dist" command fail, to prevent accidental use.
+# But not if we are in a subproject, in case the parent project wants
+# to create a dist using the standard Meson command.
+if not meson.is_subproject()
+  meson.add_dist_script(python, '-c',
+                        'import sys; sys.exit("Use \'meson compile pgdist\' instead of \'meson dist\'")')
 endif
 
 # ----------------------------------------------------------------------

@@ -1146,46 +1146,10 @@ class Bouncer(QueryRunner):
 
         await self.wait_for_exit()
 
-    async def reboot(self):
-        """Starts a new PgBouncer with the --reboot flag
-
-        This new PgBouncer process will replace the current process and take
-        over its non-SSL sockets.
-        """
-        assert self.aprocess is not None or self.process is not None
-        if self.aprocess:
-            old_process = self.aprocess
-            old_pid = old_process.pid
-            self.aprocess = await asyncio.create_subprocess_exec(
-                *self.base_command(),
-                "--reboot",
-                "--quiet",
-                str(self.ini_path),
-                close_fds=True,
-            )
-            await old_process.communicate()
-            await old_process.wait()
-            await self.wait_until_running()
-            assert self.aprocess.pid != old_pid
-        if self.process:
-            # A regular subprocess, so Windows: see the comment in start() for
-            # why asyncio subprocesses cannot be used there.
-            old_process = self.process
-            old_pid = old_process.pid
-            self.process = subprocess.Popen(  # noqa: ASYNC220
-                [*self.base_command(), "--reboot", "--quiet", self.ini_path],
-                close_fds=True,
-            )
-            old_process.communicate()
-            old_process.wait()
-            await self.wait_until_running()
-            assert self.process.pid != old_pid
-
     async def restart(self):
         """Fully stops and starts PgBouncer again
 
-        Unlike reboot() this does not take over the sockets of the old process,
-        so it can be used to apply config changes that a RELOAD cannot (i.e.
+        This can be used to apply config changes that a RELOAD cannot (i.e.
         CF_NO_RELOAD settings such as pkt_buf).
         """
         await self.stop()

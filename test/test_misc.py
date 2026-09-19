@@ -448,9 +448,8 @@ def test_fast_close(bouncer):
 
 
 def test_track_extra_parameters(bouncer):
-    # test.ini has track_extra_parameters set to a list of Postgres
-    # parameters. Test that the parameters in the list in addition to the
-    # default hardcoded list of parameters are cached per client.
+    # Test that the default hardcoded list of tracked parameters are cached
+    # per client.
     bouncer.admin(f"set pool_mode=transaction")
 
     test_set = {
@@ -461,9 +460,6 @@ def test_track_extra_parameters(bouncer):
         "application_name": ["client1", "client2"],
     }
 
-    if not WINDOWS:
-        test_set["client_encoding"] = ["LATIN1", "LATIN5"]
-
     test_expected = {
         "intervalstyle": ["sql_standard", "postgres"],
         "standard_conforming_strings": ["on", "off"],
@@ -473,7 +469,23 @@ def test_track_extra_parameters(bouncer):
     }
 
     if not WINDOWS:
+        test_set["client_encoding"] = ["LATIN1", "LATIN5"]
         test_expected["client_encoding"] = ["LATIN1", "LATIN5"]
+
+    # default_transaction-read_only was not marked as GUC_REPORT until server version 14
+    if PG_MAJOR_VERSION >= 14:
+        test_set["default_transaction_read_only"] = ["true", "false"]
+        test_expected["default_transaction_read_only"] = ["on", "off"]
+
+    # scram_iterations was not marked as GUC_REPORT until server version 16
+    if PG_MAJOR_VERSION >= 16:
+        test_set["scram_iterations"] = ["1000", "2000"]
+        test_expected["scram_iterations"] = ["1000", "2000"]
+
+    # search_path was not marked as GUC_REPORT until server version 18
+    if PG_MAJOR_VERSION >= 18:
+        test_set["search_path"] = ["a, b", "c, d"]
+        test_expected["search_path"] = ["a, b", "c, d"]
 
     with bouncer.cur(dbname="p1") as cur1, bouncer.cur(dbname="p1") as cur2:
         for key in test_set:
@@ -486,11 +498,17 @@ def test_track_extra_parameters(bouncer):
             cur1.execute(stmt)
             cur2.execute(stmt)
 
-            result1 = cur1.fetchone()
-            assert result1[0] == test_expected[key][0]
+            result1 = cur1.fetchone()[0]
+            expected1 = test_expected[key][0]
+            assert result1 == expected1, (
+                f'parameter {key}, expected "{expected1}", got "{result1}"'
+            )
 
-            result2 = cur2.fetchone()
-            assert result2[0] == test_expected[key][1]
+            result2 = cur2.fetchone()[0]
+            expected2 = test_expected[key][1]
+            assert result2 == expected2, (
+                f'parameter {key}, expected "{expected2}", got "{result2}"'
+            )
 
 
 async def test_wait_close(bouncer):
@@ -726,6 +744,25 @@ def test_equivalent_startup_param(bouncer):
     ):
         cur.execute("SELECT 1")
         cur.execute("SELECT 1")
+
+
+@pytest.mark.skipif(
+    "PG_MAJOR_VERSION < 14",
+    reason="default_transaction_read_only was not marked as GUC_REPORT before PG14",
+)
+def test_default_transaction_read_only(bouncer):
+    """
+    Test that "SET default_transaction_read_only = true" in one client connection
+    doesn't poison the pool with a read-only connection.
+    """
+    bouncer.admin(f"set pool_mode=transaction")
+
+    with bouncer.cur() as rocur:
+        rocur.execute("SET default_transaction_read_only = true")
+        assert rocur.execute("SHOW transaction_read_only").fetchone()[0] == "on"
+
+    with bouncer.cur() as rwcur:
+        assert rwcur.execute("SHOW transaction_read_only").fetchone()[0] == "off"
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows doesn't support sending SIGTERM")
@@ -965,3 +1002,89 @@ async def test_server_login_large_packets(bouncer):
     # Simply connecting exercises the server login path: the server sends
     # ParameterStatus, BackendKeyData, ReadyForQuery etc.
     bouncer.test()
+
+
+async def test_unreported_param_startup(bouncer):
+    """Test that startup parameters tracked via track_extra_parameters are applied.
+
+    When track_extra_parameters includes a parameter that PostgreSQL does not report
+    via ParameterStatus (such as enable_seqscan), PgBouncer stores client->vars
+    from the startup options, but server->vars remains NULL. Consequently,
+    apply_var() must apply the variable when sval is NULL and reset it when a
+    client without the variable connects.
+    """
+    bouncer.write_ini("track_extra_parameters = enable_seqscan\ndefault_pool_size = 1")
+    await bouncer.restart()
+    bouncer.admin("set pool_mode=transaction")
+    bouncer.admin("set verbose=2")
+
+    # Client 1 sets enable_seqscan=off in startup options.
+    # It should emit SET enable_seqscan='off' only once across multiple transactions.
+    with (
+        bouncer.log_contains(r"varcache_apply: .*SET enable_seqscan='off'", times=1),
+        bouncer.cur(dbname="p1", options="-c enable_seqscan=off") as cur1,
+    ):
+        assert cur1.execute("SHOW enable_seqscan").fetchone()[0] == "off"
+        assert cur1.execute("SHOW enable_seqscan").fetchone()[0] == "off"
+
+    # Client 2 connects without startup options to the same pool (default_pool_size=1).
+    # The server connection should have enable_seqscan reset to DEFAULT ('on').
+    with (
+        bouncer.log_contains(r"varcache_apply: .*RESET enable_seqscan;", times=1),
+        bouncer.cur(dbname="p1") as cur2,
+    ):
+        assert cur2.execute("SHOW enable_seqscan").fetchone()[0] == "on"
+        assert cur2.execute("SHOW enable_seqscan").fetchone()[0] == "on"
+
+    # Client 1 connects again and should still have 'off' applied.
+    with (
+        bouncer.log_contains(r"varcache_apply: .*SET enable_seqscan='off'", times=1),
+        bouncer.cur(dbname="p1", options="-c enable_seqscan=off") as cur1,
+    ):
+        assert cur1.execute("SHOW enable_seqscan").fetchone()[0] == "off"
+
+
+async def test_session_authorization_tracked(bouncer):
+    """Test that SET SESSION AUTHORIZATION does not leak to other clients.
+
+    session_authorization is in the static list of tracked parameters. A
+    superuser client that changes it in transaction mode should get it
+    re-applied on every transaction, and other clients sharing the same server
+    connection should get it reset to the login user.
+    """
+    bouncer.write_ini("default_pool_size = 1")
+    await bouncer.restart()
+    bouncer.admin("set pool_mode=transaction")
+    bouncer.admin("set verbose=2")
+
+    conn_args = {
+        "dbname": "user_passthrough",
+        "user": "pswcheck",
+        "password": "pgbouncer-check",
+    }
+
+    with bouncer.cur(**conn_args) as cur1, bouncer.cur(**conn_args) as cur2:
+        assert cur1.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"
+        assert cur2.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"
+
+        cur1.execute("SET SESSION AUTHORIZATION someuser")
+        assert cur1.execute("SHOW session_authorization").fetchone()[0] == "someuser"
+
+        # cur2 shares the single server connection, so PgBouncer has to switch
+        # session_authorization back and forth between the two clients.
+        with bouncer.log_contains(
+            r"varcache_apply: .*SET session_authorization='pswcheck'", times=1
+        ):
+            assert (
+                cur2.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"
+            )
+        with bouncer.log_contains(
+            r"varcache_apply: .*SET session_authorization='someuser'", times=1
+        ):
+            assert (
+                cur1.execute("SHOW session_authorization").fetchone()[0] == "someuser"
+            )
+
+        cur1.execute("RESET SESSION AUTHORIZATION")
+        assert cur1.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"
+        assert cur2.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"

@@ -4,18 +4,7 @@ import time
 import psycopg
 import pytest
 
-from .utils import PG_SUPPORTS_SCRAM, WINDOWS
-
-
-@pytest.mark.skipif("WINDOWS", reason="gets stuck for some reason during takeover")
-async def test_online_restart(bouncer):
-    for _ in range(5):
-        # max_client_conn = 10
-        # default_pool_size = 5
-        task = bouncer.asleep(2, dbname="p1", times=5)
-        await asyncio.sleep(0.5)
-        await bouncer.reboot()
-        await task
+from .utils import WINDOWS
 
 
 async def test_pause_resume(bouncer):
@@ -26,19 +15,6 @@ async def test_pause_resume(bouncer):
         await asyncio.sleep(1)
         await bouncer.aadmin("resume")
         await asyncio.sleep(1)
-
-    await task
-
-
-async def test_suspend_resume(bouncer):
-    task = bouncer.asleep(0.1, times=50, sequentially=True)
-
-    for _ in range(5):
-        async with bouncer.admin_runner.acur() as cur:
-            await cur.execute("suspend")
-            await asyncio.sleep(1)
-            await cur.execute("resume")
-            await asyncio.sleep(1)
 
     await task
 
@@ -106,16 +82,3 @@ def test_reconnect(bouncer):
 
     pid2 = bouncer.sql_value("select pg_backend_pid()")
     assert pid1 != pid2
-
-
-@pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
-@pytest.mark.skipif("WINDOWS", reason="gets stuck for some reason during takeover")
-async def test_scram_takeover(bouncer):
-    bouncer.admin("set pool_mode=transaction")
-    bouncer.admin("set server_lifetime=3")
-    bouncer.admin("set auth_type='scram-sha-256'")
-    async with bouncer.acur(dbname="p62", user="scramuser1", password="foo") as cur:
-        await cur.execute("select 1")
-        await asyncio.sleep(4)  # wait for server_lifetime
-        await bouncer.reboot()
-        await cur.execute("select 1")

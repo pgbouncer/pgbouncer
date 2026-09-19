@@ -481,7 +481,7 @@ load_balance_hosts
 
 A new peer_pool entry is made for each configured peer.
 
-database
+peer_id
 :   ID of the configured peer entry.
 
 cl_active_cancel_req

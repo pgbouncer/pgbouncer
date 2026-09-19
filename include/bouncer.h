@@ -787,6 +787,7 @@ struct PgSocket {
 #endif
 
 	VarCache vars;		/* state of interesting server parameters */
+	VarCache startup_vars;	/* parameters received before server login succeeds */
 
 	/* client: prepared statements prepared by this client */
 	PgClientPreparedStatement *client_prepared_statements;

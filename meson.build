@@ -1,6 +1,6 @@
 project('pgbouncer',
         ['c'],
-        version: '1.25.2',
+        version: '1.26.0',
         license: 'ISC',
         # Kept in reach of the meson shipped by the distros we build on (the
         # oldest being RHEL 8's 0.58), so CI can install meson from the official

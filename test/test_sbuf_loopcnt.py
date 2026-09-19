@@ -48,6 +48,6 @@ def test_sbuf_loopcnt_client_backpressure_still_accepts(bouncer):
         )
         stalled.pgconn.flush()
         time.sleep(0.5)
-        assert bouncer.sql("SELECT 1", connect_timeout=3)[0][0] == 1
+        assert bouncer.sql_value("SELECT 1", connect_timeout=3) == 1
     finally:
         stalled.close()

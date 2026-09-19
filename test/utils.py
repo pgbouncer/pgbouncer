@@ -1114,6 +1114,13 @@ class Bouncer(QueryRunner):
         task"""
         return self.admin_runner.asql(query, **kwargs)
 
+    def config_value(self, key):
+        """Return the value SHOW CONFIG reports for a single setting"""
+        return next(
+            (value for name, value, *_ in self.admin("SHOW CONFIG") if name == key),
+            None,
+        )
+
     def running(self):
         if self.process:
             return self.process.poll() is None

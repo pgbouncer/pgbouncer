@@ -7,6 +7,14 @@ The configuration file is in "ini" format. Section names are between "[" and "]"
 starting with ";" or "#" are taken as comments and ignored. The characters ";"
 and "#" are not recognized as special when they appear later in the line.
 
+A section may appear more than once, including across files pulled in with
+`%include`; the later block adds to what the earlier one set instead of
+resetting the settings it does not mention. A setting given more than once
+takes the value it was last given, except on a reload: a setting that is not
+changeable at run time keeps its running value whatever the file says. Note
+that an `%include` does not restore the section context, so splitting a file
+needs some care; see section [Include directive](#include-directive) below.
+
 
 ## Generic settings
 
@@ -1611,6 +1619,14 @@ like this:
 
 If the file name is not an absolute path, it is taken as relative to the current
 working directory.
+
+The section context is not restored when the included file ends: the last
+section header seen in the included file is still in effect for the lines that
+follow the `%include` in the including file. So an included file that opens a
+section of its own must either be the last thing in the file that includes it,
+or be followed there by a fresh section header. Otherwise the settings after
+the `%include` are read as belonging to the included file's last section, and
+the load fails with an `unknown parameter` or an invalid value error.
 
 
 ## Authentication file format

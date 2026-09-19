@@ -362,6 +362,8 @@ bool welcome_client(PgSocket *client)
 	const PktBuf *pmsg = pool->welcome_msg;
 	PktBuf *msg;
 	char max_prepared_statements[16];
+	int pool_mode = connection_pool_mode(client);
+	struct CfValue pool_mode_lookup = { .value_p = &pool_mode, .extra = pool_mode_map };
 
 	slog_noise(client, "P: welcome_client");
 
@@ -376,16 +378,7 @@ bool welcome_client(PgSocket *client)
 	snprintf(max_prepared_statements, sizeof(max_prepared_statements), "%d",
 		 pool->db->admin ? 0 : cf_max_prepared_statements);
 	pktbuf_write_ParameterStatus(msg, "pgbouncer.max_prepared_statements", max_prepared_statements);
-	switch (connection_pool_mode(client)) {
-	case POOL_SESSION:
-		pktbuf_write_ParameterStatus(msg, "pgbouncer.pool_mode", "session");
-		break;
-	case POOL_TX:
-		pktbuf_write_ParameterStatus(msg, "pgbouncer.pool_mode", "transaction");
-		break;
-	case POOL_STMT:
-		pktbuf_write_ParameterStatus(msg, "pgbouncer.pool_mode", "statement");
-	}
+	pktbuf_write_ParameterStatus(msg, "pgbouncer.pool_mode", cf_get_lookup(&pool_mode_lookup));
 
 	/* fill vars */
 	varcache_fill_unset(&pool->orig_vars, client);

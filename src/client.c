@@ -1350,8 +1350,18 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 				if (!mbuf_get_bytes(&pkt->data, length, &data))
 					return false;
 				if (scram_client_final(client, length, data)) {
-					/* save SCRAM keys for user */
-					if (!client->scram_state.adhoc && !client->db->fake) {
+					/*
+					 * Save SCRAM keys for pass-through to the backend
+					 * connection, but only when the credentials the client
+					 * just authenticated with are the same object that will
+					 * be used for the backend login. With a forced user
+					 * whose password differs from the client, those
+					 * are two distinct PgCredentials, and the derived keys
+					 * correspond to the client password, not the forced
+					 * user.
+					 */
+					if (!client->scram_state.adhoc && !client->db->fake &&
+					    client->login_user_credentials == client->pool->user_credentials) {
 						memcpy(client->pool->user_credentials->scram_ClientKey,
 						       client->scram_state.ClientKey,
 						       sizeof(client->scram_state.ClientKey));

@@ -319,6 +319,18 @@ void log_server_error(const char *note, PktHdr *pkt)
  * Preparation of welcome message for client connection.
  */
 
+PktBuf *new_welcome_msg(void)
+{
+	PktBuf *msg;
+	msg = pktbuf_dynamic(128);
+	if (!msg)
+		return NULL;
+
+	pktbuf_write_AuthenticationOk(msg);
+	pktbuf_write_ParameterStatus(msg, "pgbouncer.version", PACKAGE_VERSION);
+	return msg;
+}
+
 /* add another server parameter packet to cache */
 bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 {
@@ -326,17 +338,6 @@ bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 
 	if (pool->welcome_msg_ready)
 		return true;
-
-	if (!msg) {
-		msg = pktbuf_dynamic(128);
-		if (!msg)
-			return false;
-		pool->welcome_msg = msg;
-	}
-
-	/* first packet must be AuthOk */
-	if (msg->write_pos == 0)
-		pktbuf_write_AuthenticationOk(msg);
 
 	/* if not stored in ->orig_vars, write full packet */
 	if (!varcache_set(&pool->orig_vars, key, val))
@@ -366,6 +367,21 @@ bool welcome_client(PgSocket *client)
 	/* copy prepared stuff around */
 	msg = pktbuf_temp();
 	pktbuf_put_bytes(msg, pmsg->buf, pmsg->write_pos);
+
+	/*
+	 * The admin console has no real pool behind it, so pool_mode and
+	 * max_prepared_statements are meaningless there. Only send them for
+	 * connections to actual databases.
+	 */
+	if (!pool->db->admin) {
+		char max_prepared_statements[16];
+		int pool_mode = connection_pool_mode(client);
+		struct CfValue pool_mode_lookup = { .value_p = &pool_mode, .extra = pool_mode_map };
+
+		snprintf(max_prepared_statements, sizeof(max_prepared_statements), "%d", cf_max_prepared_statements);
+		pktbuf_write_ParameterStatus(msg, "pgbouncer.max_prepared_statements", max_prepared_statements);
+		pktbuf_write_ParameterStatus(msg, "pgbouncer.pool_mode", cf_get_lookup(&pool_mode_lookup));
+	}
 
 	/* fill vars */
 	varcache_fill_unset(&pool->orig_vars, client);

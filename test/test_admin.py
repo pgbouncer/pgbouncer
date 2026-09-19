@@ -8,6 +8,21 @@ from psycopg.rows import dict_row
 from .utils import Bouncer, capture, run
 
 
+def test_parameter_status(bouncer):
+    """
+    Test that the admin console only sends the `pgbouncer.version` parameter
+    status and not `pgbouncer.max_prepared_statements` or
+    `pgbouncer.pool_mode`, since there is no real pool behind it.
+    """
+    conn = bouncer.admin_runner.conn()
+    assert (
+        conn.pgconn.parameter_status(b"pgbouncer.version").decode()
+        == f"{bouncer.version()}"
+    )
+    assert conn.pgconn.parameter_status(b"pgbouncer.max_prepared_statements") is None
+    assert conn.pgconn.parameter_status(b"pgbouncer.pool_mode") is None
+
+
 def test_reload_error(bouncer):
     """
     Test that admin console correctly raises error during RELOAD

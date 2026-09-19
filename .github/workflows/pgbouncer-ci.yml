@@ -25,8 +25,8 @@ env:
 
 # Platforms build with meson. The autoconf build still coexists and is kept
 # exercised on two jobs: the `autoconf` entry in the `linux` matrix (a stock
-# Ubuntu runner, which also produces the dist tarball) and the Debian bullseye
-# container, whose packaged meson is too old. The per-step commands live in
+# Ubuntu runner, which also produces the dist tarball) and the Debian trixie
+# container. The per-step commands live in
 # ci/run.sh, which takes the build system as an argument, so both are driven
 # the same way.
 
@@ -190,8 +190,7 @@ jobs:
   # official container images. Container jobs run as root, where PostgreSQL
   # refuses to initdb, so we build and test as an unprivileged `user`.
   #
-  # bookworm is built with meson; bullseye's packaged meson (0.56) is below our
-  # floor, so it exercises the autoconf build instead.
+  # bookworm is built with meson; trixie exercises the autoconf build instead.
   linux-debian:
     name: Linux Debian (${{ matrix.name }}, ${{ matrix.build_system }})
     if: >-
@@ -205,8 +204,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # The Debian jobs below use the PG version that ships with
+          # them (so that we test what users are likely to use).
           - { name: bookworm, image: debian:bookworm, pgversion: "15", build_system: meson }
-          - { name: bullseye, image: debian:bullseye, pgversion: "13", build_system: autoconf }
+          - { name: trixie, image: debian:trixie, pgversion: "17", build_system: autoconf }
     env:
       PGVERSION: ${{ matrix.pgversion }}
       BUILD_SYSTEM: ${{ matrix.build_system }}

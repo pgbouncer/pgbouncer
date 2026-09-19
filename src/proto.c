@@ -324,7 +324,7 @@ PktBuf *new_welcome_msg(void)
 	PktBuf *msg;
 	msg = pktbuf_dynamic(128);
 	if (!msg)
-		return false;
+		return NULL;
 
 	pktbuf_write_AuthenticationOk(msg);
 	pktbuf_write_ParameterStatus(msg, "pgbouncer.version", PACKAGE_VERSION);

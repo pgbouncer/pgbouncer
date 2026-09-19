@@ -39,8 +39,6 @@
 #include <sys/resource.h>
 #endif
 
-#include <math.h>
-
 /*
  * Default number of iterations when generating secret.  Should be at least
  * 4096 per RFC 7677.

@@ -207,12 +207,7 @@ char *cf_server_tls_key_file;
 char *cf_server_tls_ciphers;
 char *cf_server_tls13_ciphers;
 
-char *cf_max_prepared_statements;
-
-/*
- * used for storing integer max_prepared_statements
- */
-int max_prepared_statements;
+int cf_max_prepared_statements;
 
 int cf_scram_iterations;
 
@@ -312,7 +307,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("max_db_client_connections", CF_INT, cf_max_db_client_connections, 0, "0"),
 	CF_ABS("max_db_connections", CF_INT, cf_max_db_connections, 0, "0"),
 	CF_ABS("max_packet_size", CF_UINT, cf_max_packet_size, 0, "2147483647"),
-	CF_ABS("max_prepared_statements", CF_STR, cf_max_prepared_statements, 0, "200"),
+	CF_ABS("max_prepared_statements", CF_INT, cf_max_prepared_statements, 0, "200"),
 	CF_ABS("max_user_client_connections", CF_INT, cf_max_user_client_connections, 0, "0"),
 	CF_ABS("max_user_connections", CF_INT, cf_max_user_connections, 0, "0"),
 	CF_ABS("min_pool_size", CF_INT, cf_min_pool_size, 0, "0"),
@@ -400,24 +395,7 @@ static struct CfContext main_config = { config_sects, };
 
 bool set_config_param(const char *key, const char *val)
 {
-	bool ret;
-	ret = cf_set(&main_config, "pgbouncer", key, val);
-	if (!ret)
-		return ret;
-
-	ret = true;
-	if (strcmp(key, "max_prepared_statements") == 0) {
-		if (strcmp(val, "0") == 0) {
-			max_prepared_statements = 0;
-		} else {
-			const char *errstr;
-			max_prepared_statements = strtonum(val, 0, INT_MAX, &errstr);
-			if (errstr != NULL)
-				ret = false;
-		}
-	}
-
-	return ret;
+	return cf_set(&main_config, "pgbouncer", key, val);
 }
 
 void config_for_each(void (*param_cb)(void *arg, const char *name, const char *val, const char *defval, bool reloadable),
@@ -513,17 +491,6 @@ bool load_config(void)
 		/* if ini file missing, don't kill anybody */
 		set_dbs_dead(false);
 		ok = false;
-	}
-
-	if (strcmp(cf_max_prepared_statements, "0") == 0) {
-		max_prepared_statements = 0;
-	} else {
-		const char *errstr;
-		max_prepared_statements = strtonum(cf_max_prepared_statements, 0, INT_MAX, &errstr);
-		if (errstr != NULL) {
-			log_warning("invalid max_prepared_statements = %s", cf_max_prepared_statements);
-			ok = false;
-		}
 	}
 
 	q = cf_server_check_query;
@@ -1057,8 +1024,6 @@ static void cleanup(void)
 	xfree((char **)&cf_syslog_facility);
 
 	xfree(&cf_track_extra_parameters);
-
-	xfree(&cf_max_prepared_statements);
 }
 
 /* boot everything */

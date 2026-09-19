@@ -361,6 +361,7 @@ bool welcome_client(PgSocket *client)
 	PgPool *pool = client->pool;
 	const PktBuf *pmsg = pool->welcome_msg;
 	PktBuf *msg;
+	char max_prepared_statements[16];
 
 	slog_noise(client, "P: welcome_client");
 
@@ -368,11 +369,13 @@ bool welcome_client(PgSocket *client)
 	msg = pktbuf_temp();
 	pktbuf_put_bytes(msg, pmsg->buf, pmsg->write_pos);
 
-	if (pool->db->admin) {
-		pktbuf_write_ParameterStatus(msg, "pgbouncer.max_prepared_statements", "0");
-	} else {
-		pktbuf_write_ParameterStatus(msg, "pgbouncer.max_prepared_statements", cf_max_prepared_statements);
-	}
+	/*
+	 * The admin console never supports prepared statements, regardless of
+	 * the configured value.
+	 */
+	snprintf(max_prepared_statements, sizeof(max_prepared_statements), "%d",
+		 pool->db->admin ? 0 : cf_max_prepared_statements);
+	pktbuf_write_ParameterStatus(msg, "pgbouncer.max_prepared_statements", max_prepared_statements);
 	switch (connection_pool_mode(client)) {
 	case POOL_SESSION:
 		pktbuf_write_ParameterStatus(msg, "pgbouncer.pool_mode", "session");

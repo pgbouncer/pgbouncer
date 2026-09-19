@@ -39,8 +39,8 @@ def test_sbuf_loopcnt_client_backpressure_still_accepts(bouncer):
     bouncer.admin("RELOAD")
 
     # A few 8KiB rows is enough to fill test.ini's tcp_socket_buffer=4096
-    # and push the client sbuf into W_SEND waiting for client sock readability.
-    # leave tens of MB unread:
+    # and push the server sbuf into W_SEND, where it waits for the client socket
+    # to become writable. Do not leave tens of MB unread:
     # Connection.close() would then block in libpq draining the socket.
     stalled = bouncer.conn()
     try:

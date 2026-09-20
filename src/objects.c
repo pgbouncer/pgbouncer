@@ -1809,7 +1809,7 @@ bool evict_connection(PgDatabase *db)
 	}
 
 	if (oldest_connection) {
-		disconnect_server(oldest_connection, true, "evicted");
+		disconnect_server(oldest_connection, true, "evicted for max_db_connections");
 		return true;
 	}
 	return false;
@@ -1823,7 +1823,7 @@ bool evict_pool_connection(PgPool *pool)
 	oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->idle_server_list));
 
 	if (oldest_connection) {
-		disconnect_server(oldest_connection, true, "evicted");
+		disconnect_server(oldest_connection, true, "evicted for pool_size");
 		return true;
 	}
 	return false;
@@ -1850,7 +1850,7 @@ bool evict_user_connection(PgCredentials *user_credentials)
 	}
 
 	if (oldest_connection) {
-		disconnect_server(oldest_connection, true, "evicted");
+		disconnect_server(oldest_connection, true, "evicted for max_user_connections");
 		return true;
 	}
 	return false;
@@ -1868,6 +1868,7 @@ bool evict_user_connection(PgCredentials *user_credentials)
 void launch_new_connection(PgPool *pool, bool evict_if_needed)
 {
 	PgSocket *server;
+	int server_count;
 	int max;
 
 	log_debug("launch_new_connection: start");
@@ -1895,17 +1896,17 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed)
 		}
 	}
 
-	max = pool_server_count(pool);
+	server_count = pool_server_count(pool);
 
 	/*
 	 * Peer pools only have a single pool_size.
 	 */
 	if (pool->db->peer_id) {
-		if (max < pool_pool_size(pool))
+		if (server_count < pool_pool_size(pool))
 			goto force_new;
 
 		log_debug("launch_new_connection: peer pool full (%d >= %d)",
-			  max, pool_pool_size(pool));
+			  server_count, pool_pool_size(pool));
 		return;
 	}
 
@@ -1918,20 +1919,20 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed)
 	 * this works just fine, because we only ever open a single connection at
 	 * once (see top of this function).
 	 */
-	if (!statlist_empty(&pool->waiting_cancel_req_list) && max < (2 * pool_pool_size(pool))) {
+	if (!statlist_empty(&pool->waiting_cancel_req_list) && server_count < (2 * pool_pool_size(pool))) {
 		log_debug("launch_new_connection: bypass pool limitations for cancel request");
 		goto force_new;
 	}
 
 	/* is it allowed to add servers? */
 	if (pool_pool_size(pool) > 0) {
-		if (max >= pool_pool_size(pool) && pool->welcome_msg_ready) {
+		if (server_count >= pool_pool_size(pool) && pool->welcome_msg_ready) {
 			/* should we use reserve pool? */
 			PgSocket *c = first_socket(&pool->waiting_client_list);
 			if (cf_res_pool_timeout && pool_res_pool_size(pool)) {
 				usec_t now = get_cached_time();
 				if (c && (now - c->request_time) >= cf_res_pool_timeout) {
-					if (max < pool_pool_size(pool) + pool_res_pool_size(pool)) {
+					if (server_count < pool_pool_size(pool) + pool_res_pool_size(pool)) {
 						slog_warning(c, "taking connection from reserve_pool");
 						goto allow_new;
 					}
@@ -1939,15 +1940,16 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed)
 			}
 
 			if (c && c->replication && !sending_auth_query(c)) {
-				while (evict_if_needed && pool_pool_size(pool) >= max) {
+				while (evict_if_needed && server_count >= pool_pool_size(pool)) {
 					if (!evict_pool_connection(pool))
 						break;
+					server_count = pool_server_count(pool);
 				}
-				if (pool_pool_size(pool) < max)
+				if (server_count < pool_pool_size(pool))
 					goto allow_new;
 			}
 			log_debug("launch_new_connection: pool full (%d >= %d)",
-				  max, pool_pool_size(pool));
+				  server_count, pool_pool_size(pool));
 			return;
 		}
 	}

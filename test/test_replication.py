@@ -293,6 +293,34 @@ async def test_replication_pool_size_mixed_clients(bouncer):
     await bouncer.asleep(0.5, times=2, **connect_args)
 
     # Then try to open a replication connection and ensure that it causes
-    # eviction of one of the normal connections
-    with bouncer.log_contains("closing because: evicted"):
+    # eviction of one of the normal connections. One, not both: the pool is
+    # exactly full, so the first eviction is all the room the replication
+    # client needs.
+    with bouncer.log_contains(r"closing because: evicted for pool_size \(age", times=1):
+        bouncer.test(**connect_args, replication="database")
+
+
+@pytest.mark.skipif(
+    "PG_MAJOR_VERSION < 10",
+    reason="normal SQL commands are only supported in PG10+ on logical replication connections",
+)
+async def test_replication_pool_size_over_full_pool(bouncer):
+    connect_args = {
+        "dbname": "user_passthrough_pool_size2",
+        "user": "postgres",
+    }
+
+    # Let the pool go over its pool_size by using the reserve pool. The
+    # janitor leaves this alone, since it only closes servers beyond
+    # pool_size + reserve_pool_size.
+    bouncer.write_ini("[users]\npostgres = pool_size=1 reserve_pool_size=1")
+    bouncer.admin("RELOAD")
+    bouncer.admin("SET reserve_pool_timeout = 1")
+    with bouncer.log_contains("taking connection from reserve_pool", times=1):
+        await bouncer.asleep(2, times=2, **connect_args)
+
+    # Both servers are idle now, one more than pool_size allows. A replication
+    # client has to evict enough of them to get below pool_size rather than
+    # open yet another connection on top.
+    with bouncer.log_contains(r"closing because: evicted for pool_size \(age", times=2):
         bouncer.test(**connect_args, replication="database")

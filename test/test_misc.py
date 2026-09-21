@@ -47,9 +47,9 @@ def test_database_port_default(bouncer, pg):
 
     with bouncer.run_with_config(config):
         databases = bouncer.admin("SHOW DATABASES", row_factory=dict_row)
-        postgres_database = [
+        postgres_database = next(
             database for database in databases if database["name"] == "postgres"
-        ][0]
+        )
     assert postgres_database["port"] == 5432
 
 
@@ -74,10 +74,12 @@ def test_multi_port_validation(bouncer, pg, pg2):
     pool_mode = session
     """
 
-    with bouncer.log_contains("invalid number of ports"):
-        with pytest.raises(psycopg.errors.ConfigFileError):
-            with bouncer.run_with_config(config):
-                pass
+    with (
+        bouncer.log_contains("invalid number of ports"),
+        pytest.raises(psycopg.errors.ConfigFileError),
+        bouncer.run_with_config(config),
+    ):
+        pass
 
 
 def test_login_notify_message_negative(bouncer):

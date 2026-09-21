@@ -81,7 +81,7 @@ def test_peering_default_port(bouncer, pg):
 
     with bouncer.run_with_config(config):
         peers = bouncer.admin("SHOW PEERS", row_factory=dict_row)
-        peer_1 = [peer for peer in peers if peer["peer_id"] == 1][0]
+        peer_1 = next(peer for peer in peers if peer["peer_id"] == 1)
     assert peer_1["port"] == "6432"
 
 

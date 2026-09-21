@@ -1709,13 +1709,11 @@ static void dns_connect(struct PgSocket *server)
 				break;
 		Assert(host);
 
-		if (db->port) {
-			for (n = 0; n < db->port_count + 1; n++) {
-				if (server->pool->rrcounter % db->port_count == n)
-					break;
-			}
-			port = db->port[n];
+		for (n = 0; n < db->port_count + 1; n++) {
+			if (server->pool->rrcounter % db->port_count == n)
+				break;
 		}
+		port = db->port[n];
 		if (server->pool->db->load_balance_hosts == LOAD_BALANCE_HOSTS_ROUND_ROBIN)
 			server->pool->rrcounter++;
 	} else {

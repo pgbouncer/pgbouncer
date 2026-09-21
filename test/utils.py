@@ -242,20 +242,6 @@ def get_pam_start_confdir_support():
 PAM_START_CONFDIR_SUPPORT = get_pam_start_confdir_support()
 
 
-def validate_pam_pgbouncer_test_config():
-    pgbouncer_pam_config_fp = Path("/etc/pam.d/pgbouncer")
-    if not pgbouncer_pam_config_fp.exists():
-        return False
-
-    expected_file_contents = (
-        "auth required pam_permit.so\naccount required pam_permit.so\n"
-    )
-    return expected_file_contents == pgbouncer_pam_config_fp.read_text()
-
-
-PAM_PGBOUNCER_CONF_TEST_CONFIGURED = validate_pam_pgbouncer_test_config()
-
-
 def get_tls_support():
     return get_build_feature("tls_support", "USUAL_LIBSSL_FOR_TLS")
 

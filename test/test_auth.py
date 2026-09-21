@@ -12,6 +12,8 @@ from .utils import (
     LDAP_SUPPORT,
     LONG_PASSWORD,
     MACOS,
+    PAM_PGBOUNCER_CONF_TEST_CONFIGURED,
+    PAM_SUPPORT,
     PG_SUPPORTS_SCRAM,
     TLS_SUPPORT,
     WINDOWS,
@@ -1559,3 +1561,58 @@ async def test_auth_query_login_large_packets(bouncer):
     bouncer.test(user="longpass", password=LONG_PASSWORD)
     with pytest.raises(psycopg.OperationalError, match="authentication failed"):
         bouncer.test(user="longpass", password="X" + LONG_PASSWORD)
+
+
+@pytest.mark.skipif(not PAM_SUPPORT, reason="pgbouncer is built without PAM support")
+@pytest.mark.skipif(
+    not PAM_PGBOUNCER_CONF_TEST_CONFIGURED,
+    reason="test requires a config file placed in /etc/pam.d/pgbouncer which permits all via ",
+)
+def test_pam_system(bouncer, tmp_path):
+    """
+    Positive test of PAM using default confdir
+
+    This test assumes that the system has been set up with a `/etc/pam.d/pgbouncer` file
+    to permit all auth requests. Designed to ensure that the default functionality works
+    at a basic level. Other tests that utilitize temp, non system confdir test the PAM system
+    in a more fine grained way without making assumptions about what has been set up on the root
+    system. This is similar to how the test is set up in postgres
+    `src/interfaces/libpq/t/004_load_balance_dns.pl`. The contents of /etc/pam.d/pgbouncer should
+    be:
+
+    ```
+    auth required pam_permit.so
+    account required pam_permit.so
+    ```
+    """
+
+    config = f"""
+        [databases]
+        postgres = auth_query='SELECT usename, passwd FROM pg_shadow where usename = $1'\
+            host={bouncer.pg.host} port={bouncer.pg.port}
+        [pgbouncer]
+        auth_query = SELECT 1
+        auth_user = pswcheck
+        stats_users = stats
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = pam
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = postgres
+        verbose = 1
+    """
+    with (
+        bouncer.run_with_config(config),
+        bouncer.log_contains(
+            "DEBUG pam_auth_worker\\(\\): authentication completed, status=2",
+            1,
+        ),
+    ):
+        bouncer.test(
+            user="postgres",
+            dbname="postgres",
+            host="localhost",
+            password="fakepass",
+        )

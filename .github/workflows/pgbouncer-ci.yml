@@ -261,8 +261,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: rocky-8, image: rockylinux:8 }
-          - { name: rocky-9, image: rockylinux:9, meson_args: "-Dcares=enabled" }
+          - { name: rocky-8, image: rockylinux/rockylinux:8 }
+          - { name: rocky-9, image: rockylinux/rockylinux:9, meson_args: "-Dcares=enabled" }
     env:
       BUILD_SYSTEM: meson
       MESON_ARGS: -Dcassert=true -Dsystemd=enabled -Dldap=enabled -Dpam=enabled ${{ matrix.meson_args }}

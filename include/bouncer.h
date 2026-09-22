@@ -713,6 +713,9 @@ struct PgSocket {
 	bool resetting : 1;		/* server: executing reset query from auth login; don't release on flush */
 	bool copy_mode : 1;		/* server: in copy stream, ignores Sync packets until CopyDone/CopyFail;
 					   client: in copy-in stream, expecting CopyData/CopyDone/CopyFail */
+	bool dirty_set : 1;		/* server: client ran SET; RESET ALL on release */
+	bool dirty_prepare : 1;		/* server: client ran SQL-level PREPARE; DEALLOCATE ALL on release */
+	bool dirty_session_authorization : 1;	/* server: session authorization differs from login user */
 
 	bool wait_for_welcome : 1;	/* client: no server yet in pool, cannot send welcome msg */
 	bool startup_message_received : 1;	/* client: the StartupMessage has been processed, so all
@@ -851,6 +854,15 @@ extern usec_t cf_server_lifetime;
 extern usec_t cf_server_idle_timeout;
 extern char *cf_server_reset_query;
 extern int cf_server_reset_query_always;
+extern int cf_cleanup_server_connections;
+
+/* server_reset_query_always already resets every release, superseding the
+ * targeted cleanup; the configured value is kept and reactivates when
+ * server_reset_query_always is disabled again */
+static inline bool cleanup_server_connections_active(void)
+{
+	return cf_cleanup_server_connections && !cf_server_reset_query_always;
+}
 extern char *cf_server_check_query;
 extern bool empty_server_check_query;
 extern usec_t cf_server_check_delay;

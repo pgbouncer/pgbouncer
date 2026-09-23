@@ -398,12 +398,19 @@ static bool admin_show_users(PgSocket *admin, const char *arg)
 		"max_user_client_connections", "current_client_connections");
 	statlist_for_each(item, &user_list) {
 		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
-		char pool_size_str[12] = "";
-		char res_pool_size_str[12] = "";
-		if (user->pool_size >= 0)
-			snprintf(pool_size_str, sizeof(pool_size_str), "%9d", user->pool_size);
-		if (user->res_pool_size >= 0)
-			snprintf(res_pool_size_str, sizeof(res_pool_size_str), "%9d", user->res_pool_size);
+		char pool_size_buf[12], res_pool_size_buf[12];
+		/* pool_size and reserve_pool_size are NULL when unset, as pool_mode is */
+		const char *pool_size_str = NULL;
+		const char *res_pool_size_str = NULL;
+
+		if (user->pool_size >= 0) {
+			snprintf(pool_size_buf, sizeof(pool_size_buf), "%d", user->pool_size);
+			pool_size_str = pool_size_buf;
+		}
+		if (user->res_pool_size >= 0) {
+			snprintf(res_pool_size_buf, sizeof(res_pool_size_buf), "%d", user->res_pool_size);
+			res_pool_size_str = res_pool_size_buf;
+		}
 		pool_mode_str = NULL;
 
 		cv.value_p = &user->pool_mode;

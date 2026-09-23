@@ -263,6 +263,7 @@ jobs:
         include:
           - { name: rocky-8, image: rockylinux/rockylinux:8 }
           - { name: rocky-9, image: rockylinux/rockylinux:9, meson_args: "-Dcares=enabled" }
+          - { name: rocky-10, image: rockylinux/rockylinux:10, meson_args: "-Dcares=enabled" }
     env:
       BUILD_SYSTEM: meson
       MESON_ARGS: -Dcassert=true -Dsystemd=enabled -Dldap=enabled -Dpam=enabled ${{ matrix.meson_args }}
@@ -273,16 +274,18 @@ jobs:
           set -e
           dnf -y install 'dnf-command(config-manager)'
           # ninja-build (and the -devel packages) live in PowerTools, which is
-          # called CRB on EL9; meson itself is in AppStream.
-          if [ "${{ matrix.name }}" = "rocky-9" ]; then dnf config-manager --set-enabled "crb"; else dnf config-manager --set-enabled "powertools"; fi
+          # called CRB from EL9 onwards; meson itself is in AppStream.
+          if [ "${{ matrix.name }}" = "rocky-8" ]; then dnf config-manager --set-enabled "powertools"; else dnf config-manager --set-enabled "crb"; fi
           # RHEL 9 dropped the OpenLDAP server; Rocky rebuilds openldap-servers
-          # in their "plus" repo.
+          # in their "plus" repo. RHEL 10 dropped it again, this time without a
+          # Rocky rebuild anywhere, so pull it from EPEL instead.
           if [ "${{ matrix.name }}" = "rocky-9" ]; then dnf config-manager --set-enabled "plus"; fi
-          dnf -y install diffutils file gcc iptables libevent-devel libpq-devel make meson ninja-build openldap-clients openldap-devel openldap-servers openssl-devel pam-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip socat sudo systemd-devel wget
-          if [ "${{ matrix.name }}" = "rocky-9" ]; then dnf -y install c-ares-devel; fi
+          if [ "${{ matrix.name }}" = "rocky-10" ]; then dnf -y install epel-release; fi
+          dnf -y install diffutils file gcc iptables libevent-devel libpq-devel make meson ninja-build openldap-clients openldap-devel openldap-servers openssl openssl-devel pam-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip socat sudo systemd-devel wget
+          if [ "${{ matrix.name }}" != "rocky-8" ]; then dnf -y install c-ares-devel; fi
           wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
           tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
-          if [ "${{ matrix.name }}" = "rocky-9" ]; then dnf -y install python-unversioned-command; else dnf -y install python39 python39-pip && alternatives --set python /usr/bin/python3.9; fi
+          if [ "${{ matrix.name }}" != "rocky-8" ]; then dnf -y install python-unversioned-command; else dnf -y install python39 python39-pip && alternatives --set python /usr/bin/python3.9; fi
           # Installs the `pytest` console script (with the right python shebang)
           # onto PATH, which meson finds at configure time.
           python -m pip install .

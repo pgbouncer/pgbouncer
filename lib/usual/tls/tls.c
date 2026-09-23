@@ -837,7 +837,7 @@ bool tls_config_equal(struct tls_config *tc1, struct tls_config *tc2)
 		return false;
 	if (tc1->dheparams != tc2->dheparams)
 		return false;
-	if (tc1->ecdhecurve != tc2->ecdhecurve)
+	if (!strcmpeq(tc1->ecdhecurves, tc2->ecdhecurves))
 		return false;
 	if (!tls_keypair_list_equal(tc1->keypair, tc2->keypair))
 		return false;

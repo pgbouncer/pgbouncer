@@ -75,6 +75,17 @@ struct event_base *pgb_event_base;
 /* async dns handler */
 struct DNSContext *adns;
 
+#ifdef CASSERT
+/*
+ * Test-only DNS fault-injection flags (cassert builds only). Not configuration:
+ * armed once at startup from the PGB_TEST_DNS_FAULT environment variable (see
+ * main()) and read by the hooks in dnslookup.c, so nothing test-related touches
+ * the config surface or the resolve hot path.
+ */
+int test_dns_hang;
+int test_dns_late_stale;
+#endif
+
 struct HBA *parsed_hba;
 struct Ident *parsed_ident;
 
@@ -146,6 +157,7 @@ int cf_server_round_robin;
 int cf_disable_pqexec;
 usec_t cf_dns_max_ttl;
 usec_t cf_dns_nxdomain_ttl;
+usec_t cf_dns_resolve_timeout;
 usec_t cf_dns_zone_check_period;
 char *cf_resolv_conf;
 unsigned int cf_max_packet_size;
@@ -285,6 +297,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("disable_pqexec", CF_INT, cf_disable_pqexec, CF_NO_RELOAD, "0"),
 	CF_ABS("dns_max_ttl", CF_TIME_USEC, cf_dns_max_ttl, 0, "15"),
 	CF_ABS("dns_nxdomain_ttl", CF_TIME_USEC, cf_dns_nxdomain_ttl, 0, "15"),
+	CF_ABS("dns_resolve_timeout", CF_TIME_USEC, cf_dns_resolve_timeout, 0, "0"),
 	CF_ABS("dns_zone_check_period", CF_TIME_USEC, cf_dns_zone_check_period, 0, "0"),
 	CF_ABS("idle_transaction_timeout", CF_TIME_USEC, cf_idle_transaction_timeout, 0, "0"),
 	CF_ABS("ignore_startup_parameters", CF_STR, cf_ignore_startup_params, 0, ""),
@@ -907,8 +920,6 @@ static void xfree(char **ptr_p)
 _UNUSED
 static void cleanup(void)
 {
-	adns_free_context(adns);
-	adns = NULL;
 	hba_free(parsed_hba);
 	parsed_hba = NULL;
 	ident_free(parsed_ident);
@@ -916,6 +927,14 @@ static void cleanup(void)
 
 	admin_cleanup();
 	objects_cleanup();
+
+	/*
+	 * Free the DNS context only after objects_cleanup(): disconnecting a server
+	 * that is still resolving calls adns_cancel() on its DNS token, which must
+	 * still be valid here (adns_free_context() frees every request and token).
+	 */
+	adns_free_context(adns);
+	adns = NULL;
 	sbuf_cleanup();
 
 	event_base_free(pgb_event_base);
@@ -1001,6 +1020,9 @@ int main(int argc, char *argv[])
 #ifdef USE_SYSTEMD
 			printf("systemd: yes\n");
 #endif
+#ifdef CASSERT
+			printf("cassert: yes\n");
+#endif
 			return 0;
 		case 'd':
 			cf_daemon = 1;
@@ -1035,6 +1057,20 @@ int main(int argc, char *argv[])
 	 * make use of things that will be cleaned up.
 	 */
 	atexit(cleanup);
+
+	/*
+	 * Arm the test-only DNS fault-injection hooks once, here at startup, from
+	 * PGB_TEST_DNS_FAULT (a comma-separated list, e.g. "hang" or
+	 * "hang,late-stale"). Reading it here keeps getenv() off the resolve path;
+	 * the hooks in dnslookup.c only test the cached flags. See test_dns_stuck.py.
+	 */
+	{
+		const char *fault = getenv("PGB_TEST_DNS_FAULT");
+		if (fault) {
+			test_dns_hang = strstr(fault, "hang") != NULL;
+			test_dns_late_stale = strstr(fault, "late-stale") != NULL;
+		}
+	}
 #endif
 
 	init_objects();

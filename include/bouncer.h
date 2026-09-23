@@ -872,6 +872,7 @@ extern int cf_server_round_robin;
 extern int cf_disable_pqexec;
 extern usec_t cf_dns_max_ttl;
 extern usec_t cf_dns_nxdomain_ttl;
+extern usec_t cf_dns_resolve_timeout;
 extern usec_t cf_dns_zone_check_period;
 extern char *cf_resolv_conf;
 
@@ -937,6 +938,12 @@ extern const struct CfLookup load_balance_hosts_map[];
 
 extern struct DNSContext *adns;
 extern struct HBA *parsed_hba;
+
+#ifdef CASSERT
+/* test-only DNS fault-injection flags, armed from PGB_TEST_DNS_FAULT in main() */
+extern int test_dns_hang;
+extern int test_dns_late_stale;
+#endif
 
 static inline PgSocket *first_socket(struct StatList *slist)
 {

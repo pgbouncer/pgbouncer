@@ -77,6 +77,7 @@ static void sbuf_recv_cb(evutil_socket_t sock, short flags, void *arg);
 static void sbuf_send_cb(evutil_socket_t sock, short flags, void *arg);
 static void sbuf_try_resync(SBuf *sbuf, bool release);
 static bool sbuf_wait_for_data(SBuf *sbuf) _MUSTCHECK;
+static bool sbuf_event_remove(SBuf *sbuf) _MUSTCHECK;
 static void sbuf_main_loop(SBuf *sbuf, bool skip_recv);
 static bool sbuf_call_proto(SBuf *sbuf, int event) /* _MUSTCHECK */;
 static bool sbuf_actual_recv(SBuf *sbuf, size_t len)  _MUSTCHECK;
@@ -261,14 +262,8 @@ bool sbuf_use_callback_once(SBuf *sbuf, short ev, event_callback_fn user_cb)
 	int err;
 	AssertActive(sbuf);
 
-	if (sbuf->wait_type != W_NONE) {
-		err = event_del(&sbuf->ev);
-		sbuf->wait_type = W_NONE;	/* make sure its called only once */
-		if (err < 0) {
-			log_warning("sbuf_queue_once: event_del failed: %s", strerror(errno));
-			return false;
-		}
-	}
+	if (!sbuf_event_remove(sbuf))
+		return false;
 
 	/* setup one one-off event handler */
 	event_assign(&sbuf->ev, pgb_event_base, sbuf->sock, ev, user_cb, sbuf);
@@ -490,10 +485,44 @@ static bool sbuf_call_proto(SBuf *sbuf, int event)
 	return res;
 }
 
+/*
+ * Drop sbuf->ev from libevent before event_assign().
+ *
+ * event_assign() on an event that is still in the I/O map can LIST_INSERT
+ * it as its own successor (ev_io_next == self).  evmap_io_active_() then
+ * never returns and the process livelocks at 100% CPU without accept().
+ *
+ * event_del() on a never-assigned event (sbuf_init zeroes ev_base) returns
+ * -1, so skip it until the event has been initialized.  After that, always
+ * del: a no-op if the event is not pending.  If del fails, libevent 2.1 has
+ * usually already unlinked the event; the caller must not leave the socket
+ * with wait_type W_RECV and no watcher.
+ */
+static bool sbuf_event_remove(SBuf *sbuf)
+{
+	int err;
+
+	if (!event_initialized(&sbuf->ev)) {
+		sbuf->wait_type = W_NONE;
+		return true;
+	}
+
+	err = event_del(&sbuf->ev);
+	sbuf->wait_type = W_NONE;
+	if (err < 0) {
+		log_warning("sbuf_event_remove: event_del failed: %s", strerror(errno));
+		return false;
+	}
+	return true;
+}
+
 /* let's wait for new data */
 static bool sbuf_wait_for_data(SBuf *sbuf)
 {
 	int err;
+
+	if (!sbuf_event_remove(sbuf))
+		return false;
 
 	event_assign(&sbuf->ev, pgb_event_base, sbuf->sock, EV_READ | EV_PERSIST, sbuf_recv_cb, sbuf);
 	err = event_add(&sbuf->ev, NULL);
@@ -526,15 +555,16 @@ static bool sbuf_wait_for_data_forced(SBuf *sbuf)
 	tv_min.tv_sec = 0;
 	tv_min.tv_usec = 1;
 
-	if (sbuf->wait_type != W_NONE) {
-		event_del(&sbuf->ev);
-		sbuf->wait_type = W_NONE;
-	}
+	if (!sbuf->sock)
+		return false;
+
+	if (!sbuf_event_remove(sbuf))
+		return false;
 
 	event_assign(&sbuf->ev, pgb_event_base, sbuf->sock, EV_READ, sbuf_recv_forced_cb, sbuf);
 	err = event_add(&sbuf->ev, &tv_min);
 	if (err < 0) {
-		log_warning("sbuf_wait_for_data: event_add failed: %s", strerror(errno));
+		log_warning("sbuf_wait_for_data_forced: event_add failed: %s", strerror(errno));
 		return false;
 	}
 	sbuf->wait_type = W_ONCE;
@@ -1001,14 +1031,17 @@ try_more:
 
 		log_debug("loopcnt full");
 		/*
-		 * sbuf_process_pending() avoids some data if buffer is full,
-		 * but as we exit processing loop here, we need to retry
-		 * after resync to process all data. (result is ignored)
+		 * Flush as much as we can before yielding this socket.
+		 * false can mean pause, close, destination backpressure
+		 * (W_SEND), or "need another turn".  Only replace the
+		 * persistent EV_READ watcher while we are still in W_RECV.
 		 */
 		_ignore = sbuf_process_pending(sbuf);
 		(void) _ignore;
-
-		sbuf_wait_for_data_forced(sbuf);
+		if (!sbuf->sock || sbuf->wait_type != W_RECV)
+			return;
+		if (!sbuf_wait_for_data_forced(sbuf))
+			sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
 		return;
 	}
 	loopcnt++;

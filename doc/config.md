@@ -551,6 +551,10 @@ to be defined in `auth_file`.)
 Direct access to `pg_authid` requires admin rights.  It's preferable to
 use a non-superuser that calls a SECURITY DEFINER function instead.
 
+With `auth_type = hba`, a client whose HBA rule selects `ldap` is
+authenticated by the LDAP server alone; `auth_user` is ignored for that
+client, even if it is set.
+
 Default: not set
 
 ### auth_query

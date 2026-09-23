@@ -115,10 +115,17 @@ extern int client_accept_sslmode;
  * Same as client_accept_sslmode, but for server connections.
  */
 extern int server_connect_sslmode;
+/*
+ * Mirrors cf_server_tls_direct after a successful sbuf_tls_setup().
+ * When non-zero, server connections skip the SSLRequest negotiation and
+ * initiate a direct TLS handshake immediately after TCP connect.
+ */
+extern int server_connect_tls_direct;
 
 bool sbuf_tls_setup(void);
 bool sbuf_tls_accept(SBuf *sbuf)  _MUSTCHECK;
 bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)  _MUSTCHECK;
+bool sbuf_tls_connect_direct(SBuf *sbuf, const char *hostname)  _MUSTCHECK;
 
 bool sbuf_pause(SBuf *sbuf) _MUSTCHECK;
 void sbuf_continue(SBuf *sbuf);

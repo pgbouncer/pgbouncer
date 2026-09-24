@@ -70,6 +70,8 @@ WINDRES = @WINDRES@
 
 enable_debug = @enable_debug@
 ldap_support = @ldap_support@
+pam_support = @pam_support@
+pam_start_confdir_support = @pam_start_confdir_support@
 tls_support = @tls_support@
 
 host_cpu = @host_cpu@

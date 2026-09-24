@@ -56,6 +56,7 @@ PKG_CHECK_MODULES(LIBEVENT, libevent)
 
 dnl Check for PAM authentication support
 pam_support=no
+pam_start_confdir_support=no
 AC_ARG_WITH(pam,
   AS_HELP_STRING([--with-pam], [build with PAM support]),
   [ PAM=
@@ -65,13 +66,20 @@ AC_ARG_WITH(pam,
         AC_CHECK_HEADERS(security/pam_appl.h, [have_pam_header=t])
         AC_CHECK_HEADERS(pthread.h, [have_pthreads=yes])
         AC_SEARCH_LIBS(pam_start, pam, [have_libpam=t])
+        AC_SEARCH_LIBS(pam_start_confdir, pam, [have_pam_start_confdir=t])
         AC_SEARCH_LIBS(pthread_create, pthread, [], [have_pthreads=no])
         if test x"${have_pthreads}" != xyes; then
            AC_MSG_ERROR([pthread library should be available for PAM support])
         fi
         if test x"${have_pam_header}" != x -a x"${have_libpam}" != x -a x"${have_pthreads}" = xyes; then
           pam_support=yes
+          AC_SUBST(pam_support)
           AC_DEFINE(HAVE_PAM, 1, [PAM support])
+        fi
+        if test x"${have_pam_start_confdir}" != x; then
+	  pam_start_confdir_support=yes
+          AC_SUBST(pam_start_confdir_support)
+          AC_DEFINE(HAVE_PAM_START_CONFDIR, 1, [HAVE_PAM_START_CONFDIR support])
         fi
     fi
   ], [])

@@ -1145,17 +1145,22 @@ class Bouncer(QueryRunner):
         self.aprocess = None
 
     async def stop(self):
-        if not WINDOWS:
-            self.sigquit()
-        else:
-            # Windows does not have SIGQUIT, so call terminate() twice to
-            # trigger fast exit
-            if self.process is not None:
-                self.process.terminate()
-                self.process.terminate()
-            if self.aprocess is not None:
-                self.aprocess.terminate()
-                self.aprocess.terminate()
+        # Only signal a process that is still alive. asyncio's send_signal()
+        # raises ProcessLookupError once the child has exited, unlike the
+        # subprocess one, so signalling a PgBouncer that already died -- a
+        # config it refused, say -- would replace that failure with this one.
+        if self.running():
+            if not WINDOWS:
+                self.sigquit()
+            else:
+                # Windows does not have SIGQUIT, so call terminate() twice to
+                # trigger fast exit
+                if self.process is not None:
+                    self.process.terminate()
+                    self.process.terminate()
+                if self.aprocess is not None:
+                    self.aprocess.terminate()
+                    self.aprocess.terminate()
 
         await self.wait_for_exit()
 
@@ -1222,13 +1227,16 @@ class Bouncer(QueryRunner):
 
     async def cleanup(self):
         try:
-            cleanup_test_leftovers(self)
-            await self.stop()
+            try:
+                cleanup_test_leftovers(self)
+                await self.stop()
+            finally:
+                self.print_logs()
         finally:
-            self.print_logs()
-
-        if self.port_lock:
-            self.port_lock.release()
+            # print_logs() asserts on the log contents, so it fails whenever
+            # PgBouncer logged an Assert. Hand the port back regardless.
+            if self.port_lock:
+                self.port_lock.release()
 
     def write_ini(self, config):
         """Writes a config to the ini file of this PgBouncer
@@ -1315,11 +1323,19 @@ class OpenLDAP:
         return self.ldaps_port_lock.port
 
     def stop(self):
+        if not self.slapd_pid_file.exists():
+            # startup() failed, so there is no slapd to signal. Returning here
+            # keeps the teardown from replacing that failure with a confusing
+            # missing-pid-file one.
+            return
+
         with self.slapd_pid_file.open("r") as pid_file:
             pid = pid_file.read()
         os.kill(int(pid), signal.SIGTERM)
 
     def cleanup(self):
-        self.stop()
-        self.ldap_port_lock.release()
-        self.ldaps_port_lock.release()
+        try:
+            self.stop()
+        finally:
+            self.ldap_port_lock.release()
+            self.ldaps_port_lock.release()

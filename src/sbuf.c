@@ -1262,6 +1262,69 @@ static bool setup_tls(struct tls_config *conf, const char *pfx, int sslmode,
 	return true;
 }
 
+/* Copy explicit outbound credentials once, so later connections use exactly
+ * the material that was checked, even if a writer changes the files again. */
+static bool snapshot_tls_file(struct tls_config *conf, const char *path,
+			      int (*set_mem)(struct tls_config *, const uint8_t *, size_t),
+			      int (*set_file)(struct tls_config *, const char *))
+{
+	uint8_t *data;
+	size_t len;
+	int err;
+
+	if (!*path)
+		return true;
+	data = tls_load_file(path, &len, NULL);
+	if (!data) {
+		log_error("cannot read server TLS file %s: %s", path, strerror(errno));
+		return false;
+	}
+	err = len ? set_mem(conf, data, len) : -1;
+	explicit_bzero(data, len);
+	free(data);
+	if (err != 0 || set_file(conf, NULL) != 0) {
+		log_error("cannot snapshot server TLS file %s", path);
+		return false;
+	}
+	return true;
+}
+
+static bool snapshot_server_tls(struct tls_config *conf)
+{
+	struct tls *check;
+	bool ok;
+
+	if (!snapshot_tls_file(conf, cf_server_tls_ca_file, tls_config_set_ca_mem, tls_config_set_ca_file) ||
+	    !snapshot_tls_file(conf, cf_server_tls_cert_file, tls_config_set_cert_mem, tls_config_set_cert_file) ||
+	    !snapshot_tls_file(conf, cf_server_tls_key_file, tls_config_set_key_mem, tls_config_set_key_file))
+		return false;
+	check = tls_client();
+	if (!check)
+		return false;
+	ok = tls_configure(check, conf) == 0 && usual_tls_configure_client(check) == 0;
+	if (!ok)
+		log_error("server TLS configuration could not be loaded: %s", tls_error(check));
+	usual_tls_free(check);
+	return ok;
+}
+
+static struct tls_config *prepare_server_tls(void)
+{
+	struct tls_config *conf = tls_config_new();
+
+	if (!conf)
+		return NULL;
+	if (!setup_tls(conf, "server_tls", cf_server_tls_sslmode,
+		       cf_server_tls_protocols, cf_server_tls_ciphers, cf_server_tls13_ciphers,
+		       cf_server_tls_key_file, cf_server_tls_cert_file,
+		       cf_server_tls_ca_file, "", "", true) ||
+	    (cf_server_tls_reload_interval && !snapshot_server_tls(conf))) {
+		tls_config_free(conf);
+		return NULL;
+	}
+	return conf;
+}
+
 static bool tls_change_requires_reconnect(struct tls_config *new_server_connect_conf)
 {
 	if (server_connect_sslmode != cf_server_tls_sslmode) {
@@ -1318,16 +1381,8 @@ bool sbuf_tls_setup(void)
 		fatal("tls_init failed");
 
 	if (cf_server_tls_sslmode != SSLMODE_DISABLED) {
-		new_server_connect_conf = tls_config_new();
-		if (!new_server_connect_conf) {
-			log_error("tls_config_new failed 1");
-			return false;
-		}
-
-		if (!setup_tls(new_server_connect_conf, "server_tls", cf_server_tls_sslmode,
-			       cf_server_tls_protocols, cf_server_tls_ciphers, cf_server_tls13_ciphers,
-			       cf_server_tls_key_file, cf_server_tls_cert_file,
-			       cf_server_tls_ca_file, "", "", true))
+		new_server_connect_conf = prepare_server_tls();
+		if (!new_server_connect_conf)
 			goto failed;
 	}
 
@@ -1387,6 +1442,38 @@ failed:
 	tls_config_free(new_client_accept_conf);
 	tls_config_free(new_server_connect_conf);
 	return false;
+}
+
+/* Use the existing portable maintenance timer. Only outbound TLS material is
+ * refreshed: this does not reload the ini file or incoming TLS configuration. */
+void sbuf_tls_maint(void)
+{
+	static usec_t last_check;
+	usec_t now = get_cached_time();
+	struct tls_config *candidate;
+	struct List *item;
+	PgPool *pool;
+
+	if (!cf_server_tls_reload_interval || cf_server_tls_sslmode == SSLMODE_DISABLED)
+		return;
+	if (now - last_check < cf_server_tls_reload_interval)
+		return;
+	last_check = now;
+	candidate = prepare_server_tls();
+	if (!candidate)
+		return;	/* Keep the last good snapshot, and retry next interval. */
+	if (!tls_change_requires_reconnect(candidate)) {
+		tls_config_free(candidate);
+		return;
+	}
+	tls_config_free(server_connect_conf);
+	server_connect_conf = candidate;
+	server_connect_sslmode = cf_server_tls_sslmode;
+	statlist_for_each(item, &pool_list) {
+		pool = container_of(item, PgPool, head);
+		tag_pool_dirty(pool);
+	}
+	log_info("server TLS files changed; recycling server connections");
 }
 
 /*
@@ -1623,6 +1710,10 @@ static void sbuf_possible_direct_tls_startup_cb(evutil_socket_t fd, short flags,
 
 int client_accept_sslmode = SSLMODE_DISABLED;
 int server_connect_sslmode = SSLMODE_DISABLED;
+
+void sbuf_tls_maint(void)
+{
+}
 
 bool sbuf_tls_setup(void)
 {

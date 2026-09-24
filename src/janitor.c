@@ -700,6 +700,8 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	static unsigned int seq;
 	seq++;
 
+	sbuf_tls_maint();
+
 	/*
 	 * Creating new pools to enable `min_pool_size` enforcement even if
 	 * there are no active clients.

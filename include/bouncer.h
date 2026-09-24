@@ -923,6 +923,7 @@ extern char *cf_client_tls_dheparams;
 extern char *cf_client_tls_ecdhecurve;
 
 extern int cf_server_tls_sslmode;
+extern usec_t cf_server_tls_reload_interval;
 extern char *cf_server_tls_protocols;
 extern char *cf_server_tls_ca_file;
 extern char *cf_server_tls_cert_file;

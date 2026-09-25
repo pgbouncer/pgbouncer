@@ -1021,6 +1021,10 @@ verify-full
 ### server_tls_ca_file
 
 Root certificate file to validate PostgreSQL server certificates.
+If not set, the system default CA bundle is used.
+
+The file is parsed once and shared by all server connections, so
+changes to its contents take effect only after a reload.
 
 Default: not set
 

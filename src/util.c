@@ -272,6 +272,117 @@ loop:
 	return true;
 }
 
+void host_list_iter_init(struct HostListIter *iter, const char *host_list)
+{
+	iter->next = host_list;
+}
+
+bool host_list_iter_next(struct HostListIter *iter, struct HostListEntry *entry)
+{
+	const char *comma;
+
+	if (!iter->next)
+		return false;
+
+	entry->str = iter->next;
+	comma = strchr(iter->next, ',');
+	if (comma) {
+		entry->len = comma - iter->next;
+		iter->next = comma + 1;
+	} else {
+		entry->len = strlen(iter->next);
+		iter->next = NULL;
+	}
+
+	return true;
+}
+
+bool host_list_is_valid(const char *host_list)
+{
+	struct HostListIter iter;
+	struct HostListEntry entry;
+
+	if (!host_list)
+		return true;
+
+	host_list_iter_init(&iter, host_list);
+	while (host_list_iter_next(&iter, &entry)) {
+		if (entry.len == 0)
+			return false;
+	}
+
+	return true;
+}
+
+static bool host_list_contains_entry(const char *host_list, const struct HostListEntry *target)
+{
+	struct HostListIter iter;
+	struct HostListEntry entry;
+
+	if (!host_list)
+		return false;
+
+	host_list_iter_init(&iter, host_list);
+	while (host_list_iter_next(&iter, &entry)) {
+		if (entry.len == target->len && memcmp(entry.str, target->str, entry.len) == 0)
+			return true;
+	}
+
+	return false;
+}
+
+bool host_list_contains(const char *host_list, const char *host)
+{
+	struct HostListEntry target;
+
+	if (!host_list || !host)
+		return host_list == host;
+
+	target.str = host;
+	target.len = strlen(host);
+	return host_list_contains_entry(host_list, &target);
+}
+
+bool host_lists_overlap(const char *left, const char *right)
+{
+	struct HostListIter iter;
+	struct HostListEntry entry;
+
+	if (!left || !right)
+		return left == right;
+
+	host_list_iter_init(&iter, left);
+	while (host_list_iter_next(&iter, &entry)) {
+		if (host_list_contains_entry(right, &entry))
+			return true;
+	}
+
+	return false;
+}
+
+bool host_lists_have_same_members(const char *left, const char *right)
+{
+	struct HostListIter iter;
+	struct HostListEntry entry;
+
+	if (!left || !right)
+		return left == right;
+
+	host_list_iter_init(&iter, left);
+	while (host_list_iter_next(&iter, &entry)) {
+		if (!host_list_contains_entry(right, &entry))
+			return false;
+	}
+
+	host_list_iter_init(&iter, right);
+	while (host_list_iter_next(&iter, &entry)) {
+		if (!host_list_contains_entry(left, &entry))
+			return false;
+	}
+
+	return true;
+}
+
 void fill_remote_addr(PgSocket *sk, int fd, bool is_unix)
 {
 	PgAddr *dst = &sk->remote_addr;

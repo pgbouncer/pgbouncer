@@ -31,7 +31,7 @@ for user, psw in curs.fetchall():
     if not psw:
         psw = ""
     psw = psw.replace('"', '""')
-    lines.append('"{}" "{}"\n'.format(user, psw))
+    lines.append(f'"{user}" "{psw}"\n')
 db.commit()
 cur = "".join(lines)
 

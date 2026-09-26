@@ -15,9 +15,9 @@ from .utils import (
     PG_MAJOR_VERSION,
     PG_SUPPORTS_SCRAM,
     PKT_BUF_SIZE,
-    run,
     USE_UNIX_SOCKETS,
     WINDOWS,
+    run,
 )
 
 

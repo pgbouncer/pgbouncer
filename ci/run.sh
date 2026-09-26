@@ -39,6 +39,14 @@ build.autoconf)
 	./autogen.sh
 	# shellcheck disable=SC2086
 	$scanbuild ./configure --prefix="$prefix" --enable-werror ${CONFIGURE_ARGS:-}
+	# A misgenerated configure leaves these empty, and the build stays
+	# silently unoptimized and warning-free (autoconf 2.73 misexpands a
+	# direct AC_PROG_CC call; see #1624). Only check when the caller did
+	# not provide CFLAGS.
+	if [ -z "${CFLAGS:-}" ]; then
+		grep -q '^CFLAGS = -g -O2' config.mak || { echo "config.mak: CFLAGS is missing the autoconf defaults" >&2; exit 1; }
+		grep -q '^WFLAGS = .*-Wall' config.mak || { echo "config.mak: WFLAGS is empty" >&2; exit 1; }
+	fi
 	$scanbuild make -j"$jobs"
 	;;
 test.meson)

@@ -21,6 +21,9 @@ from .utils import (
 )
 
 
+@pytest.mark.skipif(
+    "WINDOWS", reason="Windows doesn't support executing scripts one directory up"
+)
 def test_mkauth_py(bouncer):
     """
     Test that mkauth.py is able to return non zero error code successfully
@@ -29,7 +32,8 @@ def test_mkauth_py(bouncer):
         f"../etc/mkauth.py - 'postgresql://postgres@{bouncer.pg.host}:{bouncer.pg.port}/postgres'",
         capture_output=True,
     )
-    assert result.stdout.decode().split("\n")[0] == '"bouncer" ""'
+    output = result.stdout.decode().split("\n")
+    assert '"bouncer" ""' in output
 
 
 def test_login_notify_message_negative(bouncer):

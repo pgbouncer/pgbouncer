@@ -15,9 +15,18 @@ from .utils import (
     PG_MAJOR_VERSION,
     PG_SUPPORTS_SCRAM,
     PKT_BUF_SIZE,
+    run,
     USE_UNIX_SOCKETS,
     WINDOWS,
 )
+
+
+def test_mkauth_py(bouncer):
+    """
+    Test that mkauth.py is able to return non zero error code successfully
+    """
+    result = run(f"../etc/mkauth.py - 'postgresql://postgres@{bouncer.pg.host}:{bouncer.pg.port}/postgres'", capture_output=True)
+    assert result.stdout.decode().split('\n')[0] == '"bouncer" ""'
 
 
 def test_login_notify_message_negative(bouncer):

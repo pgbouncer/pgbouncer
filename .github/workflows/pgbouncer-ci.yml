@@ -354,6 +354,49 @@ jobs:
           su user -c "PATH=/venv/bin:\$PATH sh ci/run.sh test $BUILD_SYSTEM"
           su user -c "PATH=/venv/bin:\$PATH sh ci/run.sh install $BUILD_SYSTEM"
 
+  # alpine:edge carries the newest autoconf (2.73), which misexpands the
+  # direct AC_PROG_CC call in lib/m4/usual.m4 and generates a configure
+  # that leaves CFLAGS/WFLAGS empty (#1624). The failure is silent without
+  # fortify-by-default hardening, so ci/run.sh asserts on config.mak after
+  # configure. Exercises the autoconf build, like the Debian trixie job.
+  linux-alpine-edge:
+    name: Linux (alpine edge, autoconf)
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.ref == 'refs/heads/master' ||
+      contains(github.event.pull_request.labels.*.name, 'ci-full')
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:edge
+    defaults:
+      run:
+        shell: sh
+    env:
+      BUILD_SYSTEM: autoconf
+      CONFIGURE_ARGS: --enable-cassert
+    steps:
+      - name: Install dependencies
+        run: |
+          apk add --no-cache autoconf automake build-base c-ares-dev git iptables libevent-dev libtool openldap openldap-clients openldap-dev openssl openssl-dev pandoc pkgconf postgresql postgresql-contrib python3 py3-pip socat sudo
+      - name: Checkout
+        run: |
+          git config --global --add safe.directory "$PWD"
+          git init -q .
+          git remote add origin "https://github.com/$GITHUB_REPOSITORY"
+          git fetch -q --depth 1 origin "$GITHUB_SHA"
+          git checkout -q FETCH_HEAD
+      - name: Build and test
+        run: |
+          set -e
+          python3 -m venv /venv
+          /venv/bin/pip install .
+          adduser --disabled-password user
+          chown -R user .
+          echo 'user ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+          su user -c "CONFIGURE_ARGS='$CONFIGURE_ARGS' PATH=/venv/bin:\$PATH sh ci/run.sh build $BUILD_SYSTEM"
+          su user -c "PATH=/venv/bin:\$PATH sh ci/run.sh test $BUILD_SYSTEM"
+          su user -c "PATH=/venv/bin:\$PATH sh ci/run.sh install $BUILD_SYSTEM"
+
   macos:
     name: macOS
     runs-on: macos-15

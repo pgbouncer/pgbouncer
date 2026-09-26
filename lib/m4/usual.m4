@@ -122,7 +122,10 @@ dnl
 dnl AC_USUAL_PROGRAM_CHECK:  Simple C environment: CC, CPP, INSTALL
 dnl
 AC_DEFUN([AC_USUAL_PROGRAM_CHECK], [
-AC_PROG_CC
+dnl AC_REQUIRE, not a direct call: under Autoconf 2.73 a direct AC_PROG_CC
+dnl here expands the compiler detection a second time, and the hoisted first
+dnl expansion loses the OBJEXT probe, leaving CFLAGS and WFLAGS empty.
+AC_REQUIRE([AC_PROG_CC])
 AC_PROG_CPP
 AC_USUAL_C11
 

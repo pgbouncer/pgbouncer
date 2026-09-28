@@ -7,6 +7,8 @@ GSSAPI is not built in or the krb5 KDC tools are missing, or fails them if
 REQUIRE_GSSAPI_TESTS is set.
 """
 
+import ctypes
+import ctypes.util
 import socket
 import ssl
 import struct
@@ -646,3 +648,236 @@ def test_gssapi_enc_large_payload(kdc, pg, bouncer):
         assert (
             bouncer.sql_value("select length(%s::text)", params=("y" * n,), **conn) == n
         )
+
+
+# A minimal GSS-API initiator driven through ctypes, and the wire messages to
+# log in with it. libpq always starts a raw krb5 exchange that completes in one
+# gss_accept_sec_context() call, so these let a test choose the mechanism and
+# request flags that libpq does not.
+
+GSS_C_MUTUAL_FLAG = 2
+GSS_C_CONF_FLAG = 16
+GSS_C_INTEG_FLAG = 32
+GSS_C_DCE_STYLE = 4096
+GSS_S_CONTINUE_NEEDED = 1
+KRB5_MECH_OID = bytes.fromhex("2a864886f712010202")  # 1.2.840.113554.1.2.2
+SPNEGO_MECH_OID = bytes.fromhex("2b0601050502")  # 1.3.6.1.5.5.2
+HOSTBASED_SERVICE_OID = bytes.fromhex("2a864886f71201020104")  # 1.2.840.113554.1.2.1.4
+AUTH_REQ_OK = 0
+AUTH_REQ_GSS = 7
+AUTH_REQ_GSS_CONT = 8
+GSSENC_REQUEST_CODE = 80877104
+
+
+class GssBuffer(ctypes.Structure):
+    _fields_ = [("length", ctypes.c_size_t), ("value", ctypes.c_void_p)]
+
+    @classmethod
+    def of(cls, data):
+        return cls(len(data), ctypes.cast(data, ctypes.c_void_p))
+
+
+class GssOid(ctypes.Structure):
+    _fields_ = [("length", ctypes.c_uint32), ("elements", ctypes.c_char_p)]
+
+    @classmethod
+    def of(cls, der):
+        return cls(len(der), der)
+
+
+class GssInitiator:
+    """A GSS-API initiator for postgres@127.0.0.1 using the credential cache."""
+
+    def __init__(self, mech_oid, flags):
+        self.lib = ctypes.CDLL(ctypes.util.find_library("gssapi_krb5"))
+        self.mech = GssOid.of(mech_oid)
+        self.flags = flags
+        self.context = ctypes.c_void_p()
+        self.target = ctypes.c_void_p()
+        self._call(
+            "gss_import_name",
+            ctypes.byref(GssBuffer.of(b"postgres@127.0.0.1")),
+            ctypes.byref(GssOid.of(HOSTBASED_SERVICE_OID)),
+            ctypes.byref(self.target),
+        )
+
+    def _call(self, func, *args):
+        minor = ctypes.c_uint32()
+        major = getattr(self.lib, func)(ctypes.byref(minor), *args) & 0xFFFFFFFF
+        assert major >> 16 == 0, f"{func} failed: major={major:#x} minor={minor.value}"
+        return major
+
+    def step(self, token=None):
+        """Process pgbouncer's token, if any. Returns (output token, complete)."""
+        out = GssBuffer()
+        major = self._call(
+            "gss_init_sec_context",
+            None,
+            ctypes.byref(self.context),
+            self.target,
+            ctypes.byref(self.mech),
+            ctypes.c_uint32(self.flags),
+            ctypes.c_uint32(0),
+            None,
+            None if token is None else ctypes.byref(GssBuffer.of(token)),
+            None,
+            ctypes.byref(out),
+            None,
+            None,
+        )
+        return self._take(out), not (major & GSS_S_CONTINUE_NEEDED)
+
+    def wrap(self, data):
+        out = GssBuffer()
+        self._call(
+            "gss_wrap",
+            self.context,
+            ctypes.c_int(1),
+            ctypes.c_uint32(0),
+            ctypes.byref(GssBuffer.of(data)),
+            None,
+            ctypes.byref(out),
+        )
+        return self._take(out)
+
+    def unwrap(self, data):
+        out = GssBuffer()
+        self._call(
+            "gss_unwrap",
+            self.context,
+            ctypes.byref(GssBuffer.of(data)),
+            ctypes.byref(out),
+            None,
+            None,
+        )
+        return self._take(out)
+
+    def _take(self, buf):
+        """Copy a buffer the library allocated, then free it."""
+        data = ctypes.string_at(buf.value, buf.length)
+        self.lib.gss_release_buffer(ctypes.byref(ctypes.c_uint32()), ctypes.byref(buf))
+        return data
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        minor = ctypes.byref(ctypes.c_uint32())
+        self.lib.gss_delete_sec_context(minor, ctypes.byref(self.context), None)
+        self.lib.gss_release_name(minor, ctypes.byref(self.target))
+
+
+def recv_exact(sock, n):
+    data = b""
+    while len(data) < n:
+        chunk = sock.recv(n - len(data))
+        assert chunk, "pgbouncer closed the connection"
+        data += chunk
+    return data
+
+
+def read_message(sock):
+    msg_type, length = struct.unpack("!ci", recv_exact(sock, 5))
+    return msg_type, recv_exact(sock, length - 4)
+
+
+def startup_packet():
+    body = struct.pack("!i", 196608) + b"user\0testuser\0database\0p0\0\0"
+    return struct.pack("!i", len(body) + 4) + body
+
+
+def gss_login(port, initiator):
+    """Log in as testuser, feeding the tokens through the given initiator.
+
+    Returns how many GSSResponse messages the client had to send.
+    """
+    sent = 0
+    with socket.create_connection(("127.0.0.1", port), timeout=5) as s:
+        s.sendall(startup_packet())
+        complete = False
+        while True:
+            msg_type, payload = read_message(s)
+            assert msg_type == b"R", f"login failed: {msg_type!r} {payload!r}"
+            code, data = struct.unpack("!i", payload[:4])[0], payload[4:]
+            if code == AUTH_REQ_OK:
+                break
+            assert code in (AUTH_REQ_GSS, AUTH_REQ_GSS_CONT), f"auth request {code}"
+            token, complete = initiator.step(
+                data if code == AUTH_REQ_GSS_CONT else None
+            )
+            if token:
+                s.sendall(b"p" + struct.pack("!i", len(token) + 4) + token)
+                sent += 1
+        assert complete, "pgbouncer accepted the login before the client finished"
+        while (msg_type := read_message(s)[0]) != b"Z":
+            assert msg_type != b"E", "login failed after authentication"
+    return sent
+
+
+def test_gssapi_multi_round_accept(kdc, pg, bouncer):
+    """An exchange where gss_accept_sec_context() returns GSS_S_CONTINUE_NEEDED.
+
+    With GSS_C_DCE_STYLE the krb5 acceptor answers the AP-REQ with an AP-REP
+    and CONTINUE_NEEDED, and completes only after the client sends its own
+    AP-REP back, so pgbouncer has to keep the context across two client packets.
+    """
+    config = gss_bouncer_config(kdc, bouncer, pg)
+    with bouncer.run_with_config(config):
+        kinit()
+        flags = GSS_C_MUTUAL_FLAG | GSS_C_DCE_STYLE
+        with GssInitiator(KRB5_MECH_OID, flags) as initiator:
+            assert gss_login(bouncer.port, initiator) == 2
+
+
+def test_gssapi_spnego_client(kdc, pg, bouncer):
+    """A client that negotiates krb5 through SPNEGO, as pgjdbc with useSpnego=true
+    does, authenticates like a raw krb5 client."""
+    config = gss_bouncer_config(kdc, bouncer, pg)
+    with bouncer.run_with_config(config):
+        kinit()
+        with GssInitiator(SPNEGO_MECH_OID, GSS_C_MUTUAL_FLAG) as initiator:
+            assert gss_login(bouncer.port, initiator) == 1
+
+
+def gss_enc_login(port, initiator):
+    """Set up GSS encryption through the given initiator and log in over it.
+
+    Returns how many handshake tokens the client had to send.
+    """
+    sent = 0
+    with socket.create_connection(("127.0.0.1", port), timeout=5) as s:
+        s.sendall(struct.pack("!ii", 8, GSSENC_REQUEST_CODE))
+        assert recv_exact(s, 1) == b"G"
+        token, complete = initiator.step()
+        while token:
+            s.sendall(struct.pack("!I", len(token)) + token)
+            sent += 1
+            if complete:
+                break
+            (length,) = struct.unpack("!I", recv_exact(s, 4))
+            token, complete = initiator.step(recv_exact(s, length))
+        assert complete
+
+        # Every packet from here on is [length][gss_wrap() output].
+        wrapped = initiator.wrap(startup_packet())
+        s.sendall(struct.pack("!I", len(wrapped)) + wrapped)
+        plaintext = b""
+        while not plaintext.endswith(b"Z\0\0\0\5I"):
+            assert not plaintext.startswith(b"E"), f"login failed: {plaintext!r}"
+            (length,) = struct.unpack("!I", recv_exact(s, 4))
+            plaintext += initiator.unwrap(recv_exact(s, length))
+        assert plaintext.startswith(b"R\0\0\0\x08\0\0\0\0"), plaintext[:64]
+    return sent
+
+
+def test_gssapi_enc_multi_round_accept(kdc, pg, bouncer):
+    """The GSS encryption handshake, when gss_accept_sec_context() returns
+    GSS_S_CONTINUE_NEEDED. The same DCE-style exchange as above, followed by a
+    login over the encrypted channel.
+    """
+    config = gss_enc_bouncer_config(kdc, bouncer, pg)
+    with bouncer.run_with_config(config):
+        kinit()
+        flags = GSS_C_MUTUAL_FLAG | GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG | GSS_C_DCE_STYLE
+        with GssInitiator(KRB5_MECH_OID, flags) as initiator:
+            assert gss_enc_login(bouncer.port, initiator) == 2

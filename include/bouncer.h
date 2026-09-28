@@ -817,15 +817,6 @@ struct PgSocket {
 		gss_ctx_id_t context;		/* GSS security context */
 		gss_cred_id_t creds;		/* acquired credential handle */
 		gss_name_t target_name;	/* initiator only: postgres@host */
-		/*
-		 * Set when we sent an AP-REP (AUTH_REQ_GSS_CONT) to complete
-		 * mutual authentication.  If the client's final gss_init_sec_context()
-		 * emits a token with GSS_S_COMPLETE (RFC 2744, mechanism-dependent),
-		 * libpq forwards one extra GSSResponse ('p'); handle_client_work()
-		 * uses this flag to absorb it silently rather than treating it as a
-		 * protocol error.
-		 */
-		bool sent_ap_rep;	/* acceptor only: AP-REP was sent */
 		bool include_realm;	/* acceptor only: username is the full principal */
 	} gss_state;
 

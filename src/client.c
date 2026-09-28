@@ -1329,10 +1329,6 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 				/* the packet was already parsed */
 				sbuf_prepare_skip(sbuf, pkt->len);
 			}
-#ifdef HAVE_GSSAPI
-			/* Any pending post-auth GSSResponse was just consumed above. */
-			client->gss_state.sent_ap_rep = false;
-#endif
 			return true;
 		} else {
 			return false;
@@ -1668,28 +1664,6 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 			return true;
 		}
 		break;
-
-#ifdef HAVE_GSSAPI
-	/*
-	 * After mutual authentication the client may send one final GSSResponse
-	 * ('p') if its last gss_init_sec_context() emitted a token together with
-	 * GSS_S_COMPLETE (RFC 2744 permits this; it is mechanism-dependent and
-	 * does not occur with standard single-realm MIT Kerberos).  Our context
-	 * is already established, so absorb that one packet silently.  Any
-	 * subsequent 'p' packet (sent_ap_rep already cleared) is an error.
-	 */
-	case PqMsg_PasswordMessage:
-		if (client->gss_state.sent_ap_rep) {
-			slog_debug(client, "GSSAPI: absorbing trailing post-completion GSSResponse token");
-			client->gss_state.sent_ap_rep = false;
-			if (client->packet_cb_state.flag != CB_HANDLE_COMPLETE_PACKET)
-				sbuf_prepare_skip(sbuf, pkt->len);
-			return true;
-		}
-		slog_error(client, "unknown pkt from client: %u/0x%x", pkt->type, pkt->type);
-		disconnect_client(client, true, "unknown pkt");
-		return false;
-#endif
 
 	/* client wants to go away */
 	default:

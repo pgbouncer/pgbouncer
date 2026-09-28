@@ -317,7 +317,6 @@ bool gssapi_accept_continue(PgSocket *client, const uint8_t *token, unsigned tok
 	gss_name_t client_name = GSS_C_NO_NAME;
 	gss_OID mech_type = GSS_C_NO_OID;
 	bool ok;
-	bool sent_ap_rep = false;
 
 	if (token_len > GSSAPI_MAX_TOKEN_SIZE) {
 		slog_error(client, "GSSAPI: token too large (%u bytes, limit %d)",
@@ -373,7 +372,6 @@ bool gssapi_accept_continue(PgSocket *client, const uint8_t *token, unsigned tok
 			disconnect_client(client, false, "GSSAPI: send failed");
 			return false;
 		}
-		sent_ap_rep = true;
 	}
 
 	if (major & GSS_S_CONTINUE_NEEDED) {
@@ -399,20 +397,6 @@ bool gssapi_accept_continue(PgSocket *client, const uint8_t *token, unsigned tok
 				  "GSSAPI authentication failed: principal mapping error");
 		return false;
 	}
-
-	/*
-	 * When GSS_C_MUTUAL_FLAG is negotiated, gss_accept_sec_context()
-	 * produces an AP-REP output token (sent above as AUTH_REQ_GSS_CONT).
-	 * The client feeds that token to gss_init_sec_context(); RFC 2744
-	 * permits the mechanism to emit a final token together with
-	 * GSS_S_COMPLETE, and when it does libpq forwards it as one more
-	 * GSSResponse ('p') even though our context is already established.
-	 * Standard single-realm MIT Kerberos returns an empty final token
-	 * (no trailing packet), but this is mechanism-dependent, so record
-	 * that we sent an AP-REP and let handle_client_work() absorb the
-	 * extra packet if it arrives rather than rejecting it as unknown.
-	 */
-	client->gss_state.sent_ap_rep = sent_ap_rep;
 
 	return finish_client_login(client);
 }

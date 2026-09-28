@@ -9,10 +9,12 @@ REQUIRE_GSSAPI_TESTS is set.
 
 import ctypes
 import ctypes.util
+import select
 import socket
 import ssl
 import struct
 import subprocess
+import threading
 
 import psycopg
 import pytest
@@ -350,7 +352,7 @@ def test_gssapi_missing_keytab(kdc, pg, bouncer):
 # --------------------------------------------------------------------------
 
 
-def gss_enc_bouncer_config(kdc, bouncer, pg, *, extra=""):
+def gss_enc_bouncer_config(kdc, bouncer, pg, *, extra="", backend_port=None):
     """Generate a pgbouncer config with GSS encryption enabled."""
     return f"""\
 [pgbouncer]
@@ -367,7 +369,7 @@ admin_users = testuser
 {extra}
 
 [databases]
-p0 = host=127.0.0.1 port={pg.port} dbname=p0 user=testuser
+p0 = host=127.0.0.1 port={backend_port or pg.port} dbname=p0 user=testuser
 """
 
 
@@ -472,29 +474,24 @@ p0 = host=127.0.0.1 port={pg.port} dbname=p0 user=testuser
         )
 
 
-def test_gssapi_enc_and_auth(kdc, pg, bouncer):
-    """Full round-trip: client uses GSSAPI encryption and GSSAPI auth to
-    pgbouncer; pgbouncer uses trust to the backend."""
-    config = gss_enc_bouncer_config(kdc, bouncer, pg)
-    with bouncer.run_with_config(config):
-        kinit()
-        bouncer.test(
-            user="testuser", dbname="p0", sslmode="disable", gssencmode="require"
-        )
+BACKEND_GSS_ENCRYPTED = (
+    "select encrypted from pg_stat_gssapi where pid = pg_backend_pid()"
+)
 
 
 def test_gssapi_server_gssencmode_require(kdc, pg, bouncer):
     """Full round-trip with server_gssencmode=require.
 
-    Both client and backend use GSS encryption. The backend postgres in the
-    test container supports GSS encryption, so this succeeds.
+    Both client and backend use GSS encryption. The test postgres has a keytab
+    from the kdc fixture, so it accepts GSS encryption.
     """
     config = gss_enc_bouncer_config(
         kdc, bouncer, pg, extra="server_gssencmode = require"
     )
     with bouncer.run_with_config(config):
         kinit()
-        bouncer.test(
+        assert bouncer.sql_value(
+            BACKEND_GSS_ENCRYPTED,
             user="testuser",
             dbname="p0",
             sslmode="disable",
@@ -502,16 +499,80 @@ def test_gssapi_server_gssencmode_require(kdc, pg, bouncer):
         )
 
 
+class GssencRefusingBackend:
+    """A stand-in backend that answers 'N' to a GSSENCRequest, as a postgres
+    without GSS encryption would, and relays everything else to postgres.
+
+    Postgres itself answers 'G' to every TCP GSSENCRequest when it is built
+    with GSSAPI, so a test of the fallback needs this in between.
+    """
+
+    def __init__(self, pg):
+        self.pg_port = pg.port
+        self.gssenc_requests = 0
+        self.listener = socket.create_server(("127.0.0.1", 0))
+        self.port = self.listener.getsockname()[1]
+        threading.Thread(target=self._accept, daemon=True).start()
+
+    def _accept(self):
+        while True:
+            try:
+                conn, _ = self.listener.accept()
+            except OSError:
+                return
+            threading.Thread(target=self._relay, args=(conn,), daemon=True).start()
+
+    def _relay(self, conn):
+        # Stop quietly when either side goes away: an exception in this
+        # thread would fail whichever test is running at the time.
+        try:
+            with conn, socket.create_connection(("127.0.0.1", self.pg_port)) as pg:
+                first = conn.recv(8, socket.MSG_WAITALL)
+                if len(first) < 8:
+                    return
+                if struct.unpack("!ii", first) == (8, GSSENC_REQUEST_CODE):
+                    self.gssenc_requests += 1
+                    conn.sendall(b"N")
+                else:
+                    pg.sendall(first)
+                while True:
+                    for sock in select.select([conn, pg], [], [])[0]:
+                        data = sock.recv(65536)
+                        if not data:
+                            return
+                        (pg if sock is conn else conn).sendall(data)
+        except OSError:
+            return
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        self.listener.close()
+
+
 def test_gssapi_server_gssencmode_prefer_fallback(kdc, pg, bouncer):
-    """pgbouncer falls back gracefully when backend sends N and prefer is set."""
-    config = gss_enc_bouncer_config(
-        kdc, bouncer, pg, extra="server_gssencmode = prefer"
-    )
-    with bouncer.run_with_config(config):
-        kinit()
-        bouncer.test(
-            user="testuser", dbname="p0", sslmode="disable", gssencmode="require"
+    """With server_gssencmode=prefer, pgbouncer falls back to an unencrypted
+    backend connection when the backend answers 'N' to its GSSENCRequest."""
+    with GssencRefusingBackend(pg) as backend:
+        config = gss_enc_bouncer_config(
+            kdc,
+            bouncer,
+            pg,
+            extra="server_gssencmode = prefer",
+            backend_port=backend.port,
         )
+        with bouncer.run_with_config(config):
+            kinit()
+            encrypted = bouncer.sql_value(
+                BACKEND_GSS_ENCRYPTED,
+                user="testuser",
+                dbname="p0",
+                sslmode="disable",
+                gssencmode="require",
+            )
+        assert backend.gssenc_requests >= 1
+        assert encrypted is False
 
 
 def test_gssapi_server_gssencmode_prefer_no_creds_fallback(kdc, pg, bouncer):

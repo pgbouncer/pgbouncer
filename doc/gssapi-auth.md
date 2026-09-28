@@ -5,10 +5,11 @@
 PgBouncer supports GSSAPI/Kerberos authentication in both directions:
 
 - **Client → pgbouncer (acceptor)**: connecting clients present Kerberos service
-  tickets. pgbouncer validates the ticket using its keytab, maps the
-  authenticated principal to a local username via `gss_localname()` and the
-  site's `auth_to_local` rules in `krb5.conf`, and verifies the result matches
-  the username the client claimed in the startup packet.
+  tickets. pgbouncer validates the ticket using its keytab and checks the
+  authenticated principal against the username the client claimed in the
+  startup packet: either the full principal, or its mapping through the site's
+  `auth_to_local` rules in `krb5.conf` (see "Relationship to postgres HBA
+  options" below).
 
 - **pgbouncer → postgres (initiator)**: when the backend requests GSSAPI
   authentication, pgbouncer authenticates using its own pool service-account
@@ -94,9 +95,9 @@ authenticate to postgres *as the client* — is deliberately not used:
 
 ### Username mapping
 
+With the global `auth_type = gss` and on HBA lines with `include_realm=0`,
 `gss_localname()` maps authenticated principals to local usernames by applying
-the `auth_to_local` rules from `krb5.conf`. This is the authoritative,
-site-policy-respecting mapping; no ad-hoc realm stripping is performed.
+the `auth_to_local` rules from `krb5.conf`.
 
 Example mappings (configured via `auth_to_local` rules in `krb5.conf`):
 
@@ -123,18 +124,18 @@ configure time.
 
 #### Relationship to postgres HBA options
 
-PostgreSQL maps GSSAPI principals with the `include_realm`, `krb_realm`, and
-`map=` (pg_ident) HBA options. pgbouncer instead delegates principal mapping to
-`gss_localname()` / `auth_to_local` in `krb5.conf`, keeping it under a single,
-centralized, site-controlled policy rather than split across pg_ident. The
-postgres options are handled as follows on a GSSAPI HBA line:
+A `gss` HBA line follows PostgreSQL's meaning for the options pgbouncer
+implements:
 
-- `include_realm=` is redundant with `auth_to_local` and is ignored with a
-  warning, so a GSSAPI `pg_hba.conf` line can be copied over unchanged.
-- `krb_realm=` and `map=` *restrict* which principals may authenticate. Silently
-  ignoring them would grant more access than the administrator wrote, so a line
-  carrying either is rejected (fail closed). Express the equivalent restriction
-  as an `auth_to_local` rule in `krb5.conf` and remove the option.
+- `include_realm` defaults to 1, so the user name must equal the full principal.
+- `include_realm=0` maps the principal with `gss_localname()` through the
+  `auth_to_local` rules in `krb5.conf`. With MIT's default rule only principals
+  of the default realm map, which is stricter than PostgreSQL's stripping of any
+  realm. The global `auth_type = gss` maps the same way.
+- `krb_realm=` and `map=` are not implemented. A line with either rejects the
+  connections it matches, so it never grants more than it says. To restrict
+  principals, use the HBA user column, or an `auth_to_local` rule together with
+  `include_realm=0`.
 
 ## Build
 
@@ -220,14 +221,9 @@ auth_hba_file = /etc/pgbouncer/pg_hba.conf
 host  mydb  all  0.0.0.0/0  gss
 ```
 
-**Divergence from PostgreSQL pg_hba.conf**: PostgreSQL supports GSSAPI-specific
-HBA options `include_realm`, `krb_realm`, and `map=`. pgbouncer does not
-implement these; principal-to-username mapping is handled entirely by
-`auth_to_local` rules in `krb5.conf` via `gss_localname()`. `include_realm=` is
-redundant with that and is ignored with a warning, so lines using only it copy
-over unchanged. `krb_realm=` and `map=` are *restrictive*, so ignoring them would
-grant more access than written; a GSSAPI line carrying either is rejected (fail
-closed). Move the restriction into an `auth_to_local` rule and remove the option.
+**Relationship to PostgreSQL pg_hba.conf**: `include_realm` works as in
+PostgreSQL, defaulting to 1. `krb_realm=` and `map=` are not implemented, and a
+`gss` line with either rejects the connections it matches.
 
 ## Keytab provisioning
 

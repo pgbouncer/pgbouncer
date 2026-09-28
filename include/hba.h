@@ -51,6 +51,7 @@ struct HBARule {
 	struct IdentMap *identmap;
 	int hba_linenr;
 	char *auth_options;
+	bool include_realm;	/* gss: the username must equal the full principal */
 };
 
 struct HBA {

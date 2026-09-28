@@ -382,6 +382,10 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		return finish_client_login(client);
 
 	auth = cf_auth_type;
+#ifdef HAVE_GSSAPI
+	/* The global auth_type maps the principal like an include_realm=0 line. */
+	client->gss_state.include_realm = false;
+#endif
 #ifdef HAVE_LDAP
 	if (auth == AUTH_TYPE_LDAP) {
 		if (cf_auth_ldap_options == NULL) {
@@ -412,6 +416,10 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		if (auth == AUTH_TYPE_LDAP) {
 			snprintf(client->ldap_options, MAX_LDAP_CONFIG, "%s", rule->auth_options);
 		}
+#endif
+#ifdef HAVE_GSSAPI
+		if (auth == AUTH_TYPE_GSSAPI)
+			client->gss_state.include_realm = rule->include_realm;
 #endif
 		slog_noise(client, "HBA Line %d is matched", rule->hba_linenr);
 	}

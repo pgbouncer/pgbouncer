@@ -826,6 +826,7 @@ struct PgSocket {
 		 * protocol error.
 		 */
 		bool sent_ap_rep;	/* acceptor only: AP-REP was sent */
+		bool include_realm;	/* acceptor only: username is the full principal */
 	} gss_state;
 
 	/*

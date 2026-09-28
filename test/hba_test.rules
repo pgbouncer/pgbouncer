@@ -61,6 +61,11 @@ host		mdb4	muser		all			reject
 # gss
 host		gssdb	all		20.0.0.0/8		gss
 host		gssdb	all		21.0.0.0/8		gss include_realm=0
+# unsupported restrictive options reject instead of falling through
+host		gssdb	all		23.0.0.0/8		gss map=gssmap
+host		gssdb	all		23.0.0.0/8		trust
+host		gssdb	all		24.0.0.0/8		gss krb_realm=EXAMPLE.COM
+host		gssdb	all		24.0.0.0/8		trust
 
 # replication
 host		replication	admin	::1/128			trust

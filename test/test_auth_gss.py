@@ -135,19 +135,34 @@ def test_gssapi_auth_warm_pool_second_login(kdc, pg, bouncer):
         )
 
 
-def test_gssapi_hba(kdc, pg, bouncer):
-    """auth_type = hba with gssapi method works."""
+@pytest.mark.parametrize("options", ["", " include_realm=1"])
+def test_gssapi_hba_full_principal(kdc, pg, bouncer, options):
+    """A gss HBA line requires the username to equal the full principal, as
+    PostgreSQL's default include_realm=1 does."""
     config = gss_hba_config(
         kdc,
         bouncer,
         pg,
-        hba_content="host all all 0.0.0.0/0 gss",
+        hba_content=f"host all all 0.0.0.0/0 gss{options}",
     )
     with bouncer.run_with_config(config):
         kinit()
         bouncer.test(
-            user="testuser", dbname="p0", sslmode="disable", gssencmode="disable"
+            user=GSS_USER_PRINCIPAL,
+            dbname="p0",
+            sslmode="disable",
+            gssencmode="disable",
         )
+        with (
+            bouncer.log_contains('principal "testuser@TEST.PGBOUNCER" does not match'),
+            pytest.raises(psycopg.OperationalError),
+        ):
+            bouncer.test(
+                user="testuser",
+                dbname="p0",
+                sslmode="disable",
+                gssencmode="disable",
+            )
 
 
 def test_gssapi_wrong_username(kdc, pg, bouncer):
@@ -233,8 +248,9 @@ def test_gssapi_backend_auth(kdc, pg, bouncer):
         )
 
 
-def test_gssapi_hba_include_realm_warning(kdc, pg, bouncer):
-    """HBA line with include_realm=0 is accepted with a warning, not rejected."""
+def test_gssapi_hba_include_realm_0(kdc, pg, bouncer):
+    """include_realm=0 maps the principal through auth_to_local, like the
+    global auth_type does."""
     config = gss_hba_config(
         kdc,
         bouncer,
@@ -246,37 +262,41 @@ def test_gssapi_hba_include_realm_warning(kdc, pg, bouncer):
         bouncer.test(
             user="testuser", dbname="p0", sslmode="disable", gssencmode="disable"
         )
-        with open(bouncer.log_path) as f:
-            assert 'GSSAPI option "include_realm=0" is ignored' in f.read()
+        with pytest.raises(psycopg.OperationalError):
+            bouncer.test(
+                user=GSS_USER_PRINCIPAL,
+                dbname="p0",
+                sslmode="disable",
+                gssencmode="disable",
+            )
 
 
-def test_gssapi_hba_map_rejected(kdc, pg, bouncer):
-    """HBA line with a restrictive map= is rejected (fail closed).
-
-    map= restricts which principals may authenticate. pgbouncer maps principals
-    via auth_to_local, so honoring map= as a no-op would grant more access than
-    the administrator wrote. The line is rejected rather than silently ignored,
-    so with it as the only rule the connection has no matching HBA entry.
-    """
-    ident_file = bouncer.config_dir / "gss_ident.conf"
-    with open(ident_file, "w") as f:
-        f.write("gssmap testuser nonexistent_user\n")
-
+@pytest.mark.parametrize("option", ["map=gssmap", "krb_realm=TEST.PGBOUNCER"])
+def test_gssapi_hba_unsupported_option_rejects(kdc, pg, bouncer, option):
+    """A gss line with map= or krb_realm=, which pgbouncer does not implement,
+    rejects the connections it matches instead of letting a later, broader
+    line accept them."""
     config = gss_hba_config(
         kdc,
         bouncer,
         pg,
-        hba_content="host all all 0.0.0.0/0 gss map=gssmap",
-        extra=f"auth_ident_file = {ident_file}",
+        hba_content=(
+            f"host all all 0.0.0.0/0 gss {option}\n"
+            "host all all 0.0.0.0/0 gss include_realm=0"
+        ),
     )
-    with bouncer.run_with_config(config):
+    with (
+        bouncer.log_contains(f'GSSAPI option "{option}" is not supported'),
+        bouncer.run_with_config(config),
+    ):
         kinit()
         with pytest.raises(psycopg.OperationalError):
             bouncer.test(
-                user="testuser", dbname="p0", sslmode="disable", gssencmode="disable"
+                user="testuser",
+                dbname="p0",
+                sslmode="disable",
+                gssencmode="disable",
             )
-        with open(bouncer.log_path) as f:
-            assert 'restrictive GSSAPI option "map=gssmap" is not supported' in f.read()
 
 
 def test_gssapi_wrong_service_name(kdc, pg, bouncer):

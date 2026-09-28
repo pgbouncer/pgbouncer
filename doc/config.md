@@ -497,7 +497,9 @@ pam
 gss
 :   Client must authenticate using GSSAPI/Kerberos.  pgbouncer validates the
     client's service ticket using `auth_gssapi_keytab` and maps the authenticated
-    principal to a local username via `gss_localname()`.  No password is used.
+    principal to a local username with `gss_localname()`, which applies the
+    `auth_to_local` rules in `krb5.conf`, the same way as an HBA `gss` line
+    with `include_realm=0`.  No password is used.
     Requires pgbouncer to be built with `--with-gssapi`.
 
 ### auth_hba_file
@@ -1798,6 +1800,10 @@ The file follows the format of the PostgreSQL `pg_hba.conf` file
 * Auth-method field: Only methods supported by PgBouncer's `auth_type`
   are supported, plus `peer` and `reject`, but except `any` and `pam`, which only work globally.
 * User name map (`map=`) parameter is supported when `auth_type` is `cert` or `peer`.
+* `gss` method: as in PostgreSQL, `include_realm` defaults to 1, so the user name
+  must equal the full Kerberos principal.  With `include_realm=0` the principal is
+  mapped through the `auth_to_local` rules in `krb5.conf`.  `map=` and `krb_realm=`
+  are not supported, and a `gss` line with either rejects the connections it matches.
 
 ## Ident map file format
 

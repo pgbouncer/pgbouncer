@@ -180,11 +180,14 @@ void gssapi_accept_cleanup(PgSocket *client)
 }
 
 /*
- * Map an authenticated GSSAPI principal to a local username and verify it
- * matches what the client claimed in the startup packet.
+ * Verify that the authenticated principal may log in as the username the
+ * client sent in the startup packet.
  *
- * Uses gss_localname(), which applies auth_to_local rules from krb5.conf.
- * This is the authoritative mapping function; no ad-hoc realm stripping.
+ * On a gss HBA line with include_realm, which is the default as in
+ * PostgreSQL, the username must equal the full principal.  Otherwise the
+ * principal is mapped with gss_localname(), which applies the auth_to_local
+ * rules in krb5.conf; the global auth_type and include_realm=0 lines work
+ * that way.  Both comparisons are exact, as PostgreSQL's are by default.
  *
  * Logs the authenticated principal regardless of match outcome for auditing.
  */
@@ -194,44 +197,46 @@ static bool gssapi_map_and_verify_username(PgSocket *client, gss_name_t client_n
 	OM_uint32 major, minor;
 	gss_buffer_desc display = GSS_C_EMPTY_BUFFER;
 	gss_buffer_desc localname = GSS_C_EMPTY_BUFFER;
+	gss_buffer_desc *name = &display;
 	const char *claimed = client->login_user_credentials->name;
-	bool matched = false;
+	bool matched;
 
 	major = gss_display_name(&minor, client_name, &display, NULL);
-	if (!GSS_ERROR(major)) {
-		if (cf_log_connections) {
-			slog_info(client, "GSSAPI: authenticated principal: %.*s",
-				  (int)display.length, (char *)display.value);
-		}
-		gss_release_buffer(&minor, &display);
-	}
-
-	major = gss_localname(&minor, client_name, mech_type, &localname);
 	if (GSS_ERROR(major)) {
-		log_gss_error(client, major, minor, "gss_localname");
-		slog_error(client, "GSSAPI: principal mapping failed for "
-			   "claimed user \"%s\"", claimed);
+		log_gss_error(client, major, minor, "gss_display_name");
 		return false;
 	}
+	if (cf_log_connections) {
+		slog_info(client, "GSSAPI: authenticated principal: %.*s",
+			  (int)display.length, (char *)display.value);
+	}
 
-	/*
-	 * Exact match required.  Case folding and other transformations are
-	 * the responsibility of auth_to_local rules in krb5.conf, not of this
-	 * code.
-	 */
-	matched = (localname.length == strlen(claimed) &&
-		   memcmp(localname.value, claimed, localname.length) == 0);
+	if (!client->gss_state.include_realm) {
+		major = gss_localname(&minor, client_name, mech_type, &localname);
+		if (GSS_ERROR(major)) {
+			log_gss_error(client, major, minor, "gss_localname");
+			slog_error(client, "GSSAPI: principal mapping failed for "
+				   "claimed user \"%s\"", claimed);
+			gss_release_buffer(&minor, &display);
+			return false;
+		}
+		name = &localname;
+	}
+
+	matched = (name->length == strlen(claimed) &&
+		   memcmp(name->value, claimed, name->length) == 0);
 
 	if (!matched) {
-		slog_error(client, "GSSAPI: local name \"%.*s\" does not match "
+		slog_error(client, "GSSAPI: %s \"%.*s\" does not match "
 			   "claimed username \"%s\"",
-			   (int)localname.length, (char *)localname.value,
-			   claimed);
+			   client->gss_state.include_realm ? "principal" : "local name",
+			   (int)name->length, (char *)name->value, claimed);
 	} else {
-		slog_debug(client, "GSSAPI: principal mapped to local user \"%s\"",
+		slog_debug(client, "GSSAPI: principal accepted for user \"%s\"",
 			   claimed);
 	}
 
+	gss_release_buffer(&minor, &display);
 	gss_release_buffer(&minor, &localname);
 	return matched;
 }

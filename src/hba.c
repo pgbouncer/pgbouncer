@@ -791,29 +791,28 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 
 	if (rule->rule_method == AUTH_TYPE_GSSAPI) {
 		/*
-		 * pgbouncer maps principals with gss_localname()/auth_to_local
-		 * (krb5.conf), not pg_ident.  include_realm= is redundant with that
-		 * and is tolerated (ignored with a warning) so a GSSAPI line copies
-		 * over from a postgres pg_hba.conf.  krb_realm= and map= are
-		 * *restrictive* options, though: silently ignoring them would grant
-		 * more access than the administrator wrote, so reject the line (fail
-		 * closed), consistent with how pgbouncer treats other unsupported HBA
-		 * parameters.  Express the equivalent restriction via auth_to_local.
+		 * As in PostgreSQL, include_realm defaults to 1, meaning the username
+		 * must equal the full principal, and any value other than 1 means 0.
+		 * With include_realm=0 the principal is mapped by gss_localname()
+		 * through the auth_to_local rules in krb5.conf.
+		 *
+		 * krb_realm= and map= are not implemented.  Both narrow who may log
+		 * in, and a line that fails to parse is skipped, which would let a
+		 * later, broader line match.  So a line with either option rejects
+		 * the connections it matches instead.
 		 */
+		rule->include_realm = true;
 		while (tp->cur_tok == TOK_IDENT) {
 			if (strncmp(tp->cur_tok_str, "include_realm=", 14) == 0) {
-				log_warning("hba line %d: GSSAPI option \"%s\" is ignored; "
-					    "principal-to-username mapping is handled by "
-					    "auth_to_local rules in krb5.conf",
-					    linenr, tp->cur_tok_str);
+				rule->include_realm = strcmp(tp->cur_tok_str + 14, "1") == 0;
 				next_token(tp);
 			} else if (strncmp(tp->cur_tok_str, "krb_realm=", 10) == 0 ||
 				   strncmp(tp->cur_tok_str, "map=", 4) == 0) {
-				log_warning("hba line %d: restrictive GSSAPI option \"%s\" is "
-					    "not supported; express the restriction via "
-					    "auth_to_local rules in krb5.conf and remove it",
+				log_warning("hba line %d: GSSAPI option \"%s\" is not supported, "
+					    "so this line rejects the connections it matches",
 					    linenr, tp->cur_tok_str);
-				goto failed;
+				rule->rule_method = AUTH_TYPE_REJECT;
+				eat_all(tp);
 			} else {
 				break;
 			}

@@ -91,6 +91,8 @@ gss		gssdb	user		20.1.1.1
 gss		gssdb	user		21.1.1.1
 gss		gssdb	user		20.1.1.1	tls
 reject		gssdb	user		22.1.1.1
+reject		gssdb	user		23.1.1.1
+reject		gssdb	user		24.1.1.1
 
 # replication
 reject		mdb		muser		::1	replication

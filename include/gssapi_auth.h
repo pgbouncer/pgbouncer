@@ -57,6 +57,7 @@ void gssapi_initiate_cleanup(PgSocket *server);
 /* GSSAPI encryption: wrap/unwrap for sbuf I/O layer */
 ssize_t gssenc_recv(PgSocket *sk, void *buf, size_t len);
 ssize_t gssenc_send(PgSocket *sk, const void *buf, size_t len);
+size_t gssenc_pending(PgSocket *sk);
 
 /* GSSAPI encryption: handshake */
 bool gssenc_accept_start(PgSocket *client)  _MUSTCHECK;

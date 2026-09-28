@@ -7,6 +7,7 @@ GSSAPI is not built in or the krb5 KDC tools are missing, or fails them if
 REQUIRE_GSSAPI_TESTS is set.
 """
 
+import contextlib
 import ctypes
 import ctypes.util
 import select
@@ -959,10 +960,25 @@ def test_gssapi_spnego_client(kdc, pg, bouncer):
             assert gss_login(bouncer.port, initiator) == 1
 
 
-def gss_enc_login(port, initiator):
+def gss_enc_exchange(sock, initiator, data):
+    """Send data in one gss_wrap() packet, and return the decrypted reply up to
+    ReadyForQuery."""
+    wrapped = initiator.wrap(data)
+    sock.sendall(struct.pack("!I", len(wrapped)) + wrapped)
+    plaintext = b""
+    while not plaintext.endswith(b"Z\0\0\0\5I"):
+        assert not plaintext.startswith(b"E"), f"error: {plaintext!r}"
+        (length,) = struct.unpack("!I", recv_exact(sock, 4))
+        plaintext += initiator.unwrap(recv_exact(sock, length))
+    return plaintext
+
+
+@contextlib.contextmanager
+def gss_enc_connection(port, initiator):
     """Set up GSS encryption through the given initiator and log in over it.
 
-    Returns how many handshake tokens the client had to send.
+    Yields the socket and how many handshake tokens the client had to send.
+    Every packet on the socket is [length][gss_wrap() output].
     """
     sent = 0
     with socket.create_connection(("127.0.0.1", port), timeout=5) as s:
@@ -978,16 +994,9 @@ def gss_enc_login(port, initiator):
             token, complete = initiator.step(recv_exact(s, length))
         assert complete
 
-        # Every packet from here on is [length][gss_wrap() output].
-        wrapped = initiator.wrap(startup_packet())
-        s.sendall(struct.pack("!I", len(wrapped)) + wrapped)
-        plaintext = b""
-        while not plaintext.endswith(b"Z\0\0\0\5I"):
-            assert not plaintext.startswith(b"E"), f"login failed: {plaintext!r}"
-            (length,) = struct.unpack("!I", recv_exact(s, 4))
-            plaintext += initiator.unwrap(recv_exact(s, length))
+        plaintext = gss_enc_exchange(s, initiator, startup_packet())
         assert plaintext.startswith(b"R\0\0\0\x08\0\0\0\0"), plaintext[:64]
-    return sent
+        yield s, sent
 
 
 def test_gssapi_enc_multi_round_accept(kdc, pg, bouncer):
@@ -999,5 +1008,70 @@ def test_gssapi_enc_multi_round_accept(kdc, pg, bouncer):
     with bouncer.run_with_config(config):
         kinit()
         flags = GSS_C_MUTUAL_FLAG | GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG | GSS_C_DCE_STYLE
-        with GssInitiator(KRB5_MECH_OID, flags) as initiator:
-            assert gss_enc_login(bouncer.port, initiator) == 2
+        with (
+            GssInitiator(KRB5_MECH_OID, flags) as initiator,
+            gss_enc_connection(bouncer.port, initiator) as (_, sent),
+        ):
+            assert sent == 2
+
+
+def message(msg_type, body):
+    return msg_type + struct.pack("!i", len(body) + 4) + body
+
+
+def prepared_select(name, value):
+    """Parse, Bind and Execute for a named statement that selects value."""
+    query = f"select '{value}'".encode()
+    return (
+        message(b"P", name + b"\0" + query + b"\0" + struct.pack("!h", 0))
+        + message(b"B", b"\0" + name + b"\0" + struct.pack("!hhh", 0, 0, 0))
+        + message(b"E", b"\0" + struct.pack("!i", 0))
+    )
+
+
+def test_gssapi_enc_packet_across_sbuf_boundary(kdc, pg, bouncer):
+    """A packet split across the sbuf boundary must not stall a GSS-encrypted
+    client connection.
+
+    The GSS layer decrypts a whole gss_wrap() packet at a time, so the rest of
+    a packet that straddles pkt_buf can sit decrypted in PgBouncer's buffer
+    while the kernel socket is empty, as with TLS in test_ssl_pending.py. In
+    transaction mode with prepared statements enabled, PgBouncer rewrites
+    them, so it needs each Parse message whole. One gss_wrap() packet with two
+    statements puts the second Parse across the boundary, with a few hundred
+    bytes on each side. A stall shows up as the socket timeout.
+    """
+    config = gss_enc_bouncer_config(
+        kdc,
+        bouncer,
+        pg,
+        extra="pool_mode = transaction\nmax_prepared_statements = 200",
+    )
+    with bouncer.run_with_config(config):
+        # pkt_buf cannot change on reload, so size the statements from the
+        # running value.
+        pkt_buf = int(dict(row[:2] for row in bouncer.admin("show config"))["pkt_buf"])
+        first = "a" * (pkt_buf - 400)
+        second = "b" * 1000
+        batch = (
+            prepared_select(b"s1", first)
+            + prepared_select(b"s2", second)
+            + message(b"S", b"")
+        )
+        kinit()
+        flags = GSS_C_MUTUAL_FLAG | GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG
+        with (
+            GssInitiator(KRB5_MECH_OID, flags) as initiator,
+            gss_enc_connection(bouncer.port, initiator) as (sock, _),
+        ):
+            reply = gss_enc_exchange(sock, initiator, batch)
+
+    rows = []
+    while reply:
+        msg_type, length = struct.unpack("!ci", reply[:5])
+        body, reply = reply[5 : 1 + length], reply[1 + length :]
+        assert msg_type != b"E", f"error: {body!r}"
+        if msg_type == b"D":
+            (value_len,) = struct.unpack("!i", body[2:6])
+            rows.append(body[6 : 6 + value_len].decode())
+    assert rows == [first, second]

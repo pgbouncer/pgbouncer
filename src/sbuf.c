@@ -130,11 +130,13 @@ static ssize_t gss_sbufio_peek(struct SBuf *sbuf, void *buf, size_t len);
 static ssize_t gss_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len);
 static ssize_t gss_sbufio_send(struct SBuf *sbuf, const void *data, size_t len);
 static int gss_sbufio_close(struct SBuf *sbuf);
+static size_t gss_sbufio_pending(struct SBuf *sbuf);
 static const SBufIO gss_sbufio_ops = {
 	gss_sbufio_peek,
 	gss_sbufio_recv,
 	gss_sbufio_send,
-	gss_sbufio_close
+	gss_sbufio_close,
+	gss_sbufio_pending
 };
 static bool handle_gss_handshake(SBuf *sbuf, bool is_server) _MUSTCHECK;
 static void sbuf_gss_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
@@ -1622,6 +1624,15 @@ static ssize_t gss_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len)
 		return -1;
 	}
 	return gssenc_recv(sk, dst, len);
+}
+
+static size_t gss_sbufio_pending(struct SBuf *sbuf)
+{
+	PgSocket *sk = container_of(sbuf, PgSocket, sbuf);
+
+	if (sbuf->gss_state != SBUF_GSS_OK)
+		return 0;
+	return gssenc_pending(sk);
 }
 
 static ssize_t gss_sbufio_send(struct SBuf *sbuf, const void *data, size_t len)

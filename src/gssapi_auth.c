@@ -832,6 +832,17 @@ ssize_t gssenc_recv(PgSocket *sk, void *buf, size_t len)
 }
 
 /*
+ * Decrypted data that gssenc_recv() holds for its next call.  It has already
+ * been read from the socket, so the poller cannot see it.
+ */
+size_t gssenc_pending(PgSocket *sk)
+{
+	struct GssEncState *enc = &sk->gss_enc;
+
+	return (size_t)(enc->result_len - enc->result_next);
+}
+
+/*
  * Encrypt and send data over the GSS-encrypted stream.
  * Returns bytes of plaintext consumed, or -1 with errno set.
  */

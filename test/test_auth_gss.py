@@ -1,12 +1,12 @@
 """
 GSSAPI (Kerberos) authentication tests for PgBouncer.
 
-Requires a running KDC (set up by test/setup_kdc.sh) and pgbouncer built
-with --with-gssapi.  Tests are skipped automatically if either is not
-available.
+The tests run against the throwaway KDC started by the ``kdc`` fixture in
+conftest.py and need pgbouncer built with GSSAPI. That fixture skips them when
+GSSAPI is not built in or the krb5 KDC tools are missing, or fails them if
+REQUIRE_GSSAPI_TESTS is set.
 """
 
-import os
 import socket
 import ssl
 import struct
@@ -15,47 +15,22 @@ import subprocess
 import psycopg
 import pytest
 
-from .utils import GSS_SUPPORT, TLS_SUPPORT, WINDOWS
+from .utils import (
+    GSS_USER_PASSWORD,
+    GSS_USER_PRINCIPAL,
+    KRB5_TOOLS,
+    TLS_SUPPORT,
+    WINDOWS,
+)
 
-REALM = "TEST.PGBOUNCER"
-USER_PRINCIPAL = f"testuser@{REALM}"
-USER_PASSWORD = "testpass"
-KEYTAB = "/tmp/pgbouncer-test.keytab"
-
-
-def kdc_is_running():
-    """Check if the test KDC is running and the keytab exists."""
-    if not os.path.exists(KEYTAB):
-        return False
-    try:
-        result = subprocess.run(
-            ["klist", "-k", "-t", KEYTAB],
-            capture_output=True,
-            timeout=5,
-            check=False,
-        )
-        return result.returncode == 0
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return False
-
-
-KDC_AVAILABLE = kdc_is_running()
-
-pytestmark = [
-    pytest.mark.skipif(WINDOWS, reason="GSSAPI tests not supported on Windows"),
-    pytest.mark.skipif(not GSS_SUPPORT, reason="pgbouncer built without GSSAPI"),
-    pytest.mark.skipif(
-        not KDC_AVAILABLE,
-        reason="test KDC not running (run test/setup_kdc.sh first)",
-    ),
-]
+pytestmark = pytest.mark.skipif(WINDOWS, reason="GSSAPI tests not supported on Windows")
 
 
 def kinit():
-    """Acquire a TGT for the test user."""
+    """Acquire a TGT for the test user in the fixture's credential cache."""
     subprocess.run(
-        ["kinit", USER_PRINCIPAL],
-        input=USER_PASSWORD.encode() + b"\n",
+        [KRB5_TOOLS["kinit"], GSS_USER_PRINCIPAL],
+        input=GSS_USER_PASSWORD.encode() + b"\n",
         check=True,
         capture_output=True,
         timeout=10,
@@ -64,27 +39,31 @@ def kinit():
 
 def kdestroy():
     """Destroy the credential cache."""
-    subprocess.run(["kdestroy"], capture_output=True, timeout=5, check=False)
+    subprocess.run(
+        [KRB5_TOOLS["kdestroy"]], capture_output=True, timeout=5, check=False
+    )
 
 
-def setup_module(module):
-    """Acquire test user credentials before running tests."""
+@pytest.fixture(autouse=True, scope="module")
+def gss_credentials(kdc):
+    """Acquire test user credentials before the module and clean up after.
+
+    Depending on the session ``kdc`` fixture guarantees the KDC is running and
+    the KRB5_CONFIG/KRB5CCNAME environment is set before kinit runs.
+    """
     kinit()
-
-
-def teardown_module(module):
-    """Clean up credentials."""
+    yield
     kdestroy()
 
 
-def gss_bouncer_config(bouncer, pg, *, auth_type="gssapi", extra=""):
+def gss_bouncer_config(kdc, bouncer, pg, *, auth_type="gssapi", extra=""):
     """Generate a pgbouncer config for GSSAPI testing."""
     return f"""\
 [pgbouncer]
 listen_addr = 127.0.0.1
 listen_port = {bouncer.port}
 auth_type = {auth_type}
-auth_gssapi_keytab = {KEYTAB}
+auth_gssapi_keytab = {kdc.keytab}
 logfile = {bouncer.log_path}
 pidfile =
 unix_socket_dir = {bouncer.config_dir}
@@ -96,7 +75,7 @@ p0 = host=127.0.0.1 port={pg.port} dbname=p0 user=testuser
 """
 
 
-def gss_hba_config(bouncer, pg, *, hba_content, extra=""):
+def gss_hba_config(kdc, bouncer, pg, *, hba_content, extra=""):
     """Generate a pgbouncer config with HBA-based GSSAPI."""
     hba_file = bouncer.config_dir / "gss_hba.conf"
     with open(hba_file, "w") as f:
@@ -107,7 +86,7 @@ listen_addr = 127.0.0.1
 listen_port = {bouncer.port}
 auth_type = hba
 auth_hba_file = {hba_file}
-auth_gssapi_keytab = {KEYTAB}
+auth_gssapi_keytab = {kdc.keytab}
 logfile = {bouncer.log_path}
 pidfile =
 unix_socket_dir = {bouncer.config_dir}
@@ -119,9 +98,9 @@ p0 = host=127.0.0.1 port={pg.port} dbname=p0 user=testuser
 """
 
 
-def test_gssapi_auth_type(pg, bouncer):
+def test_gssapi_auth_type(kdc, pg, bouncer):
     """auth_type = gssapi works end-to-end."""
-    config = gss_bouncer_config(bouncer, pg)
+    config = gss_bouncer_config(kdc, bouncer, pg)
     with bouncer.run_with_config(config):
         kinit()
         bouncer.test(
@@ -140,10 +119,10 @@ def test_gssapi_auth_type(pg, bouncer):
     kinit()
 
 
-def test_gssapi_auth_warm_pool_second_login(pg, bouncer):
+def test_gssapi_auth_warm_pool_second_login(kdc, pg, bouncer):
     """Two sequential GSSAPI logins to the same pool; the second hits a warm
     pool (welcome cached), exercising the finish_client_login==true path."""
-    config = gss_bouncer_config(bouncer, pg)
+    config = gss_bouncer_config(kdc, bouncer, pg)
     with bouncer.run_with_config(config):
         kinit()
         bouncer.test(
@@ -154,9 +133,10 @@ def test_gssapi_auth_warm_pool_second_login(pg, bouncer):
         )
 
 
-def test_gssapi_hba(pg, bouncer):
+def test_gssapi_hba(kdc, pg, bouncer):
     """auth_type = hba with gssapi method works."""
     config = gss_hba_config(
+        kdc,
         bouncer,
         pg,
         hba_content="host all all 0.0.0.0/0 gssapi",
@@ -168,12 +148,12 @@ def test_gssapi_hba(pg, bouncer):
         )
 
 
-def test_gssapi_wrong_username(pg, bouncer):
+def test_gssapi_wrong_username(kdc, pg, bouncer):
     """Client claiming a wrong username is rejected by gss_localname mismatch."""
     pg.sql("DROP ROLE IF EXISTS wronguser", gssencmode="disable")
     pg.sql("CREATE ROLE wronguser LOGIN", gssencmode="disable")
 
-    config = gss_bouncer_config(bouncer, pg)
+    config = gss_bouncer_config(kdc, bouncer, pg)
     with bouncer.run_with_config(config):
         kinit()
         with pytest.raises(psycopg.OperationalError, match="GSSAPI|principal mapping"):
@@ -185,9 +165,9 @@ def test_gssapi_wrong_username(pg, bouncer):
             )
 
 
-def test_gssapi_no_ticket(pg, bouncer):
+def test_gssapi_no_ticket(kdc, pg, bouncer):
     """Connection fails when the client has no TGT."""
-    config = gss_bouncer_config(bouncer, pg)
+    config = gss_bouncer_config(kdc, bouncer, pg)
     with bouncer.run_with_config(config):
         kdestroy()
         with pytest.raises(psycopg.OperationalError):
@@ -201,14 +181,14 @@ def test_gssapi_no_ticket(pg, bouncer):
     kinit()
 
 
-def test_gssapi_gssencmode_prefer(pg, bouncer):
+def test_gssapi_gssencmode_prefer(kdc, pg, bouncer):
     """Connection with gssencmode=prefer (libpq's default) works.
 
     The client offers GSSAPI encryption first; with client_gssencmode=disable
     pgbouncer declines it, and libpq falls back to a plain-text connection and
     completes GSSAPI authentication over that channel.
     """
-    config = gss_bouncer_config(bouncer, pg)
+    config = gss_bouncer_config(kdc, bouncer, pg)
     with bouncer.run_with_config(config):
         kinit()
         bouncer.test(
@@ -216,9 +196,9 @@ def test_gssapi_gssencmode_prefer(pg, bouncer):
         )
 
 
-def test_gssapi_gssencmode_disable(pg, bouncer):
+def test_gssapi_gssencmode_disable(kdc, pg, bouncer):
     """Connection with gssencmode=disable works."""
-    config = gss_bouncer_config(bouncer, pg)
+    config = gss_bouncer_config(kdc, bouncer, pg)
     with bouncer.run_with_config(config):
         kinit()
         bouncer.test(
@@ -226,7 +206,7 @@ def test_gssapi_gssencmode_disable(pg, bouncer):
         )
 
 
-def test_gssapi_backend_auth(pg, bouncer):
+def test_gssapi_backend_auth(kdc, pg, bouncer):
     """Full path: client GSSAPI to pgbouncer, pgbouncer GSSAPI to postgres.
 
     Postgres is configured with krb_server_keyfile in conftest.py (session
@@ -240,7 +220,7 @@ def test_gssapi_backend_auth(pg, bouncer):
         f.write(old_hba)
     pg.reload()
 
-    config = gss_bouncer_config(bouncer, pg)
+    config = gss_bouncer_config(kdc, bouncer, pg)
     with bouncer.run_with_config(config):
         kinit()
         bouncer.test(
@@ -251,9 +231,10 @@ def test_gssapi_backend_auth(pg, bouncer):
         )
 
 
-def test_gssapi_hba_include_realm_warning(pg, bouncer):
+def test_gssapi_hba_include_realm_warning(kdc, pg, bouncer):
     """HBA line with include_realm=0 is accepted with a warning, not rejected."""
     config = gss_hba_config(
+        kdc,
         bouncer,
         pg,
         hba_content="host all all 0.0.0.0/0 gssapi include_realm=0",
@@ -267,7 +248,7 @@ def test_gssapi_hba_include_realm_warning(pg, bouncer):
             assert 'GSSAPI option "include_realm=0" is ignored' in f.read()
 
 
-def test_gssapi_hba_map_rejected(pg, bouncer):
+def test_gssapi_hba_map_rejected(kdc, pg, bouncer):
     """HBA line with a restrictive map= is rejected (fail closed).
 
     map= restricts which principals may authenticate. pgbouncer maps principals
@@ -280,6 +261,7 @@ def test_gssapi_hba_map_rejected(pg, bouncer):
         f.write("gssmap testuser nonexistent_user\n")
 
     config = gss_hba_config(
+        kdc,
         bouncer,
         pg,
         hba_content="host all all 0.0.0.0/0 gssapi map=gssmap",
@@ -295,7 +277,7 @@ def test_gssapi_hba_map_rejected(pg, bouncer):
             assert 'restrictive GSSAPI option "map=gssmap" is not supported' in f.read()
 
 
-def test_gssapi_wrong_service_name(pg, bouncer):
+def test_gssapi_wrong_service_name(kdc, pg, bouncer):
     """auth_gssapi_service_name = wrongname causes backend auth failure.
 
     Postgres is configured with GSS auth so the wrong service name actually
@@ -309,6 +291,7 @@ def test_gssapi_wrong_service_name(pg, bouncer):
     pg.reload()
 
     config = gss_bouncer_config(
+        kdc,
         bouncer,
         pg,
         extra="auth_gssapi_service_name = wrongname",
@@ -324,9 +307,11 @@ def test_gssapi_wrong_service_name(pg, bouncer):
             )
 
 
-def test_gssapi_missing_keytab(pg, bouncer):
+def test_gssapi_missing_keytab(kdc, pg, bouncer):
     """Pgbouncer with a nonexistent keytab rejects GSSAPI connections."""
-    config = gss_bouncer_config(bouncer, pg).replace(KEYTAB, "/nonexistent/path.keytab")
+    config = gss_bouncer_config(kdc, bouncer, pg).replace(
+        str(kdc.keytab), "/nonexistent/path.keytab"
+    )
     with bouncer.run_with_config(config):
         kinit()
         with pytest.raises(psycopg.OperationalError):
@@ -343,14 +328,14 @@ def test_gssapi_missing_keytab(pg, bouncer):
 # --------------------------------------------------------------------------
 
 
-def gss_enc_bouncer_config(bouncer, pg, *, extra=""):
+def gss_enc_bouncer_config(kdc, bouncer, pg, *, extra=""):
     """Generate a pgbouncer config with GSS encryption enabled."""
     return f"""\
 [pgbouncer]
 listen_addr = 127.0.0.1
 listen_port = {bouncer.port}
 auth_type = gssapi
-auth_gssapi_keytab = {KEYTAB}
+auth_gssapi_keytab = {kdc.keytab}
 client_gssencmode = allow
 server_gssencmode = disable
 logfile = {bouncer.log_path}
@@ -364,9 +349,9 @@ p0 = host=127.0.0.1 port={pg.port} dbname=p0 user=testuser
 """
 
 
-def test_gssapi_gssencmode_require_client(pg, bouncer):
+def test_gssapi_gssencmode_require_client(kdc, pg, bouncer):
     """Client with gssencmode=require connects when pgbouncer allows GSS enc."""
-    config = gss_enc_bouncer_config(bouncer, pg)
+    config = gss_enc_bouncer_config(kdc, bouncer, pg)
     with bouncer.run_with_config(config):
         kinit()
         bouncer.test(
@@ -374,9 +359,9 @@ def test_gssapi_gssencmode_require_client(pg, bouncer):
         )
 
 
-def test_gssapi_gssencmode_require_rejected(pg, bouncer):
+def test_gssapi_gssencmode_require_rejected(kdc, pg, bouncer):
     """Client with gssencmode=require is rejected when pgbouncer disables GSS enc."""
-    config = gss_bouncer_config(bouncer, pg)
+    config = gss_bouncer_config(kdc, bouncer, pg)
     with bouncer.run_with_config(config):
         kinit()
         with pytest.raises(psycopg.OperationalError):
@@ -388,7 +373,7 @@ def test_gssapi_gssencmode_require_rejected(pg, bouncer):
             )
 
 
-def test_gssapi_enc_mitm_plaintext_rejected(pg, bouncer):
+def test_gssapi_enc_mitm_plaintext_rejected(kdc, pg, bouncer):
     """Plaintext pipelined with a GSSENCRequest is rejected before the handshake.
 
     Mirrors postgres: if data is already buffered when the GSSENCRequest is
@@ -396,7 +381,7 @@ def test_gssapi_enc_mitm_plaintext_rejected(pg, bouncer):
     man-in-the-middle, so the connection is refused rather than upgraded. A
     correct pgbouncer never answers 'G' in this case.
     """
-    config = gss_enc_bouncer_config(bouncer, pg)
+    config = gss_enc_bouncer_config(kdc, bouncer, pg)
     with bouncer.run_with_config(config):
         kinit()
         gssencreq = struct.pack("!ii", 8, 80877104)
@@ -412,7 +397,7 @@ def test_gssapi_enc_mitm_plaintext_rejected(pg, bouncer):
 
 
 @pytest.mark.skipif(not TLS_SUPPORT, reason="pgbouncer built without TLS")
-def test_gssapi_enc_req_after_tls_rejected(pg, bouncer, cert_dir):
+def test_gssapi_enc_req_after_tls_rejected(kdc, pg, bouncer, cert_dir):
     """A GSSENCRequest after encryption is already established is refused.
 
     pgbouncer must not re-negotiate encryption once a secure channel exists;
@@ -428,7 +413,7 @@ def test_gssapi_enc_req_after_tls_rejected(pg, bouncer, cert_dir):
 listen_addr = 127.0.0.1
 listen_port = {bouncer.port}
 auth_type = gssapi
-auth_gssapi_keytab = {KEYTAB}
+auth_gssapi_keytab = {kdc.keytab}
 client_gssencmode = allow
 client_tls_sslmode = allow
 client_tls_cert_file = {cert}
@@ -465,10 +450,10 @@ p0 = host=127.0.0.1 port={pg.port} dbname=p0 user=testuser
         )
 
 
-def test_gssapi_enc_and_auth(pg, bouncer):
+def test_gssapi_enc_and_auth(kdc, pg, bouncer):
     """Full round-trip: client uses GSSAPI encryption and GSSAPI auth to
     pgbouncer; pgbouncer uses trust to the backend."""
-    config = gss_enc_bouncer_config(bouncer, pg)
+    config = gss_enc_bouncer_config(kdc, bouncer, pg)
     with bouncer.run_with_config(config):
         kinit()
         bouncer.test(
@@ -476,13 +461,15 @@ def test_gssapi_enc_and_auth(pg, bouncer):
         )
 
 
-def test_gssapi_server_gssencmode_require(pg, bouncer):
+def test_gssapi_server_gssencmode_require(kdc, pg, bouncer):
     """Full round-trip with server_gssencmode=require.
 
     Both client and backend use GSS encryption. The backend postgres in the
     test container supports GSS encryption, so this succeeds.
     """
-    config = gss_enc_bouncer_config(bouncer, pg, extra="server_gssencmode = require")
+    config = gss_enc_bouncer_config(
+        kdc, bouncer, pg, extra="server_gssencmode = require"
+    )
     with bouncer.run_with_config(config):
         kinit()
         bouncer.test(
@@ -493,9 +480,11 @@ def test_gssapi_server_gssencmode_require(pg, bouncer):
         )
 
 
-def test_gssapi_server_gssencmode_prefer_fallback(pg, bouncer):
+def test_gssapi_server_gssencmode_prefer_fallback(kdc, pg, bouncer):
     """pgbouncer falls back gracefully when backend sends N and prefer is set."""
-    config = gss_enc_bouncer_config(bouncer, pg, extra="server_gssencmode = prefer")
+    config = gss_enc_bouncer_config(
+        kdc, bouncer, pg, extra="server_gssencmode = prefer"
+    )
     with bouncer.run_with_config(config):
         kinit()
         bouncer.test(
@@ -503,7 +492,7 @@ def test_gssapi_server_gssencmode_prefer_fallback(pg, bouncer):
         )
 
 
-def test_gssapi_server_gssencmode_prefer_no_creds_fallback(pg, bouncer):
+def test_gssapi_server_gssencmode_prefer_no_creds_fallback(kdc, pg, bouncer):
     """server_gssencmode=prefer falls back when pgbouncer has no initiator creds.
 
     The test backend supports GSS encryption, so it would answer 'G'. With
@@ -516,6 +505,7 @@ def test_gssapi_server_gssencmode_prefer_no_creds_fallback(pg, bouncer):
     with open(auth_file, "w") as f:
         f.write('"testuser" "trust-unused"\n')
     config = gss_bouncer_config(
+        kdc,
         bouncer,
         pg,
         auth_type="trust",
@@ -529,7 +519,7 @@ def test_gssapi_server_gssencmode_prefer_no_creds_fallback(pg, bouncer):
     kinit()
 
 
-def test_gssapi_enc_backend_gss_auth(pg, bouncer):
+def test_gssapi_enc_backend_gss_auth(kdc, pg, bouncer):
     """Full path: client GSS-encrypted, backend GSS-encrypted + GSS-authenticated."""
     with pg.hba_path.open() as f:
         old_hba = f.read()
@@ -538,7 +528,9 @@ def test_gssapi_enc_backend_gss_auth(pg, bouncer):
         f.write(old_hba)
     pg.reload()
 
-    config = gss_enc_bouncer_config(bouncer, pg, extra="server_gssencmode = require")
+    config = gss_enc_bouncer_config(
+        kdc, bouncer, pg, extra="server_gssencmode = require"
+    )
     with bouncer.run_with_config(config):
         kinit()
         bouncer.test(
@@ -549,12 +541,12 @@ def test_gssapi_enc_backend_gss_auth(pg, bouncer):
         )
 
 
-def test_gssapi_enc_wrong_username(pg, bouncer):
+def test_gssapi_enc_wrong_username(kdc, pg, bouncer):
     """Encrypted channel established, but username mismatch still rejected."""
     pg.sql("DROP ROLE IF EXISTS wronguser", gssencmode="disable")
     pg.sql("CREATE ROLE wronguser LOGIN", gssencmode="disable")
 
-    config = gss_enc_bouncer_config(bouncer, pg)
+    config = gss_enc_bouncer_config(kdc, bouncer, pg)
     with bouncer.run_with_config(config):
         kinit()
         with pytest.raises(psycopg.OperationalError, match="GSSAPI|principal mapping"):
@@ -566,9 +558,9 @@ def test_gssapi_enc_wrong_username(pg, bouncer):
             )
 
 
-def test_gssapi_enc_no_ticket(pg, bouncer):
+def test_gssapi_enc_no_ticket(kdc, pg, bouncer):
     """Encrypted channel cannot be established without a TGT."""
-    config = gss_enc_bouncer_config(bouncer, pg)
+    config = gss_enc_bouncer_config(kdc, bouncer, pg)
     with bouncer.run_with_config(config):
         kdestroy()
         with pytest.raises(psycopg.OperationalError):
@@ -582,13 +574,15 @@ def test_gssapi_enc_no_ticket(pg, bouncer):
     kinit()
 
 
-def test_gssapi_client_gssencmode_require_rejects_plaintext(pg, bouncer):
+def test_gssapi_client_gssencmode_require_rejects_plaintext(kdc, pg, bouncer):
     """client_gssencmode=require refuses unencrypted client connections.
 
     This mirrors the sslmode=require behavior: a plain-text StartupMessage is
     rejected, while a GSS-encrypted client is accepted.
     """
-    config = gss_enc_bouncer_config(bouncer, pg, extra="client_gssencmode = require")
+    config = gss_enc_bouncer_config(
+        kdc, bouncer, pg, extra="client_gssencmode = require"
+    )
     with bouncer.run_with_config(config):
         kinit()
         with pytest.raises(psycopg.OperationalError):
@@ -600,7 +594,7 @@ def test_gssapi_client_gssencmode_require_rejects_plaintext(pg, bouncer):
         )
 
 
-def test_gssapi_enc_does_not_bypass_password_auth(pg, bouncer):
+def test_gssapi_enc_does_not_bypass_password_auth(kdc, pg, bouncer):
     """GSS encryption must not bypass the configured non-GSS auth method.
 
     With auth_type=plain and client_gssencmode=allow, a GSS-encrypted client
@@ -615,7 +609,7 @@ def test_gssapi_enc_does_not_bypass_password_auth(pg, bouncer):
         f.write('"testuser" "supersecret"\n')
 
     config = gss_enc_bouncer_config(
-        bouncer, pg, extra=f"auth_type = plain\nauth_file = {auth_file}"
+        kdc, bouncer, pg, extra=f"auth_type = plain\nauth_file = {auth_file}"
     )
     with bouncer.run_with_config(config):
         kinit()
@@ -632,11 +626,11 @@ def test_gssapi_enc_does_not_bypass_password_auth(pg, bouncer):
         )
 
 
-def test_gssapi_enc_large_payload(pg, bouncer):
+def test_gssapi_enc_large_payload(kdc, pg, bouncer):
     """Payloads larger than PQ_GSS_MAX_PACKET_SIZE (16 KB) round-trip in both
     directions, exercising the multi-packet gss_wrap()/gss_unwrap() framing.
     """
-    config = gss_enc_bouncer_config(bouncer, pg)
+    config = gss_enc_bouncer_config(kdc, bouncer, pg)
     with bouncer.run_with_config(config):
         kinit()
         conn = {

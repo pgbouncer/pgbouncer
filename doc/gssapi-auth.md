@@ -75,9 +75,12 @@ the correct design for a connection pooler:
 
 ### No credential delegation
 
-pgbouncer requests **only** `GSS_C_MUTUAL_FLAG` when calling
-`gss_init_sec_context()` for backend connections. `GSS_C_DELEG_FLAG` and
-`GSS_C_DELEG_POLICY_FLAG` are never set.
+pgbouncer never sets `GSS_C_DELEG_FLAG` or `GSS_C_DELEG_POLICY_FLAG` when
+calling `gss_init_sec_context()` for backend connections. Authentication
+requests only `GSS_C_MUTUAL_FLAG`, and the GSS encryption handshake adds the
+replay, sequence, confidentiality and integrity flags. On the client side,
+pgbouncer passes no delegated-credential handle to `gss_accept_sec_context()`,
+so it does not keep a credential that a client delegates.
 
 Credential delegation — forwarding a client's TGT so pgbouncer could
 authenticate to postgres *as the client* — is deliberately not used:

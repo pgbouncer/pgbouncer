@@ -774,10 +774,8 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 		rule->rule_method = AUTH_TYPE_SCRAM_SHA_256;
 	} else if (check_kw(tp, "ldap")) {
 		rule->rule_method = AUTH_TYPE_LDAP;
-#ifdef HAVE_GSSAPI
 	} else if (eat_kw(tp, "gssapi")) {
 		rule->rule_method = AUTH_TYPE_GSSAPI;
-#endif
 	} else {
 		log_warning("hba line %d: unsupported method: buf=%s", linenr, tp->buf);
 		goto failed;
@@ -791,7 +789,6 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 		eat_all(tp);
 	}
 
-#ifdef HAVE_GSSAPI
 	if (rule->rule_method == AUTH_TYPE_GSSAPI) {
 		/*
 		 * pgbouncer maps principals with gss_localname()/auth_to_local
@@ -821,9 +818,7 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 				break;
 			}
 		}
-	} else
-#endif
-	if (!parse_map_definition(rule, ident, tp, linenr)) {
+	} else if (!parse_map_definition(rule, ident, tp, linenr)) {
 		goto failed;
 	}
 

@@ -9,6 +9,7 @@ import pytest
 
 from .utils import (
     FREEBSD,
+    GSS_SUPPORT,
     LDAP_SUPPORT,
     LONG_PASSWORD,
     MACOS,
@@ -1516,3 +1517,62 @@ async def test_auth_query_login_large_packets(bouncer):
     bouncer.test(user="longpass", password=LONG_PASSWORD)
     with pytest.raises(psycopg.OperationalError, match="authentication failed"):
         bouncer.test(user="longpass", password="X" + LONG_PASSWORD)
+
+
+@pytest.mark.skipif(GSS_SUPPORT, reason="checks a build without GSSAPI")
+def test_gss_settings_without_gssapi(bouncer):
+    """The GSSAPI settings exist in every build, so a config that sets them
+    still loads when pgbouncer is built without GSSAPI."""
+    bouncer.admin("set auth_gssapi_keytab = '/nonexistent.keytab'")
+    bouncer.admin("set client_gssencmode = disable")
+    bouncer.admin("set server_gssencmode = disable")
+    settings = {row[0] for row in bouncer.admin("show config")}
+    assert {
+        "auth_gssapi_keytab",
+        "auth_gssapi_client_keytab",
+        "auth_gssapi_service_name",
+        "client_gssencmode",
+        "server_gssencmode",
+    } <= settings
+
+
+@pytest.mark.skipif(GSS_SUPPORT, reason="checks a build without GSSAPI")
+def test_client_gssencmode_require_without_gssapi(bouncer):
+    """client_gssencmode = require refuses a TCP client instead of letting it
+    in unencrypted when pgbouncer cannot do GSSAPI encryption."""
+    bouncer.admin("set client_gssencmode = require")
+    with pytest.raises(psycopg.OperationalError, match="GSSAPI encryption required"):
+        bouncer.test()
+
+
+@pytest.mark.skipif(GSS_SUPPORT, reason="checks a build without GSSAPI")
+def test_server_gssencmode_require_without_gssapi(bouncer):
+    """server_gssencmode = require fails the server login instead of connecting
+    unencrypted when pgbouncer cannot do GSSAPI encryption."""
+    bouncer.admin("set server_gssencmode = require")
+    bouncer.admin("set query_wait_timeout = 2")
+    with (
+        bouncer.log_contains("GSSAPI encryption is not supported by this build"),
+        pytest.raises(psycopg.OperationalError, match="query_wait_timeout"),
+    ):
+        bouncer.test()
+
+
+@pytest.mark.skipif(GSS_SUPPORT, reason="checks a build without GSSAPI")
+def test_gss_auth_without_gssapi(bouncer):
+    """The gssapi auth_type is unknown without GSSAPI, and a gssapi HBA line
+    still parses but rejects the login, like ldap in a build without LDAP."""
+    with pytest.raises(psycopg.Error):
+        bouncer.admin("set auth_type = gssapi")
+
+    hba_conf_file = bouncer.config_dir / "gss_hba.conf"
+    with open(hba_conf_file, "w") as f:
+        f.write("host all pswcheck 0.0.0.0/0 gssapi\n")
+    bouncer.write_ini("auth_type = hba")
+    bouncer.write_ini(f"auth_hba_file = {hba_conf_file}")
+    with bouncer.log_contains("could not parse hba config line", times=0):
+        bouncer.admin("reload")
+    with pytest.raises(
+        psycopg.OperationalError, match="gssapi is not supported by this build"
+    ):
+        bouncer.test(user="pswcheck", password="pgbouncer-check")

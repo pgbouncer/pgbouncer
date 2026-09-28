@@ -729,6 +729,11 @@ static bool handle_connect(PgSocket *server)
 			if (res)
 				server->wait_gss_enc_char = true;
 		} else
+#else
+		if (cf_server_gssencmode >= GSSENCMODE_REQUIRE && !is_unix) {
+			disconnect_server(server, false, "GSSAPI encryption is not supported by this build");
+			return false;
+		}
 #endif
 		if (server_connect_sslmode > SSLMODE_DISABLED && !is_unix) {
 			slog_noise(server, "P: SSL request");

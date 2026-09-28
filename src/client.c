@@ -422,6 +422,12 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 		return false;
 	}
 #endif
+#ifndef HAVE_GSSAPI
+	if (auth == AUTH_TYPE_GSSAPI) {
+		disconnect_client(client, true, "gssapi is not supported by this build");
+		return false;
+	}
+#endif
 
 	if (auth == AUTH_TYPE_MD5) {
 		if (get_password_type(client->login_user_credentials->passwd) == PASSWORD_TYPE_SCRAM_SHA_256)
@@ -1277,6 +1283,11 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 	const uint8_t *key;
 	bool ok;
 	bool is_unix = pga_is_unix(&client->remote_addr);
+#ifdef HAVE_GSSAPI
+	bool gss_encrypted = client->gss_enc.active;
+#else
+	bool gss_encrypted = false;
+#endif
 
 	SBuf *sbuf = &client->sbuf;
 
@@ -1390,13 +1401,11 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 			return false;
 		}
 
-#ifdef HAVE_GSSAPI
 		/* require GSSAPI encryption except on unix socket */
-		if (cf_client_gssencmode >= GSSENCMODE_REQUIRE && !client->gss_enc.active && !is_unix) {
+		if (cf_client_gssencmode >= GSSENCMODE_REQUIRE && !gss_encrypted && !is_unix) {
 			disconnect_client(client, true, "GSSAPI encryption required");
 			return false;
 		}
-#endif
 
 		if (client->pool && !sending_auth_query(client)) {
 			disconnect_client(client, true, "client re-sent startup pkt");

@@ -387,23 +387,6 @@ endif
 # LDAP (mirrors --with-ldap)
 # ----------------------------------------------------------------------
 
-gssapiopt = get_option('gssapi')
-gssapi = not_found_dep
-if gssapiopt != 'disabled'
-  gssapi = dependency('krb5-gssapi', required: gssapiopt == 'enabled')
-endif
-if gssapi.found()
-  # src/gssapi_auth.c calls these unconditionally; require the MIT Kerberos
-  # versions that provide them (gss_localname: 1.7, gss_acquire_cred_from: 1.11).
-  if not cc.has_function('gss_acquire_cred_from', dependencies: gssapi)
-    error('GSSAPI library does not provide gss_acquire_cred_from; MIT Kerberos >= 1.11 is required')
-  endif
-  if not cc.has_function('gss_localname', dependencies: gssapi)
-    error('GSSAPI library does not provide gss_localname; MIT Kerberos >= 1.7 is required')
-  endif
-  cdata.set('HAVE_GSSAPI', 1, description: 'GSSAPI (Kerberos) support.')
-endif
-
 ldapopt = get_option('ldap')
 ldap = not_found_dep
 if ldapopt != 'disabled'
@@ -412,6 +395,30 @@ endif
 if ldap.found()
   cdata.set('HAVE_LDAP', 1, description: 'LDAP support.')
   cdata.set('HAVE_LDAP_H', 1)
+endif
+
+# ----------------------------------------------------------------------
+# GSSAPI (mirrors --with-gssapi)
+# ----------------------------------------------------------------------
+
+gssapiopt = get_option('gssapi')
+gssapi = not_found_dep
+if gssapiopt != 'disabled'
+  gssapi = dependency('krb5-gssapi', required: gssapiopt == 'enabled')
+endif
+# src/gssapi_auth.c calls gss_acquire_cred_from and gss_localname, which need
+# MIT Kerberos 1.11 or later. An `auto` lookup that finds another GSSAPI
+# library builds without GSSAPI.
+if gssapi.found() and not (cc.has_function('gss_acquire_cred_from', dependencies: gssapi) and
+                           cc.has_function('gss_localname', dependencies: gssapi))
+  if gssapiopt == 'enabled'
+    error('GSSAPI support needs gss_acquire_cred_from and gss_localname, from MIT Kerberos >= 1.11')
+  endif
+  message('GSSAPI library lacks gss_acquire_cred_from or gss_localname; building without GSSAPI')
+  gssapi = not_found_dep
+endif
+if gssapi.found()
+  cdata.set('HAVE_GSSAPI', 1, description: 'GSSAPI (Kerberos) support.')
 endif
 
 # ----------------------------------------------------------------------
@@ -750,6 +757,7 @@ endif
 
 summary({
   'adns': adns,
+  'gssapi': gssapi.found(),
   'ldap': ldap.found(),
   'pam': pam.found(),
   'systemd': systemd.found(),

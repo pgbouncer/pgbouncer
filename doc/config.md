@@ -612,7 +612,8 @@ responds to what the client requests rather than initiating encryption itself.
 
 Connections over a Unix socket are not encrypted, and `require` does not apply
 to them.  In a build without GSSAPI support, `require` refuses every TCP
-connection.
+connection.  To require GSSAPI encryption only for some databases or users, use
+`allow` with `hostgssenc` lines in the HBA file.
 
 Each GSSAPI-encrypted client connection holds about 256 KiB of buffers during
 the encryption handshake, before the client has authenticated, and 48 KiB
@@ -1822,7 +1823,10 @@ The location of the HBA file is specified by the setting
 The file follows the format of the PostgreSQL `pg_hba.conf` file
 (see <https://www.postgresql.org/docs/current/auth-pg-hba-conf.html>).
 
-* Supported record types: `local`, `host`, `hostssl`, `hostnossl`.
+* Supported record types: `local`, `host`, `hostssl`, `hostnossl`, `hostgssenc`, `hostnogssenc`.
+  A GSSAPI-encrypted connection is not TLS, so it matches `hostnossl` and not `hostssl`, as in
+  PostgreSQL.  In a build without GSSAPI support no connection is GSSAPI-encrypted, so a
+  `hostgssenc` line never matches.
 * Database field: Supports `all`, `replication`, `sameuser`, `@file`, multiple names.  Not supported: `samerole`, `samegroup`.
 * User name field: Supports `all`, `@file`, multiple names.  Not supported: `+groupname`.
 * Address field: Supports `all`, IPv4, IPv6.  Not supported: `samehost`, `samenet`, DNS names, domain prefixes.

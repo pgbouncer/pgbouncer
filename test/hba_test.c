@@ -70,6 +70,7 @@ static int hba_test_eval(struct HBA *hba, char *ln, int linenr)
 	struct HBARule *rule;
 	int res = 0;
 	bool tls;
+	bool gss_encrypted;
 	ReplicationType replication;
 
 	if (ln[0] == '#')
@@ -80,6 +81,7 @@ static int hba_test_eval(struct HBA *hba, char *ln, int linenr)
 	addr = get_token(&ln);
 	modifier = get_token(&ln);
 	tls = strcmpeq(modifier, "tls");
+	gss_encrypted = strcmpeq(modifier, "gssenc");
 	replication = strcmpeq(modifier, "replication") ? REPLICATION_PHYSICAL : REPLICATION_NONE;
 	if (!exp)
 		return 0;
@@ -89,7 +91,7 @@ static int hba_test_eval(struct HBA *hba, char *ln, int linenr)
 	if (!pga_pton(&pgaddr, addr, 9999))
 		die("hbatest: invalid addr on line #%d", linenr);
 
-	rule = hba_eval(hba, &pgaddr, !!tls, replication, db, user);
+	rule = hba_eval(hba, &pgaddr, !!tls, gss_encrypted, replication, db, user);
 
 	if (!rule) {
 		if (strcmp("reject", exp) == 0) {

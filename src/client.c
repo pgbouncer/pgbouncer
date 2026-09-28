@@ -73,6 +73,15 @@ PgDatabase *prepare_auth_database(PgSocket *client)
 	return auth_db;
 }
 
+static bool client_is_gss_encrypted(PgSocket *client)
+{
+#ifdef HAVE_GSSAPI
+	return client->gss_enc.active;
+#else
+	return false;
+#endif
+}
+
 static bool check_client_passwd(PgSocket *client, const char *passwd)
 {
 	PgCredentials *user = client->login_user_credentials;
@@ -402,6 +411,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 			parsed_hba,
 			&client->remote_addr,
 			!!client->sbuf.tls,
+			client_is_gss_encrypted(client),
 			client->replication,
 			client->db->name,
 			client->login_user_credentials->name);
@@ -558,7 +568,7 @@ static bool check_if_need_ldap_authentication(PgSocket *client, const char *dbna
 {
 	if (cf_auth_type == AUTH_TYPE_HBA) {
 		struct HBARule *rule = hba_eval(parsed_hba, &client->remote_addr, !!client->sbuf.tls,
-						REPLICATION_NONE, dbname, username);
+						client_is_gss_encrypted(client), REPLICATION_NONE, dbname, username);
 		if (rule != NULL && rule->rule_method == AUTH_TYPE_LDAP)
 			return true;
 	}
@@ -571,7 +581,7 @@ static bool check_if_need_gssapi_authentication(PgSocket *client, const char *db
 {
 	if (cf_auth_type == AUTH_TYPE_HBA) {
 		struct HBARule *rule = hba_eval(parsed_hba, &client->remote_addr, !!client->sbuf.tls,
-						REPLICATION_NONE, dbname, username);
+						client_is_gss_encrypted(client), REPLICATION_NONE, dbname, username);
 		if (rule != NULL && rule->rule_method == AUTH_TYPE_GSSAPI)
 			return true;
 	}
@@ -1291,11 +1301,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 	const uint8_t *key;
 	bool ok;
 	bool is_unix = pga_is_unix(&client->remote_addr);
-#ifdef HAVE_GSSAPI
-	bool gss_encrypted = client->gss_enc.active;
-#else
-	bool gss_encrypted = false;
-#endif
+	bool gss_encrypted = client_is_gss_encrypted(client);
 
 	SBuf *sbuf = &client->sbuf;
 

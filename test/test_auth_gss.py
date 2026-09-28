@@ -273,6 +273,45 @@ def test_gssapi_hba_include_realm_0(kdc, pg, bouncer):
             )
 
 
+@pytest.mark.parametrize(
+    "record_type, gssencmode, accepted",
+    [
+        ("hostgssenc", "require", True),
+        ("hostgssenc", "disable", False),
+        ("hostnogssenc", "disable", True),
+        ("hostnogssenc", "require", False),
+    ],
+)
+def test_gssapi_hba_gssenc_record_types(
+    kdc, pg, bouncer, record_type, gssencmode, accepted
+):
+    """A hostgssenc line matches only GSSAPI-encrypted connections and a
+    hostnogssenc line only unencrypted ones, as in PostgreSQL."""
+    config = gss_hba_config(
+        kdc,
+        bouncer,
+        pg,
+        hba_content=f"{record_type} all all 0.0.0.0/0 gss include_realm=0",
+        extra="client_gssencmode = allow",
+    )
+    with bouncer.run_with_config(config):
+        kinit()
+        if accepted:
+            bouncer.test(
+                user="testuser", dbname="p0", sslmode="disable", gssencmode=gssencmode
+            )
+        else:
+            with pytest.raises(
+                psycopg.OperationalError, match="no authentication method is found"
+            ):
+                bouncer.test(
+                    user="testuser",
+                    dbname="p0",
+                    sslmode="disable",
+                    gssencmode=gssencmode,
+                )
+
+
 @pytest.mark.parametrize("option", ["map=gssmap", "krb_realm=TEST.PGBOUNCER"])
 def test_gssapi_hba_unsupported_option_rejects(kdc, pg, bouncer, option):
     """A gss line with map= or krb_realm=, which pgbouncer does not implement,

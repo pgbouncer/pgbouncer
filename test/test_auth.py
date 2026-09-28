@@ -1559,6 +1559,29 @@ def test_server_gssencmode_require_without_gssapi(bouncer):
 
 
 @pytest.mark.skipif(GSS_SUPPORT, reason="checks a build without GSSAPI")
+def test_gssenc_record_types_without_gssapi(bouncer):
+    """hostgssenc and hostnogssenc lines parse in a build without GSSAPI. No
+    connection is GSSAPI-encrypted there, so a hostgssenc line never matches
+    and a hostnogssenc line matches every TCP connection."""
+    hba_conf_file = bouncer.config_dir / "gssenc_hba.conf"
+    with open(hba_conf_file, "w") as f:
+        f.write("hostgssenc all pswcheck 0.0.0.0/0 trust\n")
+        f.write("hostnogssenc all pswcheck 0.0.0.0/0 md5\n")
+    bouncer.write_ini("auth_type = hba")
+    bouncer.write_ini(f"auth_hba_file = {hba_conf_file}")
+    with (
+        bouncer.log_contains("could not parse hba config line", times=0),
+        bouncer.log_contains("hostgssenc record cannot match"),
+    ):
+        bouncer.admin("reload")
+    bouncer.test(user="pswcheck", password="pgbouncer-check")
+    with pytest.raises(
+        psycopg.OperationalError, match="password authentication failed"
+    ):
+        bouncer.test(user="pswcheck", password="wrong")
+
+
+@pytest.mark.skipif(GSS_SUPPORT, reason="checks a build without GSSAPI")
 def test_gss_auth_without_gssapi(bouncer):
     """The gss auth_type is unknown without GSSAPI, and a gss HBA line
     still parses but rejects the login, like ldap in a build without LDAP."""

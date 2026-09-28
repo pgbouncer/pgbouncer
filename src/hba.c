@@ -694,6 +694,13 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 		rtype = RULE_HOSTSSL;
 	} else if (eat_kw(tp, "hostnossl")) {
 		rtype = RULE_HOSTNOSSL;
+	} else if (eat_kw(tp, "hostgssenc")) {
+		rtype = RULE_HOSTGSSENC;
+#ifndef HAVE_GSSAPI
+		log_warning("hba line %d: hostgssenc record cannot match because GSSAPI is not supported by this build", linenr);
+#endif
+	} else if (eat_kw(tp, "hostnogssenc")) {
+		rtype = RULE_HOSTNOGSSENC;
 	} else if (eat(tp, TOK_EOL)) {
 		return true;
 	} else {
@@ -1009,7 +1016,7 @@ static bool address_match(const struct HBAAddress *haddress, PgAddr *addr)
 	}
 }
 
-struct HBARule * hba_eval(struct HBA *hba, PgAddr *addr, bool is_tls, ReplicationType replication, const char *dbname, const char *username)
+struct HBARule * hba_eval(struct HBA *hba, PgAddr *addr, bool is_tls, bool is_gss_encrypted, ReplicationType replication, const char *dbname, const char *username)
 {
 	struct List *el;
 	struct HBARule *rule;
@@ -1031,6 +1038,10 @@ struct HBARule * hba_eval(struct HBA *hba, PgAddr *addr, bool is_tls, Replicatio
 		} else if (rule->rule_type == RULE_HOSTSSL && !is_tls) {
 			continue;
 		} else if (rule->rule_type == RULE_HOSTNOSSL && is_tls) {
+			continue;
+		} else if (rule->rule_type == RULE_HOSTGSSENC && !is_gss_encrypted) {
+			continue;
+		} else if (rule->rule_type == RULE_HOSTNOGSSENC && is_gss_encrypted) {
 			continue;
 		} else if (!address_match(&rule->address, addr)) {
 			continue;

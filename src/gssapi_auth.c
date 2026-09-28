@@ -60,6 +60,8 @@
 #include "bouncer.h"
 #include "gssapi_auth.h"
 
+#include <usual/safeio.h>
+
 #ifdef HAVE_GSSAPI
 
 #include <gssapi/gssapi.h>
@@ -737,15 +739,15 @@ ssize_t gssenc_recv(PgSocket *sk, void *buf, size_t len)
 
 		/* read 4-byte length header */
 		if (enc->recv_len < (int)sizeof(uint32_t)) {
-			ret = recv(raw_sock,
-				   enc->recv_buf + enc->recv_len,
-				   sizeof(uint32_t) - enc->recv_len, 0);
+			ret = safe_recv(raw_sock,
+					enc->recv_buf + enc->recv_len,
+					sizeof(uint32_t) - enc->recv_len, 0);
 			if (ret <= 0) {
 				if (ret == 0) {
 					errno = ECONNRESET;
 					return -1;
 				}
-				if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
+				if (errno == EAGAIN || errno == EWOULDBLOCK) {
 					errno = EAGAIN;
 					return bytes_returned > 0 ? bytes_returned : -1;
 				}
@@ -776,15 +778,15 @@ ssize_t gssenc_recv(PgSocket *sk, void *buf, size_t len)
 		{
 			int need = enc->pkt_expected - (enc->recv_len - (int)sizeof(uint32_t));
 			if (need > 0) {
-				ret = recv(raw_sock,
-					   enc->recv_buf + enc->recv_len,
-					   need, 0);
+				ret = safe_recv(raw_sock,
+						enc->recv_buf + enc->recv_len,
+						need, 0);
 				if (ret <= 0) {
 					if (ret == 0) {
 						errno = ECONNRESET;
 						return -1;
 					}
-					if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
+					if (errno == EAGAIN || errno == EWOULDBLOCK) {
 						errno = EAGAIN;
 						return bytes_returned > 0 ? bytes_returned : -1;
 					}
@@ -852,11 +854,11 @@ ssize_t gssenc_send(PgSocket *sk, const void *buf, size_t len)
 	while (bytes_to_encrypt > 0 || enc->send_len > 0) {
 		/* flush any pending encrypted data */
 		while (enc->send_next < enc->send_len) {
-			ret = send(raw_sock,
-				   enc->send_buf + enc->send_next,
-				   enc->send_len - enc->send_next, 0);
+			ret = safe_send(raw_sock,
+					enc->send_buf + enc->send_next,
+					enc->send_len - enc->send_next, 0);
 			if (ret <= 0) {
-				if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
+				if (errno == EAGAIN || errno == EWOULDBLOCK) {
 					enc->send_consumed = bytes_encrypted;
 					errno = EAGAIN;
 					return -1;
@@ -1086,11 +1088,9 @@ static int gssenc_hs_flush(PgSocket *sk)
 	ssize_t ret;
 
 	while (enc->send_next < enc->send_len) {
-		ret = send(raw_sock, enc->send_buf + enc->send_next,
-			   enc->send_len - enc->send_next, 0);
+		ret = safe_send(raw_sock, enc->send_buf + enc->send_next,
+				enc->send_len - enc->send_next, 0);
 		if (ret < 0) {
-			if (errno == EINTR)
-				continue;
 			if (errno == EAGAIN || errno == EWOULDBLOCK)
 				return 0;
 			return -1;
@@ -1144,8 +1144,8 @@ static int gssenc_hs_read_token(PgSocket *sk, gss_buffer_desc *input)
 	ssize_t ret;
 
 	while (enc->hs_len < (int)sizeof(uint32_t)) {
-		ret = recv(raw_sock, enc->hs_buf + enc->hs_len,
-			   sizeof(uint32_t) - enc->hs_len, 0);
+		ret = safe_recv(raw_sock, enc->hs_buf + enc->hs_len,
+				sizeof(uint32_t) - enc->hs_len, 0);
 		if (ret <= 0) {
 			if (ret == 0 || (errno != EAGAIN && errno != EWOULDBLOCK)) {
 				slog_error(sk, "GSSAPI enc: handshake read failed");
@@ -1170,7 +1170,7 @@ static int gssenc_hs_read_token(PgSocket *sk, gss_buffer_desc *input)
 	{
 		int need = enc->pkt_expected - (enc->hs_len - (int)sizeof(uint32_t));
 		while (need > 0) {
-			ret = recv(raw_sock, enc->hs_buf + enc->hs_len, need, 0);
+			ret = safe_recv(raw_sock, enc->hs_buf + enc->hs_len, need, 0);
 			if (ret <= 0) {
 				if (ret == 0 || (errno != EAGAIN && errno != EWOULDBLOCK)) {
 					slog_error(sk, "GSSAPI enc: handshake read failed");

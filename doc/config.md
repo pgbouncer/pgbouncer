@@ -495,12 +495,22 @@ pam
     PAM is "pgbouncer". `pam` is not supported in the HBA configuration file.
 
 gss
-:   Client must authenticate using GSSAPI/Kerberos.  pgbouncer validates the
-    client's service ticket using `auth_gssapi_keytab` and maps the authenticated
-    principal to a local username with `gss_localname()`, which applies the
-    `auth_to_local` rules in `krb5.conf`, the same way as an HBA `gss` line
-    with `include_realm=0`.  No password is used.
-    Requires pgbouncer to be built with `--with-gssapi`.
+:   Client must authenticate with GSSAPI (Kerberos).  pgbouncer accepts the
+    client's service ticket with the keytab in `auth_gssapi_keytab`, then maps
+    the authenticated principal to a user name with `gss_localname()`, which
+    applies the `auth_to_local` rules in `krb5.conf`.  The mapped name must
+    equal the user name the client connects as.  An HBA `gss` line with
+    `include_realm=0` maps the same way.  No password is used.  With
+    `log_connections` on, pgbouncer logs each client's authenticated principal.
+
+    pgbouncer logs in to PostgreSQL with its own Kerberos credential (see
+    `server_gssapi_keytab`).  It does not keep a credential that a client
+    delegates, and it does not delegate one to the server.  When PostgreSQL
+    uses GSSAPI for a server connection, it sees pgbouncer's principal, so a
+    database entry usually forces the user that PostgreSQL maps that principal
+    to (`user=` in the `[databases]` section).
+
+    Requires pgbouncer to be built with GSSAPI support.
 
 ### auth_hba_file
 
@@ -568,10 +578,15 @@ authentication is configured via `auth_hba_file`.)  Example:
 
 Path to the keytab file containing the host-based service principal
 (`postgres/<pgbouncer-fqdn>@REALM`) used to accept client GSSAPI authentication.
+A PostgreSQL server on this host would have the same principal in its
+`krb_server_keyfile`.  If not set, the Kerberos library's default keytab is
+used.  Anyone who can read the keytab can impersonate pgbouncer to clients, so
+only the user pgbouncer runs as should be able to read it.
+
 This is the only keytab required.  For backend connections, pgbouncer uses the
 process's existing TGT from the credential cache (KCM, FILE:, etc.) by default.
 
-Requires pgbouncer to be built with `--with-gssapi`.
+Requires pgbouncer to be built with GSSAPI support.
 
 Default: not set
 
@@ -595,7 +610,14 @@ require
 Note: `prefer` is not offered on the server (acceptor) side because a server
 responds to what the client requests rather than initiating encryption itself.
 
-Requires pgbouncer to be built with `--with-gssapi`.
+Connections over a Unix socket are not encrypted, and `require` does not apply
+to them.  In a build without GSSAPI support, `require` refuses every TCP
+connection.
+
+Each GSSAPI-encrypted client connection holds about 256 KiB of buffers during
+the encryption handshake, before the client has authenticated, and 48 KiB
+afterwards.  `max_client_conn` and `client_login_timeout` bound what
+unauthenticated clients can hold.
 
 Default: `disable`
 
@@ -609,9 +631,11 @@ disable
 
 prefer
 :   Try GSSAPI encryption first, when pgbouncer has usable initiator credentials
-    (a client keytab or credential cache).  If credentials are unavailable, or
-    the server does not support GSSAPI encryption, fall back to the configured
-    backend SSL mode, or to a plain-text connection.
+    (`server_gssapi_keytab` or a credential cache).  If credentials are
+    unavailable, or the server does not support GSSAPI encryption, fall back to
+    the configured backend SSL mode, or to a plain-text connection.  If the
+    server accepts GSSAPI encryption but the handshake then fails, the
+    connection attempt fails.
 
 require
 :   Require GSSAPI encryption for all backend connections; connections to servers
@@ -621,7 +645,8 @@ Note: `allow` is not offered on the client (initiator) side because a client
 controls how it initiates the connection; the server can only respond to or reject
 the client's request.
 
-Requires pgbouncer to be built with `--with-gssapi`.
+In a build without GSSAPI support, `require` makes every TCP server connection
+fail.
 
 Default: `disable`
 
@@ -635,8 +660,10 @@ live TGT through standard credential management (KCM, kinit, sssd, etc.).
 
 Do not set this to the same file as `auth_gssapi_keytab`: that file contains the
 host-based service SPN, which is the wrong identity for the initiator role.
+Anyone who can read this keytab can log in to PostgreSQL as pgbouncer's
+principal, so only the user pgbouncer runs as should be able to read it.
 
-Requires pgbouncer to be built with `--with-gssapi`.
+Requires pgbouncer to be built with GSSAPI support.
 
 Default: not set (uses the default credential cache)
 
@@ -648,7 +675,7 @@ the service name of the principal in the backend's keytab (`krb_server_keyfile`)
 The SPN is constructed as `<service_name>@<host>` and passed to
 `gss_import_name()` with `GSS_C_NT_HOSTBASED_SERVICE`.
 
-Requires pgbouncer to be built with `--with-gssapi`.
+Requires pgbouncer to be built with GSSAPI support.
 
 Default: `postgres`
 
@@ -1804,8 +1831,11 @@ The file follows the format of the PostgreSQL `pg_hba.conf` file
 * User name map (`map=`) parameter is supported when `auth_type` is `cert` or `peer`.
 * `gss` method: as in PostgreSQL, `include_realm` defaults to 1, so the user name
   must equal the full Kerberos principal.  With `include_realm=0` the principal is
-  mapped through the `auth_to_local` rules in `krb5.conf`.  `map=` and `krb_realm=`
-  are not supported, and a `gss` line with either rejects the connections it matches.
+  mapped through the `auth_to_local` rules in `krb5.conf`.  MIT's default rule maps
+  only principals of the default realm, whereas PostgreSQL strips any realm.  `map=`
+  and `krb_realm=` are not supported, and a `gss` line with either rejects the
+  connections it matches.  To restrict which principals may log in, use the user
+  name field, or `include_realm=0` with an `auth_to_local` rule.
 
 ## Ident map file format
 

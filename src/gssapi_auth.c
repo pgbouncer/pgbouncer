@@ -25,9 +25,8 @@
  * Client-side (pgbouncer as GSSAPI acceptor):
  *   A connecting PostgreSQL client presents a Kerberos ticket.  pgbouncer
  *   acts as the GSSAPI acceptor: it acquires server credentials from its
- *   keytab, drives gss_accept_sec_context() to completion, then maps the
- *   authenticated principal to a local username via gss_localname().  The
- *   mapped name must exactly match the username the client supplied in the
+ *   keytab, drives gss_accept_sec_context() to completion, then checks the
+ *   authenticated principal against the username the client supplied in the
  *   startup packet.
  *
  * Server-side (pgbouncer as GSSAPI initiator):
@@ -39,9 +38,10 @@
  *
  * Username mapping
  * ----------------
- * We use gss_localname(), which delegates to the auth_to_local rules in
- * krb5.conf.  This is the correct, site-policy-respecting approach.  We
- * deliberately do not implement ad-hoc realm stripping.
+ * A gss HBA line follows PostgreSQL's include_realm: by default the username
+ * must equal the full principal.  With include_realm=0, and for the global
+ * auth_type, gss_localname() maps the principal through the auth_to_local
+ * rules in krb5.conf.  See gssapi_map_and_verify_username().
  *
  * Credential store
  * ----------------
@@ -191,7 +191,8 @@ void gssapi_accept_cleanup(PgSocket *client)
  * rules in krb5.conf; the global auth_type and include_realm=0 lines work
  * that way.  Both comparisons are exact, as PostgreSQL's are by default.
  *
- * Logs the authenticated principal regardless of match outcome for auditing.
+ * With log_connections on, logs the authenticated principal whatever the
+ * outcome, for auditing.
  */
 static bool gssapi_map_and_verify_username(PgSocket *client, gss_name_t client_name,
 					   gss_OID mech_type)
@@ -307,8 +308,8 @@ bool gssapi_accept_send_request(PgSocket *client)
  * Calls gss_accept_sec_context() and handles all outcomes:
  *   - GSS_S_CONTINUE_NEEDED: sends AUTH_REQ_GSS_CONT with the output token
  *     and returns true, leaving the connection active for the next round.
- *   - Context established: maps the principal via gss_localname(), verifies
- *     it against the claimed username, and calls finish_client_login().
+ *   - Context established: checks the principal against the claimed
+ *     username and calls finish_client_login().
  *   - Error: disconnects the client and returns false.
  */
 bool gssapi_accept_continue(PgSocket *client, const uint8_t *token, unsigned token_len)

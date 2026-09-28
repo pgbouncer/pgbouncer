@@ -978,8 +978,8 @@ extern char *cf_auth_hba_file;
 extern char *cf_auth_dbname;
 extern char *cf_auth_ldap_options;
 extern char *cf_auth_gssapi_keytab;
-extern char *cf_auth_gssapi_client_keytab;
-extern char *cf_auth_gssapi_service_name;
+extern char *cf_server_gssapi_keytab;
+extern char *cf_server_gssapi_service_name;
 extern int cf_client_gssencmode;
 extern int cf_server_gssencmode;
 

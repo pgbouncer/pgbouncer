@@ -300,7 +300,7 @@ def test_gssapi_hba_unsupported_option_rejects(kdc, pg, bouncer, option):
 
 
 def test_gssapi_wrong_service_name(kdc, pg, bouncer):
-    """auth_gssapi_service_name = wrongname causes backend auth failure.
+    """server_gssapi_service_name = wrongname causes backend auth failure.
 
     Postgres is configured with GSS auth so the wrong service name actually
     prevents pgbouncer from authenticating to the backend.
@@ -316,7 +316,7 @@ def test_gssapi_wrong_service_name(kdc, pg, bouncer):
         kdc,
         bouncer,
         pg,
-        extra="auth_gssapi_service_name = wrongname",
+        extra="server_gssapi_service_name = wrongname",
     )
     with bouncer.run_with_config(config):
         kinit()

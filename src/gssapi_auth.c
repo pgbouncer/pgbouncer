@@ -53,7 +53,7 @@
  * credential store, so MIT Kerberos uses the process's existing credential
  * cache (KCM, FILE:, or whatever default_ccache_name specifies).  This is
  * the standard behaviour for any Kerberos client with a live TGT.  If
- * auth_gssapi_client_keytab is set, that keytab is used instead as an
+ * server_gssapi_keytab is set, that keytab is used instead as an
  * override for environments without automatic credential management.
  */
 
@@ -472,14 +472,13 @@ static bool build_target_name(PgSocket *server, gss_name_t *target_name_out)
 	}
 
 	/*
-	 * The service name defaults to "postgres", matching PostgreSQL's
-	 * default krbsrvname.  If the backend uses a non-default krbsrvname
-	 * (set in postgresql.conf), configure auth_gssapi_service_name to
-	 * match.
+	 * The service name defaults to "postgres", as libpq's krbsrvname does.
+	 * If the principal in the backend's keytab uses another service name,
+	 * configure server_gssapi_service_name to match.
 	 */
 	{
-		const char *svcname = (cf_auth_gssapi_service_name && *cf_auth_gssapi_service_name)
-				      ? cf_auth_gssapi_service_name : "postgres";
+		const char *svcname = (cf_server_gssapi_service_name && *cf_server_gssapi_service_name)
+				      ? cf_server_gssapi_service_name : "postgres";
 		svc_len = strlen(svcname) + 1 + strlen(host) + 1;	/* "svcname@host\0" */
 		svc_name = malloc(svc_len);
 		if (!svc_name) {
@@ -511,11 +510,11 @@ static bool build_target_name(PgSocket *server, gss_name_t *target_name_out)
  * backend.
  *
  * Credential acquisition follows standard Kerberos client behaviour:
- *   - By default (auth_gssapi_client_keytab unset), store_ptr is NULL and
+ *   - By default (server_gssapi_keytab unset), store_ptr is NULL and
  *     gss_acquire_cred_from() uses the default credential cache (KCM, FILE:,
  *     etc.).  This is the correct mode when the pgbouncer process already has
  *     a TGT, obtained through any standard mechanism (KCM, kinitd, sssd).
- *   - If auth_gssapi_client_keytab is set, MIT Kerberos acquires credentials
+ *   - If server_gssapi_keytab is set, MIT Kerberos acquires credentials
  *     directly from the keytab without requiring a pre-existing ccache.  This
  *     is an override for environments without automatic credential management.
  *
@@ -537,11 +536,11 @@ bool gssapi_initiate_begin(PgSocket *server)
 		return false;
 	}
 
-	if (cf_auth_gssapi_client_keytab && *cf_auth_gssapi_client_keytab) {
+	if (cf_server_gssapi_keytab && *cf_server_gssapi_keytab) {
 		/*
 		 * Explicit keytab override: acquire credentials directly from
 		 * the keytab without a pre-existing ccache.  Only used when
-		 * auth_gssapi_client_keytab is configured.
+		 * server_gssapi_keytab is configured.
 		 *
 		 * Note: do NOT fall back to auth_gssapi_keytab here.  That file
 		 * holds the host-based service SPN used to accept client tickets
@@ -549,7 +548,7 @@ bool gssapi_initiate_begin(PgSocket *server)
 		 * for the initiator role.
 		 */
 		keytab_el.key = "client_keytab";
-		keytab_el.value = cf_auth_gssapi_client_keytab;
+		keytab_el.value = cf_server_gssapi_keytab;
 		keytab_store.count = 1;
 		keytab_store.elements = &keytab_el;
 		store_ptr = &keytab_store;
@@ -569,7 +568,7 @@ bool gssapi_initiate_begin(PgSocket *server)
 	if (GSS_ERROR(major)) {
 		log_gss_error(server, major, minor, "gss_acquire_cred_from (initiate)");
 		slog_error(server, "GSSAPI: failed to acquire initiator credentials from %s",
-			   store_ptr ? cf_auth_gssapi_client_keytab : "default credential cache");
+			   store_ptr ? cf_server_gssapi_keytab : "default credential cache");
 		gssapi_initiate_cleanup(server);
 		kill_pool_logins(server->pool, NULL,
 				 "server login failed: GSSAPI credential acquisition failed");
@@ -1296,9 +1295,9 @@ bool gssenc_have_initiator_cred(PgSocket *server)
 	const gss_key_value_set_desc *store_ptr = NULL;
 	gss_cred_id_t creds = GSS_C_NO_CREDENTIAL;
 
-	if (cf_auth_gssapi_client_keytab && *cf_auth_gssapi_client_keytab) {
+	if (cf_server_gssapi_keytab && *cf_server_gssapi_keytab) {
 		keytab_el.key = "client_keytab";
-		keytab_el.value = cf_auth_gssapi_client_keytab;
+		keytab_el.value = cf_server_gssapi_keytab;
 		keytab_store.count = 1;
 		keytab_store.elements = &keytab_el;
 		store_ptr = &keytab_store;
@@ -1331,9 +1330,9 @@ bool gssenc_connect_start(PgSocket *server)
 	enc->active = false;
 
 	/* acquire initiator credentials */
-	if (cf_auth_gssapi_client_keytab && *cf_auth_gssapi_client_keytab) {
+	if (cf_server_gssapi_keytab && *cf_server_gssapi_keytab) {
 		keytab_el.key = "client_keytab";
-		keytab_el.value = cf_auth_gssapi_client_keytab;
+		keytab_el.value = cf_server_gssapi_keytab;
 		keytab_store.count = 1;
 		keytab_store.elements = &keytab_el;
 		store_ptr = &keytab_store;

@@ -197,13 +197,13 @@ mydb = host=postgres.example.com dbname=mydb user=pgbouncer
 ; When set, MIT Kerberos reads keys from this file and acquires a TGT directly.
 ; The server keytab (auth_gssapi_keytab) must NOT be used here: it contains the
 ; host-based service SPN, which is the wrong identity for the initiator role.
-;auth_gssapi_client_keytab = /etc/pgbouncer/pgbouncer-client.keytab
+;server_gssapi_keytab = /etc/pgbouncer/pgbouncer-client.keytab
 
 ; Kerberos service name used when constructing the backend service principal.
 ; Must match krbsrvname in postgresql.conf (default: "postgres").
 ; The SPN sent is "<service_name>@<host>", resolved to
 ; <service_name>/<canonical-host>@REALM.
-;auth_gssapi_service_name = postgres
+;server_gssapi_service_name = postgres
 ```
 
 ### HBA-based per-database authentication
@@ -278,7 +278,7 @@ chown pgbouncer:pgbouncer /etc/pgbouncer/pgbouncer-client.keytab
 chmod 600 /etc/pgbouncer/pgbouncer-client.keytab
 ```
 
-Configure with `auth_gssapi_client_keytab = /etc/pgbouncer/pgbouncer-client.keytab`.
+Configure with `server_gssapi_keytab = /etc/pgbouncer/pgbouncer-client.keytab`.
 
 **Important**: this file must be separate from the acceptor keytab.
 `auth_gssapi_keytab` contains the host-based service SPN
@@ -347,7 +347,7 @@ acquire service tickets for postgres backends automatically.
 `kvno` failing with "Server not found in Kerberos database" means the postgres
 SPN does not exist in the KDC; address that before proceeding.
 
-If using `auth_gssapi_client_keytab` (no live TGT), test keytab-based
+If using `server_gssapi_keytab` (no live TGT), test keytab-based
 acquisition instead:
 
 ```sh
@@ -400,7 +400,7 @@ SELECT session_user;   -- "pgbouncer"
 | `GSSAPI: principal mapping failed` | `gss_localname()` could not map the authenticated principal. Check `auth_to_local` rules in `krb5.conf`. |
 | `GSSAPI: local name "alice" does not match claimed username "ALICE"` | Case mismatch between `auth_to_local` output and the postgres role name. Add an explicit rule or fix the role name. |
 | Backend auth fails: `FATAL: password authentication failed for user "alice"` | `user=pgbouncer` is missing from the `[databases]` entry. pgbouncer sent the client username in the startup message but authenticated via GSSAPI as the pool account; postgres rejected the mismatch. |
-| `GSSAPI: failed to acquire initiator credentials from default credential cache` | pgbouncer has no TGT. Ensure the process's ccache (KCM, FILE:, etc.) is populated, or configure `auth_gssapi_client_keytab`. |
+| `GSSAPI: failed to acquire initiator credentials from default credential cache` | pgbouncer has no TGT. Ensure the process's ccache (KCM, FILE:, etc.) is populated, or configure `server_gssapi_keytab`. |
 | `Server not found in Kerberos database` | The postgres service SPN `postgres/<host>@REALM` does not exist in the KDC. |
 
 ## Security notes

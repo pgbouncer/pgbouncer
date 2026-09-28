@@ -575,31 +575,6 @@ Requires pgbouncer to be built with `--with-gssapi`.
 
 Default: not set
 
-### auth_gssapi_client_keytab
-
-Optional override: path to a keytab containing the pool service account principal,
-used to acquire initiator credentials for backend GSSAPI authentication.  Use this
-only when the pgbouncer process cannot maintain a live TGT through standard
-credential management (KCM, kinit, sssd, etc.).
-
-Do not set this to the same file as `auth_gssapi_keytab`: that file contains the
-host-based service SPN, which is the wrong identity for the initiator role.
-
-Requires pgbouncer to be built with `--with-gssapi`.
-
-Default: not set (uses the default credential cache)
-
-### auth_gssapi_service_name
-
-Kerberos service name used when constructing the backend service principal for
-initiator authentication.  Must match `krbsrvname` in the backend's
-`postgresql.conf`.  The SPN is constructed as `<service_name>@<host>` and passed
-to `gss_import_name()` with `GSS_C_NT_HOSTBASED_SERVICE`.
-
-Requires pgbouncer to be built with `--with-gssapi`.
-
-Default: `postgres`
-
 ### client_gssencmode
 
 Controls whether GSSAPI transport encryption is requested on client connections
@@ -649,6 +624,33 @@ the client's request.
 Requires pgbouncer to be built with `--with-gssapi`.
 
 Default: `disable`
+
+### server_gssapi_keytab
+
+Optional override: path to a keytab containing the pool service account principal,
+used to acquire pgbouncer's initiator credentials for GSSAPI authentication to the
+backend.  It is pgbouncer's own credential toward postgres, not postgres's
+`krb_server_keyfile`.  Use this only when the pgbouncer process cannot maintain a
+live TGT through standard credential management (KCM, kinit, sssd, etc.).
+
+Do not set this to the same file as `auth_gssapi_keytab`: that file contains the
+host-based service SPN, which is the wrong identity for the initiator role.
+
+Requires pgbouncer to be built with `--with-gssapi`.
+
+Default: not set (uses the default credential cache)
+
+### server_gssapi_service_name
+
+Kerberos service name used when constructing the backend service principal for
+initiator authentication, the same role as libpq's `krbsrvname`.  It must match
+the service name of the principal in the backend's keytab (`krb_server_keyfile`).
+The SPN is constructed as `<service_name>@<host>` and passed to
+`gss_import_name()` with `GSS_C_NT_HOSTBASED_SERVICE`.
+
+Requires pgbouncer to be built with `--with-gssapi`.
+
+Default: `postgres`
 
 ## Log settings
 

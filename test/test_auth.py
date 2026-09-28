@@ -1529,8 +1529,8 @@ def test_gss_settings_without_gssapi(bouncer):
     settings = {row[0] for row in bouncer.admin("show config")}
     assert {
         "auth_gssapi_keytab",
-        "auth_gssapi_client_keytab",
-        "auth_gssapi_service_name",
+        "server_gssapi_keytab",
+        "server_gssapi_service_name",
         "client_gssencmode",
         "server_gssencmode",
     } <= settings

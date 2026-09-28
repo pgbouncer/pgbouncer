@@ -61,6 +61,8 @@ struct SBufIO {
 	ssize_t (*sbufio_recv)(SBuf *sbuf, void *buf, size_t len);
 	ssize_t (*sbufio_send)(SBuf *sbuf, const void *data, size_t len);
 	int (*sbufio_close)(SBuf *sbuf);
+	/* buffered data the poller cannot see (e.g. decrypted by TLS) */
+	size_t (*sbufio_pending)(SBuf *sbuf);
 };
 
 /*
@@ -141,7 +143,6 @@ bool sbuf_queue_full_packet(SBuf *sbuf, SBuf *dst, PktHdr *pkt) _MUSTCHECK;
 
 bool sbuf_answer(SBuf *sbuf, const void *buf, size_t len)  _MUSTCHECK;
 
-bool sbuf_continue_with_callback(SBuf *sbuf, event_callback_fn cb)  _MUSTCHECK;
 bool sbuf_use_callback_once(SBuf *sbuf, short ev, event_callback_fn user_cb) _MUSTCHECK;
 
 /*
@@ -175,6 +176,11 @@ static inline ssize_t sbuf_op_recv(SBuf *sbuf, void *buf, size_t len)
 static inline ssize_t sbuf_op_send(SBuf *sbuf, const void *buf, size_t len)
 {
 	return sbuf->ops->sbufio_send(sbuf, buf, len);
+}
+
+static inline size_t sbuf_op_pending(SBuf *sbuf)
+{
+	return sbuf->ops->sbufio_pending(sbuf);
 }
 
 static inline int sbuf_op_close(SBuf *sbuf)

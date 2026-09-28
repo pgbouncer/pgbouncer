@@ -234,10 +234,6 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 
 		/* need to notify sbuf if server was closed */
 		res = release_server(server);
-
-		/* let the takeover process handle it */
-		if (res && server->pool->db->admin)
-			res = takeover_login(server);
 		break;
 
 	/* ignorable packets */
@@ -375,6 +371,46 @@ int user_client_max_connections(PgGlobalUser *user)
 		return user->max_user_client_connections;
 }
 
+/*
+ * Send the responses that PgBouncer makes itself (RA_FAKE).
+ *
+ * Send them when all earlier requests have an answer. That is after each
+ * server packet, forwarded or skipped. A skipped packet sends no data to the
+ * client, so a delay here puts the fake response after a later real response.
+ *
+ * Returns false if the client and the server were disconnected.
+ */
+static bool send_pending_fake_responses(PgSocket *server, PgSocket *client)
+{
+	struct List *item, *tmp;
+
+	statlist_for_each_safe(item, &server->outstanding_requests, tmp) {
+		OutstandingRequest *request = container_of(item, OutstandingRequest, node);
+		if (request->action != RA_FAKE)
+			break;
+
+		statlist_pop(&server->outstanding_requests);
+		server->sbuf.extra_packet_queue_after = true;
+
+		if (!queue_fake_response(client, request->type)) {
+			/*
+			 * The only reason the above could have failed is because
+			 * of allocation errors. To actually be able to retry after
+			 * these failures the next round we would need to restore
+			 * the outstanding_requests queue to how it was before.
+			 * Instead of doing that, we take the easy and known
+			 * correct way out: Simply disconnecting the involved
+			 * client and server.
+			 */
+			disconnect_client(client, true, "out of memory");
+			disconnect_server(client->link, true, "out of memory");
+			return false;
+		}
+		slab_free(outstanding_request_cache, request);
+	}
+	return true;
+}
+
 /* process packets on logged in connection */
 static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 {
@@ -384,7 +420,6 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	SBuf *sbuf = &server->sbuf;
 	PgSocket *client = server->link;
 	bool async_response = false;
-	struct List *item, *tmp;
 	bool ignore_packet = false;
 
 	Assert(!server->pool->db->admin);
@@ -585,6 +620,10 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		} else if (ignore_packet) {
 			slog_noise(server, "not forwarding packet with type '%c' from server", pkt->type);
 			sbuf_prepare_skip(sbuf, pkt->len);
+
+			/* Flush the fake responses at the head of the queue. */
+			if (!send_pending_fake_responses(server, client))
+				return false;
 		} else {
 			sbuf_prepare_send(sbuf, &client->sbuf, pkt->len);
 
@@ -625,36 +664,12 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 						server->pool->stats.xact_time += total;
 						slog_debug(client, "transaction time: %d us", (int)total);
 					} else if (!async_response) {
-						/* XXX This happens during takeover if the new process
-						 * continues a transaction. */
 						slog_warning(client, "FIXME: transaction end, but xact_start == 0");
 					}
 				}
 			}
-			statlist_for_each_safe(item, &server->outstanding_requests, tmp) {
-				OutstandingRequest *request = container_of(item, OutstandingRequest, node);
-				if (request->action != RA_FAKE)
-					break;
-
-				statlist_pop(&server->outstanding_requests);
-				sbuf->extra_packet_queue_after = true;
-
-				if (!queue_fake_response(client, request->type)) {
-					/*
-					 * The only reason the above could have failed is because
-					 * of allocation errors. To actually be able to retry after
-					 * these failures the next round we would need to restore
-					 * the outstanding_requests queue to how it was before.
-					 * Instead of doing that, we take the easy and known
-					 * correct way out: Simply disconnecting the involved
-					 * client and server.
-					 */
-					disconnect_client(client, true, "out of memory");
-					disconnect_server(client->link, true, "out of memory");
-					return false;
-				}
-				slab_free(outstanding_request_cache, request);
-			}
+			if (!send_pending_fake_responses(server, client))
+				return false;
 		}
 	} else {
 		if (server->state != SV_TESTED) {
@@ -853,7 +868,6 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 {
 	bool res = false;
 	PgSocket *server = container_of(sbuf, PgSocket, sbuf);
-	PgPool *pool = server->pool;
 	PktHdr pkt;
 	char infobuf[96];
 
@@ -1018,7 +1032,5 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 			disconnect_server(server, false, "GSS enc startup failed");
 		break;
 	}
-	if (!res && pool->db->admin)
-		takeover_login_failed();
 	return res;
 }

@@ -3,7 +3,7 @@
 # Drive a build/test/install/dist step for either build system, so CI can
 # exercise both meson and autoconf on every platform from one place.
 #
-# Usage: ci/run.sh <build|test|install|dist> <meson|autoconf>
+# Usage: ci/run.sh <build|test|install|dist|zip> <meson|autoconf>
 #
 # Env:
 #   MESON_ARGS      extra `meson setup` options      (build, meson only)
@@ -17,8 +17,8 @@
 # (cassert, systemd, feature toggles, ...) comes in via MESON_ARGS/CONFIGURE_ARGS.
 set -eu
 
-action=${1:?usage: ci/run.sh <build|test|install|dist> <meson|autoconf>}
-bs=${2:?usage: ci/run.sh <build|test|install|dist> <meson|autoconf>}
+action=${1:?usage: ci/run.sh <build|test|install|dist|zip> <meson|autoconf>}
+bs=${2:?usage: ci/run.sh <build|test|install|dist|zip> <meson|autoconf>}
 
 prefix=${PREFIX:-$HOME/install}
 scanbuild=${SCANBUILD:-}
@@ -54,11 +54,17 @@ install.autoconf)
 	make -j"$jobs" install
 	;;
 dist.meson)
-	# gztar to match the artifact glob (meson defaults to xztar). --no-tests
-	# because the test suite already ran against this checkout; the tarball
-	# itself is verified below by building from a fresh extraction instead.
-	meson dist -C build --no-tests --formats gztar
-	mkdir -p dist && cp build/meson-dist/pgbouncer-*.tar.gz dist/
+	# pgdist, not `meson dist`: the latter is not reproducible, so meson.build
+	# makes it fail. pgdist uses git archive and emits gztar, matching the
+	# artifact glob and the autoconf tarball.
+	#
+	# autogen.sh because pgdist bundles the generated autoconf bootstrap files
+	# (configure, config.guess, ...) into the tarball, and a meson-only job has
+	# not otherwise generated them.
+	./autogen.sh
+	meson compile -C build -v pgdist
+	mkdir -p dist && cp build/pgbouncer-*.tar.gz dist/
+	# Build from a fresh extraction of the tarball, as the autoconf path does.
 	tar -x -f dist/pgbouncer-*.tar.gz -C dist
 	cd dist/pgbouncer-*/
 	# shellcheck disable=SC2086
@@ -79,8 +85,19 @@ dist.autoconf)
 	make -j"$jobs"
 	make -j"$jobs" install
 	;;
+zip.meson)
+	# The Windows binary distribution zip. Both build systems assemble it with
+	# win32/make-zip.py, but they leave it in different places, so copy it to
+	# dist/ for a build-system-independent artifact path.
+	meson compile -C build -v zip
+	mkdir -p dist && cp build/pgbouncer-*-windows-*.zip dist/
+	;;
+zip.autoconf)
+	make zip
+	mkdir -p dist && cp pgbouncer-*-windows-*.zip dist/
+	;;
 *)
-	echo "usage: ci/run.sh <build|test|install|dist> <meson|autoconf>" >&2
+	echo "usage: ci/run.sh <build|test|install|dist|zip> <meson|autoconf>" >&2
 	exit 2
 	;;
 esac

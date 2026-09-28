@@ -320,6 +320,18 @@ void log_server_error(const char *note, PktHdr *pkt)
  * Preparation of welcome message for client connection.
  */
 
+PktBuf *new_welcome_msg(void)
+{
+	PktBuf *msg;
+	msg = pktbuf_dynamic(128);
+	if (!msg)
+		return NULL;
+
+	pktbuf_write_AuthenticationOk(msg);
+	pktbuf_write_ParameterStatus(msg, "pgbouncer.version", PACKAGE_VERSION);
+	return msg;
+}
+
 /* add another server parameter packet to cache */
 bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 {
@@ -327,17 +339,6 @@ bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 
 	if (pool->welcome_msg_ready)
 		return true;
-
-	if (!msg) {
-		msg = pktbuf_dynamic(128);
-		if (!msg)
-			return false;
-		pool->welcome_msg = msg;
-	}
-
-	/* first packet must be AuthOk */
-	if (msg->write_pos == 0)
-		pktbuf_write_AuthenticationOk(msg);
 
 	/* if not stored in ->orig_vars, write full packet */
 	if (!varcache_set(&pool->orig_vars, key, val))
@@ -367,6 +368,21 @@ bool welcome_client(PgSocket *client)
 	/* copy prepared stuff around */
 	msg = pktbuf_temp();
 	pktbuf_put_bytes(msg, pmsg->buf, pmsg->write_pos);
+
+	/*
+	 * The admin console has no real pool behind it, so pool_mode and
+	 * max_prepared_statements are meaningless there. Only send them for
+	 * connections to actual databases.
+	 */
+	if (!pool->db->admin) {
+		char max_prepared_statements[16];
+		int pool_mode = connection_pool_mode(client);
+		struct CfValue pool_mode_lookup = { .value_p = &pool_mode, .extra = pool_mode_map };
+
+		snprintf(max_prepared_statements, sizeof(max_prepared_statements), "%d", cf_max_prepared_statements);
+		pktbuf_write_ParameterStatus(msg, "pgbouncer.max_prepared_statements", max_prepared_statements);
+		pktbuf_write_ParameterStatus(msg, "pgbouncer.pool_mode", cf_get_lookup(&pool_mode_lookup));
+	}
 
 	/* fill vars */
 	varcache_fill_unset(&pool->orig_vars, client);
@@ -842,115 +858,4 @@ bool send_gssencreq_packet(PgSocket *server)
 		0x04, 0xd2, 0x16, 0x30		/* uint32 80877104 = PKT_GSSENCREQ */
 	};
 	return sbuf_answer(&server->sbuf, pkt, sizeof(pkt));
-}
-
-/*
- * decode DataRow packet (opposite of pktbuf_write_DataRow)
- *
- * tupdesc keys:
- * 'i' - int4
- * 'q' - int8
- * 's' - text to string
- * 'b' - bytea to bytes (result is malloced)
- */
-int scan_text_result(struct MBuf *pkt, const char *tupdesc, ...)
-{
-	uint16_t ncol;
-	unsigned asked;
-	va_list ap;
-
-	asked = strlen(tupdesc);
-	if (!mbuf_get_uint16be(pkt, &ncol))
-		return -1;
-
-	va_start(ap, tupdesc);
-	for (unsigned i = 0; i < asked; i++) {
-		const char *val = NULL;
-		uint32_t len;
-
-		if (i < ncol) {
-			if (!mbuf_get_uint32be(pkt, &len)) {
-				goto failed;
-			}
-			if ((int32_t)len < 0) {
-				val = NULL;
-			} else {
-				if (!mbuf_get_chars(pkt, len, &val)) {
-					goto failed;
-				}
-			}
-
-			/* hack to zero-terminate the result */
-			if (val) {
-				char *xval = (char *)val - 1;
-				memmove(xval, val, len);
-				xval[len] = 0;
-				val = xval;
-			}
-		} else {
-			/* tuple was shorter than requested */
-			val = NULL;
-			len = -1;
-		}
-
-		switch (tupdesc[i]) {
-		case 'i': {
-			int *int_p;
-
-			int_p = va_arg(ap, int *);
-			*int_p = val ? atoi(val) : 0;
-			break;
-		}
-		case 'q': {
-			uint64_t *long_p;
-
-			long_p = va_arg(ap, uint64_t *);
-			*long_p = val ? atoll(val) : 0;
-			break;
-		}
-		case 's': {
-			const char **str_p;
-
-			str_p = va_arg(ap, const char **);
-			*str_p = val;
-			break;
-		}
-		case 'b': {
-			int *len_p = va_arg(ap, int *);
-			uint8_t **bytes_p = va_arg(ap, uint8_t **);
-
-			if (val) {
-				int newlen;
-				if (strncmp(val, "\\x", 2) != 0) {
-					log_warning("invalid bytea value");
-					goto failed;
-				}
-
-				newlen = (len - 2) / 2;
-				*len_p = newlen;
-				*bytes_p = malloc(newlen);
-				if (!(*bytes_p)) {
-					goto failed;
-				}
-				for (int j = 0; j < newlen; j++) {
-					unsigned int b;
-					sscanf(val + 2 + 2 * j, "%2x", &b);
-					(*bytes_p)[j] = b;
-				}
-			} else {
-				*len_p = -1;
-				*bytes_p = NULL;
-			}
-			break;
-		}
-		default:
-			fatal("bad tupdesc: %s", tupdesc);
-		}
-	}
-	va_end(ap);
-
-	return ncol;
-failed:
-	va_end(ap);
-	return -1;
 }

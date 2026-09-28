@@ -89,11 +89,13 @@ static ssize_t raw_sbufio_peek(struct SBuf *sbuf, void *buf, size_t len);
 static ssize_t raw_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len);
 static ssize_t raw_sbufio_send(struct SBuf *sbuf, const void *data, size_t len);
 static int raw_sbufio_close(struct SBuf *sbuf);
+static size_t raw_sbufio_pending(struct SBuf *sbuf);
 static const SBufIO raw_sbufio_ops = {
 	raw_sbufio_peek,
 	raw_sbufio_recv,
 	raw_sbufio_send,
-	raw_sbufio_close
+	raw_sbufio_close,
+	raw_sbufio_pending
 };
 
 /* I/O over TLS */
@@ -102,11 +104,13 @@ static ssize_t tls_sbufio_peek(struct SBuf *sbuf, void *buf, size_t len);
 static ssize_t tls_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len);
 static ssize_t tls_sbufio_send(struct SBuf *sbuf, const void *data, size_t len);
 static int tls_sbufio_close(struct SBuf *sbuf);
+static size_t tls_sbufio_pending(struct SBuf *sbuf);
 static const SBufIO tls_sbufio_ops = {
 	tls_sbufio_peek,
 	tls_sbufio_recv,
 	tls_sbufio_send,
-	tls_sbufio_close
+	tls_sbufio_close,
+	tls_sbufio_pending
 };
 static void sbuf_tls_handshake_cb(evutil_socket_t fd, short flags, void *_sbuf);
 static void sbuf_possible_direct_tls_startup_cb(evutil_socket_t fd, short flags, void *_sbuf);
@@ -162,18 +166,16 @@ bool sbuf_accept(SBuf *sbuf, int sock, bool is_unix)
 	if (!tune_socket(sock, is_unix))
 		goto failed;
 
-	if (!cf_reboot) {
-		res = sbuf_wait_for_data(sbuf);
-		if (!res)
-			goto failed;
-		if (!handle_possible_direct_tls_startup(sbuf, is_unix))
-			goto failed;
-		/* socket should already have some data (linux only) */
-		if (sbuf->wait_type == W_RECV && cf_tcp_defer_accept && !is_unix) {
-			sbuf_main_loop(sbuf, DO_RECV);
-			if (!sbuf->sock)
-				return false;
-		}
+	res = sbuf_wait_for_data(sbuf);
+	if (!res)
+		goto failed;
+	if (!handle_possible_direct_tls_startup(sbuf, is_unix))
+		goto failed;
+	/* socket should already have some data (linux only) */
+	if (sbuf->wait_type == W_RECV && cf_tcp_defer_accept && !is_unix) {
+		sbuf_main_loop(sbuf, DO_RECV);
+		if (!sbuf->sock)
+			return false;
 	}
 	return true;
 failed:
@@ -276,30 +278,6 @@ void sbuf_continue(SBuf *sbuf)
 	 */
 
 	sbuf_main_loop(sbuf, do_recv);
-}
-
-/*
- * Resume from pause and give socket over to external
- * callback function.
- *
- * The callback will be called with arg given to sbuf_init.
- */
-bool sbuf_continue_with_callback(SBuf *sbuf, event_callback_fn user_cb)
-{
-	int err;
-
-	AssertActive(sbuf);
-
-	event_assign(&sbuf->ev, pgb_event_base, sbuf->sock, EV_READ | EV_PERSIST,
-		     user_cb, sbuf);
-
-	err = event_add(&sbuf->ev, NULL);
-	if (err < 0) {
-		log_warning("sbuf_continue_with_callback: %s", strerror(errno));
-		return false;
-	}
-	sbuf->wait_type = W_RECV;
-	return true;
 }
 
 bool sbuf_use_callback_once(SBuf *sbuf, short ev, event_callback_fn user_cb)
@@ -764,6 +742,18 @@ try_more:
 }
 
 
+/*
+ * Is this sbuf still set up to receive more data?
+ *
+ * A packet handler is free to close or pause the socket, and a failed send
+ * switches us to waiting for writability instead.  In those cases the sbuf
+ * must be left alone rather than read from or resynced.
+ */
+static bool sbuf_is_recv_active(SBuf *sbuf)
+{
+	return sbuf->sock && sbuf->io && sbuf->wait_type == W_RECV;
+}
+
 /* process as much data as possible */
 static bool sbuf_process_pending(SBuf *sbuf)
 {
@@ -836,6 +826,11 @@ static bool sbuf_process_pending(SBuf *sbuf)
 				goto need_more_data;
 			}
 			Assert(sbuf->pkt_remain > 0);
+
+			/* callback may have closed sbuf and freed io */
+			io = sbuf->io;
+			if (!io)
+				return false;
 		}
 
 		if (sbuf->pkt_action == ACT_SKIP || sbuf->pkt_action == ACT_CALL) {
@@ -857,6 +852,10 @@ static bool sbuf_process_pending(SBuf *sbuf)
 			if (!sbuf_call_proto(sbuf, SBUF_EV_PKT_CALLBACK)) {
 				goto need_more_data;
 			}
+			/* callback may have closed sbuf and freed io */
+			io = sbuf->io;
+			if (!io)
+				return false;
 		/* fallthrough */
 		/* after callback, skip pkt */
 		case ACT_SKIP:
@@ -893,7 +892,7 @@ need_more_data:
 	 */
 	mbuf_rewind_writer(extra_packets);
 
-	if (sbuf->sock && io && sbuf->wait_type == W_RECV) {
+	if (sbuf_is_recv_active(sbuf)) {
 		/*
 		 * There might still be some previous packets that we're able
 		 * to send though. Let's do that now to create some extra space
@@ -1044,15 +1043,6 @@ try_more:
 	 */
 	free = iobuf_amount_recv(sbuf->io);
 	if (free > 0) {
-		/*
-		 * When suspending, try to hit packet boundary ASAP.
-		 */
-		if (cf_pause_mode == P_SUSPEND
-		    && sbuf->pkt_remain > 0
-		    && sbuf->pkt_remain < free) {
-			free = sbuf->pkt_remain;
-		}
-
 		/* now fetch the data */
 		ok = sbuf_actual_recv(sbuf, free);
 		if (!ok)
@@ -1062,8 +1052,19 @@ try_more:
 skip_recv:
 	/* now handle it */
 	ok = sbuf_process_pending(sbuf);
-	if (!ok)
+	if (!ok) {
+		/*
+		 * Handler wants more data, but on TLS the rest of the packet
+		 * may already sit decrypted inside the TLS library where the
+		 * poller cannot see it.  Waiting for a read event would then
+		 * hang, so read it now instead.
+		 */
+		if (sbuf_is_recv_active(sbuf)
+		    && iobuf_amount_recv(sbuf->io) > 0
+		    && sbuf_op_pending(sbuf) > 0)
+			goto try_more;
 		return;
+	}
 
 	/* if the buffer is full, there can be more data available */
 	if (iobuf_amount_recv(sbuf->io) <= 0)
@@ -1159,6 +1160,12 @@ static ssize_t raw_sbufio_peek(struct SBuf *sbuf, void *buf, size_t len)
 static ssize_t raw_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len)
 {
 	return safe_recv(sbuf->sock, dst, len, 0);
+}
+
+static size_t raw_sbufio_pending(struct SBuf *sbuf)
+{
+	/* unread data stays in the kernel, the poller sees it */
+	return 0;
 }
 
 static ssize_t raw_sbufio_send(struct SBuf *sbuf, const void *data, size_t len)
@@ -1542,6 +1549,13 @@ static ssize_t tls_sbufio_recv(struct SBuf *sbuf, void *dst, size_t len)
 		errno = EIO;
 	}
 	return -1;
+}
+
+static size_t tls_sbufio_pending(struct SBuf *sbuf)
+{
+	if (sbuf->tls_state != SBUF_TLS_OK)
+		return 0;
+	return tls_pending(sbuf->tls);
 }
 
 static ssize_t tls_sbufio_send(struct SBuf *sbuf, const void *data, size_t len)

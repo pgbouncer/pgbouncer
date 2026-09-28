@@ -49,64 +49,50 @@ def test_prepared_statement_params(bouncer):
             cur2.execute(prepared_query, params=(1,), prepare=True)
 
 
-def test_deallocate_all(bouncer):
+@pytest.mark.parametrize("command", ["DISCARD ALL", "DEALLOCATE ALL"])
+def test_discard_or_deallocate_all(bouncer, command):
+    """
+    Client sends a "DEALLOCATE ALL" command (or "DISCARD ALL", which has the
+    same effect). pgbouncer recognizes it and resets the client's prepared
+    statement cache. This scenario is implemented with raw libpq calls to
+    bypass psycopg's special DISCARD ALL handling.
+    """
     bouncer.admin(f"set pool_mode=transaction")
-    prepared_query = "SELECT 1"
-    with bouncer.cur() as cur1, bouncer.cur() as cur2:
-        # prepare query on client 1
-        cur1.execute(prepared_query, prepare=True)
-        # Run the prepared query again on same server and client
-        cur1.execute(prepared_query)
+    with bouncer.conn() as conn1, bouncer.conn() as conn2:
+        # prepare and execute query on client 1
+        result = conn1.pgconn.prepare(b"mystmt", b"SELECT 1")
+        assert result.status == pq.ExecStatus.COMMAND_OK
 
-        # prepared query for client 2
-        cur2.execute(prepared_query, prepare=True)
+        result = conn1.pgconn.exec_prepared(b"mystmt", ())
+        assert result.status == pq.ExecStatus.TUPLES_OK
+        assert result.get_value(0, 0) == b"1"
 
-        # execute DEALLOCATE ALL on client 1
-        cur1.execute("DEALLOCATE ALL")
+        # prepare and execute query on client 2
+        result = conn2.pgconn.prepare(b"mystmt", b"SELECT 2")
+        assert result.status == pq.ExecStatus.COMMAND_OK
 
-        # Run the prepared query again on server 2 and client 2
-        cur2.execute(prepared_query)
+        result = conn2.pgconn.exec_prepared(b"mystmt", ())
+        assert result.status == pq.ExecStatus.TUPLES_OK
+        assert result.get_value(0, 0) == b"2"
+
+        # execute DISCARD / DEALLOCATE ALL on client 1
+        result = conn1.pgconn.exec_(command.encode("utf-8"))
+        assert result.status == pq.ExecStatus.COMMAND_OK
+
+        # Execute the prepared query again on client 2
+        result = conn2.pgconn.exec_prepared(b"mystmt", ())
+        assert result.status == pq.ExecStatus.TUPLES_OK
+        assert result.get_value(0, 0) == b"2"
 
         # Confirm that the prepared query is not available anymore on
         # client 1
-        with (
-            bouncer.log_contains("prepared statement did not exist"),
-            pytest.raises(
-                psycopg.OperationalError,
-                match="prepared statement did not exist|server closed the connection unexpectedly",
-            ),
-        ):
-            cur1.execute(prepared_query)
-
-
-def test_discard_all(bouncer):
-    bouncer.admin(f"set pool_mode=transaction")
-    prepared_query = "SELECT 1"
-    with bouncer.cur() as cur1, bouncer.cur() as cur2:
-        # prepare query on client 1
-        cur1.execute(prepared_query, prepare=True)
-        # Run the prepared query again on same server and client
-        cur1.execute(prepared_query)
-
-        # prepared query for client 2
-        cur2.execute(prepared_query, prepare=True)
-
-        # execute DISCARD ALL on client 1
-        cur1.execute("DISCARD ALL")
-
-        # Run the prepared query again on server 2 and client 2
-        cur2.execute(prepared_query)
-
-        # Confirm that the prepared query is not available anymore on
-        # client 1
-        with (
-            bouncer.log_contains("prepared statement did not exist"),
-            pytest.raises(
-                psycopg.OperationalError,
-                match="prepared statement did not exist|server closed the connection unexpectedly",
-            ),
-        ):
-            cur1.execute(prepared_query)
+        with bouncer.log_contains("prepared statement did not exist"):
+            result = conn1.pgconn.exec_prepared(b"mystmt", ())
+        assert result.status == pq.ExecStatus.FATAL_ERROR
+        assert (
+            b"prepared statement did not exist" in result.error_message
+            or b"server closed the connection unexpectedly" in result.error_message
+        )
 
 
 def test_parse_larger_than_pkt_buf(bouncer):
@@ -324,6 +310,108 @@ def test_close_prepared_statement(bouncer):
         # describe it.
         result = conn.pgconn.describe_prepared(b"test")
         assert result.status == pq.ExecStatus.FATAL_ERROR
+
+
+def collect_pipeline_results(pgconn, max_results=20):
+    """Collect the pipeline result statuses, up to and including the sync.
+
+    None means the current command has no more results. The limit makes a
+    missing result fail the test instead of hang it.
+    """
+    statuses = []
+    for _ in range(max_results):
+        result = pgconn.get_result()
+        if result is None:
+            continue
+        statuses.append(result.status)
+        if result.status == pq.ExecStatus.PIPELINE_SYNC:
+            return statuses
+    raise AssertionError(f"no pipeline sync after {max_results} results: {statuses}")
+
+
+# libpq before PG17 does not support sending Close messages
+@pytest.mark.skipif("psycopg.pq.version() < 170000")
+@pytest.mark.skipif(
+    "psycopg.__version__ < '3.2.0'",
+    reason="Debian oldstable doesn't support a version of psycopg with 'close_prepared' support",
+)
+@pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
+@pytest.mark.timeout(60)
+def test_close_batched_with_reused_parse(bouncer):
+    """Close in a batch with a Parse that PgBouncer answers itself.
+
+    PgBouncer sends nothing to the server for a Close, or for a Parse of a
+    query that is already prepared. It makes both replies itself. The client
+    must get them in the order that it asked for.
+    """
+    bouncer.admin("set max_prepared_statements=100")
+
+    with bouncer.conn() as conn:
+        pgconn = conn.pgconn
+
+        # Prepare the query on the server link. PgBouncer then answers the
+        # Parse below and does not forward it.
+        result = pgconn.prepare(b"a", b"SELECT 1")
+        assert result.status == pq.ExecStatus.COMMAND_OK
+
+        pgconn.enter_pipeline_mode()
+        pgconn.send_prepare(b"b", b"SELECT 1")
+        pgconn.send_close_prepared(b"a")
+        pgconn.pipeline_sync()
+
+        assert collect_pipeline_results(pgconn) == [
+            pq.ExecStatus.COMMAND_OK,
+            pq.ExecStatus.COMMAND_OK,
+            pq.ExecStatus.PIPELINE_SYNC,
+        ]
+        pgconn.exit_pipeline_mode()
+
+        # The connection must still work. A wrong order breaks it permanently.
+        result = pgconn.exec_(b"SELECT 2")
+        assert result.status == pq.ExecStatus.TUPLES_OK
+        assert result.get_value(0, 0) == b"2"
+
+
+# libpq before PG17 does not support sending Close messages
+@pytest.mark.skipif("psycopg.pq.version() < 170000")
+@pytest.mark.skipif(
+    "psycopg.__version__ < '3.2.0'",
+    reason="Debian oldstable doesn't support a version of psycopg with 'close_prepared' support",
+)
+@pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
+@pytest.mark.timeout(60)
+def test_close_batched_with_evicting_parse(bouncer):
+    """Close in a batch with a Parse that evicts a statement.
+
+    A Parse into a full cache makes PgBouncer send its own Close to the server
+    and discard the CloseComplete. The discard must not delay the CloseComplete
+    that the client waits for.
+    """
+    bouncer.admin("set max_prepared_statements=1")
+
+    with bouncer.conn() as conn:
+        pgconn = conn.pgconn
+
+        result = pgconn.prepare(b"a", b"SELECT 1")
+        assert result.status == pq.ExecStatus.COMMAND_OK
+
+        pgconn.enter_pipeline_mode()
+        # A different query. PgBouncer forwards this Parse, which fills the
+        # cache above its limit of one.
+        pgconn.send_prepare(b"b", b"SELECT 2")
+        pgconn.send_close_prepared(b"a")
+        pgconn.pipeline_sync()
+
+        assert collect_pipeline_results(pgconn) == [
+            pq.ExecStatus.COMMAND_OK,
+            pq.ExecStatus.COMMAND_OK,
+            pq.ExecStatus.PIPELINE_SYNC,
+        ]
+        pgconn.exit_pipeline_mode()
+
+        result = pgconn.exec_(b"SELECT 3")
+        assert result.status == pq.ExecStatus.TUPLES_OK
+        assert result.get_value(0, 0) == b"3"
 
 
 def test_statement_name_longer_than_pkt_buf(bouncer):

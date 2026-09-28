@@ -25,7 +25,6 @@ pgbouncer_SOURCES = \
 	src/server.c \
 	src/stats.c \
 	src/system.c \
-	src/takeover.c \
 	src/util.c \
 	src/varcache.c \
 	src/common/sha2.c \
@@ -61,7 +60,6 @@ pgbouncer_SOURCES = \
 	include/server.h \
 	include/stats.h \
 	include/system.h \
-	include/takeover.h \
 	include/util.h \
 	include/varcache.h \
 	include/common/ascii.h \
@@ -121,9 +119,9 @@ bin_PROGRAMS += pgbevent
 endif
 
 pgbevent_SOURCES = win32/pgbevent.c win32/eventmsg.rc \
-		   win32/eventmsg.mc win32/MSG00001.bin
+		   win32/eventmsg.mc win32/MSG00001.bin win32/pgbevent.def
 pgbevent_EXT = .dll
-pgbevent_LINK = $(CC) -shared -Wl,--export-all-symbols -Wl,--add-stdcall-alias -o $@ $^
+pgbevent_LINK = $(CC) -shared -o $@ $^ $(srcdir)/win32/pgbevent.def
 
 # .rc->.o
 AM_LANGUAGES = RC
@@ -161,7 +159,7 @@ EXTRA_DIST = config.guess config.sub configure install-sh lib/usual/config.h.in
 dist: $(distdir).tar.gz
 
 $(PACKAGE_TARNAME)-$(PACKAGE_VERSION).tar.gz:
-	$(GIT) -C $(srcdir) -c core.autocrlf=false archive --format tar.gz -9 --prefix $(distdir)/ $(PG_GIT_REVISION) -o $(abs_top_builddir)/$@ $(foreach file,$(EXTRA_DIST),--prefix $(distdir)/$(dir $(file)) --add-file=$(file)) --prefix $(distdir)/
+	$(GIT) -C $(srcdir) -c core.autocrlf=false archive --format tar.gz -9 --prefix $(distdir)/ $(PG_GIT_REVISION) -o $(abs_top_builddir)/$@ $(foreach file,$(EXTRA_DIST),--prefix $(distdir)/$(patsubst ./,,$(dir $(file))) --add-file=$(file)) --prefix $(distdir)/
 
 #
 # test
@@ -185,13 +183,7 @@ w32zip = $(PACKAGE_TARNAME)-$(PACKAGE_VERSION)-windows-$(host_cpu).zip
 zip: $(w32zip)
 
 $(w32zip): pgbouncer.exe pgbevent.dll etc/pgbouncer.ini etc/userlist.txt README.md COPYRIGHT
-	rm -rf $(basename $@)
-	mkdir $(basename $@)
-	cp $^ $(basename $@)
-	$(STRIP) $(addprefix $(basename $@)/,$(filter %.exe %.dll,$(^F)))
-	zip -MM $@ $(addprefix $(basename $@)/,$(filter %.exe %.dll,$(^F)))
-# NB: zip -l for text files for end-of-line conversion
-	zip -MM -l $@ $(addprefix $(basename $@)/,$(filter-out %.exe %.dll,$(^F)))
+	$(PYTHON) $(srcdir)/win32/make-zip.py --strip='$(STRIP)' -o $@ $^
 
 .PHONY: tags
 tags:

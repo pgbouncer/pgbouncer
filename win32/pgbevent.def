@@ -1,0 +1,7 @@
+; regsvr32 looks these up with GetProcAddress. MinGW exports all symbols from
+; a DLL by default, but MSVC exports nothing unless told to. PRIVATE keeps
+; them out of an import library, which nothing needs (the DLL is only ever
+; loaded by the Event Log service and regsvr32, never linked against).
+EXPORTS
+    DllRegisterServer PRIVATE
+    DllUnregisterServer PRIVATE

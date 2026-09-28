@@ -325,7 +325,7 @@ fail:
 	return false;
 }
 
-static bool finish_set_pool(PgSocket *client, bool takeover)
+static bool finish_set_pool(PgSocket *client)
 {
 	bool ok = false;
 	int auth;
@@ -378,9 +378,6 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 				  replication_type_parameters[client->replication]);
 		}
 	}
-
-	if (takeover)
-		return true;
 
 	if (client->pool && client->pool->db->admin) {
 		if (!admin_post_login(client))
@@ -589,33 +586,30 @@ static bool check_if_need_gssapi_authentication(PgSocket *client, const char *db
 }
 #endif
 
-bool set_pool(PgSocket *client, const char *dbname, const char *username, const char *password, bool takeover)
+bool set_pool(PgSocket *client, const char *dbname, const char *username)
 {
-	Assert((password && takeover) || (!password && !takeover));
-
 	/* find database */
 	client->db = find_or_register_database(client, dbname);
 	if (!client->db) {
 		client->db = calloc(1, sizeof(*client->db));
+		if (!client->db) {
+			slog_error(client, "set_pool(): failed to allocate fake database");
+			disconnect_client(client, true, "out of memory");
+			return false;
+		}
 		client->db->fake = true;
 		strlcpy(client->db->name, dbname, sizeof(client->db->name));
 	}
 
 	if (client->db->admin) {
 		if (admin_pre_login(client, username))
-			return finish_set_pool(client, takeover);
+			return finish_set_pool(client);
 	}
 
 	/* avoid dealing with invalid data below, and give an
 	 * appropriate error message */
 	if (strlen(username) >= MAX_USERNAME) {
 		disconnect_client(client, true, "username too long");
-		if (cf_log_connections)
-			slog_info(client, "login failed: db=%s user=%s", dbname, username);
-		return false;
-	}
-	if (password && strlen(password) >= MAX_PASSWORD) {
-		disconnect_client(client, true, "password too long");
 		if (cf_log_connections)
 			slog_info(client, "login failed: db=%s user=%s", dbname, username);
 		return false;
@@ -643,7 +637,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			disconnect_client(client, true, "bouncer config error");
 			return false;
 		}
-		/* Password will be set after successful authentication when not in takeover mode */
+		/* Password will be set after successful authentication */
 		client->login_user_credentials = find_or_add_new_global_credentials(username, NULL);
 		if (!client->login_user_credentials) {
 			slog_error(client, "set_pool(): failed to allocate new LDAP user");
@@ -660,8 +654,8 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 			disconnect_client(client, true, "bouncer config error");
 			return false;
 		}
-		/* Password will be set after successful authentication when not in takeover mode */
-		client->login_user_credentials = add_pam_credentials(username, password);
+		/* Password will be set after successful authentication */
+		client->login_user_credentials = add_pam_credentials(username);
 		if (!check_db_connection_count(client))
 			return false;
 		if (!client->login_user_credentials) {
@@ -722,17 +716,6 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 				if (client->db->fake) {
 					slog_debug(client, "not running auth_query because database is fake");
 				} else {
-					if (takeover) {
-						client->login_user_credentials = add_dynamic_credentials(client->db, username, password);
-
-						if (!check_db_connection_count(client))
-							return false;
-
-						if (!check_user_connection_count(client))
-							return false;
-
-						return finish_set_pool(client, takeover);
-					}
 					start_auth_query(client, username);
 					return false;
 				}
@@ -740,6 +723,11 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 
 			slog_info(client, "no such user: %s", username);
 			client->login_user_credentials = calloc(1, sizeof(*client->login_user_credentials));
+			if (!client->login_user_credentials) {
+				slog_error(client, "set_pool(): failed to allocate login user credentials");
+				disconnect_client(client, true, "bouncer resources exhaustion");
+				return false;
+			}
 
 			/*
 			 * For users that we are already tracking, we want to
@@ -764,7 +752,7 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username, const 
 		}
 	}
 
-	return finish_set_pool(client, takeover);
+	return finish_set_pool(client);
 }
 
 bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
@@ -801,8 +789,11 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
 			return false;
 		}
 		if (length == (uint32_t)-1) {
-			disconnect_server(server, false, "auth_query response contained null user name");
-			return false;
+			/*
+			 * A null user name means the user does not
+			 * exist, so skip the row.
+			 */
+			break;
 		}
 		if (!mbuf_get_chars(&pkt->data, length, &username)) {
 			disconnect_server(server, false, "bad packet");
@@ -1187,7 +1178,7 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 
 	/* find pool */
 	mbuf_free(&unsupported_protocol_extensions);
-	return set_pool(client, dbname, username, NULL, false);
+	return set_pool(client, dbname, username);
 fail:
 	mbuf_free(&unsupported_protocol_extensions);
 	return false;
@@ -1424,7 +1415,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 
 		if (client->wait_for_user) {
 			client->wait_for_user = false;
-			if (!finish_set_pool(client, false))
+			if (!finish_set_pool(client))
 				return false;
 		} else if (!decide_startup_pool(client, pkt)) {
 			return false;
@@ -1492,8 +1483,18 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 				if (!mbuf_get_bytes(&pkt->data, length, &data))
 					return false;
 				if (scram_client_final(client, length, data)) {
-					/* save SCRAM keys for user */
-					if (!client->scram_state.adhoc && !client->db->fake) {
+					/*
+					 * Save SCRAM keys for pass-through to the backend
+					 * connection, but only when the credentials the client
+					 * just authenticated with are the same object that will
+					 * be used for the backend login. With a forced user
+					 * whose password differs from the client, those
+					 * are two distinct PgCredentials, and the derived keys
+					 * correspond to the client password, not the forced
+					 * user.
+					 */
+					if (!client->scram_state.adhoc && !client->db->fake &&
+					    client->login_user_credentials == client->pool->user_credentials) {
 						memcpy(client->pool->user_credentials->scram_ClientKey,
 						       client->scram_state.ClientKey,
 						       sizeof(client->scram_state.ClientKey));

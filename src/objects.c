@@ -578,7 +578,7 @@ PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const c
 }
 
 /* Add PAM user. The logic is same as in add_dynamic_credentials */
-PgCredentials *add_pam_credentials(const char *name, const char *passwd)
+PgCredentials *add_pam_credentials(const char *name)
 {
 	PgCredentials *credentials = NULL;
 	struct AANode *node;
@@ -601,8 +601,6 @@ PgCredentials *add_pam_credentials(const char *name, const char *passwd)
 
 		aatree_insert(&pam_user_tree, (uintptr_t)credentials->name, &credentials->tree_node);
 	}
-	if (passwd)
-		safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
 	return credentials;
 }
 
@@ -705,10 +703,19 @@ PgCredentials *find_global_credentials(const char *name)
 static PgPool *new_pool(PgDatabase *db, PgCredentials *user_credentials)
 {
 	PgPool *pool;
+	PktBuf *msg;
 
 	pool = slab_alloc(pool_cache);
-	if (!pool)
+	if (!pool) {
 		return NULL;
+	}
+
+	msg = new_welcome_msg();
+	if (!msg) {
+		slab_free(pool_cache, pool);
+		return NULL;
+	}
+	pool->welcome_msg = msg;
 
 	list_init(&pool->head);
 	list_init(&pool->map_head);
@@ -1075,6 +1082,7 @@ bool add_outstanding_request(PgSocket *client, char type, ResponseAction action)
 		 */
 		slog_noise(client, "add_outstanding_request: queueing fake response right away %c",
 			   type);
+		server->sbuf.extra_packet_queue_after = true;
 		return queue_fake_response(client, type);
 	}
 
@@ -1806,7 +1814,7 @@ bool evict_connection(PgDatabase *db)
 	}
 
 	if (oldest_connection) {
-		disconnect_server(oldest_connection, true, "evicted");
+		disconnect_server(oldest_connection, true, "evicted for max_db_connections");
 		return true;
 	}
 	return false;
@@ -1820,7 +1828,7 @@ bool evict_pool_connection(PgPool *pool)
 	oldest_connection = compare_connections_by_time(oldest_connection, last_socket(&pool->idle_server_list));
 
 	if (oldest_connection) {
-		disconnect_server(oldest_connection, true, "evicted");
+		disconnect_server(oldest_connection, true, "evicted for pool_size");
 		return true;
 	}
 	return false;
@@ -1847,7 +1855,7 @@ bool evict_user_connection(PgCredentials *user_credentials)
 	}
 
 	if (oldest_connection) {
-		disconnect_server(oldest_connection, true, "evicted");
+		disconnect_server(oldest_connection, true, "evicted for max_user_connections");
 		return true;
 	}
 	return false;
@@ -1865,6 +1873,7 @@ bool evict_user_connection(PgCredentials *user_credentials)
 void launch_new_connection(PgPool *pool, bool evict_if_needed)
 {
 	PgSocket *server;
+	int server_count;
 	int max;
 
 	log_debug("launch_new_connection: start");
@@ -1892,17 +1901,17 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed)
 		}
 	}
 
-	max = pool_server_count(pool);
+	server_count = pool_server_count(pool);
 
 	/*
 	 * Peer pools only have a single pool_size.
 	 */
 	if (pool->db->peer_id) {
-		if (max < pool_pool_size(pool))
+		if (server_count < pool_pool_size(pool))
 			goto force_new;
 
 		log_debug("launch_new_connection: peer pool full (%d >= %d)",
-			  max, pool_pool_size(pool));
+			  server_count, pool_pool_size(pool));
 		return;
 	}
 
@@ -1915,20 +1924,20 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed)
 	 * this works just fine, because we only ever open a single connection at
 	 * once (see top of this function).
 	 */
-	if (!statlist_empty(&pool->waiting_cancel_req_list) && max < (2 * pool_pool_size(pool))) {
+	if (!statlist_empty(&pool->waiting_cancel_req_list) && server_count < (2 * pool_pool_size(pool))) {
 		log_debug("launch_new_connection: bypass pool limitations for cancel request");
 		goto force_new;
 	}
 
 	/* is it allowed to add servers? */
 	if (pool_pool_size(pool) > 0) {
-		if (max >= pool_pool_size(pool) && pool->welcome_msg_ready) {
+		if (server_count >= pool_pool_size(pool) && pool->welcome_msg_ready) {
 			/* should we use reserve pool? */
 			PgSocket *c = first_socket(&pool->waiting_client_list);
 			if (cf_res_pool_timeout && pool_res_pool_size(pool)) {
 				usec_t now = get_cached_time();
 				if (c && (now - c->request_time) >= cf_res_pool_timeout) {
-					if (max < pool_pool_size(pool) + pool_res_pool_size(pool)) {
+					if (server_count < pool_pool_size(pool) + pool_res_pool_size(pool)) {
 						slog_warning(c, "taking connection from reserve_pool");
 						goto allow_new;
 					}
@@ -1936,15 +1945,16 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed)
 			}
 
 			if (c && c->replication && !sending_auth_query(c)) {
-				while (evict_if_needed && pool_pool_size(pool) >= max) {
+				while (evict_if_needed && server_count >= pool_pool_size(pool)) {
 					if (!evict_pool_connection(pool))
 						break;
+					server_count = pool_server_count(pool);
 				}
-				if (pool_pool_size(pool) < max)
+				if (server_count < pool_pool_size(pool))
 					goto allow_new;
 			}
 			log_debug("launch_new_connection: pool full (%d >= %d)",
-				  max, pool_pool_size(pool));
+				  server_count, pool_pool_size(pool));
 			return;
 		}
 	}
@@ -2303,165 +2313,6 @@ void forward_cancel_request(PgSocket *server)
 	return;
 }
 
-bool use_client_socket(int fd, PgAddr *addr,
-		       const char *dbname, const char *username,
-		       uint64_t ckey, int oldfd, int linkfd,
-		       const char *client_enc, const char *std_string,
-		       const char *datestyle, const char *timezone,
-		       const char *password,
-		       const char *scram_client_key, int scram_client_key_len,
-		       const char *scram_server_key, int scram_server_key_len)
-{
-	PgDatabase *db = find_database(dbname);
-	PgSocket *client;
-	PktBuf tmp;
-
-	/* if the database not found, it's an auto database -> registering... */
-	if (!db) {
-		db = register_auto_database(dbname);
-		if (!db)
-			return true;
-	}
-
-	if (scram_client_key || scram_server_key) {
-		PgCredentials *credentials;
-
-		if (!scram_client_key || !scram_server_key) {
-			log_error("incomplete SCRAM key data");
-			return false;
-		}
-		if (sizeof(credentials->scram_ClientKey) != scram_client_key_len
-		    || sizeof(credentials->scram_ServerKey) != scram_server_key_len) {
-			log_error("incompatible SCRAM key data");
-			return false;
-		}
-		if (db->forced_user_credentials) {
-			log_error("SCRAM key data received for forced user");
-			return false;
-		}
-		if (cf_auth_type == AUTH_TYPE_PAM) {
-			log_error("SCRAM key data received for PAM user");
-			return false;
-		}
-		credentials = find_global_credentials(username);
-		if (!credentials && db->auth_user_credentials)
-			credentials = add_dynamic_credentials(db, username, password);
-
-		if (!credentials)
-			return false;
-
-		memcpy(credentials->scram_ClientKey, scram_client_key, sizeof(credentials->scram_ClientKey));
-		memcpy(credentials->scram_ServerKey, scram_server_key, sizeof(credentials->scram_ServerKey));
-		credentials->scram_passthrough_valid = true;
-	}
-
-	client = accept_client(fd, pga_is_unix(addr));
-	if (client == NULL)
-		return false;
-	client->suspended = true;
-
-	if (!set_pool(client, dbname, username, password, true))
-		return false;
-
-	change_client_state(client, CL_ACTIVE);
-
-	/* store old cancel key */
-	pktbuf_static(&tmp, client->cancel_key, 8);
-	pktbuf_put_uint64(&tmp, ckey);
-
-	/* store old fds */
-	client->tmp_sk_oldfd = oldfd;
-	client->tmp_sk_linkfd = linkfd;
-
-	varcache_set(&client->vars, "client_encoding", client_enc);
-	varcache_set(&client->vars, "standard_conforming_strings", std_string);
-	varcache_set(&client->vars, "datestyle", datestyle);
-	varcache_set(&client->vars, "timezone", timezone);
-
-	return true;
-}
-
-bool use_server_socket(int fd, PgAddr *addr,
-		       const char *dbname, const char *username,
-		       uint64_t ckey, int oldfd, int linkfd,
-		       const char *client_enc, const char *std_string,
-		       const char *datestyle, const char *timezone,
-		       const char *password,
-		       const char *scram_client_key, int scram_client_key_len,
-		       const char *scram_server_key, int scram_server_key_len)
-{
-	PgDatabase *db = find_database(dbname);
-	PgCredentials *credentials;
-	PgPool *pool;
-	PgSocket *server;
-	PktBuf tmp;
-	bool res;
-
-	/* if the database not found, it's an auto database -> registering... */
-	if (!db) {
-		db = register_auto_database(dbname);
-		if (!db)
-			return true;
-	}
-
-	if (db->forced_user_credentials) {
-		credentials = db->forced_user_credentials;
-	} else if (cf_auth_type == AUTH_TYPE_PAM) {
-		credentials = add_pam_credentials(username, password);
-	} else {
-		credentials = find_global_credentials(username);
-	}
-	if (!credentials && db->auth_user_credentials)
-		credentials = add_dynamic_credentials(db, username, password);
-
-	pool = get_pool(db, credentials);
-	if (!pool)
-		return false;
-
-	server = slab_alloc(server_cache);
-	if (!server)
-		return false;
-
-	res = sbuf_accept(&server->sbuf, fd, pga_is_unix(addr));
-	if (!res)
-		return false;
-
-	db->connection_count++;
-
-	server->suspended = true;
-	server->pool = pool;
-	server->login_user_credentials = credentials;
-	server->connect_time = server->request_time = get_cached_time();
-	server->query_start = 0;
-	statlist_init(&server->canceling_clients, "canceling_clients");
-
-	fill_remote_addr(server, fd, pga_is_unix(addr));
-	fill_local_addr(server, fd, pga_is_unix(addr));
-
-	if (linkfd) {
-		server->ready = false;
-		change_server_state(server, SV_ACTIVE);
-	} else {
-		server->ready = true;
-		change_server_state(server, SV_IDLE);
-	}
-
-	/* store old cancel key */
-	pktbuf_static(&tmp, server->cancel_key, 8);
-	pktbuf_put_uint64(&tmp, ckey);
-
-	/* store old fds */
-	server->tmp_sk_oldfd = oldfd;
-	server->tmp_sk_linkfd = linkfd;
-
-	varcache_set(&server->vars, "client_encoding", client_enc);
-	varcache_set(&server->vars, "standard_conforming_strings", std_string);
-	varcache_set(&server->vars, "datestyle", datestyle);
-	varcache_set(&server->vars, "timezone", timezone);
-
-	return true;
-}
-
 void for_each_server(PgPool *pool, void (*func)(PgSocket *sk))
 {
 	struct List *item;
@@ -2533,6 +2384,7 @@ void tag_pool_dirty(PgPool *pool)
 {
 	struct List *item, *tmp;
 	struct PgSocket *server;
+	PktBuf *msg;
 
 	/*
 	 * Don't tag the admin pool as dirty, since this is not an actual postgres
@@ -2557,6 +2409,11 @@ void tag_pool_dirty(PgPool *pool)
 		server = container_of(item, PgSocket, head);
 		disconnect_server(server, true, "connect string changed");
 	}
+
+	msg = new_welcome_msg();
+	if (!msg)
+		return;
+	pool->welcome_msg = msg;
 }
 
 void tag_database_dirty(PgDatabase *db)

@@ -8,6 +8,21 @@ from psycopg.rows import dict_row
 from .utils import Bouncer, capture, run
 
 
+def test_parameter_status(bouncer):
+    """
+    Test that the admin console only sends the `pgbouncer.version` parameter
+    status and not `pgbouncer.max_prepared_statements` or
+    `pgbouncer.pool_mode`, since there is no real pool behind it.
+    """
+    conn = bouncer.admin_runner.conn()
+    assert (
+        conn.pgconn.parameter_status(b"pgbouncer.version").decode()
+        == f"{bouncer.version()}"
+    )
+    assert conn.pgconn.parameter_status(b"pgbouncer.max_prepared_statements") is None
+    assert conn.pgconn.parameter_status(b"pgbouncer.pool_mode") is None
+
+
 def test_reload_error(bouncer):
     """
     Test that admin console correctly raises error during RELOAD
@@ -80,10 +95,6 @@ def test_show(bouncer):
         "clients",
         "config",
         "databases",
-        # Calling SHOW FDS on MacOS leaks the returned file descriptors to the
-        # python test runner. So we don't test this one directly. SHOW FDS is
-        # still tested indirectly by the takeover tests.
-        # "fds",
         "help",
         "lists",
         "peers",
@@ -105,6 +116,10 @@ def test_show(bouncer):
 
     for item in show_items:
         bouncer.admin(f"SHOW {item}")
+
+
+def test_jdbc_extra_float_digits(bouncer):
+    bouncer.admin("SET extra_float_digits = 2")
 
 
 def test_socket_id(bouncer) -> None:
@@ -473,3 +488,13 @@ def test_show_stats(bouncer):
     assert ("total_xact_count", 10) in totals
     # 11 SELECT 1 + 2 times COMMIT and ROLLBACK + 4 admin commands
     assert ("total_query_count", 19) in totals
+
+
+def test_show_config_alpha_order(bouncer):
+    """
+    Test validates that the contents of SHOW CONFIG appear in sorted order by key
+    per comment in src/main.c.
+    """
+    config = bouncer.admin("SHOW CONFIG", row_factory=dict_row)
+    config_keys = [i["key"] for i in config]
+    assert sorted(config_keys) == config_keys

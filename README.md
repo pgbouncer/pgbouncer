@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="doc/pgbouncer-logo.svg" alt="PgBouncer" width="360">
+</p>
+
 PgBouncer
 =========
 
@@ -10,9 +14,12 @@ Sources, bug tracking: <https://github.com/pgbouncer/pgbouncer>
 Building
 ---------
 
-PgBouncer can be built with either [Meson] (recommended) or the older
-Autoconf-based build system.  Both are supported for now; the Autoconf build
-will eventually be removed.  Compilation depends on a few things:
+PgBouncer can be built with either the Autoconf-based build system or the
+newer, still experimental, [Meson] build system.  Autoconf is the recommended
+choice for production builds and packaging for now.  The Meson build is
+expected to become the default and the Autoconf build to be removed in a
+future release, so testing it and reporting any issues is very welcome.
+Compilation depends on a few things:
 
 * [Libevent] 2.0+
 * [pkg-config]
@@ -34,17 +41,17 @@ build needs [GNU Make] 3.81+.
 [OpenSSL]: https://www.openssl.org/
 [c-ares]: http://c-ares.haxx.se/
 
-When dependencies are installed, build with Meson:
-
-    $ meson setup build --prefix=/usr/local
-    $ meson compile -C build
-    $ meson install -C build
-
-or with Autoconf:
+When dependencies are installed, build with Autoconf:
 
     $ ./configure --prefix=/usr/local
     $ make
     $ make install
+
+or with Meson (experimental):
+
+    $ meson setup build --prefix=/usr/local
+    $ meson compile -C build
+    $ meson install -C build
 
 If you are building from Git, or are building for Windows, please see
 separate build instructions below.
@@ -120,20 +127,11 @@ using systemd 253 or later) as well as socket activation.  See
 Building from Git
 -----------------
 
-With Meson you can build straight from a checkout; pandoc is required to
-build the man pages:
+The Autoconf build requires that you generate the header and configuration
+files before you can run `configure`:
 
 	$ git clone https://github.com/pgbouncer/pgbouncer.git
 	$ cd pgbouncer
-	$ meson setup build
-	$ meson compile -C build
-	$ meson install -C build
-
-Run `meson configure build` to list the available `-D` options.
-
-The Autoconf build instead requires that you generate the header and
-configuration files before you can run `configure`:
-
 	$ ./autogen.sh
 	$ ./configure
 	$ make
@@ -146,6 +144,15 @@ variables that customizes the configuration.
 
 Additional packages required for the Autoconf build from Git: autoconf,
 automake, libtool, pandoc
+
+With the Meson build you can build straight from a checkout;
+pandoc is required to build the man pages:
+
+	$ meson setup build
+	$ meson compile -C build
+	$ meson install -C build
+
+Run `meson configure build` to list the available `-D` options.
 
 Testing
 -------
@@ -160,15 +167,15 @@ Building on Windows
 The only supported build environment on Windows is MinGW.  Cygwin and
 Visual $ANYTHING are not supported.
 
-To build on MinGW, do the usual Meson build:
-
-	$ meson setup build
-	$ meson compile -C build
-
-or the Autoconf build:
+To build on MinGW, do the usual Autoconf build:
 
 	$ ./configure
 	$ make
+
+or the experimental Meson build:
+
+	$ meson setup build
+	$ meson compile -C build
 
 If cross-compiling from Unix with Autoconf:
 
@@ -179,8 +186,8 @@ The LDAP and GSSAPI build options are currently not supported on Windows.
 Running on Windows
 ------------------
 
-Running from the command line goes as usual, except that the `-d` (daemonize),
-`-R` (reboot), and `-u` (switch user) switches will not work.
+Running from the command line goes as usual, except that the `-d` (daemonize)
+and `-u` (switch user) switches will not work.
 
 To run PgBouncer as a Windows service, you need to configure the
 `service_name` parameter to set a name for the service.  Then:

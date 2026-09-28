@@ -71,11 +71,18 @@ static void init_var_lookup_from_config(const char *cf_track_extra_parameters, i
 		HASH_FIND_STR(lookup_map, var_name, lookup);
 
 		/* If the var name is already on the hash map, do not update its idx */
-		if (lookup != NULL)
+		if (lookup != NULL) {
+			free(var_name);
 			continue;
+		}
 
 		lookup = (struct var_lookup *)malloc(sizeof *lookup);
+		if (lookup == NULL)
+			die("failed to allocate memory in init_var_lookup_from_config");
+
 		lookup->name = strdup(var_name);
+		if (lookup->name == NULL)
+			die("failed to allocate memory in init_var_lookup_from_config");
 
 		lookup->idx = (*num_vars)++;
 		HASH_ADD_KEYPTR(hh, lookup_map, lookup->name, strlen(lookup->name), lookup);
@@ -88,7 +95,19 @@ static void init_var_lookup_from_config(const char *cf_track_extra_parameters, i
 
 void init_var_lookup(const char *cf_track_extra_parameters)
 {
-	const char *names[] = { "DateStyle", "client_encoding", "TimeZone", "standard_conforming_strings", "application_name", NULL };
+	const char *names[] = {
+		"DateStyle",
+		"client_encoding",
+		"TimeZone",
+		"standard_conforming_strings",
+		"application_name",
+		"default_transaction_read_only",
+		"IntervalStyle",
+		"search_path",
+		"scram_iterations",
+		"session_authorization",
+		NULL
+	};
 	int idx = 0;
 
 	struct var_lookup *lookup = NULL;
@@ -96,6 +115,9 @@ void init_var_lookup(const char *cf_track_extra_parameters)
 	/* Always add the static list of names for compatibility */
 	for (; names[idx]; idx++) {
 		lookup = (struct var_lookup *)malloc(sizeof *lookup);
+		if (lookup == NULL)
+			die("failed to allocate memory in init_var_lookup_from_config");
+
 		lookup->name = names[idx];
 		lookup->idx = idx;
 		HASH_ADD_KEYPTR(hh, lookup_map, lookup->name, strlen(lookup->name), lookup);
@@ -155,17 +177,44 @@ static int apply_var(PktBuf *pkt, const char *key,
 	unsigned len;
 	const char *tmp;
 
-	/* if unset, skip */
-	if (!cval || !sval)
+	/* if both are unset, skip */
+	if (!cval && !sval)
 		return 0;
 
-	/* if equal, skip */
-	if (cval == sval)
-		return 0;
+	/* if both are set and equal, skip */
+	if (cval && sval) {
+		if (cval == sval)
+			return 0;
 
-	/* ignore case difference */
-	if (strcasecmp(cval->str, sval->str) == 0)
-		return 0;
+		/* ignore case difference */
+		if (strcasecmp(cval->str, sval->str) == 0)
+			return 0;
+	}
+
+	if (!cval) {
+		/*
+		 * This happens when a parameter is in track_extra_parameters but
+		 * PostgreSQL does not report it in ParameterStatus (e.g. enable_seqscan,
+		 * or search_path on PG <= 17), so the parameter is not set in
+		 * pool->orig_vars.
+		 * A previous client configured this setting in its StartupMessage / connection
+		 * options (so sval is non-NULL), and now a client without this startup
+		 * parameter connects (cval is NULL).
+		 * Reset the parameter back to its session default on the server.
+		 */
+		len = snprintf(buf, sizeof(buf), "RESET %s;", key);
+		if (len < sizeof(buf)) {
+			pktbuf_put_bytes(pkt, buf, len);
+		} else {
+			char *buf2 = malloc(len + 1);
+			if (!buf2)
+				die("failed to allocate memory in apply_var");
+			snprintf(buf2, len + 1, "RESET %s;", key);
+			pktbuf_put_bytes(pkt, buf2, len);
+			free(buf2);
+		}
+		return 1;
+	}
 
 	/* parameters that are marked GUC_LIST_QUOTE are returned already fully quoted
 	 * re-quoting them using pg_quote_literal will result in malformed values. */
@@ -188,12 +237,12 @@ static int apply_var(PktBuf *pkt, const char *key,
 	if (len < sizeof(buf)) {
 		pktbuf_put_bytes(pkt, buf, len);
 	} else {
-		char *buf2 = malloc(sizeof(char)*len);
+		char *buf2 = malloc(len + 1);
 
 		if (!buf2)
 			die("failed to allocate memory in apply_var");
 
-		snprintf(buf2, len, "SET %s=%s;", key, tmp);
+		snprintf(buf2, len + 1, "SET %s=%s;", key, tmp);
 		pktbuf_put_bytes(pkt, buf2, len);
 
 		free(buf2);
@@ -246,6 +295,15 @@ void varcache_set_canonical(PgSocket *server, PgSocket *client)
 			strpool_incref(server_val);
 			strpool_decref(client_val);
 			client->vars.var_list[lk->idx] = server_val;
+		} else if (client_val && !server_val) {
+			slog_debug(server, "varcache_set_canonical: server var %s set to client value %s",
+				   lk->name, client_val->str);
+			strpool_incref(client_val);
+			server->vars.var_list[lk->idx] = client_val;
+		} else if (!client_val && server_val) {
+			slog_debug(server, "varcache_set_canonical: server var %s reset to NULL", lk->name);
+			strpool_decref(server_val);
+			server->vars.var_list[lk->idx] = NULL;
 		}
 	}
 }

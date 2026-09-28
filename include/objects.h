@@ -76,23 +76,12 @@ PgGlobalUser * update_global_user_passwd(PgGlobalUser *user, const char *passwd)
 PgGlobalUser * find_or_add_new_global_user(const char *name, const char *passwd) _MUSTCHECK;
 PgCredentials * find_or_add_new_global_credentials(const char *name, const char *passwd) _MUSTCHECK;
 
-PgCredentials * add_pam_credentials(const char *name, const char *passwd) _MUSTCHECK;
+PgCredentials * add_pam_credentials(const char *name) _MUSTCHECK;
 
 void accept_cancel_request(PgSocket *req);
 void forward_cancel_request(PgSocket *server);
 
 void launch_new_connection(PgPool *pool, bool evict_if_needed);
-
-bool use_client_socket(int fd, PgAddr *addr, const char *dbname, const char *username, uint64_t ckey, int oldfd, int linkfd,
-		       const char *client_end, const char *std_string, const char *datestyle, const char *timezone,
-		       const char *password,
-		       const char *scram_client_key, int scram_client_key_len,
-		       const char *scram_server_key, int scram_server_key_len) _MUSTCHECK;
-bool use_server_socket(int fd, PgAddr *addr, const char *dbname, const char *username, uint64_t ckey, int oldfd, int linkfd,
-		       const char *client_end, const char *std_string, const char *datestyle, const char *timezone,
-		       const char *password,
-		       const char *scram_client_key, int scram_client_key_len,
-		       const char *scram_server_key, int scram_server_key_len) _MUSTCHECK;
 
 void activate_client(PgSocket *client);
 

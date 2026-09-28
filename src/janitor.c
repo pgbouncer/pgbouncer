@@ -53,80 +53,6 @@ static void close_client_list(struct StatList *sk_list, const char *reason)
 	}
 }
 
-bool suspend_socket(PgSocket *sk, bool force_suspend)
-{
-	if (sk->suspended)
-		return true;
-
-	if (sbuf_is_empty(&sk->sbuf)) {
-		if (sbuf_pause(&sk->sbuf))
-			sk->suspended = true;
-	}
-
-	if (sk->suspended || !force_suspend)
-		return sk->suspended;
-
-	if (is_server_socket(sk))
-		disconnect_server(sk, true, "suspend_timeout");
-	else
-		disconnect_client(sk, true, "suspend_timeout");
-	return true;
-}
-
-/* suspend all sockets in socket list */
-static int suspend_socket_list(struct StatList *list, bool force_suspend)
-{
-	struct List *item, *tmp;
-	PgSocket *sk;
-	int active = 0;
-
-	statlist_for_each_safe(item, list, tmp) {
-		sk = container_of(item, PgSocket, head);
-		if (!suspend_socket(sk, force_suspend))
-			active++;
-	}
-	return active;
-}
-
-/* resume all suspended sockets in socket list */
-static void resume_socket_list(struct StatList *list)
-{
-	struct List *item, *tmp;
-	PgSocket *sk;
-
-	statlist_for_each_safe(item, list, tmp) {
-		sk = container_of(item, PgSocket, head);
-		if (sk->suspended) {
-			sk->suspended = false;
-			sbuf_continue(&sk->sbuf);
-		}
-	}
-}
-
-/* resume all suspended sockets in all pools */
-static void resume_sockets(void)
-{
-	struct List *item;
-	PgPool *pool;
-
-	statlist_for_each(item, &pool_list) {
-		pool = container_of(item, PgPool, head);
-		if (pool->db->admin)
-			continue;
-		resume_socket_list(&pool->active_client_list);
-		resume_socket_list(&pool->active_server_list);
-		resume_socket_list(&pool->idle_server_list);
-		resume_socket_list(&pool->used_server_list);
-	}
-}
-
-/* resume pools and listen sockets */
-void resume_all(void)
-{
-	resume_sockets();
-	resume_pooler();
-}
-
 /*
  * send test/reset query to server if needed
  */
@@ -222,7 +148,7 @@ static void per_loop_activate(PgPool *pool)
 			 */
 			launch_new_connection(pool, /* evict_if_needed= */ true);
 		} else if (!statlist_empty(&pool->idle_server_list)) {
-			/* db not fully initialized after reboot */
+			/* no server in this pool has finished login yet */
 			if (client->wait_for_welcome && !pool->welcome_msg_ready) {
 				launch_new_connection(pool, /* evict_if_needed= */ true);
 				continue;
@@ -261,35 +187,6 @@ static int per_loop_pause(PgPool *pool)
 
 	active += statlist_count(&pool->active_server_list);
 	active += statlist_count(&pool->tested_server_list);
-
-	return active;
-}
-
-/*
- * suspend active clients and servers
- */
-static int per_loop_suspend(PgPool *pool, bool force_suspend)
-{
-	int active = 0;
-
-	if (pool->db->admin)
-		return 0;
-
-	active += suspend_socket_list(&pool->active_client_list, force_suspend);
-
-	/* this list is not suspendable, but still need force_suspend and counting */
-	active += suspend_socket_list(&pool->waiting_client_list, force_suspend);
-	if (active)
-		per_loop_activate(pool);
-
-	if (!active) {
-		active += suspend_socket_list(&pool->active_server_list, force_suspend);
-		active += suspend_socket_list(&pool->idle_server_list, force_suspend);
-
-		/* as all clients are done, no need for them */
-		close_server_list(&pool->tested_server_list, "close unsafe file descriptors on suspend");
-		close_server_list(&pool->used_server_list, "close unsafe file descriptors on suspend");
-	}
 
 	return active;
 }
@@ -342,13 +239,6 @@ void per_loop_maint(void)
 	int waiting_count = 0;
 	bool partial_pause = false;
 	bool partial_wait = false;
-	bool force_suspend = false;
-
-	if (cf_pause_mode == P_SUSPEND && cf_suspend_timeout > 0) {
-		usec_t stime = get_cached_time() - g_suspend_start;
-		if (stime >= cf_suspend_timeout)
-			force_suspend = true;
-	}
 
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
@@ -366,9 +256,6 @@ void per_loop_maint(void)
 		case P_PAUSE:
 			active_count += per_loop_pause(pool);
 			break;
-		case P_SUSPEND:
-			active_count += per_loop_suspend(pool, force_suspend);
-			break;
 		}
 
 		if (pool->db->db_wait_close) {
@@ -378,13 +265,6 @@ void per_loop_maint(void)
 	}
 
 	switch (cf_pause_mode) {
-	case P_SUSPEND:
-		if (force_suspend) {
-			close_client_list(&login_client_list, "suspend_timeout");
-		} else {
-			active_count += statlist_count(&login_client_list);
-		}
-	/* fallthrough */
 	case P_PAUSE:
 		if (!active_count)
 			admin_pause_done();
@@ -579,7 +459,6 @@ static void check_pool_size(PgPool *pool)
 	if (cur < pool_min_pool_size(pool) &&
 	    cur < pool_pool_size(pool) &&
 	    cf_pause_mode == P_NONE &&
-	    cf_reboot == 0 &&
 	    (pool_client_count(pool) > 0 || pool->db->forced_user_credentials != NULL)) {
 		log_debug("launching new connection to satisfy min_pool_size");
 		launch_new_connection(pool, /* evict_if_needed= */ false);
@@ -820,12 +699,6 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 
 	static unsigned int seq;
 	seq++;
-
-	/*
-	 * Avoid doing anything that may surprise other pgbouncer.
-	 */
-	if (cf_pause_mode == P_SUSPEND)
-		return;
 
 	/*
 	 * Creating new pools to enable `min_pool_size` enforcement even if

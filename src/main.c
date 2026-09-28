@@ -238,7 +238,7 @@ static const struct CfLookup auth_type_map[] = {
 	{ "pam", AUTH_TYPE_PAM },
 #endif
 #ifdef HAVE_GSSAPI
-	{ "gssapi", AUTH_TYPE_GSSAPI },
+	{ "gss", AUTH_TYPE_GSSAPI },
 #endif
 	{ "scram-sha-256", AUTH_TYPE_SCRAM_SHA_256 },
 	{ NULL }

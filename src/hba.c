@@ -774,7 +774,7 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 		rule->rule_method = AUTH_TYPE_SCRAM_SHA_256;
 	} else if (check_kw(tp, "ldap")) {
 		rule->rule_method = AUTH_TYPE_LDAP;
-	} else if (eat_kw(tp, "gssapi")) {
+	} else if (eat_kw(tp, "gss")) {
 		rule->rule_method = AUTH_TYPE_GSSAPI;
 	} else {
 		log_warning("hba line %d: unsupported method: buf=%s", linenr, tp->buf);

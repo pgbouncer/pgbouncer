@@ -494,7 +494,7 @@ pam
     compatible with databases using the `auth_user` option. The service name reported to
     PAM is "pgbouncer". `pam` is not supported in the HBA configuration file.
 
-gssapi
+gss
 :   Client must authenticate using GSSAPI/Kerberos.  pgbouncer validates the
     client's service ticket using `auth_gssapi_keytab` and maps the authenticated
     principal to a local username via `gss_localname()`.  No password is used.
@@ -605,7 +605,7 @@ Controls whether GSSAPI transport encryption is requested on client connections
 
 disable
 :   No GSSAPI encryption; plain-text connection.  The client may still
-    authenticate via GSSAPI (`auth_type = gssapi`) over an unencrypted channel.
+    authenticate via GSSAPI (`auth_type = gss`) over an unencrypted channel.
 
 allow
 :   pgbouncer accepts either GSSAPI-encrypted or unencrypted client connections;

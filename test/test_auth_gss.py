@@ -58,7 +58,7 @@ def gss_credentials(kdc):
     kdestroy()
 
 
-def gss_bouncer_config(kdc, bouncer, pg, *, auth_type="gssapi", extra=""):
+def gss_bouncer_config(kdc, bouncer, pg, *, auth_type="gss", extra=""):
     """Generate a pgbouncer config for GSSAPI testing."""
     return f"""\
 [pgbouncer]
@@ -101,7 +101,7 @@ p0 = host=127.0.0.1 port={pg.port} dbname=p0 user=testuser
 
 
 def test_gssapi_auth_type(kdc, pg, bouncer):
-    """auth_type = gssapi works end-to-end."""
+    """auth_type = gss works end-to-end."""
     config = gss_bouncer_config(kdc, bouncer, pg)
     with bouncer.run_with_config(config):
         kinit()
@@ -141,7 +141,7 @@ def test_gssapi_hba(kdc, pg, bouncer):
         kdc,
         bouncer,
         pg,
-        hba_content="host all all 0.0.0.0/0 gssapi",
+        hba_content="host all all 0.0.0.0/0 gss",
     )
     with bouncer.run_with_config(config):
         kinit()
@@ -239,7 +239,7 @@ def test_gssapi_hba_include_realm_warning(kdc, pg, bouncer):
         kdc,
         bouncer,
         pg,
-        hba_content="host all all 0.0.0.0/0 gssapi include_realm=0",
+        hba_content="host all all 0.0.0.0/0 gss include_realm=0",
     )
     with bouncer.run_with_config(config):
         kinit()
@@ -266,7 +266,7 @@ def test_gssapi_hba_map_rejected(kdc, pg, bouncer):
         kdc,
         bouncer,
         pg,
-        hba_content="host all all 0.0.0.0/0 gssapi map=gssmap",
+        hba_content="host all all 0.0.0.0/0 gss map=gssmap",
         extra=f"auth_ident_file = {ident_file}",
     )
     with bouncer.run_with_config(config):
@@ -336,7 +336,7 @@ def gss_enc_bouncer_config(kdc, bouncer, pg, *, extra=""):
 [pgbouncer]
 listen_addr = 127.0.0.1
 listen_port = {bouncer.port}
-auth_type = gssapi
+auth_type = gss
 auth_gssapi_keytab = {kdc.keytab}
 client_gssencmode = allow
 server_gssencmode = disable
@@ -414,7 +414,7 @@ def test_gssapi_enc_req_after_tls_rejected(kdc, pg, bouncer, cert_dir):
 [pgbouncer]
 listen_addr = 127.0.0.1
 listen_port = {bouncer.port}
-auth_type = gssapi
+auth_type = gss
 auth_gssapi_keytab = {kdc.keytab}
 client_gssencmode = allow
 client_tls_sslmode = allow

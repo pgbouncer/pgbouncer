@@ -39,6 +39,8 @@ static const char *method2string(int method)
 		return "pam";
 	case AUTH_TYPE_SCRAM_SHA_256:
 		return "scram-sha-256";
+	case AUTH_TYPE_GSSAPI:
+		return "gss";
 	default:
 		return "???";
 	}

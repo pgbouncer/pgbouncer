@@ -86,6 +86,12 @@ scram-sha-256	mdb3	muser		face::1
 reject		mdb4	muser		1.2.3.4
 reject		mdb4	muser		face::1
 
+# gss
+gss		gssdb	user		20.1.1.1
+gss		gssdb	user		21.1.1.1
+gss		gssdb	user		20.1.1.1	tls
+reject		gssdb	user		22.1.1.1
+
 # replication
 reject		mdb		muser		::1	replication
 reject		db		userp		unix	replication

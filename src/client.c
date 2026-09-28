@@ -424,7 +424,7 @@ static bool finish_set_pool(PgSocket *client, bool takeover)
 #endif
 #ifndef HAVE_GSSAPI
 	if (auth == AUTH_TYPE_GSSAPI) {
-		disconnect_client(client, true, "gssapi is not supported by this build");
+		disconnect_client(client, true, "gss is not supported by this build");
 		return false;
 	}
 #endif

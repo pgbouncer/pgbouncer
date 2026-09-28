@@ -167,7 +167,7 @@ Results:
 [pgbouncer]
 ; Authentication method for incoming clients.
 ; "hba" selects per-database from an auth_hba_file.
-auth_type = gssapi
+auth_type = gss
 
 ; Keytab for the host-based service SPN that clients acquire tickets for:
 ;   postgres/<pgbouncer-canonical-fqdn>@REALM
@@ -217,7 +217,7 @@ auth_hba_file = /etc/pgbouncer/pg_hba.conf
 
 ```
 # /etc/pgbouncer/pg_hba.conf
-host  mydb  all  0.0.0.0/0  gssapi
+host  mydb  all  0.0.0.0/0  gss
 ```
 
 **Divergence from PostgreSQL pg_hba.conf**: PostgreSQL supports GSSAPI-specific

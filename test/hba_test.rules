@@ -1,4 +1,4 @@
-# METHOD: trust, reject, md5, password, peer, cert
+# METHOD: trust, reject, md5, password, peer, cert, gss
 
 # local      DATABASE  USER  METHOD  [OPTIONS]
 # host       DATABASE  USER  ADDRESS  METHOD  [OPTIONS]
@@ -57,6 +57,10 @@ host		mdb	muser		::1/128			trust
 # "all" address
 host		mdb3	muser		all			scram-sha-256
 host		mdb4	muser		all			reject
+
+# gss
+host		gssdb	all		20.0.0.0/8		gss
+host		gssdb	all		21.0.0.0/8		gss include_realm=0
 
 # replication
 host		replication	admin	::1/128			trust

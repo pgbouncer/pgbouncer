@@ -23,9 +23,11 @@ def test_stdout(pg):
     result = run(
         f"{SCRIPT_PATH} - 'postgresql://postgres@{pg.host}:{pg.port}/postgres'",
         capture_output=True,
+        check=False,
     )
     output = result.stdout.decode().split("\n")
     assert '"bouncer" ""' in output
+    assert result.returncode == 0
 
 
 def test_too_few_args():
@@ -53,18 +55,22 @@ def test_too_many_args():
 def test_file_already_exists(pg, tmp_path):
     mkauth_output_fp = tmp_path / "mkauth_output.txt"
     mkauth_output_fp.touch()
-    run(
+    result = run(
         f"{SCRIPT_PATH} {mkauth_output_fp.absolute()} 'postgresql://postgres@{pg.host}:{pg.port}/postgres'",
         capture_output=True,
+        check=False,
     )
     assert '"bouncer" ""' in mkauth_output_fp.read_text()
+    assert result.returncode == 0
 
 
 def test_file_does_not_exist(pg, tmp_path):
     "Test that etc/mkauth.py script will correctly run and create the output file if it does not exist"
     mkauth_output_fp = tmp_path / "mkauth_output.txt"
-    run(
+    result = run(
         f"{SCRIPT_PATH} {mkauth_output_fp.absolute()} 'postgresql://postgres@{pg.host}:{pg.port}/postgres'",
         capture_output=True,
+        check=False,
     )
     assert '"bouncer" ""' in mkauth_output_fp.read_text()
+    assert result.returncode == 0

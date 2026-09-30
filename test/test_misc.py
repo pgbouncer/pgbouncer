@@ -720,6 +720,13 @@ def test_options_startup_param(bouncer):
     ):
         bouncer.test(options="-c enable_seqscan=false")
 
+    # An option with an empty parameter name should be rejected.
+    with pytest.raises(
+        psycopg.OperationalError,
+        match="unsupported startup parameter in options:",
+    ):
+        bouncer.test(options="-c=")
+
     bouncer.admin("set ignore_startup_parameters = options")
     # Unsupported values should be ignored, so it shouldn't error but it should
     # have its default value instead.
@@ -740,6 +747,10 @@ def test_options_startup_param(bouncer):
         )
         == "Europe/Lisbon"
     )
+
+    # The empty-parameter-name case must also not hang when "options" is in
+    # ignore_startup_parameters; here it is simply ignored rather than rejected.
+    bouncer.test(options="-c=")
 
 
 def test_ignore_tracked_startup_parameter(bouncer):

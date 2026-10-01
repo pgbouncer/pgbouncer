@@ -1073,6 +1073,36 @@ async def test_unreported_param_startup(bouncer):
         assert cur1.execute("SHOW enable_seqscan").fetchone()[0] == "off"
 
 
+async def test_unreported_param_session_reset(bouncer):
+    """A tracked parameter that the server does not report must not be lost
+    across sessions after server_reset_query.
+
+    enable_seqscan is never reported via ParameterStatus (search_path on
+    PostgreSQL <= 17 behaves the same). In session mode the cached server value
+    used to survive DISCARD ALL, so a later client requesting the same value
+    matched the stale cache, no SET was sent, and the client silently ran with
+    the server default instead of its requested value.
+    """
+    bouncer.write_ini("track_extra_parameters = enable_seqscan\ndefault_pool_size = 1")
+    await bouncer.restart()
+    bouncer.admin("set pool_mode=session")
+    bouncer.admin("set verbose=2")
+
+    # First session sets enable_seqscan=off, then disconnects, which runs
+    # server_reset_query (DISCARD ALL) on the single pooled connection.
+    with bouncer.cur(dbname="p1", options="-c enable_seqscan=off") as cur:
+        assert cur.execute("SHOW enable_seqscan").fetchone()[0] == "off"
+
+    # A second session requests the same value on that reset connection.
+    # PgBouncer must send SET again (the stale cache was cleared), so the client
+    # actually gets 'off' rather than the server default 'on'.
+    with (
+        bouncer.log_contains(r"varcache_apply: .*SET enable_seqscan='off'", times=1),
+        bouncer.cur(dbname="p1", options="-c enable_seqscan=off") as cur,
+    ):
+        assert cur.execute("SHOW enable_seqscan").fetchone()[0] == "off"
+
+
 async def test_session_authorization_tracked(bouncer):
     """Test that SET SESSION AUTHORIZATION does not leak to other clients.
 

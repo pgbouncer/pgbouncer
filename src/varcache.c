@@ -308,6 +308,39 @@ void varcache_set_canonical(PgSocket *server, PgSocket *client)
 	}
 }
 
+/*
+ * Clear the cached server values of tracked parameters that the server does
+ * not report via ParameterStatus (the ones absent from pool->orig_vars, e.g.
+ * search_path on PostgreSQL <= 17, or a parameter from track_extra_parameters
+ * that Postgres does not report).
+ *
+ * This must be called after the server session state has been reset
+ * (server_reset_query, typically DISCARD ALL), which returns these parameters
+ * to their session defaults on the backend.  Because the server never reports
+ * them, no ParameterStatus refreshes the varcache, so a stale entry would make
+ * the next client that happens to request that same value match the entry,
+ * skip the SET, and silently run with the backend default.  After clearing,
+ * the next client gets an explicit SET or RESET.
+ *
+ * Reported parameters are left untouched: the backend announces their reset
+ * value with a ParameterStatus, which keeps the varcache correct.
+ */
+void varcache_clear_unreported(PgSocket *server)
+{
+	VarCache *orig_vars = &server->pool->orig_vars;
+	const struct var_lookup *lk, *tmp;
+
+	HASH_ITER(hh, lookup_map, lk, tmp) {
+		if (orig_vars->var_list[lk->idx] != NULL)
+			continue;	/* reported by the server */
+		if (server->vars.var_list[lk->idx] != NULL) {
+			slog_debug(server, "varcache_clear_unreported: clearing server var %s", lk->name);
+			strpool_decref(server->vars.var_list[lk->idx]);
+			server->vars.var_list[lk->idx] = NULL;
+		}
+	}
+}
+
 void varcache_apply_startup(PktBuf *pkt, PgSocket *client)
 {
 	const struct var_lookup *lk, *tmp;

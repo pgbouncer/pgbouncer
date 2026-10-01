@@ -361,7 +361,7 @@ class QueryRunner:
             # respond to connection requests, so we wait a little longer.
             options.setdefault("connect_timeout", 20)
         else:
-            options.setdefault("connect_timeout", 3)
+            options.setdefault("connect_timeout", 10)
         # Always required for Ubuntu 18.04, but also needed for any tests
         # involving the varcache_change database. The difference between the
         # client_encoding specified in the config and client_encoding by the

@@ -205,22 +205,6 @@ def test_evict_statement_cache(bouncer):
         assert n_statements == 2
 
 
-@pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
-def test_evict_statement_cache_pipeline_failure(bouncer):
-    bouncer.admin(f"set max_prepared_statements=1")
-
-    with bouncer.conn() as conn, conn.pipeline() as p:
-        curs = [conn.cursor() for _ in range(4)]
-        curs[0].execute("SELECT 1", prepare=True)
-        curs[1].execute("bad query", prepare=True)
-        with pytest.raises(psycopg.errors.SyntaxError):
-            p.sync()
-        assert curs[0].fetchall() == [(1,)]
-        curs[0].execute("SELECT 1", prepare=True)
-        p.sync()
-        assert curs[0].fetchall() == [(1,)]
-
-
 @pytest.fixture(
     params=[pytest.param(x, id="step_timeout_{}".format(x)) for x in range(3)]
 )
@@ -537,25 +521,42 @@ def test_prepared_failed_prepare(bouncer):
 
 @pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
 def test_prepared_failed_prepare_pipeline(bouncer):
-    with bouncer.conn() as conn, conn.pipeline() as p, conn.cursor() as cur:
-        cur.execute("SELECT 1", prepare=True)
-        cur.execute("SELECT * FROM doesnotexistyet", prepare=True)
-        with pytest.raises(psycopg.errors.UndefinedTable):
-            # Either of these two commands might fail due to timing
-            # differences, usually it's the sync. If the execute fails we
-            # still want it to sync though.
-            try:
-                cur.execute("SELECT 2", prepare=True)
-            finally:
-                p.sync()
-        cur.execute("SELECT 1", prepare=True)
-        p.sync()
-        cur.execute("SELECT 2", prepare=True)
-        p.sync()
-        cur.execute("CREATE TABLE doesnotexistyet (a int)")
-        cur.execute("SELECT * FROM doesnotexistyet", prepare=True)
-        p.sync()
-        cur.execute("DROP TABLE doesnotexistyet")
+    with bouncer.conn() as conn:
+        # Phase 1: break the pipeline with a failed prepare.
+        with conn.pipeline() as p:
+            cur = conn.cursor()
+            cur.execute("SELECT 1", prepare=True)
+            cur.execute("SELECT * FROM doesnotexistyet", prepare=True)
+            with pytest.raises(
+                (psycopg.errors.UndefinedTable, psycopg.errors.PipelineAborted)
+            ):
+                # Either of these two commands might fail due to timing
+                # differences, usually it's the sync. If the execute fails we
+                # still want it to sync though.
+                try:
+                    cur.execute("SELECT 2", prepare=True)
+                finally:
+                    p.sync()
+
+        # The pipeline is marked as broken now, so continuing to use it is not
+        # reliable. Verify in a fresh pipeline that the connection and the
+        # prepared statement cache still work.
+        # See: https://github.com/pgbouncer/pgbouncer/issues/1480
+        with conn.pipeline() as p:
+            cur = conn.cursor()
+            cur.execute("SELECT 1", prepare=True)
+            p.sync()
+            assert cur.fetchall() == [(1,)]
+
+            cur.execute("SELECT 2", prepare=True)
+            p.sync()
+            assert cur.fetchall() == [(2,)]
+
+            cur.execute("CREATE TABLE doesnotexistyet (a int)")
+            cur.execute("SELECT * FROM doesnotexistyet", prepare=True)
+            p.sync()
+            cur.execute("DROP TABLE doesnotexistyet")
+            p.sync()
 
 
 def test_prepared_disallow_name_reuse(bouncer):

@@ -709,6 +709,7 @@ struct PgSocket {
 
 	bool ready : 1;			/* server: accepts new query */
 	bool idle_tx : 1;		/* server: idling in tx */
+	bool aborted_tx : 1;		/* server: last ReadyForQuery reported an aborted transaction */
 	bool close_needed : 1;		/* server: this socket must be closed ASAP */
 	bool setting_vars : 1;		/* server: setting client vars */
 	bool exec_on_connect : 1;	/* server: executing connect_query */

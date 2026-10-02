@@ -369,7 +369,7 @@ bool handle_parse_command(PgSocket *client, PktHdr *pkt)
 	if (found) {
 		/* Such query was already prepared */
 		HASH_FIND_UINT64(server->server_prepared_statements, &ps->query_id, server_ps);
-		if (server_ps) {
+		if (server_ps && !server->aborted_tx) {
 			/* Statement was already prepared on this server, do not forward packet */
 			slog_debug(client, "handle_parse_command: mapping statement '%s' to '%s' (query '%s')",
 				   client_ps->stmt_name, ps->stmt_name, ps->query_and_parameters);
@@ -379,6 +379,41 @@ bool handle_parse_command(PgSocket *client, PktHdr *pkt)
 			 * response to the client at the point where they expect it.
 			 */
 			if (!add_outstanding_request(client, PqMsg_Parse, RA_FAKE))
+				goto oom;
+			goto success;
+		} else if (server_ps) {
+			/*
+			 * The statement is already prepared on this server, but the
+			 * transaction is in the aborted state. We must not fake a
+			 * ParseComplete: PostgreSQL rejects a Parse in an aborted
+			 * transaction, and faking success would leave this name mapped on
+			 * the client, so that retrying it after ROLLBACK is wrongly
+			 * rejected as a duplicate. Forward the Parse so the server
+			 * produces the ErrorResponse and the failure cleanup drops the
+			 * mapping. The statement stays prepared on the server, so do not
+			 * create or register a new server-side mapping; clear the local
+			 * server_ps so the oom path does not free the cached one.
+			 *
+			 * aborted_tx is only a snapshot of the last ReadyForQuery. If the
+			 * client pipelined a ROLLBACK that the server has not acknowledged
+			 * yet, the transaction may already have recovered by the time this
+			 * forwarded Parse arrives, and the server then rejects it with
+			 * "prepared statement already exists" (the name is still prepared)
+			 * rather than the aborted-transaction error. That is still an
+			 * ErrorResponse, so the client gets an error and the mapping is
+			 * cleaned up the same way; only the error text differs.
+			 */
+			server_ps = NULL;
+			slog_debug(client, "handle_parse_command: forwarding Parse for '%s' in aborted transaction so the server rejects it",
+				   client_ps->stmt_name);
+
+			buf = pktbuf_temp();
+			pktbuf_write_Parse(buf, ps->stmt_name, ps->query_and_parameters, ps->query_and_parameters_len);
+			if (!sbuf_queue_packet(&client->sbuf, &server->sbuf, buf))
+				goto oom;
+			if (!add_outstanding_request(client, PqMsg_Parse, RA_FORWARD))
+				goto oom;
+			if (!track_forwarded_client_parse(server, pp.name))
 				goto oom;
 			goto success;
 		}

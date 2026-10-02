@@ -746,3 +746,46 @@ def test_failed_parse_frees_statement_name(bouncer):
         result = pgconn.exec_prepared(b"s1", ())
         assert result.status == pq.ExecStatus.TUPLES_OK
         assert result.get_value(0, 0) == b"1"
+
+
+def test_named_prepare_retry_after_aborted_transaction(bouncer):
+    """Retrying a named prepared statement after an aborted transaction must
+    not close the connection.
+
+    When the query is already prepared on the server (a cache hit), PgBouncer
+    normally skips forwarding the Parse and fakes a ParseComplete. Doing that in
+    an aborted transaction wrongly reported success and left the name mapped on
+    the client, so after ROLLBACK retrying the same name hit the duplicate-name
+    path and closed the connection. The fix forwards the Parse in an aborted
+    transaction so the server ErrorResponse frees the mapping.
+    """
+    bouncer.admin("set pool_mode=transaction")
+    bouncer.admin("set max_prepared_statements=10")
+    # A single backend guarantees the warm-up statement and the aborted
+    # transaction share the same server, so the retry is a genuine cache hit.
+    bouncer.admin("set default_pool_size=1")
+    with bouncer.conn() as conn:
+        pgconn = conn.pgconn
+
+        # Warm the cache: "SELECT 16" is now prepared on the single server.
+        result = pgconn.prepare(b"psname1", b"SELECT 16")
+        assert result.status == pq.ExecStatus.COMMAND_OK, result.error_message
+
+        # Enter a transaction and abort it.
+        assert pgconn.exec_(b"BEGIN").status == pq.ExecStatus.COMMAND_OK
+        assert pgconn.exec_(b"SELECT 1 / 0").status == pq.ExecStatus.FATAL_ERROR
+
+        # Prepare the same query under a new name while the transaction is
+        # aborted. This is a cache hit; the server must reject it.
+        result = pgconn.prepare(b"psname2", b"SELECT 16")
+        assert result.status == pq.ExecStatus.FATAL_ERROR
+
+        assert pgconn.exec_(b"ROLLBACK").status == pq.ExecStatus.COMMAND_OK
+
+        # Retrying the same name must now succeed. Before the fix this closed
+        # the connection with "prepared statement name is already in use".
+        result = pgconn.prepare(b"psname2", b"SELECT 16")
+        assert result.status == pq.ExecStatus.COMMAND_OK, result.error_message
+        result = pgconn.exec_prepared(b"psname2", ())
+        assert result.status == pq.ExecStatus.TUPLES_OK
+        assert result.get_value(0, 0) == b"16"

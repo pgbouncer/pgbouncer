@@ -54,6 +54,27 @@ static void close_client_list(struct StatList *sk_list, const char *reason)
 }
 
 /*
+ * Disconnect clients that are still authenticating (state CL_LOGIN) and belong
+ * to the given pool.
+ *
+ * Such clients live on the global login_client_list, not on the pool
+ * active/waiting lists, so kill_pool() would otherwise free the pool while
+ * they still reference it through client->pool and crash when login finishes
+ * (e.g. welcome_client() reads the freed pool->welcome_msg).
+ */
+static void close_login_client_list_for_pool(PgPool *pool, const char *reason)
+{
+	struct List *item, *tmp;
+	PgSocket *client;
+
+	statlist_for_each_safe(item, &login_client_list, tmp) {
+		client = container_of(item, PgSocket, head);
+		if (client->pool == pool)
+			disconnect_client(client, true, "%s", reason);
+	}
+}
+
+/*
  * send test/reset query to server if needed
  */
 static void launch_recheck(PgPool *pool)
@@ -791,6 +812,7 @@ void kill_pool(PgPool *pool)
 
 	close_client_list(&pool->active_client_list, reason);
 	close_client_list(&pool->waiting_client_list, reason);
+	close_login_client_list_for_pool(pool, reason);
 
 	close_client_list(&pool->active_cancel_req_list, reason);
 	close_client_list(&pool->waiting_cancel_req_list, reason);

@@ -1117,3 +1117,33 @@ async def test_session_authorization_tracked(bouncer):
         cur1.execute("RESET SESSION AUTHORIZATION")
         assert cur1.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"
         assert cur2.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"
+
+
+def test_long_quoted_application_name_preserved(bouncer):
+    """A legal application_name whose quoted form exceeds the internal quoting
+    buffer must still be replayed to the backend, and must not leak a previous
+    value (issue #1632).
+
+    apply_var() quoted the value into a fixed 128-byte buffer. The worst case
+    (63 single quotes) escape to 126 bytes, which together with the surrounding
+    quotes and NUL overflows it, so pg_quote_literal() failed and the SET was
+    silently dropped, leaving the previous (or default) value in place.
+    """
+    bouncer.admin("set pool_mode=transaction")
+    # A single backend makes the reuse below deterministic.
+    bouncer.admin("set default_pool_size=1")
+    value = "'" * 63
+
+    # Fresh backend: the value must be applied, not dropped to empty.
+    with bouncer.cur(application_name=value) as cur:
+        got = cur.execute("SELECT current_setting('application_name')").fetchone()[0]
+        assert got == value
+
+    # Reused backend: another client used the single pooled connection first
+    # with a different application_name. The long-quoted value must still be
+    # applied and must not leak the previous value.
+    with bouncer.cur(application_name="previous_client_marker") as cur:
+        cur.execute("SELECT 1")
+    with bouncer.cur(application_name=value) as cur:
+        got = cur.execute("SELECT current_setting('application_name')").fetchone()[0]
+        assert got == value

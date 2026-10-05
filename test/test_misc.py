@@ -7,6 +7,7 @@ import time
 
 import psycopg
 import pytest
+from psycopg.rows import dict_row
 
 from .utils import (
     HAVE_IPV6_LOCALHOST,
@@ -17,6 +18,7 @@ from .utils import (
     PKT_BUF_SIZE,
     USE_UNIX_SOCKETS,
     WINDOWS,
+    wait_until,
 )
 
 
@@ -1117,3 +1119,26 @@ async def test_session_authorization_tracked(bouncer):
         cur1.execute("RESET SESSION AUTHORIZATION")
         assert cur1.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"
         assert cur2.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"
+
+
+def test_server_error_when_not_linked(bouncer, pg):
+    """
+    Postgres sends an ErrorResponse before it terminates a backend, for
+    example on shutdown or pg_terminate_backend(). If that backend is an idle
+    server connection in the pool, the log should contain what the server
+    said, not only the packet type.
+    """
+    pid = bouncer.sql_value("SELECT pg_backend_pid()")
+
+    with (
+        bouncer.log_contains(
+            r"server sent error while not linked to a client: FATAL: terminating connection due to administrator command \(SQLSTATE 57P01\)",
+            times=1,
+        ),
+        bouncer.log_contains(r"from server when not linked", times=0),
+    ):
+        pg.sql(f"SELECT pg_terminate_backend({pid})")
+        for _ in wait_until("server connection was not closed"):
+            servers = bouncer.admin("SHOW SERVERS", row_factory=dict_row)
+            if all(s["remote_pid"] != pid for s in servers):
+                break

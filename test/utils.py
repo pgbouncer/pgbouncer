@@ -199,25 +199,34 @@ LIBPQ_SUPPORTS_PIPELINING = psycopg.pq.version() >= 140000
 def get_build_feature(config_mak_key, meson_define):
     """Detect whether pgbouncer was built with a certain feature enabled.
 
-    An autotools build records this in config.mak, a meson build in the
-    generated test_config.h header. For meson we assume the conventional
-    "build" directory name, since the tests have no way of knowing where
-    the build directory actually is.
+    An autotools build records this in config.mak, a meson build in its
+    generated config header.
+
+    meson test passes the header's path in the environment variable
+    PGBOUNCER_CONFIG_H.  If the environment variable is not set, fall
+    back to the conventional "build" directory, to simplify running
+    pytest by hand.  PGBOUNCER_CONFIG_H can also be set by hand to
+    point elsewhere.
     """
-    meson_config = Path("../build/test_config.h")
+    from_env = os.environ.get("PGBOUNCER_CONFIG_H")
+    if from_env:
+        meson_config = Path(from_env)
+    else:
+        meson_config = TEST_DIR.parent / "build" / "test_config.h"
     if meson_config.exists():
         return (
             re.search(rf"#define {meson_define}\b", meson_config.read_text())
             is not None
         )
-    config_mak = Path("../config.mak")
+    config_mak = TEST_DIR.parent / "config.mak"
     if config_mak.exists():
         match = re.search(rf"{config_mak_key} = (\w+)", config_mak.read_text())
         assert match is not None
         return match.group(1) == "yes"
     raise FileNotFoundError(
-        "Could not find ../config.mak (autotools) or ../build/test_config.h (meson). "
-        "Configure the project first, and for meson use 'build' as the build directory."
+        f"Could not find {config_mak} (autotools) or a meson config header. "
+        "Configure the project first; for a meson build directory other than "
+        "'build', point PGBOUNCER_CONFIG_H at its test_config.h."
     )
 
 

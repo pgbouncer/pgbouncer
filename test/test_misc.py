@@ -604,6 +604,37 @@ def _send_startup_message(bouncer, parameters):
             return message_type, stream.read(message_length - 4)
 
 
+def _startup_packet(user, database):
+    parameters = b"\0".join((b"user", user, b"database", database, b"", b""))
+    payload = struct.pack("!I", 0x30000) + parameters
+    return struct.pack("!I", len(payload) + 4) + payload
+
+
+def _read_message(stream):
+    message_type = stream.read(1)
+    message_length = struct.unpack("!I", stream.read(4))[0]
+    return message_type, stream.read(message_length - 4)
+
+
+@pytest.mark.parametrize("database", [b"p0", b"nonexistent_db"])
+def test_second_startup_message_rejected(bouncer, database):
+    # An unknown database doesn't get a pool, which used to let a second
+    # StartupMessage through and switch identity mid-authentication.
+    bouncer.admin("set auth_type = md5")
+
+    with socket.create_connection((bouncer.host, bouncer.port)) as sock:
+        sock.sendall(_startup_packet(b"puser1", database))
+        with sock.makefile("rb") as stream:
+            message_type, _ = _read_message(stream)
+            assert message_type == b"R"
+
+            with bouncer.log_contains("client re-sent startup pkt"):
+                sock.sendall(_startup_packet(b"pgbouncer", b"pgbouncer"))
+                message_type, message = _read_message(stream)
+            assert message_type == b"E"
+            assert b"client re-sent startup pkt" in message
+
+
 def test_protocol_extension_negotiation(bouncer):
     protocol_version = 0x30000
     extension = b"_pq_.test_protocol_negotiation"

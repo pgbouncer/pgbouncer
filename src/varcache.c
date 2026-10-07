@@ -43,6 +43,16 @@ static inline struct PStr *get_value(VarCache *cache, const struct var_lookup *l
 	return cache->var_list[lk->idx];
 }
 
+/*
+ * Whether the server reports this parameter to us with ParameterStatus. Only
+ * reported parameters get stored in orig_vars, because they are taken from the
+ * ParameterStatus messages of the first server connection of the pool.
+ */
+static inline bool is_reported(PgPool *pool, const struct var_lookup *lk)
+{
+	return get_value(&pool->orig_vars, lk) != NULL;
+}
+
 static bool sl_add(void *arg, const char *s)
 {
 	return strlist_append(arg, s);
@@ -343,6 +353,26 @@ void varcache_set_canonical(PgSocket *server, PgSocket *client)
 			strpool_decref(server_val);
 			server->vars.var_list[lk->idx] = NULL;
 		}
+	}
+}
+
+/*
+ * Called when the server completed a DISCARD ALL or RESET ALL, which reset all
+ * parameters to the defaults of the server connection. For reported
+ * parameters the server sends ParameterStatus messages for any values that
+ * changed, but for unreported ones it doesn't. So we need to forget any values
+ * that we've SET for those, otherwise we'd think the server still has them.
+ */
+void varcache_discard_unreported(PgSocket *server)
+{
+	const struct var_lookup *lk, *tmp;
+
+	HASH_ITER(hh, lookup_map, lk, tmp) {
+		if (is_reported(server->pool, lk) || !server->vars.var_list[lk->idx])
+			continue;
+		slog_debug(server, "varcache_discard_unreported: server var %s reset to NULL", lk->name);
+		strpool_decref(server->vars.var_list[lk->idx]);
+		server->vars.var_list[lk->idx] = NULL;
 	}
 }
 

@@ -742,6 +742,18 @@ def test_options_startup_param(bouncer):
     )
 
 
+def test_ignore_tracked_startup_parameter(bouncer):
+    """A parameter listed in ignore_startup_parameters is ignored, even if it's
+    one that PgBouncer tracks by default."""
+    default = bouncer.sql_value("SHOW search_path")
+    assert bouncer.sql_value("SHOW search_path", options="-c search_path=foo") == "foo"
+
+    bouncer.admin("set ignore_startup_parameters = search_path")
+    assert (
+        bouncer.sql_value("SHOW search_path", options="-c search_path=foo") == default
+    )
+
+
 def test_startup_message_larger_than_pktbuf(bouncer):
     long_string = "1" * PKT_BUF_SIZE
     bouncer.test(options=f"-c extra_float_digits={long_string}")

@@ -130,21 +130,22 @@ static char * cstr_get_pair(char *p,
  */
 static bool set_param_value(char **old_value, const char *new_value)
 {
+	char *value = NULL;
+
 	if (strcmpeq(*old_value, new_value))
 		return true;
 
-	if (*old_value)
-		free(*old_value);
-
 	if (new_value) {
-		*old_value = strdup(new_value);
-		if (!(*old_value)) {
+		value = strdup(new_value);
+		if (!value) {
 			log_error("out of memory");
 			return false;
 		}
-	} else {
-		*old_value = NULL;
 	}
+
+	/* Keep the old value authoritative until the replacement is allocated. */
+	free(*old_value);
+	*old_value = value;
 
 	return true;
 }
@@ -202,6 +203,10 @@ bool parse_peer(void *base, const char *name, const char *connstr)
 		}
 
 		if (strcmp("host", key) == 0) {
+			if (!host_list_is_valid(val)) {
+				log_error("invalid host list: empty host entry");
+				goto fail;
+			}
 			if (!set_param_value(&host, val))
 				goto fail;
 		} else if (strcmp("port", key) == 0) {
@@ -315,6 +320,10 @@ bool parse_database(void *base, const char *name, const char *connstr)
 		if (strcmp("dbname", key) == 0) {
 			dbname = val;
 		} else if (strcmp("host", key) == 0) {
+			if (!host_list_is_valid(val)) {
+				log_error("invalid host list: empty host entry");
+				goto fail;
+			}
 			if (!set_param_value(&host, val))
 				goto fail;
 		} else if (strcmp("port", key) == 0) {
@@ -393,29 +402,30 @@ bool parse_database(void *base, const char *name, const char *connstr)
 
 	/* if updating old db, check if anything changed */
 	if (db->dbname) {
-		bool changed = false;
+		bool reconnect_all = false;
+		bool host_membership_changed = !host_lists_have_same_members(db->host, host);
+
 		if (strcmp(db->dbname, dbname) != 0) {
-			changed = true;
-		} else if (!strcmpeq(host, db->host)) {
-			changed = true;
+			reconnect_all = true;
 		} else if (port != db->port) {
-			changed = true;
+			reconnect_all = true;
 		} else if (username && !db->forced_user_credentials) {
-			changed = true;
+			reconnect_all = true;
 		} else if (username && strcmp(username, db->forced_user_credentials->name) != 0) {
-			changed = true;
+			reconnect_all = true;
 		} else if (!username && db->forced_user_credentials) {
-			changed = true;
+			reconnect_all = true;
 		} else if (!strcmpeq(connect_query, db->connect_query)) {
-			changed = true;
+			reconnect_all = true;
 		} else if (!strcmpeq(db->auth_dbname, auth_dbname)) {
-			changed = true;
+			reconnect_all = true;
 		} else if (!strcmpeq(db->auth_query, auth_query)) {
-			changed = true;
-		} else if (load_balance_hosts != db->load_balance_hosts) {
-			changed = true;
+			reconnect_all = true;
 		}
-		if (changed)
+
+		if (host_membership_changed)
+			apply_database_host_change(db, db->host, host, reconnect_all);
+		else if (reconnect_all)
 			tag_database_dirty(db);
 	}
 

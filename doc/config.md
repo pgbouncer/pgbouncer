@@ -300,8 +300,14 @@ The Postgres protocol allows specifying parameters settings, both directly as a
 parameter in the startup packet, or inside the [`options` startup
 packet][options-startup]. Parameters specified using both of these methods are
 supported by `ignore_startup_parameters`. It's even possible to include
-`options` itself in `track_extra_parameters`, which results in any unknown
+`options` itself in `ignore_startup_parameters`, which results in any unknown
 parameters contained inside `options` to be ignored.
+
+Parameters that are explicitly listed here are ignored even if PgBouncer would
+otherwise track them. This can be used to opt out of tracking parameters that
+are tracked by default, e.g. `search_path` on Postgres versions before 18,
+where Postgres does not report changes to it. Including `options` does not
+cause tracked parameters inside `options` to be ignored.
 
 
 [options-startup]: https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNECT-OPTIONS

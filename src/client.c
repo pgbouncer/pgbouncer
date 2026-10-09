@@ -920,9 +920,19 @@ static bool set_startup_options(PgSocket *client, const char *options)
 
 		key_string = (const char *) arg.data;
 		value_string = (const char *) equals + 1;
-		if (varcache_set(&client->vars, key_string, value_string)) {
+		/*
+		 * An explicitly ignored parameter takes precedence over tracking
+		 * it, so that it's possible to opt out of tracking for the
+		 * parameters that are tracked by default. But ignoring all of
+		 * "options" does not, because that would stop us from tracking
+		 * parameters that we've always tracked when they are passed in
+		 * options.
+		 */
+		if (strlist_contains(cf_ignore_startup_params, key_string)) {
+			slog_debug(client, "ignoring startup parameter from options: %s=%s", key_string, value_string);
+		} else if (varcache_set(&client->vars, key_string, value_string)) {
 			slog_debug(client, "got var from options: %s=%s", key_string, value_string);
-		} else if (strlist_contains(cf_ignore_startup_params, key_string) || strlist_contains(cf_ignore_startup_params, "options")) {
+		} else if (strlist_contains(cf_ignore_startup_params, "options")) {
 			slog_debug(client, "ignoring startup parameter from options: %s=%s", key_string, value_string);
 		} else {
 			slog_warning(client, "unsupported startup parameter in options: %s=%s", key_string, value_string);
@@ -1039,10 +1049,11 @@ static bool decide_startup_pool(PgSocket *client, PktHdr *pkt)
 			unsupported_protocol_extensions_count++;
 			if (!mbuf_write(&unsupported_protocol_extensions, key, strlen(key) + 1))
 				goto fail;
+		} else if (strlist_contains(cf_ignore_startup_params, key)) {
+			/* takes precedence over tracking, see set_startup_options */
+			slog_debug(client, "ignoring startup parameter: %s=%s", key, val);
 		} else if (varcache_set(&client->vars, key, val)) {
 			slog_debug(client, "got var: %s=%s", key, val);
-		} else if (strlist_contains(cf_ignore_startup_params, key)) {
-			slog_debug(client, "ignoring startup parameter: %s=%s", key, val);
 		} else {
 			slog_warning(client, "unsupported startup parameter: %s=%s", key, val);
 			disconnect_client(client, true, "unsupported startup parameter: %s", key);

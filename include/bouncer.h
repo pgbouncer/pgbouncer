@@ -878,6 +878,7 @@ extern char *cf_resolv_conf;
 extern int cf_auth_type;
 extern char *cf_auth_file;
 extern char *cf_auth_query;
+extern int cf_auth_query_client_addr;
 extern char *cf_auth_user;
 extern char *cf_auth_hba_file;
 extern char *cf_auth_dbname;

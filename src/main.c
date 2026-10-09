@@ -123,6 +123,7 @@ char *cf_auth_ident_file;
 char *cf_auth_ldap_options;
 char *cf_auth_user;
 char *cf_auth_query;
+int cf_auth_query_client_addr;
 char *cf_auth_dbname;
 char *cf_track_extra_parameters;
 
@@ -265,6 +266,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("auth_ident_file", CF_STR, cf_auth_ident_file, 0, NULL),
 	CF_ABS("auth_ldap_options", CF_STR, cf_auth_ldap_options, 0, NULL),
 	CF_ABS("auth_query", CF_STR, cf_auth_query, 0, "SELECT rolname, CASE WHEN rolvaliduntil < now() THEN NULL ELSE rolpassword END FROM pg_authid WHERE rolname=$1 AND rolcanlogin"),
+	CF_ABS("auth_query_client_addr", CF_INT, cf_auth_query_client_addr, 0, "0"),
 	CF_ABS("auth_type", CF_LOOKUP(auth_type_map), cf_auth_type, 0, "md5"),
 	CF_ABS("auth_user", CF_STR, cf_auth_user, 0, NULL),
 	CF_ABS("autodb_idle_timeout", CF_TIME_USEC, cf_autodb_idle_timeout, 0, "3600"),

@@ -348,10 +348,10 @@ char *build_client_final_message(PgSocket *server,
 		goto failed;
 
 	len = strlcat(buf, ",p=", sizeof(buf));
-	/* Final string is too long */
-	if (len >= sizeof(buf))
-		goto failed;
 	enclen = pg_b64_enc_len(sizeof(client_proof));
+	/* Final string is too long */
+	if (len + enclen >= sizeof(buf))
+		goto failed;
 	enclen = pg_b64_encode(client_proof,
 			       SCRAM_SHA_256_KEY_LEN,
 			       buf + len, enclen);

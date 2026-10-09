@@ -4,7 +4,7 @@ PgBouncer changelog
 PgBouncer 1.26.x
 ----------------
 
-**2026-10-XX  -  PgBouncer 1.26.1  -  "TODO"**
+**2026-10-14  -  PgBouncer 1.26.1  -  "TODO"**
 
 - Fixes
     * Make `ignore_startup_parameters` take precedence over tracked parameters. Since 1.26.0 `search_path` is tracked by default, which caused `ignore_startup_parameters = search_path` to silently have no effect anymore. On PostgreSQL 17 and older, which do not report `search_path`, a client passing `search_path` at connect time could then end up with the server default or even with another client's `search_path`. Adding `search_path` to `ignore_startup_parameters` now restores the 1.25 behaviour of ignoring it. (bug introduced in 1.26.0)

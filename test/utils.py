@@ -228,6 +228,20 @@ def get_ldap_support():
 LDAP_SUPPORT = get_ldap_support()
 
 
+def get_pam_support():
+    return get_build_feature("pam_support", "HAVE_PAM")
+
+
+PAM_SUPPORT = get_pam_support()
+
+
+def get_pam_start_confdir_support():
+    return get_build_feature("pam_start_confdir_support", "HAVE_PAM_START_CONFDIR")
+
+
+PAM_START_CONFDIR_SUPPORT = get_pam_start_confdir_support()
+
+
 def get_tls_support():
     return get_build_feature("tls_support", "USUAL_LIBSSL_FOR_TLS")
 
@@ -1292,6 +1306,18 @@ class Bouncer(QueryRunner):
             with self.ini_path.open("w") as f:
                 f.write(config_old)
             self.admin("RELOAD")
+
+
+class PAM:
+    def __init__(self, config_dir):
+        self.pam_config_dir = config_dir / "pam.d"
+        self.pam_config_dir.mkdir()
+
+    def create_pam_service_file(self, contents):
+        pam_config_file_path = self.pam_config_dir / "pgbouncer"
+        with pam_config_file_path.open(mode="w") as pam_config_file_path_of:
+            pam_config_file_path_of.write(contents)
+        return pam_config_file_path_of
 
 
 class OpenLDAP:

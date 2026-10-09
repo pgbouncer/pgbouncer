@@ -4,6 +4,15 @@ PgBouncer changelog
 PgBouncer 1.26.x
 ----------------
 
+**2026-10-14  -  PgBouncer 1.26.1  -  "Only startup once"**
+
+- Security
+    * Fix CVE-2026-107350: PgBouncer 1.17.0 through 1.26.0 processed a second StartupMessage sent during SCRAM authentication when the client connected to a non-existent database. An attacker knowing the password of a user listed in `auth_file` could use this to log in as any other user that authenticates using SCRAM, including admins and backend superusers. This requires SCRAM authentication to be used for both users. The impersonated user can come from either `auth_file` or `auth_query`.
+    * Fix CVE-2026-107349: An unauthenticated client could make PgBouncer 1.20.0 through 1.26.0 spin forever on a CPU core, and thus stop serving all clients, by sending a startup `options` parameter containing an empty option name such as `-c=`. This is only exploitable when `ignore_startup_parameters` is non-empty but does not contain `options`.
+    * Fix CVE-2026-107348: An integer overflow in the packet buffer growth logic of PgBouncer 1.21.0 through 1.26.0 could cause PgBouncer to hang in an infinite loop when a client sent a packet header declaring a length above 2^31. This is only exploitable when `max_packet_size` is set to 2147483649 or higher, the default of 2147483647 is not affected. Since 1.23.0 this is reachable before authentication. This is the same class of bug as CVE-2026-6668, but in a different buffer implementation.
+- Fixes
+    * Make `ignore_startup_parameters` take precedence over tracked parameters. Since 1.26.0 `search_path` is tracked by default, which caused `ignore_startup_parameters = search_path` to silently have no effect anymore. Since the release various bugs were reported around tracking of `search_path` parameter. These bugs will be addressed in a later release. Adding `search_path` to `ignore_startup_parameters` now restores the 1.25 behaviour of ignoring it. (bug introduced in 1.26.0)
+
 **2026-09-23  -  PgBouncer 1.26.0  -  "Ignore all previous search_path"**
 
 - Security

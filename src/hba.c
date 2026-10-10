@@ -519,7 +519,7 @@ static bool match_map(struct HBARule *rule, struct Ident *ident, const char *map
 static bool parse_map_definition(struct HBARule *rule, struct Ident *ident, struct TokParser *tp, int linenr)
 {
 	const char *str;
-	char *val;
+	const char *val;
 
 	if (!expect(tp, TOK_IDENT, &str))
 		return true;
@@ -722,7 +722,12 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 			log_warning("hba line %d: did not find address - %d - '%s'", linenr, tp->cur_tok, tp->buf);
 			goto failed;
 		}
-		nmask = strchr(addr, '/');
+		/*
+		 * tp->buf and addr are the same pointer, but addr is const.
+		 * Edit tp->buf here, which will then also change addr.  We
+		 * cannot edit addr directly because it is const.
+		 */
+		nmask = strchr(tp->buf, '/');
 		if (nmask) {
 			*nmask++ = 0;
 		}

@@ -28,6 +28,9 @@ Default: not set
 
 Specifies the PID file. Without `pidfile` set, daemonization (`-d`) is not allowed.
 
+Changing this setting requires a restart. `RELOAD` and `SET` keep the old
+value without a warning.
+
 Default: not set
 
 ### listen_addr
@@ -38,11 +41,17 @@ only Unix socket connections are accepted.
 
 Addresses can be specified numerically (IPv4/IPv6) or by name.
 
+Changing this setting requires a restart. `RELOAD` and `SET` keep the old
+value without a warning.
+
 Default: not set
 
 ### listen_port
 
 Which port to listen on. Applies to both TCP and Unix sockets.
+
+Changing this setting requires a restart. `RELOAD` and `SET` keep the old
+value without a warning.
 
 Default: 6432
 
@@ -54,6 +63,9 @@ A value that starts with `@` specifies that a Unix socket in the
 abstract namespace should be created (currently supported on Linux and
 Windows).
 
+Changing this setting requires a restart. `RELOAD` and `SET` keep the old
+value without a warning.
+
 Default: `/tmp` (empty on Windows)
 
 ### unix_socket_mode
@@ -61,6 +73,9 @@ Default: `/tmp` (empty on Windows)
 File system mode for Unix socket.
 Ignored for sockets in the abstract namespace.
 Not supported on Windows.
+
+Changing this setting requires a restart. `RELOAD` and `SET` keep the old
+value without a warning.
 
 Default: 0777
 
@@ -70,6 +85,9 @@ Group name to use for Unix socket.
 Ignored for sockets in the abstract namespace.
 Not supported on Windows.
 
+Changing this setting requires a restart. `RELOAD` and `SET` keep the old
+value without a warning.
+
 Default: not set
 
 ### user
@@ -77,6 +95,9 @@ Default: not set
 If set, specifies the Unix user to change to after startup. Works only if
 PgBouncer is started as root or if it's already running as the given user.
 Not supported on Windows.
+
+Changing this setting requires a restart. `RELOAD` and `SET` keep the old
+value without a warning.
 
 Default: not set
 
@@ -283,6 +304,9 @@ supported by `track_extra_parameters`. However, it's not possible to include
 `options` itself in `track_extra_parameters`, only the parameters contained in
 `options`.
 
+Changing this setting requires a restart. `RELOAD` and `SET` keep the old
+value without a warning.
+
 Default: empty
 
 ### ignore_startup_parameters
@@ -325,6 +349,9 @@ classes of SQL-injection attacks.  Disabling it can improve security.
 Obviously, this means only clients that exclusively use the Extended Query
 protocol will stay working.
 
+Changing this setting requires a restart. `RELOAD` and `SET` keep the old
+value without a warning.
+
 Default: 0
 
 ### application_name_add_host
@@ -347,11 +374,17 @@ Default: file from command line
 
 Used on win32 service registration.
 
+Changing this setting requires a restart. `RELOAD` and `SET` keep the old
+value without a warning.
+
 Default: `pgbouncer`
 
 ### job_name
 
 Alias for `service_name`.
+
+Changing this setting requires a restart. `RELOAD` and `SET` keep the old
+value without a warning.
 
 ### stats_period
 
@@ -853,6 +886,9 @@ The parsing of the file is done by the DNS backend library, not
 PgBouncer, so see the library's documentation for details on allowed
 syntax and directives.
 
+Changing this setting requires a restart. `RELOAD` and `SET` keep the old
+value without a warning.
+
 Default: empty (use operating system defaults)
 
 ### query_wait_notify
@@ -1132,6 +1168,9 @@ Internal buffer size for packets. Affects size of TCP packets sent and general
 memory usage. Actual libpq packets can be larger than this, so no need to set it
 large.
 
+Changing this setting requires a restart. `RELOAD` and `SET` keep the old
+value without a warning.
+
 Default: 4096
 
 ### max_packet_size
@@ -1146,6 +1185,9 @@ Default: 2147483647
 Backlog argument for listen(2).  Determines how many new unanswered connection
 attempts are kept in the queue.  When the queue is full, further new
 connections are dropped.
+
+Changing this setting requires a restart. `RELOAD` and `SET` keep the old
+value without a warning.
 
 Default: 128
 
@@ -1190,6 +1232,9 @@ peering between the different PgBouncer processes. For details look at docs
 for the `peer_id` configuration option and the `peers` configuration section.
 There's also an example that uses peering and so_reuseport in the example
 section of these docs.
+
+Changing this setting requires a restart. `RELOAD` and `SET` keep the old
+value without a warning.
 
 Default: 0
 

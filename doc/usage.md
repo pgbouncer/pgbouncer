@@ -820,6 +820,10 @@ changeable settings.  This includes the main configuration file as
 well as the files specified by the settings `auth_file` and
 `auth_hba_file`.
 
+A few settings can only be changed with a restart. They are marked in
+**pgbouncer(5)** and show `no` in the `changeable` column of `SHOW
+CONFIG`. `RELOAD` keeps their old value without a warning.
+
 PgBouncer notices when a configuration file reload changes the
 connection parameters of a database definition.  An existing server
 connection to the old destination will be closed when the server

@@ -171,6 +171,9 @@ jobs:
           - name: plain
           - name: ubsan
             cflags: "-fno-sanitize-recover=all -fsanitize=undefined -fsanitize-address-use-after-scope -fno-sanitize=shift"
+          - name: tsan
+            cflags: "-fsanitize=thread"
+            meson_args: "-Dldap=enabled -Dpam=enabled"
           - name: scan-build
             scan_build: "yes"
           - name: arm
@@ -180,7 +183,7 @@ jobs:
     env:
       PGVERSION: "16"
       BUILD_SYSTEM: meson
-      MESON_ARGS: -Dcassert=true -Dsystemd=enabled -Dcares=disabled
+      MESON_ARGS: -Dcassert=true -Dsystemd=enabled -Dcares=disabled ${{ matrix.meson_args }}
       CFLAGS_OVERRIDE: ${{ matrix.cflags }}
       USE_SCAN_BUILD: ${{ matrix.scan_build }}
       DIST: ""

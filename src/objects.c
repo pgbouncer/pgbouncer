@@ -512,6 +512,26 @@ PgGlobalUser *update_global_user_passwd(PgGlobalUser *user, const char *passwd)
 	return user;
 }
 
+/*
+ * Put the [users] section settings of a user back to the values that a user
+ * without a [users] entry has.  Used both for a new user and for a user whose
+ * entry disappeared from the config file.
+ */
+void reset_global_user_config(PgGlobalUser *user)
+{
+	user->pool_mode = POOL_INHERIT;
+	user->pool_size = -1;
+	user->res_pool_size = -1;
+	user->max_user_connections = -1;
+	user->max_user_client_connections = -1;
+	user->transaction_timeout = 0;
+	user->idle_transaction_timeout = 0;
+	user->query_timeout = 0;
+	user->query_wait_timeout = 0;
+	user->query_wait_timeout_set = false;
+	user->client_idle_timeout = 0;
+}
+
 static PgGlobalUser *add_new_global_user(const char *name, const char *passwd)
 {
 	PgGlobalUser *user = slab_alloc(user_cache);
@@ -527,9 +547,7 @@ static PgGlobalUser *add_new_global_user(const char *name, const char *passwd)
 	put_in_order(&user->head, &user_list, cmp_user);
 
 	aatree_insert(&user_tree, (uintptr_t)user->credentials.name, &user->credentials.tree_node);
-	user->pool_mode = POOL_INHERIT;
-	user->pool_size = -1;
-	user->res_pool_size = -1;
+	reset_global_user_config(user);
 
 	return update_global_user_passwd(user, passwd);
 }

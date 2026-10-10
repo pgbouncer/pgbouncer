@@ -584,6 +584,15 @@ struct PgGlobalUser {
 	int max_user_client_connections;	/* how many client connections are allowed */
 	int connection_count;	/* how many server connections are used by user now */
 	int client_connection_count;	/* how many client connections are used by user now */
+
+	/*
+	 * Set on every config load and cleared again by parse_user() for each
+	 * user that the [users] section still lists.  A user that keeps the
+	 * flag has lost its [users] entry, so its settings above are stale and
+	 * get reset once the new config file is known to be valid.  The user
+	 * itself is never removed, it can still have live connections.
+	 */
+	bool config_dead;
 };
 
 /*

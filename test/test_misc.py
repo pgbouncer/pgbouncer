@@ -888,6 +888,7 @@ async def test_already_paused_client_during_wait_for_servers_shutdown(bouncer):
             # New transaction so this should fail
             with pytest.raises(psycopg.OperationalError):
                 await task
+            await conn2.close()
 
 
 @pytest.mark.skipif(

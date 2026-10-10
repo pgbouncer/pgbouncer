@@ -163,6 +163,24 @@ def wait_until(error_message="Did not complete", timeout=5, interval=0.1):
     raise TimeoutError(error_message + " in time")
 
 
+async def wait_until_async(
+    condition, error_message="Did not complete", timeout=10, interval=0.1
+):
+    """
+    Like wait_until(), but for async tests: yields to the event loop between
+    checks so that concurrently pending tasks (eg. from bouncer.asleep()) can
+    make progress while we wait.
+    """
+    start = time.monotonic()
+    end = start + timeout
+    while True:
+        if condition():
+            return
+        if time.monotonic() >= end:
+            raise TimeoutError(f"{error_message} in {timeout} seconds")
+        await asyncio.sleep(interval)
+
+
 def get_pg_major_version():
     full_version_string = capture("initdb --version", silent=True)
     major_version_string = re.search("[0-9]+", full_version_string)
@@ -327,6 +345,7 @@ class QueryRunner:
         self.replication_slots = set()
         self.schemas = set()
         self.users = set()
+        self.pending_async_tasks = set()
 
     def set_default_connection_options(self, options):
         """Sets the default connection options on the given options dictionary"""
@@ -342,7 +361,7 @@ class QueryRunner:
             # respond to connection requests, so we wait a little longer.
             options.setdefault("connect_timeout", 20)
         else:
-            options.setdefault("connect_timeout", 3)
+            options.setdefault("connect_timeout", 10)
         # Always required for Ubuntu 18.04, but also needed for any tests
         # involving the varcache_change database. The difference between the
         # client_encoding specified in the config and client_encoding by the
@@ -431,7 +450,9 @@ class QueryRunner:
 
         This opens a new connection and closes it once the query is done
         """
-        return asyncio.ensure_future(self.asql_coroutine(query, **kwargs))
+        return self._track_task(
+            asyncio.ensure_future(self.asql_coroutine(query, **kwargs))
+        )
 
     async def asql_coroutine(
         self, query, params=None, **kwargs
@@ -489,11 +510,36 @@ class QueryRunner:
             Instead of running all pg_sleep calls spawned by providing
             times > 1 concurrently, this will run them sequentially.
         """
-        return asyncio.ensure_future(
-            self.asleep_coroutine(
-                duration=duration, times=times, sequentially=sequentially, **kwargs
+        return self._track_task(
+            asyncio.ensure_future(
+                self.asleep_coroutine(
+                    duration=duration, times=times, sequentially=sequentially, **kwargs
+                )
             )
         )
+
+    def _track_task(self, task):
+        self.pending_async_tasks.add(task)
+        task.add_done_callback(self.pending_async_tasks.discard)
+        return task
+
+    async def cancel_pending_tasks(self):
+        """Cancel and reap tasks still running from asql()/asleep()/atest()
+
+        This has to be called from the event loop the tasks were created on,
+        while it is still open. Tasks that a test left pending (eg. because
+        PgBouncer was stopped while they were still running) would otherwise
+        keep holding their psycopg.AsyncConnection open until garbage
+        collection reclaims them, which fails whatever test happens to run
+        at that moment with an unraisable ResourceWarning.
+        """
+        pending = list(self.pending_async_tasks)
+        if not pending:
+            return
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+        self.pending_async_tasks.difference_update(pending)
 
     async def asleep_coroutine(self, duration=3, times=1, sequentially=False, **kwargs):
         """This is the coroutine that the asleep task runs internally"""
@@ -1222,6 +1268,11 @@ class Bouncer(QueryRunner):
 
     async def cleanup(self):
         try:
+            # Reap any async tasks the test left pending while the event
+            # loop (and the bouncer) are still available, so they can close
+            # their connections cleanly.
+            await self.cancel_pending_tasks()
+            await self.admin_runner.cancel_pending_tasks()
             cleanup_test_leftovers(self)
             await self.stop()
         finally:

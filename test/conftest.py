@@ -105,10 +105,8 @@ def shared_setup(tmp_path_factory, worker_id):
                 finished_count_file.write_text(str(finished_count))
 
 
-@pytest.fixture(autouse=True, scope="session")
-def pg(tmp_path_factory, cert_dir):
-    """Starts a new Postgres db that is shared for tests in this process"""
-    pg = Postgres(tmp_path_factory.getbasetemp() / "pgdata")
+def pg_setup(tmp_path_factory, cert_dir, pgdata_dir_name):
+    pg = Postgres(tmp_path_factory.getbasetemp() / pgdata_dir_name)
     pg.initdb()
     os.truncate(pg.hba_path, 0)
 
@@ -173,6 +171,24 @@ def pg(tmp_path_factory, cert_dir):
         pg.sql("set password_encryption = 'on'; create user muser2 password 'wrong';")
         pg.sql("set password_encryption = 'on'; create user puser1 password 'foo';")
         pg.sql("set password_encryption = 'on'; create user puser2 password 'wrong';")
+
+    return pg
+
+
+@pytest.fixture(autouse=True, scope="session")
+def pg(tmp_path_factory, cert_dir):
+    """Starts a new Postgres db that is shared for tests in this process"""
+    pg = pg_setup(tmp_path_factory, cert_dir, "pgdata")
+
+    yield pg
+
+    pg.cleanup()
+
+
+@pytest.fixture(autouse=True, scope="session")
+def pg2(tmp_path_factory, cert_dir):
+    """Starts a new Postgres db that is shared for tests in this process"""
+    pg = pg_setup(tmp_path_factory, cert_dir, "pgdata2")
 
     yield pg
 

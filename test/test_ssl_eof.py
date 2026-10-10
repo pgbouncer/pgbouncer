@@ -19,9 +19,11 @@ async def bouncer(pg, tmp_path):
     bouncer = Bouncer(
         pg, tmp_path / "bouncer", base_ini_path=TEST_DIR / "ssl" / "test.ini"
     )
-    await bouncer.start()
-    yield bouncer
-    await bouncer.cleanup()
+    try:
+        await bouncer.start()
+        yield bouncer
+    finally:
+        await bouncer.cleanup()
 
 
 def _abrupt_tls_close(host, port, ca_file):

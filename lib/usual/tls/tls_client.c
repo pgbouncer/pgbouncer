@@ -155,6 +155,28 @@ int tls_connect_socket(struct tls *ctx, int s, const char *servername)
 	return tls_connect_fds(ctx, s, s, servername);
 }
 
+/* Validate local client TLS material without opening a connection. */
+int usual_tls_configure_client(struct tls *ctx)
+{
+	if ((ctx->ssl_ctx = SSL_CTX_new(SSLv23_client_method())) == NULL) {
+		tls_set_errorx(ctx, "ssl context failure");
+		goto err;
+	}
+
+	if (tls_configure_ssl(ctx) != 0)
+		goto err;
+	if (tls_configure_keypair(ctx, ctx->ssl_ctx, ctx->config->keypair, 0) != 0)
+		goto err;
+
+	if (ctx->config->verify_cert &&
+	    (tls_configure_ssl_verify(ctx, SSL_VERIFY_PEER) == -1))
+		goto err;
+
+	return 0;
+err:
+	return -1;
+}
+
 int tls_connect_fds(struct tls *ctx, int fd_read, int fd_write,
 		    const char *servername)
 {
@@ -178,14 +200,7 @@ int tls_connect_fds(struct tls *ctx, int fd_read, int fd_write,
 		}
 	}
 
-	if ((ctx->ssl_ctx = SSL_CTX_new(SSLv23_client_method())) == NULL) {
-		tls_set_errorx(ctx, "ssl context failure");
-		goto err;
-	}
-
-	if (tls_configure_ssl(ctx) != 0)
-		goto err;
-	if (tls_configure_keypair(ctx, ctx->ssl_ctx, ctx->config->keypair, 0) != 0)
+	if (usual_tls_configure_client(ctx) != 0)
 		goto err;
 
 	if (ctx->config->verify_name) {
@@ -194,10 +209,6 @@ int tls_connect_fds(struct tls *ctx, int fd_read, int fd_write,
 			goto err;
 		}
 	}
-
-	if (ctx->config->verify_cert &&
-	    (tls_configure_ssl_verify(ctx, SSL_VERIFY_PEER) == -1))
-		goto err;
 
 	if (SSL_CTX_set_tlsext_status_cb(ctx->ssl_ctx, tls_ocsp_verify_callback) != 1) {
 		tls_set_errorx(ctx, "ssl OCSP verification setup failure");

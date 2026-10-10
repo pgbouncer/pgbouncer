@@ -47,6 +47,7 @@ struct tls_keypair {
 };
 
 struct tls_config {
+	unsigned int references;
 	struct tls_error error;
 
 	const char *ca_file;

@@ -793,6 +793,7 @@ def test_default_transaction_read_only(bouncer):
     with bouncer.cur() as rwcur:
         assert rwcur.execute("SHOW transaction_read_only").fetchone()[0] == "off"
 
+
 async def test_search_path_case_sensitive(bouncer):
     bouncer.write_ini("track_extra_parameters = search_path\ndefault_pool_size = 1")
     await bouncer.restart()

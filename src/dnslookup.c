@@ -85,6 +85,34 @@ struct DNSRequest {
 	struct addrinfo *oldres;
 
 	usec_t res_ttl;
+
+	/* when the currently-outstanding query was issued (see adns_check_stuck) */
+	usec_t launch_time;
+
+	/*
+	 * A request relaunched by adns_check_stuck() can briefly have more than one
+	 * query in flight, and a new resolution episode can start while an old query
+	 * is still outstanding.  epoch is bumped when a new episode starts (see
+	 * start_resolution), but not on a stuck relaunch; answered_epoch is the
+	 * highest epoch whose result has been delivered.  Each query carries the
+	 * epoch it was launched for (struct DNSQuery), and got_result_gai() accepts
+	 * only an answer newer than answered_epoch -- so a late answer from a
+	 * superseded query is discarded instead of clobbering the fresh result.
+	 */
+	unsigned epoch;
+	unsigned answered_epoch;
+};
+
+/*
+ * One per issued query.  Carries the epoch the query was launched for so a late
+ * answer from a superseded query (a stuck-relaunch duplicate, or a straggler
+ * from an earlier episode) can be recognised and discarded.  Passed to the
+ * backend as the callback argument and freed by the backend glue after
+ * got_result_gai() returns.
+ */
+struct DNSQuery {
+	struct DNSRequest *req;
+	unsigned epoch;
 };
 
 /* zone name serial */
@@ -229,7 +257,7 @@ const char *adns_get_backend(void)
 
 struct GaiRequest {
 	struct List node;
-	struct DNSRequest *req;
+	struct DNSQuery *q;
 	struct gaicb gairq;
 };
 
@@ -254,7 +282,8 @@ static void dns_signal(int f, short ev, void *arg)
 
 		/* got one */
 		list_del(&rq->node);
-		got_result_gai(e, rq->gairq.ar_result, rq->req);
+		got_result_gai(e, rq->gairq.ar_result, rq->q);
+		free(rq->q);
 		free(rq);
 	}
 }
@@ -286,7 +315,7 @@ static bool impl_init(struct DNSContext *ctx)
 	return true;
 }
 
-static void impl_launch_query(struct DNSRequest *req)
+static void impl_launch_query(struct DNSRequest *req, struct DNSQuery *q)
 {
 	static const struct addrinfo hints = { .ai_socktype = SOCK_STREAM };
 
@@ -300,7 +329,7 @@ static void impl_launch_query(struct DNSRequest *req)
 		goto failed2;
 
 	list_init(&grq->node);
-	grq->req = req;
+	grq->q = q;
 	grq->gairq.ar_name = req->name;
 	grq->gairq.ar_request = &hints;
 	list_append(&gctx->gairq_list, &grq->node);
@@ -321,6 +350,7 @@ failed:
 	list_del(&grq->node);
 	free(grq);
 failed2:
+	free(q);
 	req->done = true;
 	deliver_info(req);
 }
@@ -394,14 +424,23 @@ static bool impl_init(struct DNSContext *ctx)
 	return true;
 }
 
-static void impl_launch_query(struct DNSRequest *req)
+/* evdns callback: unwrap the per-query token, deliver, then free it */
+static void evdns_result_cb(int result, struct addrinfo *res, void *arg)
+{
+	struct DNSQuery *q = arg;
+
+	got_result_gai(result, res, q);
+	free(q);
+}
+
+static void impl_launch_query(struct DNSRequest *req, struct DNSQuery *q)
 {
 	static const struct addrinfo hints = { .ai_socktype = SOCK_STREAM };
 
 	struct evdns_getaddrinfo_request *gai_req;
 	struct evdns_base *dns = req->ctx->edns;
 
-	gai_req = evdns_getaddrinfo(dns, req->name, NULL, &hints, got_result_gai, req);
+	gai_req = evdns_getaddrinfo(dns, req->name, NULL, &hints, evdns_result_cb, q);
 	log_noise("dns: evdns_getaddrinfo(%s)=%p", req->name, gai_req);
 }
 
@@ -562,21 +601,22 @@ re_set:
 /* called by c-ares on dns reply */
 static void xares_host_cb(void *arg, int status, int timeouts, struct hostent *h)
 {
-	struct DNSRequest *req = arg;
+	struct DNSQuery *q = arg;
 	struct addrinfo *res = NULL;
 
-	log_noise("dns: xares_host_cb(%s)=%s", req->name, ares_strerror(status));
+	log_noise("dns: xares_host_cb(%s)=%s", q->req->name, ares_strerror(status));
 	if (status == ARES_SUCCESS) {
 		res = convert_hostent(h);
-		got_result_gai(0, res, req);
+		got_result_gai(0, res, q);
 	} else {
-		log_debug("DNS lookup failed: %s - %s", req->name, ares_strerror(status));
-		got_result_gai(0, res, req);
+		log_debug("DNS lookup failed: %s - %s", q->req->name, ares_strerror(status));
+		got_result_gai(0, res, q);
 	}
+	free(q);
 }
 
 /* send hostname query */
-static void impl_launch_query(struct DNSRequest *req)
+static void impl_launch_query(struct DNSRequest *req, struct DNSQuery *q)
 {
 	struct XaresMeta *meta = req->ctx->edns;
 	int af;
@@ -596,7 +636,7 @@ static void impl_launch_query(struct DNSRequest *req)
 	af = AF_UNSPEC;
 #endif
 	log_noise("dns: ares_gethostbyname(%s)", req->name);
-	ares_gethostbyname(meta->chan, req->name, af, xares_host_cb, req);
+	ares_gethostbyname(meta->chan, req->name, af, xares_host_cb, q);
 
 	meta->got_events = true;
 }
@@ -847,6 +887,81 @@ void adns_free_context(struct DNSContext *ctx)
 	}
 }
 
+/* allocate a per-query token stamped with the request's current epoch */
+static struct DNSQuery *new_query(struct DNSRequest *req)
+{
+	struct DNSQuery *q = malloc(sizeof(*q));
+
+	if (q) {
+		q->req = req;
+		q->epoch = req->epoch;
+	}
+	return q;
+}
+
+#ifdef CASSERT
+/* test-only: the request (and its epoch) whose first lookup was dropped */
+static struct DNSRequest *test_hung_req;
+static unsigned test_hung_epoch;
+#endif
+
+/*
+ * Issue (or re-issue) the backend query for a request and record when, so that
+ * adns_check_stuck() can relaunch a request whose resolver callback never fires.
+ */
+static void launch_request(struct DNSRequest *req)
+{
+	struct DNSQuery *q;
+
+	req->launch_time = get_cached_time();
+
+#ifdef CASSERT
+	/*
+	 * Test-only fault injection, compiled only in cassert builds
+	 * (--enable-cassert / meson -Dcassert=true), like the atexit cleanup in
+	 * main.c: drop the first lookup so its callback never fires, reproducing the
+	 * "hung in-process resolver" that leaves a request pending forever (see
+	 * adns_check_stuck / test/test_dns_stuck.py). Armed at startup from
+	 * PGB_TEST_DNS_FAULT (see main.c); a no-op otherwise.  Dropped before
+	 * active++/new_query, so nothing leaks.
+	 */
+	if (test_dns_hang) {
+		static bool hung_once = false;
+		if (!hung_once) {
+			hung_once = true;
+			test_hung_req = req;
+			test_hung_epoch = req->epoch;
+			log_warning("TEST: dropping lookup of '%s' to simulate a hung resolution",
+				    req->name);
+			return;
+		}
+	}
+#endif
+
+	req->ctx->active++;
+	q = new_query(req);
+	if (!q) {
+		/* out of memory: fail this launch; deliver_info() balances active */
+		req->done = true;
+		deliver_info(req);
+		return;
+	}
+	impl_launch_query(req, q);
+}
+
+/*
+ * Start a new resolution episode: bump the epoch so the next answer is accepted
+ * (and any straggler from a superseded episode is discarded) and issue the query.
+ * A stuck relaunch (adns_check_stuck) instead calls launch_request() directly, so
+ * it stays in the same episode and the first answer -- from whichever query --
+ * wins.
+ */
+static void start_resolution(struct DNSRequest *req)
+{
+	req->epoch++;
+	launch_request(req);
+}
+
 struct DNSToken *adns_resolve(struct DNSContext *ctx, const char *name, adns_callback_f cb_func, void *cb_arg)
 {
 	int namelen = strlen(name);
@@ -876,8 +991,7 @@ struct DNSToken *adns_resolve(struct DNSContext *ctx, const char *name, adns_cal
 
 		zone_register(ctx, req);
 
-		ctx->active++;
-		impl_launch_query(req);
+		start_resolution(req);
 	}
 
 	/* remember user callback */
@@ -894,8 +1008,7 @@ struct DNSToken *adns_resolve(struct DNSContext *ctx, const char *name, adns_cal
 		if (req->res_ttl < get_cached_time()) {
 			log_noise("dns: ttl over: %s", req->name);
 			req_reset(req);
-			ctx->active++;
-			impl_launch_query(req);
+			start_resolution(req);
 		} else {
 			deliver_info(req);
 		}
@@ -941,7 +1054,27 @@ static void check_req_result_changes(struct DNSRequest *req)
 /* struct addrinfo -> deliver_info() */
 static void got_result_gai(int result, struct addrinfo *res, void *arg)
 {
-	struct DNSRequest *req = arg;
+	struct DNSQuery *q = arg;
+	struct DNSRequest *req = q->req;
+
+	/*
+	 * A request relaunched by adns_check_stuck() can have more than one query
+	 * in flight, and a new resolution episode can start while an old query is
+	 * still outstanding.  Each query carries the epoch it was launched for, so
+	 * accept only an answer newer than the one already delivered; discard a late
+	 * answer from a superseded query (a same-episode duplicate, or a straggler
+	 * from an earlier episode) so it cannot clobber the fresh result or mark good
+	 * addresses dirty.  The query still counted against ctx->active when it was
+	 * launched, so drop it here.
+	 */
+	if (q->epoch <= req->answered_epoch) {
+		log_noise("dns: discarding superseded result for '%s'", req->name);
+		if (res)
+			freeaddrinfo(res);
+		req->ctx->active--;
+		return;
+	}
+	req->answered_epoch = q->epoch;
 
 	req_reset(req);
 
@@ -1121,8 +1254,7 @@ static void zone_requeue(struct DNSContext *ctx, struct DNSZone *z)
 		if (!req->done)
 			continue;
 		req->res_ttl = 0;
-		ctx->active++;
-		impl_launch_query(req);
+		start_resolution(req);
 	}
 }
 
@@ -1207,7 +1339,112 @@ void adns_walk_zones(struct DNSContext *ctx, adns_walk_zone_f cb, void *arg)
 	aatree_walk(&ctx->zone_tree, AA_WALK_IN_ORDER, walk_zone, &w);
 }
 
+/*
+ * Relaunch a request whose resolver callback never fired.
+ *
+ * A request is relaunched only once it is ->done: adns_resolve() does so in its
+ * req->done branch, and zone_requeue() skips !done requests.  So if the
+ * in-process resolver never calls back (a hung resolution), the request stays
+ * pending forever, and every later resolution of that name attaches to the
+ * stuck request without issuing a new query -- the name is then permanently
+ * unresolvable (SHOW DNS_HOSTS shows it empty, servers stay at (bad-af)) even
+ * though a fresh resolver on the same host resolves it, and only a restart
+ * clears it.  When dns_resolve_timeout is set, relaunch any request that has
+ * been pending longer than that so recovery does not require a restart.
+ */
+struct StuckWalk {
+	usec_t now;
+	struct DNSRequest **stuck;
+	int count;
+	int alloc;
+};
+
+static void collect_stuck_cb(struct AANode *node, void *arg)
+{
+	struct StuckWalk *w = arg;
+	struct DNSRequest *req = container_of(node, struct DNSRequest, node);
+	struct DNSRequest **tmp;
+	int n;
+
+	if (req->done)
+		return;
+	if (w->now - req->launch_time < cf_dns_resolve_timeout)
+		return;
+
+	if (w->count == w->alloc) {
+		n = w->alloc ? w->alloc * 2 : 16;
+		tmp = realloc(w->stuck, n * sizeof(*tmp));
+		if (!tmp)
+			return;	/* out of memory: relaunch what we have, retry the rest next scan */
+		w->stuck = tmp;
+		w->alloc = n;
+	}
+	w->stuck[w->count++] = req;
+}
+
+static void adns_check_stuck(struct DNSContext *ctx)
+{
+	static usec_t last_check;
+	usec_t now = get_cached_time();
+	struct StuckWalk w;
+	int i;
+
+	if (!cf_dns_resolve_timeout)
+		return;
+
+	/* limit the tree walk to once per second */
+	if (last_check && now - last_check < USEC)
+		return;
+	last_check = now;
+
+	/* collect first, then relaunch, so the tree is not mutated mid-walk */
+	w.now = now;
+	w.stuck = NULL;
+	w.count = 0;
+	w.alloc = 0;
+	aatree_walk(&ctx->req_tree, AA_WALK_IN_ORDER, collect_stuck_cb, &w);
+
+	for (i = 0; i < w.count; i++) {
+		struct DNSRequest *req = w.stuck[i];
+		log_warning("dns: lookup of '%s' still pending after %d s; relaunching",
+			    req->name, (int)((now - req->launch_time) / USEC));
+		launch_request(req);
+	}
+	free(w.stuck);
+}
+
+#ifdef CASSERT
+/*
+ * Test-only (compiled only in cassert builds, --enable-cassert /
+ * -Dcassert=true): once a dropped ("hung") request has recovered via a relaunch,
+ * simulate its original query finally answering late, carrying the epoch it was
+ * launched for.  The epoch guard in got_result_gai() must discard this stale
+ * answer so it cannot clobber the fresh result.  Pair it with an active++ so the
+ * discard's active-- balances (a real late query would have taken one when it
+ * was launched).  Armed at startup from PGB_TEST_DNS_FAULT (see main.c).
+ */
+static void test_late_stale(void)
+{
+	struct DNSRequest *req = test_hung_req;
+	struct DNSQuery q;
+
+	if (!req || !req->done || !test_dns_late_stale)
+		return;
+	test_hung_req = NULL;
+
+	q.req = req;
+	q.epoch = test_hung_epoch;
+	log_warning("TEST: delivering late stale callback for '%s'", req->name);
+	req->ctx->active++;
+	got_result_gai(0, NULL, &q);
+}
+#endif
+
 void adns_per_loop(struct DNSContext *ctx)
 {
 	impl_per_loop(ctx);
+	adns_check_stuck(ctx);
+#ifdef CASSERT
+	test_late_stale();
+#endif
 }

@@ -236,6 +236,18 @@ TLS_SUPPORT = get_tls_support()
 DIRECT_TLS_SUPPORT = TLS_SUPPORT and PG_MAJOR_VERSION >= 17
 
 
+def get_cassert():
+    """Detect a cassert build (--enable-cassert / meson -Dcassert=true).
+
+    Test-only fault-injection hooks (e.g. those used by test_dns_stuck.py) are
+    compiled only in cassert builds, so `pgbouncer --version` reports it there.
+    """
+    return "cassert: yes" in capture([BOUNCER_EXE, "--version"], silent=True)
+
+
+CASSERT = get_cassert()
+
+
 # this is out of ephemeral port range for many systems hence
 # it is a lower change that it will conflict with "in-use" ports
 PORT_LOWER_BOUND = 10200

@@ -34,6 +34,19 @@ bool any_user_level_timeout_set;
 bool any_user_level_client_timeout_set;
 bool any_database_level_client_timeout_set;
 
+/*
+ * Which configuration load parse_user() is stamping the users it sets with, so
+ * that once a load has succeeded the users it mentioned can be told from the
+ * ones it did not.
+ */
+static uint64_t user_settings_generation;
+
+/* Start stamping for a new load; called before the file is read. */
+void step_user_settings_generation(void)
+{
+	user_settings_generation++;
+}
+
 /* parse parameter name before '=' */
 static char *cstr_get_key(char *p, char **dst_p)
 {
@@ -596,6 +609,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	user->query_wait_timeout_set = query_wait_timeout_set;
 	user->client_idle_timeout = client_idle_timeout;
 	user->max_user_client_connections = max_user_client_connections;
+	user->settings_generation = user_settings_generation;
 
 	free(tmp_connstr);
 	return true;
@@ -603,6 +617,32 @@ bool parse_user(void *base, const char *name, const char *connstr)
 fail:
 	free(tmp_connstr);
 	return false;
+}
+
+/*
+ * Return the users the configuration just loaded says nothing about to the
+ * defaults parse_user() above starts from, so that deleting a [users] entry takes
+ * its settings away.  An unmentioned user cannot simply be dropped the way an
+ * unmentioned database is: it also holds the auth file's password and the
+ * connection counts, which outlive any one configuration.
+ *
+ * Call this only once the load has succeeded.  cf_load_file() gives up at the
+ * first bad line, so a load that failed inside [users] never stamped the entries
+ * after it, and they would be defaulted here as though they had been deleted.
+ */
+void reset_unmentioned_user_settings(void)
+{
+	struct List *item;
+	PgGlobalUser *user;
+
+	statlist_for_each(item, &user_list) {
+		user = container_of(item, PgGlobalUser, head);
+		if (user->settings_generation == user_settings_generation)
+			continue;
+		/* an empty settings list is exactly the defaults */
+		if (!parse_user(NULL, user->credentials.name, ""))
+			log_error("cannot reset settings of user %s", user->credentials.name);
+	}
 }
 
 /*

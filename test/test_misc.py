@@ -794,6 +794,27 @@ def test_default_transaction_read_only(bouncer):
         assert rwcur.execute("SHOW transaction_read_only").fetchone()[0] == "off"
 
 
+async def test_search_path_case_sensitive(bouncer):
+    bouncer.write_ini("track_extra_parameters = search_path\ndefault_pool_size = 1")
+    await bouncer.restart()
+    bouncer.admin("set pool_mode=transaction")
+
+    with (
+        bouncer.cur(dbname="p1", options='-c search_path="Foo"') as cur1,
+        bouncer.cur(dbname="p1", options='-c search_path="foo"') as cur2,
+    ):
+        pid1 = cur1.execute("SELECT pg_backend_pid()").fetchone()[0]
+        pid2 = cur2.execute("SELECT pg_backend_pid()").fetchone()[0]
+        assert pid1 == pid2
+
+        for _ in range(2):
+            sp1 = cur1.execute("SHOW search_path").fetchone()[0]
+            sp2 = cur2.execute("SHOW search_path").fetchone()[0]
+            assert sp1 != sp2
+            assert "Foo" in sp1
+            assert "foo" in sp2
+
+
 @pytest.mark.skipif("WINDOWS", reason="Windows doesn't support sending SIGTERM")
 async def test_repeated_sigterm(bouncer):
     with bouncer.cur() as cur:

@@ -62,6 +62,7 @@ def test_show_user(bouncer):
     Specifically we are trying to fix a bug where pool_size and reserve_pool_size
     would take its value from the previous row if a pool_size was not set for a later
     user. In this case test2's pool_size should not be impacted by test1's value.
+    An override that is not set is reported as NULL, like pool_mode in the same row.
     """
     config = f"""
     [databases]
@@ -77,17 +78,16 @@ def test_show_user(bouncer):
     pool_mode = session
 
     [users]
-    test1 = pool_size=1 reserve_pool_size=1
+    test1 = pool_size=1 reserve_pool_size=2
     test2 =
     """
 
     with bouncer.run_with_config(config):
         users = bouncer.admin(f"SHOW USERS", row_factory=dict_row)
         users = [user for user in users if user["name"] in ["test1", "test2"]]
-        assert ["1", ""] == [user["pool_size"].lstrip().rstrip() for user in users]
-        assert ["1", ""] == [
-            user["reserve_pool_size"].lstrip().rstrip() for user in users
-        ]
+        assert ["1", None] == [user["pool_size"] for user in users]
+        assert ["2", None] == [user["reserve_pool_size"] for user in users]
+        assert [None, None] == [user["pool_mode"] for user in users]
 
 
 def test_show(bouncer):

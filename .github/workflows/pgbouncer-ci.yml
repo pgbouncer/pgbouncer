@@ -24,11 +24,11 @@ env:
   LANG: C
 
 # Most platforms build with meson. The autoconf build still coexists and is
-# kept exercised on three jobs: the `autoconf` entry in the `linux` matrix (a
-# stock Ubuntu runner, which also produces the dist tarball), the Debian forky
-# container, and the Windows job (which produces the release zip; see there for
-# why). The per-step commands live in ci/run.sh, which takes the build system as
-# an argument, so both are driven the same way.
+# kept exercised on four jobs: the `autoconf` entry in the `linux` matrix (a
+# stock Ubuntu runner, which also produces the dist tarball), the Debian trixie
+# and forky containers, and the Windows job (which produces the release zip;
+# see there for why). The per-step commands live in ci/run.sh, which takes the
+# build system as an argument, so both are driven the same way.
 
 jobs:
   # Builds and tests on native GitHub-hosted Ubuntu runners. These run as the
@@ -190,10 +190,10 @@ jobs:
   # official container images. Container jobs run as root, where PostgreSQL
   # refuses to initdb, so we build and test as an unprivileged `user`.
   #
-  # bookworm is built with meson; forky exercises the autoconf build instead.
-  # forky is Debian testing rather than a stable release so that new Autoconf
-  # releases get caught early: Autoconf 2.73 silently generated a configure
-  # with empty CFLAGS/WFLAGS (#1624), which ci/run.sh now asserts against.
+  # bookworm is built with meson; trixie exercises the autoconf build instead.
+  # forky (testing) also builds with autoconf, to catch new Autoconf releases
+  # early: Autoconf 2.73 silently generated a configure with empty
+  # CFLAGS/WFLAGS (#1624), which ci/run.sh now asserts against.
   linux-debian:
     name: Linux Debian (${{ matrix.name }}, ${{ matrix.build_system }})
     if: >-
@@ -210,6 +210,7 @@ jobs:
           # The Debian jobs below use the PG version that ships with
           # them (so that we test what users are likely to use).
           - { name: bookworm, image: debian:bookworm, pgversion: "15", build_system: meson }
+          - { name: trixie, image: debian:trixie, pgversion: "17", build_system: autoconf }
           - { name: forky, image: debian:forky, pgversion: "18", build_system: autoconf }
     env:
       PGVERSION: ${{ matrix.pgversion }}

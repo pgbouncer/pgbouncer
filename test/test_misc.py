@@ -4,6 +4,7 @@ import socket
 import struct
 import threading
 import time
+from pathlib import Path
 
 import psycopg
 import pytest
@@ -17,6 +18,7 @@ from .utils import (
     PKT_BUF_SIZE,
     USE_UNIX_SOCKETS,
     WINDOWS,
+    run,
 )
 
 

@@ -4,7 +4,7 @@ import os
 import sys
 import tempfile
 
-import psycopg2
+import psycopg
 
 if len(sys.argv) != 3:
     print("usage: mkauth DSTFN CONNSTR")
@@ -20,7 +20,7 @@ if fn != "-":
         old = ""
 
 # create new file data
-db = psycopg2.connect(sys.argv[2])
+db = psycopg.connect(sys.argv[2])
 curs = db.cursor()
 curs.execute(
     "SELECT rolname, CASE WHEN rolvaliduntil < pg_catalog.now() THEN NULL ELSE rolpassword END FROM pg_authid WHERE rolcanlogin order by 1"

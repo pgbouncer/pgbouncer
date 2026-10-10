@@ -1036,13 +1036,15 @@ async def test_server_login_large_packets(bouncer):
 
 
 async def test_unreported_param_startup(bouncer):
-    """Test that startup parameters tracked via track_extra_parameters are applied.
+    """Startup parameters tracked via track_extra_parameters are applied and
+    isolated per client.
 
     When track_extra_parameters includes a parameter that PostgreSQL does not report
     via ParameterStatus (such as enable_seqscan), PgBouncer stores client->vars
     from the startup options, but server->vars remains NULL. Consequently,
     apply_var() must apply the variable when sval is NULL and reset it when a
-    client without the variable connects.
+    client without the variable connects. Clients that are active concurrently
+    must each keep their own value and never inherit another client value.
     """
     bouncer.write_ini("track_extra_parameters = enable_seqscan\ndefault_pool_size = 1")
     await bouncer.restart()
@@ -1073,6 +1075,24 @@ async def test_unreported_param_startup(bouncer):
         bouncer.cur(dbname="p1", options="-c enable_seqscan=off") as cur1,
     ):
         assert cur1.execute("SHOW enable_seqscan").fetchone()[0] == "off"
+
+    # Verify that clients which are active concurrently each keep their own
+    # value, rather than inheriting another client value through the shared
+    # server connection. Each statement is its own transaction (autocommit), so
+    # the single pooled server is switched between the clients.
+    with (
+        bouncer.cur(dbname="p1", options="-c enable_seqscan=off") as cur_x,
+        bouncer.cur(dbname="p1", options="-c enable_seqscan=on") as cur_z,
+        bouncer.cur(dbname="p1") as cur_y,
+    ):
+        assert cur_x.execute("SHOW enable_seqscan").fetchone()[0] == "off"
+        assert cur_z.execute("SHOW enable_seqscan").fetchone()[0] == "on"
+        # cur_x must still see its own value after cur_z used the connection.
+        assert cur_x.execute("SHOW enable_seqscan").fetchone()[0] == "off"
+        # A client that passes no value gets the server default.
+        assert cur_y.execute("SHOW enable_seqscan").fetchone()[0] == "on"
+        # cur_z must still see its own value, undisturbed by the other clients.
+        assert cur_z.execute("SHOW enable_seqscan").fetchone()[0] == "on"
 
 
 async def test_session_authorization_tracked(bouncer):

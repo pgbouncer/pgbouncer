@@ -410,6 +410,38 @@ static bool send_pending_fake_responses(PgSocket *server, PgSocket *client)
 	return true;
 }
 
+/*
+ * Log a packet that the server sent while no client was linked to it.
+ *
+ * ErrorResponse and NoticeResponse are expected here sometimes. For example
+ * when Postgres shuts down or a backend gets terminated, it sends a FATAL
+ * error to the connection before closing it. In those cases log what the
+ * server said, so the reason ends up in the log.
+ */
+static void log_unlinked_server_packet(PgSocket *server, PktHdr *pkt)
+{
+	const char *level = NULL, *msg = NULL, *sqlstate = NULL;
+	PktHdr copy;
+
+	if ((pkt->type == PqMsg_ErrorResponse || pkt->type == PqMsg_NoticeResponse)
+	    && !incomplete_pkt(pkt)) {
+		/* parse a copy, so the read position of pkt stays the same */
+		copy = *pkt;
+		parse_server_error(&copy, &level, &msg, &sqlstate);
+	}
+
+	if (level == NULL || msg == NULL) {
+		slog_warning(server, "got packet '%c' from server when not linked",
+			     pkt_desc(pkt));
+	} else if (pkt->type == PqMsg_ErrorResponse) {
+		slog_info(server, "server sent error while not linked to a client: %s: %s (SQLSTATE %s)",
+			  level, msg, sqlstate ? sqlstate : "unknown");
+	} else {
+		slog_info(server, "server sent notice while not linked to a client: %s: %s",
+			  level, msg);
+	}
+}
+
 /* process packets on logged in connection */
 static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 {
@@ -671,11 +703,8 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 				return false;
 		}
 	} else {
-		if (server->state != SV_TESTED) {
-			slog_warning(server,
-				     "got packet '%c' from server when not linked",
-				     pkt_desc(pkt));
-		}
+		if (server->state != SV_TESTED)
+			log_unlinked_server_packet(server, pkt);
 		sbuf_prepare_skip(sbuf, pkt->len);
 	}
 

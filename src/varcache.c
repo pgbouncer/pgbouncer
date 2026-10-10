@@ -285,10 +285,48 @@ void varcache_set_canonical(PgSocket *server, PgSocket *client)
 {
 	struct PStr *server_val, *client_val;
 	const struct var_lookup *lk, *tmp;
+	VarCache *orig_vars = &server->pool->orig_vars;
 
 	HASH_ITER(hh, lookup_map, lk, tmp) {
 		server_val = server->vars.var_list[lk->idx];
 		client_val = client->vars.var_list[lk->idx];
+
+		if (orig_vars->var_list[lk->idx] == NULL) {
+			/*
+			 * The server does not report this parameter via ParameterStatus
+			 * (it is not present in pool->orig_vars), e.g. search_path on
+			 * PostgreSQL <= 17, or a parameter from track_extra_parameters
+			 * that Postgres does not report.
+			 *
+			 * varcache_apply() just issued the SET/RESET that makes the server
+			 * match the client, so the client value is what the server
+			 * actually has now: record it as the server value.
+			 *
+			 * The canonical-value handling below assumes that when no
+			 * ParameterStatus arrived the server kept its own (canonical)
+			 * spelling of the client value, and copies the server value back
+			 * to the client.  But the server never sends a ParameterStatus for
+			 * a parameter it does not report, so here its absence tells us
+			 * nothing.  The server entry may still hold an earlier client
+			 * value, and copying that to the current client would leave
+			 * clients of the same pool running with the other client values.
+			 * So *never* copy server -> client here.
+			 */
+			if (client_val != server_val) {
+				strpool_incref(client_val);
+				strpool_decref(server_val);
+				server->vars.var_list[lk->idx] = client_val;
+				if (client_val) {
+					slog_debug(server, "varcache_set_canonical: unreported server var %s set to client value %s",
+						   lk->name, client_val->str);
+				} else {
+					slog_debug(server, "varcache_set_canonical: unreported server var %s reset to NULL",
+						   lk->name);
+				}
+			}
+			continue;
+		}
+
 		if (client_val && server_val && client_val != server_val) {
 			slog_debug(client, "varcache_set_canonical: setting %s to its canonical version %s -> %s",
 				   lk->name, client_val->str, server_val->str);

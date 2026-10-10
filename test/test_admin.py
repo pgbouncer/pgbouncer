@@ -488,3 +488,13 @@ def test_show_stats(bouncer):
     assert ("total_xact_count", 10) in totals
     # 11 SELECT 1 + 2 times COMMIT and ROLLBACK + 4 admin commands
     assert ("total_query_count", 19) in totals
+
+
+def test_show_config_alpha_order(bouncer):
+    """
+    Test validates that the contents of SHOW CONFIG appear in sorted order by key
+    per comment in src/main.c.
+    """
+    config = bouncer.admin("SHOW CONFIG", row_factory=dict_row)
+    config_keys = [i["key"] for i in config]
+    assert sorted(config_keys) == config_keys

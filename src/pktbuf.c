@@ -182,8 +182,14 @@ bool pktbuf_send_queued(PktBuf *buf, PgSocket *sk)
 
 static void make_room(PktBuf *buf, int len)
 {
-	int newlen = buf->buf_len;
-	int need = buf->write_pos + len;
+	/*
+	 * Deliberately int64_t: this used to compute in int, and once newlen
+	 * reached 2^30 the next doubling overflowed to INT_MIN and then to 0, so
+	 * the loop below never terminated and spun at 100% CPU, hanging the
+	 * single-threaded pooler for every client in the pool.
+	 */
+	int64_t newlen = buf->buf_len;
+	int64_t need = (int64_t)buf->write_pos + len;
 	void *ptr;
 
 	if (newlen >= need)
@@ -197,10 +203,26 @@ static void make_room(PktBuf *buf, int len)
 		return;
 	}
 
-	while (newlen < need)
-		newlen = newlen * 2;
+	/* buf_len and write_pos are ints, so this could never be addressed */
+	if (need > INT_MAX) {
+		buf->failed = true;
+		return;
+	}
 
-	log_debug("make_room(%p, %d): realloc newlen=%d",
+	while (newlen < need) {
+		newlen = newlen * 2;
+		/*
+		 * The doubling can overshoot INT_MAX while need itself still fits.
+		 * Settle for exactly need then, so the result stays storable in the
+		 * int buf_len below.
+		 */
+		if (newlen > INT_MAX) {
+			newlen = need;
+			break;
+		}
+	}
+
+	log_debug("make_room(%p, %d): realloc newlen=%" PRId64,
 		  buf, len, newlen);
 	ptr = realloc(buf->buf, newlen);
 	if (!ptr) {

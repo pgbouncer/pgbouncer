@@ -1,6 +1,101 @@
 PgBouncer changelog
 ===================
 
+PgBouncer 1.26.x
+----------------
+
+**2026-09-23  -  PgBouncer 1.26.0  -  "Ignore all previous search_path"**
+
+- Security
+    * Fix CVE-2026-19888: PgBouncer before 1.26.0 did not check that the SCRAM client-final-message contained a nonce. An unauthenticated remote attacker could crash PgBouncer by sending a client-final-message without one. This also applies to users that do not exist, because PgBouncer runs a mock SCRAM exchange for those. This bug has existed since SCRAM support was added in PgBouncer 1.11.0.
+    * Fix CVE-2026-6668: An integer overflow in the packet buffer growth logic of PgBouncer before 1.26.0 could cause PgBouncer to hang in an infinite loop. This required sending a large amount of data into a single packet buffer, which is possible without authenticating first when `max_packet_size` is left at its default value. Because PgBouncer is single-threaded, this hang stopped it from serving any clients until the process was killed.
+    * Fix CVE-2026-6669: PgBouncer before 1.26.0 did not bound the SCRAM iteration count that it accepted from a server. A malicious or compromised PostgreSQL server could make PgBouncer perform an unbounded amount of work during a single login, stopping it from serving all other clients and databases in the meantime. The iteration count now has to be at most 1000000.
+- Features
+    * Track all parameters that PostgreSQL reports by default. Most notably this means that `search_path` (on PostgreSQL 18 and above) and `default_transaction_read_only` (on PostgreSQL 14 and above) are now tracked by default. Previously a client running `SET search_path` or `SET default_transaction_read_only = true` in transaction pooling mode would affect other clients that later used the same server connection. ([#1580], [#1573])
+    * Add `pool_idle_timeout` setting to clean up pools that have not been used for a while. This is useful in setups with many different users that connect infrequently. Without this setting enabled the number of pools grows without bound in such setups. The setting is disabled by default, because removing a pool also loses its statistics. ([#1491])
+    * Allow `query_wait_timeout` to be configured per user and per database. ([#1449])
+    * Add `client_login_count` stat to `SHOW STATS`, which counts successful client logins. This makes it possible to detect clients that churn connections. ([#1457])
+    * Send PgBouncer specific `ParameterStatus` messages to clients on login: `pgbouncer.version`, `pgbouncer.pool_mode` and `pgbouncer.max_prepared_statements`. This allows clients and drivers to detect that they are connected through PgBouncer and adapt their behaviour accordingly. ([#1490])
+    * Add `login_notify_message` setting. When set, its value is sent to clients as a NOTICE message after they log in. This can be used to make it clear to clients that they are connected through PgBouncer instead of directly to PostgreSQL. ([#1488])
+    * Add support for building PgBouncer with meson, including a Windows build using the UCRT64 environment. Autoconf builds continue to be supported. ([#1524], [#1426], [#1568], [#1585], [#1602], [#1607])
+    * Add a logo. ([#1609])
+- Changes
+    * Remove the deprecated online restart (`-R`, aka takeover) functionality, together with the `SHOW FDS` and `SUSPEND` admin commands that only existed to support it. Use [rolling restarts with `so_reuseport`][rolling-restart-docs] instead. ([#1581])
+    * Increase the maximum length of passwords to 65535 bytes, matching libpq. ([#1310], [#1520])
+    * Treat a `NULL` user name returned by `auth_query` the same as no rows being returned, instead of treating it as an error. ([#1569])
+    * Accept `SET extra_float_digits` on the admin database, which newer PostgreSQL JDBC drivers send during connection setup. ([#1550])
+    * Allow `mkauth.py` to write to stdout by passing `-` as the output file. ([#1514])
+    * Stop logging noisy errors on unexpected EOF from clients when built against OpenSSL 3. ([#1507])
+    * Include the underlying system error in TLS error messages when built against OpenSSL 3. ([#1492])
+    * Require a C11 compiler. ([#1417])
+    * Log which limit caused a server connection to be evicted. The disconnect reason is now `evicted for max_db_connections`, `evicted for pool_size` or `evicted for max_user_connections` instead of the bare `evicted`. ([#1597])
+- Fixes
+    * Fix late `COPY` messages causing pool exhaustion in transaction pooling mode. This also makes `COPY` work outside of an explicit transaction in transaction pooling mode. ([#1471])
+    * Fix LDAP authentication failures with long DNs by increasing the maximum LDAP URL length. ([#1497])
+    * Fix SCRAM pass-through corrupting the cached credentials of a forced user, which caused server logins to fail with the real server rejecting the SCRAM proof. ([#1612])
+    * Fix SCRAM pass-through failing with stored SCRAM secrets after a server reconnect, with the error "password is SCRAM secret but client authentication did not provide SCRAM keys". ([#1504], bug introduced in 1.25.1)
+    * Fix use-after-free crash when a replication client disconnects while its server connection is still logging in. ([#1577])
+    * Fix eviction of idle server connections for replication clients when the pool is full. Previously a single replication client could evict every idle server in the pool instead of just one, and no eviction happened at all when the pool held more servers than `pool_size` because of the reserve pool or cancel requests. ([#1597])
+    * Fix stalled TLS connections when a packet straddles the packet buffer boundary, for example a `SET application_name` with a long value. ([#1531])
+    * Fix prepared statement responses being sent in the wrong order when a batch mixes `Parse` and `Close` messages without a `Sync` in between. ([#1555])
+    * Fix parameters listed in `track_extra_parameters` that are not reported by the server causing incorrect behaviour when a client sets them in its startup packet. ([#1576])
+    * Fix login failures when the server splits its login packets across multiple TCP packets, for example when there is another proxy between PgBouncer and PostgreSQL. ([#1446])
+    * Fix `query_timeout` closing connections when no query was in flight. ([#1395])
+    * Fix sending a duplicate `NegotiateProtocolVersion` message when no server was available right away. ([#1460])
+    * Fix `pool_size` column in `SHOW USERS` showing a value for users that do not have one configured. ([#1489])
+    * Fix error message for `ENABLE` admin command. ([#1308])
+    * Fix compilation against future OpenSSL versions that make `struct asn1_string_st` opaque. ([#1440])
+    * Prevent the compiler from optimizing away the erasure of sensitive cryptographic data from the stack. ([#1508])
+    * Fix linking of `pgbevent.dll` with clang on Windows. ([#1571])
+    * Fix paths of root-level files in the release tarball, which were stored as `pgbouncer-X.Y.Z/./configure` instead of `pgbouncer-X.Y.Z/configure`. ([#1549])
+    * Fix a memory leak when reading `track_extra_parameters` from the config. ([#1510])
+    * Fix a memory leak for every startup packet that contained a protocol extension parameter (`_pq_.` prefix), which could be triggered by unauthenticated clients. ([#1540])
+
+[rolling-restart-docs]: https://www.pgbouncer.org/usage.html#shutdown-wait_for_clients
+[#1308]: https://github.com/pgbouncer/pgbouncer/pull/1308
+[#1310]: https://github.com/pgbouncer/pgbouncer/pull/1310
+[#1395]: https://github.com/pgbouncer/pgbouncer/pull/1395
+[#1417]: https://github.com/pgbouncer/pgbouncer/pull/1417
+[#1426]: https://github.com/pgbouncer/pgbouncer/pull/1426
+[#1440]: https://github.com/pgbouncer/pgbouncer/pull/1440
+[#1446]: https://github.com/pgbouncer/pgbouncer/pull/1446
+[#1449]: https://github.com/pgbouncer/pgbouncer/pull/1449
+[#1457]: https://github.com/pgbouncer/pgbouncer/pull/1457
+[#1460]: https://github.com/pgbouncer/pgbouncer/pull/1460
+[#1471]: https://github.com/pgbouncer/pgbouncer/pull/1471
+[#1488]: https://github.com/pgbouncer/pgbouncer/pull/1488
+[#1489]: https://github.com/pgbouncer/pgbouncer/pull/1489
+[#1490]: https://github.com/pgbouncer/pgbouncer/pull/1490
+[#1491]: https://github.com/pgbouncer/pgbouncer/pull/1491
+[#1492]: https://github.com/pgbouncer/pgbouncer/pull/1492
+[#1497]: https://github.com/pgbouncer/pgbouncer/pull/1497
+[#1504]: https://github.com/pgbouncer/pgbouncer/pull/1504
+[#1507]: https://github.com/pgbouncer/pgbouncer/pull/1507
+[#1508]: https://github.com/pgbouncer/pgbouncer/pull/1508
+[#1510]: https://github.com/pgbouncer/pgbouncer/pull/1510
+[#1514]: https://github.com/pgbouncer/pgbouncer/pull/1514
+[#1520]: https://github.com/pgbouncer/pgbouncer/pull/1520
+[#1524]: https://github.com/pgbouncer/pgbouncer/pull/1524
+[#1531]: https://github.com/pgbouncer/pgbouncer/pull/1531
+[#1540]: https://github.com/pgbouncer/pgbouncer/pull/1540
+[#1549]: https://github.com/pgbouncer/pgbouncer/pull/1549
+[#1550]: https://github.com/pgbouncer/pgbouncer/pull/1550
+[#1555]: https://github.com/pgbouncer/pgbouncer/pull/1555
+[#1568]: https://github.com/pgbouncer/pgbouncer/pull/1568
+[#1569]: https://github.com/pgbouncer/pgbouncer/pull/1569
+[#1571]: https://github.com/pgbouncer/pgbouncer/pull/1571
+[#1573]: https://github.com/pgbouncer/pgbouncer/pull/1573
+[#1576]: https://github.com/pgbouncer/pgbouncer/pull/1576
+[#1577]: https://github.com/pgbouncer/pgbouncer/pull/1577
+[#1580]: https://github.com/pgbouncer/pgbouncer/pull/1580
+[#1581]: https://github.com/pgbouncer/pgbouncer/pull/1581
+[#1585]: https://github.com/pgbouncer/pgbouncer/pull/1585
+[#1597]: https://github.com/pgbouncer/pgbouncer/pull/1597
+[#1602]: https://github.com/pgbouncer/pgbouncer/pull/1602
+[#1607]: https://github.com/pgbouncer/pgbouncer/pull/1607
+[#1609]: https://github.com/pgbouncer/pgbouncer/pull/1609
+[#1612]: https://github.com/pgbouncer/pgbouncer/pull/1612
+
 PgBouncer 1.25.x
 ----------------
 

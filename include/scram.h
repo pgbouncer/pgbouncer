@@ -23,6 +23,17 @@
 
 extern int cf_scram_iterations;
 
+/*
+ * Upper bound on the PBKDF2 iteration count we are willing to accept from a
+ * server's SCRAM server-first-message.  PostgreSQL's backend keeps the loop in
+ * scram_SaltedPassword() interruptible via CHECK_FOR_INTERRUPTS(), but that is
+ * compiled out in FRONTEND builds like ours, so an unbounded count would pin
+ * the single-threaded pooler until it finished.  4096 is the default both here
+ * and in PostgreSQL; this leaves plenty of room for deliberately slow setups
+ * while keeping the work per login bounded.
+ */
+#define SCRAM_MAX_ITERATIONS 1000000
+
 void free_scram_state(ScramState *state);
 
 typedef enum PasswordType {

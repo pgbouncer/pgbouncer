@@ -1093,6 +1093,47 @@ async def test_unreported_param_startup(bouncer):
         assert cur_z.execute("SHOW enable_seqscan").fetchone()[0] == "on"
 
 
+@pytest.mark.parametrize(
+    "reset_query",
+    ["DISCARD ALL", "RESET ALL", "DEALLOCATE ALL; RESET ALL", "DEALLOCATE ALL"],
+)
+async def test_unreported_param_reset_query(bouncer, reset_query):
+    """DISCARD ALL and RESET ALL in server_reset_query reset unreported
+    parameters, but other reset queries don't. So the cached value must only be
+    dropped for the former."""
+    bouncer.write_ini(
+        "track_extra_parameters = enable_seqscan\ndefault_pool_size = 1\n"
+        f"server_reset_query = {reset_query}"
+    )
+    await bouncer.restart()
+    bouncer.admin("set pool_mode=session")
+
+    with bouncer.cur(dbname="p1", options="-c enable_seqscan=off") as cur:
+        assert cur.execute("SHOW enable_seqscan").fetchone()[0] == "off"
+    with bouncer.cur(dbname="p1", options="-c enable_seqscan=off") as cur:
+        assert cur.execute("SHOW enable_seqscan").fetchone()[0] == "off"
+    with bouncer.cur(dbname="p1") as cur:
+        assert cur.execute("SHOW enable_seqscan").fetchone()[0] == "on"
+
+
+async def test_unreported_param_client_discard_all(bouncer):
+    """A DISCARD ALL sent by a client resets unreported parameters too, so the
+    next transaction needs to SET the value again, also for the client that
+    sent it."""
+    bouncer.write_ini("track_extra_parameters = enable_seqscan\ndefault_pool_size = 1")
+    await bouncer.restart()
+    bouncer.admin("set pool_mode=transaction")
+
+    with (
+        bouncer.cur(dbname="p1", options="-c enable_seqscan=off") as cur_x,
+        bouncer.cur(dbname="p1", options="-c enable_seqscan=off") as cur_z,
+    ):
+        assert cur_x.execute("SHOW enable_seqscan").fetchone()[0] == "off"
+        cur_x.execute("DISCARD ALL")
+        assert cur_z.execute("SHOW enable_seqscan").fetchone()[0] == "off"
+        assert cur_x.execute("SHOW enable_seqscan").fetchone()[0] == "off"
+
+
 async def test_session_authorization_tracked(bouncer):
     """Test that SET SESSION AUTHORIZATION does not leak to other clients.
 

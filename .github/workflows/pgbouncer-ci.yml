@@ -52,15 +52,18 @@ jobs:
           # meson once the autoconf build is retired.
           - name: autoconf
             build_system: autoconf
-            configure_args: "--with-cares --with-pam --with-ldap"
+            configure_args: "--with-cares --with-pam --with-ldap --with-gssapi"
+            require_gssapi_tests: "yes"
             dist: "yes"
           - name: cares-pam-ldap
             build_system: meson
             meson_args: "-Dcares=enabled -Dpam=enabled -Dldap=enabled"
             dist: "yes"
+          # Also a build that is sure to leave GSSAPI out: the autoconf job
+          # enables it and the other meson jobs auto-detect it.
           - name: no-evdns-no-openssl
             build_system: meson
-            meson_args: "-Dcares=disabled -Devdns=false -Dopenssl=disabled"
+            meson_args: "-Dcares=disabled -Devdns=false -Dopenssl=disabled -Dgssapi=disabled"
           # LDAP/PAM each spawn a background thread whose stack valgrind reports
           # as "possibly lost", so disable them here. c-ares is event-driven (no
           # threads), so exercise it under valgrind.
@@ -70,6 +73,14 @@ jobs:
             cflags: "-O0 -g"
             enable_valgrind: "yes"
             meson_args: "-Dcares=enabled -Dldap=disabled -Dpam=disabled"
+          # GSSAPI/Kerberos auth + encryption. The tests start their own MIT KDC
+          # (the kdc fixture in test/conftest.py). require_gssapi_tests installs
+          # the krb5 packages and makes the GSSAPI tests fail rather than skip
+          # if they cannot run.
+          - name: gssapi
+            build_system: meson
+            meson_args: "-Dgssapi=enabled"
+            require_gssapi_tests: "yes"
     env:
       PGVERSION: ${{ matrix.pgversion || '16' }}
       BUILD_SYSTEM: ${{ matrix.build_system }}
@@ -82,6 +93,7 @@ jobs:
       CFLAGS_OVERRIDE: ${{ matrix.cflags }}
       ENABLE_VALGRIND: ${{ matrix.enable_valgrind }}
       DIST: ${{ matrix.dist }}
+      REQUIRE_GSSAPI_TESTS: ${{ matrix.require_gssapi_tests }}
     steps: &linux_steps
       - uses: actions/checkout@v7
       - name: Install dependencies
@@ -94,6 +106,7 @@ jobs:
           pkgs="autoconf automake ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev libtool make meson ninja-build pandoc pkg-config postgresql-$PGVERSION python3 python3-pip python3-venv slapd socat sudo"
           if [ "$ENABLE_VALGRIND" = "yes" ]; then pkgs="$pkgs valgrind"; fi
           if [ "$USE_SCAN_BUILD" = "yes" ]; then pkgs="$pkgs clang clang-tools"; fi
+          if [ "$REQUIRE_GSSAPI_TESTS" = "yes" ]; then pkgs="$pkgs krb5-kdc krb5-admin-server krb5-user libkrb5-dev"; fi
           # $pkgs is an intentionally word-split package list.
           # shellcheck disable=SC2086
           sudo apt-get -y --no-install-recommends install $pkgs

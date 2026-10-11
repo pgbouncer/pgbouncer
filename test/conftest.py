@@ -5,14 +5,21 @@ import filelock
 import pytest
 
 from .utils import (
+    GSS_REALM,
+    GSS_SUPPORT,
+    GSS_USER_PASSWORD,
+    GSS_USER_PRINCIPAL,
+    HAVE_KRB5_TOOLS,
     LDAP_SUPPORT,
     LINUX,
     LONG_PASSWORD,
     PG_SUPPORTS_SCRAM,
+    REQUIRE_GSSAPI_TESTS,
     TEST_DIR,
     TLS_SUPPORT,
     USE_SUDO,
     Bouncer,
+    Kerberos,
     OpenLDAP,
     Postgres,
     Proxy,
@@ -177,6 +184,48 @@ def pg(tmp_path_factory, cert_dir):
     yield pg
 
     pg.cleanup()
+
+
+@pytest.fixture(scope="session")
+def kdc(tmp_path_factory, pg):
+    """Starts a throwaway MIT Kerberos KDC that is shared for tests in this process
+
+    Only the GSSAPI tests use it. It points Postgres at the KDC's keytab and
+    restarts it, so Postgres runs with the KDC's Kerberos environment too.
+    Requesting tests are skipped when pgbouncer is built without GSSAPI or the
+    krb5 KDC tools are missing. REQUIRE_GSSAPI_TESTS, set by the CI job that
+    runs them, makes them fail instead.
+    """
+    if not GSS_SUPPORT or not HAVE_KRB5_TOOLS:
+        reason = (
+            "pgbouncer built without GSSAPI"
+            if not GSS_SUPPORT
+            else "krb5 KDC tools not installed"
+        )
+        if REQUIRE_GSSAPI_TESTS:
+            pytest.fail(f"REQUIRE_GSSAPI_TESTS is set, but {reason}", pytrace=False)
+        pytest.skip(reason)
+
+    kdc = Kerberos(tmp_path_factory.getbasetemp() / "kdc")
+    try:
+        kdc.setup()
+        kdc.add_principal(GSS_USER_PRINCIPAL, GSS_USER_PASSWORD)
+        # Clients derive the service principal from the host they connect to,
+        # so cover both spellings of the local host.
+        kdc.add_service_principal(f"postgres/localhost@{GSS_REALM}")
+        kdc.add_service_principal(f"postgres/127.0.0.1@{GSS_REALM}")
+
+        # postgresql.conf, because pg_reset empties postgresql.auto.conf
+        # before every test.
+        with pg.conf_path.open("a") as f:
+            f.write(f"krb_server_keyfile = 'FILE:{kdc.keytab}'\n")
+        # Restart rather than reload, so the server picks up the KRB5_*
+        # environment kdc.setup() exported.
+        pg.restart()
+        pg.sql("create user testuser login")
+        yield kdc
+    finally:
+        kdc.cleanup()
 
 
 @pytest.fixture

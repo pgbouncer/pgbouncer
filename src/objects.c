@@ -22,6 +22,7 @@
 
 #include "bouncer.h"
 #include "scram.h"
+#include "gssapi_auth.h"
 
 #include <usual/err.h>
 #include <usual/safeio.h>
@@ -191,6 +192,8 @@ void init_caches(void)
 static void client_free(PgSocket *client)
 {
 	free_client_prepared_statements(client);
+	gssapi_accept_cleanup(client);
+	gssenc_cleanup(client);
 	varcache_clean(&client->vars);
 	slab_free(var_list_cache, client->vars.var_list);
 	slab_free(client_cache, client);
@@ -211,6 +214,8 @@ static void server_free(PgSocket *server)
 	}
 
 	free_server_prepared_statements(server);
+	gssapi_initiate_cleanup(server);
+	gssenc_cleanup(server);
 	free(server->host);
 	varcache_clean(&server->vars);
 	slab_free(var_list_cache, server->vars.var_list);

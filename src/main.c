@@ -21,6 +21,7 @@
  */
 
 #include "bouncer.h"
+#include "gssapi_auth.h"
 
 #include <usual/signal.h>
 #include <usual/err.h>
@@ -124,6 +125,11 @@ char *cf_auth_ldap_options;
 char *cf_auth_user;
 char *cf_auth_query;
 char *cf_auth_dbname;
+char *cf_auth_gssapi_keytab;
+char *cf_server_gssapi_keytab;
+char *cf_server_gssapi_service_name;
+int cf_client_gssencmode;
+int cf_server_gssencmode;
 char *cf_track_extra_parameters;
 
 int cf_max_client_conn;
@@ -226,6 +232,9 @@ static const struct CfLookup auth_type_map[] = {
 #ifdef HAVE_PAM
 	{ "pam", AUTH_TYPE_PAM },
 #endif
+#ifdef HAVE_GSSAPI
+	{ "gss", AUTH_TYPE_GSSAPI },
+#endif
 	{ "scram-sha-256", AUTH_TYPE_SCRAM_SHA_256 },
 	{ NULL }
 };
@@ -254,6 +263,28 @@ const struct CfLookup load_balance_hosts_map[] = {
 };
 
 /*
+ * As an acceptor, pgbouncer responds to the client's request rather than
+ * initiating encryption, so "prefer" is meaningless on this side.
+ */
+static const struct CfLookup client_gssencmode_map[] = {
+	{ "disable", GSSENCMODE_DISABLED },
+	{ "allow", GSSENCMODE_ALLOW },
+	{ "require", GSSENCMODE_REQUIRE },
+	{ NULL }
+};
+
+/*
+ * As an initiator, pgbouncer controls how it connects, so "allow" (an
+ * acceptor concept) is meaningless on this side; the set mirrors libpq.
+ */
+static const struct CfLookup server_gssencmode_map[] = {
+	{ "disable", GSSENCMODE_DISABLED },
+	{ "prefer", GSSENCMODE_PREFER },
+	{ "require", GSSENCMODE_REQUIRE },
+	{ NULL }
+};
+
+/*
  * Add new parameters in alphabetical order. This order is used by SHOW CONFIG.
  */
 static const struct CfKey bouncer_params [] = {
@@ -261,6 +292,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("application_name_add_host", CF_INT, cf_application_name_add_host, 0, "0"),
 	CF_ABS("auth_dbname", CF_AUTHDB, cf_auth_dbname, 0, NULL),
 	CF_ABS("auth_file", CF_STR, cf_auth_file, 0, NULL),
+	CF_ABS("auth_gssapi_keytab", CF_STR, cf_auth_gssapi_keytab, 0, NULL),
 	CF_ABS("auth_hba_file", CF_STR, cf_auth_hba_file, 0, ""),
 	CF_ABS("auth_ident_file", CF_STR, cf_auth_ident_file, 0, NULL),
 	CF_ABS("auth_ldap_options", CF_STR, cf_auth_ldap_options, 0, NULL),
@@ -269,6 +301,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("auth_user", CF_STR, cf_auth_user, 0, NULL),
 	CF_ABS("autodb_idle_timeout", CF_TIME_USEC, cf_autodb_idle_timeout, 0, "3600"),
 	CF_ABS("cancel_wait_timeout", CF_TIME_USEC, cf_cancel_wait_timeout, 0, "10"),
+	CF_ABS("client_gssencmode", CF_LOOKUP(client_gssencmode_map), cf_client_gssencmode, 0, "disable"),
 	CF_ABS("client_idle_timeout", CF_TIME_USEC, cf_client_idle_timeout, 0, "0"),
 	CF_ABS("client_login_timeout", CF_TIME_USEC, cf_client_login_timeout, 0, "60"),
 	CF_ABS("client_tls13_ciphers", CF_STR, cf_client_tls13_ciphers, 0, NULL),
@@ -323,6 +356,9 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("server_check_query", CF_STR, cf_server_check_query, 0, "<empty>"),
 	CF_ABS("server_connect_timeout", CF_TIME_USEC, cf_server_connect_timeout, 0, "15"),
 	CF_ABS("server_fast_close", CF_INT, cf_server_fast_close, 0, "0"),
+	CF_ABS("server_gssapi_keytab", CF_STR, cf_server_gssapi_keytab, 0, NULL),
+	CF_ABS("server_gssapi_service_name", CF_STR, cf_server_gssapi_service_name, 0, "postgres"),
+	CF_ABS("server_gssencmode", CF_LOOKUP(server_gssencmode_map), cf_server_gssencmode, 0, "disable"),
 	CF_ABS("server_idle_timeout", CF_TIME_USEC, cf_server_idle_timeout, 0, "600"),
 	CF_ABS("server_lifetime", CF_TIME_USEC, cf_server_lifetime, 0, "3600"),
 	CF_ABS("server_login_retry", CF_TIME_USEC, cf_server_login_retry, 0, "15"),
@@ -448,8 +484,10 @@ static void set_peers_dead(bool flag)
 /* Tells if the specified auth type requires data from the auth file. */
 static bool requires_auth_file(int auth_type)
 {
-	/* For PAM authentication auth file is not used */
+	/* PAM and GSSAPI authenticate via external mechanisms; no auth file needed */
 	if (auth_type == AUTH_TYPE_PAM)
+		return false;
+	if (auth_type == AUTH_TYPE_GSSAPI)
 		return false;
 	return auth_type >= AUTH_TYPE_TRUST;
 }
@@ -938,6 +976,9 @@ static void cleanup(void)
 	xfree(&cf_auth_ldap_options);
 	xfree(&cf_auth_query);
 	xfree(&cf_auth_user);
+	xfree(&cf_auth_gssapi_keytab);
+	xfree(&cf_server_gssapi_keytab);
+	xfree(&cf_server_gssapi_service_name);
 	xfree(&cf_server_reset_query);
 	xfree(&cf_server_check_query);
 	xfree(&cf_ignore_startup_params);
@@ -1090,6 +1131,7 @@ int main(int argc, char *argv[])
 
 	auth_ldap_init();
 	pam_init();
+	gssapi_auth_init();
 
 	pooler_setup();
 

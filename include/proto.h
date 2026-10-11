@@ -65,6 +65,7 @@ bool answer_authreq(PgSocket *server, PktHdr *pkt) _MUSTCHECK;
 
 bool send_startup_message(PgSocket *server) _MUSTCHECK;
 bool send_sslreq_packet(PgSocket *server) _MUSTCHECK;
+bool send_gssencreq_packet(PgSocket *server) _MUSTCHECK;
 
 /* reset the packet header and free the backing buffer */
 static inline void free_header(PktHdr *pkt)

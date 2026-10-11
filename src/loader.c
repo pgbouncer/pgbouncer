@@ -252,6 +252,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	PgDatabase *db;
 	struct CfValue cv;
 	struct CfValue load_balance_hosts_lookup;
+	struct CfValue target_session_attrs_lookup;
 	int pool_size = -1;
 	int min_pool_size = -1;
 	int res_pool_size = -1;
@@ -265,6 +266,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	int dbname_ofs;
 	int pool_mode = POOL_INHERIT;
 	enum LoadBalanceHosts load_balance_hosts = LOAD_BALANCE_HOSTS_ROUND_ROBIN;
+	enum TargetSessionAttrs target_session_attrs = TARGET_SESSION_ANY;
 
 	char *tmp_connstr;
 	const char *dbname = name;
@@ -286,6 +288,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 
 	load_balance_hosts_lookup.value_p = &load_balance_hosts;
 	load_balance_hosts_lookup.extra = (const void *)load_balance_hosts_map;
+	target_session_attrs_lookup.value_p = &target_session_attrs;
+	target_session_attrs_lookup.extra = (const void *)target_session_attrs_map;
 
 	if (!check_reserved_database(name)) {
 		log_error("database name \"%s\" is reserved", name);
@@ -361,6 +365,11 @@ bool parse_database(void *base, const char *name, const char *connstr)
 				log_error("invalid load_balance_hosts: %s", val);
 				goto fail;
 			}
+		} else if (strcmp("target_session_attrs", key) == 0) {
+			if (!cf_set_lookup(&target_session_attrs_lookup, val)) {
+				log_error("invalid target_session_attrs: %s", val);
+				goto fail;
+			}
 		} else if (strcmp("pool_mode", key) == 0) {
 			if (!cf_set_lookup(&cv, val)) {
 				log_error("invalid pool mode: %s", val);
@@ -414,6 +423,8 @@ bool parse_database(void *base, const char *name, const char *connstr)
 			changed = true;
 		} else if (load_balance_hosts != db->load_balance_hosts) {
 			changed = true;
+		} else if (target_session_attrs != db->target_session_attrs) {
+			changed = true;
 		}
 		if (changed)
 			tag_database_dirty(db);
@@ -435,6 +446,7 @@ bool parse_database(void *base, const char *name, const char *connstr)
 	db->max_db_connections = max_db_connections;
 	db->server_lifetime = server_lifetime;
 	db->load_balance_hosts = load_balance_hosts;
+	db->target_session_attrs = target_session_attrs;
 	free(db->connect_query);
 	db->connect_query = connect_query;
 	connect_query = NULL;

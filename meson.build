@@ -462,8 +462,13 @@ endif
 # the generated header lands in the build directory rather than the source tree.
 # ----------------------------------------------------------------------
 
-config_h = configure_file(output: 'test_config.h', configuration: cdata)
+config_h_name = 'test_config.h'
+config_h = configure_file(output: config_h_name, configuration: cdata)
 add_project_arguments('-DUSUAL_TEST_CONFIG', language: 'c')
+
+# The python test suite reads this header to find out which optional features
+# were built in (see get_build_feature() in test/utils.py).
+config_h_path = meson.project_build_root() / config_h_name
 
 # ----------------------------------------------------------------------
 # Warning flags (mirrors the WFLAGS antimake enables)
@@ -733,6 +738,7 @@ test('pytest',
      args: pytest_args,
      env: {
        'BOUNCER_EXE': pgbouncer.full_path(),
+       'PGBOUNCER_CONFIG_H': config_h_path,
        'PYTHONIOENCODING': 'utf8',
      },
      workdir: meson.project_source_root() / 'test',

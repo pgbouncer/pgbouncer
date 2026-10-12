@@ -57,6 +57,17 @@ static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 			goto failed_store;
 	}
 
+	/*
+	 * in_hot_standby is the same for every session on a server, but changes
+	 * when a standby gets promoted or the server gets replaced.  New server
+	 * logins report it, and so do existing sessions after a promotion, so
+	 * keep the cached welcome msg up to date with it.
+	 */
+	if (strcmp(key, "in_hot_standby") == 0) {
+		if (!update_welcome_parameter(server->pool, key, val))
+			goto failed_store;
+	}
+
 	return true;
 failed:
 	disconnect_server(server, true, "broken ParameterStatus packet");

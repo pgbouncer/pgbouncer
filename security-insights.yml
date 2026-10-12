@@ -1,7 +1,7 @@
 header:
   schema-version: 2.2.0
-  last-updated: "2026-10-08"
-  last-reviewed: "2026-10-08"
+  last-updated: "2026-10-12"
+  last-reviewed: "2026-10-12"
   url: https://raw.githubusercontent.com/pgbouncer/pgbouncer/refs/heads/master/security-insights.yml
 project:
   name: PgBouncer
@@ -115,6 +115,22 @@ repository:
             name: ubsan CI job
             predicate-uri: https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html
             location: https://github.com/pgbouncer/pgbouncer/actions/workflows/pgbouncer-ci.yml
+      - name: OSPS Baseline scanner (pvtr-github-repo-scanner)
+        type: other
+        comment: >-
+          Weekly and on-demand OSPS Baseline Level 1 scan using the
+          osps-baseline-action.
+        rulesets:
+          - osps-baseline-2026-08
+        integration:
+          adhoc: true
+          ci: true
+          release: false
+        results:
+          ci:
+            name: OSPS Baseline workflow
+            predicate-uri: https://github.com/revanite-io/osps-baseline-action
+            location: https://github.com/pgbouncer/pgbouncer/actions/workflows/osps-baseline.yml
     assessments:
       self:
         comment: Self assessment has not yet been completed.

@@ -169,8 +169,8 @@ jobs:
       matrix:
         include:
           - name: plain
-          - name: ubsan
-            cflags: "-fno-sanitize-recover=all -fsanitize=undefined -fsanitize-address-use-after-scope -fno-sanitize=shift"
+          - name: asan+ubsan
+            cflags: "-fno-sanitize-recover=all -fsanitize=address,undefined -fno-sanitize=shift"
           - name: scan-build
             scan_build: "yes"
           - name: arm

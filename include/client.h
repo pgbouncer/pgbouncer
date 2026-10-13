@@ -23,3 +23,5 @@ bool check_db_connection_count(PgSocket *client);
 bool check_user_connection_count(PgSocket *client);
 bool sending_auth_query(PgSocket *client);
 PgDatabase *prepare_auth_database(PgSocket *client) _MUSTCHECK;
+void set_appname(PgSocket *client, const char *app_name);
+

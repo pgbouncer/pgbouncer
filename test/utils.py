@@ -15,6 +15,7 @@ import os
 import platform
 import re
 import shlex
+import shutil
 import signal
 import socket
 import sys
@@ -42,6 +43,7 @@ BOUNCER_EXE = os.environ.get("BOUNCER_EXE", TEST_DIR / "../pgbouncer")
 NEW_CA_SCRIPT = TEST_DIR / "ssl" / "newca.sh"
 NEW_SITE_SCRIPT = TEST_DIR / "ssl" / "newsite.sh"
 ENABLE_VALGRIND = bool(os.environ.get("ENABLE_VALGRIND"))
+REQUIRE_GSSAPI_TESTS = bool(os.environ.get("REQUIRE_GSSAPI_TESTS"))
 HAVE_IPV6_LOCALHOST = bool(os.environ.get("HAVE_IPV6_LOCALHOST"))
 USE_SUDO = bool(os.environ.get("USE_SUDO"))
 START_OPENLDAP_SCRIPT = TEST_DIR / "start_openldap_server.sh"
@@ -237,6 +239,42 @@ def get_ldap_support():
 LDAP_SUPPORT = get_ldap_support()
 
 
+def get_gss_support():
+    return get_build_feature("gssapi_support", "HAVE_GSSAPI")
+
+
+GSS_SUPPORT = get_gss_support()
+
+# Realm of the throwaway KDC the GSSAPI tests run against (see the Kerberos
+# class and the kdc fixture), and the user principal they authenticate as.
+GSS_REALM = "TEST.PGBOUNCER"
+GSS_USER_PRINCIPAL = f"testuser@{GSS_REALM}"
+GSS_USER_PASSWORD = "testpass"
+
+
+def find_krb5_binary(name):
+    """Locate an MIT Kerberos program.
+
+    The KDC daemon and admin tools install into sbin, which is not always on a
+    regular user's PATH, so fall back to the usual sbin locations.
+    """
+    path = shutil.which(name)
+    if path:
+        return path
+    for sbin in ("/usr/sbin", "/usr/local/sbin", "/usr/lib/mit/sbin"):
+        candidate = Path(sbin) / name
+        if candidate.exists():
+            return str(candidate)
+    return None
+
+
+KRB5_TOOLS = {
+    name: find_krb5_binary(name)
+    for name in ("krb5kdc", "kdb5_util", "kadmin.local", "kinit", "kdestroy")
+}
+HAVE_KRB5_TOOLS = all(KRB5_TOOLS.values())
+
+
 def get_tls_support():
     return get_build_feature("tls_support", "USUAL_LIBSSL_FOR_TLS")
 
@@ -357,6 +395,12 @@ class QueryRunner:
         # client_encoding specified in the config and client_encoding by the
         # client will force a varcache change when a connection is given.
         options.setdefault("client_encoding", "UTF8")
+        # Pin gssencmode so psycopg doesn't rely on libpq's ambiguous default
+        # and emit a RuntimeWarning when a Kerberos ccache is present (as in the
+        # gssapi CI job); filterwarnings=error would turn that into a spurious
+        # failure. Tests that exercise GSS set gssencmode explicitly, which
+        # overrides this default.
+        options.setdefault("gssencmode", "disable")
         return options
 
     def make_conninfo(self, **kwargs) -> str:
@@ -1332,3 +1376,111 @@ class OpenLDAP:
         self.stop()
         self.ldap_port_lock.release()
         self.ldaps_port_lock.release()
+
+
+class Kerberos:
+    """A throwaway MIT Kerberos KDC for the GSSAPI tests.
+
+    Modeled on PostgreSQL's src/test/perl/PostgreSQL/Test/Kerberos.pm.
+    Everything runs as the current user: the config, database, keytab and
+    credential cache live under config_dir and the KDC listens on a free port.
+    setup() points KRB5_CONFIG, KRB5_KDC_PROFILE and KRB5CCNAME at these files,
+    so the krb5 programs and the processes the tests start use this KDC rather
+    than the system configuration.
+    """
+
+    HOST = "127.0.0.1"
+    MASTER_PASSWORD = "masterpass"
+
+    def __init__(self, config_dir: Path):
+        self.config_dir = config_dir
+        self.datadir = config_dir / "db"
+        self.krb5_conf = config_dir / "krb5.conf"
+        self.kdc_conf = config_dir / "kdc.conf"
+        self.keytab = config_dir / "krb5.keytab"
+        self.ccache = config_dir / "krb5cc"
+        self.log_path = config_dir / "krb5kdc.log"
+        self.pid_file = config_dir / "krb5kdc.pid"
+        self.port_lock = PortLock()
+        self.port = self.port_lock.port
+
+    def _kadmin(self, *query):
+        # Passing the query as arguments (script mode) rather than with -q
+        # makes kadmin.local exit non-zero when the query fails.
+        run([KRB5_TOOLS["kadmin.local"], *query], silent=True)
+
+    def setup(self):
+        """Write the config, create the database and start the KDC."""
+        self.datadir.mkdir(parents=True)
+        self._write_config()
+
+        os.environ["KRB5_CONFIG"] = str(self.krb5_conf)
+        os.environ["KRB5_KDC_PROFILE"] = str(self.kdc_conf)
+        os.environ["KRB5CCNAME"] = f"FILE:{self.ccache}"
+
+        run(
+            [KRB5_TOOLS["kdb5_util"], "create", "-s", "-P", self.MASTER_PASSWORD],
+            silent=True,
+        )
+        # krb5kdc binds its sockets before it detaches, so it is accepting
+        # requests once this returns, and it exits non-zero if it cannot start.
+        run([KRB5_TOOLS["krb5kdc"], "-P", self.pid_file], silent=True)
+        # The detached daemon writes the pid file, which may not exist yet.
+        for _ in wait_until("krb5kdc did not write its pid file"):
+            if self.pid_file.exists() and self.pid_file.read_text().strip():
+                break
+
+    def _write_config(self):
+        self.krb5_conf.write_text(
+            f"""\
+[logging]
+    kdc = FILE:{self.log_path}
+
+[libdefaults]
+    default_realm = {GSS_REALM}
+    dns_lookup_kdc = false
+    dns_lookup_realm = false
+    rdns = false
+
+[realms]
+    {GSS_REALM} = {{
+        kdc = {self.HOST}:{self.port}
+        auth_to_local = RULE:[1:$1@$0](.*@{GSS_REALM})s/@.*//
+        auth_to_local = DEFAULT
+    }}
+
+[domain_realm]
+    localhost = {GSS_REALM}
+    .localhost = {GSS_REALM}
+"""
+        )
+        self.kdc_conf.write_text(
+            f"""\
+[kdcdefaults]
+    kdc_listen = {self.HOST}:{self.port}
+    kdc_tcp_listen = {self.HOST}:{self.port}
+
+[realms]
+    {GSS_REALM} = {{
+        database_name = {self.datadir}/principal
+        key_stash_file = {self.datadir}/stash
+        supported_enctypes = aes256-cts-hmac-sha1-96:normal aes128-cts-hmac-sha1-96:normal
+        max_life = 24h
+        max_renewable_life = 7d
+    }}
+"""
+        )
+
+    def add_principal(self, name, password):
+        """Add a principal that authenticates with a password."""
+        self._kadmin("addprinc", "-pw", password, name)
+
+    def add_service_principal(self, name):
+        """Add a random-key service principal and extract it into the keytab."""
+        self._kadmin("addprinc", "-randkey", name)
+        self._kadmin("ktadd", "-k", self.keytab, name)
+
+    def cleanup(self):
+        if self.pid_file.exists():
+            os.kill(int(self.pid_file.read_text()), signal.SIGTERM)
+        self.port_lock.release()

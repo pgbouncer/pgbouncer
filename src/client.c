@@ -23,6 +23,7 @@
 #include "bouncer.h"
 #include "pam.h"
 #include "scram.h"
+#include "gssapi_auth.h"
 #include "common/builtins.h"
 
 #include <usual/pgutil.h>
@@ -70,6 +71,15 @@ PgDatabase *prepare_auth_database(PgSocket *client)
 	}
 
 	return auth_db;
+}
+
+static bool client_is_gss_encrypted(PgSocket *client)
+{
+#ifdef HAVE_GSSAPI
+	return client->gss_enc.active;
+#else
+	return false;
+#endif
 }
 
 static bool check_client_passwd(PgSocket *client, const char *passwd)
@@ -378,6 +388,10 @@ static bool finish_set_pool(PgSocket *client)
 		return finish_client_login(client);
 
 	auth = cf_auth_type;
+#ifdef HAVE_GSSAPI
+	/* The global auth_type maps the principal like an include_realm=0 line. */
+	client->gss_state.include_realm = false;
+#endif
 #ifdef HAVE_LDAP
 	if (auth == AUTH_TYPE_LDAP) {
 		if (cf_auth_ldap_options == NULL) {
@@ -394,6 +408,7 @@ static bool finish_set_pool(PgSocket *client)
 			parsed_hba,
 			&client->remote_addr,
 			!!client->sbuf.tls,
+			client_is_gss_encrypted(client),
 			client->replication,
 			client->db->name,
 			client->login_user_credentials->name);
@@ -409,12 +424,22 @@ static bool finish_set_pool(PgSocket *client)
 			snprintf(client->ldap_options, MAX_LDAP_CONFIG, "%s", rule->auth_options);
 		}
 #endif
+#ifdef HAVE_GSSAPI
+		if (auth == AUTH_TYPE_GSSAPI)
+			client->gss_state.include_realm = rule->include_realm;
+#endif
 		slog_noise(client, "HBA Line %d is matched", rule->hba_linenr);
 	}
 
 #ifndef HAVE_LDAP
 	if (auth == AUTH_TYPE_LDAP) {
 		disconnect_client(client, true, "ldap is not supported by this build");
+		return false;
+	}
+#endif
+#ifndef HAVE_GSSAPI
+	if (auth == AUTH_TYPE_GSSAPI) {
+		disconnect_client(client, true, "gss is not supported by this build");
 		return false;
 	}
 #endif
@@ -426,6 +451,22 @@ static bool finish_set_pool(PgSocket *client)
 
 	/* remember method */
 	client->client_auth_type = auth;
+
+#ifdef HAVE_GSSAPI
+	/*
+	 * When GSS encryption is active and the configured method is GSSAPI,
+	 * the client's Kerberos identity is already established by the
+	 * encryption handshake.  Extract the principal from the encryption
+	 * context and skip the separate AUTH_REQ_GSS exchange.  This matches
+	 * postgres, which treats encryption and authentication as orthogonal:
+	 * any other configured method (scram, md5, plain, ...) still runs, now
+	 * over the encrypted channel.
+	 */
+	if (client->gss_enc.active && auth == AUTH_TYPE_GSSAPI) {
+		ok = gssenc_extract_and_verify_identity(client);
+		return ok;
+	}
+#endif
 
 	switch (auth) {
 	case AUTH_TYPE_ANY:
@@ -449,6 +490,9 @@ static bool finish_set_pool(PgSocket *client)
 		break;
 	case AUTH_TYPE_PEER:
 		ok = login_as_unix_peer(client, rule);
+		break;
+	case AUTH_TYPE_GSSAPI:
+		ok = gssapi_accept_send_request(client);
 		break;
 	default:
 		disconnect_client(client, true, "login rejected");
@@ -521,8 +565,21 @@ static bool check_if_need_ldap_authentication(PgSocket *client, const char *dbna
 {
 	if (cf_auth_type == AUTH_TYPE_HBA) {
 		struct HBARule *rule = hba_eval(parsed_hba, &client->remote_addr, !!client->sbuf.tls,
-						REPLICATION_NONE, dbname, username);
+						client_is_gss_encrypted(client), REPLICATION_NONE, dbname, username);
 		if (rule != NULL && rule->rule_method == AUTH_TYPE_LDAP)
+			return true;
+	}
+	return false;
+}
+#endif
+
+#ifdef HAVE_GSSAPI
+static bool check_if_need_gssapi_authentication(PgSocket *client, const char *dbname, const char *username)
+{
+	if (cf_auth_type == AUTH_TYPE_HBA) {
+		struct HBARule *rule = hba_eval(parsed_hba, &client->remote_addr, !!client->sbuf.tls,
+						client_is_gss_encrypted(client), REPLICATION_NONE, dbname, username);
+		if (rule != NULL && rule->rule_method == AUTH_TYPE_GSSAPI)
 			return true;
 	}
 	return false;
@@ -609,6 +666,26 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username)
 		if (!check_user_connection_count(client)) {
 			return false;
 		}
+#ifdef HAVE_GSSAPI
+	} else if (check_if_need_gssapi_authentication(client, dbname, username) ||
+		   cf_auth_type == AUTH_TYPE_GSSAPI) {
+		if (client->db->auth_user_credentials) {
+			slog_error(client, "GSSAPI can't be used together with database authentication");
+			disconnect_client(client, true, "bouncer config error");
+			return false;
+		}
+		/* GSSAPI authenticates via Kerberos; no password is involved */
+		client->login_user_credentials = find_or_add_new_global_credentials(username, NULL);
+		if (!client->login_user_credentials) {
+			slog_error(client, "set_pool(): failed to allocate credentials for GSSAPI user");
+			disconnect_client(client, true, "bouncer resources exhaustion");
+			return false;
+		}
+		if (!check_db_connection_count(client))
+			return false;
+		if (!check_user_connection_count(client))
+			return false;
+#endif
 	} else {
 		client->login_user_credentials = find_global_credentials(username);
 
@@ -1215,6 +1292,7 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 	const uint8_t *key;
 	bool ok;
 	bool is_unix = pga_is_unix(&client->remote_addr);
+	bool gss_encrypted = client_is_gss_encrypted(client);
 
 	SBuf *sbuf = &client->sbuf;
 
@@ -1262,6 +1340,12 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 			disconnect_client(client, false, "SSL req inside SSL");
 			return false;
 		}
+#ifdef HAVE_GSSAPI
+		if (client->gss_enc.active) {
+			disconnect_client(client, false, "SSL req inside GSS encryption");
+			return false;
+		}
+#endif
 		if (client_accept_sslmode != SSLMODE_DISABLED && !is_unix) {
 			slog_noise(client, "P: SSL ack");
 			if (!sbuf_answer(&client->sbuf, "S", 1)) {
@@ -1283,8 +1367,25 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		}
 		break;
 	case PKT_GSSENCREQ:
-		/* reject GSS encryption attempt */
 		slog_noise(client, "C: req GSS enc");
+#ifdef HAVE_GSSAPI
+		if (client->gss_enc.active || client->sbuf.tls) {
+			disconnect_client(client, false, "GSS enc req inside existing encryption");
+			return false;
+		}
+		if (cf_client_gssencmode > GSSENCMODE_DISABLED && !is_unix) {
+			slog_noise(client, "P: GSS enc ack");
+			if (!sbuf_answer(&client->sbuf, "G", 1)) {
+				disconnect_client(client, false, "failed to ack GSS enc");
+				return false;
+			}
+			if (!sbuf_gss_accept(&client->sbuf)) {
+				disconnect_client(client, false, "GSS enc handshake init failed");
+				return false;
+			}
+			break;
+		}
+#endif
 		if (!sbuf_answer(&client->sbuf, "N", 1)) {
 			disconnect_client(client, false, "failed to nak GSS enc");
 			return false;
@@ -1298,6 +1399,12 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		/* require SSL except on unix socket */
 		if (client_accept_sslmode >= SSLMODE_REQUIRE && !client->sbuf.tls && !is_unix) {
 			disconnect_client(client, true, "SSL required");
+			return false;
+		}
+
+		/* require GSSAPI encryption except on unix socket */
+		if (cf_client_gssencmode >= GSSENCMODE_REQUIRE && !gss_encrypted && !is_unix) {
+			disconnect_client(client, true, "GSSAPI encryption required");
 			return false;
 		}
 
@@ -1315,12 +1422,38 @@ static bool handle_client_startup(PgSocket *client, PktHdr *pkt)
 		}
 
 		break;
-	case PqMsg_PasswordMessage:	/* or SASLInitialResponse, or SASLResponse */
+	case PqMsg_PasswordMessage:	/* or SASLInitialResponse, SASLResponse, GSSResponse */
 		/* too early */
 		if (!client->login_user_credentials) {
 			disconnect_client(client, true, "client password pkt before startup packet");
 			return false;
 		}
+
+#ifdef HAVE_GSSAPI
+		if (client->client_auth_type == AUTH_TYPE_GSSAPI) {
+			/*
+			 * GSSResponse: the message body is a raw binary GSSAPI
+			 * token with no framing (unlike SASL).  Read all available
+			 * bytes as the token.
+			 */
+			unsigned gss_len = mbuf_avail_for_read(&pkt->data);
+			const uint8_t *gss_data;
+
+			if (!mbuf_get_bytes(&pkt->data, gss_len, &gss_data))
+				return false;
+			/*
+			 * On success (exchange complete on a warm pool, or another
+			 * token expected) fall through to consume the packet via the
+			 * common sbuf_prepare_skip below, exactly as the SCRAM path
+			 * does.  A false return means either failure (already
+			 * disconnected) or a pause waiting for the backend, where the
+			 * packet must stay buffered for the resumed login.
+			 */
+			if (!gssapi_accept_continue(client, gss_data, gss_len))
+				return false;
+			break;
+		}
+#endif
 
 		if (client->client_auth_type == AUTH_TYPE_SCRAM_SHA_256) {
 			const char *mech;
@@ -1835,6 +1968,7 @@ bool client_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		res = process_pkt_callback(client, data, client_handle_complete_packet);
 		break;
 	case SBUF_EV_TLS_READY:
+	case SBUF_EV_GSS_READY:
 		sbuf_continue(&client->sbuf);
 		res = true;
 		break;

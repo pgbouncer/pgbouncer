@@ -404,6 +404,30 @@ if ldap.found()
 endif
 
 # ----------------------------------------------------------------------
+# GSSAPI (mirrors --with-gssapi)
+# ----------------------------------------------------------------------
+
+gssapiopt = get_option('gssapi')
+gssapi = not_found_dep
+if gssapiopt != 'disabled'
+  gssapi = dependency('krb5-gssapi', required: gssapiopt == 'enabled')
+endif
+# src/gssapi_auth.c calls gss_acquire_cred_from and gss_localname, which need
+# MIT Kerberos 1.11 or later. An `auto` lookup that finds another GSSAPI
+# library builds without GSSAPI.
+if gssapi.found() and not (cc.has_function('gss_acquire_cred_from', dependencies: gssapi) and
+                           cc.has_function('gss_localname', dependencies: gssapi))
+  if gssapiopt == 'enabled'
+    error('GSSAPI support needs gss_acquire_cred_from and gss_localname, from MIT Kerberos >= 1.11')
+  endif
+  message('GSSAPI library lacks gss_acquire_cred_from or gss_localname; building without GSSAPI')
+  gssapi = not_found_dep
+endif
+if gssapi.found()
+  cdata.set('HAVE_GSSAPI', 1, description: 'GSSAPI (Kerberos) support.')
+endif
+
+# ----------------------------------------------------------------------
 # DNS backend selection (mirrors the DNS section of configure.ac)
 #
 # Order of preference: c-ares, then libevent's evdns, then the libc /
@@ -557,6 +581,7 @@ pgbouncer_sources = files(
   'src/admin.c',
   'src/client.c',
   'src/dnslookup.c',
+  'src/gssapi_auth.c',
   'src/hba.c',
   'src/janitor.c',
   'src/ldapauth.c',
@@ -603,6 +628,7 @@ pgbouncer_deps = [
   libevent,
   openssl,
   systemd,
+  gssapi,
   pam,
   ldap,
   threads,
@@ -831,6 +857,7 @@ endif
 
 summary({
   'adns': adns,
+  'gssapi': gssapi.found(),
   'ldap': ldap.found(),
   'pam': pam.found(),
   'systemd': systemd.found(),

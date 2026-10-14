@@ -28,6 +28,7 @@ Compilation depends on a few things:
 * (optional) [c-ares] as alternative to Libevent's evdns
 * (optional) LDAP libraries
 * (optional) PAM libraries
+* (optional) MIT Kerberos 1.11+ GSSAPI libraries
 
 The Meson build additionally needs [Meson] 0.58+ and [Ninja]; the Autoconf
 build needs [GNU Make] 3.81+.
@@ -90,11 +91,12 @@ fall back to a libc-based implementation.
 Optional features
 -----------------
 
-The PAM, LDAP and systemd features are auto-detected by meson: their `-Dpam`,
-`-Dldap` and `-Dsystemd` options default to `auto`, so each is built when its
-libraries are present.  Force one on with `-D<feature>=enabled` or off with
-`-D<feature>=disabled`.  The Autoconf build does not auto-detect them; opt in
-explicitly with `--with-pam`, `--with-ldap` or `--with-systemd`.
+The PAM, LDAP, GSSAPI and systemd features are auto-detected by meson: their
+`-Dpam`, `-Dldap`, `-Dgssapi` and `-Dsystemd` options default to `auto`, so each
+is built when its libraries are present.  Force one on with `-D<feature>=enabled`
+or off with `-D<feature>=disabled`.  The Autoconf build does not auto-detect them;
+opt in explicitly with `--with-pam`, `--with-ldap`, `--with-gssapi` or
+`--with-systemd`.
 
 PAM authentication
 ------------------
@@ -107,6 +109,13 @@ LDAP authentication
 
 When compiled with LDAP support, a new global authentication type `ldap` is
 available to validate users through LDAP.
+
+GSSAPI authentication
+---------------------
+
+When compiled with GSSAPI support, a new authentication type `gss` is available
+to authenticate users with Kerberos, globally or in the HBA file.  The
+`client_gssencmode` and `server_gssencmode` settings enable GSSAPI encryption.
 
 systemd integration
 -------------------
@@ -172,7 +181,7 @@ If cross-compiling from Unix with Autoconf:
 
 	$ ./configure --host=i586-mingw32msvc
 
-The LDAP build option is currently not supported on Windows.
+The LDAP and GSSAPI build options are currently not supported on Windows.
 
 Running on Windows
 ------------------

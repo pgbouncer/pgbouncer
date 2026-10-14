@@ -86,6 +86,23 @@ scram-sha-256	mdb3	muser		face::1
 reject		mdb4	muser		1.2.3.4
 reject		mdb4	muser		face::1
 
+# gss
+gss		gssdb	user		20.1.1.1
+gss		gssdb	user		21.1.1.1
+gss		gssdb	user		20.1.1.1	tls
+reject		gssdb	user		22.1.1.1
+reject		gssdb	user		23.1.1.1
+reject		gssdb	user		24.1.1.1
+
+# GSSAPI-encrypted connections
+gss		db	user		25.1.1.1	gssenc
+reject		db	user		25.1.1.1
+md5		db	user		26.1.1.1
+reject		db	user		26.1.1.1	gssenc
+# a GSSAPI-encrypted connection is not TLS
+reject		db	user		10.1.1.1	gssenc
+md5		db	user		11.1.1.1	gssenc
+
 # replication
 reject		mdb		muser		::1	replication
 reject		db		userp		unix	replication

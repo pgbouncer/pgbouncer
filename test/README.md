@@ -69,6 +69,11 @@ PostgreSQL server programs (`initdb`, `pg_ctl`) in the path, so if you are on a
 system that doesn't have those in the normal path (e.g., Debian, Ubuntu), set
 `PATH` beforehand.
 
+The GSSAPI tests in `test_auth_gss.py` also need PgBouncer built with GSSAPI
+support and the MIT Kerberos programs installed (`krb5-kdc`,
+`krb5-admin-server` and `krb5-user` on Debian and Ubuntu). The test suite starts
+its own KDC, so they need neither root nor any system Kerberos configuration.
+
 Optionally, this test suite can use `iptables`/`pfctl` to simulate various
 network conditions.  To include these tests, set the environment variable
 USE_SUDO to a nonempty value, for example `make check USE_SUDO=1`.  This will

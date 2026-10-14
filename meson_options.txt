@@ -21,6 +21,8 @@ option('cares', type: 'feature', value: 'auto',
 
 # combo rather than feature: these are probed with find_library, and passing a
 # feature to find_library's `required` needs meson 0.59 (newer than our floor).
+option('gssapi', type: 'combo', choices: ['auto', 'enabled', 'disabled'], value: 'auto',
+       description: 'Build with GSSAPI (Kerberos) authentication and encryption support')
 option('ldap', type: 'combo', choices: ['auto', 'enabled', 'disabled'], value: 'auto',
        description: 'Build with LDAP authentication support')
 

@@ -694,6 +694,13 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 		rtype = RULE_HOSTSSL;
 	} else if (eat_kw(tp, "hostnossl")) {
 		rtype = RULE_HOSTNOSSL;
+	} else if (eat_kw(tp, "hostgssenc")) {
+		rtype = RULE_HOSTGSSENC;
+#ifndef HAVE_GSSAPI
+		log_warning("hba line %d: hostgssenc record cannot match because GSSAPI is not supported by this build", linenr);
+#endif
+	} else if (eat_kw(tp, "hostnogssenc")) {
+		rtype = RULE_HOSTNOGSSENC;
 	} else if (eat(tp, TOK_EOL)) {
 		return true;
 	} else {
@@ -774,6 +781,8 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 		rule->rule_method = AUTH_TYPE_SCRAM_SHA_256;
 	} else if (check_kw(tp, "ldap")) {
 		rule->rule_method = AUTH_TYPE_LDAP;
+	} else if (eat_kw(tp, "gss")) {
+		rule->rule_method = AUTH_TYPE_GSSAPI;
 	} else {
 		log_warning("hba line %d: unsupported method: buf=%s", linenr, tp->buf);
 		goto failed;
@@ -787,7 +796,35 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 		eat_all(tp);
 	}
 
-	if (!parse_map_definition(rule, ident, tp, linenr)) {
+	if (rule->rule_method == AUTH_TYPE_GSSAPI) {
+		/*
+		 * As in PostgreSQL, include_realm defaults to 1, meaning the username
+		 * must equal the full principal, and any value other than 1 means 0.
+		 * With include_realm=0 the principal is mapped by gss_localname()
+		 * through the auth_to_local rules in krb5.conf.
+		 *
+		 * krb_realm= and map= are not implemented.  Both narrow who may log
+		 * in, and a line that fails to parse is skipped, which would let a
+		 * later, broader line match.  So a line with either option rejects
+		 * the connections it matches instead.
+		 */
+		rule->include_realm = true;
+		while (tp->cur_tok == TOK_IDENT) {
+			if (strncmp(tp->cur_tok_str, "include_realm=", 14) == 0) {
+				rule->include_realm = strcmp(tp->cur_tok_str + 14, "1") == 0;
+				next_token(tp);
+			} else if (strncmp(tp->cur_tok_str, "krb_realm=", 10) == 0 ||
+				   strncmp(tp->cur_tok_str, "map=", 4) == 0) {
+				log_warning("hba line %d: GSSAPI option \"%s\" is not supported, "
+					    "so this line rejects the connections it matches",
+					    linenr, tp->cur_tok_str);
+				rule->rule_method = AUTH_TYPE_REJECT;
+				eat_all(tp);
+			} else {
+				break;
+			}
+		}
+	} else if (!parse_map_definition(rule, ident, tp, linenr)) {
 		goto failed;
 	}
 
@@ -979,7 +1016,7 @@ static bool address_match(const struct HBAAddress *haddress, PgAddr *addr)
 	}
 }
 
-struct HBARule * hba_eval(struct HBA *hba, PgAddr *addr, bool is_tls, ReplicationType replication, const char *dbname, const char *username)
+struct HBARule * hba_eval(struct HBA *hba, PgAddr *addr, bool is_tls, bool is_gss_encrypted, ReplicationType replication, const char *dbname, const char *username)
 {
 	struct List *el;
 	struct HBARule *rule;
@@ -1001,6 +1038,10 @@ struct HBARule * hba_eval(struct HBA *hba, PgAddr *addr, bool is_tls, Replicatio
 		} else if (rule->rule_type == RULE_HOSTSSL && !is_tls) {
 			continue;
 		} else if (rule->rule_type == RULE_HOSTNOSSL && is_tls) {
+			continue;
+		} else if (rule->rule_type == RULE_HOSTGSSENC && !is_gss_encrypted) {
+			continue;
+		} else if (rule->rule_type == RULE_HOSTNOGSSENC && is_gss_encrypted) {
 			continue;
 		} else if (!address_match(&rule->address, addr)) {
 			continue;

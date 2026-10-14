@@ -420,7 +420,7 @@ const char *usual_strerror_r(int e, char *dst, size_t dstlen)
 	return dst;
 }
 
-void *mempbrk(const void *data, size_t dlen, const void *find, size_t flen)
+const void *mempbrk(const void *data, size_t dlen, const void *find, size_t flen)
 {
 	const uint8_t *s = data;
 	const uint8_t *fb = find;
@@ -437,7 +437,7 @@ void *mempbrk(const void *data, size_t dlen, const void *find, size_t flen)
 		bitmap256_set(&bmap, fb[i]);
 	for (i = 0; i < dlen; i++) {
 		if (bitmap256_is_set(&bmap, s[i]))
-			return (void *)(s + i);
+			return s + i;
 	}
 	return NULL;
 }

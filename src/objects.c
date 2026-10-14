@@ -1176,6 +1176,17 @@ static bool reset_on_release(PgSocket *server)
 
 	Assert(server->state == SV_TESTED);
 
+	/*
+	 * The reset query (e.g. DISCARD ALL) returns the session to its defaults
+	 * on the backend.  Parameters that the server does not report via
+	 * ParameterStatus leave no trace of that in the varcache, so drop their
+	 * cached server values now; otherwise the next client requesting the same
+	 * value would match a stale entry and silently run with the backend
+	 * default.  The server is in SV_TESTED and cannot be handed to another
+	 * client before the reset completes, so clearing here is safe.
+	 */
+	varcache_clear_unreported(server);
+
 	slog_debug(server, "resetting: %s", cf_server_reset_query);
 	SEND_generic(res, server, PqMsg_Query, "s", cf_server_reset_query);
 	if (!res)

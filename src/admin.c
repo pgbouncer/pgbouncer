@@ -459,8 +459,7 @@ static void socket_row(PktBuf *buf, PgSocket *sk, const char *state, bool debug)
 	char infobuf[96] = "";
 	VarCache *v = &sk->vars;
 	const struct PStr *application_name = v->var_list[VAppName];
-	usec_t now = get_cached_time();
-	usec_t wait_time = sk->query_start ? now - sk->query_start : 0;
+	usec_t wait_time = socket_wait_time(sk);
 	char *replication;
 
 	if (io) {
@@ -681,7 +680,6 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 	PgPool *pool;
 	PktBuf *buf;
 	PgSocket *waiter;
-	usec_t now = get_cached_time();
 	usec_t max_wait;
 	struct CfValue cv;
 	struct CfValue load_balance_hosts_lookup;
@@ -712,7 +710,7 @@ static bool admin_show_pools(PgSocket *admin, const char *arg)
 	statlist_for_each(item, &pool_list) {
 		pool = container_of(item, PgPool, head);
 		waiter = first_socket(&pool->waiting_client_list);
-		max_wait = (waiter && waiter->query_start) ? now - waiter->query_start : 0;
+		max_wait = waiter ? socket_wait_time(waiter) : 0;
 		pool_mode = probably_wrong_pool_pool_mode(pool);
 
 		load_balance_hosts_str = NULL;

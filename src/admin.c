@@ -994,7 +994,7 @@ static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 
 	if (!arg[0]) {
 		log_info("RESUME command issued");
-		if (cf_shutdown) {
+		if (cf_shutdown && cf_shutdown != SHUTDOWN_WAIT_FOR_CLIENTS) {
 			return admin_error(admin, "pooler is shutting down");
 		} else if (cf_pause_mode != P_NONE) {
 			cf_pause_mode = P_NONE;

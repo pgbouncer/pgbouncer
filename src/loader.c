@@ -596,6 +596,7 @@ bool parse_user(void *base, const char *name, const char *connstr)
 	user->query_wait_timeout_set = query_wait_timeout_set;
 	user->client_idle_timeout = client_idle_timeout;
 	user->max_user_client_connections = max_user_client_connections;
+	user->config_dead = false;
 
 	free(tmp_connstr);
 	return true;

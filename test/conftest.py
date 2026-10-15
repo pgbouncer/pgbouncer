@@ -105,10 +105,12 @@ def shared_setup(tmp_path_factory, worker_id):
                 finished_count_file.write_text(str(finished_count))
 
 
-@pytest.fixture(autouse=True, scope="session")
-def pg(tmp_path_factory, cert_dir):
-    """Starts a new Postgres db that is shared for tests in this process"""
-    pg = Postgres(tmp_path_factory.getbasetemp() / "pgdata")
+def setup_pg(pg, cert_dir):
+    """Initializes and starts the Postgres db that the tests share
+
+    Creates the HBA entries, databases and roles that the suite expects to
+    already be there.
+    """
     pg.initdb()
     os.truncate(pg.hba_path, 0)
 
@@ -174,9 +176,19 @@ def pg(tmp_path_factory, cert_dir):
         pg.sql("set password_encryption = 'on'; create user puser1 password 'foo';")
         pg.sql("set password_encryption = 'on'; create user puser2 password 'wrong';")
 
-    yield pg
 
-    pg.cleanup()
+@pytest.fixture(autouse=True, scope="session")
+def pg(tmp_path_factory, cert_dir):
+    """Starts a new Postgres db that is shared for tests in this process"""
+    pg = Postgres(tmp_path_factory.getbasetemp() / "pgdata")
+
+    # The constructor already took a port lock that only cleanup() hands back.
+    try:
+        setup_pg(pg, cert_dir)
+
+        yield pg
+    finally:
+        pg.cleanup()
 
 
 @pytest.fixture
@@ -184,11 +196,12 @@ async def proxy(pg, tmp_path):
     """Starts a new proxy process"""
     proxy = Proxy(pg)
 
-    proxy.start()
+    try:
+        proxy.start()
 
-    yield proxy
-
-    proxy.cleanup()
+        yield proxy
+    finally:
+        proxy.cleanup()
 
 
 @pytest.fixture
@@ -196,11 +209,12 @@ async def bouncer(pg, tmp_path):
     """Starts a new PgBouncer process"""
     bouncer = Bouncer(pg, tmp_path / "bouncer")
 
-    await bouncer.start()
+    try:
+        await bouncer.start()
 
-    yield bouncer
-
-    await bouncer.cleanup()
+        yield bouncer
+    finally:
+        await bouncer.cleanup()
 
 
 @pytest.fixture
@@ -210,13 +224,19 @@ async def bouncer_with_openldap(pg, tmp_path, monkeypatch):
     ldap = OpenLDAP(tmp_path)
     bouncer.ldap = ldap
     monkeypatch.setenv("LDAPCONF", str(tmp_path / "ldap/ldap.conf"))
-    ldap.startup()
-    await bouncer.start()
 
-    yield bouncer
+    try:
+        ldap.startup()
+        await bouncer.start()
 
-    ldap.cleanup()
-    await bouncer.cleanup()
+        yield bouncer
+    finally:
+        # Nested, so that a failure in the LDAP teardown still lets the bouncer
+        # hand its port back.
+        try:
+            ldap.cleanup()
+        finally:
+            await bouncer.cleanup()
 
 
 @pytest.fixture(autouse=True)

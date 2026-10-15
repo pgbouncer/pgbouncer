@@ -20,21 +20,32 @@ async def peers(pg, tmp_path):
 
     peers[3] = Bouncer(pg, tmp_path / "bouncer3", port=peers[1].port)
 
-    for own_index, bouncer in peers.items():
-        with bouncer.ini_path.open("a") as f:
-            f.write("so_reuseport=1\n")
-            f.write(f"peer_id={own_index}\n")
-            f.write("[peers]\n")
-            for other_index, peer in peers.items():
-                if own_index == other_index:
-                    continue
-                f.write(f"{other_index} = host={peer.admin_host} port={peer.port}\n")
+    try:
+        for own_index, bouncer in peers.items():
+            with bouncer.ini_path.open("a") as f:
+                f.write("so_reuseport=1\n")
+                f.write(f"peer_id={own_index}\n")
+                f.write("[peers]\n")
+                for other_index, peer in peers.items():
+                    if own_index == other_index:
+                        continue
+                    f.write(
+                        f"{other_index} = host={peer.admin_host} port={peer.port}\n"
+                    )
 
-    await asyncio.gather(*[p.start() for p in peers.values()])
+        await asyncio.gather(*[p.start() for p in peers.values()])
 
-    yield peers
-
-    await asyncio.gather(*[p.cleanup() for p in peers.values()])
+        yield peers
+    finally:
+        # return_exceptions, so that one peer failing to clean up does not leave
+        # the others pending and holding their ports. Only peers[1] owns a port
+        # lock, and its cleanup() yields, so it is the one that loses out.
+        results = await asyncio.gather(
+            *[p.cleanup() for p in peers.values()], return_exceptions=True
+        )
+        for result in results:
+            if isinstance(result, BaseException):
+                raise result
 
 
 def test_peering_without_own_index(peers):

@@ -21,6 +21,8 @@ bool parse_database(void *base, const char *name, const char *connstr) _MUSTCHEC
 bool parse_peer(void *base, const char *name, const char *connstr) _MUSTCHECK;
 
 bool parse_user(void *base, const char *name, const char *params) _MUSTCHECK;
+void step_user_settings_generation(void);
+void reset_unmentioned_user_settings(void);
 
 /* user file parsing */
 bool load_auth_file(const char *fn) /* _MUSTCHECK */;

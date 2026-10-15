@@ -127,6 +127,20 @@ int SSL_CTX_load_verify_mem(SSL_CTX *ctx, void *buf, int len);
 #define SSL_set_tlsext_status_type(a, b) (1)
 #endif
 
+/*
+ * SSL_CTX_set1_groups_list() (OpenSSL 1.1.1+) supersedes
+ * SSL_CTX_set1_curves_list() (OpenSSL 1.0.2+).  Both take a
+ * colon-separated list of curve/group names and, unlike the old
+ * EC_KEY/SSL_CTX_set_tmp_ecdh() path, live in the default and FIPS
+ * providers.  Alias the newer name onto the older one when only the
+ * latter is available.
+ */
+#ifndef SSL_CTX_set1_groups_list
+#ifdef SSL_CTX_set1_curves_list
+#define SSL_CTX_set1_groups_list SSL_CTX_set1_curves_list
+#endif
+#endif
+
 void tls_compat_cleanup(void);
 
 #ifndef SSL_OP_NO_TLSv1_3

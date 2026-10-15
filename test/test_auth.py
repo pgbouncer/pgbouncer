@@ -427,6 +427,49 @@ def test_scram_forced_user_with_different_password(bouncer):
     bouncer.test(dbname="p6forced", user="scramuser1", password="foo")
 
 
+@pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+def test_scram_passthrough_keys_cleared_on_password_change(bouncer):
+    """
+    Regression test: SCRAM pass-through keys must not survive a password
+    change in the auth_file.
+
+    The keys saved from a client login are derived from the verifier the
+    client authenticated with. After the password is rotated (here on the
+    backend and in userlist.txt, now as plaintext), the stale keys must not be
+    used for backend logins, otherwise they fail with "password
+    authentication failed" even though the configured password is correct.
+    """
+    user = "scramrotate"
+    bouncer.pg.sql(f"drop user if exists {user}")
+    bouncer.pg.sql(
+        f"set password_encryption = 'scram-sha-256'; create user {user} password 'old'"
+    )
+    try:
+        verifier = bouncer.pg.sql_value(
+            f"select rolpassword from pg_authid where rolname = '{user}'"
+        )
+        with bouncer.auth_path.open("a") as f:
+            f.write(f'"{user}" "{verifier}"\n')
+        bouncer.admin("reload")
+        bouncer.admin("set auth_type='scram-sha-256'")
+
+        # Stores the pass-through keys derived from the "old" verifier
+        bouncer.test(dbname="p62", user=user, password="old")
+
+        bouncer.pg.sql(f"alter user {user} password 'new'")
+        lines = bouncer.auth_path.read_text().splitlines()
+        lines = [l for l in lines if not l.startswith(f'"{user}"')]
+        lines.append(f'"{user}" "new"')
+        bouncer.auth_path.write_text("\n".join(lines) + "\n")
+        bouncer.admin("reload")
+        bouncer.admin("reconnect")
+
+        bouncer.test(dbname="p62", user=user, password="new")
+    finally:
+        bouncer.pg.sql(f"drop user if exists {user}")
+
+
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
 def test_auth_dbname_usage(
     bouncer,

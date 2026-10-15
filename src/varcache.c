@@ -173,7 +173,7 @@ static int apply_var(PktBuf *pkt, const char *key,
 		     const struct PStr *sval)
 {
 	char buf[300];
-	char qbuf[128];
+	char *qbuf = NULL;
 	unsigned len;
 	const char *tmp;
 
@@ -225,10 +225,18 @@ static int apply_var(PktBuf *pkt, const char *key,
 		} else {
 			tmp = cval->str;
 		}
-	} else if (pg_quote_literal(qbuf, cval->str, sizeof(qbuf))) {
-		tmp = qbuf;
 	} else {
-		return 0;
+		/*
+		 * pg_quote_literal() expands each byte to at most two, plus the
+		 * surrounding quotes, an optional leading E and the NUL, so this
+		 * buffer (qbuf) is always large enough and the call cannot fail.
+		 */
+		len = 2 * strlen(cval->str) + 4;
+		qbuf = malloc(len);
+		if (!qbuf)
+			die("failed to allocate memory in apply_var");
+		pg_quote_literal(qbuf, cval->str, len);
+		tmp = qbuf;
 	}
 
 	/* add SET statement to packet */
@@ -247,6 +255,8 @@ static int apply_var(PktBuf *pkt, const char *key,
 
 		free(buf2);
 	}
+
+	free(qbuf);
 
 	return 1;
 }

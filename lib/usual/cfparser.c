@@ -344,7 +344,20 @@ struct LoaderCtx {
 	char *cur_sect;
 	void *top_base;
 	bool got_main_sect;
+	/*
+	 * Names of the sections entered so far.  Keyed on the name and not on
+	 * the CfSect, because a "*" entry in sect_list is the same CfSect for
+	 * every dynamic section name.
+	 */
+	struct StrList *seen_sects;
 };
+
+/* stop the walk on a match, so a false return from strlist_foreach means seen */
+static bool sect_name_differs(void *arg, const char *name)
+{
+	const char *want = arg;
+	return !name || strcmp(name, want) != 0;
+}
 
 static bool fill_defaults(struct LoaderCtx *ctx)
 {
@@ -365,6 +378,16 @@ static bool fill_defaults(struct LoaderCtx *ctx)
 
 	if (s->set_key)
 		return true;
+
+	/*
+	 * The defaults are applied on first entry only, so that a section
+	 * appearing again later in the file (or in an included file) adds to
+	 * what the earlier block set instead of resetting it.
+	 */
+	if (!strlist_foreach(ctx->seen_sects, sect_name_differs, ctx->cur_sect))
+		return true;
+	if (!strlist_append(ctx->seen_sects, ctx->cur_sect))
+		goto fail;
 
 	for (k = s->key_list; k->key_name; k++) {
 		if (!k->def_value || (k->flags & CF_READONLY))
@@ -405,8 +428,15 @@ bool cf_load_file(const struct CfContext *cf, const char *fn)
 	memset(&ctx, 0, sizeof(ctx));
 	ctx.cf = cf;
 
+	ctx.seen_sects = strlist_new(NULL);
+	if (!ctx.seen_sects) {
+		log_error("cf_load_file: no mem");
+		return false;
+	}
+
 	ok = parse_ini_file(fn, load_handler, &ctx);
 	free(ctx.cur_sect);
+	strlist_free(ctx.seen_sects);
 	if (ok && !ctx.got_main_sect) {
 		log_error("load_init_file: main section missing from config file");
 		return false;

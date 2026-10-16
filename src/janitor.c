@@ -198,13 +198,27 @@ static void per_loop_activate(PgPool *pool)
 static int per_loop_pause(PgPool *pool)
 {
 	int active = 0;
+	bool last_login_failed;
+	bool last_connect_failed;
+	char last_connect_failed_message[sizeof(pool->last_connect_failed_message)];
 
 	if (pool->db->admin)
 		return 0;
 
 	close_server_list(&pool->idle_server_list, "pause mode");
 	close_server_list(&pool->used_server_list, "pause mode");
+
+	/*
+	 * Closing a login in progress because of the pause says nothing about
+	 * the server, so don't let it count as a failed login.
+	 */
+	last_login_failed = pool->last_login_failed;
+	last_connect_failed = pool->last_connect_failed;
+	safe_strcpy(last_connect_failed_message, pool->last_connect_failed_message, sizeof(last_connect_failed_message));
 	close_server_list(&pool->new_server_list, "pause mode");
+	pool->last_login_failed = last_login_failed;
+	pool->last_connect_failed = last_connect_failed;
+	safe_strcpy(pool->last_connect_failed_message, last_connect_failed_message, sizeof(pool->last_connect_failed_message));
 
 	active += statlist_count(&pool->active_server_list);
 	active += statlist_count(&pool->tested_server_list);

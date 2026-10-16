@@ -19,6 +19,26 @@ async def test_pause_resume(bouncer):
     await task
 
 
+async def test_pause_during_server_login(pg, bouncer):
+    # Cache the welcome message and drop the idle server, so that a new client
+    # can log in without waiting for a server.
+    bouncer.test()
+    bouncer.admin("pause")
+    bouncer.admin("resume")
+
+    pg.configure("pre_auth_delay to '3s'")
+    pg.reload()
+    task = bouncer.atest()
+    await asyncio.sleep(0.5)
+
+    with bouncer.log_contains("closing because: pause mode"):
+        bouncer.admin("pause")
+    bouncer.admin("resume")
+
+    bouncer.test()
+    await task
+
+
 def test_enable_disable(bouncer):
     bouncer.test()
     bouncer.admin("disable p0")

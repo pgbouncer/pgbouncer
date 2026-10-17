@@ -604,6 +604,37 @@ def _send_startup_message(bouncer, parameters):
             return message_type, stream.read(message_length - 4)
 
 
+def _startup_packet(user, database):
+    parameters = b"\0".join((b"user", user, b"database", database, b"", b""))
+    payload = struct.pack("!I", 0x30000) + parameters
+    return struct.pack("!I", len(payload) + 4) + payload
+
+
+def _read_message(stream):
+    message_type = stream.read(1)
+    message_length = struct.unpack("!I", stream.read(4))[0]
+    return message_type, stream.read(message_length - 4)
+
+
+@pytest.mark.parametrize("database", [b"p0", b"nonexistent_db"])
+def test_second_startup_message_rejected(bouncer, database):
+    # An unknown database doesn't get a pool, which used to let a second
+    # StartupMessage through and switch identity mid-authentication.
+    bouncer.admin("set auth_type = md5")
+
+    with socket.create_connection((bouncer.host, bouncer.port)) as sock:
+        sock.sendall(_startup_packet(b"puser1", database))
+        with sock.makefile("rb") as stream:
+            message_type, _ = _read_message(stream)
+            assert message_type == b"R"
+
+            with bouncer.log_contains("client re-sent startup pkt"):
+                sock.sendall(_startup_packet(b"pgbouncer", b"pgbouncer"))
+                message_type, message = _read_message(stream)
+            assert message_type == b"E"
+            assert b"client re-sent startup pkt" in message
+
+
 def test_protocol_extension_negotiation(bouncer):
     protocol_version = 0x30000
     extension = b"_pq_.test_protocol_negotiation"
@@ -720,6 +751,13 @@ def test_options_startup_param(bouncer):
     ):
         bouncer.test(options="-c enable_seqscan=false")
 
+    # An option with an empty parameter name should be rejected.
+    with pytest.raises(
+        psycopg.OperationalError,
+        match="unsupported startup parameter in options:",
+    ):
+        bouncer.test(options="-c=")
+
     bouncer.admin("set ignore_startup_parameters = options")
     # Unsupported values should be ignored, so it shouldn't error but it should
     # have its default value instead.
@@ -739,6 +777,22 @@ def test_options_startup_param(bouncer):
             options="-ctimezone=Europe/Lisbon  -cdatestyle=German,\\ YMD",
         )
         == "Europe/Lisbon"
+    )
+
+    # The empty-parameter-name case must also not hang when "options" is in
+    # ignore_startup_parameters; here it is simply ignored rather than rejected.
+    bouncer.test(options="-c=")
+
+
+def test_ignore_tracked_startup_parameter(bouncer):
+    """A parameter listed in ignore_startup_parameters is ignored, even if it's
+    one that PgBouncer tracks by default."""
+    default = bouncer.sql_value("SHOW search_path")
+    assert bouncer.sql_value("SHOW search_path", options="-c search_path=foo") == "foo"
+
+    bouncer.admin("set ignore_startup_parameters = search_path")
+    assert (
+        bouncer.sql_value("SHOW search_path", options="-c search_path=foo") == default
     )
 
 

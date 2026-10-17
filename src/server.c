@@ -61,9 +61,10 @@ static bool load_parameter(PgSocket *server, PktHdr *pkt, bool startup)
 	 * in_hot_standby is the same for every session on a server, but changes
 	 * when a standby gets promoted or the server gets replaced.  New server
 	 * logins report it, and so do existing sessions after a promotion, so
-	 * keep the cached welcome msg up to date with it.
+	 * keep the cached welcome msg up to date with it.  Skip connections that
+	 * are going to be closed, they may be to a server that got replaced.
 	 */
-	if (strcmp(key, "in_hot_standby") == 0) {
+	if (strcmp(key, "in_hot_standby") == 0 && !server->close_needed) {
 		if (!update_welcome_parameter(server->pool, key, val))
 			goto failed_store;
 	}

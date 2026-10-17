@@ -186,7 +186,6 @@ static int apply_var(PktBuf *pkt, const char *key,
 		if (cval == sval)
 			return 0;
 
-		/* ignore case difference */
 		if (strcmp(cval->str, sval->str) == 0)
 			return 0;
 	}

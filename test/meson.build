@@ -1,6 +1,4 @@
-# The '..' include dir also brings in the build root (its build-tree
-# counterpart), which is where the generated test_config.h lives.
-test_incdirs = include_directories('..', '../include', '../lib')
+test_incdirs = include_directories('../include', '../lib')
 
 hba_test = executable('hba_test',
                       'hba_test.c',

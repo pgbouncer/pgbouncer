@@ -212,7 +212,7 @@ def get_build_feature(config_mak_key, meson_define):
     if from_env:
         meson_config = Path(from_env)
     else:
-        meson_config = TEST_DIR.parent / "build" / "test_config.h"
+        meson_config = TEST_DIR.parent / "build" / "lib/usual/config.h"
     if meson_config.exists():
         return (
             re.search(rf"#define {meson_define}\b", meson_config.read_text())
@@ -226,7 +226,7 @@ def get_build_feature(config_mak_key, meson_define):
     raise FileNotFoundError(
         f"Could not find {config_mak} (autotools) or a meson config header. "
         "Configure the project first; for a meson build directory other than "
-        "'build', point PGBOUNCER_CONFIG_H at its test_config.h."
+        "'build', point PGBOUNCER_CONFIG_H at its lib/usual/config.h."
     )
 
 

@@ -1144,14 +1144,26 @@ class Bouncer(QueryRunner):
         return False
 
     async def wait_for_exit(self):
+        returncode = None
         if self.process is not None:
             self.process.communicate()
-            self.process.wait()
+            returncode = self.process.wait()
         if self.aprocess is not None:
             await self.aprocess.communicate()
             await self.aprocess.wait()
+            returncode = self.aprocess.returncode
         self.process = None
         self.aprocess = None
+
+        # Every stop path goes through a signal (SIGQUIT/SIGTERM/ SIGINT) that
+        # PgBouncer catches and turns into exit(0), or through an admin
+        # SHUTDOWN that also exits 0, so a non-zero exit code means PgBouncer
+        # crashed or a sanitizer reported a problem at shutdown (except on
+        # Windows).
+        if not WINDOWS and returncode not in (None, 0):
+            raise RuntimeError(
+                f"PgBouncer exited with unexpected exit code {returncode}"
+            )
 
     async def stop(self):
         if not WINDOWS:

@@ -652,6 +652,7 @@ static void unquote_add_authfile_user(const char *username, const char *password
 		log_warning("cannot create user, no memory");
 		return;
 	}
+	user->stale = false;
 	if (strcmp(user->credentials.passwd, real_passwd) != 0) {
 		user = update_global_user_passwd(user, real_passwd);
 	}
@@ -703,20 +704,11 @@ bool loader_users_check(void)
 	return load_auth_file(cf_auth_file);
 }
 
-static void disable_users(void)
-{
-	struct List *item;
-
-	statlist_for_each(item, &user_list) {
-		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
-		user->credentials.passwd[0] = 0;
-	}
-}
-
 /* load list of users from auth_file */
 bool load_auth_file(const char *fn)
 {
 	char *user, *password, *buf, *p;
+	struct List *item;
 
 	/* No file to load? */
 	if (fn == NULL)
@@ -729,7 +721,16 @@ bool load_auth_file(const char *fn)
 	}
 
 	log_debug("loading auth_file: \"%s\"", fn);
-	disable_users();
+
+	/*
+	 * Mark every known user as stale before the auth_file is parsed.
+	 * unquote_add_authfile_user() clears the flag for each user it finds in
+	 * the file. By the end, the users that stayed stale are invalidated below.
+	 */
+	statlist_for_each(item, &user_list) {
+		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
+		user->stale = true;
+	}
 
 	p = buf;
 	while (*p) {
@@ -786,6 +787,21 @@ bool load_auth_file(const char *fn)
 		while (*p && *p != '\n') p++;
 	}
 	free(buf);
+
+	/*
+	 * Invalidate users that were present before but are no longer in the
+	 * auth_file. This is restricted to the users that actually disappeared,
+	 * instead of blanking everyone and refilling, which is what lets passwords
+	 * of still-present users survive a reload untouched.
+	 */
+	statlist_for_each(item, &user_list) {
+		PgGlobalUser *user = container_of(item, PgGlobalUser, head);
+
+		if (!user->stale)
+			continue;
+
+		user->credentials.passwd[0] = 0;
+	}
 
 	return true;
 }

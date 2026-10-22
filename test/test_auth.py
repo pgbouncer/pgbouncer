@@ -385,6 +385,89 @@ def test_scram_passthrough_after_reconnect(bouncer):
 
 
 @pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+def test_scram_passthrough_keys_survive_unrelated_authfile_change(bouncer):
+    """
+    Editing an unrelated entry in the auth_file and reloading must not
+    invalidate the cached SCRAM pass-through keys of users whose password did
+    not change.
+
+    scramuser1 has a genuine SCRAM verifier in userlist.txt (no plaintext is
+    available to PgBouncer), so backend authentication relies entirely on the
+    pass-through keys derived from a client login. We keep a client connected,
+    append an unrelated user to the auth_file, reload, then force the pooled
+    server to reconnect. The already-connected client must still be able to
+    open a fresh backend connection, because nothing about scramuser1 changed.
+    """
+    bouncer.admin("set auth_type='scram-sha-256'")
+    bouncer.admin("set pool_mode='transaction'")
+    bouncer.admin("set default_pool_size=1")
+
+    # Persistent client connection: authenticates via SCRAM and stores the
+    # pass-through keys, then binds and releases a backend server.
+    with bouncer.cur(dbname="p62", user="scramuser1", password="foo") as cur:
+        cur.execute("select 1")
+        assert cur.fetchone()[0] == 1
+
+        # Change an unrelated line in the auth_file (scramuser1 untouched).
+        # This still changes the file on disk, so load_auth_file() runs.
+        with bouncer.auth_path.open("a") as f:
+            f.write('"unrelated_dummy_user" "whatever"\n')
+        bouncer.admin("RELOAD")
+
+        # Drop the pooled backend so the next query must open a new one,
+        # authenticating to the backend with the cached pass-through keys.
+        bouncer.admin("reconnect")
+
+        # Same client connection, no re-authentication happened. This forces a
+        # fresh backend login that relies on the pass-through keys, which must
+        # still be valid.
+        cur.execute("select 2")
+        assert cur.fetchone()[0] == 2
+
+
+@pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+def test_scram_passthrough_keys_cleared_on_password_change(bouncer):
+    """
+    When a user password really is rotated (in auth_file and on the backend)
+    the stale pass-through keys derived from the old verifier must be dropped,
+    so that backend logins use the new password instead of failing with
+    "password authentication failed".
+    """
+    user = "scramrotate"
+    bouncer.pg.sql(f"drop user if exists {user}")
+    bouncer.pg.sql(
+        f"set password_encryption = 'scram-sha-256'; create user {user} password 'old'"
+    )
+    try:
+        verifier = bouncer.pg.sql_value(
+            f"select rolpassword from pg_authid where rolname = '{user}'"
+        )
+        with bouncer.auth_path.open("a") as f:
+            f.write(f'"{user}" "{verifier}"\n')
+        bouncer.admin("reload")
+        bouncer.admin("set auth_type='scram-sha-256'")
+
+        # Stores the pass-through keys derived from the "old" verifier.
+        bouncer.test(dbname="p62", user=user, password="old")
+
+        # Rotate the password on the backend and in the auth_file (plaintext).
+        bouncer.pg.sql(f"alter user {user} password 'new'")
+        lines = bouncer.auth_path.read_text().splitlines()
+        lines = [line for line in lines if not line.startswith(f'"{user}"')]
+        lines.append(f'"{user}" "new"')
+        bouncer.auth_path.write_text("\n".join(lines) + "\n")
+        bouncer.admin("reload")
+        bouncer.admin("reconnect")
+
+        # The stale keys from the "old" verifier must not be reused.
+        bouncer.test(dbname="p62", user=user, password="new")
+    finally:
+        bouncer.pg.sql(f"drop user if exists {user}")
+
+
+@pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
 def test_scram_forced_user_with_different_password(bouncer):
     """
     Regression test: wrong SCRAM pass-through with forced user.

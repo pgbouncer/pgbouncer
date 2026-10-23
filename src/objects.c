@@ -45,6 +45,8 @@ struct AATree user_tree;
  */
 struct AATree pam_user_tree;
 
+static PgGlobalUser *find_or_add_dynamic_global_user(const char *name);
+
 /*
  * The global prepared statement cache, which deduplicates prepared statements
  * sent by the clients statements by storing every unique prepared statement
@@ -557,7 +559,7 @@ PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const c
 
 		safe_strcpy(credentials->name, name, sizeof(credentials->name));
 
-		credentials->global_user = find_or_add_new_global_user(name, NULL);
+		credentials->global_user = find_or_add_dynamic_global_user(name);
 		if (!credentials->global_user) {
 			slab_free(credentials_cache, credentials);
 			return NULL;
@@ -568,6 +570,9 @@ PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const c
 
 	safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
 	credentials->dynamic_passwd = true;
+	credentials->auth_cache_dynamic = true;
+	credentials->auth_cache_last_used = get_cached_time();
+	credentials->global_user->auth_cache_last_used = credentials->auth_cache_last_used;
 
 	return credentials;
 }
@@ -780,6 +785,10 @@ PgPool *get_pool(PgDatabase *db, PgCredentials *user_credentials)
 
 	if (!db || !user_credentials)
 		return NULL;
+	if (user_credentials->auth_cache_dynamic) {
+		user_credentials->auth_cache_last_used = get_cached_time();
+		user_credentials->global_user->auth_cache_last_used = user_credentials->auth_cache_last_used;
+	}
 
 	list_for_each(item, &user_credentials->global_user->pool_list) {
 		pool = container_of(item, PgPool, map_head);
@@ -1031,6 +1040,18 @@ bool queue_fake_response(PgSocket *client, char request_type)
 	return res;
 }
 
+static PgGlobalUser *find_or_add_dynamic_global_user(const char *name)
+{
+	PgGlobalUser *user = find_global_user(name);
+
+	if (!user) {
+		user = add_new_global_user(name, NULL);
+	}
+	if (user && !user->auth_cache_configured)
+		user->auth_cache_dynamic = true;
+	return user;
+}
+
 /* Find an existing global user or add a new global user */
 PgGlobalUser *find_or_add_new_global_user(const char *name, const char *passwd)
 {
@@ -1038,6 +1059,10 @@ PgGlobalUser *find_or_add_new_global_user(const char *name, const char *passwd)
 
 	if (!user)
 		user = add_new_global_user(name, passwd);
+	if (user) {
+		user->auth_cache_dynamic = false;
+		user->auth_cache_configured = true;
+	}
 
 	return user;
 }

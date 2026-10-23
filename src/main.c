@@ -166,6 +166,7 @@ usec_t cf_cancel_wait_timeout;
 usec_t cf_client_idle_timeout;
 usec_t cf_client_login_timeout;
 usec_t cf_pool_idle_timeout;
+usec_t cf_auth_cache_idle_timeout;
 usec_t cf_idle_transaction_timeout;
 usec_t cf_transaction_timeout;
 
@@ -259,6 +260,7 @@ const struct CfLookup load_balance_hosts_map[] = {
 static const struct CfKey bouncer_params [] = {
 	CF_ABS("admin_users", CF_STR, cf_admin_users, 0, ""),
 	CF_ABS("application_name_add_host", CF_INT, cf_application_name_add_host, 0, "0"),
+	CF_ABS("auth_cache_idle_timeout", CF_TIME_USEC, cf_auth_cache_idle_timeout, 0, "0"),
 	CF_ABS("auth_dbname", CF_AUTHDB, cf_auth_dbname, 0, NULL),
 	CF_ABS("auth_file", CF_STR, cf_auth_file, 0, NULL),
 	CF_ABS("auth_hba_file", CF_STR, cf_auth_hba_file, 0, ""),

@@ -1,6 +1,9 @@
 import asyncio
 import getpass
+import hashlib
 import re
+import socket
+import struct
 import subprocess
 import time
 
@@ -89,6 +92,339 @@ def test_auth_user(pg, bouncer):
 
     pg.sql("ALTER USER someuser VALID UNTIL 'infinity'")
     bouncer.test(user="someuser", password="anypasswd")
+
+
+@pytest.mark.md5
+@pytest.mark.parametrize("pool_idle_timeout", [0, 1])
+def test_auth_cache_idle_timeout(pg, bouncer, pool_idle_timeout):
+    def cache_counts():
+        rows = dict(bouncer.admin("show lists"))
+        return rows["users"], rows["pools"]
+
+    bouncer.admin("set auth_type='md5'")
+    bouncer.admin("set server_idle_timeout=1")
+    config = bouncer.admin("show config")
+    timeout_config = next(row for row in config if row[0] == "auth_cache_idle_timeout")
+    assert re.fullmatch(r"0(?:\.0+)?", timeout_config[1])
+    bouncer.admin(f"set pool_idle_timeout={pool_idle_timeout}")
+
+    bouncer.test(dbname="authdb", user="pswcheck", password="pgbouncer-check")
+    bouncer.test(dbname="authdb", user="someuser", password="anypasswd")
+    baseline = cache_counts()
+    bouncer.write_ini(
+        f"auth_type = md5\nauth_cache_idle_timeout = 0\n"
+        f"server_idle_timeout = 1\npool_idle_timeout = {pool_idle_timeout}"
+    )
+    bouncer.admin("reload")
+    # Reloading a disabled setting retains the dynamic objects after their pool goes idle.
+    time.sleep(2)
+    assert cache_counts()[0] == baseline[0]
+
+    bouncer.admin("set auth_cache_idle_timeout=1")
+    # A client connection protects its credential even past the timeout.
+    with bouncer.conn(dbname="authdb", user="someuser", password="anypasswd"):
+        time.sleep(2)
+        assert cache_counts()[0] == baseline[0]
+        bouncer.admin("set auth_cache_idle_timeout=0")
+
+    time.sleep(2)
+    assert cache_counts()[0] == baseline[0]
+    active_counts = cache_counts()
+    bouncer.admin("set auth_cache_idle_timeout=1")
+
+    expected = (active_counts[0] - 1, active_counts[1] - (pool_idle_timeout == 0))
+    deadline = time.monotonic() + 8
+    while cache_counts() != expected and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert cache_counts() == expected
+    assert all(row[1] != "someuser" for row in bouncer.admin("show pools"))
+    assert pg.connection_count(dbname="p1", users=("someuser",)) == 0
+
+    # Eviction makes the next login query the backend again and rebuilds both
+    # the per-database credential and its global user.
+    bouncer.test(dbname="authdb", user="someuser", password="anypasswd")
+    assert cache_counts()[0] == baseline[0]
+    bouncer.test(dbname="authdb", user="pswcheck", password="pgbouncer-check")
+
+
+@pytest.mark.md5
+def test_auth_cache_idle_timeout_idle_autodb(pg, bouncer):
+    with bouncer.ini_path.open() as ini:
+        config = ini.read()
+    with bouncer.ini_path.open("w") as ini:
+        ini.write(
+            re.sub(
+                r"^;\* = .*?$",
+                f"* = port={bouncer.pg.port} host=127.0.0.1 auth_user=pswcheck",
+                config,
+                flags=re.MULTILINE,
+            )
+        )
+
+    bouncer.admin("reload")
+    bouncer.admin("set auth_type=md5")
+    bouncer.admin("set auth_cache_idle_timeout=3")
+    bouncer.admin("set server_idle_timeout=1")
+    bouncer.admin("set pool_idle_timeout=1")
+    bouncer.admin("set autodb_idle_timeout=3600")
+
+    bouncer.test(dbname="p7", user="someuser", password="anypasswd")
+    baseline = dict(bouncer.admin("show lists"))
+    expected = baseline["users"] - 1
+    deadline = time.monotonic() + 8
+    while time.monotonic() < deadline:
+        rows = dict(bouncer.admin("show lists"))
+        if rows["users"] == expected:
+            break
+        time.sleep(0.1)
+    assert rows["users"] == expected
+    assert all(row[0] != "p7" for row in bouncer.admin("show pools"))
+
+    # The idle auto-database remains registered after its pool and auth cache
+    # are reclaimed; reactivation must therefore safely run auth_query again.
+    bouncer.test(dbname="p7", user="someuser", password="anypasswd")
+    rows = dict(bouncer.admin("show lists"))
+    assert rows["users"] == baseline["users"]
+
+
+@pytest.mark.md5
+def test_auth_cache_idle_timeout_shared_user_across_databases(bouncer):
+    def cache_counts():
+        rows = dict(bouncer.admin("show lists"))
+        return rows["users"], rows["pools"]
+
+    bouncer.admin("set auth_type=md5")
+    bouncer.admin("set auth_dbname=authdb")
+    bouncer.admin("set auth_user=pswcheck")
+    bouncer.admin("set auth_cache_idle_timeout=3")
+    bouncer.admin("set server_idle_timeout=1")
+
+    with bouncer.conn(dbname="p7b", user="someuser", password="anypasswd"):
+        with bouncer.conn(dbname="p7a", user="someuser", password="anypasswd"):
+            time.sleep(3.2)
+            shared_counts = cache_counts()
+
+        # The unused p7a credential expires, while p7b still references the
+        # shared global user through its active client.
+        expected = (shared_counts[0], shared_counts[1] - 1)
+        deadline = time.monotonic() + 8
+        while cache_counts() != expected and time.monotonic() < deadline:
+            time.sleep(0.1)
+        assert cache_counts() == expected
+        assert any(row[0] == "someuser" for row in bouncer.admin("show users"))
+        bouncer.test(dbname="p7b", user="someuser", password="anypasswd")
+
+
+@pytest.mark.md5
+def test_auth_cache_idle_timeout_active_idle_pool(bouncer):
+    def cache_counts():
+        rows = dict(bouncer.admin("show lists"))
+        return rows["users"], rows["pools"]
+
+    bouncer.admin("set auth_type=md5")
+    bouncer.admin("set auth_cache_idle_timeout=1")
+    bouncer.admin("set server_idle_timeout=60")
+    bouncer.test(dbname="authdb", user="someuser", password="anypasswd")
+    baseline = cache_counts()
+
+    time.sleep(2)
+    assert cache_counts() == baseline
+    pool = next(
+        row
+        for row in bouncer.admin("show pools")
+        if row[0] == "authdb" and row[1] == "someuser"
+    )
+    assert pool[2] == 0 and pool[9] > 0
+
+    bouncer.admin("set server_idle_timeout=1")
+    expected = (baseline[0] - 1, baseline[1] - 1)
+    deadline = time.monotonic() + 8
+    while cache_counts() != expected and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert cache_counts() == expected
+
+
+@pytest.mark.md5
+def test_auth_cache_idle_timeout_forced_user_active_client(bouncer):
+    with bouncer.ini_path.open() as ini:
+        config = ini.read()
+    with bouncer.ini_path.open("w") as ini:
+        ini.write(
+            re.sub(
+                r"^(authdb = .*)$",
+                rf"\1\nauthforced = port={bouncer.pg.port} host=127.0.0.1 dbname=p1 auth_user=pswcheck user=bouncer",
+                config,
+                flags=re.MULTILINE,
+            )
+        )
+    bouncer.admin("reload")
+    bouncer.admin("set auth_type=md5")
+    bouncer.admin("set auth_cache_idle_timeout=1")
+
+    def cache_counts():
+        rows = dict(bouncer.admin("show lists"))
+        return rows["users"], rows["pools"]
+
+    with bouncer.conn(
+        dbname="authforced", user="someuser", password="anypasswd"
+    ) as conn:
+        baseline = cache_counts()
+        time.sleep(2)
+        assert cache_counts() == baseline
+        with conn.cursor() as cur:
+            cur.execute("select 1")
+            assert cur.fetchone() == (1,)
+
+    expected = (baseline[0] - 1, baseline[1])
+    deadline = time.monotonic() + 8
+    while cache_counts() != expected and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert cache_counts() == expected
+
+
+@pytest.mark.md5
+def test_auth_cache_idle_timeout_configured_user(bouncer):
+    bouncer.write_ini("[users]\nsomeuser = pool_mode=session")
+    bouncer.admin("reload")
+    bouncer.admin("set auth_type=md5")
+    bouncer.admin("set auth_cache_idle_timeout=1")
+    bouncer.admin("set server_idle_timeout=1")
+
+    bouncer.test(dbname="authdb", user="someuser", password="anypasswd")
+    baseline = dict(bouncer.admin("show lists"))
+    expected = (baseline["users"], baseline["pools"] - 1)
+    deadline = time.monotonic() + 8
+    while time.monotonic() < deadline:
+        rows = dict(bouncer.admin("show lists"))
+        if (rows["users"], rows["pools"]) == expected:
+            break
+        time.sleep(0.1)
+    assert (rows["users"], rows["pools"]) == expected
+    assert any(row[0] == "someuser" for row in bouncer.admin("show users"))
+
+    bouncer.test(dbname="authdb", user="someuser", password="anypasswd")
+
+
+@pytest.mark.md5
+def test_auth_cache_idle_timeout_many_users(pg, bouncer):
+    def cache_counts():
+        rows = dict(bouncer.admin("show lists"))
+        return rows["users"], rows["pools"]
+
+    bouncer.admin("set auth_type=md5")
+    bouncer.admin("set auth_cache_idle_timeout=0")
+    bouncer.admin("set server_idle_timeout=1")
+    baseline = cache_counts()
+
+    for i in range(10):
+        username = f"auth_cache_user_{i}"
+        pg.sql(f"create user {username} with password 'cache-pass'")
+        bouncer.test(dbname="authdb", user=username, password="cache-pass")
+
+    assert cache_counts()[0] == baseline[0] + 10
+    bouncer.admin("set auth_cache_idle_timeout=1")
+    deadline = time.monotonic() + 10
+    while cache_counts()[0] != baseline[0] and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert cache_counts()[0] == baseline[0]
+
+
+@pytest.mark.md5
+async def test_auth_cache_idle_timeout_disconnect_pending_auth_query(pg, bouncer):
+    bouncer.admin("set auth_type=md5")
+    bouncer.test(dbname="authdb", user="someuser", password="anypasswd")
+
+    def cache_counts():
+        rows = dict(bouncer.admin("show lists"))
+        return rows["users"], rows["pools"]
+
+    baseline = cache_counts()
+    bouncer.admin("set auth_cache_idle_timeout=1")
+    bouncer.admin("set server_idle_timeout=1")
+    bouncer.admin(
+        "set auth_query='WITH delay AS (SELECT pg_sleep(2)) "
+        "SELECT usename, passwd FROM pg_shadow, delay WHERE usename=$1'"
+    )
+
+    params = b"user\0someuser\0database\0authdb\0\0"
+    startup = struct.pack("!II", len(params) + 8, 196608) + params
+    with socket.create_connection((bouncer.host, bouncer.port)) as sock:
+        sock.sendall(startup)
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            running = pg.sql_value(
+                "SELECT count(*) FROM pg_stat_activity WHERE pid <> pg_backend_pid() "
+                "AND state = 'active' AND query LIKE '%pg_sleep(2)%'"
+            )
+            if running:
+                break
+            await asyncio.sleep(0.05)
+        assert running
+
+    # Let the auth query complete after its client has disconnected.
+    await asyncio.sleep(2.2)
+    expected = (baseline[0] - 1, baseline[1] - 1)
+    deadline = time.monotonic() + 8
+    while cache_counts() != expected and time.monotonic() < deadline:
+        await asyncio.sleep(0.1)
+    assert cache_counts() == expected
+
+    bouncer.admin(
+        "set auth_query='SELECT usename, passwd FROM pg_shadow WHERE usename=$1'"
+    )
+    await bouncer.asql(";", dbname="authdb", user="someuser", password="anypasswd")
+    assert cache_counts() == baseline
+
+
+@pytest.mark.md5
+def test_auth_cache_idle_timeout_waiting_for_password(pg, bouncer):
+    pg.sql(
+        f"set password_encryption = '{'md5' if PG_SUPPORTS_SCRAM else 'on'}'; "
+        "create user auth_wait_user with password 'anypasswd'"
+    )
+    bouncer.admin("set auth_type=md5")
+    bouncer.admin("set auth_cache_idle_timeout=1")
+    bouncer.admin("set pool_idle_timeout=0")
+    bouncer.admin("set server_idle_timeout=1")
+
+    def recv_exact(sock, length):
+        data = b""
+        while len(data) < length:
+            chunk = sock.recv(length - len(data))
+            assert chunk
+            data += chunk
+        return data
+
+    params = b"user\0auth_wait_user\0database\0authdb\0\0"
+    startup = struct.pack("!I", 196608) + params
+    with socket.create_connection((bouncer.host, bouncer.port)) as sock:
+        sock.settimeout(5)
+        sock.sendall(struct.pack("!I", len(startup) + 4) + startup)
+
+        salt = None
+        while salt is None:
+            msg_type = recv_exact(sock, 1)
+            msg_length = struct.unpack("!I", recv_exact(sock, 4))[0]
+            body = recv_exact(sock, msg_length - 4)
+            if msg_type == b"R":
+                auth_type = struct.unpack("!I", body[:4])[0]
+                assert auth_type == 5
+                salt = body[4:8]
+
+        # The cache entry is expired now, while this login is paused after
+        # PgBouncer's password challenge and is not yet counted as a pool client.
+        time.sleep(2)
+        inner = hashlib.md5(b"anypasswdauth_wait_user").hexdigest().encode()
+        password = b"md5" + hashlib.md5(inner + salt).hexdigest().encode()
+        sock.sendall(b"p" + struct.pack("!I", len(password) + 5) + password + b"\0")
+
+        while True:
+            msg_type = recv_exact(sock, 1)
+            msg_length = struct.unpack("!I", recv_exact(sock, 4))[0]
+            body = recv_exact(sock, msg_length - 4)
+            if msg_type == b"R":
+                assert struct.unpack("!I", body[:4])[0] == 0
+                break
 
 
 @pytest.mark.md5

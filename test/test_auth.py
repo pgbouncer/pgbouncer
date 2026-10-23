@@ -1513,6 +1513,82 @@ def test_ldap_auth(bouncer_with_openldap):
     bouncer_with_openldap.test(user="ldapuser2", password="secret2")
 
 
+@pytest.mark.skipif("WINDOWS", reason="We do not expect to support LDAP on Windows")
+@pytest.mark.skipif(not LDAP_SUPPORT, reason="PgBouncer is built without LDAP support")
+@pytest.mark.skipif(not PG_SUPPORTS_SCRAM, reason="requires SCRAM support in Postgres")
+@pytest.mark.parametrize("auth_user_scope", ["global", "database"])
+def test_ldap_and_auth_query_same_database(bouncer_with_openldap, auth_user_scope):
+    """LDAP and auth_query users can share a database with auth_type=hba
+
+    The HBA file picks the method per user. Users that match an LDAP rule
+    must keep working with auth_user/auth_query configured, also after a
+    non-LDAP user logged in and made PgBouncer resolve auth_user for the
+    database.
+
+    auth_user is set either globally (then it is attached to the database
+    lazily on the first non-LDAP login) or in the [databases] entry (then it
+    is attached already when the config is loaded).
+    """
+    bouncer = bouncer_with_openldap
+    openldap = bouncer.ldap
+
+    # auth_query hands whatever is in pg_shadow.passwd straight to PgBouncer
+    # SCRAM-SHA-256 client auth below, so it must be a SCRAM verifier.
+    # password_encryption defaults to md5 on Postgres < 14.
+    bouncer.pg.sql(
+        "set password_encryption = 'scram-sha-256'; "
+        "alter user someuser password 'anypasswd';"
+    )
+
+    hba_conf_file = bouncer.config_dir / "ldap_hba.conf"
+    with open(hba_conf_file, "w") as f:
+        f.write(
+            "host all ldapuser1 0.0.0.0/0 ldap ldapserver=127.0.0.1 "
+            f'ldapport={openldap.ldap_port} ldapprefix="uid=" '
+            f'ldapsuffix=",dc=example,dc=net"\n'
+            "host all all 0.0.0.0/0 scram-sha-256\n"
+        )
+    bouncer.write_ini("auth_type = hba")
+    bouncer.write_ini(f"auth_hba_file = {hba_conf_file}")
+    bouncer.write_ini(
+        "auth_query = SELECT usename, passwd FROM pg_shadow WHERE usename = $1"
+    )
+
+    dbname = "p0"
+    if auth_user_scope == "global":
+        bouncer.write_ini("auth_user = pswcheck")
+    else:
+        dbname = "ldap_and_query"
+        bouncer.write_ini(
+            "[databases]\n"
+            f"{dbname} = host={bouncer.pg.host} port={bouncer.pg.port} "
+            "dbname=p0 auth_user=pswcheck"
+        )
+    bouncer.admin("reload")
+
+    # Same user that PgBouncer resolves with auth_query ('someuser' is not in
+    # the auth_file) and the LDAP user, interleaved. Before the fix LDAP logins
+    # failed with "bouncer config error" whenever the database had an
+    # auth_user, which for a global auth_user happened after the first
+    # non-LDAP login.
+    bouncer.test(
+        dbname=dbname, user="ldapuser1", password="secret1", connect_timeout=30
+    )
+    bouncer.test(dbname=dbname, user="someuser", password="anypasswd")
+    for _ in range(2):
+        bouncer.test(dbname=dbname, user="ldapuser1", password="secret1")
+        bouncer.test(dbname=dbname, user="someuser", password="anypasswd")
+
+    # Each user is still authenticated by its own method
+    with pytest.raises(psycopg.OperationalError, match="authentication failed"):
+        bouncer.test(dbname=dbname, user="ldapuser1", password="wrong")
+    with pytest.raises(psycopg.OperationalError, match="authentication failed"):
+        bouncer.test(dbname=dbname, user="someuser", password="wrong")
+    # The LDAP password is not the one in Postgres/auth_query for this user
+    with pytest.raises(psycopg.OperationalError, match="authentication failed"):
+        bouncer.test(dbname=dbname, user="someuser", password="secret1")
+
+
 def test_client_login_count(bouncer):
     bouncer.admin(f"set auth_type='plain'")
 

@@ -196,6 +196,12 @@ static void client_free(PgSocket *client)
 	slab_free(client_cache, client);
 }
 
+static void free_outstanding_request(OutstandingRequest *request)
+{
+	free(request->client_ps_name);
+	slab_free(outstanding_request_cache, request);
+}
+
 /* free all memory related to the given server */
 static void server_free(PgSocket *server)
 {
@@ -207,7 +213,7 @@ static void server_free(PgSocket *server)
 		statlist_remove(&server->canceling_clients, el);
 		if (request->server_ps)
 			free_server_prepared_statement(request->server_ps);
-		slab_free(outstanding_request_cache, request);
+		free_outstanding_request(request);
 	}
 
 	free_server_prepared_statements(server);
@@ -1126,7 +1132,7 @@ bool pop_outstanding_request(PgSocket *server, const char types[], bool *skip)
 	if (request->server_ps != NULL) {
 		free_server_prepared_statement(request->server_ps);
 	}
-	slab_free(outstanding_request_cache, request);
+	free_outstanding_request(request);
 	return true;
 }
 
@@ -1143,6 +1149,8 @@ bool clear_outstanding_requests_until(PgSocket *server, const char types[])
 		char type = request->type;
 		if (type == PqMsg_Parse && request->server_ps_query_id > 0) {
 			unregister_prepared_statement(server, request->server_ps_query_id);
+			if (request->client_ps_name && server->link)
+				unregister_failed_client_prepared_statement(server->link, request->client_ps_name, request->server_ps_query_id);
 			slog_noise(server,
 				   "failed prepared statement '" PREPARED_STMT_NAME_FORMAT "' removed from server cache, %d cached items",
 				   request->server_ps_query_id,
@@ -1160,7 +1168,7 @@ bool clear_outstanding_requests_until(PgSocket *server, const char types[])
 				   HASH_COUNT(server->server_prepared_statements));
 		}
 		statlist_remove(&server->outstanding_requests, item);
-		slab_free(outstanding_request_cache, request);
+		free_outstanding_request(request);
 
 		if (strchr(types, type))
 			break;

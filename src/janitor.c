@@ -21,6 +21,7 @@
  */
 
 #include "bouncer.h"
+#include "objects.h"
 
 #include <usual/slab.h>
 
@@ -711,6 +712,172 @@ static void cleanup_inactive_pools(void)
 	}
 }
 
+struct expired_auth_credential {
+	PgDatabase *db;
+	PgCredentials *credentials;
+};
+
+struct auth_cache_cleanup {
+	PgDatabase *db;
+	usec_t now;
+	struct expired_auth_credential *expired;
+	int count;
+	int capacity;
+};
+
+static void cleanup_dynamic_credential(struct AANode *node, void *arg)
+{
+	struct auth_cache_cleanup *cleanup = arg;
+	PgCredentials *credentials = container_of(node, PgCredentials, tree_node);
+
+	credentials->auth_cache_expired = credentials->auth_cache_dynamic &&
+					  cleanup->now - credentials->auth_cache_last_used > cf_auth_cache_idle_timeout;
+	credentials->auth_cache_has_client = false;
+	credentials->auth_cache_has_pool = false;
+	if (credentials->auth_cache_dynamic)
+		credentials->global_user->auth_cache_has_credential = true;
+	if (credentials->auth_cache_expired && cleanup->count < cleanup->capacity) {
+		struct expired_auth_credential *entry = &cleanup->expired[cleanup->count++];
+		entry->db = cleanup->db;
+		entry->credentials = credentials;
+	}
+}
+
+static void mark_global_user_credentials(struct AANode *node, void *arg)
+{
+	PgCredentials *credentials = container_of(node, PgCredentials, tree_node);
+	(void)arg;
+	if (credentials->global_user->auth_cache_dynamic)
+		credentials->global_user->auth_cache_has_credential = true;
+}
+
+static void mark_cancel_request_credentials(PgPool *pool)
+{
+	struct List *item;
+	PgSocket *client;
+
+	/* A cancel request can retain credentials from its original login pool. */
+	statlist_for_each(item, &pool->waiting_cancel_req_list) {
+		client = container_of(item, PgSocket, head);
+		if (client->login_user_credentials && client->login_user_credentials->auth_cache_expired)
+			client->login_user_credentials->auth_cache_has_client = true;
+	}
+	statlist_for_each(item, &pool->active_cancel_req_list) {
+		client = container_of(item, PgSocket, head);
+		if (client->login_user_credentials && client->login_user_credentials->auth_cache_expired)
+			client->login_user_credentials->auth_cache_has_client = true;
+	}
+}
+
+static void cleanup_auth_cache(void)
+{
+	struct List *item, *tmp;
+	PgDatabase *db;
+	PgGlobalUser *user;
+	PgSocket *client;
+	PgPool *pool;
+	struct auth_cache_cleanup cleanup = { .now = get_cached_time() };
+	int total_credentials = 0;
+
+	if (cf_auth_cache_idle_timeout <= 0)
+		return;
+	statlist_for_each(item, &user_list) {
+		user = container_of(item, PgGlobalUser, head);
+		user->auth_cache_has_credential = false;
+	}
+	statlist_for_each(item, &database_list) {
+		db = container_of(item, PgDatabase, head);
+		total_credentials += db->user_tree.count;
+	}
+	statlist_for_each(item, &autodatabase_idle_list) {
+		db = container_of(item, PgDatabase, head);
+		total_credentials += db->user_tree.count;
+	}
+	cleanup.capacity = total_credentials;
+	cleanup.expired = calloc(total_credentials, sizeof(*cleanup.expired));
+	if (!cleanup.expired && total_credentials)
+		return;
+	cleanup.count = 0;
+	statlist_for_each(item, &database_list) {
+		db = container_of(item, PgDatabase, head);
+		cleanup.db = db;
+		aatree_walk(&db->user_tree, AA_WALK_POST_ORDER, cleanup_dynamic_credential, &cleanup);
+	}
+	statlist_for_each(item, &autodatabase_idle_list) {
+		db = container_of(item, PgDatabase, head);
+		cleanup.db = db;
+		aatree_walk(&db->user_tree, AA_WALK_POST_ORDER, cleanup_dynamic_credential, &cleanup);
+	}
+
+	statlist_for_each(item, &login_client_list) {
+		client = container_of(item, PgSocket, head);
+		if (client->login_user_credentials && client->login_user_credentials->auth_cache_expired)
+			client->login_user_credentials->auth_cache_has_client = true;
+		if (client->pool && client->pool->user_credentials && client->pool->user_credentials->auth_cache_expired)
+			client->pool->user_credentials->auth_cache_has_client = true;
+	}
+	statlist_for_each_safe(item, &pool_list, tmp) {
+		struct List *client_item;
+
+		pool = container_of(item, PgPool, head);
+		/* A forced-user pool can hold clients authenticated with other credentials. */
+		statlist_for_each(client_item, &pool->active_client_list) {
+			client = container_of(client_item, PgSocket, head);
+			if (client->login_user_credentials && client->login_user_credentials->auth_cache_expired)
+				client->login_user_credentials->auth_cache_has_client = true;
+		}
+		statlist_for_each(client_item, &pool->waiting_client_list) {
+			client = container_of(client_item, PgSocket, head);
+			if (client->login_user_credentials && client->login_user_credentials->auth_cache_expired)
+				client->login_user_credentials->auth_cache_has_client = true;
+		}
+		mark_cancel_request_credentials(pool);
+		if (!pool->user_credentials || !pool->user_credentials->auth_cache_expired)
+			continue;
+		if (pool_client_count(pool) == 0 && pool_server_count(pool) == 0 &&
+		    !pool->user_credentials->auth_cache_has_client)
+			kill_pool(pool);
+		else
+			pool->user_credentials->auth_cache_has_pool = true;
+	}
+	statlist_for_each(item, &peer_pool_list) {
+		pool = container_of(item, PgPool, head);
+		mark_cancel_request_credentials(pool);
+	}
+	for (int i = 0; i < cleanup.count; i++) {
+		PgDatabase *cred_db = cleanup.expired[i].db;
+		PgCredentials *credentials = cleanup.expired[i].credentials;
+		if (credentials->auth_cache_has_client || credentials->auth_cache_has_pool)
+			continue;
+		free(credentials->scram_SaltKey);
+		credentials->scram_SaltKey = NULL;
+		aatree_remove(&cred_db->user_tree, (uintptr_t)credentials->name);
+	}
+	free(cleanup.expired);
+
+	statlist_for_each(item, &user_list) {
+		user = container_of(item, PgGlobalUser, head);
+		user->auth_cache_has_credential = false;
+	}
+	statlist_for_each(item, &database_list) {
+		db = container_of(item, PgDatabase, head);
+		aatree_walk(&db->user_tree, AA_WALK_IN_ORDER, mark_global_user_credentials, NULL);
+	}
+	statlist_for_each(item, &autodatabase_idle_list) {
+		db = container_of(item, PgDatabase, head);
+		aatree_walk(&db->user_tree, AA_WALK_IN_ORDER, mark_global_user_credentials, NULL);
+	}
+	statlist_for_each_safe(item, &user_list, tmp) {
+		user = container_of(item, PgGlobalUser, head);
+		if (!user->auth_cache_dynamic || user->auth_cache_has_credential ||
+		    user->pool_list.next != &user->pool_list || user->connection_count || user->client_connection_count)
+			continue;
+		aatree_remove(&user_tree, (uintptr_t)user->credentials.name);
+		statlist_remove(&user_list, &user->head);
+		slab_free(user_cache, user);
+	}
+}
+
 /* full-scale maintenance, done only occasionally */
 static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 {
@@ -775,6 +942,7 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	cleanup_inactive_autodatabases();
 
 	cleanup_inactive_pools();
+	cleanup_auth_cache();
 
 	cleanup_client_logins();
 

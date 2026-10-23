@@ -503,10 +503,36 @@ PgDatabase *register_auto_database(const char *name)
 	return db;
 }
 
+/*
+ * Forget the SCRAM pass-through keys. They are derived from the verifier the
+ * client authenticated with, so they must not outlive a change of the stored
+ * password: a reload or a new auth_query result could replace the password,
+ * after which the old keys would be rejected by the backend.
+ */
+static void clear_scram_keys(PgCredentials *credentials)
+{
+	credentials->scram_passthrough_valid = false;
+	memset(credentials->scram_ClientKey, 0, sizeof(credentials->scram_ClientKey));
+	memset(credentials->scram_ServerKey, 0, sizeof(credentials->scram_ServerKey));
+}
+
+/*
+ * Set the stored password of a global user, keeping dynamic_passwd in sync (a
+ * user left with an empty password is resolved through auth_query). Cached
+ * SCRAM pass-through keys are dropped whenever the password actually changes,
+ * as they are derived from the old password and the backend would reject them
+ * against the new one.
+ *
+ * The auth_file loader deliberately keeps each user password in place while
+ * reloading, so this function can tell whether the password actually changed
+ * and only then drop the cached SCRAM keys.
+ */
 PgGlobalUser *update_global_user_passwd(PgGlobalUser *user, const char *passwd)
 {
 	Assert(user);
 	passwd = passwd ? passwd : "";
+	if (strcmp(user->credentials.passwd, passwd) != 0)
+		clear_scram_keys(&user->credentials);
 	safe_strcpy(user->credentials.passwd, passwd, sizeof(user->credentials.passwd));
 	user->credentials.dynamic_passwd = strlen(passwd) == 0;
 	return user;
@@ -566,6 +592,8 @@ PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const c
 		aatree_insert(&db->user_tree, (uintptr_t)credentials->name, &credentials->tree_node);
 	}
 
+	if (strcmp(credentials->passwd, passwd) != 0)
+		clear_scram_keys(credentials);
 	safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
 	credentials->dynamic_passwd = true;
 
@@ -615,6 +643,8 @@ PgCredentials *force_user_credentials(PgDatabase *db, const char *name, const ch
 		}
 	}
 	safe_strcpy(credentials->name, name, sizeof(credentials->name));
+	if (strcmp(credentials->passwd, passwd) != 0)
+		clear_scram_keys(credentials);
 	safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
 	db->forced_user_credentials = credentials;
 	return credentials;

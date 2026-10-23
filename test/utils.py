@@ -1004,7 +1004,6 @@ class Bouncer(QueryRunner):
             super().__init__("127.0.0.1", self.port_lock.port)
 
         self.process: subprocess.Popen | None = None
-        self.aprocess: asyncio.subprocess.Process | None = None
         config_dir.mkdir()
         self.config_dir = config_dir
         self.ini_path = self.config_dir / "test.ini"
@@ -1095,17 +1094,14 @@ class Bouncer(QueryRunner):
         return pgbouncer_version
 
     async def start(self):
-        # Due to using a SelectorEventLoop for support with psycopg we cannot
-        # use asyncio subprocesses, since that eventloop does not support them.
-        # We fall back to regular subprocesses.
-        if WINDOWS:
-            self.process = subprocess.Popen(  # noqa: ASYNC220
-                [*self.base_command(), "--quiet", self.ini_path], close_fds=True
-            )
-        else:
-            self.aprocess = await asyncio.create_subprocess_exec(
-                *self.base_command(), "--quiet", str(self.ini_path), close_fds=True
-            )
+        # Launch PgBouncer with a plain subprocess.Popen rather than an asyncio
+        # subprocess. On Windows the psycopg SelectorEventLoop does not support
+        # asyncio subprocesses at all. Popen reaps through os.waitpid in the
+        # subprocess module, independent of any event loop or Python version,
+        # so wait() always returns PgBouncer's real exit code.
+        self.process = subprocess.Popen(  # noqa: ASYNC220
+            [*self.base_command(), "--quiet", str(self.ini_path)], close_fds=True
+        )
         await self.wait_until_running()
 
     async def wait_until_running(self):
@@ -1139,8 +1135,6 @@ class Bouncer(QueryRunner):
     def running(self):
         if self.process:
             return self.process.poll() is None
-        if self.aprocess:
-            return self.aprocess.returncode is None
         return False
 
     async def wait_for_exit(self):
@@ -1148,12 +1142,7 @@ class Bouncer(QueryRunner):
         if self.process is not None:
             self.process.communicate()
             returncode = self.process.wait()
-        if self.aprocess is not None:
-            await self.aprocess.communicate()
-            await self.aprocess.wait()
-            returncode = self.aprocess.returncode
         self.process = None
-        self.aprocess = None
 
         # Every stop path goes through a signal (SIGQUIT/SIGTERM/ SIGINT) that
         # PgBouncer catches and turns into exit(0), or through an admin
@@ -1174,9 +1163,6 @@ class Bouncer(QueryRunner):
             if self.process is not None:
                 self.process.terminate()
                 self.process.terminate()
-            if self.aprocess is not None:
-                self.aprocess.terminate()
-                self.aprocess.terminate()
 
         await self.wait_for_exit()
 
@@ -1190,8 +1176,6 @@ class Bouncer(QueryRunner):
         await self.start()
 
     def send_signal(self, sig):
-        if self.aprocess:
-            self.aprocess.send_signal(sig)
         if self.process:
             self.process.send_signal(sig)
 

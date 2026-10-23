@@ -746,6 +746,49 @@ def test_auth_query_works_with_configured_users(bouncer):
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+def test_auth_query_after_user_removed_from_auth_file(bouncer):
+    """
+    When a user is removed from the auth_file and PgBouncer is reloaded, the
+    in-memory user object used to linger with an empty password. Because the
+    user was still "known", the auth_query code path was skipped and clients
+    received an empty stored secret, so authentication failed until a full
+    restart. After the fix the removed user falls back to auth_query, just
+    like it would after a fresh start.
+    """
+
+    config = f"""
+        [databases]
+        postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+        [pgbouncer]
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
+        auth_user = pswcheck
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = postgres
+    """
+
+    with bouncer.run_with_config(config):
+        # puser1 is present in the auth_file (password "foo"), so it
+        # authenticates directly from the file without an auth_query.
+        bouncer.test(user="puser1", password="foo", dbname="postgres")
+
+        # Remove puser1 from the auth_file, but keep pswcheck so that the
+        # auth_query connection can still authenticate, then reload.
+        with bouncer.auth_path.open("w") as f:
+            f.write('"pswcheck" "pgbouncer-check"\n')
+        bouncer.admin("RELOAD")
+
+        # puser1 is no longer in the auth_file. It must now be resolved via
+        # auth_query instead of failing with an empty stored secret. This
+        # raises if authentication fails (which it did before the fix).
+        bouncer.test(user="puser1", password="foo", dbname="postgres")
+
+
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
 def test_auth_query_logs_server_error(
     bouncer,
 ):

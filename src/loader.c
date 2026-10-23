@@ -800,7 +800,26 @@ bool load_auth_file(const char *fn)
 		if (!user->stale)
 			continue;
 
-		user->credentials.passwd[0] = 0;
+		/*
+		 * Clear the password and marks the now empty credentials dynamic.
+		 * Marking it dynamic is the important part: otherwise the removed user
+		 * would linger as a "known" user with an empty secret, so auth_query
+		 * would never run for it and authentication would fail until a full
+		 * restart. As dynamic credentials auth_query takes over, just like
+		 * after a fresh start.
+		 */
+		user = update_global_user_passwd(user, "");
+
+		/*
+		 * Drop the cached SCRAM verifier too, otherwise the removed user could
+		 * still be authenticated against the stale cached secret of its old
+		 * password.
+		 */
+		if (user->credentials.scram_SaltKey != NULL) {
+			free(user->credentials.scram_SaltKey);
+			user->credentials.scram_SaltKey = NULL;
+			user->credentials.scram_verifier_cached = false;
+		}
 	}
 
 	return true;

@@ -554,6 +554,11 @@ struct PgCredentials {
 	 * Never set for an adhoc verifier (see scram_adhoc).
 	 */
 	bool scram_passthrough_valid;
+	bool auth_cache_dynamic;
+	bool auth_cache_expired;
+	bool auth_cache_has_client;
+	bool auth_cache_has_pool;
+	usec_t auth_cache_last_used;
 };
 
 /*
@@ -570,6 +575,10 @@ struct PgGlobalUser {
 	PgCredentials credentials;	/* needs to be first for AAtree */
 	struct List head;	/* used to attach user to list */
 	struct List pool_list;	/* list of pools where pool->user == this user */
+	bool auth_cache_dynamic;
+	bool auth_cache_configured;
+	bool auth_cache_has_credential;
+	usec_t auth_cache_last_used;
 	int pool_mode;
 	int pool_size;	/* max server connections in one pool */
 	int res_pool_size;	/* max additional server connections in one pool */
@@ -862,6 +871,7 @@ extern usec_t cf_query_wait_timeout;
 extern usec_t cf_cancel_wait_timeout;
 extern usec_t cf_client_idle_timeout;
 extern usec_t cf_pool_idle_timeout;
+extern usec_t cf_auth_cache_idle_timeout;
 extern usec_t cf_client_login_timeout;
 extern usec_t cf_idle_transaction_timeout;
 extern usec_t cf_transaction_timeout;

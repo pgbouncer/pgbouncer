@@ -503,10 +503,23 @@ PgDatabase *register_auto_database(const char *name)
 	return db;
 }
 
+/*
+ * Forget the SCRAM pass-through keys. They are derived from the verifier the
+ * client authenticated with, so they must not outlive a password change.
+ */
+static void clear_scram_passthrough(PgCredentials *credentials)
+{
+	credentials->scram_passthrough_valid = false;
+	memset(credentials->scram_ClientKey, 0, sizeof(credentials->scram_ClientKey));
+	memset(credentials->scram_ServerKey, 0, sizeof(credentials->scram_ServerKey));
+}
+
 PgGlobalUser *update_global_user_passwd(PgGlobalUser *user, const char *passwd)
 {
 	Assert(user);
 	passwd = passwd ? passwd : "";
+	if (strcmp(user->credentials.passwd, passwd) != 0)
+		clear_scram_passthrough(&user->credentials);
 	safe_strcpy(user->credentials.passwd, passwd, sizeof(user->credentials.passwd));
 	user->credentials.dynamic_passwd = strlen(passwd) == 0;
 	return user;
@@ -566,6 +579,8 @@ PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const c
 		aatree_insert(&db->user_tree, (uintptr_t)credentials->name, &credentials->tree_node);
 	}
 
+	if (strcmp(credentials->passwd, passwd) != 0)
+		clear_scram_passthrough(credentials);
 	safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
 	credentials->dynamic_passwd = true;
 

@@ -671,6 +671,11 @@ typedef struct OutstandingRequest {
 	PgServerPreparedStatement *server_ps;
 
 	uint64_t server_ps_query_id;
+	/*
+	 * The client's name for the statement in a forwarded Parse. If the
+	 * server rejects the Parse, the name is removed from the client again.
+	 */
+	char *client_ps_name;
 } OutstandingRequest;
 
 enum ReplicationType {

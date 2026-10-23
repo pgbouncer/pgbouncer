@@ -304,6 +304,7 @@ bool handle_parse_command(PgSocket *client, PktHdr *pkt)
 	PgServerPreparedStatement *server_ps = NULL;
 	PgClientPreparedStatement *client_ps = NULL;
 	PgPreparedStatement *ps;
+	OutstandingRequest *request;
 	PktBuf *buf;
 	bool found = false;
 
@@ -381,6 +382,10 @@ bool handle_parse_command(PgSocket *client, PktHdr *pkt)
 	 * to the client, because they expect one.
 	 */
 	if (!add_outstanding_request(client, PqMsg_Parse, RA_FORWARD))
+		goto oom;
+	request = container_of(statlist_last(&server->outstanding_requests), OutstandingRequest, node);
+	request->client_ps_name = strdup(client_ps->stmt_name);
+	if (!request->client_ps_name)
 		goto oom;
 
 	/* Register statement on server */
@@ -678,6 +683,32 @@ static bool nothing_in_flight_to_client(PgSocket *server)
 	return true;
 }
 
+static void free_client_prepared_statement(PgSocket *client, PgClientPreparedStatement *client_ps)
+{
+	HASH_DEL(client->client_prepared_statements, client_ps);
+	if (--client_ps->ps->use_count == 0) {
+		HASH_DEL(prepared_statements, client_ps->ps);
+		free(client_ps->ps);
+	}
+	free(client_ps);
+}
+
+/*
+ * The server rejected a Parse that registered the given name on the client.
+ * Remove the name again, so the client can reuse it, like it can in Postgres.
+ * The query_id check skips a name that was closed and parsed again meanwhile.
+ */
+void unregister_failed_client_prepared_statement(PgSocket *client, const char *name, uint64_t query_id)
+{
+	PgClientPreparedStatement *client_ps = NULL;
+
+	HASH_FIND_STR(client->client_prepared_statements, name, client_ps);
+	if (client_ps && client_ps->ps->query_id == query_id) {
+		slog_noise(client, "failed prepared statement '%s' removed from client cache", name);
+		free_client_prepared_statement(client, client_ps);
+	}
+}
+
 /*
  * Handle a Close packet for a named prepared statement
  *
@@ -693,12 +724,7 @@ bool handle_close_statement_command(PgSocket *client, PktHdr *pkt, PgClosePacket
 	HASH_FIND_STR(client->client_prepared_statements, close_packet->name, client_ps);
 	if (client_ps) {
 		slog_noise(client, "handle_close_command: removed '%s' from cached prepared statements, items remaining %u", close_packet->name, HASH_COUNT(client->client_prepared_statements));
-		HASH_DEL(client->client_prepared_statements, client_ps);
-		if (--client_ps->ps->use_count == 0) {
-			HASH_DEL(prepared_statements, client_ps->ps);
-			free(client_ps->ps);
-		}
-		free(client_ps);
+		free_client_prepared_statement(client, client_ps);
 	}
 	/* Do not forward packet to server */
 	skip_possibly_completely_buffered_packet(client, pkt);
@@ -723,12 +749,7 @@ void free_client_prepared_statements(PgSocket *client)
 	PgClientPreparedStatement *client_ps, *tmp;
 
 	HASH_ITER(hh, client->client_prepared_statements, client_ps, tmp) {
-		HASH_DEL(client->client_prepared_statements, client_ps);
-		if (--client_ps->ps->use_count == 0) {
-			HASH_DEL(prepared_statements, client_ps->ps);
-			free(client_ps->ps);
-		}
-		free(client_ps);
+		free_client_prepared_statement(client, client_ps);
 	}
 
 	free(client->client_prepared_statements);

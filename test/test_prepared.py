@@ -516,6 +516,19 @@ def test_prepared_failed_prepare_pipeline(bouncer):
         cur.execute("DROP TABLE doesnotexistyet")
 
 
+def test_prepared_failed_prepare_name_reuse(bouncer):
+    """A name whose Parse failed on the server can be prepared again."""
+    with bouncer.conn() as conn:
+        result = conn.pgconn.prepare(b"test", b"SELECT * FROM doesnotexistyet")
+        assert result.status == pq.ExecStatus.FATAL_ERROR
+        assert result.error_field(pq.DiagnosticField.SQLSTATE) == b"42P01"
+
+        result = conn.pgconn.prepare(b"test", b"SELECT 1")
+        assert result.status == pq.ExecStatus.COMMAND_OK
+        result = conn.pgconn.exec_prepared(b"test", [])
+        assert result.status == pq.ExecStatus.TUPLES_OK
+
+
 def test_prepared_disallow_name_reuse(bouncer):
     with bouncer.conn() as conn:
         result = conn.pgconn.prepare(b"test", b"SELECT 1")

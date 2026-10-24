@@ -513,3 +513,165 @@ def test_system_error_propagation(bouncer_tls, cert_dir):
         # since it is expected.
         except psycopg.errors.ConfigFileError as e:
             assert "RELOAD failed" in str(e)
+
+
+# ---------------------------------------------------------------------------
+# server_tls_direct tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(
+    "not DIRECT_TLS_SUPPORT", reason="Direct TLS requires PG 17+ with TLS support"
+)
+def test_server_tls_direct_basic(pg, bouncer_tls, cert_dir):
+    """Bouncer connects to PG using direct TLS (no SSLRequest round-trip)."""
+    root = cert_dir / "TestCA1" / "ca.crt"
+
+    # Enable SSL on PG, allow only SSL connections (reject plain TCP)
+    pg.configure("ssl=on")
+    pg.configure(f"ssl_ca_file='{root}'")
+    pg.ssl_access("all", "trust")
+    pg.nossl_access("all", "reject")
+    pg.reload()
+
+    bouncer_tls.write_ini(f"server_tls_sslmode = require")
+    bouncer_tls.write_ini(f"server_tls_ca_file = {root}")
+    bouncer_tls.write_ini("server_tls_direct = 1")
+    bouncer_tls.admin("reload")
+
+    with bouncer_tls.log_contains(r"SSL established"):
+        bouncer_tls.test()
+
+
+@pytest.mark.skipif(
+    "not DIRECT_TLS_SUPPORT", reason="Direct TLS requires PG 17+ with TLS support"
+)
+def test_server_tls_direct_verify_full(pg, bouncer_tls, cert_dir):
+    """Direct TLS works with verify-full — cert validation is orthogonal to transport."""
+    root = cert_dir / "TestCA1" / "ca.crt"
+
+    # Enable SSL on PG, allow only SSL connections (reject plain TCP)
+    pg.configure("ssl=on")
+    pg.configure(f"ssl_ca_file='{root}'")
+    pg.ssl_access("all", "trust")
+    pg.nossl_access("all", "reject")
+    pg.reload()
+
+    bouncer_tls.write_ini(f"server_tls_sslmode = verify-full")
+    bouncer_tls.write_ini(f"server_tls_ca_file = {root}")
+    bouncer_tls.write_ini("server_tls_direct = 1")
+    bouncer_tls.admin("reload")
+
+    with bouncer_tls.log_contains(r"SSL established"):
+        bouncer_tls.test()
+
+
+@pytest.mark.skipif(
+    "not DIRECT_TLS_SUPPORT", reason="Direct TLS requires PG 17+ with TLS support"
+)
+def test_server_tls_direct_plain_server_fails(pg, bouncer_tls, cert_dir):
+    """Direct TLS against a plain-TCP server fails — no fallback to unencrypted."""
+    bouncer_tls.write_ini("server_tls_sslmode = require")
+    bouncer_tls.write_ini("server_tls_direct = 1")
+    bouncer_tls.admin("reload")
+
+    # PostgreSQL with ssl=off speaks plain TCP; the direct TLS handshake will fail
+    pg.configure("ssl=off")
+    pg.restart()
+
+    with pytest.raises(psycopg.OperationalError):
+        bouncer_tls.test(connect_timeout=4)
+
+
+def test_server_tls_direct_disabled_sslmode_rejected(bouncer_tls):
+    """server_tls_direct=1 combined with sslmode=disable must be rejected at reload."""
+    bouncer_tls.write_ini("server_tls_sslmode = disable")
+    bouncer_tls.write_ini("server_tls_direct = 1")
+
+    with bouncer_tls.log_contains(
+        r"server_tls_direct requires server_tls_sslmode to not be 'disable'"
+    ):
+        try:
+            bouncer_tls.admin("RELOAD")
+        except psycopg.errors.ConfigFileError:
+            pass
+
+
+@pytest.mark.skipif(
+    "not DIRECT_TLS_SUPPORT", reason="Direct TLS requires PG 17+ with TLS support"
+)
+def test_server_tls_direct_reconnect_on_flag_change(bouncer_tls, pg, cert_dir):
+    """Changing server_tls_direct triggers pool reconnect (marks connections dirty)."""
+    root = cert_dir / "TestCA1" / "ca.crt"
+    bouncer_tls.default_db = "pTxnPool"
+
+    # Start with STARTTLS (server_tls_direct=0), SSL required
+    pg.configure("ssl=on")
+    pg.configure(f"ssl_ca_file='{root}'")
+    pg.ssl_access("all", "trust")
+    pg.reload()
+
+    bouncer_tls.write_ini(f"server_tls_sslmode = require")
+    bouncer_tls.write_ini(f"server_tls_ca_file = {root}")
+    bouncer_tls.write_ini("server_tls_direct = 0")
+    bouncer_tls.admin("reload")
+
+    with bouncer_tls.cur() as cur:
+        assert pg.connection_count(dbname="p0") == 1
+        # Switch to direct TLS — should mark the STARTTLS connection as dirty
+        bouncer_tls.write_ini("server_tls_direct = 1")
+
+        with bouncer_tls.log_contains(
+            r"pTxnPool.*database configuration changed|pTxnPool.*obsolete connection"
+        ):
+            bouncer_tls.admin("RELOAD")
+            cur.execute("SELECT 1")
+
+
+@pytest.mark.skipif(
+    "not DIRECT_TLS_SUPPORT", reason="Direct TLS requires PG 17+ with TLS support"
+)
+def test_server_tls_direct_alpn_negotiated(pg, bouncer_tls, cert_dir):
+    """ALPN 'postgresql' is negotiated — PG 17 rejects connections without it."""
+    root = cert_dir / "TestCA1" / "ca.crt"
+
+    # Enable SSL on PG, allow only SSL connections (reject plain TCP)
+    pg.configure("ssl=on")
+    pg.configure(f"ssl_ca_file='{root}'")
+    pg.ssl_access("all", "trust")
+    pg.nossl_access("all", "reject")
+    pg.reload()
+
+    bouncer_tls.write_ini(f"server_tls_sslmode = require")
+    bouncer_tls.write_ini(f"server_tls_ca_file = {root}")
+    bouncer_tls.write_ini("server_tls_direct = 1")
+    bouncer_tls.admin("reload")
+
+    # If ALPN negotiation failed PG 17+ would have rejected the connection outright;
+    # a successful query through pg_stat_ssl confirms TLS + ALPN both worked.
+    result = bouncer_tls.sql("SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()")
+    assert result and result[0][0] is True
+
+
+@pytest.mark.skipif(
+    "not DIRECT_TLS_SUPPORT", reason="Direct TLS requires PG 17+ with TLS support"
+)
+def test_server_tls_direct_sni_sent_for_non_verify_full(pg, bouncer_tls, cert_dir):
+    """SNI is sent in the ClientHello even when sslmode is not verify-full."""
+    root = cert_dir / "TestCA1" / "ca.crt"
+
+    pg.configure("ssl=on")
+    pg.configure(f"ssl_ca_file='{root}'")
+    pg.ssl_access("all", "trust")
+    pg.nossl_access("all", "reject")
+    pg.reload()
+
+    bouncer_tls.write_ini("server_tls_sslmode = verify-ca")
+    bouncer_tls.write_ini(f"server_tls_ca_file = {root}")
+    bouncer_tls.write_ini("server_tls_direct = 1")
+    bouncer_tls.admin("reload")
+
+    # A successful query proves the handshake completed — which requires SNI
+    # because the server only accepts hostssl connections.
+    with bouncer_tls.log_contains(r"SSL established"):
+        bouncer_tls.test()

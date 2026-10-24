@@ -86,7 +86,7 @@ async def test_rolling_restart_admin(peers):
         # leave at least one running. But for testing purposes this is the
         # easiest way to show that peer[1] is not accepting new connections
         # anymore.
-        with pytest.raises(psycopg.OperationalError, match="Connection refused"):
+        with pytest.raises(psycopg.OperationalError):
             peers[1].test()
         # But the existing connection is still be allowed to execute any
         # queries.

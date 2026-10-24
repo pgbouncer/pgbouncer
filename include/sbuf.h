@@ -117,6 +117,7 @@ extern int client_accept_sslmode;
 extern int server_connect_sslmode;
 
 bool sbuf_tls_setup(void);
+void sbuf_tls_maint(void);
 bool sbuf_tls_accept(SBuf *sbuf)  _MUSTCHECK;
 bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)  _MUSTCHECK;
 

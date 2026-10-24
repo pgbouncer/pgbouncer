@@ -233,8 +233,9 @@ async def test_notify_queue(bouncer):
         notices_received.append(diag.message_primary)
 
     with bouncer.run_with_config(config):
+        # Leave enough time for the queued client to connect on slow platforms.
         sleep_future = bouncer.asql(
-            "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
+            "SELECT pg_sleep(10)", dbname="postgres", user="puser1"
         )
         _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
 
@@ -252,7 +253,7 @@ async def test_notify_queue(bouncer):
         assert expected_message == notices_received[0]
 
         sleep_future = bouncer.asql(
-            "SELECT pg_sleep(6)", dbname="postgres", user="puser1"
+            "SELECT pg_sleep(10)", dbname="postgres", user="puser1"
         )
         _, sleep_future = await asyncio.wait([sleep_future], timeout=1)
 

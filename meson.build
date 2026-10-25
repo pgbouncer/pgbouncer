@@ -613,6 +613,11 @@ if not windows and not cc.has_function('gethostbyname', prefix: '#include <netdb
   net_deps += cc.find_library('nsl', required: false)
 endif
 
+# hstrerror() is in libc on Linux/BSD but in libresolv on Solaris/illumos.
+if not windows and not cc.has_function('hstrerror', prefix: '#include <netdb.h>')
+  net_deps += cc.find_library('resolv', required: false)
+endif
+
 pgbouncer_deps = [
   libcares,
   libevent,

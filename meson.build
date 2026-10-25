@@ -758,6 +758,7 @@ run_target('format', command: [format_sh, 'fix'])
 run_target('format-check', command: [format_sh, 'check'])
 run_target('lint', command: [format_sh, 'lint'])
 run_target('format-c', command: [format_sh, 'fix-c'])
+run_target('format-python', command: [format_sh, 'fix-python'])
 
 ctags = find_program('ctags', required: false)
 if ctags.found()

@@ -598,6 +598,11 @@ if windows
   net_deps += cc.find_library('iphlpapi')
 endif
 
+# clock_gettime lives in libc on modern glibc but in librt on Solaris/illumos.
+if not windows and not cc.has_function('clock_gettime', prefix: '#include <time.h>')
+  net_deps += cc.find_library('rt', required: false)
+endif
+
 pgbouncer_deps = [
   libcares,
   libevent,

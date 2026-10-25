@@ -1149,8 +1149,6 @@ bool clear_outstanding_requests_until(PgSocket *server, const char types[])
 		char type = request->type;
 		if (type == PqMsg_Parse && request->server_ps_query_id > 0) {
 			unregister_prepared_statement(server, request->server_ps_query_id);
-			if (request->client_ps_name && server->link)
-				unregister_failed_client_prepared_statement(server->link, request->client_ps_name, request->server_ps_query_id);
 			slog_noise(server,
 				   "failed prepared statement '" PREPARED_STMT_NAME_FORMAT "' removed from server cache, %d cached items",
 				   request->server_ps_query_id,
@@ -1167,6 +1165,13 @@ bool clear_outstanding_requests_until(PgSocket *server, const char types[])
 				   request->server_ps->ps->stmt_name,
 				   HASH_COUNT(server->server_prepared_statements));
 		}
+		/*
+		 * The server rejected this client Parse, so the name it registered on
+		 * the client is stale and must be freed up, otherwise a later Parse
+		 * reusing the name is wrongly rejected as a duplicate.
+		 */
+		if (type == PqMsg_Parse && request->client_ps_name != NULL && server->link)
+			unregister_failed_client_prepared_statement(server->link, request->client_ps_name, request->server_ps_query_id);
 		statlist_remove(&server->outstanding_requests, item);
 		free_outstanding_request(request);
 

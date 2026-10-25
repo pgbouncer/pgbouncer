@@ -608,6 +608,11 @@ if not windows and not cc.has_function('getsockname', prefix: '#include <sys/soc
   net_deps += cc.find_library('socket', required: false)
 endif
 
+# Name-service lookups are in libc on Linux/BSD but in libnsl on Solaris/illumos.
+if not windows and not cc.has_function('gethostbyname', prefix: '#include <netdb.h>')
+  net_deps += cc.find_library('nsl', required: false)
+endif
+
 pgbouncer_deps = [
   libcares,
   libevent,

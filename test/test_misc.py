@@ -1191,3 +1191,27 @@ async def test_session_authorization_tracked(bouncer):
         cur1.execute("RESET SESSION AUTHORIZATION")
         assert cur1.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"
         assert cur2.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"
+
+
+@pytest.mark.skipif(
+    "PG_MAJOR_VERSION < 18",
+    reason="search_path was not marked as GUC_REPORT before PG18",
+)
+async def test_empty_search_path_replayed(bouncer):
+    """
+    An empty search_path, as set by pg_dump with
+    set_config('search_path', '', false), must be replayed as
+    SET search_path='' and not as the invalid SET search_path=; (issue #1663).
+    """
+    bouncer.write_ini("default_pool_size = 1")
+    await bouncer.restart()
+    bouncer.admin("set pool_mode=transaction")
+
+    with bouncer.cur(dbname="p1") as cur1, bouncer.cur(dbname="p1") as cur2:
+        cur1.execute("SELECT pg_catalog.set_config('search_path', '', false)")
+        assert cur1.execute("SELECT current_schemas(false)").fetchone()[0] == []
+
+        # cur2 shares the single server connection, so PgBouncer has to reset
+        # search_path for it and then re-apply the empty value for cur1.
+        assert cur2.execute("SELECT current_schemas(false)").fetchone()[0] != []
+        assert cur1.execute("SELECT current_schemas(false)").fetchone()[0] == []

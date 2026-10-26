@@ -113,4 +113,56 @@
 		} \
 	} while (0)
 
+/*
+ * Database name for a client during the login phase: client->pool is set once
+ * set_pool() runs, but on early failures only client->db may be available.
+ */
+#define _TR_CLIENT_DB(client) \
+	((client)->pool ? (client)->pool->db->name : \
+	 ((client)->db ? (client)->db->name : ""))
+
+/*
+ * Fire the client authentication probes.  The decided auth method is taken
+ * from client->client_auth_type (see auth_type_name()).
+ */
+#define TRACE_CLIENT_LOGIN_ATTEMPT(client) \
+	do { \
+		if (TRACE_PGBOUNCER_CLIENT_LOGIN_ATTEMPT_ENABLED()) { \
+			char _tr_caddr[PGADDR_BUF]; \
+			TRACE_PGBOUNCER_CLIENT_LOGIN_ATTEMPT( \
+				pga_ntop(&(client)->remote_addr, _tr_caddr, sizeof(_tr_caddr)), \
+				pga_port(&(client)->remote_addr), \
+				_TR_CLIENT_DB(client), \
+				(client)->login_user_credentials ? (client)->login_user_credentials->name : "", \
+				auth_type_name((client)->client_auth_type)); \
+		} \
+	} while (0)
+
+#define TRACE_CLIENT_LOGIN_SUCCESS(client) \
+	do { \
+		if (TRACE_PGBOUNCER_CLIENT_LOGIN_SUCCESS_ENABLED()) { \
+			char _tr_caddr[PGADDR_BUF]; \
+			TRACE_PGBOUNCER_CLIENT_LOGIN_SUCCESS( \
+				pga_ntop(&(client)->remote_addr, _tr_caddr, sizeof(_tr_caddr)), \
+				pga_port(&(client)->remote_addr), \
+				_TR_CLIENT_DB(client), \
+				(client)->login_user_credentials ? (client)->login_user_credentials->name : "", \
+				auth_type_name((client)->client_auth_type)); \
+		} \
+	} while (0)
+
+#define TRACE_CLIENT_LOGIN_FAILURE(client, reason) \
+	do { \
+		if (TRACE_PGBOUNCER_CLIENT_LOGIN_FAILURE_ENABLED()) { \
+			char _tr_caddr[PGADDR_BUF]; \
+			TRACE_PGBOUNCER_CLIENT_LOGIN_FAILURE( \
+				pga_ntop(&(client)->remote_addr, _tr_caddr, sizeof(_tr_caddr)), \
+				pga_port(&(client)->remote_addr), \
+				_TR_CLIENT_DB(client), \
+				(client)->login_user_credentials ? (client)->login_user_credentials->name : "", \
+				auth_type_name((client)->client_auth_type), \
+				(reason) ? (reason) : ""); \
+		} \
+	} while (0)
+
 #endif

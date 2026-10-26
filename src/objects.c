@@ -1494,6 +1494,10 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 
 	TRACE_CLIENT_DISCONNECT(client, reason);
 
+	/* A client still in a login state never finished authenticating. */
+	if (client->state == CL_LOGIN || client->state == CL_WAITING_LOGIN)
+		TRACE_CLIENT_LOGIN_FAILURE(client, reason);
+
 	if (client->db && client->contributes_db_client_count)
 		client->db->client_connection_count--;
 
@@ -2083,6 +2087,7 @@ bool finish_client_login(PgSocket *client)
 	case CL_LOGIN:
 		change_client_state(client, CL_ACTIVE);
 		client->pool->stats.client_login_count++;
+		TRACE_CLIENT_LOGIN_SUCCESS(client);
 	case CL_ACTIVE:
 		break;
 	default:

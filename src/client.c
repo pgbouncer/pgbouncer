@@ -23,6 +23,7 @@
 #include "bouncer.h"
 #include "pam.h"
 #include "scram.h"
+#include "tracing.h"
 #include "common/builtins.h"
 
 #include <usual/pgutil.h>
@@ -426,6 +427,8 @@ static bool finish_set_pool(PgSocket *client)
 
 	/* remember method */
 	client->client_auth_type = auth;
+
+	TRACE_CLIENT_LOGIN_ATTEMPT(client);
 
 	switch (auth) {
 	case AUTH_TYPE_ANY:

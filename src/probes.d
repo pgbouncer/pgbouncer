@@ -35,4 +35,13 @@ provider pgbouncer {
 
 	/* A client connection is being closed. */
 	probe client__disconnect(const char *client_addr, int client_port, const char *dbname, const char *username, const char *reason);
+
+	/* Authentication is about to be attempted with the chosen authentication method. */
+	probe client__login__attempt(const char *client_addr, int client_port, const char *dbname, const char *username, const char *auth_method);
+
+	/* The client authenticated successfully and became active. */
+	probe client__login__success(const char *client_addr, int client_port, const char *dbname, const char *username, const char *auth_method);
+
+	/* The client was closed before completing login. */
+	probe client__login__failure(const char *client_addr, int client_port, const char *dbname, const char *username, const char *auth_method, const char *reason);
 };

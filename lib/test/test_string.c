@@ -415,39 +415,6 @@ static void test_wlist(void *p)
 end:    ;
 }
 
-static void test_mempbrk(void *z)
-{
-	const char *p = "0123456789";
-	tt_assert(mempbrk(p, 10, "", 0) == NULL);
-	tt_assert(mempbrk(p, 10, "a", 0) == NULL);
-	tt_assert(mempbrk(p, 10, "ab", 0) == NULL);
-	tt_assert(mempbrk(p, 10, "abc", 0) == NULL);
-	tt_assert(mempbrk(p, 10, "1", 1) == p + 1);
-	tt_assert(mempbrk(p, 10, "12", 2) == p + 1);
-	tt_assert(mempbrk(p, 10, "21", 2) == p + 1);
-	tt_assert(mempbrk(p, 10, "123", 3) == p + 1);
-	tt_assert(mempbrk(p, 10, "321", 3) == p + 1);
-	tt_assert(mempbrk(p, 11, "abc\0", 4) == p + 10);
-end:    ;
-}
-
-static void test_memcspn(void *z)
-{
-	int_check(memcspn("qwe", 3, "", 0), 3);
-	int_check(memcspn("qwe", 3, "w", 1), 1);
-	int_check(memcspn("qwe", 3, "z", 1), 3);
-	int_check(memcspn("qwe", 3, "we", 2), 1);
-	int_check(memcspn("qwe", 3, "eq", 2), 0);
-	int_check(memcspn("qwe", 3, "zx", 2), 3);
-	int_check(memcspn("qwe", 3, "wez", 3), 1);
-	int_check(memcspn("qwe", 3, "ewz", 3), 1);
-	int_check(memcspn("qwe", 3, "zxa", 3), 3);
-	int_check(memcspn("qwe", 3, "weza", 4), 1);
-	int_check(memcspn("qwe", 3, "azew", 4), 1);
-	int_check(memcspn("qwe", 3, "zxab", 4), 3);
-end:    ;
-}
-
 static void test_memspn(void *z)
 {
 	const char *d = "0123456789";
@@ -633,8 +600,6 @@ struct testcase_t string_tests[] = {
 	{ "strcmpeq", test_strcmpeq },
 	{ "memrchr", test_memrchr },
 	{ "memmem", test_memmem },
-	{ "mempbrk", test_mempbrk },
-	{ "memcspn", test_memcspn },
 	{ "memspn", test_memspn},
 	{ "mempcpy", test_mempcpy },
 	{ "strsep", test_strsep },

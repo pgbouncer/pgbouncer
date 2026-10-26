@@ -21,6 +21,7 @@
  */
 
 #include "bouncer.h"
+#include "tracing.h"
 #include "usual/time.h"
 
 #include <usual/slab.h>
@@ -856,6 +857,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		slog_debug(server, "S: connect ok");
 		Assert(server->state == SV_LOGIN);
 		server->request_time = get_cached_time();
+		TRACE_SERVER_CONNECT(server);
 		res = handle_connect(server);
 		break;
 	case SBUF_EV_FLUSH:

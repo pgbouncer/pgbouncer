@@ -23,4 +23,10 @@ provider pgbouncer {
 
 	/* A client/server link has been broken (the server returns to the pool or is closed). */
 	probe client__server__unlinked(const char *client_addr, int client_port, const char *server_addr, int server_port, const char *dbname, const char *username);
+
+	/* A backend connection has been established. */
+	probe server__connect(const char *server_addr, int server_port, const char *dbname, const char *username);
+
+	/* A backend connection is being closed. */
+	probe server__disconnect(const char *server_addr, int server_port, const char *dbname, const char *username, const char *reason);
 };

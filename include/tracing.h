@@ -56,4 +56,33 @@
 		} \
 	} while (0)
 
+/*
+ * Fire the backend connect and disconnect probes.  "server" is a PgSocket
+ * pointer for a server-side connection.
+ */
+#define TRACE_SERVER_CONNECT(server) \
+	do { \
+		if (TRACE_PGBOUNCER_SERVER_CONNECT_ENABLED()) { \
+			char _tr_saddr[PGADDR_BUF]; \
+			TRACE_PGBOUNCER_SERVER_CONNECT( \
+				pga_ntop(&(server)->remote_addr, _tr_saddr, sizeof(_tr_saddr)), \
+				pga_port(&(server)->remote_addr), \
+				(server)->pool ? (server)->pool->db->name : "", \
+				(server)->login_user_credentials ? (server)->login_user_credentials->name : ""); \
+		} \
+	} while (0)
+
+#define TRACE_SERVER_DISCONNECT(server, reason) \
+	do { \
+		if (TRACE_PGBOUNCER_SERVER_DISCONNECT_ENABLED()) { \
+			char _tr_saddr[PGADDR_BUF]; \
+			TRACE_PGBOUNCER_SERVER_DISCONNECT( \
+				pga_ntop(&(server)->remote_addr, _tr_saddr, sizeof(_tr_saddr)), \
+				pga_port(&(server)->remote_addr), \
+				(server)->pool ? (server)->pool->db->name : "", \
+				(server)->login_user_credentials ? (server)->login_user_credentials->name : "", \
+				(reason)); \
+		} \
+	} while (0)
+
 #endif

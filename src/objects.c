@@ -1381,6 +1381,8 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 	va_end(ap);
 	reason = buf;
 
+	TRACE_SERVER_DISCONNECT(server, reason);
+
 	if (cf_log_disconnections) {
 		slog_info(server, "closing because: %s (age=%" PRIu64 "s)", reason,
 			  (now - server->connect_time) / USEC);

@@ -81,7 +81,7 @@ pgbouncer_SOURCES = \
 	include/common/uthash.h \
 	include/common/uthash_lowercase.h
 
-pgbouncer_CPPFLAGS = -Iinclude $(CARES_CFLAGS) $(LIBEVENT_CFLAGS) $(TLS_CPPFLAGS)
+pgbouncer_CPPFLAGS = -Iinclude -Isrc $(CARES_CFLAGS) $(LIBEVENT_CFLAGS) $(TLS_CPPFLAGS)
 
 # include libusual sources directly
 AM_FEATURES = libusual
@@ -142,6 +142,46 @@ include $(abs_top_srcdir)/lib/mk/antimake.mk
 config.mak:
 	@echo "Please run ./configure"
 	@exit 1
+
+#
+# DTrace / USDT static tracepoints
+#
+# Generate src/probes.h (found via -Isrc): real probe macros when configured
+# with --enable-dtrace, empty macros otherwise.  With dtrace enabled, dtrace -G
+# post-processes the compiled objects into src/probes.o, which defines the
+# probe semaphores referenced by the _ENABLED() guards, and that object is
+# linked into the binary.  (This must come after antimake has been included, so
+# that pgbouncer_OBJS and pgbouncer_FINAL are defined.)
+#
+PROBES_D = $(srcdir)/src/probes.d
+GEN_PROBES = $(srcdir)/src/gen_probes.py
+
+# probes.h must exist before any pgbouncer object is compiled.
+$(call FixObjs,$(pgbouncer_OBJS)): src/probes.h
+
+# config.mak is a prerequisite so that reconfiguring (which toggles
+# enable_dtrace) regenerates probes.h in the right mode.
+ifeq ($(enable_dtrace),yes)
+
+src/probes.h: $(PROBES_D) $(GEN_PROBES) config.mak
+	$(PYTHON) $(GEN_PROBES) --dtrace $(DTRACE) $(PROBES_D) $@
+
+src/probes.o: $(PROBES_D) $(call FixObjs,$(pgbouncer_OBJS))
+	$(DTRACE) -G -o $@ -s $(PROBES_D) $(call FixObjs,$(pgbouncer_OBJS))
+
+# Add probes.o to the link (it lands in $^ of antimake's link rule).
+$(pgbouncer_FINAL): src/probes.o
+
+DISTCLEANFILES += src/probes.h src/probes.o
+
+else
+
+src/probes.h: $(PROBES_D) $(GEN_PROBES) config.mak
+	$(PYTHON) $(GEN_PROBES) --dummy $(PROBES_D) $@
+
+DISTCLEANFILES += src/probes.h
+
+endif
 
 #
 # dist

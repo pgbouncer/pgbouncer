@@ -69,7 +69,10 @@ DLLTOOL = @DLLTOOL@
 WINDRES = @WINDRES@
 
 enable_debug = @enable_debug@
+enable_dtrace = @enable_dtrace@
 ldap_support = @ldap_support@
 tls_support = @tls_support@
+
+DTRACE = @DTRACE@
 
 host_cpu = @host_cpu@

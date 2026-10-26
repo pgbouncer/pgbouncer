@@ -30,6 +30,9 @@ option('pam', type: 'combo', choices: ['auto', 'enabled', 'disabled'], value: 'a
 option('openssl', type: 'feature', value: 'auto',
        description: 'Build with OpenSSL (TLS) support')
 
+option('dtrace', type: 'feature', value: 'disabled',
+       description: 'Build with DTrace/USDT static tracepoints (needs the dtrace tool; on Linux, systemtap-sdt-dev)')
+
 option('systemd', type: 'feature', value: 'auto',
        description: 'Build with systemd support')
 

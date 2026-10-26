@@ -11,6 +11,8 @@
 /doc/pgbouncer_5.md
 /install-sh
 /pgbouncer
+/src/probes.h
+/src/probes.o
 /.objs
 /tags
 /test/.objs

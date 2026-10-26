@@ -194,4 +194,33 @@
 		} \
 	} while (0)
 
+/*
+ * Fire the query boundary probes.  TRACE_CLIENT_QUERY_READY takes the measured
+ * query duration (microseconds) that the caller already computed.
+ */
+#define TRACE_CLIENT_QUERY_START(client) \
+	do { \
+		if (TRACE_PGBOUNCER_CLIENT_QUERY_START_ENABLED()) { \
+			char _tr_caddr[PGADDR_BUF]; \
+			TRACE_PGBOUNCER_CLIENT_QUERY_START( \
+				pga_ntop(&(client)->remote_addr, _tr_caddr, sizeof(_tr_caddr)), \
+				pga_port(&(client)->remote_addr), \
+				_TR_CLIENT_DB(client), \
+				(client)->login_user_credentials ? (client)->login_user_credentials->name : ""); \
+		} \
+	} while (0)
+
+#define TRACE_CLIENT_QUERY_READY(client, duration) \
+	do { \
+		if (TRACE_PGBOUNCER_CLIENT_QUERY_READY_ENABLED()) { \
+			char _tr_caddr[PGADDR_BUF]; \
+			TRACE_PGBOUNCER_CLIENT_QUERY_READY( \
+				pga_ntop(&(client)->remote_addr, _tr_caddr, sizeof(_tr_caddr)), \
+				pga_port(&(client)->remote_addr), \
+				_TR_CLIENT_DB(client), \
+				(client)->login_user_credentials ? (client)->login_user_credentials->name : "", \
+				(uint64_t)(duration)); \
+		} \
+	} while (0)
+
 #endif

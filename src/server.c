@@ -648,6 +648,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 						total = get_cached_time() - client->query_start;
 						client->query_start = 0;
 						server->pool->stats.query_time += total;
+						TRACE_CLIENT_QUERY_READY(client, total);
 						slog_debug(client, "query time: %d us", (int)total);
 					} else if (!async_response) {
 						slog_warning(client, "FIXME: query end, but query_start == 0");

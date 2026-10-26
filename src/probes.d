@@ -50,4 +50,10 @@ provider pgbouncer {
 
 	/* The client left the wait queue. */
 	probe client__wait__end(const char *client_addr, int client_port, const char *dbname, const char *username, uint64_t duration);
+
+	/* The new query has started for the client. */
+	probe client__query__start(const char *client_addr, int client_port, const char *dbname, const char *username);
+
+	/* The query has finished. */
+	probe client__query__ready(const char *client_addr, int client_port, const char *dbname, const char *username, uint64_t duration);
 };

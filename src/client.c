@@ -1643,6 +1643,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	if (!client->query_start) {
 		client->pool->stats.query_count++;
 		client->query_start = get_cached_time();
+		TRACE_CLIENT_QUERY_START(client);
 	}
 
 	/* remember timestamp of the first query in a transaction */

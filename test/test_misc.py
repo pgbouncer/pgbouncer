@@ -1191,3 +1191,121 @@ async def test_session_authorization_tracked(bouncer):
         cur1.execute("RESET SESSION AUTHORIZATION")
         assert cur1.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"
         assert cur2.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"
+
+
+@pytest.mark.skipif(
+    "PG_MAJOR_VERSION < 18",
+    reason="search_path was not marked as GUC_REPORT before PG18",
+)
+async def test_empty_search_path_replayed(bouncer):
+    """
+    An empty search_path, as set by pg_dump with
+    set_config('search_path', '', false), must be replayed correctly and not
+    as the invalid SET search_path=; (issue #1663).
+    """
+    bouncer.write_ini("default_pool_size = 1")
+    await bouncer.restart()
+    bouncer.admin("set pool_mode=transaction")
+
+    with bouncer.cur(dbname="p1") as cur1, bouncer.cur(dbname="p1") as cur2:
+        cur1.execute("SELECT pg_catalog.set_config('search_path', '', false)")
+        assert cur1.execute("SELECT current_schemas(false)").fetchone()[0] == []
+
+        # cur2 shares the single server connection, so PgBouncer has to reset
+        # search_path for it and then re-apply the empty value for cur1.
+        assert cur2.execute("SELECT current_schemas(false)").fetchone()[0] != []
+        assert cur1.execute("SELECT current_schemas(false)").fetchone()[0] == []
+
+
+# PostgreSQL only checks the syntax of each search_path element, which allows
+# semicolons and comments inside an unquoted element. So this is a valid
+# search_path, that runs a CREATE TABLE if it's replayed without quoting.
+SEARCH_PATH_INJECTION = "x;create/**/table/**/public.search_path_injected();--"
+
+
+def assert_search_path_not_executed(pg):
+    assert (
+        pg.sql_value("SELECT to_regclass('public.search_path_injected')", dbname="p1")
+        is None
+    )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [SEARCH_PATH_INJECTION, '""', '"Foo"', "it's", "a" * 200],
+    ids=["injection", "empty-quoted", "mixed-case", "single-quote", "long-identifier"],
+)
+async def test_startup_search_path_replayed_verbatim(bouncer, pg, value):
+    """
+    A search_path startup parameter is not checked by PostgreSQL before
+    PgBouncer replays it, so the replay must pass it on exactly as given.
+    """
+    bouncer.write_ini("default_pool_size = 1")
+    await bouncer.restart()
+    bouncer.admin("set pool_mode=transaction")
+
+    # cur2 shares the single server connection, so every query on cur1 is
+    # preceded by a replay of cur1's search_path.
+    with (
+        bouncer.cur(dbname="p1", options=f"-c search_path={value}") as cur1,
+        bouncer.cur(dbname="p1") as cur2,
+    ):
+        for _ in range(2):
+            assert cur1.execute("SHOW search_path").fetchone()[0] == value
+            assert cur2.execute("SHOW search_path").fetchone()[0] != value
+
+    assert_search_path_not_executed(pg)
+
+
+@pytest.mark.skipif(
+    "PG_MAJOR_VERSION < 18",
+    reason="search_path was not marked as GUC_REPORT before PG18",
+)
+@pytest.mark.parametrize(
+    "value",
+    [SEARCH_PATH_INJECTION, '""', '"Foo", foo', "it's", "a\\b", "a" * 200],
+    ids=[
+        "injection",
+        "empty-quoted",
+        "list",
+        "single-quote",
+        "backslash",
+        "long-identifier",
+    ],
+)
+async def test_set_config_search_path_replayed_verbatim(bouncer, pg, value):
+    """
+    A search_path set with set_config() must end up on the server exactly as
+    the client set it when PgBouncer replays it on another connection.
+    """
+    bouncer.write_ini("default_pool_size = 1")
+    await bouncer.restart()
+    bouncer.admin("set pool_mode=transaction")
+
+    with bouncer.cur(dbname="p1") as cur1, bouncer.cur(dbname="p1") as cur2:
+        cur1.execute("SELECT pg_catalog.set_config('search_path', %s, false)", (value,))
+        for _ in range(2):
+            assert cur2.execute("SHOW search_path").fetchone()[0] != value
+            assert cur1.execute("SHOW search_path").fetchone()[0] == value
+
+    assert_search_path_not_executed(pg)
+
+
+async def test_long_parameter_value_replayed(bouncer):
+    """
+    A long value must still be replayed, instead of silently leaving the
+    previous client's value in place on the server connection.
+    """
+    bouncer.write_ini("default_pool_size = 1")
+    await bouncer.restart()
+    bouncer.admin("set pool_mode=transaction")
+
+    value = "a" * 200
+    with (
+        bouncer.cur(dbname="p1", application_name=value) as cur1,
+        bouncer.cur(dbname="p1", application_name="other") as cur2,
+    ):
+        for _ in range(2):
+            assert cur2.execute("SHOW application_name").fetchone()[0] == "other"
+            # The server truncates application_name to NAMEDATALEN - 1
+            assert cur1.execute("SHOW application_name").fetchone()[0] == value[:63]

@@ -27,7 +27,7 @@ option('ldap', type: 'combo', choices: ['auto', 'enabled', 'disabled'], value: '
 option('pam', type: 'combo', choices: ['auto', 'enabled', 'disabled'], value: 'auto',
        description: 'Build with PAM authentication support')
 
-option('openssl', type: 'feature', value: 'auto',
+option('openssl', type: 'feature', value: 'enabled',
        description: 'Build with OpenSSL (TLS) support')
 
 option('systemd', type: 'feature', value: 'auto',

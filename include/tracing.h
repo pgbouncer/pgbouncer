@@ -165,4 +165,33 @@
 		} \
 	} while (0)
 
+/*
+ * Fire the client wait-queue probes.  TRACE_CLIENT_WAIT_END computes the time
+ * spent in the queue from client->wait_start (still valid at the call site).
+ */
+#define TRACE_CLIENT_WAIT_START(client) \
+	do { \
+		if (TRACE_PGBOUNCER_CLIENT_WAIT_START_ENABLED()) { \
+			char _tr_caddr[PGADDR_BUF]; \
+			TRACE_PGBOUNCER_CLIENT_WAIT_START( \
+				pga_ntop(&(client)->remote_addr, _tr_caddr, sizeof(_tr_caddr)), \
+				pga_port(&(client)->remote_addr), \
+				_TR_CLIENT_DB(client), \
+				(client)->login_user_credentials ? (client)->login_user_credentials->name : ""); \
+		} \
+	} while (0)
+
+#define TRACE_CLIENT_WAIT_END(client) \
+	do { \
+		if (TRACE_PGBOUNCER_CLIENT_WAIT_END_ENABLED()) { \
+			char _tr_caddr[PGADDR_BUF]; \
+			TRACE_PGBOUNCER_CLIENT_WAIT_END( \
+				pga_ntop(&(client)->remote_addr, _tr_caddr, sizeof(_tr_caddr)), \
+				pga_port(&(client)->remote_addr), \
+				_TR_CLIENT_DB(client), \
+				(client)->login_user_credentials ? (client)->login_user_credentials->name : "", \
+				(uint64_t)((client)->wait_start ? get_cached_time() - (client)->wait_start : 0)); \
+		} \
+	} while (0)
+
 #endif

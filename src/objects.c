@@ -243,6 +243,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	case CL_WAITING:
 		client->sent_wait_notification = false;
 		statlist_remove(&pool->waiting_client_list, &client->head);
+		TRACE_CLIENT_WAIT_END(client);
 		break;
 	case CL_ACTIVE:
 		statlist_remove(&pool->active_client_list, &client->head);
@@ -274,6 +275,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	case CL_WAITING_LOGIN:
 		client->wait_start = get_cached_time();
 		statlist_append(&pool->waiting_client_list, &client->head);
+		TRACE_CLIENT_WAIT_START(client);
 		break;
 	case CL_ACTIVE:
 		statlist_append(&pool->active_client_list, &client->head);

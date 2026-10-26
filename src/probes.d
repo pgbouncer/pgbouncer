@@ -44,4 +44,10 @@ provider pgbouncer {
 
 	/* The client was closed before completing login. */
 	probe client__login__failure(const char *client_addr, int client_port, const char *dbname, const char *username, const char *auth_method, const char *reason);
+
+	/* The client entered the wait queue because no server was available. */
+	probe client__wait__start(const char *client_addr, int client_port, const char *dbname, const char *username);
+
+	/* The client left the wait queue. */
+	probe client__wait__end(const char *client_addr, int client_port, const char *dbname, const char *username, uint64_t duration);
 };

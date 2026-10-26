@@ -485,6 +485,23 @@ jobs:
             config.log
           if-no-files-found: ignore
 
+  # Builds the image the Anthropic OSS Scanner uses, so we notice when it
+  # breaks rather than learning it from the scanner's build failure email.
+  # This only checks that the image builds; the other jobs run the tests.
+  # Gated like the other extra jobs, because it duplicates the linux jobs'
+  # work.
+  oss-scanner:
+    name: OSS Scanner image
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.ref == 'refs/heads/master' ||
+      contains(github.event.pull_request.labels.*.name, 'ci-full')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build image
+        run: docker build -f .oss-scanner/Dockerfile .
+
   format-check:
     name: Formatting & linting
     runs-on: ubuntu-latest

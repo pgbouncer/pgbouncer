@@ -1492,6 +1492,8 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 {
 	usec_t now = get_cached_time();
 
+	TRACE_CLIENT_DISCONNECT(client, reason);
+
 	if (client->db && client->contributes_db_client_count)
 		client->db->client_connection_count--;
 
@@ -2041,6 +2043,8 @@ PgSocket *accept_client(int sock, bool is_unix)
 	/* FIXME: take local and remote address from pool_accept() */
 	fill_remote_addr(client, sock, is_unix);
 	fill_local_addr(client, sock, is_unix);
+
+	TRACE_CLIENT_CONNECT(client);
 
 	change_client_state(client, CL_LOGIN);
 

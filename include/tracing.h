@@ -85,4 +85,32 @@
 		} \
 	} while (0)
 
+/*
+ * Fire the client connect and disconnect probes.  "client" is a PgSocket
+ * pointer for a client-side connection.  At accept time no db or user are
+ * known yet, so client__connect carries only the client address.
+ */
+#define TRACE_CLIENT_CONNECT(client) \
+	do { \
+		if (TRACE_PGBOUNCER_CLIENT_CONNECT_ENABLED()) { \
+			char _tr_caddr[PGADDR_BUF]; \
+			TRACE_PGBOUNCER_CLIENT_CONNECT( \
+				pga_ntop(&(client)->remote_addr, _tr_caddr, sizeof(_tr_caddr)), \
+				pga_port(&(client)->remote_addr)); \
+		} \
+	} while (0)
+
+#define TRACE_CLIENT_DISCONNECT(client, reason) \
+	do { \
+		if (TRACE_PGBOUNCER_CLIENT_DISCONNECT_ENABLED()) { \
+			char _tr_caddr[PGADDR_BUF]; \
+			TRACE_PGBOUNCER_CLIENT_DISCONNECT( \
+				pga_ntop(&(client)->remote_addr, _tr_caddr, sizeof(_tr_caddr)), \
+				pga_port(&(client)->remote_addr), \
+				(client)->pool ? (client)->pool->db->name : "", \
+				(client)->login_user_credentials ? (client)->login_user_credentials->name : "", \
+				(reason) ? (reason) : ""); \
+		} \
+	} while (0)
+
 #endif

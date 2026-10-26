@@ -29,4 +29,10 @@ provider pgbouncer {
 
 	/* A backend connection is being closed. */
 	probe server__disconnect(const char *server_addr, int server_port, const char *dbname, const char *username, const char *reason);
+
+	/* A client connection has been accepted. */
+	probe client__connect(const char *client_addr, int client_port);
+
+	/* A client connection is being closed. */
+	probe client__disconnect(const char *client_addr, int client_port, const char *dbname, const char *username, const char *reason);
 };

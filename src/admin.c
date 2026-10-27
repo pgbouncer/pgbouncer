@@ -1271,6 +1271,8 @@ static bool admin_cmd_wait_close(PgSocket *admin, const char *arg)
 	if (!admin->admin_user)
 		return admin_error(admin, "admin access needed");
 
+	TRACE_ADMIN_WAIT_CLOSE(admin, arg);
+
 	if (!arg[0]) {
 		struct List *item;
 		PgPool *pool;

@@ -86,4 +86,7 @@ provider pgbouncer {
 
 	/* ENABLE: re-allow client connections to a previously disabled database. */
 	probe admin__enable(const char *client_addr, int client_port, const char *username, const char *dbname);
+
+	/* WAIT_CLOSE: begin waiting for server connections to drain, for the pooler or a single database. */
+	probe admin__wait_close(const char *client_addr, int client_port, const char *username, const char *dbname);
 };

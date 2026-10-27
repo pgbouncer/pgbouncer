@@ -1084,6 +1084,8 @@ static bool admin_cmd_reconnect(PgSocket *admin, const char *arg)
 		tag_database_dirty(db);
 	}
 
+	TRACE_ADMIN_RECONNECT(admin, arg);
+
 	return admin_ready(admin, "RECONNECT");
 }
 

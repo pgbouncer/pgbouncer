@@ -71,4 +71,7 @@ provider pgbouncer {
 
 	/* SHUTDOWN: begin shutting down; mode is "immediate", "wait_for_servers", or "wait_for_clients". */
 	probe admin__shutdown(const char *client_addr, int client_port, const char *username, const char *mode);
+
+	/* RECONNECT: mark server connections to be reopened, for the pooler or a single database. */
+	probe admin__reconnect(const char *client_addr, int client_port, const char *username, const char *dbname);
 };

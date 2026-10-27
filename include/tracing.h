@@ -86,6 +86,24 @@
 	} while (0)
 
 /*
+ * Fire the backend server-ready probe.  duration is derived from
+ * server->connect_time (set when the connection was launched), so it covers
+ * TCP/TLS connect, PostgreSQL authentication, startup params, and any connect_query.
+ */
+#define TRACE_SERVER_READY(server) \
+	do { \
+		if (TRACE_PGBOUNCER_SERVER_READY_ENABLED()) { \
+			char _tr_saddr[PGADDR_BUF]; \
+			TRACE_PGBOUNCER_SERVER_READY( \
+				pga_ntop(&(server)->remote_addr, _tr_saddr, sizeof(_tr_saddr)), \
+				pga_port(&(server)->remote_addr), \
+				(server)->pool ? (server)->pool->db->name : "", \
+				(server)->login_user_credentials ? (server)->login_user_credentials->name : "", \
+				(uint64_t)((server)->connect_time ? get_cached_time() - (server)->connect_time : 0)); \
+		} \
+	} while (0)
+
+/*
  * Fire the client connect and disconnect probes.  "client" is a PgSocket
  * pointer for a client-side connection.  At accept time no db or user are
  * known yet, so client__connect carries only the client address.

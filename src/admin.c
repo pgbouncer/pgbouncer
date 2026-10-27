@@ -1011,6 +1011,9 @@ static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 			return admin_error(admin, "database %s is not paused", arg);
 		db->db_paused = false;
 	}
+
+	TRACE_ADMIN_RESUME(admin, arg);
+
 	return admin_ready(admin, "RESUME");
 }
 

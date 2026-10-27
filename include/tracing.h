@@ -282,4 +282,16 @@
 		} \
 	} while (0)
 
+#define TRACE_ADMIN_SHUTDOWN(admin, mode) \
+	do { \
+		if (TRACE_PGBOUNCER_ADMIN_SHUTDOWN_ENABLED()) { \
+			char _tr_aaddr[PGADDR_BUF]; \
+			TRACE_PGBOUNCER_ADMIN_SHUTDOWN( \
+				pga_ntop(&(admin)->remote_addr, _tr_aaddr, sizeof(_tr_aaddr)), \
+				pga_port(&(admin)->remote_addr), \
+				(admin)->login_user_credentials ? (admin)->login_user_credentials->name : "", \
+				(mode)); \
+		} \
+	} while (0)
+
 #endif

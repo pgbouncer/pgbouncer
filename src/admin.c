@@ -969,6 +969,9 @@ static bool admin_cmd_shutdown(PgSocket *admin, const char *arg)
 	 * before closing open sockets.
 	 */
 	cf_shutdown = mode;
+	TRACE_ADMIN_SHUTDOWN(admin,
+			     mode == SHUTDOWN_WAIT_FOR_SERVERS ? "wait_for_servers" :
+			     mode == SHUTDOWN_WAIT_FOR_CLIENTS ? "wait_for_clients" : "immediate");
 	if (mode == SHUTDOWN_IMMEDIATE) {
 		log_info("SHUTDOWN command issued");
 		event_base_loopbreak(pgb_event_base);

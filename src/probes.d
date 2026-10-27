@@ -68,4 +68,7 @@ provider pgbouncer {
 
 	/* RELOAD: re-read the configuration file. */
 	probe admin__reload(const char *client_addr, int client_port, const char *username);
+
+	/* SHUTDOWN: begin shutting down; mode is "immediate", "wait_for_servers", or "wait_for_clients". */
+	probe admin__shutdown(const char *client_addr, int client_port, const char *username, const char *mode);
 };

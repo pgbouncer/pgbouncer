@@ -6,7 +6,8 @@ Please report security issues privately through GitHub Security Advisories:
 https://github.com/pgbouncer/pgbouncer/security/advisories/new
 
 Do not open a public issue for them. Bugs that are not vulnerabilities
-according to the threat model below are welcome as normal GitHub issues.
+according to the threat model below are welcome as normal GitHub issues. If
+you're unsure whether an issue is a vulnerability, report it privately.
 
 ## Threat model
 
@@ -51,6 +52,15 @@ are acceptable, memory corruption is not.
 fully trusted. That does not mean only the defaults matter: every valid
 configuration should be safe against the clients and servers described above.
 
+The **operating system user** running PgBouncer is fully trusted too. It can
+already read the configuration and log into the admin console without a
+password, by connecting over the Unix socket as the `pgbouncer` user.
+
+**Peers** configured in the `[peers]` section don't trust each other any more
+than they trust other clients. A cancel request forwarded by a peer looks
+exactly like one sent by a client, and PgBouncer only ever sends a peer cancel
+requests that were meant for that peer.
+
 ### Severity
 
 Critical:
@@ -76,6 +86,8 @@ Medium:
 - Resource exhaustion or hangs an unauthenticated client can cause.
 - Small out of bounds reads that leak nothing sensitive.
 - Memory corruption that only a malicious PostgreSQL server can trigger.
+- Passwords, SCRAM keys or other secrets ending up in the log at the default
+  `verbose = 0` level.
 
 Low:
 - Resource exhaustion or hangs that need an authenticated client.
@@ -107,6 +119,9 @@ be reported as public issues:
   such as `trust`, `plain` or `md5`.
 - Attacks that only work because TLS is not configured or not required, such
   as sniffing or tampering with plaintext connections.
+- Secrets ending up in the log when `verbose` is 1 or higher. Those debug
+  logs are meant for troubleshooting and can contain passwords, SCRAM
+  secrets and query text.
 - Resource usage that stays within limits like `max_client_conn`, `pkt_buf`
   or `max_packet_size` as configured.
 - Bugs in the test suite and the build tooling.

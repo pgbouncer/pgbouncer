@@ -74,4 +74,7 @@ provider pgbouncer {
 
 	/* RECONNECT: mark server connections to be reopened, for the pooler or a single database. */
 	probe admin__reconnect(const char *client_addr, int client_port, const char *username, const char *dbname);
+
+	/* KILL: immediately drop all connections of the pooler or a single database. */
+	probe admin__kill(const char *client_addr, int client_port, const char *username, const char *dbname);
 };

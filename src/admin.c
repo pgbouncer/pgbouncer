@@ -1253,6 +1253,8 @@ static bool admin_cmd_kill(PgSocket *admin, const char *arg)
 		}
 	}
 
+	TRACE_ADMIN_KILL(admin, arg);
+
 	return admin_ready(admin, "KILL");
 }
 

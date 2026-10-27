@@ -114,12 +114,6 @@ void *memmem(const void *s, size_t slen, const void *q, size_t qlen);
 void *mempcpy(void *dst, const void *src, size_t len);
 #endif
 
-/** Return position to first byte that is in 'find'. */
-void *mempbrk(const void *data, size_t dlen, const void *find, size_t flen);
-
-/** Return number of bytes where none are in reject. */
-size_t memcspn(const void *data, size_t dlen, const void *reject, size_t rlen);
-
 /** Return number of bytes where all are in accept. */
 size_t memspn(const void *data, size_t dlen, const void *accept, size_t alen);
 

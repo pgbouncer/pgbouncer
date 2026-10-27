@@ -21,6 +21,7 @@
  */
 
 #include "bouncer.h"
+#include "tracing.h"
 
 #include <usual/regex.h>
 #include <usual/netdb.h>
@@ -1021,6 +1022,8 @@ static bool admin_cmd_pause(PgSocket *admin, const char *arg)
 
 	if (cf_pause_mode)
 		return admin_error(admin, "already paused");
+
+	TRACE_ADMIN_PAUSE(admin, arg);
 
 	if (!arg[0]) {
 		log_info("PAUSE command issued");

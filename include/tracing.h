@@ -241,4 +241,22 @@
 		} \
 	} while (0)
 
+/*
+ * Admin console process-control probes.  "admin" is the PgSocket of the admin
+ * connection that issued the command; its remote_addr and login user identify
+ * the operator.  "dbname" is the target database, or "" when the command
+ * applies to all.
+ */
+#define TRACE_ADMIN_PAUSE(admin, dbname) \
+	do { \
+		if (TRACE_PGBOUNCER_ADMIN_PAUSE_ENABLED()) { \
+			char _tr_aaddr[PGADDR_BUF]; \
+			TRACE_PGBOUNCER_ADMIN_PAUSE( \
+				pga_ntop(&(admin)->remote_addr, _tr_aaddr, sizeof(_tr_aaddr)), \
+				pga_port(&(admin)->remote_addr), \
+				(admin)->login_user_credentials ? (admin)->login_user_credentials->name : "", \
+				(dbname)); \
+		} \
+	} while (0)
+
 #endif

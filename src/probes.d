@@ -59,4 +59,7 @@ provider pgbouncer {
 
 	/* The query has finished. */
 	probe client__query__ready(const char *client_addr, int client_port, const char *dbname, const char *username, uint64_t duration);
+
+	/* PAUSE: pause the pooler, or a single database. */
+	probe admin__pause(const char *client_addr, int client_port, const char *username, const char *dbname);
 };

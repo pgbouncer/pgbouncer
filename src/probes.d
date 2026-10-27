@@ -77,4 +77,7 @@ provider pgbouncer {
 
 	/* KILL: immediately drop all connections of the pooler or a single database. */
 	probe admin__kill(const char *client_addr, int client_port, const char *username, const char *dbname);
+
+	/* KILL_CLIENT: forcibly disconnect a single client. */
+	probe admin__kill_client(const char *client_addr, int client_port, const char *username, uint64_t id);
 };

@@ -1207,6 +1207,7 @@ static bool admin_cmd_kill_client(PgSocket *admin, const char *arg)
 	if (kill_client == NULL) {
 		return admin_error(admin, "client not found");
 	}
+	TRACE_ADMIN_KILL_CLIENT(admin, target_id);
 	disconnect_client(kill_client, true, "admin forced disconnect");
 	return admin_ready(admin, "KILL_CLIENT");
 }

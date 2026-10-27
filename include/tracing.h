@@ -271,4 +271,15 @@
 		} \
 	} while (0)
 
+#define TRACE_ADMIN_RELOAD(admin) \
+	do { \
+		if (TRACE_PGBOUNCER_ADMIN_RELOAD_ENABLED()) { \
+			char _tr_aaddr[PGADDR_BUF]; \
+			TRACE_PGBOUNCER_ADMIN_RELOAD( \
+				pga_ntop(&(admin)->remote_addr, _tr_aaddr, sizeof(_tr_aaddr)), \
+				pga_port(&(admin)->remote_addr), \
+				(admin)->login_user_credentials ? (admin)->login_user_credentials->name : ""); \
+		} \
+	} while (0)
+
 #endif

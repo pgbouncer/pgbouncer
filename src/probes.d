@@ -65,4 +65,7 @@ provider pgbouncer {
 
 	/* RESUME: resume the pooler, or a single database. */
 	probe admin__resume(const char *client_addr, int client_port, const char *username, const char *dbname);
+
+	/* RELOAD: re-read the configuration file. */
+	probe admin__reload(const char *client_addr, int client_port, const char *username);
 };

@@ -929,6 +929,8 @@ static bool admin_cmd_reload(PgSocket *admin, const char *arg)
 
 	log_info("RELOAD command issued");
 
+	TRACE_ADMIN_RELOAD(admin);
+
 	if (!load_config()) {
 		ok = false;
 		log_error("RELOAD Failed, see logs for more details");

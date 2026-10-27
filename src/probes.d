@@ -80,4 +80,7 @@ provider pgbouncer {
 
 	/* KILL_CLIENT: forcibly disconnect a single client. */
 	probe admin__kill_client(const char *client_addr, int client_port, const char *username, uint64_t id);
+
+	/* DISABLE: block new client connections to a database. */
+	probe admin__disable(const char *client_addr, int client_port, const char *username, const char *dbname);
 };

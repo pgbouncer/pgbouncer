@@ -1108,6 +1108,9 @@ static bool admin_cmd_disable(PgSocket *admin, const char *arg)
 		return admin_error(admin, "cannot disable admin db: %s", arg);
 
 	db->db_disabled = true;
+
+	TRACE_ADMIN_DISABLE(admin, arg);
+
 	return admin_ready(admin, "DISABLE");
 }
 

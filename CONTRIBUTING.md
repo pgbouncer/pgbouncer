@@ -77,3 +77,57 @@ Some design considerations for new features:
   protocol faithfully. If clarifications, changes, or enhancements to
   the protocol are to be considered, this should be discussed with the
   PostgreSQL development team.
+
+## Dependencies
+
+The required and optional library and tool dependencies are listed in
+[README.md](README.md). In some cases, minimum versions are listed;
+these represent what is known to be technically required to build or
+run PgBouncer, but they are not meant as recommendations for which
+versions users should use. Users (or packagers) are responsible for
+selecting the versions of the dependencies and keeping them up to
+date.
+
+Changes to the minimum versions can be entertained when this would
+support proposed new functionality or would enable cleaning up
+significant amounts of code. When determining which range of versions
+of a dependency to support, consider the default versions available on
+operating systems that PgBouncer users would reasonably want to
+use. Many (but not all) of these operating systems are covered in the
+CI system. If raising a minimum version would break or require
+dropping a platform covered by CI, that would require more careful
+analysis and review.
+
+New library dependencies can be added when a feature requires them,
+but this should be done very rarely and then usually as an optional
+build feature. Such additions would require careful review and
+maintainer and community consensus.
+
+The Python packages used by the test suite are configured in
+`pyproject.toml`. Since the test dependencies are installed from PyPI
+with pip (typically into a virtual environment), the packages
+available on supported operating systems can be disregarded. But the
+minimum supported Python version needs to be kept in mind: We must be
+able to run the test suite on all supported operating systems. The
+Python packages are intentionally not version-pinned, and so
+installations get whatever releases are current at the time.
+
+Special cases:
+
+* `lib/usual/` is a fork of libusual and is maintained as part of
+  PgBouncer. It is not synced from an upstream (anymore).
+
+* `include/common/uthash.h` is a copy of uthash that is updated by
+  hand. `include/common/uthash_lowercase.h` is derived from that and
+  is also updated by hand.
+
+* A number of files in `src/common/` and `include/common/` are copied
+  from PostgreSQL. See `etc/import-common.sh` for details. These are
+  updated by hand from time to time.
+
+* The Windows release zip contains a `pgbouncer.exe` statically linked
+  against OpenSSL and libevent from the MSYS2 packages current at the
+  time of the release build. These libraries are only updated with new
+  PgBouncer releases; users who need security fixes in them sooner
+  should build PgBouncer themselves or find a different package
+  source.

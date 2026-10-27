@@ -83,4 +83,7 @@ provider pgbouncer {
 
 	/* DISABLE: block new client connections to a database. */
 	probe admin__disable(const char *client_addr, int client_port, const char *username, const char *dbname);
+
+	/* ENABLE: re-allow client connections to a previously disabled database. */
+	probe admin__enable(const char *client_addr, int client_port, const char *username, const char *dbname);
 };

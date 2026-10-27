@@ -1133,6 +1133,9 @@ static bool admin_cmd_enable(PgSocket *admin, const char *arg)
 		return admin_error(admin, "cannot enable admin db: %s", arg);
 
 	db->db_disabled = false;
+
+	TRACE_ADMIN_ENABLE(admin, arg);
+
 	return admin_ready(admin, "ENABLE");
 }
 

@@ -161,7 +161,7 @@ static bool tok_buf_check(struct TokParser *p, size_t len)
 {
 	size_t tmplen;
 	char *tmp;
-	if (p->buflen >= len)
+	if (p->buf && p->buflen >= len)
 		return true;
 	tmplen = len*2;
 	tmp = realloc(p->buf, tmplen);
@@ -321,6 +321,7 @@ static void free_parser(struct TokParser *p)
 {
 	free(p->buf);
 	p->buf = NULL;
+	p->buflen = 0;
 }
 
 static bool parse_names(struct HBAName *hname, struct TokParser *p, bool is_db, const char *parent_filename);

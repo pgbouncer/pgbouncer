@@ -827,6 +827,11 @@ connection is next released (according to the pooling mode), and new
 server connections will immediately use the updated connection
 parameters.
 
+A user whose `[users]` entry the reloaded configuration no longer
+contains keeps its password and its connection counts, but goes back to
+the defaults for every setting that section can give it, just as it
+would for a single setting dropped from an entry that is still there.
+
 #### WAIT_CLOSE [db]
 
 Wait until all server connections, either of the specified database or

@@ -461,6 +461,13 @@ bool load_config(void)
 	bool load_file_ok;
 	bool ok;
 	const char *q;
+	/*
+	 * Only the entries a load reads set these, so a load that fails part way
+	 * through the file has to have them put back with the databases below.
+	 */
+	bool saved_any_user_level_timeout_set = any_user_level_timeout_set;
+	bool saved_any_user_level_client_timeout_set = any_user_level_client_timeout_set;
+	bool saved_any_database_level_client_timeout_set = any_database_level_client_timeout_set;
 
 	any_user_level_timeout_set = false;
 	empty_server_check_query = false;
@@ -469,10 +476,12 @@ bool load_config(void)
 
 	set_dbs_dead(true);
 	set_peers_dead(true);
+	step_user_settings_generation();
 
 	/* actual loading */
 	load_file_ok = cf_load_file(&main_config, cf_config_file);
 	if (load_file_ok) {
+		reset_unmentioned_user_settings();
 		/* load users if needed */
 		if (requires_auth_file(cf_auth_type))
 			loader_users_check();
@@ -484,6 +493,10 @@ bool load_config(void)
 		log_warning("config file loading failed");
 		/* if ini file missing, don't kill anybody */
 		set_dbs_dead(false);
+		/* nor stop enforcing what the running configuration set */
+		any_user_level_timeout_set = saved_any_user_level_timeout_set;
+		any_user_level_client_timeout_set = saved_any_user_level_client_timeout_set;
+		any_database_level_client_timeout_set = saved_any_database_level_client_timeout_set;
 		ok = false;
 	}
 

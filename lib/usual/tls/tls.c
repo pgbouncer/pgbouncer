@@ -490,23 +490,43 @@ err:
 	return (-1);
 }
 
-int tls_configure_ssl_verify(struct tls *ctx, int verify)
+/*
+ * Parse the configured CA certificates into an X509_STORE, once per
+ * tls_config.  The CA file can be large (the system default bundle has
+ * hundreds of certificates), and loading it into every SSL_CTX costs
+ * about 1 MB of memory and several milliseconds of CPU per connection.
+ *
+ * The store is built on a scratch SSL_CTX so the existing loaders are
+ * reused, and then kept in the config.  Nothing adds to it afterwards,
+ * so every SSL_CTX configured from this config can share it.
+ */
+static X509_STORE *tls_config_ca_store(struct tls *ctx)
 {
-	SSL_CTX_set_verify(ctx->ssl_ctx, verify, NULL);
+	struct tls_config *config = ctx->config;
+	SSL_CTX *tmp_ctx = NULL;
+	X509_STORE *store;
 
-	if (ctx->config->ca_mem != NULL) {
+	if (config->ca_store != NULL)
+		return config->ca_store;
+
+	if ((tmp_ctx = SSL_CTX_new(SSLv23_method())) == NULL) {
+		tls_set_errorx(ctx, "ssl context failure");
+		goto err;
+	}
+
+	if (config->ca_mem != NULL) {
 		/* XXX do this in set. */
-		if (ctx->config->ca_len > INT_MAX) {
+		if (config->ca_len > INT_MAX) {
 			tls_set_errorx(ctx, "ca too long");
 			goto err;
 		}
-		if (SSL_CTX_load_verify_mem(ctx->ssl_ctx,
-					    ctx->config->ca_mem, ctx->config->ca_len) != 1) {
+		if (SSL_CTX_load_verify_mem(tmp_ctx,
+					    config->ca_mem, config->ca_len) != 1) {
 			tls_set_errorx(ctx, "ssl verify memory setup failure");
 			goto err;
 		}
-	} else if (SSL_CTX_load_verify_locations(ctx->ssl_ctx,
-						 ctx->config->ca_file, ctx->config->ca_path) != 1) {
+	} else if (SSL_CTX_load_verify_locations(tmp_ctx,
+						 config->ca_file, config->ca_path) != 1) {
 		const char *errstr = "unknown error";
 		unsigned long err;
 
@@ -515,6 +535,36 @@ int tls_configure_ssl_verify(struct tls *ctx, int verify)
 		tls_set_errorx(ctx, "failed to load CA: %s", errstr);
 		goto err;
 	}
+
+	store = SSL_CTX_get_cert_store(tmp_ctx);
+	if (X509_STORE_up_ref(store) != 1) {
+		tls_set_errorx(ctx, "ssl verify store setup failure");
+		goto err;
+	}
+	config->ca_store = store;
+	SSL_CTX_free(tmp_ctx);
+	return store;
+
+err:
+	SSL_CTX_free(tmp_ctx);
+	return NULL;
+}
+
+int tls_configure_ssl_verify(struct tls *ctx, int verify)
+{
+	X509_STORE *store;
+
+	SSL_CTX_set_verify(ctx->ssl_ctx, verify, NULL);
+
+	if ((store = tls_config_ca_store(ctx)) == NULL)
+		goto err;
+	if (X509_STORE_up_ref(store) != 1) {
+		tls_set_errorx(ctx, "ssl verify store setup failure");
+		goto err;
+	}
+	/* takes over our reference and frees the context's default store */
+	SSL_CTX_set_cert_store(ctx->ssl_ctx, store);
+
 	if (ctx->config->verify_depth >= 0) {
 		SSL_CTX_set_verify_depth(ctx->ssl_ctx,
 					 ctx->config->verify_depth);

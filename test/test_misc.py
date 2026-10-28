@@ -7,6 +7,7 @@ import time
 
 import psycopg
 import pytest
+from psycopg.rows import dict_row
 
 from .utils import (
     HAVE_IPV6_LOCALHOST,
@@ -17,6 +18,7 @@ from .utils import (
     PKT_BUF_SIZE,
     USE_UNIX_SOCKETS,
     WINDOWS,
+    wait_until,
 )
 
 
@@ -984,6 +986,16 @@ def test_shutdown_wait_for_servers(bouncer):
 
         thread = threading.Thread(target=run_blocked_query)
         thread.start()
+
+        # Wait until the blocked query is actually running on a server before
+        # shutting down. Otherwise SHUTDOWN WAIT_FOR_SERVERS can race ahead of
+        # the query reaching the server, find only an idle server connection
+        # (released immediately in pause mode) and exit right away, tearing
+        # down the admin socket before the assertions below can run.
+        for _ in wait_until("blocked query did not reach a server"):
+            servers = bouncer.admin("SHOW SERVERS", row_factory=dict_row)
+            if any(server["state"] == "active" for server in servers):
+                break
 
         bouncer.admin("SHUTDOWN WAIT_FOR_SERVERS")
 

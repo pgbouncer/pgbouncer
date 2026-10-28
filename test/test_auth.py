@@ -1,5 +1,6 @@
 import asyncio
 import getpass
+import pathlib
 import re
 import subprocess
 import time
@@ -12,11 +13,12 @@ from .utils import (
     LDAP_SUPPORT,
     LONG_PASSWORD,
     MACOS,
-    PAM_PGBOUNCER_CONF_TEST_CONFIGURED,
     PAM_SUPPORT,
     PG_SUPPORTS_SCRAM,
     TLS_SUPPORT,
+    USE_SUDO,
     WINDOWS,
+    sudo,
     wait_until,
 )
 
@@ -1563,12 +1565,38 @@ async def test_auth_query_login_large_packets(bouncer):
         bouncer.test(user="longpass", password="X" + LONG_PASSWORD)
 
 
+@pytest.fixture
+def pgbouncer_pam_config(tmp_path):
+    """
+    sets up and tears down pgbouncer pam config file in root space.
+    """
+    pgbouncer_pam_conf_fp = pathlib.Path("/etc/pam.d/pgbouncer")
+    pam_file_previously_existed = pgbouncer_pam_conf_fp.exists()
+
+    if pam_file_previously_existed:
+        sudo(f"mv {pgbouncer_pam_conf_fp} {tmp_path / 'pgbouncer_pam_conf_file'}")
+
+    sudo(
+        [
+            "bash",
+            "-c",
+            f"printf 'auth required pam_permit.so\\naccount required pam_permit.so\\n' > {pgbouncer_pam_conf_fp}",
+        ]
+    )
+
+    yield
+
+    sudo(f"rm {pgbouncer_pam_conf_fp}")
+    if pam_file_previously_existed:
+        sudo(f"mv {tmp_path / 'pgbouncer_pam_conf_file'} {pgbouncer_pam_conf_fp}")
+
+
 @pytest.mark.skipif(not PAM_SUPPORT, reason="pgbouncer is built without PAM support")
 @pytest.mark.skipif(
-    not PAM_PGBOUNCER_CONF_TEST_CONFIGURED,
-    reason="test requires a config file placed in /etc/pam.d/pgbouncer which permits all via ",
+    not USE_SUDO,
+    reason="test requires a config file placed in /etc/pam.d/pgbouncer which requires sudo",
 )
-def test_pam_system(bouncer, tmp_path):
+def test_pam_system(bouncer, tmp_path, pgbouncer_pam_config):
     """
     Positive test of PAM using default confdir
 

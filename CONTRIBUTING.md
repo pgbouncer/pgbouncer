@@ -125,9 +125,5 @@ Special cases:
   from PostgreSQL. See `etc/import-common.sh` for details. These are
   updated by hand from time to time.
 
-* The Windows release zip contains a `pgbouncer.exe` statically linked
-  against OpenSSL and libevent from the MSYS2 packages current at the
-  time of the release build. These libraries are only updated with new
-  PgBouncer releases; users who need security fixes in them sooner
-  should build PgBouncer themselves or find a different package
-  source.
+Code copied from other projects must have a license compatible with
+PgBouncer's license.

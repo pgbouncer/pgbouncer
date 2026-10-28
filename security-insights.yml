@@ -25,6 +25,9 @@ project:
   vulnerability-reporting:
     reports-accepted: true
     bug-bounty-available: false
+    contact:
+      name: PgBouncer maintainers
+      primary: true
     policy: https://github.com/pgbouncer/pgbouncer/blob/master/SECURITY.md
     comment: >-
       Report security issues on GitHub under Security Advisories:
@@ -34,6 +37,7 @@ project:
     detailed-guide: https://www.pgbouncer.org/usage.html
     quickstart-guide: https://www.pgbouncer.org/install.html
     release-process: https://github.com/pgbouncer/pgbouncer/wiki/Making-a-release
+    support-policy: https://github.com/pgbouncer/pgbouncer/blob/master/SECURITY.md#supported-versions
 repository:
   status: active
   url: https://github.com/pgbouncer/pgbouncer/

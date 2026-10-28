@@ -168,14 +168,17 @@ static bool variable_is_guc_list_quote(const char *key)
 	return false;
 }
 
+static void put_sql(PktBuf *pkt, const char *str)
+{
+	pktbuf_put_bytes(pkt, str, strlen(str));
+}
+
 static int apply_var(PktBuf *pkt, const char *key,
 		     const struct PStr *cval,
 		     const struct PStr *sval)
 {
-	char buf[300];
-	char qbuf[128];
-	unsigned len;
-	const char *tmp;
+	char *quoted;
+	size_t qlen;
 
 	/* if both are unset, skip */
 	if (!cval && !sval)
@@ -201,52 +204,51 @@ static int apply_var(PktBuf *pkt, const char *key,
 		 * parameter connects (cval is NULL).
 		 * Reset the parameter back to its session default on the server.
 		 */
-		len = snprintf(buf, sizeof(buf), "RESET %s;", key);
-		if (len < sizeof(buf)) {
-			pktbuf_put_bytes(pkt, buf, len);
-		} else {
-			char *buf2 = malloc(len + 1);
-			if (!buf2)
-				die("failed to allocate memory in apply_var");
-			snprintf(buf2, len + 1, "RESET %s;", key);
-			pktbuf_put_bytes(pkt, buf2, len);
-			free(buf2);
-		}
+		put_sql(pkt, "RESET ");
+		put_sql(pkt, key);
+		put_sql(pkt, ";");
 		return 1;
 	}
 
-	/* parameters that are marked GUC_LIST_QUOTE are returned already fully quoted
-	 * re-quoting them using pg_quote_literal will result in malformed values. */
+	/*
+	 * Worst case every character gets doubled, plus the E prefix, the two
+	 * quotes and the terminator. The value comes from the client, so a fixed
+	 * size buffer would need a fallback, and silently skipping the SET would
+	 * leave the client with the previous client's value.
+	 */
+	qlen = strlen(cval->str) * 2 + 4;
+	quoted = malloc(qlen);
+	if (!quoted)
+		die("failed to allocate memory in apply_var");
+	if (!pg_quote_literal(quoted, cval->str, qlen))
+		die("failed to quote value in apply_var");
+
+	/*
+	 * The value of a GUC_LIST_QUOTE parameter is a list of identifiers, which
+	 * SET would interpret as a single element if we pass it as one literal.
+	 * We cannot pass it unquoted either, because PostgreSQL only checks the
+	 * syntax of each element, which allows for instance semicolons and
+	 * comments inside an unquoted element. And for a startup parameter
+	 * PostgreSQL hasn't checked the value at all. So we use set_config(),
+	 * which takes the value as a string and stores it exactly as given. It's
+	 * schema qualified, because the previous user of this server connection
+	 * could have put their own set_config() function in the search_path.
+	 */
 	if (variable_is_guc_list_quote(key)) {
-		/* zero length elements of the form "" should be specially handled.*/
-		if (strcmp(cval->str, "\"\"") == 0) {
-			tmp = "''";
-		} else {
-			tmp = cval->str;
-		}
-	} else if (pg_quote_literal(qbuf, cval->str, sizeof(qbuf))) {
-		tmp = qbuf;
+		put_sql(pkt, "SELECT pg_catalog.set_config('");
+		put_sql(pkt, key);
+		put_sql(pkt, "', ");
+		put_sql(pkt, quoted);
+		put_sql(pkt, ", false);");
 	} else {
-		return 0;
+		put_sql(pkt, "SET ");
+		put_sql(pkt, key);
+		put_sql(pkt, "=");
+		put_sql(pkt, quoted);
+		put_sql(pkt, ";");
 	}
 
-	/* add SET statement to packet */
-	len = snprintf(buf, sizeof(buf), "SET %s=%s;", key, tmp);
-
-	if (len < sizeof(buf)) {
-		pktbuf_put_bytes(pkt, buf, len);
-	} else {
-		char *buf2 = malloc(len + 1);
-
-		if (!buf2)
-			die("failed to allocate memory in apply_var");
-
-		snprintf(buf2, len + 1, "SET %s=%s;", key, tmp);
-		pktbuf_put_bytes(pkt, buf2, len);
-
-		free(buf2);
-	}
-
+	free(quoted);
 	return 1;
 }
 

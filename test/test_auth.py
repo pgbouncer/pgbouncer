@@ -662,6 +662,119 @@ def test_auth_query_works_with_configured_users(bouncer):
         )
 
 
+def test_auth_query_no_row_with_dynamic_user(bouncer):
+    """
+    Check that a login is rejected when auth_query returns no row, even if
+    auth_query created a user with that name for another database. No pool
+    must be built on that user, since it is freed once unused.
+    """
+
+    config = f"""
+        [databases]
+        * = host={bouncer.pg.host} port={bouncer.pg.port}
+        noauth = auth_query='SELECT usename, passwd FROM pg_shadow where usename = $1 and false'\
+            host={bouncer.pg.host} port={bouncer.pg.port} dbname=postgres
+        [pgbouncer]
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
+        auth_user = pswcheck
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        server_idle_timeout = 1
+        autodb_idle_timeout = 1
+    """
+
+    with bouncer.run_with_config(config):
+        bouncer.test(user="someuser", password="anypasswd", dbname="postgres")
+        with pytest.raises(psycopg.OperationalError, match="no such user"):
+            bouncer.test(user="someuser", password="anypasswd", dbname="noauth")
+        pools = [(pool[0], pool[1]) for pool in bouncer.admin("SHOW POOLS")]
+        assert ("noauth", "someuser") not in pools
+
+        for _ in wait_until("auth_query user was not freed", timeout=10):
+            if "someuser" not in [user[0] for user in bouncer.admin("SHOW USERS")]:
+                break
+
+
+def test_auth_query_returns_other_user(bouncer):
+    """
+    Check that a client is counted on the user returned by auth_query, even
+    if it was counted on the user it logged in with before.
+    """
+
+    config = f"""
+        [databases]
+        renamed = auth_query='SELECT usename, passwd FROM pg_shadow where usename = current_user and $1::text is not null'\
+            host={bouncer.pg.host} port={bouncer.pg.port} dbname=postgres
+        [pgbouncer]
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
+        auth_user = pswcheck
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        [users]
+        someuser = pool_mode=session
+    """
+
+    def client_counts():
+        return {user[0]: user[7] for user in bouncer.admin("SHOW USERS")}
+
+    with bouncer.run_with_config(config):
+        with pytest.raises(psycopg.OperationalError):
+            bouncer.test(user="someuser", password="anypasswd", dbname="renamed")
+        for _ in wait_until("client counts were not released"):
+            counts = client_counts()
+            if counts["someuser"] == 0 and counts["pswcheck"] == 0:
+                break
+
+
+def test_auth_query_user_freed_with_autodb(bouncer):
+    """
+    Check that a user created only by auth_query is freed when its
+    auto-database is dropped. A user configured in [users] must be kept.
+    """
+
+    config = f"""
+        [databases]
+        * = host={bouncer.pg.host} port={bouncer.pg.port}
+        [pgbouncer]
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
+        auth_user = pswcheck
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        server_idle_timeout = 1
+        autodb_idle_timeout = 1
+        [users]
+        stats = pool_mode=session
+    """
+
+    def user_names():
+        return [user[0] for user in bouncer.admin("SHOW USERS")]
+
+    with bouncer.run_with_config(config):
+        bouncer.test(user="someuser", password="anypasswd", dbname="postgres")
+        bouncer.test(user="stats", password="stats", dbname="postgres")
+        assert "someuser" in user_names()
+
+        for _ in wait_until("auth_query user was not freed", timeout=10):
+            if "someuser" not in user_names():
+                break
+        assert "stats" in user_names()
+
+        bouncer.test(user="someuser", password="anypasswd", dbname="postgres")
+        assert "someuser" in user_names()
+
+
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
 def test_auth_query_logs_server_error(
     bouncer,

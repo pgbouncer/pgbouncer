@@ -584,6 +584,16 @@ struct PgGlobalUser {
 	int max_user_client_connections;	/* how many client connections are allowed */
 	int connection_count;	/* how many server connections are used by user now */
 	int client_connection_count;	/* how many client connections are used by user now */
+
+	/*
+	 * dynamic_only is true for a user that was created for auth_query
+	 * credentials and is not known from anywhere else. Such a user is
+	 * freed once dynamic_credentials_count, the number of auth_query
+	 * credentials pointing at it, drops to zero and it has no pools or
+	 * connections left.
+	 */
+	bool dynamic_only;
+	int dynamic_credentials_count;
 };
 
 /*

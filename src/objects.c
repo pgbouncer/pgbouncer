@@ -147,11 +147,34 @@ static int credentials_node_cmp(uintptr_t userptr, struct AANode *node)
 	return strcmp(name, credentials->name);
 }
 
-/* destroy PgCredentials, for usage with btree */
+/*
+ * Free a user that only existed for auth_query credentials once nothing
+ * refers to it anymore. Otherwise every user name ever looked up with
+ * auth_query would stay in memory until restart.
+ */
+static void free_dynamic_global_user_if_unused(PgGlobalUser *user)
+{
+	if (!user->dynamic_only || user->dynamic_credentials_count > 0)
+		return;
+	if (!list_empty(&user->pool_list) || user->connection_count > 0 || user->client_connection_count > 0)
+		return;
+
+	aatree_remove(&user_tree, (uintptr_t)user->credentials.name);
+	statlist_remove(&user_list, &user->head);
+	free(user->credentials.scram_SaltKey);
+	slab_free(user_cache, user);
+}
+
+/* destroy PgCredentials of a database's user_tree, for usage with btree */
 static void credentials_node_release(struct AANode *node, void *arg)
 {
 	PgCredentials *user = container_of(node, PgCredentials, tree_node);
+	PgGlobalUser *global_user = user->global_user;
+
 	slab_free(credentials_cache, user);
+
+	global_user->dynamic_credentials_count--;
+	free_dynamic_global_user_if_unused(global_user);
 }
 
 /* initialization before config loading */
@@ -557,11 +580,20 @@ PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const c
 
 		safe_strcpy(credentials->name, name, sizeof(credentials->name));
 
-		credentials->global_user = find_or_add_new_global_user(name, NULL);
+		/*
+		 * Not find_or_add_new_global_user(), so that a user created here
+		 * stays dynamic_only and can be freed with its credentials.
+		 */
+		credentials->global_user = find_global_user(name);
 		if (!credentials->global_user) {
-			slab_free(credentials_cache, credentials);
-			return NULL;
+			credentials->global_user = add_new_global_user(name, NULL);
+			if (!credentials->global_user) {
+				slab_free(credentials_cache, credentials);
+				return NULL;
+			}
+			credentials->global_user->dynamic_only = true;
 		}
+		credentials->global_user->dynamic_credentials_count++;
 
 		aatree_insert(&db->user_tree, (uintptr_t)credentials->name, &credentials->tree_node);
 	}
@@ -1036,8 +1068,12 @@ PgGlobalUser *find_or_add_new_global_user(const char *name, const char *passwd)
 {
 	PgGlobalUser *user = find_global_user(name);
 
-	if (!user)
+	if (!user) {
 		user = add_new_global_user(name, passwd);
+	} else {
+		/* it is now used outside auth_query credentials, so keep it */
+		user->dynamic_only = false;
+	}
 
 	return user;
 }

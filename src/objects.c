@@ -147,11 +147,30 @@ static int credentials_node_cmp(uintptr_t userptr, struct AANode *node)
 	return strcmp(name, credentials->name);
 }
 
-/* destroy PgCredentials, for usage with btree */
+/*
+ * Pools and server connections always belong to a PgDatabase.user_tree entry,
+ * so they need no check here. Every client that points at the user is counted
+ * in client_connection_count.
+ */
+static void free_global_user_if_unused(PgGlobalUser *user)
+{
+	if (!user->dynamic || user->db_credentials_count > 0 || user->client_connection_count != 0)
+		return;
+
+	aatree_remove(&user_tree, (uintptr_t)user->credentials.name);
+	statlist_remove(&user_list, &user->head);
+	slab_free(user_cache, user);
+}
+
+/* destroy PgCredentials in PgDatabase.user_tree, for usage with btree */
 static void credentials_node_release(struct AANode *node, void *arg)
 {
 	PgCredentials *user = container_of(node, PgCredentials, tree_node);
+	PgGlobalUser *global_user = user->global_user;
+
 	slab_free(credentials_cache, user);
+	global_user->db_credentials_count--;
+	free_global_user_if_unused(global_user);
 }
 
 /* initialization before config loading */
@@ -557,11 +576,20 @@ PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const c
 
 		safe_strcpy(credentials->name, name, sizeof(credentials->name));
 
-		credentials->global_user = find_or_add_new_global_user(name, NULL);
+		/*
+		 * Don't use find_or_add_new_global_user() here: it marks the
+		 * user as never freed.
+		 */
+		credentials->global_user = find_global_user(name);
 		if (!credentials->global_user) {
-			slab_free(credentials_cache, credentials);
-			return NULL;
+			credentials->global_user = add_new_global_user(name, NULL);
+			if (!credentials->global_user) {
+				slab_free(credentials_cache, credentials);
+				return NULL;
+			}
+			credentials->global_user->dynamic = true;
 		}
+		credentials->global_user->db_credentials_count++;
 
 		aatree_insert(&db->user_tree, (uintptr_t)credentials->name, &credentials->tree_node);
 	}
@@ -1031,13 +1059,18 @@ bool queue_fake_response(PgSocket *client, char request_type)
 	return res;
 }
 
-/* Find an existing global user or add a new global user */
+/*
+ * Find an existing global user or add a new global user. Callers keep the
+ * user until shutdown, so it is never freed, even if auth_query created it.
+ */
 PgGlobalUser *find_or_add_new_global_user(const char *name, const char *passwd)
 {
 	PgGlobalUser *user = find_global_user(name);
 
 	if (!user)
 		user = add_new_global_user(name, passwd);
+	if (user)
+		user->dynamic = false;
 
 	return user;
 }

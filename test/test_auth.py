@@ -662,6 +662,47 @@ def test_auth_query_works_with_configured_users(bouncer):
         )
 
 
+def test_auth_query_user_freed_with_autodb(bouncer):
+    """
+    Check that a user created only by auth_query is freed when its
+    auto-database is dropped. A user configured in [users] must be kept.
+    """
+
+    config = f"""
+        [databases]
+        * = host={bouncer.pg.host} port={bouncer.pg.port}
+        [pgbouncer]
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
+        auth_user = pswcheck
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        server_idle_timeout = 1
+        autodb_idle_timeout = 1
+        [users]
+        stats = pool_mode=session
+    """
+
+    def user_names():
+        return [user[0] for user in bouncer.admin("SHOW USERS")]
+
+    with bouncer.run_with_config(config):
+        bouncer.test(user="someuser", password="anypasswd", dbname="postgres")
+        bouncer.test(user="stats", password="stats", dbname="postgres")
+        assert "someuser" in user_names()
+
+        for _ in wait_until("auth_query user was not freed", timeout=10):
+            if "someuser" not in user_names():
+                break
+        assert "stats" in user_names()
+
+        bouncer.test(user="someuser", password="anypasswd", dbname="postgres")
+        assert "someuser" in user_names()
+
+
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
 def test_auth_query_logs_server_error(
     bouncer,

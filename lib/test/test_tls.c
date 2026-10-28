@@ -929,6 +929,136 @@ static void test_cipher_nego(void *z)
 end:    ;
 }
 
+/*
+ * A single configured curve must be the one that is negotiated.  Two
+ * different curves are checked so that a passing result cannot be a
+ * coincidence of the library default -- it proves the config is in
+ * control.  The bare-cipher form is accepted as a fallback for builds
+ * that do not report the negotiated group.
+ */
+static void test_ecdhecurve_single(void *z)
+{
+	struct Worker *server = NULL, *client = NULL;
+
+	tt_assert(tls_init() == 0);
+
+	str_check(create_worker(&server, true,
+				"protocols=tlsv1.2",
+				"ecdhecurve=secp384r1",
+				"ciphers=AESGCM",
+				"show=ciphers",
+				SERVER1, NULL), "OK");
+	str_check(create_worker(&client, false, CA1,
+				"protocols=tlsv1.2",
+				"ciphers=AESGCM",
+				"host=server1.com",
+				NULL), "OK");
+	str_any2(run_case(client, server),
+		 "TLSv1.2/ECDHE-ECDSA-AES256-GCM-SHA384/ECDH=secp384r1",
+		 "TLSv1.2/ECDHE-ECDSA-AES256-GCM-SHA384");
+
+	str_check(create_worker(&server, true,
+				"protocols=tlsv1.2",
+				"ecdhecurve=prime256v1",
+				"ciphers=AESGCM",
+				"show=ciphers",
+				SERVER1, NULL), "OK");
+	str_check(create_worker(&client, false, CA1,
+				"protocols=tlsv1.2",
+				"ciphers=AESGCM",
+				"host=server1.com",
+				NULL), "OK");
+	str_any2(run_case(client, server),
+		 "TLSv1.2/ECDHE-ECDSA-AES256-GCM-SHA384/ECDH=prime256v1",
+		 "TLSv1.2/ECDHE-ECDSA-AES256-GCM-SHA384");
+end:    ;
+}
+
+static void test_ecdhecurve_list(void *z)
+{
+	struct Worker *server = NULL, *client = NULL;
+
+	tt_assert(tls_init() == 0);
+
+	/* A multi-curve list is accepted and one of its curves is used. */
+	str_check(create_worker(&server, true,
+				"protocols=tlsv1.2",
+				"ecdhecurve=X25519:prime256v1:secp384r1",
+				"ciphers=AESGCM",
+				"show=ciphers",
+				SERVER1, NULL), "OK");
+	str_check(create_worker(&client, false, CA1,
+				"protocols=tlsv1.2",
+				"ciphers=AESGCM",
+				"host=server1.com",
+				NULL), "OK");
+	str_any3(run_case(client, server),
+		 "TLSv1.2/ECDHE-ECDSA-AES256-GCM-SHA384/ECDH=X25519",
+		 "TLSv1.2/ECDHE-ECDSA-AES256-GCM-SHA384/ECDH=prime256v1",
+		 "TLSv1.2/ECDHE-ECDSA-AES256-GCM-SHA384/ECDH=secp384r1");
+end:    ;
+}
+
+static void test_ecdhecurve_invalid(void *z)
+{
+	struct Worker *server = NULL;
+	const char *res;
+
+	tt_assert(tls_init() == 0);
+
+	/* An unknown curve name is rejected at config load. */
+	res = create_worker(&server, true,
+			    "ecdhecurve=bogus_curve",
+			    SERVER1, NULL);
+	tt_str_op(res, !=, "OK");
+	free_worker(server);
+	server = NULL;
+
+	/* A bad element anywhere in a list is rejected too. */
+	res = create_worker(&server, true,
+			    "ecdhecurve=prime256v1:bogus_curve",
+			    SERVER1, NULL);
+	tt_str_op(res, !=, "OK");
+	free_worker(server);
+	server = NULL;
+
+	/* "auto" and "none" remain valid. */
+	str_check(create_worker(&server, true,
+				"ecdhecurve=auto",
+				SERVER1, NULL), "OK");
+	free_worker(server);
+	server = NULL;
+
+	str_check(create_worker(&server, true,
+				"ecdhecurve=none",
+				SERVER1, NULL), "OK");
+	free_worker(server);
+	server = NULL;
+end:    ;
+}
+
+static void test_tls_config_equal_curves(void *z)
+{
+	struct Worker *s1 = NULL, *s2 = NULL, *s3 = NULL;
+
+	str_check(create_worker(&s1, true,
+				"ecdhecurve=secp384r1",
+				SERVER1, NULL), "OK");
+	str_check(create_worker(&s2, true,
+				"ecdhecurve=secp384r1",
+				SERVER1, NULL), "OK");
+	str_check(create_worker(&s3, true,
+				"ecdhecurve=prime256v1",
+				SERVER1, NULL), "OK");
+
+	tt_assert(tls_config_equal(s1->config, s2->config) == true);
+	tt_assert(tls_config_equal(s1->config, s3->config) == false);
+end:
+	free_worker(s1);
+	free_worker(s2);
+	free_worker(s3);
+}
+
 static void test_cert_info(void *z)
 {
 	struct Worker *server = NULL, *client = NULL;
@@ -1144,8 +1274,12 @@ struct testcase_t tls_tests[] = {
 	{ "cipher-tlsv12", test_cipher_tlsv12 },
 	{ "cipher-tlsv13", test_cipher_tlsv13 },
 	{ "cipher-nego", test_cipher_nego },
+	{ "ecdhecurve-single", test_ecdhecurve_single },
+	{ "ecdhecurve-list", test_ecdhecurve_list },
+	{ "ecdhecurve-invalid", test_ecdhecurve_invalid },
 	{ "cert-info", test_cert_info },
 	{ "tls_config_equal", test_tls_config_equal },
+	{ "tls_config_equal_curves", test_tls_config_equal_curves },
 	{ "tls_keypair_list_equal", test_tls_keypair_list_equal },
 	{ "tls_keypair_list_length", test_tls_keypair_list_length },
 	END_OF_TESTCASES,

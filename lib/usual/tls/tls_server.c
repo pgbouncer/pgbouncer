@@ -93,7 +93,6 @@ static int alpn_cb(SSL *ssl, const unsigned char **out, unsigned char *outlen,
 
 int tls_configure_server(struct tls *ctx)
 {
-	EC_KEY *ecdh_key;
 	STACK_OF(X509_NAME) * cert_stack;
 	unsigned char sid[SSL_MAX_SSL_SESSION_ID_LENGTH];
 
@@ -118,17 +117,22 @@ int tls_configure_server(struct tls *ctx)
 	if (ctx->config->dheparams == -1)
 		SSL_CTX_set_dh_auto(ctx->ssl_ctx, 1);
 
-	if (ctx->config->ecdhecurve == -1) {
+	if (ctx->config->ecdhecurves == NULL ||
+	    strcasecmp(ctx->config->ecdhecurves, "none") == 0) {
+		/* ECDHE disabled: nothing to configure. */
+	} else if (strcasecmp(ctx->config->ecdhecurves, "auto") == 0) {
 		SSL_CTX_set_ecdh_auto(ctx->ssl_ctx, 1);
-	} else if (ctx->config->ecdhecurve != NID_undef) {
-		if ((ecdh_key = EC_KEY_new_by_curve_name(
-			     ctx->config->ecdhecurve)) == NULL) {
+	} else {
+#ifdef SSL_CTX_set1_groups_list
+		if (SSL_CTX_set1_groups_list(ctx->ssl_ctx,
+					     ctx->config->ecdhecurves) != 1) {
 			tls_set_errorx(ctx, "failed to set ECDHE curve");
 			goto err;
 		}
-		SSL_CTX_set_options(ctx->ssl_ctx, SSL_OP_SINGLE_ECDH_USE);
-		SSL_CTX_set_tmp_ecdh(ctx->ssl_ctx, ecdh_key);
-		EC_KEY_free(ecdh_key);
+#else
+		tls_set_errorx(ctx, "ECDHE curve configuration not supported by this TLS library");
+		goto err;
+#endif
 	}
 
 	if (ctx->config->ciphers_server == 1) {

@@ -1,5 +1,16 @@
 # Security policy
 
+## Supported versions
+
+Feature releases have version numbers like 1.25.0, 1.26.0, etc.
+Version numbers like 1.25.1, 1.25.2, etc. are bug fix releases on top
+of the respective feature release.
+
+Only the latest feature release series receives bug and security
+fixes. When a new feature release comes out, the previous series no
+longer receives security updates. Fixes are not backported to older
+series, so to get a security fix, upgrade to the latest release.
+
 ## Reporting a vulnerability
 
 Please report security issues privately through GitHub Security Advisories:
@@ -8,6 +19,46 @@ https://github.com/pgbouncer/pgbouncer/security/advisories/new
 Do not open a public issue for them. Bugs that are not vulnerabilities
 according to the threat model below are welcome as normal GitHub issues. If
 you're unsure whether an issue is a vulnerability, report it privately.
+
+## Disclosure policy
+
+When a security issue is reported, we aim to react within the
+following timelines. But note that this is a volunteer-run open-source
+project, and these are goals, not guarantees. We aim to reply to your
+report within 5 business days. Within 14 business days after that
+reply, we aim to tell you whether we consider the issue a
+vulnerability, how severe it is by the criteria in the threat model
+below, and which versions it affects.
+
+The issue is kept private while we work on a fix. It becomes public when
+the release containing the fix is published.
+
+Each fixed vulnerability gets a CVE identifier and is described in the
+[release notes](NEWS.md) (also published at
+https://www.pgbouncer.org/changelog.html).
+
+## Dependencies
+
+PgBouncer does not pin or bundle any third-party packages in its source
+releases. It links against libraries such as OpenSSL, libevent and c-ares
+as installed on the build system. Users and packagers choose the versions
+of those and keep them up to date, see "Dependencies" in CONTRIBUTING.md.
+Vulnerabilities in them are handled by updating the library.
+
+Some code from other projects is copied into the source tree: files
+from PostgreSQL in `src/common/` and `include/common/`, and
+uthash. Vulnerabilities in that code are treated as vulnerabilities in
+PgBouncer itself, rated by the threat model below and handled under
+the disclosure policy above.
+
+The Windows release zip is the only binary the project publishes. It
+contains a `pgbouncer.exe` statically linked against OpenSSL and
+libevent from the MSYS2 packages current at the time of the release
+build. These libraries are only updated with new PgBouncer releases;
+users who need security fixes in them sooner should build PgBouncer
+themselves or find a different package source.
+
+The Python packages used by the test suite are not part of any release.
 
 ## Threat model
 

@@ -1,6 +1,6 @@
 header:
   schema-version: 2.2.0
-  last-updated: "2026-10-27"
+  last-updated: "2026-10-28"
   last-reviewed: "2026-10-22"
   url: https://raw.githubusercontent.com/pgbouncer/pgbouncer/refs/heads/master/security-insights.yml
 project:
@@ -25,6 +25,7 @@ project:
   vulnerability-reporting:
     reports-accepted: true
     bug-bounty-available: false
+    policy: https://github.com/pgbouncer/pgbouncer/blob/master/SECURITY.md
     comment: >-
       Report security issues on GitHub under Security Advisories:
       https://github.com/pgbouncer/pgbouncer/security/advisories
@@ -54,6 +55,7 @@ repository:
   documentation:
     contributing-guide: https://github.com/pgbouncer/pgbouncer/blob/master/CONTRIBUTING.md
     dependency-management-policy: https://github.com/pgbouncer/pgbouncer/blob/master/CONTRIBUTING.md#dependencies
+    security-policy: https://github.com/pgbouncer/pgbouncer/blob/master/SECURITY.md
   release:
     automated-pipeline: false
     distribution-points:

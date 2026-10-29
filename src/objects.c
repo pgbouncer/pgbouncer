@@ -813,8 +813,18 @@ PgPool *get_pool(PgDatabase *db, PgCredentials *user_credentials)
 
 	list_for_each(item, &user_credentials->global_user->pool_list) {
 		pool = container_of(item, PgPool, map_head);
-		if (pool->db == db)
+		if (pool->db == db) {
+			/*
+			 * The pool may have been created with a different
+			 * credentials object for the same user (e.g. the user
+			 * moved between the auth_file and auth_query across a
+			 * reload). Follow the credentials the client
+			 * authenticated with, so new server logins don't use a
+			 * stale password.
+			 */
+			pool->user_credentials = user_credentials;
 			return pool;
+		}
 	}
 
 	return new_pool(db, user_credentials);

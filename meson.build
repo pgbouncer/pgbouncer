@@ -596,6 +596,26 @@ if windows
   net_deps += cc.find_library('iphlpapi')
 endif
 
+# clock_gettime lives in libc on modern glibc but in librt on Solaris/illumos.
+if not windows and not cc.has_function('clock_gettime', prefix: '#include <time.h>')
+  net_deps += cc.find_library('rt', required: false)
+endif
+
+# The socket API is in libc on Linux/BSD but in libsocket on Solaris/illumos.
+if not windows and not cc.has_function('getsockname', prefix: '#include <sys/socket.h>')
+  net_deps += cc.find_library('socket', required: false)
+endif
+
+# Name-service lookups are in libc on Linux/BSD but in libnsl on Solaris/illumos.
+if not windows and not cc.has_function('gethostbyname', prefix: '#include <netdb.h>')
+  net_deps += cc.find_library('nsl', required: false)
+endif
+
+# hstrerror() is in libc on Linux/BSD but in libresolv on Solaris/illumos.
+if not windows and not cc.has_function('hstrerror', prefix: '#include <netdb.h>')
+  net_deps += cc.find_library('resolv', required: false)
+endif
+
 pgbouncer_deps = [
   libcares,
   libevent,

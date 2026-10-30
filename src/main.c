@@ -195,6 +195,7 @@ char *cf_client_tls_dheparams;
 char *cf_client_tls_ecdhecurve;
 
 int cf_server_tls_sslmode;
+usec_t cf_server_tls_reload_interval;
 char *cf_server_tls_protocols;
 char *cf_server_tls_ca_file;
 char *cf_server_tls_cert_file;
@@ -335,6 +336,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("server_tls_ciphers", CF_STR, cf_server_tls_ciphers, 0, "default"),
 	CF_ABS("server_tls_key_file", CF_STR, cf_server_tls_key_file, 0, ""),
 	CF_ABS("server_tls_protocols", CF_STR, cf_server_tls_protocols, 0, "secure"),
+	CF_ABS("server_tls_reload_interval", CF_TIME_USEC, cf_server_tls_reload_interval, 0, "0"),
 	CF_ABS("server_tls_sslmode", CF_LOOKUP(sslmode_map), cf_server_tls_sslmode, 0, "prefer"),
 #ifdef WIN32
 	CF_ABS("service_name", CF_STR, cf_jobname, CF_NO_RELOAD, NULL),	/* alias for job_name */

@@ -835,6 +835,20 @@ static void test_set_mem(void *z)
 end:    ;
 }
 
+/* Releasing the reloader's reference must not invalidate a pending handshake. */
+static void test_config_lifetime(void *z)
+{
+	struct Worker *server = NULL, *client = NULL;
+
+	tt_assert(tls_init() == 0);
+	str_check(create_worker(&server, true, "mem=1", SERVER1, CA2, NULL), "OK");
+	str_check(create_worker(&client, false, "mem=1", CLIENT2, CA1, "host=server1.com", NULL), "OK");
+	tls_config_free(client->config);
+	client->config = NULL;
+	str_check(run_case(client, server), "OK");
+end:    ;
+}
+
 static void test_cipher_tlsv12(void *z)
 {
 	struct Worker *server = NULL, *client = NULL;
@@ -1141,6 +1155,7 @@ struct testcase_t tls_tests[] = {
 	{ "clientcert", test_clientcert },
 	{ "fingerprint", test_fingerprint },
 	{ "set-mem", test_set_mem },
+	{ "config-lifetime", test_config_lifetime },
 	{ "cipher-tlsv12", test_cipher_tlsv12 },
 	{ "cipher-tlsv13", test_cipher_tlsv13 },
 	{ "cipher-nego", test_cipher_nego },

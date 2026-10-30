@@ -60,6 +60,21 @@ themselves or find a different package source.
 
 The Python packages used by the test suite are not part of any release.
 
+## Static analysis
+
+The Clang Static Analyzer (scan-build) runs in CI on master, on manual
+dispatch, and on pull requests labeled ci-full. It does not assign
+severities and reports many false positives, so its findings do not fail
+the build. Instead, maintainers review the job output periodically:
+
+- A finding that is a vulnerability according to the threat model below
+  is rated by the severity criteria there and handled like a reported
+  vulnerability, under the disclosure policy and its timelines.
+- A finding that is a real bug but not a vulnerability is fixed like any
+  other bug.
+- A false positive needs no action. Where it is cheap to do, the code may be
+  changed to silence it.
+
 ## Threat model
 
 PgBouncer is a connection pooler for PostgreSQL. It sits between clients and

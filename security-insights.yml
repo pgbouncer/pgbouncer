@@ -80,7 +80,9 @@ repository:
         type: SAST
         comment: >-
           Runs on master, on manual dispatch, and on pull requests labeled
-          ci-full.
+          ci-full.  Findings do not fail the build; maintainers review the
+          job output periodically and triage it as described in SECURITY.md
+          under "Static analysis".
         rulesets:
           - default
         integration:

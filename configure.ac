@@ -187,6 +187,24 @@ AC_USUAL_DEBUG
 AC_USUAL_CASSERT
 AC_USUAL_WERROR
 
+dnl Check for DTrace/USDT static tracepoints
+AC_ARG_ENABLE(dtrace,
+  AS_HELP_STRING([--enable-dtrace], [build with DTrace/USDT static tracepoints]),
+  [enable_dtrace=$enableval], [enable_dtrace=no])
+AC_MSG_CHECKING([whether to build with DTrace/USDT static tracepoints])
+if test "$enable_dtrace" = "yes"; then
+  AC_MSG_RESULT([yes])
+  AC_CHECK_PROGS(DTRACE, dtrace)
+  if test -z "$DTRACE"; then
+    AC_MSG_ERROR([dtrace not found; install systemtap-sdt-dev (Linux) or build without --enable-dtrace])
+  fi
+  AC_DEFINE(HAVE_DTRACE, 1, [Define to build with DTrace/USDT static tracepoints. (--enable-dtrace)])
+else
+  AC_MSG_RESULT([no])
+fi
+AC_SUBST(enable_dtrace)
+AC_SUBST(DTRACE)
+
 PACKAGE_VERSION_4B=`echo "${PACKAGE_VERSION}.0" | sed -e 's/\./,/g'`
 AC_DEFINE_UNQUOTED(PACKAGE_VERSION_4B, [$PACKAGE_VERSION_4B],
                    [Define to the version of this package for Windows resource file (1,2,3,4).])dnl
@@ -217,4 +235,5 @@ echo "  ldap    = $ldap_support"
 echo "  pam     = $pam_support"
 echo "  systemd = $with_systemd"
 echo "  tls     = $tls_support"
+echo "  dtrace  = $enable_dtrace"
 echo ""

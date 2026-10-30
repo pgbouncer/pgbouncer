@@ -1728,6 +1728,12 @@ The file follows the format of the PostgreSQL `pg_hba.conf` file
 (see <https://www.postgresql.org/docs/current/auth-pg-hba-conf.html>).
 
 * Supported record types: `local`, `host`, `hostssl`, `hostnossl`.
+* Include directives (as in PostgreSQL 16): `include file`, `include_if_exists file`
+  and `include_dir directory`. The rules of the included files are inserted in place, so
+  rule order is preserved. A relative path is resolved against the directory of the file
+  containing the directive. `include_if_exists` skips a file that does not exist, and
+  `include_dir` loads the files ending in `.conf` (except those starting with `.`) in
+  name order. Includes can be nested up to 10 levels deep.
 * Database field: Supports `all`, `replication`, `sameuser`, `@file`, multiple names.  Not supported: `samerole`, `samegroup`.
 * User name field: Supports `all`, `@file`, multiple names.  Not supported: `+groupname`.
 * Address field: Supports `all`, IPv4, IPv6.  Not supported: `samehost`, `samenet`, DNS names, domain prefixes.

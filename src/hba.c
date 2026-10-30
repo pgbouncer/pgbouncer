@@ -24,6 +24,9 @@
 #include <usual/socket.h>
 #include <usual/string.h>
 
+#include <dirent.h>
+#include <sys/stat.h>
+
 /*
  * StrSet
  */
@@ -679,14 +682,137 @@ failed:
 	return false;
 }
 
-static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *tp, int linenr, const char *parent_filename)
+static bool load_hba_file(struct HBA *hba, struct Ident *ident, const char *fn, int depth, bool missing_ok);
+
+static int cmp_filenames(const void *a, const void *b)
 {
-	const char *addr = NULL, *mask = NULL, *includef = NULL;
+	return strcmp(*(char * const *)a, *(char * const *)b);
+}
+
+static bool load_hba_dir(struct HBA *hba, struct Ident *ident, const char *dir_path, int depth)
+{
+	DIR *dir;
+	struct dirent *de;
+	struct stat st;
+	char **names = NULL, **tmp;
+	size_t count = 0, alloc = 0, i, len;
+	char *path;
+	bool ok = true;
+
+	dir = opendir(dir_path);
+	if (!dir) {
+		log_warning("could not open hba config directory %s: %s", dir_path, strerror(errno));
+		return false;
+	}
+
+	while ((de = readdir(dir)) != NULL) {
+		len = strlen(de->d_name);
+		if (de->d_name[0] == '.' || len <= 5 || strcmp(de->d_name + len - 5, ".conf") != 0)
+			continue;
+
+		path = path_join(dir_path, de->d_name);
+		if (!path) {
+			ok = false;
+			break;
+		}
+		if (stat(path, &st) != 0 || !S_ISREG(st.st_mode)) {
+			free(path);
+			continue;
+		}
+		free(path);
+
+		if (count == alloc) {
+			alloc = alloc ? alloc * 2 : 8;
+			tmp = realloc(names, alloc * sizeof(*names));
+			if (!tmp) {
+				ok = false;
+				break;
+			}
+			names = tmp;
+		}
+		names[count] = strdup(de->d_name);
+		if (!names[count]) {
+			ok = false;
+			break;
+		}
+		count++;
+	}
+	closedir(dir);
+
+	if (ok) {
+		qsort(names, count, sizeof(*names), cmp_filenames);
+		for (i = 0; i < count; i++) {
+			path = path_join(dir_path, names[i]);
+			if (!path) {
+				ok = false;
+				break;
+			}
+			load_hba_file(hba, ident, path, depth, false);
+			free(path);
+		}
+	} else {
+		log_warning("hba: no mem for files in directory %s", dir_path);
+	}
+
+	for (i = 0; i < count; i++)
+		free(names[i]);
+	free(names);
+	return ok;
+}
+
+/*
+ * Handle "include", "include_if_exists" and "include_dir" lines (PostgreSQL
+ * 16+). The rules of the included file(s) are added in place, so first-match
+ * order is preserved. A relative path is resolved against the directory of
+ * the file containing the directive.
+ */
+static bool parse_include(struct HBA *hba, struct Ident *ident, struct TokParser *tp, int linenr,
+			  const char *parent_filename, int depth, enum IncludeKind kind)
+{
+	const char *name = NULL;
+	char *path;
+	bool ok;
+
+	if (!expect(tp, TOK_IDENT, &name) && !expect(tp, TOK_STRING, &name)) {
+		log_warning("hba file %s line %d: expected a file name", parent_filename, linenr);
+		return false;
+	}
+
+	/* copy the name before advancing, as the token buffer gets reused */
+	path = path_join_dirname(parent_filename, name);
+	if (!path) {
+		log_warning("hba: no mem for include path");
+		return false;
+	}
+
+	next_token(tp);
+	if (!eat(tp, TOK_EOL)) {
+		log_warning("hba file %s line %d: unexpected parameters after file name", parent_filename, linenr);
+		free(path);
+		return false;
+	}
+
+	if (depth >= HBA_MAX_INCLUDE_DEPTH) {
+		log_warning("hba file %s line %d: could not open file %s: maximum nesting depth exceeded",
+			    parent_filename, linenr, path);
+		free(path);
+		return false;
+	}
+
+	if (kind == INCLUDE_DIR)
+		ok = load_hba_dir(hba, ident, path, depth + 1);
+	else
+		ok = load_hba_file(hba, ident, path, depth + 1, kind == INCLUDE_FILE_IF_EXISTS);
+	free(path);
+	return ok;
+}
+
+static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *tp, int linenr, const char *parent_filename, int depth)
+{
+	const char *addr = NULL, *mask = NULL;
 	enum RuleType rtype;
 	char *nmask = NULL;
 	struct HBARule *rule = NULL;
-	char *fn = NULL;
-	FILE *f;
 
 	if (eat_kw(tp, "local")) {
 		rtype = RULE_LOCAL;
@@ -697,9 +823,11 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 	} else if (eat_kw(tp, "hostnossl")) {
 		rtype = RULE_HOSTNOSSL;
 	} else if (eat_kw(tp, "include")) {
-		rtype = RULE_INCLUDEFILE;
+		return parse_include(hba, ident, tp, linenr, parent_filename, depth, INCLUDE_FILE);
 	} else if (eat_kw(tp, "include_if_exists")) {
-		rtype = RULE_INCLUDEFILEIFEXISTS;
+		return parse_include(hba, ident, tp, linenr, parent_filename, depth, INCLUDE_FILE_IF_EXISTS);
+	} else if (eat_kw(tp, "include_dir")) {
+		return parse_include(hba, ident, tp, linenr, parent_filename, depth, INCLUDE_DIR);
 	} else if (eat(tp, TOK_EOL)) {
 		return true;
 	} else {
@@ -713,33 +841,6 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 		return false;
 	}
 	rule->rule_type = rtype;
-
-	if (rtype == RULE_INCLUDEFILE || rtype == RULE_INCLUDEFILEIFEXISTS){
-	    if (!expect(tp, TOK_IDENT, &includef)) {
-		log_warning("hba line %d: expected filename", linenr);
-		goto failed;
-	    }
-	    fn = path_join_dirname(parent_filename, includef);
-	    if (!fn) {
-		log_warning("hba line %d: invalid filepath %s",linenr, tp->buf);
-		return false;
-	    }
-
-		f = fopen(fn, "r");
-		if (!f && rtype == RULE_INCLUDEFILEIFEXISTS) {
-			free(fn);
-			return true;
-		} else if (!f) {
-			log_warning("hba line %d: invalid file %s",linenr, fn);
-			free(fn);
-			goto failed;
-		}
-		fclose(f);
-		// parse rules out of included file
-		hba_load_extended_rules(fn, ident, hba);
-		free(fn);
-		return true;
-	}
 
 	if (!parse_names(&rule->db_name, tp, true, parent_filename))
 		goto failed;
@@ -810,8 +911,6 @@ static bool parse_line(struct HBA *hba, struct Ident *ident, struct TokParser *t
 		rule->rule_method = AUTH_TYPE_CERT;
 	} else if (eat_kw(tp, "scram-sha-256")) {
 		rule->rule_method = AUTH_TYPE_SCRAM_SHA_256;
-	} else if (eat_kw(tp, "pam")) {
-		rule->rule_method = AUTH_TYPE_PAM;
 	} else if (check_kw(tp, "ldap")) {
 		rule->rule_method = AUTH_TYPE_LDAP;
 	} else {
@@ -896,54 +995,60 @@ out:
 		fclose(f);
 	return ident;
 }
-struct HBA *hba_load_rules(const char *fn, struct Ident *ident){
-	return hba_load_extended_rules(fn, ident, NULL);
-}
-struct HBA *hba_load_extended_rules(const char *fn, struct Ident *ident, struct HBA *current_hba)
+
+/*
+ * Parse the rules of one hba file into hba. Included files are loaded
+ * recursively at depth + 1. With missing_ok, a file that does not exist is
+ * skipped silently (include_if_exists); any other open error is reported.
+ */
+static bool load_hba_file(struct HBA *hba, struct Ident *ident, const char *fn, int depth, bool missing_ok)
 {
-	struct HBA *hba = NULL;
-	FILE *f = NULL;
+	FILE *f;
 	char *ln = NULL;
 	size_t lnbuf = 0;
 	ssize_t len;
 	int linenr;
 	struct TokParser tp;
 
-	init_parser(&tp);
-
-	if(current_hba)
-		hba = current_hba;
-	else {
-		hba = malloc(sizeof *hba);
-		if (!hba)
-			goto out;
-
-		list_init(&hba->rules);
-	}
-
 	f = fopen(fn, "r");
 	if (!f) {
+		if (missing_ok && errno == ENOENT) {
+			log_info("skipping missing hba config file %s", fn);
+			return true;
+		}
 		log_error("could not open hba config file %s: %s", fn, strerror(errno));
-		goto out;
+		return false;
 	}
 
+	init_parser(&tp);
 	for (linenr = 1; ; linenr++) {
 		len = getline(&ln, &lnbuf, f);
 		if (len < 0)
 			break;
 		parse_from_string(&tp, ln);
-		if (!parse_line(hba, ident, &tp, linenr, fn)) {
+		if (!parse_line(hba, ident, &tp, linenr, fn, depth)) {
 			/* Tell the admin where to look for the problem. */
-			log_warning("could not parse hba config line %d", linenr);
+			log_warning("could not parse hba config file %s line %d", fn, linenr);
 			/* Ignore line, but parse to the end. */
 			continue;
 		}
 	}
-out:
 	free_parser(&tp);
 	free(ln);
-	if (f)
-		fclose(f);
+	fclose(f);
+	return true;
+}
+
+struct HBA *hba_load_rules(const char *fn, struct Ident *ident)
+{
+	struct HBA *hba;
+
+	hba = malloc(sizeof *hba);
+	if (!hba)
+		return NULL;
+	list_init(&hba->rules);
+
+	load_hba_file(hba, ident, fn, 0, false);
 	return hba;
 }
 

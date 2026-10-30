@@ -22,13 +22,23 @@
 #define NAME_SAMEUSER           2
 #define NAME_REPLICATION        4
 
+/*
+ * Maximum nesting of include directives, the same limit PostgreSQL uses
+ * (CONF_FILE_MAX_DEPTH). Stops include cycles from recursing forever.
+ */
+#define HBA_MAX_INCLUDE_DEPTH 10
+
+enum IncludeKind {
+	INCLUDE_FILE,
+	INCLUDE_FILE_IF_EXISTS,
+	INCLUDE_DIR,
+};
+
 enum RuleType {
 	RULE_LOCAL,
 	RULE_HOST,
 	RULE_HOSTSSL,
 	RULE_HOSTNOSSL,
-	RULE_INCLUDEFILE,
-	RULE_INCLUDEFILEIFEXISTS,
 };
 
 struct HBAAddress {
@@ -79,6 +89,5 @@ struct Ident {
 struct Ident *ident_load_map(const char *fn);
 void ident_free(struct Ident *ident);
 struct HBA *hba_load_rules(const char *fn, struct Ident *ident);
-struct HBA *hba_load_extended_rules(const char *fn, struct Ident *ident, struct HBA *current_hba);
 void hba_free(struct HBA *hba);
 struct HBARule *hba_eval(struct HBA *hba, PgAddr *addr, bool is_tls, ReplicationType replication, const char *dbname, const char *username);

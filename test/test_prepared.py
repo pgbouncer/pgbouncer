@@ -715,3 +715,34 @@ def test_prepared_statement_counters(bouncer):
     assert p0_stats["total_server_parse_count"] == 2
     # 2 executions with prepare=True + 3 re-use executions
     assert p0_stats["total_bind_count"] == 5
+
+
+def test_failed_parse_frees_statement_name(bouncer):
+    """A Parse that the server rejects must not leave the statement name
+    registered on the client.
+
+    PgBouncer registers a named prepared statement when it forwards the Parse,
+    before the server answers. If the server rejects the Parse (e.g. the table
+    does not exist), no statement exists on the server, but the name used to
+    stay in the client map, so the next Parse reusing it was wrongly rejected
+    with "prepared statement name is already in use" and the client was
+    disconnected. The name must become free again, as it is on PostgreSQL.
+    """
+    bouncer.admin("set pool_mode=transaction")
+    bouncer.admin("set max_prepared_statements=10")
+    with bouncer.conn() as conn:
+        pgconn = conn.pgconn
+
+        # First Parse fails on the server: the relation does not exist.
+        result = pgconn.prepare(b"s1", b"SELECT id FROM nonexistent_table_1630")
+        assert result.status == pq.ExecStatus.FATAL_ERROR
+
+        # The name must be free again. Before the fix this was rejected and the
+        # connection closed.
+        result = pgconn.prepare(b"s1", b"SELECT 1")
+        assert result.status == pq.ExecStatus.COMMAND_OK, result.error_message
+
+        # And the re-prepared statement is actually usable, not just named.
+        result = pgconn.exec_prepared(b"s1", ())
+        assert result.status == pq.ExecStatus.TUPLES_OK
+        assert result.get_value(0, 0) == b"1"

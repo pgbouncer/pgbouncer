@@ -289,6 +289,25 @@ static bool register_prepared_statement(PgSocket *client, PgSocket *server, PgSe
 }
 
 /*
+ * Store the client-side statement name on the Parse request we just added to
+ * the server outstanding request queue. If the server rejects the Parse,
+ * unregister_failed_client_prepared_statement drops the stale client mapping
+ * (see clear_outstanding_requests_until).
+ */
+static bool track_forwarded_client_parse(PgSocket *server, const char *name)
+{
+	struct List *el = statlist_last(&server->outstanding_requests);
+	OutstandingRequest *outstanding_request;
+
+	Assert(el);
+	outstanding_request = container_of(el, OutstandingRequest, node);
+	Assert(outstanding_request->type == PqMsg_Parse);
+
+	outstanding_request->client_ps_name = strdup(name);
+	return outstanding_request->client_ps_name != NULL;
+}
+
+/*
  * Handle a Parse packet for a named prepared statement
  *
  * This adds the prepared statement to the client's hash of prepared statements.
@@ -381,6 +400,13 @@ bool handle_parse_command(PgSocket *client, PktHdr *pkt)
 	 * to the client, because they expect one.
 	 */
 	if (!add_outstanding_request(client, PqMsg_Parse, RA_FORWARD))
+		goto oom;
+
+	/*
+	 * Remember the client statement name so that the mapping is removed if the
+	 * server rejects this Parse (e.g. a syntax error or a missing table).
+	 */
+	if (!track_forwarded_client_parse(server, pp.name))
 		goto oom;
 
 	/* Register statement on server */
@@ -679,6 +705,47 @@ static bool nothing_in_flight_to_client(PgSocket *server)
 }
 
 /*
+ * Drop a client prepared statement: unlink it from the client's map and from
+ * the global statement hash, freeing the underlying statement once no client
+ * references it any more.
+ */
+static void free_client_prepared_statement(PgSocket *client, PgClientPreparedStatement *client_ps)
+{
+	HASH_DEL(client->client_prepared_statements, client_ps);
+	if (--client_ps->ps->use_count == 0) {
+		HASH_DEL(prepared_statements, client_ps->ps);
+		free(client_ps->ps);
+	}
+	free(client_ps);
+}
+
+/*
+ * Remove a client prepared statement mapping that became stale because the
+ * server rejected its Parse with an ErrorResponse. Without this, the name stays
+ * registered on the client and a later Parse reusing it is wrongly rejected as
+ * a duplicate, disconnecting the client.
+ *
+ * Only remove the mapping if it still refers to the same underlying query
+ * (query_id), so that a mapping the client re-created under the same name with
+ * a different query (e.g. via an intervening Close) is left untouched. A
+ * query_id of 0 means "don't check", used when the statement was already
+ * prepared on the server and no new server mapping was created.
+ */
+void unregister_failed_client_prepared_statement(PgSocket *client, const char *name, uint64_t query_id)
+{
+	PgClientPreparedStatement *client_ps = NULL;
+
+	HASH_FIND_STR(client->client_prepared_statements, name, client_ps);
+	if (!client_ps)
+		return;
+	if (query_id != 0 && client_ps->ps->query_id != query_id)
+		return;
+
+	slog_noise(client, "unregister_failed_client_prepared_statement: removing stale mapping '%s' after failed Parse", name);
+	free_client_prepared_statement(client, client_ps);
+}
+
+/*
  * Handle a Close packet for a named prepared statement
  *
  * This does not actually close the mapped prepared statement on the server. But
@@ -693,12 +760,7 @@ bool handle_close_statement_command(PgSocket *client, PktHdr *pkt, PgClosePacket
 	HASH_FIND_STR(client->client_prepared_statements, close_packet->name, client_ps);
 	if (client_ps) {
 		slog_noise(client, "handle_close_command: removed '%s' from cached prepared statements, items remaining %u", close_packet->name, HASH_COUNT(client->client_prepared_statements));
-		HASH_DEL(client->client_prepared_statements, client_ps);
-		if (--client_ps->ps->use_count == 0) {
-			HASH_DEL(prepared_statements, client_ps->ps);
-			free(client_ps->ps);
-		}
-		free(client_ps);
+		free_client_prepared_statement(client, client_ps);
 	}
 	/* Do not forward packet to server */
 	skip_possibly_completely_buffered_packet(client, pkt);
@@ -723,12 +785,7 @@ void free_client_prepared_statements(PgSocket *client)
 	PgClientPreparedStatement *client_ps, *tmp;
 
 	HASH_ITER(hh, client->client_prepared_statements, client_ps, tmp) {
-		HASH_DEL(client->client_prepared_statements, client_ps);
-		if (--client_ps->ps->use_count == 0) {
-			HASH_DEL(prepared_statements, client_ps->ps);
-			free(client_ps->ps);
-		}
-		free(client_ps);
+		free_client_prepared_statement(client, client_ps);
 	}
 
 	free(client->client_prepared_statements);

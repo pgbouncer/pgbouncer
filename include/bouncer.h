@@ -671,6 +671,8 @@ typedef struct OutstandingRequest {
 	PgServerPreparedStatement *server_ps;
 
 	uint64_t server_ps_query_id;
+
+	char *client_ps_name;	/* The client-side statement name */
 } OutstandingRequest;
 
 enum ReplicationType {

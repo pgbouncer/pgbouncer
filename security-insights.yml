@@ -1,6 +1,6 @@
 header:
   schema-version: 2.2.0
-  last-updated: "2026-10-28"
+  last-updated: "2026-10-30"
   last-reviewed: "2026-10-22"
   url: https://raw.githubusercontent.com/pgbouncer/pgbouncer/refs/heads/master/security-insights.yml
 project:
@@ -79,7 +79,9 @@ repository:
         type: SAST
         comment: >-
           Runs on master, on manual dispatch, and on pull requests labeled
-          ci-full.
+          ci-full.  Findings do not fail the build; maintainers review the
+          job output periodically and triage it as described in SECURITY.md
+          under "Static analysis".
         rulesets:
           - default
         integration:

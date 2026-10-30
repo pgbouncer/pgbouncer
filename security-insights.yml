@@ -37,6 +37,7 @@ project:
     detailed-guide: https://www.pgbouncer.org/usage.html
     quickstart-guide: https://www.pgbouncer.org/install.html
     release-process: https://github.com/pgbouncer/pgbouncer/wiki/Making-a-release
+    signature-verification: https://github.com/pgbouncer/pgbouncer/blob/master/SECURITY.md#verifying-releases
     support-policy: https://github.com/pgbouncer/pgbouncer/blob/master/SECURITY.md#supported-versions
 repository:
   status: active
@@ -68,12 +69,20 @@ repository:
         comment: >-
           Canonical location of the source tarballs, each with a published
           SHA-256 checksum.  The tarball is built by the CI workflow from the
-          release commit, not on a maintainer's machine.
+          release tag, not on a maintainer's machine.
       - uri: https://github.com/pgbouncer/pgbouncer/releases
         comment: >-
           GitHub releases with the same source tarball, plus the Windows
           binary zip, which is also built by the CI workflow.
     changelog: https://www.pgbouncer.org/changelog.html
+    attestations:
+      - name: SLSA build provenance
+        location: https://github.com/pgbouncer/pgbouncer/attestations
+        predicate-uri: https://slsa.dev/provenance/v1
+        comment: >-
+          Signed by the CI workflow for the source tarball and the
+          Windows zip of each release beginning with version 1.27.0.
+          See SECURITY.md for how to verify them.
   security:
     tools:
       - name: Clang Static Analyzer (scan-build)

@@ -60,6 +60,31 @@ themselves or find a different package source.
 
 The Python packages used by the test suite are not part of any release.
 
+## Verifying releases
+
+Release tarballs and Windows binaries are built by the CI workflow when
+the release tag is pushed, and it signs a [build provenance
+attestation](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations)
+for each of them. To verify a download, install the [GitHub
+CLI](https://cli.github.com/) and run:
+
+```sh
+VERSION=1.27.0  # the version you downloaded
+gh attestation verify pgbouncer-$VERSION.tar.gz \
+  --repo pgbouncer/pgbouncer \
+  --signer-workflow pgbouncer/pgbouncer/.github/workflows/pgbouncer-ci.yml \
+  --source-ref refs/tags/pgbouncer_$(echo $VERSION | tr . _) \
+  --deny-self-hosted-runners
+```
+
+(For Windows, use `pgbouncer-$VERSION-windows-x86_64.zip`.) See the
+[`gh attestation verify`
+documentation](https://cli.github.com/manual/gh_attestation_verify) for
+what this checks. Do not trust a file that fails this check.
+
+Releases before version 1.27.0 have no attestations, only SHA-256
+checksums on the download page.
+
 ## Threat model
 
 PgBouncer is a connection pooler for PostgreSQL. It sits between clients and

@@ -834,8 +834,34 @@ static void pause_cancel_request(PgSocket *client)
 }
 
 
-/* wake client from wait */
-void activate_client(PgSocket *client)
+/*
+ * Check, without reading from it, whether the client closed its side of the
+ * connection.  With POLLRDHUP this is seen even when unread data, like a
+ * Terminate message, is still queued in front of the close.  Without it only
+ * a closed socket with nothing left to read is detected.
+ */
+static bool client_hung_up(PgSocket *client)
+{
+	int fd = sbuf_socket(&client->sbuf);
+#ifdef POLLRDHUP
+	struct pollfd pfd = { .fd = fd, .events = POLLRDHUP };
+
+	if (poll(&pfd, 1, 0) <= 0)
+		return false;
+	return (pfd.revents & (POLLRDHUP | POLLHUP | POLLERR)) != 0;
+#else
+	char c;
+
+	return safe_recv(fd, &c, 1, MSG_PEEK) == 0;
+#endif
+}
+
+/*
+ * wake client from wait
+ *
+ * Returns false if the client was disconnected instead of activated.
+ */
+bool activate_client(PgSocket *client)
 {
 	Assert(client->state == CL_WAITING || client->state == CL_WAITING_LOGIN);
 
@@ -844,9 +870,25 @@ void activate_client(PgSocket *client)
 	/* account for time client spent waiting for server */
 	client->pool->stats.wait_time += (get_cached_time() - client->wait_start);
 
+	/*
+	 * The client canceled its query while it was queued, so the query has
+	 * not been sent to any server yet.  If the client has also gone away,
+	 * drop it now.  Activating it would link it to a server and mark the
+	 * server as not ready, then read the disconnect and close that server.
+	 * Not running a canceled query is a valid outcome of a cancel request.
+	 */
+	if (client->canceled_while_waiting) {
+		client->canceled_while_waiting = false;
+		if (!client->link && client_hung_up(client)) {
+			disconnect_client(client, false, "client canceled query and closed connection while waiting");
+			return false;
+		}
+	}
+
 	slog_debug(client, "activate_client");
 	change_client_state(client, CL_ACTIVE);
 	sbuf_continue(&client->sbuf);
+	return true;
 }
 
 /*
@@ -998,9 +1040,13 @@ static bool reuse_on_release(PgSocket *server)
 	PgSocket *client;
 	Assert(!server->replication);
 	slog_debug(server, "reuse_on_release: replication %d", server->replication);
-	client = first_socket(&pool->waiting_client_list);
-	if (client && (!client->replication || sending_auth_query(client))) {
-		activate_client(client);
+	while ((client = first_socket(&pool->waiting_client_list)) != NULL) {
+		if (client->replication && !sending_auth_query(client))
+			break;
+
+		/* the client was dropped instead, try the next one */
+		if (!activate_client(client))
+			continue;
 
 		/*
 		 * As the activate_client() does full read loop,
@@ -1009,6 +1055,7 @@ static bool reuse_on_release(PgSocket *server)
 		 */
 		if (server->state == SV_FREE || server->state == SV_JUSTFREE)
 			res = false;
+		break;
 	}
 	return res;
 }
@@ -2220,6 +2267,17 @@ found:
 	if (main_client->pool->db->admin) {
 		disconnect_client(req, false, "cancel request for console client");
 		admin_handle_cancel(main_client);
+		return;
+	}
+
+	/*
+	 * The client is queued for a server, so its query has not been sent to
+	 * any server yet.  Remember the cancel, so that activate_client() can
+	 * drop the client if it also disconnects before it gets a server.
+	 */
+	if (main_client->state == CL_WAITING && !main_client->link && !main_client->replication) {
+		main_client->canceled_while_waiting = true;
+		disconnect_client(req, false, "cancel request for waiting client");
 		return;
 	}
 

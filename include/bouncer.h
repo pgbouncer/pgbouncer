@@ -725,6 +725,7 @@ struct PgSocket {
 	bool wait_for_auth : 1;		/* client: waiting for external auth (PAM/LDAP) to be completed */
 
 	bool sent_wait_notification : 1;/* client: whether client has been alerted that it is queued */
+	bool canceled_while_waiting : 1;/* client: got a cancel request while queued for a server */
 
 	bool admin_user : 1;		/* console client: has admin rights */
 	bool own_user : 1;		/* console client: client with same uid on unix socket */

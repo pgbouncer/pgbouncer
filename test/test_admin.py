@@ -1,3 +1,4 @@
+import re
 import threading
 import time
 
@@ -5,7 +6,7 @@ import psycopg
 import pytest
 from psycopg.rows import dict_row
 
-from .utils import Bouncer, capture, run
+from .utils import TEST_DIR, Bouncer, capture, run
 
 
 def test_parameter_status(bouncer):
@@ -498,3 +499,20 @@ def test_show_config_alpha_order(bouncer):
     config = bouncer.admin("SHOW CONFIG", row_factory=dict_row)
     config_keys = [i["key"] for i in config]
     assert sorted(config_keys) == config_keys
+
+
+def test_show_config_changeable_documented(bouncer):
+    """
+    Settings that SHOW CONFIG reports as not changeable must be documented as
+    needing a restart in doc/config.md, and no other setting should be.
+    """
+    doc = (TEST_DIR.parent / "doc" / "config.md").read_text()
+    general = doc.split("## Section [databases]")[0]
+    sections = dict(
+        re.findall(r"^### (\w+)\n(.*?)(?=^#)", general, re.MULTILINE | re.DOTALL)
+    )
+    note = "Changing this setting requires a restart."
+
+    for row in bouncer.admin("SHOW CONFIG", row_factory=dict_row):
+        documented = note in sections.get(row["key"], "")
+        assert documented == (row["changeable"] == "no"), row["key"]

@@ -487,6 +487,39 @@ jobs:
             config.log
           if-no-files-found: ignore
 
+  # Signs build provenance for the release assets (the dist tarball and the
+  # Windows zip), so users can verify that a download was built by this
+  # workflow from a release tag; see `gh attestation verify`. This only runs
+  # for pushes of release tags, and only if every build job passed. It is a
+  # separate job so that the build and test steps never get the id-token
+  # permission needed for signing.
+  attest:
+    name: Attest release assets
+    if: >-
+      github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/tags/pgbouncer_')
+    needs: [linux, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download tarball
+        uses: actions/download-artifact@v8
+        with:
+          name: pgbouncer-tarball-autoconf
+          path: dist
+      - name: Download zip
+        uses: actions/download-artifact@v8
+        with:
+          name: pgbouncer-windows-zip
+          path: dist
+      - uses: actions/attest@v4
+        with:
+          subject-path: |
+            dist/pgbouncer-*.tar.gz
+            dist/pgbouncer-*.zip
+
   # Builds the image the Anthropic OSS Scanner uses, so we notice when it
   # breaks rather than learning it from the scanner's build failure email.
   # This only checks that the image builds; the other jobs run the tests.

@@ -1509,6 +1509,7 @@ void disconnect_client(PgSocket *client, bool notify, const char *reason, ...)
  */
 void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlstate, const char *reason)
 {
+	PgGlobalUser *global_user = NULL;
 	usec_t now = get_cached_time();
 
 	if (client->db && client->contributes_db_client_count)
@@ -1516,7 +1517,8 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 
 	if (client->login_user_credentials) {
 		if (client->login_user_credentials->global_user && client->user_connection_counted) {
-			client->login_user_credentials->global_user->client_connection_count--;
+			global_user = client->login_user_credentials->global_user;
+			global_user->client_connection_count--;
 		}
 	}
 
@@ -1651,6 +1653,9 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 	change_client_state(client, CL_JUSTFREE);
 	if (!sbuf_close(&client->sbuf))
 		log_noise("sbuf_close failed, retry later");
+
+	if (global_user)
+		free_global_user_if_unused(global_user);
 }
 
 /*

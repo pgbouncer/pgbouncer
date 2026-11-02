@@ -731,5 +731,9 @@ void tls_cert_free(struct tls_cert *cert)
 {
 }
 
+int tls_check_alpn(struct tls *ctx, const char *proto)
+{
+	return -1;
+}
 
 #endif /* !USUAL_LIBSSL_FOR_TLS */

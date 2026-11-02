@@ -298,6 +298,7 @@ bool sbuf_close(SBuf *sbuf)
 	sbuf->sock = 0;
 	sbuf->pkt_remain = 0;
 	sbuf->pkt_action = sbuf->wait_type = 0;
+	sbuf->tls_alpn_required = false;
 	if (sbuf->io) {
 		slab_free(iobuf_cache, sbuf->io);
 		sbuf->io = NULL;
@@ -1453,6 +1454,19 @@ static bool handle_tls_handshake(SBuf *sbuf)
 	} else if (err == TLS_WANT_POLLOUT) {
 		return sbuf_use_callback_once(sbuf, EV_WRITE, sbuf_tls_handshake_cb);
 	} else if (err == 0) {
+		/*
+		 * For direct-TLS connections, verify that the server selected
+		 * ALPN "postgresql".  This matches libpq behaviour
+		 * (sslnegotiation=direct).  On STARTTLS paths the server may
+		 * legitimately omit ALPN, so the check is skipped there.
+		 */
+		if (sbuf->tls_alpn_required) {
+			if (tls_check_alpn(sbuf->tls, "postgresql") != 0) {
+				log_warning("TLS handshake error: %s",
+					    tls_error(sbuf->tls));
+				return false;
+			}
+		}
 		sbuf->tls_state = SBUF_TLS_OK;
 		sbuf_call_proto(sbuf, SBUF_EV_TLS_READY);
 		return true;
@@ -1512,6 +1526,9 @@ bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
 			return false;
 	}
 
+	/* STARTTLS path: ALPN check is not required. */
+	sbuf->tls_alpn_required = false;
+
 	/*
 	 * Always pass the hostname to tls_connect_fds() so it is set as SNI in
 	 * the ClientHello.  SNI is needed for server-side backend routing
@@ -1554,6 +1571,9 @@ bool sbuf_tls_connect_direct(SBuf *sbuf, const char *hostname)
 {
 	if (!sbuf_tls_connect(sbuf, hostname))
 		return false;
+
+	/* Direct-TLS path: require ALPN "postgresql" after the handshake. */
+	sbuf->tls_alpn_required = true;
 
 	/*
 	 * Kick the TLS handshake right away.  handle_tls_handshake() will
@@ -1709,6 +1729,10 @@ int server_connect_tls_direct;
 
 bool sbuf_tls_setup(void)
 {
+	if (cf_server_tls_direct) {
+		log_error("server_tls_direct requires TLS support");
+		return false;
+	}
 	return true;
 }
 bool sbuf_tls_accept(SBuf *sbuf)

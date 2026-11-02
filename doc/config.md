@@ -1030,8 +1030,22 @@ Certificate verification behaviour is controlled by `server_tls_sslmode` as
 normal: `require`, `verify-ca`, and `verify-full` all work correctly with
 `server_tls_direct = 1`.
 
+After the TLS handshake completes, PgBouncer verifies that the server selected
+the ALPN protocol `postgresql` (RFC 7301).  If the server did not select any
+ALPN protocol, or selected a protocol other than `postgresql`, the connection
+is rejected before any PostgreSQL startup message is sent.  This matches the
+behaviour of libpq with `sslnegotiation=direct`.  Servers that do not
+advertise `postgresql` via ALPN — including PostgreSQL versions earlier than
+17 — are therefore incompatible with this option.
+
+When `server_tls_direct = 1` is set, cancellation requests for non-peer,
+non-Unix-socket server connections are also sent over a direct TLS connection
+rather than as plaintext, matching the expected behaviour of a TLS-only
+backend.
+
 Setting `server_tls_direct = 1` together with `server_tls_sslmode = disable`
-is an error.
+is an error.  Setting `server_tls_direct = 1` in a build without TLS support
+is also an error.
 
 Default: 0
 

@@ -76,6 +76,9 @@ struct SBuf {
 	uint8_t wait_type;	/* track wait state */
 	uint8_t pkt_action;	/* method for handling current pkt */
 	uint8_t tls_state;	/* progress of tls */
+	bool tls_alpn_required;	/* true when this is a direct-TLS connection
+				* (ALPN "postgresql" must be verified after
+				* the handshake); false on STARTTLS paths */
 
 	int sock;		/* fd for this socket */
 

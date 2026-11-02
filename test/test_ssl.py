@@ -1,5 +1,9 @@
+import asyncio
 import subprocess
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
 
 import psycopg
 import pytest
@@ -11,8 +15,10 @@ from .utils import (
     PG_SUPPORTS_SCRAM,
     TEST_DIR,
     TLS_SUPPORT,
+    USE_UNIX_SOCKETS,
     WINDOWS,
     Bouncer,
+    TlsStubServer,
     wait_until,
 )
 
@@ -628,50 +634,222 @@ def test_server_tls_direct_reconnect_on_flag_change(bouncer_tls, pg, cert_dir):
             cur.execute("SELECT 1")
 
 
-@pytest.mark.skipif(
-    "not DIRECT_TLS_SUPPORT", reason="Direct TLS requires PG 17+ with TLS support"
-)
-def test_server_tls_direct_alpn_negotiated(pg, bouncer_tls, cert_dir):
-    """ALPN 'postgresql' is negotiated — PG 17 rejects connections without it."""
+# ---------------------------------------------------------------------------
+# Stub-server based direct-TLS tests
+#
+# These use TlsStubServer instead of a real Postgres backend, so they only
+# require TLS_SUPPORT (not PG 17+), and they can observe things a real backend
+# hides: whether the first byte was TLS, the SNI, the ALPN, and which
+# PostgreSQL message arrived first.
+# ---------------------------------------------------------------------------
+
+PKT_STARTUP = TlsStubServer.PKT_STARTUP
+PKT_CANCEL = TlsStubServer.PKT_CANCEL
+
+requires_tls = pytest.mark.skipif("not TLS_SUPPORT", reason="Requires TLS support")
+
+
+@asynccontextmanager
+async def stub_bouncer(
+    pg, tmp_path, cert_dir, stub, *, name, sslmode="require", direct=True, host=None
+):
+    """Start a bouncer whose database p0 points at the given TlsStubServer."""
     root = cert_dir / "TestCA1" / "ca.crt"
-
-    # Enable SSL on PG, allow only SSL connections (reject plain TCP)
-    pg.configure("ssl=on")
-    pg.configure(f"ssl_ca_file='{root}'")
-    pg.ssl_access("all", "trust")
-    pg.nossl_access("all", "reject")
-    pg.reload()
-
-    bouncer_tls.write_ini(f"server_tls_sslmode = require")
-    bouncer_tls.write_ini(f"server_tls_ca_file = {root}")
-    bouncer_tls.write_ini("server_tls_direct = 1")
-    bouncer_tls.admin("reload")
-
-    # If ALPN negotiation failed PG 17+ would have rejected the connection outright;
-    # a successful query through pg_stat_ssl confirms TLS + ALPN both worked.
-    result = bouncer_tls.sql("SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()")
-    assert result and result[0][0] is True
+    bouncer = Bouncer(pg, tmp_path / name, base_ini_path=TEST_DIR / "ssl" / "test.ini")
+    # Settings must be written before [databases], otherwise they would land
+    # in the databases section.
+    bouncer.write_ini(f"server_tls_sslmode = {sslmode}")
+    bouncer.write_ini(f"server_tls_ca_file = {root}")
+    bouncer.write_ini(f"server_tls_direct = {int(direct)}")
+    bouncer.write_ini(
+        f"[databases]\np0 = host={host or stub.host} port={stub.port} "
+        "dbname=p0 user=bouncer"
+    )
+    await bouncer.start()
+    try:
+        yield bouncer
+    finally:
+        await bouncer.cleanup()
 
 
-@pytest.mark.skipif(
-    "not DIRECT_TLS_SUPPORT", reason="Direct TLS requires PG 17+ with TLS support"
-)
-def test_server_tls_direct_sni_sent_for_non_verify_full(pg, bouncer_tls, cert_dir):
-    """SNI is sent in the ClientHello even when sslmode is not verify-full."""
-    root = cert_dir / "TestCA1" / "ca.crt"
+def wait_for_records(stub, count, timeout=5):
+    for _ in wait_until(f"stub did not see {count} connections", timeout=timeout):
+        records = stub.snapshot()
+        if len(records) >= count:
+            return records
 
-    pg.configure("ssl=on")
-    pg.configure(f"ssl_ca_file='{root}'")
-    pg.ssl_access("all", "trust")
-    pg.nossl_access("all", "reject")
-    pg.reload()
 
-    bouncer_tls.write_ini("server_tls_sslmode = verify-ca")
-    bouncer_tls.write_ini(f"server_tls_ca_file = {root}")
-    bouncer_tls.write_ini("server_tls_direct = 1")
-    bouncer_tls.admin("reload")
+def start_blocked_query(bouncer, pool, stub):
+    """Run a query through the bouncer that the stub never answers, and wait
+    until it reached the stub. Returns the stub record of the login connection."""
+    conn = bouncer.conn(dbname="p0")
+    pool.submit(conn.execute, "select pg_sleep(60)")
+    login = stub.wait_for(lambda r: "Q" in r["tags"])
+    return conn, login
 
-    # A successful query proves the handshake completed — which requires SNI
-    # because the server only accepts hostssl connections.
-    with bouncer_tls.log_contains(r"SSL established"):
-        bouncer_tls.test()
+
+@requires_tls
+async def test_server_tls_direct_rejects_missing_alpn(pg, tmp_path, cert_dir):
+    """A1: a TLS server that selects no ALPN protocol is rejected before any
+    StartupMessage is sent."""
+    with TlsStubServer(cert_dir, alpn=None) as stub:
+        async with stub_bouncer(pg, tmp_path, cert_dir, stub, name="a1") as bouncer:
+            with (
+                bouncer.log_contains(r"without ALPN protocol negotiation"),
+                pytest.raises(psycopg.OperationalError),
+            ):
+                bouncer.test(connect_timeout=2)
+            records = stub.snapshot()
+            assert records
+            for r in records:
+                assert r["first_byte_is_tls"] is True
+                assert r["alpn"] is None
+                assert r["first_message_type"] is None
+
+
+@requires_tls
+async def test_server_tls_direct_accepts_alpn_postgresql(pg, tmp_path, cert_dir):
+    """A2: ALPN 'postgresql' is offered by the bouncer and accepted."""
+    with TlsStubServer(cert_dir, alpn="postgresql") as stub:
+        async with stub_bouncer(pg, tmp_path, cert_dir, stub, name="a2") as bouncer:
+            bouncer.test()
+            rec = stub.wait_for(lambda r: r["first_message_type"] == PKT_STARTUP)
+            assert rec["first_byte_is_tls"] is True
+            assert rec["alpn"] == "postgresql"
+
+
+@requires_tls
+async def test_server_tls_starttls_does_not_require_alpn(pg, tmp_path, cert_dir):
+    """A3: on the SSLRequest (STARTTLS) path a server without ALPN is fine."""
+    with TlsStubServer(cert_dir, alpn=None, starttls=True) as stub:
+        async with stub_bouncer(
+            pg, tmp_path, cert_dir, stub, name="a3", direct=False
+        ) as bouncer:
+            bouncer.test()
+            rec = stub.wait_for(lambda r: r["first_message_type"] == PKT_STARTUP)
+            assert rec["alpn"] is None
+
+
+@requires_tls
+@pytest.mark.parametrize("sslmode", ["require", "verify-ca", "verify-full"])
+async def test_server_tls_direct_sends_sni(pg, tmp_path, cert_dir, sslmode):
+    """S1: SNI is sent in the ClientHello for every sslmode."""
+    with TlsStubServer(cert_dir, alpn="postgresql") as stub:
+        async with stub_bouncer(
+            pg,
+            tmp_path,
+            cert_dir,
+            stub,
+            name=f"s1_{sslmode}",
+            sslmode=sslmode,
+            host="localhost",
+        ) as bouncer:
+            bouncer.test()
+            rec = stub.wait_for(lambda r: r["first_message_type"] == PKT_STARTUP)
+            assert rec["sni"] == "localhost"
+
+
+@requires_tls
+async def test_server_tls_direct_cancel_uses_tls(pg, tmp_path, cert_dir):
+    """C1: the cancel connection uses direct TLS and carries a CancelRequest."""
+    pool = ThreadPoolExecutor(max_workers=2)
+    try:
+        with TlsStubServer(cert_dir, alpn="postgresql") as stub:
+            async with stub_bouncer(pg, tmp_path, cert_dir, stub, name="c1") as b:
+                conn, login = start_blocked_query(b, pool, stub)
+                assert login["first_byte_is_tls"] is True
+                pool.submit(conn.cancel_safe, timeout=30)
+
+                records = wait_for_records(stub, 2)
+                cancel = records[1]
+                assert cancel["first_byte_is_tls"] is True, (
+                    "cancel connection was sent as plaintext"
+                )
+                rec = stub.wait_for(lambda r: r["first_message_type"] == PKT_CANCEL)
+                assert rec["alpn"] == "postgresql"
+                assert rec["first_byte_is_tls"] is True
+    finally:
+        pool.shutdown(wait=True)
+
+
+@requires_tls
+async def test_server_tls_direct_cancel_requires_alpn(pg, tmp_path, cert_dir):
+    """C2: if the server stops selecting ALPN, the CancelRequest is never sent."""
+    pool = ThreadPoolExecutor(max_workers=2)
+    try:
+        with TlsStubServer(cert_dir, alpn="postgresql") as stub:
+            async with stub_bouncer(pg, tmp_path, cert_dir, stub, name="c2") as b:
+                conn, _login = start_blocked_query(b, pool, stub)
+                stub.alpn = None
+                pool.submit(conn.cancel_safe, timeout=30)
+
+                wait_for_records(stub, 2)
+                # Give the bouncer time to (wrongly) send the CancelRequest.
+                await asyncio.sleep(1)
+                cancel_conns = stub.snapshot()[1:]
+                assert cancel_conns
+                for r in cancel_conns:
+                    assert r["first_byte_is_tls"] is True
+                    assert r["alpn"] is None
+                    assert r["first_message_type"] is None, "request sent without ALPN"
+    finally:
+        pool.shutdown(wait=True)
+
+
+@requires_tls
+async def test_server_tls_direct_cancel_client_gives_up(pg, tmp_path, cert_dir):
+    """C3: the cancel client goes away while the cancel connection is still in
+    its TLS handshake. The bouncer must survive, no CancelRequest may be sent
+    and the server connection must end up as a normal, usable login."""
+    pool = ThreadPoolExecutor(max_workers=2)
+    try:
+        with TlsStubServer(cert_dir, alpn="postgresql") as stub:
+            async with stub_bouncer(pg, tmp_path, cert_dir, stub, name="c3") as b:
+                conn, _login = start_blocked_query(b, pool, stub)
+                stub.handshake_delay = 2
+                pool.submit(conn.cancel_safe, timeout=30)
+                wait_for_records(stub, 2)
+
+                cancel_ids = []
+                for _ in wait_until("cancel client not visible"):
+                    cancel_ids = [
+                        row[-1] for row in b.admin("SHOW CLIENTS") if "cancel" in row[4]
+                    ]
+                    if cancel_ids:
+                        break
+                for cid in cancel_ids:
+                    b.admin(f"KILL_CLIENT {cid}")
+
+                # The delayed connection finishes its handshake and, since no
+                # cancel is waiting anymore, performs a normal login.
+                for _ in wait_until("delayed connection did not log in", timeout=10):
+                    records = stub.snapshot()
+                    if records[1]["first_message_type"] is not None:
+                        break
+                assert records[1]["first_message_type"] == PKT_STARTUP
+                assert not any(
+                    r["first_message_type"] == PKT_CANCEL for r in stub.snapshot()
+                )
+                for _ in wait_until("cancel client still present"):
+                    if not any("cancel" in row[4] for row in b.admin("SHOW CLIENTS")):
+                        break
+                b.admin("SHOW VERSION")
+    finally:
+        pool.shutdown(wait=True)
+
+
+@requires_tls
+@pytest.mark.skipif("not USE_UNIX_SOCKETS", reason="Requires unix sockets")
+async def test_server_tls_direct_unix_socket_unchanged(pg, tmp_path, cert_dir):
+    """U1: unix socket servers are not affected by server_tls_direct."""
+    bouncer = Bouncer(pg, tmp_path / "u1", base_ini_path=TEST_DIR / "ssl" / "test.ini")
+    bouncer.write_ini("server_tls_sslmode = prefer")
+    bouncer.write_ini("server_tls_direct = 1")
+    bouncer.write_ini(
+        f"[databases]\np0 = host=/tmp port={pg.port} dbname=p0 user=bouncer"
+    )
+    await bouncer.start()
+    try:
+        bouncer.test()
+    finally:
+        await bouncer.cleanup()

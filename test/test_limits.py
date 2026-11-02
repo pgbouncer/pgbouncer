@@ -6,6 +6,8 @@ import psycopg
 import pytest
 from psycopg.rows import dict_row
 
+from .utils import wait_until_async
+
 
 async def test_max_client_conn(bouncer):
     bouncer.default_db = "p1"
@@ -216,15 +218,16 @@ async def test_min_pool_size(pg, bouncer):
         f.write(new)
     bouncer.admin("reload")
 
-    # having to wait a little to give janitor time to create connection to satisfy min_pool_size
-    await asyncio.sleep(2)
-
     # ensure db without min_pool_size has no connections
     # p0
     assert pg.connection_count(dbname="p0", users=("bouncer",)) == 0
-    # ensure db with min_pool_size and forced user (p0z) has the required
-    # backend connections
-    assert pg.connection_count(dbname="p0", users=("pswcheck",)) == 3
+    # give the janitor time to create the connections that satisfy
+    # min_pool_size on the forced-user db (p0z)
+    await wait_until_async(
+        lambda: pg.connection_count(dbname="p0", users=("pswcheck",)) == 3,
+        "min_pool_size connections to be created",
+        timeout=10,
+    )
 
     # ensure db with min_pool_size and no forced user (p0x) has no backend
     # connections
@@ -241,10 +244,16 @@ async def test_min_pool_size(pg, bouncer):
     # Also, we need to keep the query running while this is
     # happening so that the pool doesn't become momentarily
     # unused.
-    result = bouncer.asleep(2, dbname="p0x")
-    await asyncio.sleep(2)
-    await result
-    assert pg.connection_count(dbname="p0", users=("postgres",)) == 5
+    # The long sleep keeps the pool in use; we cancel it once the janitor
+    # has created all the min_pool_size connections.
+    result = bouncer.asleep(20, dbname="p0x")
+    await wait_until_async(
+        lambda: pg.connection_count(dbname="p0", users=("postgres",)) == 5,
+        "min_pool_size connections to be created",
+        timeout=20,
+    )
+    result.cancel()
+    await asyncio.gather(result, return_exceptions=True)
 
 
 @pytest.mark.parametrize(
@@ -530,10 +539,16 @@ async def test_reserve_pool_size(pg, bouncer):
         # until the reserve_pool_timeout (2 seconds) is reached. At that point
         # 3 more connections should be allowed to continue.
         result = bouncer.asleep(10, dbname="p1", times=10)
-        await asyncio.sleep(1)
+        # Check the plain pool is in use before the reserve_pool_timeout
+        # elapses, then wait for the reserve connections instead of relying
+        # on a fixed 8 second sleep.
+        await asyncio.sleep(0.5)
         assert pg.connection_count("p1") == 5
-        await asyncio.sleep(8)
-        assert pg.connection_count("p1") == 8
+        await wait_until_async(
+            lambda: pg.connection_count("p1") == 8,
+            "reserve pool connections to be created",
+            timeout=15,
+        )
         await result
 
 
@@ -548,10 +563,13 @@ async def test_user_reserve_pool_size(pg, bouncer):
         # this means 1 connection should happen immediately while 2 out of
         # the 3 remaining connections happen after reserve_pool_timeout
         result = bouncer.asleep(10, dbname="p0a", user="respoolsize1", times=4)
-        await asyncio.sleep(1)
+        await asyncio.sleep(0.5)
         assert pg.connection_count(dbname="p0", users=("respoolsize1",)) == 1
-        await asyncio.sleep(8)
-        assert pg.connection_count(dbname="p0", users=("respoolsize1",)) == 3
+        await wait_until_async(
+            lambda: pg.connection_count(dbname="p0", users=("respoolsize1",)) == 3,
+            "reserve pool connections to be created",
+            timeout=15,
+        )
         await result
 
 
@@ -566,10 +584,13 @@ async def test_database_reserve_pool_size(pg, bouncer):
         # this means 2 connections should happen immediately while 2 out of
         # the 3 remaining connections happen after reserve_pool_timeout
         result = bouncer.asleep(10, dbname="p0", user="bouncer", times=5)
-        await asyncio.sleep(1)
+        await asyncio.sleep(0.5)
         assert pg.connection_count(dbname="p0", users=("bouncer",)) == 2
-        await asyncio.sleep(8)
-        assert pg.connection_count(dbname="p0", users=("bouncer",)) == 4
+        await wait_until_async(
+            lambda: pg.connection_count(dbname="p0", users=("bouncer",)) == 4,
+            "reserve pool connections to be created",
+            timeout=15,
+        )
         await result
 
 
@@ -584,10 +605,13 @@ async def test_database_reserve_pool_size_old_param(pg, bouncer):
         # this means 2 connections should happen immediately while 2 out of
         # the 3 remaining connections happen after reserve_pool_timeout
         result = bouncer.asleep(10, dbname="p0a", user="bouncer", times=5)
-        await asyncio.sleep(1)
+        await asyncio.sleep(0.5)
         assert pg.connection_count(dbname="p0", users=("bouncer",)) == 2
-        await asyncio.sleep(8)
-        assert pg.connection_count(dbname="p0", users=("bouncer",)) == 4
+        await wait_until_async(
+            lambda: pg.connection_count(dbname="p0", users=("bouncer",)) == 4,
+            "reserve pool connections to be created",
+            timeout=15,
+        )
         await result
 
 

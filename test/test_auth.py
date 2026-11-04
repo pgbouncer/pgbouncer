@@ -1,6 +1,8 @@
 import asyncio
 import getpass
 import re
+import socket
+import struct
 import subprocess
 import time
 
@@ -660,6 +662,173 @@ def test_auth_query_works_with_configured_users(bouncer):
             password="stats",
             dbname="postgres",
         )
+
+
+def test_auth_query_no_row_with_dynamic_user(bouncer):
+    """
+    Check that a login is rejected when auth_query returns no row, even if
+    auth_query created a user with that name for another database. No pool
+    must be built on that user, since it is freed once unused.
+    """
+
+    config = f"""
+        [databases]
+        * = host={bouncer.pg.host} port={bouncer.pg.port}
+        noauth = auth_query='SELECT usename, passwd FROM pg_shadow where usename = $1 and false'\
+            host={bouncer.pg.host} port={bouncer.pg.port} dbname=postgres
+        [pgbouncer]
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
+        auth_user = pswcheck
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        server_idle_timeout = 1
+        autodb_idle_timeout = 1
+    """
+
+    with bouncer.run_with_config(config):
+        bouncer.test(user="someuser", password="anypasswd", dbname="postgres")
+        with pytest.raises(psycopg.OperationalError, match="no such user"):
+            bouncer.test(user="someuser", password="anypasswd", dbname="noauth")
+        pools = [(pool[0], pool[1]) for pool in bouncer.admin("SHOW POOLS")]
+        assert ("noauth", "someuser") not in pools
+
+        for _ in wait_until("auth_query user was not freed", timeout=10):
+            if "someuser" not in [user[0] for user in bouncer.admin("SHOW USERS")]:
+                break
+
+
+def test_auth_query_returns_other_user(bouncer):
+    """
+    Check that a client is counted on the user returned by auth_query, even
+    if it was counted on the user it logged in with before.
+    """
+
+    config = f"""
+        [databases]
+        renamed = auth_query='SELECT usename, passwd FROM pg_shadow where usename = current_user and $1::text is not null'\
+            host={bouncer.pg.host} port={bouncer.pg.port} dbname=postgres
+        [pgbouncer]
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
+        auth_user = pswcheck
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        [users]
+        someuser = pool_mode=session
+    """
+
+    def client_counts():
+        return {user[0]: user[7] for user in bouncer.admin("SHOW USERS")}
+
+    with bouncer.run_with_config(config):
+        with pytest.raises(psycopg.OperationalError):
+            bouncer.test(user="someuser", password="anypasswd", dbname="renamed")
+        for _ in wait_until("client counts were not released"):
+            counts = client_counts()
+            if counts["someuser"] == 0 and counts["pswcheck"] == 0:
+                break
+
+
+def test_auth_query_user_freed_with_autodb(bouncer):
+    """
+    Check that a user created only by auth_query is freed when its
+    auto-database is dropped. A user configured in [users] must be kept.
+    """
+
+    config = f"""
+        [databases]
+        * = host={bouncer.pg.host} port={bouncer.pg.port}
+        [pgbouncer]
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
+        auth_user = pswcheck
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        server_idle_timeout = 1
+        autodb_idle_timeout = 1
+        [users]
+        stats = pool_mode=session
+    """
+
+    def user_names():
+        return [user[0] for user in bouncer.admin("SHOW USERS")]
+
+    with bouncer.run_with_config(config):
+        bouncer.test(user="someuser", password="anypasswd", dbname="postgres")
+        bouncer.test(user="stats", password="stats", dbname="postgres")
+        assert "someuser" in user_names()
+
+        for _ in wait_until("auth_query user was not freed", timeout=10):
+            if "someuser" not in user_names():
+                break
+        assert "stats" in user_names()
+
+        bouncer.test(user="someuser", password="anypasswd", dbname="postgres")
+        assert "someuser" in user_names()
+
+
+def test_auth_query_user_freed_after_mock_auth(bouncer):
+    """Release a dynamic user when its last client outlives its database."""
+    config = f"""
+        [databases]
+        * = host={bouncer.pg.host} port={bouncer.pg.port} auth_user=pswcheck
+        mockdb = host={bouncer.pg.host} port={bouncer.pg.port} dbname=postgres
+        [pgbouncer]
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        server_idle_timeout = 1
+        autodb_idle_timeout = 1
+        client_login_timeout = 60
+    """
+
+    def user_names():
+        return [user[0] for user in bouncer.admin("SHOW USERS")]
+
+    with bouncer.run_with_config(config):
+        bouncer.test(user="someuser", password="anypasswd", dbname="postgres")
+
+        # mockdb has no auth_user, so this client holds a reference to the
+        # existing global user without creating database credentials for it.
+        with socket.create_connection((bouncer.host, bouncer.port), timeout=5) as sock:
+            payload = (
+                struct.pack("!I", 0x30000) + b"user\0someuser\0database\0mockdb\0\0"
+            )
+            sock.sendall(struct.pack("!I", len(payload) + 4) + payload)
+            with sock.makefile("rb") as stream:
+                assert stream.read(1) == b"R"
+                length = struct.unpack("!I", stream.read(4))[0]
+                response = stream.read(length - 4)
+                assert response[:4] == struct.pack("!I", 5)  # AuthenticationMD5Password
+
+            # SHOW DATABASES omits idle auto-databases before destruction.
+            for _ in wait_until("auto-database was not dropped", timeout=10):
+                if "dropping database 'postgres'" in bouncer.log_path.read_text():
+                    break
+
+            assert "someuser" in user_names()
+
+        for _ in wait_until("mock-auth client did not disconnect"):
+            if not any(row[1] == "someuser" for row in bouncer.admin("SHOW CLIENTS")):
+                break
+
+        for _ in wait_until("unreferenced auth_query user was not freed"):
+            if "someuser" not in user_names():
+                break
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")

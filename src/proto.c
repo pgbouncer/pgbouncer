@@ -757,6 +757,7 @@ bool send_startup_message(PgSocket *server)
 	const char *username = server->pool->user_credentials->name;
 	PktBuf *pkt = pktbuf_temp();
 	PgSocket *client = NULL;
+	PgSocket *replication_client = NULL;
 
 	pktbuf_start_packet(pkt, PKT_STARTUP_V3);
 	pktbuf_put_bytes(pkt, db->startup_params->buf, db->startup_params->write_pos);
@@ -767,6 +768,7 @@ bool send_startup_message(PgSocket *server)
 	 */
 	client = first_socket(&pool->waiting_client_list);
 	if (client && client->replication && !sending_auth_query(client)) {
+		replication_client = client;
 		server->replication = client->replication;
 		pktbuf_put_string(pkt, "replication");
 		slog_debug(server, "send_startup_packet: creating replication connection");
@@ -803,15 +805,15 @@ bool send_startup_message(PgSocket *server)
 		return false;
 	}
 
-	if (server->replication) {
+	if (replication_client) {
 		/*
 		 * We link replication connections to a client directly when they are
 		 * created. One reason for is because the startup parameters need to be
 		 * forwarded, because physical replication connections don't allow SET
 		 * commands. Another reason is so that we don't need a separate state.
 		 */
-		client->link = server;
-		server->link = client;
+		replication_client->link = server;
+		server->link = replication_client;
 	}
 
 	return true;

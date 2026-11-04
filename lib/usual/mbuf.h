@@ -252,7 +252,7 @@ bool mbuf_make_room(struct MBuf *buf, unsigned len);
 _MUSTCHECK
 static inline bool mbuf_write_byte(struct MBuf *buf, uint8_t val)
 {
-	if (buf->write_pos + 1 > buf->alloc_len
+	if (buf->write_pos >= buf->alloc_len
 	    && !mbuf_make_room(buf, 1))
 		return false;
 	buf->data[buf->write_pos++] = val;
@@ -263,7 +263,7 @@ static inline bool mbuf_write_byte(struct MBuf *buf, uint8_t val)
 _MUSTCHECK
 static inline bool mbuf_write(struct MBuf *buf, const void *ptr, unsigned len)
 {
-	if (buf->write_pos + len > buf->alloc_len
+	if (len > buf->alloc_len - buf->write_pos
 	    && !mbuf_make_room(buf, len))
 		return false;
 	if (len > 0)
@@ -297,7 +297,7 @@ static inline bool mbuf_write_mbuf(struct MBuf *dst, struct MBuf *src, unsigned 
 _MUSTCHECK
 static inline bool mbuf_fill(struct MBuf *buf, uint8_t byte, unsigned len)
 {
-	if (buf->write_pos + len > buf->alloc_len
+	if (len > buf->alloc_len - buf->write_pos
 	    && !mbuf_make_room(buf, len))
 		return false;
 	memset(buf->data + buf->write_pos, byte, len);

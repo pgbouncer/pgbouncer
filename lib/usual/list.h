@@ -86,9 +86,21 @@ static inline struct List *list_del(struct List *item)
 /** Remove first from list and return */
 static inline struct List *list_pop(struct List *list)
 {
+	struct List *item;
+
 	if (list_empty(list))
 		return NULL;
-	return list_del(list->next);
+
+	/*
+	 * Same as list_del(list->next), but updates list->next directly
+	 * instead of via item->prev, so that static analyzers can see that
+	 * the popped item is no longer reachable from the list.
+	 */
+	item = list->next;
+	list->next = item->next;
+	item->next->prev = list;
+	item->next = item->prev = item;
+	return item;
 }
 
 /** Get first elem from list */

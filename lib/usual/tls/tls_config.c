@@ -57,6 +57,17 @@ static int set_mem(char **dest, size_t *destlen, const void *src, size_t srclen)
 	return 0;
 }
 
+/*
+ * Drop the cached CA store, so that it is rebuilt from the current CA
+ * settings the next time a context is configured.  Contexts that already
+ * use it keep their own reference.
+ */
+static void clear_ca_store(struct tls_config *config)
+{
+	X509_STORE_free(config->ca_store);
+	config->ca_store = NULL;
+}
+
 struct tls_keypair *tls_keypair_new(void)
 {
 	return calloc(1, sizeof(struct tls_keypair));
@@ -157,6 +168,7 @@ void tls_config_free(struct tls_config *config)
 
 	free(config->error.msg);
 
+	clear_ca_store(config);
 	free((char *)config->ca_file);
 	free((char *)config->ca_mem);
 	free((char *)config->ca_path);
@@ -241,16 +253,19 @@ int tls_config_parse_protocols(uint32_t *protocols, const char *protostr)
 
 int tls_config_set_ca_file(struct tls_config *config, const char *ca_file)
 {
+	clear_ca_store(config);
 	return set_string(&config->ca_file, ca_file);
 }
 
 int tls_config_set_ca_path(struct tls_config *config, const char *ca_path)
 {
+	clear_ca_store(config);
 	return set_string(&config->ca_path, ca_path);
 }
 
 int tls_config_set_ca_mem(struct tls_config *config, const uint8_t *ca, size_t len)
 {
+	clear_ca_store(config);
 	return set_mem(&config->ca_mem, &config->ca_len, ca, len);
 }
 

@@ -43,6 +43,13 @@ bool get_ecdh_curve_nid(EVP_PKEY *pk, int *nid);
 #define ASN1_STRING_get0_data(x) ((const unsigned char *)ASN1_STRING_data(x))
 #define X509_OBJECT_get0_X509(x) ((x)->data.x509)
 
+#ifdef USE_LIBSSL_INTERNALS
+static inline int X509_STORE_up_ref(X509_STORE *store)
+{
+	return CRYPTO_add(&store->references, 1, CRYPTO_LOCK_X509_STORE) > 1 ? 1 : 0;
+}
+#endif
+
 #ifndef OPENSSL_VERSION
 #define OPENSSL_VERSION SSLEAY_VERSION
 #define OpenSSL_version(x) SSLeay_version(x)

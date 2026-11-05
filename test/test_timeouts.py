@@ -728,3 +728,22 @@ def test_query_timeout_when_no_active_query(bouncer):
         cur.execute("SELECT 2")
         result = cur.fetchone()
         assert result[0] == 2
+
+
+def test_transaction_timeout_during_auth_query(bouncer):
+    """
+    The transaction_timeout must not fire while auth_query runs during login.
+    """
+    bouncer.default_db = "authdb"
+    bouncer.admin("set auth_type='md5'")
+    # A slow auth_query widens the in-flight window so the janitor (which runs a
+    # few times per second) is guaranteed to run while the query is executing.
+    bouncer.admin(
+        "set auth_query='SELECT usename, passwd FROM pg_shadow, pg_sleep(2) WHERE usename = $1'"
+    )
+    bouncer.admin("set transaction_timeout=1")
+
+    # someuser is not in the auth_file, so logging in triggers auth_query. The
+    # login must succeed and the auth connection must not be timed out.
+    with bouncer.log_contains(r"transaction timeout", times=0):
+        bouncer.test(user="someuser", password="anypasswd")

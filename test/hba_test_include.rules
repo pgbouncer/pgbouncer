@@ -1,0 +1,6 @@
+# included by hba_test.rules
+host		incorder	all	20.0.0.0/8		trust
+host		incbefore	all	20.0.0.0/8		trust
+host		incfile		all	20.0.0.0/8		cert
+# nested include, resolved relative to this file
+include		hba_test_include_nested.rules

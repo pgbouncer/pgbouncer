@@ -1,0 +1,3 @@
+# includes itself: loading must stop at the nesting limit
+host		incself		all	20.0.0.0/8		md5
+include		hba_test_include_self.rules

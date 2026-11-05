@@ -22,6 +22,18 @@
 #define NAME_SAMEUSER           2
 #define NAME_REPLICATION        4
 
+/*
+ * Maximum nesting of include directives, the same limit PostgreSQL uses
+ * (CONF_FILE_MAX_DEPTH). Stops include cycles from recursing forever.
+ */
+#define HBA_MAX_INCLUDE_DEPTH 10
+
+enum IncludeKind {
+	INCLUDE_FILE,
+	INCLUDE_FILE_IF_EXISTS,
+	INCLUDE_DIR,
+};
+
 enum RuleType {
 	RULE_LOCAL,
 	RULE_HOST,

@@ -49,6 +49,13 @@ struct tls_keypair {
 struct tls_config {
 	struct tls_error error;
 
+	/*
+	 * A tls_config is a shared resource, referenced by every tls context
+	 * configured with it, so it is freed only once the last user releases its
+	 * reference.
+	 */
+	int refcount;
+
 	const char *ca_file;
 	const char *ca_path;
 	char *ca_mem;

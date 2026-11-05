@@ -215,10 +215,12 @@ jobs:
           - { name: bookworm, image: debian:bookworm, pgversion: "15", build_system: meson }
           - { name: trixie, image: debian:trixie, pgversion: "17", build_system: autoconf }
           - { name: forky, image: debian:forky, pgversion: "18", build_system: meson }
+          # USDT static tracepoints
+          - { name: trixie-dtrace, image: debian:trixie, pgversion: "17", build_system: meson, meson_args: "-Ddtrace=enabled" }
     env:
       PGVERSION: ${{ matrix.pgversion }}
       BUILD_SYSTEM: ${{ matrix.build_system }}
-      MESON_ARGS: -Dcassert=true -Dsystemd=enabled -Dcares=disabled
+      MESON_ARGS: -Dcassert=true -Dsystemd=enabled -Dcares=disabled ${{ matrix.meson_args }}
       CONFIGURE_ARGS: --enable-cassert --with-systemd --without-cares
     steps:
       - uses: actions/checkout@v7
@@ -230,6 +232,7 @@ jobs:
           /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           apt-get update
           apt-get -y --no-install-recommends install autoconf automake ca-certificates cpio git iptables ldap-utils libc-ares-dev libevent-dev libldap-dev libpam0g-dev libssl-dev libsystemd-dev libtool make meson ninja-build pandoc pkg-config "postgresql-$PGVERSION" python3 python3-pip python3-venv slapd socat sudo
+          if [ "${{ matrix.name }}" = "trixie-dtrace" ]; then apt-get -y --no-install-recommends install systemtap-sdt-dev; fi
           python3 -m venv /venv
           /venv/bin/pip install .
           # -m creates the home directory; the install step writes to $HOME, and
@@ -271,6 +274,8 @@ jobs:
           - { name: rocky-8, image: rockylinux/rockylinux:8 }
           - { name: rocky-9, image: rockylinux/rockylinux:9, meson_args: "-Dcares=enabled" }
           - { name: rocky-10, image: rockylinux/rockylinux:10, meson_args: "-Dcares=enabled" }
+          # USDT static tracepoints
+          - { name: rocky-9-dtrace, image: rockylinux/rockylinux:9, meson_args: "-Dcares=enabled -Ddtrace=enabled" }
     env:
       BUILD_SYSTEM: meson
       MESON_ARGS: -Dcassert=true -Dsystemd=enabled -Dldap=enabled -Dpam=enabled ${{ matrix.meson_args }}
@@ -286,10 +291,11 @@ jobs:
           # RHEL 9 dropped the OpenLDAP server; Rocky rebuilds openldap-servers
           # in their "plus" repo. RHEL 10 dropped it again, this time without a
           # Rocky rebuild anywhere, so pull it from EPEL instead.
-          if [ "${{ matrix.name }}" = "rocky-9" ]; then dnf config-manager --set-enabled "plus"; fi
+          if [ "${{ matrix.name }}" = "rocky-9" ] || [ "${{ matrix.name }}" = "rocky-9-dtrace" ]; then dnf config-manager --set-enabled "plus"; fi
           if [ "${{ matrix.name }}" = "rocky-10" ]; then dnf -y install epel-release; fi
           dnf -y install diffutils file gcc iptables libevent-devel libpq-devel make meson ninja-build openldap-clients openldap-devel openldap-servers openssl openssl-devel pam-devel pkg-config postgresql-server postgresql-contrib python3 python3-pip socat sudo systemd-devel wget
           if [ "${{ matrix.name }}" != "rocky-8" ]; then dnf -y install c-ares-devel; fi
+          if [ "${{ matrix.name }}" = "rocky-9-dtrace" ]; then dnf -y install systemtap-sdt-devel; fi
           wget -O /tmp/pandoc.tar.gz https://github.com/jgm/pandoc/releases/download/2.10.1/pandoc-2.10.1-linux-amd64.tar.gz
           tar xvzf /tmp/pandoc.tar.gz --strip-components 1 -C /usr/local/
           if [ "${{ matrix.name }}" != "rocky-8" ]; then dnf -y install python-unversioned-command; else dnf -y install python39 python39-pip && alternatives --set python /usr/bin/python3.9; fi
@@ -369,7 +375,7 @@ jobs:
       USE_SUDO: "true"
       PGVERSION: "16"
       BUILD_SYSTEM: meson
-      MESON_ARGS: -Dldap=enabled
+      MESON_ARGS: -Dldap=enabled -Ddtrace=enabled
       # openldap and openssl@3 are keg-only, so point the compiler and
       # pkg-config at their Homebrew prefixes.
       CPPFLAGS: -I/opt/homebrew/opt/openldap/include -I/opt/homebrew/opt/openssl@3/include

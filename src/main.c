@@ -454,6 +454,18 @@ static bool requires_auth_file(int auth_type)
 	return auth_type >= AUTH_TYPE_TRUST;
 }
 
+/* Map an AUTH_TYPE_* value back to its configuration name (for tracepoints). */
+const char *auth_type_name(int auth_type)
+{
+	const struct CfLookup *lk;
+
+	for (lk = auth_type_map; lk->name; lk++) {
+		if (lk->value == auth_type)
+			return lk->name;
+	}
+	return "unknown";
+}
+
 /* config loading, tries to be tolerant to errors */
 bool load_config(void)
 {

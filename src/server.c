@@ -21,6 +21,7 @@
  */
 
 #include "bouncer.h"
+#include "tracing.h"
 #include "usual/time.h"
 
 #include <usual/slab.h>
@@ -227,6 +228,7 @@ static bool handle_server_startup(PgSocket *server, PktHdr *pkt)
 		/* login ok */
 		slog_debug(server, "server login ok, start accepting queries");
 		server->ready = true;
+		TRACE_SERVER_READY(server);
 
 		/* got all params */
 		finish_welcome_msg(server);
@@ -647,6 +649,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 						total = get_cached_time() - client->query_start;
 						client->query_start = 0;
 						server->pool->stats.query_time += total;
+						TRACE_CLIENT_QUERY_READY(client, total);
 						slog_debug(client, "query time: %d us", (int)total);
 					} else if (!async_response) {
 						slog_warning(client, "FIXME: query end, but query_start == 0");
@@ -856,6 +859,7 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		slog_debug(server, "S: connect ok");
 		Assert(server->state == SV_LOGIN);
 		server->request_time = get_cached_time();
+		TRACE_SERVER_CONNECT(server);
 		res = handle_connect(server);
 		break;
 	case SBUF_EV_FLUSH:

@@ -25,6 +25,7 @@ project('pgbouncer',
 cc = meson.get_compiler('c')
 fs = import('fs')
 windows = host_machine.system() == 'windows'
+darwin = host_machine.system() == 'darwin'
 
 # ----------------------------------------------------------------------
 # Require a C11-capable compiler (mirrors AC_USUAL_C11).
@@ -455,6 +456,20 @@ int main(void) {
 endif
 
 # ----------------------------------------------------------------------
+# DTrace / USDT static tracepoints
+# ----------------------------------------------------------------------
+
+# Optional, off by default.  Needs the "dtrace" tool (on Linux provided by
+# systemtap-sdt-dev).  When enabled we generate real probe macros; otherwise a
+# dummy probes.h of empty macros is generated instead (see src/gen_probes.py),
+# so the tracepoint call sites always compile.
+dtrace_opt = get_option('dtrace')
+dtrace = find_program('dtrace', required: dtrace_opt)
+use_dtrace = dtrace.found()
+cdata.set('HAVE_DTRACE', use_dtrace ? 1 : false,
+          description: 'Define to 1 to build with DTrace/USDT static tracepoints.')
+
+# ----------------------------------------------------------------------
 # Generate the config header.
 # ----------------------------------------------------------------------
 
@@ -626,7 +641,9 @@ pgbouncer_deps = [
   threads,
 ] + dns_deps + net_deps
 
-incdir_names = ['include', 'lib'] + (windows ? ['win32'] : [])
+# '.' puts the build root on the include path so the generated probes.h
+# (built into the build root, see below) is found via #include "probes.h".
+incdir_names = ['include', 'lib', '.'] + (windows ? ['win32'] : [])
 pgbouncer_incdirs = include_directories(incdir_names)
 
 if windows
@@ -636,14 +653,64 @@ if windows
                                              include_directories: pgbouncer_incdirs)
 endif
 
-pgbouncer = executable('pgbouncer',
-  pgbouncer_sources,
-  libusual_sources,
-  config_h,
-  include_directories: pgbouncer_incdirs,
-  dependencies: pgbouncer_deps,
-  install: true,
-)
+# Generate probes.h (real macros with dtrace, empty macros without) into the
+# build root, which incdir_names puts on the include path.
+probes_python = find_program('python3', 'python', required: true)
+gen_probes = files('src/gen_probes.py')
+if use_dtrace
+  probes_h = custom_target('probes.h',
+    input: 'src/probes.d',
+    output: 'probes.h',
+    command: [probes_python, gen_probes, '--dtrace', dtrace.full_path(), '@INPUT@', '@OUTPUT@'])
+else
+  probes_h = custom_target('probes.h',
+    input: 'src/probes.d',
+    output: 'probes.h',
+    command: [probes_python, gen_probes, '--dummy', '@INPUT@', '@OUTPUT@'])
+endif
+
+if use_dtrace and not darwin
+  # dtrace -G post-processes the compiled objects: it defines the probe
+  # semaphores that the _ENABLED() guards reference, so the link needs the
+  # resulting probes.o.  Build the objects into a static library first, feed
+  # them to dtrace -G, then link the objects plus probes.o into the binary.
+  # (This is how PostgreSQL's meson build wires up --enable-dtrace.)
+  #
+  # macOS is the exception: Apple's dtrace has no -G option (it only generates
+  # the header via -h), and its USDT implementation needs no separate probes.o,
+  # so there we fall through to the plain link below with the real probes.h.
+  # PostgreSQL's build skips the object-generation step on Darwin for the same
+  # reason.
+  pgbouncer_objlib = static_library('pgbouncer_objs',
+    pgbouncer_sources,
+    libusual_sources,
+    config_h,
+    probes_h,
+    include_directories: pgbouncer_incdirs,
+    dependencies: pgbouncer_deps,
+  )
+  probes_o = custom_target('probes.o',
+    input: ['src/probes.d', pgbouncer_objlib.extract_all_objects(recursive: true)],
+    output: 'probes.o',
+    command: [dtrace, '-G', '-o', '@OUTPUT@', '-s', '@INPUT@'])
+  pgbouncer = executable('pgbouncer',
+    probes_o,
+    objects: pgbouncer_objlib.extract_all_objects(recursive: true),
+    include_directories: pgbouncer_incdirs,
+    dependencies: pgbouncer_deps,
+    install: true,
+  )
+else
+  pgbouncer = executable('pgbouncer',
+    pgbouncer_sources,
+    libusual_sources,
+    config_h,
+    probes_h,
+    include_directories: pgbouncer_incdirs,
+    dependencies: pgbouncer_deps,
+    install: true,
+  )
+endif
 
 # ----------------------------------------------------------------------
 # win32 event log helper (pgbevent.dll)

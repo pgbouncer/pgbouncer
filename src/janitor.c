@@ -540,11 +540,14 @@ static void pool_server_maint(PgPool *pool)
 			 * (only applies when a query is actually running),
 			 * idle_transaction_timeout counts from the last
 			 * request of the server (the server sent the idle
-			 * information).
+			 * information),
+			 * transaction_timeout counts from the start of the
+			 * linked client's transaction (only applies once a
+			 * transaction has started).
 			 */
 			age_query = (server->link->query_start != 0) ? now - server->link->query_start : 0;
 			age_server = now - server->request_time;
-			age_transaction = now - server->link->xact_start;
+			age_transaction = (server->link->xact_start != 0) ? now - server->link->xact_start : 0;
 
 			user_idle_transaction_timeout = server->login_user_credentials->global_user->idle_transaction_timeout;
 			user_transaction_timeout = server->login_user_credentials->global_user->transaction_timeout;
@@ -570,6 +573,7 @@ static void pool_server_maint(PgPool *pool)
 				   age_server > effective_idle_transaction_timeout) {
 				disconnect_server(server, true, "idle transaction timeout");
 			} else if (effective_transaction_timeout > 0 &&
+				   age_transaction > 0 &&
 				   age_transaction > effective_transaction_timeout) {
 				disconnect_server(server, true, "transaction timeout");
 			}

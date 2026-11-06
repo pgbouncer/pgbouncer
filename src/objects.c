@@ -1440,6 +1440,32 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 }
 
 /*
+ * Close the servers of a pool that are still logging in, for a reason that
+ * says nothing about the server, such as PAUSE or a changed connect string.
+ * disconnect_server() records a login closed before it finished as a failed
+ * one, so keep the pool's login state as it was.
+ */
+void disconnect_server_logins(PgPool *pool, const char *reason)
+{
+	struct List *item, *tmp;
+	PgSocket *server;
+	bool last_login_failed = pool->last_login_failed;
+	bool last_connect_failed = pool->last_connect_failed;
+	char last_connect_failed_message[sizeof(pool->last_connect_failed_message)];
+
+	safe_strcpy(last_connect_failed_message, pool->last_connect_failed_message, sizeof(last_connect_failed_message));
+
+	statlist_for_each_safe(item, &pool->new_server_list, tmp) {
+		server = container_of(item, PgSocket, head);
+		disconnect_server(server, true, "%s", reason);
+	}
+
+	pool->last_login_failed = last_login_failed;
+	pool->last_connect_failed = last_connect_failed;
+	safe_strcpy(pool->last_connect_failed_message, last_connect_failed_message, sizeof(pool->last_connect_failed_message));
+}
+
+/*
  * A wrapper around disconnect_client_sqlstate()
  *
  * The function disconnect_client_sqlstate() inherits the disconnect_client()
@@ -2377,8 +2403,6 @@ static void tag_dirty(PgSocket *sk)
 
 void tag_pool_dirty(PgPool *pool)
 {
-	struct List *item, *tmp;
-	struct PgSocket *server;
 	PktBuf *msg;
 
 	/*
@@ -2400,10 +2424,7 @@ void tag_pool_dirty(PgPool *pool)
 	for_each_server(pool, tag_dirty);
 
 	/* drop servers login phase immediately */
-	statlist_for_each_safe(item, &pool->new_server_list, tmp) {
-		server = container_of(item, PgSocket, head);
-		disconnect_server(server, true, "connect string changed");
-	}
+	disconnect_server_logins(pool, "connect string changed");
 
 	msg = new_welcome_msg();
 	if (!msg)

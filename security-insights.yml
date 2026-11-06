@@ -1,6 +1,6 @@
 header:
   schema-version: 2.2.0
-  last-updated: "2026-10-30"
+  last-updated: "2026-11-02"
   last-reviewed: "2026-10-22"
   url: https://raw.githubusercontent.com/pgbouncer/pgbouncer/refs/heads/master/security-insights.yml
 project:
@@ -145,4 +145,13 @@ repository:
             location: https://github.com/pgbouncer/pgbouncer/actions/workflows/osps-baseline.yml
     assessments:
       self:
-        comment: Self assessment has not yet been completed.
+        name: PgBouncer security self-assessment
+        evidence: https://github.com/pgbouncer/pgbouncer/blob/master/doc/security-self-assessment.md
+        date: "2026-11-02"
+        comment: >-
+          OSPS self-assessment by the maintainers, following the OpenSSF
+          self-assessment template. Includes threat modeling and attack
+          surface analysis: actors, trust boundaries, critical components,
+          threats with their mitigations, and known gaps. Reviewed when
+          features or breaking changes affect the attack surface, and at
+          least once a year.

@@ -267,7 +267,11 @@ Subset of **SHOW STATS** showing the average values (**avg_**).
 
 #### SHOW TOTALS
 
-Like **SHOW STATS** but aggregated across all databases.
+Like **SHOW STATS** but aggregated across all databases. The byte fields
+use different names from the per-database output: `avg_client_bytes` and
+`avg_server_bytes` correspond to `avg_recv` and `avg_sent` in **SHOW STATS**.
+Likewise, `total_client_bytes` and `total_server_bytes` correspond to
+`total_received` and `total_sent`.
 
 #### SHOW SERVERS
 

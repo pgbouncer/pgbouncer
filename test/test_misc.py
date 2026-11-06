@@ -2,6 +2,7 @@ import asyncio
 import re
 import socket
 import struct
+import subprocess
 import threading
 import time
 
@@ -16,8 +17,10 @@ from .utils import (
     PG_MAJOR_VERSION,
     PG_SUPPORTS_SCRAM,
     PKT_BUF_SIZE,
+    TLS_SUPPORT,
     USE_UNIX_SOCKETS,
     WINDOWS,
+    Bouncer,
     wait_until,
 )
 
@@ -1224,3 +1227,20 @@ async def test_session_authorization_tracked(bouncer):
         cur1.execute("RESET SESSION AUTHORIZATION")
         assert cur1.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"
         assert cur2.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"
+
+
+@pytest.mark.skipif("TLS_SUPPORT", reason="N1: only meaningful without TLS support")
+def test_server_tls_direct_rejected_without_tls(pg, tmp_path):
+    """N1: server_tls_direct=1 must make startup fail (not be silently ignored)
+    when PgBouncer is built without TLS support."""
+    bouncer = Bouncer(pg, tmp_path / "bouncer_n1")
+    bouncer.write_ini("server_tls_direct = 1")
+    result = subprocess.run(
+        [*bouncer.base_command(), str(bouncer.ini_path)],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert result.returncode != 0
+    assert "server_tls_direct requires TLS support" in result.stdout + result.stderr

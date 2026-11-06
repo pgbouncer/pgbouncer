@@ -183,6 +183,25 @@ int tls_connect_fds(struct tls *ctx, int fd_read, int fd_write,
 		goto err;
 	}
 
+	/*
+	 * Advertise the "postgresql" ALPN protocol.  This is required for
+	 * PostgreSQL 17+ direct TLS connections (RFC 7301), and is harmless
+	 * for SSLRequest-based connections, where ALPN may be omitted
+	 * but is checked when offered.
+	 * Mirrors PG_ALPN_PROTOCOL_VECTOR in tls_server.c.
+	 */
+	{
+		static const unsigned char alpn_protos[] = {
+			10, 'p', 'o', 's', 't', 'g', 'r', 'e', 's', 'q', 'l'
+		};
+		if (SSL_CTX_set_alpn_protos(ctx->ssl_ctx,
+					    alpn_protos,
+					    sizeof(alpn_protos)) != 0) {
+			tls_set_errorx(ctx, "failed to set ALPN protocols");
+			goto err;
+		}
+	}
+
 	if (tls_configure_ssl(ctx) != 0)
 		goto err;
 	if (tls_configure_keypair(ctx, ctx->ssl_ctx, ctx->config->keypair, 0) != 0)
@@ -281,6 +300,33 @@ err:
 	X509_free(cert);
 
 	return (rv);
+}
+
+/*
+ * Verify that the server selected the expected ALPN protocol after a
+ * direct-TLS handshake.  Mirrors libpq open_client_SSL() for
+ * sslnegotiation=direct.
+ * Returns 0 on success, -1 on failure (error message set on ctx).
+ */
+int tls_check_alpn(struct tls *ctx, const char *proto)
+{
+	const unsigned char *selected;
+	unsigned int len;
+	size_t proto_len;
+
+	SSL_get0_alpn_selected(ctx->ssl_conn, &selected, &len);
+	if (selected == NULL) {
+		tls_set_errorx(ctx,
+			       "server accepted connection without ALPN protocol negotiation extension");
+		return -1;
+	}
+	proto_len = strlen(proto);
+	if (len != proto_len || memcmp(selected, proto, proto_len) != 0) {
+		tls_set_errorx(ctx,
+			       "server accepted connection with unexpected ALPN protocol");
+		return -1;
+	}
+	return 0;
 }
 
 #endif /* USUAL_LIBSSL_FOR_TLS */

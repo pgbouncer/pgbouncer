@@ -1,4 +1,5 @@
 import asyncio
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -159,12 +160,17 @@ async def test_server_tls_direct_peer_cancel_unchanged(pg, tmp_path):
             f"[databases]\npu = host=/tmp port={pg.port} dbname=p0 user=bouncer\n",
             1,
         )
+        # Clients connect to the shared 127.0.0.1:port (SO_REUSEPORT), so the
+        # kernel picks a random peer for the query and for the cancel. Each
+        # peer also listens on a private loopback address, so that peers reach
+        # each other deterministically over TCP (a unix socket would never use
+        # direct TLS and would not exercise the peer_id guard).
+        ini += f"listen_addr=127.0.0.1,127.0.0.{10 + own_index}\n"
         ini += "so_reuseport=1\nserver_tls_sslmode=require\nserver_tls_direct=1\n"
         ini += f"peer_id={own_index}\n[peers]\n"
         for other_index, peer in peers.items():
             if own_index != other_index:
-                # Force TCP: a unix socket would never use direct TLS anyway.
-                ini += f"{other_index} = host=127.0.0.1 port={peer.port}\n"
+                ini += f"{other_index} = host=127.0.0.{10 + other_index} port={peer.port}\n"
         bouncer.ini_path.write_text(ini)
 
     await asyncio.gather(*[p.start() for p in peers.values()])
@@ -173,7 +179,7 @@ async def test_server_tls_direct_peer_cancel_unchanged(pg, tmp_path):
             peers[1].cur(dbname="pu") as cur,
             ThreadPoolExecutor(max_workers=2) as pool,
         ):
-            for _ in range(3):
+            for _ in range(10):
                 query = pool.submit(cur.execute, "select pg_sleep(5)")
                 await asyncio.sleep(0.2)
                 cancel = pool.submit(cur.connection.cancel)
@@ -182,5 +188,18 @@ async def test_server_tls_direct_peer_cancel_unchanged(pg, tmp_path):
                     psycopg.errors.QueryCanceled, match="due to user request"
                 ):
                     query.result()
+
+        # The cancel only goes over the peer connection when it lands on a
+        # different peer than the query. Make sure that actually happened,
+        # otherwise this test would not exercise the peer path at all.
+        forwarded = sum(
+            len(
+                re.findall(
+                    r"peer-\d+@.*new connection to server", b.log_path.read_text()
+                )
+            )
+            for b in peers.values()
+        )
+        assert forwarded > 0, "no cancel was forwarded to a peer"
     finally:
         await asyncio.gather(*[p.cleanup() for p in peers.values()])

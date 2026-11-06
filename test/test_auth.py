@@ -1513,6 +1513,118 @@ def test_ldap_auth(bouncer_with_openldap):
     bouncer_with_openldap.test(user="ldapuser2", password="secret2")
 
 
+@pytest.mark.skipif("WINDOWS", reason="We do not expect to support ldap on Windows")
+@pytest.mark.skipif(not LDAP_SUPPORT, reason="pgbouncer is built without LDAP support")
+def test_ldap_auth_username_mapping(bouncer_with_openldap):
+    """Rewrite a namespaced PostgreSQL role name before the LDAP bind.
+
+    The directory only knows "ldapuser1". The PostgreSQL role is
+    "postgres://dev/ldapuser1". Every login below authenticates as the
+    namespaced role, so anything that succeeds proves the mapping ran: no
+    LDAP entry exists for the namespaced name.
+    """
+    openldap = bouncer_with_openldap.ldap
+    hba_conf_file = bouncer_with_openldap.config_dir / "ldap_hba.conf"
+    pg_user = "postgres://dev/ldapuser1"
+    # Raw strings: "\1" in a plain Python string is chr(1), not a backreference.
+    anchored = r"^postgres://[a-z0-9_]+/(.+)$"
+    alternation = r"^postgres://(dev|prod)/(.+)$"
+
+    def use_hba(rule):
+        with open(hba_conf_file, "w") as f:
+            f.write(rule + "\n")
+        bouncer_with_openldap.admin("reload")
+
+    bouncer_with_openldap.write_ini("auth_type = hba")
+    bouncer_with_openldap.write_ini(f"auth_hba_file = {hba_conf_file}")
+
+    # 1 simple bind, mapped. The HBA user field carries the namespaced name,
+    # which shows rule matching still happens on the PostgreSQL name.
+    use_hba(
+        f'host all "{pg_user}" 0.0.0.0/0 ldap ldapserver=127.0.0.1 '
+        f'ldapport={openldap.ldap_port} ldapprefix="uid=" '
+        f'ldapsuffix=",dc=example,dc=net" '
+        f'ldapusernameregex="{anchored}"'
+    )
+    # The first LDAP bind in the process is slow on macOS; see test_ldap_auth.
+    bouncer_with_openldap.test(user=pg_user, password="secret1", connect_timeout=30)
+
+    # 2 search+bind, mapped. This login is impossible without mapping: the
+    # filter guard rejects the "/" in the namespaced name.
+    use_hba(
+        f"host all all 0.0.0.0/0 ldap ldapserver=127.0.0.1 "
+        f'ldapport={openldap.ldap_port} ldapbasedn="dc=example,dc=net" '
+        f'ldapsearchattribute=uid ldapusernameregex="{anchored}"'
+    )
+    bouncer_with_openldap.test(user=pg_user, password="secret1")
+
+    # 3 $username in ldapsearchfilter expands to the mapped name
+    use_hba(
+        f"host all all 0.0.0.0/0 ldap ldapserver=127.0.0.1 "
+        f'ldapport={openldap.ldap_port} ldapbasedn="dc=example,dc=net" '
+        f'ldapsearchfilter="uid=$username" ldapusernameregex="{anchored}"'
+    )
+    bouncer_with_openldap.test(user=pg_user, password="secret1")
+
+    # 4 alternation captures, so the wanted group is \2 and not \1
+    use_hba(
+        f"host all all 0.0.0.0/0 ldap ldapserver=127.0.0.1 "
+        f'ldapport={openldap.ldap_port} ldapbasedn="dc=example,dc=net" '
+        f'ldapusernameregex="{alternation}" ldapusernamereplacement="\\2"'
+    )
+    bouncer_with_openldap.test(user=pg_user, password="secret1")
+
+    # 5 ... and \1 there selects the environment, which is not an LDAP user
+    use_hba(
+        f"host all all 0.0.0.0/0 ldap ldapserver=127.0.0.1 "
+        f'ldapport={openldap.ldap_port} ldapbasedn="dc=example,dc=net" '
+        f'ldapusernameregex="{alternation}" ldapusernamereplacement="\\1"'
+    )
+    with pytest.raises(psycopg.OperationalError, match="LDAP authentication failed"):
+        bouncer_with_openldap.test(user=pg_user, password="secret1")
+
+    # 6 a login name the pattern does not match is rejected, not passed
+    #   through unmapped
+    use_hba(
+        f"host all all 0.0.0.0/0 ldap ldapserver=127.0.0.1 "
+        f'ldapport={openldap.ldap_port} ldapprefix="uid=" '
+        f'ldapsuffix=",dc=example,dc=net" ldapusernameregex="{anchored}"'
+    )
+    with pytest.raises(psycopg.OperationalError, match="LDAP authentication failed"):
+        bouncer_with_openldap.test(user="ldapuser1", password="secret1")
+
+    # 7 configuration errors fail closed: a pattern that captures nothing,
+    #   a replacement naming a group that does not exist, and a replacement
+    #   with no pattern at all
+    for bad in (
+        f'ldapusernameregex="^postgres://[a-z0-9_]+/.+$"',
+        f'ldapusernameregex="{anchored}" ldapusernamereplacement="\\2"',
+        f'ldapusernamereplacement="\\1"',
+        f'ldapusernameregex="^postgres://([a-z0-9_]+/(.+)$"',
+    ):
+        use_hba(
+            f"host all all 0.0.0.0/0 ldap ldapserver=127.0.0.1 "
+            f'ldapport={openldap.ldap_port} ldapprefix="uid=" '
+            f'ldapsuffix=",dc=example,dc=net" {bad}'
+        )
+        with pytest.raises(
+            psycopg.OperationalError, match="LDAP authentication failed"
+        ):
+            bouncer_with_openldap.test(user=pg_user, password="secret1")
+
+    # 8 the same options work globally, without an HBA file
+    bouncer_with_openldap.write_ini("auth_type = ldap")
+    bouncer_with_openldap.write_ini(
+        f"auth_ldap_options = ldapserver=127.0.0.1 ldapport={openldap.ldap_port} "
+        f'ldapbasedn="dc=example,dc=net" ldapusernameregex="{anchored}"'
+    )
+    bouncer_with_openldap.admin("reload")
+    bouncer_with_openldap.test(user=pg_user, password="secret1")
+    # an un-namespaced name no longer matches the global pattern
+    with pytest.raises(psycopg.OperationalError, match="LDAP authentication failed"):
+        bouncer_with_openldap.test(user="ldapuser1", password="secret1")
+
+
 def test_client_login_count(bouncer):
     bouncer.admin(f"set auth_type='plain'")
 

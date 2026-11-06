@@ -532,25 +532,31 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			if (!clear_outstanding_requests_until(server, (char[]) {PqMsg_CopyDone, '\0'}))
 				return false;
 		}
-		/*
-		 * Clean up prepared statements if needed if the client sent a
-		 * DEALLOCATE ALL or a DISCARD ALL query. Not doing so would
-		 * confuse our prepared statement handling, because we would
-		 * expect certain queries to be prepared at the server that are
-		 * not.
-		 */
-		if (is_prepared_statements_enabled(server)
-		    && (pkt->len == 1 + 4 + 15 || pkt->len == 1 + 4 + 12)) {	/* size of complete DEALLOCATE/DISCARD ALL */
+		if (pkt->len == 1 + 4 + 15 || pkt->len == 1 + 4 + 12) {	/* size of complete DEALLOCATE/DISCARD ALL */
 			const char *tag;
-			if (mbuf_get_string(&pkt->data, &tag)) {
-				if (strcmp(tag, "DEALLOCATE ALL") == 0 ||
-				    strcmp(tag, "DISCARD ALL") == 0) {
-					free_server_prepared_statements(server);
-					if (client)
-						free_client_prepared_statements(client);
-				}
-			} else {
+			if (!mbuf_get_string(&pkt->data, &tag))
 				return false;
+
+			/*
+			 * This can be either the server_reset_query or a
+			 * DISCARD ALL sent by the client itself.
+			 */
+			if (strcmp(tag, "DISCARD ALL") == 0)
+				varcache_discard_unreported(server);
+
+			/*
+			 * Clean up prepared statements if needed if the client sent a
+			 * DEALLOCATE ALL or a DISCARD ALL query. Not doing so would
+			 * confuse our prepared statement handling, because we would
+			 * expect certain queries to be prepared at the server that are
+			 * not.
+			 */
+			if (is_prepared_statements_enabled(server) &&
+			    (strcmp(tag, "DEALLOCATE ALL") == 0 ||
+			     strcmp(tag, "DISCARD ALL") == 0)) {
+				free_server_prepared_statements(server);
+				if (client)
+					free_client_prepared_statements(client);
 			}
 		}
 		pop_outstanding_request(server, (char[]) {PqMsg_Execute, '\0'}, &ignore_packet);

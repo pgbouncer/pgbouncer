@@ -1,11 +1,12 @@
 import asyncio
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 
 import psycopg
 import pytest
 
-from .utils import LINUX, Bouncer
+from .utils import LINUX, TLS_SUPPORT, USE_UNIX_SOCKETS, Bouncer
 
 if not LINUX:
     pytest.skip(allow_module_level=True, reason="peering tests require so_reuseport")
@@ -136,3 +137,69 @@ async def test_rolling_restart_sigterm(peers):
     # Now that the connection is closed, peer[1] should exit automatically.
     await peers[1].wait_for_exit()
     assert not peers[1].running()
+
+
+@pytest.mark.skipif("not TLS_SUPPORT", reason="Requires TLS support")
+@pytest.mark.skipif("not USE_UNIX_SOCKETS", reason="Requires unix sockets")
+async def test_server_tls_direct_peer_cancel_unchanged(pg, tmp_path):
+    """C4: with server_tls_direct=1, cancel forwarding to peers still works.
+
+    Peers are plain-TCP PgBouncers, so if a peer pool wrongly took the direct
+    TLS path the forwarded cancel could never be delivered. The query itself
+    goes to Postgres over a unix socket, which direct TLS never applies to.
+    """
+    peers: dict[int, Bouncer] = {}
+    peers[1] = Bouncer(pg, tmp_path / "bouncer1")
+    peers[2] = Bouncer(pg, tmp_path / "bouncer2", port=peers[1].port)
+    peers[3] = Bouncer(pg, tmp_path / "bouncer3", port=peers[1].port)
+
+    for own_index, bouncer in peers.items():
+        ini = bouncer.ini_path.read_text()
+        ini = ini.replace(
+            "[databases]\n",
+            f"[databases]\npu = host=/tmp port={pg.port} dbname=p0 user=bouncer\n",
+            1,
+        )
+        # Clients connect to the shared 127.0.0.1:port (SO_REUSEPORT), so the
+        # kernel picks a random peer for the query and for the cancel. Each
+        # peer also listens on a private loopback address, so that peers reach
+        # each other deterministically over TCP (a unix socket would never use
+        # direct TLS and would not exercise the peer_id guard).
+        ini += f"listen_addr=127.0.0.1,127.0.0.{10 + own_index}\n"
+        ini += "so_reuseport=1\nserver_tls_sslmode=require\nserver_tls_direct=1\n"
+        ini += f"peer_id={own_index}\n[peers]\n"
+        for other_index, peer in peers.items():
+            if own_index != other_index:
+                ini += f"{other_index} = host=127.0.0.{10 + other_index} port={peer.port}\n"
+        bouncer.ini_path.write_text(ini)
+
+    await asyncio.gather(*[p.start() for p in peers.values()])
+    try:
+        with (
+            peers[1].cur(dbname="pu") as cur,
+            ThreadPoolExecutor(max_workers=2) as pool,
+        ):
+            for _ in range(10):
+                query = pool.submit(cur.execute, "select pg_sleep(5)")
+                await asyncio.sleep(0.2)
+                cancel = pool.submit(cur.connection.cancel)
+                cancel.result()
+                with pytest.raises(
+                    psycopg.errors.QueryCanceled, match="due to user request"
+                ):
+                    query.result()
+
+        # The cancel only goes over the peer connection when it lands on a
+        # different peer than the query. Make sure that actually happened,
+        # otherwise this test would not exercise the peer path at all.
+        forwarded = sum(
+            len(
+                re.findall(
+                    r"peer-\d+@.*new connection to server", b.log_path.read_text()
+                )
+            )
+            for b in peers.values()
+        )
+        assert forwarded > 0, "no cancel was forwarded to a peer"
+    finally:
+        await asyncio.gather(*[p.cleanup() for p in peers.values()])

@@ -575,7 +575,15 @@ bool set_pool(PgSocket *client, const char *dbname, const char *username)
 			return false;
 #ifdef HAVE_LDAP
 	} else if (check_if_need_ldap_authentication(client, dbname, username) || cf_auth_type == AUTH_TYPE_LDAP) {
-		if (client->db->auth_user_credentials) {
+		/*
+		 * With auth_type=hba the method is picked per rule, so a
+		 * database can have both LDAP and auth_query users: LDAP
+		 * clients simply never use auth_user.  Note that
+		 * db->auth_user_credentials can also be set lazily by a
+		 * previous non-LDAP login, so it can't be treated as
+		 * misconfiguration here.
+		 */
+		if (cf_auth_type == AUTH_TYPE_LDAP && client->db->auth_user_credentials) {
 			slog_error(client, "LDAP can't be used together with database authentication");
 			disconnect_client(client, true, "bouncer config error");
 			return false;

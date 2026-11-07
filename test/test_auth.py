@@ -385,6 +385,89 @@ def test_scram_passthrough_after_reconnect(bouncer):
 
 
 @pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+def test_scram_passthrough_keys_survive_unrelated_authfile_change(bouncer):
+    """
+    Editing an unrelated entry in the auth_file and reloading must not
+    invalidate the cached SCRAM pass-through keys of users whose password did
+    not change.
+
+    scramuser1 has a genuine SCRAM verifier in userlist.txt (no plaintext is
+    available to PgBouncer), so backend authentication relies entirely on the
+    pass-through keys derived from a client login. We keep a client connected,
+    append an unrelated user to the auth_file, reload, then force the pooled
+    server to reconnect. The already-connected client must still be able to
+    open a fresh backend connection, because nothing about scramuser1 changed.
+    """
+    bouncer.admin("set auth_type='scram-sha-256'")
+    bouncer.admin("set pool_mode='transaction'")
+    bouncer.admin("set default_pool_size=1")
+
+    # Persistent client connection: authenticates via SCRAM and stores the
+    # pass-through keys, then binds and releases a backend server.
+    with bouncer.cur(dbname="p62", user="scramuser1", password="foo") as cur:
+        cur.execute("select 1")
+        assert cur.fetchone()[0] == 1
+
+        # Change an unrelated line in the auth_file (scramuser1 untouched).
+        # This still changes the file on disk, so load_auth_file() runs.
+        with bouncer.auth_path.open("a") as f:
+            f.write('"unrelated_dummy_user" "whatever"\n')
+        bouncer.admin("RELOAD")
+
+        # Drop the pooled backend so the next query must open a new one,
+        # authenticating to the backend with the cached pass-through keys.
+        bouncer.admin("reconnect")
+
+        # Same client connection, no re-authentication happened. This forces a
+        # fresh backend login that relies on the pass-through keys, which must
+        # still be valid.
+        cur.execute("select 2")
+        assert cur.fetchone()[0] == 2
+
+
+@pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+def test_scram_passthrough_keys_cleared_on_password_change(bouncer):
+    """
+    When a user password really is rotated (in auth_file and on the backend)
+    the stale pass-through keys derived from the old verifier must be dropped,
+    so that backend logins use the new password instead of failing with
+    "password authentication failed".
+    """
+    user = "scramrotate"
+    bouncer.pg.sql(f"drop user if exists {user}")
+    bouncer.pg.sql(
+        f"set password_encryption = 'scram-sha-256'; create user {user} password 'old'"
+    )
+    try:
+        verifier = bouncer.pg.sql_value(
+            f"select rolpassword from pg_authid where rolname = '{user}'"
+        )
+        with bouncer.auth_path.open("a") as f:
+            f.write(f'"{user}" "{verifier}"\n')
+        bouncer.admin("reload")
+        bouncer.admin("set auth_type='scram-sha-256'")
+
+        # Stores the pass-through keys derived from the "old" verifier.
+        bouncer.test(dbname="p62", user=user, password="old")
+
+        # Rotate the password on the backend and in the auth_file (plaintext).
+        bouncer.pg.sql(f"alter user {user} password 'new'")
+        lines = bouncer.auth_path.read_text().splitlines()
+        lines = [line for line in lines if not line.startswith(f'"{user}"')]
+        lines.append(f'"{user}" "new"')
+        bouncer.auth_path.write_text("\n".join(lines) + "\n")
+        bouncer.admin("reload")
+        bouncer.admin("reconnect")
+
+        # The stale keys from the "old" verifier must not be reused.
+        bouncer.test(dbname="p62", user=user, password="new")
+    finally:
+        bouncer.pg.sql(f"drop user if exists {user}")
+
+
+@pytest.mark.skipif("not PG_SUPPORTS_SCRAM")
 def test_scram_forced_user_with_different_password(bouncer):
     """
     Regression test: wrong SCRAM pass-through with forced user.
@@ -660,6 +743,70 @@ def test_auth_query_works_with_configured_users(bouncer):
             password="stats",
             dbname="postgres",
         )
+
+
+@pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")
+def test_auth_query_after_user_removed_from_auth_file(bouncer, pg):
+    """
+    When a user is removed from the auth_file and PgBouncer is reloaded, the
+    in-memory user object used to linger with an empty password. Because the
+    user was still "known", the auth_query code path was skipped and clients
+    received an empty stored secret, so authentication failed until a full
+    restart. After the fix the removed user falls back to auth_query, just
+    like it would after a fresh start.
+
+    The fallback must also take effect for an already existing pool. A pool
+    opened while the user was still in the auth_file kept a pointer to the
+    stale auth_file credentials, so new backend logins reused the old password
+    even after the user had moved to auth_query. Verify that a fresh server
+    connection in that pool authenticates with the auth_query credentials.
+    """
+
+    # puser2 has password "bar" in the auth_file but "wrong" in Postgres, so
+    # the password that actually works reveals which path resolved the user.
+    user = "puser2"
+    auth_file_password = "bar"
+    auth_query_password = "wrong"
+    auth_user_entry = '"pswcheck" "pgbouncer-check"\n'
+
+    config = f"""
+        [databases]
+        postgres = host={bouncer.pg.host} port={bouncer.pg.port}
+        [pgbouncer]
+        auth_query = SELECT usename, passwd FROM pg_shadow where usename = $1
+        auth_user = pswcheck
+        listen_addr = {bouncer.host}
+        admin_users = pgbouncer
+        auth_type = md5
+        auth_file = {bouncer.auth_path}
+        listen_port = {bouncer.port}
+        logfile = {bouncer.log_path}
+        auth_dbname = postgres
+    """
+
+    with bouncer.run_with_config(config):
+        # puser2 is present in the auth_file, so it authenticates directly
+        # from the file and opens a pool bound to the auth_file credentials.
+        bouncer.test(user=user, password=auth_file_password, dbname="postgres")
+
+        # Remove puser2 from the auth_file, but keep pswcheck so that the
+        # auth_query connection can still authenticate, then reload.
+        bouncer.auth_path.write_text(auth_user_entry)
+        bouncer.admin("RELOAD")
+
+        # Make Postgres verify puser2 password on the backend login, so a
+        # new server connection fails unless it uses the correct (auth_query)
+        # credentials, then drop the pooled server connections.
+        pg.nossl_access("postgres", "md5", user=user)
+        pg.reload()
+        bouncer.admin("RECONNECT postgres")
+        bouncer.admin("WAIT_CLOSE postgres")
+
+        # puser2 is no longer in the auth_file. It must now be resolved via
+        # auth_query for both the client login and the new backend connection
+        # in the pre-existing pool. This raises if authentication fails (which
+        # it did before the fix).
+        bouncer.test(user=user, password=auth_query_password, dbname="postgres")
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows does not have SIGHUP")

@@ -584,6 +584,9 @@ struct PgGlobalUser {
 	int max_user_client_connections;	/* how many client connections are allowed */
 	int connection_count;	/* how many server connections are used by user now */
 	int client_connection_count;	/* how many client connections are used by user now */
+
+	bool dynamic;	/* only auth_query created this user, so it is freed once unused */
+	int db_credentials_count;	/* number of PgDatabase.user_tree entries pointing here */
 };
 
 /*

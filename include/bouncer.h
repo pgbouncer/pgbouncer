@@ -965,6 +965,8 @@ static inline char *cstr_skip_ws(char *p)
 }
 
 
+const char *auth_type_name(int auth_type);
+
 bool load_config(void);
 
 

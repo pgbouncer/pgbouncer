@@ -22,6 +22,7 @@
 
 #include "bouncer.h"
 #include "scram.h"
+#include "tracing.h"
 
 #include <usual/err.h>
 #include <usual/safeio.h>
@@ -242,6 +243,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	case CL_WAITING:
 		client->sent_wait_notification = false;
 		statlist_remove(&pool->waiting_client_list, &client->head);
+		TRACE_CLIENT_WAIT_END(client);
 		break;
 	case CL_ACTIVE:
 		statlist_remove(&pool->active_client_list, &client->head);
@@ -273,6 +275,7 @@ void change_client_state(PgSocket *client, SocketState newstate)
 	case CL_WAITING_LOGIN:
 		client->wait_start = get_cached_time();
 		statlist_append(&pool->waiting_client_list, &client->head);
+		TRACE_CLIENT_WAIT_START(client);
 		break;
 	case CL_ACTIVE:
 		statlist_append(&pool->active_client_list, &client->head);
@@ -971,6 +974,7 @@ bool find_server(PgSocket *client)
 		slog_noise(client, "linking client to S-%p", server);
 		client->link = server;
 		server->link = client;
+		TRACE_CLIENT_SERVER_LINKED(client, server);
 		server->pool->stats.server_assignment_count++;
 		change_server_state(server, SV_ACTIVE);
 		if (varchange) {
@@ -1209,6 +1213,20 @@ bool life_over(PgSocket *server)
 	return false;
 }
 
+/*
+ * Break the client<->server link, firing the unlinked tracepoint first (while
+ * both sockets still carry valid pool/user information).  Callers remain
+ * responsible for whatever state change or disconnect follows.  This mirrors
+ * the single link site in find_server(), so linked/unlinked events stay
+ * balanced for query connections.
+ */
+static void unlink_client_server(PgSocket *client, PgSocket *server)
+{
+	TRACE_CLIENT_SERVER_UNLINKED(client, server);
+	client->link = NULL;
+	server->link = NULL;
+}
+
 /* connecting/active -> idle, unlink if needed */
 bool release_server(PgSocket *server)
 {
@@ -1224,8 +1242,7 @@ bool release_server(PgSocket *server)
 	case SV_ACTIVE:
 		if (server->link) {
 			server->link->copy_mode = false;
-			server->link->link = NULL;
-			server->link = NULL;
+			unlink_client_server(server->link, server);
 		}
 
 		if (*cf_server_reset_query && (cf_server_reset_query_always ||
@@ -1329,8 +1346,7 @@ static void unlink_server(PgSocket *server, const char *reason)
 
 	client = server->link;
 
-	client->link = NULL;
-	server->link = NULL;
+	unlink_client_server(client, server);
 	/*
 	 * Send reason to client if it is already
 	 * logged in, otherwise send generic message.
@@ -1366,6 +1382,8 @@ void disconnect_server(PgSocket *server, bool send_term, const char *reason, ...
 	vsnprintf(buf, sizeof(buf), reason, ap);
 	va_end(ap);
 	reason = buf;
+
+	TRACE_SERVER_DISCONNECT(server, reason);
 
 	if (cf_log_disconnections) {
 		slog_info(server, "closing because: %s (age=%" PRIu64 "s)", reason,
@@ -1476,6 +1494,12 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 {
 	usec_t now = get_cached_time();
 
+	TRACE_CLIENT_DISCONNECT(client, reason);
+
+	/* A client still in a login state never finished authenticating. */
+	if (client->state == CL_LOGIN || client->state == CL_WAITING_LOGIN)
+		TRACE_CLIENT_LOGIN_FAILURE(client, reason);
+
 	if (client->db && client->contributes_db_client_count)
 		client->db->client_connection_count--;
 
@@ -1496,8 +1520,7 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 		if (client->link) {
 			PgSocket *server = client->link;
 			if (!server->ready) {
-				server->link = NULL;
-				client->link = NULL;
+				unlink_client_server(client, server);
 				/*
 				 * This can happen if the client
 				 * connection is normally closed while
@@ -1511,8 +1534,7 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 				 */
 				disconnect_server(server, true, "client disconnect while server was not ready");
 			} else if (statlist_count(&server->outstanding_requests) > 0) {
-				server->link = NULL;
-				client->link = NULL;
+				unlink_client_server(client, server);
 				/*
 				 * If there are outstanding requests we can't
 				 * release the server, because the responses
@@ -1523,8 +1545,7 @@ void disconnect_client_sqlstate(PgSocket *client, bool notify, const char *sqlst
 				disconnect_server(server, true, "client disconnected with query in progress");
 			} else if (!sbuf_is_empty(&server->sbuf)) {
 				/* ->ready may be set before all is sent */
-				server->link = NULL;
-				client->link = NULL;
+				unlink_client_server(client, server);
 				disconnect_server(server, true, "client disconnect before everything was sent to the server");
 			} else {
 				/* retval does not matter here */
@@ -2029,6 +2050,8 @@ PgSocket *accept_client(int sock, bool is_unix)
 	fill_remote_addr(client, sock, is_unix);
 	fill_local_addr(client, sock, is_unix);
 
+	TRACE_CLIENT_CONNECT(client);
+
 	change_client_state(client, CL_LOGIN);
 
 	res = sbuf_accept(&client->sbuf, sock, is_unix);
@@ -2066,6 +2089,7 @@ bool finish_client_login(PgSocket *client)
 	case CL_LOGIN:
 		change_client_state(client, CL_ACTIVE);
 		client->pool->stats.client_login_count++;
+		TRACE_CLIENT_LOGIN_SUCCESS(client);
 	case CL_ACTIVE:
 		break;
 	default:

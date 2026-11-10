@@ -21,6 +21,7 @@
  */
 
 #include "bouncer.h"
+#include "tracing.h"
 
 #include <usual/regex.h>
 #include <usual/netdb.h>
@@ -928,6 +929,8 @@ static bool admin_cmd_reload(PgSocket *admin, const char *arg)
 
 	log_info("RELOAD command issued");
 
+	TRACE_ADMIN_RELOAD(admin);
+
 	if (!load_config()) {
 		ok = false;
 		log_error("RELOAD Failed, see logs for more details");
@@ -966,6 +969,9 @@ static bool admin_cmd_shutdown(PgSocket *admin, const char *arg)
 	 * before closing open sockets.
 	 */
 	cf_shutdown = mode;
+	TRACE_ADMIN_SHUTDOWN(admin,
+			     mode == SHUTDOWN_WAIT_FOR_SERVERS ? "wait_for_servers" :
+			     mode == SHUTDOWN_WAIT_FOR_CLIENTS ? "wait_for_clients" : "immediate");
 	if (mode == SHUTDOWN_IMMEDIATE) {
 		log_info("SHUTDOWN command issued");
 		event_base_loopbreak(pgb_event_base);
@@ -1010,6 +1016,9 @@ static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 			return admin_error(admin, "database %s is not paused", arg);
 		db->db_paused = false;
 	}
+
+	TRACE_ADMIN_RESUME(admin, arg);
+
 	return admin_ready(admin, "RESUME");
 }
 
@@ -1021,6 +1030,8 @@ static bool admin_cmd_pause(PgSocket *admin, const char *arg)
 
 	if (cf_pause_mode)
 		return admin_error(admin, "already paused");
+
+	TRACE_ADMIN_PAUSE(admin, arg);
 
 	if (!arg[0]) {
 		log_info("PAUSE command issued");
@@ -1073,6 +1084,8 @@ static bool admin_cmd_reconnect(PgSocket *admin, const char *arg)
 		tag_database_dirty(db);
 	}
 
+	TRACE_ADMIN_RECONNECT(admin, arg);
+
 	return admin_ready(admin, "RECONNECT");
 }
 
@@ -1095,6 +1108,9 @@ static bool admin_cmd_disable(PgSocket *admin, const char *arg)
 		return admin_error(admin, "cannot disable admin db: %s", arg);
 
 	db->db_disabled = true;
+
+	TRACE_ADMIN_DISABLE(admin, arg);
+
 	return admin_ready(admin, "DISABLE");
 }
 
@@ -1117,6 +1133,9 @@ static bool admin_cmd_enable(PgSocket *admin, const char *arg)
 		return admin_error(admin, "cannot enable admin db: %s", arg);
 
 	db->db_disabled = false;
+
+	TRACE_ADMIN_ENABLE(admin, arg);
+
 	return admin_ready(admin, "ENABLE");
 }
 
@@ -1194,6 +1213,7 @@ static bool admin_cmd_kill_client(PgSocket *admin, const char *arg)
 	if (kill_client == NULL) {
 		return admin_error(admin, "client not found");
 	}
+	TRACE_ADMIN_KILL_CLIENT(admin, target_id);
 	disconnect_client(kill_client, true, "admin forced disconnect");
 	return admin_ready(admin, "KILL_CLIENT");
 }
@@ -1240,6 +1260,8 @@ static bool admin_cmd_kill(PgSocket *admin, const char *arg)
 		}
 	}
 
+	TRACE_ADMIN_KILL(admin, arg);
+
 	return admin_ready(admin, "KILL");
 }
 
@@ -1248,6 +1270,8 @@ static bool admin_cmd_wait_close(PgSocket *admin, const char *arg)
 {
 	if (!admin->admin_user)
 		return admin_error(admin, "admin access needed");
+
+	TRACE_ADMIN_WAIT_CLOSE(admin, arg);
 
 	if (!arg[0]) {
 		struct List *item;

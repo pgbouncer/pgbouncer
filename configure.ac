@@ -71,6 +71,7 @@ AC_ARG_WITH(pam,
         fi
         if test x"${have_pam_header}" != x -a x"${have_libpam}" != x -a x"${have_pthreads}" = xyes; then
           pam_support=yes
+          AC_SUBST(pam_support)
           AC_DEFINE(HAVE_PAM, 1, [PAM support])
         fi
     fi

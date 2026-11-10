@@ -477,6 +477,40 @@ def test_client_ssl_set_ciphers_for_tls_v1_3(bouncer_tls, cert_dir):
         bouncer_tls.admin(f"set client_tls13_ciphers = 'unknown'")
 
 
+def test_client_ssl_set_ecdhecurve_list(bouncer_tls, cert_dir):
+    """client_tls_ecdhcurve accepts a colon-separated list of curves."""
+    root = cert_dir / "TestCA1" / "ca.crt"
+    key = cert_dir / "TestCA1" / "sites" / "01-localhost.key"
+    cert = cert_dir / "TestCA1" / "sites" / "01-localhost.crt"
+    bouncer_tls.write_ini(f"client_tls_key_file = {key}")
+    bouncer_tls.write_ini(f"client_tls_cert_file = {cert}")
+    bouncer_tls.write_ini(f"client_tls_ca_file = {root}")
+    bouncer_tls.write_ini(f"client_tls_sslmode = require")
+
+    bouncer_tls.write_ini("client_tls_protocols=tlsv1.2")
+    bouncer_tls.write_ini("client_tls_ecdhcurve=X25519:prime256v1:secp384r1")
+
+    bouncer_tls.admin("reload")
+
+    # A curve from the configured list is negotiated.
+    with bouncer_tls.log_contains(r"tls=TLSv1.2/"):
+        bouncer_tls.psql_test(host="localhost", sslmode="require")
+
+    # A different list can be applied at runtime via admin SET.
+    bouncer_tls.admin("set client_tls_ecdhcurve='prime256v1:secp384r1'")
+    with bouncer_tls.log_contains(r"tls=TLSv1.2/"):
+        bouncer_tls.psql_test(host="localhost", sslmode="require")
+
+    # A single curve still works (backward compatibility).
+    bouncer_tls.admin("set client_tls_ecdhcurve='prime256v1'")
+    with bouncer_tls.log_contains(r"tls=TLSv1.2/"):
+        bouncer_tls.psql_test(host="localhost", sslmode="require")
+
+    # An invalid element anywhere in the list is rejected loudly.
+    with bouncer_tls.log_contains(r"invalid client_tls_ecdhecurve"):
+        bouncer_tls.admin("set client_tls_ecdhcurve='prime256v1:bogus_curve'")
+
+
 @pytest.mark.skipif(
     "not DIRECT_TLS_SUPPORT", reason="Direct TLS is introduced in PG 17"
 )

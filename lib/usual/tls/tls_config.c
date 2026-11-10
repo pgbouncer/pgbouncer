@@ -162,6 +162,7 @@ void tls_config_free(struct tls_config *config)
 	free((char *)config->ca_path);
 	free((char *)config->ciphers);
 	free((char *)config->cipher_suites);
+	free((char *)config->ecdhecurves);
 
 	free(config);
 }
@@ -341,20 +342,68 @@ int tls_config_set_dheparams(struct tls_config *config, const char *params)
 
 int tls_config_set_ecdhecurve(struct tls_config *config, const char *name)
 {
-	int nid;
+	char *copy, *p, *token, *norm;
+	size_t pos = 0;
+	int rv;
 
-	if (name == NULL || strcasecmp(name, "none") == 0) {
-		nid = NID_undef;
-	} else if (strcasecmp(name, "auto") == 0) {
-		nid = -1;
-	} else if ((nid = OBJ_txt2nid(name)) == NID_undef) {
-		tls_config_set_errorx(config, "invalid ecdhe curve '%s'", name);
+	if (name == NULL || strcasecmp(name, "none") == 0)
+		return set_string(&config->ecdhecurves, "none");
+
+	if (strcasecmp(name, "auto") == 0)
+		return set_string(&config->ecdhecurves, "auto");
+
+	/*
+	 * Otherwise the value is a colon-separated list of one or more
+	 * curve/group names, e.g. "prime256v1" or
+	 * "X25519:prime256v1:secp384r1".  Validate every element and build
+	 * a normalised (whitespace-trimmed) copy so that config storage, the
+	 * OpenSSL call and the reload comparison all operate on identical
+	 * bytes.
+	 */
+	if ((copy = strdup(name)) == NULL)
+		return (-1);
+	if ((norm = malloc(strlen(name) + 1)) == NULL) {
+		free(copy);
+		return (-1);
+	}
+	norm[0] = '\0';
+
+	p = copy;
+	while ((token = strsep(&p, ":")) != NULL) {
+		size_t len;
+
+		while (*token == ' ' || *token == '\t')
+			token++;
+		len = strlen(token);
+		while (len > 0 &&
+		       (token[len - 1] == ' ' || token[len - 1] == '\t'))
+			token[--len] = '\0';
+		if (len == 0)
+			continue;
+		if (OBJ_txt2nid(token) == NID_undef) {
+			tls_config_set_errorx(config,
+					      "invalid ecdhe curve '%s'", token);
+			free(copy);
+			free(norm);
+			return (-1);
+		}
+		if (pos > 0)
+			norm[pos++] = ':';
+		memcpy(norm + pos, token, len);
+		pos += len;
+		norm[pos] = '\0';
+	}
+	free(copy);
+
+	if (pos == 0) {
+		tls_config_set_errorx(config, "no ecdhe curve given");
+		free(norm);
 		return (-1);
 	}
 
-	config->ecdhecurve = nid;
-
-	return (0);
+	rv = set_string(&config->ecdhecurves, norm);
+	free(norm);
+	return (rv);
 }
 
 int tls_config_set_key_file(struct tls_config *config, const char *key_file)

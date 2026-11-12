@@ -575,6 +575,9 @@ void tls_config_verify(struct tls_config *_config)
 void tls_config_verify_client(struct tls_config *_config)
 {
 }
+void tls_config_require_postgresql_alpn(struct tls_config *_config)
+{
+}
 void tls_config_verify_client_optional(struct tls_config *_config)
 {
 }

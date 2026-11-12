@@ -127,6 +127,11 @@ enum SSLMode {
 	SSLMODE_VERIFY_FULL
 };
 
+enum SSLNegotiation {
+	SSLNEGOTIATION_POSTGRES,
+	SSLNEGOTIATION_DIRECT
+};
+
 enum PacketCallbackFlag {
 	/* no callback */
 	CB_NONE = 0,
@@ -923,6 +928,7 @@ extern char *cf_client_tls_dheparams;
 extern char *cf_client_tls_ecdhecurve;
 
 extern int cf_server_tls_sslmode;
+extern int cf_server_tls_sslnegotiation;
 extern char *cf_server_tls_protocols;
 extern char *cf_server_tls_ca_file;
 extern char *cf_server_tls_cert_file;

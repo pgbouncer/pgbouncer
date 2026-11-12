@@ -208,6 +208,14 @@ int tls_connect_fds(struct tls *ctx, int fd_read, int fd_write,
 		tls_set_errorx(ctx, "ssl connection failure");
 		goto err;
 	}
+	if (ctx->config->require_postgresql_alpn) {
+		static const unsigned char protocols[] = PG_ALPN_PROTOCOL_VECTOR;
+
+		if (SSL_set_alpn_protos(ctx->ssl_conn, protocols, sizeof(protocols) - 1) != 0) {
+			tls_set_errorx(ctx, "could not set PostgreSQL ALPN protocol");
+			goto err;
+		}
+	}
 	if (SSL_set_app_data(ctx->ssl_conn, ctx) != 1) {
 		tls_set_errorx(ctx, "ssl application data failure");
 		goto err;
@@ -256,6 +264,18 @@ int tls_handshake_client(struct tls *ctx)
 	if ((ssl_ret = SSL_connect(ctx->ssl_conn)) != 1) {
 		rv = tls_ssl_error(ctx, ctx->ssl_conn, ssl_ret, "handshake");
 		goto err;
+	}
+
+	if (ctx->config->require_postgresql_alpn) {
+		const unsigned char *protocol;
+		unsigned int len;
+
+		SSL_get0_alpn_selected(ctx->ssl_conn, &protocol, &len);
+		if (protocol == NULL || len != sizeof(PG_ALPN_PROTOCOL) - 1 ||
+		    memcmp(protocol, PG_ALPN_PROTOCOL, len) != 0) {
+			tls_set_errorx(ctx, "server did not negotiate PostgreSQL ALPN protocol");
+			goto err;
+		}
 	}
 
 	if (ctx->config->verify_name) {

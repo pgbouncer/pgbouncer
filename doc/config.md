@@ -1012,6 +1012,17 @@ verify-full
     according to `server_tls_ca_file`.  Server host name must match
     certificate information.
 
+### server_tls_sslnegotiation
+
+Controls how PgBouncer starts TLS when opening a PostgreSQL session over TCP.
+The default, `postgres`, sends a PostgreSQL SSLRequest before the TLS
+handshake. With `direct`, PgBouncer starts the handshake immediately after
+connecting, saving one network round trip.
+
+`direct` requires PostgreSQL 17 or later with TLS enabled and
+`server_tls_sslmode` set to `require`, `verify-ca`, or `verify-full`.
+PgBouncer requires the server to negotiate the `postgresql` ALPN protocol.
+
 ### server_tls_ca_file
 
 Root certificate file to validate PostgreSQL server certificates.

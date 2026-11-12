@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 import psycopg
 import pytest
 
-from .utils import USE_SUDO
+from .utils import USE_SUDO, wait_until_async
 
 
 @pytest.mark.parametrize(
@@ -63,14 +63,31 @@ async def test_query_wait_timeout(
 
     with bouncer.run_with_config(pgbouncer_ini):
         conn_1_fut = bouncer.asleep(3)
-        await asyncio.sleep(0.1)
+        # Wait until client 1's pg_sleep is actually running on the server
+        # and holds the only server connection, instead of a fixed sleep
+        # that a loaded buildd can overrun.
+        await wait_until_async(
+            lambda: bouncer.pg.sql_value(
+                "select count(1) from pg_stat_activity where usename = 'puser1'"
+                " and state = 'active' and query like 'select pg_sleep(3)%'"
+            )
+            >= 1,
+            "client 1 pg_sleep to run on the server",
+        )
 
         with pytest.raises(psycopg.OperationalError, match=r"query_wait_timeout"):
             bouncer.test()
         await conn_1_fut
 
         conn_1_fut = bouncer.asleep(1)
-        await asyncio.sleep(0.1)
+        await wait_until_async(
+            lambda: bouncer.pg.sql_value(
+                "select count(1) from pg_stat_activity where usename = 'puser1'"
+                " and state = 'active' and query like 'select pg_sleep(1)%'"
+            )
+            >= 1,
+            "client 1 pg_sleep to run on the server",
+        )
         bouncer.test()
         await conn_1_fut
 
@@ -550,13 +567,20 @@ def test_client_idle_timeout(bouncer):
                 cur.execute("select 1")
 
 
-def test_pool_idle_timeout(pg, bouncer):
+async def test_pool_idle_timeout(pg, bouncer):
     """Test that the pool closes server connections after being idle."""
     bouncer.admin("set pool_idle_timeout=1")
     bouncer.admin("set server_idle_timeout=1")
 
     bouncer.test()
-    assert pg.connection_count() == 1
+    # A server connection left over from a previous test (whose pgbouncer
+    # exited while a query was still running) can show up in
+    # pg_stat_activity for a while, so wait instead of asserting at a fixed
+    # moment. Leftovers die once the last query of the previous test
+    # finishes, which this test's own timeouts comfortably outwait.
+    await wait_until_async(
+        lambda: pg.connection_count() == 1, "server connection to be created", timeout=10
+    )
 
     # The non-admin pool exists after connecting. Column 0 of SHOW POOLS is
     # the database, and there's always an admin ("pgbouncer") pool.
@@ -572,10 +596,14 @@ def test_pool_idle_timeout(pg, bouncer):
     print("pools after idle timeout:", pools_after)
     assert all(row[0] == "pgbouncer" for row in pools_after)
 
-    assert pg.connection_count() == 0
+    await wait_until_async(
+        lambda: pg.connection_count() == 0, "server connections to be closed", timeout=20
+    )
 
     bouncer.test()
-    assert pg.connection_count() == 1
+    await wait_until_async(
+        lambda: pg.connection_count() == 1, "server connection to be created", timeout=10
+    )
 
 
 def test_pool_idle_timeout_ignores_min_pool_size(pg, bouncer):

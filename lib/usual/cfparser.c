@@ -472,6 +472,7 @@ bool cf_set_filename(struct CfValue *cv, const char *value)
 {
 	char **dst_p = cv->value_p;
 	char *tmp, *home, *p;
+	const char *slash;
 	int v_len, usr_len, home_len;
 	struct passwd *pw;
 
@@ -481,10 +482,10 @@ bool cf_set_filename(struct CfValue *cv, const char *value)
 
 	/* find username end */
 	v_len = strlen(value);
-	if ((p = memchr(value, '/', v_len)) == NULL)
+	if ((slash = memchr(value, '/', v_len)) == NULL)
 		usr_len = v_len - 1;
 	else
-		usr_len = (p - value) - 1;
+		usr_len = (slash - value) - 1;
 
 	if (usr_len) {
 		p = malloc(usr_len + 1);

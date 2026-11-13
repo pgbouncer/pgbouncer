@@ -245,6 +245,13 @@ bool strlist_contains(const char *liststr, const char *str)
 	int c, len = strlen(str);
 	const char *p, *listpos = liststr;
 
+	/*
+	 * An empty string is never a member of the list.  Besides being the
+	 * correct answer, this also avoids an infinite loop below.
+	 */
+	if (len == 0)
+		return false;
+
 loop:
 	/* find string fragment, later check if actual token */
 	p = strstr(listpos, str);

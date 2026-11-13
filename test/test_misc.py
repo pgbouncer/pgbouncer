@@ -7,6 +7,7 @@ import time
 
 import psycopg
 import pytest
+from psycopg.rows import dict_row
 
 from .utils import (
     HAVE_IPV6_LOCALHOST,
@@ -17,6 +18,7 @@ from .utils import (
     PKT_BUF_SIZE,
     USE_UNIX_SOCKETS,
     WINDOWS,
+    wait_until,
 )
 
 
@@ -604,6 +606,37 @@ def _send_startup_message(bouncer, parameters):
             return message_type, stream.read(message_length - 4)
 
 
+def _startup_packet(user, database):
+    parameters = b"\0".join((b"user", user, b"database", database, b"", b""))
+    payload = struct.pack("!I", 0x30000) + parameters
+    return struct.pack("!I", len(payload) + 4) + payload
+
+
+def _read_message(stream):
+    message_type = stream.read(1)
+    message_length = struct.unpack("!I", stream.read(4))[0]
+    return message_type, stream.read(message_length - 4)
+
+
+@pytest.mark.parametrize("database", [b"p0", b"nonexistent_db"])
+def test_second_startup_message_rejected(bouncer, database):
+    # An unknown database doesn't get a pool, which used to let a second
+    # StartupMessage through and switch identity mid-authentication.
+    bouncer.admin("set auth_type = md5")
+
+    with socket.create_connection((bouncer.host, bouncer.port)) as sock:
+        sock.sendall(_startup_packet(b"puser1", database))
+        with sock.makefile("rb") as stream:
+            message_type, _ = _read_message(stream)
+            assert message_type == b"R"
+
+            with bouncer.log_contains("client re-sent startup pkt"):
+                sock.sendall(_startup_packet(b"pgbouncer", b"pgbouncer"))
+                message_type, message = _read_message(stream)
+            assert message_type == b"E"
+            assert b"client re-sent startup pkt" in message
+
+
 def test_protocol_extension_negotiation(bouncer):
     protocol_version = 0x30000
     extension = b"_pq_.test_protocol_negotiation"
@@ -720,6 +753,13 @@ def test_options_startup_param(bouncer):
     ):
         bouncer.test(options="-c enable_seqscan=false")
 
+    # An option with an empty parameter name should be rejected.
+    with pytest.raises(
+        psycopg.OperationalError,
+        match="unsupported startup parameter in options:",
+    ):
+        bouncer.test(options="-c=")
+
     bouncer.admin("set ignore_startup_parameters = options")
     # Unsupported values should be ignored, so it shouldn't error but it should
     # have its default value instead.
@@ -739,6 +779,22 @@ def test_options_startup_param(bouncer):
             options="-ctimezone=Europe/Lisbon  -cdatestyle=German,\\ YMD",
         )
         == "Europe/Lisbon"
+    )
+
+    # The empty-parameter-name case must also not hang when "options" is in
+    # ignore_startup_parameters; here it is simply ignored rather than rejected.
+    bouncer.test(options="-c=")
+
+
+def test_ignore_tracked_startup_parameter(bouncer):
+    """A parameter listed in ignore_startup_parameters is ignored, even if it's
+    one that PgBouncer tracks by default."""
+    default = bouncer.sql_value("SHOW search_path")
+    assert bouncer.sql_value("SHOW search_path", options="-c search_path=foo") == "foo"
+
+    bouncer.admin("set ignore_startup_parameters = search_path")
+    assert (
+        bouncer.sql_value("SHOW search_path", options="-c search_path=foo") == default
     )
 
 
@@ -792,6 +848,27 @@ def test_default_transaction_read_only(bouncer):
 
     with bouncer.cur() as rwcur:
         assert rwcur.execute("SHOW transaction_read_only").fetchone()[0] == "off"
+
+
+async def test_search_path_case_sensitive(bouncer):
+    bouncer.write_ini("track_extra_parameters = search_path\ndefault_pool_size = 1")
+    await bouncer.restart()
+    bouncer.admin("set pool_mode=transaction")
+
+    with (
+        bouncer.cur(dbname="p1", options='-c search_path="Foo"') as cur1,
+        bouncer.cur(dbname="p1", options='-c search_path="foo"') as cur2,
+    ):
+        pid1 = cur1.execute("SELECT pg_backend_pid()").fetchone()[0]
+        pid2 = cur2.execute("SELECT pg_backend_pid()").fetchone()[0]
+        assert pid1 == pid2
+
+        for _ in range(2):
+            sp1 = cur1.execute("SHOW search_path").fetchone()[0]
+            sp2 = cur2.execute("SHOW search_path").fetchone()[0]
+            assert sp1 != sp2
+            assert "Foo" in sp1
+            assert "foo" in sp2
 
 
 @pytest.mark.skipif("WINDOWS", reason="Windows doesn't support sending SIGTERM")
@@ -909,6 +986,16 @@ def test_shutdown_wait_for_servers(bouncer):
 
         thread = threading.Thread(target=run_blocked_query)
         thread.start()
+
+        # Wait until the blocked query is actually running on a server before
+        # shutting down. Otherwise SHUTDOWN WAIT_FOR_SERVERS can race ahead of
+        # the query reaching the server, find only an idle server connection
+        # (released immediately in pause mode) and exit right away, tearing
+        # down the admin socket before the assertions below can run.
+        for _ in wait_until("blocked query did not reach a server"):
+            servers = bouncer.admin("SHOW SERVERS", row_factory=dict_row)
+            if any(server["state"] == "active" for server in servers):
+                break
 
         bouncer.admin("SHUTDOWN WAIT_FOR_SERVERS")
 
@@ -1034,13 +1121,15 @@ async def test_server_login_large_packets(bouncer):
 
 
 async def test_unreported_param_startup(bouncer):
-    """Test that startup parameters tracked via track_extra_parameters are applied.
+    """Startup parameters tracked via track_extra_parameters are applied and
+    isolated per client.
 
     When track_extra_parameters includes a parameter that PostgreSQL does not report
     via ParameterStatus (such as enable_seqscan), PgBouncer stores client->vars
     from the startup options, but server->vars remains NULL. Consequently,
     apply_var() must apply the variable when sval is NULL and reset it when a
-    client without the variable connects.
+    client without the variable connects. Clients that are active concurrently
+    must each keep their own value and never inherit another client value.
     """
     bouncer.write_ini("track_extra_parameters = enable_seqscan\ndefault_pool_size = 1")
     await bouncer.restart()
@@ -1071,6 +1160,24 @@ async def test_unreported_param_startup(bouncer):
         bouncer.cur(dbname="p1", options="-c enable_seqscan=off") as cur1,
     ):
         assert cur1.execute("SHOW enable_seqscan").fetchone()[0] == "off"
+
+    # Verify that clients which are active concurrently each keep their own
+    # value, rather than inheriting another client value through the shared
+    # server connection. Each statement is its own transaction (autocommit), so
+    # the single pooled server is switched between the clients.
+    with (
+        bouncer.cur(dbname="p1", options="-c enable_seqscan=off") as cur_x,
+        bouncer.cur(dbname="p1", options="-c enable_seqscan=on") as cur_z,
+        bouncer.cur(dbname="p1") as cur_y,
+    ):
+        assert cur_x.execute("SHOW enable_seqscan").fetchone()[0] == "off"
+        assert cur_z.execute("SHOW enable_seqscan").fetchone()[0] == "on"
+        # cur_x must still see its own value after cur_z used the connection.
+        assert cur_x.execute("SHOW enable_seqscan").fetchone()[0] == "off"
+        # A client that passes no value gets the server default.
+        assert cur_y.execute("SHOW enable_seqscan").fetchone()[0] == "on"
+        # cur_z must still see its own value, undisturbed by the other clients.
+        assert cur_z.execute("SHOW enable_seqscan").fetchone()[0] == "on"
 
 
 async def test_session_authorization_tracked(bouncer):

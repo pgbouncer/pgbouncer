@@ -1,0 +1,29 @@
+name: Security Insights
+
+# Validates security-insights.yml against the OSSF Security Insights schema
+# version declared in its header.
+on:
+  push:
+    paths:
+      - security-insights.yml
+      - .github/workflows/security-insights.yml
+  pull_request:
+    paths:
+      - security-insights.yml
+      - .github/workflows/security-insights.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Validate Security Insights
+        uses: revanite-io/security-insights-action@85c35a5b75f2772e0462323d7b4fcbab5fc1aff2 # v1.0.0
+        with:
+          file: security-insights.yml

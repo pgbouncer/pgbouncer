@@ -1,6 +1,6 @@
 project('pgbouncer',
         ['c'],
-        version: '1.26.0',
+        version: '1.26.1',
         license: 'ISC',
         # Kept in reach of the meson shipped by the distros we build on (the
         # oldest being RHEL 8's 0.58), so CI can install meson from the official
@@ -456,14 +456,17 @@ endif
 
 # ----------------------------------------------------------------------
 # Generate the config header.
-#
-# libusual normally includes <usual/config.h>; when USUAL_TEST_CONFIG is set it
-# includes "test_config.h" instead (see lib/usual/base.h). We use that hook so
-# the generated header lands in the build directory rather than the source tree.
 # ----------------------------------------------------------------------
 
-config_h = configure_file(output: 'test_config.h', configuration: cdata)
-add_project_arguments('-DUSUAL_TEST_CONFIG', language: 'c')
+# Since the config header lives in lib/usual/config.h for historical
+# reasons, we need to have a subdirectory meson.build manage it.
+subdir('lib/usual')
+
+# The python test suite reads this header to find out which optional features
+# were built in (see get_build_feature() in test/utils.py).
+#
+# When meson 1.4.0 is required, this can be replaced by config_h.full_path().
+config_h_path = meson.project_build_root() / 'lib/usual/config.h'
 
 # ----------------------------------------------------------------------
 # Warning flags (mirrors the WFLAGS antimake enables)
@@ -593,6 +596,26 @@ if windows
   net_deps += cc.find_library('iphlpapi')
 endif
 
+# clock_gettime lives in libc on modern glibc but in librt on Solaris/illumos.
+if not windows and not cc.has_function('clock_gettime', prefix: '#include <time.h>')
+  net_deps += cc.find_library('rt', required: false)
+endif
+
+# The socket API is in libc on Linux/BSD but in libsocket on Solaris/illumos.
+if not windows and not cc.has_function('getsockname', prefix: '#include <sys/socket.h>')
+  net_deps += cc.find_library('socket', required: false)
+endif
+
+# Name-service lookups are in libc on Linux/BSD but in libnsl on Solaris/illumos.
+if not windows and not cc.has_function('gethostbyname', prefix: '#include <netdb.h>')
+  net_deps += cc.find_library('nsl', required: false)
+endif
+
+# hstrerror() is in libc on Linux/BSD but in libresolv on Solaris/illumos.
+if not windows and not cc.has_function('hstrerror', prefix: '#include <netdb.h>')
+  net_deps += cc.find_library('resolv', required: false)
+endif
+
 pgbouncer_deps = [
   libcares,
   libevent,
@@ -603,18 +626,14 @@ pgbouncer_deps = [
   threads,
 ] + dns_deps + net_deps
 
-# '.' brings in the build root (where the generated test_config.h lives).
-incdir_names = ['.', 'include', 'lib'] + (windows ? ['win32'] : [])
+incdir_names = ['include', 'lib'] + (windows ? ['win32'] : [])
 pgbouncer_incdirs = include_directories(incdir_names)
 
 if windows
   pgbouncer_sources += files('win32/win32support.c')
   win = import('windows')
-  # win32ver.rc includes the generated config, so windres needs the same
-  # USUAL_TEST_CONFIG define the C sources get.
   pgbouncer_sources += win.compile_resources('win32/win32ver.rc',
-                                             include_directories: pgbouncer_incdirs,
-                                             args: ['-DUSUAL_TEST_CONFIG'])
+                                             include_directories: pgbouncer_incdirs)
 endif
 
 pgbouncer = executable('pgbouncer',
@@ -733,6 +752,7 @@ test('pytest',
      args: pytest_args,
      env: {
        'BOUNCER_EXE': pgbouncer.full_path(),
+       'PGBOUNCER_CONFIG_H': config_h_path,
        'PYTHONIOENCODING': 'utf8',
      },
      workdir: meson.project_source_root() / 'test',
@@ -751,6 +771,8 @@ format_sh = find_program('dev/format.sh')
 run_target('format', command: [format_sh, 'fix'])
 run_target('format-check', command: [format_sh, 'check'])
 run_target('lint', command: [format_sh, 'lint'])
+run_target('format-c', command: [format_sh, 'fix-c'])
+run_target('format-python', command: [format_sh, 'fix-python'])
 
 ctags = find_program('ctags', required: false)
 if ctags.found()

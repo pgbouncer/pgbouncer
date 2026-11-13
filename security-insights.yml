@@ -1,0 +1,157 @@
+header:
+  schema-version: 2.2.0
+  last-updated: "2026-11-02"
+  last-reviewed: "2026-10-22"
+  url: https://raw.githubusercontent.com/pgbouncer/pgbouncer/refs/heads/master/security-insights.yml
+project:
+  name: PgBouncer
+  administrators:
+    - name: Jelte Fennema-Nio
+      primary: true
+      email: postgres@jeltef.nl
+    - name: Peter Eisentraut
+      primary: false
+      email: peter@eisentraut.org
+    - name: Euler Taveira
+      primary: false
+      email: euler@eulerto.com
+  repositories:
+    - name: PgBouncer
+      comment: Main repository of PgBouncer
+      url: https://github.com/pgbouncer/pgbouncer/
+    - name: website
+      url: https://github.com/pgbouncer/pgbouncer.github.io
+      comment: pgbouncer.org website
+  vulnerability-reporting:
+    reports-accepted: true
+    bug-bounty-available: false
+    contact:
+      name: PgBouncer maintainers
+      primary: true
+    policy: https://github.com/pgbouncer/pgbouncer/blob/master/SECURITY.md
+    comment: >-
+      Report security issues on GitHub under Security Advisories:
+      https://github.com/pgbouncer/pgbouncer/security/advisories
+  homepage: https://www.pgbouncer.org/
+  documentation:
+    detailed-guide: https://www.pgbouncer.org/usage.html
+    quickstart-guide: https://www.pgbouncer.org/install.html
+    release-process: https://github.com/pgbouncer/pgbouncer/wiki/Making-a-release
+    support-policy: https://github.com/pgbouncer/pgbouncer/blob/master/SECURITY.md#supported-versions
+repository:
+  status: active
+  url: https://github.com/pgbouncer/pgbouncer/
+  accepts-change-request: true
+  accepts-automated-change-request: false
+  core-team:
+    - name: Jelte Fennema-Nio
+      primary: true
+      email: postgres@jeltef.nl
+    - name: Peter Eisentraut
+      primary: false
+      email: peter@eisentraut.org
+    - name: Euler Taveira
+      primary: false
+      email: euler@eulerto.com
+  license:
+    url: https://raw.githubusercontent.com/pgbouncer/pgbouncer/refs/heads/master/COPYRIGHT
+    expression: ISC
+  documentation:
+    contributing-guide: https://github.com/pgbouncer/pgbouncer/blob/master/CONTRIBUTING.md
+    dependency-management-policy: https://github.com/pgbouncer/pgbouncer/blob/master/CONTRIBUTING.md#dependencies
+    governance: https://github.com/pgbouncer/pgbouncer/wiki/Governance
+    security-policy: https://github.com/pgbouncer/pgbouncer/blob/master/SECURITY.md
+  release:
+    automated-pipeline: false
+    distribution-points:
+      - uri: https://www.pgbouncer.org/downloads/
+        comment: >-
+          Canonical location of the source tarballs, each with a published
+          SHA-256 checksum.  The tarball is built by the CI workflow from the
+          release commit, not on a maintainer's machine.
+      - uri: https://github.com/pgbouncer/pgbouncer/releases
+        comment: >-
+          GitHub releases with the same source tarball, plus the Windows
+          binary zip, which is also built by the CI workflow.
+    changelog: https://www.pgbouncer.org/changelog.html
+  security:
+    tools:
+      - name: Clang Static Analyzer (scan-build)
+        type: SAST
+        comment: >-
+          Runs on master, on manual dispatch, and on pull requests labeled
+          ci-full.  Findings do not fail the build; maintainers review the
+          job output periodically and triage it as described in SECURITY.md
+          under "Static analysis".
+        rulesets:
+          - default
+        integration:
+          adhoc: false
+          ci: true
+          release: false
+        results:
+          ci:
+            name: scan-build CI job
+            predicate-uri: https://clang-analyzer.llvm.org/scan-build.html
+            location: https://github.com/pgbouncer/pgbouncer/actions/workflows/pgbouncer-ci.yml
+      - name: Valgrind (Memcheck)
+        type: other
+        comment: >-
+          Dynamic memory error detection (invalid accesses, use-after-free,
+          uninitialized memory) over the test suite; runs on every push and
+          pull request.
+        rulesets:
+          - default
+        integration:
+          adhoc: false
+          ci: true
+          release: false
+        results:
+          ci:
+            name: valgrind CI job
+            predicate-uri: https://valgrind.org/docs/manual/mc-manual.html
+            location: https://github.com/pgbouncer/pgbouncer/actions/workflows/pgbouncer-ci.yml
+      - name: UndefinedBehaviorSanitizer (UBSan)
+        type: other
+        comment: >-
+          Runtime detection of undefined behavior over the test suite; runs
+          on master, on manual dispatch, and on pull requests labeled ci-full.
+        rulesets:
+          - default
+        integration:
+          adhoc: false
+          ci: true
+          release: false
+        results:
+          ci:
+            name: ubsan CI job
+            predicate-uri: https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html
+            location: https://github.com/pgbouncer/pgbouncer/actions/workflows/pgbouncer-ci.yml
+      - name: OSPS Baseline scanner (pvtr-github-repo-scanner)
+        type: other
+        comment: >-
+          Weekly and on-demand OSPS Baseline Level 1 scan using the
+          osps-baseline-action.
+        rulesets:
+          - osps-baseline-2026-08
+        integration:
+          adhoc: true
+          ci: true
+          release: false
+        results:
+          ci:
+            name: OSPS Baseline workflow
+            predicate-uri: https://github.com/revanite-io/osps-baseline-action
+            location: https://github.com/pgbouncer/pgbouncer/actions/workflows/osps-baseline.yml
+    assessments:
+      self:
+        name: PgBouncer security self-assessment
+        evidence: https://github.com/pgbouncer/pgbouncer/blob/master/doc/security-self-assessment.md
+        date: "2026-11-02"
+        comment: >-
+          OSPS self-assessment by the maintainers, following the OpenSSF
+          self-assessment template. Includes threat modeling and attack
+          surface analysis: actors, trust boundaries, critical components,
+          threats with their mitigations, and known gaps. Reviewed when
+          features or breaking changes affect the attack surface, and at
+          least once a year.

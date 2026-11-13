@@ -420,28 +420,6 @@ const char *usual_strerror_r(int e, char *dst, size_t dstlen)
 	return dst;
 }
 
-void *mempbrk(const void *data, size_t dlen, const void *find, size_t flen)
-{
-	const uint8_t *s = data;
-	const uint8_t *fb = find;
-	size_t i;
-	struct Bitmap256 bmap;
-
-	if (flen == 0)
-		return NULL;
-	if (flen == 1)
-		return memchr(data, fb[0], dlen);
-
-	bitmap256_init(&bmap);
-	for (i = 0; i < flen; i++)
-		bitmap256_set(&bmap, fb[i]);
-	for (i = 0; i < dlen; i++) {
-		if (bitmap256_is_set(&bmap, s[i]))
-			return (void *)(s + i);
-	}
-	return NULL;
-}
-
 size_t memspn(const void *data, size_t dlen, const void *accept, size_t alen)
 {
 	const uint8_t *s = data;
@@ -466,16 +444,6 @@ size_t memspn(const void *data, size_t dlen, const void *accept, size_t alen)
 			break;
 	}
 	return i;
-}
-
-size_t memcspn(const void *data, size_t dlen, const void *reject, size_t rlen)
-{
-	const void *p;
-
-	p = mempbrk(data, dlen, reject, rlen);
-	if (p != NULL)
-		return (char *)p - (char *)data;
-	return dlen;
 }
 
 double strtod_dot(const char *s, char **tokend)

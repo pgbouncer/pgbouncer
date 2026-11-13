@@ -68,6 +68,7 @@ struct tls_config {
 	int verify_depth;
 	int verify_name;
 	int verify_time;
+	int require_postgresql_alpn;
 };
 
 struct tls_conninfo {
@@ -81,6 +82,9 @@ struct tls_conninfo {
 	time_t notbefore;
 	time_t notafter;
 };
+
+#define PG_ALPN_PROTOCOL "postgresql"
+#define PG_ALPN_PROTOCOL_VECTOR "\x0a" PG_ALPN_PROTOCOL
 
 #define TLS_CLIENT              (1 << 0)
 #define TLS_SERVER              (1 << 1)

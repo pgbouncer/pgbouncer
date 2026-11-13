@@ -723,7 +723,10 @@ static bool handle_connect(PgSocket *server)
 		disconnect_server(server, false, "peer server was not necessary anymore, because client cancel connection was already closed");
 	} else {
 		/* proceed with login */
-		if (server_connect_sslmode > SSLMODE_DISABLED && !is_unix) {
+		if (server_connect_direct_tls && !is_unix) {
+			slog_noise(server, "starting direct TLS");
+			res = sbuf_tls_connect(&server->sbuf, server->host);
+		} else if (server_connect_sslmode > SSLMODE_DISABLED && !is_unix) {
 			slog_noise(server, "P: SSL request");
 			res = send_sslreq_packet(server);
 			if (res)

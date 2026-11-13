@@ -50,7 +50,6 @@ struct tls *tls_server_conn(struct tls *ctx)
 	return (conn_ctx);
 }
 
-#define PG_ALPN_PROTOCOL_VECTOR { 10, 'p', 'o', 's', 't', 'g', 'r', 'e', 's', 'q', 'l' }
 static const unsigned char alpn_protos[] = PG_ALPN_PROTOCOL_VECTOR;
 
 /*
@@ -74,10 +73,10 @@ static int alpn_cb(SSL *ssl, const unsigned char **out, unsigned char *outlen,
 	Assert(in != NULL);
 
 	retval = SSL_select_next_proto((unsigned char **) out, outlen,
-				       alpn_protos, sizeof(alpn_protos),
+				       alpn_protos, sizeof(alpn_protos) - 1,
 				       in, inlen);
 
-	if (*out == NULL || *outlen > sizeof(alpn_protos) || *outlen <= 0)
+	if (*out == NULL || *outlen > sizeof(alpn_protos) - 1 || *outlen <= 0)
 		return SSL_TLSEXT_ERR_NOACK;
 
 	if (retval == OPENSSL_NPN_NEGOTIATED) {

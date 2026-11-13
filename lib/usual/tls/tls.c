@@ -857,6 +857,8 @@ bool tls_config_equal(struct tls_config *tc1, struct tls_config *tc2)
 		return false;
 	if (tc1->verify_time != tc2->verify_time)
 		return false;
+	if (tc1->require_postgresql_alpn != tc2->require_postgresql_alpn)
+		return false;
 	return true;
 }
 

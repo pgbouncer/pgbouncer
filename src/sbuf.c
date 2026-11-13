@@ -79,6 +79,7 @@ static void sbuf_try_resync(SBuf *sbuf, bool release);
 static bool sbuf_wait_for_data(SBuf *sbuf) _MUSTCHECK;
 static bool sbuf_event_remove(SBuf *sbuf) _MUSTCHECK;
 static void sbuf_main_loop(SBuf *sbuf, bool skip_recv);
+static void sbuf_start_tls_handshake(SBuf *sbuf);
 static bool sbuf_call_proto(SBuf *sbuf, int event) /* _MUSTCHECK */;
 static bool sbuf_actual_recv(SBuf *sbuf, size_t len)  _MUSTCHECK;
 static bool sbuf_after_connect_check(SBuf *sbuf)  _MUSTCHECK;
@@ -1086,11 +1087,15 @@ skip_recv:
 	if (sbuf_is_empty(sbuf))
 		sbuf_call_proto(sbuf, SBUF_EV_FLUSH);
 
-	if (sbuf->tls_state == SBUF_TLS_DO_HANDSHAKE) {
-		sbuf->pkt_action = SBUF_TLS_IN_HANDSHAKE;
-		if (!handle_tls_handshake(sbuf))
-			sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
-	}
+	if (sbuf->tls_state == SBUF_TLS_DO_HANDSHAKE)
+		sbuf_start_tls_handshake(sbuf);
+}
+
+static void sbuf_start_tls_handshake(SBuf *sbuf)
+{
+	sbuf->pkt_action = SBUF_TLS_IN_HANDSHAKE;
+	if (!handle_tls_handshake(sbuf))
+		sbuf_call_proto(sbuf, SBUF_EV_RECV_FAILED);
 }
 
 /* check if there is any error pending on socket */
@@ -1126,6 +1131,10 @@ static void sbuf_connect_cb(evutil_socket_t sock, short flags, void *arg)
 			goto failed;
 		if (!sbuf_call_proto(sbuf, SBUF_EV_CONNECT_OK))
 			return;
+		if (sbuf->tls_state == SBUF_TLS_DO_HANDSHAKE) {
+			sbuf_start_tls_handshake(sbuf);
+			return;
+		}
 		if (!sbuf_wait_for_data(sbuf))
 			goto failed;
 		return;
@@ -1199,6 +1208,7 @@ static struct tls_config *client_accept_conf;
 int client_accept_sslmode;
 static struct tls_config *server_connect_conf;
 int server_connect_sslmode;
+bool server_connect_direct_tls;
 
 /*
  * TLS setup
@@ -1315,6 +1325,7 @@ static bool tls_change_requires_reconnect(struct tls_config *new_server_connect_
 bool sbuf_tls_setup(void)
 {
 	int err;
+	bool direct_tls = cf_server_tls_sslnegotiation == SSLNEGOTIATION_DIRECT;
 	/*
 	 * These variables store the new TLS configurations, based on the latest
 	 * settings provided by the user. Once they have been configured completely
@@ -1346,6 +1357,11 @@ bool sbuf_tls_setup(void)
 		return false;
 	}
 
+	if (direct_tls && cf_server_tls_sslmode < SSLMODE_REQUIRE) {
+		log_error("server_tls_sslnegotiation=direct requires server_tls_sslmode=require or stronger");
+		return false;
+	}
+
 	err = tls_init();
 	if (err)
 		fatal("tls_init failed");
@@ -1362,6 +1378,8 @@ bool sbuf_tls_setup(void)
 			       cf_server_tls_key_file, cf_server_tls_cert_file,
 			       cf_server_tls_ca_file, "", "", true))
 			goto failed;
+		if (direct_tls)
+			tls_config_require_postgresql_alpn(new_server_connect_conf);
 	}
 
 	if (cf_client_tls_sslmode != SSLMODE_DISABLED) {
@@ -1414,6 +1432,7 @@ bool sbuf_tls_setup(void)
 	client_accept_sslmode = cf_client_tls_sslmode;
 	server_connect_conf = new_server_connect_conf;
 	server_connect_sslmode = cf_server_tls_sslmode;
+	server_connect_direct_tls = direct_tls;
 	return true;
 failed:
 	usual_tls_free(new_client_accept_base);
@@ -1487,10 +1506,10 @@ bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)
 	struct tls *ctls;
 	int err;
 
-	if (!sbuf_pause(sbuf))
+	if (sbuf->wait_type != W_NONE && !sbuf_pause(sbuf))
 		return false;
 
-	if (cf_server_tls_sslmode != SSLMODE_VERIFY_FULL)
+	if (!server_connect_direct_tls && server_connect_sslmode != SSLMODE_VERIFY_FULL)
 		hostname = NULL;
 
 	ctls = tls_client();
@@ -1656,9 +1675,14 @@ static void sbuf_possible_direct_tls_startup_cb(evutil_socket_t fd, short flags,
 
 int client_accept_sslmode = SSLMODE_DISABLED;
 int server_connect_sslmode = SSLMODE_DISABLED;
+bool server_connect_direct_tls;
 
 bool sbuf_tls_setup(void)
 {
+	if (cf_server_tls_sslnegotiation == SSLNEGOTIATION_DIRECT) {
+		log_error("server_tls_sslnegotiation=direct requires a TLS-enabled build");
+		return false;
+	}
 	return true;
 }
 bool sbuf_tls_accept(SBuf *sbuf)

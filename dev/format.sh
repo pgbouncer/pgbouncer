@@ -52,7 +52,8 @@ ensure_uncrustify() {
 		"https://github.com/uncrustify/uncrustify/archive/refs/tags/$tarball" \
 		--output "$tmp/$tarball"
 	tar xzf "$tmp/$tarball" -C "$tmp"
-	cmake -S "$tmp/uncrustify-uncrustify-$UNCRUSTIFY_VERSION" -B "$tmp/build"
+	cmake -S "$tmp/uncrustify-uncrustify-$UNCRUSTIFY_VERSION" -B "$tmp/build" \
+		-DCMAKE_POLICY_VERSION_MINIMUM=3.5
 	cmake --build "$tmp/build"
 	cp "$tmp/build/uncrustify" "$root/uncrustify"
 }

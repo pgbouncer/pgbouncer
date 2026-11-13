@@ -116,8 +116,21 @@ def test_server_ssl_set_enable(pg, bouncer_tls, cert_dir):
     bouncer_tls.test()
 
 
-def test_server_ssl_verify(pg, bouncer_tls, cert_dir):
+@pytest.mark.parametrize(
+    "negotiation",
+    [
+        "postgres",
+        pytest.param(
+            "direct",
+            marks=pytest.mark.skipif(
+                not DIRECT_TLS_SUPPORT, reason="Direct TLS requires PostgreSQL 17"
+            ),
+        ),
+    ],
+)
+def test_server_ssl_verify(pg, bouncer_tls, cert_dir, negotiation):
     bouncer_tls.admin("set server_tls_sslmode = 'verify-full'")
+    bouncer_tls.admin(f"set server_tls_sslnegotiation = '{negotiation}'")
     root = cert_dir / "TestCA1" / "ca.crt"
     wrong_root = cert_dir / "TestCA2" / "ca.crt"
     bouncer_tls.admin(f"set server_tls_ca_file = '{wrong_root}'")
@@ -137,7 +150,12 @@ def test_server_ssl_verify(pg, bouncer_tls, cert_dir):
     ):
         bouncer_tls.test(connect_timeout=4)
     bouncer_tls.admin(f"set server_tls_ca_file = '{root}'")
-    bouncer_tls.test()
+    bouncer_tls.admin("set verbose = 2")
+    startup = "starting direct TLS" if negotiation == "direct" else "P: SSL request"
+    with bouncer_tls.log_contains(startup):
+        assert bouncer_tls.sql_value(
+            "select ssl from pg_stat_ssl where pid = pg_backend_pid()"
+        )
 
     bouncer_tls.psql_test(dbname="hostlistsslverify")
 

@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 import psycopg
 import pytest
 
-from .utils import LINUX, Bouncer
+from .utils import LINUX, Bouncer, wait_until
 
 if not LINUX:
     pytest.skip(allow_module_level=True, reason="peering tests require so_reuseport")
@@ -228,7 +228,7 @@ def query_error_code(sock):
             return code
 
 
-def test_concurrent_peer_cancel(separate_peers):
+def test_concurrent_peer_cancel(separate_peers, pg):
     # Cancel requests that were sent to the wrong peer have to be forwarded to
     # the right one. Only one connection attempt per peer pool is in progress
     # at a time, so when many requests arrive at once, the others should be
@@ -243,7 +243,15 @@ def test_concurrent_peer_cancel(separate_peers):
                 clients.append((owner, sock, key))
         for _, sock, _ in clients:
             send_query(sock, "select pg_sleep(20)")
-        time.sleep(1)
+
+        for _ in wait_until("queries did not reach pg_sleep"):
+            sleeping = pg.sql_value("""
+                SELECT count(*) FROM pg_stat_activity
+                WHERE usename = 'bouncer' AND datname = 'p0'
+                  AND state = 'active' AND wait_event = 'PgSleep'
+            """)
+            if sleeping == len(clients):
+                break
 
         # Send every cancel request to the peer that does not own the query,
         # all at the same moment.
@@ -258,9 +266,9 @@ def test_concurrent_peer_cancel(separate_peers):
             cancels = [pool.submit(cancel, owner, key) for owner, _, key in clients]
             for c in cancels:
                 c.result()
-        assert time.monotonic() - start < 5
         for _, sock, _ in clients:
             assert query_error_code(sock) == "57014"
+        assert time.monotonic() - start < 5
     finally:
         for _, sock, _ in clients:
             sock.close()

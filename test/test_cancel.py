@@ -4,6 +4,27 @@ from concurrent.futures import ThreadPoolExecutor
 import psycopg
 import pytest
 
+from .utils import USE_UNIX_SOCKETS, Postgres, wait_until
+
+
+@pytest.fixture
+def second_postgres(pg, tmp_path):
+    other = Postgres(tmp_path / "second_pgdata")
+    other.initdb()
+    other.host = "127.0.0.2"
+    other.port = pg.port
+    with other.conf_path.open("a") as pgconf:
+        pgconf.write("listen_addresses = '127.0.0.2'\n")
+        if USE_UNIX_SOCKETS:
+            pgconf.write("unix_socket_directories = ''\n")
+    other.nossl_access("all", "trust")
+    other.commit_hba()
+    other.start()
+    other.sql("CREATE DATABASE p0")
+    other.sql("CREATE USER bouncer")
+    yield other
+    other.cleanup()
+
 
 def test_cancel(bouncer):
     with bouncer.cur(dbname="p3") as cur, ThreadPoolExecutor(max_workers=2) as pool:
@@ -13,6 +34,27 @@ def test_cancel(bouncer):
 
         cancel = pool.submit(cur.connection.cancel)
         cancel.result()
+        with pytest.raises(psycopg.errors.QueryCanceled, match="due to user request"):
+            query.result()
+
+
+def test_cancel_uses_query_backend_host(bouncer, pg, second_postgres):
+    with (
+        bouncer.cur(dbname="cancel_hostlist") as cur,
+        ThreadPoolExecutor(max_workers=2) as pool,
+    ):
+        query = pool.submit(cur.execute, "SELECT pg_sleep(2)")
+
+        for _ in wait_until("query did not reach the first host"):
+            sleeping = pg.sql_value("""
+                SELECT count(*) FROM pg_stat_activity
+                WHERE usename = 'bouncer' AND datname = 'p0'
+                  AND state = 'active' AND wait_event = 'PgSleep'
+            """)
+            if sleeping == 1:
+                break
+
+        pool.submit(cur.connection.cancel).result()
         with pytest.raises(psycopg.errors.QueryCanceled, match="due to user request"):
             query.result()
 

@@ -1780,6 +1780,26 @@ cleanup:
 	free(host_copy);
 }
 
+static void connect_cancel_server(PgSocket *server, const PgSocket *canceled_server)
+{
+	const PgAddr *addr = &canceled_server->remote_addr;
+	int salen;
+
+	if (pga_family(addr) == AF_INET) {
+		salen = sizeof(addr->sin);
+	} else if (pga_family(addr) == AF_INET6) {
+		salen = sizeof(addr->sin6);
+	} else {
+		dns_connect(server);
+		return;
+	}
+
+	if (canceled_server->host)
+		server->host = xstrdup(canceled_server->host);
+
+	connect_server(server, &addr->sa, salen);
+}
+
 PgSocket *compare_connections_by_time(PgSocket *lhs, PgSocket *rhs)
 {
 	if (!lhs)
@@ -2004,6 +2024,16 @@ force_new:
 	pool->db->connection_count++;
 	if (pool->user_credentials)
 		pool->user_credentials->global_user->connection_count++;
+
+	if (!pool->db->peer_id && !statlist_empty(&pool->waiting_cancel_req_list)) {
+		PgSocket *req = first_socket(&pool->waiting_cancel_req_list);
+
+		if (req->canceled_server) {
+			/* A cancel key is valid only on the server that supplied it. */
+			connect_cancel_server(server, req->canceled_server);
+			return;
+		}
+	}
 
 	dns_connect(server);
 }

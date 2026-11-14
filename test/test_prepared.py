@@ -6,7 +6,7 @@ import pytest
 from psycopg import pq, sql
 from psycopg.rows import dict_row
 
-from .utils import LIBPQ_SUPPORTS_PIPELINING, LINUX, PKT_BUF_SIZE, USE_SUDO
+from .utils import LIBPQ_SUPPORTS_PIPELINING, LINUX, PKT_BUF_SIZE, USE_SUDO, wait_until
 
 
 def test_prepared_statement(bouncer):
@@ -327,6 +327,48 @@ def collect_pipeline_results(pgconn, max_results=20):
         if result.status == pq.ExecStatus.PIPELINE_SYNC:
             return statuses
     raise AssertionError(f"no pipeline sync after {max_results} results: {statuses}")
+
+
+@pytest.mark.skipif("not LIBPQ_SUPPORTS_PIPELINING")
+# 65,536 ParseComplete packets total 320 KiB, far beyond the test
+# configuration's 4 KiB socket buffer.
+@pytest.mark.parametrize("parse_count", [1, 65536], ids=["single", "backpressure"])
+def test_parse_flush_cached_statement(bouncer, parse_count):
+    """Flush must deliver a cached ParseComplete without waiting for Sync (#1704)."""
+    bouncer.admin("set pool_mode=transaction")
+    bouncer.admin("set default_pool_size=1")
+    bouncer.admin("set max_prepared_statements=10")
+
+    # Leave the query cached on the only server connection.
+    with bouncer.conn() as conn:
+        assert (
+            conn.pgconn.prepare(b"first", b"SELECT 1").status
+            == pq.ExecStatus.COMMAND_OK
+        )
+        assert conn.pgconn.exec_prepared(b"first", ()).status == pq.ExecStatus.TUPLES_OK
+
+    with bouncer.conn() as conn:
+        pgconn = conn.pgconn
+        pgconn.enter_pipeline_mode()
+        try:
+            for i in range(parse_count):
+                pgconn.send_prepare(str(i).encode(), b"SELECT 1")
+            pgconn.send_flush_request()
+            pgconn.flush()
+
+            for _ in range(parse_count):
+                for _ in wait_until("ParseComplete not delivered after Flush"):
+                    pgconn.consume_input()
+                    if not pgconn.is_busy():
+                        break
+
+                assert pgconn.get_result().status == pq.ExecStatus.COMMAND_OK
+                assert pgconn.get_result() is None
+        finally:
+            # Drain through Sync even when the pre-Sync response timed out.
+            pgconn.pipeline_sync()
+            collect_pipeline_results(pgconn, max_results=parse_count * 2 + 20)
+            pgconn.exit_pipeline_mode()
 
 
 # libpq before PG17 does not support sending Close messages

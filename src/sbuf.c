@@ -71,6 +71,7 @@ enum WaitType {
 /* declare static stuff */
 static bool sbuf_queue_send(SBuf *sbuf) _MUSTCHECK;
 static bool sbuf_send_pending_iobuf(SBuf *sbuf) _MUSTCHECK;
+static bool sbuf_send_pending_extra_packets(SBuf *sbuf) _MUSTCHECK;
 static bool sbuf_process_pending(SBuf *sbuf) _MUSTCHECK;
 static void sbuf_connect_cb(evutil_socket_t sock, short flags, void *arg);
 static void sbuf_recv_cb(evutil_socket_t sock, short flags, void *arg);
@@ -628,15 +629,17 @@ static bool sbuf_queue_send(SBuf *sbuf)
 }
 
 /*
- * flush all pending data in the iobuf. This should be called before calling
- * needed before calling sbuf_queue_packet.
+ * flush all pending data. This should be called before sbuf_queue_packet.
  */
 bool sbuf_flush(SBuf *sbuf)
 {
+	log_noise("sbuf_flush");
 	if (sbuf->io) {
-		log_noise("sbuf_flush");
-		return sbuf_send_pending_iobuf(sbuf);
+		if (!sbuf_send_pending_iobuf(sbuf))
+			return false;
 	}
+	if (mbuf_avail_for_read(&sbuf->extra_packets))
+		return sbuf_send_pending_extra_packets(sbuf);
 	return true;
 }
 

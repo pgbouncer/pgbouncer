@@ -93,6 +93,12 @@ enum PauseMode {
 	P_PAUSE = 1		/* wait for client to finish work */
 };
 
+enum AdminWaitType {
+	ADMIN_WAIT_NONE,
+	ADMIN_WAIT_PAUSE,
+	ADMIN_WAIT_CLOSE,
+};
+
 enum ShutDownMode {
 	/* just stay running */
 	SHUTDOWN_NONE = 0,
@@ -728,7 +734,8 @@ struct PgSocket {
 
 	bool admin_user : 1;		/* console client: has admin rights */
 	bool own_user : 1;		/* console client: client with same uid on unix socket */
-	bool wait_for_response : 1;	/* console client: waits for completion of PAUSE cmd */
+	enum AdminWaitType admin_wait;	/* console client: pending asynchronous command */
+	char pause_target[MAX_DBNAME];	/* console client: database targeted by pending PAUSE; empty for global */
 
 	bool wait_sslchar : 1;		/* server: waiting for ssl response: S/N */
 	/* server: received an ErrorResponse, waiting for ReadyForQuery to clear

@@ -998,6 +998,7 @@ static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 			return admin_error(admin, "pooler is shutting down");
 		} else if (cf_pause_mode != P_NONE) {
 			cf_pause_mode = P_NONE;
+			admin_pause_cancel("");
 		} else {
 			return admin_error(admin, "pooler is not paused");
 		}
@@ -1009,6 +1010,7 @@ static bool admin_cmd_resume(PgSocket *admin, const char *arg)
 		if (!db->db_paused)
 			return admin_error(admin, "database %s is not paused", arg);
 		db->db_paused = false;
+		admin_pause_cancel(db->name);
 	}
 	return admin_ready(admin, "RESUME");
 }
@@ -1025,7 +1027,8 @@ static bool admin_cmd_pause(PgSocket *admin, const char *arg)
 	if (!arg[0]) {
 		log_info("PAUSE command issued");
 		cf_pause_mode = P_PAUSE;
-		admin->wait_for_response = true;
+		admin->admin_wait = ADMIN_WAIT_PAUSE;
+		admin->pause_target[0] = '\0';
 	} else {
 		PgDatabase *db;
 		log_info("PAUSE '%s' command issued", arg);
@@ -1035,10 +1038,12 @@ static bool admin_cmd_pause(PgSocket *admin, const char *arg)
 		if (db == admin->pool->db)
 			return admin_error(admin, "cannot pause admin db: %s", arg);
 		db->db_paused = true;
-		if (count_db_active(db) > 0)
-			admin->wait_for_response = true;
-		else
+		if (count_db_active(db) > 0) {
+			admin->admin_wait = ADMIN_WAIT_PAUSE;
+			strlcpy(admin->pause_target, db->name, sizeof(admin->pause_target));
+		} else {
 			return admin_ready(admin, "PAUSE");
+		}
 	}
 
 	return true;
@@ -1264,7 +1269,7 @@ static bool admin_cmd_wait_close(PgSocket *admin, const char *arg)
 			active += count_db_active(db);
 		}
 		if (active > 0)
-			admin->wait_for_response = true;
+			admin->admin_wait = ADMIN_WAIT_CLOSE;
 		else
 			return admin_ready(admin, "WAIT_CLOSE");
 	} else {
@@ -1278,7 +1283,7 @@ static bool admin_cmd_wait_close(PgSocket *admin, const char *arg)
 			return admin_error(admin, "cannot wait in admin db: %s", arg);
 		db->db_wait_close = true;
 		if (count_db_active(db) > 0)
-			admin->wait_for_response = true;
+			admin->admin_wait = ADMIN_WAIT_CLOSE;
 		else
 			return admin_ready(admin, "WAIT_CLOSE");
 	}
@@ -1686,7 +1691,7 @@ void admin_pause_done(void)
 
 	statlist_for_each_safe(item, &admin_pool->active_client_list, tmp) {
 		admin = container_of(item, PgSocket, head);
-		if (!admin->wait_for_response)
+		if (admin->admin_wait != ADMIN_WAIT_PAUSE)
 			continue;
 
 		switch (cf_pause_mode) {
@@ -1706,7 +1711,29 @@ void admin_pause_done(void)
 		if (!res)
 			disconnect_client(admin, false, "dead admin");
 		else
-			admin->wait_for_response = false;
+			admin->admin_wait = ADMIN_WAIT_NONE;
+	}
+}
+
+/* answer pending PAUSE commands canceled by RESUME */
+void admin_pause_cancel(const char *target)
+{
+	struct List *item, *tmp;
+	PgSocket *admin;
+	bool res;
+
+	statlist_for_each_safe(item, &admin_pool->active_client_list, tmp) {
+		admin = container_of(item, PgSocket, head);
+		if (admin->admin_wait != ADMIN_WAIT_PAUSE)
+			continue;
+		if (strcmp(admin->pause_target, target) != 0)
+			continue;
+
+		res = admin_error(admin, "PAUSE command canceled by RESUME");
+		if (!res)
+			disconnect_client(admin, false, "dead admin");
+		else
+			admin->admin_wait = ADMIN_WAIT_NONE;
 	}
 }
 
@@ -1718,7 +1745,7 @@ void admin_wait_close_done(void)
 
 	statlist_for_each_safe(item, &admin_pool->active_client_list, tmp) {
 		admin = container_of(item, PgSocket, head);
-		if (!admin->wait_for_response)
+		if (admin->admin_wait != ADMIN_WAIT_CLOSE)
 			continue;
 
 		res = admin_ready(admin, "WAIT_CLOSE");
@@ -1726,7 +1753,7 @@ void admin_wait_close_done(void)
 		if (!res)
 			disconnect_client(admin, false, "dead admin");
 		else
-			admin->wait_for_response = false;
+			admin->admin_wait = ADMIN_WAIT_NONE;
 	}
 }
 
@@ -1734,7 +1761,7 @@ void admin_wait_close_done(void)
 void admin_handle_cancel(PgSocket *admin)
 {
 	/* weird, but no reason to fail */
-	if (!admin->wait_for_response)
+	if (admin->admin_wait == ADMIN_WAIT_NONE)
 		slog_warning(admin, "admin cancel request for non-waiting client?");
 
 	if (cf_shutdown)

@@ -1690,9 +1690,25 @@ static void dns_connect(struct PgSocket *server)
 	int sa_len;
 	int res;
 	char *host_copy = NULL;
+	const char *cancel_host = NULL;
+
+	/*
+	 * A server login that completes while cancel requests are waiting is
+	 * used to forward the first of them.  The cancel key is only valid on
+	 * the host of the canceled server, so connect to that host instead of
+	 * the next one from the host list.
+	 */
+	if (db->host && strchr(db->host, ',') && !db->peer_id) {
+		PgSocket *req = first_socket(&server->pool->waiting_cancel_req_list);
+
+		if (req && req->canceled_server && req->canceled_server->host)
+			cancel_host = req->canceled_server->host;
+	}
 
 	/* host list? */
-	if (db->host && strchr(db->host, ',')) {
+	if (cancel_host) {
+		host = cancel_host;
+	} else if (db->host && strchr(db->host, ',')) {
 		int count = 1;
 		int n;
 

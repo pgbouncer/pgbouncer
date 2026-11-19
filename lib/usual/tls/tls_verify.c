@@ -190,7 +190,7 @@ static int tls_check_subject_altname(struct tls *ctx, X509 *cert, const char *na
 
 static int tls_check_common_name(struct tls *ctx, X509 *cert, const char *name)
 {
-	X509_NAME *subject_name;
+	const X509_NAME *subject_name;
 	char *common_name = NULL;
 	union tls_addr addrbuf;
 	int common_name_len;

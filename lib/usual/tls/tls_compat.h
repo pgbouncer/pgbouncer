@@ -40,7 +40,7 @@ bool get_ecdh_curve_nid(EVP_PKEY *pk, int *nid);
 #define X509_get_key_usage(x509) ((x509)->ex_kusage)
 #define X509_get_extended_key_usage(x509) ((x509)->ex_xkusage)
 #define SSL_CTX_get0_param(ssl_ctx) ((ssl_ctx)->param)
-#define ASN1_STRING_get0_data(x) ((const unsigned char *)ASN1_STRING_data(x))
+#define ASN1_STRING_get0_data(x) ((const unsigned char *)ASN1_STRING_data((ASN1_STRING *)(x)))
 #define X509_OBJECT_get0_X509(x) ((x)->data.x509)
 
 #ifndef OPENSSL_VERSION
@@ -92,6 +92,24 @@ static inline X509_OBJECT *X509_STORE_CTX_get_obj_by_subject(X509_STORE_CTX *ctx
 #define EVP_PKEY_get0_EC_KEY(pkey) EVP_PKEY_get0(pkey)
 
 #endif /* OpenSSL <1.1 */
+
+/*
+ * OpenSSL 4.0 returns const pointers from X509_get_subject_name() etc.
+ * Older versions don't accept const pointers in all the functions we
+ * pass them on to, so cast away const there.
+ */
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+#define X509_NAME_get_index_by_NID(name, nid, lastpos) X509_NAME_get_index_by_NID((X509_NAME *)(name), nid, lastpos)
+#define X509_NAME_get_text_by_NID(name, nid, buf, len) X509_NAME_get_text_by_NID((X509_NAME *)(name), nid, buf, len)
+#define X509_find_by_subject(sk, name) X509_find_by_subject(sk, (X509_NAME *)(name))
+#define X509_STORE_CTX_get_obj_by_subject(vs, type, name) X509_STORE_CTX_get_obj_by_subject(vs, type, (X509_NAME *)(name))
+#endif
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
+#define X509_NAME_oneline(name, buf, size) X509_NAME_oneline((X509_NAME *)(name), buf, size)
+#define X509_NAME_get_entry(name, loc) X509_NAME_get_entry((X509_NAME *)(name), loc)
+#define X509_NAME_ENTRY_get_data(ne) X509_NAME_ENTRY_get_data((X509_NAME_ENTRY *)(ne))
+#define ASN1_STRING_type(x) ASN1_STRING_type((ASN1_STRING *)(x))
+#endif
 
 /* ecdh_auto is broken - ignores main EC key */
 #undef SSL_CTX_set_ecdh_auto

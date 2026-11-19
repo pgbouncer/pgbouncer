@@ -1679,16 +1679,12 @@ static void dns_callback(void *arg, const struct sockaddr *sa, int salen)
 	connect_server(server, sa, salen);
 }
 
+static void connect_host(struct PgSocket *server, const char *host);
+
 static void dns_connect(struct PgSocket *server)
 {
-	struct sockaddr_un sa_un;
-	struct sockaddr_in sa_in;
-	struct sockaddr_in6 sa_in6;
-	struct sockaddr *sa;
 	struct PgDatabase *db = server->pool->db;
 	const char *host;
-	int sa_len;
-	int res;
 	char *host_copy = NULL;
 
 	/* host list? */
@@ -1715,6 +1711,20 @@ static void dns_connect(struct PgSocket *server)
 		host = db->host;
 	}
 
+	connect_host(server, host);
+	free(host_copy);
+}
+
+static void connect_host(struct PgSocket *server, const char *host)
+{
+	struct sockaddr_un sa_un;
+	struct sockaddr_in sa_in;
+	struct sockaddr_in6 sa_in6;
+	struct sockaddr *sa;
+	struct PgDatabase *db = server->pool->db;
+	int sa_len;
+	int res;
+
 	if (host) {
 		server->host = xstrdup(host);
 	}
@@ -1728,7 +1738,7 @@ static void dns_connect(struct PgSocket *server)
 		if (!unix_dir || !*unix_dir) {
 			log_error("unix socket dir not configured: %s", db->name);
 			disconnect_server(server, false, "cannot connect");
-			goto cleanup;
+			return;
 		}
 		snprintf(sa_un.sun_path, sizeof(sa_un.sun_path),
 			 "%s/.s.PGSQL.%d", unix_dir, db->port);
@@ -1772,12 +1782,10 @@ static void dns_connect(struct PgSocket *server)
 		tk = adns_resolve(adns, host, dns_callback, server);
 		if (tk)
 			server->dns_token = tk;
-		goto cleanup;
+		return;
 	}
 
 	connect_server(server, sa, sa_len);
-cleanup:
-	free(host_copy);
 }
 
 static void connect_cancel_server(PgSocket *server, const PgSocket *canceled_server)
@@ -1790,7 +1798,8 @@ static void connect_cancel_server(PgSocket *server, const PgSocket *canceled_ser
 	} else if (pga_family(addr) == AF_INET6) {
 		salen = sizeof(addr->sin6);
 	} else {
-		dns_connect(server);
+		/* remote_addr keeps no Unix socket path */
+		connect_host(server, canceled_server->host);
 		return;
 	}
 

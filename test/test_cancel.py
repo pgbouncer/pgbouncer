@@ -103,6 +103,18 @@ def test_cancel_uses_query_backend_host(bouncer, pg, second_postgres):
     assert_cancel_reaches_query_backend(bouncer, pg, "cancel_hostlist")
 
 
+@pytest.mark.skipif(not USE_UNIX_SOCKETS, reason="needs Unix sockets")
+def test_cancel_uses_query_backend_unix_socket(bouncer, pg, second_unix_postgres):
+    bouncer.write_ini(
+        "[databases]\n"
+        f"cancel_unix_hostlist = port={pg.port} host=/tmp,{second_unix_postgres.host}"
+        " dbname=p0 user=bouncer pool_mode=session"
+    )
+    bouncer.admin("reload")
+    assert_cancel_reaches_query_backend(bouncer, pg, "cancel_unix_hostlist")
+    assert second_unix_postgres.connection_count() == 0
+
+
 CANCEL_REQUEST_CODE = 80877102
 
 

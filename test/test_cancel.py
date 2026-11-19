@@ -95,6 +95,10 @@ def assert_cancel_reaches_query_backend(bouncer, pg, dbname):
             query.result()
 
 
+def test_cancel_uses_query_backend_host(bouncer, pg, second_postgres):
+    assert_cancel_reaches_query_backend(bouncer, pg, "cancel_hostlist")
+
+
 # Test for waiting connections handling for cancel requests.
 #
 # The bug fixed by GH PR #542 was: When the connection pool is full,

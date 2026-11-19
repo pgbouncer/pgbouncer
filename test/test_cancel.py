@@ -1,8 +1,65 @@
 import time
 from concurrent.futures import ThreadPoolExecutor
+from tempfile import TemporaryDirectory
 
 import psycopg
 import pytest
+
+from .utils import (
+    MACOS,
+    USE_SUDO,
+    USE_UNIX_SOCKETS,
+    Postgres,
+    sudo,
+    wait_until,
+)
+
+
+def start_second_postgres(pg, tmp_path, host, conf):
+    """Start another server on pg's port, reachable only at host"""
+    other = Postgres(tmp_path / "second_pgdata")
+    other.initdb()
+    other.host = host
+    other.port = pg.port
+    with other.conf_path.open("a") as pgconf:
+        pgconf.write(conf)
+    other.nossl_access("all", "trust")
+    with other.hba_path.open("a") as pghba:
+        # macOS connects to a loopback alias from that same address
+        pghba.write("hostnossl all all samehost trust\n")
+    other.commit_hba()
+    other.start()
+    other.sql("CREATE DATABASE p0")
+    other.sql("CREATE USER bouncer")
+    return other
+
+
+@pytest.fixture
+def second_postgres(pg, tmp_path):
+    conf = "listen_addresses = '127.0.0.2'\n"
+    if USE_UNIX_SOCKETS:
+        conf += "unix_socket_directories = ''\n"
+    if MACOS:
+        if not USE_SUDO:
+            pytest.skip("macOS assigns only 127.0.0.1 to lo0")
+        sudo("ifconfig lo0 alias 127.0.0.2 up")
+    try:
+        other = start_second_postgres(pg, tmp_path, "127.0.0.2", conf)
+        yield other
+        other.cleanup()
+    finally:
+        if MACOS:
+            sudo("ifconfig lo0 -alias 127.0.0.2")
+
+
+@pytest.fixture
+def second_unix_postgres(pg, tmp_path):
+    # tmp_path is too long for a socket path on macOS
+    with TemporaryDirectory(dir="/tmp") as socket_dir:
+        conf = f"listen_addresses = ''\nunix_socket_directories = '{socket_dir}'\n"
+        other = start_second_postgres(pg, tmp_path, socket_dir, conf)
+        yield other
+        other.cleanup()
 
 
 def test_cancel(bouncer):
@@ -13,6 +70,27 @@ def test_cancel(bouncer):
 
         cancel = pool.submit(cur.connection.cancel)
         cancel.result()
+        with pytest.raises(psycopg.errors.QueryCanceled, match="due to user request"):
+            query.result()
+
+
+def assert_cancel_reaches_query_backend(bouncer, pg, dbname):
+    with (
+        bouncer.cur(dbname=dbname) as cur,
+        ThreadPoolExecutor(max_workers=2) as pool,
+    ):
+        query = pool.submit(cur.execute, "SELECT pg_sleep(2)")
+
+        for _ in wait_until("query did not reach the first host"):
+            sleeping = pg.sql_value("""
+                SELECT count(*) FROM pg_stat_activity
+                WHERE usename = 'bouncer' AND datname = 'p0'
+                  AND state = 'active' AND wait_event = 'PgSleep'
+            """)
+            if sleeping == 1:
+                break
+
+        pool.submit(cur.connection.cancel).result()
         with pytest.raises(psycopg.errors.QueryCanceled, match="due to user request"):
             query.result()
 

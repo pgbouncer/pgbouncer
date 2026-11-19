@@ -2293,14 +2293,44 @@ found:
 	launch_new_connection(pool, /* evict_if_needed= */ true);
 }
 
-void forward_cancel_request(PgSocket *server)
+/* Does server reach the backend running the query that req cancels? */
+static bool cancel_req_matches_server(PgSocket *req, PgSocket *server)
+{
+	PgSocket *canceled_server = req->canceled_server;
+
+	/* peers get the client's own key, and idle targets are dropped below */
+	if (server->pool->db->peer_id || !canceled_server)
+		return true;
+
+	if (pga_is_unix(&server->remote_addr) || pga_is_unix(&canceled_server->remote_addr)) {
+		return pga_is_unix(&server->remote_addr) && pga_is_unix(&canceled_server->remote_addr) &&
+		       strcmpeq(server->host, canceled_server->host);
+	}
+
+	return pga_cmp_addr(&server->remote_addr, &canceled_server->remote_addr) == 0;
+}
+
+/* Forward a waiting cancel request meant for server's backend, if any. */
+bool forward_cancel_request(PgSocket *server)
 {
 	bool res;
-	PgSocket *req = first_socket(&server->pool->waiting_cancel_req_list);
+	struct List *item;
+	PgSocket *req = NULL;
 	bool forwarding_to_peer = server->pool->db->peer_id != 0;
 
-	Assert(req != NULL && req->state == CL_WAITING_CANCEL);
+	statlist_for_each(item, &server->pool->waiting_cancel_req_list) {
+		PgSocket *candidate = container_of(item, PgSocket, head);
+		if (cancel_req_matches_server(candidate, server)) {
+			req = candidate;
+			break;
+		}
+	}
+	if (!req)
+		return false;
+
+	Assert(req->state == CL_WAITING_CANCEL);
 	Assert(server->state == SV_LOGIN);
+	slog_debug(server, "use it for pending cancel req");
 
 	server->link = req;
 	req->link = server;
@@ -2316,7 +2346,7 @@ void forward_cancel_request(PgSocket *server)
 		 */
 		if (!req->canceled_server) {
 			disconnect_client(req, false, "not sending cancel request for client that is now idle");
-			return;
+			return true;
 		}
 	}
 
@@ -2328,14 +2358,14 @@ void forward_cancel_request(PgSocket *server)
 	if (!res) {
 		slog_warning(req, "sending cancel request failed: %s", strerror(errno));
 		disconnect_client(req, false, "failed to send cancel request");
-		return;
+		return true;
 	}
 	slog_debug(req, "started sending cancel request");
 
 	change_client_state(req, CL_ACTIVE_CANCEL);
 	change_server_state(server, SV_ACTIVE_CANCEL);
 	sbuf_continue(&server->sbuf);
-	return;
+	return true;
 }
 
 void for_each_server(PgPool *pool, void (*func)(PgSocket *sk))

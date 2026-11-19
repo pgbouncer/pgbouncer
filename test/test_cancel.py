@@ -1,11 +1,15 @@
+import socket
+import struct
 import time
 from concurrent.futures import ThreadPoolExecutor
 from tempfile import TemporaryDirectory
 
 import psycopg
 import pytest
+from psycopg.rows import dict_row
 
 from .utils import (
+    LINUX,
     MACOS,
     USE_SUDO,
     USE_UNIX_SOCKETS,
@@ -97,6 +101,61 @@ def assert_cancel_reaches_query_backend(bouncer, pg, dbname):
 
 def test_cancel_uses_query_backend_host(bouncer, pg, second_postgres):
     assert_cancel_reaches_query_backend(bouncer, pg, "cancel_hostlist")
+
+
+CANCEL_REQUEST_CODE = 80877102
+
+
+@pytest.mark.skipif(
+    not LINUX, reason="relies on Linux dropping SYNs to a full listen queue"
+)
+def test_cancel_not_forwarded_to_other_host(bouncer, pg):
+    """A connection launched for another host must not carry the cancel."""
+    bouncer.admin("set server_login_retry=1")
+
+    # Stand in for the second host. Filling its one-slot accept queue makes
+    # the kernel drop PgBouncer's SYN, so that connection stays in progress
+    # until the filler is accepted.
+    listener = socket.create_server(("127.0.0.2", pg.port), backlog=0)
+    filler = socket.create_connection(("127.0.0.2", pg.port))
+
+    with (
+        listener,
+        filler,
+        bouncer.cur(dbname="cancel_hostlist") as cur,
+        bouncer.cur(dbname="cancel_hostlist") as other_cur,
+        ThreadPoolExecutor(max_workers=3) as pool,
+    ):
+        query = pool.submit(cur.execute, "SELECT pg_sleep(5)")
+        for _ in wait_until("query did not reach the first host"):
+            if pg.sql_value(
+                "SELECT count(*) FROM pg_stat_activity WHERE wait_event = 'PgSleep'"
+            ):
+                break
+
+        # Round robin sends the next server connection to the second host.
+        pool.submit(other_cur.execute, "SELECT 1")
+        for _ in wait_until("no connection in progress to the second host"):
+            servers = bouncer.admin("SHOW SERVERS", row_factory=dict_row)
+            if any(s["state"] == "new" and s["addr"] == "127.0.0.2" for s in servers):
+                break
+
+        cancel = pool.submit(cur.connection.cancel)
+        for _ in wait_until("cancel request was not queued"):
+            pools = bouncer.admin("SHOW POOLS", row_factory=dict_row)
+            if any(p["cl_waiting_cancel_req"] == 1 for p in pools):
+                break
+
+        listener.accept()[0].close()  # frees the slot taken by the filler
+        listener.settimeout(10)
+        conn, _ = listener.accept()
+        with conn:
+            _, code = struct.unpack("!ii", conn.recv(8, socket.MSG_WAITALL))
+        assert code != CANCEL_REQUEST_CODE, "cancel was sent to the wrong host"
+
+        cancel.result()
+        with pytest.raises(psycopg.errors.QueryCanceled, match="due to user request"):
+            query.result()
 
 
 # Test for waiting connections handling for cancel requests.

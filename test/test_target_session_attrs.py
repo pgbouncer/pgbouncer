@@ -252,6 +252,7 @@ def test_rejected_server_parameters_are_not_cached(bouncer, target_replica):
     assert len(names) == len(set(names))
     assert dict(parameters)["in_hot_standby"] == "off"
     assert dict(parameters)["default_transaction_read_only"] == "off"
+    assert dict(parameters)["pgbouncer.version"] == bouncer.version()
 
 
 def terminate_idle_server(bouncer, pg, dbname):

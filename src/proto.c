@@ -339,6 +339,14 @@ bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 	if (pool->welcome_msg_ready)
 		return true;
 
+	/* A target mismatch discards the pool's partial welcome message. */
+	if (!msg) {
+		msg = new_welcome_msg();
+		if (!msg)
+			return false;
+		pool->welcome_msg = msg;
+	}
+
 	/* if not stored in ->orig_vars, write full packet */
 	if (!varcache_set(&pool->orig_vars, key, val))
 		pktbuf_write_ParameterStatus(msg, key, val);

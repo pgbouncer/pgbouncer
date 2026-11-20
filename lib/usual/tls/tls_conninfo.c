@@ -90,7 +90,7 @@ err:
 
 static int tls_get_peer_cert_issuer(struct tls *ctx, char **issuer)
 {
-	X509_NAME *name = NULL;
+	const X509_NAME *name = NULL;
 
 	*issuer = NULL;
 	if (ctx->ssl_peer_cert == NULL)
@@ -105,7 +105,7 @@ static int tls_get_peer_cert_issuer(struct tls *ctx, char **issuer)
 
 static int tls_get_peer_cert_subject(struct tls *ctx, char **subject)
 {
-	X509_NAME *name = NULL;
+	const X509_NAME *name = NULL;
 
 	*subject = NULL;
 	if (ctx->ssl_peer_cert == NULL)

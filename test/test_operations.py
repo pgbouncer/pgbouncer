@@ -4,7 +4,7 @@ import time
 import psycopg
 import pytest
 
-from .utils import WINDOWS
+from .utils import PG_MAJOR_VERSION, WINDOWS, wait_until
 
 
 async def test_pause_resume(bouncer):
@@ -57,6 +57,70 @@ async def test_database_restart(pg, bouncer):
             pass
     bouncer.test(dbname="p0")
     bouncer.test(dbname="p1")
+
+
+def in_hot_standby(bouncer):
+    # Only look at the value from the login, a query would update it
+    with bouncer.conn(dbname="p3") as conn:
+        return conn.info.parameter_status("in_hot_standby")
+
+
+def wait_for_in_hot_standby(bouncer, value, timeout=5):
+    for _ in wait_until(f"in_hot_standby={value} not reported", timeout=timeout):
+        try:
+            if in_hot_standby(bouncer) == value:
+                return
+        except psycopg.OperationalError:
+            pass
+
+
+def restart_as_standby(pg, bouncer):
+    pg.stop()
+    (pg.pgdata / "standby.signal").touch()
+    pg.start()
+    # A query replaces the server connections that the restart killed, the
+    # new server login reports in_hot_standby=on
+    for _ in wait_until("PgBouncer did not reconnect"):
+        try:
+            bouncer.test(dbname="p3")
+            break
+        except psycopg.OperationalError:
+            pass
+
+
+@pytest.mark.skipif(PG_MAJOR_VERSION < 14, reason="in_hot_standby was added in PG14")
+def test_in_hot_standby_after_promote(pg, bouncer):
+    """
+    New clients must not keep getting a cached in_hot_standby=on after the
+    server got promoted. PgBouncer picks up the new value from new server
+    logins and from existing server connections running a query.
+    """
+    bouncer.admin("set server_login_retry=1")
+    try:
+        # Promotion while the pooled server connection stays open
+        restart_as_standby(pg, bouncer)
+        wait_for_in_hot_standby(bouncer, "on")
+        pg.sql("SELECT pg_promote()")
+        bouncer.test(dbname="p3")
+        assert in_hot_standby(bouncer) == "off"
+
+        # Promotion where all the server connections are closed
+        restart_as_standby(pg, bouncer)
+        wait_for_in_hot_standby(bouncer, "on")
+        pg.sql("SELECT pg_promote()")
+        pg.sql(
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE usename = 'bouncer'"
+        )
+        for _ in wait_until("PgBouncer did not reconnect"):
+            try:
+                bouncer.test(dbname="p3")
+                break
+            except psycopg.OperationalError:
+                pass
+        assert in_hot_standby(bouncer) == "off"
+    finally:
+        if pg.sql_value("SELECT pg_is_in_recovery()"):
+            pg.sql("SELECT pg_promote()")
 
 
 def test_database_change(bouncer):

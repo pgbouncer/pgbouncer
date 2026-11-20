@@ -1,11 +1,14 @@
 import asyncio
+import socket
+import struct
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
 import psycopg
 import pytest
 
-from .utils import LINUX, Bouncer
+from .utils import LINUX, Bouncer, wait_until
 
 if not LINUX:
     pytest.skip(allow_module_level=True, reason="peering tests require so_reuseport")
@@ -136,3 +139,136 @@ async def test_rolling_restart_sigterm(peers):
     # Now that the connection is closed, peer[1] should exit automatically.
     await peers[1].wait_for_exit()
     assert not peers[1].running()
+
+
+@pytest.fixture
+async def separate_peers(pg, tmp_path):
+    # Two peers that each have their own port, so that a cancel request can be
+    # sent to a specific peer. Peers are reached over TCP, like they would be
+    # when they run on different hosts.
+    peers: dict[int, Bouncer] = {
+        1: Bouncer(pg, tmp_path / "bouncer1"),
+        2: Bouncer(pg, tmp_path / "bouncer2"),
+    }
+
+    for own_index, bouncer in peers.items():
+        with bouncer.ini_path.open("a") as f:
+            f.write(f"peer_id={own_index}\n")
+            f.write("max_client_conn=200\n")
+            f.write("default_pool_size=40\n")
+            f.write("[peers]\n")
+            for other_index, peer in peers.items():
+                if own_index == other_index:
+                    continue
+                f.write(f"{other_index} = host=127.0.0.1 port={peer.port}\n")
+
+    await asyncio.gather(*[p.start() for p in peers.values()])
+
+    yield peers
+
+    await asyncio.gather(*[p.cleanup() for p in peers.values()])
+
+
+def read_exactly(sock, n):
+    data = b""
+    while len(data) < n:
+        chunk = sock.recv(n - len(data))
+        if not chunk:
+            raise EOFError("connection closed")
+        data += chunk
+    return data
+
+
+def read_message(sock):
+    msg_type = read_exactly(sock, 1)
+    (length,) = struct.unpack("!I", read_exactly(sock, 4))
+    return msg_type, read_exactly(sock, length - 4)
+
+
+def raw_connect(bouncer):
+    """Connect using the raw protocol and return (socket, cancel key)"""
+    sock = socket.create_connection(("127.0.0.1", bouncer.port), timeout=30)
+    params = b"user\x00bouncer\x00database\x00p3\x00\x00"
+    sock.sendall(struct.pack("!II", 8 + len(params), 196608) + params)
+    key = None
+    while True:
+        msg_type, payload = read_message(sock)
+        if msg_type == b"K":
+            key = payload
+        elif msg_type == b"Z":
+            break
+        elif msg_type == b"E":
+            raise RuntimeError(f"login failed: {payload!r}")
+    assert key is not None
+    return sock, key
+
+
+def send_query(sock, query):
+    payload = query.encode() + b"\x00"
+    sock.sendall(b"Q" + struct.pack("!I", 4 + len(payload)) + payload)
+
+
+def send_cancel(bouncer, key):
+    with socket.create_connection(("127.0.0.1", bouncer.port), timeout=30) as sock:
+        sock.sendall(struct.pack("!II", 8 + len(key), 80877102) + key)
+        # PgBouncer closes the connection once the request was handled (or
+        # when it gave up on it)
+        assert sock.recv(1) == b""
+
+
+def query_error_code(sock):
+    """Read until the query is done, return the SQLSTATE of its error (if any)"""
+    code = None
+    while True:
+        msg_type, payload = read_message(sock)
+        if msg_type == b"E":
+            fields = payload.split(b"\x00")
+            code = next(f[1:] for f in fields if f.startswith(b"C")).decode()
+        elif msg_type == b"Z":
+            return code
+
+
+def test_concurrent_peer_cancel(separate_peers, pg):
+    # Cancel requests that were sent to the wrong peer have to be forwarded to
+    # the right one. Only one connection attempt per peer pool is in progress
+    # at a time, so when many requests arrive at once, the others should be
+    # picked up afterwards instead of waiting until cancel_wait_timeout (10
+    # seconds by default).
+    per_peer = 12
+    clients = []
+    try:
+        for owner in (1, 2):
+            for _ in range(per_peer):
+                sock, key = raw_connect(separate_peers[owner])
+                clients.append((owner, sock, key))
+        for _, sock, _ in clients:
+            send_query(sock, "select pg_sleep(20)")
+
+        for _ in wait_until("queries did not reach pg_sleep"):
+            sleeping = pg.sql_value("""
+                SELECT count(*) FROM pg_stat_activity
+                WHERE usename = 'bouncer' AND datname = 'p0'
+                  AND state = 'active' AND wait_event = 'PgSleep'
+            """)
+            if sleeping == len(clients):
+                break
+
+        # Send every cancel request to the peer that does not own the query,
+        # all at the same moment.
+        barrier = threading.Barrier(len(clients))
+
+        def cancel(owner, key):
+            barrier.wait()
+            send_cancel(separate_peers[3 - owner], key)
+
+        start = time.monotonic()
+        with ThreadPoolExecutor(max_workers=len(clients)) as pool:
+            cancels = [pool.submit(cancel, owner, key) for owner, _, key in clients]
+            for c in cancels:
+                c.result()
+        for _, sock, _ in clients:
+            assert query_error_code(sock) == "57014"
+        assert time.monotonic() - start < 5
+    finally:
+        for _, sock, _ in clients:
+            sock.close()

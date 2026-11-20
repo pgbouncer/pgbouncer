@@ -285,6 +285,17 @@ void per_loop_maint(void)
 		}
 	}
 
+	/*
+	 * Only one connection attempt per pool is in progress at a time, so
+	 * queued cancel requests for peers need to be retried once the earlier
+	 * attempt has finished, just like it is done for regular pools above.
+	 */
+	statlist_for_each(item, &peer_pool_list) {
+		pool = container_of(item, PgPool, head);
+		if (!statlist_empty(&pool->waiting_cancel_req_list))
+			launch_new_connection(pool, /* evict_if_needed= */ true);
+	}
+
 	switch (cf_pause_mode) {
 	case P_PAUSE:
 		if (!active_count)

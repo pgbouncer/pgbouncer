@@ -23,7 +23,7 @@ Compilation depends on a few things:
 
 * [Libevent] 2.0+
 * [pkg-config]
-* [OpenSSL] 1.0.1+ for TLS support
+* [OpenSSL] 1.1.1+ for TLS support
 * a C11-capable C compiler
 * (optional) [c-ares] as alternative to Libevent's evdns
 * (optional) LDAP libraries

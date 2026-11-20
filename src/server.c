@@ -702,21 +702,21 @@ static bool handle_connect(PgSocket *server)
 	}
 
 	/*
-	 * If there are cancel requests waiting we first handle those. By handling
-	 * these first we reduce the load on the server and we a server connection
-	 * might actually become free to use for queries, because its query got
-	 * canceled.
+	 * If a cancel request is waiting for this server's backend we first
+	 * handle that. By handling these first we reduce the load on the server
+	 * and we a server connection might actually become free to use for
+	 * queries, because its query got canceled. A cancel key is only valid on
+	 * the backend that issued it, so other cancel requests keep waiting.
 	 *
-	 * Only if there are no cancel requests we proceed with the login procedure
-	 * that's necessary to handle queries. Cancel requests need to be sent
-	 * before the login procedure starts.
+	 * Only if no cancel request is for this server we proceed with the login
+	 * procedure that's necessary to handle queries. Cancel requests need to be
+	 * sent before the login procedure starts.
 	 *
 	 * A special case is when this is a peer pool, instead of a regular pool.
 	 * Since only cancellation requests should be sent to peers.
 	 */
-	if (!statlist_empty(&pool->waiting_cancel_req_list)) {
-		slog_debug(server, "use it for pending cancel req");
-		forward_cancel_request(server);
+	if (forward_cancel_request(server)) {
+		/* the connection now belongs to the cancel request */
 	} else if (pool->db->peer_id) {
 		/* notify disconnect_server() that connect did not fail */
 		server->ready = true;

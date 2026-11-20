@@ -670,10 +670,24 @@ static void cleanup_inactive_pools(void)
 {
 	struct List *item, *tmp;
 	PgPool *pool;
+	PgSocket *client;
 	usec_t now = get_cached_time();
 
 	if (cf_pool_idle_timeout <= 0)
 		return;
+
+	/*
+	 * A client that is still logging in already points at its pool through
+	 * client->pool, but pool_client_count() does not count it yet. Treat
+	 * such a pool as active, so that a client in the middle of e.g. a SCRAM
+	 * exchange is not disconnected by kill_pool() just because the pool was
+	 * idle before it arrived.
+	 */
+	statlist_for_each(item, &login_client_list) {
+		client = container_of(item, PgSocket, head);
+		if (client->pool)
+			client->pool->last_active_time = now;
+	}
 
 	statlist_for_each_safe(item, &pool_list, tmp) {
 		pool = container_of(item, PgPool, head);

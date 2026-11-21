@@ -584,6 +584,14 @@ struct PgGlobalUser {
 	int max_user_client_connections;	/* how many client connections are allowed */
 	int connection_count;	/* how many server connections are used by user now */
 	int client_connection_count;	/* how many client connections are used by user now */
+
+	/*
+	 * Whether this user is stale with respect to the auth_file load in
+	 * progress. Set for every known user before (re)loading the file and
+	 * cleared again for each user found in it, so that users which disappeared
+	 * from the file (still stale afterwards) can be invalidated.
+	 */
+	bool stale;
 };
 
 /*

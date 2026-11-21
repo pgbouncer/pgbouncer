@@ -150,6 +150,57 @@ def test_auth_dbname_with_auto_database(bouncer):
 
 
 @pytest.mark.md5
+def test_auth_query_user_freed_with_auto_database(bouncer):
+    """
+    A user that is only known from auth_query is freed together with the
+    last database that looked it up, so that every user name seen through
+    an auto-database does not stay in memory until restart.
+    """
+    with bouncer.ini_path.open() as f:
+        original = f.read()
+    with bouncer.ini_path.open("w") as f:
+        # uncomment the auto-database line
+        f.write(re.sub(r"^;\* = ", "* = ", original, flags=re.MULTILINE))
+    bouncer.admin("reload")
+    bouncer.admin("set auth_user='pswcheck'")
+    bouncer.admin(f"set auth_type='md5'")
+    bouncer.admin("set server_idle_timeout=1")
+    bouncer.admin("set autodb_idle_timeout=1")
+
+    def user_count():
+        return dict(bouncer.admin("show lists"))["users"]
+
+    def drop_count():
+        return bouncer.log_path.read_text().count("dropping database 'postgres'")
+
+    def wait_for_auto_database_drop():
+        drops = drop_count()
+        for _ in wait_until("auto-database was not dropped"):
+            if drop_count() > drops:
+                break
+
+    users = user_count()
+
+    # postgres is not defined in test.ini, so it becomes an auto-database
+    bouncer.test(dbname="postgres", user="someuser", password="anypasswd")
+    assert user_count() == users + 1
+    wait_for_auto_database_drop()
+    assert user_count() == users
+
+    # The user is kept while another database still has its credentials.
+    bouncer.test(dbname="authdb", user="someuser", password="anypasswd")
+    bouncer.test(dbname="postgres", user="someuser", password="anypasswd")
+    assert user_count() == users + 1
+    wait_for_auto_database_drop()
+    assert user_count() == users + 1
+
+    # A user from auth_file is not freed.
+    bouncer.test(dbname="postgres", user="pswcheck", password="pgbouncer-check")
+    wait_for_auto_database_drop()
+    assert user_count() == users + 1
+
+
+@pytest.mark.md5
 def test_unconfigured_auth_database_with_auto_database(bouncer):
     """
     Tests the scenario where the authentication database does not

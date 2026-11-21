@@ -684,6 +684,7 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
 	uint32_t length;
 	const char *username, *password;
 	PgCredentials credentials;
+	PgGlobalUser *old_global_user;
 	PgSocket *server = client->link;
 
 	switch (pkt->type) {
@@ -747,7 +748,18 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
 		memcpy(credentials.passwd, password, length);
 
 		slog_debug(client, "successfully parsed auth_query response for user %s", credentials.name);
+		old_global_user = client->login_user_credentials ? client->login_user_credentials->global_user : NULL;
 		client->login_user_credentials = add_dynamic_credentials(client->db, credentials.name, credentials.passwd);
+		/*
+		 * auth_query may return another user than the one the client
+		 * was counted on, or allocation may fail. Move the count.
+		 */
+		if (client->user_connection_counted &&
+		    (!client->login_user_credentials || client->login_user_credentials->global_user != old_global_user)) {
+			client->user_connection_counted = 0;
+			old_global_user->client_connection_count--;
+			free_global_user_if_unused(old_global_user);
+		}
 		if (!check_user_connection_count(client)) {
 			return false;
 		}
@@ -768,7 +780,15 @@ bool handle_auth_query_response(PgSocket *client, PktHdr *pkt)
 		break;
 	case PqMsg_ReadyForQuery:
 		sbuf_prepare_skip(&client->link->sbuf, pkt->len);
-		if (!client->login_user_credentials) {
+		/*
+		 * If auth_query returned no row, the client may still hold the
+		 * credentials of a global user created by auth_query for another
+		 * database. Don't build a pool on them: that user is freed once
+		 * no database holds its credentials anymore.
+		 */
+		if (!client->login_user_credentials ||
+		    (client->login_user_credentials == &client->login_user_credentials->global_user->credentials &&
+		     client->login_user_credentials->global_user->dynamic)) {
 			if (cf_log_connections)
 				slog_info(client, "login failed: db=%s", client->db->name);
 			/*

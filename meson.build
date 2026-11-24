@@ -496,6 +496,10 @@ warning_flags = [
 ]
 add_project_arguments(cc.get_supported_arguments(warning_flags), language: 'c')
 
+# Treat only true flexible array members ([]) as variable length.
+add_project_arguments(cc.get_supported_arguments(['-fstrict-flex-arrays=3']),
+                      language: 'c')
+
 # ----------------------------------------------------------------------
 # Sources
 #

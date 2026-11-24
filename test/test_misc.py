@@ -1224,3 +1224,14 @@ async def test_session_authorization_tracked(bouncer):
         cur1.execute("RESET SESSION AUTHORIZATION")
         assert cur1.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"
         assert cur2.execute("SHOW session_authorization").fetchone()[0] == "pswcheck"
+
+
+@pytest.mark.skipif(not USE_UNIX_SOCKETS, reason="needs Unix sockets")
+def test_unix_socket_buffer(bouncer):
+    # unix_socket_buffer applies to every Unix socket accepted or opened after
+    # it is set. A result much larger than the buffer still arrives whole.
+    bouncer.admin("set unix_socket_buffer = 1048576")
+    size = 4 * 1024 * 1024
+    assert len(bouncer.sql_value(f"select repeat('x', {size})")) == size
+    bouncer.admin("set unix_socket_buffer = 0")
+

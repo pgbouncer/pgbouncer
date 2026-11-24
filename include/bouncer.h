@@ -904,6 +904,7 @@ extern int cf_tcp_keepcnt;
 extern int cf_tcp_keepidle;
 extern int cf_tcp_keepintvl;
 extern int cf_tcp_socket_buffer;
+extern int cf_unix_socket_buffer;
 extern int cf_tcp_defer_accept;
 extern int cf_tcp_user_timeout;
 

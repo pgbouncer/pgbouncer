@@ -202,6 +202,13 @@
 #define _DEPRECATED
 #endif
 
+/** Flexible array member has number of elements given by field */
+#if __has_attribute(counted_by)
+#define _COUNTED_BY(field) __attribute__((counted_by(field)))
+#else
+#define _COUNTED_BY(field)
+#endif
+
 /** Check printf-style format and arg sanity */
 #if _COMPILER_GNUC(4, 0) || __has_attribute(printf)
 #ifdef __MINGW32__

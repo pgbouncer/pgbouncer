@@ -30,6 +30,10 @@
 
 struct StrSetNode {
 	unsigned int s_len;
+	/*
+	 * Not _COUNTED_BY(s_len), because the array has s_len + 1 elements
+	 * including the terminating zero.
+	 */
 	char s_val[FLEX_ARRAY];
 };
 

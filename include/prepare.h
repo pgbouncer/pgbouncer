@@ -14,7 +14,7 @@ typedef struct PgPreparedStatement {
 	size_t query_and_parameters_len;
 	uint8_t stmt_name_len;
 	char stmt_name[MAX_SERVER_PREPARED_STMT_NAME];
-	char query_and_parameters[];	/* varying length */
+	_COUNTED_BY(query_and_parameters_len) char query_and_parameters[];	/* varying length */
 } PgPreparedStatement;
 
 /* Client session prepared statements */

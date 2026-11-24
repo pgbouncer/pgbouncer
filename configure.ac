@@ -187,6 +187,15 @@ AC_USUAL_DEBUG
 AC_USUAL_CASSERT
 AC_USUAL_WERROR
 
+dnl Treat only true flexible array members ([]) as variable length.
+AC_MSG_CHECKING([whether $CC supports -fstrict-flex-arrays=3])
+old_CFLAGS="$CFLAGS"
+CFLAGS="$CFLAGS -fstrict-flex-arrays=3"
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])],
+  [AC_MSG_RESULT([yes])],
+  [AC_MSG_RESULT([no])
+   CFLAGS="$old_CFLAGS"])
+
 PACKAGE_VERSION_4B=`echo "${PACKAGE_VERSION}.0" | sed -e 's/\./,/g'`
 AC_DEFINE_UNQUOTED(PACKAGE_VERSION_4B, [$PACKAGE_VERSION_4B],
                    [Define to the version of this package for Windows resource file (1,2,3,4).])dnl

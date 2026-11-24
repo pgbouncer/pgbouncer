@@ -23,7 +23,7 @@
 struct DigestContext {
 	const struct DigestInfo *impl;
 	CxMem *cx;
-	uint64_t state[1];
+	uint64_t state[FLEX_ARRAY];
 };
 
 struct DigestContext *digest_new(const struct DigestInfo *impl, CxMem *cx)

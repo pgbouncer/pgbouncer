@@ -715,6 +715,8 @@ mode (in transaction pooling mode, the transaction must complete, in statement m
 the statement must complete, and in session pooling mode the client must disconnect).
 The command will not return before all server connections have been disconnected.
 To be used at the time of database restart.
+A matching **RESUME** issued before the pause completes cancels the pending
+**PAUSE**, which then returns an error.
 
 If database name is given, only that database will be paused.
 

@@ -1590,7 +1590,7 @@ struct JsonValue *json_new_float(struct JsonContext *ctx, double val)
 
 	/* check if value survives JSON roundtrip */
 	if (!isfinite(val))
-		return false;
+		return NULL;
 
 	jv = mk_value(ctx, JSON_FLOAT, 0, false);
 	if (jv)

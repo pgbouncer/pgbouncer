@@ -76,6 +76,9 @@ struct SBuf {
 	uint8_t wait_type;	/* track wait state */
 	uint8_t pkt_action;	/* method for handling current pkt */
 	uint8_t tls_state;	/* progress of tls */
+	bool tls_alpn_required;	/* true when this is a direct-TLS connection
+				* (ALPN "postgresql" must be verified after
+				* the handshake); false on STARTTLS paths */
 
 	int sock;		/* fd for this socket */
 
@@ -115,10 +118,17 @@ extern int client_accept_sslmode;
  * Same as client_accept_sslmode, but for server connections.
  */
 extern int server_connect_sslmode;
+/*
+ * Mirrors cf_server_tls_direct after a successful sbuf_tls_setup().
+ * When non-zero, server connections skip the SSLRequest negotiation and
+ * initiate a direct TLS handshake immediately after TCP connect.
+ */
+extern int server_connect_tls_direct;
 
 bool sbuf_tls_setup(void);
 bool sbuf_tls_accept(SBuf *sbuf)  _MUSTCHECK;
 bool sbuf_tls_connect(SBuf *sbuf, const char *hostname)  _MUSTCHECK;
+bool sbuf_tls_connect_direct(SBuf *sbuf, const char *hostname)  _MUSTCHECK;
 
 bool sbuf_pause(SBuf *sbuf) _MUSTCHECK;
 void sbuf_continue(SBuf *sbuf);

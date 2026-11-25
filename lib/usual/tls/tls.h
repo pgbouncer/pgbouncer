@@ -168,6 +168,15 @@ int tls_ocsp_refresh_stapling_request(struct tls **ocsp_ctx_p, struct tls_config
 int tls_ocsp_process_response(struct tls *ctx, const void *response_blob, size_t size);
 bool tls_config_equal(struct tls_config *server_connect_conf_left, struct tls_config *server_connect_conf_right);
 
+/*
+ * After a successful TLS handshake on a direct-TLS client connection,
+ * verify that the server selected the given ALPN protocol.
+ * Returns 0 on success, -1 on failure (error set via tls_set_errorx).
+ * Only call this for direct-TLS connections; on STARTTLS paths the
+ * server may legitimately omit ALPN.
+ */
+int tls_check_alpn(struct tls *_ctx, const char *proto);
+
 #ifdef __cplusplus
 }
 #endif

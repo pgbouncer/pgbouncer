@@ -702,8 +702,27 @@ static bool handle_connect(PgSocket *server)
 	}
 
 	/*
-	 * If there are cancel requests waiting we first handle those. By handling
-	 * these first we reduce the load on the server and we a server connection
+	 * For non-peer pools with direct TLS, start the TLS handshake
+	 * immediately for ALL connections (both login and cancel).  The
+	 * decision between sending a startup message and forwarding a cancel
+	 * request is deferred to SBUF_EV_TLS_READY, after the handshake
+	 * completes.  Unix-socket pools are excluded — direct TLS never
+	 * applies over a Unix socket.
+	 *
+	 * Peer pools are excluded here; they always use the cancel-forward
+	 * path below.
+	 */
+	if (server_connect_tls_direct && !is_unix && !pool->db->peer_id) {
+		slog_noise(server, "P: direct TLS");
+		res = sbuf_tls_connect_direct(&server->sbuf, server->host);
+		if (!res)
+			disconnect_server(server, false, "startup pkt failed");
+		return res && server->state != SV_JUSTFREE;
+	}
+
+	/*
+	 * If there are cancel requests waiting we handle those next. By handling
+	 * these first we reduce the load on the server and a server connection
 	 * might actually become free to use for queries, because its query got
 	 * canceled.
 	 *
@@ -934,11 +953,26 @@ bool server_proto(SBuf *sbuf, SBufEvent evtype, struct MBuf *data)
 		}
 
 		server->request_time = get_cached_time();
-		res = send_startup_message(server);
-		if (res)
-			sbuf_continue(&server->sbuf);
-		else
-			disconnect_server(server, false, "TLS startup failed");
+
+		/*
+		 * For direct-TLS connections, check whether this server
+		 * connection was opened to forward a cancel request.  If so,
+		 * send the cancel now rather than a startup message.  Use the
+		 * per-socket flag (tls_alpn_required) rather than the global
+		 * server_connect_tls_direct to be immune to config reloads that
+		 * happen between handle_connect() and this point.
+		 */
+		if (server->sbuf.tls_alpn_required &&
+		    !statlist_empty(&server->pool->waiting_cancel_req_list)) {
+			forward_cancel_request(server);
+			res = true;
+		} else {
+			res = send_startup_message(server);
+			if (res)
+				sbuf_continue(&server->sbuf);
+			else
+				disconnect_server(server, false, "TLS startup failed");
+		}
 		break;
 	}
 	return res;

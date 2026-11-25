@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import subprocess
-from contextlib import closing, contextmanager
+from contextlib import closing, contextmanager, suppress
 from pathlib import Path
 
 try:
@@ -14,10 +14,13 @@ import asyncio
 import os
 import platform
 import re
+import select
 import shlex
 import signal
 import socket
+import struct
 import sys
+import threading
 import time
 import typing
 from tempfile import gettempdir
@@ -1332,3 +1335,205 @@ class OpenLDAP:
         self.stop()
         self.ldap_port_lock.release()
         self.ldaps_port_lock.release()
+
+
+class TlsStubServer:
+    """
+    A minimal TLS server standing in for a PostgreSQL backend.
+
+    For every accepted TCP connection it appends a dict to ``records`` with:
+
+      - ``first_byte_is_tls`` (bool): whether the first byte on the wire was
+        0x16 (a TLS ClientHello), peeked *before* the TLS handshake.
+      - ``sni`` (str or None): server name from the ClientHello.
+      - ``alpn`` (str or None): ALPN protocol selected during the handshake.
+      - ``first_message_type`` (int or None): the 32-bit code at bytes 4-8 of
+        the first plaintext message (196608 = StartupMessage, 80877102 =
+        CancelRequest). None if the peer closed before sending it.
+      - ``tags`` (list of str): message tags received after the login (e.g.
+        "Q" for a simple query).
+
+    With ``complete_login=True`` the stub answers a StartupMessage with
+    AuthenticationOk + BackendKeyData + ReadyForQuery. It never answers
+    queries, so a query sent through PgBouncer blocks until it is cancelled.
+
+    Usage::
+
+        with TlsStubServer(cert_dir, alpn="postgresql") as stub:
+            ...
+            rec = stub.wait_for(lambda r: r["first_message_type"] == PKT_STARTUP)
+    """
+
+    PKT_STARTUP = 196608
+    PKT_CANCEL = 80877102
+
+    # AuthenticationOk + ParameterStatus(server_version=17.0)
+    # + BackendKeyData(pid=1, key=1) + ReadyForQuery('I')
+    _PG_LOGIN_RESPONSE = (
+        b"R\x00\x00\x00\x08\x00\x00\x00\x00"
+        b"S\x00\x00\x00\x18server_version\x0017.0\x00"
+        b"K\x00\x00\x00\x0c\x00\x00\x00\x01\x00\x00\x00\x01"
+        b"Z\x00\x00\x00\x05I"
+    )
+
+    def __init__(self, cert_dir, *, alpn=None, complete_login=True, starttls=False):
+        self._cert_dir = cert_dir
+        self.alpn = alpn
+        self.handshake_delay = 0
+        self._complete_login = complete_login
+        self._starttls = starttls
+        self._lock = threading.Lock()
+        self.records = []
+        self._stop_event = threading.Event()
+        self._port_lock = PortLock()
+        self.port = self._port_lock.port
+        self.host = "127.0.0.1"
+
+        # "localhost" can resolve to ::1 first (c-ares returns a single address
+        # family), and PgBouncer then only tries that address. Listen on both
+        # loopback addresses; IPv6 is best effort.
+        self._server_socks = []
+        for family, addr in ((socket.AF_INET, self.host), (socket.AF_INET6, "::1")):
+            sock = socket.socket(family, socket.SOCK_STREAM)
+            try:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock.bind((addr, self.port))
+                sock.listen(16)
+            except OSError:
+                sock.close()
+                if family == socket.AF_INET:
+                    raise
+                continue
+            self._server_socks.append(sock)
+
+        self._threads = []
+        self._thread = threading.Thread(target=self._serve, daemon=True)
+        self._thread.start()
+
+    def _make_ctx(self, info):
+        import ssl
+
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        site = self._cert_dir / "TestCA1" / "sites"
+        ctx.load_cert_chain(
+            certfile=site / "01-localhost.crt", keyfile=site / "01-localhost.key"
+        )
+        if self.alpn:
+            ctx.set_alpn_protocols([self.alpn])
+
+        def sni_cb(_ssl_obj, server_name, _ctx):
+            info["sni"] = server_name
+
+        ctx.set_servername_callback(sni_cb)
+        return ctx
+
+    @staticmethod
+    def _recv_exact(sock, n):
+        data = b""
+        while len(data) < n:
+            chunk = sock.recv(n - len(data))
+            if not chunk:
+                return None
+            data += chunk
+        return data
+
+    def _serve(self):
+        while not self._stop_event.is_set():
+            try:
+                ready, _, _ = select.select(self._server_socks, [], [], 0.2)
+                if not ready:
+                    continue
+                raw, _addr = ready[0].accept()
+            except OSError:
+                break
+            t = threading.Thread(target=self._handle, args=(raw,), daemon=True)
+            self._threads.append(t)
+            t.start()
+
+    def _handle(self, raw):
+        info = {
+            "first_byte_is_tls": None,
+            "sni": None,
+            "alpn": None,
+            "first_message_type": None,
+            "tags": [],
+        }
+        with self._lock:
+            self.records.append(info)
+        tls = None
+        try:
+            raw.settimeout(30)
+            if self._starttls:
+                hdr = self._recv_exact(raw, 8)
+                if hdr is None:
+                    return
+                raw.sendall(b"S")
+            first = raw.recv(1, socket.MSG_PEEK)
+            info["first_byte_is_tls"] = len(first) == 1 and first[0] == 0x16
+            if self.handshake_delay:
+                time.sleep(self.handshake_delay)
+
+            tls = self._make_ctx(info).wrap_socket(raw, server_side=True)
+            info["alpn"] = tls.selected_alpn_protocol()
+
+            hdr = self._recv_exact(tls, 8)
+            if hdr is None:
+                return
+            msg_len, msg_kind = struct.unpack("!II", hdr)
+            if msg_len > 8 and self._recv_exact(tls, msg_len - 8) is None:
+                return
+            info["first_message_type"] = msg_kind
+            if msg_kind != self.PKT_STARTUP or not self._complete_login:
+                return
+            tls.sendall(self._PG_LOGIN_RESPONSE)
+
+            # Record post-login messages; never answer them.
+            while True:
+                tag = self._recv_exact(tls, 1)
+                if tag is None:
+                    return
+                raw_len = self._recv_exact(tls, 4)
+                if raw_len is None:
+                    return
+                (length,) = struct.unpack("!I", raw_len)
+                body = self._recv_exact(tls, length - 4) if length > 4 else b""
+                if body is None:
+                    return
+                info["tags"].append(tag.decode("latin1"))
+                if tag == b"Q" and b"pg_sleep" not in body:
+                    # EmptyQueryResponse + ReadyForQuery
+                    tls.sendall(b"I\x00\x00\x00\x04Z\x00\x00\x00\x05I")
+        except OSError as e:
+            # Includes ssl.SSLError: expected when the bouncer rejects or
+            # aborts the handshake. Keep the reason for debugging.
+            info["error"] = repr(e)
+        finally:
+            for sock in (tls, raw):
+                if sock is not None:
+                    with suppress(OSError):
+                        sock.close()
+
+    def snapshot(self):
+        with self._lock:
+            return [dict(r) for r in self.records]
+
+    def wait_for(self, predicate, timeout=5):
+        """Wait until a connection record satisfying predicate exists."""
+        for _ in wait_until("TlsStubServer: no matching connection", timeout=timeout):
+            for r in self.snapshot():
+                if predicate(r):
+                    return r
+
+    def stop(self):
+        self._stop_event.set()
+        self._thread.join(timeout=2)
+        for sock in self._server_socks:
+            with suppress(OSError):
+                sock.close()
+        self._port_lock.release()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        self.stop()

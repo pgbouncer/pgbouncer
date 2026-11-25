@@ -50,6 +50,22 @@ bool tune_socket(int sock, bool is_unix) _MUSTCHECK;
 
 bool strlist_contains(const char *liststr, const char *str);
 
+struct HostListIter {
+	const char *next;
+};
+
+struct HostListEntry {
+	const char *str;
+	size_t len;
+};
+
+void host_list_iter_init(struct HostListIter *iter, const char *host_list);
+bool host_list_iter_next(struct HostListIter *iter, struct HostListEntry *entry);
+bool host_list_is_valid(const char *host_list);
+bool host_list_contains(const char *host_list, const char *host);
+bool host_lists_overlap(const char *left, const char *right);
+bool host_lists_have_same_members(const char *left, const char *right);
+
 void fill_remote_addr(PgSocket *sk, int fd, bool is_unix);
 void fill_local_addr(PgSocket *sk, int fd, bool is_unix);
 

@@ -98,3 +98,17 @@ trust		db		admin2		::1	replication
 trust		replication	admin2		::1	replication
 trust		db2		admin2		::1
 reject		replication	admin2		::1
+
+# include directives
+md5		incbefore	u	20.0.0.1
+trust		incorder	u	20.0.0.1
+cert		incfile		u	20.0.0.1
+scram-sha-256	incnested	u	20.0.0.1
+md5		incifexists	u	20.0.0.1
+password	incquoted	u	20.0.0.1
+reject		incjunk		u	20.0.0.1
+trust		incdir		u	20.0.0.1
+password	incdir2		u	20.0.0.1
+reject		inchidden	u	20.0.0.1
+reject		incnotconf	u	20.0.0.1
+md5		incself		u	20.0.0.1

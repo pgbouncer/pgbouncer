@@ -61,3 +61,15 @@ host		mdb4	muser		all			reject
 # replication
 host		replication	admin	::1/128			trust
 host		db2,replication	admin2	::1/128			trust
+
+# include directives (PostgreSQL 16). Included rules are inserted in place.
+host		incbefore	all	20.0.0.0/8		md5
+include		hba_test_include.rules
+include_if_exists	hba_test_include_if_exists.rules
+include_if_exists	hba_test_does_not_exist.rules
+include		"hba_test_include_quoted.rules"
+include		hba_test_does_not_exist.rules
+include		hba_test_include_junk.rules	trailing-junk
+include_dir	hba_test_include.d
+include		hba_test_include_self.rules
+host		incorder	all	20.0.0.0/8		reject

@@ -218,8 +218,12 @@ static int apply_var(PktBuf *pkt, const char *key,
 	/* parameters that are marked GUC_LIST_QUOTE are returned already fully quoted
 	 * re-quoting them using pg_quote_literal will result in malformed values. */
 	if (variable_is_guc_list_quote(key)) {
-		/* zero length elements of the form "" should be specially handled.*/
-		if (strcmp(cval->str, "\"\"") == 0) {
+		/*
+		 * zero length elements of the form "" should be specially handled,
+		 * and so should a completely empty value, which the server reports
+		 * after e.g. set_config('search_path', '', false).
+		 */
+		if (cval->str[0] == '\0' || strcmp(cval->str, "\"\"") == 0) {
 			tmp = "''";
 		} else {
 			tmp = cval->str;

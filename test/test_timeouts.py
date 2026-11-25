@@ -1,5 +1,7 @@
 import asyncio
 import platform
+import socket
+import struct
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -602,6 +604,47 @@ def test_pool_idle_timeout_ignores_min_pool_size(pg, bouncer):
 
     with bouncer.log_contains(r"cleaning up idle pool.*min_pool_size_dead", times=0):
         time.sleep(3)
+
+
+def test_pool_idle_timeout_client_logging_in(bouncer):
+    """A pool must not be reaped while a client that already points at it is
+    still logging in. Such a client is not counted by pool_client_count(), so
+    the janitor used to free the pool between the authentication request and
+    the client's answer. Finishing the login then read the freed pool, which
+    crashed PgBouncer.
+    """
+    bouncer.admin("set pool_idle_timeout=1")
+    bouncer.admin("set server_idle_timeout=1")
+    bouncer.admin("set auth_type='plain'")
+
+    # Create the pool and its welcome message, and leave its server idle.
+    bouncer.test(dbname="p1", user="marko", password="kama")
+
+    def read_msg(sock):
+        header = sock.recv(5, socket.MSG_WAITALL)
+        assert len(header) == 5, "connection closed by PgBouncer"
+        length = struct.unpack("!I", header[1:])[0]
+        return header[:1], sock.recv(length - 4, socket.MSG_WAITALL)
+
+    with socket.create_connection((bouncer.host, bouncer.port), timeout=10) as sock:
+        params = b"user\0marko\0database\0p1\0\0"
+        sock.sendall(struct.pack("!II", len(params) + 8, 196608) + params)
+        msg_type, payload = read_msg(sock)
+        assert (msg_type, payload) == (b"R", struct.pack("!I", 3))
+
+        # Stay in the login phase while the server and the pool go idle.
+        with bouncer.log_contains(r"cleaning up idle pool", times=0):
+            time.sleep(3)
+
+        password = b"kama\0"
+        sock.sendall(b"p" + struct.pack("!I", len(password) + 4) + password)
+        while True:
+            msg_type, payload = read_msg(sock)
+            assert msg_type != b"E", payload
+            if msg_type == b"Z":
+                break
+
+    bouncer.test(dbname="p1", user="marko", password="kama")
 
 
 async def test_server_login_retry(pg, bouncer):

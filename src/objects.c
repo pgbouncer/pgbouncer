@@ -1169,6 +1169,41 @@ bool clear_outstanding_requests_until(PgSocket *server, const char types[])
 	return true;
 }
 
+static const char *skip_space(const char *s)
+{
+	while (isspace((unsigned char)*s))
+		s++;
+	return s;
+}
+
+/*
+ * Whether server_reset_query contains a RESET ALL statement. This is a very
+ * simple parser that only understands ;-separated statements, which is fine
+ * because a reset query is not expected to contain string literals or
+ * comments.
+ */
+static bool reset_query_has_reset_all(void)
+{
+	const char *s = cf_server_reset_query;
+
+	while (*s) {
+		s = skip_space(s);
+		if (strncasecmp(s, "RESET", 5) == 0 && isspace((unsigned char)s[5])) {
+			s = skip_space(s + 5);
+			if (strncasecmp(s, "ALL", 3) == 0) {
+				s = skip_space(s + 3);
+				if (*s == ';' || *s == '\0')
+					return true;
+			}
+		}
+		while (*s && *s != ';')
+			s++;
+		if (*s == ';')
+			s++;
+	}
+	return false;
+}
+
 /* send reset query */
 static bool reset_on_release(PgSocket *server)
 {
@@ -1178,9 +1213,21 @@ static bool reset_on_release(PgSocket *server)
 
 	slog_debug(server, "resetting: %s", cf_server_reset_query);
 	SEND_generic(res, server, PqMsg_Query, "s", cf_server_reset_query);
-	if (!res)
+	if (!res) {
 		disconnect_server(server, false, "reset query failed");
-	return res;
+		return false;
+	}
+
+	/*
+	 * We handle two special cases for the reset query: DISCARD ALL and
+	 * RESET ALL. For both of these we discard the unreported variables in
+	 * the varcache. RESET ALL we detect using this simplistic parser.
+	 * DISCARD ALL we detect by its CommandComplete message (see the
+	 * PqMsg_CommandComplete in handle_server_work).
+	 */
+	if (reset_query_has_reset_all())
+		varcache_discard_unreported(server);
+	return true;
 }
 
 bool life_over(PgSocket *server)

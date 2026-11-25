@@ -1479,6 +1479,8 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 		track_outstanding = true;
 		break;
 	case PqMsg_Flush:
+		if (client->link && !sbuf_flush(&client->link->sbuf))
+			return false;
 		break;
 
 	/* copy end markers */

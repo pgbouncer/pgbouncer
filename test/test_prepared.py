@@ -505,7 +505,16 @@ def test_prepared_failed_prepare_pipeline(bouncer):
             try:
                 cur.execute("SELECT 2", prepare=True)
             finally:
-                p.sync()
+                # The sync is needed so the pipeline can recover, but it must
+                # not hide the error under test. If the execute above already
+                # raised the UndefinedTable, the sync reports the aborted
+                # pipeline, and that PipelineAborted (raised from a finally)
+                # would take the place of the UndefinedTable. Drop it so the
+                # real error is what propagates out of this block.
+                try:
+                    p.sync()
+                except psycopg.errors.PipelineAborted:
+                    pass
         cur.execute("SELECT 1", prepare=True)
         p.sync()
         cur.execute("SELECT 2", prepare=True)

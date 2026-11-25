@@ -28,3 +28,12 @@ test('hba_test',
      hba_test,
      workdir: meson.project_source_root() / 'test',
     )
+
+janitor_auth_cache_test = executable('janitor_auth_cache_test',
+                                     'janitor_auth_cache_test.c',
+                                     config_h,
+                                     build_by_default: false,
+                                     include_directories: test_incdirs,
+                                     dependencies: [libevent, openssl, systemd, threads] + net_deps,
+                                    )
+test('janitor_auth_cache_test', janitor_auth_cache_test)

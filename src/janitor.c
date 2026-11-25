@@ -21,6 +21,7 @@
  */
 
 #include "bouncer.h"
+#include "objects.h"
 
 #include <usual/slab.h>
 
@@ -711,6 +712,127 @@ static void cleanup_inactive_pools(void)
 	}
 }
 
+struct expired_auth_credential {
+	PgDatabase *db;
+	PgCredentials *credentials;
+};
+
+struct auth_cache_cleanup {
+	PgDatabase *db;
+	usec_t now;
+	struct expired_auth_credential *expired;
+	size_t count;
+	size_t capacity;
+	bool allocation_failed;
+};
+
+static void free_empty_pool(PgPool *pool);
+
+static void cleanup_dynamic_credential(struct AANode *node, void *arg)
+{
+	struct auth_cache_cleanup *cleanup = arg;
+	PgCredentials *credentials = container_of(node, PgCredentials, tree_node);
+	struct expired_auth_credential *entries;
+	size_t capacity;
+
+	credentials->auth_cache_expired = credentials->auth_cache_dynamic &&
+					  cleanup->now >= credentials->auth_cache_last_used &&
+					  cleanup->now - credentials->auth_cache_last_used > cf_auth_cache_idle_timeout;
+	credentials->auth_cache_has_client = false;
+	credentials->auth_cache_has_pool = false;
+	if (!credentials->auth_cache_expired)
+		return;
+	if (cleanup->count == cleanup->capacity) {
+		if (cleanup->allocation_failed || cleanup->capacity > SIZE_MAX / 2)
+			goto allocation_failed;
+		capacity = cleanup->capacity ? cleanup->capacity * 2 : 16;
+		if (capacity > SIZE_MAX / sizeof(*entries))
+			goto allocation_failed;
+		entries = realloc(cleanup->expired, capacity * sizeof(*entries));
+		if (!entries)
+			goto allocation_failed;
+		cleanup->expired = entries;
+		cleanup->capacity = capacity;
+	}
+	cleanup->expired[cleanup->count++] = (struct expired_auth_credential) { cleanup->db, credentials };
+	return;
+
+allocation_failed:
+	cleanup->allocation_failed = true;
+	credentials->auth_cache_expired = false;
+}
+
+static void mark_global_user_credentials(struct AANode *node, void *arg)
+{
+	PgCredentials *credentials = container_of(node, PgCredentials, tree_node);
+	(void)arg;
+	if (credentials->global_user->auth_cache_dynamic)
+		credentials->global_user->auth_cache_has_credential = true;
+}
+
+#include "janitor_auth_cache.h"
+
+static void cleanup_auth_cache(void)
+{
+	struct List *item, *tmp;
+	PgDatabase *db;
+	PgGlobalUser *user;
+	PgSocket *client;
+	struct auth_cache_cleanup cleanup = { .now = get_cached_time() };
+
+	if (cf_auth_cache_idle_timeout <= 0)
+		return;
+	statlist_for_each(item, &database_list) {
+		db = container_of(item, PgDatabase, head);
+		cleanup.db = db;
+		aatree_walk(&db->user_tree, AA_WALK_POST_ORDER, cleanup_dynamic_credential, &cleanup);
+	}
+	statlist_for_each(item, &autodatabase_idle_list) {
+		db = container_of(item, PgDatabase, head);
+		cleanup.db = db;
+		aatree_walk(&db->user_tree, AA_WALK_POST_ORDER, cleanup_dynamic_credential, &cleanup);
+	}
+
+	statlist_for_each(item, &login_client_list) {
+		client = container_of(item, PgSocket, head);
+		if (client->login_user_credentials && client->login_user_credentials->auth_cache_expired)
+			client->login_user_credentials->auth_cache_has_client = true;
+		if (client->pool && client->pool->user_credentials && client->pool->user_credentials->auth_cache_expired)
+			client->pool->user_credentials->auth_cache_has_client = true;
+	}
+	mark_pool_credentials(cleanup.now);
+	for (size_t i = 0; i < cleanup.count; i++) {
+		PgDatabase *cred_db = cleanup.expired[i].db;
+		PgCredentials *credentials = cleanup.expired[i].credentials;
+		if (credentials->auth_cache_has_client || credentials->auth_cache_has_pool)
+			continue;
+		aatree_remove(&cred_db->user_tree, (uintptr_t)credentials->name);
+	}
+	free(cleanup.expired);
+
+	statlist_for_each(item, &user_list) {
+		user = container_of(item, PgGlobalUser, head);
+		user->auth_cache_has_credential = false;
+	}
+	statlist_for_each(item, &database_list) {
+		db = container_of(item, PgDatabase, head);
+		aatree_walk(&db->user_tree, AA_WALK_IN_ORDER, mark_global_user_credentials, NULL);
+	}
+	statlist_for_each(item, &autodatabase_idle_list) {
+		db = container_of(item, PgDatabase, head);
+		aatree_walk(&db->user_tree, AA_WALK_IN_ORDER, mark_global_user_credentials, NULL);
+	}
+	statlist_for_each_safe(item, &user_list, tmp) {
+		user = container_of(item, PgGlobalUser, head);
+		if (!user->auth_cache_dynamic || user->auth_cache_has_credential ||
+		    user->pool_list.next != &user->pool_list || user->connection_count || user->client_connection_count)
+			continue;
+		aatree_remove(&user_tree, (uintptr_t)user->credentials.name);
+		statlist_remove(&user_list, &user->head);
+		slab_free(user_cache, user);
+	}
+}
+
 /* full-scale maintenance, done only occasionally */
 static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 {
@@ -775,6 +897,7 @@ static void do_full_maint(evutil_socket_t sock, short flags, void *arg)
 	cleanup_inactive_autodatabases();
 
 	cleanup_inactive_pools();
+	cleanup_auth_cache();
 
 	cleanup_client_logins();
 
@@ -806,6 +929,17 @@ void janitor_setup(void)
 		log_warning("event_add failed: %s", strerror(errno));
 }
 
+static void free_empty_pool(PgPool *pool)
+{
+	pktbuf_free(pool->welcome_msg);
+
+	list_del(&pool->map_head);
+	statlist_remove(&pool_list, &pool->head);
+	varcache_clean(&pool->orig_vars);
+	slab_free(var_list_cache, pool->orig_vars.var_list);
+	slab_free(pool_cache, pool);
+}
+
 void kill_pool(PgPool *pool)
 {
 	const char *reason = "database removed";
@@ -825,13 +959,7 @@ void kill_pool(PgPool *pool)
 	close_server_list(&pool->tested_server_list, reason);
 	close_server_list(&pool->new_server_list, reason);
 
-	pktbuf_free(pool->welcome_msg);
-
-	list_del(&pool->map_head);
-	statlist_remove(&pool_list, &pool->head);
-	varcache_clean(&pool->orig_vars);
-	slab_free(var_list_cache, pool->orig_vars.var_list);
-	slab_free(pool_cache, pool);
+	free_empty_pool(pool);
 }
 
 void kill_peer_pool(PgPool *pool)
@@ -884,8 +1012,6 @@ void kill_database(PgDatabase *db)
 	if (db->auth_query)
 		free((void *)db->auth_query);
 
-	/* Cleanup cached scram keys stored with PgCredentials */
-	clear_user_tree_cached_scram_keys(&db->user_tree);
 	aatree_destroy(&db->user_tree);
 	slab_free(db_cache, db);
 }

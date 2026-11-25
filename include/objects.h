@@ -82,6 +82,7 @@ void accept_cancel_request(PgSocket *req);
 void forward_cancel_request(PgSocket *server);
 
 void launch_new_connection(PgPool *pool, bool evict_if_needed);
+bool server_login_retry_pending(PgPool *pool, usec_t now);
 
 void activate_client(PgSocket *client);
 

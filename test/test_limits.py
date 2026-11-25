@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+import time
 
 import psycopg
 import pytest
@@ -486,6 +487,342 @@ def test_user_client_count_db_connect_fail_3(bouncer) -> None:
     # in the stats at all. This would just pollute the stats output with people
     # making typos or attackers trying random user accounts.
     assert len([user for user in users if user["name"] == test_user]) == 0
+
+
+async def test_reload_resets_removed_user_settings(pg, bouncer):
+    """Deleting a [users] entry and reloading takes its settings away with it."""
+    bouncer.write_ini(
+        "[users]\nmaxedout4 = pool_size=1 pool_mode=transaction"
+        " max_user_client_connections=4"
+    )
+    bouncer.admin("reload")
+
+    users = {u["name"]: u for u in bouncer.admin("SHOW USERS", row_factory=dict_row)}
+    assert users["maxedout4"]["pool_size"] == "        1"
+    assert users["maxedout4"]["pool_mode"] == "transaction"
+    assert users["maxedout4"]["max_user_client_connections"] == 4
+
+    # p0a has a pool_size of two, and the user's one is what holds this pool below
+    # it. The clients query at the same time and for long enough to overlap on a
+    # loaded machine, or the pool has no reason to open a second connection and
+    # this would pass with no cap in place at all.
+    await bouncer.asleep(1, dbname="p0a", user="maxedout4", times=4)
+    assert pg.connection_count(dbname="p0", users=("maxedout4",)) == 1
+
+    bouncer.reset_ini()
+    bouncer.admin("reload")
+
+    users = {u["name"]: u for u in bouncer.admin("SHOW USERS", row_factory=dict_row)}
+    assert users["maxedout4"]["pool_size"] == ""
+    assert users["maxedout4"]["pool_mode"] is None
+    # zero is what max_user_client_connections reports once nothing sets it, since
+    # the [pgbouncer] default is what a user without one of its own falls back to.
+    assert users["maxedout4"]["max_user_client_connections"] == 0
+    await bouncer.asleep(1, dbname="p0a", user="maxedout4", times=4)
+    assert pg.connection_count(dbname="p0", users=("maxedout4",)) == 2
+
+
+def break_ini_before_users(bouncer):
+    """Put an unparsable line in the ini's first section, ahead of [users]
+
+    cf_load_file() gives up at the first bad line, so nothing after this one is
+    read: not the [users] section, and not the [pgbouncer] one either, whose
+    settings therefore keep the values the last readable file gave them.
+    """
+    with bouncer.ini_path.open() as f:
+        broken = f.read().replace(
+            "[databases]",
+            "[databases]\nbroken_db = port=6666 host=127.0.0.1 dbname=p0 nonsense=1",
+            1,
+        )
+    with bouncer.ini_path.open("w") as f:
+        f.write(broken)
+
+    with pytest.raises(
+        psycopg.errors.ConfigFileError,
+        match=r"RELOAD failed, see logs for additional details",
+    ):
+        bouncer.admin("RELOAD")
+
+
+async def test_reload_error_before_users_keeps_user_settings(pg, bouncer):
+    """A reload that gives up before [users] leaves those settings being enforced.
+
+    Only the section the failed reload never reached is covered, and that is all
+    that is guaranteed: parse_user() writes straight into the live user, so an
+    entry the reader did get to before the bad line is applied even though the
+    reload as a whole fails.
+    """
+    # maxedout5 carries the timeout on its own, since a query_timeout on the user
+    # whose pool_size is one would fall on the clients waiting behind it as well.
+    bouncer.write_ini(
+        "[users]\nmaxedout4 = pool_size=1 reserve_pool_size=2 max_user_connections=3"
+        "\nmaxedout5 = query_timeout=2"
+    )
+    bouncer.admin("reload")
+
+    users = {u["name"]: u for u in bouncer.admin("SHOW USERS", row_factory=dict_row)}
+    assert users["maxedout4"]["pool_size"] == "        1"
+    assert users["maxedout4"]["reserve_pool_size"] == "        2"
+    assert users["maxedout4"]["max_user_connections"] == 3
+
+    break_ini_before_users(bouncer)
+
+    users = {u["name"]: u for u in bouncer.admin("SHOW USERS", row_factory=dict_row)}
+    assert users["maxedout4"]["pool_size"] == "        1"
+    assert users["maxedout4"]["reserve_pool_size"] == "        2"
+    assert users["maxedout4"]["max_user_connections"] == 3
+
+    # and the settings are still the ones being applied, not just the ones being
+    # reported: p0a's pool_size is two, so a pool that is still capped at one is
+    # the user's setting doing it. The clients query at the same time and for long
+    # enough to overlap, or the pool has no reason to open a second connection.
+    await bouncer.asleep(1, dbname="p0a", user="maxedout4", times=4)
+    assert pg.connection_count(dbname="p0", users=("maxedout4",)) == 1
+
+    # The timeouts need more than the field kept: whether any user sets one at all
+    # is cached in a flag that load_config() clears before reading the file, so a
+    # failed load has to put that back too or nothing looks at the field again.
+    with (
+        bouncer.log_contains(r"query timeout"),
+        pytest.raises(
+            psycopg.OperationalError,
+            match=r"query timeout|server closed the connection unexpectedly",
+        ),
+    ):
+        bouncer.sleep(8, dbname="p0a", user="maxedout5")
+
+    # a reload that can be read still defaults a user its [users] section no longer
+    # mentions.
+    bouncer.reset_ini()
+    bouncer.admin("reload")
+
+    users = {u["name"]: u for u in bouncer.admin("SHOW USERS", row_factory=dict_row)}
+    assert users["maxedout4"]["pool_size"] == ""
+    assert users["maxedout4"]["reserve_pool_size"] == ""
+    assert users["maxedout4"]["max_user_connections"] == 0
+
+
+def test_reload_error_keeps_enforcing_user_client_idle_timeout(bouncer):
+    """A failed reload goes on enforcing a per-user client_idle_timeout.
+
+    Whether any user sets one is cached in a flag that load_config() clears before
+    it starts reading, so a reload that fails has to put the flag back or the
+    janitor stops looking at the field it did keep.  Nothing sets a global
+    client_idle_timeout here, so the user's flag is the only thing keeping the
+    janitor looking at idle clients at all.
+    """
+    bouncer.write_ini("[users]\nmaxedout5 = client_idle_timeout=2")
+    bouncer.admin("reload")
+
+    break_ini_before_users(bouncer)
+
+    with bouncer.cur(dbname="p0a", user="maxedout5") as cur:
+        cur.execute("SELECT 1")
+        with bouncer.log_contains(r"client_idle_timeout"):
+            time.sleep(3)
+            with pytest.raises(
+                psycopg.OperationalError,
+                match=r"client_idle_timeout|Software caused connection abort"
+                r"|server closed the connection unexpectedly",
+            ):
+                cur.execute("SELECT 1")
+
+
+async def test_reload_error_keeps_enforcing_database_query_wait_timeout(bouncer):
+    """A failed reload goes on enforcing a per-database query_wait_timeout.
+
+    There is a flag for the databases as well, and the global query_wait_timeout is
+    set to zero here so that it is the only thing keeping the janitor looking at
+    waiting clients: the flag for the users opens the same gate, so no user may set
+    a timeout in this test either.
+    """
+    waitqueue = (
+        f"[databases]\nwaitqueue = host={bouncer.pg.host} port={bouncer.pg.port}"
+        " dbname=p0 pool_size=1 reserve_pool_size=0 query_wait_timeout=2"
+    )
+    bouncer.write_ini("query_wait_timeout = 0\n" + waitqueue)
+    bouncer.admin("reload")
+
+    break_ini_before_users(bouncer)
+
+    blocker = bouncer.asleep(6, dbname="waitqueue", user="maxedout5")
+    await asyncio.sleep(1)
+    with pytest.raises(psycopg.OperationalError, match=r"query_wait_timeout"):
+        bouncer.sleep(1, dbname="waitqueue", user="maxedout5")
+    await blocker
+
+
+def test_reload_resets_removed_user_query_timeout(bouncer):
+    """Deleting a [users] entry stops its query_timeout being enforced.
+
+    maxedout4 keeps a query_timeout of its own so that the janitor goes on looking
+    at the per-user timeouts at all: it skips the whole sweep when no user sets
+    one, which would let this pass with maxedout5's field still in place.
+    """
+    bouncer.write_ini(
+        "[users]\nmaxedout5 = query_timeout=2\nmaxedout4 = query_timeout=60"
+    )
+    bouncer.admin("reload")
+
+    with (
+        bouncer.log_contains(r"query timeout"),
+        pytest.raises(
+            psycopg.OperationalError,
+            match=r"query timeout|server closed the connection unexpectedly",
+        ),
+    ):
+        bouncer.sleep(8, dbname="p0a", user="maxedout5")
+
+    bouncer.reset_ini()
+    bouncer.write_ini("[users]\nmaxedout4 = query_timeout=60")
+    bouncer.admin("reload")
+
+    bouncer.sleep(4, dbname="p0a", user="maxedout5")
+
+
+async def test_reload_resets_removed_user_query_wait_timeout(bouncer):
+    """Deleting a [users] entry stops its query_wait_timeout overriding the global.
+
+    This one is the other way round: the user's entry raises the timeout rather
+    than lowering it, so that removing it has to clear both the field and the flag
+    that says the user has one at all -- a flag left set with the field back at
+    zero would stop the global timeout being applied instead.  The global timeout
+    is appended to the [pgbouncer] section test.ini ends with, and the pool_size of
+    one that makes a client wait at all is the database's, so that deleting the
+    [users] entry does not take that away too.
+    """
+    waitqueue = (
+        f"[databases]\nwaitqueue = host={bouncer.pg.host} port={bouncer.pg.port}"
+        " dbname=p0 pool_size=1 reserve_pool_size=0"
+    )
+    bouncer.write_ini(
+        "query_wait_timeout = 2\n"
+        + waitqueue
+        + "\n[users]\nmaxedout5 = query_wait_timeout=60"
+    )
+    bouncer.admin("reload")
+
+    # the client queued behind the one server connection waits the three seconds
+    # out instead of being killed at two, because the user's sixty is what counts.
+    blocker = bouncer.asleep(4, dbname="waitqueue", user="maxedout5")
+    await asyncio.sleep(1)
+    bouncer.sleep(1, dbname="waitqueue", user="maxedout5")
+    await blocker
+
+    bouncer.reset_ini()
+    bouncer.write_ini("query_wait_timeout = 2\n" + waitqueue)
+    bouncer.admin("reload")
+
+    blocker = bouncer.asleep(6, dbname="waitqueue", user="maxedout5")
+    await asyncio.sleep(1)
+    with pytest.raises(psycopg.OperationalError, match=r"query_wait_timeout"):
+        bouncer.sleep(1, dbname="waitqueue", user="maxedout5")
+    await blocker
+
+
+def test_reload_resets_removed_user_client_idle_timeout(bouncer):
+    """Deleting a [users] entry stops its client_idle_timeout being enforced.
+
+    The global client_idle_timeout, which is appended to the [pgbouncer] section
+    test.ini ends with, is what keeps the janitor looking at idle clients here.  A
+    second user with a timeout of its own cannot do that job the way it can for
+    query_timeout: without a global timeout the janitor takes the zero a user
+    without one of its own has as expired at once, and disconnects it immediately.
+    """
+    bouncer.write_ini(
+        "client_idle_timeout = 60\n[users]\nmaxedout5 = client_idle_timeout=2"
+    )
+    bouncer.admin("reload")
+
+    with bouncer.cur(dbname="p0a", user="maxedout5") as cur:
+        cur.execute("SELECT 1")
+        with bouncer.log_contains(r"client_idle_timeout"):
+            time.sleep(3)
+            with pytest.raises(
+                psycopg.OperationalError,
+                match=r"client_idle_timeout|Software caused connection abort"
+                r"|server closed the connection unexpectedly",
+            ):
+                cur.execute("SELECT 1")
+
+    bouncer.reset_ini()
+    bouncer.write_ini("client_idle_timeout = 60")
+    bouncer.admin("reload")
+
+    with bouncer.cur(dbname="p0a", user="maxedout5") as cur:
+        cur.execute("SELECT 1")
+        time.sleep(3)
+        cur.execute("SELECT 1")
+
+
+def test_reload_resets_removed_user_transaction_timeout(bouncer):
+    """Deleting a [users] entry stops its transaction_timeout being enforced.
+
+    The pool_mode and the global timeout are appended to the [pgbouncer] section
+    test.ini ends with: transactions need a pool mode that allows them, and the
+    global timeout is what keeps the janitor looking once the user's is gone.
+    """
+    bouncer.write_ini(
+        "pool_mode = transaction\ntransaction_timeout = 60"
+        "\n[users]\nmaxedout5 = transaction_timeout=2"
+    )
+    bouncer.admin("reload")
+
+    with (
+        bouncer.log_contains(r"transaction timeout"),
+        pytest.raises(
+            psycopg.OperationalError,
+            match=r"transaction timeout|server closed the connection unexpectedly",
+        ),
+        bouncer.cur(dbname="p0a", user="maxedout5") as cur,
+    ):
+        cur.execute("BEGIN")
+        cur.execute("SELECT pg_sleep(4)")
+        cur.execute("SELECT 1")
+
+    bouncer.reset_ini()
+    bouncer.write_ini("pool_mode = transaction\ntransaction_timeout = 60")
+    bouncer.admin("reload")
+
+    with bouncer.cur(dbname="p0a", user="maxedout5") as cur:
+        cur.execute("BEGIN")
+        cur.execute("SELECT pg_sleep(4)")
+        cur.execute("SELECT 1")
+        cur.execute("COMMIT")
+
+
+def test_reload_resets_removed_user_idle_transaction_timeout(bouncer):
+    """Deleting a [users] entry stops its idle_transaction_timeout being enforced."""
+    bouncer.write_ini(
+        "pool_mode = transaction\nidle_transaction_timeout = 60"
+        "\n[users]\nmaxedout5 = idle_transaction_timeout=2"
+    )
+    bouncer.admin("reload")
+
+    with (
+        bouncer.log_contains(r"idle transaction timeout"),
+        pytest.raises(
+            psycopg.OperationalError,
+            match=r"idle transaction timeout|Software caused connection abort|server closed the connection unexpectedly",
+        ),
+        bouncer.cur(dbname="p0a", user="maxedout5") as cur,
+    ):
+        cur.execute("BEGIN")
+        cur.execute("SELECT 1")
+        time.sleep(4)
+        cur.execute("SELECT 1")
+
+    bouncer.reset_ini()
+    bouncer.write_ini("pool_mode = transaction\nidle_transaction_timeout = 60")
+    bouncer.admin("reload")
+
+    with bouncer.cur(dbname="p0a", user="maxedout5") as cur:
+        cur.execute("BEGIN")
+        cur.execute("SELECT 1")
+        time.sleep(4)
+        cur.execute("SELECT 1")
+        cur.execute("COMMIT")
 
 
 def test_min_pool_size_with_lower_max_user_connections(bouncer):

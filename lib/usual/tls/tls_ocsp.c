@@ -533,6 +533,10 @@ static int tls_ocsp_setup(struct tls **ocsp_ctx_p, struct tls_config *config, st
 	int ret = -1;
 	STACK_OF(OPENSSL_STRING) *ocsp_urls;
 
+	/* need either config (stapling) or target (peer check) */
+	if (!config && !target)
+		return -1;
+
 	ctx = tls_ocsp_client_new();
 	if (!ctx)
 		return -1;

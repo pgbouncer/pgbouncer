@@ -373,8 +373,10 @@ SHA256_Transform(pg_sha256_ctx *context, const uint8 *data)
 	context->state[6] += g;
 	context->state[7] += h;
 
+#ifndef __clang_analyzer__	/* avoid dead store warnings */
 	/* Clean up */
 	a = b = c = d = e = f = g = h = T1 = 0;
+#endif
 }
 #else							/* SHA2_UNROLL_TRANSFORM */
 
@@ -463,8 +465,10 @@ SHA256_Transform(pg_sha256_ctx *context, const uint8 *data)
 	context->state[6] += g;
 	context->state[7] += h;
 
+#ifndef __clang_analyzer__	/* avoid dead store warnings */
 	/* Clean up */
 	a = b = c = d = e = f = g = h = T1 = T2 = 0;
+#endif
 }
 #endif							/* SHA2_UNROLL_TRANSFORM */
 
@@ -498,8 +502,10 @@ pg_sha256_update(pg_sha256_ctx *context, const uint8 *data, size_t len)
 			/* The buffer is not yet full */
 			memcpy(&context->buffer[usedspace], data, len);
 			context->bitcount += len << 3;
+#ifndef __clang_analyzer__	/* avoid dead store warnings */
 			/* Clean up: */
 			usedspace = freespace = 0;
+#endif
 			return;
 		}
 	}
@@ -517,8 +523,10 @@ pg_sha256_update(pg_sha256_ctx *context, const uint8 *data, size_t len)
 		memcpy(context->buffer, data, len);
 		context->bitcount += len << 3;
 	}
+#ifndef __clang_analyzer__	/* avoid dead store warnings */
 	/* Clean up: */
 	usedspace = freespace = 0;
+#endif
 }
 
 static void
@@ -699,8 +707,10 @@ SHA512_Transform(pg_sha512_ctx *context, const uint8 *data)
 	context->state[6] += g;
 	context->state[7] += h;
 
+#ifndef __clang_analyzer__	/* avoid dead store warnings */
 	/* Clean up */
 	a = b = c = d = e = f = g = h = T1 = 0;
+#endif
 }
 #else							/* SHA2_UNROLL_TRANSFORM */
 
@@ -789,8 +799,10 @@ SHA512_Transform(pg_sha512_ctx *context, const uint8 *data)
 	context->state[6] += g;
 	context->state[7] += h;
 
+#ifndef __clang_analyzer__	/* avoid dead store warnings */
 	/* Clean up */
 	a = b = c = d = e = f = g = h = T1 = T2 = 0;
+#endif
 }
 #endif							/* SHA2_UNROLL_TRANSFORM */
 
@@ -824,8 +836,10 @@ pg_sha512_update(pg_sha512_ctx *context, const uint8 *data, size_t len)
 			/* The buffer is not yet full */
 			memcpy(&context->buffer[usedspace], data, len);
 			ADDINC128(context->bitcount, len << 3);
+#ifndef __clang_analyzer__	/* avoid dead store warnings */
 			/* Clean up: */
 			usedspace = freespace = 0;
+#endif
 			return;
 		}
 	}
@@ -843,8 +857,10 @@ pg_sha512_update(pg_sha512_ctx *context, const uint8 *data, size_t len)
 		memcpy(context->buffer, data, len);
 		ADDINC128(context->bitcount, len << 3);
 	}
+#ifndef __clang_analyzer__	/* avoid dead store warnings */
 	/* Clean up: */
 	usedspace = freespace = 0;
+#endif
 }
 
 static void

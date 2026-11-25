@@ -156,6 +156,8 @@ static struct addrinfo *mk_addrinfo(const void *adr, int af)
 		sa6->sin6_family = af;
 		ai->ai_addr = (struct sockaddr *)sa6;
 		ai->ai_addrlen = sizeof(*sa6);
+	} else {
+		goto failed;
 	}
 	ai->ai_protocol = IPPROTO_TCP;
 	ai->ai_socktype = SOCK_STREAM;

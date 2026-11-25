@@ -720,19 +720,24 @@ bool handle_close_statement_command(PgSocket *client, PktHdr *pkt, PgClosePacket
  */
 void free_client_prepared_statements(PgSocket *client)
 {
-	PgClientPreparedStatement *client_ps, *tmp;
+	PgClientPreparedStatement *head, *client_ps, *tmp;
 
-	HASH_ITER(hh, client->client_prepared_statements, client_ps, tmp) {
-		HASH_DEL(client->client_prepared_statements, client_ps);
+	/*
+	 * Since all entries are removed, free the hash table first and then
+	 * just walk the (still intact) list of elements, instead of deleting
+	 * them from the table one by one.
+	 */
+	head = client->client_prepared_statements;
+	HASH_CLEAR(hh, client->client_prepared_statements);
+
+	HASH_ITER(hh, head, client_ps, tmp) {
 		if (--client_ps->ps->use_count == 0) {
+			Assert(prepared_statements != NULL);
 			HASH_DEL(prepared_statements, client_ps->ps);
 			free(client_ps->ps);
 		}
 		free(client_ps);
 	}
-
-	free(client->client_prepared_statements);
-	client->client_prepared_statements = NULL;
 }
 
 /*

@@ -1679,16 +1679,12 @@ static void dns_callback(void *arg, const struct sockaddr *sa, int salen)
 	connect_server(server, sa, salen);
 }
 
+static void connect_host(struct PgSocket *server, const char *host);
+
 static void dns_connect(struct PgSocket *server)
 {
-	struct sockaddr_un sa_un;
-	struct sockaddr_in sa_in;
-	struct sockaddr_in6 sa_in6;
-	struct sockaddr *sa;
 	struct PgDatabase *db = server->pool->db;
 	const char *host;
-	int sa_len;
-	int res;
 	char *host_copy = NULL;
 
 	/* host list? */
@@ -1715,6 +1711,20 @@ static void dns_connect(struct PgSocket *server)
 		host = db->host;
 	}
 
+	connect_host(server, host);
+	free(host_copy);
+}
+
+static void connect_host(struct PgSocket *server, const char *host)
+{
+	struct sockaddr_un sa_un;
+	struct sockaddr_in sa_in;
+	struct sockaddr_in6 sa_in6;
+	struct sockaddr *sa;
+	struct PgDatabase *db = server->pool->db;
+	int sa_len;
+	int res;
+
 	if (host) {
 		server->host = xstrdup(host);
 	}
@@ -1728,7 +1738,7 @@ static void dns_connect(struct PgSocket *server)
 		if (!unix_dir || !*unix_dir) {
 			log_error("unix socket dir not configured: %s", db->name);
 			disconnect_server(server, false, "cannot connect");
-			goto cleanup;
+			return;
 		}
 		snprintf(sa_un.sun_path, sizeof(sa_un.sun_path),
 			 "%s/.s.PGSQL.%d", unix_dir, db->port);
@@ -1772,12 +1782,31 @@ static void dns_connect(struct PgSocket *server)
 		tk = adns_resolve(adns, host, dns_callback, server);
 		if (tk)
 			server->dns_token = tk;
-		goto cleanup;
+		return;
 	}
 
 	connect_server(server, sa, sa_len);
-cleanup:
-	free(host_copy);
+}
+
+static void connect_cancel_server(PgSocket *server, const PgSocket *canceled_server)
+{
+	const PgAddr *addr = &canceled_server->remote_addr;
+	int salen;
+
+	if (pga_family(addr) == AF_INET) {
+		salen = sizeof(addr->sin);
+	} else if (pga_family(addr) == AF_INET6) {
+		salen = sizeof(addr->sin6);
+	} else {
+		/* remote_addr keeps no Unix socket path */
+		connect_host(server, canceled_server->host);
+		return;
+	}
+
+	if (canceled_server->host)
+		server->host = xstrdup(canceled_server->host);
+
+	connect_server(server, &addr->sa, salen);
 }
 
 PgSocket *compare_connections_by_time(PgSocket *lhs, PgSocket *rhs)
@@ -2004,6 +2033,16 @@ force_new:
 	pool->db->connection_count++;
 	if (pool->user_credentials)
 		pool->user_credentials->global_user->connection_count++;
+
+	if (!pool->db->peer_id && !statlist_empty(&pool->waiting_cancel_req_list)) {
+		PgSocket *req = first_socket(&pool->waiting_cancel_req_list);
+
+		if (req->canceled_server) {
+			/* A cancel key is valid only on the server that supplied it. */
+			connect_cancel_server(server, req->canceled_server);
+			return;
+		}
+	}
 
 	dns_connect(server);
 }
@@ -2263,14 +2302,44 @@ found:
 	launch_new_connection(pool, /* evict_if_needed= */ true);
 }
 
-void forward_cancel_request(PgSocket *server)
+/* Does server reach the backend running the query that req cancels? */
+static bool cancel_req_matches_server(PgSocket *req, PgSocket *server)
+{
+	PgSocket *canceled_server = req->canceled_server;
+
+	/* peers get the client's own key, and idle targets are dropped below */
+	if (server->pool->db->peer_id || !canceled_server)
+		return true;
+
+	if (pga_is_unix(&server->remote_addr) || pga_is_unix(&canceled_server->remote_addr)) {
+		return pga_is_unix(&server->remote_addr) && pga_is_unix(&canceled_server->remote_addr) &&
+		       strcmpeq(server->host, canceled_server->host);
+	}
+
+	return pga_cmp_addr(&server->remote_addr, &canceled_server->remote_addr) == 0;
+}
+
+/* Forward a waiting cancel request meant for server's backend, if any. */
+bool forward_cancel_request(PgSocket *server)
 {
 	bool res;
-	PgSocket *req = first_socket(&server->pool->waiting_cancel_req_list);
+	struct List *item;
+	PgSocket *req = NULL;
 	bool forwarding_to_peer = server->pool->db->peer_id != 0;
 
-	Assert(req != NULL && req->state == CL_WAITING_CANCEL);
+	statlist_for_each(item, &server->pool->waiting_cancel_req_list) {
+		PgSocket *candidate = container_of(item, PgSocket, head);
+		if (cancel_req_matches_server(candidate, server)) {
+			req = candidate;
+			break;
+		}
+	}
+	if (!req)
+		return false;
+
+	Assert(req->state == CL_WAITING_CANCEL);
 	Assert(server->state == SV_LOGIN);
+	slog_debug(server, "use it for pending cancel req");
 
 	server->link = req;
 	req->link = server;
@@ -2286,7 +2355,7 @@ void forward_cancel_request(PgSocket *server)
 		 */
 		if (!req->canceled_server) {
 			disconnect_client(req, false, "not sending cancel request for client that is now idle");
-			return;
+			return true;
 		}
 	}
 
@@ -2298,14 +2367,14 @@ void forward_cancel_request(PgSocket *server)
 	if (!res) {
 		slog_warning(req, "sending cancel request failed: %s", strerror(errno));
 		disconnect_client(req, false, "failed to send cancel request");
-		return;
+		return true;
 	}
 	slog_debug(req, "started sending cancel request");
 
 	change_client_state(req, CL_ACTIVE_CANCEL);
 	change_server_state(server, SV_ACTIVE_CANCEL);
 	sbuf_continue(&server->sbuf);
-	return;
+	return true;
 }
 
 void for_each_server(PgPool *pool, void (*func)(PgSocket *sk))

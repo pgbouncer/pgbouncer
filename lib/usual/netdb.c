@@ -72,7 +72,7 @@ struct GAIARequest {
 	pthread_t origin;
 	int nitems;
 	struct sigevent sev;
-	struct gaicb *list[FLEX_ARRAY];
+	_COUNTED_BY(nitems) struct gaicb *list[FLEX_ARRAY];
 };
 
 #define RQ_SIZE(n) (offsetof(struct GAIARequest, list) + (n)*(sizeof(struct gaicb *)))

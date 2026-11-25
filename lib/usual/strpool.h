@@ -41,7 +41,12 @@ struct PStr {
 	size_t len;
 	/** Reference count */
 	int refcnt;
-	/** Zero-terminated value */
+	/**
+	 * Zero-terminated value
+	 *
+	 * Not _COUNTED_BY(len), because the array has len + 1 elements
+	 * including the terminating zero.
+	 */
 	char str[FLEX_ARRAY];
 };
 

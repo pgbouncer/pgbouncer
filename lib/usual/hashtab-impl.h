@@ -79,7 +79,7 @@ struct HashTab {
 	CxMem *ca;
 	unsigned size;
 	unsigned used;
-	struct HashItem tab[FLEX_ARRAY];
+	_COUNTED_BY(size) struct HashItem tab[FLEX_ARRAY];
 };
 
 /** Initialize HashTab */

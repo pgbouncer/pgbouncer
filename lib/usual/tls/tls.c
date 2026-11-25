@@ -229,6 +229,8 @@ struct tls *tls_new(void)
 		return (NULL);
 
 	ctx->config = tls_config_default;
+	if (ctx->config != NULL)
+		ctx->config->refcount++;
 
 	tls_reset(ctx);
 
@@ -240,6 +242,13 @@ int tls_configure(struct tls *ctx, struct tls_config *config)
 	if (config == NULL)
 		config = tls_config_default;
 
+	/*
+	 * Take a reference on the new config before releasing the old one (they
+	 * may be the same object), and keep the reference for as long as this
+	 * context points at the config.  usual_tls_free() releases it.
+	 */
+	config->refcount++;
+	tls_config_free(ctx->config);
 	ctx->config = config;
 
 	if ((ctx->flags & TLS_SERVER) != 0)
@@ -531,6 +540,8 @@ void usual_tls_free(struct tls *ctx)
 	if (ctx == NULL)
 		return;
 	tls_reset(ctx);
+	tls_config_free(ctx->config);
+	ctx->config = NULL;
 	free(ctx);
 }
 

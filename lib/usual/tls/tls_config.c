@@ -114,6 +114,8 @@ struct tls_config *tls_config_new(void)
 	if ((config = calloc(1, sizeof(*config))) == NULL)
 		return (NULL);
 
+	config->refcount = 1;
+
 	if ((config->keypair = tls_keypair_new()) == NULL)
 		goto err;
 
@@ -148,6 +150,15 @@ void tls_config_free(struct tls_config *config)
 	struct tls_keypair *kp, *nkp;
 
 	if (config == NULL)
+		return;
+
+	/*
+	 * This decrements the reference count, and frees the config if the count
+	 * has thereby gone to zero.
+	 */
+	Assert(config->refcount > 0);
+	config->refcount--;
+	if (config->refcount > 0)
 		return;
 
 	for (kp = config->keypair; kp != NULL; kp = nkp) {

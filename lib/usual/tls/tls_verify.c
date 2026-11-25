@@ -245,6 +245,8 @@ int tls_check_name(struct tls *ctx, X509 *cert, const char *name)
 {
 	int rv;
 
+	Assert(name != NULL);
+
 	rv = tls_check_subject_altname(ctx, cert, name);
 	if (rv == 0 || rv == -2)
 		return rv;

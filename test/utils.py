@@ -237,6 +237,13 @@ def get_ldap_support():
 LDAP_SUPPORT = get_ldap_support()
 
 
+def get_pam_support():
+    return get_build_feature("pam_support", "HAVE_PAM")
+
+
+PAM_SUPPORT = get_pam_support()
+
+
 def get_tls_support():
     return get_build_feature("tls_support", "USUAL_LIBSSL_FOR_TLS")
 

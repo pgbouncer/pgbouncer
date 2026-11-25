@@ -42,6 +42,7 @@ bool handle_close_statement_command(PgSocket *client, PktHdr *pkt, PgClosePacket
 
 void free_server_prepared_statement(PgServerPreparedStatement *server_ps);
 void unregister_prepared_statement(PgSocket *server, uint64_t query_id);
+void unregister_failed_client_prepared_statement(PgSocket *client, const char *name, uint64_t query_id);
 bool add_prepared_statement(PgSocket *server, PgServerPreparedStatement *server_ps) _MUSTCHECK;
 void free_client_prepared_statements(PgSocket *client);
 void free_server_prepared_statements(PgSocket *server);

@@ -452,6 +452,20 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		} else if (state == 'T' || state == 'E') {
 			idle_tx = true;
 		}
+
+		/*
+		 * Remember whether the transaction is in the aborted state, so that
+		 * handle_parse_command does not fake a ParseComplete for a cache hit
+		 * in an aborted transaction (which PostgreSQL would reject). The else
+		 * branch must clear it again once the transaction ends ('I') or
+		 * recovers, otherwise it would stay set after a ROLLBACK and wrongly
+		 * forward later cache-hit Parses.
+		 */
+		if (state == 'E') {
+			server->aborted_tx = true;
+		} else {
+			server->aborted_tx = false;
+		}
 		break;
 
 	case PqMsg_ParameterStatus:

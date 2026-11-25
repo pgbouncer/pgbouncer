@@ -90,11 +90,13 @@ fall back to a libc-based implementation.
 Optional features
 -----------------
 
-The PAM, LDAP and systemd features are auto-detected by meson: their `-Dpam`,
-`-Dldap` and `-Dsystemd` options default to `auto`, so each is built when its
-libraries are present.  Force one on with `-D<feature>=enabled` or off with
-`-D<feature>=disabled`.  The Autoconf build does not auto-detect them; opt in
-explicitly with `--with-pam`, `--with-ldap` or `--with-systemd`.
+The OpenSSL (TLS), PAM, LDAP and systemd features are auto-detected by meson:
+their `-Dopenssl`, `-Dpam`, `-Dldap` and `-Dsystemd` options default to `auto`,
+so each is built when its libraries are present.  Force one on with
+`-D<feature>=enabled` or off with `-D<feature>=disabled`.  The Autoconf build
+does not auto-detect PAM, LDAP or systemd; opt in explicitly with `--with-pam`,
+`--with-ldap` or `--with-systemd`.  OpenSSL is instead a hard dependency under
+Autoconf, configured unless `--without-openssl` is given.
 
 PAM authentication
 ------------------

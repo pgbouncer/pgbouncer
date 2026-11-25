@@ -85,6 +85,8 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed);
 
 void activate_client(PgSocket *client);
 
+usec_t socket_wait_time(PgSocket *sk);
+
 void change_client_state(PgSocket *client, SocketState newstate);
 void change_server_state(PgSocket *server, SocketState newstate);
 

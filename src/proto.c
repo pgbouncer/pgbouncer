@@ -346,6 +346,94 @@ bool add_welcome_parameter(PgPool *pool, const char *key, const char *val)
 	return !msg->failed;
 }
 
+/* find value of a ParameterStatus packet in welcome msg, NULL if not there */
+static const char *find_welcome_parameter(const PktBuf *msg, const char *key)
+{
+	struct MBuf data;
+	PktHdr pkt;
+	const char *k, *v;
+
+	mbuf_init_fixed_reader(&data, msg->buf, msg->write_pos);
+	while (mbuf_avail_for_read(&data) > 0) {
+		if (!get_header(&data, &pkt))
+			return NULL;
+		if (pkt.type != PqMsg_ParameterStatus)
+			continue;
+		if (!mbuf_get_string(&pkt.data, &k) || !mbuf_get_string(&pkt.data, &v))
+			return NULL;
+		if (strcmp(k, key) == 0)
+			return v;
+	}
+	return NULL;
+}
+
+/* rebuild welcome msg with new value for an existing parameter */
+static bool replace_welcome_parameter(PgPool *pool, const char *key, const char *val)
+{
+	PktBuf *old = pool->welcome_msg;
+	PktBuf *msg;
+	struct MBuf data;
+	PktHdr pkt;
+	const char *k;
+	unsigned pos = 0;
+
+	msg = pktbuf_dynamic(old->write_pos + 64);
+	if (!msg)
+		return false;
+
+	mbuf_init_fixed_reader(&data, old->buf, old->write_pos);
+	while (mbuf_avail_for_read(&data) > 0) {
+		if (!get_header(&data, &pkt))
+			goto failed;
+		if (pkt.type == PqMsg_ParameterStatus
+		    && mbuf_get_string(&pkt.data, &k) && strcmp(k, key) == 0)
+			pktbuf_write_ParameterStatus(msg, key, val);
+		else
+			pktbuf_put_bytes(msg, old->buf + pos, pkt.len);
+		pos += pkt.len;
+	}
+	if (msg->failed)
+		goto failed;
+
+	pktbuf_free(old);
+	pool->welcome_msg = msg;
+	return true;
+failed:
+	pktbuf_free(msg);
+	return false;
+}
+
+/*
+ * Refresh a parameter in an already finished welcome msg.
+ *
+ * Without this, the parameters of the first server connection would be sent
+ * to every new client until the pool gets tagged dirty.  That breaks clients
+ * that look at in_hot_standby to pick a primary (libpq target_session_attrs,
+ * pgjdbc targetServerType, Npgsql TargetSessionAttributes) after a failover
+ * or a standby promotion.
+ */
+bool update_welcome_parameter(PgPool *pool, const char *key, const char *val)
+{
+	PktBuf *msg = pool->welcome_msg;
+	const char *cur;
+
+	if (!pool->welcome_msg_ready)
+		return true;
+
+	cur = find_welcome_parameter(msg, key);
+	if (cur && strcmp(cur, val) == 0)
+		return true;
+
+	log_info("server parameter %s changed from \"%s\" to \"%s\" for user %s on db %s, updating welcome message",
+		 key, cur ? cur : "", val, pool->user_credentials->name, pool->db->name);
+
+	if (cur)
+		return replace_welcome_parameter(pool, key, val);
+
+	pktbuf_write_ParameterStatus(msg, key, val);
+	return !msg->failed;
+}
+
 /* all parameters processed */
 void finish_welcome_msg(PgSocket *server)
 {

@@ -45,6 +45,8 @@ struct AATree user_tree;
  */
 struct AATree pam_user_tree;
 
+static PgGlobalUser *find_or_add_dynamic_global_user(const char *name);
+
 /*
  * The global prepared statement cache, which deduplicates prepared statements
  * sent by the clients statements by storing every unique prepared statement
@@ -151,6 +153,7 @@ static int credentials_node_cmp(uintptr_t userptr, struct AANode *node)
 static void credentials_node_release(struct AANode *node, void *arg)
 {
 	PgCredentials *user = container_of(node, PgCredentials, tree_node);
+	free(user->scram_SaltKey);
 	slab_free(credentials_cache, user);
 }
 
@@ -557,7 +560,7 @@ PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const c
 
 		safe_strcpy(credentials->name, name, sizeof(credentials->name));
 
-		credentials->global_user = find_or_add_new_global_user(name, NULL);
+		credentials->global_user = find_or_add_dynamic_global_user(name);
 		if (!credentials->global_user) {
 			slab_free(credentials_cache, credentials);
 			return NULL;
@@ -568,6 +571,8 @@ PgCredentials *add_dynamic_credentials(PgDatabase *db, const char *name, const c
 
 	safe_strcpy(credentials->passwd, passwd, sizeof(credentials->passwd));
 	credentials->dynamic_passwd = true;
+	credentials->auth_cache_dynamic = true;
+	credentials->auth_cache_last_used = get_cached_time();
 
 	return credentials;
 }
@@ -780,6 +785,8 @@ PgPool *get_pool(PgDatabase *db, PgCredentials *user_credentials)
 
 	if (!db || !user_credentials)
 		return NULL;
+	if (user_credentials->auth_cache_dynamic)
+		user_credentials->auth_cache_last_used = get_cached_time();
 
 	list_for_each(item, &user_credentials->global_user->pool_list) {
 		pool = container_of(item, PgPool, map_head);
@@ -1031,6 +1038,18 @@ bool queue_fake_response(PgSocket *client, char request_type)
 	return res;
 }
 
+static PgGlobalUser *find_or_add_dynamic_global_user(const char *name)
+{
+	PgGlobalUser *user = find_global_user(name);
+
+	if (!user) {
+		user = add_new_global_user(name, NULL);
+		if (user)
+			user->auth_cache_dynamic = true;
+	}
+	return user;
+}
+
 /* Find an existing global user or add a new global user */
 PgGlobalUser *find_or_add_new_global_user(const char *name, const char *passwd)
 {
@@ -1038,6 +1057,8 @@ PgGlobalUser *find_or_add_new_global_user(const char *name, const char *passwd)
 
 	if (!user)
 		user = add_new_global_user(name, passwd);
+	if (user)
+		user->auth_cache_dynamic = false;
 
 	return user;
 }
@@ -1856,6 +1877,11 @@ bool evict_user_connection(PgCredentials *user_credentials)
 	return false;
 }
 
+bool server_login_retry_pending(PgPool *pool, usec_t now)
+{
+	return pool->last_connect_failed && now - pool->last_connect_time < cf_server_login_retry;
+}
+
 /*
  * Launches a new connection if possible.
  *
@@ -1870,6 +1896,7 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed)
 	PgSocket *server;
 	int server_count;
 	int max;
+	usec_t now;
 
 	log_debug("launch_new_connection: start");
 	/*
@@ -1887,13 +1914,11 @@ void launch_new_connection(PgPool *pool, bool evict_if_needed)
 	}
 
 	/* if server bounces, don't retry too fast */
-	if (pool->last_connect_failed) {
-		usec_t now = get_cached_time();
-		if (now - pool->last_connect_time < cf_server_login_retry) {
-			log_debug("launch_new_connection: last failed, not launching new connection yet, still waiting %" PRIu64 " s",
-				  (cf_server_login_retry - (now - pool->last_connect_time)) / USEC);
-			return;
-		}
+	now = get_cached_time();
+	if (server_login_retry_pending(pool, now)) {
+		log_debug("launch_new_connection: last failed, not launching new connection yet, still waiting %" PRIu64 " s",
+			  (cf_server_login_retry - (now - pool->last_connect_time)) / USEC);
+		return;
 	}
 
 	server_count = pool_server_count(pool);

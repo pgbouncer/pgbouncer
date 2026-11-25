@@ -9,12 +9,15 @@ SUBLOC = test
 DIST_SUBDIRS = ssl
 
 
-noinst_PROGRAMS = hba_test
+noinst_PROGRAMS = hba_test janitor_auth_cache_test
 hba_test_CPPFLAGS = -I../include $(LIBEVENT_CFLAGS)
 hba_test_LDADD = $(LIBEVENT_LIBS) $(TLS_LIBS)
 hba_test_CFLAGS = -O0
 hba_test_SOURCES = hba_test.c ../src/hba.c ../src/util.c
 hba_test_EMBED_LIBUSUAL = 1
+
+janitor_auth_cache_test_CPPFLAGS = -I../include -I$(USUAL_DIR) $(LIBEVENT_CFLAGS)
+janitor_auth_cache_test_SOURCES = janitor_auth_cache_test.c
 
 EXTRA_PROGRAMS = asynctest
 asynctest_CPPFLAGS = -I../include $(PG_CPPFLAGS) $(LIBEVENT_CFLAGS)
@@ -31,3 +34,4 @@ include ../lib/mk/antimake.mk
 
 check: all
 	./hba_test
+	./janitor_auth_cache_test

@@ -106,6 +106,12 @@ Tests hba parsing.  Run `make all` to build and `./hba_test` to execute.
 This test is run by `make check`.
 
 
+### `janitor_auth_cache_test`
+
+Tests auth-cache pool and cancel-queue retention in memory. It runs as part of
+`make check` or `meson test -C build janitor_auth_cache_test`.
+
+
 ### `run-conntest.sh`
 
 This is a more complex setup that continuously runs queries through PgBouncer

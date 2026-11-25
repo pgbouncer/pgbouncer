@@ -9,6 +9,7 @@ pgbouncer_SOURCES = \
 	src/dnslookup.c \
 	src/hba.c \
 	src/janitor.c \
+	src/janitor_auth_cache.h \
 	src/ldapauth.c \
 	src/loader.c \
 	src/messages.c \

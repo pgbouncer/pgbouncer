@@ -142,6 +142,52 @@ def test_server_ssl_verify(pg, bouncer_tls, cert_dir):
     bouncer_tls.psql_test(dbname="hostlistsslverify")
 
 
+def test_server_ssl_ca_file_contents_change_on_reload(
+    pg, bouncer_tls, cert_dir, tmp_path
+):
+    """
+    The server CA file is parsed once and shared by all server connections,
+    so a change to its contents (same path) is only picked up by RELOAD.
+    """
+    root = cert_dir / "TestCA1" / "ca.crt"
+    wrong_root = cert_dir / "TestCA2" / "ca.crt"
+    ca_file = tmp_path / "server_ca.crt"
+    ca_file.write_bytes(wrong_root.read_bytes())
+
+    bouncer_tls.admin("set server_tls_sslmode = 'verify-full'")
+    bouncer_tls.admin(f"set server_tls_ca_file = '{ca_file}'")
+    pg.ssl_access("all", "trust")
+    pg.configure("ssl=on")
+    pg.configure(f"ssl_ca_file='{root}'")
+    if PG_MAJOR_VERSION < 10 or WINDOWS:
+        pg.restart()
+    else:
+        pg.reload()
+
+    with (
+        bouncer_tls.log_contains(r"certificate verify failed"),
+        pytest.raises(
+            psycopg.OperationalError,
+            match="connection timeout expired",
+        ),
+    ):
+        bouncer_tls.test(connect_timeout=4)
+
+    # new contents are not used until a reload
+    ca_file.write_bytes(root.read_bytes())
+    with (
+        bouncer_tls.log_contains(r"certificate verify failed"),
+        pytest.raises(
+            psycopg.OperationalError,
+            match="connection timeout expired",
+        ),
+    ):
+        bouncer_tls.test(connect_timeout=4)
+
+    bouncer_tls.admin("reload")
+    bouncer_tls.test()
+
+
 def test_server_ssl_auth(pg, bouncer_tls, cert_dir):
     bouncer_tls.admin("set server_tls_sslmode = 'verify-full'")
     root = cert_dir / "TestCA1" / "ca.crt"

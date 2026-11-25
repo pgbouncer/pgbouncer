@@ -104,6 +104,7 @@ int cf_sbuf_len;
 int cf_sbuf_loopcnt;
 int cf_so_reuseport;
 int cf_tcp_socket_buffer;
+int cf_unix_socket_buffer;
 int cf_tcp_defer_accept;
 #if defined(TCP_DEFER_ACCEPT)
 #define DEFAULT_TCP_DEFER_ACCEPT "1"
@@ -354,6 +355,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("tcp_user_timeout", CF_INT, cf_tcp_user_timeout, 0, "0"),
 	CF_ABS("track_extra_parameters", CF_STR, cf_track_extra_parameters, CF_NO_RELOAD, ""),
 	CF_ABS("transaction_timeout", CF_TIME_USEC, cf_transaction_timeout, 0, "0"),
+	CF_ABS("unix_socket_buffer", CF_INT, cf_unix_socket_buffer, 0, "0"),
 	CF_ABS("unix_socket_dir", CF_STR, cf_unix_socket_dir, CF_NO_RELOAD, DEFAULT_UNIX_SOCKET_DIR),
 #ifndef WIN32
 	CF_ABS("unix_socket_group", CF_STR, cf_unix_socket_group, CF_NO_RELOAD, ""),

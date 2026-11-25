@@ -56,6 +56,24 @@ Windows).
 
 Default: `/tmp` (empty on Windows)
 
+### unix_socket_buffer
+
+In-kernel send and receive buffer size (`SO_SNDBUF` and `SO_RCVBUF`) of
+Unix sockets, both the ones clients connect to and the ones to the
+server.  Zero means the operating system's default.
+
+On a Unix stream socket the sender's buffer bounds how much data is in
+flight.  Some systems default it to a small size (8 KB on macOS,
+`net.local.stream.sendspace`), so a client receives a large result set
+in many small reads; a client whose event loop is busy then takes one
+loop iteration per read.  The kernel caps the value: on macOS a value
+above `kern.ipc.maxsockbuf` makes the connection fail, on Linux it is
+silently limited to `net.core.wmem_max` / `net.core.rmem_max`.
+
+The TCP counterpart is `tcp_socket_buffer`.
+
+Default: 0
+
 ### unix_socket_mode
 
 File system mode for Unix socket.

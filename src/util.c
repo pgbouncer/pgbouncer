@@ -158,6 +158,24 @@ void get_random_bytes(uint8_t *dest, int len)
 	csrandom_bytes(dest, len);
 }
 
+/* set SO_SNDBUF and SO_RCVBUF to size, unless it is 0 */
+static bool set_socket_buffer(int sock, int size, const char **errpos)
+{
+	int val;
+
+	if (!size)
+		return true;
+	val = size;
+	*errpos = "setsockopt/SO_SNDBUF";
+	if (setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &val, sizeof(val)) < 0)
+		return false;
+	val = size;
+	*errpos = "setsockopt/SO_RCVBUF";
+	if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &val, sizeof(val)) < 0)
+		return false;
+	return true;
+}
+
 /* set needed socket options */
 bool tune_socket(int sock, bool is_unix)
 {
@@ -177,8 +195,17 @@ bool tune_socket(int sock, bool is_unix)
 	/*
 	 * Following options are for network sockets
 	 */
-	if (is_unix)
+	if (is_unix) {
+		/*
+		 * In-kernel socket buffer size of a Unix socket.  On a Unix stream
+		 * socket the sender's buffer bounds how much data is in flight, and
+		 * some systems default it small (8 KB on macOS), so a client reads a
+		 * large result in many small chunks.
+		 */
+		if (!set_socket_buffer(sock, cf_unix_socket_buffer, &errpos))
+			goto fail;
 		return true;
+	}
 
 	/*
 	 * TCP Keepalive
@@ -208,18 +235,8 @@ bool tune_socket(int sock, bool is_unix)
 	/*
 	 * set in-kernel socket buffer size
 	 */
-	if (cf_tcp_socket_buffer) {
-		val = cf_tcp_socket_buffer;
-		errpos = "setsockopt/SO_SNDBUF";
-		res = setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &val, sizeof(val));
-		if (res < 0)
-			goto fail;
-		val = cf_tcp_socket_buffer;
-		errpos = "setsockopt/SO_RCVBUF";
-		res = setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &val, sizeof(val));
-		if (res < 0)
-			goto fail;
-	}
+	if (!set_socket_buffer(sock, cf_tcp_socket_buffer, &errpos))
+		goto fail;
 
 	/*
 	 * Turn off kernel buffering, each send() will be one packet.

@@ -31,11 +31,12 @@ async def bouncer_tls(pg, tmp_path):
         pg, tmp_path / "bouncer", base_ini_path=TEST_DIR / "ssl" / "test.ini"
     )
 
-    await bouncer_tls.start()
+    try:
+        await bouncer_tls.start()
 
-    yield bouncer_tls
-
-    await bouncer_tls.cleanup()
+        yield bouncer_tls
+    finally:
+        await bouncer_tls.cleanup()
 
 
 def test_server_ssl(pg, bouncer_tls, cert_dir):

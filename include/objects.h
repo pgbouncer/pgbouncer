@@ -44,6 +44,7 @@ PgDatabase *find_peer(int peer_id);
 PgDatabase *find_database(const char *name);
 PgDatabase *find_or_register_database(PgSocket *connection, const char *name);
 PgGlobalUser *find_global_user(const char *name);
+void free_global_user_if_unused(PgGlobalUser *user);
 PgCredentials *find_global_credentials(const char *name);
 PgPool *get_pool(PgDatabase *db, PgCredentials *user_credentials);
 PgPool *get_peer_pool(PgDatabase *);

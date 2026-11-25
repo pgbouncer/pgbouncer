@@ -157,7 +157,7 @@ int tls_get_ocsp_info(struct tls *ctx, int *response_status, int *cert_status,
 
 static OCSP_CERTID *tls_ocsp_get_certid(X509 *main_cert, STACK_OF(X509) *extra_certs, SSL_CTX *ssl_ctx)
 {
-	X509_NAME *issuer_name;
+	const X509_NAME *issuer_name;
 	X509 *issuer;
 	X509_STORE_CTX *storectx = NULL;
 	X509_OBJECT *tmpobj;

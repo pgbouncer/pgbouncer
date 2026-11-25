@@ -485,7 +485,6 @@ def test_track_extra_parameters(bouncer):
 
     test_set = {
         "intervalstyle": ["sql_standard", "postgres"],
-        "standard_conforming_strings": ["ON", "OFF"],
         "timezone": ["'Europe/Amsterdam'", "'Europe/Rome'"],
         "datestyle": ["PostgreSQL,European", "ISO,US"],
         "application_name": ["client1", "client2"],
@@ -493,7 +492,6 @@ def test_track_extra_parameters(bouncer):
 
     test_expected = {
         "intervalstyle": ["sql_standard", "postgres"],
-        "standard_conforming_strings": ["on", "off"],
         "timezone": ["Europe/Amsterdam", "Europe/Rome"],
         "datestyle": ["Postgres, DMY", "ISO, MDY"],
         "application_name": ["client1", "client2"],
@@ -502,6 +500,11 @@ def test_track_extra_parameters(bouncer):
     if not WINDOWS:
         test_set["client_encoding"] = ["LATIN1", "LATIN5"]
         test_expected["client_encoding"] = ["LATIN1", "LATIN5"]
+
+    # standard_conforming_strings was removed in server version 19
+    if PG_MAJOR_VERSION <= 18:
+        test_set["standard_conforming_strings"] = ["ON", "OFF"]
+        test_expected["standard_conforming_strings"] = ["on", "off"]
 
     # default_transaction-read_only was not marked as GUC_REPORT until server version 14
     if PG_MAJOR_VERSION >= 14:

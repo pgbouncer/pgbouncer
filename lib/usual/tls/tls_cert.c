@@ -119,7 +119,7 @@ failed:
 	return -1;
 }
 
-static int tls_parse_asn1string(struct tls *ctx, ASN1_STRING *a1str, const char **dst_p, int minchars, int maxchars, const char *desc)
+static int tls_parse_asn1string(struct tls *ctx, const ASN1_STRING *a1str, const char **dst_p, int minchars, int maxchars, const char *desc)
 {
 	int format, len, ret = -1;
 	const unsigned char *data;
@@ -214,11 +214,11 @@ failed:
 	return ret;
 }
 
-static int tls_cert_get_dname_string(struct tls *ctx, X509_NAME *name, int nid, const char **str_p, int minchars, int maxchars, const char *desc)
+static int tls_cert_get_dname_string(struct tls *ctx, const X509_NAME *name, int nid, const char **str_p, int minchars, int maxchars, const char *desc)
 {
 	int loc, len;
-	X509_NAME_ENTRY *ne;
-	ASN1_STRING *a1str;
+	const X509_NAME_ENTRY *ne;
+	const ASN1_STRING *a1str;
 
 	*str_p = NULL;
 
@@ -352,7 +352,7 @@ out:
 	return rv;
 }
 
-static int tls_get_dname(struct tls *ctx, X509_NAME *name, struct tls_cert_dname *dname)
+static int tls_get_dname(struct tls *ctx, const X509_NAME *name, struct tls_cert_dname *dname)
 {
 	int ret;
 	ret = tls_cert_get_dname_string(ctx, name, NID_commonName, &dname->common_name,
@@ -555,7 +555,7 @@ static void check_verify_error(struct tls *ctx, struct tls_cert *cert)
 int tls_parse_cert(struct tls *ctx, struct tls_cert **cert_p, const char *fingerprint_algo, X509 *x509)
 {
 	struct tls_cert *cert = NULL;
-	X509_NAME *subject, *issuer;
+	const X509_NAME *subject, *issuer;
 	int ret = -1;
 	long version;
 

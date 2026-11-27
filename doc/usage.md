@@ -65,7 +65,7 @@ Basic setup and usage is as follows.
         [pgbouncer]
         listen_port = 6432
         listen_addr = localhost
-        auth_type = md5
+        auth_type = scram-sha-256
         auth_file = userlist.txt
         logfile = pgbouncer.log
         pidfile = pgbouncer.pid

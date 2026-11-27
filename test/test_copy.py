@@ -1,3 +1,5 @@
+import socket
+import struct
 import time
 
 import pytest
@@ -316,3 +318,122 @@ def test_copy_stdout_prepared(bouncer):
         assert conn.pgconn.get_result() is None
         assert conn.pgconn.get_result().status == pq.ExecStatus.PIPELINE_SYNC
         conn.pgconn.exit_pipeline_mode()
+
+
+class _RawCopyClient:
+    """Minimal raw v3 protocol client, used to send CopyData/CopyDone/CopyFail
+    before reading CopyInResponse (the way pgx does). libpq refuses to send
+    copy data in that order."""
+
+    def __init__(self, host, port, dbname, user="postgres"):
+        self.sock = socket.create_connection((host, port), timeout=10)
+        self.buf = b""
+        self.error = None
+        payload = (
+            b"user\x00" + user.encode() + b"\x00"
+            b"database\x00" + dbname.encode() + b"\x00\x00"
+        )
+        self.sock.sendall(
+            struct.pack("!i", len(payload) + 8) + struct.pack("!i", 196608) + payload
+        )
+        self.wait_ready()
+
+    def _recv_msg(self):
+        while len(self.buf) < 5:
+            self.buf += self.sock.recv(65536)
+        typ = self.buf[0:1]
+        length = struct.unpack("!i", self.buf[1:5])[0]
+        while len(self.buf) < length + 1:
+            self.buf += self.sock.recv(65536)
+        payload = self.buf[5 : length + 1]
+        self.buf = self.buf[length + 1 :]
+        return typ, payload
+
+    def wait_ready(self):
+        while True:
+            typ, payload = self._recv_msg()
+            if typ == b"E":
+                self.error = payload
+            elif typ == b"Z":
+                return
+
+    @staticmethod
+    def _msg(typ, payload):
+        return typ + struct.pack("!i", len(payload) + 4) + payload
+
+    def copy_from_stdin(self, table, data):
+        # Query, CopyData and CopyDone in a single write, without waiting for
+        # CopyInResponse (pgx v5 CopyFrom does the same).
+        self.sock.sendall(
+            self._msg(b"Q", b"COPY " + table + b" FROM STDIN\x00")
+            + self._msg(b"d", data)
+            + self._msg(b"c", b"")
+        )
+        self.wait_ready()
+
+    def copy_fail(self, table, message):
+        # CopyFail before CopyInResponse, same race as above.
+        self.sock.sendall(
+            self._msg(b"Q", b"COPY " + table + b" FROM STDIN\x00")
+            + self._msg(b"f", message + b"\x00")
+        )
+        self.wait_ready()
+
+    def close(self):
+        try:
+            self.sock.close()
+        except OSError:
+            pass
+
+
+def test_copy_stdin_copy_done_before_copy_in_response(bouncer):
+    """A CopyDone that arrives before CopyInResponse must not pin the server.
+
+    pgx v5 CopyFrom sends Query, CopyData and CopyDone back-to-back without
+    waiting for CopyInResponse. PgBouncer then processes CopyDone before
+    setting client->copy_mode from CopyInResponse, and the flag would never
+    be cleared, keeping the server linked to the client until it disconnects.
+    """
+    bouncer.admin("set default_pool_size=1")
+    bouncer.admin("set query_wait_timeout=5")
+
+    client = _RawCopyClient("127.0.0.1", bouncer.port, "p3x")
+    try:
+        client.copy_from_stdin(b"test_copy(i)", b"1\n")
+        assert client.error is None
+
+        # If the server is still linked to the raw client, this second
+        # connection has to wait for it and hits query_wait_timeout.
+        bouncer.sql("SELECT 1", dbname="p3x")
+    finally:
+        client.close()
+
+
+def test_copy_stdin_copy_fail_before_copy_in_response(bouncer):
+    """A CopyFail that arrives before CopyInResponse must not pin the server."""
+    bouncer.admin("set default_pool_size=1")
+    bouncer.admin("set query_wait_timeout=5")
+
+    client = _RawCopyClient("127.0.0.1", bouncer.port, "p3x")
+    try:
+        client.copy_fail(b"test_copy(i)", b"client aborted")
+        assert client.error is not None
+
+        bouncer.sql("SELECT 1", dbname="p3x")
+    finally:
+        client.close()
+
+
+def test_copy_stdin_server_error_with_copy_done_before_copy_in_response(bouncer):
+    """A server-side COPY error after an early CopyDone must not pin the server."""
+    bouncer.admin("set default_pool_size=1")
+    bouncer.admin("set query_wait_timeout=5")
+
+    client = _RawCopyClient("127.0.0.1", bouncer.port, "p3x")
+    try:
+        client.copy_from_stdin(b"test_copy(i)", b"not-an-int\n")
+        assert client.error is not None
+
+        bouncer.sql("SELECT 1", dbname="p3x")
+    finally:
+        client.close()

@@ -1224,6 +1224,8 @@ bool release_server(PgSocket *server)
 	case SV_ACTIVE:
 		if (server->link) {
 			server->link->copy_mode = false;
+			server->link->copy_error = false;
+			server->link->copy_ended_early = 0;
 			server->link->link = NULL;
 			server->link = NULL;
 		}

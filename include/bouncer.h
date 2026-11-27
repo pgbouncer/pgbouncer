@@ -713,6 +713,8 @@ struct PgSocket {
 	bool resetting : 1;		/* server: executing reset query from auth login; don't release on flush */
 	bool copy_mode : 1;		/* server: in copy stream, ignores Sync packets until CopyDone/CopyFail;
 					   client: in copy-in stream, expecting CopyData/CopyDone/CopyFail */
+	bool copy_error : 1;		/* client: the server sent ErrorResponse for this link, so a
+					   CopyDone/CopyFail that follows is too late to be tracked */
 
 	bool wait_for_welcome : 1;	/* client: no server yet in pool, cannot send welcome msg */
 	bool startup_message_received : 1;	/* client: the StartupMessage has been processed, so all
@@ -734,6 +736,9 @@ struct PgSocket {
 	/* server: received an ErrorResponse, waiting for ReadyForQuery to clear
 	 * the outstanding requests until the next Sync */
 	bool query_failed : 1;
+
+	int copy_ended_early;		/* client: CopyDone/CopyFail packets received before the
+					   matching CopyInResponse, not yet consumed by it */
 
 	ReplicationType replication;	/* If this is a replication connection */
 	char *startup_options;	/* only tracked for replication connections */

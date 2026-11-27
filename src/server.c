@@ -487,7 +487,7 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 		}
 
 		/* ErrorResponse and CommandComplete show end of copy mode */
-		if (server->copy_mode) {
+		if (server->copy_mode || (client && client->copy_ended_early > 0)) {
 			slog_debug(server, "COPY failed");
 			server->copy_mode = false;
 
@@ -512,7 +512,18 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 			 */
 			if (!clear_outstanding_requests_until(server, (char[]) {PqMsg_CopyDone, PqMsg_CopyFail, '\0'}))
 				return false;
+
+			if (client)
+				client->copy_ended_early = 0;
 		}
+
+		/*
+		 * Any further CopyDone/CopyFail on this link is late: the server
+		 * has already answered this command and will send no additional
+		 * response that could clear such an outstanding request.
+		 */
+		if (client)
+			client->copy_error = true;
 
 		server->query_failed = true;
 		break;
@@ -572,8 +583,20 @@ static bool handle_server_work(PgSocket *server, PktHdr *pkt)
 	case PqMsg_CopyBothResponse:
 		slog_debug(server, "COPY started");
 		server->copy_mode = true;
-		if (client)
-			client->copy_mode = true;
+		if (client) {
+			/*
+			 * If the client already sent CopyDone/CopyFail, it
+			 * pipelined the whole copy stream and the copy has
+			 * already ended. Do not mark the client as being in
+			 * copy mode; nothing would clear that mark afterwards,
+			 * so the link would be held after ReadyForQuery until
+			 * the client disconnects.
+			 */
+			if (client->copy_ended_early > 0)
+				client->copy_ended_early--;
+			else
+				client->copy_mode = true;
+		}
 		break;
 	case PqMsg_CopyOutResponse:
 		break;

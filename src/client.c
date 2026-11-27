@@ -1469,6 +1469,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 			return false;
 		}
 		track_outstanding = true;
+		client->copy_error = false;
 		break;
 	case PqMsg_FunctionCall:
 		track_outstanding = true;
@@ -1490,15 +1491,32 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 			sbuf_prepare_skip(sbuf, pkt->len);
 			return true;
 		}
-		/*
-		 * Only track as outstanding if the server is still in copy
-		 * mode.  When the server already sent ErrorResponse (clearing
-		 * server->copy_mode), the CopyDone just feeds PostgreSQL's
-		 * pq_endcopyin drain loop — no CommandComplete will follow,
-		 * so we must not create a phantom outstanding request.
-		 */
-		if (client->link->copy_mode)
+		if (client->link->copy_mode) {
+			/*
+			 * Normal case: the server is in copy mode and will send
+			 * a response that clears this request.
+			 */
 			track_outstanding = true;
+		} else if (!client->copy_error) {
+			/*
+			 * The client sent CopyDone/CopyFail before the server's
+			 * CopyInResponse reached us. Remember it, so that the
+			 * CopyInResponse does not mark the client as being in
+			 * copy mode: the copy has already ended, and nothing
+			 * would clear that mark afterwards. Keep it in the
+			 * outstanding queue too, so that the response to this
+			 * COPY does not clear requests the client pipelined
+			 * after it.
+			 */
+			client->copy_ended_early++;
+			track_outstanding = true;
+		}
+		/*
+		 * When the server already sent ErrorResponse, the CopyDone just
+		 * feeds PostgreSQL's pq_endcopyin drain loop.  No CommandComplete
+		 * or other response will follow, so tracking it would create a
+		 * phantom outstanding request that prevents server release.
+		 */
 		client->copy_mode = false;
 		break;
 
@@ -1508,6 +1526,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 	 */
 	case PqMsg_Parse:
 		track_outstanding = true;
+		client->copy_error = false;
 		if (is_prepared_statements_enabled(client)) {
 			ps_action = inspect_parse_packet(client, pkt);
 			pkt_rewind_v3(pkt);
@@ -1516,6 +1535,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 
 	case PqMsg_Execute:
 		track_outstanding = true;
+		client->copy_error = false;
 		break;
 
 	case PqMsg_Close:
@@ -1528,6 +1548,7 @@ static bool handle_client_work(PgSocket *client, PktHdr *pkt)
 
 	case PqMsg_Bind:
 		track_outstanding = true;
+		client->copy_error = false;
 		if (is_prepared_statements_enabled(client)) {
 			ps_action = inspect_bind_packet(client, pkt);
 			pkt_rewind_v3(pkt);

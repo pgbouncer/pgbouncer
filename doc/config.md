@@ -485,10 +485,13 @@ cert
     The user name is then taken from the CommonName field from the certificate.
 
 md5
-:   Use MD5-based password check.  This is the default authentication
-    method.  `auth_file` may contain both MD5-encrypted and plain-text
+:   Use MD5-based password check.
+    `auth_file` may contain both MD5-encrypted and plain-text
     passwords.  If `md5` is configured and a user has a SCRAM secret,
     then SCRAM authentication is used automatically instead.
+
+    Support for MD5-encrypted passwords is deprecated and will be
+    removed in a future release of PgBouncer.
 
 scram-sha-256
 :   Use password check with SCRAM-SHA-256.  `auth_file` has to contain
@@ -521,6 +524,8 @@ pam
 :   PAM is used to authenticate users, `auth_file` is ignored. This method is not
     compatible with databases using the `auth_user` option. The service name reported to
     PAM is "pgbouncer". `pam` is not supported in the HBA configuration file.
+
+Default: `scram-sha-256`
 
 ### auth_hba_file
 
@@ -1649,6 +1654,9 @@ PostgreSQL MD5-hashed password format:
 So user `admin` with password `1234` will have MD5-hashed password
 `md545f2603610af569b6155c45067268c6b`.
 
+Support for MD5-hashed passwords is deprecated and will be removed in
+a future release of PgBouncer.
+
 PostgreSQL SCRAM secret format:
 
     SCRAM-SHA-256$<iterations>:<salt>$<storedkey>:<serverkey>
@@ -1759,7 +1767,7 @@ Small example configuration:
     pool_mode = session
     listen_port = 6432
     listen_addr = localhost
-    auth_type = md5
+    auth_type = scram-sha-256
     auth_file = users.txt
     logfile = pgbouncer.log
     pidfile = pgbouncer.pid

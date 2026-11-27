@@ -265,7 +265,7 @@ static const struct CfKey bouncer_params [] = {
 	CF_ABS("auth_ident_file", CF_STR, cf_auth_ident_file, 0, NULL),
 	CF_ABS("auth_ldap_options", CF_STR, cf_auth_ldap_options, 0, NULL),
 	CF_ABS("auth_query", CF_STR, cf_auth_query, 0, "SELECT rolname, CASE WHEN rolvaliduntil < now() THEN NULL ELSE rolpassword END FROM pg_authid WHERE rolname=$1 AND rolcanlogin"),
-	CF_ABS("auth_type", CF_LOOKUP(auth_type_map), cf_auth_type, 0, "md5"),
+	CF_ABS("auth_type", CF_LOOKUP(auth_type_map), cf_auth_type, 0, "scram-sha-256"),
 	CF_ABS("auth_user", CF_STR, cf_auth_user, 0, NULL),
 	CF_ABS("autodb_idle_timeout", CF_TIME_USEC, cf_autodb_idle_timeout, 0, "3600"),
 	CF_ABS("cancel_wait_timeout", CF_TIME_USEC, cf_cancel_wait_timeout, 0, "10"),
